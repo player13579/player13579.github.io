@@ -66,7 +66,6 @@ const els = {
   tabletJoystick: $("#tabletJoystick"),
   tabletJoystickKnob: $("#tabletJoystickKnob"),
   tabletQuickActions: $("#tabletQuickActions"),
-  tabletAimShortcut: $("#tabletAimShortcut"),
   tabletNinjutsuShortcut: $("#tabletNinjutsuShortcut"),
   tabletAbilityShortcut: $("#tabletAbilityShortcut"),
   tabletShootShortcut: $("#tabletShootShortcut"),
@@ -156,7 +155,6 @@ const els = {
   objectiveText: $("#objectiveText"),
   sabotageAlert: $("#sabotageAlert"),
   taskButton: $("#taskButton"),
-  aimButton: $("#aimButton"),
   ninjutsuButton: $("#ninjutsuButton"),
   shootButton: $("#shootButton"),
   weaponButton: $("#weaponButton"),
@@ -415,7 +413,6 @@ const state = {
   teleportBorrowed: false,
   teleportTargetId: "",
   instantWarpTargeting: false,
-  attackTargeting: false,
   cameraViewIndex: -1,
   dashHeld: false,
   slowWalkHeld: false,
@@ -439,6 +436,8 @@ const state = {
   hackerCategoryId: "generate-supply",
   hackerDockVisible: false,
   hackerGenerationInFlight: false,
+  hackerCooldownWakeTimer: 0,
+  hackerCooldownWakeAt: 0,
   activeScrollRegion: null,
   keyboardContext: "",
   keyboardElement: null,
@@ -860,6 +859,29 @@ async function runAlchemyGeneration(recipeId, targetId = "") {
   return ok;
 }
 
+function clearHackerCooldownWake() {
+  if (state.hackerCooldownWakeTimer) window.clearTimeout(state.hackerCooldownWakeTimer);
+  state.hackerCooldownWakeTimer = 0;
+  state.hackerCooldownWakeAt = 0;
+}
+
+function scheduleHackerCooldownWake(data = state.data) {
+  const readyAt = Number(data?.self?.vibeCodingReadyAt) || 0;
+  const liveNow = estimatedServerNow(data);
+  if (!readyAt || readyAt <= liveNow) {
+    clearHackerCooldownWake();
+    return;
+  }
+  if (state.hackerCooldownWakeTimer && state.hackerCooldownWakeAt === readyAt) return;
+  clearHackerCooldownWake();
+  state.hackerCooldownWakeAt = readyAt;
+  state.hackerCooldownWakeTimer = window.setTimeout(() => {
+    state.hackerCooldownWakeTimer = 0;
+    state.hackerCooldownWakeAt = 0;
+    renderHackerAbilityDock(state.data, true);
+  }, Math.max(40, readyAt - liveNow + 60));
+}
+
 async function executeHackerRecipe(recipeId) {
   const data = state.data;
   const self = data?.self;
@@ -884,7 +906,10 @@ async function executeHackerRecipe(recipeId) {
     return await runAlchemyGeneration(recipe.id, targetId);
   } finally {
     state.hackerGenerationInFlight = false;
-    window.setTimeout(() => button?.classList.remove("executing"), 260);
+    button?.classList.remove("executing");
+    renderHackerAbilityDock(state.data, true);
+    scheduleHackerCooldownWake(state.data);
+    window.setTimeout(() => renderHackerAbilityDock(state.data, true), 260);
   }
 }
 
@@ -958,6 +983,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
     !isActionBlocked(data) &&
     (Number(self.abilityDisabledUntil) || 0) <= liveNow;
   const vibeCodingReady = (Number(self.vibeCodingReadyAt) || 0) <= liveNow;
+  scheduleHackerCooldownWake(data);
   els.hackerAbilityGrid.querySelectorAll("[data-hacker-recipe]").forEach((button) => {
     const recipe = alchemyRecipes.find((entry) => entry.id === button.dataset.hackerRecipe);
     const targetRequired = recipe?.id?.startsWith("hack-");
@@ -1856,7 +1882,6 @@ function drawTacticsMeeting(ctx, w, h, time, duration) {
 const actionHotkeys = {
   Digit3: "emergencyButton",
   Digit4: "smartphoneRepair",
-  Digit5: "aimButton",
   Digit6: "ninjutsuButton",
   Digit7: "shootButton",
   Digit8: "dodgeButton",
@@ -1881,7 +1906,6 @@ const actionHotkeys = {
 };
 
 const CHARACTER_ACTION_BY_API = Object.freeze({
-  "/api/aim": "focus",
   "/api/kill": "attack",
   "/api/ninjutsu": "attack",
   "/api/shoot": "shoot",
@@ -1976,8 +2000,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-warp": "cast",
   "action-drone": "interact",
   "action-drone-altitude": "interact",
-  "action-aim": "focus",
-  "action-auto-aim": "focus",
+  "action-ninjutsu-focus": "focus",
   "action-shoot": "shoot",
   "action-sustained-fire": "shoot",
   "action-sniper-scope": "focus",
@@ -3219,7 +3242,6 @@ function bindEvents() {
   els.tabletBranchCloseButton.addEventListener("click", () => setTabletBranchGroup(""));
   els.tabletBranchBackButton.addEventListener("click", () => setTabletBranchPath(""));
   els.tabletBranchList.addEventListener("scroll", renderTabletBranchLines, { passive: true });
-  els.tabletAimShortcut.addEventListener("click", () => els.aimButton.click());
   els.tabletNinjutsuShortcut.addEventListener("click", () => els.ninjutsuButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
@@ -3297,7 +3319,6 @@ function bindEvents() {
   els.mapActionButton.addEventListener("click", () => toggleExpandedMapFromAction());
   els.mapCloseButton.addEventListener("click", () => setExpandedMapOpen(false));
   els.taskButton.addEventListener("click", () => api("/api/task", { taskId: nearestTask()?.id || "nearest" }));
-  els.aimButton.addEventListener("click", performAim);
   els.ninjutsuButton.addEventListener("click", performNinjutsu);
   const bindGunTriggerButton = (button) => {
     button.addEventListener("pointerdown", (event) => {
@@ -3743,9 +3764,19 @@ function bindEvents() {
     if (event.button !== 0) clearMovementInput();
   });
   window.addEventListener("contextmenu", (event) => {
-    if (event.target instanceof Element && event.target.closest(".game-area")) {
+    if (event.target instanceof Element && event.target.closest(".game-area, .tablet-quick-actions, .tablet-branch-tray")) {
       event.preventDefault();
       clearMovementInput();
+    }
+  });
+  document.addEventListener("selectstart", (event) => {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray")) {
+      event.preventDefault();
+    }
+  });
+  document.addEventListener("dragstart", (event) => {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray")) {
+      event.preventDefault();
     }
   });
   document.addEventListener("visibilitychange", () => {
@@ -4511,9 +4542,6 @@ function renderTabletBranch(data, force = false) {
 
 function renderTabletControls(data) {
   if (!data?.self) return;
-  els.tabletAimShortcut.textContent = els.aimButton.textContent || "エイム";
-  els.tabletAimShortcut.disabled = els.aimButton.disabled || els.aimButton.hidden;
-  els.tabletAimShortcut.hidden = els.aimButton.hidden;
   els.tabletNinjutsuShortcut.textContent = els.ninjutsuButton.textContent || "忍殺";
   els.tabletNinjutsuShortcut.disabled = els.ninjutsuButton.disabled || els.ninjutsuButton.hidden;
   els.tabletNinjutsuShortcut.hidden = els.ninjutsuButton.hidden;
@@ -5391,29 +5419,6 @@ function formatAnalyticsDuration(rawSeconds) {
   return `${seconds}秒`;
 }
 
-async function performAim() {
-  const data = state.data;
-  if (!data) return;
-  if (data.self.autoAimTargetId || data.self.aimTargetId) {
-    await api("/api/aim", { cancel: true });
-    return;
-  }
-  const self = selfPlayer();
-  const target = data.players
-    .filter((player) => player.id !== data.selfId && canSelectCombatTarget(data.self, player) && player.alive && !player.ejected && !player.inVent)
-    .map((player) => ({ ...player, dist: dist(self, player) }))
-    .filter((player) => player.dist <= 900)
-    .sort((a, b) => a.dist - b.dist)[0];
-  if (!target) {
-    showToast("エイムできる距離に対象がいません。");
-    return;
-  }
-  state.attackTargeting = false;
-  syncAimButtons();
-  const ok = await api("/api/aim", { targetId: target.id });
-  if (ok) showToast(`${target.name}のオート追尾を開始しました。もう一度押すと解除します。`);
-}
-
 async function performNinjutsu() {
   const target = nearestTarget();
   const fighterSlash = hasDisplayedOperatorAccess(state.data.self, "fighter");
@@ -5426,8 +5431,6 @@ async function performNinjutsu() {
     showToast("忍殺できる距離に対象がいません。");
     return;
   }
-  state.attackTargeting = false;
-  syncAimButtons();
   const ok = await api(fighterSlash ? "/api/fighter-slash" : "/api/ninjutsu", { targetId: target.id });
   if (ok) {
     showToast(fighterSlash
@@ -5437,8 +5440,7 @@ async function performNinjutsu() {
 }
 
 async function attackFromCanvas(event) {
-  if (!state.data) return;
-  if (event.button !== 0) return;
+  if (!state.data || event.button !== 0) return;
   if (pointerHitsSmartphoneRepair(event)) {
     event.preventDefault();
     void triggerSmartphoneRepair();
@@ -5447,46 +5449,7 @@ async function attackFromCanvas(event) {
   if (pointerHitsMinimap(event)) {
     event.preventDefault();
     openExpandedMapFromMinimap();
-    return;
   }
-  if (!state.attackTargeting) return;
-  event.preventDefault();
-  const data = state.data;
-  const rect = els.canvas.getBoundingClientRect();
-  const worldZoom = worldZoomFor(data);
-  const camera = cameraFor(data, els.canvas.width, els.canvas.height, worldZoom);
-  const canvasX = (event.clientX - rect.left) * (els.canvas.width / rect.width);
-  const canvasY = (event.clientY - rect.top) * (els.canvas.height / rect.height);
-  const worldX = camera.x + canvasX / worldZoom;
-  const worldY = camera.y + canvasY / worldZoom;
-  const self = selfPlayer();
-  const target = data.players
-    .filter((player) => player.id !== data.selfId && canSelectCombatTarget(data.self, player) && player.alive && !player.ejected && !player.inVent)
-    .map(renderedPlayer)
-    .filter((player) => self && dist(self, player) <= 900)
-    .filter((player) => Math.abs(worldX - player.x) <= 46 && worldY >= player.y - 72 && worldY <= player.y + 34)
-    .sort((a, b) => Math.hypot(worldX - a.x, worldY - (a.y - 18)) - Math.hypot(worldX - b.x, worldY - (b.y - 18)))[0];
-  if (!target) {
-    showToast("射程内の対象をクリックしてください。");
-    return;
-  }
-  state.attackTargeting = false;
-  syncAimButtons();
-  const ok = await api("/api/aim", { targetId: target.id });
-  if (ok) showToast(`${target.name}のオート追尾を開始しました。`);
-}
-
-function clearAimSelection() {
-  state.attackTargeting = false;
-  syncAimButtons();
-}
-
-function syncAimButtons(data = state.data) {
-  if (!els.aimButton) return;
-  const self = data?.self;
-  const tracking = Boolean(self?.autoAimTargetId || self?.aimTargetId);
-  els.aimButton.classList.toggle("active", tracking);
-  els.aimButton.textContent = tracking ? "エイム解除" : "エイム追尾";
 }
 
 async function beginGunFire() {
@@ -5513,6 +5476,8 @@ async function endGunFire() {
   els.shootButton.classList.remove("active");
   const pending = state.gunFireStartPromise;
   state.gunFireStartPromise = null;
+  state.hackerGenerationInFlight = false;
+  clearHackerCooldownWake();
   if (pending) await pending;
   if (state.roomId && state.playerId) await api("/api/shoot", { action: "stop" });
 }
@@ -5524,16 +5489,6 @@ async function pulseGunFire() {
 
 function gunnerDirection() {
   const data = state.data;
-  if (data?.self.autoAimTargetId) {
-    const player = selfPlayer();
-    const target = data.players?.find((candidate) => candidate.id === data.self.autoAimTargetId && candidate.alive && !candidate.ejected && !candidate.inVent);
-    const origin = player ? renderedPlayer(player) : null;
-    const renderedTarget = target ? renderedPlayer(target) : null;
-    const dx = origin && renderedTarget ? renderedTarget.x - origin.x : 0;
-    const dy = origin && renderedTarget ? renderedTarget.y - origin.y : 0;
-    const distance = Math.hypot(dx, dy);
-    if (distance > 0.01) return { dx: dx / distance, dy: dy / distance };
-  }
   if (data?.self.drone?.active) {
     const player = selfPlayer();
     const origin = player ? renderedPlayer(player) : null;
@@ -5662,7 +5617,6 @@ function resetLocalSession() {
   state.teleportTargeting = false;
   state.teleportBorrowed = false;
   state.instantWarpTargeting = false;
-  clearAimSelection();
   state.cameraViewIndex = -1;
   state.renderDrone = null;
   state.operatorRenderKey = "";
@@ -5760,9 +5714,6 @@ function applyState(data, options = {}) {
     state.cameraViewIndex = -1;
   }
   if (state.cameraViewIndex >= 0 && !currentCamera(data)) state.cameraViewIndex = -1;
-  if (state.attackTargeting && (data.phase !== "playing" || data.self.role !== "attacker" || !data.self.alive || data.self.ejected)) {
-    clearAimSelection();
-  }
   if (data.self.drone?.active) {
     const drone = data.self.drone;
     if (!state.renderDrone) state.renderDrone = { x: drone.x, y: drone.y, targetX: drone.x, targetY: drone.y };
@@ -7000,7 +6951,7 @@ function collectOperatorPassiveEffects(self, liveNow) {
   }
 
   if (self.special === "fighter" && self.limitBreakActive) {
-    add("リミットブレイク", "発動中", "desire", "HP1固定 / 超加速 / エイムなし確殺 / 即死回避無効 / マナ継続消費");
+    add("リミットブレイク", "発動中", "desire", "HP1固定 / 超加速 / 忍殺確殺 / 即死回避無効 / マナ継続消費");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -7080,7 +7031,6 @@ function renderActiveEffects(data) {
       `移動速度 ${Math.round(multiplier * 100)}% / 直近HP -${Number(self.lastGravityStormDamage || 0).toFixed(2)}`
     );
   }
-  if (self.autoAimTargetId) add("エイム追尾", "追尾中", "truth", "選択した一人へ照準方向を自動追尾する");
   const borrowedOperatorAccess = (type) => hasDisplayedOperatorAccess(self, type);
   if (self.weakBulletLoaded) add("ウィークバレット", itemBlocked ? "EMP遮断" : "装填済み", itemBlocked ? "desire" : "truth", itemBlocked ? "ストレージ復旧まで使用できない" : "次に命中した対象の踏ん張りをすべて削除する");
   if (self.gravityTimeMode) timed(
@@ -7425,7 +7375,6 @@ function updateActionButtons(data) {
   if (state.actionLayoutKey !== actionLayoutKey) {
     state.actionLayoutKey = actionLayoutKey;
     els.emergencyButton.hidden = false;
-    els.aimButton.hidden = !canUseKill;
     els.ninjutsuButton.hidden = !canUseKill;
     els.dodgeButton.hidden = self.role !== "defender";
     els.teleportButton.hidden = true;
@@ -7468,8 +7417,6 @@ function updateActionButtons(data) {
     els.contextActionButton.dataset.context = "";
     els.contextActionButton.removeAttribute("data-hotkey");
   }
-  els.aimButton.textContent = self.autoAimTargetId || self.aimTargetId ? "エイム解除" : "エイム追尾";
-  els.aimButton.disabled = !canActAlive;
   const killSeconds = Math.max(0, Math.ceil(((self.killReadyAt || 0) - liveNow) / 1000));
   els.ninjutsuButton.textContent = fighterAccess
     ? "斬る"
@@ -7482,7 +7429,6 @@ function updateActionButtons(data) {
   els.ninjutsuButton.disabled = fighterAccess
     ? !slashReady
     : !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
-  syncAimButtons(data);
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   els.substitutionStatusButton.textContent = itemBlocked ? `変わり身 ×${self.substitutionCharges || 0}（EMP遮断）` : `変わり身 ×${self.substitutionCharges || 0}（自動）`;
@@ -7503,7 +7449,6 @@ function updateActionButtons(data) {
   const gunSeconds = Math.max(0, ((Number(self.gunReadyAt) || 0) - liveNow) / 1000);
   const gunAmmoReady = Number(gunnerWeapon.ammo) >= Number(gunnerWeapon.ammoPerShot || 1);
   const firingWeapon = gunnerWeapons.find((weapon) => weapon.id === self.gunFiringWeapon) || gunnerWeapon;
-  const unlockSeconds = Math.max(0, ((Number(self.gunnerUnlockedAt) || 0) - liveNow) / 1000);
   const reloadSeconds = Math.max(0, ((Number(self.gunnerReloadUntil) || 0) - liveNow) / 1000);
   const shootLabel = self.drone?.active ? "ドローン射撃" : "射撃";
   els.weaponButton.dataset.weapon = gunnerWeapon.id;
@@ -7516,8 +7461,6 @@ function updateActionButtons(data) {
   els.weaponButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess);
   if (self.gunFiring) {
     els.shootButton.textContent = `${firingWeapon.shortName || firingWeapon.name} 持続射撃中`;
-  } else if (unlockSeconds > 0) {
-    els.shootButton.textContent = `安全装置 ${unlockSeconds.toFixed(1)}秒`;
   } else if (reloadSeconds > 0) {
     els.shootButton.textContent = `リロード ${reloadSeconds.toFixed(1)}秒`;
   } else if (!gunAmmoReady) {
@@ -7530,7 +7473,7 @@ function updateActionButtons(data) {
   els.shootButton.classList.toggle("active", Boolean(self.gunFiring || state.gunTriggerHeld));
   els.shootButton.disabled = self.gunFiring || state.gunTriggerHeld
     ? false
-    : !(canUseAbility && !itemBlocked && gunnerAccess && gunAmmoReady && gunSeconds <= 0 && unlockSeconds <= 0 && reloadSeconds <= 0);
+    : !(canUseAbility && !itemBlocked && gunnerAccess && gunAmmoReady && gunSeconds <= 0 && reloadSeconds <= 0);
   els.gunnerReloadButton.textContent = reloadSeconds > 0 ? `リロード ${reloadSeconds.toFixed(1)}秒` : "リロード";
   els.gunnerReloadButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess && Number(gunnerWeapon.ammo) < Number(gunnerWeapon.maxAmmo) && reloadSeconds <= 0);
   const dodgeSeconds = Math.max(0, Math.ceil(((self.dodgeReadyAt || 0) - liveNow) / 1000));
@@ -10042,7 +9985,7 @@ function drawBodies(data) {
 
 function drawGunnerAim(data) {
   const gunnerAccess = hasDisplayedOperatorAccess(data.self, "gunner") || (data.self.purchasedWeapons || []).length > 0;
-  const aimingNow = Boolean(data.self.gunFiring || state.gunTriggerHeld || data.self.autoAimTargetId);
+  const aimingNow = Boolean(data.self.gunFiring || state.gunTriggerHeld);
   if (data.phase !== "playing" || !gunnerAccess || !aimingNow || !data.self.alive || data.self.ejected) return;
   const self = renderedPlayer(selfPlayer());
   const direction = gunnerDirection();
@@ -10640,7 +10583,6 @@ function drawTransferGeneratedEffect(effect, progress, sprite, defaultSize) {
 }
 
 const TACTICAL_SYSTEM_EFFECT_CELLS = {
-  "action-auto-aim": 0,
   "action-smartphone": 1,
   "action-smartphone-repair": 1,
   "pair-route-violation": 2,
@@ -10756,7 +10698,7 @@ const ACTION_EFFECT_CELLS = {
   "action-heart-teleport": 4,
   "action-warp": 5,
   "action-drone": 6,
-  "action-aim": 7,
+  "action-ninjutsu-focus": 7,
   "action-shoot": 7,
   "action-reason": 7,
   "action-push": 7,
@@ -11529,14 +11471,14 @@ function drawDrones(data) {
 }
 
 function drawAttackTargets(data) {
-  if (!state.attackTargeting && !data.self.aimTargetId) return;
+  if (!data.self.aimTargetId) return;
   const self = selfPlayer();
   data.players
     .filter((player) => player.id !== data.selfId && canSelectCombatTarget(data.self, player) && player.alive && !player.inVent && self && dist(self, player) <= data.settings.killRange)
     .map(renderedPlayer)
     .forEach((player) => {
       const selected = player.id === data.self.aimTargetId;
-      if (!state.attackTargeting && !selected) return;
+      if (!selected) return;
       ctx.save();
       ctx.strokeStyle = selected ? "#22d3ee" : "#ef4444";
       ctx.lineWidth = selected ? 5 : 3;
@@ -11667,6 +11609,7 @@ function drawHuman(player, data) {
   drawPersistentIdeaState(player, data, ascensionProgress);
   drawHackerRootState(player);
   if (drawPlayerSprite(player, data, ghost, characterAction)) {
+    drawPreparationBarrierAte(player);
     drawLuminousFeathers(player);
     drawAttackerAllyMarker(player);
     drawPersistentStatusAteLayers(player, data);
@@ -11719,11 +11662,32 @@ function drawHuman(player, data) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(identityLabel, 0, -32);
+  drawPreparationBarrierAte(player);
   drawLuminousFeathers(player);
   drawAttackerAllyMarker(player);
   drawPersistentStatusAteLayers(player, data);
   ctx.restore();
 
+}
+
+function drawPreparationBarrierAte(player) {
+  if (!player.preparationBarrierActive || !player.alive || player.ejected) return;
+  const prepared = transparentSpriteSource(state.textures.preparationBarrierEffect, "preparation-barrier-ate-v392", 12);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "preparation-barrier-ate-v392", 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  const time = Math.floor(((state.frameNow || performance.now()) / 1000) * 60) / 60;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= 0.9;
+  drawAnimatedTextureCentered(sprite, 0, -8, 116, 132, {
+    mode: "shield",
+    time,
+    phase: (player.id?.length || 0) * 0.17,
+    intensity: 0.9,
+    baseAlpha: 0.14,
+    opacityBoost: 3
+  });
+  ctx.restore();
 }
 
 function drawHackerRootState(player) {
@@ -13157,7 +13121,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "item-throw-operator-ate-v391";
+const version = "preparation-barrier-no-auto-aim-v392";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -13256,6 +13220,7 @@ const version = "item-throw-operator-ate-v391";
   const alchemyExcaliburEffect = new Image();
   const accelerationPhaseEffect = new Image();
   const statusLevitationEffect = new Image();
+  const preparationBarrierEffect = new Image();
   const statusHpReductionEffect = new Image();
   const vibeCodingEffect = new Image();
   const gunnerHoverSprintEffect = new Image();
@@ -13339,6 +13304,7 @@ const version = "item-throw-operator-ate-v391";
   defer(alchemyExcaliburEffect, "assets/generated/alchemy-excalibur.webp");
   defer(accelerationPhaseEffect, "assets/generated/status-marker-acceleration-v376.png");
   defer(statusLevitationEffect, "assets/generated/status-levitation-v375.png");
+  defer(preparationBarrierEffect, "assets/generated/status-preparation-barrier-ate-v392.png");
   defer(statusHpReductionEffect, "assets/generated/status-hp-reduction-v375.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
   defer(gunnerHoverSprintEffect, "assets/generated/gunner-hover-sprint-v311.png");
@@ -13427,6 +13393,7 @@ const version = "item-throw-operator-ate-v391";
     alchemyExcaliburEffect,
     accelerationPhaseEffect,
     statusLevitationEffect,
+    preparationBarrierEffect,
     statusHpReductionEffect,
     vibeCodingEffect,
     gunnerHoverSprintEffect,

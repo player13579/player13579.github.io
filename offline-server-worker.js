@@ -6607,7 +6607,6 @@ const QUICK_ATTACK_LETHAL_CHANCE = 0.45;
 const NINJUTSU_DURATION_MS = 1800;
 const AIM_HOLD_MS = 5000;
 const AIM_TARGET_MOVE_TOLERANCE = 4;
-const AUTO_AIM_RANGE = 900;
 const KILL_CONTRIBUTION = 1;
 const ACCELERATE_SPEED_MULTIPLIER = 2.5;
 const LUMINOUS_SPEED_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.66;
@@ -6623,7 +6622,7 @@ const TASK_STAMINA_REQUIREMENT = 100;
 const AUTO_TASK_INTERVAL_MS = 2_500;
 const AUTO_TASK_PRESENCE_MS = 900;
 const HACKER_AUTO_TASK_INTERVAL_MS = 12_000;
-const GUNNER_UNLOCK_DELAY_MS = 5_000;
+const PREPARATION_PHASE_MS = 5_000;
 const GUNNER_RELOAD_MS = 2_200;
 const DEFAULT_GUNNER_WEAPON = "assault";
 const GUNNER_WEAPON_ORDER = ["handgun", "smg", "assault", "sniper", "taser"];
@@ -6912,7 +6911,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを発動・解除し、HP1固定・超加速・エイムなし確殺を得る代わりに、マナを継続消費して即死回避を失う。"
+      details: "斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを発動・解除し、HP1固定・超加速・忍殺確殺を得る代わりに、マナを継続消費して即死回避を失う。"
     },
     {
       id: "defender-teleport",
@@ -6954,7 +6953,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARを初期装備し、5種の銃器、ホバースプリント、武装強化を扱う。",
-      details: "開始5秒後からHG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。ウィークバレットは1MPで踏ん張りを除去する。ホバースプリントは1MPで8秒間加速し障害物を無視する。武装強化は理知中に常在するパッシブで、RPGかミサイルのいずれか一つを獲得する。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。ウィークバレットは1MPで踏ん張りを除去する。ホバースプリントは1MPで8秒間加速し障害物を無視する。武装強化は理知中に常在するパッシブで、RPGかミサイルのいずれか一つを獲得する。"
     },
     {
       id: "attacker-alchemist",
@@ -8308,6 +8307,7 @@ function createRoom(id) {
     sounds: [],
     meeting: null,
     battleStartedAt: 0,
+    preparationEndsAt: 0,
     operatorSelectEndsAt: 0,
     operatorTurnOrder: [],
     operatorTurnIndex: 0,
@@ -8606,7 +8606,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     aimExpiresAt: 0,
     aimTargetX: 0,
     aimTargetY: 0,
-    autoAimTargetId: "",
     lastAttackResult: "",
     lastAttackResultAt: 0,
     gunReadyAt: 0,
@@ -8616,7 +8615,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunFiringWeapon: "",
     gunFiringSince: 0,
     gunScopeReadyAt: 0,
-    gunnerUnlockedAt: 0,
     gunnerReloadUntil: 0,
     weakBulletLoaded: false,
     hoverSprintUntil: 0,
@@ -9008,7 +9006,6 @@ function startGame(room) {
     player.gunFiringWeapon = "";
     player.gunFiringSince = 0;
     player.gunScopeReadyAt = 0;
-    player.gunnerUnlockedAt = timestamp + GUNNER_UNLOCK_DELAY_MS;
     player.gunnerReloadUntil = 0;
     player.weakBulletLoaded = false;
     player.hoverSprintUntil = 0;
@@ -9068,7 +9065,6 @@ function startGame(room) {
     player.goodActive = false;
     player.ascensionStartedAt = 0;
     player.ascensionUntil = 0;
-    player.autoAimTargetId = "";
     player.gravityMode = "transfer";
     player.gravityTargetId = "";
     player.gravityTimeMode = "";
@@ -9168,6 +9164,7 @@ function startGame(room) {
   room.sounds = [];
   room.meeting = null;
   room.battleStartedAt = 0;
+  room.preparationEndsAt = 0;
   room.operatorSelectEndsAt = 0;
   room.operatorTurnOrder = [
     room.hostId,
@@ -9307,7 +9304,6 @@ function startBattle(room) {
     player.gunFiringWeapon = "";
     player.gunFiringSince = 0;
     player.gunScopeReadyAt = 0;
-    player.gunnerUnlockedAt = timestamp + GUNNER_UNLOCK_DELAY_MS;
     player.sabotageReadyAt = player.role === "attacker" && player.alive && !player.ejected
       ? timestamp + SABOTAGE_COOLDOWN_MS
       : 0;
@@ -9382,6 +9378,7 @@ function startBattle(room) {
   room.phase = "playing";
   room.round = 1;
   room.battleStartedAt = timestamp;
+  room.preparationEndsAt = timestamp + PREPARATION_PHASE_MS;
   room.resolvePoint = createResolvePoint(room);
   room.operatorSelectEndsAt = 0;
   room.operatorTurnOrder = [];
@@ -10186,6 +10183,7 @@ function moveBotToward(room, bot, target) {
 
 function advancePairRouteRule(room, timestamp) {
   if (room.phase !== "playing") return;
+  if (preparationBarrierActive(room, timestamp)) return;
   const active = [...room.players.values()].filter((player) => player.alive && !player.ejected && !player.inVent);
   for (const player of active) {
     const speed = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0);
@@ -10439,11 +10437,8 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   mover.vx = dx;
   mover.vy = dy;
   if (!controllingDrone) {
-    if (player.autoAimTargetId) updateAutoAim(room, player);
-    else {
-      player.aimX = dx;
-      player.aimY = dy;
-    }
+    player.aimX = dx;
+    player.aimY = dy;
   } else {
     player.vx = 0;
     player.vy = 0;
@@ -10837,8 +10832,6 @@ function tickRoom(room) {
     finishRenki(room, player, timestamp);
     ensureGunnerArmamentPassive(room, player, timestamp);
     advanceHackerInventionPassive(room, player, timestamp);
-    updateAutoAim(room, player);
-    advanceAutoPursuit(room, player, elapsedMs);
     advanceParticleCannon(room, player, timestamp);
     resolveSmartphoneAction(room, player, timestamp);
     advanceGunnerFire(room, player, timestamp);
@@ -11359,6 +11352,7 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
     zone.lastPulseAt = timestamp;
     for (const target of room.players.values()) {
       if (!target.alive || target.ejected || target.inVent || distance(zone, target) > zone.radius) continue;
+      if (absorbPreparationBarrier(room, target, timestamp, owner || null)) continue;
       const safeDistance = Math.hypot(target.x - Number(zone.safeX), target.y - Number(zone.safeY));
       if (safeDistance <= Number(zone.safeRadius || GRAVITY_STORM_SAFE_RADIUS)) continue;
 
@@ -11709,6 +11703,7 @@ function transferOwnedResource(room, player, targetId, itemId, rawAmount, credit
 function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp) {
   if (!killer || !target || killer.id === target.id) return false;
   if (killer.role !== target.role || !["defender", "attacker"].includes(killer.role) || !killer.alive || killer.ejected) return false;
+  if (absorbPreparationBarrier(room, killer, timestamp, target)) return false;
   killer.alive = false;
   killer.bodyHits = 0;
   killer.overheal = 0;
@@ -11763,6 +11758,26 @@ function hackerEmpOpeningProtected(room, target, timestamp = now()) {
   return protectedUntil > 0 && timestamp < protectedUntil;
 }
 
+function preparationBarrierActive(room, timestamp = now()) {
+  return room?.phase === "playing" && Number(room.preparationEndsAt) > timestamp;
+}
+
+function preparationBarrierProtects(room, target, timestamp = now()) {
+  return Boolean(target?.alive && !target.ejected && preparationBarrierActive(room, timestamp));
+}
+
+function absorbPreparationBarrier(room, target, timestamp = now(), source = null) {
+  if (!preparationBarrierProtects(room, target, timestamp)) return false;
+  pushMagicEffect(room, "preparation-barrier-hit", target, {
+    radius: 110,
+    playerId: target.id,
+    targetId: source?.id || "",
+    durationMs: 650
+  });
+  setImmediateFeedback(target, "準備バリア", "攻撃を無効化");
+  return true;
+}
+
 function applyEmpDisruption(room, target, timestamp = now()) {
   if (!target?.alive || target.ejected) return 0;
   target.itemDisabledUntil = Math.max(Number(target.itemDisabledUntil) || 0, timestamp + EMP_ITEM_LOCK_MS);
@@ -11781,6 +11796,7 @@ function applyEmpDisruption(room, target, timestamp = now()) {
 
 function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP共振") {
   if (!target?.alive || target.ejected) return false;
+  if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (source?.role === target.role && ["defender", "attacker"].includes(source.role) && source.id !== target.id) {
     applyEmpDisruption(room, source, timestamp);
     pushEvent(room, `${source.name} の味方EMPが反射され、発動者のアイテムストレージを遮断しました。${target.name} は無傷です。`);
@@ -11823,6 +11839,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
 
 function applyEmpBodyDamage(room, source, target, timestamp) {
   if (!target?.alive || target.ejected) return "none";
+  if (absorbPreparationBarrier(room, target, timestamp, source)) return "preparationBarrier";
   if (source?.role === target.role && ["defender", "attacker"].includes(source.role) && source.id !== target.id) {
     applyEmpDisruption(room, source, timestamp);
     pushEvent(room, `${source.name} の味方EMPが反射され、発動者のアイテムストレージを遮断しました。${target.name} は無傷です。`);
@@ -11858,6 +11875,7 @@ function resolveStandardEmp(room, pulse, timestamp) {
   }
   for (const target of room.players.values()) {
     if (target.id !== player.id && target.alive && !target.ejected && distance(pulse, target) <= EMP_RANGE) {
+      if (absorbPreparationBarrier(room, target, timestamp, player)) continue;
       if (player.role === target.role && ["defender", "attacker"].includes(player.role)) {
         itemLocks += applyEmpDisruption(room, player, timestamp);
         friendlyReflections += 1;
@@ -12342,7 +12360,6 @@ function purchaseFirearm(player, weaponId) {
   player.gunnerAmmo ||= createGunnerAmmo();
   player.gunnerAmmo[weaponId] = weapon.maxAmmo;
   player.gunnerWeapon = weaponId;
-  player.gunnerUnlockedAt = now();
 }
 
 function grantStandFirmCharge(player, enforceLimit = true) {
@@ -12364,6 +12381,7 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
   const chargeCount = Math.max(0, Math.floor(Number(removedCharges) || 0));
   const damage = Math.round(chargeCount * PUSH_BACKLASH_DAMAGE_PER_CHARGE * 100) / 100;
   if (!damage || !player?.alive || player.ejected) return false;
+  if (absorbPreparationBarrier(room, player, timestamp)) return false;
   if (player.overheal > 0) {
     player.overheal -= 1;
     pushHitEffect(room, player, "body", false);
@@ -12457,6 +12475,7 @@ function clearPoison(room, player, source = "解毒") {
 
 function applyPersistentStatus(room, source, target, kind, strength = 1, timestamp = now()) {
   if (!target?.alive || target.ejected) return false;
+  if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
     applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
     return false;
@@ -12546,6 +12565,7 @@ function applyBottleShardSplash(room, player, itemId, center, level = 0) {
   let hits = 0;
   for (const target of room.players.values()) {
     if (!target.alive || target.ejected || distance(center, target) > radius || Math.random() >= BOTTLE_SHARD_HIT_CHANCE) continue;
+    if (absorbPreparationBarrier(room, target, now(), player)) continue;
     const damage = BOTTLE_SHARD_MIN_DAMAGE + Math.random() * (BOTTLE_SHARD_MAX_DAMAGE - BOTTLE_SHARD_MIN_DAMAGE);
     if (Number(target.overheal) > 0) {
       target.overheal = Math.max(0, Number(target.overheal) - 1);
@@ -12612,6 +12632,7 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius) {
     .filter((candidate) => candidate.alive && !candidate.ejected && distance(landing, candidate) <= radius)
     .sort((a, b) => distance(landing, a) - distance(landing, b))[0];
   if (!target) return false;
+  if (absorbPreparationBarrier(room, target, now(), source)) return false;
   if (source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
     applyDefenderFriendlyFirePenalty(room, source, target, now());
     return false;
@@ -12839,6 +12860,7 @@ function advanceHazards(room, timestamp = now()) {
     for (const [field, kind, baseDamage] of [["poisonStatus", "毒", POISON_DAMAGE_PER_TICK], ["burnStatus", "燃焼", BURN_DAMAGE_PER_TICK]]) {
       const status = target[field];
       if (!status || !target.alive || target.ejected || Number(status.nextTickAt) > timestamp) continue;
+      if (absorbPreparationBarrier(room, target, timestamp, room.players.get(status.sourceId) || null)) continue;
       const source = room.players.get(status.sourceId) || null;
       status.nextTickAt = timestamp + HAZARD_TICK_MS;
       const damage = baseDamage * Math.max(0.25, Number(status.strength) || 1);
@@ -12942,7 +12964,7 @@ function floraSunbeam(room, player, converged = false, targetId = "", direction 
   }
   ensureAbilityAvailable(player);
   spendOperatorMana(room, player, "サンビーム");
-  const trackedCandidate = room.players.get(player.autoAimTargetId || (converged ? targetId : ""));
+  const trackedCandidate = room.players.get(converged ? targetId : "");
   const tracked = trackedCandidate &&
     trackedCandidate.id !== player.id &&
     trackedCandidate.alive &&
@@ -13037,7 +13059,7 @@ function activateLimitBreak(room, player) {
   player.overheal = 0;
   awardAbilityContribution(player, 1);
   pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id });
-  pushEvent(room, `${player.name} がリミットブレイクを発動しました。HP1 / 超加速 / エイムなし確殺 / 即死回避無効。`);
+  pushEvent(room, `${player.name} がリミットブレイクを発動しました。HP1 / 超加速 / 忍殺確殺 / 即死回避無効。`);
   touch(room);
 }
 
@@ -13253,6 +13275,7 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
 
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
+  if (absorbPreparationBarrier(room, target, now(), source)) return false;
   if (source?.role === target.role && ["defender", "attacker"].includes(source?.role) && source.id !== target.id) {
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, now());
     return false;
@@ -13467,61 +13490,8 @@ function startNinjutsu(room, player, targetId) {
   player.aimExpiresAt = player.aimReadyAt + AIM_HOLD_MS;
   player.aimTargetX = target.x;
   player.aimTargetY = target.y;
-  pushMagicEffect(room, "action-aim", player, { radius: 115, playerId: player.id, targetId: target.id });
+  pushMagicEffect(room, "action-ninjutsu-focus", player, { radius: 115, playerId: player.id, targetId: target.id });
   touch(room);
-}
-
-function toggleAutoAim(room, player, targetId) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はエイムを使用できません。");
-  }
-  ensureConscious(player);
-  if (player.autoAimTargetId || player.aimTargetId) {
-    player.autoAimTargetId = "";
-    clearAimState(player);
-    pushEvent(room, `${player.name} がオート追尾を解除しました。`);
-    touch(room);
-    return;
-  }
-  const target = targetId ? room.players.get(targetId) : [...room.players.values()]
-    .filter((candidate) => candidate.id !== player.id && candidate.alive && !candidate.ejected && !candidate.inVent)
-    .sort((a, b) => distance(player, a) - distance(player, b))[0];
-  if (!target || target.id === player.id || !target.alive || target.ejected || distance(player, target) > AUTO_AIM_RANGE) {
-    throw new ApiError(404, "追尾可能な対象がいません。");
-  }
-  player.autoAimTargetId = target.id;
-  pushMagicEffect(room, "action-auto-aim", player, { radius: 100, playerId: player.id, targetId: target.id });
-  pushEvent(room, `${player.name} が ${target.name} をオート追尾しています。`);
-  touch(room);
-}
-
-function updateAutoAim(room, player) {
-  if (!player.autoAimTargetId) return;
-  const target = room.players.get(player.autoAimTargetId);
-  if (!target || !target.alive || target.ejected || target.inVent || distance(player, target) > AUTO_AIM_RANGE) {
-    player.autoAimTargetId = "";
-    return;
-  }
-  const dx = target.x - player.x;
-  const dy = target.y - player.y;
-  const length = Math.hypot(dx, dy) || 1;
-  player.aimX = dx / length;
-  player.aimY = dy / length;
-}
-
-function advanceAutoPursuit(room, player, elapsedMs) {
-  if (!player.autoAimTargetId || !player.alive || player.ejected || player.inVent || actionBlockedUntil(player) > now()) return;
-  const target = room.players.get(player.autoAimTargetId);
-  if (!target?.alive || target.ejected || target.inVent) return;
-  const dx = target.x - player.x;
-  const dy = target.y - player.y;
-  const length = Math.hypot(dx, dy) || 1;
-  if (length <= Math.max(64, room.settings.killRange * 0.72)) {
-    player.vx = 0;
-    player.vy = 0;
-    return;
-  }
-  movePlayer(room, player, dx / length, dy / length, Math.max(0.016, elapsedMs / 1000), true, false);
 }
 
 function queueQuickAttack(room, player, targetId) {
@@ -13551,7 +13521,7 @@ function failAimForMovement(room, player, timestamp = now()) {
   touch(room);
 }
 
-function performAimedAttack(room, player, targetId) {
+function performNinjutsuAttack(room, player, targetId) {
   const timestamp = now();
   if (!player.aimTargetId || player.aimTargetId !== targetId) throw new ApiError(400, "この対象へ忍殺準備をしていません。");
   if (player.aimReadyAt > timestamp) {
@@ -13637,6 +13607,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   if (!target || (!explicitTarget && target.role !== expectedTargetRole) || !target.alive || target.ejected) {
     throw new ApiError(404, "キル対象がいません。");
   }
+  if (absorbPreparationBarrier(room, target, timestamp, killer)) return "preparationBarrier";
   if (!ranged && !lockedAim && !ignoreRange && distance(killer, target) > room.settings.killRange) throw new ApiError(400, "対象が遠すぎます。");
   if (killer.role === target.role && ["defender", "attacker"].includes(killer.role)) {
     if (!ranged && !ignoreCooldown && !preserveCooldown) {
@@ -14024,17 +13995,12 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
   const timestamp = now();
   const weapon = gunnerWeaponFor(shooter);
   if (!shooter.gunnerAmmo || typeof shooter.gunnerAmmo !== "object") shooter.gunnerAmmo = createGunnerAmmo();
-  if (timestamp < (Number(shooter.gunnerUnlockedAt) || 0)) {
-    throw new ApiError(400, `銃器安全装置の解除まで${Math.ceil((shooter.gunnerUnlockedAt - timestamp) / 1000)}秒です。`);
-  }
   if ((Number(shooter.gunnerReloadUntil) || 0) > timestamp) throw new ApiError(400, "リロード中です。");
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) throw new ApiError(400, `${weapon.name}の弾薬が不足しています。`);
-  const trackedTarget = shooter.autoAimTargetId ? room.players.get(shooter.autoAimTargetId) : null;
-  const autoTracked = Boolean(trackedTarget?.alive && !trackedTarget.ejected && !trackedTarget.inVent && distance(shooter, trackedTarget) <= AUTO_AIM_RANGE);
-  const droneGuided = Boolean(!autoTracked && shooter.drone?.active);
-  let dx = autoTracked ? trackedTarget.x - shooter.x : droneGuided ? shooter.drone.x - shooter.x : clampNumber(rawDx, -1, 1, shooter.aimX || 0);
-  let dy = autoTracked ? trackedTarget.y - shooter.y : droneGuided ? shooter.drone.y - shooter.y : clampNumber(rawDy, -1, 1, shooter.aimY || 1);
+  const droneGuided = Boolean(shooter.drone?.active);
+  let dx = droneGuided ? shooter.drone.x - shooter.x : clampNumber(rawDx, -1, 1, shooter.aimX || 0);
+  let dy = droneGuided ? shooter.drone.y - shooter.y : clampNumber(rawDy, -1, 1, shooter.aimY || 1);
   const length = Math.hypot(dx, dy) || 1;
   if (droneGuided && length < 24) throw new ApiError(400, "ドローンを狙撃方向へ先行させてください。");
   dx /= length;
@@ -14121,7 +14087,7 @@ function useGunnerHeavyWeapon(room, player) {
     }
     pushMagicEffect(room, "gunner-rpg", player, { radius: 300, playerId: player.id });
   } else if (weapon === "missile") {
-    const target = room.players.get(player.autoAimTargetId) || targets.sort((a, b) => distance(player, a) - distance(player, b))[0];
+    const target = targets.sort((a, b) => distance(player, a) - distance(player, b))[0];
     if (target) {
       try {
         killPlayer(room, player, target.id, {
@@ -14909,6 +14875,7 @@ function serialize(room, viewer, options = {}) {
       operatorReady: roleVisible ? player.operatorReady : false,
       alive: player.alive,
       ejected: player.ejected,
+      preparationBarrierActive: preparationBarrierProtects(room, player, timestamp),
       chatMuted: player.id === viewer.id ? player.chatMuted : false,
       x: Math.round(player.x),
       y: Math.round(player.y),
@@ -14955,6 +14922,8 @@ function serialize(room, viewer, options = {}) {
     phase: room.phase,
     round: room.round,
     battleStartedAt: room.battleStartedAt,
+    preparationEndsAt: Number(room.preparationEndsAt) || 0,
+    preparationActive: preparationBarrierActive(room, timestamp),
     hostId: room.hostId,
     settings: room.settings,
     operatorSelectSecondsLeft: room.phase === "selecting"
@@ -15002,6 +14971,7 @@ function serialize(room, viewer, options = {}) {
       operatorReady: viewer.operatorReady,
       alive: viewer.alive,
       ejected: viewer.ejected,
+      preparationBarrierActive: preparationBarrierProtects(room, viewer, timestamp),
       chatMuted: viewer.chatMuted,
       tasks: viewer.taskList,
       taskAutoReadyAt: Number(viewer.taskAutoReadyAt) || 0,
@@ -15012,7 +14982,6 @@ function serialize(room, viewer, options = {}) {
       attackTargetId: viewer.attackTargetId,
       attackResolveAt: viewer.attackResolveAt,
       aimTargetId: viewer.aimTargetId,
-      autoAimTargetId: viewer.autoAimTargetId || "",
       aimStartedAt: viewer.aimStartedAt,
       aimReadyAt: viewer.aimReadyAt,
       aimExpiresAt: viewer.aimExpiresAt,
@@ -15032,7 +15001,6 @@ function serialize(room, viewer, options = {}) {
       gunFiringWeapon: viewer.gunFiringWeapon || "",
       gunFiringSince: Number(viewer.gunFiringSince) || 0,
       gunScopeReadyAt: Number(viewer.gunScopeReadyAt) || 0,
-      gunnerUnlockedAt: Number(viewer.gunnerUnlockedAt) || 0,
       gunnerReloadUntil: Number(viewer.gunnerReloadUntil) || 0,
       weakBulletLoaded: Boolean(viewer.weakBulletLoaded),
       hoverSprintUntil: Number(viewer.hoverSprintUntil) || 0,
@@ -15615,13 +15583,6 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/aim": {
-      const { room, player } = requireRoomPlayer(body);
-      toggleAutoAim(room, player, String(body.targetId || ""));
-      payload = serialize(room, player);
-      break;
-    }
-
     case "/api/ninjutsu": {
       const { room, player } = requireRoomPlayer(body);
       startNinjutsu(room, player, String(body.targetId || ""));
@@ -15922,6 +15883,7 @@ async function handleApi(req, res) {
       room.sounds = [];
       room.meeting = null;
       room.battleStartedAt = 0;
+      room.preparationEndsAt = 0;
       room.operatorSelectEndsAt = 0;
       room.operatorTurnOrder = [];
       room.operatorTurnIndex = 0;
@@ -16735,7 +16697,7 @@ function runPlayingBots(room) {
         try {
           const aimed = bot.aimTargetId ? room.players.get(bot.aimTargetId) : null;
           if (aimed && aimed.alive && !aimed.ejected && distance(bot, aimed) <= room.settings.killRange) {
-            if (bot.aimReadyAt <= timestamp && bot.aimExpiresAt > timestamp) performAimedAttack(room, bot, aimed.id);
+            if (bot.aimReadyAt <= timestamp && bot.aimExpiresAt > timestamp) performNinjutsuAttack(room, bot, aimed.id);
           } else if (
             Math.hypot(Number(target.vx) || 0, Number(target.vy) || 0) <= 0.05 &&
             Math.random() < 0.2
@@ -16871,5 +16833,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "item-throw-operator-ate-v391" });
+self.postMessage({ type: "ready", version: "preparation-barrier-no-auto-aim-v392" });
 })();

@@ -5925,6 +5925,16 @@ body #tabletPanel::after {
   grid-template-columns: repeat(4, minmax(66px, 94px));
   gap: 9px;
   pointer-events: auto;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.tablet-branch-tray,
+.tablet-branch-tray * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .tablet-quick-action {
@@ -5938,7 +5948,11 @@ body #tabletPanel::after {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 7px 22px rgba(2, 34, 56, 0.36);
   font-weight: 900;
   font-size: 12px;
-  touch-action: manipulation;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
 }
 
