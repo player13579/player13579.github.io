@@ -6618,7 +6618,7 @@ const AUTO_REPORT_POST_KILL_GRACE_MS = 4_000;
 const PAIR_ROUTE_RADIUS = 82;
 const PAIR_ROUTE_GRACE_MS = 5_000;
 const PAIR_ROUTE_DAMAGE_INTERVAL_MS = 3_000;
-const TASK_STAMINA_REQUIREMENT = 100;
+const TASK_STAMINA_REQUIREMENT = 200;
 const AUTO_TASK_INTERVAL_MS = 2_500;
 const AUTO_TASK_PRESENCE_MS = 1800;
 const HACKER_AUTO_TASK_INTERVAL_MS = 12_000;
@@ -6662,7 +6662,7 @@ const MAX_STAMINA = 100;
 const MAX_STORED_STAMINA = 500;
 const REMOTE_REPAIR_STAMINA_COST = 300;
 const SLEEP_REGEN_MULTIPLIER = 4;
-const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.72;
+const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
 const DASH_MULTIPLIER = 1.75;
 const DASH_DRAIN_PER_SECOND = 42;
 const WALK_DRAIN_PER_SECOND = 9;
@@ -11416,18 +11416,22 @@ function toggleGravityTime(room, player, mode, targetId) {
   touch(room);
 }
 
-function useGravityStorm(room, player) {
+function useGravityStorm(room, player, targetId = "") {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "gravity") || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在はグラビティストームを使用できません。");
   }
   ensureAbilityAvailable(player);
   spendOperatorMana(room, player, "グラビティストーム");
-  const dx = Number(player.aimX) || 0;
-  const dy = Number(player.aimY) || 1;
+  const requestedTargetId = String(targetId || player.id);
+  const target = room.players.get(requestedTargetId);
+  if (!target || !target.alive || target.ejected || target.inVent) {
+    throw new ApiError(404, "グラビティストームの対象がいません。");
+  }
   const zone = {
     id: uid("gravity_"), ownerId: player.id,
-    x: clampNumber(player.x + dx * 250, 0, getMap(room).width, player.x),
-    y: clampNumber(player.y + dy * 250, 0, getMap(room).height, player.y),
+    targetId: target.id,
+    x: clampNumber(target.x, 0, getMap(room).width, target.x),
+    y: clampNumber(target.y, 0, getMap(room).height, target.y),
     radius: GRAVITY_STORM_RANGE,
     safeRadius: GRAVITY_STORM_SAFE_RADIUS,
     safeX: player.x,
@@ -11440,7 +11444,7 @@ function useGravityStorm(room, player) {
   pushMagicEffect(room, "gravity-storm", zone, { radius: zone.radius, playerId: player.id, variant: "debris-dent" });
   pushSound(room, "gravityStorm", zone, { ownerId: player.id, sourceKind: "magic", maxDistance: 2600, volume: 1 });
   awardAbilityContribution(player, 1);
-  pushEvent(room, `${player.name} が前方区画にグラビティストームを生成しました。`);
+  pushEvent(room, `${player.name} が ${target.name} の周囲にグラビティストームを生成しました。`);
   touch(room);
 }
 
@@ -12658,9 +12662,7 @@ function addHazardField(room, source, kind, x, y, radius, strength = 1, duration
 function safeThrowPoint(room, player, holdMs = 0) {
   const map = getMap(room);
   const enhanceDistance = Math.min(ITEM_THROW_MAX_DISTANCE, ITEM_THROW_BASE_DISTANCE + Math.max(0, Number(holdMs) || 0) * ITEM_THROW_DISTANCE_PER_MS);
-  const length = Math.hypot(Number(player.aimX) || 0, Number(player.aimY) || 0) || 1;
-  const dx = (Number(player.aimX) || 0) / length;
-  const dy = (Number(player.aimY) || 1) / length;
+  const { dx, dy } = finiteDirection(player.aimX, player.aimY, 0, 1);
   for (let ratio = 1; ratio >= 0.15; ratio -= 0.05) {
     const x = clampNumber(player.x + dx * enhanceDistance * ratio, map.playerRadius, map.width - map.playerRadius, player.x);
     const y = clampNumber(player.y + dy * enhanceDistance * ratio, map.playerRadius, map.height - map.playerRadius, player.y);
@@ -14033,8 +14035,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
     variant: weapon.id
   });
 
-  const dx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
-  const dy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
+  const { dx, dy } = finiteDirection(shooter.aimX, shooter.aimY, 0, 1);
   const targetEntry = findGunnerTarget(room, shooter, weapon, dx, dy);
   const endPoint = targetEntry?.player || shotEndPoint(room, shooter, dx, dy, weapon.range);
   pushMagicEffect(room, "action-shoot", shooter, {
@@ -14107,8 +14108,10 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) throw new ApiError(400, `${weapon.name}の弾薬が不足しています。`);
   const droneGuided = Boolean(shooter.drone?.active);
-  let dx = droneGuided ? shooter.drone.x - shooter.x : clampNumber(rawDx, -1, 1, shooter.aimX || 0);
-  let dy = droneGuided ? shooter.drone.y - shooter.y : clampNumber(rawDy, -1, 1, shooter.aimY || 1);
+  const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
+  const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
+  let dx = droneGuided ? shooter.drone.x - shooter.x : clampNumber(rawDx, -1, 1, fallbackDx);
+  let dy = droneGuided ? shooter.drone.y - shooter.y : clampNumber(rawDy, -1, 1, fallbackDy);
   const length = Math.hypot(dx, dy) || 1;
   if (droneGuided && length < 24) throw new ApiError(400, "ドローンを狙撃方向へ先行させてください。");
   dx /= length;
@@ -15813,7 +15816,7 @@ async function handleApi(req, res) {
 
     case "/api/gravity-storm": {
       const { room, player } = requireRoomPlayer(body);
-      useGravityStorm(room, player);
+      useGravityStorm(room, player, String(body.targetId || player.id));
       payload = serialize(room, player);
       break;
     }
@@ -16947,5 +16950,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "fighter-sword-energy-v393" });
+self.postMessage({ type: "ready", version: "direction-gravity-task-v394" });
 })();

@@ -4071,6 +4071,12 @@ function bindTabletControls() {
   document.addEventListener("touchmove", suppressTrackedJoystickGesture, { capture: true, passive: false });
   document.addEventListener("touchend", finishJoystickTouch, { capture: true, passive: false });
   document.addEventListener("touchcancel", finishJoystickTouch, { capture: true, passive: false });
+  const suppressGameSurfaceTouch = (event) => {
+    if (state.screen !== "game" || !event.cancelable) return;
+    event.preventDefault();
+  };
+  els.canvas.addEventListener("touchstart", suppressGameSurfaceTouch, { capture: true, passive: false });
+  els.canvas.addEventListener("touchmove", suppressGameSurfaceTouch, { capture: true, passive: false });
   window.addEventListener("pointerup", releaseActiveStick, true);
   window.addEventListener("pointercancel", releaseActiveStick, true);
   window.addEventListener("blur", releaseActiveStick);
@@ -4830,7 +4836,7 @@ function triggerTeleportAction() {
     return;
   }
   if (mode === "storm") {
-    void api("/api/gravity-storm");
+    void api("/api/gravity-storm", { targetId: els.teleportTargetSelect.value || data.self.id });
     return;
   }
   beginTeleportTargeting();
@@ -7287,7 +7293,7 @@ function objectiveText(data) {
   }
   if (!self.alive) return "死亡中です。残ったタスクは完了扱いです。";
   if (self.chatMuted) return "復活後のため、この試合ではチャットできません。";
-  return `タスクは${self.taskStaminaRequirement || 100}SPを消費し、端末の近くで停止し続けると自動実行。回避も100SPを消費します。現在 ${Math.floor(self.stamina || 0)}SP / ${dodgeText}`;
+  return `タスクは${self.taskStaminaRequirement || 200}SPを消費し、端末の近くで停止し続けると自動実行。回避は100SPを消費します。現在 ${Math.floor(self.stamina || 0)}SP / ${dodgeText}`;
 }
 
 function renderUtility(data) {
@@ -7351,7 +7357,7 @@ function updateActionButtons(data) {
   const hackerManualTask = self.special === "alchemist" && Boolean(task);
   els.taskButton.hidden = !hackerManualTask;
   els.taskButton.textContent = task ? `タスク: ${task.label}` : "タスク";
-  els.taskButton.disabled = !(hackerManualTask && canActAlive && Number(self.stamina) >= Number(self.taskStaminaRequirement || 100) && (Number(self.taskAutoReadyAt) || 0) <= liveNow);
+  els.taskButton.disabled = !(hackerManualTask && canActAlive && Number(self.stamina) >= Number(self.taskStaminaRequirement || 200) && (Number(self.taskAutoReadyAt) || 0) <= liveNow);
   const actionLayoutKey = JSON.stringify([
     self.role,
     self.special,
@@ -8272,7 +8278,6 @@ function draw() {
       drawGravityZones(data);
       drawHazardFields(data);
       drawFacilityEffects(data);
-      drawGunnerAim(data);
       drawBodies(data);
       drawWorldSoundEffects();
       drawJumpPreparationEffect(data);
@@ -9999,38 +10004,6 @@ function drawBodies(data) {
     ctx.fill();
     ctx.restore();
   });
-}
-
-function drawGunnerAim(data) {
-  const gunnerAccess = hasDisplayedOperatorAccess(data.self, "gunner") || (data.self.purchasedWeapons || []).length > 0;
-  const aimingNow = Boolean(data.self.gunFiring || state.gunTriggerHeld);
-  if (data.phase !== "playing" || !gunnerAccess || !aimingNow || !data.self.alive || data.self.ejected) return;
-  const self = renderedPlayer(selfPlayer());
-  const direction = gunnerDirection();
-  const weaponId = data.self.gunFiringWeapon || data.self.gunnerWeapon;
-  const weapon = (data.self.gunnerWeapons || []).find((entry) => entry.id === weaponId) || { range: 520, lineWidth: 58, id: "handgun" };
-  if (weapon.destroyed && !data.self.gunFiring) return;
-  const maxDistance = Math.max(120, Number(weapon.range) || 520);
-  let distance = maxDistance;
-  for (let sample = 18; sample <= maxDistance; sample += 18) {
-    if (!isClientWalkable(data, self.x + direction.dx * sample, self.y + direction.dy * sample, 2)) {
-      distance = sample - 18;
-      break;
-    }
-  }
-  const colors = { handgun: "#fbbf24", smg: "#22d3ee", assault: "#fb7185", sniper: "#a78bfa" };
-  ctx.save();
-  ctx.strokeStyle = colors[weapon.id] || "#ef4444";
-  ctx.globalAlpha = 0.78;
-  ctx.lineWidth = weapon.id === "sniper" ? 1.5 : Math.max(2, Math.min(4, Number(weapon.lineWidth) / 22));
-  ctx.setLineDash(weapon.id === "smg" ? [5, 7] : weapon.id === "sniper" ? [18, 7] : [12, 10]);
-  ctx.lineDashOffset = -(state.frameNow / 35);
-  ctx.beginPath();
-  ctx.moveTo(self.x + direction.dx * 24, self.y + direction.dy * 24);
-  ctx.lineTo(self.x + direction.dx * distance, self.y + direction.dy * distance);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
 }
 
 function drawWorldSoundEffects() {
@@ -13168,7 +13141,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "fighter-sword-energy-v393";
+const version = "direction-gravity-task-v394";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

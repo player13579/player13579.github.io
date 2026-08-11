@@ -647,6 +647,22 @@ body :is(
   box-sizing: border-box;
 }
 
+html,
+body,
+.app-shell,
+.board-wrap,
+#gameCanvas,
+#tabletPanel {
+  overscroll-behavior: none;
+}
+
+#gameCanvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 [hidden] {
   display: none !important;
 }

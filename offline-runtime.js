@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "fighter-sword-energy-v393";
+const OFFLINE_WORKER_VERSION = "direction-gravity-task-v394";
 const OFFLINE_WORKER_READY_TIMEOUT_MS = 40_000;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 
