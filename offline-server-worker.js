@@ -6694,6 +6694,11 @@ const GUNNER_ARMAMENT_DELAY_MS = 45_000;
 const HACKER_INVENTION_INITIAL_DELAY_MS = 30_000;
 const HACKER_INVENTION_INTERVAL_MS = 50_000;
 const HACKER_INVENTION_POOL = Object.freeze(["railgun", "particle-cannon", "excalibur"]);
+const HACKER_INVENTION_LABELS = Object.freeze({
+  railgun: "レールガン",
+  "particle-cannon": "荷電粒子砲",
+  excalibur: "エクスカリバー"
+});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ACTION_STAMINA_COST = 5;
 const FIGHTER_SLASH_STAMINA_COST = 75;
@@ -9678,12 +9683,7 @@ function advanceHackerInventionPassive(room, player, timestamp = now()) {
   player.nextHackerInventionAt = player.hackerInventionHistory.length < HACKER_INVENTION_POOL.length
     ? timestamp + HACKER_INVENTION_INTERVAL_MS
     : 0;
-  const labels = {
-    railgun: "レールガン",
-    "particle-cannon": "荷電粒子砲",
-    excalibur: "エクスカリバー"
-  };
-  pushEvent(room, `${player.name} のパッシブにより素敵な発明品「${labels[invention]}」が完成しました。`);
+  pushEvent(room, `${player.name} のパッシブにより素敵な発明品「${inventionLabel(invention)}」が完成しました。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "hacker", maxDistance: 900, volume: 0.65 });
   return true;
 }
@@ -11741,6 +11741,11 @@ function transferKillInventory(room, killer, target) {
 
 // Charges are active or automatic effects, not manually usable inventory items.
 const TRANSFERABLE_CHARGES = Object.freeze({});
+
+function inventionLabel(invention) {
+  const id = String(invention || "");
+  return HACKER_INVENTION_LABELS[id] || id || "素敵な発明品";
+}
 
 function transferableItemsFor(player) {
   const entries = [];
@@ -16958,5 +16963,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "recent-repair-v396" });
+self.postMessage({ type: "ready", version: "hacker-invention-label-v397" });
 })();
