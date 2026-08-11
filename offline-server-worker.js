@@ -6690,14 +6690,14 @@ const EMP_INITIAL_LOCK_MS = 15_000;
 const HACKER_EMP_OPENING_PROTECTION_MS = 30_000;
 const HOVER_SPRINT_DURATION_MS = 8_000;
 const HOVER_SPRINT_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.72;
-const GUNNER_ARMAMENT_DELAY_MS = 45_000;
-const HACKER_INVENTION_INITIAL_DELAY_MS = 30_000;
-const HACKER_INVENTION_INTERVAL_MS = 50_000;
-const HACKER_INVENTION_POOL = Object.freeze(["railgun", "particle-cannon", "excalibur"]);
 const HACKER_INVENTION_LABELS = Object.freeze({
   railgun: "レールガン",
   "particle-cannon": "荷電粒子砲",
   excalibur: "エクスカリバー"
+});
+const HEAVY_WEAPON_DEFINITIONS = Object.freeze({
+  rpg: Object.freeze({ id: "rpg", label: "RPG", cost: 160, asset: "rpg" }),
+  missile: Object.freeze({ id: "missile", label: "ミサイル", cost: 190, asset: "missile" })
 });
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ACTION_STAMINA_COST = 5;
@@ -6961,8 +6961,8 @@ const OPERATORS = {
       special: "gunner",
       limit: 99,
       asset: "gunner",
-      description: "ARを初期装備し、5種の銃器、ホバースプリント、武装強化を扱う。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。ウィークバレットは1MPで踏ん張りを除去する。ホバースプリントは1MPで8秒間加速し障害物を無視する。武装強化は理知中に常在するパッシブで、RPGかミサイルのいずれか一つを獲得する。"
+      description: "ARを初期装備し、5種の銃器とホバースプリントを扱う。",
+      details: "HG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。ウィークバレットは1MPで踏ん張りを除去する。ホバースプリントは1MPで8秒間加速し障害物を無視する。"
     },
     {
       id: "attacker-alchemist",
@@ -8628,10 +8628,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     weakBulletLoaded: false,
     hoverSprintUntil: 0,
     timedAccelerationEffects: [],
-    gunnerHeavyWeapon: "",
-    gunnerHeavyUsed: false,
-    gunnerHeavyGranted: false,
-    gunnerHeavyReadyAt: 0,
+    heavyWeapons: [],
     sabotageReadyAt: 0,
     dodgeReadyAt: 0,
     dodgeActiveUntil: 0,
@@ -8716,9 +8713,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     vibeCodingCooldownMs: 0,
     manaGpuDrainCarry: 0,
     inventions: [],
-    inventionUsed: {},
-    hackerInventionHistory: [],
-    nextHackerInventionAt: 0,
     particleCannonUntil: 0,
     particleCannonNextAt: 0,
     hackerRootActive: false,
@@ -9021,10 +9015,7 @@ function startGame(room) {
     player.weakBulletLoaded = false;
     player.hoverSprintUntil = 0;
     player.timedAccelerationEffects = [];
-    player.gunnerHeavyWeapon = "";
-    player.gunnerHeavyUsed = false;
-    player.gunnerHeavyGranted = false;
-    player.gunnerHeavyReadyAt = 0;
+    player.heavyWeapons = [];
     player.sabotageReadyAt = 0;
     player.dodgeReadyAt = 0;
     player.dodgeActiveUntil = 0;
@@ -9089,9 +9080,6 @@ function startGame(room) {
     player.vibeCodingCooldownMs = 0;
     player.manaGpuDrainCarry = 0;
     player.inventions = [];
-    player.inventionUsed = {};
-    player.hackerInventionHistory = [];
-    player.nextHackerInventionAt = 0;
     player.particleCannonUntil = 0;
     player.particleCannonNextAt = 0;
     player.hackerRootActive = false;
@@ -9387,8 +9375,6 @@ function startBattle(room) {
     player.drone.movementMode = "idle";
     player.emergenciesLeft = room.settings.emergencyLimit;
     player.lastMoveAt = timestamp;
-    player.gunnerHeavyReadyAt = player.special === "gunner" ? timestamp + GUNNER_ARMAMENT_DELAY_MS : 0;
-    player.nextHackerInventionAt = player.special === "alchemist" ? timestamp + HACKER_INVENTION_INITIAL_DELAY_MS : 0;
   }
   room.phase = "playing";
   room.round = 1;
@@ -9646,45 +9632,6 @@ function advanceLimitBreak(room, player, elapsedMs) {
     return true;
   }
   setMana(room, player, Number(player.mana) - wholeMana, "リミットブレイク");
-  return true;
-}
-
-function ensureGunnerArmamentPassive(room, player, timestamp = now()) {
-  if (!hasOperatorAccess(player, "gunner") || player.gunnerHeavyGranted || !passivesEnabled(player)) return false;
-  if (!(Number(player.gunnerHeavyReadyAt) > 0)) {
-    player.gunnerHeavyReadyAt = timestamp + GUNNER_ARMAMENT_DELAY_MS;
-    return false;
-  }
-  if (timestamp < player.gunnerHeavyReadyAt) return false;
-  player.gunnerHeavyWeapon = ["rpg", "missile"][Math.floor(Math.random() * 2)];
-  player.gunnerHeavyGranted = true;
-  player.gunnerHeavyReadyAt = 0;
-  const label = player.gunnerHeavyWeapon === "rpg" ? "RPG" : "ミサイル";
-  pushEvent(room, `${player.name} のパッシブ「武装強化」が発動し、${label}を獲得しました。`);
-  return true;
-}
-
-function advanceHackerInventionPassive(room, player, timestamp = now()) {
-  if (!isHackerOperational(player) || !passivesEnabled(player)) return false;
-  if (!(Number(player.nextHackerInventionAt) > 0)) {
-    player.nextHackerInventionAt = timestamp + HACKER_INVENTION_INITIAL_DELAY_MS;
-    return false;
-  }
-  if (timestamp < player.nextHackerInventionAt) return false;
-  const history = Array.isArray(player.hackerInventionHistory) ? player.hackerInventionHistory : [];
-  const available = HACKER_INVENTION_POOL.filter((id) => !history.includes(id));
-  if (!available.length) {
-    player.nextHackerInventionAt = 0;
-    return false;
-  }
-  const invention = available[Math.floor(Math.random() * available.length)];
-  player.hackerInventionHistory = [...history, invention];
-  player.inventions = [...(player.inventions || []), invention];
-  player.nextHackerInventionAt = player.hackerInventionHistory.length < HACKER_INVENTION_POOL.length
-    ? timestamp + HACKER_INVENTION_INTERVAL_MS
-    : 0;
-  pushEvent(room, `${player.name} のパッシブにより素敵な発明品「${inventionLabel(invention)}」が完成しました。`);
-  pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "hacker", maxDistance: 900, volume: 0.65 });
   return true;
 }
 
@@ -10880,8 +10827,6 @@ function tickRoom(room) {
     advanceLimitBreak(room, player, elapsedMs);
     advanceHackerManaGpu(room, player, elapsedMs, timestamp);
     finishRenki(room, player, timestamp);
-    ensureGunnerArmamentPassive(room, player, timestamp);
-    advanceHackerInventionPassive(room, player, timestamp);
     advanceParticleCannon(room, player, timestamp);
     resolveSmartphoneAction(room, player, timestamp);
     advanceGunnerFire(room, player, timestamp);
@@ -11719,6 +11664,11 @@ function transferKillInventory(room, killer, target) {
     transferred.push(`発明品:${target.inventions.length}`);
     target.inventions = [];
   }
+  if (Array.isArray(target.heavyWeapons) && target.heavyWeapons.length) {
+    killer.heavyWeapons = [...(killer.heavyWeapons || []), ...target.heavyWeapons];
+    transferred.push(`重火器:${target.heavyWeapons.length}`);
+    target.heavyWeapons = [];
+  }
   if (Array.isArray(target.purchasedWeapons) && target.purchasedWeapons.length) {
     killer.purchasedWeapons = [...new Set([...(killer.purchasedWeapons || []), ...target.purchasedWeapons])];
     for (const weaponId of target.purchasedWeapons) {
@@ -11761,6 +11711,14 @@ function transferableItemsFor(player) {
   for (const invention of player.inventions || []) {
     entries.push({ id: `invention:${invention}`, label: inventionLabel(invention), amount: 1, asset: invention, kind: "invention" });
   }
+  const heavyWeaponCounts = (player.heavyWeapons || []).reduce((counts, weaponId) => {
+    counts[weaponId] = (counts[weaponId] || 0) + 1;
+    return counts;
+  }, {});
+  for (const [weaponId, amount] of Object.entries(heavyWeaponCounts)) {
+    const definition = HEAVY_WEAPON_DEFINITIONS[weaponId];
+    if (definition && amount > 0) entries.push({ id: `heavy:${weaponId}`, label: definition.label, amount, asset: definition.asset, kind: "heavy" });
+  }
   for (const weapon of player.purchasedWeapons || []) {
     entries.push({ id: `weapon:${weapon}`, label: GUNNER_WEAPONS[weapon]?.name || weapon, amount: 1, asset: weapon, kind: "weapon" });
   }
@@ -11793,6 +11751,13 @@ function removeTransferableItem(player, itemId, amount = 1) {
     player.purchasedWeapons.splice(index, 1);
     return { id: itemId, label: GUNNER_WEAPONS[weapon]?.name || weapon, amount: 1, kind: "weapon" };
   }
+  if (itemId.startsWith("heavy:")) {
+    const weapon = itemId.slice(6);
+    const index = (player.heavyWeapons || []).indexOf(weapon);
+    if (index < 0) throw new ApiError(400, "その重火器を所持していません。");
+    player.heavyWeapons.splice(index, 1);
+    return { id: itemId, label: HEAVY_WEAPON_DEFINITIONS[weapon]?.label || weapon, amount: 1, kind: "heavy" };
+  }
   throw new ApiError(400, "譲渡対象が不正です。");
 }
 
@@ -11801,6 +11766,7 @@ function receiveTransferableItem(player, item) {
   else if (TRANSFERABLE_CHARGES[item.id]) player[TRANSFERABLE_CHARGES[item.id].field] = Math.max(0, Number(player[TRANSFERABLE_CHARGES[item.id].field]) || 0) + item.amount;
   else if (item.id.startsWith("invention:")) player.inventions.push(item.id.slice(10));
   else if (item.id.startsWith("weapon:")) purchaseFirearm(player, item.id.slice(7));
+  else if (item.id.startsWith("heavy:")) player.heavyWeapons.push(item.id.slice(6));
 }
 
 function transferOwnedResource(room, player, targetId, itemId, rawAmount, credits = false) {
@@ -12450,6 +12416,12 @@ function purchaseDrink(room, player, itemId) {
     "mineral-water": { label: "ミネラルウォーター", cost: MINERAL_WATER_COST, apply: () => { addItem(player, "mineral-water"); } },
     antidote: { label: "解毒剤", cost: ANTIDOTE_COST, apply: () => { addItem(player, "antidote"); } },
     molotov: { label: "火炎瓶", cost: MOLOTOV_COST, apply: () => { addItem(player, "molotov"); } },
+    mercury: { label: "水銀瓶", cost: 20, apply: () => { addItem(player, "mercury"); } },
+    lead: { label: "鉛瓶", cost: 16, apply: () => { addItem(player, "lead"); } },
+    uranium: { label: "ウラン容器", cost: 120, apply: () => { addItem(player, "uranium"); } },
+    plutonium: { label: "プルトニウム容器", cost: 160, apply: () => { addItem(player, "plutonium"); } },
+    ice: { label: "氷結水", cost: 14, apply: () => { addItem(player, "ice"); } },
+    "heated-water": { label: "高温水", cost: 14, apply: () => { addItem(player, "heated-water"); } },
     evade: { label: "回避拡張", cost: 10, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
     speed: { label: "アクセラレート飲料", cost: 8, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
     warp: { label: "即時ワープ", cost: 12, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
@@ -12480,13 +12452,15 @@ function purchaseDrink(room, player, itemId) {
     assault: { label: "アサルトライフル", cost: 80, apply: () => purchaseFirearm(player, "assault") },
     sniper: { label: "スナイパーライフル", cost: 110, apply: () => purchaseFirearm(player, "sniper") },
     taser: { label: "テーザー銃", cost: 55, apply: () => purchaseFirearm(player, "taser") },
+    rpg: { label: "RPG", cost: HEAVY_WEAPON_DEFINITIONS.rpg.cost, apply: () => { (player.heavyWeapons ||= []).push("rpg"); } },
+    missile: { label: "ミサイル", cost: HEAVY_WEAPON_DEFINITIONS.missile.cost, apply: () => { (player.heavyWeapons ||= []).push("missile"); } },
     exile: { label: "亡命・遠隔クローン運用", cost: EXILE_COST, apply: () => {
       if (player.exiled) throw new ApiError(400, "既に亡命済みです。");
       player.exiled = true;
     } }
   };
   const item = items[itemId];
-  if (!item) throw new ApiError(404, "その飲料はありません。");
+  if (!item) throw new ApiError(404, "その商品はありません。");
   if (item.role && player.role !== item.role) throw new ApiError(403, "この商品はアタッカー専用です。");
   if (player.credits < item.cost) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
   const outcome = item.apply();
@@ -14189,16 +14163,17 @@ function activateHoverSprint(room, player) {
   touch(room);
 }
 
-function useGunnerHeavyWeapon(room, player) {
-  if (room.phase !== "playing" || !hasOperatorAccess(player, "gunner") || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は獲得した重火器を使用できません。");
+function useHeavyWeapon(room, player, weaponId) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在は重火器を使用できません。");
   }
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
-  if (!passivesEnabled(player)) throw new ApiError(400, "武装強化で得た重火器は理知中のみ使用できます。");
-  const weapon = String(player.gunnerHeavyWeapon || "");
-  if (!weapon || player.gunnerHeavyUsed) throw new ApiError(400, "使用できる獲得装備がありません。");
-  player.gunnerHeavyUsed = true;
+  const weapon = String(weaponId || "");
+  if (!HEAVY_WEAPON_DEFINITIONS[weapon]) throw new ApiError(400, "重火器の種類が不正です。");
+  const index = (player.heavyWeapons || []).indexOf(weapon);
+  if (index < 0) throw new ApiError(400, "その重火器を所持していません。");
+  player.heavyWeapons.splice(index, 1);
   const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected);
   if (weapon === "rpg") {
     for (const target of targets.filter((candidate) => distance(player, candidate) <= 300)) {
@@ -14224,7 +14199,7 @@ function useGunnerHeavyWeapon(room, player) {
   }
   awardAbilityContribution(player, 1);
   pushSound(room, "heavyWeapon", player, { ownerId: player.id, sourceKind: "weapon", maxDistance: 10000, volume: 1.25, variant: weapon });
-  pushEvent(room, `${player.name} が獲得装備「${weapon === "rpg" ? "RPG" : "ミサイル"}」を使用しました。`);
+  pushEvent(room, `${player.name} が${HEAVY_WEAPON_DEFINITIONS[weapon].label}を使用しました。`);
   checkWin(room);
   touch(room);
 }
@@ -15134,10 +15109,7 @@ function serialize(room, viewer, options = {}) {
       statusAte: persistentStatusAteState(room, viewer, timestamp),
       aromaActive: Boolean(floraAromaSource(room, viewer)),
       aromaRegenMultiplier: floraAromaMultiplier(room, viewer),
-      gunnerHeavyWeapon: viewer.gunnerHeavyWeapon || "",
-      gunnerHeavyUsed: Boolean(viewer.gunnerHeavyUsed),
-      gunnerHeavyGranted: Boolean(viewer.gunnerHeavyGranted),
-      gunnerHeavyReadyAt: Number(viewer.gunnerHeavyReadyAt) || 0,
+      heavyWeapons: [...(viewer.heavyWeapons || [])],
       aimX: viewer.aimX,
       aimY: viewer.aimY,
       sabotageReadyAt: viewer.sabotageReadyAt,
@@ -15263,8 +15235,6 @@ function serialize(room, viewer, options = {}) {
       manaGpuDrainPerSecond: HACKER_MANA_GPU_DRAIN_PER_SECOND,
       alchemyRecipeIds: isHackerOperator(viewer) ? Object.keys(ALCHEMY_RECIPES) : [],
       inventions: [...(viewer.inventions || [])],
-      hackerInventionHistory: [...(viewer.hackerInventionHistory || [])],
-      nextHackerInventionAt: Number(viewer.nextHackerInventionAt) || 0,
       exiled: Boolean(viewer.exiled),
       hackTracking: isHackerOperator(viewer),
       hackerRootActive: hackerRootEligible(viewer),
@@ -15759,7 +15729,7 @@ async function handleApi(req, res) {
 
     case "/api/gunner-heavy": {
       const { room, player } = requireRoomPlayer(body);
-      useGunnerHeavyWeapon(room, player);
+      useHeavyWeapon(room, player, body.weapon);
       payload = serialize(room, player);
       break;
     }
@@ -16963,5 +16933,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "hacker-invention-label-v397" });
+self.postMessage({ type: "ready", version: "vending-catalog-v399" });
 })();

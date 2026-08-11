@@ -12,12 +12,12 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/plicy-thumbnail-v389.png">
-  <link rel="stylesheet" href="styles.css?v=hacker-invention-label-v397">
+  <link rel="stylesheet" href="styles.css?v=vending-catalog-v399">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v389.png?v=hacker-invention-label-v397" alt="フローラの回復を発動する白いフードの女性">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v389.png?v=hacker-invention-label-v397" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v389.png?v=vending-catalog-v399" alt="フローラの回復を発動する白いフードの女性">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v389.png?v=vending-catalog-v399" alt="" aria-hidden="true">
       <canvas id="titleFxCanvas" class="title-fx-canvas" aria-hidden="true"></canvas>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -484,6 +484,14 @@
               <button class="vending-item-with-icon" data-drink="taser" data-vending-hotkey="Alt+0" data-vending-weapon="taser"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>テーザー銃 / 55C</span></button>
               <button class="vending-item-with-icon" data-drink="molotov" data-vending-hotkey="Alt+M" data-vending-asset="molotov"><span class="vending-item-icon" aria-hidden="true"></span><span>火炎瓶 / 45C</span></button>
               <button class="vending-item-with-icon" data-drink="antidote" data-vending-hotkey="Alt+A" data-vending-asset="antidote"><span class="vending-item-icon" aria-hidden="true"></span><span>解毒剤 / 18C</span></button>
+              <button class="vending-item-with-icon" data-drink="mercury" data-vending-asset="mercury"><span class="vending-item-icon" aria-hidden="true"></span><span>水銀瓶 / 20C</span></button>
+              <button class="vending-item-with-icon" data-drink="lead" data-vending-asset="lead"><span class="vending-item-icon" aria-hidden="true"></span><span>鉛瓶 / 16C</span></button>
+              <button class="vending-item-with-icon" data-drink="uranium" data-vending-asset="uranium"><span class="vending-item-icon" aria-hidden="true"></span><span>ウラン容器 / 120C</span></button>
+              <button class="vending-item-with-icon" data-drink="plutonium" data-vending-asset="plutonium"><span class="vending-item-icon" aria-hidden="true"></span><span>プルトニウム容器 / 160C</span></button>
+              <button class="vending-item-with-icon" data-drink="ice" data-vending-asset="ice"><span class="vending-item-icon" aria-hidden="true"></span><span>氷結水 / 14C</span></button>
+              <button class="vending-item-with-icon" data-drink="heated-water" data-vending-asset="heated-water"><span class="vending-item-icon" aria-hidden="true"></span><span>高温水 / 14C</span></button>
+              <button class="vending-item-with-icon" data-drink="rpg" data-vending-asset="rpg"><span class="vending-item-icon" aria-hidden="true"></span><span>RPG / 160C</span></button>
+              <button class="vending-item-with-icon" data-drink="missile" data-vending-asset="missile"><span class="vending-item-icon" aria-hidden="true"></span><span>ミサイル / 190C</span></button>
             </div>
             <p class="mystery-effects"><strong>ミステリー効果</strong><br>80C賞金 18% / スタミナ+250 18% / 完全活性 16% / 理知へ移行 12% / 12秒減速 14% / 15秒能力封印 12% / 8秒意識消失 10%</p>
             <div id="magicInventory" class="magic-inventory" hidden></div>
@@ -635,7 +643,7 @@
           <section><h3>移動</h3><dl><dt>W A S D</dt><dd>移動</dd><dt>Shift</dt><dd>ダッシュ</dd><dt>Ctrl / Alt</dt><dd>無音歩行</dd></dl></section>
           <section><h3>基本操作</h3><dl><dt>Shift + Enter</dt><dd>オフラインルームを作成</dd><dt>J 長押し</dt><dd>全オペ共通の跳躍</dd><dt>\\</dt><dd>ゲーム音オン / オフ</dd><dt>@</dt><dd>キー割り当て表</dd><dt>Tab</dt><dd>タブレット</dd><dt>3 / 4</dt><dd>緊急会議 / スマホ修理</dd><dt>6</dt><dd>忍殺</dd><dt>8</dt><dd>回避</dd><dt>C / K</dt><dd>練気 / 休息</dd><dt>,</dt><dd>MP→SP</dd><dt>G / ' 長押し</dt><dd>スマホ募金</dd><dt>M</dt><dd>マップ</dd><dt>Backspace</dt><dd>退出</dd></dl></section>
           <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>ドローン / EMP</dd><dt>B / N</dt><dd>監視カメラ / 次のカメラ</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動</dd><dt>矢印 + Enter / Space</dt><dd>サボ内容を選択して起動</dd><dt>L</dt><dd>選択中のサボを直接起動</dd></dl></section>
-          <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>全オペ共通の固有能力</dd><dt>O / P</dt><dd>全オペ共通の能力モード / 対象切替</dd><dt>7</dt><dd>ガンナー射撃</dd><dt>T / Shift+T</dt><dd>武器を次 / 前へ切替</dd><dt>R</dt><dd>リロード</dd><dt>所持品欄</dt><dd>武器・発明品・武装強化装備を選択して使用</dd><dt>PageUp / PageDown</dt><dd>操作するUI領域を前 / 次へ切替</dd><dt>Shift + ← / →</dt><dd>ハッカー適用内容の分類を切替</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中UI内を移動。↑↓は同時にスクロール</dd><dt>P</dt><dd>ハッカーの適用対象を切替</dd><dt>Enter / Space</dt><dd>選択中の内容を実行</dd></dl></section>
+          <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>全オペ共通の固有能力</dd><dt>O / P</dt><dd>全オペ共通の能力モード / 対象切替</dd><dt>7</dt><dd>ガンナー射撃</dd><dt>T / Shift+T</dt><dd>武器を次 / 前へ切替</dd><dt>R</dt><dd>リロード</dd><dt>所持品欄</dt><dd>武器・発明品・重火器を選択して使用</dd><dt>PageUp / PageDown</dt><dd>操作するUI領域を前 / 次へ切替</dd><dt>Shift + ← / →</dt><dd>ハッカー適用内容の分類を切替</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中UI内を移動。↑↓は同時にスクロール</dd><dt>P</dt><dd>ハッカーの適用対象を切替</dd><dt>Enter / Space</dt><dd>選択中の内容を実行</dd></dl></section>
           <section><h3>自販機・所持品</h3><dl><dt>1</dt><dd>ミネラルウォーター</dd><dt>2</dt><dd>回避延長</dd><dt>3</dt><dd>加速</dd><dt>4</dt><dd>即時ワープ</dd><dt>5</dt><dd>ミステリー</dd><dt>6</dt><dd>火遁</dd><dt>7</dt><dd>変わり身</dd><dt>8</dt><dd>踏ん張り</dd><dt>9</dt><dd>回復</dd><dt>0</dt><dd>押し込み</dd><dt>P</dt><dd>マナポーション</dd><dt>PageUp / PageDown</dt><dd>所持品UIを選択</dd><dt>↑ ↓ ← →</dt><dd>所持品を選択移動</dd><dt>Shift+V / Shift+G</dt><dd>使用 / 投擲（長押しでエンハンス）</dd><dt>Alt+V / Alt+C</dt><dd>所持品 / 設定量Cを譲渡</dd><dt>Alt+1 / 2 / 3 / 5</dt><dd>レールガン / 荷電粒子砲 / エクスカリバー / 亡命</dd><dt>Alt+4</dt><dd>戦術コンピューター</dd><dt>Alt+6 / 7 / 8 / 9 / 0</dt><dd>HG / SMG / AR / SR / テーザー</dd></dl></section>
           <section><h3>ロビー</h3><dl><dt>B</dt><dd>ボット追加</dd><dt>S</dt><dd>対戦開始</dd><dt>M / T</dt><dd>マップ / ホスト陣営</dd><dt>Shift+数字</dt><dd>対象をキック</dd></dl></section>
           <section><h3>選択</h3><dl><dt>↑ ↓ ← →</dt><dd>表示方向へ候補を選択</dd><dt>Shift + ← / →</dt><dd>分類を切替</dd><dt>Enter / Space</dt><dd>選択を実行</dd><dt>O / L</dt><dd>オフライン / オンライン</dd><dt>Escape</dt><dd>閉じる・戻る</dd></dl></section>
@@ -644,10 +652,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=hacker-invention-label-v397"></script>
-    <script src="game-engine.js?v=hacker-invention-label-v397"></script>
-    <script src="offline-runtime.js?v=hacker-invention-label-v397"></script>
-    <script src="config.js?v=hacker-invention-label-v397"></script>
-    <script src="app.js?v=hacker-invention-label-v397"></script>
+    <script src="game-runtime.js?v=vending-catalog-v399"></script>
+    <script src="game-engine.js?v=vending-catalog-v399"></script>
+    <script src="offline-runtime.js?v=vending-catalog-v399"></script>
+    <script src="config.js?v=vending-catalog-v399"></script>
+    <script src="app.js?v=vending-catalog-v399"></script>
 </body>
 </html>

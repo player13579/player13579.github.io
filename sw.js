@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v397-hacker-invention-label";
+const CACHE_NAME = "dva-static-v399-vending-catalog";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -70,9 +70,11 @@ const STATIC_ASSETS = [
   "/assets/generated/gunner-hover-sprint-v311.png",
   "/assets/generated/gunner-rpg-v311.png",
   "/assets/generated/gunner-missile-v311.png",
+  "/assets/generated/gunner-rpg.webp",
+  "/assets/generated/gunner-missile.webp",
   "/assets/generated/effect-quantum-nuclear-v311.png",
   "/assets/generated/jump-action-effect-v311.png",
-  "/assets/generated/emp-resonance-v311.png",
+  "/assets/generated/emp-resonance-v398.png",
   "/assets/generated/emp-cancel-v311.png",
   "/assets/generated/heart-teleport-v311.png",
   "/assets/generated/action-effect-task-v311.png",

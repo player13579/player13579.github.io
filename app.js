@@ -613,7 +613,7 @@ function applyGeneratedItemTexture(button, itemId) {
   const normalizedId = String(itemId || "").replace(/^(?:vending-|weapon:|invention:|heavy:)/, "");
   const texture = generatedItemTextureFiles.get(normalizedId);
   if (!texture) return false;
-  const icon = button?.querySelector?.(".alchemy-choice-icon");
+  const icon = button?.querySelector?.(".alchemy-choice-icon, .vending-item-icon");
   if (!icon) return false;
   const base = texture.file.startsWith("room-") || texture.file.startsWith("facility-")
     ? "assets/"
@@ -2383,7 +2383,7 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
       : api("/api/gunner-weapon", { weaponId });
   }
   if (kind === "use" && itemId.startsWith("heavy:")) {
-    return api("/api/gunner-heavy");
+    return api("/api/gunner-heavy", { weapon: itemId.slice(6) });
   }
   if (kind === "throw" && /^(?:weapon|invention|heavy):/.test(itemId)) {
     showToast("装備品は所持品欄から装備・使用します。");
@@ -3152,7 +3152,7 @@ function triggerScreenHotkey(event) {
       hasDisplayedOperatorAccess(self, "gunner") ||
       (self?.purchasedWeapons || []).length > 0 ||
       (self?.inventions || []).length > 0 ||
-      Boolean(self?.gunnerHeavyWeapon)
+      (self?.heavyWeapons || []).length > 0
     )) {
       event.preventDefault();
       if (!event.repeat) {
@@ -4529,13 +4529,15 @@ function renderTabletBranch(data, force = false) {
     if (!els.vendingPanel.hidden) {
       const vendingGroups = {
         "vending-support": ["mineral-water", "antidote", "evade", "speed", "heal", "mana"],
-        "vending-tactical": ["warp", "mystery", "fire", "molotov", "substitution", "grit", "reason"],
-        "vending-inventions": ["railgun", "particle-cannon", "excalibur", "exile", "computer", "handgun", "smg", "assault", "sniper", "taser"]
+        "vending-tactical": ["warp", "mystery", "fire", "molotov", "substitution", "grit", "reason", "ice", "heated-water"],
+        "vending-inventions": ["railgun", "particle-cannon", "excalibur", "exile", "computer", "handgun", "smg", "assault", "sniper", "taser", "rpg", "missile"],
+        "vending-materials": ["mercury", "lead", "uranium", "plutonium"]
       };
       if (!branchPath) {
         addSubmenu("回復・支援", "vending-support");
         addSubmenu("戦術用品", "vending-tactical");
         addSubmenu("特殊装備", "vending-inventions");
+        addSubmenu("元素素材", "vending-materials");
       }
       els.vendingPanel.querySelectorAll("[data-drink]").forEach((source) => {
         if (!branchPath || !vendingGroups[branchPath]?.includes(source.dataset.drink)) return;
@@ -6807,7 +6809,7 @@ function renderStatus(data) {
 
 function collectInventoryDisplayItems(self) {
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
-    item && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
+    item && (!item.kind || item.kind === "item") && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
   ).map((item) => ({
     ...item,
     inventoryKind: "item",
@@ -6842,15 +6844,20 @@ function collectInventoryDisplayItems(self) {
     output: "発明武器",
     badge: `×${count}`
   }));
-  const heavyItems = gunnerAccess && self.gunnerHeavyWeapon && !self.gunnerHeavyUsed ? [{
-    id: `heavy:${self.gunnerHeavyWeapon}`,
-    sourceId: self.gunnerHeavyWeapon,
-    label: self.gunnerHeavyWeapon === "rpg" ? "RPG" : "ミサイル",
-    asset: self.gunnerHeavyWeapon,
+  const heavyNames = { rpg: "RPG", missile: "ミサイル" };
+  const heavyCounts = (self.heavyWeapons || []).reduce((counts, id) => {
+    counts[id] = (counts[id] || 0) + 1;
+    return counts;
+  }, {});
+  const heavyItems = Object.entries(heavyCounts).filter(([id, count]) => heavyNames[id] && count > 0).map(([id, count]) => ({
+    id: `heavy:${id}`,
+    sourceId: id,
+    label: heavyNames[id],
+    asset: id,
     inventoryKind: "heavy",
-    output: "武装強化",
-    badge: "使用可能"
-  }] : [];
+    output: "重火器",
+    badge: `×${count}`
+  }));
   return [...regularItems, ...weaponItems, ...inventionItems, ...heavyItems];
 }
 
@@ -6910,7 +6917,7 @@ function renderItemControl(data) {
   els.itemUseButton.disabled = !canUse;
   els.itemUseButton.hidden = false;
   els.itemThrowButton.disabled = !canUse || selectedIsEquipment;
-  els.transferItemButton.disabled = !selected || selectedIsEquipment || !targets.length || blocked;
+  els.transferItemButton.disabled = !selected || !targets.length || blocked;
   els.transferCreditsButton.disabled = Number(self.credits) < transferCredits || !targets.length;
   const selectedUseLabel = selected?.inventoryKind === "weapon"
     ? selected.sourceId === self.gunnerWeapon ? "リロード" : "装備"
@@ -6974,17 +6981,6 @@ function collectOperatorPassiveEffects(self, liveNow) {
       ? `SP回復 ×${Number(self.aromaRegenMultiplier || 1.6).toFixed(2)}`
       : passiveValue;
     add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の停止中スタミナ回復速度を上昇させる");
-  }
-
-  if (hasDisplayedOperatorAccess(self, "gunner")) {
-    const heavyLabels = { rpg: "RPG", missile: "ミサイル" };
-    let value = passiveValue;
-    if (self.gunnerHeavyGranted) {
-      value = self.gunnerHeavyUsed ? "獲得装備使用済み" : `${heavyLabels[self.gunnerHeavyWeapon] || "装備"}獲得済み`;
-    } else if (passiveEnabled && Number(self.gunnerHeavyReadyAt) > liveNow) {
-      value = formatEffectCountdown(Number(self.gunnerHeavyReadyAt) - liveNow);
-    }
-    add("武装強化", value, passiveEnabled ? "truth" : passiveTone, "理知を維持すると時間経過で特殊武装を一つ獲得する");
   }
 
   if (self.special === "alchemist") {
@@ -7138,6 +7134,9 @@ function layoutActiveEffectsPanel() {
 }
 
 function renderVending(data) {
+  els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
+    applyGeneratedItemTexture(button, button.dataset.vendingAsset || button.dataset.drink);
+  });
   const near = nearestStation((station) => station.type === "vending");
   const visible = Boolean(data.phase === "playing" && data.self.alive && !data.self.ejected && near);
   if (els.vendingPanel.hidden === visible) els.vendingPanel.hidden = !visible;
@@ -7169,7 +7168,15 @@ function renderVending(data) {
     smg: 60,
     assault: 80,
     sniper: 110,
-    taser: 55
+    taser: 55,
+    mercury: 20,
+    lead: 16,
+    uranium: 120,
+    plutonium: 160,
+    ice: 14,
+    "heated-water": 14,
+    rpg: 160,
+    missile: 190
   };
   const descriptions = {
     "mineral-water": "燃焼解除・SP回復。投擲時は周囲へ適用",
@@ -7194,7 +7201,15 @@ function renderVending(data) {
     smg: "高レート・近距離向け・距離減衰大",
     assault: "中レート・距離減衰小の標準銃",
     sniper: "長射程・確殺・低レート",
-    taser: "低ダメージ・移動速度低下"
+    taser: "低ダメージ・移動速度低下",
+    mercury: "通常使用は有害。投擲時は着地点へ毒を拡散",
+    lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
+    uranium: "量子制御の核分裂素材。通常使用は有害",
+    plutonium: "量子制御の核分裂素材。通常使用は有害",
+    ice: "投擲できる低温変換済みの水",
+    "heated-water": "投擲できる高温変換済みの水",
+    rpg: "周囲を攻撃する使い切り重火器",
+    missile: "最寄り対象を攻撃する使い切り重火器"
   };
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
     const copy = button.querySelector("span:last-child");
@@ -10106,6 +10121,7 @@ const ATE_GLOW_PROFILES = Object.freeze({
   "data-up": Object.freeze({ core: "rgba(240,249,255,.52)", aura: "rgba(56,189,248,.42)", outer: "rgba(163,230,53,.24)", blur: 13, pulse: 0.14 }),
   shimmer: Object.freeze({ core: "rgba(255,247,237,.54)", aura: "rgba(250,204,21,.42)", outer: "rgba(244,114,182,.26)", blur: 15, pulse: 0.28 }),
   orbit: Object.freeze({ core: "rgba(250,245,255,.52)", aura: "rgba(192,132,252,.42)", outer: "rgba(251,191,36,.25)", blur: 17, pulse: 0.16 }),
+  resonance: Object.freeze({ core: "rgba(255,255,255,.6)", aura: "rgba(34,211,238,.48)", outer: "rgba(244,114,182,.34)", blur: 20, pulse: 0.3 }),
   glitch: Object.freeze({ core: "rgba(255,255,255,.5)", aura: "rgba(34,211,238,.44)", outer: "rgba(244,114,182,.3)", blur: 12, pulse: 0.34 }),
   teleport: Object.freeze({ core: "rgba(245,243,255,.54)", aura: "rgba(139,92,246,.44)", outer: "rgba(34,211,238,.27)", blur: 19, pulse: 0.24 }),
   gravity: Object.freeze({ core: "rgba(237,233,254,.5)", aura: "rgba(124,58,237,.46)", outer: "rgba(14,165,233,.28)", blur: 21, pulse: 0.2 }),
@@ -10155,7 +10171,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   const profile = ATE_GLOW_PROFILES[normalizedMode];
   const sampledTime = Math.floor(time * 60) / 60;
   const strength = clamp(rawIntensity, 0, 1.4);
-  const count = normalizedMode === "data-down" || normalizedMode === "data-up" ? 7 : 5;
+  const count = normalizedMode === "resonance" ? 10 : normalizedMode === "data-down" || normalizedMode === "data-up" ? 7 : 5;
   const direction = normalizedMode === "data-down" ? 1 : -1;
 
   targetContext.save();
@@ -10195,6 +10211,22 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
       y = Math.sin(angle) * height * (0.2 + (index % 3) * 0.025);
       if (normalizedMode === "teleport") y += (cycle - 0.5) * height * 0.24;
       rotation = angle + Math.PI / 4;
+    } else if (normalizedMode === "resonance") {
+      const side = index % 2 ? -1 : 1;
+      const convergence = Math.min(1, cycle / 0.56);
+      if (cycle < 0.56) {
+        x = side * width * (0.46 - convergence * 0.36);
+        y = Math.sin(seed * 1.9) * height * 0.28 * (1 - convergence);
+        rotation = side > 0 ? Math.PI : 0;
+      } else {
+        const release = (cycle - 0.56) / 0.44;
+        const angle = seed * 0.73 + side * release * 0.34;
+        x = Math.cos(angle) * width * (0.08 + release * 0.34);
+        y = Math.sin(angle) * height * (0.06 + release * 0.3);
+        rotation = angle + Math.PI / 4;
+      }
+      shardWidth *= 0.72;
+      shardHeight *= 1.42;
     } else if (normalizedMode === "glitch") {
       x = (-0.34 + cycle * 0.68) * width;
       y = (-0.32 + (index % 6) * 0.13) * height;
@@ -10917,7 +10949,7 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
     state.textures.empCancelEffect,
     state.textures.heartTeleportEffect
   ];
-  const keys = ["emp-resonance-v311", "emp-cancel-v311", "heart-teleport-v311"];
+  const keys = ["emp-resonance-v398", "emp-cancel-v311", "heart-teleport-v311"];
   const source = sources[index];
   const sprite = source ? transparentSpriteSource(source, keys[index], 28) : null;
   if (!sprite) return false;
@@ -10927,7 +10959,11 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.12, 1 - progress * 0.78);
   drawAnimatedTextureBottom(sprite, effect.x, effect.y + size / 2, size, size, {
-    mode: index === 2 ? "teleport" : "glitch", progress, phase: index * 0.29, intensity: 0.96, baseAlpha: 0.13
+    mode: index === 0 ? "resonance" : index === 2 ? "teleport" : "glitch",
+    progress,
+    phase: index * 0.29,
+    intensity: index === 0 ? 1.14 : 0.96,
+    baseAlpha: index === 0 ? 0.19 : 0.13
   });
   ctx.restore();
   return true;
@@ -12397,6 +12433,7 @@ const ATE_ANIMATION_PROFILES = Object.freeze({
   "data-up": Object.freeze({ family: "packet-ascent", tempo: 0.94, phaseScale: 1.4, progressScale: 0.26, overlayGain: 1.02 }),
   shimmer: Object.freeze({ family: "asynchronous-glint", tempo: 0.66, phaseScale: 0.7, progressScale: 0.45, overlayGain: 0.84 }),
   orbit: Object.freeze({ family: "elliptic-orbit", tempo: 0.8, phaseScale: 1.8, progressScale: 0.75, overlayGain: 0.9 }),
+  resonance: Object.freeze({ family: "constructive-interference", tempo: 1.08, phaseScale: 0.88, progressScale: 0.54, overlayGain: 1.12 }),
   glitch: Object.freeze({ family: "discontinuous-slice", tempo: 1.75, phaseScale: 2.3, progressScale: 0.18, overlayGain: 1.04 }),
   teleport: Object.freeze({ family: "phase-column", tempo: 1.12, phaseScale: 1.1, progressScale: 1.2, overlayGain: 1.0 }),
   gravity: Object.freeze({ family: "inward-compression", tempo: 0.48, phaseScale: 0.55, progressScale: 0.92, overlayGain: 0.94 }),
@@ -12522,6 +12559,23 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
       const y = Math.sin(angle) * height * 0.2;
       drawClippedOverlay(x - width * 0.065, y - height * 0.065, width * 0.13, height * 0.13, 0.34, -x * 0.12, -y * 0.12, true);
     }
+  } else if (animationMode === "resonance") {
+    const synchronizedPulse = 0.32 + Math.max(0, Math.sin(clock * Math.PI * 2)) * 0.24;
+    for (const side of [-1, 1]) {
+      const centerX = side * width * 0.16;
+      drawClippedOverlay(
+        centerX - width * 0.31,
+        -height * 0.38,
+        width * 0.62,
+        height * 0.76,
+        synchronizedPulse,
+        -side * width * 0.012,
+        0,
+        true
+      );
+    }
+    const corePulse = 0.42 + Math.max(0, Math.sin(clock * Math.PI * 4 + Math.PI / 2)) * 0.34;
+    drawClippedOverlay(-width * 0.105, -height * 0.34, width * 0.21, height * 0.68, corePulse, 0, Math.sin(clock * 2.7) * height * 0.008, true);
   } else if (animationMode === "glitch") {
     for (let band = 0; band < 7; band += 1) {
       const y = -height * 0.4 + band * height * 0.13;
@@ -13142,7 +13196,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "hacker-invention-label-v397";
+const version = "vending-catalog-v399";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -13309,7 +13363,7 @@ const version = "hacker-invention-label-v397";
   defer(killCutinMaster, "assets/kill-cutin-master-b.webp");
   defer(blueDressKillCutin, "assets/generated/skin-blue-dress-kill-cutin.webp");
   defer(killCutin60, "assets/kill-cutin-60.webp");
-  defer(empResonanceEffect, "assets/generated/emp-resonance-v311.png");
+  defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
   defer(heartTeleportEffect, "assets/generated/heart-teleport-v311.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
