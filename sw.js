@@ -1,0 +1,243 @@
+// Keep the deployed cache contract explicit so old Plicy workers are evicted.
+// Previous contract: dva-static-v173-gameplay-polish.
+const CACHE_NAME = "dva-static-v391-item-throw-operator-ate";
+const STATIC_ASSETS = [
+  "/",
+  "/index.html",
+  "/styles.css",
+  "/app.js",
+  "/game-runtime.js",
+  "/game-engine.js",
+  "/offline-runtime.js",
+  "/offline-server-worker.js",
+  "/config.js",
+  "/manifest.webmanifest",
+  "/icon.png",
+  "/assets/title-hero-v389.png",
+  "/assets/plicy-thumbnail-v389.png",
+  "/assets/generated/throw-landing-preview-v384.png",
+  "/assets/generated/ui-panel-surface.webp",
+  "/assets/generated/ui-control-surface.webp",
+  "/assets/generated/ui-lobby-signal-surface.webp",
+  "/assets/generated/ui-ability-command-surface.webp",
+  "/assets/generated/ui-status-effect-surface.webp",
+  "/assets/generated/ui-context-alert-surface.webp",
+  "/assets/generated/operator-fighter-ate-v391.png",
+  "/assets/generated/operator-gravity-ate-v391.png",
+  "/assets/generated/operator-flora-ate-v391.png",
+  "/assets/generated/operator-quantum-control-ate-v391.png",
+  "/assets/generated/operator-gunner-ate-v391.png",
+  "/assets/generated/operator-hacker-ate-v391.png",
+  "/assets/generated/luminous-meeting-effect-v311.png",
+  "/assets/generated/sabotage-repair-map-marker.webp",
+  "/assets/generated/smartphone-sabotage-repair-v374.png",
+  "/assets/generated/fighter-slash-effect.webp",
+  "/assets/generated/effect-transfer-out.webp",
+  "/assets/generated/effect-transfer-in.webp",
+  "/assets/generated/effect-bottle-shards.webp",
+  "/assets/generated/field-aurelia-corridor-objects-v317.webp",
+  "/assets/generated/effect-footbath-hidden-spring-godray-v359.png",
+  "/assets/generated/object-effect-stamina-v327.png",
+  "/assets/generated/object-effect-credits-v327.png",
+  "/assets/generated/object-effect-mana-v327.png",
+  "/assets/generated/object-effect-cooldown-reduction-v327.png",
+  "/assets/generated/object-effect-status-recovery-v327.png",
+  "/assets/generated/object-effect-acceleration-v327.png",
+  "/assets/generated/object-effect-luck-boost-v327.png",
+  "/assets/generated/object-effect-overheal-v327.png",
+  "/assets/generated/object-effect-relaxation-v327.png",
+  "/assets/generated/object-effect-herbal-recovery-v327.png",
+  "/assets/generated/object-effect-healthy-meal-v327.png",
+  "/assets/generated/object-effect-mineral-water-v327.png",
+  "/assets/generated/object-effect-heal-v327.png",
+  "/assets/generated/object-effect-full-recovery-v327.png",
+  "/assets/generated/object-effect-decoy-v327.png",
+  "/assets/generated/gravity-storm-safe-eye-v320.png",
+  "/assets/generated/status-marker-acceleration-v376.png",
+  "/assets/generated/status-levitation-v375.png",
+  "/assets/generated/status-hp-reduction-v375.png",
+  "/assets/generated/hacker-root-rainbow.webp",
+  "/assets/generated/fire-jutsu-field.webp",
+  "/assets/generated/substitution-field.webp",
+  "/assets/generated/limit-break-field-v307.png",
+  "/assets/generated/limit-break-release-v309.png",
+  "/assets/generated/flora-self-heal-v336.png",
+  "/assets/generated/flora-sunbeam-v3-v336.png",
+  "/assets/generated/action-vibe-coding-v311.png",
+  "/assets/generated/gunner-hover-sprint-v311.png",
+  "/assets/generated/gunner-rpg-v311.png",
+  "/assets/generated/gunner-missile-v311.png",
+  "/assets/generated/effect-quantum-nuclear-v311.png",
+  "/assets/generated/jump-action-effect-v311.png",
+  "/assets/generated/emp-resonance-v311.png",
+  "/assets/generated/emp-cancel-v311.png",
+  "/assets/generated/heart-teleport-v311.png",
+  "/assets/generated/action-effect-task-v311.png",
+  "/assets/generated/action-effect-stand-v311.png",
+  "/assets/generated/action-effect-dodge-v311.png",
+  "/assets/generated/action-effect-rest-v311.png",
+  "/assets/generated/action-effect-teleport-v311.png",
+  "/assets/generated/action-effect-warp-v311.png",
+  "/assets/generated/action-effect-drone-v311.png",
+  "/assets/generated/action-effect-aim-v311.png",
+  "/assets/generated/action-effect-sabotage-v311.png",
+  "/assets/generated/action-effect-repair-v311.png",
+  "/assets/generated/action-effect-vent-v311.png",
+  "/assets/generated/action-effect-vending-v311.png",
+  "/assets/generated/philosophy-effect-renki-v311.png",
+  "/assets/generated/philosophy-effect-desire-v311.png",
+  "/assets/generated/philosophy-effect-grit-v311.png",
+  "/assets/generated/philosophy-effect-reason-v311.png",
+  "/assets/generated/philosophy-effect-stand-v311.png",
+  "/assets/generated/philosophy-effect-push-v311.png",
+  "/assets/generated/philosophy-effect-truth-v311.png",
+  "/assets/generated/philosophy-effect-beauty-v311.png",
+  "/assets/generated/philosophy-effect-good-v311.png",
+  "/assets/generated/philosophy-effect-ascension-v311.png",
+  "/assets/generated/philosophy-effect-mystery-v311.png",
+  "/assets/generated/philosophy-effect-emp-v311.png",
+  "/assets/generated/alchemy-effect-renki-v311.png",
+  "/assets/generated/alchemy-effect-desire-v311.png",
+  "/assets/generated/alchemy-effect-rational-free-v311.png",
+  "/assets/generated/alchemy-effect-generate-v311.png",
+  "/assets/generated/alchemy-effect-credits-v311.png",
+  "/assets/generated/alchemy-effect-stamina-v311.png",
+  "/assets/generated/alchemy-effect-heal-v311.png",
+  "/assets/generated/alchemy-effect-fire-v311.png",
+  "/assets/generated/alchemy-effect-substitution-v311.png",
+  "/assets/generated/alchemy-effect-warp-v311.png",
+  "/assets/generated/alchemy-effect-grit-v311.png",
+  "/assets/generated/alchemy-effect-reason-v311.png",
+  "/assets/generated/gunner-break-handgun-v311.png",
+  "/assets/generated/gunner-break-smg-v311.png",
+  "/assets/generated/gunner-break-assault-v311.png",
+  "/assets/generated/gunner-break-sniper-v311.png",
+  "/assets/generated/gunner-break-taser-v311.png",
+  "/assets/generated/gunner-fire-handgun-v311.png",
+  "/assets/generated/gunner-fire-smg-v311.png",
+  "/assets/generated/gunner-fire-assault-v311.png",
+  "/assets/generated/gunner-fire-sniper-v311.png",
+  "/assets/generated/gunner-fire-taser-v311.png",
+  "/assets/generated/drone-altitude-low-v311.png",
+  "/assets/generated/drone-altitude-middle-v311.png",
+  "/assets/generated/drone-altitude-high-v311.png",
+  "/assets/generated/physical-action-atlas-white-hood.webp",
+  "/assets/generated/physical-action-atlas-blue-dress.webp",
+  "/assets/generated/physical-action-atlas-male-bot.webp",
+  "/assets/generated/weapon-motion-white-hood-handgun-v313.webp",
+  "/assets/generated/weapon-motion-white-hood-smg-v313.webp",
+  "/assets/generated/weapon-motion-white-hood-assault-v313.webp",
+  "/assets/generated/weapon-motion-white-hood-sniper-v313.webp",
+  "/assets/generated/weapon-motion-white-hood-taser-v313.webp",
+  "/assets/generated/weapon-motion-blue-dress-handgun-v313.webp",
+  "/assets/generated/weapon-motion-blue-dress-smg-v313.webp",
+  "/assets/generated/weapon-motion-blue-dress-assault-v313.webp",
+  "/assets/generated/weapon-motion-blue-dress-sniper-v313.webp",
+  "/assets/generated/weapon-motion-blue-dress-taser-v313.webp",
+  "/assets/generated/weapon-motion-male-bot-handgun-v313.webp",
+  "/assets/generated/weapon-motion-male-bot-smg-v313.webp",
+  "/assets/generated/weapon-motion-male-bot-assault-v313.webp",
+  "/assets/generated/weapon-motion-male-bot-sniper-v313.webp",
+  "/assets/generated/weapon-motion-male-bot-taser-v313.webp",
+  "/assets/generated/item-gold.webp",
+  "/assets/generated/item-mercury.webp",
+  "/assets/generated/item-lead.webp",
+  "/assets/generated/item-uranium.webp",
+  "/assets/generated/item-plutonium.webp",
+  "/assets/generated/item-mineral-water.webp",
+  "/assets/generated/item-antidote.webp",
+  "/assets/generated/item-heal.webp",
+  "/assets/generated/item-stamina-cell.webp",
+  "/assets/generated/mana-potion.webp",
+  "/assets/generated/credit-crates.png",
+  "/assets/generated/item-molotov.webp",
+  "/assets/generated/item-ice.webp",
+  "/assets/generated/item-heated-water.webp",
+  "/assets/generated/push-stand-firm-break-v311.png",
+  "/assets/generated/resolve-point.webp",
+  "/assets/generated/alchemy-excalibur.webp",
+  "/assets/generated/hack-credits-delete.webp",
+  "/assets/generated/hack-credits-duplicate.webp",
+  "/assets/generated/hack-items-delete.webp",
+  "/assets/generated/hack-items-duplicate.webp",
+  "/assets/generated/hack-hp-delete.webp",
+  "/assets/generated/hack-hp-duplicate.webp",
+  "/assets/generated/hack-mana-delete.webp",
+  "/assets/generated/hack-mana-duplicate.webp",
+  "/assets/generated/alchemy-railgun-field-effect.webp",
+  "/assets/generated/alchemy-particle-cannon-field-effect.webp",
+  "/assets/generated/data-terminal.png",
+  "/assets/generated/gunner-weapons-atlas.webp",
+  "/assets/generated/gunner-taser.webp",
+  "/assets/generated/ui-result-surface.webp",
+  "/assets/sfx/alert.wav",
+  "/assets/sfx/dash-step-1.wav",
+  "/assets/sfx/dash-step-2.wav",
+  "/assets/sfx/death.wav",
+  "/assets/sfx/dodge.wav",
+  "/assets/sfx/drone.wav",
+  "/assets/sfx/emp.wav",
+  "/assets/sfx/fighter-counter.wav",
+  "/assets/sfx/fire-jutsu.wav",
+  "/assets/sfx/footstep-1.wav",
+  "/assets/sfx/footstep-2.wav",
+  "/assets/sfx/gun-assault.wav",
+  "/assets/sfx/gun-handgun.wav",
+  "/assets/sfx/gun-smg.wav",
+  "/assets/sfx/gun-sniper.wav",
+  "/assets/sfx/impact.wav",
+  "/assets/sfx/kill.wav",
+  "/assets/sfx/lose.wav",
+  "/assets/sfx/meeting.wav",
+  "/assets/sfx/object.wav",
+  "/assets/sfx/ranking.wav",
+  "/assets/sfx/round.wav",
+  "/assets/sfx/start.wav",
+  "/assets/sfx/substitution.wav",
+  "/assets/sfx/task.wav",
+  "/assets/sfx/teleport.wav",
+  "/assets/sfx/ui-click.wav",
+  "/assets/sfx/ui-confirm.wav",
+  "/assets/sfx/win.wav"
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => Promise.all(
+      STATIC_ASSETS.map(async (asset) => {
+        try {
+          const response = await fetch(asset, { cache: "reload" });
+          if (response.ok) await cache.put(asset, response);
+        } catch {
+          // A noncritical asset must not prevent the new worker from activating.
+        }
+      })
+    ))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+    })
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith("/api/")) return;
+  if (event.request.method !== "GET") return;
+
+  event.respondWith(
+    fetch(event.request).then((response) => {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+      return response;
+    }).catch(() => {
+      return caches.match(event.request);
+    })
+  );
+});

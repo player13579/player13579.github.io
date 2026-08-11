@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#14b8a6">
+    <title>ディフェンダー vs アタッカー</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
+    <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
+    <meta property="og:image" content="assets/plicy-thumbnail-v389.png">
+  <link rel="stylesheet" href="styles.css?v=item-throw-operator-ate-v391">
+  </head>
+  <body>
+    <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v389.png?v=item-throw-operator-ate-v391" alt="フローラの回復を発動する白いフードの女性">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v389.png?v=item-throw-operator-ate-v391" alt="" aria-hidden="true">
+      <canvas id="titleFxCanvas" class="title-fx-canvas" aria-hidden="true"></canvas>
+      <div id="titleMenu" class="title-menu">
+        <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
+        <h1>Defenders<br>vs Attackers</h1>
+        <p class="title-japanese">ディフェンダー vs アタッカー</p>
+        <div class="title-actions">
+          <button id="titlePlayButton" class="title-command title-play" data-hotkey="P" type="button" aria-describedby="titlePlayProgress"><span aria-hidden="true">▶</span>プレイ</button>
+          <button id="titleTacticsButton" class="title-command" data-hotkey="I" type="button"><span aria-hidden="true">◎</span>戦術いろは</button>
+        </div>
+        <p id="titlePlayProgress" class="title-play-progress" aria-live="polite">オフラインプレイ / ソロ訓練 0/7</p>
+      </div>
+
+      <section id="tacticsPanel" class="tactics-panel" aria-label="戦術いろは" hidden>
+        <header class="tactics-header">
+          <div>
+            <p class="title-kicker">TACTICAL DOCTRINE</p>
+            <h2>戦術いろは</h2>
+            <p>ソロ実戦訓練と仕様表で、基礎規則から数値、相互作用、意思決定まで確認できます。</p>
+          </div>
+          <div class="tactics-header-actions">
+            <button id="tacticsBackButton" class="title-icon-button inline" type="button" aria-label="タイトルへ戻る" title="タイトルへ戻る">×</button>
+          </div>
+        </header>
+        <section class="solo-training" data-scroll-region="ソロ実戦訓練" data-scroll-target="soloMissionGrid" aria-labelledby="soloTrainingTitle" tabindex="0">
+          <div class="solo-training-heading">
+            <div>
+              <p class="title-kicker">SOLO DRILLS</p>
+              <h3 id="soloTrainingTitle">ソロ実戦訓練</h3>
+            </div>
+            <p id="soloTrainingProgress" class="solo-training-progress" aria-live="polite">0 / 5 完了</p>
+          </div>
+          <div id="soloMissionGrid" class="solo-mission-grid">
+            <article class="solo-mission-card" data-solo-card="movement">
+              <img src="assets/tutorials/poster-movement.webp" alt="機動訓練のフィールド">
+              <div><p>DRILL 01</p><h4>機動・タスク</h4><span>端末を探索し、自分でタスクを1件完了する。</span></div>
+              <button type="button" data-solo-mission="movement" data-hotkey="1">開始</button>
+            </article>
+            <article class="solo-mission-card" data-solo-card="combat">
+              <img src="assets/tutorials/poster-combat.webp" alt="射撃訓練のフィールド">
+              <div><p>DRILL 02</p><h4>ガンナー射撃</h4><span>有限弾薬を使い、ディフェンダーを1人排除する。</span></div>
+              <button type="button" data-solo-mission="combat" data-hotkey="2">開始</button>
+            </article>
+            <article class="solo-mission-card" data-solo-card="defense">
+              <img src="assets/tutorials/poster-basics.webp" alt="防衛訓練のフィールド">
+              <div><p>DRILL 03</p><h4>回避・反撃</h4><span>回避を発動し、15秒間生存する。</span></div>
+              <button type="button" data-solo-mission="defense" data-hotkey="3">開始</button>
+            </article>
+            <article class="solo-mission-card" data-solo-card="intel">
+              <img src="assets/tutorials/poster-intel.webp" alt="索敵訓練のフィールド">
+              <div><p>DRILL 04</p><h4>索敵・攪乱</h4><span>ドローンを展開し、サボタージュを起動する。</span></div>
+              <button type="button" data-solo-mission="intel" data-hotkey="4">開始</button>
+            </article>
+            <article class="solo-mission-card" data-solo-card="emp">
+              <img src="assets/tutorials/poster-intel.webp" alt="EMP共鳴訓練のフィールド">
+              <div><p>DRILL 05</p><h4>EMP共鳴</h4><span>停止したBotが3秒周期で放つEMPへ位相を重ねる。</span></div>
+              <button type="button" data-solo-mission="emp" data-hotkey="5">開始</button>
+            </article>
+            <article class="solo-mission-card" data-solo-card="cpu-gravity">
+              <img src="assets/tutorials/poster-combat.webp" alt="グラビティCPU戦のフィールド">
+              <div><p>CPU 01</p><h4>心臓転移を破れ</h4><span>加速と練気の準備中にグラビティBotをキルして排除する。</span></div>
+              <button type="button" data-solo-mission="cpu-gravity" data-hotkey="6">開始</button>
+              <p id="cpuGravityHint" class="solo-mission-hint" hidden>行動パターン: 自己加速→練気4回→自己加速→練気4回→心臓転移。準備中に接近し、忍殺またはオペ能力でグラビティBotを排除してください。</p>
+            </article>
+            <article class="solo-mission-card" data-solo-card="cpu-stage2">
+              <img src="assets/tutorials/poster-combat.webp" alt="ハッカーCPU戦のフィールド">
+              <div><p>CPU 02</p><h4>ハック制圧を破る</h4><span>資源と状態を書き換えるハッカーBOTを排除する。</span></div>
+              <button type="button" data-solo-mission="cpu-stage2" data-hotkey="7">開始</button>
+            </article>
+          </div>
+        </section>
+        <div class="tactics-layout">
+          <nav id="tacticsChapterList" class="tactics-chapters" data-scroll-region="戦術いろは・章一覧" aria-label="戦術いろはの章" tabindex="0">
+            <button class="active" data-tactics-target="tactics-basics" type="button"><span>一</span>勝利と試合進行</button>
+            <button data-tactics-target="tactics-movement" type="button"><span>二</span>移動・音・タスク</button>
+            <button data-tactics-target="tactics-combat" type="button"><span>三</span>戦闘と射撃</button>
+            <button data-tactics-target="tactics-resources" type="button"><span>四</span>資源とイデア</button>
+            <button data-tactics-target="tactics-intel" type="button"><span>五</span>索敵・EMP・サボ</button>
+            <button data-tactics-target="tactics-meeting" type="button"><span>六</span>会議と高度判断</button>
+          </nav>
+
+          <div id="tacticsContent" class="tactics-content" data-scroll-region="戦術いろは・本文" aria-label="戦術いろは本文" tabindex="0">
+            <article id="tactics-basics" class="tactics-article" data-tactics-chapter="0">
+              <header><span>一</span><div><p>FOUNDATION</p><h3>勝利条件と試合進行</h3></div></header>
+              <p class="tactics-lead">本作の戦闘はすべてテロリスト鎮圧を想定した非実戦の戦術訓練です。オペレーター選択、バトル、会議、次ラウンド、リザルトの順で進行し、キルではなく死体通報またはスマホ緊急会議で会議へ移行します。</p>
+              <div class="tactics-rule-grid">
+                <section><h4>ディフェンダー勝利</h4><p>全タスク完了、または全アタッカーの追放・排除で勝利します。死亡したディフェンダーの残タスクは自動完了するため、死亡者数だけでタスク勝利は消えません。</p></section>
+                <section><h4>アタッカー勝利</h4><p>生存アタッカー数が生存ディフェンダー数以上になるか、致命的サボタージュが制限時間を迎えると勝利します。人数同数は投票を待たず即時判定です。</p></section>
+                <section><h4>選択順</h4><p>ホストから参加順に1人ずつオペレーターを確定します。オペレーターは陣営を問わず選択でき、攻撃判定は原則として敵陣営へ向きます。</p></section>
+                <section><h4>会議初期値</h4><p>既定値は討論0秒・投票300秒、匿名投票オン、追放陣営の即時開示オフ、緊急会議1回です。Botは会議開始時にスキップへ投票します。</p></section>
+              </div>
+            </article>
+
+            <article id="tactics-movement" class="tactics-article" data-tactics-chapter="1">
+              <header><span>二</span><div><p>MOVEMENT & SOUND</p><h3>移動・音響・タスク</h3></div></header>
+              <p class="tactics-lead">移動方向は斜めを含む8方向です。速度だけでなく、発する音とスタミナ回復停止が位置情報へ直結します。</p>
+              <div class="tactics-rule-grid">
+                <section><h4>三つの移動</h4><p>基準移動速度は抑えめです。通常歩行は小さい足音、ダッシュはスタミナを毎秒42消費して大音量、無音歩行はさらに遅く足音なしです。ドローンはスタミナ不要で加速できます。</p></section>
+                <section><h4>スタミナ</h4><p>自然回復は完全停止中だけ毎秒19。通常上限100、購入・充填で500まで蓄積できます。タスクと回避は各100を一括消費します。</p></section>
+                <section><h4>休息</h4><p>不足量を毎秒76で回復するため所要時間は残量で変化します。休息中も視覚・聴覚は残りますが、完了まで移動とアクションが不能です。</p></section>
+                <section><h4>タスク経済</h4><p>DownloadとUploadは100SPを消費し、端末の範囲内で停止し続けると自動実行されます。キー操作は不要です。1件につき10Cを獲得し、死亡したディフェンダーの残タスクは完了扱いになります。</p></section>
+                <section><h4>ペア行動禁止</h4><p>二人以上が同じ方向・同じ経路を5秒以上進むと警告後に継続ダメージを受けます。アタッカーはダメージ対象外で、Botは他者が占有する経路を避けて経路探索します。</p></section>
+                <section><h4>音の戦術</h4><p>足音、ダッシュ、銃声、EMPは立体音響で方向が分かります。アタッカーBotは近い足音を優先追跡するため、無音歩行と方向転換で誘導を切れます。</p></section>
+                <section><h4>死亡後</h4><p>死亡後は壁と障害物の当たり判定を貫通できます。ディフェンダーの未完了タスクは死亡時に全完了し、死体発見まで会議は発生しません。</p></section>
+              </div>
+            </article>
+
+            <article id="tactics-combat" class="tactics-article" data-tactics-chapter="2">
+              <header><span>三</span><div><p>COMBAT DOCTRINE</p><h3>HP・確殺・射撃</h3></div></header>
+              <p class="tactics-lead">HPは2。確殺は残HPに関係なく倒し、ボディ攻撃は累積ダメージでHPを削ります。命中時の虹色粒子は命中確認として扱えます。</p>
+              <div class="tactics-rule-grid">
+                <section><h4>攻撃</h4><p>通常キルはありません。忍殺、銃器、オペ能力で攻撃します。</p></section>
+                <section><h4>忍殺とエイム</h4><p>忍殺は対象を1.8秒固定できれば自動発動し、対象が開始位置から4以上動くと失敗します。気概中は非確殺です。エイムは一人を自動追尾します。</p></section>
+                <section><h4>防御優先順</h4><p>美は確殺を上書き不能の不殺へ、踏ん張りは次に受ける確殺を1回だけボディダメージへ変換します。押し込みは対象の踏ん張りを全無効化し、1回につき使用者へ0.5ダメージを与えます。</p></section>
+                <section><h4>回避とファイター</h4><p>全ディフェンダーは100SPで回避を1秒展開します。ファイターが回避に成功した場合は攻撃者をキルします。独立したカウンターキルは存在しません。</p></section>
+                <section><h4>ガンナー</h4><p>開始5秒後からARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れはリロードで補填できます。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
+                <section><h4>SRと特殊弾</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。ウィークバレットはマナ1で次弾へ装填され、命中対象の踏ん張りをすべて削除します。</p></section>
+                <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
+                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。斬るは対象がいなくても展開でき、忍殺を居合へ強化し、射撃を無効化してジャストガード時は反射します。Hのリミットブレイクは発動・解除を切り替え、HP1固定・超加速・確殺化の代わりにマナを継続消費し、踏ん張りと変わり身を失います。</p></section>
+                <section><h4>グラビティ</h4><p>重力と時空の相関を扱い、転移、時空加減速、リビテーション、グラビティストームを使用します。重力嵐は継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全です。</p></section>
+                <section><h4>フローラのアロマ</h4><p>理知中は本人の停止中スタミナ回復を1.75倍にします。ほかのプレイヤーには適用されません。</p></section>
+              </div>
+            </article>
+
+            <article id="tactics-resources" class="tactics-article" data-tactics-chapter="3">
+              <header><span>四</span><div><p>RESOURCE THEORY</p><h3>クレジット・マナ・善のイデア</h3></div></header>
+              <p class="tactics-lead">短期戦ではクレジットとスタミナ、長期戦では理知維持時間が勝敗を変えます。固有能力は原則マナ1を消費しますが、ハッカーだけは例外です。</p>
+              <div class="tactics-rule-grid">
+                <section><h4>クレジット獲得</h4><p>タスク10C、サボタージュ成功8C、全生存者へ10秒ごと2C、キャッシュ15C。キル固定報酬はなく、倒した対象が持つ正のクレジットを全額奪います。</p></section>
+                <section><h4>欲望・気概・理知</h4><p>マナは0が欲望、1が気概、2以上が理知。別に、SPは0が欲望、1〜250が気概、251以上が理知です。現在状態は「○○が心を支配する状態」と表します。</p></section>
+                <section><h4>心の状態</h4><p>理知はゲームを楽しむ知の快楽。気概は勝敗・劣等感・名誉欲の苦痛と、その緩和による偽の快楽。欲望は肉体的欲望の苦痛と、その緩和・利得による偽の快楽です。他責の念が生じた時はプレイを終了してください。</p></section>
+                <section><h4>練気</h4><p>スタミナ消費なし。3.5秒の精神統一中は完全行動不能となり、完了時にマナを1増やします。被攻撃が予想される場所での練気は退路を失います。</p></section>
+                <section><h4>資源変換と募金</h4><p>1MPを150SPへ、150SPを1MPへ相互変換できます。スマホ募金は10C単位で長押し連続実行でき、1回ごとに理知なら幸運／直観+0.05、気概・欲望なら-0.05。募金にそれ以外の直接効果はありません。</p></section>
+                <section><h4>哲学進行</h4><p>理知を連続維持して50秒で真または美、2分で残り、3分40秒で善、6分で善のイデア。幸運／直観が0.30を超えるほど進行速度が上がります。2未満へ落ちると次段階の連続維持時間はリセットされます。</p></section>
+                <section><h4>パッシブ条件</h4><p>踏ん張り、押し込み、変わり身、リビテーション、ハックなど、あらゆるパッシブ能力は理知中だけ発動します。所持回数は失われず、気概・欲望中は休止します。</p></section>
+                <section><h4>真・美・善</h4><p>真の獲得時は次の攻撃対象が持つ踏ん張りをすべて無効化する押し込み、美の獲得時は次の確殺をボディダメージに変える踏ん張りを得ます。善は両方に加え回復、加速、タスク軽減を統合します。善のイデア到達者は翼とともに昇天し特殊勝利します。</p></section>
+                <section><h4>自販機の確定商品</h4><p>スタミナ+100は6C、回避拡張10C、速度+0.1は8C、即時ワープ12C、回復10C、マナポーション+1MPは25C、踏ん張り30C、押し込み45C、変わり身75C、火遁90C。長押しで連続購入できます。</p></section>
+                <section><h4>意志の焦点</h4><p>通常オブジェクトから踏ん張り・押し込みは得られません。試合ごとに1地点だけ出現する意志の焦点へ近づくと、踏ん張りか押し込みを1つ獲得し、焦点は消滅します。</p></section>
+                <section><h4>ミステリー40C</h4><p>80C獲得18%、スタミナ+250が18%、完全活性16%、理知化12%、12秒鈍足14%、15秒能力封印12%、8秒意識消失10%。不利結果の合計は36%です。</p></section>
+                <section><h4>ハッカー</h4><p>固有行動は常時使用でき、マナ消費0・クールタイムあり・少量のスタミナ消費です。タスクは時間経過で自動完了し、端末付近では手動完了もできます。HP1以下で確殺無効を持たない絶体絶命時だけroot化し、他オペの全能力を借用します。</p></section>
+              </div>
+            </article>
+
+            <article id="tactics-intel" class="tactics-article" data-tactics-chapter="4">
+              <header><span>五</span><div><p>INFORMATION WARFARE</p><h3>索敵・EMP・サボタージュ</h3></div></header>
+              <p class="tactics-lead">通常は他プレイヤーの位置を地図で追えません。音、カメラ、ドローン、サボタージュ反応から間接的に推定します。</p>
+              <div class="tactics-rule-grid">
+                <section><h4>ドローン</h4><p>アタッカーは障害物を越えて遠隔索敵できます。常に最高高度で飛行し、広範囲を見渡せます。加速にスタミナを使いませんが音は大きく、EMPで破壊されるとその試合中は二度と使用できません。ガンナーはドローン情報を使ってその方向へ通常の射線判定で狙撃し、障害物がなければ命中します。発射してもドローンは失われません。</p></section>
+                <section><h4>監視カメラ</h4><p>ディフェンダーは設置カメラを切り替えて視界を取得します。カメラもEMPで破壊可能なため、映像消失そのものが敵の接近情報になります。</p></section>
+                <section><h4>EMP基本</h4><p>開始直後は8秒、使用後は24秒の再充填。被弾者は7秒間ストレージを遮断され、全アイテムを使用できず、踏ん張り・押し込み・変わり身・武器・戦術コンピューターなどの効果も停止します。所持品は失われず、解除後に復旧します。人間のオペ能力は封印しません。</p></section>
+                <section><h4>位相干渉</h4><p>900ms以内に重なった同位相EMPは共振し、中心110以内で確殺、260以内でボディダメージ。逆位相は相殺します。同地点の第三者も共振範囲へ巻き込まれます。</p></section>
+                <section><h4>サボタージュ</h4><p>アタッカーのみ表示され、開始時と発動後に45秒のクールタイム。成功で8C。遠隔修復はハッカー限定で、300SPを消費し送信完了まで4秒間行動不能。ほかのオペレーターは現地端末で修復します。</p></section>
+                <section><h4>地図と公開情報</h4><p>拡大マップは部屋名、未完了タスク、自分の現在地を表示します。オブジェクトと他者位置は表示しません。銃声は立体音響で聞こえますが位置情報として公開されません。</p></section>
+              </div>
+            </article>
+
+            <article id="tactics-meeting" class="tactics-article" data-tactics-chapter="5">
+              <header><span>六</span><div><p>DECISION MAKING</p><h3>会議・ルミナス・高度判断</h3></div></header>
+              <p class="tactics-lead">会議は確定情報だけでなく、音の方向、死体位置、修復タイミング、消費済み能力を組み合わせて矛盾を評価する場です。</p>
+              <p class="tactics-lead">オンライン対戦では外部ボイスチャットによる連携を禁止します。本作はマイク権限を要求せず、ゲーム内テキストチャットだけを使用します。</p>
+              <div class="tactics-rule-grid">
+                <section><h4>匿名投票</h4><p>既定では誰が誰へ投票したか表示されません。最多票が確定した時点、全員が投票済みの時点、またはスキップ票で結果が確定した時点に会議を終了できます。</p></section>
+                <section><h4>追放結果</h4><p>既定では追放者の陣営を即時開示しません。次ラウンドの人数、行動、勝敗判定から間接的に確かめる必要があります。</p></section>
+                <section><h4>ルミナス</h4><p>ディフェンダーが一試合に一度だけ会議中に指名排除を宣言します。的中なら対象を排除し、キルとして記録されます。会議で外すと発動者が死亡します。戦闘中のキルでは発動しません。</p></section>
+                <section><h4>貢献度</h4><p>基本スコアはキル数のみです。ルミナスの的中もキル1として加算され、能力使用やタスク完了はスコアに加算されません。リザルトは陣営別に表示します。</p></section>
+                <section><h4>高度な優先順位</h4><p>即時脅威は致命サボ、人数同数、善のイデア6分到達、破壊兵器、SR射線の順に評価します。幸運／直観による進行加速をカウントダウンで確認してください。会議では位置関係と一部の戦況がリセットされます。</p></section>
+                <section><h4>操作体系</h4><p>タイトルはPでプレイ、Iで戦術いろは。新規オンラインロビーにはBotが7人自動参加します。BでBot追加、Sで開始、Mでマップ、Tでホスト陣営を操作できます。バトルはWASD、Shiftダッシュ、Ctrl／Alt無音歩行、J長押しで跳躍、Hでオペ能力、K休息、C練気、数字キーで各戦術アクション、Backspaceで退出です。</p></section>
+                <section><h4>会議チャット規定</h4><p>卑猥・残虐な投稿は他者へ公開せず投稿者を即時退出させ、5回で永久停止します。タイトルから独立した公開チャット機能はありません。</p></section>
+              </div>
+              <footer class="tactics-credits">BGM: MusMus（<a href="https://musmus.main.jp/" target="_blank" rel="noopener noreferrer">musmus.main.jp</a>）</footer>
+            </article>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <main id="gameApp" class="app-shell" data-ui-region="game-shell" aria-label="ゲームシェル" aria-hidden="true">
+      <section class="game-area" data-ui-region="field-stage" aria-label="フィールドステージ">
+        <header class="topbar">
+          <div class="topbar-actions">
+            <button id="fullscreenButton" class="title-home-button fullscreen-button" data-hotkey="Y" type="button" title="全画面表示を切り替える" aria-label="全画面表示を切り替える">⛶</button>
+            <button id="titleHomeButton" class="title-home-button" type="button" title="タイトルへ戻る">タイトル</button>
+            <button id="debugForceEndButton" class="debug-force-end" type="button" title="デバッグ用の強制終了" hidden>強制終了</button>
+          </div>
+        </header>
+        <div id="soloMissionHud" class="solo-mission-hud" hidden>
+          <span id="soloMissionHudName">ソロ訓練</span>
+          <strong id="soloMissionHudProgress">目標を確認中</strong>
+        </div>
+        <div class="field-stage-slot">
+        <div class="board-wrap" data-ui-region="field-view" aria-label="フィールドビュー">
+          <section id="tabletPanel" class="tablet-panel" aria-label="共通アクションタブレット" hidden>
+            <header>
+              <div><small>TACTICAL TABLET</small><strong>共通アクション</strong></div>
+            </header>
+            <div id="tabletJoystickZone" class="tablet-joystick-zone" aria-label="仮想スティック">
+              <div id="tabletJoystick" class="tablet-joystick" role="application" aria-label="倒し具合で移動速度を調整" data-mode="idle">
+                <span id="tabletJoystickKnob" class="tablet-joystick-knob" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div id="tabletQuickActions" class="tablet-quick-actions" aria-label="戦闘ショートカット">
+              <button id="tabletAimShortcut" class="tablet-quick-action tactical" type="button">エイム</button>
+              <button id="tabletNinjutsuShortcut" class="tablet-quick-action danger" type="button">忍殺</button>
+              <button id="tabletAbilityShortcut" class="tablet-quick-action ability" type="button" title="タップして現在のオペ能力を発動">オペ能力</button>
+              <button id="tabletShootShortcut" class="tablet-quick-action danger" type="button" hidden>射撃</button>
+              <button id="tabletEmpShortcut" class="tablet-quick-action tactical" type="button">EMP</button>
+              <button id="tabletDodgeShortcut" class="tablet-quick-action" type="button">回避</button>
+              <button id="tabletJumpShortcut" class="tablet-quick-action movement" type="button">跳躍</button>
+              <button id="tabletRenkiShortcut" class="tablet-quick-action resource" type="button">練気</button>
+              <button id="tabletRestShortcut" class="tablet-quick-action resource" type="button">休息</button>
+              <button id="tabletManaToStaminaShortcut" class="tablet-quick-action resource" type="button">MP→SP</button>
+              <button id="tabletDonateShortcut" class="tablet-quick-action resource" type="button">募金</button>
+            </div>
+            <svg id="tabletBranchLines" class="tablet-branch-lines" aria-hidden="true"></svg>
+            <section id="tabletBranchTray" class="tablet-branch-tray" aria-label="タブレット派生操作" hidden>
+              <header>
+                <button id="tabletBranchBackButton" class="tablet-branch-back" type="button" aria-label="一つ前の分岐へ戻る" hidden>‹</button>
+                <strong id="tabletBranchTitle">操作</strong>
+                <button id="tabletBranchCloseButton" type="button" aria-label="派生操作を閉じる">×</button>
+              </header>
+              <div id="tabletBranchList" class="tablet-branch-list"></div>
+            </section>
+            <div id="actionCommandRegistry" class="tablet-action-source action-command-registry" aria-hidden="true" hidden>
+              <button id="contextActionButton" class="context-action-button" type="button" hidden>周辺アクション</button>
+              <button id="shootButton" class="danger" data-hotkey="7">射撃</button>
+              <button id="weaponButton" class="weapon-button" data-hotkey="T" data-weapon="assault" title="ガンナー武器を切り替える">武器切替</button>
+              <button id="gunnerReloadButton" data-hotkey="R" hidden>リロード</button>
+              <button id="operatorAbilityButton" data-hotkey="H">オペ能力</button>
+              <button id="jumpButton" data-hotkey="J" hidden>跳躍</button>
+              <button id="taskButton" hidden>タスク</button>
+              <button id="emergencyButton" data-hotkey="3">緊急会議</button>
+              <button id="aimButton" data-hotkey="5">エイム追尾</button>
+              <button id="ninjutsuButton" class="danger" data-hotkey="6">忍殺</button>
+              <button id="dodgeButton" data-hotkey="8">回避</button>
+              <button id="sleepButton" data-hotkey="K">休息</button>
+              <button id="renkiButton" data-hotkey="C">練気</button>
+              <button id="droneButton" data-hotkey="Z">ドローン</button>
+              <button id="droneAltitudeButton" disabled hidden>高度 高（固定）</button>
+              <button id="empButton" data-hotkey="X">EMP</button>
+              <button id="cameraButton" data-hotkey="B">監視カメラ</button>
+              <button id="nextCameraButton" data-hotkey="N">次のカメラ</button>
+              <button id="instantWarpButton" data-hotkey="I">即時ワープ</button>
+              <button id="fireJutsuButton" class="danger" data-hotkey="F">火遁の術</button>
+              <button id="dashButton" hidden>ダッシュ</button>
+              <button id="slowWalkButton" hidden>無音歩行</button>
+              <button id="teleportButton" hidden>転移</button>
+              <button id="healButton" hidden>回復</button>
+              <button id="alchemyButton" hidden>バイブコーディング</button>
+              <button id="substitutionStatusButton" disabled hidden>変わり身 0</button>
+              <button id="gritStatusButton" disabled hidden>踏ん張り 0</button>
+              <button id="reasonButton" disabled hidden>押し込み 0（自動）</button>
+              <button id="mapActionButton" data-hotkey="M" type="button" aria-controls="expandedMapOverlay" aria-expanded="false">マップを開く</button>
+            </div>
+          </section>
+          <canvas id="gameCanvas" width="980" height="620" aria-label="ゲームマップ"></canvas>
+          <div id="expandedMapOverlay" class="expanded-map-overlay" hidden>
+            <div class="expanded-map-toolbar">
+              <strong id="expandedMapTitle"></strong>
+              <span id="teleportMapStatus" class="badge" hidden>移動先を選択</span>
+              <button id="mapCloseButton" class="map-close-button" type="button" title="閉じる" aria-label="拡大マップを閉じる">×</button>
+            </div>
+            <canvas id="expandedMapCanvas" width="1200" height="760" aria-label="拡大マップ"></canvas>
+          </div>
+          <div id="chatNotification" class="chat-notification" role="status" aria-live="polite" hidden>
+            <strong id="chatNotificationText"></strong>
+          </div>
+          <section id="fieldFeedPanel" class="field-feed-overlay" role="dialog" aria-label="チャット" hidden>
+            <div class="field-feed-header">
+              <div class="tabs">
+                <button id="chatTab" class="active" type="button">チャット</button>
+              </div>
+            </div>
+            <div id="chatFeed" class="feed"></div>
+            <form id="chatForm" class="chat-form">
+              <input id="chatInput" maxlength="180" placeholder="会議中のみ送信できます">
+              <button>送信</button>
+            </form>
+          </section>
+          <div id="endOverlay" class="end-overlay" hidden>
+            <div id="resultConfetti" class="result-confetti" aria-hidden="true"></div>
+            <div class="result-dialog">
+              <div id="endTitle" class="end-title"></div>
+              <div id="endReason" class="end-reason"></div>
+              <div class="result-heading">
+                <strong>陣営別貢献度ランキング</strong>
+                <span>貢献度</span>
+              </div>
+              <div id="resultRanking" class="result-ranking"></div>
+              <button id="resetButton" class="primary" hidden>オンラインロビーへ戻る</button>
+            </div>
+          </div>
+        </div>
+          <div id="fieldLowerRow" class="field-lower-row" aria-label="戦況情報" hidden>
+            <aside id="activeEffectsPanel" class="active-effects-panel status-active-effects" data-scroll-region="適用中の効果" aria-label="適用中の効果" tabindex="0" hidden>
+              <h3>適用中の効果</h3>
+              <ul id="activeEffectsList"></ul>
+            </aside>
+            <p id="objectiveText" class="objective field-objective" hidden></p>
+            <div id="sabotageAlert" class="sabotage-alert field-sabotage-alert" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <aside id="sidePanel" class="side-panel" data-ui-region="tactical-sidebar" data-scroll-region="タクティカルサイドバー" aria-label="タクティカルサイドバー" tabindex="0">
+        <section id="joinPanel" class="panel">
+          <h2>参加</h2>
+          <label>
+            名前
+            <input id="nameInput" maxlength="16" autocomplete="nickname" placeholder="プレイヤー">
+            <small id="namePolicy" class="name-policy">名前はIPアドレス単位で保存され、初回確定後は変更できません。</small>
+          </label>
+          <label id="roomCodeLabel" hidden>
+            ルームコード
+            <input id="roomInput" maxlength="8" autocomplete="off" placeholder="空欄で新規作成">
+          </label>
+          <label>
+            プレイヤースキン
+            <select id="skinSelect">
+              <option value="hood">白フード</option>
+              <option value="blue-dress">青白ドレス</option>
+            </select>
+          </label>
+          <button id="joinButton" class="primary" data-hotkey="L" title="L" hidden>オンライン入室</button>
+          <button id="offlineJoinButton" class="secondary" data-hotkey="O" title="O">オフラインルームを作成</button>
+          <div id="publicRoomsHeader" class="section-head" hidden>
+            <span>公開ルーム</span>
+            <button id="refreshRoomsButton" class="small">更新</button>
+          </div>
+          <div id="roomList" class="room-list" hidden></div>
+        </section>
+
+        <section id="lobbyPanel" class="panel" hidden>
+          <div class="panel-title-row">
+            <h2 id="lobbyTitle">オンラインロビー</h2>
+            <span id="hostBadge" class="badge">ホスト</span>
+          </div>
+          <div id="settingsPanel" class="settings-grid">
+            <label>
+              マップ
+              <select id="mapSelect" data-hotkey="M" title="Mでマップ切替"></select>
+            </label>
+            <label>
+              アタッカー数
+              <input id="attackerCountInput" type="number" min="1" max="3">
+            </label>
+            <label>
+              ホスト陣営
+              <select id="hostTeamSelect" data-hotkey="T" title="Tでホスト陣営切替">
+                <option value="random">ランダム</option>
+                <option value="attacker">アタッカー</option>
+                <option value="defender">ディフェンダー</option>
+              </select>
+            </label>
+            <label>
+              タスク数（1人あたり）
+              <input id="taskCountInput" type="number" min="6" max="30">
+            </label>
+            <label>
+              キルクール（秒）
+              <input id="killCooldownInput" type="number" min="8" max="45">
+            </label>
+            <label>
+              討論（秒）
+              <input id="discussionTimeInput" type="number" min="0" max="45">
+            </label>
+            <label>
+              投票（秒）
+              <input id="votingTimeInput" type="number" min="20" max="600">
+            </label>
+            <label>
+              緊急会議回数
+              <input id="emergencyLimitInput" type="number" min="0" max="5">
+            </label>
+            <label>
+              キル射程
+              <input id="killRangeInput" type="number" min="60" max="180">
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label><input id="anonymousVotesInput" type="checkbox" checked> 匿名投票</label>
+            <label><input id="confirmEjectsInput" type="checkbox"> 追放結果を表示</label>
+          </div>
+          <div class="button-row">
+            <button id="addBotButton" data-hotkey="B" title="Bキーでボット追加">ボット追加 [B]</button>
+            <button id="startButton" class="primary" data-hotkey="S" title="Sキーで開始">開始 [S]</button>
+          </div>
+          <ul id="lobbyList" class="player-list"></ul>
+        </section>
+
+        <section id="selectPanel" class="panel" hidden>
+          <div class="panel-title-row">
+            <h2>オペレーター選択</h2>
+            <span id="selectTimer" class="badge">45秒</span>
+          </div>
+          <p id="selectTeamText" class="objective"></p>
+          <div id="operatorList" class="operator-list"></div>
+          <div id="operatorDetail" class="operator-detail" aria-live="polite" hidden></div>
+        </section>
+
+        <section id="statusPanel" class="panel" hidden>
+          <div class="role-block">
+            <span id="roleName" class="role-name">役割</span>
+            <span id="specialName" class="badge">特殊能力</span>
+          </div>
+          <section id="operatorBranchPanel" class="operator-branch-panel" data-ui-region="operator-console" aria-label="オペレーターコンソール" hidden>
+            <header><strong id="operatorBranchTitle">オペレーターコンソール</strong><button id="operatorBranchCloseButton" type="button" aria-label="オペレーターコンソールを閉じる">×</button></header>
+            <div id="operatorBranchList" class="operator-branch-list"></div>
+          </section>
+          <aside id="hackerAbilityDock" class="hacker-ability-dock" data-scroll-region="ハッカー適用内容" data-scroll-target="hackerAbilityGrid" aria-label="ハッカー適用内容" tabindex="0" hidden>
+            <div class="hacker-ability-head">
+              <span><small>PageUp / PageDownで選択後、矢印 選択・Shift+←→ 分類・Enter 実行・P 対象</small></span>
+              <div class="hacker-category-control" role="group" aria-label="適用内容の分類">
+                <button id="hackerCategoryPreviousButton" class="hacker-category-step" type="button" aria-label="前の分類">‹</button>
+                <strong id="hackerCategoryLabel" class="hacker-category-label">生成</strong>
+                <button id="hackerCategoryNextButton" class="hacker-category-step" type="button" aria-label="次の分類">›</button>
+              </div>
+              <button id="hackerTargetButton" class="hacker-target-button" type="button" title="Pで対象を変更">対象を選択</button>
+            </div>
+            <div id="hackerAbilityGrid" class="hacker-ability-grid" role="group" aria-label="ハッカー能力一覧"></div>
+          </aside>
+          <aside id="itemControl" class="item-control" data-scroll-region="所持品" data-scroll-target="itemInventoryGrid" aria-label="所持品操作" tabindex="0" hidden>
+            <div class="item-control-head">
+              <span><strong>INVENTORY</strong><small>所持品</small></span>
+              <span>↑↓←→ 選択・武器はタップで切替・Shift+V 使用・Shift+G 投擲</span>
+            </div>
+            <select id="itemSelect" class="visually-hidden-select" aria-label="所持品"></select>
+            <div id="itemInventoryGrid" class="item-inventory-grid" role="listbox" aria-label="所持品一覧"></div>
+            <div class="item-control-actions">
+              <button id="itemUseButton" type="button" data-hotkey="Shift+V">使用 [Shift+V]</button>
+              <button id="itemThrowButton" type="button" data-hotkey="Shift+G">投擲 [Shift+G]</button>
+            </div>
+            <p id="enhanceReadout" class="enhance-readout">長押しでエンハンス / 0MP</p>
+            <label>譲渡先
+              <select id="transferTargetSelect" aria-label="譲渡先"></select>
+            </label>
+            <label>譲渡C
+              <input id="transferCreditsAmount" type="number" min="1" step="1" value="10" inputmode="numeric" aria-label="譲渡するクレジット量">
+            </label>
+            <div class="item-transfer-actions">
+              <button id="transferItemButton" type="button" title="Alt+V">選択品を1個譲渡</button>
+              <button id="transferCreditsButton" type="button" title="Alt+C">設定量C譲渡</button>
+            </div>
+          </aside>
+          <div id="vendingPanel" class="vending-panel" data-scroll-region="自販機" aria-label="自販機" tabindex="0" hidden>
+            <div class="panel-title-row"><h3>自販機</h3></div>
+            <div class="vending-grid">
+              <button class="vending-item-with-icon" data-drink="mineral-water" data-vending-hotkey="1" data-vending-asset="mineral-water"><span class="vending-item-icon" aria-hidden="true"></span><span>ミネラルウォーター / 6C</span></button>
+              <button class="vending-item-with-icon" data-drink="evade" data-vending-hotkey="2" data-vending-asset="grit"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>回避 +0.25秒 / 10C</span></button>
+              <button class="vending-item-with-icon" data-drink="speed" data-vending-hotkey="3" data-vending-asset="warp"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>速度 +10% / 8C</span></button>
+              <button class="vending-item-with-icon" data-drink="warp" data-vending-hotkey="4" data-vending-asset="warp"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>即時ワープ / 12C</span></button>
+              <button class="vending-item-with-icon" data-drink="mystery" data-vending-hotkey="5" data-vending-asset="reason"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>ミステリー / 40C</span></button>
+              <button class="vending-item-with-icon" data-drink="fire" data-vending-hotkey="6" data-vending-asset="fire"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>火遁の術 / 90C</span></button>
+              <button class="vending-item-with-icon" data-drink="substitution" data-vending-hotkey="7" data-vending-asset="substitution"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>変わり身の術 / 75C</span></button>
+              <button class="vending-item-with-icon" data-drink="grit" data-vending-hotkey="8" data-vending-asset="grit"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>踏ん張り / 30C</span></button>
+              <button class="vending-item-with-icon" data-drink="heal" data-vending-hotkey="9" data-vending-asset="heal"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>回復 / 10C</span></button>
+              <button class="vending-item-with-icon" data-drink="reason" data-vending-hotkey="0" data-vending-asset="reason"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>押し込み / 45C</span></button>
+              <button class="vending-item-with-icon" data-drink="mana" data-vending-hotkey="P"><span class="vending-item-icon mana-potion-icon" aria-hidden="true"></span><span>マナ +1 / 25C</span></button>
+              <button class="vending-item-with-icon" data-drink="railgun" data-vending-hotkey="Alt+1"><span class="vending-item-icon invention-railgun-icon" aria-hidden="true"></span><span>レールガン / 140C</span></button>
+              <button class="vending-item-with-icon" data-drink="particle-cannon" data-vending-hotkey="Alt+2"><span class="vending-item-icon invention-particle-icon" aria-hidden="true"></span><span>荷電粒子砲 / 180C</span></button>
+              <button class="vending-item-with-icon" data-drink="excalibur" data-vending-hotkey="Alt+3"><span class="vending-item-icon invention-excalibur-icon" aria-hidden="true"></span><span>エクスカリバー / 220C</span></button>
+              <button class="vending-item-with-icon" data-drink="exile" data-vending-hotkey="Alt+5"><span class="vending-item-icon exile-icon" aria-hidden="true"></span><span>亡命 / 250C</span></button>
+              <button class="vending-item-with-icon" data-drink="computer" data-vending-hotkey="Alt+4"><span class="vending-item-icon vending-computer-icon" aria-hidden="true"></span><span>戦術コンピューター / 120C</span></button>
+              <button class="vending-item-with-icon" data-drink="handgun" data-vending-hotkey="Alt+6" data-vending-weapon="handgun"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>ハンドガン / 35C</span></button>
+              <button class="vending-item-with-icon" data-drink="smg" data-vending-hotkey="Alt+7" data-vending-weapon="smg"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>SMG / 60C</span></button>
+              <button class="vending-item-with-icon" data-drink="assault" data-vending-hotkey="Alt+8" data-vending-weapon="assault"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>AR / 80C</span></button>
+              <button class="vending-item-with-icon" data-drink="sniper" data-vending-hotkey="Alt+9" data-vending-weapon="sniper"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>SR / 110C</span></button>
+              <button class="vending-item-with-icon" data-drink="taser" data-vending-hotkey="Alt+0" data-vending-weapon="taser"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>テーザー銃 / 55C</span></button>
+              <button class="vending-item-with-icon" data-drink="molotov" data-vending-hotkey="Alt+M" data-vending-asset="molotov"><span class="vending-item-icon" aria-hidden="true"></span><span>火炎瓶 / 45C</span></button>
+              <button class="vending-item-with-icon" data-drink="antidote" data-vending-hotkey="Alt+A" data-vending-asset="antidote"><span class="vending-item-icon" aria-hidden="true"></span><span>解毒剤 / 18C</span></button>
+            </div>
+            <p class="mystery-effects"><strong>ミステリー効果</strong><br>80C賞金 18% / スタミナ+250 18% / 完全活性 16% / 理知へ移行 12% / 12秒減速 14% / 15秒能力封印 12% / 8秒意識消失 10%</p>
+            <div id="magicInventory" class="magic-inventory" hidden></div>
+          </div>
+          <div id="alchemyControl" class="alchemy-control" hidden>
+            <div class="alchemy-heading">
+              <span>
+              <strong>ハッカー生成候補</strong>
+                <small>マナ消費なし。実行後はクールタイム</small>
+              </span>
+              <span class="badge">矢印で選択・Enterで実行</span>
+            </div>
+            <div id="alchemyChoiceGrid" class="alchemy-choice-grid" data-scroll-region="ハッカー生成候補" role="group" aria-label="バイブコーディング生成候補" tabindex="0">
+              <button type="button" class="alchemy-choice selected" data-alchemy-choice="stamina" data-atlas-cell="5" aria-pressed="true">
+                <span class="alchemy-choice-icon" aria-hidden="true"></span>
+                <span><strong>スタミナ</strong><small>+350SP</small></span>
+              </button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="heal" data-atlas-cell="6" aria-pressed="false">
+                <span class="alchemy-choice-icon" aria-hidden="true"></span>
+                <span><strong>回復</strong><small>負傷治療／無傷時はオーバーヒール</small></span>
+              </button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="fire" data-atlas-cell="7" aria-pressed="false">
+                <span class="alchemy-choice-icon" aria-hidden="true"></span>
+                <span><strong>火遁の術</strong><small>使用回数 +1</small></span>
+              </button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="substitution" data-atlas-cell="8" aria-pressed="false">
+                <span class="alchemy-choice-icon" aria-hidden="true"></span>
+                <span><strong>変わり身の術</strong><small>使用回数 +1</small></span>
+              </button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="warp" data-atlas-cell="9" aria-pressed="false">
+                <span class="alchemy-choice-icon" aria-hidden="true"></span>
+                <span><strong>即時ワープ</strong><small>使用回数 +1</small></span>
+              </button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="grit" data-atlas-cell="10" aria-pressed="false">
+                <span class="alchemy-choice-icon" aria-hidden="true"></span>
+                <span><strong>踏ん張り</strong><small>確殺耐性 +1</small></span>
+              </button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="reason" data-atlas-cell="11" aria-pressed="false">
+                <span class="alchemy-choice-icon" aria-hidden="true"></span>
+                <span><strong>押し込み</strong><small>踏ん張り全無効化 / 1回につき反動0.5</small></span>
+              </button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="revive" data-atlas-cell="4" aria-pressed="false"><span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>人体生成</strong><small>死者を一度だけ復活 / 0MP</small></span></button>
+            </div>
+            <div class="alchemy-selection" aria-live="polite">
+              <span>選択中</span>
+              <strong id="alchemySelectionText">スタミナ +350SP</strong>
+            </div>
+            <select id="alchemySelect" aria-label="バイブコーディング生成先" hidden>
+              <option value="stamina">スタミナ</option>
+              <option value="heal">回復・オーバーヒール</option>
+              <option value="fire">火遁の術</option>
+              <option value="substitution">変わり身の術</option>
+              <option value="warp">即時ワープ</option>
+              <option value="grit">踏ん張り</option>
+              <option value="reason">押し込み</option>
+              <option value="revive">人体生成</option>
+            </select>
+          </div>
+          <div id="teleportControl" class="target-option-control teleport-target-control" hidden>
+            <label>能力方式 [O]
+              <select id="teleportModeSelect" aria-label="テレポート方式">
+                <option value="body">転移・地点</option>
+                <option value="near">転移・対象付近</option>
+                <option value="heart">心臓</option>
+                <option value="accelerate">アクセラレート</option>
+                <option value="decelerate">ディーセラレート</option>
+                <option value="storm">グラビティストーム</option>
+              </select>
+            </label>
+            <label>対象 [T]<select id="teleportTargetSelect" aria-label="テレポート対象"></select></label>
+          </div>
+          <div id="empPhaseControl" class="target-option-control">
+            <label>EMP位相 [;]
+              <select id="empPhaseSelect" aria-label="EMP位相">
+                <option value="positive">正相</option>
+                <option value="negative">逆相</option>
+              </select>
+            </label>
+          </div>
+          <div id="sabotageControl" class="inline-control">
+            <select id="sabotageSelect">
+              <option value="comms">通信妨害</option>
+              <option value="reactor">コア異常</option>
+              <option value="oxygen">大気漏れ</option>
+              <option value="doors">区画封鎖</option>
+            </select>
+            <button id="sabotageButton" class="danger" title="キー割り当て表から操作を確認できます">サボタージュを起動</button>
+          </div>
+          <div id="utilityControl" class="inline-control" hidden>
+            <select id="utilitySelect" hidden aria-hidden="true">
+              <option value="admin">人数情報</option>
+              <option value="vitals">生体情報</option>
+              <option value="doorlog">通行記録</option>
+            </select>
+            <button id="utilityButton" data-hotkey="U">情報端末を使用</button>
+          </div>
+          <div id="utilityPanel" class="utility-panel" hidden></div>
+        </section>
+
+        <section id="meetingPanel" class="panel" hidden>
+          <div class="panel-title-row">
+            <h2>会議 / 投票</h2>
+            <span id="meetingTimer" class="badge">0秒</span>
+          </div>
+          <p id="meetingReason" class="objective"></p>
+          <div id="luminousPanel" class="luminous-panel" hidden>
+            <div id="luminousEffectStage" class="luminous-effect-stage" aria-hidden="true">
+              <img src="assets/generated/luminous-meeting-effect-v311.png" alt="">
+            </div>
+            <div class="panel-title-row">
+              <strong>ルミナス</strong>
+              <span id="luminousStatus" class="badge">1回限り</span>
+            </div>
+            <div id="luminousList" class="luminous-list"></div>
+          </div>
+          <div id="voteList" class="vote-list"></div>
+        </section>
+
+      </aside>
+    </main>
+
+    <button id="leaveRoomButton" class="leave-room-button leave-room-launch-button" data-hotkey="Backspace" type="button"
+      title="部屋から退出" aria-label="部屋から退出" hidden>退出</button>
+
+    <button id="gameMuteButton" class="tablet-launch-button audio-launch-button" type="button" data-hotkey="\\"
+      title="ゲーム音をオフ" aria-label="ゲーム音をオフ">♪</button>
+
+    <button id="tabletButton" class="tablet-launch-button" type="button" data-hotkey="Tab"
+      title="タブレットモード" aria-label="タブレットモードを切り替える"
+      aria-controls="tabletPanel" aria-expanded="false" disabled>
+      <span class="tablet-launch-glyph" aria-hidden="true"></span>
+      <span class="tablet-launch-label">タブレット</span>
+    </button>
+
+    <button id="analyticsToggleButton" class="analytics-toggle-button" type="button" title="離脱分析を表示" aria-controls="analyticsPanel" aria-expanded="false" hidden>離脱分析</button>
+    <section id="analyticsPanel" class="analytics-panel developer-analytics-panel" tabindex="0" hidden></section>
+    <div id="sensoryOverlay" class="sensory-overlay" hidden aria-live="polite">
+      <strong id="sensoryOverlayText"></strong>
+    </div>
+    <div id="mysteryReveal" class="mystery-reveal" hidden role="status" aria-live="assertive">
+      <span>ミステリー獲得結果</span>
+      <strong id="mysteryRevealResult"></strong>
+    </div>
+    <button id="keybindButton" class="keybind-button" type="button" data-hotkey="@" title="キー割り当て表を開く (@)" aria-label="キー割り当て表を開く。アットマークキー" aria-controls="keybindOverlay" aria-expanded="false">⌨</button>
+    <section id="keybindOverlay" class="keybind-overlay" role="dialog" aria-modal="true" aria-labelledby="keybindTitle" hidden>
+      <div class="keybind-dialog">
+        <header><h2 id="keybindTitle">キー割り当て</h2><button id="keybindCloseButton" type="button" title="閉じる" aria-label="キー割り当て表を閉じる">×</button></header>
+        <div id="keybindList" class="keybind-list" data-scroll-region="キー割り当て表" tabindex="0">
+          <section><h3>移動</h3><dl><dt>W A S D</dt><dd>移動</dd><dt>Shift</dt><dd>ダッシュ</dd><dt>Ctrl / Alt</dt><dd>無音歩行</dd></dl></section>
+          <section><h3>基本操作</h3><dl><dt>Shift + Enter</dt><dd>オフラインルームを作成</dd><dt>J 長押し</dt><dd>全オペ共通の跳躍</dd><dt>\\</dt><dd>ゲーム音オン / オフ</dd><dt>@</dt><dd>キー割り当て表</dd><dt>Tab</dt><dd>タブレット</dd><dt>3 / 4</dt><dd>緊急会議 / スマホ修理</dd><dt>5 / 6</dt><dd>エイム / 忍殺</dd><dt>8</dt><dd>回避</dd><dt>C / K</dt><dd>練気 / 休息</dd><dt>,</dt><dd>MP→SP</dd><dt>G / ' 長押し</dt><dd>スマホ募金</dd><dt>M</dt><dd>マップ</dd><dt>Backspace</dt><dd>退出</dd></dl></section>
+          <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>ドローン / EMP</dd><dt>B / N</dt><dd>監視カメラ / 次のカメラ</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動</dd><dt>矢印 + Enter / Space</dt><dd>サボ内容を選択して起動</dd><dt>L</dt><dd>選択中のサボを直接起動</dd></dl></section>
+          <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>全オペ共通の固有能力</dd><dt>O / P</dt><dd>全オペ共通の能力モード / 対象切替</dd><dt>7</dt><dd>ガンナー射撃</dd><dt>T / Shift+T</dt><dd>武器を次 / 前へ切替</dd><dt>R</dt><dd>リロード</dd><dt>所持品欄</dt><dd>武器・発明品・武装強化装備を選択して使用</dd><dt>PageUp / PageDown</dt><dd>操作するUI領域を前 / 次へ切替</dd><dt>Shift + ← / →</dt><dd>ハッカー適用内容の分類を切替</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中UI内を移動。↑↓は同時にスクロール</dd><dt>P</dt><dd>ハッカーの適用対象を切替</dd><dt>Enter / Space</dt><dd>選択中の内容を実行</dd></dl></section>
+          <section><h3>自販機・所持品</h3><dl><dt>1</dt><dd>ミネラルウォーター</dd><dt>2</dt><dd>回避延長</dd><dt>3</dt><dd>加速</dd><dt>4</dt><dd>即時ワープ</dd><dt>5</dt><dd>ミステリー</dd><dt>6</dt><dd>火遁</dd><dt>7</dt><dd>変わり身</dd><dt>8</dt><dd>踏ん張り</dd><dt>9</dt><dd>回復</dd><dt>0</dt><dd>押し込み</dd><dt>P</dt><dd>マナポーション</dd><dt>PageUp / PageDown</dt><dd>所持品UIを選択</dd><dt>↑ ↓ ← →</dt><dd>所持品を選択移動</dd><dt>Shift+V / Shift+G</dt><dd>使用 / 投擲（長押しでエンハンス）</dd><dt>Alt+V / Alt+C</dt><dd>所持品 / 設定量Cを譲渡</dd><dt>Alt+1 / 2 / 3 / 5</dt><dd>レールガン / 荷電粒子砲 / エクスカリバー / 亡命</dd><dt>Alt+4</dt><dd>戦術コンピューター</dd><dt>Alt+6 / 7 / 8 / 9 / 0</dt><dd>HG / SMG / AR / SR / テーザー</dd></dl></section>
+          <section><h3>ロビー</h3><dl><dt>B</dt><dd>ボット追加</dd><dt>S</dt><dd>対戦開始</dd><dt>M / T</dt><dd>マップ / ホスト陣営</dd><dt>Shift+数字</dt><dd>対象をキック</dd></dl></section>
+          <section><h3>選択</h3><dl><dt>↑ ↓ ← →</dt><dd>表示方向へ候補を選択</dd><dt>Shift + ← / →</dt><dd>分類を切替</dd><dt>Enter / Space</dt><dd>選択を実行</dd><dt>O / L</dt><dd>オフライン / オンライン</dd><dt>Escape</dt><dd>閉じる・戻る</dd></dl></section>
+        </div>
+      </div>
+    </section>
+    <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
+    <div id="toast" class="toast" hidden></div>
+    <script src="game-runtime.js?v=item-throw-operator-ate-v391"></script>
+    <script src="game-engine.js?v=item-throw-operator-ate-v391"></script>
+    <script src="offline-runtime.js?v=item-throw-operator-ate-v391"></script>
+    <script src="config.js?v=item-throw-operator-ate-v391"></script>
+    <script src="app.js?v=item-throw-operator-ate-v391"></script>
+</body>
+</html>

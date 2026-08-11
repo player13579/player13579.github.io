@@ -1,0 +1,19 @@
+{
+  "name": "Defenders vs Attackers",
+  "short_name": "DVA",
+  "description": "Online tactical deduction action game with solo drills, bots, operator abilities, and spatial combat.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "background_color": "#101417",
+  "theme_color": "#14b8a6",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
