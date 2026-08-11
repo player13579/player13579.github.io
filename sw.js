@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v392-preparation-barrier-no-auto-aim";
+const CACHE_NAME = "dva-static-v393-fighter-sword-energy";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -29,6 +29,8 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-gunner-ate-v391.png",
   "/assets/generated/operator-hacker-ate-v391.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
+  "/assets/generated/fighter-sword-charge-ate-v393.png",
+  "/assets/generated/fighter-shockwave-ate-v393.png",
   "/assets/generated/luminous-meeting-effect-v311.png",
   "/assets/generated/sabotage-repair-map-marker.webp",
   "/assets/generated/smartphone-sabotage-repair-v374.png",

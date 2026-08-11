@@ -372,6 +372,7 @@ const state = {
   motion: new Map(),
   facing: new Map(),
   walkAnimations: new Map(),
+  physicalMotionPhases: new Map(),
   characterActions: new Map(),
   renderPlayers: new Map(),
   camera: { x: 0, y: 0, vx: 0, vy: 0, initialized: false, mode: "", frame: -1 },
@@ -1916,6 +1917,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/gunner-heavy": "shoot",
   "/api/dodge": "evade",
   "/api/fighter-slash": "slash",
+  "/api/fighter-charge": "power",
   "/api/sleep": "rest",
   "/api/renki": "focus",
   "/api/resource-convert": "focus",
@@ -1930,7 +1932,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/item-use": "interact",
   "/api/item-throw": "throw",
   "/api/flora-heal": "heal",
-  "/api/limit-break": "power",
   "/api/alchemist-invention": "cast",
   "/api/borrowed-ability": "cast",
   "/api/emergency": "interact",
@@ -2026,6 +2027,8 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "fighter-slash": "slash",
   "fighter-slash-parry": "slash",
   "fighter-iaido": "slash",
+  "fighter-sword-charge": "power",
+  "fighter-shockwave": "slash",
   "gunner-hover-sprint": "power",
   "gunner-rpg": "shoot",
   "gunner-missile": "shoot",
@@ -2163,8 +2166,8 @@ function isContinuousGameActionButton(button) {
     NON_REPEATABLE_ACTION_HOTKEY_BUTTONS.has(button.id) ||
     button.matches("[data-drink]")
   ) return false;
-  if (button.id === "tabletAbilityShortcut") return false;
   if ([
+    "tabletAbilityShortcut",
     "tabletNinjutsuShortcut",
     "tabletEmpShortcut",
     "tabletDodgeShortcut",
@@ -2185,7 +2188,9 @@ function invokeContinuousGameAction(button, { allowHidden = false } = {}) {
   if (!allowHidden && (button.hidden || button.closest("[hidden]"))) return false;
   // The action keeps its existing icon, physical motion, and B-generated effect.
   // Holding only changes input cadence, so no new visual asset meaning is introduced.
-  button.click();
+  const source = button === els.tabletAbilityShortcut ? els.operatorAbilityButton : button;
+  if (!source || source.disabled || source.hidden) return false;
+  source.click();
   return true;
 }
 
@@ -3932,6 +3937,7 @@ function bindTabletControls() {
     button.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       if (button === els.tabletAbilityShortcut) {
+        if (event.defaultPrevented) return;
         event.preventDefault();
         state.tabletGesture.suppressClick = true;
         if (!els.operatorAbilityButton.disabled) els.operatorAbilityButton.click();
@@ -5009,11 +5015,6 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         triggerOperatorAbility();
       }, recipe.id === els.alchemySelect.value, recipe.output || "");
     });
-  } else if (activeType === "fighter") {
-    addBranch("リミットブレイク", () => {
-      if (borrowedPreview) triggerBorrowedAbility("fighter", "limit-break");
-      else void api("/api/limit-break");
-    }, true, "Hで発動・解除。HP1固定、超加速、確殺化、マナ継続消費、即死回避無効");
   }
   if (focusFirst) {
     requestAnimationFrame(() => els.operatorBranchList.querySelector("button")?.focus({ preventScroll: true }));
@@ -5024,7 +5025,7 @@ function triggerOperatorAbility() {
   const self = state.data?.self;
   if (!self) return;
   if (self.special === "fighter") {
-    void api("/api/limit-break");
+    void api("/api/fighter-charge");
   } else if (self.special === "teleport") {
     triggerTeleportAction();
   } else if (self.special === "flora") {
@@ -5597,6 +5598,7 @@ function resetLocalSession() {
   state.motion.clear();
   state.facing.clear();
   state.walkAnimations.clear();
+  state.physicalMotionPhases.clear();
   state.characterActions.clear();
   state.renderPlayers.clear();
   state.camera = { x: 0, y: 0, initialized: false, mode: "", frame: -1 };
@@ -6948,10 +6950,12 @@ function collectOperatorPassiveEffects(self, liveNow) {
   if (hasDisplayedOperatorAccess(self, "fighter")) {
     add("キルカウンター", passiveValue, passiveTone, "回避成功時、攻撃者を即時キルする");
     add("斬る", "忍殺強化", "rational", "忍殺を居合へ変え、射撃を切断してジャストガード時は反射する");
-  }
-
-  if (self.special === "fighter" && self.limitBreakActive) {
-    add("リミットブレイク", "発動中", "desire", "HP1固定 / 超加速 / 忍殺確殺 / 即死回避無効 / マナ継続消費");
+    add(
+      "リミットブレイク",
+      self.limitBreakActive ? "発動中" : self.limitBreakUsed ? "使用済み" : "絶体絶命時",
+      self.limitBreakActive ? "desire" : passiveTone,
+      "HP1かつ即死回避なしで自動発動 / SP×3 / 加速×3 / HP1固定 / 即死回避無効 / マナ継続消費"
+    );
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -7277,14 +7281,9 @@ function objectiveText(data) {
       return `忍殺準備中です。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。対象が動くと失敗します。`;
     }
     const cd = Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
-    const limitText = self.special === "fighter"
-      ? self.limitBreakActive
-        ? " / H: リミットブレイク解除"
-        : " / H: リミットブレイク発動"
-      : "";
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
     const sabotageSeconds = Math.max(0, Math.ceil(((self.sabotageReadyAt || 0) - liveNow) / 1000));
-    return `ディフェンダーを減らしてください。キル ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"} / サボタージュ ${sabotageSeconds ? `${sabotageSeconds}秒` : "使用可能"}${limitText}`;
+    return `ディフェンダーを減らしてください。キル ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"} / サボタージュ ${sabotageSeconds ? `${sabotageSeconds}秒` : "使用可能"}`;
   }
   if (!self.alive) return "死亡中です。残ったタスクは完了扱いです。";
   if (self.chatMuted) return "復活後のため、この試合ではチャットできません。";
@@ -7496,6 +7495,8 @@ function updateActionButtons(data) {
     hasMana("alchemy") &&
     (Number(self.vibeCodingReadyAt) || 0) <= liveNow);
   const operatorMode = els.teleportModeSelect.value;
+  const fighterSwordCharge = Math.max(0, Number(self.fighterSwordCharge) || 0);
+  const fighterShockwaveUnlocked = Boolean(self.fighterShockwaveUnlocked || fighterSwordCharge >= 6);
   const borrowedModeLabel = selectedBorrowedRecipe
     ? activeBorrowedOperator === "gravity"
       ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
@@ -7503,10 +7504,14 @@ function updateActionButtons(data) {
         ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
         : activeBorrowedOperator === "gunner"
           ? (operatorMode === "hover-sprint" ? "ホバースプリント" : "ウィークバレット")
-          : "常時パッシブ"
+          : activeBorrowedOperator === "fighter"
+            ? "剣エネルギー蓄積"
+            : "常時パッシブ"
     : "";
   const operatorLabels = {
-    fighter: self.limitBreakActive ? "リミットブレイク解除" : `リミットブレイク発動 ${operatorCostLabel("limitBreak")}`,
+    fighter: fighterShockwaveUnlocked
+      ? "剣エネルギー 最大 / 衝撃波解放済み"
+      : `剣へ蓄積 ${fighterSwordCharge}/6 ${operatorCostLabel("fighterCharge")}`,
     teleport: operatorMode === "body" ? `転移・地点 ${operatorCostLabel("teleport")}`
       : operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
         : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
@@ -7524,13 +7529,12 @@ function updateActionButtons(data) {
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
       : "借用能力"
   };
-  operatorLabels.fighter = activeBorrowedOperator === "fighter" ? "リミットブレイク" : operatorLabels.fighter;
   const borrowedCostKey = activeBorrowedOperator === "gravity"
       ? (operatorMode === "heart" ? "heartTeleport" : "teleport")
       : activeBorrowedOperator === "flora"
         ? "flora"
       : activeBorrowedOperator === "fighter"
-        ? "fighterSlash"
+        ? "fighterCharge"
       : "weakBullet";
   const selectedBorrowedFree = selectedBorrowedRecipe &&
     Number(borrowedFreeUses[activeBorrowedOperator]) > 0;
@@ -7548,7 +7552,7 @@ function updateActionButtons(data) {
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
   els.operatorAbilityButton.disabled = !canUseAbility ||
-    (displayedOperator === "fighter" && !self.limitBreakActive && !hasMana("limitBreak")) ||
+    (displayedOperator === "fighter" && (fighterShockwaveUnlocked || !hasMana("fighterCharge"))) ||
     (displayedOperator === "gunner" && (
       operatorMode === "hover-sprint"
         ? (Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("weakBullet")
@@ -9853,8 +9857,9 @@ function drawTaskEdgeIndicators(data, camera, w, h, zoom = CAMERA_ZOOM) {
 }
 
 function drawSabotageRepairIndicators(data, camera, w, h, zoom = CAMERA_ZOOM) {
-  if (!data.sabotage || data.phase !== "playing") return;
+  if (data.phase !== "playing") return;
   const stations = sabotageRepairStations(data);
+  if (!stations.length) return;
   for (const station of stations) {
     const sx = (station.x - camera.x) * zoom;
     const sy = (station.y - camera.y) * zoom;
@@ -9902,13 +9907,26 @@ function drawSmartphoneRepairControl(data, w) {
 }
 
 function sabotageRepairStations(data) {
-  if (!data?.sabotage) return [];
-  const repairedPoints = data.sabotage.repairedPoints || {};
-  return data.map.stations.filter((station) => (
-    station.type === "repair" &&
-    station.repair === data.sabotage.type &&
-    !repairedPoints[station.id]
-  ));
+  if (!data?.map) return [];
+  const targets = [];
+  if (data.sabotage) {
+    const repairedPoints = data.sabotage.repairedPoints || {};
+    targets.push(...data.map.stations.filter((station) => (
+      station.type === "repair" &&
+      station.repair === data.sabotage.type &&
+      !repairedPoints[station.id]
+    )));
+  }
+  const activeDoorIds = new Set(Array.isArray(data.activeDoorIds) ? data.activeDoorIds : []);
+  targets.push(...data.map.doors
+    .filter((door) => activeDoorIds.has(door.id))
+    .map((door) => ({
+      id: `door-repair-${door.id}`,
+      x: door.x + door.w / 2,
+      y: door.y + door.h / 2,
+      repair: "doors"
+    })));
+  return targets;
 }
 
 function drawSabotageRepairMarker(targetCtx, x, y, size, pulse = 1) {
@@ -10458,6 +10476,9 @@ const GENERATED_EFFECT_TEXTURES = {
   "fire": ["fireJutsuFieldEffect", 520],
   "substitution": ["substitutionFieldEffect", 300],
   "limit-break": ["limitBreakFieldEffect", 360],
+  "fighter-sword-charge": ["fighterSwordChargeEffect", 220],
+  "fighter-shockwave": ["fighterShockwaveEffect", 180],
+  "fighter-push-acquired": ["pushMarkerEffect", 96],
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
   "action-vibe-coding": ["vibeCodingEffect", 220],
   "gunner-hover-sprint": ["gunnerHoverSprintEffect", 240],
@@ -10515,7 +10536,10 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     (0.82 + pulse * 0.28 + progress * 0.14);
   const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
-  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
+  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
+  const renderHeight = effect.type === "fighter-shockwave"
+    ? Math.max(120, Number(effect.radius || 0) * 2.2)
+    : size;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
@@ -10527,9 +10551,9 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   drawAnimatedTextureBottom(
     sprite,
     0,
-    size / 2,
+    renderHeight / 2,
     directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : size,
-    size,
+    renderHeight,
     { mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant), progress, intensity: 0.94, baseAlpha: 0.16 }
   );
   if (effect.type === "quantum-transmutation") {
@@ -11552,6 +11576,22 @@ function drawPersistentIdeaState(player, data, ascensionProgress) {
   ctx.restore();
 }
 
+function physicalMotionRateFor(player) {
+  const self = player?.id === state.data?.selfId ? state.data?.self : null;
+  return clamp(Number(self?.accelerationMultiplier ?? player?.accelerationMultiplier) || 1, 0.15, 12);
+}
+
+function loopedPhysicalMotionProgress(player, kind, cycleMs) {
+  const timestamp = state.frameNow || performance.now();
+  const key = `${player.id}:${kind}`;
+  const phase = state.physicalMotionPhases.get(key) || { progress: 0, lastAt: timestamp };
+  const elapsed = clamp(timestamp - phase.lastAt, 0, 50);
+  phase.progress = (phase.progress + elapsed * physicalMotionRateFor(player) / Math.max(1, cycleMs)) % 1;
+  phase.lastAt = timestamp;
+  state.physicalMotionPhases.set(key, phase);
+  return phase.progress;
+}
+
 function currentCharacterAction(player) {
   const timestamp = state.frameNow || performance.now();
   const jumpMotion = player.jumpMotion;
@@ -11561,15 +11601,20 @@ function currentCharacterAction(player) {
     return { kind: "jump", progress };
   }
   if (player.movementMode === "jump-prepare") return { kind: "jump", progress: 0 };
-  if (player.movementMode === "sleep") return { kind: "rest", progress: (timestamp % 1600) / 1600 };
-  if (player.movementMode === "meditating") return { kind: "focus", progress: (timestamp % 1800) / 1800 };
+  if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600) };
+  if (player.movementMode === "meditating") return { kind: "focus", progress: loopedPhysicalMotionProgress(player, "focus", 1800) };
   if (player.gunFiring || (player.id === state.data?.selfId && state.gunTriggerHeld)) {
-    const cycle = (timestamp % 360) / 360;
+    const cycle = loopedPhysicalMotionProgress(player, "shoot", 360);
     return { kind: "shoot", progress: cycle <= 0.5 ? cycle * 2 : (1 - cycle) * 2 };
   }
   const action = state.characterActions.get(player.id);
   if (!action) return null;
-  const progress = (timestamp - action.startedAt) / Math.max(1, action.duration);
+  const lastSampleAt = Number(action.lastSampleAt) || Number(action.startedAt) || timestamp;
+  const elapsed = clamp(timestamp - lastSampleAt, 0, 100);
+  const progress = (Number(action.sampledProgress) || 0) +
+    elapsed * physicalMotionRateFor(player) / Math.max(1, action.duration);
+  action.lastSampleAt = timestamp;
+  action.sampledProgress = progress;
   if (progress >= 1) {
     state.characterActions.delete(player.id);
     return null;
@@ -11732,6 +11777,8 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   levitation: Object.freeze({ texture: "statusLevitationEffect", mode: "ripple", size: 30, alpha: 0.88, phase: 0.27 }),
   hpReduction: Object.freeze({ texture: "statusHpReductionEffect", mode: "data-down", size: 30, alpha: 0.88, phase: 0.46 }),
   resistanceBreak: Object.freeze({ texture: "pushStandFirmBreak", mode: "glitch", size: 30, alpha: 0.84, phase: 0.63 }),
+  standFirm: Object.freeze({ texture: "standFirmMarkerEffect", mode: "shield", size: 28, alpha: 0.94, phase: 0.18 }),
+  push: Object.freeze({ texture: "pushMarkerEffect", mode: "shimmer", size: 28, alpha: 0.94, phase: 0.72 }),
   burning: Object.freeze({ texture: "hazardFireEffect", mode: "combustion", size: 30, alpha: 0.88, phase: 0.81 }),
   poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 })
 });
@@ -11990,7 +12037,7 @@ function walkAnimationFrame(player, motion) {
   if (motion.moving) {
     if (!animation.moving) animation.frame = 0;
     const cycleMs = player.movementMode === "dash" ? 500 : player.movementMode === "slow" ? 1040 : 720;
-    animation.frame = (animation.frame + elapsed / cycleMs * 60) % 60;
+    animation.frame = (animation.frame + elapsed * physicalMotionRateFor(player) / cycleMs * 60) % 60;
     const stepBucket = Math.floor(animation.frame / 15) % 4;
     if (player.id === state.data?.selfId && player.alive && stepBucket !== animation.stepBucket && now - animation.lastStepAt > 170) {
       animation.stepBucket = stepBucket;
@@ -12878,7 +12925,7 @@ function drawMinimap(data, w, h) {
       ctx.fill();
     }
   });
-  if (data.phase === "playing" && data.sabotage) {
+  if (data.phase === "playing" && sabotageRepairStations(data).length) {
     const pulse = 1 + Math.sin((state.frameNow || performance.now()) / 130) * 0.12;
     sabotageRepairStations(data).forEach((station) => drawSabotageRepairMarker(ctx, station.x, station.y, 250, pulse));
   }
@@ -13006,7 +13053,7 @@ function drawExpandedMap(data) {
     mapCtx.fill();
   });
 
-  if (data.phase === "playing" && data.sabotage) {
+  if (data.phase === "playing" && sabotageRepairStations(data).length) {
     const pulse = 1 + Math.sin((state.frameNow || performance.now()) / 130) * 0.12;
     sabotageRepairStations(data).forEach((station) => drawSabotageRepairMarker(mapCtx, station.x, station.y, 250, pulse));
   }
@@ -13121,7 +13168,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "preparation-barrier-no-auto-aim-v392";
+const version = "fighter-sword-energy-v393";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -13205,6 +13252,10 @@ const version = "preparation-barrier-no-auto-aim-v392";
     "assets/generated/drone-altitude-high-v311.png"
   ]);
   const fighterSlashEffect = new Image();
+  const fighterSwordChargeEffect = new Image();
+  const fighterShockwaveEffect = new Image();
+  const standFirmMarkerEffect = philosophyEffectTextures[4];
+  const pushMarkerEffect = philosophyEffectTextures[5];
   const floraHealV1 = new Image();
   const floraSunbeamV3 = new Image();
   const tacticalSystemsAtlas = new Image();
@@ -13289,6 +13340,8 @@ const version = "preparation-barrier-no-auto-aim-v392";
   defer(heartTeleportEffect, "assets/generated/heart-teleport-v311.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
+  defer(fighterSwordChargeEffect, "assets/generated/fighter-sword-charge-ate-v393.png");
+  defer(fighterShockwaveEffect, "assets/generated/fighter-shockwave-ate-v393.png");
   defer(floraHealV1, "assets/generated/flora-self-heal-v336.png");
   defer(floraSunbeamV3, "assets/generated/flora-sunbeam-v3-v336.png");
   defer(tacticalSystemsAtlas, "assets/generated/tactical-systems-atlas.webp");
@@ -13378,6 +13431,10 @@ const version = "preparation-barrier-no-auto-aim-v392";
     gunnerCombatStateEffects,
     droneAltitudeEffects,
     fighterSlashEffect,
+    fighterSwordChargeEffect,
+    fighterShockwaveEffect,
+    standFirmMarkerEffect,
+    pushMarkerEffect,
     floraHealV1,
     floraSunbeamV3,
     tacticalSystemsAtlas,
