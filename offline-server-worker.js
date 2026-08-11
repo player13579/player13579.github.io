@@ -12644,14 +12644,23 @@ function addHazardField(room, source, kind, x, y, radius, strength = 1, duration
   return field;
 }
 
-function safeThrowPoint(room, player, holdMs = 0) {
+function safeThrowPoint(room, player, holdMs = 0, targetX = Number.NaN, targetY = Number.NaN) {
   const map = getMap(room);
   const enhanceDistance = Math.min(ITEM_THROW_MAX_DISTANCE, ITEM_THROW_BASE_DISTANCE + Math.max(0, Number(holdMs) || 0) * ITEM_THROW_DISTANCE_PER_MS);
-  const { dx, dy } = finiteDirection(player.aimX, player.aimY, 0, 1);
+  const requestedX = Number(targetX);
+  const requestedY = Number(targetY);
+  const requestedDx = requestedX - player.x;
+  const requestedDy = requestedY - player.y;
+  const requestedLength = Math.hypot(requestedDx, requestedDy);
+  const explicitTarget = Number.isFinite(requestedX) && Number.isFinite(requestedY) && requestedLength > 0.01;
+  const direction = explicitTarget
+    ? { dx: requestedDx / requestedLength, dy: requestedDy / requestedLength }
+    : finiteDirection(player.aimX, player.aimY, 0, 1);
+  const throwDistance = explicitTarget ? Math.min(enhanceDistance, requestedLength) : enhanceDistance;
   for (let ratio = 1; ratio >= 0.15; ratio -= 0.05) {
-    const x = clampNumber(player.x + dx * enhanceDistance * ratio, map.playerRadius, map.width - map.playerRadius, player.x);
-    const y = clampNumber(player.y + dy * enhanceDistance * ratio, map.playerRadius, map.height - map.playerRadius, player.y);
-    if (isWalkable(room, x, y, Math.max(12, map.playerRadius * 0.4))) return { x, y, distance: enhanceDistance * ratio };
+    const x = clampNumber(player.x + direction.dx * throwDistance * ratio, map.playerRadius, map.width - map.playerRadius, player.x);
+    const y = clampNumber(player.y + direction.dy * throwDistance * ratio, map.playerRadius, map.height - map.playerRadius, player.y);
+    if (isWalkable(room, x, y, Math.max(12, map.playerRadius * 0.4))) return { x, y, distance: throwDistance * ratio };
   }
   return { x: player.x, y: player.y, distance: 0 };
 }
@@ -12835,27 +12844,27 @@ function advanceThrownItems(room, timestamp = now()) {
   room.thrownItems = pending;
 }
 
-function throwInventoryItem(room, player, itemId, rawHoldMs = 0) {
+function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Number.NaN, targetY = Number.NaN) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
   if (!ITEM_DEFINITIONS[itemId]) throw new ApiError(400, "投擲対象が不正です。");
   const level = resolveEnhance(room, player, rawHoldMs, ITEM_DEFINITIONS[itemId].label);
   const effectiveHoldMs = Math.min(Math.max(0, Number(rawHoldMs) || 0), (level + 1) * ENHANCE_HOLD_STEP_MS);
-  const landing = safeThrowPoint(room, player, effectiveHoldMs);
+  const landing = safeThrowPoint(room, player, effectiveHoldMs, targetX, targetY);
   consumeItem(player, itemId);
   queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, level);
 }
 
-function throwOwnedItem(room, player, itemId, rawHoldMs = 0) {
-  if (ITEM_DEFINITIONS[itemId]) return throwInventoryItem(room, player, itemId, rawHoldMs);
+function throwOwnedItem(room, player, itemId, rawHoldMs = 0, targetX = Number.NaN, targetY = Number.NaN) {
+  if (ITEM_DEFINITIONS[itemId]) return throwInventoryItem(room, player, itemId, rawHoldMs, targetX, targetY);
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
   const label = TRANSFERABLE_CHARGES[itemId]?.label || transferableItemsFor(player).find((entry) => entry.id === itemId)?.label || "アイテム";
   const level = resolveEnhance(room, player, rawHoldMs, label);
   const effectiveHoldMs = Math.min(Math.max(0, Number(rawHoldMs) || 0), (level + 1) * ENHANCE_HOLD_STEP_MS);
-  const landing = safeThrowPoint(room, player, effectiveHoldMs);
+  const landing = safeThrowPoint(room, player, effectiveHoldMs, targetX, targetY);
   const item = removeTransferableItem(player, itemId, 1);
   queueThrownItem(room, player, itemId, item, landing, level);
 }
@@ -15848,7 +15857,7 @@ async function handleApi(req, res) {
 
     case "/api/item-throw": {
       const { room, player } = requireRoomPlayer(body);
-      throwOwnedItem(room, player, String(body.itemId || ""), body.holdMs);
+      throwOwnedItem(room, player, String(body.itemId || ""), body.holdMs, body.targetX, body.targetY);
       payload = serialize(room, player);
       break;
     }
@@ -16933,5 +16942,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "vending-catalog-v399" });
+self.postMessage({ type: "ready", version: "marker-throw-target-v400" });
 })();

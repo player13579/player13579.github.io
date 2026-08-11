@@ -18,6 +18,9 @@ const ITEM_THROW_BASE_DISTANCE_CLIENT = 220;
 const ITEM_THROW_DISTANCE_PER_MS_CLIENT = 0.24;
 const ITEM_THROW_MAX_CHARGE_MS_CLIENT = 3_000;
 const ITEM_THROW_MAX_DISTANCE_CLIENT = 980;
+const ITEM_THROW_TARGETING_WINDOW_MS = 5_000;
+const ITEM_THROW_TARGET_CURSOR_SPEED = 520;
+const MARKER_EXPLANATION_DURATION_MS = 1_450;
 const ENHANCE_HOLD_STEP_MS_CLIENT = 600;
 const ENHANCE_MAX_LEVEL_CLIENT = 4;
 
@@ -403,6 +406,21 @@ const state = {
   continuousActionSuppressClicks: new WeakMap(),
   continuousActionKeyAt: new Map(),
   enhanceHold: { kind: "", pointerId: null, startedAt: 0, timer: 0 },
+  throwTargeting: {
+    active: false,
+    itemId: "",
+    holdMs: 0,
+    targetX: 0,
+    targetY: 0,
+    maxDistance: ITEM_THROW_BASE_DISTANCE_CLIENT,
+    startedAt: 0,
+    expiresAt: 0,
+    lastFrameAt: 0,
+    frame: 0,
+    directionKeys: new Set()
+  },
+  markerHitTargets: [],
+  markerExplanation: null,
   operatorBranchesOpen: false,
   operatorBranchType: "",
   borrowedOperatorType: "gravity",
@@ -2319,8 +2337,181 @@ function enhanceActionForElement(elementKey) {
   return "";
 }
 
+function emptyThrowTargetingState() {
+  return {
+    active: false,
+    itemId: "",
+    holdMs: 0,
+    targetX: 0,
+    targetY: 0,
+    maxDistance: ITEM_THROW_BASE_DISTANCE_CLIENT,
+    startedAt: 0,
+    expiresAt: 0,
+    lastFrameAt: 0,
+    frame: 0,
+    directionKeys: new Set()
+  };
+}
+
+function throwTargetKey(event) {
+  const code = String(event?.code || "");
+  if (["KeyW", "ArrowUp"].includes(code)) return "up";
+  if (["KeyS", "ArrowDown"].includes(code)) return "down";
+  if (["KeyA", "ArrowLeft"].includes(code)) return "left";
+  if (["KeyD", "ArrowRight"].includes(code)) return "right";
+  return "";
+}
+
+function throwTargetDirection() {
+  const active = state.throwTargeting.directionKeys;
+  let dx = Number(active.has("right")) - Number(active.has("left"));
+  let dy = Number(active.has("down")) - Number(active.has("up"));
+  if (!dx && !dy && state.tabletOpen && state.tabletStick.pointerId !== null) {
+    dx = Number(state.tabletStick.dx) || 0;
+    dy = Number(state.tabletStick.dy) || 0;
+  }
+  const length = Math.hypot(dx, dy);
+  return length > 1 ? { dx: dx / length, dy: dy / length } : { dx, dy };
+}
+
+function constrainThrowTarget(data, targetX, targetY) {
+  const self = data?.players?.find((player) => player.id === data.selfId);
+  const origin = self ? renderedPlayer(self) : null;
+  if (!origin || !data?.map) return null;
+  const radius = Math.max(12, (Number(data.map.playerRadius) || 36) * 0.4);
+  let x = clamp(Number(targetX) || origin.x, radius, data.map.width - radius);
+  let y = clamp(Number(targetY) || origin.y, radius, data.map.height - radius);
+  const dx = x - origin.x;
+  const dy = y - origin.y;
+  const distance = Math.hypot(dx, dy);
+  const maxDistance = Math.max(ITEM_THROW_BASE_DISTANCE_CLIENT, Number(state.throwTargeting.maxDistance) || 0);
+  if (distance > maxDistance && distance > 0.01) {
+    const scale = maxDistance / distance;
+    x = origin.x + dx * scale;
+    y = origin.y + dy * scale;
+  }
+  return { x, y, origin, distance: Math.min(distance, maxDistance) };
+}
+
+function moveThrowTarget(dx, dy) {
+  if (!state.throwTargeting.active || (!dx && !dy)) return false;
+  const target = constrainThrowTarget(
+    state.data,
+    state.throwTargeting.targetX + dx,
+    state.throwTargeting.targetY + dy
+  );
+  if (!target) return false;
+  state.throwTargeting.targetX = target.x;
+  state.throwTargeting.targetY = target.y;
+  return true;
+}
+
+function updateThrowTargetingFrame(timestamp) {
+  const target = state.throwTargeting;
+  if (!target.active) return;
+  const data = state.data;
+  if (!data || data.phase !== "playing" || !data.self?.alive || data.self.ejected || data.self.inVent) {
+    cancelThrowTargeting(true);
+    return;
+  }
+  if (timestamp >= target.expiresAt) {
+    cancelThrowTargeting(false, "投擲の接地点指定を終了しました。");
+    return;
+  }
+  const elapsed = clamp(timestamp - (target.lastFrameAt || timestamp), 0, 40);
+  target.lastFrameAt = timestamp;
+  const direction = throwTargetDirection();
+  if (direction.dx || direction.dy) {
+    const distance = ITEM_THROW_TARGET_CURSOR_SPEED * elapsed / 1000;
+    moveThrowTarget(direction.dx * distance, direction.dy * distance);
+  }
+  updateEnhanceReadout();
+  target.frame = requestAnimationFrame(updateThrowTargetingFrame);
+}
+
+function beginThrowTargeting(itemId, holdMs = 0) {
+  const data = state.data;
+  if (!data || data.phase !== "playing" || !data.self?.alive || !itemId) return false;
+  if (state.throwTargeting.active) cancelThrowTargeting(true);
+  const preview = predictedThrowLanding(data, holdMs);
+  if (!preview) return false;
+  clearMovementInput();
+  const timestamp = performance.now();
+  state.throwTargeting = {
+    active: true,
+    itemId,
+    holdMs: Math.max(0, Number(holdMs) || 0),
+    targetX: preview.x,
+    targetY: preview.y,
+    maxDistance: preview.intendedDistance,
+    startedAt: timestamp,
+    expiresAt: timestamp + ITEM_THROW_TARGETING_WINDOW_MS,
+    lastFrameAt: timestamp,
+    frame: 0,
+    directionKeys: new Set()
+  };
+  state.throwTargeting.frame = requestAnimationFrame(updateThrowTargetingFrame);
+  updateEnhanceReadout();
+  showToast("移動キーで接地点を動かし、キーを離すと投擲します。");
+  return true;
+}
+
+function cancelThrowTargeting(silent = false, message = "投擲をキャンセルしました。") {
+  if (!state.throwTargeting.active) return false;
+  if (state.throwTargeting.frame) cancelAnimationFrame(state.throwTargeting.frame);
+  state.throwTargeting = emptyThrowTargetingState();
+  updateEnhanceReadout();
+  if (!silent && message) showToast(message);
+  return true;
+}
+
+async function confirmThrowTargeting() {
+  if (!state.throwTargeting.active) return false;
+  const landing = targetedThrowLanding(state.data);
+  if (!landing?.valid) {
+    showToast("接地できる場所へマーカーを移動してください。");
+    return false;
+  }
+  const { itemId, holdMs, targetX, targetY } = state.throwTargeting;
+  cancelThrowTargeting(true);
+  return api("/api/item-throw", { itemId, holdMs, targetX, targetY });
+}
+
+function beginThrowTargetMovement(event) {
+  if (!state.throwTargeting.active) return false;
+  const direction = throwTargetKey(event);
+  if (!direction) return false;
+  event.preventDefault();
+  if (!event.repeat && !state.throwTargeting.directionKeys.has(direction)) {
+    state.throwTargeting.directionKeys.add(direction);
+    const vector = {
+      up: { dx: 0, dy: -1 },
+      down: { dx: 0, dy: 1 },
+      left: { dx: -1, dy: 0 },
+      right: { dx: 1, dy: 0 }
+    }[direction];
+    moveThrowTarget(vector.dx * 24, vector.dy * 24);
+  }
+  return true;
+}
+
+function releaseThrowTargetMovement(event) {
+  if (!state.throwTargeting.active) return false;
+  const direction = throwTargetKey(event);
+  if (!direction || !state.throwTargeting.directionKeys.has(direction)) return false;
+  event.preventDefault();
+  state.throwTargeting.directionKeys.delete(direction);
+  if (state.throwTargeting.directionKeys.size === 0) void confirmThrowTargeting();
+  return true;
+}
+
 function updateEnhanceReadout() {
   if (!els.enhanceReadout) return;
+  if (state.throwTargeting.active) {
+    const remaining = Math.max(0, state.throwTargeting.expiresAt - performance.now());
+    els.enhanceReadout.textContent = `接地点指定 ${(remaining / 1000).toFixed(1)}秒 / 移動キーを離して確定`;
+    return;
+  }
   const hold = state.enhanceHold;
   const elapsed = hold.startedAt ? Math.max(0, performance.now() - hold.startedAt) : 0;
   const requested = Math.min(ENHANCE_MAX_LEVEL_CLIENT, Math.floor(elapsed / ENHANCE_HOLD_STEP_MS_CLIENT));
@@ -2373,6 +2564,13 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
     beginInstantWarpTargeting();
     return true;
   }
+  if (kind === "throw") {
+    if (/^(?:weapon|invention|heavy):/.test(itemId)) {
+      showToast("装備品は所持品欄から装備・使用します。");
+      return true;
+    }
+    return beginThrowTargeting(itemId, holdMs);
+  }
   if (kind === "use" && itemId.startsWith("invention:")) {
     return api("/api/alchemist-invention", { invention: itemId.slice(10) });
   }
@@ -2385,15 +2583,11 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
   if (kind === "use" && itemId.startsWith("heavy:")) {
     return api("/api/gunner-heavy", { weapon: itemId.slice(6) });
   }
-  if (kind === "throw" && /^(?:weapon|invention|heavy):/.test(itemId)) {
-    showToast("装備品は所持品欄から装備・使用します。");
-    return true;
-  }
   if (kind === "use" && ["substitution", "stand-firm", "push"].includes(itemId)) {
     showToast("このアイテムは条件成立時に自動発動します。");
     return true;
   }
-  return api(kind === "throw" ? "/api/item-throw" : "/api/item-use", { itemId, holdMs });
+  return api("/api/item-use", { itemId, holdMs });
 }
 
 async function finishEnhanceActionAfterTablet(kind) {
@@ -3466,6 +3660,7 @@ function bindEvents() {
     if (state.data) renderItemControl(state.data);
   });
   els.itemSelect.addEventListener("change", () => {
+    cancelThrowTargeting(true);
     state.itemRenderKey = "";
     if (state.data) renderItemControl(state.data);
   });
@@ -3534,6 +3729,14 @@ function bindEvents() {
     if (triggerDeveloperAnalyticsHotkey(event)) return;
     const typingField = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
     if (document.activeElement === els.chatInput) return;
+    if (!typingField && state.throwTargeting.active) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelThrowTargeting();
+        return;
+      }
+      if (beginThrowTargetMovement(event)) return;
+    }
     if (!typingField && event.key.startsWith("Arrow") && !allowSelectionArrowRepeat(event)) {
       event.preventDefault();
       return;
@@ -3705,6 +3908,7 @@ function bindEvents() {
   });
   window.addEventListener("keyup", (event) => {
     stopContinuousActionKeyHold(event.code);
+    if (releaseThrowTargetMovement(event)) return;
     for (const key of state.continuousActionKeyAt.keys()) {
       if (key === event.code || key.endsWith(`:${event.code}`)) state.continuousActionKeyAt.delete(key);
     }
@@ -3732,6 +3936,7 @@ function bindEvents() {
   window.addEventListener("blur", () => {
     stopContinuousActionHold();
     stopContinuousActionKeyHold();
+    cancelThrowTargeting(true);
     if (state.enhanceHold.timer) cancelAnimationFrame(state.enhanceHold.timer);
     state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0 };
     state.continuousActionKeyAt.clear();
@@ -4025,13 +4230,23 @@ function bindTabletControls() {
     if (state.tabletStick.pointerId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
+    const confirmThrow = state.throwTargeting.active;
     resetTabletStick();
+    if (confirmThrow) {
+      void confirmThrowTargeting();
+      return;
+    }
     syncMovementInputImmediately();
   };
   const releaseActiveStick = (event) => {
     if (state.tabletStick.pointerId === null) return;
     if (Number.isFinite(event?.pointerId) && state.tabletStick.pointerId !== event.pointerId) return;
+    const confirmThrow = state.throwTargeting.active && event?.type !== "blur" && event?.type !== "pointercancel";
     resetTabletStick();
+    if (confirmThrow) {
+      void confirmThrowTargeting();
+      return;
+    }
     syncMovementInputImmediately();
   };
   els.tabletJoystick.addEventListener("pointerdown", (event) => {
@@ -5450,6 +5665,10 @@ async function performNinjutsu() {
 
 async function attackFromCanvas(event) {
   if (!state.data || event.button !== 0) return;
+  if (showMarkerExplanationFromPointer(event)) {
+    event.preventDefault();
+    return;
+  }
   if (pointerHitsSmartphoneRepair(event)) {
     event.preventDefault();
     void triggerSmartphoneRepair();
@@ -8104,7 +8323,7 @@ function isSlowWalking() {
 }
 
 function getDirection() {
-  if (state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
+  if (state.throwTargeting.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
   const stickLength = Math.hypot(state.tabletStick.dx, state.tabletStick.dy);
   if (state.tabletOpen && stickLength > 0.01) {
     return { dx: state.tabletStick.dx, dy: state.tabletStick.dy };
@@ -8246,6 +8465,7 @@ function draw() {
   ctx.globalCompositeOperation = "source-over";
   ctx.filter = "none";
   ctx.setLineDash([]);
+  state.markerHitTargets.length = 0;
   ctx.fillStyle = data ? "#91a8b7" : "#25323d";
   ctx.fillRect(0, 0, w, h);
   if (!data) {
@@ -8320,6 +8540,7 @@ function draw() {
   drawCanvasStage("lighting", () => drawLighting(data, w, h, camera, worldZoom));
   drawCanvasStage("kill-animation", () => drawKillAnimations(data, camera, w, h, worldZoom));
   drawCanvasStage("sensory", () => drawSensoryBlackout(data, w, h));
+  drawCanvasStage("marker-explanation", () => drawMarkerExplanation(w, h));
 }
 
 function sniperScopeActive(data = state.data) {
@@ -10376,13 +10597,34 @@ function predictedThrowLanding(data, elapsedMs) {
   return { origin, x: origin.x, y: origin.y, direction, distance: 0, intendedDistance, charge: 0 };
 }
 
+function targetedThrowLanding(data) {
+  if (!state.throwTargeting.active) return null;
+  const target = constrainThrowTarget(data, state.throwTargeting.targetX, state.throwTargeting.targetY);
+  if (!target) return null;
+  const dx = target.x - target.origin.x;
+  const dy = target.y - target.origin.y;
+  const distance = Math.hypot(dx, dy);
+  const radius = Math.max(12, (Number(data.map.playerRadius) || 36) * 0.4);
+  return {
+    origin: target.origin,
+    x: target.x,
+    y: target.y,
+    direction: distance > 0.01 ? { dx: dx / distance, dy: dy / distance } : currentThrowDirection(data),
+    distance,
+    intendedDistance: state.throwTargeting.maxDistance,
+    charge: clamp(state.throwTargeting.holdMs / ITEM_THROW_MAX_CHARGE_MS_CLIENT, 0, 1),
+    valid: isClientWalkable(data, target.x, target.y, radius)
+  };
+}
+
 function drawThrowLandingPreview(data) {
   const hold = state.enhanceHold;
-  if (hold.kind !== "throw" || !hold.startedAt || data.phase !== "playing" || !data.self?.alive) return;
-  const itemId = els.itemSelect?.value || "";
+  const targeting = state.throwTargeting.active;
+  if ((!targeting && (hold.kind !== "throw" || !hold.startedAt)) || data.phase !== "playing" || !data.self?.alive) return;
+  const itemId = targeting ? state.throwTargeting.itemId : els.itemSelect?.value || "";
   if (!itemId) return;
-  const elapsedMs = Math.max(0, performance.now() - hold.startedAt);
-  const landing = predictedThrowLanding(data, elapsedMs);
+  const elapsedMs = targeting ? state.throwTargeting.holdMs : Math.max(0, performance.now() - hold.startedAt);
+  const landing = targeting ? targetedThrowLanding(data) : predictedThrowLanding(data, elapsedMs);
   if (!landing) return;
   const prepared = transparentSpriteSource(state.textures.throwLandingPreview, "throw-landing-preview", 16);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "throw-landing-preview", 1, 1, 0, 0) : null;
@@ -10416,6 +10658,27 @@ function drawThrowLandingPreview(data) {
     ctx.fillRect(x - 1.5, y - 4, 3, 8);
   }
   ctx.restore();
+
+  if (targeting) {
+    const remaining = Math.max(0, state.throwTargeting.expiresAt - performance.now());
+    const label = landing.valid
+      ? `接地点 ${(remaining / 1000).toFixed(1)}秒 / 離して確定`
+      : `着地不可 ${(remaining / 1000).toFixed(1)}秒`;
+    ctx.save();
+    ctx.font = "800 13px Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const width = Math.max(146, ctx.measureText(label).width + 24);
+    const x = markerX - width / 2;
+    const y = markerY + markerSize * 0.55;
+    ctx.fillStyle = landing.valid ? "rgba(8,25,39,0.9)" : "rgba(69,10,10,0.92)";
+    ctx.strokeStyle = landing.valid ? "rgba(103,232,249,0.95)" : "rgba(251,113,133,0.95)";
+    ctx.lineWidth = 2;
+    roundRect(x, y, width, 28, 8, true, true);
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillText(label, markerX, y + 14);
+    ctx.restore();
+  }
 
   const trajectoryLength = Math.hypot(markerX - landing.origin.x, markerY - landing.origin.y);
   const particleCount = Math.max(5, Math.min(16, Math.floor(trajectoryLength / 48)));
@@ -11144,6 +11407,131 @@ function headMarkerRowCount(count) {
   return Math.ceil(Math.max(0, Number(count) || 0) / HEAD_MARKER_LAYOUT.maxColumns);
 }
 
+const GAIN_MARKER_EXPLANATIONS = Object.freeze({
+  stamina: ["スタミナ獲得", "スタミナが即座に回復しました。"],
+  credits: ["クレジット獲得", "クレジットを獲得しました。"],
+  mana: ["マナ獲得", "マナが即座に増加しました。"],
+  cooldownReduction: ["待機時間短縮", "能力や行動の待機時間が短縮されました。"],
+  statusRecovery: ["状態異常回復", "燃焼・毒・EMP妨害などが解除されました。"],
+  acceleration: ["加速獲得", "行動全般を速める加速効果を獲得しました。"],
+  luckBoost: ["幸運／直観上昇", "乱数判定とイデア到達時間に有利な補正を得ました。"],
+  overheal: ["オーバーヒール", "通常HPを超える追加耐久を獲得しました。"],
+  relaxation: ["リラックス", "休息による回復効果を獲得しました。"],
+  herbalRecovery: ["植物療法", "植物由来の回復効果を獲得しました。"],
+  healthyMeal: ["健康的な食事", "複数の回復効果を獲得しました。"],
+  mineralWater: ["ミネラルウォーター", "燃焼解除とスタミナ回復を受けました。"],
+  heal: ["HP回復", "受けていたダメージが回復しました。"],
+  fullRecovery: ["全回復", "複数の資源と状態が回復しました。"],
+  decoy: ["デコイ獲得", "攻撃を逸らすための効果を獲得しました。"]
+});
+
+const STATUS_MARKER_EXPLANATIONS = Object.freeze({
+  acceleration: ["加速", "移動・行動・モーション・待機時間の進行が加速しています。"],
+  levitation: ["浮揚", "床のない場所を移動できます。浮揚中はMPを消費します。"],
+  hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
+  resistanceBreak: ["耐性破壊", "踏ん張りや変わり身などの確殺防御が機能しません。"],
+  standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
+  push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
+  burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
+  poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"]
+});
+
+function registerMarkerHitTarget(key, localX, localY, radius, title, detail) {
+  if (!key || !title || !detail) return;
+  const matrix = ctx.getTransform();
+  const x = matrix.a * localX + matrix.c * localY + matrix.e;
+  const y = matrix.b * localX + matrix.d * localY + matrix.f;
+  const scale = Math.max(0.5, Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d));
+  state.markerHitTargets.push({
+    key,
+    x,
+    y,
+    radius: Math.max(15, radius * scale),
+    title,
+    detail
+  });
+}
+
+function showMarkerExplanationFromPointer(event) {
+  const point = canvasPointerPosition(event);
+  if (!point) return false;
+  const target = [...state.markerHitTargets]
+    .reverse()
+    .filter((entry) => Math.hypot(point.x - entry.x, point.y - entry.y) <= entry.radius)
+    .sort((a, b) => Math.hypot(point.x - a.x, point.y - a.y) - Math.hypot(point.x - b.x, point.y - b.y))[0];
+  if (!target) return false;
+  state.markerExplanation = {
+    key: target.key,
+    title: target.title,
+    detail: target.detail,
+    x: target.x,
+    y: target.y,
+    startedAt: performance.now(),
+    expiresAt: performance.now() + MARKER_EXPLANATION_DURATION_MS
+  };
+  return true;
+}
+
+function drawMarkerExplanation(width, height) {
+  const explanation = state.markerExplanation;
+  if (!explanation) return;
+  const timestamp = performance.now();
+  if (timestamp >= explanation.expiresAt) {
+    state.markerExplanation = null;
+    return;
+  }
+  const liveTarget = state.markerHitTargets.find((entry) => entry.key === explanation.key);
+  const anchorX = liveTarget?.x ?? explanation.x;
+  const anchorY = liveTarget?.y ?? explanation.y;
+  const elapsed = timestamp - explanation.startedAt;
+  const remaining = explanation.expiresAt - timestamp;
+  const reveal = objectEffectEase(Math.min(1, elapsed / 130));
+  const fade = Math.min(1, remaining / 260);
+  const alpha = reveal * fade;
+  const detailLines = String(explanation.detail).match(/.{1,25}/g)?.slice(0, 2) || [""];
+  ctx.font = "600 11px Segoe UI, sans-serif";
+  const detailWidth = Math.max(...detailLines.map((line) => ctx.measureText(line).width));
+  const bubbleWidth = Math.min(296, Math.max(218, detailWidth + 30));
+  const bubbleHeight = detailLines.length > 1 ? 78 : 64;
+  const above = anchorY >= bubbleHeight + 38;
+  const bubbleX = clamp(anchorX - bubbleWidth / 2, 10, width - bubbleWidth - 10);
+  const bubbleY = clamp(above ? anchorY - bubbleHeight - 24 : anchorY + 24, 10, height - bubbleHeight - 10);
+  const pointerX = clamp(anchorX, bubbleX + 18, bubbleX + bubbleWidth - 18);
+  const pointerY = above ? bubbleY + bubbleHeight : bubbleY;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(anchorX, anchorY);
+  ctx.scale(0.92 + reveal * 0.08, 0.92 + reveal * 0.08);
+  ctx.translate(-anchorX, -anchorY);
+  const background = ctx.createLinearGradient(bubbleX, bubbleY, bubbleX + bubbleWidth, bubbleY + bubbleHeight);
+  background.addColorStop(0, "rgba(8,26,40,0.97)");
+  background.addColorStop(1, "rgba(20,39,55,0.96)");
+  ctx.shadowColor = "rgba(34,211,238,0.42)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = background;
+  ctx.strokeStyle = "rgba(125,211,252,0.92)";
+  ctx.lineWidth = 2;
+  roundRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight, 8, true, true);
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.moveTo(pointerX - 8, pointerY);
+  ctx.lineTo(anchorX, anchorY);
+  ctx.lineTo(pointerX + 8, pointerY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.font = "800 14px Segoe UI, sans-serif";
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillText(explanation.title, bubbleX + 14, bubbleY + 20);
+  ctx.font = "600 11px Segoe UI, sans-serif";
+  ctx.fillStyle = "#cbd5e1";
+  detailLines.forEach((line, index) => ctx.fillText(line, bubbleX + 14, bubbleY + 43 + index * 15));
+  ctx.restore();
+}
+
 function gainEffectPlayer(effect) {
   const source = (state.data?.players || []).find((player) => player.id === effect.playerId);
   return source ? renderedPlayer(source) : null;
@@ -11172,6 +11560,8 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
   const size = HEAD_MARKER_LAYOUT.markerSize * (0.76 + reveal * 0.24);
   ctx.save();
   ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
+  const explanation = GAIN_MARKER_EXPLANATIONS[effect.effectKind] || ["獲得効果", "即時効果を獲得しました。"];
+  registerMarkerHitTarget(`gain:${effect.id || effect.createdAt || effect.effectKind}:${player.id}`, 0, 0, size * 0.62, explanation[0], explanation[1]);
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = fade;
   drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
@@ -11772,6 +12162,14 @@ function drawAttackerAllyMarker(player) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha *= 0.88;
+  registerMarkerHitTarget(
+    `ally:${player.id}`,
+    0,
+    HEAD_MARKER_LAYOUT.firstRowY,
+    18,
+    "アタッカー味方",
+    "自分と同じアタッカー陣営のプレイヤーです。"
+  );
   drawAnimatedTextureCentered(sprite, 0, HEAD_MARKER_LAYOUT.firstRowY, 28, 28, {
     mode: "energy",
     time: (state.frameNow || performance.now()) / 1000,
@@ -11817,6 +12215,8 @@ function drawPersistentStatusAteLayers(player, data) {
     const marker = headMarkerSlot(index, activeProfiles.length, startRow);
     const markerX = marker.x;
     const markerY = marker.y + Math.sin(time * 2.4 + profile.phase * Math.PI * 2) * 1.1;
+    const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
+    registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
     drawAnimatedTextureCentered(sprite, markerX, markerY, profile.size, profile.size, {
       mode: profile.mode,
       time,
@@ -13196,7 +13596,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "vending-catalog-v399";
+const version = "marker-throw-target-v400";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
