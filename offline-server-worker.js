@@ -11486,11 +11486,25 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
     }
     if (timestamp - zone.lastPulseAt < GRAVITY_STORM_PULSE_MS) continue;
     zone.lastPulseAt = timestamp;
-    for (const target of room.players.values()) {
-      if (!target.alive || target.ejected || target.inVent || distance(zone, target) > zone.radius) continue;
-      if (absorbPreparationBarrier(room, target, timestamp, owner || null)) continue;
+    for (const candidate of room.players.values()) {
+      if (!candidate.alive || candidate.ejected || candidate.inVent || distance(zone, candidate) > zone.radius) continue;
+      const friendlyFire = Boolean(
+        owner?.alive &&
+        !owner.ejected &&
+        candidate.id !== owner.id &&
+        candidate.role === owner.role &&
+        ["defender", "attacker"].includes(owner.role)
+      );
+      if (friendlyFire) {
+        applyDefenderFriendlyFirePenalty(room, owner, candidate, timestamp, { ignorePreparationBarrier: true });
+        zone.endsAt = timestamp;
+        checkWin(room);
+        break;
+      }
+      const target = candidate;
       const safeDistance = Math.hypot(target.x - Number(zone.safeX), target.y - Number(zone.safeY));
       if (safeDistance <= Number(zone.safeRadius || GRAVITY_STORM_SAFE_RADIUS)) continue;
+      if (absorbPreparationBarrier(room, target, timestamp, owner || null)) continue;
 
       // Higher adverse severity means more HP loss, a lower speed multiplier,
       // and a stronger displacement. Luck biases this roll in the target's favor.
@@ -11836,10 +11850,10 @@ function transferOwnedResource(room, player, targetId, itemId, rawAmount, credit
   touch(room);
 }
 
-function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp) {
+function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, options = {}) {
   if (!killer || !target || killer.id === target.id) return false;
   if (killer.role !== target.role || !["defender", "attacker"].includes(killer.role) || !killer.alive || killer.ejected) return false;
-  if (absorbPreparationBarrier(room, killer, timestamp, target)) return false;
+  if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, killer, timestamp, target)) return false;
   killer.alive = false;
   killer.bodyHits = 0;
   killer.overheal = 0;
@@ -16950,5 +16964,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "direction-gravity-task-v394" });
+self.postMessage({ type: "ready", version: "gravity-friendly-fire-v395" });
 })();
