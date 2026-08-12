@@ -17181,5 +17181,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "exact-title-effects-v408" });
+self.postMessage({ type: "ready", version: "field-i2i-title-v409" });
 })();

@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v408-exact-title-effects";
+const CACHE_NAME = "dva-static-v409-field-i2i-title";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -14,8 +14,8 @@ const STATIC_ASSETS = [
   "/config.js",
   "/manifest.webmanifest",
   "/icon.png",
-  "/assets/title-hero-v408.png",
-  "/assets/site-thumbnail-v408.png",
+  "/assets/title-hero-v409.png",
+  "/assets/site-thumbnail-v409.png",
   "/assets/generated/throw-landing-preview-v384.png",
   "/assets/generated/ui-panel-surface.webp",
   "/assets/generated/ui-control-surface.webp",
