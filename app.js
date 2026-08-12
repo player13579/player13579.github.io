@@ -7331,15 +7331,86 @@ function collectInventoryDisplayItems(self) {
   return [...regularItems, ...weaponItems, ...inventionItems, ...heavyItems];
 }
 
+function createInventoryTouchGesture({
+  onTap,
+  onHold,
+  onScroll,
+  onClearSelection,
+  schedule = (callback, delay) => window.setTimeout(callback, delay),
+  cancelSchedule = (timer) => window.clearTimeout(timer),
+  holdDelay = 520,
+  moveTolerance = 9
+}) {
+  let timer = 0;
+  let touchId = null;
+  let originX = 0;
+  let originY = 0;
+  let lastY = 0;
+  let moved = false;
+  let held = false;
+
+  const clearTimer = () => {
+    if (timer) cancelSchedule(timer);
+    timer = 0;
+  };
+  const reset = () => {
+    clearTimer();
+    touchId = null;
+    moved = false;
+    held = false;
+  };
+
+  return {
+    start(id, clientX, clientY) {
+      reset();
+      touchId = id;
+      originX = clientX;
+      originY = clientY;
+      lastY = clientY;
+      onClearSelection();
+      timer = schedule(() => {
+        if (touchId !== id || moved) return;
+        timer = 0;
+        held = true;
+        onClearSelection();
+        onHold();
+      }, holdDelay);
+    },
+    move(id, clientX, clientY) {
+      if (touchId !== id) return false;
+      const deltaY = lastY - clientY;
+      lastY = clientY;
+      if (!moved && Math.hypot(clientX - originX, clientY - originY) > moveTolerance) {
+        moved = true;
+        clearTimer();
+      }
+      if (moved) onScroll(deltaY);
+      return moved;
+    },
+    end(id) {
+      if (touchId !== id) return "ignored";
+      const result = held ? "hold" : moved ? "scroll" : "tap";
+      clearTimer();
+      onClearSelection();
+      if (result === "tap") onTap();
+      reset();
+      return result;
+    },
+    cancel(id = touchId) {
+      if (touchId !== id) return false;
+      onClearSelection();
+      reset();
+      return true;
+    }
+  };
+}
+
 function bindInventoryDetailHold(button, item) {
   let timer = 0;
   let pointerId = null;
   let originX = 0;
   let originY = 0;
   let suppressClick = false;
-  let touchMoved = false;
-  let touchLastY = 0;
-  let touchIdentifier = null;
   const clearNativeSelection = () => {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
@@ -7380,45 +7451,45 @@ function bindInventoryDetailHold(button, item) {
   button.addEventListener("selectstart", suppressNativeLongPress);
   button.addEventListener("dragstart", suppressNativeLongPress);
   button.addEventListener("copy", suppressNativeLongPress);
+  const touchGesture = createInventoryTouchGesture({
+    onTap: () => button.click(),
+    onHold: () => {
+      suppressClick = true;
+      clearNativeSelection();
+      showToast(`${item.label}: ${item.detail || "使用・投擲できる所持品"}`);
+      if (navigator.vibrate) navigator.vibrate(18);
+    },
+    onScroll: (deltaY) => {
+      els.itemInventoryGrid.scrollTop += deltaY;
+    },
+    onClearSelection: clearNativeSelection
+  });
   button.addEventListener("touchstart", (event) => {
     if (event.touches.length !== 1) return;
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
     const touch = event.touches[0];
-    touchMoved = false;
-    touchLastY = touch.clientY;
-    touchIdentifier = touch.identifier;
-    beginHold(`touch:${touch.identifier}`, touch.clientX, touch.clientY);
+    touchGesture.start(touch.identifier, touch.clientX, touch.clientY);
   }, { passive: false });
   button.addEventListener("touchmove", (event) => {
-    if (touchIdentifier === null || event.touches.length !== 1) return;
+    if (event.touches.length !== 1) return;
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
     const touch = event.touches[0];
-    const deltaY = touchLastY - touch.clientY;
-    touchLastY = touch.clientY;
-    if (Math.hypot(touch.clientX - originX, touch.clientY - originY) > 9) {
-      touchMoved = true;
-      clear();
-      els.itemInventoryGrid.scrollTop += deltaY;
-    }
+    touchGesture.move(touch.identifier, touch.clientX, touch.clientY);
   }, { passive: false });
   button.addEventListener("touchend", (event) => {
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
-    const shortTap = String(pointerId || "").startsWith("touch:") && !touchMoved && !suppressClick;
-    clear();
-    touchIdentifier = null;
-    clearNativeSelection();
-    if (shortTap) button.click();
-    else suppressClick = false;
+    const touch = event.changedTouches[0];
+    const result = touch ? touchGesture.end(touch.identifier) : "ignored";
+    if (result === "hold") suppressClick = false;
   }, { passive: false });
   button.addEventListener("touchcancel", (event) => {
     if (event.cancelable) event.preventDefault();
-    clear();
-    touchIdentifier = null;
+    const touch = event.changedTouches[0];
+    touchGesture.cancel(touch?.identifier);
     suppressClick = false;
-    clearNativeSelection();
   }, { passive: false });
   button.addEventListener("pointermove", (event) => {
     if (event.pointerType === "touch") return;
@@ -14052,7 +14123,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "bot-win-clairvoyance-input-v414";
+const version = "bot-win-touch-input-v415";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
