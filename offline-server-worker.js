@@ -8989,6 +8989,7 @@ function startGame(room) {
     player.operatorReady = false;
     player.alive = true;
     player.ejected = false;
+    player.botMatchEliminatedById = "";
     player.chatMuted = false;
     player.x = spawn.x;
     player.y = spawn.y;
@@ -10597,6 +10598,28 @@ function soleHumanBotMatchPlayer(room) {
   return humans.length === 1 ? humans[0] : null;
 }
 
+function recordBotMatchElimination(room, target, source = null) {
+  if (!target) return;
+  target.botMatchEliminatedById = String(source?.id || "");
+}
+
+function botMatchHumanEarnedEliminationVictory(room, winnerRole) {
+  const human = soleHumanBotMatchPlayer(room);
+  if (!human || human.role !== winnerRole) return true;
+  const opponents = [...room.players.values()].filter((player) => (
+    !player.midJoinAvailable && player.role !== winnerRole
+  ));
+  return opponents.length > 0 && opponents.every((player) => (
+    (!player.alive || player.ejected) && player.botMatchEliminatedById === human.id
+  ));
+}
+
+function botMatchHumanOwnsCriticalSabotage(room) {
+  const human = soleHumanBotMatchPlayer(room);
+  if (!human || human.role !== "attacker") return true;
+  return String(room.sabotage?.sourceId || "") === human.id;
+}
+
 function botIsEnemyOfSoleHuman(room, bot) {
   const human = soleHumanBotMatchPlayer(room);
   return !human || bot?.role !== human.role;
@@ -10751,11 +10774,15 @@ function checkWin(room) {
   const progress = taskProgressForWin(room);
 
   if (attackers.length === 0) {
-    finish(room, "defenders", "アタッカーを全員追放しました。");
+    if (botMatchHumanEarnedEliminationVictory(room, "defender")) {
+      finish(room, "defenders", "アタッカーを全員追放しました。");
+    }
     return;
   }
   if (defenders.length === 0 && room.phase === "playing") {
-    finish(room, "attackers", "ディフェンダーが全滅しました。");
+    if (botMatchHumanEarnedEliminationVictory(room, "attacker")) {
+      finish(room, "attackers", "ディフェンダーが全滅しました。");
+    }
     return;
   }
   if (progress.total > 0 && progress.done >= progress.total) {
@@ -10824,6 +10851,7 @@ function tallyMeeting(room) {
   }
 
   if (ejected && ejected.alive && !ejected.ejected) {
+    recordBotMatchElimination(room, ejected, null);
     ejected.alive = false;
     ejected.ejected = true;
     ejected.inVent = false;
@@ -11003,7 +11031,11 @@ function tickRoom(room) {
     if (room.sabotage?.endsAt && now() >= room.sabotage.endsAt) {
       const type = room.sabotage.type;
       if (type === "reactor" || type === "oxygen") {
-        finish(room, "attackers", `${type === "reactor" ? "Core Breach" : "Atmos Leak"}の修復に失敗しました。`);
+        if (botMatchHumanOwnsCriticalSabotage(room)) {
+          finish(room, "attackers", `${type === "reactor" ? "Core Breach" : "Atmos Leak"}の修復に失敗しました。`);
+        } else {
+          room.sabotage = null;
+        }
       } else {
         room.sabotage = null;
       }
@@ -11615,6 +11647,7 @@ function triggerSubstitution(room, player, reason, timestamp = now()) {
 }
 
 function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
+  recordBotMatchElimination(room, target, source);
   target.alive = false;
   target.bodyHits = 0;
   target.overheal = 0;
@@ -11848,6 +11881,7 @@ function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, optio
   if (!killer || !target || killer.id === target.id) return false;
   if (killer.role !== target.role || !["defender", "attacker"].includes(killer.role) || !killer.alive || killer.ejected) return false;
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, killer, timestamp, target)) return false;
+  recordBotMatchElimination(room, killer, killer);
   killer.alive = false;
   killer.bodyHits = 0;
   killer.overheal = 0;
@@ -11948,6 +11982,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   }
   if (hackerEmpOpeningProtected(room, target, timestamp)) return false;
   applyEmpDisruption(room, target, timestamp);
+  recordBotMatchElimination(room, target, source);
   target.alive = false;
   target.bodyHits = 0;
   target.overheal = 0;
@@ -12550,6 +12585,7 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
     pushEvent(room, `${player.name} は押し込みの反動で ${damage.toFixed(1)}ダメージを受けました。`);
     return false;
   }
+  recordBotMatchElimination(room, player, player);
   player.alive = false;
   player.bodyHits = 0;
   player.overheal = 0;
@@ -13372,6 +13408,7 @@ function humanTransmutation(room, player, targetId) {
   if (!target || target.alive || target.ejected) throw new ApiError(404, "人体生成できる死者がいません。");
   const spawn = getMap(room).spawns[Math.floor(Math.random() * getMap(room).spawns.length)];
   target.alive = true;
+  target.botMatchEliminatedById = "";
   target.chatMuted = true;
   target.bodyHits = 0;
   target.overheal = 0;
@@ -13464,6 +13501,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, now());
     return false;
   }
+  recordBotMatchElimination(room, target, source);
   target.alive = false;
   target.bodyHits = 0;
   target.overheal = 0;
@@ -13838,6 +13876,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   if (!ignoreDodge && target.dodgeActiveUntil > timestamp) {
     target.dodgeActiveUntil = 0;
     if (hasOperatorAccess(target, "fighter") && passivesEnabled(target)) {
+      recordBotMatchElimination(room, killer, target);
       killer.alive = false;
       killer.bodyHits = 0;
       killer.overheal = 0;
@@ -13938,6 +13977,7 @@ function killPlayer(room, killer, targetId, options = {}) {
     }
   }
 
+  recordBotMatchElimination(room, target, killer);
   target.alive = false;
   target.bodyHits = 0;
   target.overheal = 0;
@@ -14491,6 +14531,7 @@ function startSabotage(room, player, type) {
   const critical = sabotageType === "reactor" || sabotageType === "oxygen";
   room.sabotage = {
     type: sabotageType,
+    sourceId: player.id,
     startedAt: timestamp,
     endsAt: critical ? timestamp + 45_000 : timestamp + 70_000,
     repairedPoints: {}
@@ -14714,6 +14755,7 @@ function useLuminous(room, player, targetId) {
   player.lastLuminousResultAt = timestamp;
 
   if (target.role === "attacker") {
+    recordBotMatchElimination(room, target, player);
     target.alive = false;
     target.ejected = true;
     target.inVent = false;
@@ -14730,6 +14772,7 @@ function useLuminous(room, player, targetId) {
     player.lastLuminousResult = "success";
     pushEvent(room, `${player.name} のルミナスが ${target.name} に的中。キルとして記録され、高速化を獲得しました。`);
   } else {
+    recordBotMatchElimination(room, player, player);
     player.alive = false;
     player.inVent = false;
     player.ventId = "";
@@ -16141,6 +16184,7 @@ async function handleApi(req, res) {
         entry.operatorReady = false;
         entry.alive = true;
         entry.ejected = false;
+        entry.botMatchEliminatedById = "";
         entry.chatMuted = false;
         entry.taskList = [];
         entry.taskAutoReadyAt = 0;
@@ -17090,5 +17134,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "clairvoyance-throw-v412" });
+self.postMessage({ type: "ready", version: "bot-self-earned-win-v413" });
 })();
