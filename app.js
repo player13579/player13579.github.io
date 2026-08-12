@@ -10360,6 +10360,7 @@ const ATE_GLOW_PROFILES = Object.freeze({
   "flow-up": Object.freeze({ core: "rgba(240,253,244,.52)", aura: "rgba(74,222,128,.42)", outer: "rgba(250,204,21,.24)", blur: 16, pulse: 0.2 }),
   "data-down": Object.freeze({ core: "rgba(236,254,255,.52)", aura: "rgba(34,211,238,.42)", outer: "rgba(132,204,22,.24)", blur: 13, pulse: 0.14 }),
   "data-up": Object.freeze({ core: "rgba(240,249,255,.52)", aura: "rgba(56,189,248,.42)", outer: "rgba(163,230,53,.24)", blur: 13, pulse: 0.14 }),
+  "data-accelerate": Object.freeze({ core: "rgba(255,255,255,.58)", aura: "rgba(34,211,238,.46)", outer: "rgba(168,85,247,.3)", blur: 17, pulse: 0.2 }),
   shimmer: Object.freeze({ core: "rgba(255,247,237,.54)", aura: "rgba(250,204,21,.42)", outer: "rgba(244,114,182,.26)", blur: 15, pulse: 0.28 }),
   orbit: Object.freeze({ core: "rgba(250,245,255,.52)", aura: "rgba(192,132,252,.42)", outer: "rgba(251,191,36,.25)", blur: 17, pulse: 0.16 }),
   resonance: Object.freeze({ core: "rgba(255,255,255,.6)", aura: "rgba(34,211,238,.48)", outer: "rgba(244,114,182,.34)", blur: 20, pulse: 0.3 }),
@@ -10412,7 +10413,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   const profile = ATE_GLOW_PROFILES[normalizedMode];
   const sampledTime = Math.floor(time * 60) / 60;
   const strength = clamp(rawIntensity, 0, 1.4);
-  const count = normalizedMode === "resonance" ? 10 : normalizedMode === "data-down" || normalizedMode === "data-up" ? 7 : 5;
+  const count = normalizedMode === "resonance" ? 10 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 7 : 5;
   const direction = normalizedMode === "data-down" ? 1 : -1;
 
   targetContext.save();
@@ -10429,7 +10430,19 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
     let shardWidth = Math.max(2, Math.min(width, height) * (0.018 + (index % 3) * 0.005));
     let shardHeight = shardWidth * (1.6 + (index % 2) * 0.7);
 
-    if (["beam", "recoil", "data-down", "data-up"].includes(normalizedMode)) {
+    if (normalizedMode === "data-accelerate") {
+      const input = index < 3;
+      const lane = input ? index : index - 3;
+      const laneCount = input ? 3 : 4;
+      const laneY = (-0.24 + lane * (0.48 / Math.max(1, laneCount - 1))) * height;
+      x = input
+        ? -width * 0.44 + cycle * width * 0.34
+        : width * 0.1 + cycle * width * 0.36;
+      y = laneY + Math.sin(sampledTime * 3.2 + seed) * height * 0.018;
+      rotation = 0;
+      shardWidth *= input ? 1.15 : 1.9;
+      shardHeight *= input ? 0.9 : 0.55;
+    } else if (["beam", "recoil", "data-down", "data-up"].includes(normalizedMode)) {
       x = -width * 0.38 + cycle * width * 0.76;
       y = (-0.24 + (index % 4) * 0.16) * height;
       if (normalizedMode === "data-down" || normalizedMode === "data-up") {
@@ -11453,7 +11466,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
-  poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"]
+  poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
+  manaGpu: ["マナGPU", "再使用待機中に毎秒0.025MPを消費し、1MPにつき待機時間を20秒短縮します。"]
 });
 
 function registerMarkerHitTarget(key, localX, localY, radius, title, detail) {
@@ -12208,12 +12222,16 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   standFirm: Object.freeze({ texture: "standFirmMarkerEffect", mode: "shield", size: 28, alpha: 0.94, phase: 0.18 }),
   push: Object.freeze({ texture: "pushMarkerEffect", mode: "shimmer", size: 28, alpha: 0.94, phase: 0.72 }),
   burning: Object.freeze({ texture: "hazardFireEffect", mode: "combustion", size: 30, alpha: 0.88, phase: 0.81 }),
-  poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 })
+  poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 }),
+  manaGpu: Object.freeze({ texture: "statusManaGpuEffect", mode: "data-accelerate", size: 30, alpha: 0.94, phase: 0.57 })
 });
 
 function persistentStatusAteState(player, data) {
   const selfState = player.id === data.selfId ? data.self?.statusAte : null;
-  return player.statusAte || selfState || {};
+  const visibleState = player.statusAte || selfState || {};
+  return player.id === data.selfId && data.self?.manaGpuActive
+    ? { ...visibleState, manaGpu: true }
+    : visibleState;
 }
 
 function drawPersistentStatusAteLayers(player, data) {
@@ -12851,6 +12869,7 @@ const ATE_ANIMATION_PROFILES = Object.freeze({
   "flow-up": Object.freeze({ family: "buoyant-plume", tempo: 0.58, phaseScale: 0.9, progressScale: 0.55, overlayGain: 0.96 }),
   "data-down": Object.freeze({ family: "packet-descent", tempo: 1.1, phaseScale: 1.7, progressScale: 0.2, overlayGain: 1.02 }),
   "data-up": Object.freeze({ family: "packet-ascent", tempo: 0.94, phaseScale: 1.4, progressScale: 0.26, overlayGain: 1.02 }),
+  "data-accelerate": Object.freeze({ family: "compute-ingress-egress", tempo: 1.18, phaseScale: 1.15, progressScale: 0.28, overlayGain: 1.08 }),
   shimmer: Object.freeze({ family: "asynchronous-glint", tempo: 0.66, phaseScale: 0.7, progressScale: 0.45, overlayGain: 0.84 }),
   orbit: Object.freeze({ family: "elliptic-orbit", tempo: 0.8, phaseScale: 1.8, progressScale: 0.75, overlayGain: 0.9 }),
   resonance: Object.freeze({ family: "constructive-interference", tempo: 1.08, phaseScale: 0.88, progressScale: 0.54, overlayGain: 1.12 }),
@@ -12951,6 +12970,22 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
       const y = height * 0.24 - travel * height * 0.58 - plumeHeight / 2;
       drawClippedOverlay(x, y, plumeWidth, plumeHeight, Math.sin(travel * Math.PI) * 0.42, 0, travel * height * 0.035, true);
     }
+  } else if (animationMode === "data-accelerate") {
+    for (let stream = 0; stream < 6; stream += 1) {
+      const input = stream < 3;
+      const lane = input ? stream : stream - 3;
+      const travel = ((clock * (0.38 + stream * 0.012) + lane * 0.23) % 1 + 1) % 1;
+      const packetWidth = width * (input ? 0.09 : 0.13);
+      const packetHeight = height * (input ? 0.09 : 0.055);
+      const x = input
+        ? -width * 0.42 + travel * width * 0.31
+        : width * 0.11 + travel * width * 0.31;
+      const y = (-0.23 + lane * 0.23) * height - packetHeight / 2;
+      drawClippedOverlay(x - packetWidth / 2, y, packetWidth, packetHeight, Math.sin(travel * Math.PI) * 0.48, 0, 0, true);
+    }
+    const scanTravel = ((clock * 0.62) % 1 + 1) % 1;
+    const scanX = -width * 0.1 + scanTravel * width * 0.2;
+    drawClippedOverlay(scanX - width * 0.018, -height * 0.31, width * 0.036, height * 0.62, 0.42, 0, 0);
   } else if (animationMode === "data-down" || animationMode === "data-up") {
     const direction = animationMode === "data-down" ? 1 : -1;
     for (let stream = 0; stream < 5; stream += 1) {
@@ -13616,7 +13651,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "hacker-vending-copy-v401";
+const version = "mana-gpu-plicy-fallback-v402";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -13721,6 +13756,7 @@ const version = "hacker-vending-copy-v401";
   const statusLevitationEffect = new Image();
   const preparationBarrierEffect = new Image();
   const statusHpReductionEffect = new Image();
+  const statusManaGpuEffect = new Image();
   const vibeCodingEffect = new Image();
   const gunnerHoverSprintEffect = new Image();
   const gunnerRpgEffect = new Image();
@@ -13807,6 +13843,7 @@ const version = "hacker-vending-copy-v401";
   defer(statusLevitationEffect, "assets/generated/status-levitation-v375.png");
   defer(preparationBarrierEffect, "assets/generated/status-preparation-barrier-ate-v392.png");
   defer(statusHpReductionEffect, "assets/generated/status-hp-reduction-v375.png");
+  defer(statusManaGpuEffect, "assets/generated/status-mana-gpu-ate-v402.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
   defer(gunnerHoverSprintEffect, "assets/generated/gunner-hover-sprint-v311.png");
   defer(gunnerRpgEffect, "assets/generated/gunner-rpg-v311.png");
@@ -13900,6 +13937,7 @@ const version = "hacker-vending-copy-v401";
     statusLevitationEffect,
     preparationBarrierEffect,
     statusHpReductionEffect,
+    statusManaGpuEffect,
     vibeCodingEffect,
     gunnerHoverSprintEffect,
     gunnerRpgEffect,

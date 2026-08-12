@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v401-hacker-vending-copy";
+const CACHE_NAME = "dva-static-v402-mana-gpu-plicy-fallback";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -10,6 +10,7 @@ const STATIC_ASSETS = [
   "/game-engine.js",
   "/offline-runtime.js",
   "/offline-server-worker.js",
+  "/offline-server-main.js",
   "/config.js",
   "/manifest.webmanifest",
   "/icon.png",
@@ -59,6 +60,7 @@ const STATIC_ASSETS = [
   "/assets/generated/status-marker-acceleration-v376.png",
   "/assets/generated/status-levitation-v375.png",
   "/assets/generated/status-hp-reduction-v375.png",
+  "/assets/generated/status-mana-gpu-ate-v402.png",
   "/assets/generated/hacker-root-rainbow.webp",
   "/assets/generated/fire-jutsu-field.webp",
   "/assets/generated/substitution-field.webp",

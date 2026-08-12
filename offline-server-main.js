@@ -16936,11 +16936,10 @@ function offlineApiRequest(pathname, body = {}) {
     });
   });
 }
-self.addEventListener("message", async (event) => {
-  const message = event.data || {};
-  if (message.type !== "request" || !message.id) return;
-  const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
-  self.postMessage({ type: "response", id: message.id, result });
+globalThis.DVAOfflineMainThread = Object.freeze({
+  version: "mana-gpu-plicy-fallback-v402",
+  request(pathname, body = {}) {
+    return offlineApiRequest(String(pathname || "/"), body || {});
+  }
 });
-self.postMessage({ type: "ready", version: "mana-gpu-plicy-fallback-v402" });
 })();
