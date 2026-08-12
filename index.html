@@ -12,12 +12,12 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v409.png">
-  <link rel="stylesheet" href="styles.css?v=tm-touch-input-v418">
+  <link rel="stylesheet" href="styles.css?v=inventory-detail-v419">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v409.png?v=tm-touch-input-v418" alt="ゲーム内フローラ回復フィールドを発動する白いフードの女性">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v409.png?v=tm-touch-input-v418" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v409.png?v=inventory-detail-v419" alt="ゲーム内フローラ回復フィールドを発動する白いフードの女性">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v409.png?v=inventory-detail-v419" alt="" aria-hidden="true">
       <canvas id="titleFxCanvas" class="title-fx-canvas" aria-hidden="true"></canvas>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -457,6 +457,12 @@
               <button id="transferCreditsButton" type="button" title="Alt+C">設定量C譲渡</button>
             </div>
           </aside>
+          <aside id="inventoryItemDetail" class="inventory-item-detail" role="status" aria-live="polite" hidden>
+            <span class="inventory-item-detail-kicker">ITEM DETAIL</span>
+            <strong id="inventoryItemDetailName"></strong>
+            <small id="inventoryItemDetailType"></small>
+            <p id="inventoryItemDetailDescription"></p>
+          </aside>
           <div id="vendingPanel" class="vending-panel" data-scroll-region="自販機" aria-label="自販機" tabindex="0" hidden>
             <div class="panel-title-row"><h3>自販機</h3></div>
             <div class="vending-grid">
@@ -651,10 +657,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=tm-touch-input-v418"></script>
-    <script src="game-engine.js?v=tm-touch-input-v418"></script>
-    <script src="offline-runtime.js?v=tm-touch-input-v418"></script>
-    <script src="config.js?v=tm-touch-input-v418"></script>
-    <script src="app.js?v=tm-touch-input-v418"></script>
+    <script src="game-runtime.js?v=inventory-detail-v419"></script>
+    <script src="game-engine.js?v=inventory-detail-v419"></script>
+    <script src="offline-runtime.js?v=inventory-detail-v419"></script>
+    <script src="config.js?v=inventory-detail-v419"></script>
+    <script src="app.js?v=inventory-detail-v419"></script>
 </body>
 </html>

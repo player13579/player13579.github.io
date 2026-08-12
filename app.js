@@ -112,6 +112,10 @@ const els = {
   itemControl: $("#itemControl"),
   itemSelect: $("#itemSelect"),
   itemInventoryGrid: $("#itemInventoryGrid"),
+  inventoryItemDetail: $("#inventoryItemDetail"),
+  inventoryItemDetailName: $("#inventoryItemDetailName"),
+  inventoryItemDetailType: $("#inventoryItemDetailType"),
+  inventoryItemDetailDescription: $("#inventoryItemDetailDescription"),
   itemUseButton: $("#itemUseButton"),
   itemThrowButton: $("#itemThrowButton"),
   enhanceReadout: $("#enhanceReadout"),
@@ -359,6 +363,8 @@ const state = {
   lastStateServerNow: 0,
   lastStateReceivedAt: 0,
   toastTimer: null,
+  inventoryItemDetailTimer: null,
+  inventoryItemDetailSource: null,
   mysteryRevealTimer: null,
   fieldFeedOpen: false,
   lastRoomChatId: "",
@@ -7469,6 +7475,27 @@ function createInventoryTouchGesture({
   };
 }
 
+function hideInventoryItemDetail() {
+  if (state.inventoryItemDetailTimer) window.clearTimeout(state.inventoryItemDetailTimer);
+  state.inventoryItemDetailTimer = null;
+  state.inventoryItemDetailSource?.removeAttribute("aria-describedby");
+  state.inventoryItemDetailSource = null;
+  els.inventoryItemDetail.hidden = true;
+}
+
+function showInventoryItemDetail(item, sourceButton) {
+  if (!item || !sourceButton) return;
+  if (state.inventoryItemDetailTimer) window.clearTimeout(state.inventoryItemDetailTimer);
+  state.inventoryItemDetailSource?.removeAttribute("aria-describedby");
+  state.inventoryItemDetailSource = sourceButton;
+  sourceButton.setAttribute("aria-describedby", "inventoryItemDetailDescription");
+  els.inventoryItemDetailName.textContent = item.label || "所持品";
+  els.inventoryItemDetailType.textContent = [item.output || "所持品", item.badge || ""].filter(Boolean).join(" / ");
+  els.inventoryItemDetailDescription.textContent = item.detail || "通常使用と投擲に対応する所持品。";
+  els.inventoryItemDetail.hidden = false;
+  state.inventoryItemDetailTimer = window.setTimeout(hideInventoryItemDetail, 12_000);
+}
+
 function bindInventoryDetailHold(button, item) {
   let timer = 0;
   let pointerId = null;
@@ -7495,7 +7522,7 @@ function bindInventoryDetailHold(button, item) {
       if (pointerId !== id) return;
       suppressClick = true;
       clearNativeSelection();
-      showToast(`${item.label}: ${item.detail || "使用・投擲できる所持品"}`);
+      showInventoryItemDetail(item, button);
       if (navigator.vibrate) navigator.vibrate(18);
     }, 520);
   };
@@ -7520,7 +7547,7 @@ function bindInventoryDetailHold(button, item) {
     onHold: () => {
       suppressClick = true;
       clearNativeSelection();
-      showToast(`${item.label}: ${item.detail || "使用・投擲できる所持品"}`);
+      showInventoryItemDetail(item, button);
       if (navigator.vibrate) navigator.vibrate(18);
     },
     onScroll: (deltaY) => {
@@ -7579,6 +7606,7 @@ function renderItemControl(data) {
   els.itemControl.hidden = !visible;
   if (!visible) {
     state.itemRenderKey = "";
+    hideInventoryItemDetail();
     return;
   }
   const previousItem = els.itemSelect.value;
@@ -7613,6 +7641,7 @@ function renderItemControl(data) {
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
+        hideInventoryItemDetail();
         selectItemChoice(item.id, false);
         if (item.inventoryKind === "weapon" && item.sourceId !== state.data?.self?.gunnerWeapon) {
           void api("/api/gunner-weapon", { weaponId: item.sourceId });
@@ -14188,7 +14217,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "tm-touch-input-v418";
+const version = "inventory-detail-v419";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

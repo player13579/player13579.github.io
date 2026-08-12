@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v418-tm-touch-input";
+const CACHE_NAME = "dva-static-v419-inventory-detail";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
