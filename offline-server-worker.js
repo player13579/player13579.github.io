@@ -6671,6 +6671,7 @@ const WALK_DRAIN_PER_SECOND = 9;
 const SLOW_WALK_DRAIN_PER_SECOND = 1.2;
 const STAMINA_REGEN_PER_SECOND = 19;
 const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
+const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.05;
 const JUMP_BASE_DISTANCE = 120;
 const JUMP_DISTANCE_PER_PREPARE_MS = 0.9;
 const JUMP_BASE_COST = 24;
@@ -8673,6 +8674,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     falling: false,
     levitationEngaged: false,
     levitationManaCarry: 0,
+    clairvoyanceActive: false,
+    clairvoyanceManaCarry: 0,
     bodyHits: 0,
     overheal: 0,
     credits: 0,
@@ -8831,6 +8834,8 @@ function leaveRoom(room, player) {
     player.falling = false;
     player.levitationEngaged = false;
     player.levitationManaCarry = 0;
+    player.clairvoyanceActive = false;
+    player.clairvoyanceManaCarry = 0;
     player.inVent = false;
     player.ventId = "";
     player.drone.active = false;
@@ -9063,6 +9068,8 @@ function startGame(room) {
     player.falling = false;
     player.levitationEngaged = false;
     player.levitationManaCarry = 0;
+    player.clairvoyanceActive = false;
+    player.clairvoyanceManaCarry = 0;
     player.bodyHits = 0;
     player.overheal = 0;
     player.credits = 0;
@@ -10086,6 +10093,46 @@ function advanceLevitationMana(room, player, elapsedMs) {
   }
 }
 
+function setClairvoyanceActive(room, player, active) {
+  const shouldActivate = Boolean(active);
+  if (!shouldActivate) {
+    player.clairvoyanceActive = false;
+    player.clairvoyanceManaCarry = 0;
+    touch(room);
+    return false;
+  }
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "今は千里眼を使用できません。");
+  }
+  ensureConscious(player);
+  if (Number(player.mana) <= 0) throw new ApiError(400, "千里眼に必要なMPがありません。");
+  player.clairvoyanceActive = true;
+  player.clairvoyanceManaCarry = Math.max(0, Number(player.clairvoyanceManaCarry) || 0);
+  markSoloMissionAction(room, player, "clairvoyance");
+  touch(room);
+  return true;
+}
+
+function advanceClairvoyanceMana(room, player, elapsedMs) {
+  if (!player.clairvoyanceActive) return;
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    player.clairvoyanceActive = false;
+    player.clairvoyanceManaCarry = 0;
+    return;
+  }
+  player.clairvoyanceManaCarry = Math.max(0, Number(player.clairvoyanceManaCarry) || 0) +
+    Math.max(0, elapsedMs) / 1000 * CLAIRVOYANCE_MANA_DRAIN_PER_SECOND;
+  const drain = Math.floor((player.clairvoyanceManaCarry + 1e-9) * 100) / 100;
+  if (drain < 0.01) return;
+  player.clairvoyanceManaCarry = Math.max(0, player.clairvoyanceManaCarry - drain);
+  setMana(room, player, Number(player.mana) - drain, "千里眼");
+  if (Number(player.mana) <= 0) {
+    player.clairvoyanceActive = false;
+    player.clairvoyanceManaCarry = 0;
+    pushEvent(room, `${player.name} の千里眼はMP切れで終了しました。`);
+  }
+}
+
 function canLevitate(player) {
   return Boolean(
     hasOperatorAccess(player, "gravity") &&
@@ -10620,6 +10667,36 @@ function botMatchHumanOwnsCriticalSabotage(room) {
   return String(room.sabotage?.sourceId || "") === human.id;
 }
 
+function botMatchHumanOwnsVictory(room, winner, cause = null) {
+  const human = soleHumanBotMatchPlayer(room);
+  if (!human) return true;
+  const victoryCause = cause || {};
+
+  if (winner === "idea") {
+    return victoryCause.type === "idea" && String(victoryCause.sourceId || room.ideaWinnerId || "") === human.id;
+  }
+
+  const winnerRole = winner === "defenders"
+    ? "defender"
+    : winner === "attackers"
+      ? "attacker"
+      : "";
+  if (!winnerRole || winnerRole !== human.role) return true;
+
+  if (victoryCause.type === "elimination") {
+    return botMatchHumanEarnedEliminationVictory(room, winnerRole);
+  }
+  if (victoryCause.type === "tasks") {
+    const tasks = Array.isArray(human.taskList) ? human.taskList : [];
+    return human.alive && !human.ejected && tasks.length > 0 && tasks.every((task) => task.done);
+  }
+  if (victoryCause.type === "criticalSabotage") {
+    return winnerRole === "attacker" && String(victoryCause.sourceId || "") === human.id;
+  }
+
+  return false;
+}
+
 function botIsEnemyOfSoleHuman(room, bot) {
   const human = soleHumanBotMatchPlayer(room);
   return !human || bot?.role !== human.role;
@@ -10659,7 +10736,8 @@ function alivePlayers(room, role) {
   return [...room.players.values()].filter((player) => player.role === role && player.alive && !player.ejected);
 }
 
-function finish(room, winner, reason) {
+function finish(room, winner, reason, cause = {}) {
+  if (!botMatchHumanOwnsVictory(room, winner, cause)) return false;
   room.phase = "ended";
   room.winner = winner;
   if (room.soloMission?.id === "cpu-gravity" && winner === "attackers") {
@@ -10675,11 +10753,14 @@ function finish(room, winner, reason) {
     player.ventId = "";
     player.dodgeActiveUntil = 0;
     player.drone.active = false;
+    player.clairvoyanceActive = false;
+    player.clairvoyanceManaCarry = 0;
     clearAttackState(player);
   });
   const winnerLabel = winner === "defenders" ? "ディフェンダー" : winner === "attackers" ? "アタッカー" : "善のイデア到達者";
   pushEvent(room, `${winnerLabel}勝利: ${reason}`);
   touch(room);
+  return true;
 }
 
 function forceEnd(room, player) {
@@ -10696,6 +10777,8 @@ function forceEnd(room, player) {
     entry.ventId = "";
     entry.dodgeActiveUntil = 0;
     entry.drone.active = false;
+    entry.clairvoyanceActive = false;
+    entry.clairvoyanceManaCarry = 0;
     clearAttackState(entry);
   });
   pushEvent(room, room.finishReason);
@@ -10732,7 +10815,10 @@ function completeSoloMission(room, mission) {
   if (!room.soloMission || room.soloMission.completed || room.phase !== "playing") return false;
   room.soloMission.completed = true;
   const winner = mission.team === "attacker" ? "attackers" : "defenders";
-  finish(room, winner, `ソロ訓練「${mission.name}」を達成しました。`);
+  finish(room, winner, `ソロ訓練「${mission.name}」を達成しました。`, {
+    type: "soloMission",
+    sourceId: room.soloMission.playerId
+  });
   return true;
 }
 
@@ -10775,18 +10861,18 @@ function checkWin(room) {
 
   if (attackers.length === 0) {
     if (botMatchHumanEarnedEliminationVictory(room, "defender")) {
-      finish(room, "defenders", "アタッカーを全員追放しました。");
+      finish(room, "defenders", "アタッカーを全員追放しました。", { type: "elimination" });
     }
     return;
   }
   if (defenders.length === 0 && room.phase === "playing") {
     if (botMatchHumanEarnedEliminationVictory(room, "attacker")) {
-      finish(room, "attackers", "ディフェンダーが全滅しました。");
+      finish(room, "attackers", "ディフェンダーが全滅しました。", { type: "elimination" });
     }
     return;
   }
   if (progress.total > 0 && progress.done >= progress.total) {
-    finish(room, "defenders", "全タスクを完了しました。");
+    finish(room, "defenders", "全タスクを完了しました。", { type: "tasks" });
     return;
   }
 }
@@ -10916,6 +11002,7 @@ function tickRoom(room) {
     advanceFighterEnergyPassive(room, player, timestamp);
     advanceAccelerationTime(room, player, elapsedMs, timestamp);
     advanceLevitationMana(room, player, elapsedMs);
+    advanceClairvoyanceMana(room, player, elapsedMs);
     advanceLimitBreak(room, player, elapsedMs);
     advanceHackerManaGpu(room, player, elapsedMs, timestamp);
     finishRenki(room, player, timestamp);
@@ -11025,14 +11112,20 @@ function tickRoom(room) {
     if (evaluateSoloMission(room, timestamp)) return;
     if (room.pendingIdeaVictoryAt && timestamp >= room.pendingIdeaVictoryAt) {
       const ideaWinner = room.players.get(room.ideaWinnerId);
-      finish(room, "idea", `${ideaWinner?.name || "プレイヤー"} が善のイデアへ到達しました。`);
+      finish(room, "idea", `${ideaWinner?.name || "プレイヤー"} が善のイデアへ到達しました。`, {
+        type: "idea",
+        sourceId: ideaWinner?.id || ""
+      });
       return;
     }
     if (room.sabotage?.endsAt && now() >= room.sabotage.endsAt) {
       const type = room.sabotage.type;
       if (type === "reactor" || type === "oxygen") {
         if (botMatchHumanOwnsCriticalSabotage(room)) {
-          finish(room, "attackers", `${type === "reactor" ? "Core Breach" : "Atmos Leak"}の修復に失敗しました。`);
+          finish(room, "attackers", `${type === "reactor" ? "Core Breach" : "Atmos Leak"}の修復に失敗しました。`, {
+            type: "criticalSabotage",
+            sourceId: room.sabotage?.sourceId || ""
+          });
         } else {
           room.sabotage = null;
         }
@@ -15445,6 +15538,8 @@ function serialize(room, viewer, options = {}) {
       gravityTimeTargetId: viewer.gravityTimeTargetId || "",
       gravityTimeEndsAt: Number(viewer.gravityTimeEndsAt) || 0,
       levitationActive: canLevitate(viewer),
+      clairvoyanceActive: Boolean(viewer.clairvoyanceActive),
+      clairvoyanceManaPerSecond: CLAIRVOYANCE_MANA_DRAIN_PER_SECOND,
       alchemyReviveUsed: Boolean(viewer.alchemyReviveUsed),
       vibeCodingReadyAt: Number(viewer.vibeCodingReadyAt) || 0,
       vibeCodingCooldownMs: Number(viewer.vibeCodingCooldownMs) || 0,
@@ -15847,6 +15942,13 @@ async function handleApi(req, res) {
       const { room, player } = requireRoomPlayer(body);
       jumpPlayer(room, player, body.dx, body.dy);
       adoptMovementSession(player, body);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/clairvoyance": {
+      const { room, player } = requireRoomPlayer(body);
+      setClairvoyanceActive(room, player, body.active);
       payload = serialize(room, player);
       break;
     }
@@ -17134,5 +17236,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "bot-self-earned-win-v413" });
+self.postMessage({ type: "ready", version: "bot-win-clairvoyance-input-v414" });
 })();

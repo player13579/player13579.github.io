@@ -413,7 +413,16 @@ const state = {
     frame: 0,
     directionKeys: new Set()
   },
-  clairvoyance: { active: false, x: 0, y: 0, lastFrameAt: 0, frame: 0 },
+  clairvoyance: {
+    active: false,
+    x: 0,
+    y: 0,
+    lastFrameAt: 0,
+    frame: 0,
+    serverDesired: false,
+    requestPending: false,
+    requestSerial: 0
+  },
   markerHitTargets: [],
   markerExplanation: null,
   operatorBranchesOpen: false,
@@ -2462,6 +2471,7 @@ function updateThrowTargetingFrame(timestamp) {
     const distance = ITEM_THROW_TARGET_CURSOR_SPEED * elapsed / 1000;
     moveThrowTarget(direction.dx * distance, direction.dy * distance);
   }
+  syncClairvoyanceManaUsage();
   updateEnhanceReadout();
   target.frame = requestAnimationFrame(updateThrowTargetingFrame);
 }
@@ -2496,6 +2506,7 @@ function cancelThrowTargeting(silent = false, message = "投擲をキャンセ�
   if (!state.throwTargeting.active) return false;
   if (state.throwTargeting.frame) cancelAnimationFrame(state.throwTargeting.frame);
   state.throwTargeting = emptyThrowTargetingState();
+  syncClairvoyanceManaUsage();
   updateEnhanceReadout();
   if (!silent && message) showToast(message);
   return true;
@@ -2583,6 +2594,12 @@ function updateClairvoyanceFrame(timestamp) {
     toggleClairvoyance(false);
     return;
   }
+  if (!view.requestPending && view.serverDesired && !data.self.clairvoyanceActive && Number(data.self.mana) <= 0) {
+    setLocalClairvoyanceActive(false, data);
+    syncClairvoyanceManaUsage();
+    showToast("千里眼はMP切れで終了しました。");
+    return;
+  }
   const elapsed = clamp(timestamp - (view.lastFrameAt || timestamp), 0, 40);
   view.lastFrameAt = timestamp;
   const direction = clairvoyanceDirection();
@@ -2594,16 +2611,26 @@ function updateClairvoyanceFrame(timestamp) {
   view.frame = requestAnimationFrame(updateClairvoyanceFrame);
 }
 
-function toggleClairvoyance(force = null) {
-  const data = state.data;
-  const shouldEnable = force === null ? !state.clairvoyance.active : Boolean(force);
-  if (shouldEnable && (!data || data.phase !== "playing" || !data.self?.alive || data.self.ejected)) return false;
-  if (state.clairvoyance.frame) cancelAnimationFrame(state.clairvoyance.frame);
+function setLocalClairvoyanceActive(shouldEnable, data = state.data) {
+  const view = state.clairvoyance;
+  const serverDesired = Boolean(view.serverDesired);
+  const requestPending = Boolean(view.requestPending);
+  const requestSerial = Number(view.requestSerial) || 0;
+  if (view.frame) cancelAnimationFrame(view.frame);
+  clearMovementInput();
+  rotateMovementSession();
+  sendMovement(true);
   if (!shouldEnable) {
-    clearMovementInput();
-    rotateMovementSession();
-    sendMovement(true);
-    state.clairvoyance = { active: false, x: 0, y: 0, lastFrameAt: 0, frame: 0 };
+    state.clairvoyance = {
+      active: false,
+      x: 0,
+      y: 0,
+      lastFrameAt: 0,
+      frame: 0,
+      serverDesired,
+      requestPending,
+      requestSerial
+    };
     state.camera.initialized = false;
     updateActionButtons(data);
     return true;
@@ -2611,15 +2638,62 @@ function toggleClairvoyance(force = null) {
   const self = data.players.find((player) => player.id === data.selfId);
   if (!self) return false;
   const origin = renderedPlayer(self);
-  clearMovementInput();
-  rotateMovementSession();
-  sendMovement(true);
   const timestamp = performance.now();
-  state.clairvoyance = { active: true, x: origin.x, y: origin.y, lastFrameAt: timestamp, frame: 0 };
+  state.clairvoyance = {
+    active: true,
+    x: origin.x,
+    y: origin.y,
+    lastFrameAt: timestamp,
+    frame: 0,
+    serverDesired,
+    requestPending,
+    requestSerial
+  };
   state.clairvoyance.frame = requestAnimationFrame(updateClairvoyanceFrame);
   state.camera.initialized = false;
   updateActionButtons(data);
-  showToast("千里眼を起動しました。移動入力で観測焦点を動かします。");
+  return true;
+}
+
+function requestClairvoyanceManaUsage(active) {
+  const view = state.clairvoyance;
+  const desired = Boolean(active);
+  if (view.serverDesired === desired && (view.requestPending || Boolean(state.data?.self?.clairvoyanceActive) === desired)) return;
+  view.serverDesired = desired;
+  view.requestPending = true;
+  view.requestSerial = (Number(view.requestSerial) || 0) + 1;
+  const requestSerial = view.requestSerial;
+  if (!state.roomId || !state.playerId) {
+    view.requestPending = false;
+    return;
+  }
+  void api("/api/clairvoyance", { active: desired }).then((result) => {
+    if (state.clairvoyance.requestSerial !== requestSerial) return;
+    state.clairvoyance.requestPending = false;
+    const accepted = Boolean(result?.self?.clairvoyanceActive);
+    if (desired && !accepted && state.clairvoyance.active) setLocalClairvoyanceActive(false, result || state.data);
+  });
+}
+
+function syncClairvoyanceManaUsage() {
+  const throwObservation = throwTargetClairvoyanceActive(state.data);
+  requestClairvoyanceManaUsage(state.clairvoyance.active || throwObservation);
+}
+
+function toggleClairvoyance(force = null) {
+  const data = state.data;
+  const shouldEnable = force === null ? !state.clairvoyance.active : Boolean(force);
+  if (shouldEnable && (
+    !data ||
+    data.phase !== "playing" ||
+    !data.self?.alive ||
+    data.self.ejected ||
+    Number(data.self.mana) <= 0
+  )) return false;
+  const changed = setLocalClairvoyanceActive(shouldEnable, data);
+  if (!changed) return false;
+  syncClairvoyanceManaUsage();
+  if (shouldEnable) showToast("千里眼を起動しました。観測中はMPを消費します。");
   return true;
 }
 
@@ -3896,9 +3970,9 @@ function bindEvents() {
       if (!event.repeat) setKeybindOpen(!state.keybindOpen);
       return;
     }
-    if (!typingField && event.code === "PageDown") {
+    if (!typingField && (event.code === "PageUp" || event.code === "PageDown")) {
       event.preventDefault();
-      if (!event.repeat) cycleSelectedScrollRegion(1);
+      if (!event.repeat) cycleSelectedScrollRegion(event.code === "PageUp" ? -1 : 1);
       return;
     }
     if (!typingField && selectedScrollRegion() && event.key.startsWith("Arrow") && !event.shiftKey) {
@@ -7263,41 +7337,97 @@ function bindInventoryDetailHold(button, item) {
   let originX = 0;
   let originY = 0;
   let suppressClick = false;
+  let touchMoved = false;
+  let touchLastY = 0;
+  let touchIdentifier = null;
+  const clearNativeSelection = () => {
+    const selection = window.getSelection?.();
+    if (selection && selection.rangeCount) selection.removeAllRanges();
+  };
   const clear = () => {
     if (timer) window.clearTimeout(timer);
     timer = 0;
     pointerId = null;
   };
-  button.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    if (event.cancelable) event.preventDefault();
+  const beginHold = (id, clientX, clientY) => {
     clear();
-    pointerId = event.pointerId;
-    originX = event.clientX;
-    originY = event.clientY;
+    clearNativeSelection();
+    pointerId = id;
+    originX = clientX;
+    originY = clientY;
     suppressClick = false;
-    try { button.setPointerCapture(event.pointerId); } catch {}
     timer = window.setTimeout(() => {
-      if (pointerId !== event.pointerId) return;
+      if (pointerId !== id) return;
       suppressClick = true;
+      clearNativeSelection();
       showToast(`${item.label}: ${item.detail || "使用・投擲できる所持品"}`);
       if (navigator.vibrate) navigator.vibrate(18);
     }, 520);
+  };
+  button.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "touch") return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.cancelable) event.preventDefault();
+    beginHold(event.pointerId, event.clientX, event.clientY);
+    try { button.setPointerCapture(event.pointerId); } catch {}
   });
   const suppressNativeLongPress = (event) => {
-    event.preventDefault();
+    if (event.cancelable) event.preventDefault();
     event.stopPropagation();
+    clearNativeSelection();
   };
   button.addEventListener("contextmenu", suppressNativeLongPress);
   button.addEventListener("selectstart", suppressNativeLongPress);
   button.addEventListener("dragstart", suppressNativeLongPress);
+  button.addEventListener("copy", suppressNativeLongPress);
+  button.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    const touch = event.touches[0];
+    touchMoved = false;
+    touchLastY = touch.clientY;
+    touchIdentifier = touch.identifier;
+    beginHold(`touch:${touch.identifier}`, touch.clientX, touch.clientY);
+  }, { passive: false });
+  button.addEventListener("touchmove", (event) => {
+    if (touchIdentifier === null || event.touches.length !== 1) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    const touch = event.touches[0];
+    const deltaY = touchLastY - touch.clientY;
+    touchLastY = touch.clientY;
+    if (Math.hypot(touch.clientX - originX, touch.clientY - originY) > 9) {
+      touchMoved = true;
+      clear();
+      els.itemInventoryGrid.scrollTop += deltaY;
+    }
+  }, { passive: false });
+  button.addEventListener("touchend", (event) => {
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    const shortTap = String(pointerId || "").startsWith("touch:") && !touchMoved && !suppressClick;
+    clear();
+    touchIdentifier = null;
+    clearNativeSelection();
+    if (shortTap) button.click();
+    else suppressClick = false;
+  }, { passive: false });
+  button.addEventListener("touchcancel", (event) => {
+    if (event.cancelable) event.preventDefault();
+    clear();
+    touchIdentifier = null;
+    suppressClick = false;
+    clearNativeSelection();
+  }, { passive: false });
   button.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "touch") return;
     if (pointerId !== event.pointerId) return;
     if (Math.hypot(event.clientX - originX, event.clientY - originY) > 9) clear();
   });
-  button.addEventListener("pointerup", clear);
-  button.addEventListener("pointercancel", clear);
-  button.addEventListener("lostpointercapture", clear);
+  button.addEventListener("pointerup", (event) => { if (event.pointerType !== "touch") clear(); });
+  button.addEventListener("pointercancel", (event) => { if (event.pointerType !== "touch") clear(); });
+  button.addEventListener("lostpointercapture", (event) => { if (event.pointerType !== "touch") clear(); });
   button.addEventListener("click", (event) => {
     if (!suppressClick) return;
     event.preventDefault();
@@ -7338,6 +7468,10 @@ function renderItemControl(data) {
       button.dataset.alchemyChoice = item.id;
       button.dataset.alchemyAsset = item.asset || item.sourceId || item.id;
       button.dataset.inventoryKind = item.inventoryKind;
+      button.draggable = false;
+      button.style.webkitTouchCallout = "none";
+      button.style.webkitUserSelect = "none";
+      button.style.userSelect = "none";
       button.setAttribute("role", "option");
       button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.output || "所持品")}</small></span><b>${escapeHtml(item.badge || "")}</b>`;
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
@@ -8728,7 +8862,7 @@ function worldZoomFor(data = state.data) {
 }
 
 function throwTargetClairvoyanceActive(data = state.data) {
-  if (!state.throwTargeting.active || !data?.map) return false;
+  if (!state.throwTargeting.active || !data?.map || Number(data.self?.mana) <= 0) return false;
   const self = data.players?.find((player) => player.id === data.selfId);
   if (!self) return false;
   const origin = renderedPlayer(self);
@@ -13918,7 +14052,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "bot-self-earned-win-v413";
+const version = "bot-win-clairvoyance-input-v414";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
