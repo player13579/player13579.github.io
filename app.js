@@ -2592,6 +2592,9 @@ function beginEnhanceAction(kind, pointerId = null) {
   state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0 };
   state.movementQueue?.clear?.();
   clearMovementInput();
+  // A new movement session makes any request that was already in flight before
+  // the hold stale, so it cannot move the player after Enhance has begun.
+  rotateMovementSession();
   sendMovement(true);
   updateEnhanceReadout();
   return true;
@@ -7215,6 +7218,7 @@ function bindInventoryDetailHold(button, item) {
   };
   button.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.cancelable) event.preventDefault();
     clear();
     pointerId = event.pointerId;
     originX = event.clientX;
@@ -13841,7 +13845,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "field-i2i-title-v409";
+const version = "enhance-lock-longpress-v410";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
