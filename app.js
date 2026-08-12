@@ -7571,33 +7571,6 @@ function bindInventoryDetailHold(button, item) {
   }, true);
 }
 
-function drawInventoryChoiceCanvas(canvas, item) {
-  const bounds = canvas.getBoundingClientRect();
-  const cssWidth = Math.max(64, Math.round(bounds.width || canvas.clientWidth || 64));
-  const cssHeight = Math.max(42, Math.round(bounds.height || canvas.clientHeight || 42));
-  const ratio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-  canvas.width = Math.round(cssWidth * ratio);
-  canvas.height = Math.round(cssHeight * ratio);
-  const context = canvas.getContext("2d");
-  if (!context) return;
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  context.clearRect(0, 0, cssWidth, cssHeight);
-  context.textBaseline = "middle";
-  context.fillStyle = "#e8f8fc";
-  const badgeWidth = item.badge ? 25 : 0;
-  context.font = "700 10px system-ui, sans-serif";
-  context.fillText(String(item.label || "所持品"), 0, 14, Math.max(24, cssWidth - badgeWidth - 3));
-  context.fillStyle = "#9fbac6";
-  context.font = "500 8px system-ui, sans-serif";
-  context.fillText(String(item.output || "所持品"), 0, 31, Math.max(24, cssWidth - badgeWidth - 3));
-  if (item.badge) {
-    context.fillStyle = "#fef08a";
-    context.font = "800 9px system-ui, sans-serif";
-    context.textAlign = "right";
-    context.fillText(String(item.badge), cssWidth - 2, 21, 62);
-  }
-}
-
 function renderItemControl(data) {
   const self = data.self;
   const items = collectInventoryDisplayItems(self);
@@ -7636,11 +7609,7 @@ function renderItemControl(data) {
       button.style.userSelect = "none";
       button.setAttribute("role", "option");
       button.setAttribute("aria-label", `${item.label} ${item.output || "所持品"} ${item.badge || ""}`.trim());
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span>`;
-      const displayCanvas = document.createElement("canvas");
-      displayCanvas.className = "item-choice-display-canvas";
-      displayCanvas.setAttribute("aria-hidden", "true");
-      button.append(displayCanvas);
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.output || "所持品")}</small></span><b>${escapeHtml(item.badge || "")}</b>`;
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
@@ -7650,7 +7619,6 @@ function renderItemControl(data) {
         }
       });
       els.itemInventoryGrid.append(button);
-      drawInventoryChoiceCanvas(displayCanvas, item);
     });
   }
   const selected = items.find((item) => item.id === els.itemSelect.value) || items[0];
@@ -14220,7 +14188,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "inventory-canvas-input-v417";
+const version = "tm-touch-input-v418";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
