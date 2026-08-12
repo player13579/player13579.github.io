@@ -530,21 +530,55 @@ const utilityLabels = {
   doorlog: "通行記録を見る"
 };
 
+const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
+  "mineral-water": "燃焼解除・SP回復。投擲時は周囲へ適用",
+  antidote: "毒を解除。投擲時は周囲へ適用",
+  molotov: "着弾地点を燃焼。長押しで範囲強化",
+  evade: "回避の有効時間を0.25秒延長",
+  speed: "加速を1段階追加",
+  warp: "指定地点へ即時移動する消耗品",
+  mystery: "幸運／直観に応じた強化または弱体",
+  fire: "範囲へ継続燃焼。長押しで拡散",
+  substitution: "次に受ける攻撃を無効化して転移",
+  grit: "次の確殺をボディダメージへ変換",
+  heal: "負傷回復。無傷時はオーバーヒール",
+  reason: "対象の踏ん張りを全無効化。数に応じ反動",
+  mana: "マナを1回復",
+  railgun: "遮蔽物を貫通する直線破壊射撃",
+  "particle-cannon": "操作可能な破壊ビームを継続放射",
+  excalibur: "前方半面を破壊し、使用者も死亡",
+  exile: "クローンを遠隔操作し全域破壊を回避",
+  computer: "生存者のスマホ位置情報を取得",
+  handgun: "低反動の近中距離銃",
+  smg: "高レート・近距離向け・距離減衰大",
+  assault: "中レート・距離減衰小の標準銃",
+  sniper: "長射程・確殺・低レート",
+  taser: "低ダメージ・移動速度低下",
+  mercury: "通常使用は有害。投擲時は着地点へ毒を拡散",
+  lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
+  uranium: "量子制御の核分裂素材。通常使用は有害",
+  plutonium: "量子制御の核分裂素材。通常使用は有害",
+  ice: "投擲できる低温変換済みの水",
+  "heated-water": "投擲できる高温変換済みの水",
+  rpg: "周囲を攻撃する使い切り重火器",
+  missile: "最寄り対象を攻撃する使い切り重火器"
+});
+
 const alchemyRecipes = [
   { id: "stamina", label: "スタミナ", output: "+350SP" },
   { id: "heal", label: "回復", output: "負傷治療／オーバーヒール" },
-  { id: "fire", label: "火遁の術", output: "使用回数 +1" },
-  { id: "substitution", label: "変わり身の術", output: "使用回数 +1" },
-  { id: "warp", label: "即時ワープ", output: "使用回数 +1" },
-  { id: "grit", label: "踏ん張り", output: "確殺耐性 +1" },
+  { id: "fire", label: "火遁の術", output: VENDING_PRODUCT_DESCRIPTIONS.fire },
+  { id: "substitution", label: "変わり身の術", output: VENDING_PRODUCT_DESCRIPTIONS.substitution },
+  { id: "warp", label: "即時ワープ", output: VENDING_PRODUCT_DESCRIPTIONS.warp },
+  { id: "grit", label: "踏ん張り", output: VENDING_PRODUCT_DESCRIPTIONS.grit },
   { id: "reason", label: "押し込み", output: "対象の踏ん張りを全無効化 / 1回につき自身へ0.5ダメージ" },
-  { id: "mercury", label: "水銀瓶", output: "所持数 +1", asset: "quantum-mercury" },
-  { id: "lead", label: "鉛瓶", output: "所持数 +1", asset: "quantum-lead" },
-  { id: "uranium", label: "ウラン容器", output: "所持数 +1", asset: "quantum-uranium" },
-  { id: "plutonium", label: "プルトニウム容器", output: "所持数 +1", asset: "quantum-plutonium" },
-  { id: "mineral-water", label: "ミネラルウォーター", output: "所持数 +1", asset: "mineral-water" },
-  { id: "antidote", label: "解毒剤", output: "毒解除アイテム +1", asset: "antidote" },
-  { id: "molotov", label: "火炎瓶", output: "燃焼アイテム +1", asset: "molotov" },
+  { id: "mercury", label: "水銀瓶", output: VENDING_PRODUCT_DESCRIPTIONS.mercury, asset: "quantum-mercury" },
+  { id: "lead", label: "鉛瓶", output: VENDING_PRODUCT_DESCRIPTIONS.lead, asset: "quantum-lead" },
+  { id: "uranium", label: "ウラン容器", output: VENDING_PRODUCT_DESCRIPTIONS.uranium, asset: "quantum-uranium" },
+  { id: "plutonium", label: "プルトニウム容器", output: VENDING_PRODUCT_DESCRIPTIONS.plutonium, asset: "quantum-plutonium" },
+  { id: "mineral-water", label: "ミネラルウォーター", output: VENDING_PRODUCT_DESCRIPTIONS["mineral-water"], asset: "mineral-water" },
+  { id: "antidote", label: "解毒剤", output: VENDING_PRODUCT_DESCRIPTIONS.antidote, asset: "antidote" },
+  { id: "molotov", label: "火炎瓶", output: VENDING_PRODUCT_DESCRIPTIONS.molotov, asset: "molotov" },
   { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "grit" },
   { id: "vending-speed", label: "アクセラレート飲料", output: "移動速度 ×1.10（重複可）", asset: "warp" },
   { id: "vending-mystery", label: "ミステリー", output: "幸運値に応じたランダム効果", asset: "reason" },
@@ -559,9 +593,6 @@ const alchemyRecipes = [
   { id: "vending-assault", label: "アサルトライフル", output: "武器と弾薬を生成", asset: "assault" },
   { id: "vending-sniper", label: "スナイパーライフル", output: "武器と弾薬を生成", asset: "sniper" },
   { id: "vending-taser", label: "テーザー銃", output: "武器と弾薬を生成", asset: "taser" },
-  { id: "vending-mineral-water", label: "ミネラルウォーター", output: "燃焼解除 / SP回復", asset: "mineral-water" },
-  { id: "vending-molotov", label: "火炎瓶", output: "着弾地点へ燃焼領域", asset: "molotov" },
-  { id: "vending-antidote", label: "解毒剤", output: "毒状態を解除", asset: "antidote" },
   { id: "revive", label: "人体生成", output: "死者を一度だけ復活 / 0MP" },
   { id: "hack-credits-delete", label: "クレジット削除", output: "対象のクレジットを0にする", asset: "hack-credits-delete" },
   { id: "hack-credits-duplicate", label: "クレジット増殖", output: "対象のクレジットを複製", asset: "hack-credits-duplicate" },
@@ -576,6 +607,22 @@ const alchemyRecipes = [
   { id: "invention-railgun", label: "レールガン", output: "全遮蔽物貫通", kind: "invention", inventoryId: "railgun" },
   { id: "invention-particle-cannon", label: "荷電粒子砲", output: "破壊ビームを継続放射", kind: "invention", inventoryId: "particle-cannon" }
 ];
+
+function hackerRecipeCooldownMs(recipeOrId) {
+  const id = typeof recipeOrId === "string" ? recipeOrId : String(recipeOrId?.id || "");
+  if (id === "revive") return 36_000;
+  if (id === "hack-hp-delete") return 28_000;
+  if (id.startsWith("hack-")) return 18_000;
+  if (id.startsWith("object-")) return 12_000;
+  if (id.startsWith("vending-")) return 9_000;
+  return 7_000;
+}
+
+function hackerRecipePresentation(recipe) {
+  const description = String(recipe?.output || "").trim();
+  const cooldown = `クールタイム ${Math.round(hackerRecipeCooldownMs(recipe) / 1000)}秒`;
+  return description ? `${description} / ${cooldown}` : cooldown;
+}
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold.webp" }],
@@ -706,7 +753,12 @@ function ensureDynamicAlchemyChoices() {
       els.alchemySelect.append(option);
     }
     if (recipe.kind === "borrowed") continue;
-    if (!els.alchemyChoiceGrid.querySelector(`[data-alchemy-choice="${recipe.id}"]`)) {
+    const existingButton = els.alchemyChoiceGrid.querySelector(`[data-alchemy-choice="${recipe.id}"]`);
+    if (existingButton) {
+      const detail = existingButton.querySelector("small");
+      if (detail) detail.textContent = hackerRecipePresentation(recipe);
+      existingButton.setAttribute("aria-label", `${recipe.label}: ${hackerRecipePresentation(recipe)}`);
+    } else {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "alchemy-choice alchemy-inventory-choice";
@@ -714,7 +766,8 @@ function ensureDynamicAlchemyChoices() {
       button.dataset.atlasCell = recipe.kind === "invention" ? "3" : "1";
       if (recipe.asset) button.dataset.alchemyAsset = recipe.asset;
       button.setAttribute("aria-pressed", "false");
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>${escapeHtml(recipe.label)}</strong><small>${escapeHtml(recipe.output)}</small></span>`;
+      button.setAttribute("aria-label", `${recipe.label}: ${hackerRecipePresentation(recipe)}`);
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>${escapeHtml(recipe.label)}</strong><small>${escapeHtml(hackerRecipePresentation(recipe))}</small></span>`;
       els.alchemyChoiceGrid.append(button);
     }
   }
@@ -977,10 +1030,10 @@ function renderHackerAbilityDock(data = state.data, force = false) {
       button.dataset.alchemyChoice = recipe.id;
       button.dataset.atlasCell = source?.dataset.atlasCell || (recipe.kind === "invention" ? "3" : "1");
       if (recipe.asset) button.dataset.alchemyAsset = recipe.asset;
-      button.setAttribute("aria-label", `${recipe.label}: ${recipe.output}`);
+      button.setAttribute("aria-label", `${recipe.label}: ${hackerRecipePresentation(recipe)}`);
       button.innerHTML = `
         <span class="alchemy-choice-icon hacker-action-icon" aria-hidden="true"></span>
-        <span class="hacker-action-copy"><strong>${escapeHtml(recipe.label)}</strong><small>${escapeHtml(recipe.output)}</small></span>
+        <span class="hacker-action-copy"><strong>${escapeHtml(recipe.label)}</strong><small>${escapeHtml(hackerRecipePresentation(recipe))}</small></span>
       `;
       applyGeneratedItemTexture(button, recipe.asset || recipe.id);
       els.hackerAbilityGrid.append(button);
@@ -1008,7 +1061,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
     const targetRequired = recipe?.id?.startsWith("hack-");
     const enoughMana = (Number(self.mana) || 0) >= alchemyRecipeManaCost(recipe);
     const description = button.querySelector("small");
-    if (description && recipe) description.textContent = recipe.output;
+    if (description && recipe) description.textContent = hackerRecipePresentation(recipe);
     button.disabled = !canAct ||
       !recipe ||
       !alchemyRecipeAvailable(recipe, self) ||
@@ -3149,7 +3202,7 @@ function cycleSelectBy(select, direction = 1) {
 function selectAlchemyRecipe(conversion, focus = false) {
   const recipe = alchemyRecipes.find((candidate) => candidate.id === conversion) || alchemyRecipes[0];
   els.alchemySelect.value = recipe.id;
-  els.alchemySelectionText.textContent = `${recipe.label} ${recipe.output}`;
+  els.alchemySelectionText.textContent = `${recipe.label} ${hackerRecipePresentation(recipe)}`;
   els.alchemyChoiceGrid.querySelectorAll("[data-alchemy-choice]").forEach((button) => {
     const selected = button.dataset.alchemyChoice === recipe.id;
     button.classList.toggle("selected", selected);
@@ -7204,13 +7257,13 @@ function collectOperatorPassiveEffects(self, liveNow) {
 
   if (self.special === "alchemist") {
     add("ハック", "常時稼働", "rational", "生存者の位置を把握し、タスクを時間経過で自動完了する");
+    const manaGpuDrain = Number(self.manaGpuDrainPerSecond || 0).toFixed(3);
+    const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
       "マナGPU",
-      self.manaGpuActive ? "変換中" : "待機",
+      self.manaGpuActive ? "稼働中" : "条件待ち",
       self.manaGpuActive ? "truth" : "neutral",
-      self.manaGpuActive
-        ? `マナを毎秒${Number(self.manaGpuDrainPerSecond || 0).toFixed(3)}ずつ使い、バイブコーディングの残り時間を追加短縮する`
-        : "バイブコーディング再使用待機中だけ自動稼働する"
+      `再使用待機中に毎秒${manaGpuDrain}MPを自動消費し、1MPにつき残りクールタイムを${manaGpuReductionSeconds}秒短縮する。待機時間またはMPがない間は停止する`
     );
     add("root化", self.hackerRootActive ? "発動中" : "待機", self.hackerRootActive ? "truth" : "neutral", "絶体絶命時に他オペレーターの全能力を借用する");
   }
@@ -7397,42 +7450,9 @@ function renderVending(data) {
     rpg: 160,
     missile: 190
   };
-  const descriptions = {
-    "mineral-water": "燃焼解除・SP回復。投擲時は周囲へ適用",
-    antidote: "毒を解除。投擲時は周囲へ適用",
-    molotov: "着弾地点を燃焼。長押しで範囲強化",
-    evade: "回避の有効時間を0.25秒延長",
-    speed: "加速を1段階追加",
-    warp: "指定地点へ即時移動する消耗品",
-    mystery: "幸運／直観に応じた強化または弱体",
-    fire: "範囲へ継続燃焼。長押しで拡散",
-    substitution: "次に受ける攻撃を無効化して転移",
-    grit: "次の確殺をボディダメージへ変換",
-    heal: "負傷回復。無傷時はオーバーヒール",
-    reason: "対象の踏ん張りを全無効化。数に応じ反動",
-    mana: "マナを1回復",
-    railgun: "遮蔽物を貫通する直線破壊射撃",
-    "particle-cannon": "操作可能な破壊ビームを継続放射",
-    excalibur: "前方半面を破壊し、使用者も死亡",
-    exile: "クローンを遠隔操作し全域破壊を回避",
-    computer: "生存者のスマホ位置情報を取得",
-    handgun: "低反動の近中距離銃",
-    smg: "高レート・近距離向け・距離減衰大",
-    assault: "中レート・距離減衰小の標準銃",
-    sniper: "長射程・確殺・低レート",
-    taser: "低ダメージ・移動速度低下",
-    mercury: "通常使用は有害。投擲時は着地点へ毒を拡散",
-    lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
-    uranium: "量子制御の核分裂素材。通常使用は有害",
-    plutonium: "量子制御の核分裂素材。通常使用は有害",
-    ice: "投擲できる低温変換済みの水",
-    "heated-water": "投擲できる高温変換済みの水",
-    rpg: "周囲を攻撃する使い切り重火器",
-    missile: "最寄り対象を攻撃する使い切り重火器"
-  };
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
     const copy = button.querySelector("span:last-child");
-    const description = descriptions[button.dataset.drink] || "";
+    const description = VENDING_PRODUCT_DESCRIPTIONS[button.dataset.drink] || "";
     if (!copy || !description) return;
     let detail = copy.querySelector("small");
     if (!detail) {
@@ -13596,7 +13616,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "marker-throw-target-v400";
+const version = "hacker-vending-copy-v401";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

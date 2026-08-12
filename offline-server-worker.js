@@ -6972,7 +6972,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで生成候補を選び、資源、所持品、永続オブジェクト、オペ能力を生成する。対象のクレジット・アイテム・HP・マナは削除または増殖でき、実行後はクールタイムが発生する。パッシブ「ハック」で他人の位置を常時把握し、タスクを時間経過で自動完了する。手動タスクも実行でき、自身のスマホはハッキングされない。"
+      details: "バイブコーディングで生成候補を選び、資源、所持品、永続オブジェクト、オペ能力を生成する。対象のクレジット・アイテム・HP・マナは削除または増殖でき、実行後はクールタイムが発生する。パッシブ「マナGPU」は再使用待機中に毎秒0.025MPを自動消費し、1MPにつき残りクールタイムを20秒短縮する。パッシブ「ハック」で他人の位置を常時把握し、タスクを時間経過で自動完了する。手動タスクも実行でき、自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -15242,6 +15242,7 @@ function serialize(room, viewer, options = {}) {
         Number(viewer.vibeCodingReadyAt) > timestamp &&
         Number(viewer.mana) > 0,
       manaGpuDrainPerSecond: HACKER_MANA_GPU_DRAIN_PER_SECOND,
+      manaGpuCooldownReductionMsPerMana: HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA,
       alchemyRecipeIds: isHackerOperator(viewer) ? Object.keys(ALCHEMY_RECIPES) : [],
       inventions: [...(viewer.inventions || [])],
       exiled: Boolean(viewer.exiled),
@@ -16942,5 +16943,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "marker-throw-target-v400" });
+self.postMessage({ type: "ready", version: "hacker-vending-copy-v401" });
 })();
