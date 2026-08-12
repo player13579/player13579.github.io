@@ -6624,6 +6624,7 @@ const AUTO_TASK_PRESENCE_MS = 1800;
 const HACKER_AUTO_TASK_INTERVAL_MS = 12_000;
 const PREPARATION_PHASE_MS = 5_000;
 const GUNNER_RELOAD_MS = 2_200;
+const GUNNER_IDLE_AUTO_RELOAD_DELAY_MS = 2_600;
 const DEFAULT_GUNNER_WEAPON = "assault";
 const GUNNER_WEAPON_ORDER = ["handgun", "smg", "assault", "sniper", "taser"];
 const GUNNER_WEAPONS = Object.freeze({
@@ -6704,7 +6705,7 @@ const HACKER_ACTION_STAMINA_COST = 5;
 const FIGHTER_SLASH_STAMINA_COST = 75;
 const FIGHTER_SWORD_CHARGE_MANA_COST = 1;
 const FIGHTER_PUSH_CHARGE_THRESHOLD = 3;
-const FIGHTER_SHOCKWAVE_THRESHOLD = 6;
+const FIGHTER_SWORD_PASSIVE_INTERVAL_MS = 12_000;
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
 const HACKER_MANA_GPU_DRAIN_PER_SECOND = 0.025;
@@ -6920,7 +6921,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "剣への蓄積、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "Hで1MPずつ剣へ蓄積する。3回で押し込みを獲得し、6回で斬るに1ダメージの前方衝撃波が加わる。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。リミットブレイクはHP1かつ即死回避なしで一度だけ自動発動し、SPを3倍化して3倍加速する代わりに、マナを継続消費して即死回避を失う。"
+      details: "剣は12秒ごとに1MPを自動消費して蓄積し、蓄積1回ごとに斬るで使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを発動・解除し、発動中はSPを3倍化して3倍加速する代わりにHP1となり、マナを継続消費して即死回避を失う。"
     },
     {
       id: "defender-teleport",
@@ -8444,11 +8445,12 @@ function gunnerWeaponFor(player) {
 }
 
 function gunnerWeaponAvailable(player, weaponId) {
+  if ((player?.unavailableGunnerWeapons || []).includes(weaponId)) return false;
   return hasOperatorAccess(player, "gunner") || (player?.purchasedWeapons || []).includes(weaponId);
 }
 
 function hasFirearmAccess(player) {
-  return hasOperatorAccess(player, "gunner") || (player?.purchasedWeapons || []).some((weaponId) => GUNNER_WEAPONS[weaponId]);
+  return GUNNER_WEAPON_ORDER.some((weaponId) => gunnerWeaponAvailable(player, weaponId));
 }
 
 function gunnerWeaponState(player) {
@@ -8623,8 +8625,11 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunFiring: false,
     gunFiringWeapon: "",
     gunFiringSince: 0,
+    gunnerLastShotAt: 0,
     gunScopeReadyAt: 0,
     gunnerReloadUntil: 0,
+    gunnerReloadWeapon: "",
+    unavailableGunnerWeapons: [],
     weakBulletLoaded: false,
     hoverSprintUntil: 0,
     timedAccelerationEffects: [],
@@ -8636,11 +8641,11 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     slashPerfectUntil: 0,
     teleportReadyAt: 0,
     floraReadyAt: 0,
-    limitBreakUsed: false,
     limitBreakActive: false,
     limitBreakManaCarry: 0,
     fighterSwordCharge: 0,
-    fighterShockwaveUnlocked: false,
+    fighterSwordChargeReadyAt: 0,
+    fighterShockwaveCharges: 0,
     empReadyAt: 0,
     itemDisabledUntil: 0,
     slowedUntil: 0,
@@ -9010,8 +9015,11 @@ function startGame(room) {
     player.gunFiring = false;
     player.gunFiringWeapon = "";
     player.gunFiringSince = 0;
+    player.gunnerLastShotAt = 0;
     player.gunScopeReadyAt = 0;
     player.gunnerReloadUntil = 0;
+    player.gunnerReloadWeapon = "";
+    player.unavailableGunnerWeapons = [];
     player.weakBulletLoaded = false;
     player.hoverSprintUntil = 0;
     player.timedAccelerationEffects = [];
@@ -9023,11 +9031,11 @@ function startGame(room) {
     player.slashPerfectUntil = 0;
     player.teleportReadyAt = 0;
     player.floraReadyAt = 0;
-    player.limitBreakUsed = false;
     player.limitBreakActive = false;
     player.limitBreakManaCarry = 0;
     player.fighterSwordCharge = 0;
-    player.fighterShockwaveUnlocked = false;
+    player.fighterSwordChargeReadyAt = 0;
+    player.fighterShockwaveCharges = 0;
     player.empReadyAt = 0;
     player.itemDisabledUntil = 0;
     player.slowedUntil = 0;
@@ -9304,7 +9312,11 @@ function startBattle(room) {
     player.gunFiring = false;
     player.gunFiringWeapon = "";
     player.gunFiringSince = 0;
+    player.gunnerLastShotAt = 0;
     player.gunScopeReadyAt = 0;
+    player.gunnerReloadUntil = 0;
+    player.gunnerReloadWeapon = "";
+    player.unavailableGunnerWeapons = [];
     player.sabotageReadyAt = player.role === "attacker" && player.alive && !player.ejected
       ? timestamp + SABOTAGE_COOLDOWN_MS
       : 0;
@@ -9317,7 +9329,8 @@ function startBattle(room) {
     player.limitBreakActive = false;
     player.limitBreakManaCarry = 0;
     player.fighterSwordCharge = 0;
-    player.fighterShockwaveUnlocked = false;
+    player.fighterSwordChargeReadyAt = timestamp + FIGHTER_SWORD_PASSIVE_INTERVAL_MS;
+    player.fighterShockwaveCharges = 0;
     player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 0 : EMP_INITIAL_LOCK_MS);
     player.itemDisabledUntil = 0;
     player.lastPassiveCreditAt = timestamp;
@@ -9574,31 +9587,31 @@ function passivesEnabled(player) {
   return Boolean(player?.alive && !player.ejected && isRational(player));
 }
 
-function limitBreakEligible(player) {
-  return Boolean(
-    player?.alive &&
-    !player.ejected &&
-    !player.limitBreakUsed &&
-    passivesEnabled(player) &&
-    hasOperatorAccess(player, "fighter") &&
-    remainingHealth(player) <= 1 &&
-    !hasImmediateDeathProtection(player)
-  );
-}
-
-function syncLimitBreakPassive(room, player) {
-  if (!limitBreakEligible(player)) return false;
+function toggleLimitBreak(room, player) {
+  if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent || !hasOperatorAccess(player, "fighter")) {
+    throw new ApiError(403, "現在はリミットブレイクを使用できません。");
+  }
+  if (player.limitBreakActive) {
+    stopLimitBreak(room, player, "任意解除されました");
+    touch(room);
+    return false;
+  }
+  ensureAbilityAvailable(player);
+  ensureConscious(player);
+  if (!isHackerOperator(player) && Number(player.mana) <= 0) {
+    throw new ApiError(400, "リミットブレイクの維持に必要なマナがありません。");
+  }
   const previousStamina = Math.max(0, Number(player.stamina) || 0);
-  player.limitBreakUsed = true;
+  player.limitBreakBaseStamina = previousStamina;
   player.limitBreakActive = true;
   player.limitBreakManaCarry = 0;
   player.bodyHits = 1;
   player.overheal = 0;
   player.stamina = Math.min(staminaCapacityFor(player), previousStamina * 3);
   player.staminaUpdatedAt = now();
-  pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: "desperation-passive" });
+  pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: "active" });
   setImmediateFeedback(player, "リミットブレイク", "SP×3 / 加速×3 / HP1 / 即死回避無効");
-  pushEvent(room, `${player.name} のリミットブレイクが絶体絶命状態で発動しました。SP3倍 / 3倍加速 / HP1 / 即死回避無効。`);
+  pushEvent(room, `${player.name} がリミットブレイクを発動しました。SP3倍 / 3倍加速 / HP1 / 即死回避無効。`);
   touch(room);
   return true;
 }
@@ -9607,7 +9620,9 @@ function stopLimitBreak(room, player, reason = "") {
   if (!player.limitBreakActive) return false;
   player.limitBreakActive = false;
   player.limitBreakManaCarry = 0;
-  if (Number(player.stamina) > MAX_STORED_STAMINA) player.stamina = MAX_STORED_STAMINA;
+  const transformedStamina = Math.max(0, Number(player.stamina) || 0) / LIMIT_BREAK_SPEED_MULTIPLIER;
+  player.stamina = Math.min(MAX_STORED_STAMINA, transformedStamina);
+  player.limitBreakBaseStamina = 0;
   if (reason) pushMagicEffect(room, "limit-break", player, { radius: 110, playerId: player.id, variant: "release" });
   if (reason) pushEvent(room, `${player.name} のリミットブレイクが${reason}。`);
   return true;
@@ -9632,6 +9647,44 @@ function advanceLimitBreak(room, player, elapsedMs) {
     return true;
   }
   setMana(room, player, Number(player.mana) - wholeMana, "リミットブレイク");
+  return true;
+}
+
+function advanceFighterSwordPassive(room, player, timestamp = now()) {
+  if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent || !hasOperatorAccess(player, "fighter") || !passivesEnabled(player)) {
+    player.fighterSwordChargeReadyAt = Math.max(Number(player.fighterSwordChargeReadyAt) || 0, timestamp + FIGHTER_SWORD_PASSIVE_INTERVAL_MS);
+    return false;
+  }
+  const readyAt = Number(player.fighterSwordChargeReadyAt) || (timestamp + FIGHTER_SWORD_PASSIVE_INTERVAL_MS);
+  if (timestamp < readyAt) {
+    player.fighterSwordChargeReadyAt = readyAt;
+    return false;
+  }
+  player.fighterSwordChargeReadyAt = timestamp + FIGHTER_SWORD_PASSIVE_INTERVAL_MS;
+  if (!isHackerOperator(player) && Number(player.mana) < FIGHTER_SWORD_CHARGE_MANA_COST) return false;
+  spendMana(room, player, FIGHTER_SWORD_CHARGE_MANA_COST, "剣エネルギー蓄積");
+  const next = Math.max(0, Math.floor(Number(player.fighterSwordCharge) || 0)) + 1;
+  player.fighterSwordCharge = next;
+  player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0)) + 1;
+  let reward = `衝撃波 ×${player.fighterShockwaveCharges}`;
+  if (next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0) {
+    grantPushCharge(player, false);
+    pushMagicEffect(room, "fighter-push-acquired", player, {
+      radius: 92,
+      playerId: player.id,
+      variant: String(player.reasonCharges)
+    });
+    reward += " / 押し込み獲得";
+  }
+  pushMagicEffect(room, "fighter-sword-charge", player, {
+    radius: 112,
+    playerId: player.id,
+    variant: `${next}:shockwave-${player.fighterShockwaveCharges}`
+  });
+  setImmediateFeedback(player, "剣エネルギー", reward);
+  pushEvent(room, `${player.name} の剣が自動蓄積し、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みも獲得しました" : ""}。`);
+  pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-charge", maxDistance: 900, volume: 0.62 });
+  touch(room);
   return true;
 }
 
@@ -10821,7 +10874,7 @@ function tickRoom(room) {
   advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
     syncHackerRootState(room, player);
-    syncLimitBreakPassive(room, player);
+    advanceFighterSwordPassive(room, player, timestamp);
     advanceAccelerationTime(room, player, elapsedMs, timestamp);
     advanceLevitationMana(room, player, elapsedMs);
     advanceLimitBreak(room, player, elapsedMs);
@@ -10829,6 +10882,7 @@ function tickRoom(room) {
     finishRenki(room, player, timestamp);
     advanceParticleCannon(room, player, timestamp);
     resolveSmartphoneAction(room, player, timestamp);
+    advanceGunnerReload(room, player, timestamp);
     advanceGunnerFire(room, player, timestamp);
     if (player.attackResolveAt && player.attackResolveAt <= timestamp) resolvePendingAttack(room, player, timestamp);
     if (player.aimTargetId) {
@@ -11101,46 +11155,6 @@ function activateDodge(room, player) {
   touch(room);
 }
 
-function chargeFighterSword(room, player) {
-  if (room.phase !== "playing" || !hasOperatorAccess(player, "fighter")) {
-    throw new ApiError(403, "ファイターの剣へ蓄積できません。");
-  }
-  if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は剣へ蓄積できません。");
-  ensureAbilityAvailable(player);
-  ensureConscious(player);
-  const current = Math.max(0, Math.floor(Number(player.fighterSwordCharge) || 0));
-  if (current >= FIGHTER_SHOCKWAVE_THRESHOLD || player.fighterShockwaveUnlocked) {
-    throw new ApiError(400, "剣エネルギーは最大です。衝撃波を使用できます。");
-  }
-  spendMana(room, player, FIGHTER_SWORD_CHARGE_MANA_COST, "剣エネルギー蓄積");
-  const next = Math.min(FIGHTER_SHOCKWAVE_THRESHOLD, current + 1);
-  player.fighterSwordCharge = next;
-  if (next === FIGHTER_PUSH_CHARGE_THRESHOLD) {
-    grantPushCharge(player, false);
-    pushMagicEffect(room, "fighter-push-acquired", player, {
-      radius: 92,
-      playerId: player.id,
-      variant: String(player.reasonCharges)
-    });
-    setImmediateFeedback(player, "剣エネルギー", `${next}/${FIGHTER_SHOCKWAVE_THRESHOLD} / 押し込み獲得`);
-    pushEvent(room, `${player.name} が剣へ${next}回蓄積し、押し込みを獲得しました。`);
-  } else if (next === FIGHTER_SHOCKWAVE_THRESHOLD) {
-    player.fighterShockwaveUnlocked = true;
-    setImmediateFeedback(player, "剣エネルギー", "最大 / 斬る衝撃波を解放");
-    pushEvent(room, `${player.name} が剣エネルギーを最大まで蓄積し、斬る衝撃波を解放しました。`);
-  } else {
-    setImmediateFeedback(player, "剣エネルギー", `${next}/${FIGHTER_SHOCKWAVE_THRESHOLD}`);
-    pushEvent(room, `${player.name} が剣へエネルギーを蓄積しました（${next}/${FIGHTER_SHOCKWAVE_THRESHOLD}）。`);
-  }
-  pushMagicEffect(room, "fighter-sword-charge", player, {
-    radius: 112,
-    playerId: player.id,
-    variant: `${next}-${player.fighterShockwaveUnlocked ? "unlocked" : "charging"}`
-  });
-  pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-charge", maxDistance: 900, volume: 0.62 });
-  touch(room);
-}
-
 function fighterSlash(room, player, targetId = "") {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "fighter")) {
     throw new ApiError(403, "ファイターの斬るは使用できません。");
@@ -11182,18 +11196,24 @@ function fighterSlash(room, player, targetId = "") {
   } else {
     pushEvent(room, `${player.name} が斬るを構えました。射撃は切断でき、ジャストガードで反射します。`);
   }
-  if (player.alive && player.fighterShockwaveUnlocked) {
-    const targetX = player.x + slashAimX * FIGHTER_SHOCKWAVE_RANGE;
-    const targetY = player.y + slashAimY * FIGHTER_SHOCKWAVE_RANGE;
-    pushMagicEffect(room, "fighter-shockwave", player, {
+  if (player.alive && Number(player.fighterShockwaveCharges) > 0) {
+    player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0) - 1);
+    const swordOrigin = {
+      ...player,
+      x: player.x + slashAimX * 58,
+      y: player.y + slashAimY * 58
+    };
+    const targetX = swordOrigin.x + slashAimX * FIGHTER_SHOCKWAVE_RANGE;
+    const targetY = swordOrigin.y + slashAimY * FIGHTER_SHOCKWAVE_RANGE;
+    pushMagicEffect(room, "fighter-shockwave", swordOrigin, {
       radius: FIGHTER_SHOCKWAVE_WIDTH,
       playerId: player.id,
       targetX,
       targetY,
       durationMs: 760,
-      variant: "one-body-damage"
+      variant: `one-body-damage:remaining-${player.fighterShockwaveCharges}`
     });
-    const waveTargets = inventionLineTargets(room, player, FIGHTER_SHOCKWAVE_RANGE, FIGHTER_SHOCKWAVE_WIDTH, false)
+    const waveTargets = inventionLineTargets(room, swordOrigin, FIGHTER_SHOCKWAVE_RANGE, FIGHTER_SHOCKWAVE_WIDTH, false)
       .filter(({ target: waveTarget }) => !struckIds.has(waveTarget.id));
     for (const { target: waveTarget } of waveTargets) {
       if (!player.alive || player.ejected) break;
@@ -11689,8 +11709,10 @@ function transferKillInventory(room, killer, target) {
   return transferred;
 }
 
-// Charges are active or automatic effects, not manually usable inventory items.
-const TRANSFERABLE_CHARGES = Object.freeze({});
+const TRANSFERABLE_CHARGES = Object.freeze({
+  "fire-jutsu": Object.freeze({ field: "fireJutsuCharges", label: "火遁の術" }),
+  "instant-warp": Object.freeze({ field: "warpCharges", label: "変わり身の術" })
+});
 
 function inventionLabel(invention) {
   const id = String(invention || "");
@@ -11719,7 +11741,8 @@ function transferableItemsFor(player) {
     const definition = HEAVY_WEAPON_DEFINITIONS[weaponId];
     if (definition && amount > 0) entries.push({ id: `heavy:${weaponId}`, label: definition.label, amount, asset: definition.asset, kind: "heavy" });
   }
-  for (const weapon of player.purchasedWeapons || []) {
+  for (const weapon of GUNNER_WEAPON_ORDER) {
+    if (!gunnerWeaponAvailable(player, weapon)) continue;
     entries.push({ id: `weapon:${weapon}`, label: GUNNER_WEAPONS[weapon]?.name || weapon, amount: 1, asset: weapon, kind: "weapon" });
   }
   return entries;
@@ -11746,9 +11769,24 @@ function removeTransferableItem(player, itemId, amount = 1) {
   }
   if (itemId.startsWith("weapon:")) {
     const weapon = itemId.slice(7);
+    if (!GUNNER_WEAPONS[weapon] || !gunnerWeaponAvailable(player, weapon)) throw new ApiError(400, "その武器を所持していません。");
     const index = (player.purchasedWeapons || []).indexOf(weapon);
-    if (index < 0) throw new ApiError(400, "その武器を所持していません。");
-    player.purchasedWeapons.splice(index, 1);
+    if (index >= 0) player.purchasedWeapons.splice(index, 1);
+    player.unavailableGunnerWeapons ||= [];
+    if (!player.unavailableGunnerWeapons.includes(weapon)) player.unavailableGunnerWeapons.push(weapon);
+    if (player.gunnerReloadWeapon === weapon) {
+      player.gunnerReloadWeapon = "";
+      player.gunnerReloadUntil = 0;
+    }
+    if (player.gunFiringWeapon === weapon) {
+      player.gunFiring = false;
+      player.gunFiringWeapon = "";
+      player.gunFiringSince = 0;
+    }
+    if (player.gunnerWeapon === weapon) {
+      const currentIndex = Math.max(0, GUNNER_WEAPON_ORDER.indexOf(weapon));
+      player.gunnerWeapon = nextUsableGunnerWeapon(player, currentIndex, 1) || DEFAULT_GUNNER_WEAPON;
+    }
     return { id: itemId, label: GUNNER_WEAPONS[weapon]?.name || weapon, amount: 1, kind: "weapon" };
   }
   if (itemId.startsWith("heavy:")) {
@@ -12478,6 +12516,7 @@ function purchaseFirearm(player, weaponId) {
   if (!weapon) throw new ApiError(404, "その銃器は販売されていません。");
   player.purchasedWeapons ||= [];
   if (!player.purchasedWeapons.includes(weaponId)) player.purchasedWeapons.push(weaponId);
+  player.unavailableGunnerWeapons = (player.unavailableGunnerWeapons || []).filter((id) => id !== weaponId);
   player.gunnerAmmo ||= createGunnerAmmo();
   player.gunnerAmmo[weaponId] = weapon.maxAmmo;
   player.gunnerWeapon = weaponId;
@@ -13493,7 +13532,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
     throw new ApiError(400, "借用能力の種類が不正です。");
   }
   if (key === "fighter") {
-    chargeFighterSword(room, player);
+    toggleLimitBreak(room, player);
   } else if (key === "gravity") {
     const mode = String(options.mode || "storm");
     const targetId = String(options.targetId || player.id);
@@ -14022,6 +14061,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
   shooter.gunnerAmmo[weapon.id] = remainingAmmo - weapon.ammoPerShot;
+  shooter.gunnerLastShotAt = timestamp;
   shooter.gunReadyAt = timestamp + weapon.cooldownMs;
   pushSound(room, "gunshot", shooter, {
     ownerId: shooter.id,
@@ -14065,6 +14105,9 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   } else {
     touch(room);
   }
+  if ((Number(shooter.gunnerAmmo?.[weapon.id]) || 0) < weapon.ammoPerShot) {
+    startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空になったため");
+  }
   return true;
 }
 
@@ -14079,10 +14122,8 @@ function advanceGunnerFire(room, shooter, timestamp = now()) {
   const fired = fireGunnerRound(room, shooter, weapon, timestamp);
   if (!fired) {
     stopGunnerFire(room, shooter, { reason: "弾切れ" });
+    startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空になったため");
     return;
-  }
-  if ((Number(shooter.gunnerAmmo?.[weapon.id]) || 0) < weapon.ammoPerShot) {
-    stopGunnerFire(room, shooter, { reason: "弾切れ" });
   }
 }
 
@@ -14102,7 +14143,10 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
   if (!shooter.gunnerAmmo || typeof shooter.gunnerAmmo !== "object") shooter.gunnerAmmo = createGunnerAmmo();
   if ((Number(shooter.gunnerReloadUntil) || 0) > timestamp) throw new ApiError(400, "リロード中です。");
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo[weapon.id]) || 0);
-  if (remainingAmmo < weapon.ammoPerShot) throw new ApiError(400, `${weapon.name}の弾薬が不足しています。`);
+  if (remainingAmmo < weapon.ammoPerShot) {
+    startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空のため");
+    return;
+  }
   const droneGuided = Boolean(shooter.drone?.active);
   const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
   const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
@@ -14128,6 +14172,54 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
   touch(room);
 }
 
+function startGunnerReload(room, player, weaponId = gunnerWeaponFor(player).id, timestamp = now(), reason = "") {
+  const weapon = GUNNER_WEAPONS[weaponId];
+  if (!weapon || !gunnerWeaponAvailable(player, weaponId)) return false;
+  player.gunnerAmmo ||= createGunnerAmmo();
+  if ((Number(player.gunnerAmmo[weaponId]) || 0) >= weapon.maxAmmo) return false;
+  if ((Number(player.gunnerReloadUntil) || 0) > timestamp && player.gunnerReloadWeapon === weaponId) return false;
+  stopGunnerFire(room, player, { reason: "リロード" });
+  player.gunnerReloadWeapon = weaponId;
+  player.gunnerReloadUntil = timestamp + GUNNER_RELOAD_MS;
+  pushMagicEffect(room, "action-reload", player, { radius: 90, playerId: player.id, variant: `${weapon.id}:start` });
+  pushEvent(room, `${player.name} が${weapon.name}の自動リロードを開始しました${reason ? `（${reason}）` : ""}。`);
+  touch(room);
+  return true;
+}
+
+function advanceGunnerReload(room, player, timestamp = now()) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent || !hasFirearmAccess(player)) {
+    player.gunnerReloadUntil = 0;
+    player.gunnerReloadWeapon = "";
+    return false;
+  }
+  const activeUntil = Number(player.gunnerReloadUntil) || 0;
+  if (activeUntil > 0) {
+    if (timestamp < activeUntil) return false;
+    const weaponId = player.gunnerReloadWeapon;
+    const weapon = GUNNER_WEAPONS[weaponId];
+    player.gunnerReloadUntil = 0;
+    player.gunnerReloadWeapon = "";
+    if (!weapon || !gunnerWeaponAvailable(player, weaponId)) return false;
+    player.gunnerAmmo ||= createGunnerAmmo();
+    player.gunnerAmmo[weaponId] = weapon.maxAmmo;
+    pushMagicEffect(room, "action-reload", player, { radius: 90, playerId: player.id, variant: `${weapon.id}:complete` });
+    setImmediateFeedback(player, "自動リロード完了", `${weapon.name} ${weapon.maxAmmo}発`);
+    touch(room);
+    return true;
+  }
+  if (player.gunFiring) return false;
+  const weapon = gunnerWeaponFor(player);
+  if (!gunnerWeaponAvailable(player, weapon.id)) return false;
+  const ammo = Math.max(0, Number(player.gunnerAmmo?.[weapon.id]) || 0);
+  if (ammo >= weapon.maxAmmo) return false;
+  const lastShotAt = Number(player.gunnerLastShotAt) || 0;
+  if (ammo < weapon.ammoPerShot || (lastShotAt > 0 && timestamp - lastShotAt >= GUNNER_IDLE_AUTO_RELOAD_DELAY_MS)) {
+    return startGunnerReload(room, player, weapon.id, timestamp, ammo < weapon.ammoPerShot ? "弾倉が空のため" : "射撃停止後の自動補填");
+  }
+  return false;
+}
+
 function reloadGunner(room, player) {
   if (room.phase !== "playing" || !hasFirearmAccess(player) || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在はリロードできません。");
@@ -14136,12 +14228,7 @@ function reloadGunner(room, player) {
   ensureItemStorageAvailable(player);
   const weapon = gunnerWeaponFor(player);
   if ((Number(player.gunnerAmmo?.[weapon.id]) || 0) >= weapon.maxAmmo) throw new ApiError(400, "弾倉は満タンです。");
-  stopGunnerFire(room, player, { reason: "リロード" });
-  player.gunnerAmmo[weapon.id] = weapon.maxAmmo;
-  player.gunnerReloadUntil = now() + GUNNER_RELOAD_MS;
-  pushMagicEffect(room, "action-reload", player, { radius: 90, playerId: player.id, variant: weapon.id });
-  pushEvent(room, `${player.name} が${weapon.name}をリロードしました。`);
-  touch(room);
+  startGunnerReload(room, player, weapon.id, now(), "手動要求");
 }
 
 function loadWeakBullet(room, player) {
@@ -15112,6 +15199,7 @@ function serialize(room, viewer, options = {}) {
       gunFiringSince: Number(viewer.gunFiringSince) || 0,
       gunScopeReadyAt: Number(viewer.gunScopeReadyAt) || 0,
       gunnerReloadUntil: Number(viewer.gunnerReloadUntil) || 0,
+      gunnerReloadWeapon: String(viewer.gunnerReloadWeapon || ""),
       weakBulletLoaded: Boolean(viewer.weakBulletLoaded),
       hoverSprintUntil: Number(viewer.hoverSprintUntil) || 0,
       accelerationPhasing: Number(viewer.hoverSprintUntil) > timestamp,
@@ -15128,10 +15216,11 @@ function serialize(room, viewer, options = {}) {
       slashPerfectUntil: Number(viewer.slashPerfectUntil) || 0,
       teleportReadyAt: viewer.teleportReadyAt,
       floraReadyAt: viewer.floraReadyAt,
-      limitBreakUsed: viewer.limitBreakUsed,
       limitBreakActive: viewer.limitBreakActive,
       fighterSwordCharge: Math.max(0, Math.floor(Number(viewer.fighterSwordCharge) || 0)),
-      fighterShockwaveUnlocked: Boolean(viewer.fighterShockwaveUnlocked),
+      fighterSwordChargeReadyAt: Number(viewer.fighterSwordChargeReadyAt) || 0,
+      fighterSwordChargeIntervalMs: FIGHTER_SWORD_PASSIVE_INTERVAL_MS,
+      fighterShockwaveCharges: Math.max(0, Math.floor(Number(viewer.fighterShockwaveCharges) || 0)),
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -15758,9 +15847,9 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/fighter-charge": {
+    case "/api/limit-break": {
       const { room, player } = requireRoomPlayer(body);
-      chargeFighterSword(room, player);
+      toggleLimitBreak(room, player);
       payload = serialize(room, player);
       break;
     }
@@ -16036,16 +16125,20 @@ async function handleApi(req, res) {
         entry.gunFiring = false;
         entry.gunFiringWeapon = "";
         entry.gunFiringSince = 0;
+        entry.gunnerLastShotAt = 0;
         entry.gunScopeReadyAt = 0;
+        entry.gunnerReloadUntil = 0;
+        entry.gunnerReloadWeapon = "";
+        entry.unavailableGunnerWeapons = [];
         entry.sabotageReadyAt = 0;
         entry.dodgeReadyAt = 0;
         entry.dodgeActiveUntil = 0;
         entry.teleportReadyAt = 0;
         entry.floraReadyAt = 0;
-        entry.limitBreakUsed = false;
         entry.limitBreakActive = false;
         entry.fighterSwordCharge = 0;
-        entry.fighterShockwaveUnlocked = false;
+        entry.fighterSwordChargeReadyAt = 0;
+        entry.fighterShockwaveCharges = 0;
         entry.empReadyAt = 0;
         entry.itemDisabledUntil = 0;
         entry.slowedUntil = 0;
@@ -16937,7 +17030,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "mana-gpu-plicy-fallback-v402",
+  version: "fighter-arsenal-gold-v403",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

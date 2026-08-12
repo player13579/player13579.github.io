@@ -12,12 +12,12 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/plicy-thumbnail-v389.png">
-  <link rel="stylesheet" href="styles.css?v=mana-gpu-plicy-fallback-v402">
+  <link rel="stylesheet" href="styles.css?v=fighter-arsenal-gold-v403">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v389.png?v=mana-gpu-plicy-fallback-v402" alt="フローラの回復を発動する白いフードの女性">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v389.png?v=mana-gpu-plicy-fallback-v402" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v389.png?v=fighter-arsenal-gold-v403" alt="フローラの回復を発動する白いフードの女性">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v389.png?v=fighter-arsenal-gold-v403" alt="" aria-hidden="true">
       <canvas id="titleFxCanvas" class="title-fx-canvas" aria-hidden="true"></canvas>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -132,10 +132,10 @@
                 <section><h4>忍殺</h4><p>対象を1.8秒固定できれば自動発動し、対象が開始位置から4以上動くと失敗します。気概中は非確殺です。</p></section>
                 <section><h4>防御優先順</h4><p>美は確殺を上書き不能の不殺へ、踏ん張りは次に受ける確殺を1回だけボディダメージへ変換します。押し込みは対象の踏ん張りを全無効化し、1回につき使用者へ0.5ダメージを与えます。</p></section>
                 <section><h4>回避とファイター</h4><p>全ディフェンダーは100SPで回避を1秒展開します。ファイターが回避に成功した場合は攻撃者をキルします。独立したカウンターキルは存在しません。</p></section>
-                <section><h4>ガンナー</h4><p>ARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れはリロードで補填できます。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
+                <section><h4>ガンナー</h4><p>ARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れ時または射撃を止めた後に自動リロードします。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
                 <section><h4>SRと特殊弾</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。ウィークバレットはマナ1で次弾へ装填され、命中対象の踏ん張りをすべて削除します。</p></section>
                 <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
-                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。斬るは対象がいなくても展開でき、忍殺を居合へ強化し、射撃を無効化してジャストガード時は反射します。Hのリミットブレイクは発動・解除を切り替え、HP1固定・超加速・確殺化の代わりにマナを継続消費し、踏ん張りと変わり身を失います。</p></section>
+                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。剣は一定時間ごとに1MPを自動消費し、蓄積1回につき斬るで使う衝撃波を1発得ます。累計3回ごとに押し込みも得ます。Hのリミットブレイクは発動・解除を切り替え、HP1固定・SP3倍・3倍加速の代わりにマナを継続消費し、踏ん張りと変わり身を失います。</p></section>
                 <section><h4>グラビティ</h4><p>重力と時空の相関を扱い、転移、時空加減速、リビテーション、グラビティストームを使用します。重力嵐は継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全です。</p></section>
                 <section><h4>フローラのアロマ</h4><p>理知中は本人の停止中スタミナ回復を1.75倍にします。ほかのプレイヤーには適用されません。</p></section>
               </div>
@@ -240,9 +240,9 @@
             </section>
             <div id="actionCommandRegistry" class="tablet-action-source action-command-registry" aria-hidden="true" hidden>
               <button id="contextActionButton" class="context-action-button" type="button" hidden>周辺アクション</button>
-              <button id="shootButton" class="danger" data-hotkey="7">射撃</button>
+                <button id="shootButton" class="danger" hidden>射撃</button>
               <button id="weaponButton" class="weapon-button" data-hotkey="T" data-weapon="assault" title="ガンナー武器を切り替える">武器切替</button>
-              <button id="gunnerReloadButton" data-hotkey="R" hidden>リロード</button>
+                <button id="gunnerReloadButton" hidden>リロード</button>
               <button id="operatorAbilityButton" data-hotkey="H">オペ能力</button>
               <button id="jumpButton" data-hotkey="J" hidden>跳躍</button>
               <button id="taskButton" hidden>タスク</button>
@@ -256,8 +256,8 @@
               <button id="empButton" data-hotkey="X">EMP</button>
               <button id="cameraButton" data-hotkey="B">監視カメラ</button>
               <button id="nextCameraButton" data-hotkey="N">次のカメラ</button>
-              <button id="instantWarpButton" data-hotkey="I">即時ワープ</button>
-              <button id="fireJutsuButton" class="danger" data-hotkey="F">火遁の術</button>
+                <button id="instantWarpButton" hidden>即時ワープ</button>
+                <button id="fireJutsuButton" class="danger" hidden>火遁の術</button>
               <button id="dashButton" hidden>ダッシュ</button>
               <button id="slowWalkButton" hidden>無音歩行</button>
               <button id="teleportButton" hidden>転移</button>
@@ -652,10 +652,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=mana-gpu-plicy-fallback-v402"></script>
-    <script src="game-engine.js?v=mana-gpu-plicy-fallback-v402"></script>
-    <script src="offline-runtime.js?v=mana-gpu-plicy-fallback-v402"></script>
-    <script src="config.js?v=mana-gpu-plicy-fallback-v402"></script>
-    <script src="app.js?v=mana-gpu-plicy-fallback-v402"></script>
+    <script src="game-runtime.js?v=fighter-arsenal-gold-v403"></script>
+    <script src="game-engine.js?v=fighter-arsenal-gold-v403"></script>
+    <script src="offline-runtime.js?v=fighter-arsenal-gold-v403"></script>
+    <script src="config.js?v=fighter-arsenal-gold-v403"></script>
+    <script src="app.js?v=fighter-arsenal-gold-v403"></script>
 </body>
 </html>

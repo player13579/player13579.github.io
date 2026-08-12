@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "mana-gpu-plicy-fallback-v402";
+const OFFLINE_WORKER_VERSION = "fighter-arsenal-gold-v403";
 const OFFLINE_WORKER_READY_TIMEOUT_MS = 40_000;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 

@@ -642,8 +642,10 @@ const generatedItemTextureFiles = new Map([
   ["stamina", { file: "item-stamina-cell.webp" }],
   ["heal", { file: "item-heal.webp" }],
   ["fire", { file: "item-fire-jutsu.webp" }],
+  ["fire-jutsu", { file: "item-fire-jutsu.webp" }],
   ["substitution", { file: "status-substitution.webp" }],
   ["warp", { file: "status-instant-warp.webp" }],
+  ["instant-warp", { file: "status-instant-warp.webp" }],
   ["grit", { file: "status-stand-firm.webp" }],
   ["reason", { file: "status-push.webp" }],
   ["mana", { file: "mana-potion.webp" }],
@@ -1955,7 +1957,6 @@ const actionHotkeys = {
   Digit3: "emergencyButton",
   Digit4: "smartphoneRepair",
   Digit6: "ninjutsuButton",
-  Digit7: "shootButton",
   Digit8: "dodgeButton",
   Digit0: "teleportButton",
   KeyZ: "droneButton",
@@ -1964,11 +1965,8 @@ const actionHotkeys = {
   KeyN: "nextCameraButton",
   KeyH: "operatorAbilityButton",
   KeyJ: "jumpButton",
-  KeyR: "gunnerReloadButton",
   KeyK: "sleepButton",
   KeyC: "renkiButton",
-  KeyI: "instantWarpButton",
-  KeyF: "fireJutsuButton",
   KeyL: "sabotageButton",
   KeyU: "utilityButton",
   KeyY: "fullscreenButton",
@@ -1988,7 +1986,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/gunner-heavy": "shoot",
   "/api/dodge": "evade",
   "/api/fighter-slash": "slash",
-  "/api/fighter-charge": "power",
+  "/api/limit-break": "power",
   "/api/sleep": "rest",
   "/api/renki": "focus",
   "/api/resource-convert": "focus",
@@ -2589,6 +2587,10 @@ function updateEnhanceReadout() {
 function beginEnhanceAction(kind, pointerId = null) {
   if (!kind || state.enhanceHold.kind) return false;
   state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0 };
+  if (kind === "throw") {
+    clearMovementInput();
+    sendMovement(true);
+  }
   updateEnhanceReadout();
   return true;
 }
@@ -2618,10 +2620,6 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
     return true;
   }
   if (kind === "throw") {
-    if (/^(?:weapon|invention|heavy):/.test(itemId)) {
-      showToast("装備品は所持品欄から装備・使用します。");
-      return true;
-    }
     return beginThrowTargeting(itemId, holdMs);
   }
   if (kind === "use" && itemId.startsWith("invention:")) {
@@ -2629,9 +2627,11 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
   }
   if (kind === "use" && itemId.startsWith("weapon:")) {
     const weaponId = itemId.slice(7);
-    return weaponId === state.data?.self?.gunnerWeapon
-      ? api("/api/gunner-reload")
-      : api("/api/gunner-weapon", { weaponId });
+    if (weaponId !== state.data?.self?.gunnerWeapon) {
+      const switched = await api("/api/gunner-weapon", { weaponId });
+      if (!switched) return false;
+    }
+    return pulseGunFire();
   }
   if (kind === "use" && itemId.startsWith("heavy:")) {
     return api("/api/gunner-heavy", { weapon: itemId.slice(6) });
@@ -3664,6 +3664,12 @@ function bindEvents() {
   const bindEnhanceButton = (button, kind) => {
     let suppressClickUntil = 0;
     const finishPointerAction = (event) => {
+      if (kind === "use" && state.gunTriggerPointerId === event.pointerId) {
+        event.preventDefault();
+        suppressClickUntil = performance.now() + 700;
+        void endGunFire();
+        return true;
+      }
       if (state.enhanceHold.pointerId !== event.pointerId) return false;
       event.preventDefault();
       suppressClickUntil = performance.now() + 700;
@@ -3675,6 +3681,12 @@ function bindEvents() {
       if (button.disabled) return;
       event.preventDefault();
       button.setPointerCapture?.(event.pointerId);
+      if (kind === "use" && String(els.itemSelect?.value || "").startsWith("weapon:")) {
+        suppressClickUntil = performance.now() + 1200;
+        state.gunTriggerPointerId = event.pointerId;
+        void beginInventoryWeaponFire(event.pointerId);
+        return;
+      }
       beginEnhanceAction(kind, event.pointerId);
     });
     button.addEventListener("pointerup", (event) => {
@@ -3934,11 +3946,6 @@ function bindEvents() {
       if (!event.repeat) syncMovementInputImmediately();
       return;
     }
-    if (event.code === "Digit7" && !els.shootButton.hidden) {
-      event.preventDefault();
-      if (!event.repeat && !els.shootButton.disabled) void beginGunFire();
-      return;
-    }
     if (!els.itemControl.hidden && event.altKey && event.code === "KeyV") {
       event.preventDefault();
       if (!event.repeat) els.transferItemButton.click();
@@ -3969,15 +3976,10 @@ function bindEvents() {
       state.arrowRepeatKey = "";
       state.arrowRepeatAt = 0;
     }
-    if (event.code === "Digit7" && state.gunTriggerHeld) {
-      event.preventDefault();
-      void endGunFire();
-    }
     if (event.code === "KeyJ" && state.jumpKeyDownAt > 0) {
       event.preventDefault();
       void sendJump();
     }
-    if (event.code === "KeyF") void finishEnhanceAction("fire");
     if (event.code === "KeyV") void finishEnhanceAction("use");
     if (event.code === "KeyG") void finishEnhanceAction("throw");
     if (event.key === "Shift") state.keys.delete("dash");
@@ -5301,7 +5303,7 @@ function triggerOperatorAbility() {
   const self = state.data?.self;
   if (!self) return;
   if (self.special === "fighter") {
-    void api("/api/fighter-charge");
+    void api("/api/limit-break");
   } else if (self.special === "teleport") {
     triggerTeleportAction();
   } else if (self.special === "flora") {
@@ -5751,16 +5753,29 @@ async function beginGunFire() {
 }
 
 async function endGunFire() {
-  if (!state.gunTriggerHeld && !state.gunFireStartPromise) return;
+  const hadTrigger = state.gunTriggerHeld || state.gunFireStartPromise;
   state.gunTriggerHeld = false;
   state.gunTriggerPointerId = null;
   els.shootButton.classList.remove("active");
+  if (!hadTrigger) return;
   const pending = state.gunFireStartPromise;
   state.gunFireStartPromise = null;
   state.hackerGenerationInFlight = false;
   clearHackerCooldownWake();
   if (pending) await pending;
   if (state.roomId && state.playerId) await api("/api/shoot", { action: "stop" });
+}
+
+async function beginInventoryWeaponFire(pointerId) {
+  const itemId = els.itemSelect?.value || "";
+  if (!itemId.startsWith("weapon:")) return false;
+  const weaponId = itemId.slice(7);
+  if (weaponId !== state.data?.self?.gunnerWeapon) {
+    const switched = await api("/api/gunner-weapon", { weaponId });
+    if (!switched || state.gunTriggerPointerId !== pointerId) return false;
+  }
+  if (state.gunTriggerPointerId !== pointerId) return false;
+  return beginGunFire();
 }
 
 async function pulseGunFire() {
@@ -5978,6 +5993,14 @@ function applyState(data, options = {}) {
     clearMovementInput();
     state.movementActive = false;
     state.movementStopPendingSeq = 0;
+    stopVendingHold();
+    cancelEnhanceAction();
+    cancelThrowTargeting(true);
+    els.vendingPanel.hidden = true;
+    els.itemControl.hidden = true;
+    state.vendingRenderKey = "";
+    state.itemRenderKey = "";
+    setOperatorBranchesOpen(false);
   }
   if (state.data?.roomId && state.data.roomId !== data.roomId) setExpandedMapOpen(false);
   const borrowedGravityTargetingValid = state.teleportBorrowed && hasDisplayedOperatorAccess(data.self, "gravity");
@@ -6166,6 +6189,10 @@ function detectHitEffects(previous, next) {
 }
 
 function detectMagicEffects(previous, next) {
+  if (!["playing", "meeting"].includes(next?.phase)) {
+    state.magicEffects = [];
+    return;
+  }
   if (!previous || previous.roomId !== next.roomId) return;
   if (isSensoryBlocked(next)) return;
   const known = new Set((previous.magicEffects || []).map((effect) => effect.id));
@@ -7080,12 +7107,17 @@ function renderStatus(data) {
 }
 
 function collectInventoryDisplayItems(self) {
+  const chargeDescriptions = {
+    "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire,
+    "instant-warp": VENDING_PRODUCT_DESCRIPTIONS.warp
+  };
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
-    item && (!item.kind || item.kind === "item") && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
+    item && (!item.kind || ["item", "charge"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
   ).map((item) => ({
     ...item,
-    inventoryKind: "item",
-    output: alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || item.kind || "所持品",
+    inventoryKind: item.kind === "charge" ? "charge" : "item",
+    output: item.kind === "charge" ? "消耗品" : "所持品",
+    detail: chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲できる所持品",
     badge: `×${Number(item.amount) || 1}`
   }));
   const gunnerAccess = hasDisplayedOperatorAccess(self, "gunner") || (self.purchasedWeapons || []).length > 0;
@@ -7098,8 +7130,9 @@ function collectInventoryDisplayItems(self) {
         label: weapon.name,
         asset: weapon.id,
         inventoryKind: "weapon",
-        output: `${weapon.shortName || weapon.name} / ${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}`,
-        badge: weapon.id === self.gunnerWeapon ? "装備中" : "切替"
+        output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発`,
+        detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}。射程${Math.round(Number(weapon.range) || 0)}、威力${Number(weapon.damage).toFixed(2)}。使用を長押しすると持続射撃し、停止後は自動リロードする。投擲すると武器を失う`,
+        badge: weapon.id === self.gunnerWeapon ? "選択中" : ""
       }))
     : [];
   const inventionNames = { railgun: "レールガン", "particle-cannon": "荷電粒子砲", excalibur: "エクスカリバー" };
@@ -7114,6 +7147,7 @@ function collectInventoryDisplayItems(self) {
     asset: id,
     inventoryKind: "invention",
     output: "発明武器",
+    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "特殊な発明武器。通常使用と投擲に対応する",
     badge: `×${count}`
   }));
   const heavyNames = { rpg: "RPG", missile: "ミサイル" };
@@ -7128,9 +7162,50 @@ function collectInventoryDisplayItems(self) {
     asset: id,
     inventoryKind: "heavy",
     output: "重火器",
+    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切りの重火器。通常使用と投擲に対応する",
     badge: `×${count}`
   }));
   return [...regularItems, ...weaponItems, ...inventionItems, ...heavyItems];
+}
+
+function bindInventoryDetailHold(button, item) {
+  let timer = 0;
+  let pointerId = null;
+  let originX = 0;
+  let originY = 0;
+  let suppressClick = false;
+  const clear = () => {
+    if (timer) window.clearTimeout(timer);
+    timer = 0;
+    pointerId = null;
+  };
+  button.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    clear();
+    pointerId = event.pointerId;
+    originX = event.clientX;
+    originY = event.clientY;
+    suppressClick = false;
+    timer = window.setTimeout(() => {
+      if (pointerId !== event.pointerId) return;
+      suppressClick = true;
+      showToast(`${item.label}: ${item.detail || "使用・投擲できる所持品"}`);
+      if (navigator.vibrate) navigator.vibrate(18);
+    }, 520);
+  });
+  button.addEventListener("pointermove", (event) => {
+    if (pointerId !== event.pointerId) return;
+    if (Math.hypot(event.clientX - originX, event.clientY - originY) > 9) clear();
+  });
+  button.addEventListener("pointerup", clear);
+  button.addEventListener("pointercancel", clear);
+  button.addEventListener("lostpointercapture", clear);
+  button.addEventListener("click", (event) => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    suppressClick = false;
+  }, true);
 }
 
 function renderItemControl(data) {
@@ -7146,7 +7221,7 @@ function renderItemControl(data) {
   const previousItem = els.itemSelect.value;
   const previousTarget = els.transferTargetSelect.value;
   const renderKey = JSON.stringify([
-    items.map((item) => [item.id, item.label, item.badge, item.asset, item.inventoryKind, item.output]),
+    items.map((item) => [item.id, item.label, item.badge, item.asset, item.inventoryKind, item.output, item.detail]),
     targets.map((target) => [target.id, target.name]),
     self.credits
   ]);
@@ -7168,8 +7243,12 @@ function renderItemControl(data) {
       button.setAttribute("role", "option");
       button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.output || "所持品")}</small></span><b>${escapeHtml(item.badge || "")}</b>`;
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
+      bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
         selectItemChoice(item.id, false);
+        if (item.inventoryKind === "weapon" && item.sourceId !== state.data?.self?.gunnerWeapon) {
+          void api("/api/gunner-weapon", { weaponId: item.sourceId });
+        }
       });
       els.itemInventoryGrid.append(button);
     });
@@ -7183,16 +7262,18 @@ function renderItemControl(data) {
   });
   const blocked = (Number(self.itemDisabledUntil) || 0) > estimatedServerNow(data);
   const canUse = Boolean(selected) && !blocked;
-  const selectedIsEquipment = ["weapon", "invention", "heavy"].includes(selected?.inventoryKind);
+  const selectedWeaponReloading = selected?.inventoryKind === "weapon" &&
+    selected.sourceId === self.gunnerReloadWeapon &&
+    (Number(self.gunnerReloadUntil) || 0) > estimatedServerNow(data);
   const transferCredits = transferCreditAmount();
   els.transferCreditsAmount.max = String(Math.max(1, Math.floor(Number(self.credits) || 0)));
-  els.itemUseButton.disabled = !canUse;
+  els.itemUseButton.disabled = !canUse || selectedWeaponReloading;
   els.itemUseButton.hidden = false;
-  els.itemThrowButton.disabled = !canUse || selectedIsEquipment;
+  els.itemThrowButton.disabled = !canUse;
   els.transferItemButton.disabled = !selected || !targets.length || blocked;
   els.transferCreditsButton.disabled = Number(self.credits) < transferCredits || !targets.length;
   const selectedUseLabel = selected?.inventoryKind === "weapon"
-    ? selected.sourceId === self.gunnerWeapon ? "リロード" : "装備"
+    ? selectedWeaponReloading ? `自動リロード ${Math.max(0, (Number(self.gunnerReloadUntil) - estimatedServerNow(data)) / 1000).toFixed(1)}秒` : "射撃"
     : "使用";
   els.itemUseButton.textContent = `${selectedUseLabel} [Shift+V]`;
   els.itemThrowButton.textContent = "投擲 [Shift+G]";
@@ -7236,12 +7317,9 @@ function collectOperatorPassiveEffects(self, liveNow) {
   if (hasDisplayedOperatorAccess(self, "fighter")) {
     add("キルカウンター", passiveValue, passiveTone, "回避成功時、攻撃者を即時キルする");
     add("斬る", "忍殺強化", "rational", "忍殺を居合へ変え、射撃を切断してジャストガード時は反射する");
-    add(
-      "リミットブレイク",
-      self.limitBreakActive ? "発動中" : self.limitBreakUsed ? "使用済み" : "絶体絶命時",
-      self.limitBreakActive ? "desire" : passiveTone,
-      "HP1かつ即死回避なしで自動発動 / SP×3 / 加速×3 / HP1固定 / 即死回避無効 / マナ継続消費"
-    );
+    const swordWait = Math.max(0, Number(self.fighterSwordChargeReadyAt || 0) - liveNow);
+    const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
+    add("剣エネルギー", passiveEnabled ? `衝撃波×${shockwaves} / ${formatEffectCountdown(swordWait)}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積し、累計3回ごとに押し込みを得る");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -7638,8 +7716,8 @@ function updateActionButtons(data) {
     els.ninjutsuButton.hidden = !canUseKill;
     els.dodgeButton.hidden = self.role !== "defender";
     els.teleportButton.hidden = true;
-    els.shootButton.hidden = !gunnerAccess;
-    els.weaponButton.hidden = !gunnerAccess;
+    els.shootButton.hidden = true;
+    els.weaponButton.hidden = true;
     els.sleepButton.hidden = false;
     els.renkiButton.hidden = false;
     els.healButton.hidden = true;
@@ -7648,14 +7726,14 @@ function updateActionButtons(data) {
       ? false
       : !["fighter", "teleport", "flora", "gunner", "quantum"].includes(self.special);
     els.jumpButton.hidden = true;
-    els.gunnerReloadButton.hidden = !gunnerAccess;
+    els.gunnerReloadButton.hidden = true;
     els.droneButton.hidden = !isAttacker;
     els.droneAltitudeButton.hidden = true;
     els.empButton.hidden = false;
     els.cameraButton.hidden = self.role !== "defender";
     els.nextCameraButton.hidden = self.role !== "defender";
-    els.instantWarpButton.hidden = (self.warpCharges || 0) <= 0;
-    els.fireJutsuButton.hidden = (self.fireJutsuCharges || 0) <= 0;
+    els.instantWarpButton.hidden = true;
+    els.fireJutsuButton.hidden = true;
     els.mapActionButton.hidden = false;
     els.substitutionStatusButton.hidden = true;
     els.gritStatusButton.hidden = true;
@@ -7757,7 +7835,7 @@ function updateActionButtons(data) {
     (Number(self.vibeCodingReadyAt) || 0) <= liveNow);
   const operatorMode = els.teleportModeSelect.value;
   const fighterSwordCharge = Math.max(0, Number(self.fighterSwordCharge) || 0);
-  const fighterShockwaveUnlocked = Boolean(self.fighterShockwaveUnlocked || fighterSwordCharge >= 6);
+  const fighterShockwaveCharges = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
   const borrowedModeLabel = selectedBorrowedRecipe
     ? activeBorrowedOperator === "gravity"
       ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
@@ -7766,13 +7844,13 @@ function updateActionButtons(data) {
         : activeBorrowedOperator === "gunner"
           ? (operatorMode === "hover-sprint" ? "ホバースプリント" : "ウィークバレット")
           : activeBorrowedOperator === "fighter"
-            ? "剣エネルギー蓄積"
+            ? self.limitBreakActive ? "リミットブレイク解除" : "リミットブレイク"
             : "常時パッシブ"
     : "";
   const operatorLabels = {
-    fighter: fighterShockwaveUnlocked
-      ? "剣エネルギー 最大 / 衝撃波解放済み"
-      : `剣へ蓄積 ${fighterSwordCharge}/6 ${operatorCostLabel("fighterCharge")}`,
+    fighter: self.limitBreakActive
+      ? `リミットブレイク解除 / 衝撃波×${fighterShockwaveCharges}`
+      : `リミットブレイク / 衝撃波×${fighterShockwaveCharges} / 累計${fighterSwordCharge}`,
     teleport: operatorMode === "body" ? `転移・地点 ${operatorCostLabel("teleport")}`
       : operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
         : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
@@ -7801,7 +7879,7 @@ function updateActionButtons(data) {
     Number(borrowedFreeUses[activeBorrowedOperator]) > 0;
   const borrowedStateBlocked = Boolean(selectedBorrowedRecipe) && (
     !alchemyRecipeAvailable(selectedBorrowedRecipe, self) ||
-    (!selectedBorrowedFree && !hasMana(borrowedCostKey)) ||
+    (!selectedBorrowedFree && !(activeBorrowedOperator === "fighter" && self.limitBreakActive) && !hasMana(borrowedCostKey)) ||
     (activeBorrowedOperator === "gunner" && operatorMode !== "hover-sprint" && self.weakBulletLoaded)
   );
   const displayedOperator = activeBorrowedOperator === "gravity"
@@ -7813,7 +7891,7 @@ function updateActionButtons(data) {
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
   els.operatorAbilityButton.disabled = !canUseAbility ||
-    (displayedOperator === "fighter" && (fighterShockwaveUnlocked || !hasMana("fighterCharge"))) ||
+    (displayedOperator === "fighter" && !self.limitBreakActive && !hasMana("fighterCharge")) ||
     (displayedOperator === "gunner" && (
       operatorMode === "hover-sprint"
         ? (Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("weakBullet")
@@ -8120,7 +8198,8 @@ function sendMovement(forceStop = false) {
   const data = state.data;
   if (!data || data.phase !== "playing") return;
   if (state.cameraViewIndex >= 0 && !forceStop) return;
-  const direction = forceStop ? { dx: 0, dy: 0 } : getDirection();
+  const throwLocksMovement = state.enhanceHold.kind === "throw" || state.throwTargeting.active;
+  const direction = forceStop || throwLocksMovement ? { dx: 0, dy: 0 } : getDirection();
   const moving = Boolean(direction.dx || direction.dy);
   const timestamp = performance.now();
   if (
@@ -8343,7 +8422,7 @@ function isSlowWalking() {
 }
 
 function getDirection() {
-  if (state.throwTargeting.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
+  if (state.enhanceHold.kind === "throw" || state.throwTargeting.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
   const stickLength = Math.hypot(state.tabletStick.dx, state.tabletStick.dy);
   if (state.tabletOpen && stickLength > 0.01) {
     return { dx: state.tabletStick.dx, dy: state.tabletStick.dy };
@@ -10508,6 +10587,10 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
 }
 
 function drawMagicEffects() {
+  if (!["playing", "meeting"].includes(state.data?.phase)) {
+    state.magicEffects = [];
+    return;
+  }
   const now = state.frameNow || performance.now();
   state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
   const activeGainEffects = state.magicEffects.filter((effect) => effect.type.startsWith("gain-") && effect.playerId);
@@ -10820,6 +10903,102 @@ function semanticEffectMotion(type, variant = "", fallback = "energy") {
   return fallback;
 }
 
+function drawGoldCoinFromTexture(sprite, x, y, radius, rotation, alpha) {
+  if (!sprite || alpha <= 0.004 || radius <= 0) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.globalAlpha *= alpha;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, radius, radius * 0.72, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(sprite, -radius * 1.45, -radius * 1.45, radius * 2.9, radius * 2.9);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.globalAlpha *= alpha;
+  ctx.strokeStyle = "rgba(255, 238, 144, 0.92)";
+  ctx.lineWidth = Math.max(1.2, radius * 0.12);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, radius, radius * 0.72, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawGoldTransmutationStages(goldSprite, progress) {
+  const reveal = clamp((progress - 0.12) / 0.24, 0, 1);
+  const breakApart = clamp((progress - 0.44) / 0.2, 0, 1);
+  const coinsAppear = clamp((progress - 0.55) / 0.2, 0, 1);
+  const creditConvert = clamp((progress - 0.78) / 0.2, 0, 1);
+  const smoothReveal = reveal * reveal * (3 - 2 * reveal);
+  const ingotWidth = 112;
+  const ingotHeight = 86;
+
+  if (breakApart <= 0.001) {
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = smoothReveal;
+    drawNormalizedSpriteCentered(
+      goldSprite,
+      0,
+      -42 - (1 - smoothReveal) * 34,
+      ingotWidth * (0.84 + smoothReveal * 0.16),
+      ingotHeight * (0.84 + smoothReveal * 0.16)
+    );
+  } else if (breakApart < 1) {
+    const fragmentCount = 5;
+    const fragmentWidth = ingotWidth / fragmentCount;
+    for (let index = 0; index < fragmentCount; index += 1) {
+      const centeredIndex = index - (fragmentCount - 1) / 2;
+      const offsetX = centeredIndex * 10 * breakApart;
+      const offsetY = Math.abs(centeredIndex) * 4 * breakApart - breakApart * 8;
+      ctx.save();
+      ctx.translate(offsetX, -42 + offsetY);
+      ctx.rotate(centeredIndex * 0.055 * breakApart);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1 - breakApart * 0.62;
+      ctx.beginPath();
+      ctx.rect(-ingotWidth / 2 + index * fragmentWidth, -ingotHeight / 2, fragmentWidth + 1, ingotHeight);
+      ctx.clip();
+      ctx.drawImage(goldSprite, -ingotWidth / 2, -ingotHeight / 2, ingotWidth, ingotHeight);
+      ctx.restore();
+    }
+  }
+
+  if (coinsAppear <= 0) return;
+  const coinAlpha = coinsAppear * (1 - creditConvert);
+  const coinCount = 7;
+  for (let index = 0; index < coinCount; index += 1) {
+    const side = index - (coinCount - 1) / 2;
+    const fan = side * 22;
+    const settleX = side * 17;
+    const settleY = -34 + Math.abs(side) * 3;
+    const x = fan * (1 - coinsAppear) + settleX * coinsAppear;
+    const y = -50 - Math.sin((index + 1) * 1.27) * 16 * (1 - coinsAppear) + settleY * coinsAppear - creditConvert * 54;
+    const radius = 10 + (index % 2) * 2;
+    drawGoldCoinFromTexture(goldSprite, x, y, radius, side * 0.14 + progress * 2.4, coinAlpha);
+  }
+
+  if (creditConvert > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 12; index += 1) {
+      const phase = index * 2.3999632297;
+      const radius = (1 - creditConvert) * (22 + (index % 4) * 9);
+      const x = Math.cos(phase) * radius;
+      const y = -90 + Math.sin(phase) * radius * 0.62;
+      const particleSize = 1.8 + (index % 3) * 0.9;
+      ctx.globalAlpha = (1 - creditConvert) * (0.42 + (index % 4) * 0.12);
+      ctx.fillStyle = index % 3 === 0 ? "#fff3bd" : index % 3 === 1 ? "#ffd45d" : "#e9a91f";
+      ctx.beginPath();
+      ctx.arc(x, y, particleSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function drawGeneratedStandaloneEffect(effect, progress) {
   const definition = effect.type === "limit-break" && effect.variant === "release"
     ? ["limitBreakReleaseEffect", 320]
@@ -10863,19 +11042,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     const goldPrepared = goldImage ? transparentSpriteSource(goldImage, "item-gold", 12) : null;
     const goldSprite = goldPrepared ? normalizedSpriteFrame(goldPrepared, "item-gold", 1, 1, 0, 0) : null;
     if (goldSprite) {
-      const reveal = clamp((progress - 0.2) / 0.34, 0, 1);
-      const settle = reveal * reveal * (3 - 2 * reveal);
-      const exit = 1 - clamp((progress - 0.9) / 0.1, 0, 1);
-      const goldPulse = Math.sin(Math.max(0, progress - 0.2) * Math.PI * 5) * (1 - settle) * 0.08;
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = Math.max(0, settle * exit);
-      drawNormalizedSpriteCentered(
-        goldSprite,
-        0,
-        -36 - (1 - settle) * 34,
-        76 * (0.84 + settle * 0.16 + goldPulse),
-        76 * (0.84 + settle * 0.16 + goldPulse)
-      );
+      drawGoldTransmutationStages(goldSprite, progress);
     }
   }
   ctx.restore();
@@ -13651,7 +13818,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mana-gpu-plicy-fallback-v402";
+const version = "fighter-arsenal-gold-v403";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
