@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v403-fighter-arsenal-gold";
+const CACHE_NAME = "dva-static-v406-energy-rest-killcutin";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -14,8 +14,8 @@ const STATIC_ASSETS = [
   "/config.js",
   "/manifest.webmanifest",
   "/icon.png",
-  "/assets/title-hero-v389.png",
-  "/assets/plicy-thumbnail-v389.png",
+  "/assets/title-hero-v404.png",
+  "/assets/site-thumbnail-v404.png",
   "/assets/generated/throw-landing-preview-v384.png",
   "/assets/generated/ui-panel-surface.webp",
   "/assets/generated/ui-control-surface.webp",
@@ -30,8 +30,10 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-gunner-ate-v391.png",
   "/assets/generated/operator-hacker-ate-v391.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
-  "/assets/generated/fighter-sword-charge-ate-v393.png",
-  "/assets/generated/fighter-shockwave-ate-v393.png",
+  "/assets/generated/fighter-energy-charge-ate-v404.png",
+  "/assets/generated/fighter-energy-release-ate-v404.png",
+  "/assets/generated/fighter-energy-impact-ate-v404.png",
+  "/assets/generated/white-hood-kill-cutin-v404.png",
   "/assets/generated/luminous-meeting-effect-v311.png",
   "/assets/generated/sabotage-repair-map-marker.webp",
   "/assets/generated/smartphone-sabotage-repair-v374.png",
@@ -173,7 +175,8 @@ const STATIC_ASSETS = [
   "/assets/generated/hack-mana-duplicate.webp",
   "/assets/generated/alchemy-railgun-field-effect.webp",
   "/assets/generated/alchemy-particle-cannon-field-effect.webp",
-  "/assets/generated/data-terminal.png",
+  "/assets/generated/item-computer-v404.png",
+  "/assets/generated/human-generation-v404.png",
   "/assets/generated/gunner-weapons-atlas.webp",
   "/assets/generated/gunner-taser.webp",
   "/assets/generated/ui-result-surface.webp",

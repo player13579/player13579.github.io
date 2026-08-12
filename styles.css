@@ -678,6 +678,23 @@ body.start-open {
   overflow: hidden;
 }
 
+body.game-open {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body.game-open .app-shell {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 .start-screen {
   position: fixed;
   inset: 0;
@@ -3159,7 +3176,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .exile-icon { background-image: url("assets/generated/exile-clone.webp?v=hacker-assets-v130"); }
 
 .vending-computer-icon {
-  background-image: url("assets/generated/data-terminal.png?v=vending-electronics-v173");
+  background-image: url("assets/generated/item-computer-v404.png?v=energy-rest-killcutin-v406");
 }
 
 .vending-gun-icon {
@@ -3891,7 +3908,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .alchemy-choice[data-alchemy-asset="particle-cannon"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-particle-cannon.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-asset="excalibur"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-excalibur.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-asset="exile"] .alchemy-choice-icon { background-image: url("assets/generated/exile-clone.webp?v=hacker-assets-v130"); }
-.alchemy-choice[data-alchemy-asset="computer"] .alchemy-choice-icon { background-image: url("assets/generated/data-terminal.png?v=vending-electronics-v173"); }
+.alchemy-choice[data-alchemy-asset="computer"] .alchemy-choice-icon { background-image: url("assets/generated/item-computer-v404.png?v=energy-rest-killcutin-v406"); }
 .alchemy-choice:is([data-alchemy-asset="handgun"], [data-alchemy-asset="smg"], [data-alchemy-asset="assault"], [data-alchemy-asset="sniper"]) .alchemy-choice-icon {
   background-image: url("assets/generated/gunner-weapons-atlas.webp?v=vending-firearms-v173");
   background-size: 500% 100%;
@@ -3903,7 +3920,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .alchemy-choice[data-alchemy-asset="taser"] .alchemy-choice-icon { background-image: url("assets/generated/gunner-taser.webp?v=vending-firearms-v173"); }
 .alchemy-choice[data-alchemy-asset="credit"] .alchemy-choice-icon { background-image: url("assets/generated/credit-crates.png"); }
 .alchemy-choice[data-alchemy-asset="items"] .alchemy-choice-icon { background-image: url("assets/room-props.webp"); }
-.alchemy-choice[data-alchemy-asset="medical"] .alchemy-choice-icon { background-image: url("assets/generated/medical-pod.png"); }
+.alchemy-choice[data-alchemy-asset="medical"] .alchemy-choice-icon { background-image: url("assets/generated/human-generation-v404.png?v=energy-rest-killcutin-v406"); }
 .alchemy-choice[data-alchemy-asset="hack-credits-delete"] .alchemy-choice-icon { background-image: url("assets/generated/hack-credits-delete.webp?v=hacker-icons-v385"); }
 .alchemy-choice[data-alchemy-asset="hack-credits-duplicate"] .alchemy-choice-icon { background-image: url("assets/generated/hack-credits-duplicate.webp?v=hacker-icons-v385"); }
 .alchemy-choice[data-alchemy-asset="hack-items-delete"] .alchemy-choice-icon { background-image: url("assets/generated/hack-items-delete.webp?v=hacker-icons-v385"); }
@@ -3972,7 +3989,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .alchemy-choice:is([data-alchemy-choice="ability-gravity"], [data-alchemy-choice="borrowed-gravity"]) .alchemy-choice-icon { background-image: url("assets/generated/operator-gravity-ate-v391.png?v=operator-ate-v391"); }
 .alchemy-choice:is([data-alchemy-choice="ability-flora"], [data-alchemy-choice="borrowed-flora"]) .alchemy-choice-icon { background-image: url("assets/generated/operator-flora-ate-v391.png?v=operator-ate-v391"); }
 .alchemy-choice:is([data-alchemy-choice="ability-gunner"], [data-alchemy-choice="borrowed-gunner"]) .alchemy-choice-icon { background-image: url("assets/generated/operator-gunner-ate-v391.png?v=operator-ate-v391"); }
-.alchemy-choice[data-alchemy-choice="revive"] .alchemy-choice-icon { background-image: url("assets/generated/medical-pod.png"); }
+.alchemy-choice[data-alchemy-choice="revive"] .alchemy-choice-icon { background-image: url("assets/generated/human-generation-v404.png?v=energy-rest-killcutin-v406"); }
 .alchemy-choice[data-alchemy-choice="invention-excalibur"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-excalibur.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-choice="invention-railgun"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-railgun.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-choice="invention-particle-cannon"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-particle-cannon.webp?v=asset-isolated-v122"); }
@@ -6061,6 +6078,18 @@ body #tabletPanel::after {
   background-size: 220% 100%, cover;
   color: #102f46 !important;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.76), 0 5px 14px rgba(8, 145, 178, 0.22);
+}
+
+.item-inventory-choice,
+.item-inventory-choice * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.item-inventory-choice {
+  touch-action: pan-y;
 }
 
 .item-inventory-choice[data-inventory-kind="weapon"][aria-selected="true"]::after {

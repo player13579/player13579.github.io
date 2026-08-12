@@ -79,6 +79,7 @@ const els = {
   tabletRestShortcut: $("#tabletRestShortcut"),
   tabletManaToStaminaShortcut: $("#tabletManaToStaminaShortcut"),
   tabletDonateShortcut: $("#tabletDonateShortcut"),
+  tabletPageUpShortcut: $("#tabletPageUpShortcut"),
   tabletBranchLines: $("#tabletBranchLines"),
   tabletBranchTray: $("#tabletBranchTray"),
   tabletBranchTitle: $("#tabletBranchTitle"),
@@ -587,7 +588,7 @@ const alchemyRecipes = [
   { id: "vending-particle-cannon", label: "荷電粒子砲", output: "破壊ビームを継続放射", asset: "particle-cannon" },
   { id: "vending-excalibur", label: "エクスカリバー", output: "前方半面を破壊", asset: "excalibur" },
   { id: "vending-exile", label: "亡命", output: "遠隔クローンを運用", asset: "exile" },
-  { id: "vending-computer", label: "戦術コンピューター", output: "生存者の位置情報を取得", asset: "computer" },
+  { id: "vending-computer", label: "パソコン", output: "生存者の位置情報を取得", asset: "computer" },
   { id: "vending-handgun", label: "ハンドガン", output: "武器と弾薬を生成", asset: "handgun" },
   { id: "vending-smg", label: "サブマシンガン", output: "武器と弾薬を生成", asset: "smg" },
   { id: "vending-assault", label: "アサルトライフル", output: "武器と弾薬を生成", asset: "assault" },
@@ -653,7 +654,7 @@ const generatedItemTextureFiles = new Map([
   ["particle-cannon", { file: "alchemy-particle-cannon.webp" }],
   ["excalibur", { file: "alchemy-excalibur.webp" }],
   ["exile", { file: "exile-clone.webp" }],
-  ["computer", { file: "data-terminal.png" }],
+  ["computer", { file: "item-computer-v404.png" }],
   ["handgun", { file: "gunner-weapons-atlas.webp", size: "500% 100%", position: "0 0" }],
   ["smg", { file: "gunner-weapons-atlas.webp", size: "500% 100%", position: "25% 0" }],
   ["assault", { file: "gunner-weapons-atlas.webp", size: "500% 100%", position: "50% 0" }],
@@ -661,7 +662,7 @@ const generatedItemTextureFiles = new Map([
   ["taser", { file: "gunner-taser.webp" }],
   ["rpg", { file: "gunner-rpg.webp" }],
   ["missile", { file: "gunner-missile.webp" }],
-  ["revive", { file: "medical-pod.png", size: "cover" }],
+  ["revive", { file: "human-generation-v404.png", size: "cover" }],
   ["hack-credits-delete", { file: "hack-credits-delete.webp" }],
   ["hack-credits-duplicate", { file: "hack-credits-duplicate.webp" }],
   ["hack-items-delete", { file: "hack-items-delete.webp" }],
@@ -1617,6 +1618,7 @@ function setScreen(screen) {
   if (next !== "game" && state.fieldFeedOpen) setFieldFeedOpen(false);
   document.body.classList.toggle("start-open", next !== "game");
   document.body.classList.toggle("tactics-open", next === "tactics");
+  document.body.classList.toggle("game-open", next === "game");
   els.startScreen.hidden = next === "game";
   if (els.titleMuteButton) els.titleMuteButton.hidden = next === "tactics";
   els.gameApp.setAttribute("aria-hidden", String(next !== "game"));
@@ -2096,7 +2098,9 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "fighter-slash": "slash",
   "fighter-slash-parry": "slash",
   "fighter-iaido": "slash",
-  "fighter-sword-charge": "power",
+  "fighter-energy-charge": "power",
+  "fighter-energy-release": "throw",
+  "fighter-energy-impact": null,
   "fighter-shockwave": "slash",
   "gunner-hover-sprint": "power",
   "gunner-rpg": "shoot",
@@ -3501,6 +3505,7 @@ function bindEvents() {
   els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
   els.tabletManaToStaminaShortcut.addEventListener("click", () => void api("/api/resource-convert", { direction: "mana-to-stamina" }));
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
+  els.tabletPageUpShortcut.addEventListener("click", () => cycleSelectedScrollRegion(-1));
   window.addEventListener("resize", scheduleTabletBranchLayout, { passive: true });
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
   bindTabletControls();
@@ -4029,20 +4034,30 @@ function bindEvents() {
     if (event.button !== 0) clearMovementInput();
   });
   window.addEventListener("contextmenu", (event) => {
-    if (event.target instanceof Element && event.target.closest(".game-area, .tablet-quick-actions, .tablet-branch-tray")) {
+    if (event.target instanceof Element && event.target.closest(".game-area, .tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice")) {
       event.preventDefault();
       clearMovementInput();
     }
   });
   document.addEventListener("selectstart", (event) => {
-    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray")) {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice")) {
       event.preventDefault();
     }
   });
   document.addEventListener("dragstart", (event) => {
-    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray")) {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice")) {
       event.preventDefault();
     }
+  });
+  const preserveFullscreenGameSurface = (event) => {
+    if (state.screen !== "game" || !event.cancelable) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("input, textarea, select, .tablet-branch-list, .hacker-ability-grid, .active-effects-list, .item-inventory-grid, .vending-list, .field-feed-list")) return;
+    event.preventDefault();
+  };
+  document.addEventListener("touchmove", preserveFullscreenGameSurface, { capture: true, passive: false });
+  ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
+    document.addEventListener(type, preserveFullscreenGameSurface, { capture: true, passive: false });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
@@ -7193,6 +7208,13 @@ function bindInventoryDetailHold(button, item) {
       if (navigator.vibrate) navigator.vibrate(18);
     }, 520);
   });
+  const suppressNativeLongPress = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  button.addEventListener("contextmenu", suppressNativeLongPress);
+  button.addEventListener("selectstart", suppressNativeLongPress);
+  button.addEventListener("dragstart", suppressNativeLongPress);
   button.addEventListener("pointermove", (event) => {
     if (pointerId !== event.pointerId) return;
     if (Math.hypot(event.clientX - originX, event.clientY - originY) > 9) clear();
@@ -7317,9 +7339,9 @@ function collectOperatorPassiveEffects(self, liveNow) {
   if (hasDisplayedOperatorAccess(self, "fighter")) {
     add("キルカウンター", passiveValue, passiveTone, "回避成功時、攻撃者を即時キルする");
     add("斬る", "忍殺強化", "rational", "忍殺を居合へ変え、射撃を切断してジャストガード時は反射する");
-    const swordWait = Math.max(0, Number(self.fighterSwordChargeReadyAt || 0) - liveNow);
+    const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
-    add("剣エネルギー", passiveEnabled ? `衝撃波×${shockwaves} / ${formatEffectCountdown(swordWait)}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積し、累計3回ごとに押し込みを得る");
+    add("エネルギーチャージ", passiveEnabled ? `衝撃波×${shockwaves} / ${formatEffectCountdown(energyWait)}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。斬るか投擲で1発消費し、累計3回ごとに押し込みを得る");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -7431,7 +7453,7 @@ function renderActiveEffects(data) {
   timed("重力拘束", self.gravityPinnedUntil, "desire", "強い重力に押さえ込まれ、一時的に移動・行動できない");
   timed("休息", self.sleepingUntil, "neutral", "行動不能になる代わりにスタミナ回復速度が4倍になる");
   timed("精神統一", self.meditatingUntil, "rational", "行動不能になり、完了時にマナを1獲得する");
-  if (self.computerActive) add("戦術コンピューター", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "全生存者の位置情報を表示する" : "EMP解除後に自動復帰する");
+  if (self.computerActive) add("パソコン", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "全生存者の位置情報を表示する" : "EMP解除後に自動復帰する");
 
   const panelHidden = !["playing", "meeting"].includes(data.phase);
   if (els.activeEffectsPanel.hidden !== panelHidden) els.activeEffectsPanel.hidden = panelHidden;
@@ -7834,8 +7856,6 @@ function updateActionButtons(data) {
     hasMana("alchemy") &&
     (Number(self.vibeCodingReadyAt) || 0) <= liveNow);
   const operatorMode = els.teleportModeSelect.value;
-  const fighterSwordCharge = Math.max(0, Number(self.fighterSwordCharge) || 0);
-  const fighterShockwaveCharges = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
   const borrowedModeLabel = selectedBorrowedRecipe
     ? activeBorrowedOperator === "gravity"
       ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
@@ -7848,9 +7868,7 @@ function updateActionButtons(data) {
             : "常時パッシブ"
     : "";
   const operatorLabels = {
-    fighter: self.limitBreakActive
-      ? `リミットブレイク解除 / 衝撃波×${fighterShockwaveCharges}`
-      : `リミットブレイク / 衝撃波×${fighterShockwaveCharges} / 累計${fighterSwordCharge}`,
+    fighter: self.limitBreakActive ? "リミットブレイク解除" : "リミットブレイク",
     teleport: operatorMode === "body" ? `転移・地点 ${operatorCostLabel("teleport")}`
       : operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
         : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
@@ -10861,9 +10879,13 @@ const GENERATED_EFFECT_TEXTURES = {
   "fire": ["fireJutsuFieldEffect", 520],
   "substitution": ["substitutionFieldEffect", 300],
   "limit-break": ["limitBreakFieldEffect", 360],
-  "fighter-sword-charge": ["fighterSwordChargeEffect", 220],
+  "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
+  "fighter-energy-release": ["fighterEnergyReleaseEffect", 180],
+  "fighter-energy-impact": ["fighterEnergyImpactEffect", 250],
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
   "fighter-push-acquired": ["pushMarkerEffect", 96],
+  "hacker-root": ["hackerRootRainbow", 190],
+  "preparation-barrier-hit": ["preparationBarrierEffect", 220],
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
   "action-vibe-coding": ["vibeCodingEffect", 220],
   "gunner-hover-sprint": ["gunnerHoverSprintEffect", 240],
@@ -11017,8 +11039,8 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     (0.82 + pulse * 0.28 + progress * 0.14);
   const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
-  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
-  const renderHeight = effect.type === "fighter-shockwave"
+  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave", "fighter-energy-release"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
+  const renderHeight = ["fighter-shockwave", "fighter-energy-release"].includes(effect.type)
     ? Math.max(120, Number(effect.radius || 0) * 2.2)
     : size;
   ctx.save();
@@ -13294,33 +13316,25 @@ function drawWorldKillEffect(effect, camera, zoom = CAMERA_ZOOM) {
   const sx = (effect.x - camera.x) * zoom;
   const sy = (effect.y - camera.y) * zoom;
   const humanKill = !(effect.killerIsBot || effect.killerSkinId === "operator");
-  const electric = humanKill && normalizeSkinId(effect.killerSkinId) === "hood";
-  const blueDress = humanKill && !electric;
+  const blueDress = humanKill && normalizeSkinId(effect.killerSkinId) === "blue-dress";
   ctx.save();
   ctx.globalAlpha = 1 - progress * 0.72;
   ctx.translate(sx, sy);
-  const radius = electric ? 42 + Math.sin(now / 38) * 8 : 32 + Math.sin(now / 55) * 5;
-  ctx.strokeStyle = electric ? "rgba(103,232,249,0.95)" : blueDress ? "rgba(186,230,253,0.95)" : "rgba(248,113,113,0.90)";
-  ctx.lineWidth = electric ? 4 : 5;
+  const radius = 32 + Math.sin(now / 55) * 5;
+  ctx.strokeStyle = blueDress ? "rgba(186,230,253,0.95)" : humanKill ? "rgba(226,232,240,0.95)" : "rgba(248,113,113,0.90)";
+  ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.stroke();
-  if (electric) {
-    for (let i = 0; i < 8; i += 1) {
-      const angle = (Math.PI * 2 * i) / 8 + now / 120;
-      drawLightningBolt(0, 0, Math.cos(angle) * (70 + i * 4), Math.sin(angle) * (58 + i * 3), i);
-    }
-  } else {
-    ctx.fillStyle = blueDress ? "rgba(125,211,252,0.42)" : "rgba(239,68,68,0.55)";
-    for (let i = 0; i < 7; i += 1) {
-      const angle = (Math.PI * 2 * i) / 7 + now / 180;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(angle) * 22, Math.sin(angle) * 22);
-      ctx.lineTo(Math.cos(angle + 0.16) * 78, Math.sin(angle + 0.16) * 78);
-      ctx.lineTo(Math.cos(angle - 0.16) * 78, Math.sin(angle - 0.16) * 78);
-      ctx.closePath();
-      ctx.fill();
-    }
+  ctx.fillStyle = blueDress ? "rgba(125,211,252,0.42)" : humanKill ? "rgba(226,232,240,0.42)" : "rgba(239,68,68,0.55)";
+  for (let i = 0; i < 7; i += 1) {
+    const angle = (Math.PI * 2 * i) / 7 + now / 180;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * 22, Math.sin(angle) * 22);
+    ctx.lineTo(Math.cos(angle + 0.16) * 78, Math.sin(angle + 0.16) * 78);
+    ctx.lineTo(Math.cos(angle - 0.16) * 78, Math.sin(angle - 0.16) * 78);
+    ctx.closePath();
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -13334,36 +13348,29 @@ function drawKillCutin(effect, w, h) {
   const fadeOut = clamp((effect.duration - age) / 230, 0, 1);
   const alpha = Math.min(fadeIn, fadeOut);
   const humanKill = !(effect.killerIsBot || effect.killerSkinId === "operator");
-  const electric = humanKill && normalizeSkinId(effect.killerSkinId) === "hood";
-  const blueDress = humanKill && !electric;
+  const blueDress = humanKill && normalizeSkinId(effect.killerSkinId) === "blue-dress";
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = electric ? "rgba(3,20,33,0.78)" : blueDress ? "rgba(20,31,45,0.80)" : "rgba(24,10,12,0.74)";
+  ctx.fillStyle = blueDress ? "rgba(20,31,45,0.80)" : humanKill ? "rgba(22,27,34,0.80)" : "rgba(24,10,12,0.74)";
   ctx.fillRect(0, h * 0.16, w, h * 0.34);
-  ctx.fillStyle = electric ? "rgba(34,211,238,0.96)" : blueDress ? "rgba(147,197,253,0.94)" : "rgba(239,68,68,0.92)";
+  ctx.fillStyle = blueDress ? "rgba(147,197,253,0.94)" : humanKill ? "rgba(226,232,240,0.94)" : "rgba(239,68,68,0.92)";
   ctx.fillRect(0, h * 0.16, w, 5);
   ctx.fillRect(0, h * 0.50 - 5, w, 5);
 
   const slide = (1 - Math.min(1, progress * 4)) * 120;
   if (humanKill) {
     drawCutinPet(12 - slide, h * 0.16 - 2, cutinFrame, effect.killerSkinId);
-    if (electric) {
-      for (let i = 0; i < 6; i += 1) {
-        const y = h * 0.22 + i * 14 + Math.sin(now / 80 + i) * 8;
-        drawScreenLightning(250, y, w - 30, y + Math.sin(now / 60 + i) * 24, i);
-      }
-    }
   } else {
     drawCutinOperator(98 - slide, h * 0.45);
   }
 
-  ctx.fillStyle = electric ? "#dffbff" : blueDress ? "#eff6ff" : "#fff1f2";
+  ctx.fillStyle = blueDress ? "#eff6ff" : humanKill ? "#f8fafc" : "#fff1f2";
   ctx.font = "900 34px Segoe UI, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText(electric ? "電撃キル" : "キル", 260 - slide * 0.35, h * 0.31);
+  ctx.fillText("キル", 260 - slide * 0.35, h * 0.31);
   ctx.font = "800 15px Segoe UI, sans-serif";
-  ctx.fillStyle = electric ? "#67e8f9" : blueDress ? "#bfdbfe" : "#fca5a5";
+  ctx.fillStyle = blueDress ? "#bfdbfe" : humanKill ? "#cbd5e1" : "#fca5a5";
   ctx.fillText(effect.name ? `${effect.name} 撃破` : "対象を撃破", 264 - slide * 0.35, h * 0.38);
   ctx.restore();
 }
@@ -13818,7 +13825,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "fighter-arsenal-gold-v403";
+const version = "energy-rest-killcutin-v406";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -13902,7 +13909,9 @@ const version = "fighter-arsenal-gold-v403";
     "assets/generated/drone-altitude-high-v311.png"
   ]);
   const fighterSlashEffect = new Image();
-  const fighterSwordChargeEffect = new Image();
+  const fighterEnergyChargeEffect = new Image();
+  const fighterEnergyReleaseEffect = new Image();
+  const fighterEnergyImpactEffect = new Image();
   const fighterShockwaveEffect = new Image();
   const standFirmMarkerEffect = philosophyEffectTextures[4];
   const pushMarkerEffect = philosophyEffectTextures[5];
@@ -13983,7 +13992,7 @@ const version = "fighter-arsenal-gold-v403";
   defer(playerWalk60, "assets/player-walk-60.webp");
   defer(blueDressMaster, "assets/generated/skin-blue-dress-master-chibi-v3.webp");
   defer(blueDressWalk60, "assets/generated/skin-blue-dress-walk-60.webp");
-  defer(killCutinMaster, "assets/kill-cutin-master-b.webp");
+  defer(killCutinMaster, "assets/generated/white-hood-kill-cutin-v404.png");
   defer(blueDressKillCutin, "assets/generated/skin-blue-dress-kill-cutin.webp");
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
@@ -13991,8 +14000,10 @@ const version = "fighter-arsenal-gold-v403";
   defer(heartTeleportEffect, "assets/generated/heart-teleport-v311.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
-  defer(fighterSwordChargeEffect, "assets/generated/fighter-sword-charge-ate-v393.png");
-  defer(fighterShockwaveEffect, "assets/generated/fighter-shockwave-ate-v393.png");
+  defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
+  defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
+  defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
+  defer(fighterShockwaveEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(floraHealV1, "assets/generated/flora-self-heal-v336.png");
   defer(floraSunbeamV3, "assets/generated/flora-sunbeam-v3-v336.png");
   defer(tacticalSystemsAtlas, "assets/generated/tactical-systems-atlas.webp");
@@ -14083,7 +14094,9 @@ const version = "fighter-arsenal-gold-v403";
     gunnerCombatStateEffects,
     droneAltitudeEffects,
     fighterSlashEffect,
-    fighterSwordChargeEffect,
+    fighterEnergyChargeEffect,
+    fighterEnergyReleaseEffect,
+    fighterEnergyImpactEffect,
     fighterShockwaveEffect,
     standFirmMarkerEffect,
     pushMarkerEffect,
