@@ -1414,6 +1414,39 @@ async function enterFullscreen() {
   }
 }
 
+function createFullscreenSwipeGuard({ isActive, resolveScrollable }) {
+  const touches = new Map();
+  return {
+    start(id, clientY, target) {
+      if (!isActive()) return false;
+      touches.set(id, {
+        lastY: clientY,
+        scrollable: resolveScrollable(target)
+      });
+      return true;
+    },
+    move(id, clientY) {
+      const touch = touches.get(id);
+      if (!touch || !isActive()) return false;
+      const deltaY = clientY - touch.lastY;
+      touch.lastY = clientY;
+      if (Math.abs(deltaY) < 0.5) return false;
+      const scrollable = touch.scrollable;
+      if (!scrollable) return true;
+      const maxScrollTop = Math.max(0, scrollable.scrollHeight - scrollable.clientHeight);
+      if (maxScrollTop <= 0) return true;
+      if (deltaY > 0) return scrollable.scrollTop <= 0;
+      return scrollable.scrollTop >= maxScrollTop - 1;
+    },
+    end(id) {
+      return touches.delete(id);
+    },
+    clear() {
+      touches.clear();
+    }
+  };
+}
+
 function requestStartupFullscreen() {
   if (document.fullscreenElement) return;
   state.startupFullscreenPending = true;
@@ -1622,6 +1655,7 @@ function setScreen(screen) {
   document.body.classList.toggle("start-open", next !== "game");
   document.body.classList.toggle("tactics-open", next === "tactics");
   document.body.classList.toggle("game-open", next === "game");
+  document.documentElement.classList.toggle("game-open", next === "game");
   els.startScreen.hidden = next === "game";
   if (els.titleMuteButton) els.titleMuteButton.hidden = next === "tactics";
   els.gameApp.setAttribute("aria-hidden", String(next !== "game"));
@@ -3900,6 +3934,19 @@ function bindEvents() {
     const scrollRegion = element.closest("[data-scroll-region]");
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
   });
+  const suppressIosGameCallout = (event) => {
+    if (state.screen !== "game") return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest(".item-inventory-choice, .enhance-hold-control")) return;
+    if (event.cancelable) event.preventDefault();
+    const selection = window.getSelection?.();
+    if (selection && selection.rangeCount) selection.removeAllRanges();
+  };
+  document.addEventListener("touchstart", suppressIosGameCallout, { capture: true, passive: false });
+  document.addEventListener("contextmenu", suppressIosGameCallout, { capture: true });
+  document.addEventListener("selectstart", suppressIosGameCallout, { capture: true });
+  document.addEventListener("dragstart", suppressIosGameCallout, { capture: true });
+  document.addEventListener("copy", suppressIosGameCallout, { capture: true });
 
   els.dashButton.addEventListener("pointerdown", (event) => { event.preventDefault(); setDashHeld(true); });
   els.dashButton.addEventListener("pointerup", () => setDashHeld(false));
@@ -4202,18 +4249,35 @@ function bindEvents() {
       event.preventDefault();
     }
   });
-  const preserveFullscreenGameSurface = (event) => {
-    if (state.screen !== "game" || !event.cancelable) return;
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest("input, textarea, select, .tablet-branch-list, .hacker-ability-grid, .active-effects-list, .item-inventory-grid, .vending-list, .field-feed-list")) return;
-    event.preventDefault();
+  const fullscreenScrollSelector = ".tablet-branch-list, .hacker-ability-grid, .active-effects-list, .item-inventory-grid, .vending-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .keybind-list";
+  const fullscreenSwipeGuard = createFullscreenSwipeGuard({
+    isActive: () => state.screen === "game",
+    resolveScrollable: (target) => target instanceof Element ? target.closest(fullscreenScrollSelector) : null
+  });
+  document.addEventListener("touchstart", (event) => {
+    Array.from(event.changedTouches || []).forEach((touch) => {
+      fullscreenSwipeGuard.start(touch.identifier, touch.clientY, event.target);
+    });
+  }, { capture: true, passive: true });
+  document.addEventListener("touchmove", (event) => {
+    const blockPageGesture = Array.from(event.touches || []).some((touch) =>
+      fullscreenSwipeGuard.move(touch.identifier, touch.clientY)
+    );
+    if (blockPageGesture && event.cancelable) event.preventDefault();
+  }, { capture: true, passive: false });
+  const finishFullscreenTouch = (event) => {
+    Array.from(event.changedTouches || []).forEach((touch) => fullscreenSwipeGuard.end(touch.identifier));
   };
-  document.addEventListener("touchmove", preserveFullscreenGameSurface, { capture: true, passive: false });
+  document.addEventListener("touchend", finishFullscreenTouch, { capture: true, passive: true });
+  document.addEventListener("touchcancel", finishFullscreenTouch, { capture: true, passive: true });
   ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
-    document.addEventListener(type, preserveFullscreenGameSurface, { capture: true, passive: false });
+    document.addEventListener(type, (event) => {
+      if (state.screen === "game" && event.cancelable) event.preventDefault();
+    }, { capture: true, passive: false });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
+      fullscreenSwipeGuard.clear();
       stopContinuousActionHold();
       stopContinuousActionKeyHold();
       state.continuousActionKeyAt.clear();
@@ -7544,7 +7608,14 @@ function renderItemControl(data) {
       button.style.webkitUserSelect = "none";
       button.style.userSelect = "none";
       button.setAttribute("role", "option");
+      button.setAttribute("aria-label", `${item.label} ${item.output || "所持品"} ${item.badge || ""}`.trim());
       button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.output || "所持品")}</small></span><b>${escapeHtml(item.badge || "")}</b>`;
+      const touchShield = document.createElement("canvas");
+      touchShield.className = "item-touch-shield";
+      touchShield.width = 1;
+      touchShield.height = 1;
+      touchShield.setAttribute("aria-hidden", "true");
+      button.append(touchShield);
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
@@ -14123,7 +14194,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "bot-win-touch-input-v415";
+const version = "ios-touch-guard-v416";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
