@@ -6732,8 +6732,6 @@ const FIRE_JUTSU_RADIUS = 240;
 const ENHANCE_HOLD_STEP_MS = 600;
 const ENHANCE_MAX_LEVEL = 4;
 const ITEM_THROW_BASE_DISTANCE = 220;
-const ITEM_THROW_DISTANCE_PER_MS = 0.24;
-const ITEM_THROW_MAX_DISTANCE = 980;
 const ITEM_THROW_SPEED = 1120;
 const ITEM_THROW_MIN_FLIGHT_MS = 240;
 const ITEM_THROW_MAX_FLIGHT_MS = 920;
@@ -7064,8 +7062,8 @@ const SOLO_MISSIONS = Object.freeze({
   }),
   intel: Object.freeze({
     id: "intel",
-    name: "索敵・攪乱訓練",
-    objective: "ドローンを展開し、サボタージュを起動する",
+    name: "千里眼・攪乱訓練",
+    objective: "画面外へ投擲し、サボタージュを起動する",
     team: "attacker",
     operatorId: "attacker-alchemist",
     botCount: 3,
@@ -9422,7 +9420,7 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
     completed: false,
     taskCount: 0,
     defenseActivatedAt: 0,
-    droneUsed: false,
+    clairvoyanceUsed: false,
     sabotageUsed: false,
     empResonated: false,
     hintUnlocked: false,
@@ -10700,7 +10698,7 @@ function soloMissionProgress(room, timestamp = now()) {
     return `防御後の生存 ${seconds.toFixed(1)} / ${(mission.surviveMs / 1000).toFixed(0)}秒`;
   }
   if (mission.metric === "intel") {
-    return `ドローン ${state.droneUsed ? "完了" : "未完了"} / サボ ${state.sabotageUsed ? "完了" : "未完了"}`;
+    return `千里眼投擲 ${state.clairvoyanceUsed ? "完了" : "未完了"} / サボ ${state.sabotageUsed ? "完了" : "未完了"}`;
   }
   if (mission.metric === "emp") return state.empResonated ? "EMP相互作用 完了" : "EMP相互作用 未完了";
   if (mission.metric === "cpu") return "グラビティCPUの手順を妨害して生存";
@@ -10728,7 +10726,7 @@ function evaluateSoloMission(room, timestamp = now()) {
     completed = Boolean(state.defenseActivatedAt) && (
       timestamp - state.defenseActivatedAt >= mission.surviveMs || alivePlayers(room, "attacker").length === 0
     );
-  } else if (mission.metric === "intel") completed = state.droneUsed && state.sabotageUsed;
+  } else if (mission.metric === "intel") completed = state.clairvoyanceUsed && state.sabotageUsed;
   else if (mission.metric === "emp") completed = state.empResonated;
   else if (mission.metric === "cpu") completed = room.phase === "ended" && room.winner === "defenders";
   return completed ? completeSoloMission(room, mission) : false;
@@ -10739,7 +10737,7 @@ function markSoloMissionAction(room, player, action) {
   if (!state || state.playerId !== player.id || state.completed) return;
   if (action === "task") state.taskCount += 1;
   else if (action === "defense" && !state.defenseActivatedAt) state.defenseActivatedAt = now();
-  else if (action === "drone") state.droneUsed = true;
+  else if (action === "clairvoyance") state.clairvoyanceUsed = true;
   else if (action === "sabotage") state.sabotageUsed = true;
   evaluateSoloMission(room);
 }
@@ -11546,45 +11544,6 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       }
     }
   }
-}
-
-function deployDrone(room, player) {
-  if (room.phase !== "playing") throw new ApiError(400, "バトル中のみドローンを使用できます。");
-  if (player.role !== "attacker" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はドローンを使用できません。");
-  }
-  ensureAbilityAvailable(player);
-  const timestamp = now();
-  if (player.drone.active) {
-    player.drone.active = false;
-    player.drone.vx = 0;
-    player.drone.vy = 0;
-    pushEvent(room, `${player.name} がドローンを回収しました。`);
-  } else {
-    if (player.drone.destroyed) throw new ApiError(400, "この試合で破壊されたドローンは再使用できません。");
-    player.drone.active = true;
-    player.drone.x = player.x;
-    player.drone.y = player.y;
-    player.drone.vx = 0;
-    player.drone.vy = 0;
-    player.drone.altitude = DRONE_ALTITUDE_MAX;
-    pushMagicEffect(room, "action-drone", player, { radius: 105, playerId: player.id });
-    pushEvent(room, `${player.name} が索敵ドローンを展開しました。`);
-    markSoloMissionAction(room, player, "drone");
-  }
-  player.vx = 0;
-  player.vy = 0;
-  touch(room);
-}
-
-function lockDroneAtMaxAltitude(room, player) {
-  if (room.phase !== "playing") throw new ApiError(400, "バトル中のみドローンを操作できます。");
-  if (!player.alive || player.ejected || !player.drone?.active) {
-    throw new ApiError(403, "展開中のドローンがありません。");
-  }
-  ensureConscious(player);
-  player.drone.altitude = DRONE_ALTITUDE_MAX;
-  touch(room);
 }
 
 function destroyDrone(player, timestamp) {
@@ -12717,9 +12676,8 @@ function addHazardField(room, source, kind, x, y, radius, strength = 1, duration
   return field;
 }
 
-function safeThrowPoint(room, player, holdMs = 0, targetX = Number.NaN, targetY = Number.NaN) {
+function safeThrowPoint(room, player, targetX = Number.NaN, targetY = Number.NaN) {
   const map = getMap(room);
-  const enhanceDistance = Math.min(ITEM_THROW_MAX_DISTANCE, ITEM_THROW_BASE_DISTANCE + Math.max(0, Number(holdMs) || 0) * ITEM_THROW_DISTANCE_PER_MS);
   const requestedX = Number(targetX);
   const requestedY = Number(targetY);
   const requestedDx = requestedX - player.x;
@@ -12729,7 +12687,7 @@ function safeThrowPoint(room, player, holdMs = 0, targetX = Number.NaN, targetY 
   const direction = explicitTarget
     ? { dx: requestedDx / requestedLength, dy: requestedDy / requestedLength }
     : finiteDirection(player.aimX, player.aimY, 0, 1);
-  const throwDistance = explicitTarget ? Math.min(enhanceDistance, requestedLength) : enhanceDistance;
+  const throwDistance = explicitTarget ? requestedLength : ITEM_THROW_BASE_DISTANCE;
   for (let ratio = 1; ratio >= 0.15; ratio -= 0.05) {
     const x = clampNumber(player.x + direction.dx * throwDistance * ratio, map.playerRadius, map.width - map.playerRadius, player.x);
     const y = clampNumber(player.y + direction.dy * throwDistance * ratio, map.playerRadius, map.height - map.playerRadius, player.y);
@@ -12970,8 +12928,8 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
   ensureItemStorageAvailable(player);
   if (!ITEM_DEFINITIONS[itemId]) throw new ApiError(400, "投擲対象が不正です。");
   const level = resolveEnhance(room, player, rawHoldMs, ITEM_DEFINITIONS[itemId].label);
-  const effectiveHoldMs = Math.min(Math.max(0, Number(rawHoldMs) || 0), (level + 1) * ENHANCE_HOLD_STEP_MS);
-  const landing = safeThrowPoint(room, player, effectiveHoldMs, targetX, targetY);
+  const landing = safeThrowPoint(room, player, targetX, targetY);
+  if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   consumeItem(player, itemId);
   queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, level);
 }
@@ -12983,8 +12941,8 @@ function throwOwnedItem(room, player, itemId, rawHoldMs = 0, targetX = Number.Na
   ensureItemStorageAvailable(player);
   const label = TRANSFERABLE_CHARGES[itemId]?.label || transferableItemsFor(player).find((entry) => entry.id === itemId)?.label || "アイテム";
   const level = resolveEnhance(room, player, rawHoldMs, label);
-  const effectiveHoldMs = Math.min(Math.max(0, Number(rawHoldMs) || 0), (level + 1) * ENHANCE_HOLD_STEP_MS);
-  const landing = safeThrowPoint(room, player, effectiveHoldMs, targetX, targetY);
+  const landing = safeThrowPoint(room, player, targetX, targetY);
+  if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   const item = removeTransferableItem(player, itemId, 1);
   queueThrownItem(room, player, itemId, item, landing, level);
 }
@@ -14156,7 +14114,9 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
 
   const { dx, dy } = finiteDirection(shooter.aimX, shooter.aimY, 0, 1);
   const targetEntry = findGunnerTarget(room, shooter, weapon, dx, dy);
-  const endPoint = targetEntry?.player || shotEndPoint(room, shooter, dx, dy, weapon.range);
+  const endPoint = targetEntry
+    ? { x: shooter.x + dx * targetEntry.along, y: shooter.y + dy * targetEntry.along }
+    : shotEndPoint(room, shooter, dx, dy, weapon.range);
   pushMagicEffect(room, "action-shoot", shooter, {
     radius: Math.max(90, weapon.lineWidth * 2),
     playerId: shooter.id,
@@ -14254,13 +14214,11 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
     startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空のため");
     return;
   }
-  const droneGuided = Boolean(shooter.drone?.active);
   const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
   const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
-  let dx = droneGuided ? shooter.drone.x - shooter.x : clampNumber(rawDx, -1, 1, fallbackDx);
-  let dy = droneGuided ? shooter.drone.y - shooter.y : clampNumber(rawDy, -1, 1, fallbackDy);
+  let dx = clampNumber(rawDx, -1, 1, fallbackDx);
+  let dy = clampNumber(rawDy, -1, 1, fallbackDy);
   const length = Math.hypot(dx, dy) || 1;
-  if (droneGuided && length < 24) throw new ApiError(400, "ドローンを狙撃方向へ先行させてください。");
   dx /= length;
   dy /= length;
   shooter.aimX = dx;
@@ -15093,7 +15051,6 @@ function resyncMovementSession(room, player, body) {
 }
 
 function serializeMovement(room, player, movementSeq = player.lastMovementSeq, movementClock = player.lastMovementClock) {
-  const droneActive = Boolean(player.drone?.active);
   const timestamp = now();
   return {
     ok: true,
@@ -15118,18 +15075,7 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     alive: player.alive,
     ejected: player.ejected,
     inVent: player.inVent,
-    stamina: player.stamina,
-    drone: player.drone ? {
-      active: droneActive,
-      x: player.drone.x,
-      y: player.drone.y,
-      moveX: player.drone.vx,
-      moveY: player.drone.vy,
-      readyAt: player.drone.readyAt,
-      destroyed: Boolean(player.drone.destroyed),
-      movementMode: player.drone.movementMode,
-      altitude: DRONE_ALTITUDE_MAX
-    } : null
+    stamina: player.stamina
   };
 }
 
@@ -15415,7 +15361,6 @@ function serialize(room, viewer, options = {}) {
         dodge: DODGE_MANA_COST,
         teleport: TELEPORT_MANA_COST,
         heartTeleport: HEART_TELEPORT_MANA_COST,
-        drone: DRONE_MANA_COST,
         emp: EMP_MANA_COST,
         shoot: GUNNER_MANA_COST,
         hoverSprint: ABILITY_MANA_COST,
@@ -15472,34 +15417,12 @@ function serialize(room, viewer, options = {}) {
       hackerRootActive: hackerRootEligible(viewer),
       hackerRootOperators: hackerRootEligible(viewer) ? [...HACKER_ROOT_OPERATOR_TYPES] : [],
       particleCannonUntil: Number(viewer.particleCannonUntil) || 0,
-      drone: viewer.drone ? {
-        active: viewer.drone.active,
-        x: viewer.drone.x,
-        y: viewer.drone.y,
-        moveX: viewer.drone.vx,
-        moveY: viewer.drone.vy,
-        readyAt: viewer.drone.readyAt,
-        destroyed: Boolean(viewer.drone.destroyed),
-        altitude: DRONE_ALTITUDE_MAX,
-        movementMode: viewer.drone.movementMode
-      } : null,
       emergenciesLeft: viewer.emergenciesLeft,
       inVent: viewer.inVent,
       ventId: viewer.ventId,
       killsThisRound: viewer.killsThisRound
     },
     players,
-    drones: [...room.players.values()]
-      .filter((player) => player.drone?.active && player.alive && !player.ejected)
-      .map((player) => ({
-        ownerId: player.id,
-        x: Math.round(player.drone.x),
-        y: Math.round(player.drone.y),
-        moveX: player.drone.vx,
-        moveY: player.drone.vy,
-        altitude: DRONE_ALTITUDE_MAX,
-        movementMode: player.drone.movementMode
-      })),
     bodies: visibleBodies(room, viewer),
     hitEffects: room.hitEffects,
     magicEffects: room.magicEffects,
@@ -15881,20 +15804,6 @@ async function handleApi(req, res) {
       const { room, player } = requireRoomPlayer(body);
       jumpPlayer(room, player, body.dx, body.dy);
       adoptMovementSession(player, body);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/drone": {
-      const { room, player } = requireRoomPlayer(body);
-      deployDrone(room, player);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/drone-altitude": {
-      const { room, player } = requireRoomPlayer(body);
-      lockDroneAtMaxAltitude(room, player);
       payload = serialize(room, player);
       break;
     }
@@ -17181,5 +17090,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "pagedown-only-v411" });
+self.postMessage({ type: "ready", version: "clairvoyance-throw-v412" });
 })();

@@ -12,12 +12,12 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v409.png">
-  <link rel="stylesheet" href="styles.css?v=pagedown-only-v411">
+  <link rel="stylesheet" href="styles.css?v=clairvoyance-throw-v412">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v409.png?v=pagedown-only-v411" alt="ゲーム内フローラ回復フィールドを発動する白いフードの女性">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v409.png?v=pagedown-only-v411" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v409.png?v=clairvoyance-throw-v412" alt="ゲーム内フローラ回復フィールドを発動する白いフードの女性">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v409.png?v=clairvoyance-throw-v412" alt="" aria-hidden="true">
       <canvas id="titleFxCanvas" class="title-fx-canvas" aria-hidden="true"></canvas>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -67,7 +67,7 @@
             </article>
             <article class="solo-mission-card" data-solo-card="intel">
               <img src="assets/tutorials/poster-intel.webp" alt="索敵訓練のフィールド">
-              <div><p>DRILL 04</p><h4>索敵・攪乱</h4><span>ドローンを展開し、サボタージュを起動する。</span></div>
+              <div><p>DRILL 04</p><h4>千里眼・攪乱</h4><span>画面外へ投擲し、サボタージュを起動する。</span></div>
               <button type="button" data-solo-mission="intel" data-hotkey="4">開始</button>
             </article>
             <article class="solo-mission-card" data-solo-card="emp">
@@ -114,7 +114,7 @@
               <header><span>二</span><div><p>MOVEMENT & SOUND</p><h3>移動・音響・タスク</h3></div></header>
               <p class="tactics-lead">移動方向は斜めを含む8方向です。速度だけでなく、発する音とスタミナ回復停止が位置情報へ直結します。</p>
               <div class="tactics-rule-grid">
-                <section><h4>三つの移動</h4><p>基準移動速度は抑えめです。通常歩行は小さい足音、ダッシュはスタミナを毎秒42消費して大音量、無音歩行はさらに遅く足音なしです。ドローンはスタミナ不要で加速できます。</p></section>
+                <section><h4>三つの移動</h4><p>基準移動速度は抑えめです。通常歩行は小さい足音、ダッシュはスタミナを毎秒42消費して大音量、無音歩行はさらに遅く足音なしです。</p></section>
                 <section><h4>スタミナ</h4><p>自然回復は完全停止中だけ毎秒19。通常上限100、購入・充填で500まで蓄積できます。タスクは200、回避は100を一括消費します。</p></section>
                 <section><h4>休息</h4><p>不足量を毎秒76で回復するため所要時間は残量で変化します。休息中も視覚・聴覚は残りますが、完了まで移動とアクションが不能です。</p></section>
                 <section><h4>タスク経済</h4><p>DownloadとUploadは200SPを消費し、端末の範囲内で停止し続けると自動実行されます。キー操作は不要です。1件につき10Cを獲得し、死亡したディフェンダーの残タスクは完了扱いになります。</p></section>
@@ -162,9 +162,9 @@
 
             <article id="tactics-intel" class="tactics-article" data-tactics-chapter="4">
               <header><span>五</span><div><p>INFORMATION WARFARE</p><h3>索敵・EMP・サボタージュ</h3></div></header>
-              <p class="tactics-lead">通常は他プレイヤーの位置を地図で追えません。音、カメラ、ドローン、サボタージュ反応から間接的に推定します。</p>
+              <p class="tactics-lead">通常は他プレイヤーの位置を地図で追えません。音、カメラ、千里眼投擲、サボタージュ反応から間接的に推定します。</p>
               <div class="tactics-rule-grid">
-                <section><h4>ドローン</h4><p>アタッカーは障害物を越えて遠隔索敵できます。常に最高高度で飛行し、広範囲を見渡せます。加速にスタミナを使いませんが音は大きく、EMPで破壊されるとその試合中は二度と使用できません。ガンナーはドローン情報を使ってその方向へ通常の射線判定で狙撃し、障害物がなければ命中します。発射してもドローンは失われません。</p></section>
+                <section><h4>千里眼</h4><p>投擲地点が通常視野を外れると自動発動し、カメラが着地点へ追従します。障害物越しにマップ全域を指定できます。長押しはアイテム効果だけをエンハンスし、投擲距離は変化しません。</p></section>
                 <section><h4>監視カメラ</h4><p>ディフェンダーは設置カメラを切り替えて視界を取得します。カメラもEMPで破壊可能なため、映像消失そのものが敵の接近情報になります。</p></section>
                 <section><h4>EMP基本</h4><p>開始直後は8秒、使用後は24秒の再充填。被弾者は7秒間ストレージを遮断され、全アイテムを使用できず、踏ん張り・押し込み・変わり身・武器・パソコンなどの効果も停止します。所持品は失われず、解除後に復旧します。人間のオペ能力は封印しません。</p></section>
                 <section><h4>位相干渉</h4><p>900ms以内に重なった同位相EMPは共振し、中心110以内で確殺、260以内でボディダメージ。逆位相は相殺します。同地点の第三者も共振範囲へ巻き込まれます。</p></section>
@@ -222,6 +222,7 @@
               <button id="tabletAbilityShortcut" class="tablet-quick-action ability" type="button" title="タップして現在のオペ能力を発動">オペ能力</button>
               <button id="tabletShootShortcut" class="tablet-quick-action danger" type="button" hidden>射撃</button>
               <button id="tabletEmpShortcut" class="tablet-quick-action tactical" type="button">EMP</button>
+              <button id="tabletClairvoyanceShortcut" class="tablet-quick-action tactical" type="button">千里眼</button>
               <button id="tabletDodgeShortcut" class="tablet-quick-action" type="button">回避</button>
               <button id="tabletJumpShortcut" class="tablet-quick-action movement" type="button">跳躍</button>
               <button id="tabletRenkiShortcut" class="tablet-quick-action resource" type="button">練気</button>
@@ -251,8 +252,6 @@
               <button id="dodgeButton" data-hotkey="8">回避</button>
               <button id="sleepButton" data-hotkey="K">休息</button>
               <button id="renkiButton" data-hotkey="C">練気</button>
-              <button id="droneButton" data-hotkey="Z">ドローン</button>
-              <button id="droneAltitudeButton" disabled hidden>高度 高（固定）</button>
               <button id="empButton" data-hotkey="X">EMP</button>
               <button id="cameraButton" data-hotkey="B">監視カメラ</button>
               <button id="nextCameraButton" data-hotkey="N">次のカメラ</button>
@@ -642,7 +641,7 @@
         <div id="keybindList" class="keybind-list" data-scroll-region="キー割り当て表" tabindex="0">
           <section><h3>移動</h3><dl><dt>W A S D</dt><dd>移動</dd><dt>Shift</dt><dd>ダッシュ</dd><dt>Ctrl / Alt</dt><dd>無音歩行</dd></dl></section>
           <section><h3>基本操作</h3><dl><dt>Shift + Enter</dt><dd>オフラインルームを作成</dd><dt>J 長押し</dt><dd>全オペ共通の跳躍</dd><dt>\\</dt><dd>ゲーム音オン / オフ</dd><dt>@</dt><dd>キー割り当て表</dd><dt>Tab</dt><dd>タブレット</dd><dt>3 / 4</dt><dd>緊急会議 / スマホ修理</dd><dt>6</dt><dd>忍殺</dd><dt>8</dt><dd>回避</dd><dt>C / K</dt><dd>練気 / 休息</dd><dt>,</dt><dd>MP→SP</dd><dt>G / ' 長押し</dt><dd>スマホ募金</dd><dt>M</dt><dd>マップ</dd><dt>Backspace</dt><dd>退出</dd></dl></section>
-          <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>ドローン / EMP</dd><dt>B / N</dt><dd>監視カメラ / 次のカメラ</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動</dd><dt>矢印 + Enter / Space</dt><dd>サボ内容を選択して起動</dd><dt>L</dt><dd>選択中のサボを直接起動</dd></dl></section>
+          <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>千里眼 / EMP</dd><dt>B / N</dt><dd>監視カメラ / 次のカメラ</dd><dt>千里眼中の移動キー</dt><dd>障害物を無視して観測焦点を移動</dd><dt>投擲中の移動キー</dt><dd>着地点を動かし、画面外では千里眼を自動発動</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動</dd><dt>矢印 + Enter / Space</dt><dd>サボ内容を選択して起動</dd><dt>L</dt><dd>選択中のサボを直接起動</dd></dl></section>
           <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>全オペ共通の固有能力</dd><dt>O / P</dt><dd>全オペ共通の能力モード / 対象切替</dd><dt>7</dt><dd>ガンナー射撃</dd><dt>T / Shift+T</dt><dd>武器を次 / 前へ切替</dd><dt>R</dt><dd>リロード</dd><dt>所持品欄</dt><dd>武器・発明品・重火器を選択して使用</dd><dt>PageDown</dt><dd>操作するUI領域を次へ切替</dd><dt>Shift + ← / →</dt><dd>ハッカー適用内容の分類を切替</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中UI内を移動。↑↓は同時にスクロール</dd><dt>P</dt><dd>ハッカーの適用対象を切替</dd><dt>Enter / Space</dt><dd>選択中の内容を実行</dd></dl></section>
           <section><h3>自販機・所持品</h3><dl><dt>1</dt><dd>ミネラルウォーター</dd><dt>2</dt><dd>回避延長</dd><dt>3</dt><dd>加速</dd><dt>4</dt><dd>即時ワープ</dd><dt>5</dt><dd>ミステリー</dd><dt>6</dt><dd>火遁</dd><dt>7</dt><dd>変わり身</dd><dt>8</dt><dd>踏ん張り</dd><dt>9</dt><dd>回復</dd><dt>0</dt><dd>押し込み</dd><dt>P</dt><dd>マナポーション</dd><dt>PageDown</dt><dd>所持品UIを選択</dd><dt>↑ ↓ ← →</dt><dd>所持品を選択移動</dd><dt>Shift+V / Shift+G</dt><dd>使用 / 投擲（長押しでエンハンス）</dd><dt>Alt+V / Alt+C</dt><dd>所持品 / 設定量Cを譲渡</dd><dt>Alt+1 / 2 / 3 / 5</dt><dd>レールガン / 荷電粒子砲 / エクスカリバー / 亡命</dd><dt>Alt+4</dt><dd>パソコン</dd><dt>Alt+6 / 7 / 8 / 9 / 0</dt><dd>HG / SMG / AR / SR / テーザー</dd></dl></section>
           <section><h3>ロビー</h3><dl><dt>B</dt><dd>ボット追加</dd><dt>S</dt><dd>対戦開始</dd><dt>M / T</dt><dd>マップ / ホスト陣営</dd><dt>Shift+数字</dt><dd>対象をキック</dd></dl></section>
@@ -652,10 +651,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=pagedown-only-v411"></script>
-    <script src="game-engine.js?v=pagedown-only-v411"></script>
-    <script src="offline-runtime.js?v=pagedown-only-v411"></script>
-    <script src="config.js?v=pagedown-only-v411"></script>
-    <script src="app.js?v=pagedown-only-v411"></script>
+    <script src="game-runtime.js?v=clairvoyance-throw-v412"></script>
+    <script src="game-engine.js?v=clairvoyance-throw-v412"></script>
+    <script src="offline-runtime.js?v=clairvoyance-throw-v412"></script>
+    <script src="config.js?v=clairvoyance-throw-v412"></script>
+    <script src="app.js?v=clairvoyance-throw-v412"></script>
 </body>
 </html>

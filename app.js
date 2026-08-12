@@ -15,11 +15,10 @@ const TABLET_SCROLL_GESTURE_THRESHOLD_PX = 12;
 const SMARTPHONE_REPAIR_STAMINA_COST = 300;
 const MOVEMENT_IDLE_SESSION_ROTATE_MS = 1_500;
 const ITEM_THROW_BASE_DISTANCE_CLIENT = 220;
-const ITEM_THROW_DISTANCE_PER_MS_CLIENT = 0.24;
 const ITEM_THROW_MAX_CHARGE_MS_CLIENT = 3_000;
-const ITEM_THROW_MAX_DISTANCE_CLIENT = 980;
-const ITEM_THROW_TARGETING_WINDOW_MS = 5_000;
-const ITEM_THROW_TARGET_CURSOR_SPEED = 520;
+const ITEM_THROW_TARGETING_WINDOW_MS = 12_000;
+const ITEM_THROW_TARGET_CURSOR_SPEED = 900;
+const CLAIRVOYANCE_ZOOM = 0.65;
 const MARKER_EXPLANATION_DURATION_MS = 1_450;
 const ENHANCE_HOLD_STEP_MS_CLIENT = 600;
 const ENHANCE_MAX_LEVEL_CLIENT = 4;
@@ -73,6 +72,7 @@ const els = {
   tabletAbilityShortcut: $("#tabletAbilityShortcut"),
   tabletShootShortcut: $("#tabletShootShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
+  tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
   tabletDodgeShortcut: $("#tabletDodgeShortcut"),
   tabletJumpShortcut: $("#tabletJumpShortcut"),
   tabletRenkiShortcut: $("#tabletRenkiShortcut"),
@@ -171,8 +171,6 @@ const els = {
   slowWalkButton: $("#slowWalkButton"),
   sleepButton: $("#sleepButton"),
   renkiButton: $("#renkiButton"),
-  droneButton: $("#droneButton"),
-  droneAltitudeButton: $("#droneAltitudeButton"),
   empButton: $("#empButton"),
   empPhaseControl: $("#empPhaseControl"),
   empPhaseSelect: $("#empPhaseSelect"),
@@ -239,8 +237,6 @@ const mapCtx = els.expandedMapCanvas.getContext("2d");
 const titleFxCtx = els.titleFxCanvas.getContext("2d");
 const CAMERA_ZOOM = 1.65;
 const SR_SCOPE_ZOOM = 0.92;
-const DRONE_ALTITUDE_ZOOMS = [1.35, 0.95, 0.65];
-const DRONE_ALTITUDE_LABELS = ["低", "中", "高"];
 const SFX_ASSETS = Object.freeze({
   click: ["ui-click.wav"],
   select: ["ui-confirm.wav"],
@@ -260,7 +256,6 @@ const SFX_ASSETS = Object.freeze({
   dashStep: ["dash-step-1.wav", "dash-step-2.wav"],
   worldStep: ["footstep-1.wav", "footstep-2.wav"],
   worldDash: ["dash-step-1.wav", "dash-step-2.wav"],
-  worldDrone: ["drone.wav"],
   emp: ["emp.wav"],
   fireJutsu: ["fire-jutsu.wav"],
   substitution: ["substitution.wav"],
@@ -412,13 +407,13 @@ const state = {
     holdMs: 0,
     targetX: 0,
     targetY: 0,
-    maxDistance: ITEM_THROW_BASE_DISTANCE_CLIENT,
     startedAt: 0,
     expiresAt: 0,
     lastFrameAt: 0,
     frame: 0,
     directionKeys: new Set()
   },
+  clairvoyance: { active: false, x: 0, y: 0, lastFrameAt: 0, frame: 0 },
   markerHitTargets: [],
   markerExplanation: null,
   operatorBranchesOpen: false,
@@ -1960,7 +1955,7 @@ const actionHotkeys = {
   Digit6: "ninjutsuButton",
   Digit8: "dodgeButton",
   Digit0: "teleportButton",
-  KeyZ: "droneButton",
+  KeyZ: "clairvoyance",
   KeyX: "empButton",
   KeyB: "cameraButton",
   KeyN: "nextCameraButton",
@@ -2012,8 +2007,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/utility": "interact",
   "/api/transfer": "interact",
   "/api/emp": "cast",
-  "/api/drone": "interact",
-  "/api/drone-altitude": "interact",
   "/api/jump": "jump"
 });
 
@@ -2068,8 +2061,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-teleport": "cast",
   "action-heart-teleport": "cast",
   "action-warp": "cast",
-  "action-drone": "interact",
-  "action-drone-altitude": "interact",
   "action-ninjutsu-focus": "focus",
   "action-shoot": "shoot",
   "action-sustained-fire": "shoot",
@@ -2397,7 +2388,6 @@ function emptyThrowTargetingState() {
     holdMs: 0,
     targetX: 0,
     targetY: 0,
-    maxDistance: ITEM_THROW_BASE_DISTANCE_CLIENT,
     startedAt: 0,
     expiresAt: 0,
     lastFrameAt: 0,
@@ -2437,13 +2427,7 @@ function constrainThrowTarget(data, targetX, targetY) {
   const dx = x - origin.x;
   const dy = y - origin.y;
   const distance = Math.hypot(dx, dy);
-  const maxDistance = Math.max(ITEM_THROW_BASE_DISTANCE_CLIENT, Number(state.throwTargeting.maxDistance) || 0);
-  if (distance > maxDistance && distance > 0.01) {
-    const scale = maxDistance / distance;
-    x = origin.x + dx * scale;
-    y = origin.y + dy * scale;
-  }
-  return { x, y, origin, distance: Math.min(distance, maxDistance) };
+  return { x, y, origin, distance };
 }
 
 function moveThrowTarget(dx, dy) {
@@ -2496,7 +2480,6 @@ function beginThrowTargeting(itemId, holdMs = 0) {
     holdMs: Math.max(0, Number(holdMs) || 0),
     targetX: preview.x,
     targetY: preview.y,
-    maxDistance: preview.intendedDistance,
     startedAt: timestamp,
     expiresAt: timestamp + ITEM_THROW_TARGETING_WINDOW_MS,
     lastFrameAt: timestamp,
@@ -2558,6 +2541,88 @@ function releaseThrowTargetMovement(event) {
   return true;
 }
 
+function clairvoyanceDirection() {
+  let dx = 0;
+  let dy = 0;
+  if (state.tabletOpen && state.tabletStick.pointerId !== null) {
+    dx = Number(state.tabletStick.dx) || 0;
+    dy = Number(state.tabletStick.dy) || 0;
+  } else {
+    dx = Number(state.keys.has("right")) - Number(state.keys.has("left"));
+    dy = Number(state.keys.has("down")) - Number(state.keys.has("up"));
+  }
+  const length = Math.hypot(dx, dy);
+  return length > 1 ? { dx: dx / length, dy: dy / length } : { dx, dy };
+}
+
+function beginClairvoyanceMovement(event) {
+  if (!state.clairvoyance.active || state.throwTargeting.active) return false;
+  const direction = throwTargetKey(event);
+  if (!direction) return false;
+  event.preventDefault();
+  state.keys.add(direction);
+  sendMovement(true);
+  return true;
+}
+
+function releaseClairvoyanceMovement(event) {
+  if (!state.clairvoyance.active || state.throwTargeting.active) return false;
+  const direction = throwTargetKey(event);
+  if (!direction) return false;
+  event.preventDefault();
+  state.keys.delete(direction);
+  sendMovement(true);
+  return true;
+}
+
+function updateClairvoyanceFrame(timestamp) {
+  const view = state.clairvoyance;
+  if (!view.active) return;
+  const data = state.data;
+  if (!data || data.phase !== "playing" || !data.self?.alive || data.self.ejected) {
+    toggleClairvoyance(false);
+    return;
+  }
+  const elapsed = clamp(timestamp - (view.lastFrameAt || timestamp), 0, 40);
+  view.lastFrameAt = timestamp;
+  const direction = clairvoyanceDirection();
+  if (direction.dx || direction.dy) {
+    const distance = 1_100 * elapsed / 1000;
+    view.x = clamp(view.x + direction.dx * distance, 0, data.map.width);
+    view.y = clamp(view.y + direction.dy * distance, 0, data.map.height);
+  }
+  view.frame = requestAnimationFrame(updateClairvoyanceFrame);
+}
+
+function toggleClairvoyance(force = null) {
+  const data = state.data;
+  const shouldEnable = force === null ? !state.clairvoyance.active : Boolean(force);
+  if (shouldEnable && (!data || data.phase !== "playing" || !data.self?.alive || data.self.ejected)) return false;
+  if (state.clairvoyance.frame) cancelAnimationFrame(state.clairvoyance.frame);
+  if (!shouldEnable) {
+    clearMovementInput();
+    rotateMovementSession();
+    sendMovement(true);
+    state.clairvoyance = { active: false, x: 0, y: 0, lastFrameAt: 0, frame: 0 };
+    state.camera.initialized = false;
+    updateActionButtons(data);
+    return true;
+  }
+  const self = data.players.find((player) => player.id === data.selfId);
+  if (!self) return false;
+  const origin = renderedPlayer(self);
+  clearMovementInput();
+  rotateMovementSession();
+  sendMovement(true);
+  const timestamp = performance.now();
+  state.clairvoyance = { active: true, x: origin.x, y: origin.y, lastFrameAt: timestamp, frame: 0 };
+  state.clairvoyance.frame = requestAnimationFrame(updateClairvoyanceFrame);
+  state.camera.initialized = false;
+  updateActionButtons(data);
+  showToast("千里眼を起動しました。移動入力で観測焦点を動かします。");
+  return true;
+}
+
 function updateEnhanceReadout() {
   if (!els.enhanceReadout) return;
   if (state.throwTargeting.active) {
@@ -2569,19 +2634,8 @@ function updateEnhanceReadout() {
   const elapsed = hold.startedAt ? Math.max(0, performance.now() - hold.startedAt) : 0;
   const requested = Math.min(ENHANCE_MAX_LEVEL_CLIENT, Math.floor(elapsed / ENHANCE_HOLD_STEP_MS_CLIENT));
   const affordable = Math.min(requested, Math.max(0, Math.floor(Number(state.data?.self?.mana) || 0)));
-  const effectiveThrowHoldMs = Math.min(
-    ITEM_THROW_MAX_CHARGE_MS_CLIENT,
-    elapsed,
-    (affordable + 1) * ENHANCE_HOLD_STEP_MS_CLIENT
-  );
-  const throwDistance = Math.round(Math.min(
-    ITEM_THROW_MAX_DISTANCE_CLIENT,
-    ITEM_THROW_BASE_DISTANCE_CLIENT + effectiveThrowHoldMs * ITEM_THROW_DISTANCE_PER_MS_CLIENT
-  ));
   els.enhanceReadout.textContent = hold.kind
-    ? hold.kind === "throw"
-      ? `投擲距離 ${throwDistance} / エンハンス ${affordable} / -${affordable}MP`
-      : `エンハンス ${affordable} / -${affordable}MP`
+    ? `エンハンス ${affordable} / -${affordable}MP`
     : "長押しでエンハンス / 0MP";
   if (hold.kind) hold.timer = requestAnimationFrame(updateEnhanceReadout);
 }
@@ -2658,6 +2712,10 @@ function triggerActionHotkey(event) {
   if (!elementKey) return false;
   if (!["mapActionButton", "gameMuteButton"].includes(elementKey) && state.data?.phase !== "playing") return false;
   event.preventDefault();
+  if (elementKey === "clairvoyance") {
+    if (!event.repeat) toggleClairvoyance();
+    return true;
+  }
   if (elementKey === "smartphoneRepair") {
     if (!event.repeat) void triggerSmartphoneRepair();
     return true;
@@ -3500,6 +3558,7 @@ function bindEvents() {
   els.tabletBranchList.addEventListener("scroll", renderTabletBranchLines, { passive: true });
   els.tabletNinjutsuShortcut.addEventListener("click", () => els.ninjutsuButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
+  els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
   els.tabletRenkiShortcut.addEventListener("click", () => els.renkiButton.click());
   els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
@@ -3602,7 +3661,6 @@ function bindEvents() {
   els.gunnerReloadButton.addEventListener("click", () => api("/api/gunner-reload"));
   els.dodgeButton.addEventListener("click", () => api("/api/dodge"));
   els.teleportButton.addEventListener("click", triggerTeleportAction);
-  els.droneButton.addEventListener("click", () => api("/api/drone"));
   els.empButton.addEventListener("click", () => api("/api/emp", { phase: els.empPhaseSelect.value }));
   [els.teleportModeSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
     select.addEventListener("change", () => {
@@ -3826,6 +3884,7 @@ function bindEvents() {
       }
       if (beginThrowTargetMovement(event)) return;
     }
+    if (!typingField && beginClairvoyanceMovement(event)) return;
     if (!typingField && event.key.startsWith("Arrow") && !allowSelectionArrowRepeat(event)) {
       event.preventDefault();
       return;
@@ -3993,6 +4052,7 @@ function bindEvents() {
   window.addEventListener("keyup", (event) => {
     stopContinuousActionKeyHold(event.code);
     if (releaseThrowTargetMovement(event)) return;
+    if (releaseClairvoyanceMovement(event)) return;
     for (const key of state.continuousActionKeyAt.keys()) {
       if (key === event.code || key.endsWith(`:${event.code}`)) state.continuousActionKeyAt.delete(key);
     }
@@ -4886,6 +4946,9 @@ function renderTabletControls(data) {
   els.tabletEmpShortcut.textContent = els.empButton.textContent || "EMP";
   els.tabletEmpShortcut.disabled = els.empButton.disabled || els.empButton.hidden;
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
+  els.tabletClairvoyanceShortcut.textContent = state.clairvoyance.active ? "千里眼解除" : "千里眼";
+  els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
+  els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
   els.tabletDodgeShortcut.textContent = els.dodgeButton.textContent || "回避";
   els.tabletDodgeShortcut.disabled = els.dodgeButton.disabled || els.dodgeButton.hidden;
   els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
@@ -5820,15 +5883,6 @@ async function pulseGunFire() {
 
 function gunnerDirection() {
   const data = state.data;
-  if (data?.self.drone?.active) {
-    const player = selfPlayer();
-    const origin = player ? renderedPlayer(player) : null;
-    const drone = state.renderDrone || data.self.drone;
-    const dx = origin && drone ? drone.x - origin.x : 0;
-    const dy = origin && drone ? drone.y - origin.y : 0;
-    const distance = Math.hypot(dx, dy);
-    if (distance > 0.01) return { dx: dx / distance, dy: dy / distance };
-  }
   const input = getDirection();
   if (input.dx || input.dy) return input;
   const aimX = Number(data?.self.aimX) || 0;
@@ -7746,7 +7800,6 @@ function updateActionButtons(data) {
     borrowedGunnerAccess,
     canUseKill,
     state.cameraViewIndex >= 0 && cameraIndices.length >= 2,
-    Boolean(self.drone?.active),
     (self.warpCharges || 0) > 0,
     (self.fireJutsuCharges || 0) > 0,
     hasDisplayedOperatorAccess(self, "gravity"),
@@ -7775,8 +7828,6 @@ function updateActionButtons(data) {
       : !["fighter", "teleport", "flora", "gunner", "quantum"].includes(self.special);
     els.jumpButton.hidden = true;
     els.gunnerReloadButton.hidden = true;
-    els.droneButton.hidden = !isAttacker;
-    els.droneAltitudeButton.hidden = true;
     els.empButton.hidden = false;
     els.cameraButton.hidden = self.role !== "defender";
     els.nextCameraButton.hidden = self.role !== "defender";
@@ -7836,7 +7887,7 @@ function updateActionButtons(data) {
   const gunAmmoReady = Number(gunnerWeapon.ammo) >= Number(gunnerWeapon.ammoPerShot || 1);
   const firingWeapon = gunnerWeapons.find((weapon) => weapon.id === self.gunFiringWeapon) || gunnerWeapon;
   const reloadSeconds = Math.max(0, ((Number(self.gunnerReloadUntil) || 0) - liveNow) / 1000);
-  const shootLabel = self.drone?.active ? "ドローン射撃" : "射撃";
+  const shootLabel = "射撃";
   els.weaponButton.dataset.weapon = gunnerWeapon.id;
   els.weaponButton.dataset.destroyed = "false";
   els.weaponButton.textContent = `${gunnerWeapon.shortName || gunnerWeapon.name} ${gunnerWeapon.ammo}/${gunnerWeapon.maxAmmo}`;
@@ -7934,12 +7985,6 @@ function updateActionButtons(data) {
     (displayedOperator === "gunner" && ((Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("hoverSprint"))) ||
     (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
     (activeBorrowedOperator && borrowedStateBlocked);
-  const droneDestroyed = Boolean(self.drone?.destroyed);
-  els.droneButton.textContent = droneDestroyed ? "ドローン破壊済み" : self.drone?.active ? "ドローン回収" : "ドローン";
-  els.droneButton.dataset.destroyed = String(droneDestroyed);
-  els.droneButton.disabled = !(canUseAbility && isAttacker && !droneDestroyed && (self.drone?.active || hasMana("drone")));
-  els.droneAltitudeButton.textContent = "高度 高（固定）";
-  els.droneAltitudeButton.disabled = true;
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
   els.empButton.textContent = empSeconds > 0 ? `${empPhaseLabel}EMP ${empSeconds}秒` : `${empPhaseLabel}EMP`;
@@ -8233,7 +8278,7 @@ function sendMovement(forceStop = false) {
   const data = state.data;
   if (!data || data.phase !== "playing") return;
   if (state.cameraViewIndex >= 0 && !forceStop) return;
-  const actionLocksMovement = Boolean(state.enhanceHold.kind) || state.throwTargeting.active;
+  const actionLocksMovement = Boolean(state.enhanceHold.kind) || state.throwTargeting.active || state.clairvoyance.active;
   const direction = forceStop || actionLocksMovement ? { dx: 0, dy: 0 } : getDirection();
   const moving = Boolean(direction.dx || direction.dy);
   const timestamp = performance.now();
@@ -8407,13 +8452,6 @@ function applyMovementAck(result) {
   data.self.accelerationMultiplier = authoritativeAcceleration;
   player.speedMultiplier = authoritativeSpeed;
   player.accelerationMultiplier = authoritativeAcceleration;
-  if (result.drone?.active) {
-    data.self.drone = { ...data.self.drone, ...result.drone };
-    if (!state.renderDrone) state.renderDrone = { x: result.drone.x, y: result.drone.y, targetX: result.drone.x, targetY: result.drone.y };
-    state.renderDrone.targetX = result.drone.x;
-    state.renderDrone.targetY = result.drone.y;
-    return;
-  }
   player.x = result.x;
   player.y = result.y;
   player.moveX = result.moveX;
@@ -8457,7 +8495,7 @@ function isSlowWalking() {
 }
 
 function getDirection() {
-  if (state.enhanceHold.kind || state.throwTargeting.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
+  if (state.enhanceHold.kind || state.throwTargeting.active || state.clairvoyance.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
   const stickLength = Math.hypot(state.tabletStick.dx, state.tabletStick.dy);
   if (state.tabletOpen && stickLength > 0.01) {
     return { dx: state.tabletStick.dx, dy: state.tabletStick.dy };
@@ -8652,8 +8690,8 @@ function draw() {
       drawWorldSoundEffects();
       drawJumpPreparationEffect(data);
       drawThrowLandingPreview(data);
+      drawStandaloneClairvoyanceAte(data);
       drawPlayers(data);
-      drawDrones(data);
       drawHitEffects();
       drawMagicEffects();
       drawAttackTargets(data);
@@ -8683,13 +8721,21 @@ function sniperScopeActive(data = state.data) {
 
 function worldZoomFor(data = state.data) {
   if (!data) return CAMERA_ZOOM;
+  if (throwTargetClairvoyanceActive(data) || state.clairvoyance.active) return CLAIRVOYANCE_ZOOM;
   if (state.cameraViewIndex >= 0) return CAMERA_ZOOM;
-  if (data.self?.drone?.active) {
-    const altitude = Math.max(0, Math.min(2, Number(data.self.drone.altitude) || 0));
-    return DRONE_ALTITUDE_ZOOMS[altitude];
-  }
   if (sniperScopeActive(data)) return SR_SCOPE_ZOOM;
   return CAMERA_ZOOM;
+}
+
+function throwTargetClairvoyanceActive(data = state.data) {
+  if (!state.throwTargeting.active || !data?.map) return false;
+  const self = data.players?.find((player) => player.id === data.selfId);
+  if (!self) return false;
+  const origin = renderedPlayer(self);
+  const halfWidth = Math.max(120, els.canvas.width / CAMERA_ZOOM / 2 - 72);
+  const halfHeight = Math.max(120, els.canvas.height / CAMERA_ZOOM / 2 - 72);
+  return Math.abs(state.throwTargeting.targetX - origin.x) > halfWidth ||
+    Math.abs(state.throwTargeting.targetY - origin.y) > halfHeight;
 }
 
 function scopeRayEnd(data, origin, angle, maxDistance) {
@@ -8750,14 +8796,15 @@ function drawSensoryBlackout(data, w, h) {
 
 function drawModeBanner(data, w) {
   let text = "";
-  if (state.cameraViewIndex >= 0) {
+  if (throwTargetClairvoyanceActive(data)) {
+    text = "千里眼 / 着地点追従 / 全域投擲";
+  } else if (state.clairvoyance.active) {
+    text = "千里眼 / 広域観測 / Zで解除";
+  } else if (state.cameraViewIndex >= 0) {
     const camera = currentCamera(data);
     const available = availableCameraIndices(data);
     const position = available.indexOf(state.cameraViewIndex) + 1;
     text = `監視カメラ / ${camera?.label || "カメラ"} / ${position}-${available.length}`;
-  } else if (data.self.drone?.active) {
-    const altitude = Math.max(0, Math.min(2, Number(data.self.drone.altitude) || 0));
-    text = `ドローン操作 / 最高高度固定 / Shift加速`;
   } else if (data.self.aimTargetId) {
     const target = data.players.find((player) => player.id === data.self.aimTargetId);
     const remaining = Math.max(0, data.self.aimReadyAt - estimatedServerNow(data));
@@ -8791,23 +8838,29 @@ function drawIdle(w, h) {
 function cameraFor(data, w, h, zoom = 1) {
   const self = selfPlayer();
   const selectedCamera = currentCamera(data);
-  const droneTarget = data.self.drone?.active && state.renderDrone ? state.renderDrone : null;
-  const scopeTarget = !selectedCamera && !droneTarget && sniperScopeActive(data) && self
+  const throwTarget = state.throwTargeting.active
+    ? { x: state.throwTargeting.targetX, y: state.throwTargeting.targetY }
+    : null;
+  const clairvoyanceTarget = !throwTarget && state.clairvoyance.active
+    ? { x: state.clairvoyance.x, y: state.clairvoyance.y }
+    : null;
+  const scopeTarget = !throwTarget && !clairvoyanceTarget && !selectedCamera && sniperScopeActive(data) && self
     ? {
         x: renderedPlayer(self).x + (Number(data.self.aimX) || 0) * 470,
         y: renderedPlayer(self).y + (Number(data.self.aimY) || 1) * 470
       }
     : null;
-  const target = selectedCamera || droneTarget || scopeTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
+  const target = throwTarget || clairvoyanceTarget || selectedCamera || scopeTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
   const viewW = w / zoom;
   const viewH = h / zoom;
   const desiredX = clamp(target.x - viewW / 2, 0, Math.max(0, data.map.width - viewW));
   const desiredY = clamp(target.y - viewH / 2, 0, Math.max(0, data.map.height - viewH));
-  const altitude = Math.max(0, Math.min(2, Number(data.self.drone?.altitude) || 0));
-  const mode = selectedCamera
-    ? `camera:${selectedCamera.id}`
-    : droneTarget
-      ? `drone:${altitude}:${zoom}`
+  const mode = throwTarget
+    ? `throw-target:${throwTargetClairvoyanceActive(data) ? "clairvoyance" : "follow"}:${zoom}`
+    : clairvoyanceTarget
+      ? `clairvoyance:${zoom}`
+      : selectedCamera
+      ? `camera:${selectedCamera.id}`
       : scopeTarget
         ? `sniper:${zoom}`
         : `player:${data.selfId}:${zoom}`;
@@ -10485,7 +10538,8 @@ const ATE_GLOW_PROFILES = Object.freeze({
   recoil: Object.freeze({ core: "rgba(248,250,252,.5)", aura: "rgba(96,165,250,.4)", outer: "rgba(249,115,22,.25)", blur: 13, pulse: 0.26 }),
   shield: Object.freeze({ core: "rgba(255,255,255,.54)", aura: "rgba(147,197,253,.43)", outer: "rgba(129,140,248,.26)", blur: 18, pulse: 0.16 }),
   combustion: Object.freeze({ core: "rgba(255,247,237,.54)", aura: "rgba(249,115,22,.46)", outer: "rgba(225,29,72,.29)", blur: 20, pulse: 0.3 }),
-  targeting: Object.freeze({ core: "rgba(240,253,250,.58)", aura: "rgba(45,212,191,.46)", outer: "rgba(250,204,21,.28)", blur: 16, pulse: 0.14 })
+  targeting: Object.freeze({ core: "rgba(240,253,250,.58)", aura: "rgba(45,212,191,.46)", outer: "rgba(250,204,21,.28)", blur: 16, pulse: 0.14 }),
+  clairvoyance: Object.freeze({ core: "rgba(255,255,255,.62)", aura: "rgba(56,189,248,.48)", outer: "rgba(250,204,21,.3)", blur: 19, pulse: 0.2 })
 });
 
 function normalizeAteGlowMode(mode = "energy") {
@@ -10595,6 +10649,13 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
       }
       shardWidth *= 0.72;
       shardHeight *= 1.42;
+    } else if (normalizedMode === "clairvoyance") {
+      const sweep = ((sampledTime * 0.42 + index / Math.max(1, count)) % 1 + 1) % 1;
+      x = (-0.4 + sweep * 0.8) * width;
+      y = Math.sin(sweep * Math.PI * 2 + seed) * height * 0.16;
+      rotation = Math.atan2(Math.cos(sweep * Math.PI * 2 + seed) * height * 0.16, width * 0.8);
+      shardWidth *= 1.7;
+      shardHeight *= 0.56;
     } else if (normalizedMode === "glitch") {
       x = (-0.34 + cycle * 0.68) * width;
       y = (-0.32 + (index % 6) * 0.13) * height;
@@ -10694,15 +10755,6 @@ function clientEnhanceLevel(elapsedMs, self = state.data?.self) {
   return Math.min(requested, Math.max(0, Math.floor(Number(self?.mana) || 0)));
 }
 
-function effectiveThrowHoldMs(elapsedMs, self = state.data?.self) {
-  const level = clientEnhanceLevel(elapsedMs, self);
-  return Math.min(
-    ITEM_THROW_MAX_CHARGE_MS_CLIENT,
-    Math.max(0, Number(elapsedMs) || 0),
-    (level + 1) * ENHANCE_HOLD_STEP_MS_CLIENT
-  );
-}
-
 function currentThrowDirection(data) {
   const input = getDirection();
   if (input.dx || input.dy) return input;
@@ -10724,11 +10776,7 @@ function predictedThrowLanding(data, elapsedMs) {
   if (!self || !data?.map) return null;
   const origin = renderedPlayer(self);
   const direction = currentThrowDirection(data);
-  const holdMs = effectiveThrowHoldMs(elapsedMs, data.self);
-  const intendedDistance = Math.min(
-    ITEM_THROW_MAX_DISTANCE_CLIENT,
-    ITEM_THROW_BASE_DISTANCE_CLIENT + holdMs * ITEM_THROW_DISTANCE_PER_MS_CLIENT
-  );
+  const intendedDistance = ITEM_THROW_BASE_DISTANCE_CLIENT;
   const radius = Math.max(12, (Number(data.map.playerRadius) || 36) * 0.4);
   for (let ratio = 1; ratio >= 0.15; ratio -= 0.05) {
     const x = clamp(origin.x + direction.dx * intendedDistance * ratio, radius, data.map.width - radius);
@@ -10741,7 +10789,7 @@ function predictedThrowLanding(data, elapsedMs) {
         direction,
         distance: intendedDistance * ratio,
         intendedDistance,
-        charge: clamp(holdMs / ITEM_THROW_MAX_CHARGE_MS_CLIENT, 0, 1)
+        charge: clamp(clientEnhanceLevel(elapsedMs, data.self) / ENHANCE_MAX_LEVEL_CLIENT, 0, 1)
       };
     }
   }
@@ -10762,8 +10810,8 @@ function targetedThrowLanding(data) {
     y: target.y,
     direction: distance > 0.01 ? { dx: dx / distance, dy: dy / distance } : currentThrowDirection(data),
     distance,
-    intendedDistance: state.throwTargeting.maxDistance,
-    charge: clamp(state.throwTargeting.holdMs / ITEM_THROW_MAX_CHARGE_MS_CLIENT, 0, 1),
+    intendedDistance: Math.hypot(Number(data.map.width) || 0, Number(data.map.height) || 0),
+    charge: clamp(clientEnhanceLevel(state.throwTargeting.holdMs, data.self) / ENHANCE_MAX_LEVEL_CLIENT, 0, 1),
     valid: isClientWalkable(data, target.x, target.y, radius)
   };
 }
@@ -10781,7 +10829,8 @@ function drawThrowLandingPreview(data) {
   const sprite = prepared ? normalizedSpriteFrame(prepared, "throw-landing-preview", 1, 1, 0, 0) : null;
   if (!sprite) return;
   const now = (state.frameNow || performance.now()) / 1000;
-  const distanceRatio = clamp(landing.distance / ITEM_THROW_MAX_DISTANCE_CLIENT, 0, 1);
+  const mapDiagonal = Math.max(1, Math.hypot(Number(data.map.width) || 0, Number(data.map.height) || 0));
+  const distanceRatio = clamp(landing.distance / mapDiagonal, 0, 1);
   const markerSize = 92 + distanceRatio * 26;
   const markerX = Math.round(landing.x);
   const markerY = Math.round(landing.y);
@@ -10855,6 +10904,31 @@ function drawThrowLandingPreview(data) {
     ctx.restore();
   }
   ctx.restore();
+
+  if (targeting && throwTargetClairvoyanceActive(data)) drawClairvoyanceAte(landing, now);
+}
+
+function drawClairvoyanceAte(landing, time) {
+  const prepared = transparentSpriteSource(state.textures.clairvoyanceThrowAte, "clairvoyance-throw-ate", 16);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "clairvoyance-throw-ate", 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  const phase = (time * 0.37) % 1;
+  const size = 118 + Math.sin(time * 3.1) * 5;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  drawAnimatedTextureCentered(sprite, landing.x, landing.y - 4, size, size, {
+    mode: "clairvoyance",
+    time,
+    phase,
+    intensity: 0.94,
+    baseAlpha: 0.18
+  });
+  ctx.restore();
+}
+
+function drawStandaloneClairvoyanceAte(data) {
+  if (!state.clairvoyance.active || state.throwTargeting.active || data.phase !== "playing") return;
+  drawClairvoyanceAte({ x: state.clairvoyance.x, y: state.clairvoyance.y }, (state.frameNow || performance.now()) / 1000);
 }
 
 function drawInventionEnergyTexture(effect, progress) {
@@ -11274,7 +11348,7 @@ function drawGunnerActionEffect(effect, progress) {
     const length = Math.max(48, Math.hypot(dx, dy));
     ctx.translate(effect.x + dx / 2, effect.y + dy / 2);
     ctx.rotate(Math.atan2(dy, dx));
-    drawAnimatedTextureBottom(sprite, 0, 44 + pulse * 9, Math.min(1320, length + 96), 88 + pulse * 20, {
+    drawAnimatedTextureCentered(sprite, 0, 0, Math.min(1320, length + 96), 88 + pulse * 20, {
       mode: semanticEffectMotion(effect.type, effect.variant, "beam"), progress, intensity: 0.95, baseAlpha: 0.14
     });
   } else if (effect.type === "action-sustained-fire") {
@@ -13087,7 +13161,8 @@ const ATE_ANIMATION_PROFILES = Object.freeze({
   recoil: Object.freeze({ family: "backward-kick", tempo: 1.3, phaseScale: 0.6, progressScale: 1.6, overlayGain: 1.06 }),
   shield: Object.freeze({ family: "layered-guard", tempo: 0.62, phaseScale: 1.6, progressScale: 0.35, overlayGain: 0.9 }),
   combustion: Object.freeze({ family: "turbulent-flame", tempo: 1.08, phaseScale: 1.2, progressScale: 0.7, overlayGain: 1.08 }),
-  targeting: Object.freeze({ family: "settling-landing", tempo: 0.76, phaseScale: 0.52, progressScale: 0.24, overlayGain: 0.98 })
+  targeting: Object.freeze({ family: "settling-landing", tempo: 0.76, phaseScale: 0.52, progressScale: 0.24, overlayGain: 0.98 }),
+  clairvoyance: Object.freeze({ family: "horizon-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
 });
 
 // Keep the authored silhouette pixel-stable. Animation is limited to clipped
@@ -13843,7 +13918,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "pagedown-only-v411";
+const version = "clairvoyance-throw-v412";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -13985,6 +14060,7 @@ const version = "pagedown-only-v411";
   const sabotageRepairMarker = new Image();
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
+  const clairvoyanceThrowAte = new Image();
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
   ].map((id) => [id, image(`assets/generated/item-${id}.webp`)]));
@@ -14073,6 +14149,7 @@ const version = "pagedown-only-v411";
   defer(sabotageRepairMarker, "assets/generated/sabotage-repair-map-marker.webp");
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
+  defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(physicalActionAtlases["white-hood"], "assets/generated/physical-action-atlas-white-hood.webp?v=focus-sd-v308");
   defer(physicalActionAtlases["blue-dress"], "assets/generated/physical-action-atlas-blue-dress.webp");
   defer(physicalActionAtlases["male-bot"], "assets/generated/physical-action-atlas-male-bot.webp");
@@ -14170,6 +14247,7 @@ const version = "pagedown-only-v411";
     sabotageRepairMarker,
     smartphoneRepairIcon,
     throwLandingPreview,
+    clairvoyanceThrowAte,
     physicalActionAtlases,
     weaponFireMotions,
     fullMapComposites,
