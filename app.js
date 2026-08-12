@@ -79,7 +79,6 @@ const els = {
   tabletRestShortcut: $("#tabletRestShortcut"),
   tabletManaToStaminaShortcut: $("#tabletManaToStaminaShortcut"),
   tabletDonateShortcut: $("#tabletDonateShortcut"),
-  tabletPageUpShortcut: $("#tabletPageUpShortcut"),
   tabletBranchLines: $("#tabletBranchLines"),
   tabletBranchTray: $("#tabletBranchTray"),
   tabletBranchTitle: $("#tabletBranchTitle"),
@@ -3506,7 +3505,6 @@ function bindEvents() {
   els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
   els.tabletManaToStaminaShortcut.addEventListener("click", () => void api("/api/resource-convert", { direction: "mana-to-stamina" }));
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
-  els.tabletPageUpShortcut.addEventListener("click", () => cycleSelectedScrollRegion(-1));
   window.addEventListener("resize", scheduleTabletBranchLayout, { passive: true });
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
   bindTabletControls();
@@ -3839,9 +3837,9 @@ function bindEvents() {
       if (!event.repeat) setKeybindOpen(!state.keybindOpen);
       return;
     }
-    if (!typingField && (event.code === "PageUp" || event.code === "PageDown")) {
+    if (!typingField && event.code === "PageDown") {
       event.preventDefault();
-      if (!event.repeat) cycleSelectedScrollRegion(event.code === "PageDown" ? 1 : -1);
+      if (!event.repeat) cycleSelectedScrollRegion(1);
       return;
     }
     if (!typingField && selectedScrollRegion() && event.key.startsWith("Arrow") && !event.shiftKey) {
@@ -13845,7 +13843,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "enhance-lock-longpress-v410";
+const version = "pagedown-only-v411";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
