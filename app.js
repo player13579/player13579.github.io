@@ -7496,12 +7496,32 @@ function showInventoryItemDetail(item, sourceButton) {
   state.inventoryItemDetailTimer = window.setTimeout(hideInventoryItemDetail, 12_000);
 }
 
+function createInventoryClickGate({
+  now = () => performance.now(),
+  duration = 1_200
+} = {}) {
+  let suppressUntil = 0;
+  return {
+    arm() {
+      suppressUntil = now() + duration;
+    },
+    reset() {
+      suppressUntil = 0;
+    },
+    consume() {
+      if (now() > suppressUntil) return false;
+      suppressUntil = 0;
+      return true;
+    }
+  };
+}
+
 function bindInventoryDetailHold(button, item) {
   let timer = 0;
   let pointerId = null;
   let originX = 0;
   let originY = 0;
-  let suppressClick = false;
+  const clickGate = createInventoryClickGate();
   const clearNativeSelection = () => {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
@@ -7517,10 +7537,10 @@ function bindInventoryDetailHold(button, item) {
     pointerId = id;
     originX = clientX;
     originY = clientY;
-    suppressClick = false;
+    clickGate.reset();
     timer = window.setTimeout(() => {
       if (pointerId !== id) return;
-      suppressClick = true;
+      clickGate.arm();
       clearNativeSelection();
       showInventoryItemDetail(item, button);
       if (navigator.vibrate) navigator.vibrate(18);
@@ -7545,7 +7565,7 @@ function bindInventoryDetailHold(button, item) {
   const touchGesture = createInventoryTouchGesture({
     onTap: () => button.click(),
     onHold: () => {
-      suppressClick = true;
+      clickGate.arm();
       clearNativeSelection();
       showInventoryItemDetail(item, button);
       if (navigator.vibrate) navigator.vibrate(18);
@@ -7574,13 +7594,13 @@ function bindInventoryDetailHold(button, item) {
     event.stopPropagation();
     const touch = event.changedTouches[0];
     const result = touch ? touchGesture.end(touch.identifier) : "ignored";
-    if (result === "hold") suppressClick = false;
+    if (result === "hold") clickGate.arm();
   }, { passive: false });
   button.addEventListener("touchcancel", (event) => {
     if (event.cancelable) event.preventDefault();
     const touch = event.changedTouches[0];
     touchGesture.cancel(touch?.identifier);
-    suppressClick = false;
+    clickGate.reset();
   }, { passive: false });
   button.addEventListener("pointermove", (event) => {
     if (event.pointerType === "touch") return;
@@ -7591,10 +7611,9 @@ function bindInventoryDetailHold(button, item) {
   button.addEventListener("pointercancel", (event) => { if (event.pointerType !== "touch") clear(); });
   button.addEventListener("lostpointercapture", (event) => { if (event.pointerType !== "touch") clear(); });
   button.addEventListener("click", (event) => {
-    if (!suppressClick) return;
+    if (!clickGate.consume()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    suppressClick = false;
   }, true);
 }
 
@@ -14217,7 +14236,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "inventory-detail-v419";
+const version = "inventory-longpress-v420";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
