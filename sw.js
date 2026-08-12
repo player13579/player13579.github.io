@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v406-energy-rest-killcutin";
+const CACHE_NAME = "dva-static-v408-exact-title-effects";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -14,8 +14,8 @@ const STATIC_ASSETS = [
   "/config.js",
   "/manifest.webmanifest",
   "/icon.png",
-  "/assets/title-hero-v404.png",
-  "/assets/site-thumbnail-v404.png",
+  "/assets/title-hero-v408.png",
+  "/assets/site-thumbnail-v408.png",
   "/assets/generated/throw-landing-preview-v384.png",
   "/assets/generated/ui-panel-surface.webp",
   "/assets/generated/ui-control-surface.webp",
@@ -176,7 +176,7 @@ const STATIC_ASSETS = [
   "/assets/generated/alchemy-railgun-field-effect.webp",
   "/assets/generated/alchemy-particle-cannon-field-effect.webp",
   "/assets/generated/item-computer-v404.png",
-  "/assets/generated/human-generation-v404.png",
+  "/assets/generated/human-transmutation-sd-silhouette-v407.png",
   "/assets/generated/gunner-weapons-atlas.webp",
   "/assets/generated/gunner-taser.webp",
   "/assets/generated/ui-result-surface.webp",

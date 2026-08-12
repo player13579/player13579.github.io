@@ -2447,8 +2447,15 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 }
 
 #itemUseButton,
-#itemThrowButton {
+#itemThrowButton,
+.enhance-hold-control,
+.enhance-hold-control * {
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  caret-color: transparent;
 }
 
 .active-effects-panel h3 {
@@ -3920,7 +3927,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .alchemy-choice[data-alchemy-asset="taser"] .alchemy-choice-icon { background-image: url("assets/generated/gunner-taser.webp?v=vending-firearms-v173"); }
 .alchemy-choice[data-alchemy-asset="credit"] .alchemy-choice-icon { background-image: url("assets/generated/credit-crates.png"); }
 .alchemy-choice[data-alchemy-asset="items"] .alchemy-choice-icon { background-image: url("assets/room-props.webp"); }
-.alchemy-choice[data-alchemy-asset="medical"] .alchemy-choice-icon { background-image: url("assets/generated/human-generation-v404.png?v=energy-rest-killcutin-v406"); }
+.alchemy-choice[data-alchemy-asset="medical"] .alchemy-choice-icon { background-image: url("assets/generated/human-transmutation-sd-silhouette-v407.png?v=human-transmutation-v407"); background-size: contain; }
 .alchemy-choice[data-alchemy-asset="hack-credits-delete"] .alchemy-choice-icon { background-image: url("assets/generated/hack-credits-delete.webp?v=hacker-icons-v385"); }
 .alchemy-choice[data-alchemy-asset="hack-credits-duplicate"] .alchemy-choice-icon { background-image: url("assets/generated/hack-credits-duplicate.webp?v=hacker-icons-v385"); }
 .alchemy-choice[data-alchemy-asset="hack-items-delete"] .alchemy-choice-icon { background-image: url("assets/generated/hack-items-delete.webp?v=hacker-icons-v385"); }
@@ -3989,7 +3996,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .alchemy-choice:is([data-alchemy-choice="ability-gravity"], [data-alchemy-choice="borrowed-gravity"]) .alchemy-choice-icon { background-image: url("assets/generated/operator-gravity-ate-v391.png?v=operator-ate-v391"); }
 .alchemy-choice:is([data-alchemy-choice="ability-flora"], [data-alchemy-choice="borrowed-flora"]) .alchemy-choice-icon { background-image: url("assets/generated/operator-flora-ate-v391.png?v=operator-ate-v391"); }
 .alchemy-choice:is([data-alchemy-choice="ability-gunner"], [data-alchemy-choice="borrowed-gunner"]) .alchemy-choice-icon { background-image: url("assets/generated/operator-gunner-ate-v391.png?v=operator-ate-v391"); }
-.alchemy-choice[data-alchemy-choice="revive"] .alchemy-choice-icon { background-image: url("assets/generated/human-generation-v404.png?v=energy-rest-killcutin-v406"); }
+.alchemy-choice[data-alchemy-choice="revive"] .alchemy-choice-icon { background-image: url("assets/generated/human-transmutation-sd-silhouette-v407.png?v=human-transmutation-v407"); background-size: contain; }
 .alchemy-choice[data-alchemy-choice="invention-excalibur"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-excalibur.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-choice="invention-railgun"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-railgun.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-choice="invention-particle-cannon"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-particle-cannon.webp?v=asset-isolated-v122"); }
@@ -6085,7 +6092,9 @@ body #tabletPanel::after {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  -webkit-user-drag: none;
   -webkit-tap-highlight-color: transparent;
+  caret-color: transparent;
 }
 
 .item-inventory-choice {

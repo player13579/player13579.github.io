@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "energy-rest-killcutin-v406";
+const OFFLINE_WORKER_VERSION = "exact-title-effects-v408";
 const OFFLINE_WORKER_READY_TIMEOUT_MS = 40_000;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 

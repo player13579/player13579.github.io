@@ -425,7 +425,7 @@ const state = {
   operatorBranchesOpen: false,
   operatorBranchType: "",
   borrowedOperatorType: "gravity",
-  borrowedAbilityModes: { gravity: "accelerate", flora: "heal", gunner: "weak-bullet" },
+  borrowedAbilityModes: { gravity: "accelerate", flora: "heal", gunner: "hover-sprint" },
   arrowRepeatKey: "",
   arrowRepeatAt: 0,
   keybindOpen: false,
@@ -662,7 +662,7 @@ const generatedItemTextureFiles = new Map([
   ["taser", { file: "gunner-taser.webp" }],
   ["rpg", { file: "gunner-rpg.webp" }],
   ["missile", { file: "gunner-missile.webp" }],
-  ["revive", { file: "human-generation-v404.png", size: "cover" }],
+  ["revive", { file: "human-transmutation-sd-silhouette-v407.png", size: "contain" }],
   ["hack-credits-delete", { file: "hack-credits-delete.webp" }],
   ["hack-credits-duplicate", { file: "hack-credits-duplicate.webp" }],
   ["hack-items-delete", { file: "hack-items-delete.webp" }],
@@ -1983,7 +1983,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/shoot": "shoot",
   "/api/gunner-weapon": "interact",
   "/api/gunner-reload": "reload",
-  "/api/gunner-weak-bullet": "reload",
   "/api/gunner-hover-sprint": "power",
   "/api/gunner-heavy": "shoot",
   "/api/dodge": "evade",
@@ -2591,10 +2590,9 @@ function updateEnhanceReadout() {
 function beginEnhanceAction(kind, pointerId = null) {
   if (!kind || state.enhanceHold.kind) return false;
   state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0 };
-  if (kind === "throw") {
-    clearMovementInput();
-    sendMovement(true);
-  }
+  state.movementQueue?.clear?.();
+  clearMovementInput();
+  sendMovement(true);
   updateEnhanceReadout();
   return true;
 }
@@ -3668,6 +3666,15 @@ function bindEvents() {
   els.instantWarpButton.addEventListener("click", beginInstantWarpTargeting);
   const bindEnhanceButton = (button, kind) => {
     let suppressClickUntil = 0;
+    button.classList.add("enhance-hold-control");
+    const suppressNativeHoldUi = (event) => {
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+    };
+    button.addEventListener("touchstart", suppressNativeHoldUi, { passive: false });
+    button.addEventListener("contextmenu", suppressNativeHoldUi);
+    button.addEventListener("selectstart", suppressNativeHoldUi);
+    button.addEventListener("dragstart", suppressNativeHoldUi);
     const finishPointerAction = (event) => {
       if (kind === "use" && state.gunTriggerPointerId === event.pointerId) {
         event.preventDefault();
@@ -3799,6 +3806,17 @@ function bindEvents() {
     if (triggerDeveloperAnalyticsHotkey(event)) return;
     const typingField = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
     if (document.activeElement === els.chatInput) return;
+    if (!typingField && state.enhanceHold.kind) {
+      const movementInput = Boolean(keyName(event.key)) ||
+        event.key.startsWith("Arrow") ||
+        ["Shift", "Control", "Alt"].includes(event.key);
+      if (movementInput) {
+        event.preventDefault();
+        clearMovementInput();
+        sendMovement(true);
+        return;
+      }
+    }
     if (!typingField && state.throwTargeting.active) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -4034,18 +4052,18 @@ function bindEvents() {
     if (event.button !== 0) clearMovementInput();
   });
   window.addEventListener("contextmenu", (event) => {
-    if (event.target instanceof Element && event.target.closest(".game-area, .tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice")) {
+    if (event.target instanceof Element && event.target.closest(".game-area, .tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .enhance-hold-control")) {
       event.preventDefault();
       clearMovementInput();
     }
   });
   document.addEventListener("selectstart", (event) => {
-    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice")) {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .enhance-hold-control")) {
       event.preventDefault();
     }
   });
   document.addEventListener("dragstart", (event) => {
-    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice")) {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .enhance-hold-control")) {
       event.preventDefault();
     }
   });
@@ -4120,6 +4138,7 @@ function setSlowWalkHeld(active) {
 
 function clearMovementInput() {
   const shouldSendStop = state.movementActive;
+  state.movementQueue?.clear?.();
   state.keys.clear();
   clearPointerInput();
   state.dashHeld = false;
@@ -4267,6 +4286,11 @@ function bindTabletControls() {
     if (state.tabletStick.pointerId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
+    if (state.enhanceHold.kind && !state.throwTargeting.active) {
+      resetTabletStick();
+      sendMovement(true);
+      return;
+    }
     const rect = els.tabletJoystick.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -4323,6 +4347,11 @@ function bindTabletControls() {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    if (state.enhanceHold.kind && !state.throwTargeting.active) {
+      resetTabletStick();
+      sendMovement(true);
+      return;
+    }
     state.tabletStick.pointerId = event.pointerId;
     els.tabletJoystick.classList.add("active");
     try { els.tabletJoystick.setPointerCapture(event.pointerId); } catch {}
@@ -4778,7 +4807,6 @@ function renderTabletBranch(data, force = false) {
       addModeAction("サンビーム放射", "sunbeam");
       addModeAction("サンビーム収束", "sunbeam-converged");
     } else if (self.special === "gunner") {
-      addModeAction("ウィークバレット", "weak-bullet");
       addModeAction("ホバースプリント", "hover-sprint");
     } else if (self.special === "quantum") {
       [
@@ -5277,14 +5305,6 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
       }, option.value === (borrowedPreview ? state.borrowedAbilityModes.flora : els.teleportModeSelect.value), floraDescriptions[option.value] || "");
     });
   } else if (activeType === "gunner") {
-    addBranch("ウィークバレット", () => {
-      state.borrowedAbilityModes.gunner = "weak-bullet";
-      if ([...els.teleportModeSelect.options].some((option) => option.value === "weak-bullet")) {
-        els.teleportModeSelect.value = "weak-bullet";
-      }
-      if (borrowedPreview) triggerBorrowedAbility("gunner", "weak-bullet");
-      else triggerOperatorAbility();
-    }, (borrowedPreview ? state.borrowedAbilityModes.gunner : els.teleportModeSelect.value) === "weak-bullet", "次弾に対象の踏ん張りを全削除する特殊弾を装填する");
     addBranch("ホバースプリント", () => {
       state.borrowedAbilityModes.gunner = "hover-sprint";
       if ([...els.teleportModeSelect.options].some((option) => option.value === "hover-sprint")) {
@@ -5331,8 +5351,7 @@ function triggerOperatorAbility() {
       dy: Number(self.aimY) || 1
     });
   } else if (self.special === "gunner") {
-    if (els.teleportModeSelect.value === "hover-sprint") void api("/api/gunner-hover-sprint");
-    else void api("/api/gunner-weak-bullet");
+    void api("/api/gunner-hover-sprint");
   } else if (self.special === "quantum") {
     void api("/api/quantum-control", { mode: els.teleportModeSelect.value || self.quantumMode });
   } else if (self.special === "alchemist") {
@@ -7015,7 +7034,7 @@ function renderTargetOptions(data) {
     teleport: [["body", "転移・地点"], ["near", "転移・対象付近"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
     gravity: [["body", "転移・地点"], ["near", "転移・対象付近"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
     flora: [["heal", "回復"], ["sunbeam", "サンビーム・放射"], ["sunbeam-converged", "サンビーム・収束"]],
-    gunner: [["weak-bullet", "ウィークバレット"], ["hover-sprint", "ホバースプリント"]],
+    gunner: [["hover-sprint", "ホバースプリント"]],
     quantum: [["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]]
   };
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value);
@@ -7201,6 +7220,7 @@ function bindInventoryDetailHold(button, item) {
     originX = event.clientX;
     originY = event.clientY;
     suppressClick = false;
+    try { button.setPointerCapture(event.pointerId); } catch {}
     timer = window.setTimeout(() => {
       if (pointerId !== event.pointerId) return;
       suppressClick = true;
@@ -7411,7 +7431,11 @@ function renderActiveEffects(data) {
     );
   }
   const borrowedOperatorAccess = (type) => hasDisplayedOperatorAccess(self, type);
-  if (self.weakBulletLoaded) add("ウィークバレット", itemBlocked ? "EMP遮断" : "装填済み", itemBlocked ? "desire" : "truth", itemBlocked ? "ストレージ復旧まで使用できない" : "次に命中した対象の踏ん張りをすべて削除する");
+  if (self.weakBulletLoaded) {
+    add("ウィークバレット", "自動装填済み", "truth", "次に命中した対象を破壊し、射手自身も破壊される");
+  } else if (Number(self.weakBulletReadyAt) > liveNow) {
+    timed("ウィークバレット自動装填", self.weakBulletReadyAt, "rational", "理知中に時間経過で自動装填される");
+  }
   if (self.gravityTimeMode) timed(
     self.gravityTimeMode === "accelerate"
       ? `アクセラレート ×${Math.max(1, Number(self.gravityTimeStacks?.accelerate) || 1)}`
@@ -7862,7 +7886,7 @@ function updateActionButtons(data) {
       : activeBorrowedOperator === "flora"
         ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
         : activeBorrowedOperator === "gunner"
-          ? (operatorMode === "hover-sprint" ? "ホバースプリント" : "ウィークバレット")
+          ? "ホバースプリント"
           : activeBorrowedOperator === "fighter"
             ? self.limitBreakActive ? "リミットブレイク解除" : "リミットブレイク"
             : "常時パッシブ"
@@ -7876,11 +7900,7 @@ function updateActionButtons(data) {
             : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
               : `グラビティストーム ${operatorCostLabel("teleport")}`,
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : operatorMode === "sunbeam-converged" ? `サンビーム収束 ${operatorCostLabel("flora")}` : `サンビーム放射 ${operatorCostLabel("flora")}`,
-    gunner: operatorMode === "hover-sprint"
-      ? `ホバースプリント ${operatorCostLabel("weakBullet")}`
-      : self.weakBulletLoaded
-        ? "ウィークバレット装填済み"
-        : `ウィークバレット ${operatorCostLabel("weakBullet")}`,
+    gunner: `ホバースプリント ${operatorCostLabel("hoverSprint")}`,
     quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "量子制御",
     alchemist: selectedBorrowedRecipe
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
@@ -7892,13 +7912,12 @@ function updateActionButtons(data) {
         ? "flora"
       : activeBorrowedOperator === "fighter"
         ? "fighterCharge"
-      : "weakBullet";
+      : "hoverSprint";
   const selectedBorrowedFree = selectedBorrowedRecipe &&
     Number(borrowedFreeUses[activeBorrowedOperator]) > 0;
   const borrowedStateBlocked = Boolean(selectedBorrowedRecipe) && (
     !alchemyRecipeAvailable(selectedBorrowedRecipe, self) ||
-    (!selectedBorrowedFree && !(activeBorrowedOperator === "fighter" && self.limitBreakActive) && !hasMana(borrowedCostKey)) ||
-    (activeBorrowedOperator === "gunner" && operatorMode !== "hover-sprint" && self.weakBulletLoaded)
+    (!selectedBorrowedFree && !(activeBorrowedOperator === "fighter" && self.limitBreakActive) && !hasMana(borrowedCostKey))
   );
   const displayedOperator = activeBorrowedOperator === "gravity"
     ? "teleport"
@@ -7910,11 +7929,7 @@ function updateActionButtons(data) {
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
   els.operatorAbilityButton.disabled = !canUseAbility ||
     (displayedOperator === "fighter" && !self.limitBreakActive && !hasMana("fighterCharge")) ||
-    (displayedOperator === "gunner" && (
-      operatorMode === "hover-sprint"
-        ? (Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("weakBullet")
-        : self.weakBulletLoaded || !hasMana("weakBullet")
-    )) ||
+    (displayedOperator === "gunner" && ((Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("hoverSprint"))) ||
     (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
     (activeBorrowedOperator && borrowedStateBlocked);
   const droneDestroyed = Boolean(self.drone?.destroyed);
@@ -8216,8 +8231,8 @@ function sendMovement(forceStop = false) {
   const data = state.data;
   if (!data || data.phase !== "playing") return;
   if (state.cameraViewIndex >= 0 && !forceStop) return;
-  const throwLocksMovement = state.enhanceHold.kind === "throw" || state.throwTargeting.active;
-  const direction = forceStop || throwLocksMovement ? { dx: 0, dy: 0 } : getDirection();
+  const actionLocksMovement = Boolean(state.enhanceHold.kind) || state.throwTargeting.active;
+  const direction = forceStop || actionLocksMovement ? { dx: 0, dy: 0 } : getDirection();
   const moving = Boolean(direction.dx || direction.dy);
   const timestamp = performance.now();
   if (
@@ -8440,7 +8455,7 @@ function isSlowWalking() {
 }
 
 function getDirection() {
-  if (state.enhanceHold.kind === "throw" || state.throwTargeting.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
+  if (state.enhanceHold.kind || state.throwTargeting.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
   const stickLength = Math.hypot(state.tabletStick.dx, state.tabletStick.dy);
   if (state.tabletOpen && stickLength > 0.01) {
     return { dx: state.tabletStick.dx, dy: state.tabletStick.dy };
@@ -10886,6 +10901,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "fighter-push-acquired": ["pushMarkerEffect", 96],
   "hacker-root": ["hackerRootRainbow", 190],
   "preparation-barrier-hit": ["preparationBarrierEffect", 220],
+  "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
   "action-vibe-coding": ["vibeCodingEffect", 220],
   "gunner-hover-sprint": ["gunnerHoverSprintEffect", 240],
@@ -13825,7 +13841,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "energy-rest-killcutin-v406";
+const version = "exact-title-effects-v408";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -13931,6 +13947,7 @@ const version = "energy-rest-killcutin-v406";
   const accelerationPhaseEffect = new Image();
   const statusLevitationEffect = new Image();
   const preparationBarrierEffect = new Image();
+  const humanTransmutationEffect = new Image();
   const statusHpReductionEffect = new Image();
   const statusManaGpuEffect = new Image();
   const vibeCodingEffect = new Image();
@@ -14020,6 +14037,7 @@ const version = "energy-rest-killcutin-v406";
   defer(accelerationPhaseEffect, "assets/generated/status-marker-acceleration-v376.png");
   defer(statusLevitationEffect, "assets/generated/status-levitation-v375.png");
   defer(preparationBarrierEffect, "assets/generated/status-preparation-barrier-ate-v392.png");
+  defer(humanTransmutationEffect, "assets/generated/human-transmutation-sd-silhouette-v407.png");
   defer(statusHpReductionEffect, "assets/generated/status-hp-reduction-v375.png");
   defer(statusManaGpuEffect, "assets/generated/status-mana-gpu-ate-v402.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
@@ -14116,6 +14134,7 @@ const version = "energy-rest-killcutin-v406";
     accelerationPhaseEffect,
     statusLevitationEffect,
     preparationBarrierEffect,
+    humanTransmutationEffect,
     statusHpReductionEffect,
     statusManaGpuEffect,
     vibeCodingEffect,

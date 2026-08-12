@@ -6625,6 +6625,7 @@ const HACKER_AUTO_TASK_INTERVAL_MS = 12_000;
 const PREPARATION_PHASE_MS = 5_000;
 const GUNNER_RELOAD_MS = 2_200;
 const GUNNER_IDLE_AUTO_RELOAD_DELAY_MS = 2_600;
+const GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS = 18_000;
 const DEFAULT_GUNNER_WEAPON = "assault";
 const GUNNER_WEAPON_ORDER = ["handgun", "smg", "assault", "sniper", "taser"];
 const GUNNER_WEAPONS = Object.freeze({
@@ -6965,7 +6966,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARを初期装備し、5種の銃器とホバースプリントを扱う。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。ウィークバレットは1MPで踏ん張りを除去する。ホバースプリントは1MPで8秒間加速し障害物を無視する。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。ウィークバレットは理知中に時間経過で自動装填され、命中対象と射手を破壊する。ホバースプリントは1MPで8秒間加速し障害物を無視する。"
     },
     {
       id: "attacker-alchemist",
@@ -8633,6 +8634,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunnerReloadWeapon: "",
     unavailableGunnerWeapons: [],
     weakBulletLoaded: false,
+    weakBulletReadyAt: 0,
     hoverSprintUntil: 0,
     timedAccelerationEffects: [],
     heavyWeapons: [],
@@ -9025,6 +9027,7 @@ function startGame(room) {
     player.gunnerReloadWeapon = "";
     player.unavailableGunnerWeapons = [];
     player.weakBulletLoaded = false;
+    player.weakBulletReadyAt = 0;
     player.hoverSprintUntil = 0;
     player.timedAccelerationEffects = [];
     player.heavyWeapons = [];
@@ -10893,6 +10896,7 @@ function tickRoom(room) {
     advanceParticleCannon(room, player, timestamp);
     resolveSmartphoneAction(room, player, timestamp);
     advanceGunnerReload(room, player, timestamp);
+    advanceWeakBulletPassive(room, player, timestamp);
     advanceGunnerFire(room, player, timestamp);
     if (player.attackResolveAt && player.attackResolveAt <= timestamp) resolvePendingAttack(room, player, timestamp);
     if (player.aimTargetId) {
@@ -13625,8 +13629,10 @@ function useBorrowedAbility(room, player, type, options = {}) {
   } else if (key === "flora") {
     useFloraAbility(room, player, String(options.mode || "heal"), options);
   } else if (key === "gunner") {
-    if (String(options.mode || "") === "hover-sprint") activateHoverSprint(room, player);
-    else loadWeakBullet(room, player);
+    if (String(options.mode || "hover-sprint") !== "hover-sprint") {
+      throw new ApiError(400, "ウィークバレットは借用操作ではなく自動装填パッシブです。");
+    }
+    activateHoverSprint(room, player);
   } else if (key === "quantum") {
     useQuantumControl(room, player, String(options.mode || "transmute-mercury"));
   }
@@ -14162,9 +14168,33 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   if (targetEntry) {
     if (shooter.weakBulletLoaded) {
       shooter.weakBulletLoaded = false;
-      targetEntry.player.gritCharges = 0;
-      pushMagicEffect(room, "action-weak-bullet", targetEntry.player, { radius: 115, playerId: shooter.id, targetId: targetEntry.player.id });
-      pushEvent(room, `${shooter.name} のウィークバレットが ${targetEntry.player.name} の踏ん張りをすべて除去しました。`);
+      shooter.weakBulletReadyAt = timestamp + GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS;
+      pushMagicEffect(room, "action-weak-bullet", targetEntry.player, {
+        radius: 145,
+        playerId: shooter.id,
+        targetId: targetEntry.player.id,
+        variant: "mutual-destruction"
+      });
+      const targetDestroyed = destroyPlayerUnconditionally(
+        room,
+        shooter,
+        targetEntry.player,
+        "ウィークバレット",
+        { noKillCutin: false }
+      );
+      if (shooter.alive && !shooter.ejected) {
+        destroyPlayerUnconditionally(
+          room,
+          shooter,
+          shooter,
+          targetDestroyed ? "ウィークバレットの代償" : "ウィークバレット不発時の代償",
+          { noKillCutin: true }
+        );
+      }
+      pushEvent(room, `${shooter.name} のウィークバレットが発動し、射手にも破壊の代償が生じました。`);
+      checkWin(room);
+      touch(room);
+      return true;
     }
     const damage = gunnerDamageAtDistance(weapon, targetEntry.along);
     const outcome = killPlayer(room, shooter, targetEntry.player.id, {
@@ -14297,6 +14327,37 @@ function advanceGunnerReload(room, player, timestamp = now()) {
   return false;
 }
 
+function advanceWeakBulletPassive(room, player, timestamp = now()) {
+  const eligible = room.phase === "playing" &&
+    player.alive &&
+    !player.ejected &&
+    !player.inVent &&
+    hasOperatorAccess(player, "gunner") &&
+    passivesEnabled(player);
+  if (!eligible) {
+    player.weakBulletLoaded = false;
+    player.weakBulletReadyAt = 0;
+    return false;
+  }
+  if (player.weakBulletLoaded) return false;
+  if (!(Number(player.weakBulletReadyAt) > 0)) {
+    player.weakBulletReadyAt = timestamp + GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS;
+    return false;
+  }
+  if (timestamp < player.weakBulletReadyAt) return false;
+  player.weakBulletLoaded = true;
+  player.weakBulletReadyAt = 0;
+  pushMagicEffect(room, "action-weak-bullet-load", player, {
+    radius: 105,
+    playerId: player.id,
+    variant: gunnerWeaponFor(player).id
+  });
+  setImmediateFeedback(player, "ウィークバレット", "自動装填完了");
+  pushEvent(room, `${player.name} のウィークバレットが自動装填されました。`);
+  touch(room);
+  return true;
+}
+
 function reloadGunner(room, player) {
   if (room.phase !== "playing" || !hasFirearmAccess(player) || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在はリロードできません。");
@@ -14306,20 +14367,6 @@ function reloadGunner(room, player) {
   const weapon = gunnerWeaponFor(player);
   if ((Number(player.gunnerAmmo?.[weapon.id]) || 0) >= weapon.maxAmmo) throw new ApiError(400, "弾倉は満タンです。");
   startGunnerReload(room, player, weapon.id, now(), "手動要求");
-}
-
-function loadWeakBullet(room, player) {
-  if (room.phase !== "playing" || !hasOperatorAccess(player, "gunner") || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はウィークバレットを装填できません。");
-  }
-  ensureAbilityAvailable(player);
-  if (player.weakBulletLoaded) throw new ApiError(400, "ウィークバレットは装填済みです。");
-  spendOperatorMana(room, player, "ウィークバレット");
-  player.weakBulletLoaded = true;
-  awardAbilityContribution(player, 0.75);
-  pushMagicEffect(room, "action-weak-bullet-load", player, { radius: 105, playerId: player.id, variant: gunnerWeaponFor(player).id });
-  pushEvent(room, `${player.name} がウィークバレットを装填しました。`);
-  touch(room);
 }
 
 function activateHoverSprint(room, player) {
@@ -15284,6 +15331,8 @@ function serialize(room, viewer, options = {}) {
       gunnerReloadUntil: Number(viewer.gunnerReloadUntil) || 0,
       gunnerReloadWeapon: String(viewer.gunnerReloadWeapon || ""),
       weakBulletLoaded: Boolean(viewer.weakBulletLoaded),
+      weakBulletReadyAt: Number(viewer.weakBulletReadyAt) || 0,
+      weakBulletPassiveIntervalMs: GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS,
       hoverSprintUntil: Number(viewer.hoverSprintUntil) || 0,
       accelerationPhasing: Number(viewer.hoverSprintUntil) > timestamp,
       statusAte: persistentStatusAteState(room, viewer, timestamp),
@@ -15369,7 +15418,7 @@ function serialize(room, viewer, options = {}) {
         drone: DRONE_MANA_COST,
         emp: EMP_MANA_COST,
         shoot: GUNNER_MANA_COST,
-        weakBullet: ABILITY_MANA_COST,
+        hoverSprint: ABILITY_MANA_COST,
         flora: FLORA_MANA_COST,
         alchemy: ALCHEMY_MANA_COST,
         fighterCharge: FIGHTER_ENERGY_CHARGE_MANA_COST,
@@ -15897,10 +15946,7 @@ async function handleApi(req, res) {
     }
 
     case "/api/gunner-weak-bullet": {
-      const { room, player } = requireRoomPlayer(body);
-      loadWeakBullet(room, player);
-      payload = serialize(room, player);
-      break;
+      throw new ApiError(410, "ウィークバレットは時間経過で自動装填されるパッシブです。");
     }
 
     case "/api/gunner-hover-sprint": {
@@ -17130,7 +17176,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "energy-rest-killcutin-v406",
+  version: "exact-title-effects-v408",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
