@@ -775,6 +775,24 @@ body.game-open .app-shell {
   animation: title-natural-atmosphere 6.8s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
 }
 
+.title-hero-character {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  transform-origin: 72.5% 57%;
+  -webkit-mask-image:
+    radial-gradient(ellipse 18% 47% at 72.5% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
+  mask-image:
+    radial-gradient(ellipse 18% 47% at 72.5% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
+  animation: title-character-breath 7.2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  will-change: transform, filter;
+}
+
 .title-fx-canvas {
   position: absolute;
   inset: 0;
@@ -2924,8 +2942,15 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   100% { transform: translate3d(-0.02%, -0.1%, 0) scale(1.005); opacity: 0.095; filter: saturate(1.1) brightness(1.065) blur(0.5px); }
 }
 
+@keyframes title-character-breath {
+  0%, 100% { transform: translate3d(0, 0.08%, 0) scale(1); filter: brightness(1); }
+  42% { transform: translate3d(0.025%, -0.22%, 0) scale(1.0045, 1.0065); filter: brightness(1.006); }
+  68% { transform: translate3d(-0.018%, -0.12%, 0) scale(1.0025, 1.0035); filter: brightness(1.003); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .start-hero,
+  .title-hero-character,
   .title-hero-atmosphere {
     animation: none;
   }
@@ -5145,6 +5170,15 @@ body.tablet-mode-active .hacker-direct-action {
 
   .start-hero {
     object-position: 66% center;
+  }
+
+  .title-hero-character {
+    object-position: 66% center;
+    transform-origin: 76% 57%;
+    -webkit-mask-image:
+      radial-gradient(ellipse 27% 47% at 76% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
+    mask-image:
+      radial-gradient(ellipse 27% 47% at 76% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
   }
 
   .title-menu {

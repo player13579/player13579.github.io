@@ -6771,6 +6771,17 @@ const DONATION_LUCK_MIN_BONUS = -0.7;
 const DONATION_LUCK_MAX_BONUS = 0.7;
 const ABILITY_MANA_COST = 1;
 const DESIRE_RESOURCE_DEBT = -100;
+const DESIRE_BIAS_COST_MULTIPLIER = 1.5;
+const DESIRE_BIAS_TIME_MULTIPLIER = 0.72;
+const DESIRE_BIAS_LUCK_PENALTY = 0.45;
+const DESIRE_BIAS_GROUP_RADIUS = 260;
+const DESIRE_BIAS_GROUP_MULTIPLIER = 0.6;
+const DESIRE_BIASES = Object.freeze([
+  Object.freeze({ id: "cognitive-dissonance", label: "認知的不協和", detail: "移動・行動不能時間・クールタイム進行が72%になる" }),
+  Object.freeze({ id: "confirmation-bias", label: "確証バイアス", detail: "幸運・直観が0.45低下する" }),
+  Object.freeze({ id: "sunk-cost", label: "サンクコスト効果", detail: "マナとスタミナの消費量が1.5倍になる" }),
+  Object.freeze({ id: "in-group-bias", label: "内集団バイアス", detail: "他者が近い間、移動速度とスタミナ回復が60%になる" })
+]);
 const RENKI_FOCUS_DURATION_MS = 3500;
 const RATIONAL_FREE_ABILITY_INTERVAL_MS = 30_000;
 const DODGE_MANA_COST = 0;
@@ -8696,6 +8707,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     ideaProgressUpdatedAt: 0,
     ideaStage: 0,
     ideaFirstAspect: "",
+    desireBias: "",
     truthCharges: 0,
     beautyCharges: 0,
     goodActive: false,
@@ -9091,6 +9103,7 @@ function startGame(room) {
     player.ideaProgressUpdatedAt = 0;
     player.ideaStage = 0;
     player.ideaFirstAspect = "";
+    player.desireBias = "";
     player.truthCharges = 0;
     player.beautyCharges = 0;
     player.goodActive = false;
@@ -9387,6 +9400,7 @@ function startBattle(room) {
     player.ideaProgressUpdatedAt = 0;
     player.ideaStage = 0;
     player.ideaFirstAspect = "";
+    player.desireBias = "";
     player.truthCharges = 0;
     player.beautyCharges = 0;
     player.goodActive = false;
@@ -9731,7 +9745,8 @@ function luckValueFor(player) {
     DONATION_LUCK_MAX_BONUS,
     0
   );
-  return clampNumber(base + objectBonus + donationBonus, -1, 1, base);
+  const confirmationPenalty = player?.desireBias === "confirmation-bias" ? DESIRE_BIAS_LUCK_PENALTY : 0;
+  return clampNumber(base + objectBonus + donationBonus - confirmationPenalty, -1, 1, base);
 }
 
 function ideaProgressRateFor(player) {
@@ -9748,6 +9763,68 @@ function resetIdeaProgress(player) {
   player.ideaProgressStartedAt = 0;
   player.ideaProgressMs = 0;
   player.ideaProgressUpdatedAt = 0;
+}
+
+function forfeitIdeaAttainment(player) {
+  resetIdeaProgress(player);
+  player.ideaStage = 0;
+  player.ideaFirstAspect = "";
+  player.truthCharges = 0;
+  player.beautyCharges = 0;
+  player.goodActive = false;
+  player.ascensionStartedAt = 0;
+  player.ascensionUntil = 0;
+}
+
+function desireBiasDefinition(player) {
+  return DESIRE_BIASES.find((bias) => bias.id === player?.desireBias) || null;
+}
+
+function isDesireState(player) {
+  return Number(player?.mana) <= 0 || Number(player?.stamina) <= 0;
+}
+
+function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
+  const enteredNow = !player.desireBias;
+  if (enteredNow) {
+    const index = Math.floor(Math.random() * DESIRE_BIASES.length);
+    player.desireBias = DESIRE_BIASES[index]?.id || DESIRE_BIASES[0].id;
+  }
+  player.mana = DESIRE_RESOURCE_DEBT;
+  player.credits = DESIRE_RESOURCE_DEBT;
+  player.stamina = DESIRE_RESOURCE_DEBT;
+  player.staminaUpdatedAt = timestamp;
+  player.rationalFreeAbilityReadyAt = 0;
+  forfeitIdeaAttainment(player);
+  if (room?.ideaWinnerId === player.id) {
+    room.ideaWinnerId = "";
+    room.pendingIdeaVictoryAt = 0;
+  }
+  if (room && enteredNow) {
+    const bias = desireBiasDefinition(player);
+    pushEvent(room, `${player.name} は欲望へ移行し、${bias?.label || "認知バイアス"}が心を支配しました。イデアへの到達は失効します。`);
+  }
+  return player.desireBias;
+}
+
+function syncDesireState(room, player, sourceLabel = "") {
+  if (isDesireState(player)) {
+    if (!player.desireBias) enterDesireState(room, player, sourceLabel);
+    return true;
+  }
+  if (player.desireBias) {
+    const previous = desireBiasDefinition(player)?.label || "認知バイアス";
+    player.desireBias = "";
+    if (room) pushEvent(room, `${player.name} は欲望を脱し、${previous}から回復しました。`);
+  }
+  return false;
+}
+
+function desireBiasGroupActive(room, player) {
+  if (player?.desireBias !== "in-group-bias" || !room) return false;
+  return [...room.players.values()].some((other) => (
+    other.id !== player.id && other.alive && !other.ejected && !other.inVent && distance(player, other) <= DESIRE_BIAS_GROUP_RADIUS
+  ));
 }
 
 function staminaStateLabel(stamina) {
@@ -9769,7 +9846,10 @@ function setMana(room, player, rawMana, sourceLabel = "") {
   const timestamp = now();
   const previousRaw = Math.round((Number(player.mana) || 0) * 100) / 100;
   const previous = previousRaw <= 0 ? DESIRE_RESOURCE_DEBT : previousRaw;
-  const requested = Math.round((Number(rawMana) || 0) * 100) / 100;
+  const rawRequested = Math.round((Number(rawMana) || 0) * 100) / 100;
+  const requested = player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
+    ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
+    : rawRequested;
   const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
   if (previous === next) return next;
   const previousState = manaStateLabel(previous);
@@ -9789,14 +9869,12 @@ function setMana(room, player, rawMana, sourceLabel = "") {
     player.rationalFreeAbilityReadyAt = 0;
   }
   if (next === DESIRE_RESOURCE_DEBT && previous !== DESIRE_RESOURCE_DEBT) {
-    player.credits = DESIRE_RESOURCE_DEBT;
-    player.stamina = DESIRE_RESOURCE_DEBT;
-    player.staminaUpdatedAt = timestamp;
-    if (room) pushEvent(room, `${player.name} は欲望へ移行し、マナ・クレジット・スタミナが${DESIRE_RESOURCE_DEBT}になりました。`);
+    enterDesireState(room, player, sourceLabel || "マナ枯渇", timestamp);
   } else if (room && previousState !== nextState) {
     pushEvent(room, `${player.name} のマナ状態が${manaStateLabel(next)}になりました${sourceLabel ? `（${sourceLabel}）` : ""}。`);
   }
-  if (room && previousState !== nextState) pushMagicEffect(room, "action-mana", player, {
+  syncDesireState(room, player, sourceLabel);
+  if (room && previousState !== nextState && nextState !== "欲望") pushMagicEffect(room, "action-mana", player, {
     radius: 110,
     playerId: player.id,
     variant: manaStateLabel(next)
@@ -9979,6 +10057,10 @@ function advanceIdeaProgress(room, player, timestamp) {
     return;
   }
   if (room.phase !== "playing" || player.ideaStage >= 4) return;
+  if (isDesireState(player) || player.desireBias) {
+    forfeitIdeaAttainment(player);
+    return;
+  }
   if (Number(player.mana) < RATIONAL_MANA_THRESHOLD) {
     resetIdeaProgress(player);
     return;
@@ -10334,7 +10416,8 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
   const last = entity.staminaUpdatedAt || timestamp;
   const elapsed = Math.min(0.5, Math.max(0, (timestamp - last) / 1000));
   if (allowRegen) {
-    const recovery = STAMINA_REGEN_PER_SECOND * elapsed * Math.max(1, multiplier);
+    const desireMultiplier = desireBiasGroupActive(room, entity) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
+    const recovery = STAMINA_REGEN_PER_SECOND * elapsed * Math.max(1, multiplier) * desireMultiplier;
     const capacity = staminaCapacityFor(entity);
     const current = Math.min(capacity, Math.max(0, Number(entity.stamina) || 0));
     const restored = Math.min(recovery, capacity - current);
@@ -10352,15 +10435,24 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
     }
   }
   entity.staminaUpdatedAt = timestamp;
+  if (room) syncDesireState(room, entity, "スタミナ回復");
 }
 
 function availableStamina(entity) {
   return Math.max(0, Number(entity.stamina) || 0);
 }
 
-function spendStamina(entity, rawAmount) {
-  const amount = Math.max(0, Number(rawAmount) || 0);
-  entity.stamina = Math.max(0, (Number(entity.stamina) || 0) - amount);
+function spendStamina(entity, rawAmount, room = null, sourceLabel = "スタミナ消費") {
+  const baseAmount = Math.max(0, Number(rawAmount) || 0);
+  const amount = entity?.desireBias === "sunk-cost" ? baseAmount * DESIRE_BIAS_COST_MULTIPLIER : baseAmount;
+  const previous = Number(entity.stamina) || 0;
+  const next = previous - amount;
+  if (room && previous > 0 && next <= 0) {
+    enterDesireState(room, entity, sourceLabel);
+    return;
+  }
+  entity.stamina = Math.max(0, next);
+  if (room) syncDesireState(room, entity, sourceLabel);
 }
 
 function activeTimedAccelerationEffects(player, timestamp = now()) {
@@ -10432,7 +10524,8 @@ function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
   const gravityScale = gravityTimeScaleFor(room, player, timestamp);
   const accelerations = passive.speedBoost ? [MAP_OBJECT_SPEED_MULTIPLIER] : [];
   const accelerated = accelerationTimerMultiplier(player, accelerations, timestamp);
-  return gravityScale < 1 ? gravityScale : accelerated;
+  const base = gravityScale < 1 ? gravityScale : accelerated;
+  return base * (player.desireBias === "cognitive-dissonance" ? DESIRE_BIAS_TIME_MULTIPLIER : 1);
 }
 
 function persistentStatusAteState(room, player, timestamp = now()) {
@@ -10444,6 +10537,7 @@ function persistentStatusAteState(room, player, timestamp = now()) {
   ) > 1.001;
   return {
     acceleration,
+    clairvoyance: Boolean(player.clairvoyanceActive),
     levitation: Boolean(player.levitationEngaged || Number(player.hoverSprintUntil) > timestamp),
     hpReduction: Boolean(player.limitBreakActive),
     resistanceBreak: Boolean(player.limitBreakActive),
@@ -10502,7 +10596,8 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
   const gravityStormMultiplier = Number(player.gravityStormSlowUntil) > timestamp
     ? clampNumber(player.gravityStormSlowMultiplier, GRAVITY_STORM_SLOW_MULTIPLIER_MIN, 1, 1)
     : 1;
-  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * effectiveAccelerationMultiplier(room, player, timestamp) * taserMultiplier * gravityStormMultiplier;
+  const groupMultiplier = desireBiasGroupActive(room, player) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
+  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * effectiveAccelerationMultiplier(room, player, timestamp) * taserMultiplier * gravityStormMultiplier * groupMultiplier;
 }
 
 function floraAromaSource(room, player) {
@@ -10563,7 +10658,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   const map = getMap(room);
   const canDash = Boolean(wantsDash && (controllingDrone || availableStamina(mover) > 0.5));
   if (canDash && !controllingDrone) {
-    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt);
+    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt, room, "ダッシュ");
     mover.lastDashAt = timestamp;
   }
   const movementMode = canDash ? "dash" : wantsSlow ? "slow" : "walk";
@@ -10599,7 +10694,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   if (beforeX === mover.x && beforeY === mover.y) return;
   if (!controllingDrone && player.alive && movementMode !== "dash") {
     const drainRate = movementMode === "slow" ? SLOW_WALK_DRAIN_PER_SECOND : WALK_DRAIN_PER_SECOND;
-    spendStamina(mover, drainRate * dt);
+    spendStamina(mover, drainRate * dt, room, movementMode === "slow" ? "無音歩行" : "歩行");
   }
   const soundInterval = movementMode === "dash" ? 210 : 430;
   if ((controllingDrone || player.alive) && movementMode !== "slow" && !passiveEffects.quiet && timestamp - (mover.lastSoundAt || 0) >= soundInterval) {
@@ -11188,7 +11283,7 @@ function completeTask(room, player, taskId) {
       throw new ApiError(400, "このUploadの前にDownloadを1件完了してください。");
     }
   }
-  spendStamina(player, staminaCost);
+  spendStamina(player, staminaCost, room, "斬る");
   player.staminaUpdatedAt = timestamp;
   task.done = true;
   player.taskContribution += TASK_CONTRIBUTION;
@@ -11309,7 +11404,7 @@ function activateDodge(room, player) {
   if (player.stamina < MAX_STAMINA - 0.01) {
     throw new ApiError(400, `回避にはスタミナ ${MAX_STAMINA} が必要です。`);
   }
-  spendStamina(player, MAX_STAMINA);
+  spendStamina(player, MAX_STAMINA, room, "回避");
   player.dodgeActiveUntil = timestamp + DODGE_DURATION_MS + player.dodgeDurationBonusMs;
   player.dodgeReadyAt = timestamp + DODGE_COOLDOWN_MS;
   pushMagicEffect(room, "action-dodge", player, { radius: 115, playerId: player.id });
@@ -11330,7 +11425,7 @@ function fighterSlash(room, player, targetId = "") {
   player.slashActiveUntil = 0;
   const cost = FIGHTER_SLASH_STAMINA_COST;
   if (Number(player.stamina) < cost) throw new ApiError(400, `斬るにはスタミナ ${cost} が必要です。`);
-  spendStamina(player, cost);
+  spendStamina(player, cost, room, "踏ん張り");
   player.slashActiveUntil = timestamp + 700;
   player.slashPerfectUntil = timestamp + 220;
   const slashAimX = Number(player.aimX) || 1;
@@ -13152,7 +13247,7 @@ function useQuantumControl(room, player, rawMode) {
   const mode = String(rawMode || player.quantumMode || "transmute-mercury");
   player.quantumMode = mode;
   if (Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `量子制御には${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
-  spendStamina(player, QUANTUM_ACTION_STAMINA_COST);
+  spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "量子制御");
   if (mode === "transmute-mercury" || mode === "transmute-lead") {
     const itemId = mode.endsWith("mercury") ? "mercury" : "lead";
     consumeItem(player, itemId);
@@ -14684,7 +14779,7 @@ function repair(room, player) {
     if (player.stamina < REMOTE_REPAIR_STAMINA_COST) {
       throw new ApiError(400, `遠隔修復にはスタミナ ${REMOTE_REPAIR_STAMINA_COST} が必要です。`);
     }
-    spendStamina(player, REMOTE_REPAIR_STAMINA_COST);
+    spendStamina(player, REMOTE_REPAIR_STAMINA_COST, room, "スマホ修復");
     player.smartphoneAction = "repair";
     player.smartphoneUntil = timestamp + SMARTPHONE_ACTION_MS;
     player.vx = 0;
@@ -14704,7 +14799,7 @@ function repair(room, player) {
     if (player.stamina < REMOTE_REPAIR_STAMINA_COST) {
       throw new ApiError(400, `遠隔修復にはスタミナ ${REMOTE_REPAIR_STAMINA_COST} が必要です。`);
     }
-    spendStamina(player, REMOTE_REPAIR_STAMINA_COST);
+    spendStamina(player, REMOTE_REPAIR_STAMINA_COST, room, "スマホ修復");
     player.smartphoneAction = "repair";
     player.smartphoneUntil = timestamp + SMARTPHONE_ACTION_MS;
     player.vx = 0;
@@ -14742,7 +14837,7 @@ function startSmartphoneRepair(room, player) {
   if (availableStamina(player) < REMOTE_REPAIR_STAMINA_COST) {
     throw new ApiError(400, `スマホ修理にはスタミナ ${REMOTE_REPAIR_STAMINA_COST} が必要です。`);
   }
-  spendStamina(player, REMOTE_REPAIR_STAMINA_COST);
+  spendStamina(player, REMOTE_REPAIR_STAMINA_COST, room, "遠隔修復");
   player.smartphoneAction = "repair";
   player.smartphoneUntil = timestamp + SMARTPHONE_ACTION_MS;
   player.vx = 0;
@@ -15139,7 +15234,7 @@ function jumpPlayer(room, player, rawDx, rawDy) {
     player.movementMode = "idle";
     throw new ApiError(400, `跳躍にはスタミナ ${Math.ceil(cost)} が必要です。`);
   }
-  spendStamina(player, cost);
+  spendStamina(player, cost, room, "跳躍");
   const origin = { x: player.x, y: player.y };
   const baseMotionDuration = Math.max(320, Math.min(1800, 260 + distanceToJump * 0.72));
   const motionDuration = Math.max(120, baseMotionDuration / Math.max(0.1, effectiveAccelerationMultiplier(room, player, timestamp)));
@@ -15477,6 +15572,10 @@ function serialize(room, viewer, options = {}) {
       rationalManaThreshold: RATIONAL_MANA_THRESHOLD,
       manaState: manaStateLabel(viewer.mana),
       staminaState: staminaStateLabel(viewer.stamina),
+      desireBias: viewer.desireBias || "",
+      desireBiasLabel: desireBiasDefinition(viewer)?.label || "",
+      desireBiasDetail: desireBiasDefinition(viewer)?.detail || "",
+      ideaBlockedByDesire: Boolean(isDesireState(viewer) || viewer.desireBias),
       luck: luckValueFor(viewer),
       passivesEnabled: passivesEnabled(viewer),
       rationalFreeAbilityReadyAt: Number(viewer.rationalFreeAbilityReadyAt) || 0,
@@ -17243,7 +17342,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "hold-branch-viewport-v428",
+  version: "gold-desire-title-v429",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

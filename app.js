@@ -524,7 +524,7 @@ const state = {
     sfxLoading: null,
     sfxCursor: new Map(),
     unlocked: false,
-    muted: IS_VERIFICATION_MODE || localStorage.getItem(storage.gameMuted) === "1" || localStorage.getItem(storage.musicMuted) === "1",
+    muted: IS_VERIFICATION_MODE || localStorage.getItem(storage.gameMuted) !== "0",
     currentBgm: null,
     titleBgm: createBgmAudio(assetUrl("assets/bgm-title.mp3"), 0.34)
   }
@@ -723,7 +723,7 @@ function hackerRecipePresentation(recipe) {
 }
 
 const generatedItemTextureFiles = new Map([
-  ["gold", { file: "item-gold.webp" }],
+  ["gold", { file: "item-gold-v429.png" }],
   ["mercury", { file: "item-mercury.webp" }],
   ["quantum-mercury", { file: "item-mercury.webp" }],
   ["lead", { file: "item-lead.webp" }],
@@ -2220,14 +2220,15 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   throw: 0
 });
 
-function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURATION[kind] || 700, startedAt = state.frameNow || performance.now(), sourceEffectId = "", variant = "") {
+function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURATION[kind] || 700, startedAt = state.frameNow || performance.now(), sourceEffectId = "", variant = "", motionId = kind) {
   if (!playerId || !kind) return;
   state.characterActions.set(playerId, {
     kind,
     startedAt,
     duration: Math.max(120, Number(duration) || 700),
     sourceEffectId,
-    variant: String(variant || "")
+    variant: String(variant || ""),
+    motionId: String(motionId || kind)
   });
 }
 
@@ -2243,6 +2244,8 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-shoot": "shoot",
   "action-sniper-scope": "focus",
   "action-reload": "reload",
+  "action-item-use": "enhance",
+  "action-item-throw": "throw",
   "action-weak-bullet": "shoot",
   "action-weak-bullet-load": "reload",
   "action-taser": "shoot",
@@ -5754,14 +5757,13 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
 
   if (activeType === "teleport" || activeType === "gravity") {
     const gravityDescriptions = {
-      body: "拡大マップで指定した通行可能地点へ転移する",
       near: "選択した他プレイヤーの近くへ転移する",
       heart: "対象の心臓へ干渉して遠隔攻撃する",
       accelerate: "8秒間、移動・行動・リキャストを超加速する",
       decelerate: "8秒間、対象の移動・行動・リキャストを超減速する",
       storm: "乱数強度の継続ダメージ・減速・重力変位。自身の半径2mは安全"
     };
-    const gravityModes = new Set(["body", "near", "heart", "accelerate", "decelerate", "storm"]);
+    const gravityModes = new Set(["near", "heart", "accelerate", "decelerate", "storm"]);
     [...els.teleportModeSelect.options].filter((option) => gravityModes.has(option.value)).forEach((option) => {
       addBranch(option.textContent, () => {
         state.borrowedAbilityModes.gravity = option.value;
@@ -6134,7 +6136,7 @@ async function api(path, extra = {}, options = {}) {
         ""
       )
       : "";
-    triggerCharacterAction(state.playerId, actionKind, undefined, undefined, "", actionVariant);
+    triggerCharacterAction(state.playerId, actionKind, undefined, undefined, "", actionVariant, path);
   }
   applyState(result, { authoritative: Boolean(options.authoritative) });
   return result;
@@ -6741,7 +6743,8 @@ function detectMagicEffects(previous, next) {
         CHARACTER_ACTION_DURATION[actionKind] || duration,
         startedAt,
         effect.id,
-        effect.variant
+        effect.variant,
+        effect.type
       );
     }
   }
@@ -6848,7 +6851,8 @@ function detectWorldSounds(previous, next) {
         CHARACTER_ACTION_DURATION[characterActionKind],
         state.frameNow || performance.now(),
         sound.id,
-        sound.variant
+        sound.variant,
+        `sound:${sound.type}`
       );
     }
     playSound(kind, {
@@ -7373,7 +7377,7 @@ function renderLobby(data) {
       <span class="color-dot" style="background:${player.color}"></span>
       <span class="player-meta">
         <span class="name-line">${escapeHtml(playerIdentityLabel(player))}${player.host ? " / ホスト" : ""}</span>
-        ${player.isBot ? "" : `<span class="sub-line">${skinId === "blue-dress" ? "青白ドレス" : "白フード"}</span>`}
+        ${player.isBot ? "" : `<span class="sub-line">${skinId === "blue-dress" ? "ソフィア" : "フィリア"}</span>`}
       </span>
       ${displayedRole ? `<span class="badge">${escapeHtml(displayedRole)}</span>` : ""}
     `;
@@ -7516,8 +7520,8 @@ function setInputValue(input, value) {
 function renderTargetOptions(data) {
   const self = data.self;
   const modeOptions = {
-    teleport: [["body", "転移・地点"], ["near", "転移・対象付近"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
-    gravity: [["body", "転移・地点"], ["near", "転移・対象付近"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
+    teleport: [["near", "転移・対象付近"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
+    gravity: [["near", "転移・対象付近"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
     flora: [["heal", "回復"], ["sunbeam", "サンビーム・放射"], ["sunbeam-converged", "サンビーム・収束"]],
     gunner: [["hover-sprint", "ホバースプリント"]],
     quantum: [["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]]
@@ -8707,9 +8711,8 @@ function updateActionButtons(data) {
     : "";
   const operatorLabels = {
     fighter: self.limitBreakActive ? `リミットブレイク ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク",
-    teleport: operatorMode === "body" ? `転移・地点 ${operatorCostLabel("teleport")}`
-      : operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
-        : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
+    teleport: operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
+      : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
           : operatorMode === "accelerate" ? `アクセラレート 8秒 ${operatorCostLabel("teleport")}`
             : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
               : `グラビティストーム ${operatorCostLabel("teleport")}`,
@@ -11778,38 +11781,14 @@ function semanticEffectMotion(type, variant = "", fallback = "energy") {
   return fallback;
 }
 
-function drawGoldCoinFromTexture(sprite, x, y, radius, rotation, alpha) {
-  if (!sprite || alpha <= 0.004 || radius <= 0) return;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.globalAlpha *= alpha;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, radius, radius * 0.72, 0, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.drawImage(sprite, -radius * 1.45, -radius * 1.45, radius * 2.9, radius * 2.9);
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.globalAlpha *= alpha;
-  ctx.strokeStyle = "rgba(255, 238, 144, 0.92)";
-  ctx.lineWidth = Math.max(1.2, radius * 0.12);
-  ctx.beginPath();
-  ctx.ellipse(0, 0, radius, radius * 0.72, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawGoldTransmutationStages(goldSprite, progress) {
-  const reveal = clamp((progress - 0.12) / 0.24, 0, 1);
-  const breakApart = clamp((progress - 0.44) / 0.2, 0, 1);
-  const coinsAppear = clamp((progress - 0.55) / 0.2, 0, 1);
-  const creditConvert = clamp((progress - 0.78) / 0.2, 0, 1);
+function drawGoldTransmutationStages(goldSprite, coinSprite, progress) {
+  const reveal = clamp((progress - 0.08) / 0.2, 0, 1);
+  const breakApart = clamp((progress - 0.34) / 0.26, 0, 1);
+  const coinsAppear = clamp((progress - 0.5) / 0.22, 0, 1);
+  const creditConvert = clamp((progress - 0.76) / 0.22, 0, 1);
   const smoothReveal = reveal * reveal * (3 - 2 * reveal);
-  const ingotWidth = 112;
-  const ingotHeight = 86;
+  const ingotWidth = 126;
+  const ingotHeight = 84;
 
   if (breakApart <= 0.001) {
     ctx.globalCompositeOperation = "source-over";
@@ -11821,18 +11800,19 @@ function drawGoldTransmutationStages(goldSprite, progress) {
       ingotWidth * (0.84 + smoothReveal * 0.16),
       ingotHeight * (0.84 + smoothReveal * 0.16)
     );
-  } else if (breakApart < 1) {
-    const fragmentCount = 5;
+  } else if (breakApart < 1 && goldSprite) {
+    const fragmentCount = 7;
     const fragmentWidth = ingotWidth / fragmentCount;
     for (let index = 0; index < fragmentCount; index += 1) {
       const centeredIndex = index - (fragmentCount - 1) / 2;
-      const offsetX = centeredIndex * 10 * breakApart;
-      const offsetY = Math.abs(centeredIndex) * 4 * breakApart - breakApart * 8;
+      const stagger = Math.sin((index + 1) * 1.73) * 6;
+      const offsetX = centeredIndex * 13 * breakApart;
+      const offsetY = (Math.abs(centeredIndex) * 3 + stagger) * breakApart - breakApart * 16;
       ctx.save();
       ctx.translate(offsetX, -42 + offsetY);
-      ctx.rotate(centeredIndex * 0.055 * breakApart);
+      ctx.rotate((centeredIndex * 0.065 + stagger * 0.005) * breakApart);
       ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 1 - breakApart * 0.62;
+      ctx.globalAlpha = 1 - breakApart * 0.74;
       ctx.beginPath();
       ctx.rect(-ingotWidth / 2 + index * fragmentWidth, -ingotHeight / 2, fragmentWidth + 1, ingotHeight);
       ctx.clip();
@@ -11841,19 +11821,33 @@ function drawGoldTransmutationStages(goldSprite, progress) {
     }
   }
 
-  if (coinsAppear <= 0) return;
-  const coinAlpha = coinsAppear * (1 - creditConvert);
-  const coinCount = 7;
-  for (let index = 0; index < coinCount; index += 1) {
-    const side = index - (coinCount - 1) / 2;
-    const fan = side * 22;
-    const settleX = side * 17;
-    const settleY = -34 + Math.abs(side) * 3;
-    const x = fan * (1 - coinsAppear) + settleX * coinsAppear;
-    const y = -50 - Math.sin((index + 1) * 1.27) * 16 * (1 - coinsAppear) + settleY * coinsAppear - creditConvert * 54;
-    const radius = 10 + (index % 2) * 2;
-    drawGoldCoinFromTexture(goldSprite, x, y, radius, side * 0.14 + progress * 2.4, coinAlpha);
+  if (coinsAppear <= 0 || !coinSprite) return;
+  const coinAlpha = coinsAppear * (1 - creditConvert * 0.82);
+  const settle = objectEffectEase(coinsAppear);
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = coinAlpha;
+  ctx.translate(0, -42 - creditConvert * 58);
+  ctx.rotate((1 - settle) * -0.09 + Math.sin(progress * Math.PI * 5) * 0.012);
+  const coinSize = 106 * (0.72 + settle * 0.28);
+  drawNormalizedSpriteCentered(coinSprite, 0, (1 - settle) * 20, coinSize, coinSize);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let index = 0; index < 10; index += 1) {
+    const phase = index * 2.3999632297 + progress * 2.1;
+    const radius = (1 - creditConvert) * (20 + (index % 4) * 8);
+    const x = Math.cos(phase) * radius;
+    const y = -44 + Math.sin(phase) * radius * 0.62 - creditConvert * 48;
+    const particleSize = 1.3 + (index % 3) * 0.7;
+    ctx.globalAlpha = coinAlpha * (0.24 + (index % 4) * 0.08);
+    ctx.fillStyle = index % 3 === 0 ? "#fff7cf" : index % 3 === 1 ? "#ffd75a" : "#f2a91c";
+    ctx.beginPath();
+    ctx.arc(x, y, particleSize, 0, Math.PI * 2);
+    ctx.fill();
   }
+  ctx.restore();
 
   if (creditConvert > 0) {
     ctx.save();
@@ -11914,10 +11908,13 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   );
   if (effect.type === "quantum-transmutation") {
     const goldImage = state.textures?.itemTextures?.gold;
+    const coinImage = state.textures?.creditGainCoinsEffect;
     const goldPrepared = goldImage ? transparentSpriteSource(goldImage, "item-gold", 12) : null;
+    const coinPrepared = coinImage ? transparentSpriteSource(coinImage, "credit-gain-coins", 12) : null;
     const goldSprite = goldPrepared ? normalizedSpriteFrame(goldPrepared, "item-gold", 1, 1, 0, 0) : null;
+    const coinSprite = coinPrepared ? normalizedSpriteFrame(coinPrepared, "credit-gain-coins", 1, 1, 0, 0) : null;
     if (goldSprite) {
-      drawGoldTransmutationStages(goldSprite, progress);
+      drawGoldTransmutationStages(goldSprite, coinSprite, progress);
     }
   }
   ctx.restore();
@@ -12510,7 +12507,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
-  manaGpu: ["マナGPU", "再使用待機中に毎秒0.025MPを消費し、1MPにつき待機時間を20秒短縮します。"]
+  manaGpu: ["マナGPU", "再使用待機中に毎秒0.025MPを消費し、1MPにつき待機時間を20秒短縮します。"],
+  clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
 function registerMarkerHitTarget(key, localX, localY, radius, title, detail) {
@@ -13277,7 +13275,8 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   push: Object.freeze({ texture: "pushMarkerEffect", mode: "shimmer", size: 28, alpha: 0.94, phase: 0.72 }),
   burning: Object.freeze({ texture: "hazardFireEffect", mode: "combustion", size: 30, alpha: 0.88, phase: 0.81 }),
   poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 }),
-  manaGpu: Object.freeze({ texture: "statusManaGpuEffect", mode: "data-accelerate", size: 30, alpha: 0.94, phase: 0.57 })
+  manaGpu: Object.freeze({ texture: "statusManaGpuEffect", mode: "data-accelerate", size: 30, alpha: 0.94, phase: 0.57 }),
+  clairvoyance: Object.freeze({ texture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 })
 });
 
 function persistentStatusAteState(player, data) {
@@ -13333,8 +13332,27 @@ function drawBotWalkSprite(player, data, ghost) {
   return drawOperatorWalkSprite(player, data, ghost);
 }
 
-function physicalActionFramePosition(kind, progress) {
-  const value = clamp(progress, 0, 1);
+function physicalMotionSignature(motionId, kind) {
+  const source = `${String(kind || "action")}:${String(motionId || kind || "action")}`;
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const unit = (shift) => ((hash >>> shift) & 255) / 255;
+  return {
+    lead: 0.015 + unit(0) * 0.075,
+    release: 0.86 + unit(8) * 0.1,
+    sway: unit(16) * 2 - 1,
+    lift: unit(24) * 2 - 1,
+    twist: (((hash >>> 5) & 255) / 255) * 2 - 1,
+    frequency: 1 + ((hash >>> 13) & 3)
+  };
+}
+
+function physicalActionFramePosition(kind, progress, motionId = kind) {
+  const signature = physicalMotionSignature(motionId, kind);
+  const value = clamp((progress - signature.lead) / Math.max(0.5, signature.release - signature.lead), 0, 1);
   if (kind === "attack" || kind === "slash") {
     if (value < 0.34) return objectEffectEase(value / 0.34) * 0.62;
     if (value < 0.58) return 0.62 + objectEffectEase((value - 0.34) / 0.24) * 1.38;
@@ -13357,9 +13375,10 @@ function physicalActionFramePosition(kind, progress) {
   return objectEffectEase(value) * 2;
 }
 
-function applyPhysicalActionTransform(kind, progress, flip) {
+function applyPhysicalActionTransform(kind, progress, flip, motionId = kind) {
   const impulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
   const facing = flip ? -1 : 1;
+  const signature = physicalMotionSignature(motionId, kind);
   if (kind === "attack") {
     ctx.translate(facing * impulse * 7, -impulse * 1.4);
     ctx.rotate(facing * impulse * 0.035);
@@ -13405,6 +13424,12 @@ function applyPhysicalActionTransform(kind, progress, flip) {
     ctx.translate(facing * progress * 5, -Math.sin(progress * Math.PI) * 24);
     ctx.scale(1 - impulse * 0.035, 1 + impulse * 0.055);
   }
+  const uniqueWave = Math.sin(clamp(progress, 0, 1) * Math.PI * signature.frequency) * impulse;
+  ctx.translate(
+    facing * uniqueWave * signature.sway * 2.4,
+    uniqueWave * signature.lift * 1.65
+  );
+  ctx.rotate(facing * uniqueWave * signature.twist * 0.012);
 }
 
 function drawPhysicalActionSprite(player, data, ghost, action) {
@@ -13418,7 +13443,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   if (!atlas) return false;
 
   const normalizedProgress = clamp(Number(action.progress) || 0, 0, 1);
-  const phase = physicalActionFramePosition(action.kind, normalizedProgress);
+  const phase = physicalActionFramePosition(action.kind, normalizedProgress, action.motionId);
   const firstFrame = Math.min(2, Math.floor(phase));
   const secondFrame = Math.min(2, firstFrame + 1);
   const blend = phase - Math.floor(phase);
@@ -13435,7 +13460,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
-  applyPhysicalActionTransform(action.kind, normalizedProgress, flip);
+  applyPhysicalActionTransform(action.kind, normalizedProgress, flip, action.motionId);
   ctx.globalAlpha *= 1 - blend;
   drawNormalizedSprite(first, 0, 31, 98, actionHeight, flip);
   ctx.globalAlpha = (ghost ? 0.45 : player.ejected ? 0.22 : 1) * blend;
@@ -14370,7 +14395,8 @@ function drawHud(data, w, h) {
     : 0;
   const detailTop = 38 + bars.length * rowHeight;
   const vibeCodingOffset = self.special === "alchemist" ? 19 : 0;
-  const height = detailTop + vibeCodingOffset + (idea > 0 ? 104 : 86);
+  const desireOffset = self.desireBiasLabel ? 34 : 0;
+  const height = detailTop + vibeCodingOffset + desireOffset + (idea > 0 ? 104 : 86);
 
   ctx.save();
   ctx.fillStyle = "rgba(8, 24, 32, 0.88)";
@@ -14417,10 +14443,17 @@ function drawHud(data, w, h) {
   ctx.fillText(`幸運／直観 ${Number(self.luck || 0).toFixed(2)}`, 27, detailTop + 56 + resourceOffset);
   ctx.fillStyle = "#e2e8f0";
   ctx.fillText(`SP:${self.staminaState || "気概"} / MP:${self.manaState || "気概"}`, 27, detailTop + 74 + resourceOffset);
-  if (idea > 0) {
+  if (self.desireBiasLabel) {
+    ctx.fillStyle = "#fb7185";
+    ctx.fillText(self.desireBiasLabel, 27, detailTop + 92 + resourceOffset);
+    ctx.font = "700 9px Segoe UI, sans-serif";
+    ctx.fillStyle = "#fecdd3";
+    ctx.fillText(String(self.desireBiasDetail || "").slice(0, 34), 27, detailTop + 108 + resourceOffset);
+  }
+  if (idea > 0 && !self.ideaBlockedByDesire) {
     const ideaLabel = ["真/美", "真/美", "善", "善のイデア"][Math.min(3, Number(self.ideaStage) || 0)];
     ctx.fillStyle = "#fde68a";
-    ctx.fillText(`${ideaLabel} ${idea}s`, 27, detailTop + 92 + resourceOffset);
+    ctx.fillText(`${ideaLabel} ${idea}s`, 27, detailTop + 92 + resourceOffset + desireOffset);
   }
   ctx.restore();
 }
@@ -14696,7 +14729,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "hold-branch-viewport-v428";
+const version = "gold-desire-title-v429";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -14839,9 +14872,10 @@ const version = "hold-branch-viewport-v428";
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
+  const creditGainCoinsEffect = new Image();
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
-  ].map((id) => [id, image(`assets/generated/item-${id}.webp`)]));
+  ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-v429.png" : `assets/generated/item-${id}.webp`)]));
   const physicalActionAtlases = {
     "white-hood": new Image(),
     "blue-dress": new Image(),
@@ -14910,7 +14944,7 @@ const version = "hold-branch-viewport-v428";
   defer(bottleShardEffect, "assets/generated/effect-bottle-shards.webp");
   defer(footBathSparkleEffect, "assets/generated/effect-footbath-hidden-spring-godray-v359.png");
   for (const [id, entry] of Object.entries(mapObjectEffectTextures)) {
-    defer(entry, `assets/generated/object-effect-${id}-v327.png`);
+    defer(entry, id === "credits" ? "assets/generated/object-effect-credits-v429.png" : `assets/generated/object-effect-${id}-v327.png`);
   }
   defer(itemStaminaCell, "assets/generated/item-stamina-cell.webp");
   defer(creditCrates, "assets/generated/credit-crates.png");
@@ -14928,6 +14962,7 @@ const version = "hold-branch-viewport-v428";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
+  defer(creditGainCoinsEffect, "assets/generated/object-effect-credits-v429.png");
   defer(physicalActionAtlases["white-hood"], "assets/generated/physical-action-atlas-white-hood.webp?v=focus-sd-v308");
   defer(physicalActionAtlases["blue-dress"], "assets/generated/physical-action-atlas-blue-dress.webp");
   defer(physicalActionAtlases["male-bot"], "assets/generated/physical-action-atlas-male-bot.webp");
@@ -15033,6 +15068,7 @@ const version = "hold-branch-viewport-v428";
     smartphoneRepairIcon,
     throwLandingPreview,
     clairvoyanceThrowAte,
+    creditGainCoinsEffect,
     physicalActionAtlases,
     weaponFireMotions,
     fullMapComposites,

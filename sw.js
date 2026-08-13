@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v428-hold-branch-viewport";
+const CACHE_NAME = "dva-static-v429-gold-desire-title";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -49,7 +49,7 @@ const STATIC_ASSETS = [
   "/assets/generated/field-aurelia-corridor-objects-v317.webp",
   "/assets/generated/effect-footbath-hidden-spring-godray-v359.png",
   "/assets/generated/object-effect-stamina-v327.png",
-  "/assets/generated/object-effect-credits-v327.png",
+  "/assets/generated/object-effect-credits-v429.png",
   "/assets/generated/object-effect-mana-v327.png",
   "/assets/generated/object-effect-cooldown-reduction-v327.png",
   "/assets/generated/object-effect-status-recovery-v327.png",
@@ -153,7 +153,7 @@ const STATIC_ASSETS = [
   "/assets/generated/weapon-motion-male-bot-assault-v313.webp",
   "/assets/generated/weapon-motion-male-bot-sniper-v313.webp",
   "/assets/generated/weapon-motion-male-bot-taser-v313.webp",
-  "/assets/generated/item-gold.webp",
+  "/assets/generated/item-gold-v429.png",
   "/assets/generated/item-mercury.webp",
   "/assets/generated/item-lead.webp",
   "/assets/generated/item-uranium.webp",
