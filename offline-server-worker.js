@@ -17248,5 +17248,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "clairvoyance-balance-v426" });
+self.postMessage({ type: "ready", version: "hold-branch-title-v427" });
 })();

@@ -2586,6 +2586,10 @@ function stopContinuousActionHold(pointerId = null) {
 function beginContinuousActionHold(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const button = event.target instanceof Element ? event.target.closest("button") : null;
+  // Hacker generation cards own their pointer hold so they can expose the
+  // continuous-generation/detail branch. Keyboard repetition still uses the
+  // shared ability hold loop.
+  if (button?.closest("#hackerAbilityGrid")) return;
   if (!isContinuousGameActionButton(button)) return;
   event.preventDefault();
   stopContinuousActionHold();
@@ -14679,7 +14683,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "clairvoyance-balance-v426";
+const version = "hold-branch-title-v427";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
