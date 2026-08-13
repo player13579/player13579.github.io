@@ -6720,7 +6720,9 @@ const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora",
 const HACKER_ACTION_STAMINA_COST = 5;
 const FIGHTER_SLASH_STAMINA_COST = 75;
 const FIGHTER_ENERGY_CHARGE_MANA_COST = 1;
-const FIGHTER_PUSH_CHARGE_THRESHOLD = 3;
+const FIGHTER_PUSH_CHARGE_THRESHOLD = 25;
+const FIGHTER_PUSH_CHARGE_REWARD = 2;
+const FIGHTER_DESTRUCTION_SLASH_THRESHOLD = 50;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
@@ -6728,6 +6730,8 @@ const FIGHTER_SHOCKWAVE_ORIGIN_OFFSET = 20;
 const FIGHTER_THROW_SHOCKWAVE_RADIUS = 180;
 const HACKER_MANA_GPU_DRAIN_PER_SECOND = 0.025;
 const HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA = 20_000;
+const HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS = 54_000;
+const HACKER_MANA_GPU_BALANCED_COOLDOWN_MULTIPLIER = 1.5;
 const EXILE_COST = 250;
 const TASK_CONTRIBUTION = 0;
 const EMP_INTERACTION_WINDOW_MS = 900;
@@ -6741,7 +6745,6 @@ const RESOLVE_POINT_USE_RANGE = 82;
 const RESOLVE_POINT_CLEARANCE = 118;
 const MAP_OBJECT_SPEED_MULTIPLIER = 1.35;
 const LIMIT_BREAK_SPEED_MULTIPLIER = 3;
-const LIMIT_BREAK_DURATION_MS = 12_000;
 const LIMIT_BREAK_MANA_DRAIN_PER_SECOND = 0.08;
 const FIRE_JUTSU_COST = 90;
 const FIRE_JUTSU_RADIUS = 240;
@@ -6808,7 +6811,7 @@ const FLORA_MANA_COST = ABILITY_MANA_COST;
 const ALCHEMY_MANA_COST = ABILITY_MANA_COST;
 const SABOTAGE_MANA_COST = 0;
 const STAND_FIRM_COST = 30;
-const HEAL_COST = 10;
+const HEAL_COST = 35;
 const PUSH_COST = 45;
 const PUSH_BACKLASH_DAMAGE_PER_CHARGE = 0.5;
 const MANA_POTION_COST = 25;
@@ -8807,6 +8810,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     vibeCodingReadyAt: 0,
     vibeCodingCooldownMs: 0,
     manaGpuDrainCarry: 0,
+    manaGpuCooldownCreditMs: 0,
     inventions: [],
     particleCannonUntil: 0,
     particleCannonNextAt: 0,
@@ -9189,6 +9193,7 @@ function startGame(room) {
     player.vibeCodingReadyAt = 0;
     player.vibeCodingCooldownMs = 0;
     player.manaGpuDrainCarry = 0;
+    player.manaGpuCooldownCreditMs = 0;
     player.inventions = [];
     player.particleCannonUntil = 0;
     player.particleCannonNextAt = 0;
@@ -9437,6 +9442,8 @@ function startBattle(room) {
     player.fighterEnergyCharge = 0;
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
     player.fighterShockwaveCharges = 0;
+    player.manaGpuCooldownCreditMs = 0;
+    player.manaGpuDrainCarry = 0;
     player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 0 : EMP_INITIAL_LOCK_MS);
     player.itemDisabledUntil = 0;
     player.lastPassiveCreditAt = timestamp;
@@ -9746,15 +9753,15 @@ function toggleLimitBreak(room, player) {
   }
   player.limitBreakActive = true;
   player.limitBreakStacks = limitBreakStackCount(player) + (firstActivation ? 0 : 1);
-  player.limitBreakEndsAt = timestamp + LIMIT_BREAK_DURATION_MS;
+  player.limitBreakEndsAt = 0;
   if (firstActivation) player.limitBreakManaCarry = 0;
   player.stamina = Math.min(staminaCapacityFor(player), previousStamina * 3);
   player.staminaUpdatedAt = timestamp;
   const stacks = limitBreakStackCount(player);
   const multiplier = limitBreakMultiplier(player);
   pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: `active-stack-${stacks}` });
-  setImmediateFeedback(player, "リミットブレイク", `HP-1 / 12秒 / SP・加速×${multiplier} / 即死回避無効`);
-  pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。HP-1 / SP・加速${multiplier}倍 / 最終発動から12秒 / 即死回避無効。`);
+  setImmediateFeedback(player, "リミットブレイク", `HP-1 / 永続 / SP・加速×${multiplier} / 即死回避無効`);
+  pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。HP-1 / SP・加速${multiplier}倍 / マナが続く限り永続 / 即死回避無効。`);
   touch(room);
   return true;
 }
@@ -9778,9 +9785,6 @@ function advanceLimitBreak(room, player, elapsedMs) {
   if (!player.limitBreakActive) return false;
   if (room.phase !== "playing" || !player.alive || player.ejected || !hasOperatorAccess(player, "fighter")) {
     return stopLimitBreak(room, player);
-  }
-  if ((Number(player.limitBreakEndsAt) || 0) <= now()) {
-    return stopLimitBreak(room, player, "12秒経過で解除されました");
   }
   if (isHackerOperator(player) && hackerRootEligible(player)) return false;
   player.limitBreakManaCarry = Math.max(0, Number(player.limitBreakManaCarry) || 0) +
@@ -9815,13 +9819,21 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0)) + 1;
   let reward = `衝撃波 ×${player.fighterShockwaveCharges}`;
   if (next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0) {
-    grantPushCharge(player, false);
-    pushMagicEffect(room, "fighter-push-acquired", player, {
-      radius: 92,
+    for (let count = 0; count < FIGHTER_PUSH_CHARGE_REWARD; count += 1) grantPushCharge(player, false);
+    pushMagicEffect(room, "fighter-energy-push-milestone", player, {
+      radius: 118,
       playerId: player.id,
-      variant: String(player.reasonCharges)
+      variant: `${next}:push-${player.reasonCharges}`
     });
-    reward += " / 押し込み獲得";
+    reward += " / 押し込み×2獲得";
+  }
+  if (next % FIGHTER_DESTRUCTION_SLASH_THRESHOLD === 0) {
+    pushMagicEffect(room, "fighter-energy-destruction-milestone", player, {
+      radius: 138,
+      playerId: player.id,
+      variant: String(next)
+    });
+    reward += " / 斬る・破壊解放";
   }
   pushMagicEffect(room, "fighter-energy-charge", player, {
     radius: 112,
@@ -9829,7 +9841,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:shockwave-${player.fighterShockwaveCharges}`
   });
   setImmediateFeedback(player, "エネルギーチャージ", reward);
-  pushEvent(room, `${player.name} がエネルギーを自動チャージし、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みも獲得しました" : ""}。`);
+  pushEvent(room, `${player.name} がエネルギーを自動チャージし、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みを2獲得しました" : ""}${next % FIGHTER_DESTRUCTION_SLASH_THRESHOLD === 0 ? "。斬るが常時破壊へ強化されました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -11582,14 +11594,28 @@ function fighterSlash(room, player, targetId = "") {
   const struckIds = new Set();
   if (target && distance(player, target) <= room.settings.killRange) {
     struckIds.add(target.id);
-    const outcome = killPlayer(room, player, target.id, {
-      hitZone: "head",
-      lockedAim: true,
-      ignoreCooldown: true,
-      preserveCooldown: true,
-      ignoreDodge: false,
-      noBody: true,
-      targetRole: target.role
+    const destructionSlash = Number(player.fighterEnergyCharge) >= FIGHTER_DESTRUCTION_SLASH_THRESHOLD;
+    const outcome = destructionSlash
+      ? destroyPlayerUnconditionally(room, player, target, "エネルギー充填済みの斬る", {
+          noKillCutin: false,
+          ignorePreparationBarrier: true
+        }) ? "destroyed" : "friendlyFirePenalty"
+      : killPlayer(room, player, target.id, {
+          hitZone: "head",
+          lockedAim: true,
+          ignoreCooldown: true,
+          preserveCooldown: true,
+          ignoreDodge: false,
+          noBody: true,
+          targetRole: target.role
+        });
+    if (destructionSlash) pushMagicEffect(room, "fighter-energy-destruction-slash", player, {
+      radius: 175,
+      playerId: player.id,
+      targetId: target.id,
+      targetX: target.x,
+      targetY: target.y,
+      variant: outcome
     });
     pushEvent(room, `${player.name} の斬るが ${target.name} に命中しました（${outcome}）。`);
   } else {
@@ -11633,6 +11659,7 @@ function fighterSlash(room, player, targetId = "") {
       }
     }
   }
+  checkWin(room);
   touch(room);
 }
 
@@ -12857,8 +12884,8 @@ function purchaseDrink(room, player, itemId) {
     } },
     grit: { label: "踏ん張り", cost: STAND_FIRM_COST, apply: () => grantStandFirmCharge(player) },
     heal: { label: "回復", cost: HEAL_COST, apply: () => {
-      if (player.bodyHits <= 0) throw new ApiError(400, "回復が必要なダメージはありません。");
-      player.bodyHits = 0;
+      if (player.bodyHits > 0) player.bodyHits = 0;
+      else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
     } },
     mana: { label: "マナポーション +1MP", cost: MANA_POTION_COST, apply: () => {
       setMana(room, player, (Number(player.mana) || 0) + 1, "マナポーション");
@@ -13784,12 +13811,18 @@ function humanTransmutation(room, player, targetId) {
 
 function vibeCodingCooldownMsFor(conversion) {
   const id = String(conversion || "");
-  if (id === "revive") return 36_000;
-  if (id === "hack-hp-delete") return 28_000;
-  if (id.startsWith("hack-")) return 18_000;
-  if (id.startsWith("object-")) return 12_000;
-  if (id.startsWith("vending-")) return 9_000;
-  return 7_000;
+  const base = id === "revive"
+    ? 36_000
+    : id === "hack-hp-delete"
+      ? 28_000
+      : id.startsWith("hack-")
+        ? 18_000
+        : id.startsWith("object-")
+          ? 12_000
+          : id.startsWith("vending-")
+            ? 9_000
+            : 7_000;
+  return Math.round(base * HACKER_MANA_GPU_BALANCED_COOLDOWN_MULTIPLIER);
 }
 
 function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
@@ -13798,8 +13831,8 @@ function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
     !isHackerOperator(player) ||
     !player.alive ||
     player.ejected ||
-    (Number(player.vibeCodingReadyAt) || 0) <= timestamp ||
-    (Number(player.mana) || 0) <= 0
+    (Number(player.mana) || 0) <= 0 ||
+    (Number(player.manaGpuCooldownCreditMs) || 0) >= HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS
   ) {
     player.manaGpuDrainCarry = 0;
     return false;
@@ -13813,9 +13846,9 @@ function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
   if (spend < 0.01) return false;
   player.manaGpuDrainCarry = Math.max(0, player.manaGpuDrainCarry - spend);
   setMana(room, player, (Number(player.mana) || 0) - spend, "マナGPU");
-  player.vibeCodingReadyAt = Math.max(
-    timestamp,
-    (Number(player.vibeCodingReadyAt) || timestamp) - spend * HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA
+  player.manaGpuCooldownCreditMs = Math.min(
+    HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS,
+    Math.max(0, Number(player.manaGpuCooldownCreditMs) || 0) + spend * HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA
   );
   return true;
 }
@@ -13837,8 +13870,12 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   }
   recipe.apply(room, player, targetId);
   player.vibeCodingCooldownMs = vibeCodingCooldownMsFor(conversion);
-  player.vibeCodingReadyAt = timestamp + player.vibeCodingCooldownMs;
-  player.manaGpuDrainCarry = 0;
+  const shortenedCooldownMs = Math.min(
+    player.vibeCodingCooldownMs,
+    Math.max(0, Number(player.manaGpuCooldownCreditMs) || 0)
+  );
+  player.manaGpuCooldownCreditMs = Math.max(0, Number(player.manaGpuCooldownCreditMs) - shortenedCooldownMs);
+  player.vibeCodingReadyAt = timestamp + player.vibeCodingCooldownMs - shortenedCooldownMs;
   if (Number(player.mana) <= 0) {
     player.credits = DESIRE_RESOURCE_DEBT;
     player.stamina = DESIRE_RESOURCE_DEBT;
@@ -13850,7 +13887,7 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
     playerId: player.id,
     variant: conversion
   });
-  pushEvent(room, `${player.name} がバイブコーディングで${recipe.label}を生成しました。`);
+  pushEvent(room, `${player.name} がバイブコーディングで${recipe.label}を生成しました。短縮クールを${(shortenedCooldownMs / 1000).toFixed(1)}秒使用しました。`);
   touch(room);
 }
 
@@ -15704,13 +15741,14 @@ function serialize(room, viewer, options = {}) {
       floraReadyAt: viewer.floraReadyAt,
       limitBreakActive: viewer.limitBreakActive,
       limitBreakEndsAt: Number(viewer.limitBreakEndsAt) || 0,
-      limitBreakDurationMs: LIMIT_BREAK_DURATION_MS,
+      limitBreakDurationMs: 0,
       limitBreakStacks: limitBreakStackCount(viewer),
       limitBreakMultiplier: limitBreakMultiplier(viewer),
       fighterEnergyCharge: Math.max(0, Math.floor(Number(viewer.fighterEnergyCharge) || 0)),
       fighterEnergyChargeReadyAt: Number(viewer.fighterEnergyChargeReadyAt) || 0,
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
       fighterShockwaveCharges: Math.max(0, Math.floor(Number(viewer.fighterShockwaveCharges) || 0)),
+      fighterDestructionSlash: Number(viewer.fighterEnergyCharge) >= FIGHTER_DESTRUCTION_SLASH_THRESHOLD,
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -15826,10 +15864,12 @@ function serialize(room, viewer, options = {}) {
       vibeCodingReadyAt: Number(viewer.vibeCodingReadyAt) || 0,
       vibeCodingCooldownMs: Number(viewer.vibeCodingCooldownMs) || 0,
       manaGpuActive: isHackerOperator(viewer) &&
-        Number(viewer.vibeCodingReadyAt) > timestamp &&
-        Number(viewer.mana) > 0,
+        Number(viewer.mana) > 0 &&
+        Number(viewer.manaGpuCooldownCreditMs) < HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS,
       manaGpuDrainPerSecond: HACKER_MANA_GPU_DRAIN_PER_SECOND,
       manaGpuCooldownReductionMsPerMana: HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA,
+      manaGpuCooldownCreditMs: Math.max(0, Number(viewer.manaGpuCooldownCreditMs) || 0),
+      manaGpuCooldownCreditCapMs: HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS,
       alchemyRecipeIds: isHackerOperator(viewer) ? Object.keys(ALCHEMY_RECIPES) : [],
       inventions: [...(viewer.inventions || [])],
       exiled: Boolean(viewer.exiled),
@@ -16601,6 +16641,7 @@ async function handleApi(req, res) {
         entry.fighterEnergyCharge = 0;
         entry.fighterEnergyChargeReadyAt = 0;
         entry.fighterShockwaveCharges = 0;
+        entry.manaGpuCooldownCreditMs = 0;
         entry.empReadyAt = 0;
         entry.itemDisabledUntil = 0;
         entry.slowedUntil = 0;
@@ -17511,7 +17552,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "held-fire-weapon-identity-v434",
+  version: "persistent-fighter-motion-v437",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

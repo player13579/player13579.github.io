@@ -12,15 +12,15 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v409.png">
-    <link rel="preload" as="image" href="assets/title-hero-v404.png?v=held-fire-weapon-identity-v434" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/title-hero-v404.png?v=persistent-fighter-motion-v437" fetchpriority="high">
     <style>html,body,.start-screen{background:#bca17d}</style>
-  <link rel="stylesheet" href="styles.css?v=held-fire-weapon-identity-v434">
+  <link rel="stylesheet" href="styles.css?v=persistent-fighter-motion-v437">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v404.png?v=held-fire-weapon-identity-v434" alt="木造の室内でフローラ回復を受けるフィリア" fetchpriority="high">
-      <img class="title-hero-character" src="assets/title-hero-v404.png?v=held-fire-weapon-identity-v434" alt="" aria-hidden="true">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v404.png?v=held-fire-weapon-identity-v434" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v404.png?v=persistent-fighter-motion-v437" alt="木造の室内でフローラ回復を受けるフィリア" fetchpriority="high">
+      <img class="title-hero-character" src="assets/title-hero-v404.png?v=persistent-fighter-motion-v437" alt="" aria-hidden="true">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v404.png?v=persistent-fighter-motion-v437" alt="" aria-hidden="true">
       <canvas id="titleFxCanvas" class="title-fx-canvas" aria-hidden="true"></canvas>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -138,7 +138,7 @@
                 <section><h4>ガンナー</h4><p>ARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れ時または射撃を止めた後に自動リロードします。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
                 <section><h4>SRと特殊弾</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。ウィークバレットは理知中に時間経過で自動装填され、命中対象と射手を破壊します。</p></section>
                 <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
-                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。一定時間ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発得ます。累計3回ごとに押し込みも得ます。Hのリミットブレイクは発動ごとにHPを1消費し、SPと加速を3倍ずつ重ねます。最終発動から12秒で解除され、発動中はマナを継続消費し、踏ん張りと変わり身を失います。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しません。</p></section>
+                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。一定時間ごとに1MPを自動消費してエネルギーを1回チャージし、斬るか投擲で使う衝撃波を1発得ます。25回ごとに押し込みを2獲得し、50回到達後は斬るが常に対象を破壊します。Hのリミットブレイクは発動ごとにHPを1消費し、SPと加速を3倍ずつ重ねます。マナが尽きるまで永続し、発動中は踏ん張りと変わり身が機能しません。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しません。</p></section>
                 <section><h4>グラビティ</h4><p>重力と時空の相関を扱い、転移、時空加減速、リビテーション、グラビティストームを使用します。重力嵐は継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全です。</p></section>
                 <section><h4>フローラのアロマ</h4><p>理知中は本人の停止中スタミナ回復を1.75倍にします。ほかのプレイヤーには適用されません。</p></section>
               </div>
@@ -159,7 +159,7 @@
                 <section><h4>自販機の確定商品</h4><p>スタミナ+100は6C、回避拡張10C、速度+0.1は8C、即時ワープ12C、回復10C、マナポーション+1MPは25C、踏ん張り30C、押し込み45C、変わり身75C、火遁90C。長押しで連続購入できます。</p></section>
                 <section><h4>意志の焦点</h4><p>通常オブジェクトから踏ん張り・押し込みは得られません。試合ごとに1地点だけ出現する意志の焦点へ近づくと、踏ん張りか押し込みを1つ獲得し、焦点は消滅します。</p></section>
                 <section><h4>ミステリー40C</h4><p>80C獲得18%、スタミナ+250が18%、完全活性16%、理知化12%、12秒鈍足14%、15秒能力封印12%、8秒意識消失10%。不利結果の合計は36%です。</p></section>
-                <section><h4>ハッカー</h4><p>固有行動はマナ消費0・クールタイムあり・少量のスタミナ消費です。マナGPUは再使用待機中に毎秒0.025MPを自動消費し、1MPにつき残りクールタイムを20秒短縮します。タスクは時間経過で自動完了し、端末付近では手動完了もできます。HP1以下で確殺無効を持たない絶体絶命時だけroot化し、他オペの全能力を借用します。</p></section>
+                <section><h4>ハッカー</h4><p>固有行動はマナ消費0・クールタイムあり・少量のスタミナ消費です。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒蓄積します。次のバイブコーディングで必要分を自動消費します。タスクは時間経過で自動完了し、端末付近では手動完了もできます。HP1以下で確殺無効を持たない絶体絶命時だけroot化し、他オペの全能力を借用します。</p></section>
               </div>
             </article>
 
@@ -667,10 +667,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=held-fire-weapon-identity-v434"></script>
-    <script src="game-engine.js?v=held-fire-weapon-identity-v434"></script>
-    <script src="offline-runtime.js?v=held-fire-weapon-identity-v434"></script>
-    <script src="config.js?v=held-fire-weapon-identity-v434"></script>
-    <script src="app.js?v=held-fire-weapon-identity-v434"></script>
+    <script src="game-runtime.js?v=persistent-fighter-motion-v437"></script>
+    <script src="game-engine.js?v=persistent-fighter-motion-v437"></script>
+    <script src="offline-runtime.js?v=persistent-fighter-motion-v437"></script>
+    <script src="config.js?v=persistent-fighter-motion-v437"></script>
+    <script src="app.js?v=persistent-fighter-motion-v437"></script>
 </body>
 </html>

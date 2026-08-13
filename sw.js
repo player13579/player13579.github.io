@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v434-held-fire-weapon-identity";
+const CACHE_NAME = "dva-static-v437-persistent-fighter-motion";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -20,8 +20,6 @@ const STATIC_ASSETS = [
   "/assets/generated/clairvoyance-throw-ate-v412.png",
   "/assets/generated/gunner-weapon-icons-v422.png",
   "/assets/generated/gunner-weapon-icons-v422.webp",
-  "/assets/generated/skin-blue-dress-walk-60.png",
-  "/assets/generated/skin-blue-dress-walk-60.webp",
   "/assets/generated/ui-panel-surface.webp",
   "/assets/generated/ui-control-surface.webp",
   "/assets/generated/ui-lobby-signal-surface.webp",
@@ -153,7 +151,10 @@ const STATIC_ASSETS = [
   "/assets/generated/weapon-motion-male-bot-assault-v313.webp",
   "/assets/generated/weapon-motion-male-bot-sniper-v313.webp",
   "/assets/generated/weapon-motion-male-bot-taser-v313.webp",
-  "/assets/generated/item-gold-v429.png",
+  "/assets/generated/item-gold-ingot-v436.png",
+  "/assets/generated/effect-gold-transmutation-v436.png",
+  "/assets/generated/fighter-push-double-milestone-v435.png",
+  "/assets/generated/fighter-destruction-slash-milestone-v435.png",
   "/assets/generated/item-mercury.webp",
   "/assets/generated/item-lead.webp",
   "/assets/generated/item-uranium.webp",

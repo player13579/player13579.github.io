@@ -639,7 +639,7 @@ const VENDING_PRODUCT_COSTS = Object.freeze({
   fire: 90,
   substitution: 75,
   grit: 30,
-  heal: 10,
+  heal: 35,
   reason: 45,
   mana: 25,
   railgun: 140,
@@ -723,7 +723,7 @@ function hackerRecipePresentation(recipe) {
 }
 
 const generatedItemTextureFiles = new Map([
-  ["gold", { file: "item-gold-v429.png" }],
+  ["gold", { file: "item-gold-ingot-v436.png" }],
   ["mercury", { file: "item-mercury.webp" }],
   ["quantum-mercury", { file: "item-mercury.webp" }],
   ["lead", { file: "item-lead.webp" }],
@@ -2875,7 +2875,8 @@ function updateClairvoyanceFrame(timestamp) {
   view.lastFrameAt = timestamp;
   const direction = clairvoyanceDirection();
   if (direction.dx || direction.dy) {
-    const distance = 1_100 * elapsed / 1000;
+    const acceleration = clamp(Number(data.self.accelerationMultiplier) || 1, 0.25, 16);
+    const distance = 540 * acceleration * elapsed / 1000;
     view.x = clamp(view.x + direction.dx * distance, 0, data.map.width);
     view.y = clamp(view.y + direction.dy * distance, 0, data.map.height);
   }
@@ -5368,6 +5369,7 @@ function renderTabletControls(data) {
   els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.disabled || els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.dataset.operator = els.operatorAbilityButton.dataset.operator || "none";
+  els.tabletAbilityShortcut.dataset.repeatableAbility = "1";
   els.tabletAbilityShortcut.title = "タップして現在のオペ能力を発動";
   els.tabletAbilityShortcut.setAttribute("aria-haspopup", "false");
   els.tabletShootShortcut.textContent = els.shootButton.textContent || "射撃";
@@ -6321,21 +6323,42 @@ async function pulseGunFire() {
   window.setTimeout(() => void endGunFire(), 90);
 }
 
+function cardinalDirectionVector(dx, dy, fallback = { dx: 0, dy: 1 }) {
+  const x = Number(dx) || 0;
+  const y = Number(dy) || 0;
+  if (Math.abs(x) < 0.01 && Math.abs(y) < 0.01) return fallback;
+  return Math.abs(x) >= Math.abs(y)
+    ? { dx: x < 0 ? -1 : 1, dy: 0 }
+    : { dx: 0, dy: y < 0 ? -1 : 1 };
+}
+
+function facingFromDirection(dx, dy, fallback = "down") {
+  const fallbackVector = {
+    left: { dx: -1, dy: 0 },
+    right: { dx: 1, dy: 0 },
+    up: { dx: 0, dy: -1 },
+    down: { dx: 0, dy: 1 }
+  }[fallback] || { dx: 0, dy: 1 };
+  const direction = cardinalDirectionVector(dx, dy, fallbackVector);
+  if (direction.dx < 0) return "left";
+  if (direction.dx > 0) return "right";
+  return direction.dy < 0 ? "up" : "down";
+}
+
 function gunnerDirection() {
   const data = state.data;
-  const input = getDirection();
-  if (input.dx || input.dy) return input;
-  const aimX = Number(data?.self.aimX) || 0;
-  const aimY = Number(data?.self.aimY) || 0;
-  const length = Math.hypot(aimX, aimY);
-  if (length > 0.01) return { dx: aimX / length, dy: aimY / length };
   const facing = state.facing.get(data?.selfId) || "down";
-  return {
+  const facingVector = {
     left: { dx: -1, dy: 0 },
     right: { dx: 1, dy: 0 },
     up: { dx: 0, dy: -1 },
     down: { dx: 0, dy: 1 }
   }[facing];
+  const input = getDirection();
+  if (input.dx || input.dy) return cardinalDirectionVector(input.dx, input.dy, facingVector);
+  const aimX = Number(data?.self.aimX) || 0;
+  const aimY = Number(data?.self.aimY) || 0;
+  return cardinalDirectionVector(aimX, aimY, facingVector);
 }
 
 async function request(path, body = {}, options = {}) {
@@ -6745,6 +6768,16 @@ function detectMagicEffects(previous, next) {
     }
     const actionKind = magicCharacterActionKind(effect.type);
     if (actionKind && effect.playerId) {
+      if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
+        state.facing.set(
+          effect.playerId,
+          facingFromDirection(
+            effect.targetX - effect.x,
+            effect.targetY - effect.y,
+            state.facing.get(effect.playerId) || "down"
+          )
+        );
+      }
       triggerCharacterAction(
         effect.playerId,
         actionKind,
@@ -8258,7 +8291,8 @@ function collectOperatorPassiveEffects(self, liveNow) {
     add("斬る", "忍殺強化", "rational", "忍殺を居合へ変え、射撃を切断してジャストガード時は反射する");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
-    add("エネルギーチャージ", passiveEnabled ? `衝撃波×${shockwaves} / ${formatEffectCountdown(energyWait)}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。斬るか投擲で1発消費し、累計3回ごとに押し込みを得る");
+    const destruction = self.fighterDestructionSlash ? " / 斬る: 常時破壊" : "";
+    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${destruction} / ${formatEffectCountdown(energyWait)}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後は斬るが常に対象を破壊する");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -8278,9 +8312,9 @@ function collectOperatorPassiveEffects(self, liveNow) {
     const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
       "マナGPU",
-      self.manaGpuActive ? "稼働中" : "条件待ち",
+      `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積`,
       self.manaGpuActive ? "truth" : "neutral",
-      `再使用待機中に毎秒${manaGpuDrain}MPを自動消費し、1MPにつき残りクールタイムを${manaGpuReductionSeconds}秒短縮する。待機時間またはMPがない間は停止する`
+      `毎秒${manaGpuDrain}MPを短縮クールへ変換し、1MPにつき${manaGpuReductionSeconds}秒蓄積する。次のバイブコーディングで必要分を自動消費する`
     );
     add("root化", self.hackerRootActive ? "発動中" : "待機", self.hackerRootActive ? "truth" : "neutral", "絶体絶命時に他オペレーターの全能力を借用する");
   }
@@ -8313,7 +8347,7 @@ function renderActiveEffects(data) {
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
   if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "理知中、押し込み・踏ん張り・回復・加速・タスク消費軽減を同時に得る");
   if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "移動速度が大幅に上昇する");
-  if (self.limitBreakActive) timed("リミットブレイク", self.limitBreakEndsAt, "truth", `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 即死回避無効`);
+  if (self.limitBreakActive) add("リミットブレイク", "永続", "truth", `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / MP継続消費 / 即死回避無効`);
   effects.push(...collectOperatorPassiveEffects(self, liveNow));
   if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "次のボディダメージを吸収し、状態異常を解除する");
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次に受ける確殺を1回だけボディダメージへ変換する");
@@ -8468,9 +8502,8 @@ function renderVending(data) {
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
     if (button.hidden) button.hidden = false;
     const staminaFull = false;
-    const healUnavailable = button.dataset.drink === "heal" && data.self.bodyHits <= 0;
     const alreadyOwnsComputer = button.dataset.drink === "computer" && data.self.computerActive;
-    const unavailable = staminaFull || healUnavailable || alreadyOwnsComputer || data.self.credits < VENDING_PRODUCT_COSTS[button.dataset.drink];
+    const unavailable = staminaFull || alreadyOwnsComputer || data.self.credits < VENDING_PRODUCT_COSTS[button.dataset.drink];
     button.disabled = false;
     button.dataset.purchaseDisabled = unavailable ? "1" : "0";
     button.setAttribute("aria-disabled", String(unavailable));
@@ -8747,11 +8780,11 @@ function updateActionButtons(data) {
         : activeBorrowedOperator === "gunner"
           ? "ホバースプリント"
           : activeBorrowedOperator === "fighter"
-            ? self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク"
+            ? self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク"
             : "常時パッシブ"
     : "";
   const operatorLabels = {
-    fighter: self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク",
+    fighter: self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク",
     teleport: operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
       : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
           : operatorMode === "accelerate" ? `アクセラレート 8秒 ${operatorCostLabel("teleport")}`
@@ -8785,6 +8818,7 @@ function updateActionButtons(data) {
     ? `借用 ${specialLabels[displayedOperator] || displayedOperator} / ${displayedOperatorLabel}`
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
+  els.operatorAbilityButton.dataset.repeatableAbility = "1";
   els.operatorAbilityButton.disabled = !canUseAbility ||
     (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : "teleport")) ||
     (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
@@ -11777,6 +11811,9 @@ const GENERATED_EFFECT_TEXTURES = {
   "substitution": ["substitutionFieldEffect", 300],
   "limit-break": ["limitBreakFieldEffect", 360],
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
+  "fighter-energy-push-milestone": ["fighterPushDoubleMilestoneEffect", 250],
+  "fighter-energy-destruction-milestone": ["fighterDestructionSlashMilestoneEffect", 290],
+  "fighter-energy-destruction-slash": ["fighterDestructionSlashMilestoneEffect", 260],
   "fighter-energy-release": ["fighterEnergyReleaseEffect", 180],
   "fighter-energy-impact": ["fighterEnergyImpactEffect", 250],
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
@@ -11825,42 +11862,23 @@ function semanticEffectMotion(type, variant = "", fallback = "energy") {
 
 function drawGoldTransmutationStages(goldSprite, coinSprite, progress) {
   const reveal = clamp((progress - 0.08) / 0.2, 0, 1);
-  const breakApart = clamp((progress - 0.34) / 0.26, 0, 1);
-  const coinsAppear = clamp((progress - 0.5) / 0.22, 0, 1);
+  const exchange = clamp((progress - 0.4) / 0.28, 0, 1);
+  const coinsAppear = clamp((progress - 0.5) / 0.24, 0, 1);
   const creditConvert = clamp((progress - 0.76) / 0.22, 0, 1);
   const smoothReveal = reveal * reveal * (3 - 2 * reveal);
-  const ingotWidth = 126;
-  const ingotHeight = 84;
+  const ingotWidth = 138;
+  const ingotHeight = 49;
 
-  if (breakApart <= 0.001) {
+  if (reveal > 0 && exchange < 1) {
     ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = smoothReveal;
+    ctx.globalAlpha = smoothReveal * (1 - exchange * 0.94);
     drawNormalizedSpriteCentered(
       goldSprite,
       0,
-      -42 - (1 - smoothReveal) * 34,
-      ingotWidth * (0.84 + smoothReveal * 0.16),
-      ingotHeight * (0.84 + smoothReveal * 0.16)
+      -42 - (1 - smoothReveal) * 30 - exchange * 8,
+      ingotWidth * (0.84 + smoothReveal * 0.16 - exchange * 0.08),
+      ingotHeight * (0.84 + smoothReveal * 0.16 - exchange * 0.08)
     );
-  } else if (breakApart < 1 && goldSprite) {
-    const fragmentCount = 7;
-    const fragmentWidth = ingotWidth / fragmentCount;
-    for (let index = 0; index < fragmentCount; index += 1) {
-      const centeredIndex = index - (fragmentCount - 1) / 2;
-      const stagger = Math.sin((index + 1) * 1.73) * 6;
-      const offsetX = centeredIndex * 13 * breakApart;
-      const offsetY = (Math.abs(centeredIndex) * 3 + stagger) * breakApart - breakApart * 16;
-      ctx.save();
-      ctx.translate(offsetX, -42 + offsetY);
-      ctx.rotate((centeredIndex * 0.065 + stagger * 0.005) * breakApart);
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 1 - breakApart * 0.74;
-      ctx.beginPath();
-      ctx.rect(-ingotWidth / 2 + index * fragmentWidth, -ingotHeight / 2, fragmentWidth + 1, ingotHeight);
-      ctx.clip();
-      ctx.drawImage(goldSprite, -ingotWidth / 2, -ingotHeight / 2, ingotWidth, ingotHeight);
-      ctx.restore();
-    }
   }
 
   if (coinsAppear <= 0 || !coinSprite) return;
@@ -11929,9 +11947,13 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
   const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave", "fighter-energy-release"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
-  const renderHeight = ["fighter-shockwave", "fighter-energy-release"].includes(effect.type)
+  const goldTransmutation = effect.type === "quantum-transmutation";
+  const renderHeight = goldTransmutation
+    ? Math.max(72, size * 0.28)
+    : ["fighter-shockwave", "fighter-energy-release"].includes(effect.type)
     ? Math.max(120, Number(effect.radius || 0) * 2.2)
     : size;
+  const renderWidth = goldTransmutation ? renderHeight * (510 / 141) : size;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
@@ -11943,8 +11965,8 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   drawAnimatedTextureBottom(
     sprite,
     0,
-    renderHeight / 2,
-    directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : size,
+    goldTransmutation ? 30 : renderHeight / 2,
+    directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : renderWidth,
     renderHeight,
     { mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant), progress, intensity: 0.94, baseAlpha: 0.16 }
   );
@@ -12145,16 +12167,17 @@ function drawGunnerActionEffect(effect, progress) {
   if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
     const dx = effect.targetX - effect.x;
     const dy = effect.targetY - effect.y;
-    const rawLength = Math.max(1, Math.hypot(dx, dy));
-    const unitX = dx / rawLength;
-    const unitY = dy / rawLength;
-    const muzzleOffset = ({ handgun: 44, smg: 51, assault: 58, sniper: 70, taser: 43 })[effect.variant] || 48;
+    const direction = cardinalDirectionVector(dx, dy);
+    const unitX = direction.dx;
+    const unitY = direction.dy;
+    const muzzleOffset = ({ handgun: 28, smg: 35, assault: 43, sniper: 55, taser: 30 })[effect.variant] || 34;
+    const flashLength = ({ handgun: 42, smg: 48, assault: 56, sniper: 72, taser: 40 })[effect.variant] || 46;
+    const flashHeight = ({ handgun: 34, smg: 38, assault: 42, sniper: 48, taser: 34 })[effect.variant] || 38;
     const startX = effect.x + unitX * muzzleOffset;
     const startY = effect.y + unitY * muzzleOffset;
-    const renderLength = Math.min(1320, Math.max(18, rawLength - muzzleOffset));
     ctx.translate(startX, startY);
-    ctx.rotate(Math.atan2(dy, dx));
-    drawAnimatedTextureCentered(sprite, renderLength / 2, 0, renderLength, 72 + pulse * 16, {
+    ctx.rotate(Math.atan2(unitY, unitX));
+    drawAnimatedTextureCentered(sprite, flashLength / 2, 0, flashLength, flashHeight + pulse * 8, {
       mode: semanticEffectMotion(effect.type, effect.variant, "beam"), progress, intensity: 0.95, baseAlpha: 0.14
     });
   } else if (effect.type === "action-sniper-scope") {
@@ -12549,7 +12572,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
-  manaGpu: ["マナGPU", "再使用待機中に毎秒0.025MPを消費し、1MPにつき待機時間を20秒短縮します。"],
+  manaGpu: ["マナGPU", "MPを短縮クールへ少しずつ変換し、次のバイブコーディングで自動消費します。"],
+  destructionSlash: ["常時破壊斬り", "エネルギー50回到達により、斬るが対象を無条件に破壊します。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -13331,15 +13355,19 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   burning: Object.freeze({ texture: "hazardFireEffect", mode: "combustion", size: 30, alpha: 0.88, phase: 0.81 }),
   poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 }),
   manaGpu: Object.freeze({ texture: "statusManaGpuEffect", mode: "data-accelerate", size: 30, alpha: 0.94, phase: 0.57 }),
+  destructionSlash: Object.freeze({ texture: "fighterDestructionSlashMilestoneEffect", mode: "beam", size: 30, alpha: 0.94, phase: 0.88 }),
   clairvoyance: Object.freeze({ texture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 })
 });
 
 function persistentStatusAteState(player, data) {
   const selfState = player.id === data.selfId ? data.self?.statusAte : null;
   const visibleState = player.statusAte || selfState || {};
-  return player.id === data.selfId && data.self?.manaGpuActive
-    ? { ...visibleState, manaGpu: true }
-    : visibleState;
+  if (player.id !== data.selfId) return visibleState;
+  return {
+    ...visibleState,
+    manaGpu: Boolean(data.self?.manaGpuActive),
+    destructionSlash: Boolean(data.self?.fighterDestructionSlash)
+  };
 }
 
 function drawPersistentStatusAteLayers(player, data) {
@@ -13499,15 +13527,11 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
 
   const normalizedProgress = clamp(Number(action.progress) || 0, 0, 1);
   const phase = physicalActionFramePosition(action.kind, normalizedProgress, action.motionId);
-  const firstFrame = Math.min(2, Math.floor(phase));
-  const secondFrame = Math.min(2, firstFrame + 1);
-  const blend = phase - Math.floor(phase);
+  const frame = Math.min(2, Math.round(phase));
   const row = Math.floor(sequence / 2);
-  const firstColumn = (sequence % 2) * 3 + firstFrame;
-  const secondColumn = (sequence % 2) * 3 + secondFrame;
-  const first = normalizedSpriteFrame(atlas, `physical-action-${atlasId}`, 6, 6, row, firstColumn);
-  const second = normalizedSpriteFrame(atlas, `physical-action-${atlasId}`, 6, 6, row, secondColumn);
-  if (!first || !second) return false;
+  const column = (sequence % 2) * 3 + frame;
+  const sprite = normalizedSpriteFrame(atlas, `physical-action-${atlasId}`, 6, 6, row, column);
+  if (!sprite) return false;
 
   const facing = facingFor(player, motionFor(player, data));
   const flip = facing === "left";
@@ -13516,10 +13540,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
   applyPhysicalActionTransform(action.kind, normalizedProgress, flip, action.motionId);
-  ctx.globalAlpha *= 1 - blend;
-  drawNormalizedSprite(first, 0, 31, 98, actionHeight, flip);
-  ctx.globalAlpha = (ghost ? 0.45 : player.ejected ? 0.22 : 1) * blend;
-  drawNormalizedSprite(second, 0, 31, 98, actionHeight, flip);
+  drawNormalizedSprite(sprite, 0, 31, 98, actionHeight, flip);
   ctx.restore();
   drawNameplate(player, ghost, -78);
   return true;
@@ -13582,26 +13603,26 @@ function drawPetSprite(player, data, ghost) {
   const facing = facingFor(player, motion);
   const direction = { down: 0, left: 1, right: 2, up: 3 }[facing] ?? 0;
   const frame = walkAnimationFrame(player, motion);
-  const skinWalkSource = state.textures.playerWalkAtlases?.[skinId];
-  const skinWalkAtlas = skinWalkSource ? transparentSpriteSource(skinWalkSource, `skinWalk60-${skinId}`, 12) : null;
-  if (skinWalkAtlas) {
-    drawBlendedWalkFrame(skinWalkAtlas, direction, frame, -47, -63, 94, 94);
-    drawNameplate(player, ghost, -78);
-    return true;
-  }
   if (skinId === "blue-dress") {
-    const master = transparentSpriteSource(state.textures.blueDressMaster, "blueDressMaster", 24);
-    if (master) {
-      drawMasterWalkFrame(master, direction, frame, -47, -63, 94, 94);
-      drawNameplate(player, ghost, -78);
-      return true;
-    }
     const skinSet = state.textures.playerSkins[skinId];
     const directional = transparentSpriteSource(skinSet?.[direction], `playerSkin-${skinId}-${direction}`, 24);
     if (directional && drawStandaloneWalkFrame(directional, `playerSkin-${skinId}-${direction}`, frame, -47, -63, 94, 94)) {
       drawNameplate(player, ghost, -78);
       return true;
     }
+    const master = transparentSpriteSource(state.textures.blueDressMaster, "blueDressMaster", 24);
+    if (master) {
+      drawMasterWalkFrame(master, direction, frame, -47, -63, 94, 94);
+      drawNameplate(player, ghost, -78);
+      return true;
+    }
+  }
+  const skinWalkSource = state.textures.playerWalkAtlases?.[skinId];
+  const skinWalkAtlas = skinWalkSource ? transparentSpriteSource(skinWalkSource, `skinWalk60-${skinId}`, 12) : null;
+  if (skinWalkAtlas) {
+    drawBlendedWalkFrame(skinWalkAtlas, direction, frame, -47, -63, 94, 94);
+    drawNameplate(player, ghost, -78);
+    return true;
   }
   const atlas = transparentSpriteSource(state.textures.playerWalk60, "playerWalk60", 24);
   if (!atlas) return false;
@@ -13669,52 +13690,35 @@ function drawStandaloneWalkFrame(source, key, frame, x, y, width, height) {
 function drawProceduralWalkSprite(sprite, direction, frame, x, y, width, height) {
   const phase = frame / 60 * Math.PI * 2;
   const stride = Math.sin(phase);
-  const bob = Math.abs(Math.sin(phase * 2)) * 1.25;
+  const contact = 0.5 - Math.cos(phase * 2) * 0.5;
+  const sideFacing = direction === 1 || direction === 2;
+  const lateral = stride * (sideFacing ? 0.72 : 0.34);
+  const bob = contact * 0.72;
+  const lean = stride * (sideFacing ? 0.0065 : 0.0035);
+  const compression = contact * 0.006;
   const scale = Math.min(width / sprite.width, height / sprite.height);
   const drawWidth = sprite.width * scale;
   const drawHeight = sprite.height * scale;
   const centerX = x + width / 2;
   const bottomY = y + height;
-  const lowerStart = Math.floor(sprite.height * 0.80);
-  const upperEnd = Math.min(sprite.height, lowerStart + 3);
-  const half = Math.floor(sprite.width / 2);
-  const sideTravel = direction === 1 || direction === 2;
 
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
-  ctx.translate(centerX, bottomY);
-  ctx.rotate(stride * 0.004);
+  ctx.translate(centerX + lateral, bottomY - bob);
+  ctx.rotate(lean);
+  ctx.scale(1 + compression, 1 - compression);
   ctx.drawImage(
     sprite,
     0,
     0,
     sprite.width,
-    upperEnd,
+    sprite.height,
     -drawWidth / 2,
-    -drawHeight - bob,
+    -drawHeight,
     drawWidth,
-    upperEnd * scale
+    drawHeight
   );
-
-  for (let leg = 0; leg < 2; leg += 1) {
-    const sourceX = leg === 0 ? 0 : half;
-    const sourceWidth = leg === 0 ? half + 2 : sprite.width - half;
-    const legPhase = leg === 0 ? stride : -stride;
-    const lift = Math.max(0, legPhase) * 2.4;
-    const travel = legPhase * (sideTravel ? 2.2 : 1.35);
-    ctx.drawImage(
-      sprite,
-      sourceX,
-      lowerStart,
-      sourceWidth,
-      sprite.height - lowerStart,
-      -drawWidth / 2 + sourceX * scale + travel,
-      -drawHeight + lowerStart * scale - bob - lift,
-      sourceWidth * scale,
-      (sprite.height - lowerStart) * scale
-    );
-  }
   ctx.restore();
 }
 
@@ -14438,6 +14442,17 @@ function drawHud(data, w, h) {
     { label: "MP", value: Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: `${Math.round(mana * 100) / 100}` },
     { label: "HP", value: baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: `${baseHealth.toFixed(1).replace(/\.0$/, "")}/2${overheal ? `+${overheal}` : ""}` }
   ];
+  if (self.special === "alchemist") {
+    const cooldownCreditMs = Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0);
+    const cooldownCreditCapMs = Math.max(1, Number(self.manaGpuCooldownCreditCapMs) || 1);
+    bars.push({
+      label: "短縮",
+      value: cooldownCreditMs,
+      max: cooldownCreditCapMs,
+      color: "#22d3ee",
+      text: `${(cooldownCreditMs / 1000).toFixed(1)}s`
+    });
+  }
   const width = Math.min(260, Math.max(224, w * 0.27));
   const barWidth = width - 116;
   const rowHeight = 25;
@@ -14785,7 +14800,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "held-fire-weapon-identity-v434";
+const version = "persistent-fighter-motion-v437";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -14801,7 +14816,6 @@ const version = "held-fire-weapon-identity-v434";
   const playerMaster = new Image();
   const playerWalk60 = new Image();
   const blueDressMaster = new Image();
-  const blueDressWalk60 = new Image();
   const killCutinMaster = new Image();
   const blueDressKillCutin = new Image();
   const killCutin60 = new Image();
@@ -14870,6 +14884,8 @@ const version = "held-fire-weapon-identity-v434";
   ]);
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
+  const fighterPushDoubleMilestoneEffect = new Image();
+  const fighterDestructionSlashMilestoneEffect = new Image();
   const fighterEnergyReleaseEffect = new Image();
   const fighterEnergyImpactEffect = new Image();
   const fighterShockwaveEffect = new Image();
@@ -14931,7 +14947,7 @@ const version = "held-fire-weapon-identity-v434";
   const creditGainCoinsEffect = new Image();
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
-  ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-v429.png" : `assets/generated/item-${id}.webp`)]));
+  ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-ingot-v436.png" : `assets/generated/item-${id}.webp`)]));
   const physicalActionAtlases = {
     "white-hood": new Image(),
     "blue-dress": new Image(),
@@ -14954,7 +14970,6 @@ const version = "held-fire-weapon-identity-v434";
   defer(playerMaster, "assets/player-master-b.webp");
   defer(playerWalk60, "assets/player-walk-60.webp");
   defer(blueDressMaster, "assets/generated/skin-blue-dress-master-chibi-v3.webp");
-  defer(blueDressWalk60, "assets/generated/skin-blue-dress-walk-60.webp");
   defer(killCutinMaster, "assets/generated/white-hood-kill-cutin-v404.png");
   defer(blueDressKillCutin, "assets/generated/skin-blue-dress-kill-cutin.webp");
   defer(killCutin60, "assets/kill-cutin-60.webp");
@@ -14964,6 +14979,8 @@ const version = "held-fire-weapon-identity-v434";
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
+  defer(fighterPushDoubleMilestoneEffect, "assets/generated/fighter-push-double-milestone-v435.png");
+  defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
   defer(fighterShockwaveEffect, "assets/generated/fighter-energy-release-ate-v404.png");
@@ -14990,7 +15007,7 @@ const version = "held-fire-weapon-identity-v434";
   defer(gunnerHoverSprintEffect, "assets/generated/gunner-hover-sprint-v311.png");
   defer(gunnerRpgEffect, "assets/generated/gunner-rpg-v311.png");
   defer(gunnerMissileEffect, "assets/generated/gunner-missile-v311.png");
-  defer(quantumTransmutationEffect, "assets/generated/effect-quantum-transmutation.webp");
+  defer(quantumTransmutationEffect, "assets/generated/effect-gold-transmutation-v436.png");
   defer(quantumColdEffect, "assets/generated/effect-quantum-cold.webp");
   defer(quantumHotEffect, "assets/generated/effect-quantum-hot.webp");
   defer(quantumNuclearEffect, "assets/generated/effect-quantum-nuclear-v311.png");
@@ -15050,10 +15067,9 @@ const version = "held-fire-weapon-identity-v434";
     operatorsWalk,
     playerMaster,
     playerSkins,
-    playerWalkAtlases: { "blue-dress": blueDressWalk60 },
+    playerWalkAtlases: {},
     playerWalk60,
     blueDressMaster,
-    blueDressWalk60,
     killCutinMaster,
     blueDressKillCutin,
     killCutin60,
@@ -15068,6 +15084,8 @@ const version = "held-fire-weapon-identity-v434";
     droneAltitudeEffects,
     fighterSlashEffect,
     fighterEnergyChargeEffect,
+    fighterPushDoubleMilestoneEffect,
+    fighterDestructionSlashMilestoneEffect,
     fighterEnergyReleaseEffect,
     fighterEnergyImpactEffect,
     fighterShockwaveEffect,
