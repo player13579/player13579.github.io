@@ -13109,6 +13109,18 @@ function loopedPhysicalMotionProgress(player, kind, cycleMs) {
   return phase.progress;
 }
 
+function displayedGunnerState(player, data = state.data) {
+  const isSelf = player?.id === data?.selfId;
+  const authoritative = isSelf ? data?.self : player;
+  const selectedWeapon = String(authoritative?.gunnerWeapon || player?.gunnerWeapon || "");
+  const firingWeapon = String(authoritative?.gunFiringWeapon || player?.gunFiringWeapon || selectedWeapon);
+  return {
+    firing: Boolean(authoritative?.gunFiring || player?.gunFiring || (isSelf && state.gunTriggerHeld)),
+    selectedWeapon,
+    firingWeapon
+  };
+}
+
 function currentCharacterAction(player) {
   const timestamp = state.frameNow || performance.now();
   const jumpMotion = player.jumpMotion;
@@ -13128,11 +13140,12 @@ function currentCharacterAction(player) {
     // The release animation is emitted independently by /api/item-throw.
     return { kind: "throw", progress: 0.3, variant: "prepare" };
   }
-  if (player.gunFiring || (player.id === state.data?.selfId && state.gunTriggerHeld)) {
+  const gunnerState = displayedGunnerState(player);
+  if (gunnerState.firing) {
     const cycle = loopedPhysicalMotionProgress(player, "shoot", 360);
     // Weapon animation is shooter-local. Never fall back to another player's
     // selected weapon, otherwise one switch would visually affect everyone.
-    const variant = player.gunFiringWeapon || player.gunnerWeapon || "";
+    const variant = gunnerState.firingWeapon;
     return { kind: "shoot", progress: cycle <= 0.5 ? cycle * 2 : (1 - cycle) * 2, variant };
   }
   const action = state.characterActions.get(player.id);
@@ -13513,9 +13526,10 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
 }
 
 function drawWeaponFireMotion(player, data, ghost, action) {
+  const gunnerState = displayedGunnerState(player, data);
   const weaponId = GUNNER_WEAPON_MOTION_IDS.includes(action?.variant)
     ? action.variant
-    : (GUNNER_WEAPON_MOTION_IDS.includes(player.gunnerWeapon) ? player.gunnerWeapon : "");
+    : (GUNNER_WEAPON_MOTION_IDS.includes(gunnerState.firingWeapon) ? gunnerState.firingWeapon : "");
   if (!weaponId) return false;
   const skinId = player.isBot ? "male-bot" : displayedSkinId(player, data) === "blue-dress" ? "blue-dress" : "white-hood";
   const image = state.textures.weaponFireMotions?.[skinId]?.[weaponId];
@@ -14771,7 +14785,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "storm-gold-sophia-v433";
+const version = "held-fire-weapon-identity-v434";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

@@ -15560,6 +15560,12 @@ function serialize(room, viewer, options = {}) {
       movementSession: player.id === viewer.id ? String(player.movementSession || "") : "",
       movementSeq: player.id === viewer.id && Number.isSafeInteger(player.lastMovementSeq) ? player.lastMovementSeq : 0,
       movementClock: player.id === viewer.id && Number.isFinite(player.lastMovementClock) ? player.lastMovementClock : 0,
+      gunnerWeapon: gunnerWeaponFor(player).id,
+      gunFiring: Boolean(player.gunFiring),
+      gunFiringWeapon: player.gunFiringWeapon || "",
+      gunFiringSince: Number(player.gunFiringSince) || 0,
+      aimX: Number.isFinite(Number(player.aimX)) ? Number(player.aimX) : 0,
+      aimY: Number.isFinite(Number(player.aimY)) ? Number(player.aimY) : 1,
       jumpPreparingAt: Number(player.jumpPreparingAt) || 0,
       jumpPrepareDx: Number.isFinite(Number(player.jumpPrepareDx)) ? Number(player.jumpPrepareDx) : 0,
       jumpPrepareDy: Number.isFinite(Number(player.jumpPrepareDy)) ? Number(player.jumpPrepareDy) : 1,
@@ -17510,5 +17516,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "storm-gold-sophia-v433" });
+self.postMessage({ type: "ready", version: "held-fire-weapon-identity-v434" });
 })();
