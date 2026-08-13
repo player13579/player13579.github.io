@@ -238,6 +238,12 @@ const els = {
   resetButton: $("#resetButton")
 };
 
+// Fixed overlays must not remain inside animated panels: even an identity
+// transform makes position:fixed use that panel as its containing block.
+for (const overlay of [els.inventoryItemDetail, els.itemHoldBranchLines, els.itemHoldBranch]) {
+  if (overlay && overlay.parentElement !== document.body) document.body.append(overlay);
+}
+
 // Keep the field canvas synchronized with the compositor. A desynchronized
 // context can expose the cleared or partially drawn frame while prop-heavy
 // scenes are still being painted, which presents as a full-field flash.
@@ -8102,7 +8108,14 @@ function renderItemControl(data) {
   if (state.itemRenderKey !== renderKey) {
     state.itemRenderKey = renderKey;
     els.itemSelect.innerHTML = items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)} ${escapeHtml(item.badge || "")}</option>`).join("");
-    if (items.some((item) => item.id === previousItem)) els.itemSelect.value = previousItem;
+    const equippedWeaponItemId = self.gunnerWeapon ? `weapon:${self.gunnerWeapon}` : "";
+    if (items.some((item) => item.id === previousItem)) {
+      els.itemSelect.value = previousItem;
+    } else if (items.some((item) => item.id === equippedWeaponItemId)) {
+      // The inventory's initial focus must match the authoritative equipped
+      // firearm instead of falling back to the first (handgun) card.
+      els.itemSelect.value = equippedWeaponItemId;
+    }
     els.transferTargetSelect.innerHTML = targets.map((target) => `<option value="${escapeHtml(target.id)}">${escapeHtml(playerIdentityLabel(target))}</option>`).join("");
     if (targets.some((target) => target.id === previousTarget)) els.transferTargetSelect.value = previousTarget;
     els.itemInventoryGrid.replaceChildren();
@@ -14683,7 +14696,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "hold-branch-title-v427";
+const version = "hold-branch-viewport-v428";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
