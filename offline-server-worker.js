@@ -6763,8 +6763,10 @@ const MYSTERY_UNCONSCIOUS_MS = 8_000;
 const RATIONAL_MANA_THRESHOLD = 2;
 const STARTING_MANA = RATIONAL_MANA_THRESHOLD;
 const MANA_CONVERSION_AMOUNT = 1;
-const MANA_TO_STAMINA_AMOUNT = 150;
 const STAMINA_TO_MANA_COST = 150;
+const AUTO_MANA_TO_STAMINA_RESERVE = RATIONAL_MANA_THRESHOLD;
+const AUTO_MANA_TO_STAMINA_THRESHOLD = 250;
+const AUTO_MANA_TO_STAMINA_RATE_PER_SECOND = 30;
 const DONATION_CREDIT_COST = 10;
 const DONATION_LUCK_GAIN = 0.05;
 const DONATION_LUCK_MIN_BONUS = -0.7;
@@ -6937,7 +6939,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "エネルギーチャージ、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを12秒間発動し、発動中はSPを3倍化して3倍加速する代わりにHP1となり、マナを継続消費して即死回避を失う。任意解除はできない。"
+      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを12秒間発動し、発動ごとにHPを1消費してSPと加速を3倍ずつ重ねる。最終発動から12秒で解除され、発動中はマナを継続消費して即死回避を失う。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -8661,6 +8663,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     limitBreakActive: false,
     limitBreakEndsAt: 0,
     limitBreakManaCarry: 0,
+    limitBreakStacks: 0,
     fighterEnergyCharge: 0,
     fighterEnergyChargeReadyAt: 0,
     fighterShockwaveCharges: 0,
@@ -8708,6 +8711,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     ideaStage: 0,
     ideaFirstAspect: "",
     desireBias: "",
+    desireBiasBag: [],
+    lastDesireBias: "",
     desireIdeaForfeited: false,
     truthCharges: 0,
     beautyCharges: 0,
@@ -8721,6 +8726,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     stamina: MAX_STORED_STAMINA,
     staminaUpdatedAt: now(),
     staminaManaOverflow: 0,
+    autoManaToStaminaFeedbackAt: 0,
     speedMultiplier: 1,
     dodgeDurationBonusMs: 0,
     warpCharges: 0,
@@ -9062,6 +9068,7 @@ function startGame(room) {
     player.limitBreakActive = false;
     player.limitBreakEndsAt = 0;
     player.limitBreakManaCarry = 0;
+    player.limitBreakStacks = 0;
     player.fighterEnergyCharge = 0;
     player.fighterEnergyChargeReadyAt = 0;
     player.fighterShockwaveCharges = 0;
@@ -9142,6 +9149,7 @@ function startGame(room) {
     player.stamina = MAX_STORED_STAMINA;
     player.staminaUpdatedAt = timestamp;
     player.staminaManaOverflow = 0;
+    player.autoManaToStaminaFeedbackAt = 0;
     player.speedMultiplier = 1;
     player.dodgeDurationBonusMs = 0;
     player.warpCharges = 0;
@@ -9364,6 +9372,7 @@ function startBattle(room) {
     player.limitBreakActive = false;
     player.limitBreakEndsAt = 0;
     player.limitBreakManaCarry = 0;
+    player.limitBreakStacks = 0;
     player.fighterEnergyCharge = 0;
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
     player.fighterShockwaveCharges = 0;
@@ -9390,6 +9399,7 @@ function startBattle(room) {
     player.overheal = 0;
     player.stamina = MAX_STORED_STAMINA;
     player.staminaManaOverflow = 0;
+    player.autoManaToStaminaFeedbackAt = 0;
     player.mana = STARTING_MANA;
     player.manaStateEnteredAt = timestamp;
     player.meditatingUntil = 0;
@@ -9629,11 +9639,31 @@ function passivesEnabled(player) {
   return Boolean(player?.alive && !player.ejected && isRational(player));
 }
 
+function limitBreakStackCount(player) {
+  return player?.limitBreakActive
+    ? Math.max(1, Math.floor(Number(player.limitBreakStacks) || 1))
+    : 0;
+}
+
+function limitBreakMultiplier(player) {
+  return Math.pow(LIMIT_BREAK_SPEED_MULTIPLIER, limitBreakStackCount(player));
+}
+
+function spendLimitBreakHealth(player) {
+  if (remainingHealth(player) <= 1) {
+    throw new ApiError(400, "リミットブレイクには消費できるHPが必要です。");
+  }
+  if ((Number(player.overheal) || 0) > 0) {
+    player.overheal = Math.max(0, Number(player.overheal) - 1);
+  } else {
+    player.bodyHits = Math.max(0, Number(player.bodyHits) || 0) + 1;
+  }
+}
+
 function toggleLimitBreak(room, player) {
   if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent || !hasOperatorAccess(player, "fighter")) {
     throw new ApiError(403, "現在はリミットブレイクを使用できません。");
   }
-  if (player.limitBreakActive) return true;
   ensureAbilityAvailable(player);
   ensureConscious(player);
   if (!isHackerOperator(player) && Number(player.mana) <= 0) {
@@ -9641,29 +9671,34 @@ function toggleLimitBreak(room, player) {
   }
   const timestamp = now();
   const previousStamina = Math.max(0, Number(player.stamina) || 0);
-  player.limitBreakBaseStamina = previousStamina;
+  const firstActivation = !player.limitBreakActive;
+  if (firstActivation) player.limitBreakBaseStamina = previousStamina;
+  spendLimitBreakHealth(player);
   player.limitBreakActive = true;
+  player.limitBreakStacks = limitBreakStackCount(player) + (firstActivation ? 0 : 1);
   player.limitBreakEndsAt = timestamp + LIMIT_BREAK_DURATION_MS;
-  player.limitBreakManaCarry = 0;
-  player.bodyHits = 1;
-  player.overheal = 0;
+  if (firstActivation) player.limitBreakManaCarry = 0;
   player.stamina = Math.min(staminaCapacityFor(player), previousStamina * 3);
   player.staminaUpdatedAt = timestamp;
-  pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: "active" });
-  setImmediateFeedback(player, "リミットブレイク", "12秒 / SP×3 / 加速×3 / HP1 / 即死回避無効");
-  pushEvent(room, `${player.name} がリミットブレイクを発動しました。12秒 / SP3倍 / 3倍加速 / HP1 / 即死回避無効。`);
+  const stacks = limitBreakStackCount(player);
+  const multiplier = limitBreakMultiplier(player);
+  pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: `active-stack-${stacks}` });
+  setImmediateFeedback(player, "リミットブレイク", `HP-1 / 12秒 / SP・加速×${multiplier} / 即死回避無効`);
+  pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。HP-1 / SP・加速${multiplier}倍 / 最終発動から12秒 / 即死回避無効。`);
   touch(room);
   return true;
 }
 
 function stopLimitBreak(room, player, reason = "") {
   if (!player.limitBreakActive) return false;
+  const multiplier = limitBreakMultiplier(player);
   player.limitBreakActive = false;
   player.limitBreakEndsAt = 0;
   player.limitBreakManaCarry = 0;
-  const transformedStamina = Math.max(0, Number(player.stamina) || 0) / LIMIT_BREAK_SPEED_MULTIPLIER;
+  const transformedStamina = Math.max(0, Number(player.stamina) || 0) / Math.max(1, multiplier);
   player.stamina = Math.min(MAX_STORED_STAMINA, transformedStamina);
   player.limitBreakBaseStamina = 0;
+  player.limitBreakStacks = 0;
   if (reason) pushMagicEffect(room, "limit-break", player, { radius: 110, playerId: player.id, variant: "release" });
   if (reason) pushEvent(room, `${player.name} のリミットブレイクが${reason}。`);
   return true;
@@ -9677,8 +9712,6 @@ function advanceLimitBreak(room, player, elapsedMs) {
   if ((Number(player.limitBreakEndsAt) || 0) <= now()) {
     return stopLimitBreak(room, player, "12秒経過で解除されました");
   }
-  player.bodyHits = Math.max(1, Number(player.bodyHits) || 0);
-  player.overheal = 0;
   if (isHackerOperator(player) && hackerRootEligible(player)) return false;
   player.limitBreakManaCarry = Math.max(0, Number(player.limitBreakManaCarry) || 0) +
     LIMIT_BREAK_MANA_DRAIN_PER_SECOND * Math.max(0, Number(elapsedMs) || 0) / 1000;
@@ -9783,6 +9816,27 @@ function desireBiasDefinition(player) {
   return DESIRE_BIASES.find((bias) => bias.id === player?.desireBias) || null;
 }
 
+function nextDesireBias(player) {
+  const validIds = new Set(DESIRE_BIASES.map((bias) => bias.id));
+  let bag = Array.isArray(player.desireBiasBag)
+    ? player.desireBiasBag.filter((id) => validIds.has(id))
+    : [];
+  if (!bag.length) {
+    bag = DESIRE_BIASES.map((bias) => bias.id);
+    for (let index = bag.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [bag[index], bag[swapIndex]] = [bag[swapIndex], bag[index]];
+    }
+    if (bag.length > 1 && bag[0] === player.lastDesireBias) {
+      [bag[0], bag[1]] = [bag[1], bag[0]];
+    }
+  }
+  const selected = bag.shift() || DESIRE_BIASES[0].id;
+  player.desireBiasBag = bag;
+  player.lastDesireBias = selected;
+  return selected;
+}
+
 function isDesireState(player) {
   return Number(player?.mana) <= 0 || Number(player?.stamina) <= 0;
 }
@@ -9790,8 +9844,7 @@ function isDesireState(player) {
 function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   const enteredNow = !player.desireBias;
   if (enteredNow) {
-    const index = Math.floor(Math.random() * DESIRE_BIASES.length);
-    player.desireBias = DESIRE_BIASES[index]?.id || DESIRE_BIASES[0].id;
+    player.desireBias = nextDesireBias(player);
   }
   player.mana = DESIRE_RESOURCE_DEBT;
   player.credits = DESIRE_RESOURCE_DEBT;
@@ -9855,7 +9908,12 @@ function setMana(room, player, rawMana, sourceLabel = "") {
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
   const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
-  if (previous === next) return next;
+  if (previous === next) {
+    player.mana = next;
+    syncDesireState(room, player, sourceLabel);
+    player.luck = luckValueFor(player);
+    return Number(player.mana);
+  }
   const previousState = manaStateLabel(previous);
   const nextState = manaStateLabel(next);
   const enteredRational = previous < RATIONAL_MANA_THRESHOLD && next >= RATIONAL_MANA_THRESHOLD;
@@ -9933,26 +9991,6 @@ function practiceRenki(room, player) {
   clearAttackState(player);
   pushMagicEffect(room, "action-renki", player, { radius: 120, playerId: player.id });
   pushEvent(room, `${player.name} が練気の精神統一に入りました（${(RENKI_FOCUS_DURATION_MS / 1000).toFixed(1)}秒）。`);
-  touch(room);
-}
-
-function convertResource(room, player, rawDirection) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は資源を変換できません。");
-  }
-  ensureConscious(player);
-  const direction = String(rawDirection || "");
-  if (direction === "mana-to-stamina") {
-    if ((Number(player.mana) || 0) < 1) throw new ApiError(400, "変換には1MPが必要です。");
-    setMana(room, player, Number(player.mana) - 1, "SP変換");
-    player.stamina = Math.min(staminaCapacityFor(player), Number(player.stamina || 0) + MANA_TO_STAMINA_AMOUNT);
-    player.staminaUpdatedAt = now();
-    pushGainAte(room, player, "stamina", { variant: "resource-convert" });
-    setImmediateFeedback(player, "資源変換", `MP-1 / SP+${MANA_TO_STAMINA_AMOUNT}`);
-  } else {
-    throw new ApiError(400, "変換方向が不正です。");
-  }
-  pushMagicEffect(room, "action-mana", player, { radius: 120, variant: direction });
   touch(room);
 }
 
@@ -10419,7 +10457,32 @@ function advancePairRouteRule(room, timestamp) {
 }
 
 function staminaCapacityFor(entity) {
-  return MAX_STORED_STAMINA * (entity?.limitBreakActive ? 3 : 1);
+  return MAX_STORED_STAMINA * Math.max(1, limitBreakMultiplier(entity));
+}
+
+function advanceAutomaticManaToStamina(room, player, elapsedMs, timestamp = now()) {
+  if (room.phase !== "playing" || !player?.alive || player.ejected || isDesireState(player)) return false;
+  const mana = Number(player.mana) || 0;
+  const stamina = Math.max(0, Number(player.stamina) || 0);
+  const targetStamina = Math.min(AUTO_MANA_TO_STAMINA_THRESHOLD, staminaCapacityFor(player));
+  if (mana <= AUTO_MANA_TO_STAMINA_RESERVE || stamina >= targetStamina) return false;
+  const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
+  const availableFromMana = (mana - AUTO_MANA_TO_STAMINA_RESERVE) * STAMINA_TO_MANA_COST;
+  const restored = Math.min(
+    AUTO_MANA_TO_STAMINA_RATE_PER_SECOND * elapsedSeconds,
+    targetStamina - stamina,
+    availableFromMana
+  );
+  if (restored <= 0.0001) return false;
+  player.stamina = stamina + restored;
+  player.staminaUpdatedAt = timestamp;
+  setMana(room, player, mana - restored / STAMINA_TO_MANA_COST, "MP自動SP変換");
+  if ((Number(player.autoManaToStaminaFeedbackAt) || 0) <= timestamp) {
+    player.autoManaToStaminaFeedbackAt = timestamp + 1000;
+    pushGainAte(room, player, "stamina", { variant: "auto-mana-to-stamina", durationMs: 1050 });
+    setImmediateFeedback(player, "自動資源変換", "余剰MP → SP");
+  }
+  return true;
 }
 
 function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, room = null, convertOverflow = true) {
@@ -10508,7 +10571,7 @@ function accelerationMultipliersFor(player, timestamp = now()) {
   const purchased = Math.max(1, Number(player.speedMultiplier) || 1);
   if (purchased > 1) values.push(purchased);
   if (player.luminousActive) values.push(LUMINOUS_SPEED_MULTIPLIER);
-  if (player.limitBreakActive) values.push(LIMIT_BREAK_SPEED_MULTIPLIER);
+  if (player.limitBreakActive) values.push(limitBreakMultiplier(player));
   if (player.goodActive && passivesEnabled(player)) values.push(GOOD_SPEED_MULTIPLIER);
   for (const effect of activeTimedAccelerationEffects(player, timestamp)) values.push(Number(effect.multiplier));
   return values;
@@ -11163,6 +11226,7 @@ function tickRoom(room) {
       }
     }
     const stopped = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01;
+    advanceAutomaticManaToStamina(room, player, elapsedMs, timestamp);
     replenishStamina(
       player,
       timestamp,
@@ -11859,6 +11923,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   target.overheal = 0;
   target.limitBreakActive = false;
   target.limitBreakEndsAt = 0;
+  target.limitBreakStacks = 0;
   target.inVent = false;
   target.ventId = "";
   target.drone.active = false;
@@ -12094,6 +12159,7 @@ function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, optio
   killer.overheal = 0;
   killer.limitBreakActive = false;
   killer.limitBreakEndsAt = 0;
+  killer.limitBreakStacks = 0;
   killer.inVent = false;
   killer.ventId = "";
   killer.drone.active = false;
@@ -12196,6 +12262,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   target.overheal = 0;
   target.limitBreakActive = false;
   target.limitBreakEndsAt = 0;
+  target.limitBreakStacks = 0;
   target.inVent = false;
   target.ventId = "";
   target.drone.active = false;
@@ -12800,6 +12867,7 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
   player.overheal = 0;
   player.limitBreakActive = false;
   player.limitBreakEndsAt = 0;
+  player.limitBreakStacks = 0;
   player.inVent = false;
   player.ventId = "";
   if (player.drone) player.drone.active = false;
@@ -14092,6 +14160,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       killer.overheal = 0;
       killer.limitBreakActive = false;
       killer.limitBreakEndsAt = 0;
+      killer.limitBreakStacks = 0;
       killer.inVent = false;
       killer.ventId = "";
       killer.drone.active = false;
@@ -14194,6 +14263,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   target.overheal = 0;
   target.limitBreakActive = false;
   target.limitBreakEndsAt = 0;
+  target.limitBreakStacks = 0;
   target.inVent = false;
   target.ventId = "";
   clearAttackState(target);
@@ -15547,6 +15617,8 @@ function serialize(room, viewer, options = {}) {
       limitBreakActive: viewer.limitBreakActive,
       limitBreakEndsAt: Number(viewer.limitBreakEndsAt) || 0,
       limitBreakDurationMs: LIMIT_BREAK_DURATION_MS,
+      limitBreakStacks: limitBreakStackCount(viewer),
+      limitBreakMultiplier: limitBreakMultiplier(viewer),
       fighterEnergyCharge: Math.max(0, Math.floor(Number(viewer.fighterEnergyCharge) || 0)),
       fighterEnergyChargeReadyAt: Number(viewer.fighterEnergyChargeReadyAt) || 0,
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
@@ -16173,13 +16245,6 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/resource-convert": {
-      const { room, player } = requireRoomPlayer(body);
-      convertResource(room, player, body.direction);
-      payload = serialize(room, player);
-      break;
-    }
-
     case "/api/donate": {
       const { room, player } = requireRoomPlayer(body);
       donateCredits(room, player);
@@ -16443,6 +16508,7 @@ async function handleApi(req, res) {
         entry.floraReadyAt = 0;
         entry.limitBreakActive = false;
         entry.limitBreakEndsAt = 0;
+        entry.limitBreakStacks = 0;
         entry.fighterEnergyCharge = 0;
         entry.fighterEnergyChargeReadyAt = 0;
         entry.fighterShockwaveCharges = 0;
@@ -16489,6 +16555,7 @@ async function handleApi(req, res) {
         entry.donationLuckBonus = 0;
         entry.stamina = MAX_STAMINA;
         entry.staminaUpdatedAt = now();
+        entry.autoManaToStaminaFeedbackAt = 0;
         entry.staminaManaOverflow = 0;
         entry.speedMultiplier = 1;
         entry.dodgeDurationBonusMs = 0;
@@ -17360,5 +17427,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "item-branch-desire-v430" });
+self.postMessage({ type: "ready", version: "resource-limit-break-v431" });
 })();

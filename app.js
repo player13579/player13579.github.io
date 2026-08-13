@@ -77,7 +77,6 @@ const els = {
   tabletJumpShortcut: $("#tabletJumpShortcut"),
   tabletRenkiShortcut: $("#tabletRenkiShortcut"),
   tabletRestShortcut: $("#tabletRestShortcut"),
-  tabletManaToStaminaShortcut: $("#tabletManaToStaminaShortcut"),
   tabletDonateShortcut: $("#tabletDonateShortcut"),
   tabletBranchLines: $("#tabletBranchLines"),
   tabletBranchTray: $("#tabletBranchTray"),
@@ -2160,7 +2159,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/limit-break": "power",
   "/api/sleep": "rest",
   "/api/renki": "focus",
-  "/api/resource-convert": "focus",
   "/api/donate": "interact",
   "/api/teleport": "cast",
   "/api/gravity-time": "cast",
@@ -2490,7 +2488,6 @@ function isContinuousGameActionButton(button) {
     "tabletDodgeShortcut",
     "tabletRenkiShortcut",
     "tabletRestShortcut",
-    "tabletManaToStaminaShortcut",
     "tabletDonateShortcut"
   ].includes(button.id)) return true;
   if (button.id === "ninjutsuButton" && hasDisplayedOperatorAccess(state.data?.self, "fighter")) return true;
@@ -3781,12 +3778,10 @@ function triggerScreenHotkey(event) {
   }
   if (state.screen === "game" && state.data?.phase === "playing") {
     const self = state.data?.self;
-    if (["Comma", "Quote", "KeyG"].includes(event.code)) {
+    if (["Quote", "KeyG"].includes(event.code)) {
       event.preventDefault();
       if (!event.repeat) {
-        const action = event.code === "Comma"
-          ? () => void api("/api/resource-convert", { direction: "mana-to-stamina" })
-          : () => void api("/api/donate");
+        const action = () => void api("/api/donate");
         beginContinuousActionKeyHold(event.code, () => {
           action();
           return true;
@@ -3900,7 +3895,6 @@ function bindEvents() {
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
   els.tabletRenkiShortcut.addEventListener("click", () => els.renkiButton.click());
   els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
-  els.tabletManaToStaminaShortcut.addEventListener("click", () => void api("/api/resource-convert", { direction: "mana-to-stamina" }));
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
   window.addEventListener("resize", scheduleTabletBranchLayout, { passive: true });
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
@@ -5381,7 +5375,6 @@ function renderTabletControls(data) {
   els.tabletRestShortcut.textContent = els.sleepButton.textContent || "休息";
   els.tabletRestShortcut.disabled = els.sleepButton.disabled;
   const canAct = data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent;
-  els.tabletManaToStaminaShortcut.disabled = !canAct || Number(data.self.mana || 0) < 1;
   els.tabletDonateShortcut.disabled = !canAct || Number(data.self.credits || 0) < 10;
   renderTabletBranch(data);
 }
@@ -8261,7 +8254,7 @@ function renderActiveEffects(data) {
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
   if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "理知中、押し込み・踏ん張り・回復・加速・タスク消費軽減を同時に得る");
   if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "移動速度が大幅に上昇する");
-  if (self.limitBreakActive) timed("リミットブレイク", self.limitBreakEndsAt, "truth", "12秒間、SP・加速×3 / HP1 / 即死回避無効。任意解除はできない");
+  if (self.limitBreakActive) timed("リミットブレイク", self.limitBreakEndsAt, "truth", `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 即死回避無効`);
   effects.push(...collectOperatorPassiveEffects(self, liveNow));
   if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "次のボディダメージを吸収し、状態異常を解除する");
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次に受ける確殺を1回だけボディダメージへ変換する");
@@ -8696,11 +8689,11 @@ function updateActionButtons(data) {
         : activeBorrowedOperator === "gunner"
           ? "ホバースプリント"
           : activeBorrowedOperator === "fighter"
-            ? self.limitBreakActive ? `リミットブレイク ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク"
+            ? self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク"
             : "常時パッシブ"
     : "";
   const operatorLabels = {
-    fighter: self.limitBreakActive ? `リミットブレイク ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク",
+    fighter: self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク",
     teleport: operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
       : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
           : operatorMode === "accelerate" ? `アクセラレート 8秒 ${operatorCostLabel("teleport")}`
@@ -8735,7 +8728,7 @@ function updateActionButtons(data) {
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
   els.operatorAbilityButton.disabled = !canUseAbility ||
-    (displayedOperator === "fighter" && (self.limitBreakActive || !hasMana("fighterCharge"))) ||
+    (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
     (displayedOperator === "gunner" && ((Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("hoverSprint"))) ||
     (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
     (activeBorrowedOperator && borrowedStateBlocked);
@@ -14719,7 +14712,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "item-branch-desire-v430";
+const version = "resource-limit-break-v431";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
