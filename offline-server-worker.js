@@ -8708,6 +8708,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     ideaStage: 0,
     ideaFirstAspect: "",
     desireBias: "",
+    desireIdeaForfeited: false,
     truthCharges: 0,
     beautyCharges: 0,
     goodActive: false,
@@ -9104,6 +9105,7 @@ function startGame(room) {
     player.ideaStage = 0;
     player.ideaFirstAspect = "";
     player.desireBias = "";
+    player.desireIdeaForfeited = false;
     player.truthCharges = 0;
     player.beautyCharges = 0;
     player.goodActive = false;
@@ -9401,6 +9403,7 @@ function startBattle(room) {
     player.ideaStage = 0;
     player.ideaFirstAspect = "";
     player.desireBias = "";
+    player.desireIdeaForfeited = false;
     player.truthCharges = 0;
     player.beautyCharges = 0;
     player.goodActive = false;
@@ -9795,6 +9798,7 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   player.stamina = DESIRE_RESOURCE_DEBT;
   player.staminaUpdatedAt = timestamp;
   player.rationalFreeAbilityReadyAt = 0;
+  player.desireIdeaForfeited = true;
   forfeitIdeaAttainment(player);
   if (room?.ideaWinnerId === player.id) {
     room.ideaWinnerId = "";
@@ -9802,7 +9806,7 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   }
   if (room && enteredNow) {
     const bias = desireBiasDefinition(player);
-    pushEvent(room, `${player.name} は欲望へ移行し、${bias?.label || "認知バイアス"}が心を支配しました。イデアへの到達は失効します。`);
+    pushEvent(room, `${player.name} は欲望へ移行し、${bias?.label || "認知バイアス"}が心を支配しました。この対戦では真・美・善・善のイデアへの到達を永久に失います。`);
   }
   return player.desireBias;
 }
@@ -9859,7 +9863,7 @@ function setMana(room, player, rawMana, sourceLabel = "") {
   player.mana = next;
   player.luck = luckValueFor(player);
   if (previousState !== nextState) player.manaStateEnteredAt = timestamp;
-  if (enteredRational) {
+  if (enteredRational && !player.desireIdeaForfeited) {
     player.ideaProgressStartedAt = timestamp;
     player.ideaProgressMs = 0;
     player.ideaProgressUpdatedAt = timestamp;
@@ -10004,18 +10008,21 @@ function finishRenki(room, player, timestamp) {
 }
 
 function grantIdeaAspect(room, player, aspect) {
+  if (player.desireIdeaForfeited) return false;
   if (aspect === "truth") {
     grantPushCharge(player, false);
     pushMagicEffect(room, "idea-truth", player, { radius: 135, playerId: player.id });
     pushEvent(room, `${player.name} が真を獲得し、押し込みを得ました。`);
-    return;
+    return true;
   }
   grantStandFirmCharge(player, false);
   pushMagicEffect(room, "idea-beauty", player, { radius: 145, playerId: player.id });
   pushEvent(room, `${player.name} が美を獲得し、踏ん張りを得ました。`);
+  return true;
 }
 
 function grantIdeaGood(room, player, timestamp) {
+  if (player.desireIdeaForfeited) return false;
   player.goodActive = true;
   grantPushCharge(player, false);
   grantStandFirmCharge(player, false);
@@ -10031,9 +10038,11 @@ function grantIdeaGood(room, player, timestamp) {
   player.staminaUpdatedAt = timestamp;
   pushMagicEffect(room, "idea-good", player, { radius: 185, playerId: player.id });
   pushEvent(room, `${player.name} が善を獲得し、押し込み・踏ん張り・回復・加速を統合しました。`);
+  return true;
 }
 
 function beginIdeaAscension(room, player, timestamp) {
+  if (player.desireIdeaForfeited) return false;
   if (room.pendingIdeaVictoryAt || room.phase !== "playing") return;
   player.ideaStage = 4;
   player.ascensionStartedAt = timestamp;
@@ -10049,6 +10058,7 @@ function beginIdeaAscension(room, player, timestamp) {
   pushMagicEffect(room, "idea-ascension", player, { radius: 260, playerId: player.id });
   pushEvent(room, `${player.name} が善のイデアへ到達しました。光る翼とともに昇天を開始します。`);
   touch(room);
+  return true;
 }
 
 function advanceIdeaProgress(room, player, timestamp) {
@@ -10057,7 +10067,7 @@ function advanceIdeaProgress(room, player, timestamp) {
     return;
   }
   if (room.phase !== "playing" || player.ideaStage >= 4) return;
-  if (isDesireState(player) || player.desireBias) {
+  if (player.desireIdeaForfeited || isDesireState(player) || player.desireBias) {
     forfeitIdeaAttainment(player);
     return;
   }
@@ -15575,7 +15585,8 @@ function serialize(room, viewer, options = {}) {
       desireBias: viewer.desireBias || "",
       desireBiasLabel: desireBiasDefinition(viewer)?.label || "",
       desireBiasDetail: desireBiasDefinition(viewer)?.detail || "",
-      ideaBlockedByDesire: Boolean(isDesireState(viewer) || viewer.desireBias),
+      desireIdeaForfeited: Boolean(viewer.desireIdeaForfeited),
+      ideaBlockedByDesire: Boolean(viewer.desireIdeaForfeited || isDesireState(viewer) || viewer.desireBias),
       luck: luckValueFor(viewer),
       passivesEnabled: passivesEnabled(viewer),
       rationalFreeAbilityReadyAt: Number(viewer.rationalFreeAbilityReadyAt) || 0,
@@ -16465,6 +16476,8 @@ async function handleApi(req, res) {
         entry.ideaProgressUpdatedAt = 0;
         entry.ideaStage = 0;
         entry.ideaFirstAspect = "";
+        entry.desireBias = "";
+        entry.desireIdeaForfeited = false;
         entry.truthCharges = 0;
         entry.beautyCharges = 0;
         entry.goodActive = false;
@@ -17347,5 +17360,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "gold-desire-title-v429" });
+self.postMessage({ type: "ready", version: "item-branch-desire-v430" });
 })();

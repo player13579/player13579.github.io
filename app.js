@@ -7800,16 +7800,14 @@ function drawItemHoldBranchLine() {
   const sourceRect = source.getBoundingClientRect();
   const branchRect = els.itemHoldBranch.getBoundingClientRect();
   const sourceX = sourceRect.left + sourceRect.width / 2;
-  const sourceY = sourceRect.top + sourceRect.height / 2;
-  const branchOnRight = branchRect.left >= sourceX;
-  const endX = branchOnRight ? branchRect.left : branchRect.right;
-  const endY = branchRect.top + branchRect.height / 2;
-  const bendX = sourceX + (endX - sourceX) * 0.52;
+  const sourceY = sourceRect.top;
+  const endX = branchRect.left + branchRect.width / 2;
+  const endY = branchRect.bottom;
   const namespace = "http://www.w3.org/2000/svg";
   els.itemHoldBranchLines.replaceChildren();
   els.itemHoldBranchLines.setAttribute("viewBox", `0 0 ${window.innerWidth} ${window.innerHeight}`);
   const path = document.createElementNS(namespace, "path");
-  path.setAttribute("d", `M ${sourceX} ${sourceY} C ${bendX} ${sourceY}, ${bendX} ${endY}, ${endX} ${endY}`);
+  path.setAttribute("d", `M ${sourceX} ${sourceY} L ${endX} ${endY}`);
   path.setAttribute("class", "item-hold-branch-line");
   const endpoint = document.createElementNS(namespace, "circle");
   endpoint.setAttribute("cx", String(endX));
@@ -7826,21 +7824,13 @@ function positionItemHoldBranch() {
   const leftEdge = Number(viewport?.offsetLeft) || 0;
   const topEdge = Number(viewport?.offsetTop) || 0;
   const rightEdge = leftEdge + (Number(viewport?.width) || window.innerWidth);
-  const bottomEdge = topEdge + (Number(viewport?.height) || window.innerHeight);
   const sourceRect = source.getBoundingClientRect();
   const branchRect = els.itemHoldBranch.getBoundingClientRect();
   const margin = 10;
-  const gap = 24;
-  const rightSpace = rightEdge - sourceRect.right;
-  let left = rightSpace >= branchRect.width + gap
-    ? sourceRect.right + gap
-    : sourceRect.left - branchRect.width - gap;
+  const gap = 8;
+  let left = sourceRect.left + sourceRect.width / 2 - branchRect.width / 2;
   left = clamp(left, leftEdge + margin, rightEdge - branchRect.width - margin);
-  const top = clamp(
-    sourceRect.top + sourceRect.height / 2 - branchRect.height / 2,
-    topEdge + margin,
-    bottomEdge - branchRect.height - margin
-  );
+  const top = Math.max(topEdge + margin, sourceRect.top - branchRect.height - gap);
   els.itemHoldBranch.style.left = `${Math.round(left)}px`;
   els.itemHoldBranch.style.top = `${Math.round(top)}px`;
   requestAnimationFrame(drawItemHoldBranchLine);
@@ -14729,7 +14719,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "gold-desire-title-v429";
+const version = "item-branch-desire-v430";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
