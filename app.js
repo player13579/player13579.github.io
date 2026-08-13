@@ -664,10 +664,10 @@ const generatedItemTextureFiles = new Map([
   ["excalibur", { file: "alchemy-excalibur.webp" }],
   ["exile", { file: "exile-clone.webp" }],
   ["computer", { file: "item-computer-v404.png" }],
-  ["handgun", { file: "gunner-weapons-atlas.webp", size: "500% 100%", position: "0 0" }],
-  ["smg", { file: "gunner-weapons-atlas.webp", size: "500% 100%", position: "25% 0" }],
-  ["assault", { file: "gunner-weapons-atlas.webp", size: "500% 100%", position: "50% 0" }],
-  ["sniper", { file: "gunner-weapons-atlas.webp", size: "500% 100%", position: "75% 0" }],
+  ["handgun", { file: "gunner-weapon-icons-v422.webp", size: "400% 100%", position: "0 0" }],
+  ["smg", { file: "gunner-weapon-icons-v422.webp", size: "400% 100%", position: "33.333% 0" }],
+  ["assault", { file: "gunner-weapon-icons-v422.webp", size: "400% 100%", position: "66.667% 0" }],
+  ["sniper", { file: "gunner-weapon-icons-v422.webp", size: "400% 100%", position: "100% 0" }],
   ["taser", { file: "gunner-taser.webp" }],
   ["rpg", { file: "gunner-rpg.webp" }],
   ["missile", { file: "gunner-missile.webp" }],
@@ -1048,6 +1048,12 @@ function renderHackerAbilityDock(data = state.data, force = false) {
         <span class="hacker-action-copy"><strong>${escapeHtml(recipe.label)}</strong><small>${escapeHtml(hackerRecipePresentation(recipe))}</small></span>
       `;
       applyGeneratedItemTexture(button, recipe.asset || recipe.id);
+      bindInventoryDetailHold(button, {
+        label: recipe.label,
+        output: category.label,
+        badge: `クールタイム ${Math.round(hackerRecipeCooldownMs(recipe) / 1000)}秒`,
+        detail: recipe.output || "バイブコーディングで生成・適用する対象。"
+      }, els.hackerAbilityGrid);
       els.hackerAbilityGrid.append(button);
     });
     selectHackerAction(
@@ -1420,6 +1426,29 @@ async function enterFullscreen() {
   }
 }
 
+const LOCKED_VIEWPORT_CONTENT = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
+let viewportScaleResetTimer = 0;
+
+function restoreLockedViewportScale(force = false) {
+  const scale = Number(window.visualViewport?.scale) || 1;
+  if (!force && scale <= 1.01) return false;
+  const current = document.querySelector('meta[name="viewport"]');
+  if (!current) return false;
+  const replacement = document.createElement("meta");
+  replacement.name = "viewport";
+  replacement.content = LOCKED_VIEWPORT_CONTENT;
+  current.replaceWith(replacement);
+  return true;
+}
+
+function scheduleViewportScaleRestore(force = false) {
+  if (viewportScaleResetTimer) window.clearTimeout(viewportScaleResetTimer);
+  viewportScaleResetTimer = window.setTimeout(() => {
+    viewportScaleResetTimer = 0;
+    restoreLockedViewportScale(force);
+  }, force ? 0 : 80);
+}
+
 function createFullscreenSwipeGuard({ isActive, resolveScrollable }) {
   const touches = new Map();
   return {
@@ -1590,12 +1619,13 @@ function drawTitleEffects(timestamp) {
   const width = state.titleFx.width;
   const height = state.titleFx.height;
   titleFxCtx.clearRect(0, 0, width, height);
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  if (timestamp - state.titleFx.lastRouteAt > 135 + Math.random() * 160) {
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reducedMotion) return;
+  if (timestamp - state.titleFx.lastRouteAt > 420 + Math.random() * 360) {
     state.titleFx.lastRouteAt = timestamp;
     spawnTitleRouteGlint(timestamp);
   }
-  if (timestamp - state.titleFx.lastAtmosphereAt > 34 + Math.random() * 46) {
+  if (timestamp - state.titleFx.lastAtmosphereAt > 92 + Math.random() * 88) {
     state.titleFx.lastAtmosphereAt = timestamp;
     spawnTitleAtmosphere(timestamp);
   }
@@ -2068,6 +2098,7 @@ const CHARACTER_ACTION_DURATION = Object.freeze({
   cast: 820,
   heal: 900,
   power: 980,
+  enhance: 980,
   focus: 1100,
   rest: 1300,
   interact: 620,
@@ -2087,7 +2118,8 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   rest: 9,
   interact: 10,
   jump: 11,
-  // The attack cells supply the arm silhouettes; throw has its own timing and body mechanics below.
+  enhance: 7,
+  // Throw release has dedicated timing and body mechanics while retaining the empty-hand attack cells.
   throw: 0
 });
 
@@ -2112,7 +2144,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-warp": "cast",
   "action-ninjutsu-focus": "focus",
   "action-shoot": "shoot",
-  "action-sustained-fire": "shoot",
   "action-sniper-scope": "focus",
   "action-reload": "reload",
   "action-weak-bullet": "shoot",
@@ -4281,6 +4312,18 @@ function bindEvents() {
       if (state.screen === "game" && event.cancelable) event.preventDefault();
     }, { capture: true, passive: false });
   });
+  document.addEventListener("dblclick", (event) => {
+    if (state.screen !== "game") return;
+    if (event.cancelable) event.preventDefault();
+  }, { capture: true, passive: false });
+  window.visualViewport?.addEventListener("resize", () => scheduleViewportScaleRestore(), { passive: true });
+  window.addEventListener("orientationchange", () => scheduleViewportScaleRestore(true), { passive: true });
+  window.addEventListener("pageshow", () => scheduleViewportScaleRestore(), { passive: true });
+  document.addEventListener("focusout", (event) => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) {
+      scheduleViewportScaleRestore();
+    }
+  }, true);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       fullscreenSwipeGuard.clear();
@@ -4290,6 +4333,7 @@ function bindEvents() {
     }
     clearMovementInput();
     if (!document.hidden) void resyncMovementAfterFocus();
+    if (!document.hidden) scheduleViewportScaleRestore();
     if (document.hidden) recordUsageExit();
     else {
       recordUsageResume();
@@ -7493,8 +7537,43 @@ function showInventoryItemDetail(item, sourceButton) {
   els.inventoryItemDetailType.textContent = [item.output || "所持品", item.badge || ""].filter(Boolean).join(" / ");
   els.inventoryItemDetailDescription.textContent = item.detail || "通常使用と投擲に対応する所持品。";
   els.inventoryItemDetail.hidden = false;
+  positionInventoryItemDetail(sourceButton);
   state.inventoryItemDetailTimer = window.setTimeout(hideInventoryItemDetail, 12_000);
 }
+
+function positionInventoryItemDetail(sourceButton = state.inventoryItemDetailSource) {
+  const panel = els.inventoryItemDetail;
+  if (!sourceButton || !panel || panel.hidden) return;
+  const viewport = window.visualViewport;
+  const leftEdge = Number(viewport?.offsetLeft) || 0;
+  const topEdge = Number(viewport?.offsetTop) || 0;
+  const rightEdge = leftEdge + (Number(viewport?.width) || window.innerWidth);
+  const bottomEdge = topEdge + (Number(viewport?.height) || window.innerHeight);
+  const margin = 10;
+  const gap = 10;
+  panel.style.left = `${leftEdge + margin}px`;
+  panel.style.top = `${topEdge + margin}px`;
+  panel.style.right = "auto";
+  panel.style.bottom = "auto";
+  panel.style.maxHeight = `${Math.max(120, bottomEdge - topEdge - margin * 2)}px`;
+  const sourceRect = sourceButton.getBoundingClientRect();
+  const panelRect = panel.getBoundingClientRect();
+  const maxLeft = Math.max(leftEdge + margin, rightEdge - panelRect.width - margin);
+  const maxTop = Math.max(topEdge + margin, bottomEdge - panelRect.height - margin);
+  const spaceRight = rightEdge - sourceRect.right - margin;
+  const spaceLeft = sourceRect.left - leftEdge - margin;
+  let left = Math.min(maxLeft, Math.max(leftEdge + margin, sourceRect.left));
+  if (spaceRight >= panelRect.width + gap) left = sourceRect.right + gap;
+  else if (spaceLeft >= panelRect.width + gap) left = sourceRect.left - panelRect.width - gap;
+  const centeredTop = sourceRect.top + sourceRect.height / 2 - panelRect.height / 2;
+  const top = Math.min(maxTop, Math.max(topEdge + margin, centeredTop));
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.top = `${Math.round(top)}px`;
+}
+
+window.addEventListener("resize", () => positionInventoryItemDetail(), { passive: true });
+window.visualViewport?.addEventListener("resize", () => positionInventoryItemDetail(), { passive: true });
+window.visualViewport?.addEventListener("scroll", () => positionInventoryItemDetail(), { passive: true });
 
 function createInventoryClickGate({
   now = () => performance.now(),
@@ -7516,43 +7595,14 @@ function createInventoryClickGate({
   };
 }
 
-function bindInventoryDetailHold(button, item) {
-  let timer = 0;
-  let pointerId = null;
-  let originX = 0;
-  let originY = 0;
+function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid) {
   const clickGate = createInventoryClickGate();
+  let activePointerId = null;
+  let activePointerType = "";
   const clearNativeSelection = () => {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
   };
-  const clear = () => {
-    if (timer) window.clearTimeout(timer);
-    timer = 0;
-    pointerId = null;
-  };
-  const beginHold = (id, clientX, clientY) => {
-    clear();
-    clearNativeSelection();
-    pointerId = id;
-    originX = clientX;
-    originY = clientY;
-    clickGate.reset();
-    timer = window.setTimeout(() => {
-      if (pointerId !== id) return;
-      clickGate.arm();
-      clearNativeSelection();
-      showInventoryItemDetail(item, button);
-      if (navigator.vibrate) navigator.vibrate(18);
-    }, 520);
-  };
-  button.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "touch") return;
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    if (event.cancelable) event.preventDefault();
-    beginHold(event.pointerId, event.clientX, event.clientY);
-    try { button.setPointerCapture(event.pointerId); } catch {}
-  });
   const suppressNativeLongPress = (event) => {
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
@@ -7562,8 +7612,12 @@ function bindInventoryDetailHold(button, item) {
   button.addEventListener("selectstart", suppressNativeLongPress);
   button.addEventListener("dragstart", suppressNativeLongPress);
   button.addEventListener("copy", suppressNativeLongPress);
-  const touchGesture = createInventoryTouchGesture({
-    onTap: () => button.click(),
+  const pointerGesture = createInventoryTouchGesture({
+    onTap: () => {
+      if (activePointerType === "mouse") return;
+      button.click();
+      clickGate.arm();
+    },
     onHold: () => {
       clickGate.arm();
       clearNativeSelection();
@@ -7571,45 +7625,45 @@ function bindInventoryDetailHold(button, item) {
       if (navigator.vibrate) navigator.vibrate(18);
     },
     onScroll: (deltaY) => {
-      els.itemInventoryGrid.scrollTop += deltaY;
+      if (scrollContainer) scrollContainer.scrollTop += deltaY;
     },
     onClearSelection: clearNativeSelection
   });
-  button.addEventListener("touchstart", (event) => {
-    if (event.touches.length !== 1) return;
+  button.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
-    const touch = event.touches[0];
-    touchGesture.start(touch.identifier, touch.clientX, touch.clientY);
-  }, { passive: false });
-  button.addEventListener("touchmove", (event) => {
-    if (event.touches.length !== 1) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
-    const touch = event.touches[0];
-    touchGesture.move(touch.identifier, touch.clientX, touch.clientY);
-  }, { passive: false });
-  button.addEventListener("touchend", (event) => {
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
-    const touch = event.changedTouches[0];
-    const result = touch ? touchGesture.end(touch.identifier) : "ignored";
-    if (result === "hold") clickGate.arm();
-  }, { passive: false });
-  button.addEventListener("touchcancel", (event) => {
-    if (event.cancelable) event.preventDefault();
-    const touch = event.changedTouches[0];
-    touchGesture.cancel(touch?.identifier);
+    activePointerId = event.pointerId;
+    activePointerType = event.pointerType || "mouse";
     clickGate.reset();
-  }, { passive: false });
-  button.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "touch") return;
-    if (pointerId !== event.pointerId) return;
-    if (Math.hypot(event.clientX - originX, event.clientY - originY) > 9) clear();
+    pointerGesture.start(event.pointerId, event.clientX, event.clientY);
+    try { button.setPointerCapture(event.pointerId); } catch {}
   });
-  button.addEventListener("pointerup", (event) => { if (event.pointerType !== "touch") clear(); });
-  button.addEventListener("pointercancel", (event) => { if (event.pointerType !== "touch") clear(); });
-  button.addEventListener("lostpointercapture", (event) => { if (event.pointerType !== "touch") clear(); });
+  button.addEventListener("pointermove", (event) => {
+    if (activePointerId !== event.pointerId) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    pointerGesture.move(event.pointerId, event.clientX, event.clientY);
+  });
+  button.addEventListener("pointerup", (event) => {
+    if (activePointerId !== event.pointerId) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    const result = pointerGesture.end(event.pointerId);
+    if (result === "hold") clickGate.arm();
+    activePointerId = null;
+    activePointerType = "";
+  });
+  const cancelPointerGesture = (event) => {
+    if (activePointerId !== event.pointerId) return;
+    pointerGesture.cancel(event.pointerId);
+    activePointerId = null;
+    activePointerType = "";
+    clickGate.reset();
+  };
+  button.addEventListener("pointercancel", cancelPointerGesture);
+  button.addEventListener("lostpointercapture", cancelPointerGesture);
   button.addEventListener("click", (event) => {
     if (!clickGate.consume()) return;
     event.preventDefault();
@@ -11645,7 +11699,7 @@ const GUNNER_WEAPON_CELLS = { handgun: 0, smg: 1, assault: 2, sniper: 3, taser: 
 
 function drawGunnerActionEffect(effect, progress) {
   const index = GUNNER_WEAPON_CELLS[effect.variant] ?? 0;
-  const stateEffect = ["action-shoot", "action-weapon-switch", "action-sustained-fire", "action-sniper-scope", "action-reload"].includes(effect.type);
+  const stateEffect = ["action-shoot", "action-weapon-switch", "action-sniper-scope", "action-reload"].includes(effect.type);
   if (!stateEffect) return false;
   const row = effect.type === "action-weapon-switch" ? 0 : 1;
   const sourceIndex = row * 5 + index;
@@ -11657,22 +11711,23 @@ function drawGunnerActionEffect(effect, progress) {
   if (!sprite) return false;
   const pulse = Math.sin(Math.min(1, progress) * Math.PI);
   ctx.save();
-  const firingEffect = ["action-shoot", "action-sustained-fire", "action-sniper-scope"].includes(effect.type);
+  const firingEffect = ["action-shoot", "action-sniper-scope"].includes(effect.type);
   ctx.globalCompositeOperation = firingEffect ? "lighter" : "source-over";
   ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88);
   if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
     const dx = effect.targetX - effect.x;
     const dy = effect.targetY - effect.y;
-    const length = Math.max(48, Math.hypot(dx, dy));
-    ctx.translate(effect.x + dx / 2, effect.y + dy / 2);
+    const rawLength = Math.max(1, Math.hypot(dx, dy));
+    const unitX = dx / rawLength;
+    const unitY = dy / rawLength;
+    const muzzleOffset = ({ handgun: 44, smg: 51, assault: 58, sniper: 70, taser: 43 })[effect.variant] || 48;
+    const startX = effect.x + unitX * muzzleOffset;
+    const startY = effect.y + unitY * muzzleOffset;
+    const renderLength = Math.min(1320, Math.max(18, rawLength - muzzleOffset));
+    ctx.translate(startX, startY);
     ctx.rotate(Math.atan2(dy, dx));
-    drawAnimatedTextureCentered(sprite, 0, 0, Math.min(1320, length + 96), 88 + pulse * 20, {
+    drawAnimatedTextureCentered(sprite, renderLength / 2, 0, renderLength, 72 + pulse * 16, {
       mode: semanticEffectMotion(effect.type, effect.variant, "beam"), progress, intensity: 0.95, baseAlpha: 0.14
-    });
-  } else if (effect.type === "action-sustained-fire") {
-    const size = 138 + pulse * 36;
-    drawAnimatedTextureBottom(sprite, effect.x + 58, effect.y - 26, size * 1.55, size, {
-      mode: "recoil", progress, intensity: 0.9, baseAlpha: 0.14
     });
   } else if (effect.type === "action-sniper-scope") {
     const size = 122 + pulse * 30;
@@ -11789,7 +11844,7 @@ function drawDroneAltitudeEffect(effect, progress) {
 }
 
 function drawActionEffect(effect, progress, now) {
-  if (["action-shoot", "action-weapon-switch", "action-sustained-fire", "action-sniper-scope", "action-reload"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
+  if (["action-shoot", "action-weapon-switch", "action-sniper-scope", "action-reload"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-drone-altitude" && drawDroneAltitudeEffect(effect, progress)) return;
   if (effect.type === "action-heart-teleport" && drawEmpInteractionSprite(effect, 2, progress, Math.max(145, Number(effect.radius) || 145))) return;
@@ -12636,9 +12691,20 @@ function currentCharacterAction(player) {
   if (player.movementMode === "jump-prepare") return { kind: "jump", progress: 0 };
   if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600) };
   if (player.movementMode === "meditating") return { kind: "focus", progress: loopedPhysicalMotionProgress(player, "focus", 1800) };
+  if (player.id === state.data?.selfId && state.enhanceHold.kind) {
+    return { kind: "enhance", progress: loopedPhysicalMotionProgress(player, "enhance", 1180), variant: state.enhanceHold.kind };
+  }
+  if (player.id === state.data?.selfId && state.throwTargeting.active) {
+    // Hold the authored wind-up pose while the landing point is being placed.
+    // The release animation is emitted independently by /api/item-throw.
+    return { kind: "throw", progress: 0.3, variant: "prepare" };
+  }
   if (player.gunFiring || (player.id === state.data?.selfId && state.gunTriggerHeld)) {
     const cycle = loopedPhysicalMotionProgress(player, "shoot", 360);
-    return { kind: "shoot", progress: cycle <= 0.5 ? cycle * 2 : (1 - cycle) * 2 };
+    // Weapon animation is shooter-local. Never fall back to another player's
+    // selected weapon, otherwise one switch would visually affect everyone.
+    const variant = player.gunFiringWeapon || player.gunnerWeapon || "";
+    return { kind: "shoot", progress: cycle <= 0.5 ? cycle * 2 : (1 - cycle) * 2, variant };
   }
   const action = state.characterActions.get(player.id);
   if (!action) return null;
@@ -12892,7 +12958,7 @@ function physicalActionFramePosition(kind, progress) {
   }
   if (kind === "shoot") return Math.min(2, objectEffectEase(value / 0.42) * 2);
   if (kind === "evade") return Math.sin(value * Math.PI) * 2;
-  if (kind === "cast" || kind === "heal" || kind === "power") {
+  if (kind === "cast" || kind === "heal" || kind === "power" || kind === "enhance") {
     const smooth = value * value * (3 - 2 * value);
     return smooth * 2;
   }
@@ -12932,6 +12998,10 @@ function applyPhysicalActionTransform(kind, progress, flip) {
     const charge = clamp(progress / 0.65, 0, 1);
     ctx.translate(0, -Math.sin(charge * Math.PI) * 4);
     ctx.scale(1 + charge * 0.045, 1 + charge * 0.045);
+  } else if (kind === "enhance") {
+    const gather = 0.5 - Math.cos(progress * Math.PI * 2) * 0.5;
+    ctx.translate(0, gather * 2.2);
+    ctx.scale(1 - gather * 0.028, 1 + gather * 0.038);
   } else if (kind === "focus") {
     ctx.translate(0, Math.sin(progress * Math.PI * 2) * 1.5);
   } else if (kind === "rest") {
@@ -14236,7 +14306,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "inventory-longpress-v420";
+const version = "title-natural-motion-v424";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

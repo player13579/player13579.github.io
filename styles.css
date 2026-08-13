@@ -95,6 +95,19 @@ body textarea {
   transition: border-color 170ms ease, box-shadow 170ms ease, background 170ms ease;
 }
 
+@media (pointer: coarse), (max-width: 1024px) {
+  body input,
+  body select,
+  body textarea {
+    font-size: 16px !important;
+  }
+
+  body button,
+  body [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
 body input:hover,
 body select:hover,
 body textarea:hover {
@@ -735,6 +748,8 @@ body.game-open .app-shell {
   height: 100%;
   object-fit: cover;
   object-position: center;
+  transform-origin: 76% 58%;
+  animation: title-natural-camera 18s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
 
 .title-hero-atmosphere {
@@ -746,18 +761,18 @@ body.game-open .app-shell {
   object-fit: cover;
   object-position: center;
   pointer-events: none;
-  opacity: 0.2;
-  filter: saturate(1.18) brightness(1.1) blur(0.62px);
+  opacity: 0.1;
+  filter: saturate(1.12) brightness(1.08) blur(0.48px);
   mix-blend-mode: screen;
   -webkit-mask-image:
-    radial-gradient(ellipse at 76% 79%, #000 0 11%, transparent 30%),
-    radial-gradient(ellipse at 75% 49%, #000 0 12%, transparent 31%),
-    radial-gradient(ellipse at 84% 59%, #000 0 8%, transparent 24%);
+    radial-gradient(ellipse at 76% 79%, #000 0 13%, transparent 31%),
+    radial-gradient(ellipse at 72% 48%, #000 0 10%, transparent 27%),
+    radial-gradient(ellipse at 83% 58%, #000 0 7%, transparent 22%);
   mask-image:
-    radial-gradient(ellipse at 76% 79%, #000 0 11%, transparent 30%),
-    radial-gradient(ellipse at 75% 49%, #000 0 12%, transparent 31%),
-    radial-gradient(ellipse at 84% 59%, #000 0 8%, transparent 24%);
-  animation: title-atmosphere-phase 7.2s cubic-bezier(0.38, 0, 0.62, 1) infinite alternate;
+    radial-gradient(ellipse at 76% 79%, #000 0 13%, transparent 31%),
+    radial-gradient(ellipse at 72% 48%, #000 0 10%, transparent 27%),
+    radial-gradient(ellipse at 83% 58%, #000 0 7%, transparent 22%);
+  animation: title-natural-atmosphere 6.8s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
 }
 
 .title-fx-canvas {
@@ -2076,10 +2091,9 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   left: 7px;
   width: 26px;
   height: 24px;
-  background-image: url("assets/generated/gunner-weapons-atlas.webp");
+  background-image: url("assets/generated/gunner-weapon-icons-v422.webp");
   background-repeat: no-repeat;
-  background-size: 500% 200%;
-  background-position-y: 0%;
+  background-size: 400% 100%;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
   transform: translateY(-50%);
 }
@@ -2096,10 +2110,14 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 }
 
 .field-action-bar .weapon-button[data-weapon="handgun"]::before { background-position-x: 0%; }
-.field-action-bar .weapon-button[data-weapon="smg"]::before { background-position-x: 25%; }
-.field-action-bar .weapon-button[data-weapon="assault"]::before { background-position-x: 50%; }
-.field-action-bar .weapon-button[data-weapon="sniper"]::before { background-position-x: 75%; }
-.field-action-bar .weapon-button[data-weapon="taser"]::before { background-position-x: 100%; }
+.field-action-bar .weapon-button[data-weapon="smg"]::before { background-position-x: 33.333%; }
+.field-action-bar .weapon-button[data-weapon="assault"]::before { background-position-x: 66.667%; }
+.field-action-bar .weapon-button[data-weapon="sniper"]::before { background-position-x: 100%; }
+.field-action-bar .weapon-button[data-weapon="taser"]::before {
+  background-image: url("assets/generated/gunner-taser.webp");
+  background-position: center;
+  background-size: contain;
+}
 
 .field-action-bar button.keyboard-selected {
   border-color: #67e8f9;
@@ -2451,12 +2469,15 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .inventory-item-detail {
   position: fixed;
-  right: max(14px, env(safe-area-inset-right));
-  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 72px);
+  left: max(14px, env(safe-area-inset-left));
+  top: max(14px, env(safe-area-inset-top));
   z-index: 214;
   display: grid;
   gap: 5px;
   width: min(380px, calc(100vw - 28px));
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(103, 232, 249, 0.82);
   border-left: 4px solid #22d3ee;
   border-radius: 7px;
@@ -2466,7 +2487,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.09), 0 16px 38px rgba(2, 8, 23, 0.52);
   color: #e8f8fc;
   padding: 12px 14px 13px;
-  pointer-events: none;
+  pointer-events: auto;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -2790,11 +2811,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   to { opacity: 1; transform: translateY(0) scale(1); filter: saturate(1) brightness(1); }
 }
 
-.start-hero {
-  animation: texture-camera-drift 13s ease-in-out infinite alternate;
-  transform-origin: 52% 48%;
-}
-
 .solo-mission-card img {
   animation: texture-poster-live 8s ease-in-out infinite alternate;
 }
@@ -2805,16 +2821,15 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   animation: texture-detail-live 4.6s ease-in-out infinite alternate;
 }
 
-@keyframes texture-camera-drift {
-  from { transform: scale(1.008) translate3d(-0.18%, 0, 0); filter: saturate(0.98) brightness(0.99); }
-  to { transform: scale(1.035) translate3d(0.22%, -0.18%, 0); filter: saturate(1.06) brightness(1.025); }
+@keyframes title-natural-camera {
+  from { transform: translate3d(-0.05%, 0.03%, 0) scale(1.003); filter: saturate(0.99) brightness(0.995); }
+  to { transform: translate3d(0.08%, -0.06%, 0) scale(1.012); filter: saturate(1.025) brightness(1.012); }
 }
 
-@keyframes title-atmosphere-phase {
-  0% { transform: translate3d(-0.08%, 0.1%, 0) scale(1.002); opacity: 0.12; filter: saturate(1.08) brightness(1.04) blur(0.82px); }
-  38% { transform: translate3d(0.05%, -0.06%, 0) scale(1.006); opacity: 0.23; filter: saturate(1.25) brightness(1.15) blur(0.5px); }
-  72% { transform: translate3d(0.11%, -0.16%, 0) scale(1.009); opacity: 0.17; filter: saturate(1.16) brightness(1.09) blur(0.67px); }
-  100% { transform: translate3d(0.16%, -0.1%, 0) scale(1.012); opacity: 0.21; filter: saturate(1.22) brightness(1.12) blur(0.56px); }
+@keyframes title-natural-atmosphere {
+  0% { transform: translate3d(0, 0.06%, 0) scale(1.001); opacity: 0.065; filter: saturate(1.06) brightness(1.035) blur(0.58px); }
+  46% { transform: translate3d(0.03%, -0.04%, 0) scale(1.003); opacity: 0.13; filter: saturate(1.14) brightness(1.09) blur(0.42px); }
+  100% { transform: translate3d(-0.02%, -0.1%, 0) scale(1.005); opacity: 0.095; filter: saturate(1.1) brightness(1.065) blur(0.5px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3268,15 +3283,15 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 }
 
 .vending-gun-icon {
-  background-image: url("assets/generated/gunner-weapons-atlas.webp?v=vending-firearms-v173");
+  background-image: url("assets/generated/gunner-weapon-icons-v422.webp?v=weapon-icons-v422");
   background-repeat: no-repeat;
-  background-size: 500% 100%;
+  background-size: 400% 100%;
 }
 
 .vending-item-with-icon[data-vending-weapon="handgun"] .vending-gun-icon { background-position: 0 0; }
-.vending-item-with-icon[data-vending-weapon="smg"] .vending-gun-icon { background-position: 25% 0; }
-.vending-item-with-icon[data-vending-weapon="assault"] .vending-gun-icon { background-position: 50% 0; }
-.vending-item-with-icon[data-vending-weapon="sniper"] .vending-gun-icon { background-position: 75% 0; }
+.vending-item-with-icon[data-vending-weapon="smg"] .vending-gun-icon { background-position: 33.333% 0; }
+.vending-item-with-icon[data-vending-weapon="assault"] .vending-gun-icon { background-position: 66.667% 0; }
+.vending-item-with-icon[data-vending-weapon="sniper"] .vending-gun-icon { background-position: 100% 0; }
 .vending-item-with-icon[data-vending-weapon="taser"] .vending-gun-icon {
   background-image: url("assets/generated/gunner-taser.webp?v=vending-firearms-v173");
   background-position: center;
@@ -3998,13 +4013,13 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .alchemy-choice[data-alchemy-asset="exile"] .alchemy-choice-icon { background-image: url("assets/generated/exile-clone.webp?v=hacker-assets-v130"); }
 .alchemy-choice[data-alchemy-asset="computer"] .alchemy-choice-icon { background-image: url("assets/generated/item-computer-v404.png?v=energy-rest-killcutin-v406"); }
 .alchemy-choice:is([data-alchemy-asset="handgun"], [data-alchemy-asset="smg"], [data-alchemy-asset="assault"], [data-alchemy-asset="sniper"]) .alchemy-choice-icon {
-  background-image: url("assets/generated/gunner-weapons-atlas.webp?v=vending-firearms-v173");
-  background-size: 500% 100%;
+  background-image: url("assets/generated/gunner-weapon-icons-v422.webp?v=weapon-icons-v422");
+  background-size: 400% 100%;
 }
 .alchemy-choice[data-alchemy-asset="handgun"] .alchemy-choice-icon { background-position: 0 0; }
-.alchemy-choice[data-alchemy-asset="smg"] .alchemy-choice-icon { background-position: 25% 0; }
-.alchemy-choice[data-alchemy-asset="assault"] .alchemy-choice-icon { background-position: 50% 0; }
-.alchemy-choice[data-alchemy-asset="sniper"] .alchemy-choice-icon { background-position: 75% 0; }
+.alchemy-choice[data-alchemy-asset="smg"] .alchemy-choice-icon { background-position: 33.333% 0; }
+.alchemy-choice[data-alchemy-asset="assault"] .alchemy-choice-icon { background-position: 66.667% 0; }
+.alchemy-choice[data-alchemy-asset="sniper"] .alchemy-choice-icon { background-position: 100% 0; }
 .alchemy-choice[data-alchemy-asset="taser"] .alchemy-choice-icon { background-image: url("assets/generated/gunner-taser.webp?v=vending-firearms-v173"); }
 .alchemy-choice[data-alchemy-asset="credit"] .alchemy-choice-icon { background-image: url("assets/generated/credit-crates.png"); }
 .alchemy-choice[data-alchemy-asset="items"] .alchemy-choice-icon { background-image: url("assets/room-props.webp"); }
