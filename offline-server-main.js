@@ -6671,7 +6671,9 @@ const WALK_DRAIN_PER_SECOND = 9;
 const SLOW_WALK_DRAIN_PER_SECOND = 1.2;
 const STAMINA_REGEN_PER_SECOND = 19;
 const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
-const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.05;
+// Full-SP overflow restores about 0.127 MP/s. Clairvoyance must still have a
+// meaningful net cost while leaving Renki and field recovery as viable fuel.
+const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.25;
 const JUMP_BASE_DISTANCE = 120;
 const JUMP_DISTANCE_PER_PREPARE_MS = 0.9;
 const JUMP_BASE_COST = 24;
@@ -6727,6 +6729,7 @@ const RESOLVE_POINT_USE_RANGE = 82;
 const RESOLVE_POINT_CLEARANCE = 118;
 const MAP_OBJECT_SPEED_MULTIPLIER = 1.35;
 const LIMIT_BREAK_SPEED_MULTIPLIER = 3;
+const LIMIT_BREAK_DURATION_MS = 12_000;
 const LIMIT_BREAK_MANA_DRAIN_PER_SECOND = 0.08;
 const FIRE_JUTSU_COST = 90;
 const FIRE_JUTSU_RADIUS = 240;
@@ -6923,7 +6926,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "エネルギーチャージ、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを発動・解除し、発動中はSPを3倍化して3倍加速する代わりにHP1となり、マナを継続消費して即死回避を失う。"
+      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを12秒間発動し、発動中はSPを3倍化して3倍加速する代わりにHP1となり、マナを継続消費して即死回避を失う。任意解除はできない。"
     },
     {
       id: "defender-teleport",
@@ -8645,6 +8648,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     teleportReadyAt: 0,
     floraReadyAt: 0,
     limitBreakActive: false,
+    limitBreakEndsAt: 0,
     limitBreakManaCarry: 0,
     fighterEnergyCharge: 0,
     fighterEnergyChargeReadyAt: 0,
@@ -9043,6 +9047,7 @@ function startGame(room) {
     player.teleportReadyAt = 0;
     player.floraReadyAt = 0;
     player.limitBreakActive = false;
+    player.limitBreakEndsAt = 0;
     player.limitBreakManaCarry = 0;
     player.fighterEnergyCharge = 0;
     player.fighterEnergyChargeReadyAt = 0;
@@ -9342,6 +9347,7 @@ function startBattle(room) {
     player.teleportReadyAt = 0;
     player.floraReadyAt = 0;
     player.limitBreakActive = false;
+    player.limitBreakEndsAt = 0;
     player.limitBreakManaCarry = 0;
     player.fighterEnergyCharge = 0;
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
@@ -9610,27 +9616,25 @@ function toggleLimitBreak(room, player) {
   if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent || !hasOperatorAccess(player, "fighter")) {
     throw new ApiError(403, "現在はリミットブレイクを使用できません。");
   }
-  if (player.limitBreakActive) {
-    stopLimitBreak(room, player, "任意解除されました");
-    touch(room);
-    return false;
-  }
+  if (player.limitBreakActive) return true;
   ensureAbilityAvailable(player);
   ensureConscious(player);
   if (!isHackerOperator(player) && Number(player.mana) <= 0) {
     throw new ApiError(400, "リミットブレイクの維持に必要なマナがありません。");
   }
+  const timestamp = now();
   const previousStamina = Math.max(0, Number(player.stamina) || 0);
   player.limitBreakBaseStamina = previousStamina;
   player.limitBreakActive = true;
+  player.limitBreakEndsAt = timestamp + LIMIT_BREAK_DURATION_MS;
   player.limitBreakManaCarry = 0;
   player.bodyHits = 1;
   player.overheal = 0;
   player.stamina = Math.min(staminaCapacityFor(player), previousStamina * 3);
-  player.staminaUpdatedAt = now();
+  player.staminaUpdatedAt = timestamp;
   pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: "active" });
-  setImmediateFeedback(player, "リミットブレイク", "SP×3 / 加速×3 / HP1 / 即死回避無効");
-  pushEvent(room, `${player.name} がリミットブレイクを発動しました。SP3倍 / 3倍加速 / HP1 / 即死回避無効。`);
+  setImmediateFeedback(player, "リミットブレイク", "12秒 / SP×3 / 加速×3 / HP1 / 即死回避無効");
+  pushEvent(room, `${player.name} がリミットブレイクを発動しました。12秒 / SP3倍 / 3倍加速 / HP1 / 即死回避無効。`);
   touch(room);
   return true;
 }
@@ -9638,6 +9642,7 @@ function toggleLimitBreak(room, player) {
 function stopLimitBreak(room, player, reason = "") {
   if (!player.limitBreakActive) return false;
   player.limitBreakActive = false;
+  player.limitBreakEndsAt = 0;
   player.limitBreakManaCarry = 0;
   const transformedStamina = Math.max(0, Number(player.stamina) || 0) / LIMIT_BREAK_SPEED_MULTIPLIER;
   player.stamina = Math.min(MAX_STORED_STAMINA, transformedStamina);
@@ -9651,6 +9656,9 @@ function advanceLimitBreak(room, player, elapsedMs) {
   if (!player.limitBreakActive) return false;
   if (room.phase !== "playing" || !player.alive || player.ejected || !hasOperatorAccess(player, "fighter")) {
     return stopLimitBreak(room, player);
+  }
+  if ((Number(player.limitBreakEndsAt) || 0) <= now()) {
+    return stopLimitBreak(room, player, "12秒経過で解除されました");
   }
   player.bodyHits = Math.max(1, Number(player.bodyHits) || 0);
   player.overheal = 0;
@@ -11745,6 +11753,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   target.bodyHits = 0;
   target.overheal = 0;
   target.limitBreakActive = false;
+  target.limitBreakEndsAt = 0;
   target.inVent = false;
   target.ventId = "";
   target.drone.active = false;
@@ -11979,6 +11988,7 @@ function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, optio
   killer.bodyHits = 0;
   killer.overheal = 0;
   killer.limitBreakActive = false;
+  killer.limitBreakEndsAt = 0;
   killer.inVent = false;
   killer.ventId = "";
   killer.drone.active = false;
@@ -12080,6 +12090,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   target.bodyHits = 0;
   target.overheal = 0;
   target.limitBreakActive = false;
+  target.limitBreakEndsAt = 0;
   target.inVent = false;
   target.ventId = "";
   target.drone.active = false;
@@ -12683,6 +12694,7 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
   player.bodyHits = 0;
   player.overheal = 0;
   player.limitBreakActive = false;
+  player.limitBreakEndsAt = 0;
   player.inVent = false;
   player.ventId = "";
   if (player.drone) player.drone.active = false;
@@ -13974,6 +13986,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       killer.bodyHits = 0;
       killer.overheal = 0;
       killer.limitBreakActive = false;
+      killer.limitBreakEndsAt = 0;
       killer.inVent = false;
       killer.ventId = "";
       killer.drone.active = false;
@@ -14075,6 +14088,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   target.bodyHits = 0;
   target.overheal = 0;
   target.limitBreakActive = false;
+  target.limitBreakEndsAt = 0;
   target.inVent = false;
   target.ventId = "";
   clearAttackState(target);
@@ -14361,11 +14375,6 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
   shooter.gunFiringSince = timestamp;
   shooter.gunReadyAt = timestamp;
   shooter.gunScopeReadyAt = 0;
-  pushMagicEffect(room, "action-sustained-fire", shooter, {
-    radius: weapon.id === "sniper" ? 180 : 115,
-    playerId: shooter.id,
-    variant: weapon.id
-  });
   advanceGunnerFire(room, shooter, timestamp);
   touch(room);
 }
@@ -15431,6 +15440,8 @@ function serialize(room, viewer, options = {}) {
       teleportReadyAt: viewer.teleportReadyAt,
       floraReadyAt: viewer.floraReadyAt,
       limitBreakActive: viewer.limitBreakActive,
+      limitBreakEndsAt: Number(viewer.limitBreakEndsAt) || 0,
+      limitBreakDurationMs: LIMIT_BREAK_DURATION_MS,
       fighterEnergyCharge: Math.max(0, Math.floor(Number(viewer.fighterEnergyCharge) || 0)),
       fighterEnergyChargeReadyAt: Number(viewer.fighterEnergyChargeReadyAt) || 0,
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
@@ -16321,6 +16332,7 @@ async function handleApi(req, res) {
         entry.teleportReadyAt = 0;
         entry.floraReadyAt = 0;
         entry.limitBreakActive = false;
+        entry.limitBreakEndsAt = 0;
         entry.fighterEnergyCharge = 0;
         entry.fighterEnergyChargeReadyAt = 0;
         entry.fighterShockwaveCharges = 0;
@@ -17231,7 +17243,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "title-natural-motion-v424",
+  version: "clairvoyance-balance-v426",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

@@ -2098,6 +2098,16 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   transform: translateY(-50%);
 }
 
+.field-action-bar .weapon-button[data-weapon="handgun"]::before { background-position: 0 0; }
+.field-action-bar .weapon-button[data-weapon="smg"]::before { background-position: 33.333% 0; }
+.field-action-bar .weapon-button[data-weapon="assault"]::before { background-position: 66.667% 0; }
+.field-action-bar .weapon-button[data-weapon="sniper"]::before { background-position: 100% 0; }
+.field-action-bar .weapon-button[data-weapon="taser"]::before {
+  background-image: url("assets/generated/gunner-taser.webp?v=vending-firearms-v173");
+  background-position: center;
+  background-size: contain;
+}
+
 .field-action-bar .weapon-button[data-destroyed="true"]::before {
   background-position: center;
   background-size: contain;
@@ -2420,7 +2430,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .item-inventory-choice {
   position: relative;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -2456,16 +2466,13 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   gap: 3px;
 }
 
-.item-choice-copy strong,
-.item-choice-copy small {
+.item-choice-copy strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .item-choice-copy strong { font-size: 10px; }
-.item-choice-copy small { color: #9fbac6; font-size: 8px; }
-.item-inventory-choice > b { color: #fef08a; font-size: 10px; }
 
 .inventory-item-detail {
   position: fixed;
@@ -2520,6 +2527,91 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   font-size: 12px;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.item-hold-branch-lines {
+  position: fixed;
+  z-index: 215;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.item-hold-branch-lines[hidden],
+.item-hold-branch[hidden] {
+  display: none !important;
+}
+
+.item-hold-branch-line {
+  fill: none;
+  stroke: rgba(165, 243, 252, 0.9);
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.72));
+}
+
+.item-hold-branch-junction {
+  fill: #ecfeff;
+  stroke: rgba(8, 145, 178, 0.92);
+  stroke-width: 2;
+}
+
+.item-hold-branch {
+  position: fixed;
+  z-index: 216;
+  display: grid;
+  gap: 8px;
+  width: min(250px, calc(100vw - 20px));
+  padding: 9px;
+  border: 1px solid rgba(165, 243, 252, 0.72);
+  border-radius: 8px;
+  background: rgba(10, 25, 34, 0.95);
+  box-shadow: 0 16px 34px rgba(2, 8, 14, 0.44), inset 0 1px rgba(255, 255, 255, 0.08);
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.item-hold-branch > strong {
+  overflow: hidden;
+  color: #cffafe;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-hold-branch-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.item-hold-branch-node {
+  min-height: 54px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.item-hold-branch-node.continuous {
+  border-radius: 999px;
+  border-color: rgba(110, 231, 183, 0.86);
+  background: linear-gradient(145deg, rgba(6, 95, 70, 0.96), rgba(6, 78, 59, 0.9));
+}
+
+.item-hold-branch-node.detail {
+  border-color: rgba(196, 181, 253, 0.84);
+  background: linear-gradient(145deg, rgba(76, 29, 149, 0.94), rgba(30, 27, 75, 0.9));
+  clip-path: polygon(10% 0, 90% 0, 100% 25%, 100% 75%, 90% 100%, 10% 100%, 0 75%, 0 25%);
+}
+
+.item-hold-branch-node.branch-selected {
+  outline: 3px solid #fef08a;
+  outline-offset: 2px;
+  filter: brightness(1.2) drop-shadow(0 0 7px rgba(250, 204, 21, 0.64));
+  transform: translateY(-2px) scale(1.03);
 }
 
 @keyframes inventory-detail-enter {
@@ -3208,26 +3300,13 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .vending-grid button {
   position: relative;
   min-width: 0;
-  padding: 8px 36px 8px 8px;
+  padding: 8px;
   font-size: 12px;
   white-space: normal;
 }
 
 .vending-grid button[data-vending-hotkey]::after {
-  content: attr(data-vending-hotkey);
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  min-width: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.48);
-  border-radius: 4px;
-  background: #0f171d;
-  padding: 2px 4px;
-  color: #fef08a;
-  font-size: 9px;
-  font-weight: 900;
-  line-height: 1;
-  text-align: center;
+  content: none;
 }
 
 .vending-item-with-icon {
@@ -3916,12 +3995,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   text-align: left;
 }
 
-.vending-item-with-icon small {
-  color: #b8cbd3;
-  font-size: 9px;
-  line-height: 1.25;
-}
-
 .alchemy-choice strong {
   color: #f8fafc;
   font-size: 11px;
@@ -3932,6 +4005,17 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   color: #aebfc9;
   font-size: 9px;
   line-height: 1.25;
+}
+
+.vending-grid button.purchase-unavailable,
+.hacker-direct-action.action-unavailable {
+  opacity: 0.52;
+  filter: saturate(0.62);
+}
+
+.vending-grid button.purchase-unavailable:hover,
+.hacker-direct-action.action-unavailable:hover {
+  opacity: 0.72;
 }
 
 .alchemy-choice.selected {
@@ -6184,7 +6268,11 @@ body #tabletPanel::after {
 }
 
 .item-inventory-choice,
-.item-inventory-choice * {
+.item-inventory-choice *,
+.hacker-direct-action,
+.hacker-direct-action *,
+.vending-item-with-icon,
+.vending-item-with-icon * {
   -webkit-user-select: none !important;
   user-select: none !important;
   -webkit-touch-callout: none !important;
@@ -6202,7 +6290,9 @@ body #tabletPanel::after {
   -webkit-user-drag: none !important;
 }
 
-.item-inventory-choice {
+.item-inventory-choice,
+.hacker-direct-action,
+.vending-item-with-icon {
   touch-action: none;
 }
 

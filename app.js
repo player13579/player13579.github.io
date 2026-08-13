@@ -116,6 +116,11 @@ const els = {
   inventoryItemDetailName: $("#inventoryItemDetailName"),
   inventoryItemDetailType: $("#inventoryItemDetailType"),
   inventoryItemDetailDescription: $("#inventoryItemDetailDescription"),
+  itemHoldBranchLines: $("#itemHoldBranchLines"),
+  itemHoldBranch: $("#itemHoldBranch"),
+  itemHoldBranchTitle: $("#itemHoldBranchTitle"),
+  itemHoldBranchContinuousButton: $("#itemHoldBranchContinuousButton"),
+  itemHoldBranchDetailButton: $("#itemHoldBranchDetailButton"),
   itemUseButton: $("#itemUseButton"),
   itemThrowButton: $("#itemThrowButton"),
   enhanceReadout: $("#enhanceReadout"),
@@ -365,6 +370,15 @@ const state = {
   toastTimer: null,
   inventoryItemDetailTimer: null,
   inventoryItemDetailSource: null,
+  itemHoldBranch: {
+    source: null,
+    detail: null,
+    repeat: null,
+    pointerId: null,
+    selected: "",
+    repeatTimer: 0,
+    repeatRunning: false
+  },
   mysteryRevealTimer: null,
   fieldFeedOpen: false,
   lastRoomChatId: "",
@@ -574,6 +588,74 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   missile: "最寄り対象を攻撃する使い切り重火器"
 });
 
+const VENDING_PRODUCT_LABELS = Object.freeze({
+  "mineral-water": "ミネラルウォーター",
+  antidote: "解毒剤",
+  molotov: "火炎瓶",
+  evade: "回避拡張",
+  speed: "アクセラレート飲料",
+  warp: "即時ワープ",
+  mystery: "ミステリー",
+  fire: "火遁の術",
+  substitution: "変わり身の術",
+  grit: "踏ん張り",
+  heal: "回復",
+  reason: "押し込み",
+  mana: "マナポーション",
+  railgun: "レールガン",
+  "particle-cannon": "荷電粒子砲",
+  excalibur: "エクスカリバー",
+  exile: "亡命",
+  computer: "パソコン",
+  handgun: "ハンドガン",
+  smg: "サブマシンガン",
+  assault: "アサルトライフル",
+  sniper: "スナイパーライフル",
+  taser: "テーザー銃",
+  mercury: "水銀瓶",
+  lead: "鉛瓶",
+  uranium: "ウラン容器",
+  plutonium: "プルトニウム容器",
+  ice: "氷結水",
+  "heated-water": "高温水",
+  rpg: "RPG",
+  missile: "ミサイル"
+});
+
+const VENDING_PRODUCT_COSTS = Object.freeze({
+  "mineral-water": 6,
+  antidote: 18,
+  molotov: 45,
+  evade: 10,
+  speed: 8,
+  warp: 12,
+  mystery: 40,
+  fire: 90,
+  substitution: 75,
+  grit: 30,
+  heal: 10,
+  reason: 45,
+  mana: 25,
+  railgun: 140,
+  "particle-cannon": 180,
+  excalibur: 220,
+  exile: 250,
+  computer: 120,
+  handgun: 35,
+  smg: 60,
+  assault: 80,
+  sniper: 110,
+  taser: 55,
+  mercury: 20,
+  lead: 16,
+  uranium: 120,
+  plutonium: 160,
+  ice: 14,
+  "heated-water": 14,
+  rpg: 160,
+  missile: 190
+});
+
 const alchemyRecipes = [
   { id: "stamina", label: "スタミナ", output: "+350SP" },
   { id: "heal", label: "回復", output: "負傷治療／オーバーヒール" },
@@ -767,9 +849,8 @@ function ensureDynamicAlchemyChoices() {
     if (recipe.kind === "borrowed") continue;
     const existingButton = els.alchemyChoiceGrid.querySelector(`[data-alchemy-choice="${recipe.id}"]`);
     if (existingButton) {
-      const detail = existingButton.querySelector("small");
-      if (detail) detail.textContent = hackerRecipePresentation(recipe);
-      existingButton.setAttribute("aria-label", `${recipe.label}: ${hackerRecipePresentation(recipe)}`);
+      existingButton.querySelector("small")?.remove();
+      existingButton.setAttribute("aria-label", recipe.label);
     } else {
       const button = document.createElement("button");
       button.type = "button";
@@ -778,8 +859,8 @@ function ensureDynamicAlchemyChoices() {
       button.dataset.atlasCell = recipe.kind === "invention" ? "3" : "1";
       if (recipe.asset) button.dataset.alchemyAsset = recipe.asset;
       button.setAttribute("aria-pressed", "false");
-      button.setAttribute("aria-label", `${recipe.label}: ${hackerRecipePresentation(recipe)}`);
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>${escapeHtml(recipe.label)}</strong><small>${escapeHtml(hackerRecipePresentation(recipe))}</small></span>`;
+      button.setAttribute("aria-label", recipe.label);
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>${escapeHtml(recipe.label)}</strong></span>`;
       els.alchemyChoiceGrid.append(button);
     }
   }
@@ -901,7 +982,7 @@ function activateHackerActionSelection() {
   const button = els.hackerAbilityGrid.querySelector(
     `[data-hacker-recipe="${CSS.escape(state.hackerSelectedRecipeId || "")}"]`
   );
-  if (!button || button.disabled) {
+  if (!button || button.dataset.actionDisabled === "1") {
     showToast(button ? "この適用内容は現在実行できません。" : "適用内容を選択してください。");
     return false;
   }
@@ -962,7 +1043,9 @@ function scheduleHackerCooldownWake(data = state.data) {
   state.hackerCooldownWakeTimer = window.setTimeout(() => {
     state.hackerCooldownWakeTimer = 0;
     state.hackerCooldownWakeAt = 0;
-    renderHackerAbilityDock(state.data, true);
+    // Preserve the pressed card node so a held action can resume as soon as
+    // its cooldown expires instead of losing pointer capture on a rebuild.
+    renderHackerAbilityDock(state.data);
   }, Math.max(40, readyAt - liveNow + 60));
 }
 
@@ -991,9 +1074,9 @@ async function executeHackerRecipe(recipeId) {
   } finally {
     state.hackerGenerationInFlight = false;
     button?.classList.remove("executing");
-    renderHackerAbilityDock(state.data, true);
+    renderHackerAbilityDock(state.data);
     scheduleHackerCooldownWake(state.data);
-    window.setTimeout(() => renderHackerAbilityDock(state.data, true), 260);
+    window.setTimeout(() => renderHackerAbilityDock(state.data), 260);
   }
 }
 
@@ -1038,14 +1121,15 @@ function renderHackerAbilityDock(data = state.data, force = false) {
       button.className = "alchemy-choice hacker-direct-action";
       button.id = `hackerDirectAction${index + 1}`;
       button.dataset.hackerRecipe = recipe.id;
+      button.dataset.repeatableAbility = "1";
       button.dataset.hackerCategory = category.id;
       button.dataset.alchemyChoice = recipe.id;
       button.dataset.atlasCell = source?.dataset.atlasCell || (recipe.kind === "invention" ? "3" : "1");
       if (recipe.asset) button.dataset.alchemyAsset = recipe.asset;
-      button.setAttribute("aria-label", `${recipe.label}: ${hackerRecipePresentation(recipe)}`);
+      button.setAttribute("aria-label", recipe.label);
       button.innerHTML = `
         <span class="alchemy-choice-icon hacker-action-icon" aria-hidden="true"></span>
-        <span class="hacker-action-copy"><strong>${escapeHtml(recipe.label)}</strong><small>${escapeHtml(hackerRecipePresentation(recipe))}</small></span>
+        <span class="hacker-action-copy"><strong>${escapeHtml(recipe.label)}</strong></span>
       `;
       applyGeneratedItemTexture(button, recipe.asset || recipe.id);
       bindInventoryDetailHold(button, {
@@ -1053,7 +1137,12 @@ function renderHackerAbilityDock(data = state.data, force = false) {
         output: category.label,
         badge: `クールタイム ${Math.round(hackerRecipeCooldownMs(recipe) / 1000)}秒`,
         detail: recipe.output || "バイブコーディングで生成・適用する対象。"
-      }, els.hackerAbilityGrid);
+      }, els.hackerAbilityGrid, {
+        continuousLabel: "連続生成",
+        repeat: () => button.dataset.actionDisabled === "1"
+          ? false
+          : executeHackerRecipe(recipe.id)
+      });
       els.hackerAbilityGrid.append(button);
     });
     selectHackerAction(
@@ -1078,14 +1167,16 @@ function renderHackerAbilityDock(data = state.data, force = false) {
     const recipe = alchemyRecipes.find((entry) => entry.id === button.dataset.hackerRecipe);
     const targetRequired = recipe?.id?.startsWith("hack-");
     const enoughMana = (Number(self.mana) || 0) >= alchemyRecipeManaCost(recipe);
-    const description = button.querySelector("small");
-    if (description && recipe) description.textContent = hackerRecipePresentation(recipe);
-    button.disabled = !canAct ||
+    const actionDisabled = !canAct ||
       !recipe ||
       !alchemyRecipeAvailable(recipe, self) ||
       state.hackerGenerationInFlight ||
       (targetRequired && !target) ||
       (!recipe.kind && (!vibeCodingReady || !enoughMana));
+    button.disabled = false;
+    button.dataset.actionDisabled = actionDisabled ? "1" : "0";
+    button.setAttribute("aria-disabled", String(actionDisabled));
+    button.classList.toggle("action-unavailable", actionDisabled);
   });
 }
 
@@ -2244,11 +2335,27 @@ const vendingHold = {
   button: null,
   pointerId: null,
   timer: 0,
-  suppressClickUntil: 0
+  suppressClickUntil: 0,
+  originX: 0,
+  originY: 0,
+  lastY: 0,
+  moved: false,
+  held: false,
+  scrollContainer: null
 };
 
+function vendingProductDetail(button) {
+  const id = String(button?.dataset?.drink || "");
+  return {
+    label: VENDING_PRODUCT_LABELS[id] || id || "自販機商品",
+    output: "自販機商品",
+    badge: Number.isFinite(VENDING_PRODUCT_COSTS[id]) ? `${VENDING_PRODUCT_COSTS[id]}C` : "",
+    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "購入後に所持品から使用できます。"
+  };
+}
+
 async function purchaseVendingItem(button) {
-  if (!button || button.disabled || button.hidden || button.dataset.purchasePending === "1") return false;
+  if (!button || button.disabled || button.hidden || button.dataset.purchaseDisabled === "1" || button.dataset.purchasePending === "1") return false;
   button.dataset.purchasePending = "1";
   try {
     return await api("/api/purchase", { itemId: button.dataset.drink });
@@ -2262,25 +2369,84 @@ function stopVendingHold() {
   vendingHold.timer = 0;
   vendingHold.button = null;
   vendingHold.pointerId = null;
+  vendingHold.originX = 0;
+  vendingHold.originY = 0;
+  vendingHold.lastY = 0;
+  vendingHold.moved = false;
+  vendingHold.held = false;
+  vendingHold.scrollContainer = null;
 }
 
 function startVendingHold(event, button) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
+  if (!button) return;
   event.preventDefault();
+  event.stopPropagation();
   stopVendingHold();
   vendingHold.button = button;
   vendingHold.pointerId = event.pointerId;
-  vendingHold.suppressClickUntil = performance.now() + 1000;
+  vendingHold.originX = event.clientX;
+  vendingHold.originY = event.clientY;
+  vendingHold.lastY = event.clientY;
+  vendingHold.scrollContainer = button.closest(".vending-panel");
   try { button.setPointerCapture(event.pointerId); } catch {}
-  purchaseVendingItem(button);
-  const repeat = async () => {
-    if (vendingHold.button !== button) return;
-    await purchaseVendingItem(button);
-    if (vendingHold.button === button && !button.disabled) {
-      vendingHold.timer = window.setTimeout(repeat, 180);
-    }
-  };
-  vendingHold.timer = window.setTimeout(repeat, 420);
+  vendingHold.timer = window.setTimeout(() => {
+    if (vendingHold.button !== button || vendingHold.moved) return;
+    vendingHold.timer = 0;
+    vendingHold.held = true;
+    vendingHold.suppressClickUntil = performance.now() + 1_200;
+    openItemHoldBranch({
+      source: button,
+      detail: vendingProductDetail(button),
+      repeat: () => purchaseVendingItem(button),
+      continuousLabel: "連続購入",
+      pointerId: event.pointerId
+    });
+    if (navigator.vibrate) navigator.vibrate(18);
+  }, 520);
+}
+
+function moveVendingHold(event) {
+  if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (vendingHold.held) {
+    updateItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+    return;
+  }
+  const deltaY = vendingHold.lastY - event.clientY;
+  vendingHold.lastY = event.clientY;
+  if (!vendingHold.moved && Math.hypot(
+    event.clientX - vendingHold.originX,
+    event.clientY - vendingHold.originY
+  ) > 9) {
+    vendingHold.moved = true;
+    if (vendingHold.timer) window.clearTimeout(vendingHold.timer);
+    vendingHold.timer = 0;
+  }
+  if (vendingHold.moved && vendingHold.scrollContainer) {
+    vendingHold.scrollContainer.scrollTop += deltaY;
+  }
+}
+
+function finishVendingHold(event) {
+  if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const button = vendingHold.button;
+  const wasHeld = vendingHold.held;
+  const wasMoved = vendingHold.moved;
+  vendingHold.suppressClickUntil = performance.now() + 1_200;
+  if (wasHeld) finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+  stopVendingHold();
+  if (!wasHeld && !wasMoved) void purchaseVendingItem(button);
+}
+
+function cancelVendingHold(event) {
+  if (vendingHold.pointerId !== event.pointerId) return;
+  vendingHold.suppressClickUntil = performance.now() + 1_200;
+  if (state.itemHoldBranch.source === vendingHold.button) closeItemHoldBranch();
+  stopVendingHold();
 }
 
 const SPECIALIZED_HOLD_ACTION_IDS = new Set([
@@ -2320,18 +2486,29 @@ function isContinuousGameActionButton(button) {
   ].includes(button.id)) return true;
   if (button.id === "ninjutsuButton" && hasDisplayedOperatorAccess(state.data?.self, "fighter")) return true;
   return Boolean(
+    button.dataset.repeatableAbility === "1" ||
     button.closest("#actionCommandRegistry") ||
-    button.closest("#hackerAbilityGrid")
+    button.closest("#hackerAbilityGrid") ||
+    button.closest("#operatorBranchList")
+  );
+}
+
+function isGameActionUnavailable(button) {
+  return Boolean(
+    !button ||
+    button.disabled ||
+    button.dataset.actionDisabled === "1" ||
+    button.getAttribute("aria-disabled") === "true"
   );
 }
 
 function invokeContinuousGameAction(button, { allowHidden = false } = {}) {
-  if (!button?.isConnected || button.disabled) return false;
+  if (!button?.isConnected || isGameActionUnavailable(button)) return false;
   if (!allowHidden && (button.hidden || button.closest("[hidden]"))) return false;
   // The action keeps its existing icon, physical motion, and B-generated effect.
   // Holding only changes input cadence, so no new visual asset meaning is introduced.
   const source = button === els.tabletAbilityShortcut ? els.operatorAbilityButton : button;
-  if (!source || source.disabled || source.hidden) return false;
+  if (!source || isGameActionUnavailable(source) || source.hidden) return false;
   source.click();
   return true;
 }
@@ -2390,7 +2567,7 @@ function beginContinuousButtonKeyHold(code, resolveButton) {
   return beginContinuousActionKeyHold(code, () => {
     const button = resolveButton?.();
     if (!isContinuousGameActionButton(button)) return false;
-    if (!button.disabled) invokeContinuousGameAction(button, { allowHidden: true });
+    if (!isGameActionUnavailable(button)) invokeContinuousGameAction(button, { allowHidden: true });
     return true;
   }, repeatInterval);
 }
@@ -2425,7 +2602,7 @@ function beginContinuousActionHold(event) {
       stopContinuousActionHold(event.pointerId);
       return;
     }
-    if (!button.disabled && !button.hidden && !button.closest("[hidden]")) invokeContinuousGameAction(button);
+    if (!isGameActionUnavailable(button) && !button.hidden && !button.closest("[hidden]")) invokeContinuousGameAction(button);
     hold.timer = window.setTimeout(repeat, repeatInterval);
   };
   hold.timer = window.setTimeout(repeat, Math.max(CONTINUOUS_ACTION_HOLD_DELAY_MS, repeatInterval));
@@ -2764,7 +2941,10 @@ function toggleClairvoyance(force = null) {
   const changed = setLocalClairvoyanceActive(shouldEnable, data);
   if (!changed) return false;
   syncClairvoyanceManaUsage();
-  if (shouldEnable) showToast("千里眼を起動しました。観測中はMPを消費します。");
+  if (shouldEnable) {
+    const drain = Number(data?.self?.clairvoyanceManaPerSecond) || 0.25;
+    showToast(`千里眼を起動しました。観測中 ${drain.toFixed(2)}MP/秒。`);
+  }
   return true;
 }
 
@@ -3664,7 +3844,7 @@ function bindEvents() {
   document.addEventListener("click", suppressContinuousActionClick, true);
   document.addEventListener("pointerdown", (event) => {
     const button = event.target instanceof Element ? event.target.closest("button") : null;
-    if (!button || button.disabled) return;
+  if (!button) return;
     const rect = button.getBoundingClientRect();
     button.style.setProperty("--press-x", `${event.clientX - rect.left}px`);
     button.style.setProperty("--press-y", `${event.clientY - rect.top}px`);
@@ -3713,6 +3893,42 @@ function bindEvents() {
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
   bindTabletControls();
   els.operatorBranchCloseButton.addEventListener("click", () => setOperatorBranchesOpen(false));
+  els.itemHoldBranchContinuousButton.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    state.itemHoldBranch.pointerId = event.pointerId;
+    selectItemHoldBranchChoice("continuous");
+    try { els.itemHoldBranchContinuousButton.setPointerCapture(event.pointerId); } catch {}
+  });
+  const finishContinuousItemBranch = (event) => {
+    if (state.itemHoldBranch.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+  };
+  els.itemHoldBranchContinuousButton.addEventListener("pointerup", finishContinuousItemBranch);
+  els.itemHoldBranchContinuousButton.addEventListener("pointercancel", () => closeItemHoldBranch());
+  els.itemHoldBranchContinuousButton.addEventListener("lostpointercapture", (event) => {
+    if (state.itemHoldBranch.pointerId === event.pointerId) closeItemHoldBranch();
+  });
+  els.itemHoldBranchContinuousButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  els.itemHoldBranchDetailButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const { detail, source } = state.itemHoldBranch;
+    if (detail && source) showInventoryItemDetail(detail, source);
+    closeItemHoldBranch();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (els.itemHoldBranch.hidden) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("#itemHoldBranch") || target === state.itemHoldBranch.source || target?.closest?.("button") === state.itemHoldBranch.source) return;
+    closeItemHoldBranch();
+  });
   els.keybindCloseButton.addEventListener("click", () => setKeybindOpen(false));
   els.keybindOverlay.addEventListener("click", (event) => {
     if (event.target === els.keybindOverlay) setKeybindOpen(false);
@@ -3763,7 +3979,7 @@ function bindEvents() {
   bindHackerCategoryStep(els.hackerCategoryNextButton, 1);
   els.hackerAbilityGrid.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-hacker-recipe]");
-    if (!button || button.disabled) return;
+    if (!button || button.dataset.actionDisabled === "1") return;
     selectHackerAction(button.dataset.hackerRecipe, false);
     void executeHackerRecipe(button.dataset.hackerRecipe);
   });
@@ -3950,13 +4166,18 @@ function bindEvents() {
   els.utilityButton.addEventListener("click", () => api("/api/utility", { type: els.utilitySelect.value }));
   document.querySelectorAll("[data-drink]").forEach((button) => {
     button.addEventListener("click", (event) => {
-      if (performance.now() < vendingHold.suppressClickUntil && event.detail > 0) return;
+      if (performance.now() < vendingHold.suppressClickUntil && event.detail > 0) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       purchaseVendingItem(button);
     });
     button.addEventListener("pointerdown", (event) => startVendingHold(event, button));
-    button.addEventListener("pointerup", stopVendingHold);
-    button.addEventListener("pointercancel", stopVendingHold);
-    button.addEventListener("lostpointercapture", stopVendingHold);
+    button.addEventListener("pointermove", moveVendingHold);
+    button.addEventListener("pointerup", finishVendingHold);
+    button.addEventListener("pointercancel", cancelVendingHold);
+    button.addEventListener("lostpointercapture", cancelVendingHold);
   });
   document.addEventListener("focusin", (event) => {
     const element = event.target;
@@ -3974,7 +4195,7 @@ function bindEvents() {
   const suppressIosGameCallout = (event) => {
     if (state.screen !== "game") return;
     const target = event.target instanceof Element ? event.target : null;
-    if (!target?.closest(".item-inventory-choice, .enhance-hold-control")) return;
+    if (!target?.closest(".item-inventory-choice, .hacker-direct-action, .vending-item-with-icon, .enhance-hold-control")) return;
     if (event.cancelable) event.preventDefault();
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
@@ -4271,18 +4492,18 @@ function bindEvents() {
     if (event.button !== 0) clearMovementInput();
   });
   window.addEventListener("contextmenu", (event) => {
-    if (event.target instanceof Element && event.target.closest(".game-area, .tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .enhance-hold-control")) {
+    if (event.target instanceof Element && event.target.closest(".game-area, .tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .hacker-direct-action, .vending-item-with-icon, .enhance-hold-control")) {
       event.preventDefault();
       clearMovementInput();
     }
   });
   document.addEventListener("selectstart", (event) => {
-    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .enhance-hold-control")) {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .hacker-direct-action, .vending-item-with-icon, .enhance-hold-control")) {
       event.preventDefault();
     }
   });
   document.addEventListener("dragstart", (event) => {
-    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .enhance-hold-control")) {
+    if (event.target instanceof Element && event.target.closest(".tablet-quick-actions, .tablet-branch-tray, .item-inventory-choice, .hacker-direct-action, .vending-item-with-icon, .enhance-hold-control")) {
       event.preventDefault();
     }
   });
@@ -5514,8 +5735,8 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     button.title = description || label;
     button.setAttribute("aria-label", description ? `${label}: ${description}` : label);
     button.classList.toggle("selected", selected);
+    button.dataset.repeatableAbility = "1";
     button.addEventListener("click", () => {
-      setOperatorBranchesOpen(false);
       action();
     });
     els.operatorBranchList.appendChild(button);
@@ -5893,7 +6114,18 @@ async function api(path, extra = {}, options = {}) {
     return result;
   }
   const actionKind = CHARACTER_ACTION_BY_API[path];
-  if (actionKind) triggerCharacterAction(state.playerId, actionKind);
+  if (actionKind) {
+    const actionVariant = path === "/api/shoot"
+      ? String(
+        result?.self?.gunFiringWeapon ||
+        result?.self?.gunnerWeapon ||
+        state.data?.self?.gunFiringWeapon ||
+        state.data?.self?.gunnerWeapon ||
+        ""
+      )
+      : "";
+    triggerCharacterAction(state.playerId, actionKind, undefined, undefined, "", actionVariant);
+  }
   applyState(result, { authoritative: Boolean(options.authoritative) });
   return result;
 }
@@ -7527,6 +7759,161 @@ function hideInventoryItemDetail() {
   els.inventoryItemDetail.hidden = true;
 }
 
+function stopItemHoldBranchRepeat() {
+  const branch = state.itemHoldBranch;
+  if (branch.repeatTimer) window.clearTimeout(branch.repeatTimer);
+  branch.repeatTimer = 0;
+  branch.repeatRunning = false;
+}
+
+function closeItemHoldBranch() {
+  stopItemHoldBranchRepeat();
+  const branch = state.itemHoldBranch;
+  branch.source = null;
+  branch.detail = null;
+  branch.repeat = null;
+  branch.pointerId = null;
+  branch.selected = "";
+  els.itemHoldBranch.hidden = true;
+  els.itemHoldBranchLines.hidden = true;
+  els.itemHoldBranchContinuousButton.classList.remove("branch-selected");
+  els.itemHoldBranchDetailButton.classList.remove("branch-selected");
+}
+
+function drawItemHoldBranchLine() {
+  const source = state.itemHoldBranch.source;
+  if (!source?.isConnected || els.itemHoldBranch.hidden) return;
+  const sourceRect = source.getBoundingClientRect();
+  const branchRect = els.itemHoldBranch.getBoundingClientRect();
+  const sourceX = sourceRect.left + sourceRect.width / 2;
+  const sourceY = sourceRect.top + sourceRect.height / 2;
+  const branchOnRight = branchRect.left >= sourceX;
+  const endX = branchOnRight ? branchRect.left : branchRect.right;
+  const endY = branchRect.top + branchRect.height / 2;
+  const bendX = sourceX + (endX - sourceX) * 0.52;
+  const namespace = "http://www.w3.org/2000/svg";
+  els.itemHoldBranchLines.replaceChildren();
+  els.itemHoldBranchLines.setAttribute("viewBox", `0 0 ${window.innerWidth} ${window.innerHeight}`);
+  const path = document.createElementNS(namespace, "path");
+  path.setAttribute("d", `M ${sourceX} ${sourceY} C ${bendX} ${sourceY}, ${bendX} ${endY}, ${endX} ${endY}`);
+  path.setAttribute("class", "item-hold-branch-line");
+  const endpoint = document.createElementNS(namespace, "circle");
+  endpoint.setAttribute("cx", String(endX));
+  endpoint.setAttribute("cy", String(endY));
+  endpoint.setAttribute("r", "4");
+  endpoint.setAttribute("class", "item-hold-branch-junction");
+  els.itemHoldBranchLines.append(path, endpoint);
+}
+
+function positionItemHoldBranch() {
+  const source = state.itemHoldBranch.source;
+  if (!source?.isConnected || els.itemHoldBranch.hidden) return;
+  const viewport = window.visualViewport;
+  const leftEdge = Number(viewport?.offsetLeft) || 0;
+  const topEdge = Number(viewport?.offsetTop) || 0;
+  const rightEdge = leftEdge + (Number(viewport?.width) || window.innerWidth);
+  const bottomEdge = topEdge + (Number(viewport?.height) || window.innerHeight);
+  const sourceRect = source.getBoundingClientRect();
+  const branchRect = els.itemHoldBranch.getBoundingClientRect();
+  const margin = 10;
+  const gap = 24;
+  const rightSpace = rightEdge - sourceRect.right;
+  let left = rightSpace >= branchRect.width + gap
+    ? sourceRect.right + gap
+    : sourceRect.left - branchRect.width - gap;
+  left = clamp(left, leftEdge + margin, rightEdge - branchRect.width - margin);
+  const top = clamp(
+    sourceRect.top + sourceRect.height / 2 - branchRect.height / 2,
+    topEdge + margin,
+    bottomEdge - branchRect.height - margin
+  );
+  els.itemHoldBranch.style.left = `${Math.round(left)}px`;
+  els.itemHoldBranch.style.top = `${Math.round(top)}px`;
+  requestAnimationFrame(drawItemHoldBranchLine);
+}
+
+function openItemHoldBranch({ source, detail, repeat, continuousLabel = "連続実行", pointerId = null }) {
+  if (!source || typeof repeat !== "function") return false;
+  hideInventoryItemDetail();
+  closeItemHoldBranch();
+  state.itemHoldBranch.source = source;
+  state.itemHoldBranch.detail = detail;
+  state.itemHoldBranch.repeat = repeat;
+  state.itemHoldBranch.pointerId = pointerId;
+  els.itemHoldBranchTitle.textContent = detail?.label || "派生操作";
+  els.itemHoldBranchContinuousButton.textContent = continuousLabel;
+  els.itemHoldBranch.hidden = false;
+  els.itemHoldBranchLines.hidden = false;
+  positionItemHoldBranch();
+  return true;
+}
+
+function itemHoldBranchChoiceAt(clientX, clientY) {
+  const target = document.elementFromPoint(clientX, clientY);
+  if (target?.closest?.("#itemHoldBranchContinuousButton")) return "continuous";
+  if (target?.closest?.("#itemHoldBranchDetailButton")) return "detail";
+  return "";
+}
+
+function startItemHoldBranchRepeat() {
+  const branch = state.itemHoldBranch;
+  if (branch.repeatRunning || typeof branch.repeat !== "function") return;
+  branch.repeatRunning = true;
+  const tick = async () => {
+    if (!branch.repeatRunning || branch.selected !== "continuous" || typeof branch.repeat !== "function") return;
+    try { await branch.repeat(); } catch {}
+    if (branch.repeatRunning && branch.selected === "continuous") {
+      branch.repeatTimer = window.setTimeout(tick, 180);
+    }
+  };
+  void tick();
+}
+
+function selectItemHoldBranchChoice(choice) {
+  const branch = state.itemHoldBranch;
+  const previousChoice = branch.selected;
+  branch.selected = choice;
+  els.itemHoldBranchContinuousButton.classList.toggle("branch-selected", choice === "continuous");
+  els.itemHoldBranchDetailButton.classList.toggle("branch-selected", choice === "detail");
+  if (choice === "continuous") {
+    if (previousChoice === "detail") hideInventoryItemDetail();
+    startItemHoldBranchRepeat();
+  } else {
+    stopItemHoldBranchRepeat();
+    if (choice === "detail" && branch.detail && branch.source) {
+      showInventoryItemDetail(branch.detail, branch.source);
+    } else if (previousChoice === "detail" && branch.pointerId !== null) {
+      hideInventoryItemDetail();
+    }
+  }
+}
+
+function updateItemHoldBranchGesture(pointerId, clientX, clientY) {
+  const branch = state.itemHoldBranch;
+  if (branch.pointerId !== pointerId || els.itemHoldBranch.hidden) return false;
+  selectItemHoldBranchChoice(itemHoldBranchChoiceAt(clientX, clientY));
+  return true;
+}
+
+function finishItemHoldBranchGesture(pointerId, clientX, clientY) {
+  const branch = state.itemHoldBranch;
+  if (branch.pointerId !== pointerId || els.itemHoldBranch.hidden) return false;
+  const choice = itemHoldBranchChoiceAt(clientX, clientY) || branch.selected;
+  const wasRepeating = branch.repeatRunning;
+  stopItemHoldBranchRepeat();
+  if (choice === "detail" && branch.detail && branch.source) {
+    showInventoryItemDetail(branch.detail, branch.source);
+  } else if (choice === "continuous" && typeof branch.repeat === "function" && !wasRepeating) {
+    void branch.repeat();
+  }
+  if (choice) closeItemHoldBranch();
+  else {
+    branch.pointerId = null;
+    selectItemHoldBranchChoice("");
+  }
+  return true;
+}
+
 function showInventoryItemDetail(item, sourceButton) {
   if (!item || !sourceButton) return;
   if (state.inventoryItemDetailTimer) window.clearTimeout(state.inventoryItemDetailTimer);
@@ -7574,6 +7961,9 @@ function positionInventoryItemDetail(sourceButton = state.inventoryItemDetailSou
 window.addEventListener("resize", () => positionInventoryItemDetail(), { passive: true });
 window.visualViewport?.addEventListener("resize", () => positionInventoryItemDetail(), { passive: true });
 window.visualViewport?.addEventListener("scroll", () => positionInventoryItemDetail(), { passive: true });
+window.addEventListener("resize", () => positionItemHoldBranch(), { passive: true });
+window.visualViewport?.addEventListener("resize", () => positionItemHoldBranch(), { passive: true });
+window.visualViewport?.addEventListener("scroll", () => positionItemHoldBranch(), { passive: true });
 
 function createInventoryClickGate({
   now = () => performance.now(),
@@ -7595,7 +7985,7 @@ function createInventoryClickGate({
   };
 }
 
-function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid) {
+function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid, holdBranch = null) {
   const clickGate = createInventoryClickGate();
   let activePointerId = null;
   let activePointerType = "";
@@ -7621,7 +8011,17 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     onHold: () => {
       clickGate.arm();
       clearNativeSelection();
-      showInventoryItemDetail(item, button);
+      if (holdBranch?.repeat) {
+        openItemHoldBranch({
+          source: button,
+          detail: item,
+          repeat: holdBranch.repeat,
+          continuousLabel: holdBranch.continuousLabel,
+          pointerId: activePointerId
+        });
+      } else {
+        showInventoryItemDetail(item, button);
+      }
       if (navigator.vibrate) navigator.vibrate(18);
     },
     onScroll: (deltaY) => {
@@ -7644,13 +8044,18 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     if (activePointerId !== event.pointerId) return;
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
-    pointerGesture.move(event.pointerId, event.clientX, event.clientY);
+    if (!updateItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY)) {
+      pointerGesture.move(event.pointerId, event.clientX, event.clientY);
+    }
   });
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
     const result = pointerGesture.end(event.pointerId);
+    if (result === "hold" && holdBranch?.repeat) {
+      finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+    }
     if (result === "hold") clickGate.arm();
     activePointerId = null;
     activePointerType = "";
@@ -7658,6 +8063,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   const cancelPointerGesture = (event) => {
     if (activePointerId !== event.pointerId) return;
     pointerGesture.cancel(event.pointerId);
+    if (state.itemHoldBranch.source === button) closeItemHoldBranch();
     activePointerId = null;
     activePointerType = "";
     clickGate.reset();
@@ -7709,8 +8115,8 @@ function renderItemControl(data) {
       button.style.webkitUserSelect = "none";
       button.style.userSelect = "none";
       button.setAttribute("role", "option");
-      button.setAttribute("aria-label", `${item.label} ${item.output || "所持品"} ${item.badge || ""}`.trim());
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.output || "所持品")}</small></span><b>${escapeHtml(item.badge || "")}</b>`;
+      button.setAttribute("aria-label", item.label);
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong></span>`;
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
@@ -7844,6 +8250,7 @@ function renderActiveEffects(data) {
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
   if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "理知中、押し込み・踏ん張り・回復・加速・タスク消費軽減を同時に得る");
   if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "移動速度が大幅に上昇する");
+  if (self.limitBreakActive) timed("リミットブレイク", self.limitBreakEndsAt, "truth", "12秒間、SP・加速×3 / HP1 / 即死回避無効。任意解除はできない");
   effects.push(...collectOperatorPassiveEffects(self, liveNow));
   if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "次のボディダメージを吸収し、状態異常を解除する");
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次に受ける確殺を1回だけボディダメージへ変換する");
@@ -7969,50 +8376,12 @@ function renderVending(data) {
     scheduleActiveEffectsLayout();
     return;
   }
-  const costs = {
-    "mineral-water": 6,
-    antidote: 18,
-    molotov: 45,
-    evade: 10,
-    speed: 8,
-    warp: 12,
-    mystery: 40,
-    fire: 90,
-    substitution: 75,
-    grit: 30,
-    heal: 10,
-    reason: 45,
-    mana: 25,
-    railgun: 140,
-    "particle-cannon": 180,
-    excalibur: 220,
-    exile: 250,
-    computer: 120,
-    handgun: 35,
-    smg: 60,
-    assault: 80,
-    sniper: 110,
-    taser: 55,
-    mercury: 20,
-    lead: 16,
-    uranium: 120,
-    plutonium: 160,
-    ice: 14,
-    "heated-water": 14,
-    rpg: 160,
-    missile: 190
-  };
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
     const copy = button.querySelector("span:last-child");
-    const description = VENDING_PRODUCT_DESCRIPTIONS[button.dataset.drink] || "";
-    if (!copy || !description) return;
-    let detail = copy.querySelector("small");
-    if (!detail) {
-      detail = document.createElement("small");
-      copy.append(detail);
-    }
-    detail.textContent = description;
-    button.title = description;
+    const label = VENDING_PRODUCT_LABELS[button.dataset.drink] || button.dataset.drink;
+    if (copy && copy.textContent !== label) copy.textContent = label;
+    button.setAttribute("aria-label", label);
+    button.removeAttribute("title");
   });
   const mysteryVisible = data.self.lastMysteryResult && estimatedServerNow(data) - (data.self.lastMysteryResultAt || 0) < 20_000;
   const renderKey = JSON.stringify([
@@ -8038,8 +8407,11 @@ function renderVending(data) {
     const staminaFull = false;
     const healUnavailable = button.dataset.drink === "heal" && data.self.bodyHits <= 0;
     const alreadyOwnsComputer = button.dataset.drink === "computer" && data.self.computerActive;
-    const disabled = staminaFull || healUnavailable || alreadyOwnsComputer || data.self.credits < costs[button.dataset.drink];
-    if (button.disabled !== disabled) button.disabled = disabled;
+    const unavailable = staminaFull || healUnavailable || alreadyOwnsComputer || data.self.credits < VENDING_PRODUCT_COSTS[button.dataset.drink];
+    button.disabled = false;
+    button.dataset.purchaseDisabled = unavailable ? "1" : "0";
+    button.setAttribute("aria-disabled", String(unavailable));
+    button.classList.toggle("purchase-unavailable", unavailable);
   });
   if (els.magicInventory.hidden) els.magicInventory.hidden = false;
   const carriedItems = (data.self.itemInventory || []).map((item) => `${item.label} ${item.amount}`).join(" / ");
@@ -8313,11 +8685,11 @@ function updateActionButtons(data) {
         : activeBorrowedOperator === "gunner"
           ? "ホバースプリント"
           : activeBorrowedOperator === "fighter"
-            ? self.limitBreakActive ? "リミットブレイク解除" : "リミットブレイク"
+            ? self.limitBreakActive ? `リミットブレイク ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク"
             : "常時パッシブ"
     : "";
   const operatorLabels = {
-    fighter: self.limitBreakActive ? "リミットブレイク解除" : "リミットブレイク",
+    fighter: self.limitBreakActive ? `リミットブレイク ${formatEffectCountdown(Math.max(0, Number(self.limitBreakEndsAt) - liveNow))}` : "リミットブレイク",
     teleport: operatorMode === "body" ? `転移・地点 ${operatorCostLabel("teleport")}`
       : operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
         : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
@@ -8342,7 +8714,7 @@ function updateActionButtons(data) {
     Number(borrowedFreeUses[activeBorrowedOperator]) > 0;
   const borrowedStateBlocked = Boolean(selectedBorrowedRecipe) && (
     !alchemyRecipeAvailable(selectedBorrowedRecipe, self) ||
-    (!selectedBorrowedFree && !(activeBorrowedOperator === "fighter" && self.limitBreakActive) && !hasMana(borrowedCostKey))
+    (!selectedBorrowedFree && !hasMana(borrowedCostKey))
   );
   const displayedOperator = activeBorrowedOperator === "gravity"
     ? "teleport"
@@ -8353,7 +8725,7 @@ function updateActionButtons(data) {
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
   els.operatorAbilityButton.disabled = !canUseAbility ||
-    (displayedOperator === "fighter" && !self.limitBreakActive && !hasMana("fighterCharge")) ||
+    (displayedOperator === "fighter" && (self.limitBreakActive || !hasMana("fighterCharge"))) ||
     (displayedOperator === "gunner" && ((Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("hoverSprint"))) ||
     (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
     (activeBorrowedOperator && borrowedStateBlocked);
@@ -13077,29 +13449,30 @@ function drawWeaponFireMotion(player, data, ghost, action) {
   if (!sprite) return false;
 
   const progress = clamp(Number(action.progress) || 0, 0, 1);
-  const impulse = Math.sin(progress * Math.PI);
-  const weaponRecoil = {
-    handgun: 1.4,
-    smg: 1.8,
-    assault: 2.1,
-    sniper: 2.8,
-    taser: 0.8
-  }[weaponId] || 1.5;
+  const profile = {
+    handgun: { width: 108, recoil: 2.2, lift: 0.7, rotation: 1.6, pulses: 1, brace: 0.8 },
+    smg: { width: 116, recoil: 1.35, lift: 0.45, rotation: 0.65, pulses: 4, brace: 1.8 },
+    assault: { width: 128, recoil: 2.0, lift: 0.6, rotation: 1.0, pulses: 2, brace: 2.4 },
+    sniper: { width: 146, recoil: 4.8, lift: 1.0, rotation: 2.2, pulses: 1, brace: 3.6 },
+    taser: { width: 108, recoil: 0.65, lift: 0.25, rotation: 0.35, pulses: 2, brace: 0.3 }
+  }[weaponId] || { width: 108, recoil: 1.5, lift: 0.5, rotation: 0.8, pulses: 1, brace: 1 };
+  const mainImpulse = Math.sin(progress * Math.PI);
+  const burstImpulse = profile.pulses > 1
+    ? (0.66 + Math.max(0, Math.sin(progress * Math.PI * profile.pulses * 2)) * 0.34) * mainImpulse
+    : mainImpulse;
+  const settle = Math.sin(Math.min(1, progress * 1.45) * Math.PI);
   const facing = facingFor(player, motionFor(player, data));
   const flip = facing === "left";
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
-  ctx.translate((flip ? 1 : -1) * weaponRecoil * impulse, -Math.min(0.8, weaponRecoil * 0.2) * impulse);
-  ctx.rotate((flip ? -1 : 1) * impulse * weaponRecoil * Math.PI / 720);
-  const motionWidth = {
-    handgun: 108,
-    smg: 116,
-    assault: 128,
-    sniper: 146,
-    taser: 108
-  }[weaponId] || 108;
-  drawNormalizedSprite(sprite, 0, 31, motionWidth, 98, flip);
+  ctx.translate(
+    (flip ? 1 : -1) * (profile.brace * settle + profile.recoil * burstImpulse),
+    -profile.lift * burstImpulse
+  );
+  ctx.rotate((flip ? -1 : 1) * burstImpulse * profile.rotation * Math.PI / 720);
+  ctx.scale(1 - mainImpulse * profile.recoil * 0.0018, 1 + mainImpulse * profile.recoil * 0.0012);
+  drawNormalizedSprite(sprite, 0, 31, profile.width, 98, flip);
   ctx.restore();
   drawNameplate(player, ghost, -78);
   return true;
@@ -14306,7 +14679,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "title-natural-motion-v424";
+const version = "clairvoyance-balance-v426";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -14543,7 +14916,14 @@ const version = "title-natural-motion-v424";
   defer(physicalActionAtlases["male-bot"], "assets/generated/physical-action-atlas-male-bot.webp");
   for (const [skinId, weapons] of Object.entries(weaponFireMotions)) {
     for (const [weaponId, entry] of Object.entries(weapons)) {
-      defer(entry, `assets/generated/weapon-motion-${skinId}-${weaponId}-v313.webp`);
+      // The original white-hood SMG/AR exports were named in reverse. Keep the
+      // accepted B assets intact and correct their semantic binding here.
+      const assetWeaponId = skinId === "white-hood" && weaponId === "smg"
+        ? "assault"
+        : skinId === "white-hood" && weaponId === "assault"
+          ? "smg"
+          : weaponId;
+      defer(entry, `assets/generated/weapon-motion-${skinId}-${assetWeaponId}-v313.webp`);
     }
   }
   const facilityProps = image("assets/facility-props.webp");

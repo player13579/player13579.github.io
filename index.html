@@ -12,12 +12,12 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v409.png">
-  <link rel="stylesheet" href="styles.css?v=title-natural-motion-v424">
+  <link rel="stylesheet" href="styles.css?v=clairvoyance-balance-v426">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v409.png?v=title-natural-motion-v424" alt="ゲーム内フローラ回復フィールドを発動する白いフードの女性">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v409.png?v=title-natural-motion-v424" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v409.png?v=clairvoyance-balance-v426" alt="ゲーム内フローラ回復フィールドを発動する白いフードの女性">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v409.png?v=clairvoyance-balance-v426" alt="" aria-hidden="true">
       <canvas id="titleFxCanvas" class="title-fx-canvas" aria-hidden="true"></canvas>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -135,7 +135,7 @@
                 <section><h4>ガンナー</h4><p>ARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れ時または射撃を止めた後に自動リロードします。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
                 <section><h4>SRと特殊弾</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。ウィークバレットは理知中に時間経過で自動装填され、命中対象と射手を破壊します。</p></section>
                 <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
-                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。一定時間ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発得ます。累計3回ごとに押し込みも得ます。Hのリミットブレイクは発動・解除を切り替え、HP1固定・SP3倍・3倍加速の代わりにマナを継続消費し、踏ん張りと変わり身を失います。</p></section>
+                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。一定時間ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発得ます。累計3回ごとに押し込みも得ます。Hのリミットブレイクは12秒間、HP1固定・SP3倍・3倍加速の代わりにマナを継続消費し、踏ん張りと変わり身を失います。任意解除はできません。</p></section>
                 <section><h4>グラビティ</h4><p>重力と時空の相関を扱い、転移、時空加減速、リビテーション、グラビティストームを使用します。重力嵐は継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全です。</p></section>
                 <section><h4>フローラのアロマ</h4><p>理知中は本人の停止中スタミナ回復を1.75倍にします。ほかのプレイヤーには適用されません。</p></section>
               </div>
@@ -164,7 +164,7 @@
               <header><span>五</span><div><p>INFORMATION WARFARE</p><h3>索敵・EMP・サボタージュ</h3></div></header>
               <p class="tactics-lead">通常は他プレイヤーの位置を地図で追えません。音、カメラ、千里眼、サボタージュ反応から間接的に推定します。</p>
               <div class="tactics-rule-grid">
-                <section><h4>千里眼</h4><p>障害物を越えて観測焦点を動かし、遠隔地の攻撃やキルを含むマップ全域の現場を直接観測できます。秘密の陣営情報は開示しません。画面外への投擲時にも自動発動し、カメラが着地点へ追従します。</p></section>
+                <section><h4>千里眼</h4><p>障害物を越えて観測焦点を動かし、遠隔地の攻撃やキルを含むマップ全域の現場を直接観測できます。秘密の陣営情報は開示しません。観測中は0.25MP/秒を消費し、画面外への投擲時にも自動発動します。</p></section>
                 <section><h4>監視カメラ</h4><p>ディフェンダーは設置カメラを切り替えて視界を取得します。カメラもEMPで破壊可能なため、映像消失そのものが敵の接近情報になります。</p></section>
                 <section><h4>EMP基本</h4><p>開始直後は8秒、使用後は24秒の再充填。被弾者は7秒間ストレージを遮断され、全アイテムを使用できず、踏ん張り・押し込み・変わり身・武器・パソコンなどの効果も停止します。所持品は失われず、解除後に復旧します。人間のオペ能力は封印しません。</p></section>
                 <section><h4>位相干渉</h4><p>900ms以内に重なった同位相EMPは共振し、中心110以内で確殺、260以内でボディダメージ。逆位相は相殺します。同地点の第三者も共振範囲へ巻き込まれます。</p></section>
@@ -463,40 +463,48 @@
             <small id="inventoryItemDetailType"></small>
             <p id="inventoryItemDetailDescription"></p>
           </aside>
+          <svg id="itemHoldBranchLines" class="item-hold-branch-lines" aria-hidden="true" hidden></svg>
+          <section id="itemHoldBranch" class="item-hold-branch" aria-label="長押し派生操作" hidden>
+            <strong id="itemHoldBranchTitle">派生操作</strong>
+            <div class="item-hold-branch-actions">
+              <button id="itemHoldBranchContinuousButton" class="item-hold-branch-node continuous" type="button">連続実行</button>
+              <button id="itemHoldBranchDetailButton" class="item-hold-branch-node detail" type="button">詳細</button>
+            </div>
+          </section>
           <div id="vendingPanel" class="vending-panel" data-scroll-region="自販機" aria-label="自販機" tabindex="0" hidden>
             <div class="panel-title-row"><h3>自販機</h3></div>
             <div class="vending-grid">
-              <button class="vending-item-with-icon" data-drink="mineral-water" data-vending-hotkey="1" data-vending-asset="mineral-water"><span class="vending-item-icon" aria-hidden="true"></span><span>ミネラルウォーター / 6C</span></button>
-              <button class="vending-item-with-icon" data-drink="evade" data-vending-hotkey="2" data-vending-asset="grit"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>回避 +0.25秒 / 10C</span></button>
-              <button class="vending-item-with-icon" data-drink="speed" data-vending-hotkey="3" data-vending-asset="warp"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>速度 +10% / 8C</span></button>
-              <button class="vending-item-with-icon" data-drink="warp" data-vending-hotkey="4" data-vending-asset="warp"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>即時ワープ / 12C</span></button>
-              <button class="vending-item-with-icon" data-drink="mystery" data-vending-hotkey="5" data-vending-asset="reason"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>ミステリー / 40C</span></button>
-              <button class="vending-item-with-icon" data-drink="fire" data-vending-hotkey="6" data-vending-asset="fire"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>火遁の術 / 90C</span></button>
-              <button class="vending-item-with-icon" data-drink="substitution" data-vending-hotkey="7" data-vending-asset="substitution"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>変わり身の術 / 75C</span></button>
-              <button class="vending-item-with-icon" data-drink="grit" data-vending-hotkey="8" data-vending-asset="grit"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>踏ん張り / 30C</span></button>
-              <button class="vending-item-with-icon" data-drink="heal" data-vending-hotkey="9" data-vending-asset="heal"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>回復 / 10C</span></button>
-              <button class="vending-item-with-icon" data-drink="reason" data-vending-hotkey="0" data-vending-asset="reason"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>押し込み / 45C</span></button>
-              <button class="vending-item-with-icon" data-drink="mana" data-vending-hotkey="P"><span class="vending-item-icon mana-potion-icon" aria-hidden="true"></span><span>マナ +1 / 25C</span></button>
-              <button class="vending-item-with-icon" data-drink="railgun" data-vending-hotkey="Alt+1"><span class="vending-item-icon invention-railgun-icon" aria-hidden="true"></span><span>レールガン / 140C</span></button>
-              <button class="vending-item-with-icon" data-drink="particle-cannon" data-vending-hotkey="Alt+2"><span class="vending-item-icon invention-particle-icon" aria-hidden="true"></span><span>荷電粒子砲 / 180C</span></button>
-              <button class="vending-item-with-icon" data-drink="excalibur" data-vending-hotkey="Alt+3"><span class="vending-item-icon invention-excalibur-icon" aria-hidden="true"></span><span>エクスカリバー / 220C</span></button>
-              <button class="vending-item-with-icon" data-drink="exile" data-vending-hotkey="Alt+5"><span class="vending-item-icon exile-icon" aria-hidden="true"></span><span>亡命 / 250C</span></button>
-              <button class="vending-item-with-icon" data-drink="computer" data-vending-hotkey="Alt+4"><span class="vending-item-icon vending-computer-icon" aria-hidden="true"></span><span>パソコン / 120C</span></button>
-              <button class="vending-item-with-icon" data-drink="handgun" data-vending-hotkey="Alt+6" data-vending-weapon="handgun"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>ハンドガン / 35C</span></button>
-              <button class="vending-item-with-icon" data-drink="smg" data-vending-hotkey="Alt+7" data-vending-weapon="smg"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>SMG / 60C</span></button>
-              <button class="vending-item-with-icon" data-drink="assault" data-vending-hotkey="Alt+8" data-vending-weapon="assault"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>AR / 80C</span></button>
-              <button class="vending-item-with-icon" data-drink="sniper" data-vending-hotkey="Alt+9" data-vending-weapon="sniper"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>SR / 110C</span></button>
-              <button class="vending-item-with-icon" data-drink="taser" data-vending-hotkey="Alt+0" data-vending-weapon="taser"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>テーザー銃 / 55C</span></button>
-              <button class="vending-item-with-icon" data-drink="molotov" data-vending-hotkey="Alt+M" data-vending-asset="molotov"><span class="vending-item-icon" aria-hidden="true"></span><span>火炎瓶 / 45C</span></button>
-              <button class="vending-item-with-icon" data-drink="antidote" data-vending-hotkey="Alt+A" data-vending-asset="antidote"><span class="vending-item-icon" aria-hidden="true"></span><span>解毒剤 / 18C</span></button>
-              <button class="vending-item-with-icon" data-drink="mercury" data-vending-asset="mercury"><span class="vending-item-icon" aria-hidden="true"></span><span>水銀瓶 / 20C</span></button>
-              <button class="vending-item-with-icon" data-drink="lead" data-vending-asset="lead"><span class="vending-item-icon" aria-hidden="true"></span><span>鉛瓶 / 16C</span></button>
-              <button class="vending-item-with-icon" data-drink="uranium" data-vending-asset="uranium"><span class="vending-item-icon" aria-hidden="true"></span><span>ウラン容器 / 120C</span></button>
-              <button class="vending-item-with-icon" data-drink="plutonium" data-vending-asset="plutonium"><span class="vending-item-icon" aria-hidden="true"></span><span>プルトニウム容器 / 160C</span></button>
-              <button class="vending-item-with-icon" data-drink="ice" data-vending-asset="ice"><span class="vending-item-icon" aria-hidden="true"></span><span>氷結水 / 14C</span></button>
-              <button class="vending-item-with-icon" data-drink="heated-water" data-vending-asset="heated-water"><span class="vending-item-icon" aria-hidden="true"></span><span>高温水 / 14C</span></button>
-              <button class="vending-item-with-icon" data-drink="rpg" data-vending-asset="rpg"><span class="vending-item-icon" aria-hidden="true"></span><span>RPG / 160C</span></button>
-              <button class="vending-item-with-icon" data-drink="missile" data-vending-asset="missile"><span class="vending-item-icon" aria-hidden="true"></span><span>ミサイル / 190C</span></button>
+              <button class="vending-item-with-icon" data-drink="mineral-water" data-vending-hotkey="1" data-vending-asset="mineral-water"><span class="vending-item-icon" aria-hidden="true"></span><span>ミネラルウォーター</span></button>
+              <button class="vending-item-with-icon" data-drink="evade" data-vending-hotkey="2" data-vending-asset="grit"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>回避</span></button>
+              <button class="vending-item-with-icon" data-drink="speed" data-vending-hotkey="3" data-vending-asset="warp"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>加速</span></button>
+              <button class="vending-item-with-icon" data-drink="warp" data-vending-hotkey="4" data-vending-asset="warp"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>即時ワープ</span></button>
+              <button class="vending-item-with-icon" data-drink="mystery" data-vending-hotkey="5" data-vending-asset="reason"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>ミステリー</span></button>
+              <button class="vending-item-with-icon" data-drink="fire" data-vending-hotkey="6" data-vending-asset="fire"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>火遁の術</span></button>
+              <button class="vending-item-with-icon" data-drink="substitution" data-vending-hotkey="7" data-vending-asset="substitution"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>変わり身の術</span></button>
+              <button class="vending-item-with-icon" data-drink="grit" data-vending-hotkey="8" data-vending-asset="grit"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>踏ん張り</span></button>
+              <button class="vending-item-with-icon" data-drink="heal" data-vending-hotkey="9" data-vending-asset="heal"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>回復</span></button>
+              <button class="vending-item-with-icon" data-drink="reason" data-vending-hotkey="0" data-vending-asset="reason"><span class="vending-item-icon vending-alchemy-icon" aria-hidden="true"></span><span>押し込み</span></button>
+              <button class="vending-item-with-icon" data-drink="mana" data-vending-hotkey="P"><span class="vending-item-icon mana-potion-icon" aria-hidden="true"></span><span>マナ</span></button>
+              <button class="vending-item-with-icon" data-drink="railgun" data-vending-hotkey="Alt+1"><span class="vending-item-icon invention-railgun-icon" aria-hidden="true"></span><span>レールガン</span></button>
+              <button class="vending-item-with-icon" data-drink="particle-cannon" data-vending-hotkey="Alt+2"><span class="vending-item-icon invention-particle-icon" aria-hidden="true"></span><span>荷電粒子砲</span></button>
+              <button class="vending-item-with-icon" data-drink="excalibur" data-vending-hotkey="Alt+3"><span class="vending-item-icon invention-excalibur-icon" aria-hidden="true"></span><span>エクスカリバー</span></button>
+              <button class="vending-item-with-icon" data-drink="exile" data-vending-hotkey="Alt+5"><span class="vending-item-icon exile-icon" aria-hidden="true"></span><span>亡命</span></button>
+              <button class="vending-item-with-icon" data-drink="computer" data-vending-hotkey="Alt+4"><span class="vending-item-icon vending-computer-icon" aria-hidden="true"></span><span>パソコン</span></button>
+              <button class="vending-item-with-icon" data-drink="handgun" data-vending-hotkey="Alt+6" data-vending-weapon="handgun"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>ハンドガン</span></button>
+              <button class="vending-item-with-icon" data-drink="smg" data-vending-hotkey="Alt+7" data-vending-weapon="smg"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>SMG</span></button>
+              <button class="vending-item-with-icon" data-drink="assault" data-vending-hotkey="Alt+8" data-vending-weapon="assault"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>AR</span></button>
+              <button class="vending-item-with-icon" data-drink="sniper" data-vending-hotkey="Alt+9" data-vending-weapon="sniper"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>SR</span></button>
+              <button class="vending-item-with-icon" data-drink="taser" data-vending-hotkey="Alt+0" data-vending-weapon="taser"><span class="vending-item-icon vending-gun-icon" aria-hidden="true"></span><span>テーザー銃</span></button>
+              <button class="vending-item-with-icon" data-drink="molotov" data-vending-hotkey="Alt+M" data-vending-asset="molotov"><span class="vending-item-icon" aria-hidden="true"></span><span>火炎瓶</span></button>
+              <button class="vending-item-with-icon" data-drink="antidote" data-vending-hotkey="Alt+A" data-vending-asset="antidote"><span class="vending-item-icon" aria-hidden="true"></span><span>解毒剤</span></button>
+              <button class="vending-item-with-icon" data-drink="mercury" data-vending-asset="mercury"><span class="vending-item-icon" aria-hidden="true"></span><span>水銀瓶</span></button>
+              <button class="vending-item-with-icon" data-drink="lead" data-vending-asset="lead"><span class="vending-item-icon" aria-hidden="true"></span><span>鉛瓶</span></button>
+              <button class="vending-item-with-icon" data-drink="uranium" data-vending-asset="uranium"><span class="vending-item-icon" aria-hidden="true"></span><span>ウラン容器</span></button>
+              <button class="vending-item-with-icon" data-drink="plutonium" data-vending-asset="plutonium"><span class="vending-item-icon" aria-hidden="true"></span><span>プルトニウム容器</span></button>
+              <button class="vending-item-with-icon" data-drink="ice" data-vending-asset="ice"><span class="vending-item-icon" aria-hidden="true"></span><span>氷結水</span></button>
+              <button class="vending-item-with-icon" data-drink="heated-water" data-vending-asset="heated-water"><span class="vending-item-icon" aria-hidden="true"></span><span>高温水</span></button>
+              <button class="vending-item-with-icon" data-drink="rpg" data-vending-asset="rpg"><span class="vending-item-icon" aria-hidden="true"></span><span>RPG</span></button>
+              <button class="vending-item-with-icon" data-drink="missile" data-vending-asset="missile"><span class="vending-item-icon" aria-hidden="true"></span><span>ミサイル</span></button>
             </div>
             <p class="mystery-effects"><strong>ミステリー効果</strong><br>80C賞金 18% / スタミナ+250 18% / 完全活性 16% / 理知へ移行 12% / 12秒減速 14% / 15秒能力封印 12% / 8秒意識消失 10%</p>
             <div id="magicInventory" class="magic-inventory" hidden></div>
@@ -512,37 +520,37 @@
             <div id="alchemyChoiceGrid" class="alchemy-choice-grid" data-scroll-region="ハッカー生成候補" role="group" aria-label="バイブコーディング生成候補" tabindex="0">
               <button type="button" class="alchemy-choice selected" data-alchemy-choice="stamina" data-atlas-cell="5" aria-pressed="true">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
-                <span><strong>スタミナ</strong><small>+350SP / クールタイム 7秒</small></span>
+                <span><strong>スタミナ</strong></span>
               </button>
               <button type="button" class="alchemy-choice" data-alchemy-choice="heal" data-atlas-cell="6" aria-pressed="false">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
-                <span><strong>回復</strong><small>負傷治療／無傷時はオーバーヒール / クールタイム 7秒</small></span>
+                <span><strong>回復</strong></span>
               </button>
               <button type="button" class="alchemy-choice" data-alchemy-choice="fire" data-atlas-cell="7" aria-pressed="false">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
-                <span><strong>火遁の術</strong><small>範囲へ継続燃焼。長押しで拡散 / クールタイム 7秒</small></span>
+                <span><strong>火遁の術</strong></span>
               </button>
               <button type="button" class="alchemy-choice" data-alchemy-choice="substitution" data-atlas-cell="8" aria-pressed="false">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
-                <span><strong>変わり身の術</strong><small>次に受ける攻撃を無効化して転移 / クールタイム 7秒</small></span>
+                <span><strong>変わり身の術</strong></span>
               </button>
               <button type="button" class="alchemy-choice" data-alchemy-choice="warp" data-atlas-cell="9" aria-pressed="false">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
-                <span><strong>即時ワープ</strong><small>指定地点へ即時移動する消耗品 / クールタイム 7秒</small></span>
+                <span><strong>即時ワープ</strong></span>
               </button>
               <button type="button" class="alchemy-choice" data-alchemy-choice="grit" data-atlas-cell="10" aria-pressed="false">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
-                <span><strong>踏ん張り</strong><small>次の確殺をボディダメージへ変換 / クールタイム 7秒</small></span>
+                <span><strong>踏ん張り</strong></span>
               </button>
               <button type="button" class="alchemy-choice" data-alchemy-choice="reason" data-atlas-cell="11" aria-pressed="false">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
-                <span><strong>押し込み</strong><small>踏ん張り全無効化 / 1回につき反動0.5 / クールタイム 7秒</small></span>
+                <span><strong>押し込み</strong></span>
               </button>
-              <button type="button" class="alchemy-choice" data-alchemy-choice="revive" data-atlas-cell="4" aria-pressed="false"><span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>人体生成</strong><small>死者を一度だけ復活 / 0MP / クールタイム 36秒</small></span></button>
+              <button type="button" class="alchemy-choice" data-alchemy-choice="revive" data-atlas-cell="4" aria-pressed="false"><span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>人体生成</strong></span></button>
             </div>
             <div class="alchemy-selection" aria-live="polite">
               <span>選択中</span>
-              <strong id="alchemySelectionText">スタミナ +350SP / クールタイム 7秒</strong>
+              <strong id="alchemySelectionText">スタミナ</strong>
             </div>
             <select id="alchemySelect" aria-label="バイブコーディング生成先" hidden>
               <option value="stamina">スタミナ</option>
@@ -657,10 +665,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=title-natural-motion-v424"></script>
-    <script src="game-engine.js?v=title-natural-motion-v424"></script>
-    <script src="offline-runtime.js?v=title-natural-motion-v424"></script>
-    <script src="config.js?v=title-natural-motion-v424"></script>
-    <script src="app.js?v=title-natural-motion-v424"></script>
+    <script src="game-runtime.js?v=clairvoyance-balance-v426"></script>
+    <script src="game-engine.js?v=clairvoyance-balance-v426"></script>
+    <script src="offline-runtime.js?v=clairvoyance-balance-v426"></script>
+    <script src="config.js?v=clairvoyance-balance-v426"></script>
+    <script src="app.js?v=clairvoyance-balance-v426"></script>
 </body>
 </html>
