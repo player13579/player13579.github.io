@@ -789,7 +789,7 @@ body.game-open .app-shell {
     radial-gradient(ellipse 18% 47% at 72.5% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
   mask-image:
     radial-gradient(ellipse 18% 47% at 72.5% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
-  animation: title-character-breath 7.2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  animation: title-character-breath 5.8s cubic-bezier(0.37, 0, 0.25, 1) infinite;
   will-change: transform, filter;
 }
 
@@ -2943,9 +2943,9 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 }
 
 @keyframes title-character-breath {
-  0%, 100% { transform: translate3d(0, 0.08%, 0) scale(1); filter: brightness(1); }
-  42% { transform: translate3d(0.025%, -0.22%, 0) scale(1.0045, 1.0065); filter: brightness(1.006); }
-  68% { transform: translate3d(-0.018%, -0.12%, 0) scale(1.0025, 1.0035); filter: brightness(1.003); }
+  0%, 100% { transform: translate3d(0, 0.28%, 0) scale(1, 0.997); filter: brightness(0.998); }
+  38% { transform: translate3d(0.09%, -0.62%, 0) scale(1.009, 1.015); filter: brightness(1.014); }
+  64% { transform: translate3d(-0.06%, -0.36%, 0) scale(1.005, 1.009); filter: brightness(1.007); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3932,6 +3932,19 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .teleport-target-control {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ability-mode-description {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  margin: 0;
+  border-left: 3px solid #0891b2;
+  padding: 8px 10px;
+  color: #17334a;
+  background: rgba(224, 247, 250, 0.86);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .lobby-kick-button {

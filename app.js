@@ -173,6 +173,7 @@ const els = {
   teleportButton: $("#teleportButton"),
   teleportControl: $("#teleportControl"),
   teleportModeSelect: $("#teleportModeSelect"),
+  teleportModeDescription: $("#teleportModeDescription"),
   teleportTargetSelect: $("#teleportTargetSelect"),
   emergencyButton: $("#emergencyButton"),
   dashButton: $("#dashButton"),
@@ -1513,6 +1514,7 @@ function applyStartupCommand() {
 }
 
 async function enterFullscreen() {
+  if (IS_VERIFICATION_MODE) return false;
   if (document.fullscreenElement || typeof document.documentElement.requestFullscreen !== "function") return false;
   try {
     await document.documentElement.requestFullscreen({ navigationUI: "hide" });
@@ -1579,6 +1581,10 @@ function createFullscreenSwipeGuard({ isActive, resolveScrollable }) {
 }
 
 function requestStartupFullscreen() {
+  if (IS_VERIFICATION_MODE) {
+    state.startupFullscreenPending = false;
+    return;
+  }
   if (document.fullscreenElement) return;
   state.startupFullscreenPending = true;
   const retry = () => {
@@ -4035,6 +4041,8 @@ function bindEvents() {
       if (select === els.teleportModeSelect) {
         rememberSelectedOperatorMode();
         ensureTeleportTargetForMode(state.data);
+        const owner = selectedBorrowedOperator() || state.data?.self?.special || "";
+        syncAbilityModeDescription(owner, state.data?.self);
       }
       if (state.data) updateActionButtons(state.data);
       select.blur();
@@ -5750,11 +5758,11 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
 
   if (activeType === "teleport" || activeType === "gravity") {
     const gravityDescriptions = {
-      near: "選択した他プレイヤーの近くへ転移する",
-      heart: "対象の心臓へ干渉して遠隔攻撃する",
-      accelerate: "8秒間、移動・行動・リキャストを超加速する",
-      decelerate: "8秒間、対象の移動・行動・リキャストを超減速する",
-      storm: "乱数強度の継続ダメージ・減速・重力変位。自身の半径2mは安全"
+      near: "1MP。選択した他プレイヤーの近くへ全身転移する",
+      heart: "1MP。対象の心臓へ干渉して遠隔確殺を試み、使用者の位置が露見する",
+      accelerate: "1MP。8秒間×2.5。移動・行動不能時間・クールタイム・タスク・物理モーションを加速する",
+      decelerate: "1MP。8秒間×0.38。移動・行動不能時間・クールタイム・タスク・物理モーションを減速する",
+      storm: "10MP。12秒間、乱数強度の継続ダメージ・減速・重力変位。自身の半径2mは安全。幸運／直観が0未満なら侵入だけで確殺判定"
     };
     const gravityModes = new Set(["near", "heart", "accelerate", "decelerate", "storm"]);
     [...els.teleportModeSelect.options].filter((option) => gravityModes.has(option.value)).forEach((option) => {
@@ -7541,13 +7549,18 @@ function renderTargetOptions(data) {
     els.teleportModeSelect.innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
     const rememberedMode = borrowedOperator ? state.borrowedAbilityModes[borrowedOperator] : "";
     const defaultMode = modeOwner === "teleport" || modeOwner === "gravity" ? "accelerate" : options[0]?.[0];
+    const gravityDefault = ["teleport", "gravity"].includes(modeOwner);
     els.teleportModeSelect.value = options.some(([value]) => value === rememberedMode)
       ? rememberedMode
-      : options.some(([value]) => value === previousMode)
-        ? previousMode
-        : defaultMode;
+      : gravityDefault && options.some(([value]) => value === defaultMode)
+        ? defaultMode
+        : options.some(([value]) => value === previousMode)
+          ? previousMode
+          : defaultMode;
     rememberSelectedOperatorMode();
   }
+
+  syncAbilityModeDescription(modeOwner, self);
 
   const includeDead = self.special === "alchemist" && els.alchemySelect.value === "revive";
   const hackerTargeting = self.special === "alchemist" && els.alchemySelect.value.startsWith("hack-");
@@ -7569,6 +7582,45 @@ function renderTargetOptions(data) {
     els.teleportTargetSelect.value = targets.some((player) => player.id === previous) ? previous : fallback;
   }
   if (self.special === "teleport" || borrowedOperator === "gravity") ensureTeleportTargetForMode(data);
+}
+
+function abilityModeDescription(owner, mode, self) {
+  const costs = self?.abilityCosts || {};
+  const free = self?.hackerManaFree || self?.rationalFreeAbilityReady;
+  const cost = (key, fallback = 1) => free ? "今回0MP" : `${Number(costs[key] ?? fallback)}MP`;
+  const descriptions = {
+    teleport: {
+      near: `対象の近くへ全身転移する。${cost("teleport")}。`,
+      heart: `対象の心臓へ転移して遠隔確殺を試み、使用者の位置が露見する。${cost("heartTeleport")}。`,
+      accelerate: `対象を8秒間×2.5加速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
+      decelerate: `対象を8秒間×0.38へ減速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
+      storm: `対象中心に12秒間の重力変動域を生成。継続ダメージ、減速、吹き飛ばし・引き寄せ・拘束が乱数変動し、発動者の半径2mは安全。幸運／直観が0未満なら安全域外への侵入だけで確殺判定。${cost("gravityStorm", 10)}。`
+    },
+    gravity: null,
+    flora: {
+      heal: `自分のHP・SP・状態異常を即時回復し、12秒間加速する。${cost("flora")}。`,
+      sunbeam: `屈折・散乱・回折で経路を変える貫通光線を放ち、複数対象へ確率キル判定。${cost("flora")}。`,
+      "sunbeam-converged": `光を一点へ収束し、貫通を失う代わりに対象を確殺する。${cost("flora")}。`
+    },
+    gunner: {
+      "hover-sprint": `8秒間加速・浮揚し、障害物を無視して移動する。${cost("hoverSprint")}。`
+    },
+    quantum: {
+      "transmute-mercury": "水銀を核変換して金へ変え、自動的にクレジットへ換金する。",
+      "transmute-lead": "鉛を核変換して金へ変え、自動的にクレジットへ換金する。",
+      "cool-water": "水の原子・分子運動を抑えて氷へ変換し、攻撃力を上げる。",
+      "heat-water": "水の原子・分子運動を増やして高温化し、燃焼効果を付与する。",
+      "fission-uranium": `ウランの核分裂連鎖で全域を破壊する。${cost("quantumNuclear")}。`,
+      "fission-plutonium": `プルトニウムの核分裂連鎖で全域を破壊する。${cost("quantumNuclear")}。`
+    }
+  };
+  const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
+  return ownerDescriptions?.[mode] || "選択した能力の発動条件と効果をここに表示します。";
+}
+
+function syncAbilityModeDescription(owner, self) {
+  if (!els.teleportModeDescription) return;
+  els.teleportModeDescription.textContent = abilityModeDescription(owner, els.teleportModeSelect.value, self);
 }
 
 function ensureTeleportTargetForMode(data) {
@@ -8517,7 +8569,7 @@ function updateActionButtons(data) {
     (recipe) => recipe.id === `borrowed-${activeBorrowedOperator}`
   );
   const hasMana = (key) => {
-    if (self.hackerManaFree) return true;
+    if (self.hackerManaFree || self.rationalFreeAbilityReady) return true;
     const cost = Number(abilityCosts[key]) || 0;
     return cost <= 0 || (Number(self.mana) || 0) >= cost;
   };
@@ -8661,9 +8713,8 @@ function updateActionButtons(data) {
     : !(canUseAbility && !itemBlocked && gunnerAccess && gunAmmoReady && gunSeconds <= 0 && reloadSeconds <= 0);
   els.gunnerReloadButton.textContent = reloadSeconds > 0 ? `リロード ${reloadSeconds.toFixed(1)}秒` : "リロード";
   els.gunnerReloadButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess && Number(gunnerWeapon.ammo) < Number(gunnerWeapon.maxAmmo) && reloadSeconds <= 0);
-  const dodgeSeconds = Math.max(0, Math.ceil(((self.dodgeReadyAt || 0) - liveNow) / 1000));
-  els.dodgeButton.textContent = dodgeSeconds > 0 ? `回避 ${dodgeSeconds}秒` : "回避 -100SP";
-  els.dodgeButton.disabled = !(canUseAbility && self.role === "defender" && self.stamina >= maxStamina && hasMana("dodge") && self.dodgeActiveUntil <= liveNow && dodgeSeconds === 0);
+  els.dodgeButton.textContent = "回避 -100SP";
+  els.dodgeButton.disabled = !(canUseAbility && self.role === "defender" && self.stamina >= maxStamina && hasMana("dodge") && self.dodgeActiveUntil <= liveNow);
   const teleportMode = els.teleportModeSelect.value === "heart" ? "heart" : "body";
   const teleportTargetIsSelf = (els.teleportTargetSelect.value || self.id) === self.id;
   els.teleportButton.textContent = teleportMode === "heart"
@@ -8698,7 +8749,7 @@ function updateActionButtons(data) {
       : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
           : operatorMode === "accelerate" ? `アクセラレート 8秒 ${operatorCostLabel("teleport")}`
             : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
-              : `グラビティストーム ${operatorCostLabel("teleport")}`,
+              : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : operatorMode === "sunbeam-converged" ? `サンビーム収束 ${operatorCostLabel("flora")}` : `サンビーム放射 ${operatorCostLabel("flora")}`,
     gunner: `ホバースプリント ${operatorCostLabel("hoverSprint")}`,
     quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "量子制御",
@@ -8707,7 +8758,7 @@ function updateActionButtons(data) {
       : "借用能力"
   };
   const borrowedCostKey = activeBorrowedOperator === "gravity"
-      ? (operatorMode === "heart" ? "heartTeleport" : "teleport")
+      ? (operatorMode === "heart" ? "heartTeleport" : operatorMode === "storm" ? "gravityStorm" : "teleport")
       : activeBorrowedOperator === "flora"
         ? "flora"
       : activeBorrowedOperator === "fighter"
@@ -8728,6 +8779,7 @@ function updateActionButtons(data) {
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
   els.operatorAbilityButton.disabled = !canUseAbility ||
+    (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : "teleport")) ||
     (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
     (displayedOperator === "gunner" && ((Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("hoverSprint"))) ||
     (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
@@ -14712,7 +14764,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "resource-limit-break-v431";
+const version = "gravity-title-object-v432";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

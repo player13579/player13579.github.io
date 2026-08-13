@@ -219,7 +219,7 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
     "medPod": {
       "effectKind": "fullRecovery",
       "label": "応急処置ポッド",
-      "effectLabel": "全身治療・状態異常解除",
+      "effectLabel": "HP全回復・オーバーヒール",
       "amount": 1,
       "cooldownMs": 30000
     },
@@ -471,7 +471,7 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
     "sterilizer": {
       "effectKind": "fullRecovery",
       "label": "滅菌設備",
-      "effectLabel": "全身治療・状態異常解除",
+      "effectLabel": "HP全回復・オーバーヒール",
       "amount": 1,
       "cooldownMs": 36000
     },
@@ -5184,9 +5184,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-archive-bookshelf-1",
       "type": "bookshelf",
       "label": "閲覧書架",
-      "effectLabel": "再使用待機 -8秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 8000,
+      "effectLabel": "マナ +1",
+      "effectKind": "mana",
+      "effectAmount": 1,
       "x": 333,
       "y": 365,
       "room": "archive",
@@ -5238,9 +5238,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-security-securityConsole-1",
       "type": "securityConsole",
       "label": "協議地図机",
-      "effectLabel": "再使用待機 -6秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 6000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 1452,
       "y": 691,
       "room": "security",
@@ -5250,7 +5250,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 40000,
       "useRange": 128,
       "visualWidth": 110,
-      "visualHeight": 76
+      "visualHeight": 76,
+      "effectDurationMs": 20000
     },
     {
       "id": "v302-security-cameraTripod-2",
@@ -5330,9 +5331,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-observatory-commandDesk-3",
       "type": "commandDesk",
       "label": "観測机",
-      "effectLabel": "再使用待機 -8秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 8000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 2240,
       "y": 636,
       "room": "observatory",
@@ -5342,15 +5343,16 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 38000,
       "useRange": 128,
       "visualWidth": 110,
-      "visualHeight": 76
+      "visualHeight": 76,
+      "effectDurationMs": 20000
     },
     {
       "id": "v302-reactor-reactorGauge-1",
       "type": "reactorGauge",
       "label": "湧水時計",
-      "effectLabel": "再使用待機 -7秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 7000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 3699,
       "y": 388,
       "room": "reactor",
@@ -5360,15 +5362,16 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 38000,
       "useRange": 128,
       "visualWidth": 110,
-      "visualHeight": 76
+      "visualHeight": 76,
+      "effectDurationMs": 20000
     },
     {
       "id": "v302-reactor-coolingUnit-2",
       "type": "coolingUnit",
       "label": "清流の石鉢",
-      "effectLabel": "状態異常を解除",
-      "effectKind": "statusRecovery",
-      "effectAmount": 1,
+      "effectLabel": "スタミナ +120",
+      "effectKind": "stamina",
+      "effectAmount": 120,
       "x": 4388,
       "y": 388,
       "room": "reactor",
@@ -5402,9 +5405,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-power-powerCabinet-1",
       "type": "powerCabinet",
       "label": "行灯棚",
-      "effectLabel": "再使用待機 -7秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 7000,
+      "effectLabel": "マナ +1",
+      "effectKind": "mana",
+      "effectAmount": 1,
       "x": 279,
       "y": 1502,
       "room": "power",
@@ -5529,8 +5532,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-atrium-hydration-2",
       "type": "mineralWaterBar",
       "label": "湧水給水卓",
-      "effectLabel": "燃焼解除・スタミナ +100",
-      "effectKind": "mineralWater",
+      "effectLabel": "スタミナ +100",
+      "effectKind": "stamina",
       "effectAmount": 100,
       "x": 2838,
       "y": 1314,
@@ -5566,9 +5569,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-atrium-conferenceTable-4",
       "type": "conferenceTable",
       "label": "木製協議卓",
-      "effectLabel": "再使用待機 -6秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 6000,
+      "effectLabel": "マナ +1",
+      "effectKind": "mana",
+      "effectAmount": 1,
       "x": 2812,
       "y": 1886,
       "room": "atrium",
@@ -5584,9 +5587,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-engineering-workbench-1",
       "type": "workbench",
       "label": "木工作業台",
-      "effectLabel": "再使用待機 -8秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 8000,
+      "effectLabel": "スタミナ +120",
+      "effectKind": "stamina",
+      "effectAmount": 120,
       "x": 3619,
       "y": 1316,
       "room": "engineering",
@@ -5620,9 +5623,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-engineering-coolingUnit-3",
       "type": "coolingUnit",
       "label": "石の洗い場",
-      "effectLabel": "状態異常を解除",
-      "effectKind": "statusRecovery",
-      "effectAmount": 1,
+      "effectLabel": "スタミナ +120",
+      "effectKind": "stamina",
+      "effectAmount": 120,
       "x": 3632,
       "y": 1631,
       "room": "engineering",
@@ -5638,9 +5641,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-fabrication-workbench-1",
       "type": "workbench",
       "label": "工芸作業台",
-      "effectLabel": "再使用待機 -9秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 9000,
+      "effectLabel": "スタミナ +120",
+      "effectKind": "stamina",
+      "effectAmount": 120,
       "x": 3642,
       "y": 2102,
       "room": "fabrication",
@@ -5712,9 +5715,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-greenhouse-mistSprayer-2",
       "type": "restorativeMist",
       "label": "薬草の霧鉢",
-      "effectLabel": "状態異常を解除",
-      "effectKind": "statusRecovery",
-      "effectAmount": 1,
+      "effectLabel": "幸運／直観 +12%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.12,
       "x": 817,
       "y": 2652,
       "room": "greenhouse",
@@ -5724,14 +5727,15 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 18000,
       "useRange": 128,
       "visualWidth": 110,
-      "visualHeight": 76
+      "visualHeight": 76,
+      "effectDurationMs": 20000
     },
     {
       "id": "v302-greenhouse-compostUnit-3",
       "type": "herbPreparationTable",
       "label": "薬草調合台",
-      "effectLabel": "HP +1・状態異常を解除",
-      "effectKind": "herbalRecovery",
+      "effectLabel": "HP +1",
+      "effectKind": "heal",
       "effectAmount": 1,
       "x": 313,
       "y": 3057,
@@ -5766,8 +5770,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-cafeteria-hydration-2",
       "type": "mineralWaterBar",
       "label": "ミネラル給水卓",
-      "effectLabel": "燃焼解除・スタミナ +100",
-      "effectKind": "mineralWater",
+      "effectLabel": "スタミナ +100",
+      "effectKind": "stamina",
       "effectAmount": 100,
       "x": 1827,
       "y": 2661,
@@ -5784,8 +5788,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-cafeteria-sofa-3",
       "type": "relaxationSalon",
       "label": "静養ソファ",
-      "effectLabel": "加速 1.35・再使用待機 -4秒",
-      "effectKind": "relaxation",
+      "effectLabel": "加速 1.35・12秒",
+      "effectKind": "acceleration",
       "effectAmount": 1.35,
       "x": 1343,
       "y": 3048,
@@ -5803,8 +5807,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-medical-diagnosticBed-1",
       "type": "relaxationBed",
       "label": "布張り施術寝台",
-      "effectLabel": "加速 1.35・再使用待機 -4秒",
-      "effectKind": "relaxation",
+      "effectLabel": "加速 1.35・12秒",
+      "effectKind": "acceleration",
       "effectAmount": 1.35,
       "x": 2419,
       "y": 2738,
@@ -5822,8 +5826,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-medical-medicalCabinet-2",
       "type": "herbalCabinet",
       "label": "薬草とリネンの棚",
-      "effectLabel": "HP +1・状態異常を解除",
-      "effectKind": "herbalRecovery",
+      "effectLabel": "HP +1",
+      "effectKind": "heal",
       "effectAmount": 1,
       "x": 2922,
       "y": 2738,
@@ -5858,9 +5862,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-comms-radioConsole-1",
       "type": "radioConsole",
       "label": "書簡机",
-      "effectLabel": "再使用待機 -8秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 8000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 3742,
       "y": 2882,
       "room": "comms",
@@ -5870,7 +5874,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 38000,
       "useRange": 128,
       "visualWidth": 110,
-      "visualHeight": 76
+      "visualHeight": 76,
+      "effectDurationMs": 20000
     },
     {
       "id": "v302-comms-serverRack-2",
@@ -5912,9 +5917,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a01-1",
       "type": "wallSconce",
       "label": "壁灯",
-      "effectLabel": "再使用待機 -5秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 5000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 1240,
       "y": 672,
       "corridor": "a01",
@@ -5927,15 +5932,16 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24
+      "visualHeight": 24,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a02-1",
       "type": "corridorPlanter",
       "label": "回復植栽",
-      "effectLabel": "状態異常回復",
-      "effectKind": "statusRecovery",
-      "effectAmount": 1,
+      "effectLabel": "幸運／直観 +12%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.12,
       "x": 485,
       "y": 1046,
       "corridor": "a02",
@@ -5948,15 +5954,16 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 42,
-      "visualHeight": 42
+      "visualHeight": 42,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a03-1",
       "type": "wallSconce",
       "label": "壁灯",
-      "effectLabel": "再使用待機 -5秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 5000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 2005,
       "y": 632,
       "corridor": "a03",
@@ -5969,14 +5976,15 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24
+      "visualHeight": 24,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a04-1",
       "type": "corridorBench",
       "label": "休息腰掛け",
-      "effectLabel": "休息・加速 18秒",
-      "effectKind": "relaxation",
+      "effectLabel": "加速 1.4・18秒",
+      "effectKind": "acceleration",
       "effectAmount": 1.4,
       "effectDurationMs": 18000,
       "x": 3201,
@@ -5997,8 +6005,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a05-1",
       "type": "corridorPlanter",
       "label": "香草鉢",
-      "effectLabel": "状態異常回復",
-      "effectKind": "herbalRecovery",
+      "effectLabel": "HP +1",
+      "effectKind": "heal",
       "effectAmount": 1,
       "x": 2414,
       "y": 885,
@@ -6018,8 +6026,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a06-1",
       "type": "corridorBench",
       "label": "静養腰掛け",
-      "effectLabel": "休息・加速 18秒",
-      "effectKind": "relaxation",
+      "effectLabel": "加速 1.4・18秒",
+      "effectKind": "acceleration",
       "effectAmount": 1.4,
       "effectDurationMs": 18000,
       "x": 1828,
@@ -6040,9 +6048,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a07-1",
       "type": "wallSconce",
       "label": "壁灯",
-      "effectLabel": "再使用待機 -5秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 5000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 3235,
       "y": 1422,
       "corridor": "a07",
@@ -6055,7 +6063,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24
+      "visualHeight": 24,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a08-1",
@@ -6082,9 +6091,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a09-1",
       "type": "wallSconce",
       "label": "壁灯",
-      "effectLabel": "再使用待機 -5秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 5000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 3928,
       "y": 1061,
       "corridor": "a09",
@@ -6097,7 +6106,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24
+      "visualHeight": 24,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a10-1",
@@ -6147,9 +6157,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a12-1",
       "type": "corridorPlanter",
       "label": "薬草鉢",
-      "effectLabel": "状態異常回復",
-      "effectKind": "statusRecovery",
-      "effectAmount": 1,
+      "effectLabel": "幸運／直観 +12%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.12,
       "x": 2434,
       "y": 2386,
       "corridor": "a12",
@@ -6162,7 +6172,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 42,
-      "visualHeight": 42
+      "visualHeight": 42,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a13-1",
@@ -6189,8 +6200,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a13-2",
       "type": "corridorBench",
       "label": "曲がり角腰掛け",
-      "effectLabel": "休息・加速 18秒",
-      "effectKind": "relaxation",
+      "effectLabel": "加速 1.4・18秒",
+      "effectKind": "acceleration",
       "effectAmount": 1.4,
       "effectDurationMs": 18000,
       "x": 1718,
@@ -6211,9 +6222,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a14-1",
       "type": "wallSconce",
       "label": "壁灯",
-      "effectLabel": "再使用待機 -5秒",
-      "effectKind": "cooldownReduction",
-      "effectAmount": 5000,
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
       "x": 1085,
       "y": 2802,
       "corridor": "a14",
@@ -6226,7 +6237,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24
+      "visualHeight": 24,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a15-1",
@@ -6274,8 +6286,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a17-1",
       "type": "corridorBench",
       "label": "窓辺腰掛け",
-      "effectLabel": "休息・加速 18秒",
-      "effectKind": "relaxation",
+      "effectLabel": "加速 1.4・18秒",
+      "effectKind": "acceleration",
       "effectAmount": 1.4,
       "effectDurationMs": 18000,
       "x": 1150,
@@ -6296,9 +6308,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a17-2",
       "type": "corridorPlanter",
       "label": "木陰鉢",
-      "effectLabel": "状態異常回復",
-      "effectKind": "statusRecovery",
-      "effectAmount": 1,
+      "effectLabel": "幸運／直観 +12%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.12,
       "x": 745,
       "y": 1185,
       "corridor": "a17",
@@ -6311,14 +6323,15 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 42,
-      "visualHeight": 42
+      "visualHeight": 42,
+      "effectDurationMs": 20000
     },
     {
       "id": "v317-corridor-a18-1",
       "type": "corridorBench",
       "label": "静養腰掛け",
-      "effectLabel": "休息・加速 18秒",
-      "effectKind": "relaxation",
+      "effectLabel": "加速 1.4・18秒",
+      "effectKind": "acceleration",
       "effectAmount": 1.4,
       "effectDurationMs": 18000,
       "x": 3401,
@@ -6339,8 +6352,8 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v317-corridor-a18-2",
       "type": "corridorPlanter",
       "label": "香草鉢",
-      "effectLabel": "状態異常回復",
-      "effectKind": "herbalRecovery",
+      "effectLabel": "HP +1",
+      "effectKind": "heal",
       "effectAmount": 1,
       "x": 3233,
       "y": 3130,
@@ -6611,7 +6624,6 @@ const KILL_CONTRIBUTION = 1;
 const ACCELERATE_SPEED_MULTIPLIER = 2.5;
 const LUMINOUS_SPEED_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.66;
 const DODGE_DURATION_MS = 1000;
-const DODGE_COOLDOWN_MS = 16_000;
 const TELEPORT_COOLDOWN_MS = 25_000;
 const SMARTPHONE_ACTION_MS = 4_000;
 const AUTO_REPORT_POST_KILL_GRACE_MS = 4_000;
@@ -6816,6 +6828,8 @@ const SUNBEAM_RANGE = 950;
 const SUNBEAM_WIDTH = 52;
 const SUNBEAM_KILL_CHANCE = 0.48;
 const GRAVITY_STORM_RANGE = 520;
+const GRAVITY_STORM_MANA_COST = 10;
+const GRAVITY_STORM_LOW_LUCK_THRESHOLD = 0;
 const GRAVITY_STORM_DURATION_MS = 12_000;
 const GRAVITY_STORM_PULSE_MS = 600;
 const WORLD_UNITS_PER_METER = 100;
@@ -7573,6 +7587,52 @@ function applyRoomAnchorContract(map) {
   }
 }
 
+function normalizeMapObjectBenefits(map) {
+  for (const object of map.objects || []) {
+    if (object.effectKind === "footBath") continue;
+    if (object.effectKind === "cooldownReduction") {
+      if (/workbench|bench/i.test(`${object.type} ${object.id}`)) {
+        object.effectKind = "stamina";
+        object.effectAmount = 120;
+        object.effectLabel = "スタミナ +120";
+      } else if (/console|commandDesk|reactorGauge|wallSconce/i.test(`${object.type} ${object.id}`)) {
+        object.effectKind = "luckBoost";
+        object.effectAmount = 0.15;
+        object.effectDurationMs = 20_000;
+        object.effectLabel = "幸運／直観 +15%・20秒";
+      } else {
+        object.effectKind = "mana";
+        object.effectAmount = 1;
+        object.effectLabel = "マナ +1";
+      }
+    } else if (object.effectKind === "statusRecovery") {
+      if (/plant|mist|herb/i.test(`${object.type} ${object.id}`)) {
+        object.effectKind = "luckBoost";
+        object.effectAmount = 0.12;
+        object.effectDurationMs = 20_000;
+        object.effectLabel = "幸運／直観 +12%・20秒";
+      } else {
+        object.effectKind = "stamina";
+        object.effectAmount = 120;
+        object.effectLabel = "スタミナ +120";
+      }
+    } else if (object.effectKind === "herbalRecovery") {
+      object.effectKind = "heal";
+      object.effectAmount = 1;
+      object.effectLabel = "HP +1";
+    } else if (object.effectKind === "relaxation") {
+      object.effectKind = "acceleration";
+      object.effectLabel = `加速 ${Math.max(1.01, Number(object.effectAmount) || 1.35)}・${Math.round(Math.max(1000, Number(object.effectDurationMs) || 12000) / 1000)}秒`;
+    } else if (object.effectKind === "mineralWater") {
+      object.effectKind = "stamina";
+      object.effectLabel = `スタミナ +${Math.max(1, Number(object.effectAmount) || 100)}`;
+    }
+    if (object.effectKind === "fullRecovery") {
+      object.effectLabel = "HP全回復・オーバーヒール";
+    }
+  }
+}
+
 function validateMapEnvironment(map) {
   const owned = [...(map.rooms || []), ...(map.corridors || [])];
   const corridorIds = new Set((map.corridors || []).map((corridor) => corridor.id));
@@ -7597,6 +7657,7 @@ function validateMapEnvironment(map) {
 }
 
 function finalizeMapEnvironment(map) {
+  normalizeMapObjectBenefits(map);
   if (map.authoredGeometry) {
     map.portals = (map.doors || []).map((door) => ({
       id: `portal-${door.id}`,
@@ -7612,6 +7673,7 @@ function finalizeMapEnvironment(map) {
     return;
   }
   applyRoomAnchorContract(map);
+  normalizeMapObjectBenefits(map);
   const allAreas = [...map.rooms, ...map.corridors];
   for (const corridor of map.corridors) {
     const openings = adjacencySides(corridor, allAreas);
@@ -8537,14 +8599,13 @@ function grantCredits(room, player, rawAmount, source = "") {
 function pushMapObjectGainAtes(room, player, effectKind) {
   const categories = {
     stamina: ["stamina"], credits: ["credits"], mana: ["mana"],
-    cooldownReduction: ["cooldownReduction"], statusRecovery: ["statusRecovery"],
     acceleration: ["acceleration"], luckBoost: ["luckBoost"], overheal: ["overheal"],
     footBath: ["heal", "statusRecovery", "cooldownReduction"],
-    relaxation: ["acceleration", "cooldownReduction"],
-    herbalRecovery: ["heal", "statusRecovery"],
+    relaxation: ["acceleration"],
+    herbalRecovery: ["heal"],
     healthyMeal: ["heal", "stamina", "mana"],
-    mineralWater: ["stamina", "statusRecovery"],
-    fullRecovery: ["heal", "statusRecovery", "overheal"],
+    mineralWater: ["stamina"],
+    fullRecovery: ["heal", "overheal"],
     decoy: ["stamina"], heal: ["heal"]
   }[effectKind] || [];
   categories.forEach((category, index) => pushGainAte(room, player, category, {
@@ -8736,7 +8797,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     poisonStatus: null,
     burnStatus: null,
     quantumMode: "transmute-mercury",
-    gravityMode: "transfer",
+    gravityMode: "accelerate",
     gravityTargetId: "",
     gravityTimeMode: "",
     gravityTimeTargetId: "",
@@ -9118,7 +9179,7 @@ function startGame(room) {
     player.goodActive = false;
     player.ascensionStartedAt = 0;
     player.ascensionUntil = 0;
-    player.gravityMode = "transfer";
+    player.gravityMode = "accelerate";
     player.gravityTargetId = "";
     player.gravityTimeMode = "";
     player.gravityTimeTargetId = "";
@@ -9650,7 +9711,7 @@ function limitBreakMultiplier(player) {
 }
 
 function spendLimitBreakHealth(player) {
-  if (remainingHealth(player) <= 1) {
+  if (remainingHealth(player) <= 0) {
     throw new ApiError(400, "リミットブレイクには消費できるHPが必要です。");
   }
   if ((Number(player.overheal) || 0) > 0) {
@@ -9674,6 +9735,15 @@ function toggleLimitBreak(room, player) {
   const firstActivation = !player.limitBreakActive;
   if (firstActivation) player.limitBreakBaseStamina = previousStamina;
   spendLimitBreakHealth(player);
+  if (remainingHealth(player) <= 0) {
+    destroyPlayerUnconditionally(room, player, player, "リミットブレイクによる肉体崩壊", {
+      noKillCutin: true,
+      ignorePreparationBarrier: true
+    });
+    checkWin(room);
+    touch(room);
+    return true;
+  }
   player.limitBreakActive = true;
   player.limitBreakStacks = limitBreakStackCount(player) + (firstActivation ? 0 : 1);
   player.limitBreakEndsAt = timestamp + LIMIT_BREAK_DURATION_MS;
@@ -9953,7 +10023,7 @@ function spendMana(room, player, amount, label) {
   setMana(room, player, (Number(player.mana) || 0) - cost, label);
 }
 
-function spendOperatorMana(room, player, label) {
+function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
   const timestamp = now();
   if (isHackerOperator(player) && hackerRootEligible(player)) return false;
   if (Number(player.mana) >= RATIONAL_MANA_THRESHOLD && (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp) {
@@ -9962,7 +10032,7 @@ function spendOperatorMana(room, player, label) {
     pushEvent(room, `${player.name} は理知により${label}を無料で発動しました。`);
     return false;
   }
-  spendMana(room, player, ABILITY_MANA_COST, label);
+  spendMana(room, player, Math.max(0, Number(amount) || 0), label);
   return true;
 }
 
@@ -11471,16 +11541,13 @@ function activateDodge(room, player) {
   ensureAbilityAvailable(player);
   const timestamp = now();
   if (player.dodgeActiveUntil > timestamp) throw new ApiError(400, "回避は発動中です。");
-  if (player.dodgeReadyAt > timestamp) {
-    throw new ApiError(400, `回避はリキャスト中です（残り${Math.ceil((player.dodgeReadyAt - timestamp) / 1000)}秒）。`);
-  }
   replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01);
   if (player.stamina < MAX_STAMINA - 0.01) {
     throw new ApiError(400, `回避にはスタミナ ${MAX_STAMINA} が必要です。`);
   }
   spendStamina(player, MAX_STAMINA, room, "回避");
   player.dodgeActiveUntil = timestamp + DODGE_DURATION_MS + player.dodgeDurationBonusMs;
-  player.dodgeReadyAt = timestamp + DODGE_COOLDOWN_MS;
+  player.dodgeReadyAt = 0;
   pushMagicEffect(room, "action-dodge", player, { radius: 115, playerId: player.id });
   pushEvent(room, `${player.name} が回避態勢に入りました。`);
   markSoloMissionAction(room, player, "defense");
@@ -11712,7 +11779,7 @@ function useGravityStorm(room, player, targetId = "") {
     throw new ApiError(403, "現在はグラビティストームを使用できません。");
   }
   ensureAbilityAvailable(player);
-  spendOperatorMana(room, player, "グラビティストーム");
+  spendOperatorMana(room, player, "グラビティストーム", GRAVITY_STORM_MANA_COST);
   const requestedTargetId = String(targetId || player.id);
   const target = room.players.get(requestedTargetId);
   if (!target || !target.alive || target.ejected || target.inVent) {
@@ -11796,6 +11863,26 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       const safeDistance = Math.hypot(target.x - Number(zone.safeX), target.y - Number(zone.safeY));
       if (safeDistance <= Number(zone.safeRadius || GRAVITY_STORM_SAFE_RADIUS)) continue;
       if (absorbPreparationBarrier(room, target, timestamp, owner || null)) continue;
+
+      if (owner?.alive && luckValueFor(target) < GRAVITY_STORM_LOW_LUCK_THRESHOLD) {
+        const outcome = killPlayer(room, owner, target.id, {
+          ranged: true,
+          magic: true,
+          hitZone: "head",
+          damage: 2,
+          ignoreRange: true,
+          ignoreCooldown: true,
+          preserveCooldown: true,
+          targetRole: target.role
+        });
+        pushMagicEffect(room, "gravity-storm-crush", target, {
+          radius: 180,
+          playerId: zone.ownerId,
+          targetId: target.id,
+          variant: `low-luck-lethal:${outcome}`
+        });
+        continue;
+      }
 
       // Higher adverse severity means more HP loss, a lower speed multiplier,
       // and a stronger displacement. Luck biases this roll in the target's favor.
@@ -12609,12 +12696,10 @@ function useMapObject(room, player, objectId) {
       Math.max(1000, Number(object.effectDurationMs) || 12000),
       timestamp
     );
-    reducePlayerCooldowns(player, 4000, timestamp);
-    setImmediateFeedback(player, object.label, "加速・再使用待機 -4秒");
+    setImmediateFeedback(player, object.label, `加速 ${Math.max(1.01, Number(object.effectAmount) || 1.35)}・${Math.round(Math.max(1000, Number(object.effectDurationMs) || 12000) / 1000)}秒`);
   } else if (object.effectKind === "herbalRecovery") {
     healBodyHits(player, 1);
-    recoverMapObjectStatuses(room, player, object.label);
-    setImmediateFeedback(player, object.label, "HP +1・状態異常解除");
+    setImmediateFeedback(player, object.label, "HP +1");
   } else if (object.effectKind === "healthyMeal") {
     healBodyHits(player, 1);
     replenishStamina(player, timestamp, true);
@@ -12623,19 +12708,15 @@ function useMapObject(room, player, objectId) {
     setMana(room, player, (Number(player.mana) || 0) + 1, object.label);
     setImmediateFeedback(player, object.label, "HP +1・スタミナ +120・マナ +1");
   } else if (object.effectKind === "mineralWater") {
-    const hadBurn = Boolean(player.burnStatus);
-    clearBurning(room, player, object.label);
     replenishStamina(player, timestamp, true);
-    if (player.stamina >= MAX_STORED_STAMINA - 0.01 && !hadBurn) throw new ApiError(400, "現在は十分に回復しています。");
+    if (player.stamina >= MAX_STORED_STAMINA - 0.01) throw new ApiError(400, "スタミナは最大です。");
     player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + Math.max(1, Number(object.effectAmount) || 100));
     player.staminaUpdatedAt = timestamp;
   } else if (object.effectKind === "fullRecovery") {
-    const needsTreatment = player.bodyHits > 0 || player.burnStatus || player.poisonStatus || Number(player.overheal) <= 0;
+    const needsTreatment = player.bodyHits > 0 || Number(player.overheal) <= 0;
     if (!needsTreatment) throw new ApiError(400, "現在は十分に回復しています。");
     player.bodyHits = 0;
     player.overheal = Math.max(1, Number(player.overheal) || 0);
-    clearBurning(room, player, "応急処置ポッド");
-    clearPoison(room, player, "応急処置ポッド");
   } else if (object.effectKind === "decoy") {
     replenishStamina(player, timestamp, true);
     player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + Math.max(1, Number(object.effectAmount) || MAX_STAMINA));
@@ -12684,15 +12765,13 @@ function autoUseNearbyMapObject(room, player, timestamp = now()) {
     const useful = object.type === "resolvePoint" || object.effectKind === "mana" || object.effectKind === "decoy" ||
       object.effectKind === "credits" || object.effectKind === "acceleration" || object.effectKind === "luckBoost" ||
       object.effectKind === "overheal" || object.effectKind === "relaxation" || object.effectKind === "healthyMeal" ||
-      (object.effectKind === "cooldownReduction" && hasCooldown) ||
-      (object.effectKind === "statusRecovery" && hasStatus) ||
       (object.effectKind === "footBath" && (hasStatus || hasCooldown || Number(player.bodyHits) > 0)) ||
-      (object.effectKind === "herbalRecovery" && (hasStatus || Number(player.bodyHits) > 0)) ||
-      (object.effectKind === "mineralWater" && (player.burnStatus || Number(player.stamina) < MAX_STORED_STAMINA - 0.01)) ||
+      (object.effectKind === "herbalRecovery" && Number(player.bodyHits) > 0) ||
+      (object.effectKind === "mineralWater" && Number(player.stamina) < MAX_STORED_STAMINA - 0.01) ||
       (object.effectKind === "stamina" && Number(player.stamina) < MAX_STORED_STAMINA - 0.01) ||
       (object.effectKind === "heal" && Number(player.bodyHits) > 0) ||
       (object.effectKind === "fullRecovery" && (
-        Number(player.bodyHits) > 0 || player.burnStatus || player.poisonStatus || Number(player.overheal) <= 0
+        Number(player.bodyHits) > 0 || Number(player.overheal) <= 0
       ));
     if (!useful) continue;
     try {
@@ -13774,7 +13853,7 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
 
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
-  if (absorbPreparationBarrier(room, target, now(), source)) return false;
+  if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, now(), source)) return false;
   if (source?.role === target.role && ["defender", "attacker"].includes(source?.role) && source.id !== target.id) {
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, now());
     return false;
@@ -15690,6 +15769,7 @@ function serialize(room, viewer, options = {}) {
         dodge: DODGE_MANA_COST,
         teleport: TELEPORT_MANA_COST,
         heartTeleport: HEART_TELEPORT_MANA_COST,
+        gravityStorm: GRAVITY_STORM_MANA_COST,
         emp: EMP_MANA_COST,
         shoot: GUNNER_MANA_COST,
         hoverSprint: ABILITY_MANA_COST,
@@ -15726,7 +15806,7 @@ function serialize(room, viewer, options = {}) {
       smartphoneAction: viewer.smartphoneAction || "",
       routePartnerCount: (viewer.routePartnerIds || []).length,
       routeSharedSince: Number(viewer.routeSharedSince) || 0,
-      gravityMode: viewer.gravityMode || "transfer",
+      gravityMode: viewer.gravityMode || "accelerate",
       gravityTimeMode: viewer.gravityTimeMode || "",
       gravityTimeTargetId: viewer.gravityTimeTargetId || "",
       gravityTimeEndsAt: Number(viewer.gravityTimeEndsAt) || 0,
@@ -17422,7 +17502,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "resource-limit-break-v431",
+  version: "gravity-title-object-v432",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
