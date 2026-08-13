@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v432-gravity-title-object";
+const CACHE_NAME = "dva-static-v433-storm-gold-sophia";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

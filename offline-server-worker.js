@@ -11845,6 +11845,9 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
     if (timestamp - zone.lastPulseAt < GRAVITY_STORM_PULSE_MS) continue;
     zone.lastPulseAt = timestamp;
     for (const candidate of room.players.values()) {
+      // The caster owns the moving 2 m eye and must never be processed as a
+      // storm victim, even if coordinates are corrected between server ticks.
+      if (candidate.id === zone.ownerId) continue;
       if (!candidate.alive || candidate.ejected || candidate.inVent || distance(zone, candidate) > zone.radius) continue;
       const friendlyFire = Boolean(
         owner?.alive &&
@@ -17507,5 +17510,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "gravity-title-object-v432" });
+self.postMessage({ type: "ready", version: "storm-gold-sophia-v433" });
 })();

@@ -738,7 +738,7 @@ body.game-open .app-shell {
   z-index: 100;
   min-height: 100vh;
   overflow: hidden;
-  background: #10171c;
+  background: #bca17d;
 }
 
 .start-hero {
@@ -749,7 +749,13 @@ body.game-open .app-shell {
   object-fit: cover;
   object-position: center;
   transform-origin: 76% 58%;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
   animation: title-natural-camera 18s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+
+.start-screen.title-ready .start-hero {
+  opacity: 1;
 }
 
 .title-hero-atmosphere {
@@ -773,6 +779,8 @@ body.game-open .app-shell {
     radial-gradient(ellipse at 72% 48%, #000 0 10%, transparent 27%),
     radial-gradient(ellipse at 83% 58%, #000 0 7%, transparent 22%);
   animation: title-natural-atmosphere 6.8s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
+  animation-play-state: paused;
+  visibility: hidden;
 }
 
 .title-hero-character {
@@ -784,13 +792,20 @@ body.game-open .app-shell {
   object-fit: cover;
   object-position: center;
   pointer-events: none;
-  transform-origin: 72.5% 57%;
+  transform-origin: 72.5% 77%;
   -webkit-mask-image:
     radial-gradient(ellipse 18% 47% at 72.5% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
   mask-image:
     radial-gradient(ellipse 18% 47% at 72.5% 55%, #000 0 72%, rgba(0, 0, 0, 0.86) 82%, transparent 100%);
-  animation: title-character-breath 5.8s cubic-bezier(0.37, 0, 0.25, 1) infinite;
+  animation: title-character-breath 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation-play-state: paused;
+  visibility: hidden;
   will-change: transform, filter;
+}
+
+.start-screen.title-ready :is(.title-hero-character, .title-hero-atmosphere) {
+  animation-play-state: running;
+  visibility: visible;
 }
 
 .title-fx-canvas {
@@ -2943,9 +2958,9 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 }
 
 @keyframes title-character-breath {
-  0%, 100% { transform: translate3d(0, 0.28%, 0) scale(1, 0.997); filter: brightness(0.998); }
-  38% { transform: translate3d(0.09%, -0.62%, 0) scale(1.009, 1.015); filter: brightness(1.014); }
-  64% { transform: translate3d(-0.06%, -0.36%, 0) scale(1.005, 1.009); filter: brightness(1.007); }
+  0%, 100% { transform: translate3d(0, 0.04%, 0) scale(1); filter: brightness(1); }
+  42% { transform: translate3d(0, -0.10%, 0) scale(1.0015, 1.0025); filter: brightness(1.003); }
+  66% { transform: translate3d(0, -0.06%, 0) scale(1.001, 1.0016); filter: brightness(1.002); }
 }
 
 @media (prefers-reduced-motion: reduce) {

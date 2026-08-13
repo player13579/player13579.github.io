@@ -1127,7 +1127,6 @@ function renderHackerAbilityDock(data = state.data, force = false) {
       button.className = "alchemy-choice hacker-direct-action";
       button.id = `hackerDirectAction${index + 1}`;
       button.dataset.hackerRecipe = recipe.id;
-      button.dataset.repeatableAbility = "1";
       button.dataset.hackerCategory = category.id;
       button.dataset.alchemyChoice = recipe.id;
       button.dataset.atlasCell = source?.dataset.atlasCell || (recipe.kind === "invention" ? "3" : "1");
@@ -1143,12 +1142,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
         output: category.label,
         badge: `クールタイム ${Math.round(hackerRecipeCooldownMs(recipe) / 1000)}秒`,
         detail: recipe.output || "バイブコーディングで生成・適用する対象。"
-      }, els.hackerAbilityGrid, {
-        continuousLabel: "連続生成",
-        repeat: () => button.dataset.actionDisabled === "1"
-          ? false
-          : executeHackerRecipe(recipe.id)
-      });
+      }, els.hackerAbilityGrid);
       els.hackerAbilityGrid.append(button);
     });
     selectHackerAction(
@@ -1223,8 +1217,23 @@ function recordSoloMissionCompletion(missionId) {
 
 init();
 
+function prepareTitleHero() {
+  const reveal = () => els.startScreen.classList.add("title-ready");
+  if (!els.startHero) {
+    reveal();
+    return;
+  }
+  if (els.startHero.complete && els.startHero.naturalWidth > 0) {
+    els.startHero.decode?.().catch(() => {}).finally(reveal);
+    return;
+  }
+  els.startHero.addEventListener("load", reveal, { once: true });
+  els.startHero.addEventListener("error", reveal, { once: true });
+}
+
 function init() {
   applyStartupCommand();
+  prepareTitleHero();
   const savedName = localStorage.getItem(storage.name) || "";
   els.nameInput.value = savedName;
   els.roomInput.value = state.roomId || "";
@@ -2500,7 +2509,6 @@ function isContinuousGameActionButton(button) {
   return Boolean(
     button.dataset.repeatableAbility === "1" ||
     button.closest("#actionCommandRegistry") ||
-    button.closest("#hackerAbilityGrid") ||
     button.closest("#operatorBranchList")
   );
 }
@@ -2598,9 +2606,8 @@ function stopContinuousActionHold(pointerId = null) {
 function beginContinuousActionHold(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const button = event.target instanceof Element ? event.target.closest("button") : null;
-  // Hacker generation cards own their pointer hold so they can expose the
-  // continuous-generation/detail branch. Keyboard repetition still uses the
-  // shared ability hold loop.
+  // Hacker generation cards own their pointer hold for detail display. Vibe
+  // Coding generation is intentionally one-shot and never enters repeat.
   if (button?.closest("#hackerAbilityGrid")) return;
   if (!isContinuousGameActionButton(button)) return;
   event.preventDefault();
@@ -3657,9 +3664,9 @@ function triggerHackerHotkey(event) {
   if (hackerSelectionFocused && (event.key === "Enter" || event.code === "Space")) {
     event.preventDefault();
     if (!event.repeat) {
-      beginContinuousButtonKeyHold(event.code, () => els.hackerAbilityGrid.querySelector(
+      els.hackerAbilityGrid.querySelector(
         `[data-hacker-recipe="${CSS.escape(state.hackerSelectedRecipeId || "")}"]`
-      ));
+      )?.click();
     }
     return true;
   }
@@ -14764,7 +14771,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "gravity-title-object-v432";
+const version = "storm-gold-sophia-v433";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
