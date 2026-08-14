@@ -678,7 +678,7 @@ const alchemyRecipes = [
   { id: "mineral-water", label: "ミネラルウォーター", output: VENDING_PRODUCT_DESCRIPTIONS["mineral-water"], asset: "mineral-water" },
   { id: "antidote", label: "解毒剤", output: VENDING_PRODUCT_DESCRIPTIONS.antidote, asset: "antidote" },
   { id: "molotov", label: "火炎瓶", output: VENDING_PRODUCT_DESCRIPTIONS.molotov, asset: "molotov" },
-  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: "固有武器を生成 / 3MP / クールタイム90秒", asset: "orichalcum-sword" },
+  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: "固有武器を生成 / MP消費なし / クールタイム90秒", asset: "orichalcum-sword" },
   { id: "iai", label: "居合", output: VENDING_PRODUCT_DESCRIPTIONS.iai, asset: "iai" },
   { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "instant-evade" },
   { id: "vending-speed", label: "アクセラレート飲料", output: "移動速度 ×1.10（重複可）", asset: "instant-speed" },

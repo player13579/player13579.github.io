@@ -6639,7 +6639,6 @@ const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const IAI_STAMINA_EQUIVALENT_COST = 200;
 const IAI_VENDING_COST = 100;
 const ORICHALCUM_SWORD_VENDING_COST = 200;
-const ORICHALCUM_SWORD_HACKER_MANA_COST = 3;
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
 const FIGHTER_SHOCKWAVE_ORIGIN_OFFSET = 20;
@@ -6924,7 +6923,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで生成候補を選び、資源、所持品、永続オブジェクト、オペ能力を生成する。対象のクレジット・アイテム・HP・マナは削除または増殖でき、実行後はクールタイムが発生する。オリハルコン・ソード生成だけは3MPを正確に消費し、短縮前の最終クールタイムは90秒。パッシブ「マナGPU」は再使用待機中に毎秒0.025MPを自動消費し、1MPにつき残りクールタイムを20秒短縮する。パッシブ「ハック」で他人の位置を常時把握し、タスクを時間経過で自動完了する。手動タスクも実行でき、自身のスマホはハッキングされない。"
+      details: "バイブコーディングで生成候補を選び、資源、所持品、永続オブジェクト、オペ能力を生成する。対象のクレジット・アイテム・HP・マナは削除または増殖でき、生成時のMP消費はなく、実行後はクールタイムが発生する。オリハルコン・ソードの短縮前の最終クールタイムは90秒。パッシブ「マナGPU」は再使用待機中に毎秒0.025MPを自動消費し、1MPにつき残りクールタイムを20秒短縮する。パッシブ「ハック」で他人の位置を常時把握し、タスクを時間経過で自動完了する。手動タスクも実行でき、自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -9980,12 +9979,12 @@ function taskStaminaCostFor() {
   return TASK_STAMINA_REQUIREMENT;
 }
 
-function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
+function setMana(room, player, rawMana, sourceLabel = "") {
   const timestamp = now();
   const previousRaw = Math.round((Number(player.mana) || 0) * 100) / 100;
   const previous = previousRaw <= 0 ? DESIRE_RESOURCE_DEBT : previousRaw;
   const rawRequested = Math.round((Number(rawMana) || 0) * 100) / 100;
-  const requested = !options.ignoreSunkCost && player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
+  const requested = player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
   const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
@@ -10025,14 +10024,14 @@ function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
   return next;
 }
 
-function spendMana(room, player, amount, label, options = {}) {
+function spendMana(room, player, amount, label) {
   const cost = Math.max(0, Number(amount) || 0);
   if (hasFighterInfiniteResources(player)) return false;
-  if (isHackerOperator(player) && !options.allowHacker) return false;
+  if (isHackerOperator(player)) return false;
   if ((Number(player.mana) || 0) < cost) {
     throw new ApiError(400, `${label}にはマナ ${cost} が必要です。`);
   }
-  setMana(room, player, (Number(player.mana) || 0) - cost, label, { ignoreSunkCost: Boolean(options.exact) });
+  setMana(room, player, (Number(player.mana) || 0) - cost, label);
 }
 
 function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
@@ -14327,7 +14326,7 @@ function useFloraAbility(room, player, mode, options = {}) {
 }
 
 const ALCHEMY_RECIPES = {
-  "orichalcum-sword": { label: "オリハルコン・ソード", cost: ORICHALCUM_SWORD_HACKER_MANA_COST, apply: (_room, player) => addItem(player, "orichalcum-sword") },
+  "orichalcum-sword": { label: "オリハルコン・ソード", cost: 0, apply: (_room, player) => addItem(player, "orichalcum-sword") },
   stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
   heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(1, player.overheal); pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
   fire: { label: "火遁の術", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
@@ -14535,15 +14534,6 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   const recipe = ALCHEMY_RECIPES[conversion];
   if (!recipe) {
     throw new ApiError(400, `生成先が不正です。画面を更新して再選択してください（${conversion || "未選択"}）。`);
-  }
-  if (conversion === "orichalcum-sword") {
-    if (Number(player.mana) < ORICHALCUM_SWORD_HACKER_MANA_COST) {
-      throw new ApiError(400, `オリハルコン・ソード生成には${ORICHALCUM_SWORD_HACKER_MANA_COST}MPが必要です。`);
-    }
-    spendMana(room, player, ORICHALCUM_SWORD_HACKER_MANA_COST, "オリハルコン・ソード生成", {
-      allowHacker: true,
-      exact: true
-    });
   }
   recipe.apply(room, player, targetId);
   player.vibeCodingCooldownMs = vibeCodingCooldownMsFor(conversion);
