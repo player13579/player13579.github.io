@@ -1794,17 +1794,89 @@ function drawTitleGodRays(timestamp, modeAlpha) {
   }
 
   const sourceGlow = titleHeroPoint(0.905, 0.12);
-  const sourcePulse = 0.72 + Math.sin(sampledTime * 0.43) * 0.08;
+  const flareBreath = 0.5 + Math.sin(sampledTime * 0.43) * 0.5;
+  const flareAccent = Math.pow(Math.max(0, Math.sin(sampledTime * 0.91 + 0.35)), 10);
+  const sourcePulse = 0.66 + flareBreath * 0.2 + flareAccent * 0.34;
   const glowRadius = Math.min(state.titleFx.width, state.titleFx.height) * 0.19;
   const glow = titleFxCtx.createRadialGradient(sourceGlow.x, sourceGlow.y, 0, sourceGlow.x, sourceGlow.y, glowRadius);
-  glow.addColorStop(0, `rgba(255, 253, 230, ${0.1 * sourcePulse * modeAlpha})`);
-  glow.addColorStop(0.42, `rgba(255, 244, 205, ${0.045 * sourcePulse * modeAlpha})`);
+  glow.addColorStop(0, `rgba(255, 255, 238, ${0.16 * sourcePulse * modeAlpha})`);
+  glow.addColorStop(0.18, `rgba(255, 250, 218, ${0.095 * sourcePulse * modeAlpha})`);
+  glow.addColorStop(0.48, `rgba(255, 240, 190, ${0.048 * sourcePulse * modeAlpha})`);
   glow.addColorStop(1, "rgba(255, 238, 188, 0)");
   titleFxCtx.globalAlpha = 1;
   titleFxCtx.fillStyle = glow;
   titleFxCtx.beginPath();
   titleFxCtx.arc(sourceGlow.x, sourceGlow.y, glowRadius, 0, Math.PI * 2);
   titleFxCtx.fill();
+
+  const flareCoreRadius = glowRadius * (0.12 + flareAccent * 0.035);
+  const flareCore = titleFxCtx.createRadialGradient(
+    sourceGlow.x,
+    sourceGlow.y,
+    0,
+    sourceGlow.x,
+    sourceGlow.y,
+    flareCoreRadius
+  );
+  flareCore.addColorStop(0, `rgba(255, 255, 248, ${0.42 * sourcePulse * modeAlpha})`);
+  flareCore.addColorStop(0.36, `rgba(255, 244, 192, ${0.2 * sourcePulse * modeAlpha})`);
+  flareCore.addColorStop(1, "rgba(255, 224, 132, 0)");
+  titleFxCtx.fillStyle = flareCore;
+  titleFxCtx.beginPath();
+  titleFxCtx.ellipse(
+    sourceGlow.x,
+    sourceGlow.y,
+    flareCoreRadius * (1.8 + flareAccent * 0.32),
+    flareCoreRadius * 0.62,
+    -0.42,
+    0,
+    Math.PI * 2
+  );
+  titleFxCtx.fill();
+  titleFxCtx.restore();
+}
+
+function titleGoldenSeed(index, salt) {
+  const value = Math.sin((index + 1) * (12.9898 + salt * 17.123)) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function drawTitleGoldenParticles(timestamp, modeAlpha) {
+  const sampledTime = Math.floor(timestamp / (1000 / 60)) / 60;
+  const clipStart = Math.max(state.titleFx.width * 0.46, titleHeroPoint(0.36, 0.5).x);
+  const travelHeight = Math.max(180, state.titleFx.height * 0.58);
+
+  titleFxCtx.save();
+  titleFxCtx.beginPath();
+  titleFxCtx.rect(clipStart, 0, Math.max(0, state.titleFx.width - clipStart), state.titleFx.height);
+  titleFxCtx.clip();
+  titleFxCtx.globalCompositeOperation = "lighter";
+
+  for (let index = 0; index < 18; index += 1) {
+    const seedA = titleGoldenSeed(index, 0.17);
+    const seedB = titleGoldenSeed(index, 0.63);
+    const seedC = titleGoldenSeed(index, 1.21);
+    const duration = 4.6 + seedB * 3.8;
+    const progress = (sampledTime / duration + seedA) % 1;
+    const origin = titleHeroPoint(0.64 + seedB * 0.27, 0.94 + seedC * 0.035);
+    const lateralDrift = Math.sin(progress * Math.PI * 2 + seedC * Math.PI * 2) * (5 + seedB * 11)
+      + Math.sin(progress * Math.PI * 5 + seedA * 4) * 2.5;
+    const x = origin.x + lateralDrift + (progress - 0.5) * (seedA - 0.5) * 18;
+    const y = origin.y - progress * travelHeight * (0.72 + seedC * 0.38);
+    const envelope = Math.pow(Math.sin(Math.PI * progress), 1.35) * modeAlpha;
+    const twinkle = 0.7 + Math.sin(sampledTime * (1.7 + seedC) + seedA * 8) * 0.3;
+    const radius = 1.35 + seedB * 2.15;
+    const glowRadius = radius * (3.1 + seedC * 1.6);
+    const gradient = titleFxCtx.createRadialGradient(x, y, 0, x, y, glowRadius);
+    gradient.addColorStop(0, `rgba(255, 255, 238, ${0.96 * envelope * twinkle})`);
+    gradient.addColorStop(0.2, `rgba(255, 231, 128, ${0.82 * envelope})`);
+    gradient.addColorStop(0.56, `rgba(255, 184, 62, ${0.28 * envelope})`);
+    gradient.addColorStop(1, "rgba(255, 159, 38, 0)");
+    titleFxCtx.fillStyle = gradient;
+    titleFxCtx.beginPath();
+    titleFxCtx.ellipse(x, y, glowRadius * 0.72, glowRadius, seedC - 0.5, 0, Math.PI * 2);
+    titleFxCtx.fill();
+  }
   titleFxCtx.restore();
 }
 
@@ -1828,6 +1900,7 @@ function drawTitleEffects(timestamp) {
   state.titleFx.routeGlints = state.titleFx.routeGlints.filter((glint) => timestamp - glint.startedAt < glint.duration);
   state.titleFx.atmosphere = state.titleFx.atmosphere.filter((particle) => timestamp - particle.startedAt < particle.duration);
   drawTitleGodRays(timestamp, modeAlpha);
+  drawTitleGoldenParticles(timestamp, modeAlpha);
   titleFxCtx.save();
   titleFxCtx.globalCompositeOperation = "lighter";
   for (const glint of state.titleFx.routeGlints) {
@@ -14921,7 +14994,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "title-godray-sway-v441";
+const version = "title-flare-gold-v442";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

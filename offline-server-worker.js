@@ -17558,5 +17558,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "title-godray-sway-v441" });
+self.postMessage({ type: "ready", version: "title-flare-gold-v442" });
 })();
