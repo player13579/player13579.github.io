@@ -4530,7 +4530,7 @@ function bindEvents() {
       event.preventDefault();
     }
   });
-  const fullscreenScrollSelector = ".tablet-branch-list, .hacker-ability-grid, .active-effects-list, .item-inventory-grid, .vending-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .keybind-list";
+  const fullscreenScrollSelector = ".tablet-branch-list, .hacker-ability-grid, .active-effects-panel, .item-inventory-grid, .vending-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .keybind-list";
   const fullscreenSwipeGuard = createFullscreenSwipeGuard({
     isActive: () => state.screen === "game",
     resolveScrollable: (target) => target instanceof Element ? target.closest(fullscreenScrollSelector) : null
@@ -8292,7 +8292,11 @@ function collectOperatorPassiveEffects(self, liveNow) {
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
     const destruction = self.fighterDestructionSlash ? " / 斬る: 常時破壊" : "";
-    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${destruction} / ${formatEffectCountdown(energyWait)}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後は斬るが常に対象を破壊する");
+    const recentCharge = self.lastImmediateFeedback?.label === "エネルギーチャージ" &&
+      liveNow - Number(self.lastImmediateFeedback.at || 0) < 6500
+      ? ` / 最新: ${self.lastImmediateFeedback.detail}`
+      : "";
+    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${destruction} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後は斬るが常に対象を破壊する");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -8334,7 +8338,7 @@ function renderActiveEffects(data) {
   };
 
   const immediate = self.lastImmediateFeedback;
-  if (immediate?.at && liveNow - immediate.at < 6500) {
+  if (immediate?.at && liveNow - immediate.at < 6500 && immediate.label !== "エネルギーチャージ") {
     add(immediate.label, "完了", "instant", immediate.detail);
   }
 
@@ -12170,11 +12174,20 @@ function drawGunnerActionEffect(effect, progress) {
     const direction = cardinalDirectionVector(dx, dy);
     const unitX = direction.dx;
     const unitY = direction.dy;
-    const muzzleOffset = ({ handgun: 28, smg: 35, assault: 43, sniper: 55, taser: 30 })[effect.variant] || 34;
+    const muzzle = ({
+      handgun: { forward: 29, height: -32 },
+      smg: { forward: 37, height: -34 },
+      assault: { forward: 43, height: -36 },
+      sniper: { forward: 57, height: -37 },
+      taser: { forward: 31, height: -32 }
+    })[effect.variant] || { forward: 35, height: -34 };
     const flashLength = ({ handgun: 42, smg: 48, assault: 56, sniper: 72, taser: 40 })[effect.variant] || 46;
     const flashHeight = ({ handgun: 34, smg: 38, assault: 42, sniper: 48, taser: 34 })[effect.variant] || 38;
-    const startX = effect.x + unitX * muzzleOffset;
-    const startY = effect.y + unitY * muzzleOffset;
+    const horizontalShot = unitX !== 0;
+    const bodyAnchorX = horizontalShot ? 0 : unitY < 0 ? 8 : -8;
+    const bodyAnchorY = horizontalShot ? muzzle.height : unitY < 0 ? -43 : -10;
+    const startX = effect.x + bodyAnchorX + unitX * muzzle.forward;
+    const startY = effect.y + bodyAnchorY + unitY * muzzle.forward;
     ctx.translate(startX, startY);
     ctx.rotate(Math.atan2(unitY, unitX));
     drawAnimatedTextureCentered(sprite, flashLength / 2, 0, flashLength, flashHeight + pulse * 8, {
@@ -13604,6 +13617,13 @@ function drawPetSprite(player, data, ghost) {
   const direction = { down: 0, left: 1, right: 2, up: 3 }[facing] ?? 0;
   const frame = walkAnimationFrame(player, motion);
   if (skinId === "blue-dress") {
+    const walkAtlasSource = state.textures.playerWalkAtlases?.[skinId];
+    const walkAtlas = walkAtlasSource ? transparentSpriteSource(walkAtlasSource, `skinWalk60-${skinId}`, 12) : null;
+    if (walkAtlas) {
+      drawBlendedWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94);
+      drawNameplate(player, ghost, -78);
+      return true;
+    }
     const skinSet = state.textures.playerSkins[skinId];
     const directional = transparentSpriteSource(skinSet?.[direction], `playerSkin-${skinId}-${direction}`, 24);
     if (directional && drawStandaloneWalkFrame(directional, `playerSkin-${skinId}-${direction}`, frame, -47, -63, 94, 94)) {
@@ -14800,7 +14820,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "persistent-fighter-motion-v437";
+const version = "gold-coin-sophia-muzzle-v438";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -14945,6 +14965,7 @@ const version = "persistent-fighter-motion-v437";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const creditGainCoinsEffect = new Image();
+  const blueDressWalk60 = new Image();
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
   ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-ingot-v436.png" : `assets/generated/item-${id}.webp`)]));
@@ -15017,7 +15038,7 @@ const version = "persistent-fighter-motion-v437";
   defer(bottleShardEffect, "assets/generated/effect-bottle-shards.webp");
   defer(footBathSparkleEffect, "assets/generated/effect-footbath-hidden-spring-godray-v359.png");
   for (const [id, entry] of Object.entries(mapObjectEffectTextures)) {
-    defer(entry, id === "credits" ? "assets/generated/object-effect-credits-v429.png" : `assets/generated/object-effect-${id}-v327.png`);
+    defer(entry, id === "credits" ? "assets/generated/object-effect-credits-v438.png" : `assets/generated/object-effect-${id}-v327.png`);
   }
   defer(itemStaminaCell, "assets/generated/item-stamina-cell.webp");
   defer(creditCrates, "assets/generated/credit-crates.png");
@@ -15035,7 +15056,8 @@ const version = "persistent-fighter-motion-v437";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
-  defer(creditGainCoinsEffect, "assets/generated/object-effect-credits-v429.png");
+  defer(creditGainCoinsEffect, "assets/generated/object-effect-credits-v438.png");
+  defer(blueDressWalk60, "assets/generated/skin-blue-dress-walk-60.webp");
   defer(physicalActionAtlases["white-hood"], "assets/generated/physical-action-atlas-white-hood.webp?v=focus-sd-v308");
   defer(physicalActionAtlases["blue-dress"], "assets/generated/physical-action-atlas-blue-dress.webp");
   defer(physicalActionAtlases["male-bot"], "assets/generated/physical-action-atlas-male-bot.webp");
@@ -15067,7 +15089,7 @@ const version = "persistent-fighter-motion-v437";
     operatorsWalk,
     playerMaster,
     playerSkins,
-    playerWalkAtlases: {},
+    playerWalkAtlases: { "blue-dress": blueDressWalk60 },
     playerWalk60,
     blueDressMaster,
     killCutinMaster,

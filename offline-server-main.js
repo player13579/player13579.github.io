@@ -6853,7 +6853,8 @@ const GRAVITY_TIME_SCALE_FAST = ACCELERATE_SPEED_MULTIPLIER;
 const GRAVITY_TIME_SCALE_SLOW = 0.38;
 const BOT_HEARING_MEMORY_MS = 5000;
 const BOT_STAND_FIRM_RETALIATION_MS = 30_000;
-const BOT_KILL_WITNESS_RANGE = 760;
+const BOT_KILL_WITNESS_RANGE = 340;
+const BOT_BODY_NOTICE_RANGE = 760;
 const MODERATION_DIR = path.join(__dirname, "data");
 const MODERATION_FILE = path.join(MODERATION_DIR, "moderation.json");
 const PLAYER_PROFILE_FILE = path.join(MODERATION_DIR, "player-profiles.json");
@@ -17060,7 +17061,7 @@ function runBotBodyReport(room, bot) {
   if (!body) return false;
   const bodyDistance = distance(bot, body);
   if (bodyDistance > reportRange) {
-    if (bodyDistance > BOT_KILL_WITNESS_RANGE) return false;
+    if (bodyDistance > BOT_BODY_NOTICE_RANGE) return false;
     const dx = body.x - bot.x;
     const dy = body.y - bot.y;
     const length = Math.hypot(dx, dy) || 1;
@@ -17552,7 +17553,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "persistent-fighter-motion-v437",
+  version: "gold-coin-sophia-muzzle-v438",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

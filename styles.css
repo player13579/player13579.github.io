@@ -2323,6 +2323,13 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   padding: 9px;
   margin: 0 0 10px;
   color: #e8f4f8;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.active-effects-list {
+  touch-action: pan-y;
 }
 
 .active-effects-panel.effects-scrollable {
