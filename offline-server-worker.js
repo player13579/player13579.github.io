@@ -6633,10 +6633,11 @@ const FIGHTER_SLASH_GUARD_DURATION_MS = 700;
 const FIGHTER_SLASH_PERFECT_GUARD_MS = 140;
 const FIGHTER_SLASH_PERFECT_REARM_MS = 1_100;
 const FIGHTER_ENERGY_CHARGE_MANA_COST = 1;
-const FIGHTER_PUSH_CHARGE_THRESHOLD = 25;
-const FIGHTER_PUSH_CHARGE_REWARD = 2;
+const FIGHTER_IAI_REWARD_THRESHOLD = 25;
 const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 50;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
+const IAI_STAMINA_EQUIVALENT_COST = 200;
+const IAI_VENDING_COST = 100;
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
 const FIGHTER_SHOCKWAVE_ORIGIN_OFFSET = 20;
@@ -6868,8 +6869,8 @@ const OPERATORS = {
       special: "fighter",
       limit: 99,
       asset: "fighter",
-      description: "エネルギーチャージ、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積25回ごとに押し込みを2つ獲得する。50回到達後はMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、ジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      description: "EC、斬る、キルカウンター、リミットブレイクを併せ持つ。",
+      details: "12秒ごとに1MPを自動消費してECを1回進め、1回につき斬るか投擲で使う衝撃波を1発獲得する。EC25回到達時に使い切りアイテム居合を1個獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。50回到達後はMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、ジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -6934,6 +6935,7 @@ const ITEM_DEFINITIONS = Object.freeze({
   "mineral-water": Object.freeze({ id: "mineral-water", label: "ミネラルウォーター", asset: "mineral-water", throwable: true }),
   antidote: Object.freeze({ id: "antidote", label: "解毒剤", asset: "antidote", throwable: true }),
   molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true }),
+  iai: Object.freeze({ id: "iai", label: "居合", asset: "iai", throwable: true }),
   ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true }),
   "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true })
 });
@@ -9761,19 +9763,19 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   }
   player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
   if (!isHackerOperator(player) && Number(player.mana) < FIGHTER_ENERGY_CHARGE_MANA_COST) return false;
-  spendMana(room, player, FIGHTER_ENERGY_CHARGE_MANA_COST, "エネルギーチャージ");
+  spendMana(room, player, FIGHTER_ENERGY_CHARGE_MANA_COST, "EC");
   const next = Math.max(0, Math.floor(Number(player.fighterEnergyCharge) || 0)) + 1;
   player.fighterEnergyCharge = next;
   player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0)) + 1;
   let reward = `衝撃波 ×${player.fighterShockwaveCharges}`;
-  if (next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0) {
-    for (let count = 0; count < FIGHTER_PUSH_CHARGE_REWARD; count += 1) grantPushCharge(player, false);
-    pushMagicEffect(room, "fighter-energy-push-milestone", player, {
+  if (next === FIGHTER_IAI_REWARD_THRESHOLD) {
+    addItem(player, "iai");
+    pushMagicEffect(room, "fighter-energy-iai-milestone", player, {
       radius: 118,
       playerId: player.id,
-      variant: `${next}:push-${player.reasonCharges}`
+      variant: `${next}:iai-${itemCount(player, "iai")}`
     });
-    reward += " / 押し込み×2獲得";
+    reward += " / 居合×1獲得";
   }
   if (next === FIGHTER_INFINITE_RESOURCE_THRESHOLD) {
     syncFighterInfiniteResources(player);
@@ -9789,8 +9791,8 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     playerId: player.id,
     variant: `${next}:shockwave-${player.fighterShockwaveCharges}`
   });
-  setImmediateFeedback(player, "エネルギーチャージ", reward);
-  pushEvent(room, `${player.name} がエネルギーを自動チャージし、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みを2獲得しました" : ""}${next === FIGHTER_INFINITE_RESOURCE_THRESHOLD ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
+  setImmediateFeedback(player, "EC", reward);
+  pushEvent(room, `${player.name} のECが1回進み、衝撃波を1発獲得しました${next === FIGHTER_IAI_REWARD_THRESHOLD ? "。EC25回到達報酬として居合を1個獲得しました" : ""}${next === FIGHTER_INFINITE_RESOURCE_THRESHOLD ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -11804,7 +11806,7 @@ function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp =
     pushEvent(room, `${target.name} が${label}をジャストガードし、${source?.name || "攻撃元"}へ反射しました。`);
   } else if (universalPerfect) {
     setImmediateFeedback(target, "50回到達ジャストガード", `${label}を反射（攻撃元なし）`);
-    pushEvent(room, `${target.name} がエネルギーチャージ50回到達後のジャストガードで${label}を弾き返しました。反射可能な攻撃元はありませんでした。`);
+    pushEvent(room, `${target.name} がEC50回到達後のジャストガードで${label}を弾き返しました。反射可能な攻撃元はありませんでした。`);
   } else {
     setImmediateFeedback(target, perfect ? "ジャストガード" : "斬る・ガード", `${label}を無効化`);
     pushEvent(room, `${target.name} が斬るで${label}をガードしました。`);
@@ -11842,7 +11844,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
     const destructionGuardOutcome = destructionSlash
       ? resolveFighterSlashGuard(room, player, target, {
           kind: "slash",
-          label: "エネルギーチャージ50回到達後の斬る",
+          label: "EC50回到達後の斬る",
           physical: true,
           reflectable: true,
           destroy: true,
@@ -11850,7 +11852,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
         }, timestamp)
       : "";
     const outcome = destructionSlash
-      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "エネルギーチャージ50回到達後の斬る", {
+      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "EC50回到達後の斬る", {
           noKillCutin: false,
           ignorePreparationBarrier: true,
           ignoreInfiniteResources: true,
@@ -12316,7 +12318,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
     applyEmpDisruption(room, target, timestamp);
     syncFighterInfiniteResources(target);
     pushHitEffect(room, target, "body", false);
-    pushEvent(room, `${target.name} はエネルギーチャージ50回到達報酬により、リミットブレイク中のEMP確殺を無効化しました。`);
+    pushEvent(room, `${target.name} はEC50回到達報酬により、リミットブレイク中のEMP確殺を無効化しました。`);
     return false;
   }
   recordBotMatchElimination(room, target, source);
@@ -12709,7 +12711,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
     syncFighterInfiniteResources(target);
     pushHitEffect(room, target, "body", false);
     setImmediateFeedback(target, "到達報酬", "リミットブレイクの被確殺デメリットを解除 / EMP確殺無効");
-    pushEvent(room, `${target.name} はエネルギーチャージ50回到達報酬により、${reason}の確殺を無効化しました。`);
+    pushEvent(room, `${target.name} はEC50回到達報酬により、${reason}の確殺を無効化しました。`);
     return false;
   }
   recordBotMatchElimination(room, target, source);
@@ -13251,6 +13253,7 @@ function purchaseDrink(room, player, itemId) {
     lead: { label: "鉛瓶", cost: 16, apply: () => { addItem(player, "lead"); } },
     uranium: { label: "ウラン容器", cost: 120, apply: () => { addItem(player, "uranium"); } },
     plutonium: { label: "プルトニウム容器", cost: 160, apply: () => { addItem(player, "plutonium"); } },
+    iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { addItem(player, "iai"); } },
     ice: { label: "氷結水", cost: 14, apply: () => { addItem(player, "ice"); } },
     "heated-water": { label: "高温水", cost: 14, apply: () => { addItem(player, "heated-water"); } },
     evade: { label: "回避拡張", cost: 10, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
@@ -13415,6 +13418,106 @@ function resolveEnhance(room, player, rawHoldMs, label) {
   const level = Math.min(requested, available);
   if (level > 0) spendMana(room, player, level, `${label}・エンハンス`);
   return level;
+}
+
+function iaiTargetFor(room, source, origin = source, range = room.settings.killRange) {
+  const targetRole = attackTargetRole(source);
+  return [...room.players.values()]
+    .filter((target) => (
+      target.id !== source.id &&
+      target.role === targetRole &&
+      target.alive &&
+      !target.ejected &&
+      !hasFighterInfiniteResources(target) &&
+      Math.max(0, Math.floor(Number(target.gritCharges) || 0)) > 0 &&
+      distance(origin, target) <= Math.max(0, Number(range) || 0)
+    ))
+    .sort((a, b) => distance(origin, a) - distance(origin, b))[0] || null;
+}
+
+function settleIaiResourceCost(room, player) {
+  if (hasFighterInfiniteResources(player)) {
+    return { fatal: false, staminaSpent: 0, manaSpent: 0, infinite: true };
+  }
+  const stamina = Math.max(0, Number(player.stamina) || 0);
+  const mana = Math.max(0, Number(player.mana) || 0);
+  const staminaSpent = Math.min(IAI_STAMINA_EQUIVALENT_COST, stamina);
+  const manaSpent = Math.max(0, (IAI_STAMINA_EQUIVALENT_COST - staminaSpent) / STAMINA_TO_MANA_COST);
+  if (mana + 0.0001 < manaSpent) {
+    player.stamina = 0;
+    player.mana = 0;
+    player.staminaUpdatedAt = now();
+    destroyPlayerUnconditionally(room, player, player, "居合の資源不足", {
+      bypassSlashGuard: true,
+      ignoreInfiniteResources: true,
+      ignorePreparationBarrier: true,
+      ignoreFriendlyFire: true,
+      noKillCutin: true
+    });
+    setImmediateFeedback(player, "居合", `200SP相当不足 / SP${Math.round(stamina)} + MP${Math.round(mana * 100) / 100}`);
+    return { fatal: true, staminaSpent: stamina, manaSpent: mana, infinite: false };
+  }
+
+  const nextStamina = Math.max(0, stamina - staminaSpent);
+  const nextMana = Math.max(0, mana - manaSpent);
+  if (nextStamina <= 0 || nextMana <= 0) {
+    enterDesireState(room, player, "居合");
+  } else {
+    player.stamina = nextStamina;
+    player.staminaUpdatedAt = now();
+    setMana(room, player, nextMana, "居合");
+  }
+  return { fatal: false, staminaSpent, manaSpent, infinite: false };
+}
+
+function applyIaiStandFirmBreak(room, source, target, level = 0, origin = source) {
+  const removed = Math.max(0, Math.floor(Number(target.gritCharges) || 0));
+  if (!removed || hasFighterInfiniteResources(target)) return 0;
+  target.gritCharges = 0;
+  pushMagicEffect(room, "iai-stand-firm-break", target, {
+    radius: 118 + Math.max(0, Number(level) || 0) * 14,
+    playerId: source.id,
+    targetId: target.id,
+    targetX: Number(origin?.x) || source.x,
+    targetY: Number(origin?.y) || source.y,
+    variant: `removed-${removed}:enhance-${Math.max(0, Number(level) || 0)}`,
+    durationMs: 920
+  });
+  pushEvent(room, `${source.name} の居合が${target.name}の踏ん張り${removed}個を全て削除しました。`);
+  return removed;
+}
+
+function useIai(room, player, rawHoldMs = 0) {
+  const requestedLevel = Math.min(ENHANCE_MAX_LEVEL, Math.floor(Math.max(0, Number(rawHoldMs) || 0) / ENHANCE_HOLD_STEP_MS));
+  const previewLevel = Math.min(requestedLevel, Math.max(0, Math.floor(Number(player.mana) || 0)));
+  const range = room.settings.killRange + previewLevel * 32;
+  const target = iaiTargetFor(room, player, player, range);
+  if (!target) throw new ApiError(404, "効果範囲内に有限の踏ん張りを持つ敵がいません。");
+  const level = resolveEnhance(room, player, rawHoldMs, "居合");
+  consumeItem(player, "iai");
+  const resource = settleIaiResourceCost(room, player);
+  if (resource.fatal) {
+    checkWin(room);
+    touch(room);
+    return;
+  }
+  pushMagicEffect(room, "action-iai", player, {
+    radius: 92,
+    playerId: player.id,
+    targetId: target.id,
+    targetX: target.x,
+    targetY: target.y,
+    variant: `enhance-${level}`,
+    durationMs: 780
+  });
+  const removed = applyIaiStandFirmBreak(room, player, target, level, player);
+  const costText = resource.infinite
+    ? "EC50報酬により資源消費なし"
+    : `SP${Math.round(resource.staminaSpent)} / MP${Math.round(resource.manaSpent * 100) / 100}`;
+  setImmediateFeedback(player, "居合", `${target.name} / 踏ん張り${removed}個削除 / ${costText}`);
+  pushSound(room, "fighterSlash", player, { ownerId: player.id, sourceKind: "iai", maxDistance: 1300, volume: 0.94 });
+  checkWin(room);
+  touch(room);
 }
 
 function clearBurning(room, player, source = "水") {
@@ -13710,7 +13813,12 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius) {
 function resolveThrownInventoryLanding(room, source, thrown, landing) {
   const { itemId, level } = thrown;
   const radius = 145 + level * 42;
-  if (["mercury", "lead", "uranium", "plutonium"].includes(itemId)) {
+  if (itemId === "iai") {
+    const target = iaiTargetFor(room, source, landing, radius);
+    if (target) applyIaiStandFirmBreak(room, source, target, level, landing);
+    else pushEvent(room, `${source.name} が投擲した居合は、有限の踏ん張りを持つ敵を効果範囲に捉えませんでした。`);
+    return;
+  } else if (["mercury", "lead", "uranium", "plutonium"].includes(itemId)) {
     const strength = {
       mercury: 1.15,
       lead: 0.95,
@@ -13762,7 +13870,7 @@ function resolveThrownItemLanding(room, thrown) {
     durationMs: 950
   });
   const label = thrown.item?.label || ITEM_DEFINITIONS[thrown.itemId]?.label || "アイテム";
-  pushEvent(room, `${label}は接地して破壊され、効果が発動しました。`);
+  pushEvent(room, thrown.itemId === "iai" ? `${label}は接地位置から効果を発動しました。` : `${label}は接地して破壊され、効果が発動しました。`);
   checkWin(room);
   touch(room);
 }
@@ -13785,6 +13893,17 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
   const landing = safeThrowPoint(room, player, targetX, targetY);
   if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   consumeItem(player, itemId);
+  if (itemId === "iai") {
+    const resource = settleIaiResourceCost(room, player);
+    if (resource.fatal) {
+      checkWin(room);
+      touch(room);
+      return;
+    }
+    setImmediateFeedback(player, "居合投擲", resource.infinite
+      ? "EC50報酬により資源消費なし"
+      : `SP${Math.round(resource.staminaSpent)} / MP${Math.round(resource.manaSpent * 100) / 100}`);
+  }
   queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, level);
 }
 
@@ -13807,6 +13926,7 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
   ensureItemStorageAvailable(player);
   const definition = ITEM_DEFINITIONS[itemId];
   if (!definition) throw new ApiError(400, "使用対象が不正です。");
+  if (itemId === "iai") return useIai(room, player, rawHoldMs);
   const level = resolveEnhance(room, player, rawHoldMs, definition.label);
   consumeItem(player, itemId);
   if (itemId === "mineral-water") {
@@ -14138,6 +14258,7 @@ const ALCHEMY_RECIPES = {
   "mineral-water": { label: "ミネラルウォーター", cost: 0, apply: (_room, player) => addItem(player, "mineral-water") },
   antidote: { label: "解毒剤", cost: 0, apply: (_room, player) => addItem(player, "antidote") },
   molotov: { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
+  iai: { label: "居合", cost: 1, apply: (_room, player) => addItem(player, "iai") },
   "vending-evade": { label: "回避拡張", cost: 0, apply: (_room, player) => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
   "vending-speed": { label: "アクセラレート飲料", cost: 0, apply: (_room, player) => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
   "vending-mystery": { label: "ミステリー", cost: 0, apply: (room, player) => applyMysteryDrink(room, player) },
@@ -14369,7 +14490,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   }
   if (!options.ignoreInfiniteResources && hasFighterInfiniteResources(target)) {
     syncFighterInfiniteResources(target);
-    pushEvent(room, `${target.name} はエネルギーチャージ50回到達により破壊を無効化しました。`);
+    pushEvent(room, `${target.name} はEC50回到達により破壊を無効化しました。`);
     return false;
   }
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, now(), source)) return false;
@@ -18119,5 +18240,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "battle-continuity-vending-title-v448" });
+self.postMessage({ type: "ready", version: "fighter-iai-ec-v449" });
 })();

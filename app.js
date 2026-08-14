@@ -583,6 +583,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
   uranium: "量子制御の核分裂素材。通常使用は有害",
   plutonium: "量子制御の核分裂素材。通常使用は有害",
+  iai: "敵一人の有限の踏ん張りを全削除。200SP相当を消費し、SP不足分は150SP=1MPで補填。総量不足なら死亡",
   ice: "投擲できる低温変換済みの水",
   "heated-water": "投擲できる高温変換済みの水",
   rpg: "周囲を攻撃する使い切り重火器",
@@ -617,6 +618,7 @@ const VENDING_PRODUCT_LABELS = Object.freeze({
   lead: "鉛瓶",
   uranium: "ウラン容器",
   plutonium: "プルトニウム容器",
+  iai: "居合",
   ice: "氷結水",
   "heated-water": "高温水",
   rpg: "RPG",
@@ -651,6 +653,7 @@ const VENDING_PRODUCT_COSTS = Object.freeze({
   lead: 16,
   uranium: 120,
   plutonium: 160,
+  iai: 100,
   ice: 14,
   "heated-water": 14,
   rpg: 160,
@@ -672,6 +675,7 @@ const alchemyRecipes = [
   { id: "mineral-water", label: "ミネラルウォーター", output: VENDING_PRODUCT_DESCRIPTIONS["mineral-water"], asset: "mineral-water" },
   { id: "antidote", label: "解毒剤", output: VENDING_PRODUCT_DESCRIPTIONS.antidote, asset: "antidote" },
   { id: "molotov", label: "火炎瓶", output: VENDING_PRODUCT_DESCRIPTIONS.molotov, asset: "molotov" },
+  { id: "iai", label: "居合", output: VENDING_PRODUCT_DESCRIPTIONS.iai, asset: "iai" },
   { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "grit" },
   { id: "vending-speed", label: "アクセラレート飲料", output: "移動速度 ×1.10（重複可）", asset: "warp" },
   { id: "vending-mystery", label: "ミステリー", output: "幸運値に応じたランダム効果", asset: "reason" },
@@ -732,6 +736,7 @@ const generatedItemTextureFiles = new Map([
   ["molotov", { file: "item-molotov.webp" }],
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
+  ["iai", { file: "item-iai-v449.png" }],
   ["stamina", { file: "item-stamina-cell.webp" }],
   ["heal", { file: "item-heal.webp" }],
   ["fire", { file: "item-fire-jutsu.webp" }],
@@ -2050,6 +2055,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
 const CHARACTER_ACTION_DURATION = Object.freeze({
   attack: 520,
   slash: 620,
+  iai: 780,
   shoot: 260,
   reload: 760,
   evade: 560,
@@ -2066,6 +2072,7 @@ const CHARACTER_ACTION_DURATION = Object.freeze({
 const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   attack: 0,
   slash: 1,
+  iai: 0,
   shoot: 2,
   reload: 3,
   evade: 4,
@@ -2118,6 +2125,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-smartphone": "interact",
   "action-smartphone-repair": "interact",
   "action-vending": "interact",
+  "action-iai": "iai",
   "action-renki": "focus",
   "action-mana": "focus",
   "action-alchemy": "cast",
@@ -8206,11 +8214,11 @@ function collectOperatorPassiveEffects(self, liveNow) {
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
     const infinite = self.fighterInfiniteResources ? " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る: 常時破壊 / JG: 全攻撃反射" : "";
-    const recentCharge = self.lastImmediateFeedback?.label === "エネルギーチャージ" &&
+    const recentCharge = self.lastImmediateFeedback?.label === "EC" &&
       liveNow - Number(self.lastImmediateFeedback.at || 0) < 6500
       ? ` / 最新: ${self.lastImmediateFeedback.detail}`
       : "";
-    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後はMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、ジャストガードが全攻撃反射になる");
+    add("EC", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。EC25回到達時に使い切りの居合を1個獲得し、50回到達後はMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、ジャストガードが全攻撃反射になる");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -8252,7 +8260,7 @@ function renderActiveEffects(data) {
   };
 
   const immediate = self.lastImmediateFeedback;
-  if (immediate?.at && liveNow - immediate.at < 6500 && immediate.label !== "エネルギーチャージ") {
+  if (immediate?.at && liveNow - immediate.at < 6500 && immediate.label !== "EC") {
     add(immediate.label, "完了", "instant", immediate.detail);
   }
 
@@ -11758,13 +11766,14 @@ const GENERATED_EFFECT_TEXTURES = {
   "substitution": ["substitutionFieldEffect", 300],
   "limit-break": ["limitBreakFieldEffect", 360],
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
-  "fighter-energy-push-milestone": ["fighterPushDoubleMilestoneEffect", 250],
+  "fighter-energy-iai-milestone": ["itemIaiTexture", 210],
   "fighter-energy-destruction-milestone": ["fighterDestructionSlashMilestoneEffect", 290],
   "fighter-energy-destruction-slash": ["fighterDestructionSlashMilestoneEffect", 260],
   "fighter-energy-release": ["fighterEnergyReleaseEffect", 180],
   "fighter-energy-impact": ["fighterEnergyImpactEffect", 250],
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
   "fighter-push-acquired": ["pushMarkerEffect", 96],
+  "iai-stand-firm-break": ["iaiStandFirmBreakEffect", 250],
   "hacker-root": ["hackerRootRainbow", 190],
   "preparation-barrier-hit": ["preparationBarrierEffect", 220],
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
@@ -11884,6 +11893,9 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   const prepared = transparentSpriteSource(state.textures[textureKey], textureKey, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
   if (!sprite) return false;
+  if (effect.type === "iai-stand-firm-break") {
+    return drawIaiStandFirmBreakEffect(effect, progress, sprite, defaultSize);
+  }
   if (effect.type === "transfer-out" || effect.type === "transfer-in") {
     return drawTransferGeneratedEffect(effect, progress, sprite, defaultSize);
   }
@@ -11928,6 +11940,31 @@ function drawGeneratedStandaloneEffect(effect, progress) {
       drawGoldTransmutationStages(goldSprite, coinSprite, progress);
     }
   }
+  ctx.restore();
+  return true;
+}
+
+function drawIaiStandFirmBreakEffect(effect, progress, sprite, defaultSize) {
+  const cutArrival = objectEffectEase(clamp(progress / 0.16, 0, 1));
+  const fragmentRelease = objectEffectEase(clamp((progress - 0.1) / 0.48, 0, 1));
+  const fade = 1 - objectEffectEase(clamp((progress - 0.56) / 0.44, 0, 1));
+  const radiusSize = Number(effect.radius) > 0 ? Number(effect.radius) * 2.05 : defaultSize;
+  const size = Math.min(390, Math.max(defaultSize, radiusSize));
+  const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x - 1;
+  const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y + 1;
+  const sourceAngle = Math.atan2(effect.y - targetY, effect.x - targetX);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0, fade * (0.36 + cutArrival * 0.64));
+  ctx.translate(effect.x, effect.y);
+  ctx.rotate(sourceAngle - Math.PI / 4);
+  ctx.scale(0.72 + cutArrival * 0.28 + fragmentRelease * 0.08, 0.92 + fragmentRelease * 0.18);
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode: "impact",
+    progress: fragmentRelease,
+    intensity: 0.96,
+    baseAlpha: 0.12
+  });
   ctx.restore();
   return true;
 }
@@ -13080,7 +13117,7 @@ function physicalMotionRateFor(player) {
 }
 
 const ACCELERATION_READY_PHYSICAL_KINDS = new Set([
-  "focus", "rest", "power", "cast", "heal", "reload", "shoot", "interact", "enhance"
+  "focus", "rest", "power", "cast", "heal", "reload", "shoot", "interact", "enhance", "iai"
 ]);
 
 function accelerationReadyMotionDynamics(player, kind, motionId = kind) {
@@ -13419,6 +13456,12 @@ function physicalMotionSignature(motionId, kind) {
 function physicalActionFramePosition(kind, progress, motionId = kind) {
   const signature = physicalMotionSignature(motionId, kind);
   const value = clamp((progress - signature.lead) / Math.max(0.5, signature.release - signature.lead), 0, 1);
+  if (kind === "iai") {
+    if (value < 0.48) return objectEffectEase(value / 0.48) * 0.3;
+    if (value < 0.58) return 0.3 + objectEffectEase((value - 0.48) / 0.1) * 1.7;
+    if (value < 0.78) return 2;
+    return 2 - objectEffectEase((value - 0.78) / 0.22);
+  }
   if (kind === "attack" || kind === "slash") {
     if (value < 0.34) return objectEffectEase(value / 0.34) * 0.62;
     if (value < 0.58) return 0.62 + objectEffectEase((value - 0.34) / 0.24) * 1.38;
@@ -13446,7 +13489,17 @@ function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spa
   const facing = flip ? -1 : 1;
   const signature = physicalMotionSignature(motionId, kind);
   const motionScale = clamp(Number(spatialScale) || 0, 0.1, 1);
-  if (kind === "attack") {
+  if (kind === "iai") {
+    const anticipation = objectEffectEase(clamp(progress / 0.46, 0, 1));
+    const drawCut = objectEffectEase(clamp((progress - 0.43) / 0.13, 0, 1));
+    const resheath = objectEffectEase(clamp((progress - 0.62) / 0.38, 0, 1));
+    ctx.translate(
+      facing * (-anticipation * 3 + drawCut * 10 - resheath * 7) * motionScale,
+      (anticipation * 2 - drawCut * 3 + resheath * 1.5) * motionScale
+    );
+    ctx.rotate(facing * (-anticipation * 0.035 + drawCut * 0.08 - resheath * 0.045) * motionScale);
+    ctx.scale(1 - drawCut * 0.024 * motionScale, 1 + drawCut * 0.034 * motionScale);
+  } else if (kind === "attack") {
     ctx.translate(facing * impulse * 7 * motionScale, -impulse * 1.4 * motionScale);
     ctx.rotate(facing * impulse * 0.035 * motionScale);
   } else if (kind === "throw") {
@@ -14520,7 +14573,10 @@ function drawHud(data, w, h) {
   ctx.font = "900 11px Segoe UI, sans-serif";
   ctx.textAlign = "left";
   ctx.fillStyle = "#7dd3fc";
-  ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}`, 27, detailTop);
+  const fighterEcText = hasDisplayedOperatorAccess(self, "fighter")
+    ? `   EC ${Math.max(0, Math.floor(Number(self.fighterEnergyCharge) || 0))}`
+    : "";
+  ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}${fighterEcText}`, 27, detailTop);
   const drawReadyText = (label, remaining, x, y = detailTop + 19) => {
     const ready = remaining <= 0;
     ctx.save();
@@ -14826,7 +14882,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "battle-continuity-vending-title-v448";
+const version = "fighter-iai-ec-v449";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -14910,7 +14966,8 @@ const version = "battle-continuity-vending-title-v448";
   ]);
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
-  const fighterPushDoubleMilestoneEffect = new Image();
+  const itemIaiTexture = new Image();
+  const iaiStandFirmBreakEffect = new Image();
   const fighterDestructionSlashMilestoneEffect = new Image();
   const fighterEnergyReleaseEffect = new Image();
   const fighterEnergyImpactEffect = new Image();
@@ -15006,7 +15063,8 @@ const version = "battle-continuity-vending-title-v448";
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
-  defer(fighterPushDoubleMilestoneEffect, "assets/generated/fighter-push-double-milestone-v435.png");
+  defer(itemIaiTexture, "assets/generated/item-iai-v449.png");
+  defer(iaiStandFirmBreakEffect, "assets/generated/effect-iai-stand-firm-break-v449.png");
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
@@ -15112,7 +15170,8 @@ const version = "battle-continuity-vending-title-v448";
     droneAltitudeEffects,
     fighterSlashEffect,
     fighterEnergyChargeEffect,
-    fighterPushDoubleMilestoneEffect,
+    itemIaiTexture,
+    iaiStandFirmBreakEffect,
     fighterDestructionSlashMilestoneEffect,
     fighterEnergyReleaseEffect,
     fighterEnergyImpactEffect,
