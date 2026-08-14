@@ -565,9 +565,9 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   mystery: "幸運／直観に応じた強化または弱体",
   fire: "範囲へ継続燃焼。長押しで拡散",
   substitution: "次に受ける攻撃を無効化して転移",
-  grit: "次の確殺をボディダメージへ変換",
+  grit: "即席。獲得時に踏ん張り回数へ変換し、次の確殺をボディダメージへ変換",
   heal: "負傷回復。無傷時はオーバーヒール",
-  reason: "対象の踏ん張りを全無効化。数に応じ反動",
+  reason: "即席。獲得時に押し込み回数へ変換し、対象の踏ん張りを全無効化。数に応じ反動",
   mana: "マナを1回復",
   railgun: "遮蔽物を貫通する直線破壊射撃",
   "particle-cannon": "操作可能な破壊ビームを継続放射",
@@ -583,7 +583,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
   uranium: "量子制御の核分裂素材。通常使用は有害",
   plutonium: "量子制御の核分裂素材。通常使用は有害",
-  iai: "敵一人の有限の踏ん張りを全削除。200SP相当を消費し、SP不足分は150SP=1MPで補填。総量不足なら死亡",
+  iai: "即席。獲得時に居合の使用回数へ変換。敵一人の有限の踏ん張りを全削除し、200SP相当を消費。SP不足分は150SP=1MPで補填し、総量不足なら死亡。投擲・譲渡不可",
   ice: "投擲できる低温変換済みの水",
   "heated-water": "投擲できる高温変換済みの水",
   rpg: "周囲を攻撃する使い切り重火器",
@@ -667,7 +667,7 @@ const alchemyRecipes = [
   { id: "substitution", label: "変わり身の術", output: VENDING_PRODUCT_DESCRIPTIONS.substitution },
   { id: "warp", label: "即時ワープ", output: VENDING_PRODUCT_DESCRIPTIONS.warp },
   { id: "grit", label: "踏ん張り", output: VENDING_PRODUCT_DESCRIPTIONS.grit },
-  { id: "reason", label: "押し込み", output: "対象の踏ん張りを全無効化 / 1回につき自身へ0.5ダメージ" },
+  { id: "reason", label: "押し込み", output: VENDING_PRODUCT_DESCRIPTIONS.reason },
   { id: "mercury", label: "水銀瓶", output: VENDING_PRODUCT_DESCRIPTIONS.mercury, asset: "quantum-mercury" },
   { id: "lead", label: "鉛瓶", output: VENDING_PRODUCT_DESCRIPTIONS.lead, asset: "quantum-lead" },
   { id: "uranium", label: "ウラン容器", output: VENDING_PRODUCT_DESCRIPTIONS.uranium, asset: "quantum-uranium" },
@@ -7642,11 +7642,11 @@ function collectInventoryDisplayItems(self) {
     "instant-warp": VENDING_PRODUCT_DESCRIPTIONS.warp
   };
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
-    item && (!item.kind || ["item", "charge"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
+    item && (!item.kind || ["item", "charge", "instant"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
   ).map((item) => ({
     ...item,
-    inventoryKind: item.kind === "charge" ? "charge" : "item",
-    output: item.kind === "charge" ? "消耗品" : "所持品",
+    inventoryKind: item.kind === "instant" ? "instant" : item.kind === "charge" ? "charge" : "item",
+    output: item.kind === "instant" ? "即席" : item.kind === "charge" ? "消耗品" : "所持品",
     detail: chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲できる所持品",
     badge: `×${Number(item.amount) || 1}`
   }));
@@ -8102,7 +8102,7 @@ function renderItemControl(data) {
   const previousItem = els.itemSelect.value;
   const previousTarget = els.transferTargetSelect.value;
   const renderKey = JSON.stringify([
-    items.map((item) => [item.id, item.label, item.badge, item.asset, item.inventoryKind, item.output, item.detail]),
+    items.map((item) => [item.id, item.label, item.badge, item.asset, item.inventoryKind, item.output, item.detail, item.throwable, item.transferable]),
     targets.map((target) => [target.id, target.name]),
     self.credits
   ]);
@@ -8156,6 +8156,7 @@ function renderItemControl(data) {
   });
   const blocked = (Number(self.itemDisabledUntil) || 0) > estimatedServerNow(data);
   const canUse = Boolean(selected) && !blocked;
+  const selectedInstant = selected?.inventoryKind === "instant";
   const selectedWeaponReloading = selected?.inventoryKind === "weapon" &&
     selected.sourceId === self.gunnerReloadWeapon &&
     (Number(self.gunnerReloadUntil) || 0) > estimatedServerNow(data);
@@ -8163,12 +8164,14 @@ function renderItemControl(data) {
   els.transferCreditsAmount.max = String(Math.max(1, Math.floor(Number(self.credits) || 0)));
   els.itemUseButton.disabled = !canUse || selectedWeaponReloading;
   els.itemUseButton.hidden = false;
-  els.itemThrowButton.disabled = !canUse;
-  els.transferItemButton.disabled = !selected || !targets.length || blocked;
+  els.itemThrowButton.hidden = selectedInstant;
+  els.itemThrowButton.disabled = selectedInstant || !canUse || selected?.throwable === false;
+  els.transferItemButton.hidden = selectedInstant;
+  els.transferItemButton.disabled = selectedInstant || !selected || !targets.length || blocked || selected?.transferable === false;
   els.transferCreditsButton.disabled = Number(self.credits) < transferCredits || !targets.length;
   const selectedUseLabel = selected?.inventoryKind === "weapon"
     ? selectedWeaponReloading ? `自動リロード ${Math.max(0, (Number(self.gunnerReloadUntil) - estimatedServerNow(data)) / 1000).toFixed(1)}秒` : "射撃"
-    : "使用";
+    : selectedInstant ? "発動" : "使用";
   els.itemUseButton.textContent = `${selectedUseLabel} [Shift+V]`;
   els.itemThrowButton.textContent = "投擲 [Shift+G]";
   els.transferCreditsButton.textContent = `${transferCredits}C譲渡（所持${Math.floor(Number(self.credits) || 0)}C）`;
@@ -8218,7 +8221,8 @@ function collectOperatorPassiveEffects(self, liveNow) {
       liveNow - Number(self.lastImmediateFeedback.at || 0) < 6500
       ? ` / 最新: ${self.lastImmediateFeedback.detail}`
       : "";
-    add("EC", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。EC25回到達時に使い切りの居合を1個獲得し、50回到達後はMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、ジャストガードが全攻撃反射になる");
+    const energyPeak = Math.max(Number(self.fighterEnergyPeak) || 0, Number(self.fighterEnergyCharge) || 0);
+    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費してECと衝撃波を1増やし、衝撃波を1発発生させるたびECも1減る。衝撃波は斬撃と同じ通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると居合（即席）を1回獲得し、初めて50へ到達するとMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、通常攻撃へのジャストガードが全攻撃反射になる");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -8284,6 +8288,7 @@ function renderActiveEffects(data) {
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次に受ける確殺を1回だけボディダメージへ変換する");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次のあらゆる攻撃を無効化し別地点へ移動する");
   if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "理知中、次の攻撃対象の踏ん張りを全無効化し、無効化1回につき自身へ0.5ダメージ");
+  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席`, rational ? "truth" : "neutral", "獲得時にアイテムから使用回数へ即時変換される。発動すると敵一人の有限の踏ん張りを全削除し、200SP相当を消費する");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
@@ -12563,11 +12568,12 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   resistanceBreak: ["耐性破壊", "踏ん張りや変わり身などの確殺防御が機能しません。"],
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
+  iai: ["居合・即席", "獲得した居合は使用回数へ変換済みです。発動すると敵一人の有限の踏ん張りを全削除します。"],
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
   manaGpu: ["マナGPU", "MPを短縮クールへ少しずつ変換し、次のバイブコーディングで自動消費します。"],
-  infiniteResources: ["無限資源", "エネルギー50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
-  destructionSlash: ["常時破壊斬り", "エネルギー50回到達により、斬るがアイテムの有無にかかわらず対象を破壊します。"],
+  infiniteResources: ["無限資源", "EC50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
+  destructionSlash: ["常時破壊斬り", "EC50回到達により、斬るがアイテムの有無にかかわらず対象を破壊します。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -13370,6 +13376,7 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   resistanceBreak: Object.freeze({ texture: "pushStandFirmBreak", mode: "glitch", size: 30, alpha: 0.84, phase: 0.63 }),
   standFirm: Object.freeze({ texture: "standFirmMarkerEffect", mode: "shield", size: 28, alpha: 0.94, phase: 0.18 }),
   push: Object.freeze({ texture: "pushMarkerEffect", mode: "shimmer", size: 28, alpha: 0.94, phase: 0.72 }),
+  iai: Object.freeze({ texture: "itemIaiTexture", mode: "beam", size: 30, alpha: 0.94, phase: 0.42 }),
   burning: Object.freeze({ texture: "hazardFireEffect", mode: "combustion", size: 30, alpha: 0.88, phase: 0.81 }),
   poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 }),
   manaGpu: Object.freeze({ texture: "statusManaGpuEffect", mode: "data-accelerate", size: 30, alpha: 0.94, phase: 0.57 }),
@@ -13385,6 +13392,7 @@ function persistentStatusAteState(player, data) {
   return {
     ...visibleState,
     manaGpu: Boolean(data.self?.manaGpuActive),
+    iai: (Number(data.self?.iaiCharges) || 0) > 0,
     infiniteResources: Boolean(data.self?.fighterInfiniteResources),
     destructionSlash: Boolean(data.self?.fighterDestructionSlash)
   };
@@ -14882,7 +14890,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "fighter-iai-ec-v449";
+const version = "iai-instant-ec-guard-v450";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

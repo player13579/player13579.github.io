@@ -6870,7 +6870,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1回進め、1回につき斬るか投擲で使う衝撃波を1発獲得する。EC25回到達時に使い切りアイテム居合を1個獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。50回到達後はMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、ジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1回進め、1回につき斬るか投擲で使う衝撃波を1発獲得する。衝撃波を1発発生させるたび現在ECも1減る。衝撃波は斬るの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -6935,9 +6935,14 @@ const ITEM_DEFINITIONS = Object.freeze({
   "mineral-water": Object.freeze({ id: "mineral-water", label: "ミネラルウォーター", asset: "mineral-water", throwable: true }),
   antidote: Object.freeze({ id: "antidote", label: "解毒剤", asset: "antidote", throwable: true }),
   molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true }),
-  iai: Object.freeze({ id: "iai", label: "居合", asset: "iai", throwable: true }),
   ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true }),
   "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true })
+});
+
+const INSTANT_ITEM_DEFINITIONS = Object.freeze({
+  grit: Object.freeze({ id: "grit", label: "踏ん張り", field: "gritCharges", automatic: true }),
+  reason: Object.freeze({ id: "reason", label: "押し込み", field: "reasonCharges", automatic: true }),
+  iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: false })
 });
 
 const QUANTUM_STARTING_ITEMS = Object.freeze({ mercury: 1, lead: 1, uranium: 1, plutonium: 1 });
@@ -8641,6 +8646,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     limitBreakManaCarry: 0,
     limitBreakStacks: 0,
     fighterEnergyCharge: 0,
+    fighterEnergyPeak: 0,
     fighterEnergyChargeReadyAt: 0,
     fighterShockwaveCharges: 0,
     empReadyAt: 0,
@@ -8681,6 +8687,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     rationalFreeAbilityReadyAt: 0,
     gritCharges: 0,
     reasonCharges: 0,
+    iaiCharges: 0,
     ideaProgressStartedAt: 0,
     ideaProgressMs: 0,
     ideaProgressUpdatedAt: 0,
@@ -9050,6 +9057,7 @@ function startGame(room) {
     player.limitBreakManaCarry = 0;
     player.limitBreakStacks = 0;
     player.fighterEnergyCharge = 0;
+    player.fighterEnergyPeak = 0;
     player.fighterEnergyChargeReadyAt = 0;
     player.fighterShockwaveCharges = 0;
     player.empReadyAt = 0;
@@ -9086,6 +9094,7 @@ function startGame(room) {
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
     player.reasonCharges = 0;
+    player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
     player.ideaProgressMs = 0;
     player.ideaProgressUpdatedAt = 0;
@@ -9358,6 +9367,7 @@ function startBattle(room) {
     player.limitBreakManaCarry = 0;
     player.limitBreakStacks = 0;
     player.fighterEnergyCharge = 0;
+    player.fighterEnergyPeak = 0;
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
     player.fighterShockwaveCharges = 0;
     player.manaGpuCooldownCreditMs = 0;
@@ -9393,6 +9403,7 @@ function startBattle(room) {
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
     player.reasonCharges = 0;
+    player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
     player.ideaProgressMs = 0;
     player.ideaProgressUpdatedAt = 0;
@@ -9585,12 +9596,20 @@ function remainingHealth(player) {
     Math.max(0, Number(player?.overheal) || 0);
 }
 
+function fighterEnergyPeak(player) {
+  return Math.max(
+    0,
+    Math.floor(Number(player?.fighterEnergyPeak) || 0),
+    Math.floor(Number(player?.fighterEnergyCharge) || 0)
+  );
+}
+
 function hasFighterInfiniteResources(player) {
   return Boolean(
     player?.alive &&
     !player.ejected &&
     hasOperatorAccess(player, "fighter") &&
-    Number(player.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD
+    fighterEnergyPeak(player) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD
   );
 }
 
@@ -9764,20 +9783,25 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
   if (!isHackerOperator(player) && Number(player.mana) < FIGHTER_ENERGY_CHARGE_MANA_COST) return false;
   spendMana(room, player, FIGHTER_ENERGY_CHARGE_MANA_COST, "EC");
+  const previousPeak = fighterEnergyPeak(player);
   const next = Math.max(0, Math.floor(Number(player.fighterEnergyCharge) || 0)) + 1;
+  const nextPeak = Math.max(previousPeak, next);
+  const reachedIaiMilestone = previousPeak < FIGHTER_IAI_REWARD_THRESHOLD && nextPeak >= FIGHTER_IAI_REWARD_THRESHOLD;
+  const reachedInfiniteMilestone = previousPeak < FIGHTER_INFINITE_RESOURCE_THRESHOLD && nextPeak >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
   player.fighterEnergyCharge = next;
+  player.fighterEnergyPeak = nextPeak;
   player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0)) + 1;
   let reward = `衝撃波 ×${player.fighterShockwaveCharges}`;
-  if (next === FIGHTER_IAI_REWARD_THRESHOLD) {
-    addItem(player, "iai");
+  if (reachedIaiMilestone) {
+    grantIaiCharge(player, false);
     pushMagicEffect(room, "fighter-energy-iai-milestone", player, {
       radius: 118,
       playerId: player.id,
-      variant: `${next}:iai-${itemCount(player, "iai")}`
+      variant: `${nextPeak}:iai-${Math.max(0, Number(player.iaiCharges) || 0)}`
     });
-    reward += " / 居合×1獲得";
+    reward += " / 居合（即席）×1獲得";
   }
-  if (next === FIGHTER_INFINITE_RESOURCE_THRESHOLD) {
+  if (reachedInfiniteMilestone) {
     syncFighterInfiniteResources(player);
     pushMagicEffect(room, "fighter-energy-destruction-milestone", player, {
       radius: 138,
@@ -9792,9 +9816,18 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:shockwave-${player.fighterShockwaveCharges}`
   });
   setImmediateFeedback(player, "EC", reward);
-  pushEvent(room, `${player.name} のECが1回進み、衝撃波を1発獲得しました${next === FIGHTER_IAI_REWARD_THRESHOLD ? "。EC25回到達報酬として居合を1個獲得しました" : ""}${next === FIGHTER_INFINITE_RESOURCE_THRESHOLD ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
+  pushEvent(room, `${player.name} のECが1回進み、衝撃波を1発獲得しました${reachedIaiMilestone ? "。EC25回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
+  return true;
+}
+
+function consumeFighterShockwaveCharge(player) {
+  const stored = Math.max(0, Math.floor(Number(player?.fighterShockwaveCharges) || 0));
+  if (!player || stored <= 0) return false;
+  player.fighterShockwaveCharges = stored - 1;
+  player.fighterEnergyCharge = Math.max(0, Math.floor(Number(player.fighterEnergyCharge) || 0) - 1);
+  setImmediateFeedback(player, "EC", `衝撃波発生 / EC${player.fighterEnergyCharge} / 衝撃波×${player.fighterShockwaveCharges}`);
   return true;
 }
 
@@ -10667,6 +10700,7 @@ function persistentStatusAteState(room, player, timestamp = now()) {
     resistanceBreak: hasLimitBreakDeathVulnerability(player),
     standFirm: (Number(player.gritCharges) || 0) > 0,
     push: (Number(player.reasonCharges) || 0) > 0,
+    iai: (Number(player.iaiCharges) || 0) > 0,
     burning: Boolean(player.burnStatus),
     poison: Boolean(player.poisonStatus)
   };
@@ -11775,8 +11809,8 @@ function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp =
   if (!target?.alive || target.ejected || !hasOperatorAccess(target, "fighter")) return "";
   if ((Number(target.slashActiveUntil) || 0) <= timestamp) return "";
   const physical = Boolean(attack.physical);
-  const perfect = (Number(target.slashPerfectUntil) || 0) > timestamp;
-  const universalPerfect = perfect && Number(target.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
+  const perfect = attack.perfectGuardEligible !== false && (Number(target.slashPerfectUntil) || 0) > timestamp;
+  const universalPerfect = perfect && hasFighterInfiniteResources(target);
   if (!physical && !universalPerfect) return "";
 
   if (perfect) target.slashPerfectUntil = 0;
@@ -11840,7 +11874,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
   const struckIds = new Set();
   if (target && distance(player, target) <= room.settings.killRange) {
     struckIds.add(target.id);
-    const destructionSlash = Number(player.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
+    const destructionSlash = hasFighterInfiniteResources(player);
     const destructionGuardOutcome = destructionSlash
       ? resolveFighterSlashGuard(room, player, target, {
           kind: "slash",
@@ -11879,11 +11913,10 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
     });
     pushEvent(room, `${player.name} の斬るが ${target.name} に命中しました（${outcome}）。`);
   } else {
-    const universalReflect = Number(player.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
+    const universalReflect = hasFighterInfiniteResources(player);
     pushEvent(room, `${player.name} が斬るを構えました。物理攻撃をガードし、${perfectGuardOpened ? `短いジャストガード受付で${universalReflect ? "全攻撃" : "物理攻撃"}を反射できます` : "今回はジャストガード再受付前です"}。`);
   }
-  if (player.alive && Number(player.fighterShockwaveCharges) > 0) {
-    player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0) - 1);
+  if (player.alive && consumeFighterShockwaveCharge(player)) {
     const swordOrigin = {
       ...player,
       x: player.x + slashAimX * FIGHTER_SHOCKWAVE_ORIGIN_OFFSET,
@@ -11914,7 +11947,9 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
           magic: true,
           attackKind: "fighter-energy-shockwave",
           attackLabel: "斬る衝撃波",
-          slashGuardPhysical: false,
+          slashGuardPhysical: true,
+          slashGuardReflectable: false,
+          slashGuardPerfectEligible: false,
           targetRole: waveTarget.role
         });
         pushEvent(room, `${player.name} の斬る衝撃波が ${waveTarget.name} に命中しました（${outcome}）。`);
@@ -12367,7 +12402,7 @@ function transferKillCredits(room, killer, target) {
 function transferKillInventory(room, killer, target) {
   if (!killer || !target || killer.id === target.id || killer.role !== "attacker") return [];
   const transferred = [];
-  const stackFields = ["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges", "truthCharges", "beautyCharges"];
+  const stackFields = ["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges", "iaiCharges", "truthCharges", "beautyCharges"];
   for (const field of stackFields) {
     const amount = Math.max(0, Math.floor(Number(target[field]) || 0));
     if (!amount) continue;
@@ -12433,6 +12468,18 @@ function transferableItemsFor(player) {
     const amount = Math.max(0, Math.floor(Number(player[definition.field]) || 0));
     if (amount > 0) entries.push({ id: itemId, label: definition.label, amount, asset: itemId, kind: "charge" });
   }
+  const iaiAmount = Math.max(0, Math.floor(Number(player.iaiCharges) || 0));
+  if (iaiAmount > 0) {
+    entries.push({
+      id: "iai",
+      label: "居合",
+      amount: iaiAmount,
+      asset: "iai",
+      kind: "instant",
+      throwable: false,
+      transferable: false
+    });
+  }
   for (const invention of player.inventions || []) {
     entries.push({ id: `invention:${invention}`, label: inventionLabel(invention), amount: 1, asset: invention, kind: "invention" });
   }
@@ -12453,6 +12500,7 @@ function transferableItemsFor(player) {
 
 function removeTransferableItem(player, itemId, amount = 1) {
   const count = Math.max(1, Math.floor(Number(amount) || 1));
+  if (INSTANT_ITEM_DEFINITIONS[itemId]) throw new ApiError(400, `${INSTANT_ITEM_DEFINITIONS[itemId].label}は即席のため譲渡できません。`);
   if (ITEM_DEFINITIONS[itemId]) {
     consumeItem(player, itemId, count);
     return { id: itemId, label: ITEM_DEFINITIONS[itemId].label, amount: count, kind: "item" };
@@ -13253,7 +13301,7 @@ function purchaseDrink(room, player, itemId) {
     lead: { label: "鉛瓶", cost: 16, apply: () => { addItem(player, "lead"); } },
     uranium: { label: "ウラン容器", cost: 120, apply: () => { addItem(player, "uranium"); } },
     plutonium: { label: "プルトニウム容器", cost: 160, apply: () => { addItem(player, "plutonium"); } },
-    iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { addItem(player, "iai"); } },
+    iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { grantIaiCharge(player); } },
     ice: { label: "氷結水", cost: 14, apply: () => { addItem(player, "ice"); } },
     "heated-water": { label: "高温水", cost: 14, apply: () => { addItem(player, "heated-water"); } },
     evade: { label: "回避拡張", cost: 10, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
@@ -13331,6 +13379,14 @@ function grantPushCharge(player, enforceLimit = true) {
   }
   // 押し込みと踏ん張りは独立した自動消費効果として同時に所持できる。
   player.reasonCharges += 1;
+}
+
+function grantIaiCharge(player, enforceLimit = true) {
+  if (enforceLimit && Math.max(0, Number(player.iaiCharges) || 0) >= 3) {
+    throw new ApiError(400, "居合は最大3回分まで所持できます。");
+  }
+  player.iaiCharges = Math.max(0, Math.floor(Number(player.iaiCharges) || 0)) + 1;
+  return player.iaiCharges;
 }
 
 function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
@@ -13488,13 +13544,18 @@ function applyIaiStandFirmBreak(room, source, target, level = 0, origin = source
 }
 
 function useIai(room, player, rawHoldMs = 0) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は居合を使用できません。");
+  ensureAbilityAvailable(player);
+  ensureConscious(player);
+  ensureItemStorageAvailable(player);
+  if (Math.max(0, Math.floor(Number(player.iaiCharges) || 0)) <= 0) throw new ApiError(400, "居合の使用回数がありません。");
   const requestedLevel = Math.min(ENHANCE_MAX_LEVEL, Math.floor(Math.max(0, Number(rawHoldMs) || 0) / ENHANCE_HOLD_STEP_MS));
   const previewLevel = Math.min(requestedLevel, Math.max(0, Math.floor(Number(player.mana) || 0)));
   const range = room.settings.killRange + previewLevel * 32;
   const target = iaiTargetFor(room, player, player, range);
   if (!target) throw new ApiError(404, "効果範囲内に有限の踏ん張りを持つ敵がいません。");
   const level = resolveEnhance(room, player, rawHoldMs, "居合");
-  consumeItem(player, "iai");
+  player.iaiCharges = Math.max(0, Math.floor(Number(player.iaiCharges) || 0) - 1);
   const resource = settleIaiResourceCost(room, player);
   if (resource.fatal) {
     checkWin(room);
@@ -13697,10 +13758,7 @@ function itemThrowFlightDuration(distanceToLanding) {
 function queueThrownItem(room, player, itemId, item, landing, level = 0) {
   const createdAt = now();
   const durationMs = itemThrowFlightDuration(landing.distance);
-  const energyShockwave = hasOperatorAccess(player, "fighter") && Number(player.fighterShockwaveCharges) > 0;
-  if (energyShockwave) {
-    player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0) - 1);
-  }
+  const energyShockwave = hasOperatorAccess(player, "fighter") && consumeFighterShockwaveCharge(player);
   room.thrownItems ||= [];
   room.thrownItems.push({
     id: uid("throw_"),
@@ -13764,7 +13822,9 @@ function releaseThrownEnergyShockwave(room, source, landing) {
         magic: true,
         attackKind: "fighter-energy-shockwave",
         attackLabel: "投擲衝撃波",
-        slashGuardPhysical: false,
+        slashGuardPhysical: true,
+        slashGuardReflectable: false,
+        slashGuardPerfectEligible: false,
         targetRole: target.role
       });
       pushEvent(room, `${source.name} の投擲衝撃波が ${target.name} に命中しました（${outcome}）。`);
@@ -13813,12 +13873,7 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius) {
 function resolveThrownInventoryLanding(room, source, thrown, landing) {
   const { itemId, level } = thrown;
   const radius = 145 + level * 42;
-  if (itemId === "iai") {
-    const target = iaiTargetFor(room, source, landing, radius);
-    if (target) applyIaiStandFirmBreak(room, source, target, level, landing);
-    else pushEvent(room, `${source.name} が投擲した居合は、有限の踏ん張りを持つ敵を効果範囲に捉えませんでした。`);
-    return;
-  } else if (["mercury", "lead", "uranium", "plutonium"].includes(itemId)) {
+  if (["mercury", "lead", "uranium", "plutonium"].includes(itemId)) {
     const strength = {
       mercury: 1.15,
       lead: 0.95,
@@ -13870,7 +13925,7 @@ function resolveThrownItemLanding(room, thrown) {
     durationMs: 950
   });
   const label = thrown.item?.label || ITEM_DEFINITIONS[thrown.itemId]?.label || "アイテム";
-  pushEvent(room, thrown.itemId === "iai" ? `${label}は接地位置から効果を発動しました。` : `${label}は接地して破壊され、効果が発動しました。`);
+  pushEvent(room, `${label}は接地して破壊され、効果が発動しました。`);
   checkWin(room);
   touch(room);
 }
@@ -13893,22 +13948,12 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
   const landing = safeThrowPoint(room, player, targetX, targetY);
   if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   consumeItem(player, itemId);
-  if (itemId === "iai") {
-    const resource = settleIaiResourceCost(room, player);
-    if (resource.fatal) {
-      checkWin(room);
-      touch(room);
-      return;
-    }
-    setImmediateFeedback(player, "居合投擲", resource.infinite
-      ? "EC50報酬により資源消費なし"
-      : `SP${Math.round(resource.staminaSpent)} / MP${Math.round(resource.manaSpent * 100) / 100}`);
-  }
   queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, level);
 }
 
 function throwOwnedItem(room, player, itemId, rawHoldMs = 0, targetX = Number.NaN, targetY = Number.NaN) {
   if (ITEM_DEFINITIONS[itemId]) return throwInventoryItem(room, player, itemId, rawHoldMs, targetX, targetY);
+  if (INSTANT_ITEM_DEFINITIONS[itemId]) throw new ApiError(400, `${INSTANT_ITEM_DEFINITIONS[itemId].label}は即席のため投擲できません。`);
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
@@ -13926,7 +13971,6 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
   ensureItemStorageAvailable(player);
   const definition = ITEM_DEFINITIONS[itemId];
   if (!definition) throw new ApiError(400, "使用対象が不正です。");
-  if (itemId === "iai") return useIai(room, player, rawHoldMs);
   const level = resolveEnhance(room, player, rawHoldMs, definition.label);
   consumeItem(player, itemId);
   if (itemId === "mineral-water") {
@@ -13964,6 +14008,7 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
 }
 
 function useOwnedItem(room, player, itemId, rawHoldMs = 0) {
+  if (itemId === "iai") return useIai(room, player, rawHoldMs);
   if (ITEM_DEFINITIONS[itemId]) return useInventoryItem(room, player, itemId, rawHoldMs);
   if (itemId === "fire-jutsu") return useFireJutsu(room, player, rawHoldMs);
   if (itemId === "instant-warp") throw new ApiError(400, "拡大マップから転移地点を指定してください。");
@@ -14258,7 +14303,7 @@ const ALCHEMY_RECIPES = {
   "mineral-water": { label: "ミネラルウォーター", cost: 0, apply: (_room, player) => addItem(player, "mineral-water") },
   antidote: { label: "解毒剤", cost: 0, apply: (_room, player) => addItem(player, "antidote") },
   molotov: { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
-  iai: { label: "居合", cost: 1, apply: (_room, player) => addItem(player, "iai") },
+  iai: { label: "居合", cost: 1, apply: (_room, player) => grantIaiCharge(player, false) },
   "vending-evade": { label: "回避拡張", cost: 0, apply: (_room, player) => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
   "vending-speed": { label: "アクセラレート飲料", cost: 0, apply: (_room, player) => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
   "vending-mystery": { label: "ミステリー", cost: 0, apply: (room, player) => applyMysteryDrink(room, player) },
@@ -14309,13 +14354,13 @@ function hackerTarget(room, player, targetId) {
 }
 
 function clearHackableInventory(target) {
-  for (const field of ["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges"]) target[field] = 0;
+  for (const field of ["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges", "iaiCharges"]) target[field] = 0;
   target.inventions = [];
   target.itemInventory = {};
 }
 
 function duplicateHackableInventory(target) {
-  for (const field of ["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges"]) {
+  for (const field of ["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges", "iaiCharges"]) {
     target[field] = Math.max(0, Number(target[field]) || 0) * 2;
   }
   target.inventions = [...(target.inventions || []), ...(target.inventions || [])];
@@ -14870,6 +14915,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       label: String(options.attackLabel || (attackKind === "slash" ? "斬る" : slashGuardPhysical ? "物理攻撃" : "非物理攻撃")),
       physical: slashGuardPhysical,
       reflectable: options.slashGuardReflectable !== false,
+      perfectGuardEligible: options.slashGuardPerfectEligible !== false,
       damage: bodyDamage,
       hitZone,
       magic: Boolean(options.magic),
@@ -16414,11 +16460,12 @@ function serialize(room, viewer, options = {}) {
       limitBreakStacks: limitBreakStackCount(viewer),
       limitBreakMultiplier: limitBreakMultiplier(viewer),
       fighterEnergyCharge: Math.max(0, Math.floor(Number(viewer.fighterEnergyCharge) || 0)),
+      fighterEnergyPeak: fighterEnergyPeak(viewer),
       fighterEnergyChargeReadyAt: Number(viewer.fighterEnergyChargeReadyAt) || 0,
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
       fighterShockwaveCharges: Math.max(0, Math.floor(Number(viewer.fighterShockwaveCharges) || 0)),
       fighterInfiniteResources: hasFighterInfiniteResources(viewer),
-      fighterDestructionSlash: Number(viewer.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD,
+      fighterDestructionSlash: hasFighterInfiniteResources(viewer),
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -16517,6 +16564,7 @@ function serialize(room, viewer, options = {}) {
       substitutionCharges: viewer.substitutionCharges,
       gritCharges: viewer.gritCharges,
       reasonCharges: viewer.reasonCharges,
+      iaiCharges: Math.max(0, Math.floor(Number(viewer.iaiCharges) || 0)),
       standFirmCharges: viewer.gritCharges,
       pushCharges: viewer.reasonCharges,
       smartphoneUntil: Number(viewer.smartphoneUntil) || 0,
@@ -17321,6 +17369,7 @@ async function handleApi(req, res) {
         entry.limitBreakEndsAt = 0;
         entry.limitBreakStacks = 0;
         entry.fighterEnergyCharge = 0;
+        entry.fighterEnergyPeak = 0;
         entry.fighterEnergyChargeReadyAt = 0;
         entry.fighterShockwaveCharges = 0;
         entry.manaGpuCooldownCreditMs = 0;
@@ -17349,6 +17398,7 @@ async function handleApi(req, res) {
         entry.rationalFreeAbilityReadyAt = 0;
         entry.gritCharges = 0;
         entry.reasonCharges = 0;
+        entry.iaiCharges = 0;
         entry.ideaProgressStartedAt = 0;
         entry.ideaProgressMs = 0;
         entry.ideaProgressUpdatedAt = 0;
@@ -18235,7 +18285,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "fighter-iai-ec-v449",
+  version: "iai-instant-ec-guard-v450",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
