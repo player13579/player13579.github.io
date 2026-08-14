@@ -13778,7 +13778,7 @@ function drawPetSprite(player, data, ghost) {
     const walkAtlasSource = state.textures.playerWalkAtlases?.[skinId];
     const walkAtlas = walkAtlasSource ? transparentSpriteSource(walkAtlasSource, `skinWalk60-${skinId}`, 12) : null;
     if (walkAtlas) {
-      drawBlendedWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94, true);
+      drawSophiaMinimalWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94);
       drawNameplate(player, ghost, -78);
       return true;
     }
@@ -13912,15 +13912,28 @@ function drawProceduralWalkSprite(sprite, direction, frame, x, y, width, height)
   ctx.restore();
 }
 
-function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height, registered = false) {
+function drawSophiaMinimalWalkFrame(atlas, direction, frame, x, y, width, height) {
+  const poseIndex = Math.floor(frame / 30) % 2;
+  const gaitPhase = frame / 60 * Math.PI * 2;
+  const bodyLift = (0.5 - Math.cos(gaitPhase * 2) * 0.5) * 0.65;
+  drawAtlasCell(
+    atlas,
+    2,
+    4,
+    poseIndex,
+    direction,
+    x,
+    y - bodyLift,
+    width,
+    height
+  );
+}
+
+function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height) {
   const index = Math.floor(frame) % 60;
   const cellWidth = spriteWidth(atlas) / 20;
   const cellHeight = spriteHeight(atlas) / 12;
-  const anchor = registered
-    ? { x: 0, y: 0 }
-    : playerWalkAnchors(atlas)[direction * 60 + index] || { x: 0, y: 0 };
-  const gaitPhase = frame / 60 * Math.PI * 2;
-  const bodyLift = registered ? (0.5 - Math.cos(gaitPhase * 2) * 0.5) * 0.9 : 0;
+  const anchor = playerWalkAnchors(atlas)[direction * 60 + index] || { x: 0, y: 0 };
   drawAtlasCell(
     atlas,
     20,
@@ -13928,7 +13941,7 @@ function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height, regi
     index % 20,
     direction * 3 + Math.floor(index / 20),
     x + anchor.x * (width / cellWidth),
-    y + anchor.y * (height / cellHeight) - bodyLift,
+    y + anchor.y * (height / cellHeight),
     width,
     height
   );
@@ -14994,7 +15007,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "title-flare-gold-v442";
+const version = "sophia-minimal-gait-v443";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
