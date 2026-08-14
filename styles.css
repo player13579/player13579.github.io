@@ -801,9 +801,54 @@ body.game-open .app-shell {
   will-change: transform, filter;
 }
 
-.start-screen.title-ready :is(.title-hero-character, .title-hero-atmosphere) {
+.title-hero-vfx {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.title-hero-vfx::before,
+.title-hero-vfx::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform, opacity, filter;
+}
+
+.title-hero-vfx::before {
+  left: 57.5%;
+  top: 29%;
+  width: 15%;
+  aspect-ratio: 1.15;
+  background: radial-gradient(ellipse at 52% 54%, rgba(200, 255, 250, 0.18), rgba(92, 222, 240, 0.055) 48%, transparent 74%);
+  filter: blur(7px) saturate(1.15);
+  animation: title-vfx-local-refraction 4.9s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
+  animation-play-state: paused;
+}
+
+.title-hero-vfx::after {
+  left: 61%;
+  top: 86%;
+  width: 18%;
+  aspect-ratio: 2.4;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 237, 185, 0.12), rgba(127, 223, 239, 0.045) 52%, transparent 78%);
+  filter: blur(9px) saturate(1.08);
+  animation: title-vfx-floor-luminance 6.4s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+.start-screen.title-ready :is(.title-hero-character, .title-hero-atmosphere, .title-hero-vfx) {
   animation-play-state: running;
   visibility: visible;
+}
+
+.start-screen.title-ready .title-hero-vfx::before,
+.start-screen.title-ready .title-hero-vfx::after {
+  animation-play-state: running;
 }
 
 .start-screen::after {
@@ -2958,10 +3003,23 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   66% { transform: translate3d(-0.015%, -0.07%, 0) scale(1.0008, 1.0015); filter: brightness(1.002); }
 }
 
+@keyframes title-vfx-local-refraction {
+  0%, 100% { transform: translate3d(-1.5%, 1%, 0) scale(0.94, 1.03) rotate(-1.5deg); opacity: 0.22; filter: blur(8px) saturate(1.08); }
+  44% { transform: translate3d(1%, -2%, 0) scale(1.08, 0.95) rotate(1.2deg); opacity: 0.48; filter: blur(6px) saturate(1.22); }
+  72% { transform: translate3d(-0.3%, -0.8%, 0) scale(1.02, 1.06) rotate(-0.4deg); opacity: 0.34; filter: blur(7px) saturate(1.15); }
+}
+
+@keyframes title-vfx-floor-luminance {
+  from { transform: translate3d(-1%, 2%, 0) scale(0.9, 0.82); opacity: 0.18; }
+  to { transform: translate3d(1.4%, -1%, 0) scale(1.12, 1.05); opacity: 0.36; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .start-hero,
   .title-hero-character,
-  .title-hero-atmosphere {
+  .title-hero-atmosphere,
+  .title-hero-vfx::before,
+  .title-hero-vfx::after {
     animation: none;
   }
 }

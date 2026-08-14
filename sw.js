@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v450-iai-instant-ec-guard";
+const CACHE_NAME = "dva-static-v451-orichalcum-instant-title-ate";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -34,6 +34,10 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-hacker-ate-v391.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
   "/assets/generated/fighter-energy-charge-ate-v404.png",
+  "/assets/generated/item-orichalcum-sword-v451.png",
+  "/assets/generated/instant-iai-abstract-v451.png",
+  "/assets/generated/instant-stand-firm-abstract-v451.png",
+  "/assets/generated/instant-push-abstract-v451.png",
   "/assets/generated/item-iai-v449.png",
   "/assets/generated/effect-iai-stand-firm-break-v449.png",
   "/assets/generated/fighter-energy-release-ate-v404.png",

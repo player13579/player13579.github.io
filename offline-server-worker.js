@@ -6638,6 +6638,8 @@ const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 50;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const IAI_STAMINA_EQUIVALENT_COST = 200;
 const IAI_VENDING_COST = 100;
+const ORICHALCUM_SWORD_VENDING_COST = 200;
+const ORICHALCUM_SWORD_HACKER_MANA_COST = 3;
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
 const FIGHTER_SHOCKWAVE_ORIGIN_OFFSET = 20;
@@ -6870,7 +6872,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1回進め、1回につき斬るか投擲で使う衝撃波を1発獲得する。衝撃波を1発発生させるたび現在ECも1減る。衝撃波は斬るの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1回進め、1回につき斬るか投擲で使う衝撃波を1発獲得する。衝撃波を1発発生させるたび現在ECも1減る。衝撃波は斬るの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの剣「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -6922,12 +6924,13 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで生成候補を選び、資源、所持品、永続オブジェクト、オペ能力を生成する。対象のクレジット・アイテム・HP・マナは削除または増殖でき、実行後はクールタイムが発生する。パッシブ「マナGPU」は再使用待機中に毎秒0.025MPを自動消費し、1MPにつき残りクールタイムを20秒短縮する。パッシブ「ハック」で他人の位置を常時把握し、タスクを時間経過で自動完了する。手動タスクも実行でき、自身のスマホはハッキングされない。"
+      details: "バイブコーディングで生成候補を選び、資源、所持品、永続オブジェクト、オペ能力を生成する。対象のクレジット・アイテム・HP・マナは削除または増殖でき、実行後はクールタイムが発生する。オリハルコン・ソード生成だけは3MPを正確に消費し、短縮前の最終クールタイムは90秒。パッシブ「マナGPU」は再使用待機中に毎秒0.025MPを自動消費し、1MPにつき残りクールタイムを20秒短縮する。パッシブ「ハック」で他人の位置を常時把握し、タスクを時間経過で自動完了する。手動タスクも実行でき、自身のスマホはハッキングされない。"
     }
   ]
 };
 
 const ITEM_DEFINITIONS = Object.freeze({
+  "orichalcum-sword": Object.freeze({ id: "orichalcum-sword", label: "オリハルコン・ソード", asset: "orichalcum-sword", throwable: true, weapon: true, reusable: true }),
   mercury: Object.freeze({ id: "mercury", label: "水銀瓶", asset: "quantum-mercury", throwable: true }),
   lead: Object.freeze({ id: "lead", label: "鉛瓶", asset: "quantum-lead", throwable: true }),
   uranium: Object.freeze({ id: "uranium", label: "ウラン容器", asset: "quantum-uranium", throwable: true }),
@@ -9420,6 +9423,9 @@ function startBattle(room) {
     player.itemInventory = player.special === "quantum"
       ? createItemInventory(QUANTUM_STARTING_ITEMS)
       : createItemInventory(player.itemInventory);
+    if (player.special === "fighter" && itemCount(player, "orichalcum-sword") <= 0) {
+      addItem(player, "orichalcum-sword");
+    }
     player.poisonStatus = null;
     player.burnStatus = null;
     player.quantumMode = "transmute-mercury";
@@ -9793,12 +9799,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0)) + 1;
   let reward = `衝撃波 ×${player.fighterShockwaveCharges}`;
   if (reachedIaiMilestone) {
-    grantIaiCharge(player, false);
-    pushMagicEffect(room, "fighter-energy-iai-milestone", player, {
-      radius: 118,
-      playerId: player.id,
-      variant: `${nextPeak}:iai-${Math.max(0, Number(player.iaiCharges) || 0)}`
-    });
+    grantIaiCharge(room, player, false, `ec-${nextPeak}`);
     reward += " / 居合（即席）×1獲得";
   }
   if (reachedInfiniteMilestone) {
@@ -9979,12 +9980,12 @@ function taskStaminaCostFor() {
   return TASK_STAMINA_REQUIREMENT;
 }
 
-function setMana(room, player, rawMana, sourceLabel = "") {
+function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
   const timestamp = now();
   const previousRaw = Math.round((Number(player.mana) || 0) * 100) / 100;
   const previous = previousRaw <= 0 ? DESIRE_RESOURCE_DEBT : previousRaw;
   const rawRequested = Math.round((Number(rawMana) || 0) * 100) / 100;
-  const requested = player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
+  const requested = !options.ignoreSunkCost && player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
   const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
@@ -10024,14 +10025,14 @@ function setMana(room, player, rawMana, sourceLabel = "") {
   return next;
 }
 
-function spendMana(room, player, amount, label) {
+function spendMana(room, player, amount, label, options = {}) {
   const cost = Math.max(0, Number(amount) || 0);
   if (hasFighterInfiniteResources(player)) return false;
-  if (isHackerOperator(player)) return false;
+  if (isHackerOperator(player) && !options.allowHacker) return false;
   if ((Number(player.mana) || 0) < cost) {
     throw new ApiError(400, `${label}にはマナ ${cost} が必要です。`);
   }
-  setMana(room, player, (Number(player.mana) || 0) - cost, label);
+  setMana(room, player, (Number(player.mana) || 0) - cost, label, { ignoreSunkCost: Boolean(options.exact) });
 }
 
 function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
@@ -10130,12 +10131,12 @@ function finishRenki(room, player, timestamp) {
 function grantIdeaAspect(room, player, aspect) {
   if (player.desireIdeaForfeited) return false;
   if (aspect === "truth") {
-    grantPushCharge(player, false);
+    grantPushCharge(room, player, false, "idea-truth");
     pushMagicEffect(room, "idea-truth", player, { radius: 135, playerId: player.id });
     pushEvent(room, `${player.name} が真を獲得し、押し込みを得ました。`);
     return true;
   }
-  grantStandFirmCharge(player, false);
+  grantStandFirmCharge(room, player, false, "idea-beauty");
   pushMagicEffect(room, "idea-beauty", player, { radius: 145, playerId: player.id });
   pushEvent(room, `${player.name} が美を獲得し、踏ん張りを得ました。`);
   return true;
@@ -10144,8 +10145,8 @@ function grantIdeaAspect(room, player, aspect) {
 function grantIdeaGood(room, player, timestamp) {
   if (player.desireIdeaForfeited) return false;
   player.goodActive = true;
-  grantPushCharge(player, false);
-  grantStandFirmCharge(player, false);
+  grantPushCharge(room, player, false, "idea-good");
+  grantStandFirmCharge(room, player, false, "idea-good");
   player.bodyHits = 0;
   player.overheal = Math.max(1, Number(player.overheal) || 0);
   player.slowedUntil = 0;
@@ -11719,6 +11720,10 @@ function fighterKillCounterAvailable(player) {
   return hasOperatorAccess(player, "fighter") && passivesEnabled(player);
 }
 
+function hasOrichalcumSword(player) {
+  return itemCount(player, "orichalcum-sword") > 0;
+}
+
 function activateDodge(room, player) {
   if (room.phase !== "playing") throw new ApiError(400, "バトル中のみ回避を発動できます。");
   if (!canActivateDodge(player)) throw new ApiError(403, "このオペレーターは回避を使用できません。");
@@ -11806,7 +11811,7 @@ function applyReflectedSlashAttack(room, defender, source, attack = {}, timestam
 }
 
 function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp = now()) {
-  if (!target?.alive || target.ejected || !hasOperatorAccess(target, "fighter")) return "";
+  if (!target?.alive || target.ejected || !hasOrichalcumSword(target)) return "";
   if ((Number(target.slashActiveUntil) || 0) <= timestamp) return "";
   const physical = Boolean(attack.physical);
   const perfect = attack.perfectGuardEligible !== false && (Number(target.slashPerfectUntil) || 0) > timestamp;
@@ -11850,8 +11855,8 @@ function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp =
 }
 
 function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
-  if (room.phase !== "playing" || !hasOperatorAccess(player, "fighter")) {
-    throw new ApiError(403, "ファイターの斬るは使用できません。");
+  if (room.phase !== "playing" || !hasOrichalcumSword(player)) {
+    throw new ApiError(403, "オリハルコン・ソードを所持していないため斬るは使用できません。");
   }
   if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は斬れません。");
   ensureAbilityAvailable(player);
@@ -12447,10 +12452,9 @@ function transferKillInventory(room, killer, target) {
   return transferred;
 }
 
-const TRANSFERABLE_CHARGES = Object.freeze({
-  "fire-jutsu": Object.freeze({ field: "fireJutsuCharges", label: "火遁の術" }),
-  "instant-warp": Object.freeze({ field: "warpCharges", label: "変わり身の術" })
-});
+// Instant-item acquisition consumes the item into a player-bound effect or
+// use count. No converted instant charge remains available for manual transfer.
+const TRANSFERABLE_CHARGES = Object.freeze({});
 
 function inventionLabel(invention) {
   const id = String(invention || "");
@@ -13101,8 +13105,8 @@ function useMapObject(room, player, objectId) {
 
   if (object.type === "resolvePoint") {
     if (!room.resolvePoint || room.resolvePoint.id !== object.id) return;
-    if (object.reward === "grit") grantStandFirmCharge(player, false);
-    else grantPushCharge(player, false);
+    if (object.reward === "grit") grantStandFirmCharge(room, player, false, "resolve-focus");
+    else grantPushCharge(room, player, false, "resolve-focus");
     room.resolvePoint = null;
     pushMagicEffect(room, "resolve-focus", object, {
       radius: Number(object.radius || 100),
@@ -13301,7 +13305,8 @@ function purchaseDrink(room, player, itemId) {
     lead: { label: "鉛瓶", cost: 16, apply: () => { addItem(player, "lead"); } },
     uranium: { label: "ウラン容器", cost: 120, apply: () => { addItem(player, "uranium"); } },
     plutonium: { label: "プルトニウム容器", cost: 160, apply: () => { addItem(player, "plutonium"); } },
-    iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { grantIaiCharge(player); } },
+    "orichalcum-sword": { label: "オリハルコン・ソード", cost: ORICHALCUM_SWORD_VENDING_COST, apply: () => { addItem(player, "orichalcum-sword"); } },
+    iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { grantIaiCharge(room, player, true, "vending"); } },
     ice: { label: "氷結水", cost: 14, apply: () => { addItem(player, "ice"); } },
     "heated-water": { label: "高温水", cost: 14, apply: () => { addItem(player, "heated-water"); } },
     evade: { label: "回避拡張", cost: 10, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
@@ -13313,7 +13318,7 @@ function purchaseDrink(room, player, itemId) {
       if (player.substitutionCharges >= 2) throw new ApiError(400, "変わり身は最大2回分まで所持できます。");
       player.substitutionCharges += 1;
     } },
-    grit: { label: "踏ん張り", cost: STAND_FIRM_COST, apply: () => grantStandFirmCharge(player) },
+    grit: { label: "踏ん張り", cost: STAND_FIRM_COST, apply: () => grantStandFirmCharge(room, player, true, "vending") },
     heal: { label: "回復", cost: HEAL_COST, apply: () => {
       if (player.bodyHits > 0) player.bodyHits = 0;
       else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
@@ -13321,7 +13326,7 @@ function purchaseDrink(room, player, itemId) {
     mana: { label: "マナポーション +1MP", cost: MANA_POTION_COST, apply: () => {
       setMana(room, player, (Number(player.mana) || 0) + 1, "マナポーション");
     } },
-    reason: { label: "押し込み", cost: PUSH_COST, apply: () => grantPushCharge(player) },
+    reason: { label: "押し込み", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
     railgun: { label: "素敵な発明品・レールガン", cost: 140, apply: () => { player.inventions.push("railgun"); } },
     "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 180, apply: () => { player.inventions.push("particle-cannon"); } },
     excalibur: { label: "素敵な発明品・エクスカリバー", cost: 220, apply: () => { player.inventions.push("excalibur"); } },
@@ -13346,6 +13351,9 @@ function purchaseDrink(room, player, itemId) {
   if (item.role && player.role !== item.role) throw new ApiError(403, "この商品はアタッカー専用です。");
   if (player.credits < item.cost) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
   const outcome = item.apply();
+  if (!["grit", "reason", "iai"].includes(itemId)) {
+    pushInstantItemAcquisitionAte(room, player, itemId, "vending");
+  }
   player.credits -= item.cost;
   pushMagicEffect(room, itemId === "mystery" ? "mystery-reveal" : "action-vending", player, {
     radius: itemId === "mystery" ? 145 : 90,
@@ -13366,26 +13374,53 @@ function purchaseFirearm(player, weaponId) {
   player.gunnerWeapon = weaponId;
 }
 
-function grantStandFirmCharge(player, enforceLimit = true) {
+function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired") {
+  if (!room || !player) return;
+  const effectType = {
+    stamina: "instant-stamina-acquired",
+    heal: "instant-heal-acquired",
+    fire: "instant-fire-acquired",
+    substitution: "instant-substitution-acquired",
+    warp: "instant-warp-acquired",
+    evade: "instant-evade-acquired",
+    speed: "instant-speed-acquired",
+    mystery: "instant-mystery-acquired",
+    mana: "instant-mana-acquired",
+    grit: "instant-stand-firm-acquired",
+    reason: "instant-push-acquired",
+    iai: "instant-iai-acquired"
+  }[itemId];
+  if (!effectType) return;
+  pushMagicEffect(room, effectType, player, {
+    radius: itemId === "iai" ? 122 : itemId === "reason" ? 116 : 124,
+    playerId: player.id,
+    variant: source
+  });
+}
+
+function grantStandFirmCharge(room, player, enforceLimit = true, source = "acquired") {
   if (enforceLimit && player.gritCharges >= 3) {
     throw new ApiError(400, "踏ん張りは最大3回分まで所持できます。");
   }
   player.gritCharges += 1;
+  pushInstantItemAcquisitionAte(room, player, "grit", source);
 }
 
-function grantPushCharge(player, enforceLimit = true) {
+function grantPushCharge(room, player, enforceLimit = true, source = "acquired") {
   if (enforceLimit && player.reasonCharges >= 3) {
     throw new ApiError(400, "押し込みは最大3回分まで所持できます。");
   }
   // 押し込みと踏ん張りは独立した自動消費効果として同時に所持できる。
   player.reasonCharges += 1;
+  pushInstantItemAcquisitionAte(room, player, "reason", source);
 }
 
-function grantIaiCharge(player, enforceLimit = true) {
+function grantIaiCharge(room, player, enforceLimit = true, source = "acquired") {
   if (enforceLimit && Math.max(0, Number(player.iaiCharges) || 0) >= 3) {
     throw new ApiError(400, "居合は最大3回分まで所持できます。");
   }
   player.iaiCharges = Math.max(0, Math.floor(Number(player.iaiCharges) || 0)) + 1;
+  pushInstantItemAcquisitionAte(room, player, "iai", source);
   return player.iaiCharges;
 }
 
@@ -13971,6 +14006,9 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
   ensureItemStorageAvailable(player);
   const definition = ITEM_DEFINITIONS[itemId];
   if (!definition) throw new ApiError(400, "使用対象が不正です。");
+  if (itemId === "orichalcum-sword") {
+    return fighterSlash(room, player, "", true);
+  }
   const level = resolveEnhance(room, player, rawHoldMs, definition.label);
   consumeItem(player, itemId);
   if (itemId === "mineral-water") {
@@ -14289,13 +14327,14 @@ function useFloraAbility(room, player, mode, options = {}) {
 }
 
 const ALCHEMY_RECIPES = {
-  stamina: { label: "スタミナ", cost: 1, apply: (_room, player) => { player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); } },
-  heal: { label: "回復", cost: 1, apply: (_room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(1, player.overheal); } },
-  fire: { label: "火遁の術", cost: 1, apply: (_room, player) => { player.fireJutsuCharges += 1; } },
-  substitution: { label: "変わり身の術", cost: 1, apply: (_room, player) => { player.substitutionCharges += 1; } },
-  warp: { label: "即時ワープ", cost: 1, apply: (_room, player) => { player.warpCharges += 1; } },
-  grit: { label: "踏ん張り", cost: 1, apply: (_room, player) => grantStandFirmCharge(player, false) },
-  reason: { label: "押し込み", cost: 1, apply: (_room, player) => grantPushCharge(player, false) },
+  "orichalcum-sword": { label: "オリハルコン・ソード", cost: ORICHALCUM_SWORD_HACKER_MANA_COST, apply: (_room, player) => addItem(player, "orichalcum-sword") },
+  stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
+  heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(1, player.overheal); pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
+  fire: { label: "火遁の術", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
+  substitution: { label: "変わり身の術", cost: 1, apply: (room, player) => { player.substitutionCharges += 1; pushInstantItemAcquisitionAte(room, player, "substitution", "hacker"); } },
+  warp: { label: "即時ワープ", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
+  grit: { label: "踏ん張り", cost: 1, apply: (room, player) => grantStandFirmCharge(room, player, false, "hacker") },
+  reason: { label: "押し込み", cost: 1, apply: (room, player) => grantPushCharge(room, player, false, "hacker") },
   mercury: { label: "水銀瓶", cost: 0, apply: (_room, player) => addItem(player, "mercury") },
   lead: { label: "鉛瓶", cost: 0, apply: (_room, player) => addItem(player, "lead") },
   uranium: { label: "ウラン容器", cost: 0, apply: (_room, player) => addItem(player, "uranium") },
@@ -14303,11 +14342,11 @@ const ALCHEMY_RECIPES = {
   "mineral-water": { label: "ミネラルウォーター", cost: 0, apply: (_room, player) => addItem(player, "mineral-water") },
   antidote: { label: "解毒剤", cost: 0, apply: (_room, player) => addItem(player, "antidote") },
   molotov: { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
-  iai: { label: "居合", cost: 1, apply: (_room, player) => grantIaiCharge(player, false) },
-  "vending-evade": { label: "回避拡張", cost: 0, apply: (_room, player) => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
-  "vending-speed": { label: "アクセラレート飲料", cost: 0, apply: (_room, player) => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
-  "vending-mystery": { label: "ミステリー", cost: 0, apply: (room, player) => applyMysteryDrink(room, player) },
-  "vending-mana": { label: "マナポーション", cost: 0, apply: (room, player) => setMana(room, player, (Number(player.mana) || 0) + 1, "バイブコーディング") },
+  iai: { label: "居合", cost: 1, apply: (room, player) => grantIaiCharge(room, player, false, "hacker") },
+  "vending-evade": { label: "回避拡張", cost: 0, apply: (room, player) => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); pushInstantItemAcquisitionAte(room, player, "evade", "hacker"); } },
+  "vending-speed": { label: "アクセラレート飲料", cost: 0, apply: (room, player) => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; pushInstantItemAcquisitionAte(room, player, "speed", "hacker"); } },
+  "vending-mystery": { label: "ミステリー", cost: 0, apply: (room, player) => { const result = applyMysteryDrink(room, player); pushInstantItemAcquisitionAte(room, player, "mystery", `hacker:${result}`); } },
+  "vending-mana": { label: "マナポーション", cost: 0, apply: (room, player) => { setMana(room, player, (Number(player.mana) || 0) + 1, "バイブコーディング"); pushInstantItemAcquisitionAte(room, player, "mana", "hacker"); } },
   "vending-railgun": { label: "レールガン", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("railgun")) player.inventions.push("railgun"); } },
   "vending-particle-cannon": { label: "荷電粒子砲", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("particle-cannon")) player.inventions.push("particle-cannon"); } },
   "vending-excalibur": { label: "エクスカリバー", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("excalibur")) player.inventions.push("excalibur"); } },
@@ -14437,7 +14476,9 @@ function humanTransmutation(room, player, targetId) {
 
 function vibeCodingCooldownMsFor(conversion) {
   const id = String(conversion || "");
-  const base = id === "revive"
+  const base = id === "orichalcum-sword"
+    ? 60_000
+    : id === "revive"
     ? 36_000
     : id === "hack-hp-delete"
       ? 28_000
@@ -14494,6 +14535,15 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   const recipe = ALCHEMY_RECIPES[conversion];
   if (!recipe) {
     throw new ApiError(400, `生成先が不正です。画面を更新して再選択してください（${conversion || "未選択"}）。`);
+  }
+  if (conversion === "orichalcum-sword") {
+    if (Number(player.mana) < ORICHALCUM_SWORD_HACKER_MANA_COST) {
+      throw new ApiError(400, `オリハルコン・ソード生成には${ORICHALCUM_SWORD_HACKER_MANA_COST}MPが必要です。`);
+    }
+    spendMana(room, player, ORICHALCUM_SWORD_HACKER_MANA_COST, "オリハルコン・ソード生成", {
+      allowHacker: true,
+      exact: true
+    });
   }
   recipe.apply(room, player, targetId);
   player.vibeCodingCooldownMs = vibeCodingCooldownMsFor(conversion);
@@ -18290,5 +18340,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "iai-instant-ec-guard-v450" });
+self.postMessage({ type: "ready", version: "orichalcum-instant-title-ate-v451" });
 })();

@@ -583,6 +583,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
   uranium: "量子制御の核分裂素材。通常使用は有害",
   plutonium: "量子制御の核分裂素材。通常使用は有害",
+  "orichalcum-sword": "通常使用で斬るを発動し、斬れそうな物理攻撃をガード。短いジャストガードで反射。投擲すると失う。ファイターは開始時に1振り所持",
   iai: "即席。獲得時に居合の使用回数へ変換。敵一人の有限の踏ん張りを全削除し、200SP相当を消費。SP不足分は150SP=1MPで補填し、総量不足なら死亡。投擲・譲渡不可",
   ice: "投擲できる低温変換済みの水",
   "heated-water": "投擲できる高温変換済みの水",
@@ -618,6 +619,7 @@ const VENDING_PRODUCT_LABELS = Object.freeze({
   lead: "鉛瓶",
   uranium: "ウラン容器",
   plutonium: "プルトニウム容器",
+  "orichalcum-sword": "オリハルコン・ソード",
   iai: "居合",
   ice: "氷結水",
   "heated-water": "高温水",
@@ -653,6 +655,7 @@ const VENDING_PRODUCT_COSTS = Object.freeze({
   lead: 16,
   uranium: 120,
   plutonium: 160,
+  "orichalcum-sword": 200,
   iai: 100,
   ice: 14,
   "heated-water": 14,
@@ -675,10 +678,11 @@ const alchemyRecipes = [
   { id: "mineral-water", label: "ミネラルウォーター", output: VENDING_PRODUCT_DESCRIPTIONS["mineral-water"], asset: "mineral-water" },
   { id: "antidote", label: "解毒剤", output: VENDING_PRODUCT_DESCRIPTIONS.antidote, asset: "antidote" },
   { id: "molotov", label: "火炎瓶", output: VENDING_PRODUCT_DESCRIPTIONS.molotov, asset: "molotov" },
+  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: "固有武器を生成 / 3MP / クールタイム90秒", asset: "orichalcum-sword" },
   { id: "iai", label: "居合", output: VENDING_PRODUCT_DESCRIPTIONS.iai, asset: "iai" },
-  { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "grit" },
-  { id: "vending-speed", label: "アクセラレート飲料", output: "移動速度 ×1.10（重複可）", asset: "warp" },
-  { id: "vending-mystery", label: "ミステリー", output: "幸運値に応じたランダム効果", asset: "reason" },
+  { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "instant-evade" },
+  { id: "vending-speed", label: "アクセラレート飲料", output: "移動速度 ×1.10（重複可）", asset: "instant-speed" },
+  { id: "vending-mystery", label: "ミステリー", output: "幸運値に応じたランダム効果", asset: "instant-mystery" },
   { id: "vending-mana", label: "マナポーション", output: "マナ +1", asset: "mana" },
   { id: "vending-railgun", label: "レールガン", output: "全遮蔽物貫通兵器", asset: "railgun" },
   { id: "vending-particle-cannon", label: "荷電粒子砲", output: "破壊ビームを継続放射", asset: "particle-cannon" },
@@ -707,6 +711,7 @@ const alchemyRecipes = [
 
 function hackerRecipeCooldownMs(recipeOrId) {
   const id = typeof recipeOrId === "string" ? recipeOrId : String(recipeOrId?.id || "");
+  if (id === "orichalcum-sword") return 90_000;
   if (id === "revive") return 36_000;
   if (id === "hack-hp-delete") return 28_000;
   if (id.startsWith("hack-")) return 18_000;
@@ -736,17 +741,21 @@ const generatedItemTextureFiles = new Map([
   ["molotov", { file: "item-molotov.webp" }],
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
-  ["iai", { file: "item-iai-v449.png" }],
-  ["stamina", { file: "item-stamina-cell.webp" }],
-  ["heal", { file: "item-heal.webp" }],
-  ["fire", { file: "item-fire-jutsu.webp" }],
-  ["fire-jutsu", { file: "item-fire-jutsu.webp" }],
-  ["substitution", { file: "status-substitution.webp" }],
-  ["warp", { file: "status-instant-warp.webp" }],
-  ["instant-warp", { file: "status-instant-warp.webp" }],
-  ["grit", { file: "status-stand-firm.webp" }],
-  ["reason", { file: "status-push.webp" }],
-  ["mana", { file: "mana-potion.webp" }],
+  ["orichalcum-sword", { file: "item-orichalcum-sword-v451.png" }],
+  ["iai", { file: "instant-iai-abstract-v451.png" }],
+  ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
+  ["heal", { file: "alchemy-effect-heal-v311.png" }],
+  ["fire", { file: "alchemy-effect-fire-v311.png" }],
+  ["fire-jutsu", { file: "alchemy-effect-fire-v311.png" }],
+  ["substitution", { file: "alchemy-effect-substitution-v311.png" }],
+  ["warp", { file: "alchemy-effect-warp-v311.png" }],
+  ["instant-warp", { file: "alchemy-effect-warp-v311.png" }],
+  ["instant-evade", { file: "action-effect-dodge-v311.png" }],
+  ["instant-speed", { file: "status-marker-acceleration-v376.png" }],
+  ["instant-mystery", { file: "philosophy-effect-mystery-v311.png" }],
+  ["grit", { file: "instant-stand-firm-abstract-v451.png" }],
+  ["reason", { file: "instant-push-abstract-v451.png" }],
+  ["mana", { file: "alchemy-effect-rational-free-v311.png" }],
   ["railgun", { file: "alchemy-railgun.webp" }],
   ["particle-cannon", { file: "alchemy-particle-cannon.webp" }],
   ["excalibur", { file: "alchemy-excalibur.webp" }],
@@ -810,6 +819,7 @@ function hackerRecipeCategory(recipe) {
   if (recipe?.kind === "invention") return "invention";
   if (recipe?.id?.startsWith("hack-")) return "hack";
   const weaponRecipes = new Set([
+    "orichalcum-sword",
     "vending-railgun", "vending-particle-cannon", "vending-excalibur",
     "vending-handgun", "vending-smg", "vending-assault", "vending-sniper", "vending-taser"
   ]);
@@ -2361,7 +2371,7 @@ function isContinuousGameActionButton(button) {
     "tabletRestShortcut",
     "tabletDonateShortcut"
   ].includes(button.id)) return true;
-  if (button.id === "ninjutsuButton" && hasDisplayedOperatorAccess(state.data?.self, "fighter")) return true;
+  if (button.id === "ninjutsuButton" && hasDisplayedFighterSlashAccess(state.data?.self)) return true;
   return Boolean(
     button.dataset.repeatableAbility === "1" ||
     button.closest("#actionCommandRegistry") ||
@@ -2397,13 +2407,13 @@ function invokeContinuousGameAction(button, { allowHidden = false, initial = fal
 }
 
 function continuousGameActionInterval(button) {
-  return ["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button?.id) && hasDisplayedOperatorAccess(state.data?.self, "fighter")
+  return ["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button?.id) && hasDisplayedFighterSlashAccess(state.data?.self)
     ? FIGHTER_SLASH_REPEAT_INTERVAL_MS
     : CONTINUOUS_ACTION_REPEAT_INTERVAL_MS;
 }
 
 function isFighterSlashActionButton(button) {
-  return [els.ninjutsuButton, els.tabletNinjutsuShortcut].includes(button) && hasDisplayedOperatorAccess(state.data?.self, "fighter");
+  return [els.ninjutsuButton, els.tabletNinjutsuShortcut].includes(button) && hasDisplayedFighterSlashAccess(state.data?.self);
 }
 
 function requestFighterSlash(targetId, perfectGuardIntent = false) {
@@ -2989,7 +2999,7 @@ function triggerActionHotkey(event) {
   } else if (!allowContinuousActionKey(
     event,
     `action:${event.code}`,
-    elementKey === "ninjutsuButton" && hasDisplayedOperatorAccess(state.data?.self, "fighter")
+    elementKey === "ninjutsuButton" && hasDisplayedFighterSlashAccess(state.data?.self)
       ? FIGHTER_SLASH_REPEAT_INTERVAL_MS
       : CONTINUOUS_ACTION_REPEAT_INTERVAL_MS
   )) {
@@ -6141,7 +6151,7 @@ function formatAnalyticsDuration(rawSeconds) {
 
 async function performNinjutsu(event) {
   const target = nearestTarget();
-  const fighterSlash = hasDisplayedOperatorAccess(state.data.self, "fighter");
+  const fighterSlash = hasDisplayedFighterSlashAccess(state.data.self);
   const perfectGuardIntent = fighterSlash && Boolean(state.fighterSlashGuardIntent || event?.isTrusted);
   const autoReleaseGuardInput = perfectGuardIntent &&
     !state.continuousActionHold.fighterSlash &&
@@ -6720,6 +6730,10 @@ function magicEffectDuration(type) {
   if (type === "alchemy-particle-cannon") return 900;
   if (type === "alchemy-particle-beam") return 420;
   if (type === "quantum-transmutation") return 3600;
+  if (type === "instant-iai-acquired") return 820;
+  if (type === "instant-stand-firm-acquired") return 1050;
+  if (type === "instant-push-acquired") return 900;
+  if (type.startsWith("instant-") && type.endsWith("-acquired")) return 980;
   if (type.startsWith("object-")) return 2200;
   if (type.startsWith("idea-")) return 1800;
   return 1200;
@@ -8171,7 +8185,9 @@ function renderItemControl(data) {
   els.transferCreditsButton.disabled = Number(self.credits) < transferCredits || !targets.length;
   const selectedUseLabel = selected?.inventoryKind === "weapon"
     ? selectedWeaponReloading ? `自動リロード ${Math.max(0, (Number(self.gunnerReloadUntil) - estimatedServerNow(data)) / 1000).toFixed(1)}秒` : "射撃"
-    : selectedInstant ? "発動" : "使用";
+    : selected?.sourceId === "orichalcum-sword" || selected?.id === "orichalcum-sword"
+      ? "斬る"
+      : selectedInstant ? "発動" : "使用";
   els.itemUseButton.textContent = `${selectedUseLabel} [Shift+V]`;
   els.itemThrowButton.textContent = "投擲 [Shift+G]";
   els.transferCreditsButton.textContent = `${transferCredits}C譲渡（所持${Math.floor(Number(self.credits) || 0)}C）`;
@@ -8204,6 +8220,20 @@ function hasDisplayedOperatorAccess(self, type) {
   );
 }
 
+function ownsDisplayedItem(self, itemId) {
+  return Boolean((Array.isArray(self?.itemInventory) ? self.itemInventory : []).some((item) => (
+    item?.id === itemId && Number(item.amount) > 0
+  )));
+}
+
+function hasDisplayedOrichalcumSword(self) {
+  return ownsDisplayedItem(self, "orichalcum-sword");
+}
+
+function hasDisplayedFighterSlashAccess(self) {
+  return hasDisplayedOperatorAccess(self, "fighter") && hasDisplayedOrichalcumSword(self);
+}
+
 function collectOperatorPassiveEffects(self, liveNow) {
   const effects = [];
   const add = (label, value, tone, detail) => effects.push({ label, value, tone, detail });
@@ -8211,9 +8241,12 @@ function collectOperatorPassiveEffects(self, liveNow) {
   const passiveValue = passiveEnabled ? "有効" : "理知まで休止";
   const passiveTone = passiveEnabled ? "rational" : "neutral";
 
+  if (hasDisplayedOrichalcumSword(self)) {
+    add("斬る", "物理ガード", "rational", "オリハルコン・ソードの通常使用で発動する。斬れそうな物理攻撃をガードし、短いジャストガード受付で攻撃元へ反射する。剣の腹は受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせることで反射が成立する。EMP・毒・サンビームは通常ガードできず、連打中はジャストガードを再受付しない");
+  }
+
   if (hasDisplayedOperatorAccess(self, "fighter")) {
     add("キルカウンター", passiveValue, passiveTone, "回避成功時、攻撃者を即時キルする");
-    add("斬る", "物理ガード", "rational", "斬れそうな物理攻撃をガードし、短いジャストガード受付で攻撃元へ反射する。EMP・毒・サンビームは通常ガードできず、連打中はジャストガードを再受付しない");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
     const infinite = self.fighterInfiniteResources ? " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る: 常時破壊 / JG: 全攻撃反射" : "";
@@ -8329,12 +8362,12 @@ function renderActiveEffects(data) {
       self.fighterInfiniteResources ? "斬る・全反射ジャストガード" : "斬る・ジャストガード",
       `${Math.ceil(slashPerfectRemaining)}ms`,
       "truth",
-      self.fighterInfiniteResources ? "この短い受付中だけ、物理・サンビーム・EMP・毒を含む全攻撃を攻撃元へ反射する" : "この短い受付中、斬れそうな物理攻撃を攻撃元へ反射する"
+      self.fighterInfiniteResources ? "オリハルコン・ソードの腹を攻撃へ正確に合わせ、この短い受付中だけ物理・サンビーム・EMP・毒を含む全攻撃を攻撃元へ反射する" : "オリハルコン・ソードの腹を攻撃へ正確に合わせ、受けた衝撃を100%そのまま攻撃元へ反発させる"
     );
   } else if (slashGuardRemaining > 0) {
     add("斬る・物理ガード", `${Math.ceil(slashGuardRemaining)}ms`, "rational", "斬れそうな物理攻撃を無効化する。EMP・毒・サンビームなどは通常ガードできない");
   }
-  if (hasDisplayedOperatorAccess(self, "fighter") && slashRearmRemaining > 0) {
+  if (hasDisplayedOrichalcumSword(self) && slashRearmRemaining > 0) {
     add("ジャストガード再武装", `${(slashRearmRemaining / 1000).toFixed(1)}秒`, "neutral", "再武装前の連打は受付を後ろへ送る。いったん待ち、攻撃を見極めて押す");
   }
   const floraAcceleration = self.timedAccelerationStacks?.flora;
@@ -8577,6 +8610,7 @@ function renderUtility(data) {
 function updateActionButtons(data) {
   const self = data.self;
   const fighterAccess = hasDisplayedOperatorAccess(self, "fighter");
+  const fighterSlashAccess = hasDisplayedFighterSlashAccess(self);
   const borrowedGunnerAccess = self.special === "alchemist" && hasDisplayedOperatorAccess(self, "gunner");
   const gunnerAccess = self.special === "gunner" || borrowedGunnerAccess || (self.purchasedWeapons || []).length > 0;
   const isPlaying = data.phase === "playing";
@@ -8623,6 +8657,7 @@ function updateActionButtons(data) {
     self.role,
     self.special,
     fighterAccess,
+    fighterSlashAccess,
     borrowedGunnerAccess,
     canUseKill,
     state.cameraViewIndex >= 0 && cameraIndices.length >= 2,
@@ -8640,7 +8675,7 @@ function updateActionButtons(data) {
   if (state.actionLayoutKey !== actionLayoutKey) {
     state.actionLayoutKey = actionLayoutKey;
     els.emergencyButton.hidden = false;
-    els.ninjutsuButton.hidden = !canUseKill;
+    els.ninjutsuButton.hidden = !(canUseKill || fighterSlashAccess);
     els.dodgeButton.hidden = !dodgeAccess;
     els.teleportButton.hidden = true;
     els.shootButton.hidden = true;
@@ -8681,12 +8716,12 @@ function updateActionButtons(data) {
     els.contextActionButton.removeAttribute("data-hotkey");
   }
   const killSeconds = Math.max(0, Math.ceil(((self.killReadyAt || 0) - liveNow) / 1000));
-  const slashPerfectActive = fighterAccess && Number(self.slashPerfectUntil) > liveNow;
-  const slashGuardActive = fighterAccess && Number(self.slashActiveUntil) > liveNow;
-  const slashPerfectRearmSeconds = fighterAccess
+  const slashPerfectActive = fighterSlashAccess && Number(self.slashPerfectUntil) > liveNow;
+  const slashGuardActive = fighterSlashAccess && Number(self.slashActiveUntil) > liveNow;
+  const slashPerfectRearmSeconds = fighterSlashAccess
     ? Math.max(0, (Number(self.slashPerfectReadyAt) - liveNow) / 1000)
     : 0;
-  els.ninjutsuButton.textContent = fighterAccess
+  els.ninjutsuButton.textContent = fighterSlashAccess
     ? slashPerfectActive
       ? self.fighterInfiniteResources ? "斬る 全反射JG" : "斬る JG反射"
       : slashGuardActive
@@ -8699,15 +8734,15 @@ function updateActionButtons(data) {
       : killSeconds > 0
         ? `忍殺 ${killSeconds}秒`
         : "忍殺";
-  const slashReady = fighterAccess && canActAlive && Number(self.stamina) >= Number(self.fighterSlashStaminaCost || 75);
-  els.ninjutsuButton.disabled = fighterAccess
+  const slashReady = fighterSlashAccess && canActAlive && Number(self.stamina) >= Number(self.fighterSlashStaminaCost || 75);
+  els.ninjutsuButton.disabled = fighterSlashAccess
     ? !slashReady
     : !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
   els.ninjutsuButton.classList.toggle("active", slashPerfectActive || slashGuardActive);
-  els.ninjutsuButton.title = fighterAccess
+  els.ninjutsuButton.title = fighterSlashAccess
     ? self.fighterInfiniteResources
-      ? "斬る: 物理攻撃をガード。短いジャストガード受付ではサンビーム・EMP・毒を含む全攻撃を反射。連打すると再受付が遅れる"
-      : "斬る: 斬れそうな物理攻撃をガードし、短いジャストガード受付で反射。EMP・毒・サンビームはガード不可。連打すると再受付が遅れる"
+      ? "オリハルコン・ソードの斬る: 物理攻撃をガード。衝撃を100%反発させる剣の腹を正確に合わせ、短いジャストガード受付ではサンビーム・EMP・毒を含む全攻撃を反射。連打すると再受付が遅れる"
+      : "オリハルコン・ソードの斬る: 斬れそうな物理攻撃をガード。衝撃を100%反発させる剣の腹を正確に合わせ、短いジャストガード受付で反射。EMP・毒・サンビームはガード不可。連打すると再受付が遅れる"
     : "忍殺";
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
@@ -11771,7 +11806,18 @@ const GENERATED_EFFECT_TEXTURES = {
   "substitution": ["substitutionFieldEffect", 300],
   "limit-break": ["limitBreakFieldEffect", 360],
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
-  "fighter-energy-iai-milestone": ["itemIaiTexture", 210],
+  "instant-iai-acquired": ["itemIaiTexture", 230],
+  "instant-stand-firm-acquired": ["instantStandFirmTexture", 230],
+  "instant-push-acquired": ["instantPushTexture", 230],
+  "instant-stamina-acquired": ["instantStaminaTexture", 230],
+  "instant-heal-acquired": ["instantHealTexture", 230],
+  "instant-fire-acquired": ["instantFireTexture", 240],
+  "instant-substitution-acquired": ["instantSubstitutionTexture", 230],
+  "instant-warp-acquired": ["instantWarpTexture", 250],
+  "instant-evade-acquired": ["instantEvadeTexture", 240],
+  "instant-speed-acquired": ["instantSpeedTexture", 210],
+  "instant-mystery-acquired": ["instantMysteryTexture", 240],
+  "instant-mana-acquired": ["instantManaTexture", 240],
   "fighter-energy-destruction-milestone": ["fighterDestructionSlashMilestoneEffect", 290],
   "fighter-energy-destruction-slash": ["fighterDestructionSlashMilestoneEffect", 260],
   "fighter-energy-release": ["fighterEnergyReleaseEffect", 180],
@@ -11898,6 +11944,9 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   const prepared = transparentSpriteSource(state.textures[textureKey], textureKey, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
   if (!sprite) return false;
+  if (effect.type.startsWith("instant-") && effect.type.endsWith("-acquired")) {
+    return drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize);
+  }
   if (effect.type === "iai-stand-firm-break") {
     return drawIaiStandFirmBreakEffect(effect, progress, sprite, defaultSize);
   }
@@ -11944,6 +11993,158 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     if (goldSprite) {
       drawGoldTransmutationStages(goldSprite, coinSprite, progress);
     }
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize) {
+  const fade = 1 - objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
+  const targetX = Number(effect.x) || 0;
+  const targetY = Number(effect.y) || 0;
+  const kind = effect.type.replace(/^instant-/, "").replace(/-acquired$/, "");
+  if (!["iai", "stand-firm", "push"].includes(kind)) {
+    return drawUtilityInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize, kind);
+  }
+  ctx.save();
+  ctx.translate(targetX, targetY);
+
+  if (kind === "iai") {
+    const arrival = objectEffectEase(clamp(progress / 0.18, 0, 1));
+    const release = objectEffectEase(clamp((progress - 0.12) / 0.34, 0, 1));
+    ctx.rotate(-0.68 + (1 - arrival) * 0.17);
+    ctx.translate((1 - arrival) * -84 + release * 12, (1 - arrival) * 35 - release * 6);
+    ctx.scale(0.72 + arrival * 0.3 + release * 0.08, 0.6 + arrival * 0.4 - release * 0.08);
+    ctx.globalAlpha = fade * (0.22 + arrival * 0.78);
+    drawAnimatedTextureCentered(sprite, 0, 0, defaultSize, defaultSize, {
+      mode: "beam",
+      progress: release,
+      intensity: 0.94,
+      baseAlpha: 0.12
+    });
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 5; index += 1) {
+      const travel = clamp((progress - index * 0.035) / 0.58, 0, 1);
+      ctx.globalAlpha = fade * (1 - travel) * (0.28 + index * 0.035);
+      ctx.fillStyle = index % 2 ? "#a76dff" : "#8de9ff";
+      ctx.beginPath();
+      ctx.ellipse(-92 + travel * 154, 52 + index * 7 - travel * 32, 2.2, 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (kind === "stand-firm") {
+    const rise = objectEffectEase(clamp(progress / 0.28, 0, 1));
+    const compression = Math.sin(clamp((progress - 0.12) / 0.54, 0, 1) * Math.PI);
+    const rebound = objectEffectEase(clamp((progress - 0.46) / 0.34, 0, 1));
+    ctx.translate(0, (1 - rise) * 72 - rebound * 10);
+    ctx.scale(0.82 + rise * 0.18 + rebound * 0.05, 0.56 + rise * 0.44 - compression * 0.12 + rebound * 0.08);
+    ctx.globalAlpha = fade * (0.18 + rise * 0.82);
+    drawAnimatedTextureCentered(sprite, 0, 0, defaultSize, defaultSize, {
+      mode: "shield",
+      progress,
+      intensity: 0.9,
+      baseAlpha: 0.14
+    });
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 7; index += 1) {
+      const lift = clamp((progress - index * 0.04) / 0.7, 0, 1);
+      const offsetX = ((index * 37) % 88) - 44;
+      ctx.globalAlpha = fade * (1 - lift) * 0.34;
+      ctx.fillStyle = index % 3 === 0 ? "#ffd78d" : "#9dfff1";
+      ctx.beginPath();
+      ctx.arc(offsetX, 78 - lift * (92 + index * 3), 1.2 + (index % 2) * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    const drive = objectEffectEase(clamp(progress / 0.3, 0, 1));
+    const recoil = Math.sin(clamp(progress / 0.48, 0, 1) * Math.PI);
+    ctx.translate((1 - drive) * -74 + drive * 18 - recoil * 14, 0);
+    ctx.scale(0.64 + drive * 0.42 + recoil * 0.08, 0.84 + drive * 0.16 - recoil * 0.05);
+    ctx.globalAlpha = fade * (0.2 + drive * 0.8);
+    drawAnimatedTextureCentered(sprite, 0, 0, defaultSize, defaultSize, {
+      mode: "impact",
+      progress,
+      intensity: 0.94,
+      baseAlpha: 0.12
+    });
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 6; index += 1) {
+      const wake = clamp((progress - index * 0.045) / 0.62, 0, 1);
+      ctx.globalAlpha = fade * (1 - wake) * 0.32;
+      ctx.fillStyle = index % 2 ? "#ffcb75" : "#ff795d";
+      ctx.beginPath();
+      ctx.ellipse(-108 + wake * 112, -28 + index * 11, 2.4, 1.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+  return true;
+}
+
+function drawUtilityInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize, kind) {
+  const fade = 1 - objectEffectEase(clamp((progress - 0.72) / 0.28, 0, 1));
+  const enter = objectEffectEase(clamp(progress / 0.3, 0, 1));
+  const pulse = Math.sin(clamp(progress / 0.7, 0, 1) * Math.PI);
+  const profiles = {
+    stamina: { mode: "power", rotate: 1.2, dx: 0, dy: 42, sx: 0.5, sy: 0.5, color: "#ffe08a", mote: "orbit" },
+    heal: { mode: "ripple", rotate: -0.12, dx: 0, dy: 58, sx: 0.76, sy: 0.45, color: "#9fffe9", mote: "converge" },
+    fire: { mode: "combustion", rotate: 0.08, dx: 0, dy: 76, sx: 0.66, sy: 0.36, color: "#ff963f", mote: "rise" },
+    substitution: { mode: "teleport", rotate: 1.55, dx: 34, dy: 0, sx: 0.22, sy: 0.9, color: "#d9a2ff", mote: "cross" },
+    warp: { mode: "teleport", rotate: -0.65, dx: -64, dy: 38, sx: 0.42, sy: 0.42, color: "#8dc6ff", mote: "bridge" },
+    evade: { mode: "recoil", rotate: 0.06, dx: 72, dy: 0, sx: 0.38, sy: 0.82, color: "#a787ff", mote: "lateral" },
+    speed: { mode: "flow-up", rotate: 0, dx: 0, dy: 78, sx: 0.6, sy: 0.34, color: "#76f4ff", mote: "rise" },
+    mystery: { mode: "orbit", rotate: 2.4, dx: 0, dy: 0, sx: 0.52, sy: 0.52, color: "#ffcf67", mote: "orbit" },
+    mana: { mode: "ripple", rotate: -0.28, dx: -42, dy: 0, sx: 0.48, sy: 0.7, color: "#8ea7ff", mote: "wave" }
+  };
+  const profile = profiles[kind] || profiles.mana;
+  ctx.save();
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
+  const recoil = kind === "evade" ? Math.sin(progress * Math.PI * 2.5) * (1 - progress) * 18 : 0;
+  const warpSnap = kind === "warp" ? Math.sin(clamp(progress / 0.54, 0, 1) * Math.PI) * 16 : 0;
+  ctx.translate((1 - enter) * profile.dx + recoil + warpSnap, (1 - enter) * profile.dy - pulse * (kind === "fire" || kind === "speed" ? 18 : 6));
+  ctx.rotate((1 - enter) * profile.rotate + (kind === "mystery" ? progress * 0.9 : 0));
+  ctx.scale(profile.sx + enter * (1 - profile.sx) + pulse * 0.08, profile.sy + enter * (1 - profile.sy) + pulse * 0.06);
+  ctx.globalAlpha = fade * (0.18 + enter * 0.82);
+  drawAnimatedTextureCentered(sprite, 0, 0, defaultSize, defaultSize, {
+    mode: profile.mode,
+    progress,
+    intensity: 0.92,
+    baseAlpha: 0.12
+  });
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
+  ctx.globalCompositeOperation = "lighter";
+  for (let index = 0; index < 7; index += 1) {
+    const travel = clamp((progress - index * 0.035) / 0.72, 0, 1);
+    let x = ((index * 43) % 96) - 48;
+    let y = 58 - travel * 106;
+    if (profile.mote === "converge") {
+      x *= 1 - travel;
+      y = -62 + travel * 62;
+    } else if (profile.mote === "cross") {
+      x = (index % 2 ? -1 : 1) * (74 - travel * 70);
+      y = ((index * 29) % 76) - 38;
+    } else if (profile.mote === "bridge") {
+      x = -92 + travel * 184;
+      y = (index - 3) * 7 + Math.sin(travel * Math.PI) * -22;
+    } else if (profile.mote === "lateral") {
+      x = (index % 2 ? -1 : 1) * (92 - travel * 34);
+      y = (index - 3) * 13;
+    } else if (profile.mote === "orbit") {
+      const angle = travel * Math.PI * 2 + index * 0.9;
+      x = Math.cos(angle) * (58 - travel * 24);
+      y = Math.sin(angle) * (38 - travel * 14);
+    } else if (profile.mote === "wave") {
+      x = -86 + travel * 172;
+      y = Math.sin(travel * Math.PI * 3 + index * 0.8) * 26;
+    }
+    ctx.globalAlpha = fade * (1 - travel) * (0.24 + (index % 3) * 0.055);
+    ctx.fillStyle = index % 3 === 0 ? "#ffffff" : profile.color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, profile.mote === "lateral" ? 3.2 : 1.6, 1.1, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
   return true;
@@ -13374,8 +13575,8 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   levitation: Object.freeze({ texture: "statusLevitationEffect", mode: "ripple", size: 30, alpha: 0.88, phase: 0.27 }),
   hpReduction: Object.freeze({ texture: "statusHpReductionEffect", mode: "data-down", size: 30, alpha: 0.88, phase: 0.46 }),
   resistanceBreak: Object.freeze({ texture: "pushStandFirmBreak", mode: "glitch", size: 30, alpha: 0.84, phase: 0.63 }),
-  standFirm: Object.freeze({ texture: "standFirmMarkerEffect", mode: "shield", size: 28, alpha: 0.94, phase: 0.18 }),
-  push: Object.freeze({ texture: "pushMarkerEffect", mode: "shimmer", size: 28, alpha: 0.94, phase: 0.72 }),
+  standFirm: Object.freeze({ texture: "instantStandFirmTexture", mode: "shield", size: 28, alpha: 0.94, phase: 0.18 }),
+  push: Object.freeze({ texture: "instantPushTexture", mode: "impact", size: 28, alpha: 0.94, phase: 0.72 }),
   iai: Object.freeze({ texture: "itemIaiTexture", mode: "beam", size: 30, alpha: 0.94, phase: 0.42 }),
   burning: Object.freeze({ texture: "hazardFireEffect", mode: "combustion", size: 30, alpha: 0.88, phase: 0.81 }),
   poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 }),
@@ -14890,7 +15091,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "iai-instant-ec-guard-v450";
+const version = "orichalcum-instant-title-ate-v451";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -14975,13 +15176,23 @@ const version = "iai-instant-ec-guard-v450";
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
   const itemIaiTexture = new Image();
+  const instantStandFirmTexture = new Image();
+  const instantPushTexture = new Image();
+  const instantStaminaTexture = alchemyEffectTextures[5];
+  const instantHealTexture = alchemyEffectTextures[6];
+  const instantFireTexture = alchemyEffectTextures[7];
+  const instantSubstitutionTexture = alchemyEffectTextures[8];
+  const instantWarpTexture = alchemyEffectTextures[9];
+  const instantEvadeTexture = actionEffectTextures[2];
+  const instantMysteryTexture = philosophyEffectTextures[10];
+  const instantManaTexture = alchemyEffectTextures[2];
   const iaiStandFirmBreakEffect = new Image();
   const fighterDestructionSlashMilestoneEffect = new Image();
   const fighterEnergyReleaseEffect = new Image();
   const fighterEnergyImpactEffect = new Image();
   const fighterShockwaveEffect = new Image();
-  const standFirmMarkerEffect = philosophyEffectTextures[4];
-  const pushMarkerEffect = philosophyEffectTextures[5];
+  const standFirmMarkerEffect = instantStandFirmTexture;
+  const pushMarkerEffect = instantPushTexture;
   const floraHealV1 = new Image();
   const floraSunbeamV3 = new Image();
   const tacticalSystemsAtlas = new Image();
@@ -14996,6 +15207,7 @@ const version = "iai-instant-ec-guard-v450";
   const limitBreakReleaseEffect = new Image();
   const alchemyExcaliburEffect = new Image();
   const accelerationPhaseEffect = new Image();
+  const instantSpeedTexture = accelerationPhaseEffect;
   const statusLevitationEffect = new Image();
   const preparationBarrierEffect = new Image();
   const humanTransmutationEffect = new Image();
@@ -15071,7 +15283,9 @@ const version = "iai-instant-ec-guard-v450";
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
-  defer(itemIaiTexture, "assets/generated/item-iai-v449.png");
+  defer(itemIaiTexture, "assets/generated/instant-iai-abstract-v451.png");
+  defer(instantStandFirmTexture, "assets/generated/instant-stand-firm-abstract-v451.png");
+  defer(instantPushTexture, "assets/generated/instant-push-abstract-v451.png");
   defer(iaiStandFirmBreakEffect, "assets/generated/effect-iai-stand-firm-break-v449.png");
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
@@ -15179,6 +15393,17 @@ const version = "iai-instant-ec-guard-v450";
     fighterSlashEffect,
     fighterEnergyChargeEffect,
     itemIaiTexture,
+    instantStandFirmTexture,
+    instantPushTexture,
+    instantStaminaTexture,
+    instantHealTexture,
+    instantFireTexture,
+    instantSubstitutionTexture,
+    instantWarpTexture,
+    instantEvadeTexture,
+    instantSpeedTexture,
+    instantMysteryTexture,
+    instantManaTexture,
     iaiStandFirmBreakEffect,
     fighterDestructionSlashMilestoneEffect,
     fighterEnergyReleaseEffect,
