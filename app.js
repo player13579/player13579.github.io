@@ -422,10 +422,12 @@ const state = {
     submenuTimer: 0,
     suppressClick: false
   },
-  continuousActionHold: { pointerId: null, button: null, timer: 0 },
-  continuousActionKeyHold: { code: "", repeat: null, timer: 0, repeatInterval: 0 },
+  continuousActionHold: { pointerId: null, button: null, timer: 0, fighterSlash: false },
+  continuousActionKeyHold: { code: "", repeat: null, timer: 0, repeatInterval: 0, fighterSlash: false },
   continuousActionSuppressClicks: new WeakMap(),
   continuousActionKeyAt: new Map(),
+  fighterSlashGuardIntent: false,
+  fighterSlashPendingRequests: new Set(),
   enhanceHold: { kind: "", pointerId: null, startedAt: 0, timer: 0 },
   throwTargeting: {
     active: false,
@@ -2680,14 +2682,21 @@ function isGameActionUnavailable(button) {
   );
 }
 
-function invokeContinuousGameAction(button, { allowHidden = false } = {}) {
+function invokeContinuousGameAction(button, { allowHidden = false, initial = false } = {}) {
   if (!button?.isConnected || isGameActionUnavailable(button)) return false;
   if (!allowHidden && (button.hidden || button.closest("[hidden]"))) return false;
   // The action keeps its existing icon, physical motion, and B-generated effect.
   // Holding only changes input cadence, so no new visual asset meaning is introduced.
   const source = button === els.tabletAbilityShortcut ? els.operatorAbilityButton : button;
   if (!source || isGameActionUnavailable(source) || source.hidden) return false;
-  source.click();
+  const fighterSlash = isFighterSlashActionButton(button);
+  const previousGuardIntent = state.fighterSlashGuardIntent;
+  if (fighterSlash) state.fighterSlashGuardIntent = Boolean(initial);
+  try {
+    source.click();
+  } finally {
+    if (fighterSlash) state.fighterSlashGuardIntent = previousGuardIntent;
+  }
   return true;
 }
 
@@ -2698,40 +2707,66 @@ function continuousGameActionInterval(button) {
 }
 
 function isFighterSlashActionButton(button) {
-  return button === els.ninjutsuButton && hasDisplayedOperatorAccess(state.data?.self, "fighter");
+  return [els.ninjutsuButton, els.tabletNinjutsuShortcut].includes(button) && hasDisplayedOperatorAccess(state.data?.self, "fighter");
+}
+
+function requestFighterSlash(targetId, perfectGuardIntent = false) {
+  const request = api("/api/fighter-slash", { targetId, perfectGuardIntent: Boolean(perfectGuardIntent) });
+  state.fighterSlashPendingRequests.add(request);
+  request.then(
+    () => state.fighterSlashPendingRequests.delete(request),
+    () => state.fighterSlashPendingRequests.delete(request)
+  );
+  return request;
+}
+
+function queueFighterSlashGuardRelease() {
+  if (!state.roomId || !state.playerId) return false;
+  const roomId = state.roomId;
+  const playerId = state.playerId;
+  const pending = [...state.fighterSlashPendingRequests];
+  void Promise.allSettled(pending).then(() => {
+    if (state.roomId !== roomId || state.playerId !== playerId) return false;
+    return api("/api/fighter-slash-release");
+  });
+  return true;
 }
 
 function stopContinuousActionKeyHold(code = "") {
   const hold = state.continuousActionKeyHold;
   if (code && hold.code !== code) return false;
+  const releaseFighterSlash = hold.fighterSlash;
   if (hold.timer) window.clearTimeout(hold.timer);
   hold.code = "";
   hold.repeat = null;
   hold.timer = 0;
   hold.repeatInterval = 0;
+  hold.fighterSlash = false;
+  if (releaseFighterSlash) queueFighterSlashGuardRelease();
   return true;
 }
 
-function beginContinuousActionKeyHold(code, repeat, repeatInterval = CONTINUOUS_ACTION_REPEAT_INTERVAL_MS) {
+function beginContinuousActionKeyHold(code, repeat, repeatInterval = CONTINUOUS_ACTION_REPEAT_INTERVAL_MS, fighterSlash = false) {
   if (!code || typeof repeat !== "function") return false;
   stopContinuousActionKeyHold();
   const hold = state.continuousActionKeyHold;
   hold.code = code;
   hold.repeat = repeat;
   hold.repeatInterval = Math.max(80, Number(repeatInterval) || CONTINUOUS_ACTION_REPEAT_INTERVAL_MS);
+  hold.fighterSlash = Boolean(fighterSlash);
   const tick = () => {
     if (hold.code !== code || hold.repeat !== repeat) return;
     if (state.screen !== "game" || state.data?.phase !== "playing") {
       stopContinuousActionKeyHold(code);
       return;
     }
-    if (repeat() === false) {
+    if (repeat(false) === false) {
       stopContinuousActionKeyHold(code);
       return;
     }
     hold.timer = window.setTimeout(tick, hold.repeatInterval);
   };
-  if (repeat() === false) {
+  if (repeat(true) === false) {
     stopContinuousActionKeyHold(code);
     return false;
   }
@@ -2742,22 +2777,26 @@ function beginContinuousActionKeyHold(code, repeat, repeatInterval = CONTINUOUS_
 function beginContinuousButtonKeyHold(code, resolveButton) {
   const initialButton = resolveButton?.();
   const repeatInterval = continuousGameActionInterval(initialButton);
-  return beginContinuousActionKeyHold(code, () => {
+  const fighterSlash = isFighterSlashActionButton(initialButton);
+  return beginContinuousActionKeyHold(code, (initial = false) => {
     const button = resolveButton?.();
     if (!isContinuousGameActionButton(button)) return false;
-    if (!isGameActionUnavailable(button)) invokeContinuousGameAction(button, { allowHidden: true });
+    if (!isGameActionUnavailable(button)) invokeContinuousGameAction(button, { allowHidden: true, initial });
     return true;
-  }, repeatInterval);
+  }, repeatInterval, fighterSlash);
 }
 
 function stopContinuousActionHold(pointerId = null) {
   const hold = state.continuousActionHold;
   if (pointerId !== null && hold.pointerId !== pointerId) return false;
+  const releaseFighterSlash = hold.fighterSlash;
   if (hold.button) state.continuousActionSuppressClicks.set(hold.button, performance.now() + 600);
   if (hold.timer) window.clearTimeout(hold.timer);
   hold.timer = 0;
   hold.pointerId = null;
   hold.button = null;
+  hold.fighterSlash = false;
+  if (releaseFighterSlash) queueFighterSlashGuardRelease();
   return true;
 }
 
@@ -2773,9 +2812,10 @@ function beginContinuousActionHold(event) {
   const hold = state.continuousActionHold;
   hold.pointerId = event.pointerId;
   hold.button = button;
+  hold.fighterSlash = isFighterSlashActionButton(button);
   state.continuousActionSuppressClicks.set(button, Number.POSITIVE_INFINITY);
   try { button.setPointerCapture(event.pointerId); } catch {}
-  invokeContinuousGameAction(button);
+  invokeContinuousGameAction(button, { initial: true });
   const repeatInterval = continuousGameActionInterval(button);
   const repeat = () => {
     if (hold.pointerId !== event.pointerId || hold.button !== button) return;
@@ -2783,7 +2823,7 @@ function beginContinuousActionHold(event) {
       stopContinuousActionHold(event.pointerId);
       return;
     }
-    if (!isGameActionUnavailable(button) && !button.hidden && !button.closest("[hidden]")) invokeContinuousGameAction(button);
+    if (!isGameActionUnavailable(button) && !button.hidden && !button.closest("[hidden]")) invokeContinuousGameAction(button, { initial: false });
     hold.timer = window.setTimeout(repeat, repeatInterval);
   };
   hold.timer = window.setTimeout(repeat, Math.max(CONTINUOUS_ACTION_HOLD_DELAY_MS, repeatInterval));
@@ -5523,6 +5563,7 @@ function renderTabletControls(data) {
   els.tabletNinjutsuShortcut.textContent = els.ninjutsuButton.textContent || "忍殺";
   els.tabletNinjutsuShortcut.disabled = els.ninjutsuButton.disabled || els.ninjutsuButton.hidden;
   els.tabletNinjutsuShortcut.hidden = els.ninjutsuButton.hidden;
+  els.tabletNinjutsuShortcut.title = els.ninjutsuButton.title;
   els.tabletAbilityShortcut.textContent = els.operatorAbilityButton.textContent || "オペ能力";
   els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.disabled || els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden;
@@ -6396,19 +6437,35 @@ function formatAnalyticsDuration(rawSeconds) {
   return `${seconds}秒`;
 }
 
-async function performNinjutsu() {
+async function performNinjutsu(event) {
   const target = nearestTarget();
   const fighterSlash = hasDisplayedOperatorAccess(state.data.self, "fighter");
+  const perfectGuardIntent = fighterSlash && Boolean(state.fighterSlashGuardIntent || event?.isTrusted);
+  const autoReleaseGuardInput = perfectGuardIntent &&
+    !state.continuousActionHold.fighterSlash &&
+    !state.continuousActionKeyHold.fighterSlash;
+  state.fighterSlashGuardIntent = false;
+  const performFighterSlash = async (targetId) => {
+    try {
+      return await requestFighterSlash(targetId, perfectGuardIntent);
+    } finally {
+      if (autoReleaseGuardInput) queueFighterSlashGuardRelease();
+    }
+  };
   if (!target) {
     if (fighterSlash) {
-      const ok = await api("/api/fighter-slash", { targetId: "" });
-      if (ok) showToast("斬るを発動しました。射撃を切断できます。");
+      const ok = await performFighterSlash("");
+      if (ok) showToast(perfectGuardIntent
+        ? "斬るを発動しました。短いジャストガード受付中です。"
+        : "斬るを発動しました。斬れそうな物理攻撃をガードします。");
       return;
     }
     showToast("忍殺できる距離に対象がいません。");
     return;
   }
-  const ok = await api(fighterSlash ? "/api/fighter-slash" : "/api/ninjutsu", { targetId: target.id });
+  const ok = fighterSlash
+    ? await performFighterSlash(target.id)
+    : await api("/api/ninjutsu", { targetId: target.id });
   if (ok) {
     showToast(fighterSlash
       ? `${target.name}へ斬るを実行しました。`
@@ -6983,7 +7040,10 @@ function detectGameSounds(previous, next) {
     if (next.phase === "playing") playSound("start");
     if (next.phase === "meeting") playSound("meeting");
     if (next.phase === "ended") {
-      const wonIdea = next.winner === "idea" && next.ideaWinnerId === next.selfId;
+      const ideaWinnerIds = Array.isArray(next.ideaWinnerIds) && next.ideaWinnerIds.length
+        ? next.ideaWinnerIds
+        : [next.ideaWinnerId].filter(Boolean);
+      const wonIdea = next.winner === "idea" && ideaWinnerIds.includes(next.selfId);
       playSound(wonIdea || next.winner === `${next.self.role}s` ? "win" : "lose");
     }
   }
@@ -8446,15 +8506,15 @@ function collectOperatorPassiveEffects(self, liveNow) {
 
   if (hasDisplayedOperatorAccess(self, "fighter")) {
     add("キルカウンター", passiveValue, passiveTone, "回避成功時、攻撃者を即時キルする");
-    add("斬る", "忍殺強化", "rational", "忍殺を居合へ変え、射撃を切断してジャストガード時は反射する");
+    add("斬る", "物理ガード", "rational", "斬れそうな物理攻撃をガードし、短いジャストガード受付で攻撃元へ反射する。EMP・毒・サンビームは通常ガードできず、連打中はジャストガードを再受付しない");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
-    const infinite = self.fighterInfiniteResources ? " / MP・SP・HP・踏ん張り∞" : "";
+    const infinite = self.fighterInfiniteResources ? " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る: 常時破壊 / JG: 全攻撃反射" : "";
     const recentCharge = self.lastImmediateFeedback?.label === "エネルギーチャージ" &&
       liveNow - Number(self.lastImmediateFeedback.at || 0) < 6500
       ? ` / 最新: ${self.lastImmediateFeedback.detail}`
       : "";
-    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後はMP・SP・HP・踏ん張りが無限になる");
+    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後はMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、ジャストガードが全攻撃反射になる");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -8509,7 +8569,12 @@ function renderActiveEffects(data) {
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
   if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "理知中、押し込み・踏ん張り・回復・加速・タスク消費軽減を同時に得る");
   if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "移動速度が大幅に上昇する");
-  if (self.limitBreakActive) add("リミットブレイク", "永続", "truth", `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / MP継続消費 / 即死回避無効`);
+  if (self.limitBreakActive) {
+    const limitBreakDetail = self.fighterInfiniteResources
+      ? `HP消費なし / MP・SP・HP・踏ん張り∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
+      : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / MP継続消費 / 即死回避無効`;
+    add("リミットブレイク", "永続", "truth", limitBreakDetail);
+  }
   effects.push(...collectOperatorPassiveEffects(self, liveNow));
   if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "次のボディダメージを吸収し、状態異常を解除する");
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次に受ける確殺を1回だけボディダメージへ変換する");
@@ -8547,6 +8612,22 @@ function renderActiveEffects(data) {
   if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "床の効果で移動速度が上昇する");
   if (self.mapObjectEffects?.quiet) add("静音フィールド", "範囲内", "rational", "移動中の足音が周囲へ伝わらない");
   timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "キルを無効化し、キルカウンターを行う" : "効果中に受けたキル判定を無効化する");
+  const slashPerfectRemaining = Math.max(0, Number(self.slashPerfectUntil) - liveNow);
+  const slashGuardRemaining = Math.max(0, Number(self.slashActiveUntil) - liveNow);
+  const slashRearmRemaining = Math.max(0, Number(self.slashPerfectReadyAt) - liveNow);
+  if (slashPerfectRemaining > 0) {
+    add(
+      self.fighterInfiniteResources ? "斬る・全反射ジャストガード" : "斬る・ジャストガード",
+      `${Math.ceil(slashPerfectRemaining)}ms`,
+      "truth",
+      self.fighterInfiniteResources ? "この短い受付中だけ、物理・サンビーム・EMP・毒を含む全攻撃を攻撃元へ反射する" : "この短い受付中、斬れそうな物理攻撃を攻撃元へ反射する"
+    );
+  } else if (slashGuardRemaining > 0) {
+    add("斬る・物理ガード", `${Math.ceil(slashGuardRemaining)}ms`, "rational", "斬れそうな物理攻撃を無効化する。EMP・毒・サンビームなどは通常ガードできない");
+  }
+  if (hasDisplayedOperatorAccess(self, "fighter") && slashRearmRemaining > 0) {
+    add("ジャストガード再武装", `${(slashRearmRemaining / 1000).toFixed(1)}秒`, "neutral", "再武装前の連打は受付を後ろへ送る。いったん待ち、攻撃を見極めて押す");
+  }
   const floraAcceleration = self.timedAccelerationStacks?.flora;
   timed(
     `フローラ加速${floraAcceleration?.count > 1 ? ` ×${floraAcceleration.count}` : ""}`,
@@ -8714,7 +8795,7 @@ function objectiveText(data) {
   }
   const dodgeText = "回避 100SP";
   if (self.special === "fighter" && self.alive) {
-    return `ファイター / 斬る・キルカウンター・リミットブレイク / ${dodgeText}`;
+    return `ファイター / 斬る（物理ガード・JG反射）・キルカウンター・リミットブレイク / ${dodgeText}`;
   }
   if (self.special === "teleport" && self.alive) {
     return `タスクを進めてください。テレポート ${self.abilityCosts?.teleport || 0}MP / ${dodgeText}`;
@@ -8857,8 +8938,19 @@ function updateActionButtons(data) {
     els.contextActionButton.removeAttribute("data-hotkey");
   }
   const killSeconds = Math.max(0, Math.ceil(((self.killReadyAt || 0) - liveNow) / 1000));
+  const slashPerfectActive = fighterAccess && Number(self.slashPerfectUntil) > liveNow;
+  const slashGuardActive = fighterAccess && Number(self.slashActiveUntil) > liveNow;
+  const slashPerfectRearmSeconds = fighterAccess
+    ? Math.max(0, (Number(self.slashPerfectReadyAt) - liveNow) / 1000)
+    : 0;
   els.ninjutsuButton.textContent = fighterAccess
-    ? "斬る"
+    ? slashPerfectActive
+      ? self.fighterInfiniteResources ? "斬る 全反射JG" : "斬る JG反射"
+      : slashGuardActive
+        ? "斬る 物理ガード"
+        : slashPerfectRearmSeconds > 0
+          ? `斬る JG待機 ${slashPerfectRearmSeconds.toFixed(1)}秒`
+          : "斬る"
     : aiming
       ? `忍殺準備 ${(Math.max(0, self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒`
       : killSeconds > 0
@@ -8868,6 +8960,12 @@ function updateActionButtons(data) {
   els.ninjutsuButton.disabled = fighterAccess
     ? !slashReady
     : !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
+  els.ninjutsuButton.classList.toggle("active", slashPerfectActive || slashGuardActive);
+  els.ninjutsuButton.title = fighterAccess
+    ? self.fighterInfiniteResources
+      ? "斬る: 物理攻撃をガード。短いジャストガード受付ではサンビーム・EMP・毒を含む全攻撃を反射。連打すると再受付が遅れる"
+      : "斬る: 斬れそうな物理攻撃をガードし、短いジャストガード受付で反射。EMP・毒・サンビームはガード不可。連打すると再受付が遅れる"
+    : "忍殺";
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   els.substitutionStatusButton.textContent = itemBlocked ? `変わり身 ×${self.substitutionCharges || 0}（EMP遮断）` : `変わり身 ×${self.substitutionCharges || 0}（自動）`;
@@ -8878,7 +8976,8 @@ function updateActionButtons(data) {
     (self.ideaStage || 0) >= 1 && (self.ideaFirstAspect === "beauty" || (self.ideaStage || 0) >= 2) ? "美" : "",
     self.goodActive ? "善" : ""
   ].filter(Boolean).join("・");
-  els.gritStatusButton.textContent = `踏ん張り ${self.fighterInfiniteResources ? "∞" : `×${standFirmCharges}`}（${itemBlocked ? "EMP遮断" : "自動"}）${philosophy ? ` / ${philosophy}` : ""}`;
+  const standFirmMode = self.fighterInfiniteResources ? "50回到達報酬" : itemBlocked ? "EMP遮断" : "自動";
+  els.gritStatusButton.textContent = `踏ん張り ${self.fighterInfiniteResources ? "∞" : `×${standFirmCharges}`}（${standFirmMode}）${philosophy ? ` / ${philosophy}` : ""}`;
   els.reasonButton.textContent = `押し込み ×${pushCharges}（${itemBlocked ? "EMP遮断" : "自動"}）`;
   els.reasonButton.disabled = true;
   const gunnerWeapons = Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [];
@@ -9136,10 +9235,15 @@ function renderEnd(data) {
     els.resultConfetti.replaceChildren();
     return;
   }
+  const ideaWinnerIds = new Set(
+    Array.isArray(data.ideaWinnerIds) && data.ideaWinnerIds.length
+      ? data.ideaWinnerIds
+      : [data.ideaWinnerId].filter(Boolean)
+  );
   els.endTitle.textContent = data.winner === "none"
     ? "試合終了"
     : data.winner === "idea"
-      ? "善のイデア 特殊勝利"
+      ? `善のイデア ${ideaWinnerIds.size > 1 ? `${ideaWinnerIds.size}人勝利` : "特殊勝利"}`
       : data.winner === "attackers" ? "アタッカー勝利" : "ディフェンダー勝利";
   els.endReason.textContent = data.finishReason || "";
   if (data.soloMission?.id === "cpu-gravity" && data.winner === "attackers") {
@@ -9149,7 +9253,7 @@ function renderEnd(data) {
   }
   els.resultRanking.innerHTML = "";
   const results = data.results || [];
-  const ideaWinnerRole = results.find((entry) => entry.id === data.ideaWinnerId)?.role;
+  const ideaWinnerRole = results.find((entry) => ideaWinnerIds.has(entry.id))?.role;
   const winningRole = data.winner === "idea" ? ideaWinnerRole || "defender" : data.winner === "attackers" ? "attacker" : "defender";
   const teamOrder = winningRole === "attacker" ? ["attacker", "defender"] : ["defender", "attacker"];
   teamOrder.forEach((role) => {
@@ -9168,9 +9272,10 @@ function renderEnd(data) {
     entries.forEach((entry, index) => {
       const row = document.createElement("div");
       const rank = index + 1;
+      const ideaWinner = data.winner === "idea" && (entry.ideaWinner || ideaWinnerIds.has(entry.id));
       row.dataset.rank = String(rank);
-      row.className = `result-row${rank === 1 ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}`;
-      const detail = `キル ${entry.actualKills} / ${entry.rankTier || "bronze"}`;
+      row.className = `result-row${rank === 1 ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}${ideaWinner ? " is-idea-winner" : ""}`;
+      const detail = `${ideaWinner ? "善のイデア勝者 / " : ""}キル ${entry.actualKills} / ${entry.rankTier || "bronze"}`;
       row.innerHTML = `
         <span class="result-rank">${rank}</span>
         <span class="color-dot" style="background:${escapeHtml(entry.color || "#94a3b8")}"></span>
@@ -9221,7 +9326,7 @@ function startResultCelebration(data, results) {
   }
   const selfResult = results.find((entry) => entry.id === data.selfId);
   const selfWon = data.winner === "idea"
-    ? data.ideaWinnerId === data.selfId
+    ? (selfResult?.ideaWinner || (Array.isArray(data.ideaWinnerIds) ? data.ideaWinnerIds : [data.ideaWinnerId]).includes(data.selfId))
     : (data.winner === "attackers" && selfResult?.role === "attacker") ||
       (data.winner === "defenders" && selfResult?.role === "defender");
   playSound(selfWon ? "win" : "lose");
@@ -11974,7 +12079,8 @@ const GENERATED_EFFECT_TEXTURES = {
   "limit-break": ["limitBreakFieldEffect", 360],
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
   "fighter-energy-push-milestone": ["fighterPushDoubleMilestoneEffect", 250],
-  "fighter-energy-destruction-milestone": ["fighterEnergyChargeEffect", 290],
+  "fighter-energy-destruction-milestone": ["fighterDestructionSlashMilestoneEffect", 290],
+  "fighter-energy-destruction-slash": ["fighterDestructionSlashMilestoneEffect", 260],
   "fighter-energy-release": ["fighterEnergyReleaseEffect", 180],
   "fighter-energy-impact": ["fighterEnergyImpactEffect", 250],
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
@@ -12743,7 +12849,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
   manaGpu: ["マナGPU", "MPを短縮クールへ少しずつ変換し、次のバイブコーディングで自動消費します。"],
-  infiniteResources: ["無限資源", "エネルギー50回到達により、MP・SP・HP・踏ん張りが無限です。"],
+  infiniteResources: ["無限資源", "エネルギー50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
+  destructionSlash: ["常時破壊斬り", "エネルギー50回到達により、斬るがアイテムの有無にかかわらず対象を破壊します。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -13292,12 +13399,35 @@ function physicalMotionRateFor(player) {
   return clamp(Number(self?.accelerationMultiplier ?? player?.accelerationMultiplier) || 1, 0.15, 12);
 }
 
-function loopedPhysicalMotionProgress(player, kind, cycleMs) {
+const ACCELERATION_READY_PHYSICAL_KINDS = new Set([
+  "focus", "rest", "power", "cast", "heal", "reload", "shoot", "interact", "enhance"
+]);
+
+function accelerationReadyMotionDynamics(player, kind, motionId = kind) {
+  const rate = physicalMotionRateFor(player);
+  const accelerationReady = ACCELERATION_READY_PHYSICAL_KINDS.has(kind) ||
+    motionId === "action-renki" || motionId === "fighter-energy-charge";
+  if (!accelerationReady || rate <= 1) {
+    return { rate, spatialScale: 1, poseTravel: 1 };
+  }
+  return {
+    // Timing still follows the authoritative acceleration multiplier. Spatial
+    // travel shrinks inversely so high acceleration does not produce violent
+    // bobbing, lunging, or rotation, and authored extreme poses converge on
+    // the stable middle pose instead of flashing at high frequency.
+    rate,
+    spatialScale: Math.max(0.1, 1 / rate),
+    poseTravel: Math.max(0.28, 1 / Math.sqrt(rate))
+  };
+}
+
+function loopedPhysicalMotionProgress(player, kind, cycleMs, motionId = kind) {
   const timestamp = state.frameNow || performance.now();
-  const key = `${player.id}:${kind}`;
+  const key = `${player.id}:${kind}:${motionId}`;
   const phase = state.physicalMotionPhases.get(key) || { progress: 0, lastAt: timestamp };
   const elapsed = clamp(timestamp - phase.lastAt, 0, 50);
-  phase.progress = (phase.progress + elapsed * physicalMotionRateFor(player) / Math.max(1, cycleMs)) % 1;
+  const dynamics = accelerationReadyMotionDynamics(player, kind, motionId);
+  phase.progress = (phase.progress + elapsed * dynamics.rate / Math.max(1, cycleMs)) % 1;
   phase.lastAt = timestamp;
   state.physicalMotionPhases.set(key, phase);
   return phase.progress;
@@ -13324,8 +13454,8 @@ function currentCharacterAction(player) {
     return { kind: "jump", progress };
   }
   if (player.movementMode === "jump-prepare") return { kind: "jump", progress: 0 };
-  if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600) };
-  if (player.movementMode === "meditating") return { kind: "focus", progress: loopedPhysicalMotionProgress(player, "focus", 1800) };
+  if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600, "action-rest"), motionId: "action-rest" };
+  if (player.movementMode === "meditating") return { kind: "focus", progress: loopedPhysicalMotionProgress(player, "focus", 1800, "action-renki"), motionId: "action-renki" };
   if (player.id === state.data?.selfId && state.enhanceHold.kind) {
     return { kind: "enhance", progress: loopedPhysicalMotionProgress(player, "enhance", 1180), variant: state.enhanceHold.kind };
   }
@@ -13346,8 +13476,9 @@ function currentCharacterAction(player) {
   if (!action) return null;
   const lastSampleAt = Number(action.lastSampleAt) || Number(action.startedAt) || timestamp;
   const elapsed = clamp(timestamp - lastSampleAt, 0, 100);
+  const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
   const progress = (Number(action.sampledProgress) || 0) +
-    elapsed * physicalMotionRateFor(player) / Math.max(1, action.duration);
+    elapsed * dynamics.rate / Math.max(1, action.duration);
   action.lastSampleAt = timestamp;
   action.sampledProgress = progress;
   if (progress >= 1) {
@@ -13526,6 +13657,7 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 }),
   manaGpu: Object.freeze({ texture: "statusManaGpuEffect", mode: "data-accelerate", size: 30, alpha: 0.94, phase: 0.57 }),
   infiniteResources: Object.freeze({ texture: "fighterEnergyChargeEffect", mode: "power", size: 30, alpha: 0.94, phase: 0.88 }),
+  destructionSlash: Object.freeze({ texture: "fighterDestructionSlashMilestoneEffect", mode: "beam", size: 30, alpha: 0.94, phase: 0.76 }),
   clairvoyance: Object.freeze({ texture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 })
 });
 
@@ -13536,7 +13668,8 @@ function persistentStatusAteState(player, data) {
   return {
     ...visibleState,
     manaGpu: Boolean(data.self?.manaGpuActive),
-    infiniteResources: Boolean(data.self?.fighterInfiniteResources)
+    infiniteResources: Boolean(data.self?.fighterInfiniteResources),
+    destructionSlash: Boolean(data.self?.fighterDestructionSlash)
   };
 }
 
@@ -13628,61 +13761,62 @@ function physicalActionFramePosition(kind, progress, motionId = kind) {
   return objectEffectEase(value) * 2;
 }
 
-function applyPhysicalActionTransform(kind, progress, flip, motionId = kind) {
+function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spatialScale = 1) {
   const impulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
   const facing = flip ? -1 : 1;
   const signature = physicalMotionSignature(motionId, kind);
+  const motionScale = clamp(Number(spatialScale) || 0, 0.1, 1);
   if (kind === "attack") {
-    ctx.translate(facing * impulse * 7, -impulse * 1.4);
-    ctx.rotate(facing * impulse * 0.035);
+    ctx.translate(facing * impulse * 7 * motionScale, -impulse * 1.4 * motionScale);
+    ctx.rotate(facing * impulse * 0.035 * motionScale);
   } else if (kind === "throw") {
     const windup = objectEffectEase(clamp(progress / 0.4, 0, 1));
     const release = objectEffectEase(clamp((progress - 0.36) / 0.3, 0, 1));
     const followThrough = Math.sin(clamp((progress - 0.52) / 0.48, 0, 1) * Math.PI);
-    ctx.translate(facing * (-windup * 5 + release * 12), -release * 3.5 + followThrough * 1.5);
-    ctx.rotate(facing * (-windup * 0.045 + release * 0.09 - followThrough * 0.025));
-    ctx.scale(1 - followThrough * 0.018, 1 + followThrough * 0.028);
+    ctx.translate(facing * (-windup * 5 + release * 12) * motionScale, (-release * 3.5 + followThrough * 1.5) * motionScale);
+    ctx.rotate(facing * (-windup * 0.045 + release * 0.09 - followThrough * 0.025) * motionScale);
+    ctx.scale(1 - followThrough * 0.018 * motionScale, 1 + followThrough * 0.028 * motionScale);
   } else if (kind === "slash") {
     const strike = Math.sin(clamp((progress - 0.2) / 0.55, 0, 1) * Math.PI);
-    ctx.translate(facing * strike * 10, -strike * 2.5);
-    ctx.rotate(facing * strike * 0.065);
+    ctx.translate(facing * strike * 10 * motionScale, -strike * 2.5 * motionScale);
+    ctx.rotate(facing * strike * 0.065 * motionScale);
   } else if (kind === "evade") {
-    ctx.translate(-facing * impulse * 12, -impulse * 4);
-    ctx.rotate(-facing * impulse * 0.055);
+    ctx.translate(-facing * impulse * 12 * motionScale, -impulse * 4 * motionScale);
+    ctx.rotate(-facing * impulse * 0.055 * motionScale);
   } else if (kind === "cast") {
-    ctx.translate(0, -impulse * 5);
-    ctx.scale(1 + impulse * 0.025, 1 - impulse * 0.018);
+    ctx.translate(0, -impulse * 5 * motionScale);
+    ctx.scale(1 + impulse * 0.025 * motionScale, 1 - impulse * 0.018 * motionScale);
   } else if (kind === "heal") {
-    ctx.translate(0, -impulse * 3);
-    ctx.scale(1 + impulse * 0.018, 1 + impulse * 0.035);
+    ctx.translate(0, -impulse * 3 * motionScale);
+    ctx.scale(1 + impulse * 0.018 * motionScale, 1 + impulse * 0.035 * motionScale);
   } else if (kind === "power") {
     const charge = clamp(progress / 0.65, 0, 1);
-    ctx.translate(0, -Math.sin(charge * Math.PI) * 4);
-    ctx.scale(1 + charge * 0.045, 1 + charge * 0.045);
+    ctx.translate(0, -Math.sin(charge * Math.PI) * 4 * motionScale);
+    ctx.scale(1 + charge * 0.045 * motionScale, 1 + charge * 0.045 * motionScale);
   } else if (kind === "enhance") {
     const gather = 0.5 - Math.cos(progress * Math.PI * 2) * 0.5;
-    ctx.translate(0, gather * 2.2);
-    ctx.scale(1 - gather * 0.028, 1 + gather * 0.038);
+    ctx.translate(0, gather * 2.2 * motionScale);
+    ctx.scale(1 - gather * 0.028 * motionScale, 1 + gather * 0.038 * motionScale);
   } else if (kind === "focus") {
-    ctx.translate(0, Math.sin(progress * Math.PI * 2) * 1.5);
+    ctx.translate(0, Math.sin(progress * Math.PI * 2) * 1.5 * motionScale);
   } else if (kind === "rest") {
-    ctx.translate(0, objectEffectEase(progress) * 3);
-    ctx.scale(1 + impulse * 0.012, 1 - impulse * 0.02);
+    ctx.translate(0, objectEffectEase(progress) * 3 * motionScale);
+    ctx.scale(1 + impulse * 0.012 * motionScale, 1 - impulse * 0.02 * motionScale);
   } else if (kind === "interact") {
-    ctx.translate(facing * impulse * 2.5, -impulse * 1.2);
+    ctx.translate(facing * impulse * 2.5 * motionScale, -impulse * 1.2 * motionScale);
   } else if (kind === "reload") {
-    ctx.translate(0, Math.sin(progress * Math.PI * 2) * 1.5);
-    ctx.rotate(facing * Math.sin(progress * Math.PI * 2) * 0.012);
+    ctx.translate(0, Math.sin(progress * Math.PI * 2) * 1.5 * motionScale);
+    ctx.rotate(facing * Math.sin(progress * Math.PI * 2) * 0.012 * motionScale);
   } else if (kind === "jump") {
-    ctx.translate(facing * progress * 5, -Math.sin(progress * Math.PI) * 24);
-    ctx.scale(1 - impulse * 0.035, 1 + impulse * 0.055);
+    ctx.translate(facing * progress * 5 * motionScale, -Math.sin(progress * Math.PI) * 24 * motionScale);
+    ctx.scale(1 - impulse * 0.035 * motionScale, 1 + impulse * 0.055 * motionScale);
   }
   const uniqueWave = Math.sin(clamp(progress, 0, 1) * Math.PI * signature.frequency) * impulse;
   ctx.translate(
-    facing * uniqueWave * signature.sway * 2.4,
-    uniqueWave * signature.lift * 1.65
+    facing * uniqueWave * signature.sway * 2.4 * motionScale,
+    uniqueWave * signature.lift * 1.65 * motionScale
   );
-  ctx.rotate(facing * uniqueWave * signature.twist * 0.012);
+  ctx.rotate(facing * uniqueWave * signature.twist * 0.012 * motionScale);
 }
 
 function drawPhysicalActionSprite(player, data, ghost, action) {
@@ -13696,8 +13830,10 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   if (!atlas) return false;
 
   const normalizedProgress = clamp(Number(action.progress) || 0, 0, 1);
-  const phase = physicalActionFramePosition(action.kind, normalizedProgress, action.motionId);
-  const frame = Math.min(2, Math.round(phase));
+  const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
+  const rawPhase = physicalActionFramePosition(action.kind, normalizedProgress, action.motionId);
+  const phase = 1 + (rawPhase - 1) * dynamics.poseTravel;
+  const frame = Math.min(2, Math.max(0, Math.round(phase)));
   const row = Math.floor(sequence / 2);
   const column = (sequence % 2) * 3 + frame;
   const sprite = normalizedSpriteFrame(atlas, `physical-action-${atlasId}`, 6, 6, row, column);
@@ -13709,7 +13845,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
-  applyPhysicalActionTransform(action.kind, normalizedProgress, flip, action.motionId);
+  applyPhysicalActionTransform(action.kind, normalizedProgress, flip, action.motionId, dynamics.spatialScale);
   drawNormalizedSprite(sprite, 0, 31, 98, actionHeight, flip);
   ctx.restore();
   drawNameplate(player, ghost, -78);
@@ -13752,15 +13888,19 @@ function drawWeaponFireMotion(player, data, ghost, action) {
   const settle = Math.sin(Math.min(1, progress * 1.45) * Math.PI);
   const facing = facingFor(player, motionFor(player, data));
   const flip = facing === "left";
+  const dynamics = accelerationReadyMotionDynamics(player, "shoot", action.motionId);
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
   ctx.translate(
-    (flip ? 1 : -1) * (profile.brace * settle + profile.recoil * burstImpulse),
-    -profile.lift * burstImpulse
+    (flip ? 1 : -1) * (profile.brace * settle + profile.recoil * burstImpulse) * dynamics.spatialScale,
+    -profile.lift * burstImpulse * dynamics.spatialScale
   );
-  ctx.rotate((flip ? -1 : 1) * burstImpulse * profile.rotation * Math.PI / 720);
-  ctx.scale(1 - mainImpulse * profile.recoil * 0.0018, 1 + mainImpulse * profile.recoil * 0.0012);
+  ctx.rotate((flip ? -1 : 1) * burstImpulse * profile.rotation * Math.PI / 720 * dynamics.spatialScale);
+  ctx.scale(
+    1 - mainImpulse * profile.recoil * 0.0018 * dynamics.spatialScale,
+    1 + mainImpulse * profile.recoil * 0.0012 * dynamics.spatialScale
+  );
   drawNormalizedSprite(sprite, 0, 31, profile.width, 98, flip);
   ctx.restore();
   drawNameplate(player, ghost, -78);
@@ -15006,7 +15146,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "fighter-infinite-resources-v444";
+const version = "idea-multiwinner-slash-guard-v446";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -15091,6 +15231,7 @@ const version = "fighter-infinite-resources-v444";
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
   const fighterPushDoubleMilestoneEffect = new Image();
+  const fighterDestructionSlashMilestoneEffect = new Image();
   const fighterEnergyReleaseEffect = new Image();
   const fighterEnergyImpactEffect = new Image();
   const fighterShockwaveEffect = new Image();
@@ -15186,6 +15327,7 @@ const version = "fighter-infinite-resources-v444";
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
   defer(fighterPushDoubleMilestoneEffect, "assets/generated/fighter-push-double-milestone-v435.png");
+  defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
   defer(fighterShockwaveEffect, "assets/generated/fighter-energy-release-ate-v404.png");
@@ -15291,6 +15433,7 @@ const version = "fighter-infinite-resources-v444";
     fighterSlashEffect,
     fighterEnergyChargeEffect,
     fighterPushDoubleMilestoneEffect,
+    fighterDestructionSlashMilestoneEffect,
     fighterEnergyReleaseEffect,
     fighterEnergyImpactEffect,
     fighterShockwaveEffect,

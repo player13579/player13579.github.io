@@ -3077,6 +3077,17 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   box-shadow: inset 3px 0 #facc15;
 }
 
+.result-row.is-idea-winner {
+  border-left: 4px solid #f5d76e;
+  background: linear-gradient(90deg, rgba(250, 204, 21, 0.18), rgba(167, 139, 250, 0.08));
+  box-shadow: inset 0 0 22px rgba(250, 204, 21, 0.14);
+}
+
+.result-row.is-idea-winner .result-player small {
+  color: #fde68a;
+  font-weight: 800;
+}
+
 .result-rank {
   color: #dbeafe;
   font-size: 18px;

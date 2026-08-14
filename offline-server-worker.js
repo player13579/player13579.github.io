@@ -6719,6 +6719,9 @@ const HEAVY_WEAPON_DEFINITIONS = Object.freeze({
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ACTION_STAMINA_COST = 5;
 const FIGHTER_SLASH_STAMINA_COST = 75;
+const FIGHTER_SLASH_GUARD_DURATION_MS = 700;
+const FIGHTER_SLASH_PERFECT_GUARD_MS = 140;
+const FIGHTER_SLASH_PERFECT_REARM_MS = 1_100;
 const FIGHTER_ENERGY_CHARGE_MANA_COST = 1;
 const FIGHTER_PUSH_CHARGE_THRESHOLD = 25;
 const FIGHTER_PUSH_CHARGE_REWARD = 2;
@@ -7943,7 +7946,7 @@ function updatePlayerProfiles(room) {
     const profile = profileFor(player);
     if (!profile) continue;
     const kills = Number(player.totalKills) || 0;
-    const specialWinner = room.winner === "idea" && room.ideaWinnerId === player.id;
+    const specialWinner = room.winner === "idea" && ideaWinnerIdsFor(room).includes(player.id);
     const contributed = player.role === "attacker"
       ? kills >= attackerTarget || specialWinner
       : kills >= 1 || specialWinner;
@@ -8408,6 +8411,7 @@ function createRoom(id) {
     winner: null,
     finishReason: "",
     ideaWinnerId: "",
+    ideaWinnerIds: [],
     pendingIdeaVictoryAt: 0,
     sabotage: null,
     activeEmps: [],
@@ -8723,6 +8727,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     dodgeActiveUntil: 0,
     slashActiveUntil: 0,
     slashPerfectUntil: 0,
+    slashPerfectReadyAt: 0,
+    slashGuardInputReleased: true,
     teleportReadyAt: 0,
     floraReadyAt: 0,
     limitBreakActive: false,
@@ -9129,6 +9135,8 @@ function startGame(room) {
     player.dodgeActiveUntil = 0;
     player.slashActiveUntil = 0;
     player.slashPerfectUntil = 0;
+    player.slashPerfectReadyAt = 0;
+    player.slashGuardInputReleased = true;
     player.teleportReadyAt = 0;
     player.floraReadyAt = 0;
     player.limitBreakActive = false;
@@ -9294,7 +9302,7 @@ function startGame(room) {
   room.winner = null;
   room.rankUpdated = false;
   room.finishReason = "";
-  room.ideaWinnerId = "";
+  setIdeaWinnerIds(room, []);
   room.pendingIdeaVictoryAt = 0;
   room.sabotage = null;
   room.activeEmps = [];
@@ -9434,6 +9442,8 @@ function startBattle(room) {
     player.dodgeActiveUntil = 0;
     player.slashActiveUntil = 0;
     player.slashPerfectUntil = 0;
+    player.slashPerfectReadyAt = 0;
+    player.slashGuardInputReleased = true;
     player.teleportReadyAt = 0;
     player.floraReadyAt = 0;
     player.limitBreakActive = false;
@@ -9685,6 +9695,10 @@ function syncFighterInfiniteResources(player) {
   return true;
 }
 
+function hasLimitBreakDeathVulnerability(player) {
+  return Boolean(player?.limitBreakActive && !hasFighterInfiniteResources(player));
+}
+
 function hasImmediateDeathProtection(player) {
   return (Number(player?.gritCharges) || 0) > 0 ||
     (Number(player?.substitutionCharges) || 0) > 0;
@@ -9753,7 +9767,7 @@ function toggleLimitBreak(room, player) {
   }
   ensureAbilityAvailable(player);
   ensureConscious(player);
-  if (!isHackerOperator(player) && Number(player.mana) <= 0) {
+  if (!isHackerOperator(player) && !hasFighterInfiniteResources(player) && Number(player.mana) <= 0) {
     throw new ApiError(400, "リミットブレイクの維持に必要なマナがありません。");
   }
   const timestamp = now();
@@ -9778,9 +9792,12 @@ function toggleLimitBreak(room, player) {
   player.staminaUpdatedAt = timestamp;
   const stacks = limitBreakStackCount(player);
   const multiplier = limitBreakMultiplier(player);
+  const infiniteReward = hasFighterInfiniteResources(player);
+  const costDetail = infiniteReward ? "HP消費なし / MP・SP・HP・踏ん張り∞" : "HP-1";
+  const vulnerabilityDetail = infiniteReward ? "被確殺デメリット解除" : "即死回避無効";
   pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: `active-stack-${stacks}` });
-  setImmediateFeedback(player, "リミットブレイク", `HP-1 / 永続 / SP・加速×${multiplier} / 即死回避無効`);
-  pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。HP-1 / SP・加速${multiplier}倍 / マナが続く限り永続 / 即死回避無効。`);
+  setImmediateFeedback(player, "リミットブレイク", `${costDetail} / 永続 / SP・加速×${multiplier} / ${vulnerabilityDetail}`);
+  pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。${costDetail} / SP・加速${multiplier}倍 / ${infiniteReward ? "永続" : "マナが続く限り永続"} / ${vulnerabilityDetail}。`);
   touch(room);
   return true;
 }
@@ -9804,6 +9821,11 @@ function advanceLimitBreak(room, player, elapsedMs) {
   if (!player.limitBreakActive) return false;
   if (room.phase !== "playing" || !player.alive || player.ejected || !hasOperatorAccess(player, "fighter")) {
     return stopLimitBreak(room, player);
+  }
+  if (hasFighterInfiniteResources(player)) {
+    player.limitBreakManaCarry = 0;
+    syncFighterInfiniteResources(player);
+    return false;
   }
   if (isHackerOperator(player) && hackerRootEligible(player)) return false;
   player.limitBreakManaCarry = Math.max(0, Number(player.limitBreakManaCarry) || 0) +
@@ -9853,7 +9875,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
       playerId: player.id,
       variant: String(next)
     });
-    reward += " / MP・SP・HP・踏ん張り∞";
+    reward += " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る・常時破壊 / ジャストガード・全攻撃反射";
   }
   pushMagicEffect(room, "fighter-energy-charge", player, {
     radius: 112,
@@ -9861,7 +9883,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:shockwave-${player.fighterShockwaveCharges}`
   });
   setImmediateFeedback(player, "エネルギーチャージ", reward);
-  pushEvent(room, `${player.name} がエネルギーを自動チャージし、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みを2獲得しました" : ""}${next === FIGHTER_INFINITE_RESOURCE_THRESHOLD ? "。MP・SP・HP・踏ん張りが無限になりました" : ""}。`);
+  pushEvent(room, `${player.name} がエネルギーを自動チャージし、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みを2獲得しました" : ""}${next === FIGHTER_INFINITE_RESOURCE_THRESHOLD ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -9914,6 +9936,20 @@ function forfeitIdeaAttainment(player) {
   player.ascensionUntil = 0;
 }
 
+function ideaWinnerIdsFor(room) {
+  const ids = Array.isArray(room?.ideaWinnerIds) ? room.ideaWinnerIds : [];
+  const legacyId = String(room?.ideaWinnerId || "");
+  return [...new Set([...ids.map(String), legacyId].filter(Boolean))];
+}
+
+function setIdeaWinnerIds(room, ids = []) {
+  if (!room) return [];
+  const next = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))];
+  room.ideaWinnerIds = next;
+  room.ideaWinnerId = next[0] || "";
+  return next;
+}
+
 function desireBiasDefinition(player) {
   return DESIRE_BIASES.find((bias) => bias.id === player?.desireBias) || null;
 }
@@ -9955,9 +9991,9 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   player.rationalFreeAbilityReadyAt = 0;
   player.desireIdeaForfeited = true;
   forfeitIdeaAttainment(player);
-  if (room?.ideaWinnerId === player.id) {
-    room.ideaWinnerId = "";
-    room.pendingIdeaVictoryAt = 0;
+  if (room && ideaWinnerIdsFor(room).includes(player.id)) {
+    const remainingWinnerIds = setIdeaWinnerIds(room, ideaWinnerIdsFor(room).filter((id) => id !== player.id));
+    if (!remainingWinnerIds.length) room.pendingIdeaVictoryAt = 0;
   }
   if (room && enteredNow) {
     const bias = desireBiasDefinition(player);
@@ -10184,7 +10220,7 @@ function grantIdeaGood(room, player, timestamp) {
 
 function beginIdeaAscension(room, player, timestamp) {
   if (player.desireIdeaForfeited) return false;
-  if (room.pendingIdeaVictoryAt || room.phase !== "playing") return;
+  if (room.phase !== "playing" || ideaWinnerIdsFor(room).includes(player.id)) return false;
   player.ideaStage = 4;
   player.ascensionStartedAt = timestamp;
   player.ascensionUntil = timestamp + IDEA_ASCENSION_ANIMATION_MS;
@@ -10194,10 +10230,10 @@ function beginIdeaAscension(room, player, timestamp) {
   player.ventId = "";
   player.drone.active = false;
   clearAttackState(player);
-  room.ideaWinnerId = player.id;
-  room.pendingIdeaVictoryAt = player.ascensionUntil;
+  const winnerIds = setIdeaWinnerIds(room, [...ideaWinnerIdsFor(room), player.id]);
+  room.pendingIdeaVictoryAt = Math.max(Number(room.pendingIdeaVictoryAt) || 0, player.ascensionUntil);
   pushMagicEffect(room, "idea-ascension", player, { radius: 260, playerId: player.id });
-  pushEvent(room, `${player.name} が善のイデアへ到達しました。光る翼とともに昇天を開始します。`);
+  pushEvent(room, `${player.name} が善のイデアへ到達しました。光る翼とともに昇天を開始します（現在の到達者${winnerIds.length}人）。`);
   touch(room);
   return true;
 }
@@ -10716,8 +10752,8 @@ function persistentStatusAteState(room, player, timestamp = now()) {
     acceleration,
     clairvoyance: Boolean(player.clairvoyanceActive),
     levitation: Boolean(player.levitationEngaged || Number(player.hoverSprintUntil) > timestamp),
-    hpReduction: Boolean(player.limitBreakActive),
-    resistanceBreak: Boolean(player.limitBreakActive),
+    hpReduction: hasLimitBreakDeathVulnerability(player),
+    resistanceBreak: hasLimitBreakDeathVulnerability(player),
     standFirm: (Number(player.gritCharges) || 0) > 0,
     push: (Number(player.reasonCharges) || 0) > 0,
     burning: Boolean(player.burnStatus),
@@ -10953,7 +10989,10 @@ function botMatchHumanOwnsVictory(room, winner, cause = null) {
   const victoryCause = cause || {};
 
   if (winner === "idea") {
-    return victoryCause.type === "idea" && String(victoryCause.sourceId || room.ideaWinnerId || "") === human.id;
+    const sourceIds = Array.isArray(victoryCause.sourceIds)
+      ? victoryCause.sourceIds.map(String)
+      : ideaWinnerIdsFor(room);
+    return victoryCause.type === "idea" && sourceIds.includes(human.id);
   }
 
   const winnerRole = winner === "defenders"
@@ -11032,12 +11071,20 @@ function finish(room, winner, reason, cause = {}) {
     player.inVent = false;
     player.ventId = "";
     player.dodgeActiveUntil = 0;
+    player.slashActiveUntil = 0;
+    player.slashPerfectUntil = 0;
+    player.slashGuardInputReleased = true;
     player.drone.active = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
     clearAttackState(player);
   });
-  const winnerLabel = winner === "defenders" ? "ディフェンダー" : winner === "attackers" ? "アタッカー" : "善のイデア到達者";
+  const ideaWinnerCount = winner === "idea" ? ideaWinnerIdsFor(room).length : 0;
+  const winnerLabel = winner === "defenders"
+    ? "ディフェンダー"
+    : winner === "attackers"
+      ? "アタッカー"
+      : `善のイデア到達者${ideaWinnerCount > 1 ? ` ${ideaWinnerCount}人` : ""}`;
   pushEvent(room, `${winnerLabel}勝利: ${reason}`);
   touch(room);
   return true;
@@ -11050,12 +11097,15 @@ function forceEnd(room, player) {
   room.finishReason = `${player.name} が試合を強制終了しました。`;
   room.meeting = null;
   room.sabotage = null;
-  room.ideaWinnerId = "";
+  setIdeaWinnerIds(room, []);
   room.pendingIdeaVictoryAt = 0;
   room.players.forEach((entry) => {
     entry.inVent = false;
     entry.ventId = "";
     entry.dodgeActiveUntil = 0;
+    entry.slashActiveUntil = 0;
+    entry.slashPerfectUntil = 0;
+    entry.slashGuardInputReleased = true;
     entry.drone.active = false;
     entry.clairvoyanceActive = false;
     entry.clairvoyanceManaCarry = 0;
@@ -11393,10 +11443,19 @@ function tickRoom(room) {
   if (room.phase === "playing") {
     if (evaluateSoloMission(room, timestamp)) return;
     if (room.pendingIdeaVictoryAt && timestamp >= room.pendingIdeaVictoryAt) {
-      const ideaWinner = room.players.get(room.ideaWinnerId);
-      finish(room, "idea", `${ideaWinner?.name || "プレイヤー"} が善のイデアへ到達しました。`, {
+      const ideaWinners = ideaWinnerIdsFor(room)
+        .map((id) => room.players.get(id))
+        .filter(Boolean);
+      if (!ideaWinners.length) {
+        room.pendingIdeaVictoryAt = 0;
+        setIdeaWinnerIds(room, []);
+        return;
+      }
+      const winnerNames = ideaWinners.map((player) => player.name).join("、");
+      finish(room, "idea", `${winnerNames} が善のイデアへ到達しました。`, {
         type: "idea",
-        sourceId: ideaWinner?.id || ""
+        sourceId: ideaWinners[0].id,
+        sourceIds: ideaWinners.map((player) => player.id)
       });
       return;
     }
@@ -11589,7 +11648,117 @@ function activateDodge(room, player) {
   touch(room);
 }
 
-function fighterSlash(room, player, targetId = "") {
+function beginFighterSlashGuard(player, timestamp = now(), perfectGuardIntent = false) {
+  player.slashActiveUntil = Math.max(Number(player.slashActiveUntil) || 0, timestamp + FIGHTER_SLASH_GUARD_DURATION_MS);
+  if (!perfectGuardIntent) return false;
+  // The client only marks a deliberate press as intent=true; held repeats are
+  // intent=false. Treat every declared press as an edge so a delayed release
+  // request cannot let rapid tapping evade the anti-fishing rearm penalty.
+  player.slashGuardInputReleased = false;
+  if (timestamp < (Number(player.slashPerfectReadyAt) || 0)) {
+    // Repeated early presses move the rearm point forward. Holding never sends
+    // another intent, while button mashing cannot keep fishing for a perfect
+    // guard window without first pausing and reading the incoming attack.
+    player.slashPerfectUntil = 0;
+    player.slashPerfectReadyAt = timestamp + FIGHTER_SLASH_PERFECT_REARM_MS;
+    return false;
+  }
+  player.slashPerfectUntil = timestamp + FIGHTER_SLASH_PERFECT_GUARD_MS;
+  player.slashPerfectReadyAt = timestamp + FIGHTER_SLASH_PERFECT_REARM_MS;
+  return true;
+}
+
+function releaseFighterSlashGuardInput(player) {
+  if (!player) return false;
+  player.slashGuardInputReleased = true;
+  return true;
+}
+
+function applyReflectedSlashAttack(room, defender, source, attack = {}, timestamp = now()) {
+  if (!source?.alive || source.ejected || source.id === defender?.id) return false;
+  try {
+    if (typeof attack.reflectEffect === "function") {
+      return attack.reflectEffect({ room, defender, source, attack, timestamp }) !== false;
+    }
+    if (attack.destroy) {
+      destroyPlayerUnconditionally(room, defender, source, `反射された${attack.label || "攻撃"}`, {
+        noKillCutin: false,
+        ignorePreparationBarrier: true,
+        ignoreInfiniteResources: Boolean(attack.ignoreInfiniteResourcesOnReflect),
+        ignoreFriendlyFire: true,
+        bypassSlashGuard: true
+      });
+      return true;
+    }
+    killPlayer(room, defender, source.id, {
+      ranged: true,
+      hitZone: attack.hitZone === "head" ? "head" : "body",
+      damage: clampNumber(attack.damage, 0.01, 2, 1),
+      magic: Boolean(attack.magic),
+      allowAnyKiller: true,
+      ignoreRange: true,
+      ignoreCooldown: true,
+      preserveCooldown: true,
+      ignorePush: true,
+      ignoreFriendlyFire: true,
+      bypassSlashGuard: true,
+      origin: { x: defender.x, y: defender.y },
+      targetRole: source.role,
+      attackKind: `reflected-${attack.kind || "physical"}`,
+      slashGuardPhysical: Boolean(attack.physical)
+    });
+    return true;
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return false;
+  }
+}
+
+function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp = now()) {
+  if (!target?.alive || target.ejected || !hasOperatorAccess(target, "fighter")) return "";
+  if ((Number(target.slashActiveUntil) || 0) <= timestamp) return "";
+  const physical = Boolean(attack.physical);
+  const perfect = (Number(target.slashPerfectUntil) || 0) > timestamp;
+  const universalPerfect = perfect && Number(target.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
+  if (!physical && !universalPerfect) return "";
+
+  if (perfect) target.slashPerfectUntil = 0;
+  const label = String(attack.label || attack.kind || (physical ? "物理攻撃" : "攻撃"));
+  const reflectionIntent = Boolean(perfect && (universalPerfect || attack.reflectable !== false));
+  const reflectedAtSource = reflectionIntent && applyReflectedSlashAttack(room, target, source, attack, timestamp);
+  // At charge 50 the successful edge is semantically a reflection even when
+  // the originating entity has already vanished or cannot receive the return
+  // effect. The incoming attack is still sent back instead of merely guarded.
+  const reflected = Boolean(reflectionIntent && (reflectedAtSource || universalPerfect));
+  const outcome = reflected
+    ? "slashPerfectReflected"
+    : perfect
+      ? "slashPerfectGuarded"
+      : "slashGuarded";
+  pushMagicEffect(room, "fighter-slash-parry", target, {
+    radius: universalPerfect ? 205 : perfect ? 180 : 155,
+    playerId: target.id,
+    targetId: source?.id || "",
+    targetX: Number.isFinite(Number(source?.x)) ? Number(source.x) : target.x + (Number(target.aimX) || 1) * 180,
+    targetY: Number.isFinite(Number(source?.y)) ? Number(source.y) : target.y + (Number(target.aimY) || 0) * 180,
+    variant: universalPerfect ? `perfect-all-reflect:${attack.kind || "attack"}` : perfect ? `perfect-reflect:${attack.kind || "physical"}` : `guard:${attack.kind || "physical"}`
+  });
+  pushSound(room, "fighterCounter", target, { ownerId: target.id, sourceKind: "fighter", maxDistance: 1400, volume: perfect ? 1 : 0.72 });
+  if (reflected) {
+    setImmediateFeedback(target, "ジャストガード", `${label}を反射`);
+    pushEvent(room, `${target.name} が${label}をジャストガードし、${source?.name || "攻撃元"}へ反射しました。`);
+  } else if (universalPerfect) {
+    setImmediateFeedback(target, "50回到達ジャストガード", `${label}を反射（攻撃元なし）`);
+    pushEvent(room, `${target.name} がエネルギーチャージ50回到達後のジャストガードで${label}を弾き返しました。反射可能な攻撃元はありませんでした。`);
+  } else {
+    setImmediateFeedback(target, perfect ? "ジャストガード" : "斬る・ガード", `${label}を無効化`);
+    pushEvent(room, `${target.name} が斬るで${label}をガードしました。`);
+  }
+  touch(room);
+  return outcome;
+}
+
+function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "fighter")) {
     throw new ApiError(403, "ファイターの斬るは使用できません。");
   }
@@ -11597,13 +11766,10 @@ function fighterSlash(room, player, targetId = "") {
   ensureAbilityAvailable(player);
   ensureConscious(player);
   const timestamp = now();
-  // Slash has no cooldown. This field is only a client-side motion/effect window.
-  player.slashActiveUntil = 0;
   const cost = FIGHTER_SLASH_STAMINA_COST;
   if (Number(player.stamina) < cost) throw new ApiError(400, `斬るにはスタミナ ${cost} が必要です。`);
   spendStamina(player, cost, room, "踏ん張り");
-  player.slashActiveUntil = timestamp + 700;
-  player.slashPerfectUntil = timestamp + 220;
+  const perfectGuardOpened = beginFighterSlashGuard(player, timestamp, perfectGuardIntent);
   const slashAimX = Number(player.aimX) || 1;
   const slashAimY = Number(player.aimY) || 0;
   pushMagicEffect(room, "fighter-slash", player, {
@@ -11617,18 +11783,47 @@ function fighterSlash(room, player, targetId = "") {
   const struckIds = new Set();
   if (target && distance(player, target) <= room.settings.killRange) {
     struckIds.add(target.id);
-    const outcome = killPlayer(room, player, target.id, {
+    const destructionSlash = Number(player.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
+    const destructionGuardOutcome = destructionSlash
+      ? resolveFighterSlashGuard(room, player, target, {
+          kind: "slash",
+          label: "エネルギーチャージ50回到達後の斬る",
+          physical: true,
+          reflectable: true,
+          destroy: true,
+          ignoreInfiniteResourcesOnReflect: true
+        }, timestamp)
+      : "";
+    const outcome = destructionSlash
+      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "エネルギーチャージ50回到達後の斬る", {
+          noKillCutin: false,
+          ignorePreparationBarrier: true,
+          ignoreInfiniteResources: true,
+          bypassSlashGuard: true
+        }) ? "destroyed" : "friendlyFirePenalty")
+      : killPlayer(room, player, target.id, {
           hitZone: "head",
           lockedAim: true,
           ignoreCooldown: true,
           preserveCooldown: true,
           ignoreDodge: false,
           noBody: true,
-          targetRole: target.role
+          targetRole: target.role,
+          attackKind: "slash",
+          slashGuardPhysical: true
         });
+    if (destructionSlash) pushMagicEffect(room, "fighter-energy-destruction-slash", player, {
+      radius: 175,
+      playerId: player.id,
+      targetId: target.id,
+      targetX: target.x,
+      targetY: target.y,
+      variant: outcome
+    });
     pushEvent(room, `${player.name} の斬るが ${target.name} に命中しました（${outcome}）。`);
   } else {
-    pushEvent(room, `${player.name} が斬るを構えました。射撃は切断でき、ジャストガードで反射します。`);
+    const universalReflect = Number(player.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
+    pushEvent(room, `${player.name} が斬るを構えました。物理攻撃をガードし、${perfectGuardOpened ? `短いジャストガード受付で${universalReflect ? "全攻撃" : "物理攻撃"}を反射できます` : "今回はジャストガード再受付前です"}。`);
   }
   if (player.alive && Number(player.fighterShockwaveCharges) > 0) {
     player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0) - 1);
@@ -11660,6 +11855,9 @@ function fighterSlash(room, player, targetId = "") {
           ignoreCooldown: true,
           preserveCooldown: true,
           magic: true,
+          attackKind: "fighter-energy-shockwave",
+          attackLabel: "斬る衝撃波",
+          slashGuardPhysical: false,
           targetRole: waveTarget.role
         });
         pushEvent(room, `${player.name} の斬る衝撃波が ${waveTarget.name} に命中しました（${outcome}）。`);
@@ -11901,6 +12099,12 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       const target = candidate;
       const safeDistance = Math.hypot(target.x - Number(zone.safeX), target.y - Number(zone.safeY));
       if (safeDistance <= Number(zone.safeRadius || GRAVITY_STORM_SAFE_RADIUS)) continue;
+      if (resolveFighterSlashGuard(room, owner || null, target, {
+        kind: "gravity-storm",
+        label: "グラビティストーム",
+        physical: false,
+        reflectable: false
+      }, timestamp)) continue;
       if (absorbPreparationBarrier(room, target, timestamp, owner || null)) continue;
 
       if (owner?.alive && luckValueFor(target) < GRAVITY_STORM_LOW_LUCK_THRESHOLD) {
@@ -11930,14 +12134,16 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
         (GRAVITY_STORM_DAMAGE_MAX - GRAVITY_STORM_DAMAGE_MIN) * severity) * 100) / 100;
       const slowMultiplier = Math.round((GRAVITY_STORM_SLOW_MULTIPLIER_MAX -
         (GRAVITY_STORM_SLOW_MULTIPLIER_MAX - GRAVITY_STORM_SLOW_MULTIPLIER_MIN) * severity) * 100) / 100;
-      target.bodyHits = Math.round((Number(target.bodyHits || 0) + damage) * 100) / 100;
+      const infiniteResources = hasFighterInfiniteResources(target);
+      if (infiniteResources) syncFighterInfiniteResources(target);
+      else target.bodyHits = Math.round((Number(target.bodyHits || 0) + damage) * 100) / 100;
       target.lastGravityStormDamage = damage;
       const gravitySlowWasActive = Number(target.gravityStormSlowUntil) > timestamp;
       target.gravityStormSlowUntil = Math.max(Number(target.gravityStormSlowUntil) || 0, timestamp + GRAVITY_STORM_SLOW_LINGER_MS);
       target.gravityStormSlowMultiplier = gravitySlowWasActive
         ? Math.min(Number(target.gravityStormSlowMultiplier) || 1, slowMultiplier)
         : slowMultiplier;
-      setImmediateFeedback(target, "グラビティストーム", `HP-${damage.toFixed(2)} / 移動速度${Math.round(slowMultiplier * 100)}%`);
+      setImmediateFeedback(target, "グラビティストーム", `${infiniteResources ? "HP∞でダメージ無効" : `HP-${damage.toFixed(2)}`} / 移動速度${Math.round(slowMultiplier * 100)}%`);
 
       const lethalThreshold = 2;
       if (target.bodyHits >= lethalThreshold) {
@@ -12013,7 +12219,7 @@ function ensureItemStorageAvailable(player, timestamp = now()) {
 }
 
 function triggerSubstitution(room, player, reason, timestamp = now()) {
-  if (player.limitBreakActive || player.substitutionCharges <= 0 || !passivesEnabled(player) || !itemStorageAvailable(player, timestamp)) return false;
+  if (hasLimitBreakDeathVulnerability(player) || player.substitutionCharges <= 0 || !passivesEnabled(player) || !itemStorageAvailable(player, timestamp)) return false;
   const origin = { x: player.x, y: player.y, id: player.id };
   const destination = substitutionDestination(room, player, origin);
   player.substitutionCharges -= 1;
@@ -12043,6 +12249,21 @@ function triggerSubstitution(room, player, reason, timestamp = now()) {
 }
 
 function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
+  if (resolveFighterSlashGuard(room, source, target, {
+    kind: "emp",
+    label: "EMP確殺",
+    physical: false,
+    reflectable: false,
+    destroy: true,
+    reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "lethal", timestamp)
+  }, timestamp)) return false;
+  if (hasFighterInfiniteResources(target)) {
+    applyEmpDisruption(room, target, timestamp);
+    syncFighterInfiniteResources(target);
+    pushHitEffect(room, target, "body", false);
+    pushEvent(room, `${target.name} はエネルギーチャージ50回到達報酬により、リミットブレイク中のEMP確殺を無効化しました。`);
+    return false;
+  }
   recordBotMatchElimination(room, target, source);
   target.alive = false;
   target.bodyHits = 0;
@@ -12073,6 +12294,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   });
   applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} でリミットブレイク反応消失`);
+  return true;
 }
 
 function transferKillCredits(room, killer, target) {
@@ -12372,16 +12594,69 @@ function applyEmpDisruption(room, target, timestamp = now()) {
   return 1;
 }
 
+function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now()) {
+  if (!source?.alive || source.ejected || source.id === defender?.id) return false;
+  applyEmpDisruption(room, source, timestamp);
+  if (mode === "disruption") return true;
+  if (mode === "lethal") {
+    destroyPlayerUnconditionally(room, defender, source, "反射されたEMP", {
+      noKillCutin: false,
+      ignorePreparationBarrier: true,
+      ignoreFriendlyFire: true,
+      bypassSlashGuard: true
+    });
+    return true;
+  }
+  try {
+    killPlayer(room, defender, source.id, {
+      ranged: true,
+      magic: true,
+      hitZone: "body",
+      damage: 1,
+      allowAnyKiller: true,
+      ignoreRange: true,
+      ignoreCooldown: true,
+      preserveCooldown: true,
+      ignorePush: true,
+      ignoreFriendlyFire: true,
+      bypassSlashGuard: true,
+      origin: { x: defender.x, y: defender.y },
+      targetRole: source.role,
+      attackKind: "reflected-emp",
+      slashGuardPhysical: false
+    });
+    return true;
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return false;
+  }
+}
+
 function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP共振") {
   if (!target?.alive || target.ejected) return false;
-  if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (source?.role === target.role && ["defender", "attacker"].includes(source.role) && source.id !== target.id) {
     applyEmpDisruption(room, source, timestamp);
     pushEvent(room, `${source.name} の味方EMPが反射され、発動者のアイテムストレージを遮断しました。${target.name} は無傷です。`);
     return false;
   }
+  if (resolveFighterSlashGuard(room, source, target, {
+    kind: "emp",
+    label: reason,
+    physical: false,
+    reflectable: false,
+    destroy: true,
+    reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "lethal", timestamp)
+  }, timestamp)) return false;
+  if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (hackerEmpOpeningProtected(room, target, timestamp)) return false;
   applyEmpDisruption(room, target, timestamp);
+  if (hasFighterInfiniteResources(target)) {
+    syncFighterInfiniteResources(target);
+    pushHitEffect(room, target, "body", false);
+    setImmediateFeedback(target, "到達報酬", "リミットブレイクの被確殺デメリットを解除 / EMP確殺無効");
+    pushEvent(room, `${target.name} はエネルギーチャージ50回到達報酬により、${reason}の確殺を無効化しました。`);
+    return false;
+  }
   recordBotMatchElimination(room, target, source);
   target.alive = false;
   target.bodyHits = 0;
@@ -12420,14 +12695,30 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
 
 function applyEmpBodyDamage(room, source, target, timestamp) {
   if (!target?.alive || target.ejected) return "none";
-  if (absorbPreparationBarrier(room, target, timestamp, source)) return "preparationBarrier";
   if (source?.role === target.role && ["defender", "attacker"].includes(source.role) && source.id !== target.id) {
     applyEmpDisruption(room, source, timestamp);
     pushEvent(room, `${source.name} の味方EMPが反射され、発動者のアイテムストレージを遮断しました。${target.name} は無傷です。`);
     return "friendlyFireReflected";
   }
+  const slashGuardOutcome = resolveFighterSlashGuard(room, source, target, {
+    kind: "emp",
+    label: "EMP共振",
+    physical: false,
+    reflectable: false,
+    damage: 1,
+    hitZone: "body",
+    reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "body", timestamp)
+  }, timestamp);
+  if (slashGuardOutcome) return slashGuardOutcome;
+  if (absorbPreparationBarrier(room, target, timestamp, source)) return "preparationBarrier";
   if (hackerEmpOpeningProtected(room, target, timestamp)) return "openingProtection";
   applyEmpDisruption(room, target, timestamp);
+  if (hasFighterInfiniteResources(target)) {
+    syncFighterInfiniteResources(target);
+    pushHitEffect(room, target, "body", false);
+    setImmediateFeedback(target, "到達報酬", "MP・SP・HP・踏ん張り∞ / EMPダメージ無効");
+    return "infiniteResources";
+  }
   if (target.overheal > 0) {
     target.overheal -= 1;
     pushHitEffect(room, target, "body", false);
@@ -12456,13 +12747,21 @@ function resolveStandardEmp(room, pulse, timestamp) {
   }
   for (const target of room.players.values()) {
     if (target.id !== player.id && target.alive && !target.ejected && distance(pulse, target) <= EMP_RANGE) {
-      if (absorbPreparationBarrier(room, target, timestamp, player)) continue;
       if (player.role === target.role && ["defender", "attacker"].includes(player.role)) {
+        if (absorbPreparationBarrier(room, target, timestamp, player)) continue;
         itemLocks += applyEmpDisruption(room, player, timestamp);
         friendlyReflections += 1;
-      } else if (hackerEmpOpeningProtected(room, target, timestamp)) {
-        continue;
       } else {
+        const slashGuardOutcome = resolveFighterSlashGuard(room, player, target, {
+          kind: "emp",
+          label: `${pulse.phase === "positive" ? "正相" : "逆相"}EMP`,
+          physical: false,
+          reflectable: false,
+          reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "disruption", timestamp)
+        }, timestamp);
+        if (slashGuardOutcome) continue;
+        if (absorbPreparationBarrier(room, target, timestamp, player)) continue;
+        if (hackerEmpOpeningProtected(room, target, timestamp)) continue;
         itemLocks += applyEmpDisruption(room, target, timestamp);
       }
     }
@@ -13064,8 +13363,23 @@ function clearPoison(room, player, source = "解毒") {
 
 function applyPersistentStatus(room, source, target, kind, strength = 1, timestamp = now(), options = {}) {
   if (!target?.alive || target.ejected) return false;
+  if (!options.bypassSlashGuard && resolveFighterSlashGuard(room, source, target, {
+    kind,
+    label: kind === "poison" ? "毒" : "燃焼",
+    physical: false,
+    reflectable: false,
+    reflectEffect: ({ defender, source: reflectedTarget }) => applyPersistentStatus(
+      room,
+      defender,
+      reflectedTarget,
+      kind,
+      strength,
+      timestamp,
+      { ignorePreparationBarrier: true, ignoreFriendlyFire: true, bypassSlashGuard: true }
+    )
+  }, timestamp)) return false;
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, timestamp, source)) return false;
-  if (source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
+  if (!options.ignoreFriendlyFire && source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
     applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
     return false;
   }
@@ -13157,11 +13471,25 @@ function useAntidote(room, player, center, level = 0, thrown = false) {
 function applyBottleShardSplash(room, player, itemId, center, level = 0) {
   if (!BOTTLE_ITEM_IDS.has(itemId)) return 0;
   const radius = BOTTLE_SHARD_BASE_RADIUS + level * 16;
+  const timestamp = now();
   let hits = 0;
   for (const target of room.players.values()) {
     if (!target.alive || target.ejected || distance(center, target) > radius || Math.random() >= BOTTLE_SHARD_HIT_CHANCE) continue;
-    if (absorbPreparationBarrier(room, target, now(), player)) continue;
     const damage = BOTTLE_SHARD_MIN_DAMAGE + Math.random() * (BOTTLE_SHARD_MAX_DAMAGE - BOTTLE_SHARD_MIN_DAMAGE);
+    if (resolveFighterSlashGuard(room, player, target, {
+      kind: "bottle-shards",
+      label: "瓶の破片",
+      physical: true,
+      reflectable: true,
+      damage,
+      hitZone: "body"
+    }, timestamp)) continue;
+    if (absorbPreparationBarrier(room, target, timestamp, player)) continue;
+    if (hasFighterInfiniteResources(target)) {
+      syncFighterInfiniteResources(target);
+      pushHitEffect(room, target, "body", false);
+      continue;
+    }
     if (Number(target.overheal) > 0) {
       target.overheal = Math.max(0, Number(target.overheal) - 1);
     } else {
@@ -13171,7 +13499,7 @@ function applyBottleShardSplash(room, player, itemId, center, level = 0) {
     const lethalThreshold = 2;
     const lethal = Number(target.bodyHits) >= lethalThreshold;
     pushHitEffect(room, target, "body", lethal);
-    if (lethal) destroyPlayerUnconditionally(room, null, target, "瓶の破片");
+    if (lethal) destroyPlayerUnconditionally(room, null, target, "瓶の破片", { bypassSlashGuard: true });
   }
   pushMagicEffect(room, "bottle-shards", center, {
     radius,
@@ -13259,6 +13587,9 @@ function releaseThrownEnergyShockwave(room, source, landing) {
         ignoreCooldown: true,
         preserveCooldown: true,
         magic: true,
+        attackKind: "fighter-energy-shockwave",
+        attackLabel: "投擲衝撃波",
+        slashGuardPhysical: false,
         targetRole: target.role
       });
       pushEvent(room, `${source.name} の投擲衝撃波が ${target.name} に命中しました（${outcome}）。`);
@@ -13273,19 +13604,34 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius) {
     .filter((candidate) => candidate.alive && !candidate.ejected && distance(landing, candidate) <= radius)
     .sort((a, b) => distance(landing, a) - distance(landing, b))[0];
   if (!target) return false;
-  if (absorbPreparationBarrier(room, target, now(), source)) return false;
+  const timestamp = now();
+  const impactDamage = Math.max(0.1, Number(damage) || 0.1);
+  if (resolveFighterSlashGuard(room, source, target, {
+    kind: "thrown-impact",
+    label: `${label}の衝撃`,
+    physical: true,
+    reflectable: true,
+    damage: impactDamage,
+    hitZone: "body"
+  }, timestamp)) return false;
+  if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
-    applyDefenderFriendlyFirePenalty(room, source, target, now());
+    applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
     return false;
+  }
+  if (hasFighterInfiniteResources(target)) {
+    syncFighterInfiniteResources(target);
+    pushHitEffect(room, target, "body", false);
+    return true;
   }
   if (Number(target.overheal) > 0) {
     target.overheal = Math.max(0, Number(target.overheal) - 1);
   } else {
-    target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + Math.max(0.1, Number(damage) || 0.1)) * 100) / 100;
+    target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + impactDamage) * 100) / 100;
   }
   const lethal = Number(target.bodyHits) >= 2;
   pushHitEffect(room, target, "body", lethal);
-  if (lethal) destroyPlayerUnconditionally(room, source, target, `${label}の衝撃`);
+  if (lethal) destroyPlayerUnconditionally(room, source, target, `${label}の衝撃`, { bypassSlashGuard: true });
   return true;
 }
 
@@ -13476,7 +13822,13 @@ function useQuantumControl(room, player, rawMode) {
     consumeItem(player, itemId);
     spendMana(room, player, QUANTUM_NUCLEAR_MANA_COST, "核分裂");
     const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.exiled);
-    for (const target of targets) destroyPlayerUnconditionally(room, player, target, "核分裂連鎖");
+    for (const target of targets) destroyPlayerUnconditionally(room, player, target, "核分裂連鎖", {
+      attackKind: "nuclear-fission",
+      attackLabel: "核分裂連鎖",
+      slashGuardPhysical: false,
+      slashGuardReflectable: false,
+      reflectDestroy: true
+    });
     pushMagicEffect(room, "quantum-nuclear", player, { radius: Math.max(getMap(room).width, getMap(room).height), playerId: player.id, variant: itemId });
     checkWin(room);
     if (room.phase !== "ended" && !player.exiled) destroyPlayerUnconditionally(room, player, player, "核分裂の代償");
@@ -13504,10 +13856,23 @@ function advanceHazards(room, timestamp = now()) {
     for (const [field, kind, baseDamage] of [["poisonStatus", "毒", POISON_DAMAGE_PER_TICK], ["burnStatus", "燃焼", BURN_DAMAGE_PER_TICK]]) {
       const status = target[field];
       if (!status || !target.alive || target.ejected || Number(status.nextTickAt) > timestamp) continue;
-      if (absorbPreparationBarrier(room, target, timestamp, room.players.get(status.sourceId) || null)) continue;
       const source = room.players.get(status.sourceId) || null;
       status.nextTickAt = timestamp + HAZARD_TICK_MS;
       const damage = baseDamage * Math.max(0.25, Number(status.strength) || 1);
+      if (resolveFighterSlashGuard(room, source, target, {
+        kind: field === "poisonStatus" ? "poison" : "burn",
+        label: kind,
+        physical: false,
+        reflectable: false,
+        damage,
+        hitZone: "body"
+      }, timestamp)) continue;
+      if (absorbPreparationBarrier(room, target, timestamp, source)) continue;
+      if (hasFighterInfiniteResources(target)) {
+        syncFighterInfiniteResources(target);
+        pushHitEffect(room, target, "body", false);
+        continue;
+      }
       const threshold = 2;
       target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + damage) * 100) / 100;
       pushHitEffect(room, target, "body", target.bodyHits >= threshold);
@@ -13651,7 +14016,10 @@ function floraSunbeam(room, player, converged = false, targetId = "", direction 
       ignoreRange: true,
       allowAnyKiller: true,
       targetRole: entry.target.role,
-      magic: true
+      magic: true,
+      attackKind: "sunbeam",
+      attackLabel: "サンビーム",
+      slashGuardPhysical: false
     });
     hits += 1;
     if (converged) break;
@@ -13785,10 +14153,17 @@ function recoverHackerTargetStatus(room, player, targetId) {
 
 function deleteHackerTargetHp(room, player, targetId) {
   const target = hackerTarget(room, player, targetId);
+  if (resolveFighterSlashGuard(room, player, target, {
+    kind: "hp-deletion",
+    label: "バイブコーディングのHP削除",
+    physical: false,
+    reflectable: false,
+    destroy: true
+  })) return false;
   target.overheal = 0;
   target.bodyHits = 2;
   setImmediateFeedback(target, "HP削除", "HPが0になった");
-  return destroyPlayerUnconditionally(room, player, target, "バイブコーディング: HP削除");
+  return destroyPlayerUnconditionally(room, player, target, "バイブコーディング: HP削除", { bypassSlashGuard: true });
 }
 
 function advanceAlchemyObjects(room, timestamp) {
@@ -13906,13 +14281,26 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
 
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
-  if (hasFighterInfiniteResources(target)) {
+  if (options.attackKind && !options.bypassSlashGuard) {
+    const guardOutcome = resolveFighterSlashGuard(room, source, target, {
+      kind: String(options.attackKind),
+      label: String(options.attackLabel || reason || "攻撃"),
+      physical: Boolean(options.slashGuardPhysical),
+      reflectable: options.slashGuardReflectable !== false,
+      damage: 2,
+      hitZone: "head",
+      destroy: Boolean(options.reflectDestroy),
+      ignoreInfiniteResourcesOnReflect: Boolean(options.reflectIgnoreInfiniteResources)
+    });
+    if (guardOutcome) return false;
+  }
+  if (!options.ignoreInfiniteResources && hasFighterInfiniteResources(target)) {
     syncFighterInfiniteResources(target);
     pushEvent(room, `${target.name} はエネルギーチャージ50回到達により破壊を無効化しました。`);
     return false;
   }
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, now(), source)) return false;
-  if (source?.role === target.role && ["defender", "attacker"].includes(source?.role) && source.id !== target.id) {
+  if (!options.ignoreFriendlyFire && source?.role === target.role && ["defender", "attacker"].includes(source?.role) && source.id !== target.id) {
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, now());
     return false;
   }
@@ -13978,14 +14366,26 @@ function useAlchemistInvention(room, player, invention) {
     });
   } else if (id === "excalibur") {
     const targets = inventionLineTargets(room, player, Math.max(getMap(room).width, getMap(room).height) * 2, Math.max(getMap(room).width, getMap(room).height), true);
-    for (const { target } of targets) destroyPlayerUnconditionally(room, player, target, "エクスカリバー");
+    for (const { target } of targets) destroyPlayerUnconditionally(room, player, target, "エクスカリバー", {
+      attackKind: "excalibur",
+      attackLabel: "エクスカリバー",
+      slashGuardPhysical: true,
+      slashGuardReflectable: true,
+      reflectDestroy: true
+    });
     pushMagicEffect(room, "alchemy-excalibur", player, { radius: 900, playerId: player.id, variant: "forward-half-map" });
     checkWin(room);
     if (!(room.phase === "ended" && room.winner === "attackers" && player.role === "attacker")) {
       destroyPlayerUnconditionally(room, player, player, "エクスカリバーの代償");
     }
   } else if (id === "railgun") {
-    for (const { target } of inventionLineTargets(room, player, 5000, 38, false)) destroyPlayerUnconditionally(room, player, target, "レールガン");
+    for (const { target } of inventionLineTargets(room, player, 5000, 38, false)) destroyPlayerUnconditionally(room, player, target, "レールガン", {
+      attackKind: "railgun",
+      attackLabel: "レールガン弾",
+      slashGuardPhysical: true,
+      slashGuardReflectable: true,
+      reflectDestroy: true
+    });
     pushMagicEffect(room, "alchemy-railgun", player, { radius: 100, targetX: player.x + player.aimX * 5000, targetY: player.y + player.aimY * 5000, playerId: player.id });
   } else if (id === "particle-cannon") {
     player.particleCannonUntil = now() + 6_000;
@@ -14009,7 +14409,13 @@ function advanceParticleCannon(room, player, timestamp) {
   if ((Number(player.particleCannonUntil) || 0) <= timestamp || (Number(player.particleCannonNextAt) || 0) > timestamp || !player.alive) return;
   player.particleCannonNextAt = timestamp + 300;
   const targets = inventionLineTargets(room, player, 1250, 70, true);
-  if (targets[0]) destroyPlayerUnconditionally(room, player, targets[0].target, "荷電粒子砲");
+  if (targets[0]) destroyPlayerUnconditionally(room, player, targets[0].target, "荷電粒子砲", {
+    attackKind: "particle-cannon",
+    attackLabel: "荷電粒子砲",
+    slashGuardPhysical: false,
+    slashGuardReflectable: false,
+    reflectDestroy: true
+  });
   pushMagicEffect(room, "alchemy-particle-beam", player, {
     radius: 140, targetX: player.x + player.aimX * 1250, targetY: player.y + player.aimY * 1250, playerId: player.id
   });
@@ -14228,6 +14634,8 @@ function killPlayer(room, killer, targetId, options = {}) {
   const preserveCooldown = Boolean(options.preserveCooldown);
   const allowAnyKiller = Boolean(options.allowAnyKiller);
   const ignorePush = Boolean(options.ignorePush);
+  const ignoreFriendlyFire = Boolean(options.ignoreFriendlyFire);
+  const bypassSlashGuard = Boolean(options.bypassSlashGuard);
   const bodyDamage = clampNumber(options.damage, 0.01, 2, 1);
   let hitZone = options.hitZone === "head" ? "head" : "body";
   let standFirmConverted = false;
@@ -14246,9 +14654,8 @@ function killPlayer(room, killer, targetId, options = {}) {
   if (!target || (!explicitTarget && target.role !== expectedTargetRole) || !target.alive || target.ejected) {
     throw new ApiError(404, "キル対象がいません。");
   }
-  if (absorbPreparationBarrier(room, target, timestamp, killer)) return "preparationBarrier";
   if (!ranged && !lockedAim && !ignoreRange && distance(killer, target) > room.settings.killRange) throw new ApiError(400, "対象が遠すぎます。");
-  if (killer.role === target.role && ["defender", "attacker"].includes(killer.role)) {
+  if (!ignoreFriendlyFire && killer.role === target.role && ["defender", "attacker"].includes(killer.role)) {
     if (!ranged && !ignoreCooldown && !preserveCooldown) {
       killer.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
     }
@@ -14257,6 +14664,27 @@ function killPlayer(room, killer, targetId, options = {}) {
     touch(room);
     return "friendlyFirePenalty";
   }
+
+  if (!bypassSlashGuard) {
+    const slashGuardPhysical = options.slashGuardPhysical === undefined
+      ? !options.magic
+      : Boolean(options.slashGuardPhysical);
+    const attackKind = String(options.attackKind || (slashGuardPhysical ? ranged ? "projectile" : "melee" : "nonphysical"));
+    const guardOutcome = resolveFighterSlashGuard(room, killer, target, {
+      kind: attackKind,
+      label: String(options.attackLabel || (attackKind === "slash" ? "斬る" : slashGuardPhysical ? "物理攻撃" : "非物理攻撃")),
+      physical: slashGuardPhysical,
+      reflectable: options.slashGuardReflectable !== false,
+      damage: bodyDamage,
+      hitZone,
+      magic: Boolean(options.magic),
+      destroy: Boolean(options.destroy),
+      ignoreInfiniteResourcesOnReflect: Boolean(options.ignoreInfiniteResources)
+    }, timestamp);
+    if (guardOutcome) return guardOutcome;
+  }
+
+  if (absorbPreparationBarrier(room, target, timestamp, killer)) return "preparationBarrier";
 
   if (hasFighterInfiniteResources(target)) {
     syncFighterInfiniteResources(target);
@@ -14351,7 +14779,7 @@ function killPlayer(room, killer, targetId, options = {}) {
     return "dodged";
   }
 
-  if (hitZone === "head" && !target.limitBreakActive && itemStorageAvailable(target, timestamp) && passivesEnabled(target) && target.gritCharges > 0) {
+  if (hitZone === "head" && !hasLimitBreakDeathVulnerability(target) && itemStorageAvailable(target, timestamp) && passivesEnabled(target) && target.gritCharges > 0) {
     target.gritCharges -= 1;
     hitZone = "body";
     standFirmConverted = true;
@@ -14607,7 +15035,14 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         shooter,
         targetEntry.player,
         "ウィークバレット",
-        { noKillCutin: false }
+        {
+          noKillCutin: false,
+          attackKind: "weak-bullet",
+          attackLabel: "ウィークバレット",
+          slashGuardPhysical: true,
+          slashGuardReflectable: true,
+          reflectDestroy: true
+        }
       );
       if (shooter.alive && !shooter.ejected) {
         destroyPlayerUnconditionally(
@@ -14629,9 +15064,12 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
       hitZone: weapon.id === "sniper" ? "head" : "body",
       damage: weapon.id === "sniper" ? undefined : damage,
       allowAnyKiller: true,
-      targetRole: targetEntry.player.role
+      targetRole: targetEntry.player.role,
+      attackKind: "bullet",
+      attackLabel: `${weapon.name}の銃弾`,
+      slashGuardPhysical: true
     });
-    if (weapon.id === "taser" && outcome !== "lethal" && targetEntry.player.alive) {
+    if (weapon.id === "taser" && !["lethal", "slashGuarded", "slashPerfectGuarded", "slashPerfectReflected"].includes(outcome) && targetEntry.player.alive) {
       targetEntry.player.taserSlowedUntil = Math.max(targetEntry.player.taserSlowedUntil || 0, timestamp + weapon.slowMs);
       pushMagicEffect(room, "action-taser", targetEntry.player, { radius: 95, playerId: shooter.id, targetId: targetEntry.player.id });
       pushEvent(room, `${targetEntry.player.name} はテーザーで痺れ、6秒間移動速度が低下します。`);
@@ -14820,7 +15258,8 @@ function useHeavyWeapon(room, player, weaponId) {
       try {
         killPlayer(room, player, target.id, {
           ranged: true, hitZone: "body", damage: 1, ignoreRange: true,
-          allowAnyKiller: true, targetRole: target.role, magic: true
+          allowAnyKiller: true, targetRole: target.role, magic: false,
+          attackKind: "rpg", attackLabel: "RPG弾", slashGuardPhysical: true
         });
       } catch {}
     }
@@ -14831,7 +15270,8 @@ function useHeavyWeapon(room, player, weaponId) {
       try {
         killPlayer(room, player, target.id, {
           ranged: true, hitZone: "head", ignoreRange: true,
-          allowAnyKiller: true, targetRole: target.role, magic: true
+          allowAnyKiller: true, targetRole: target.role, magic: false,
+          attackKind: "missile", attackLabel: "ミサイル", slashGuardPhysical: true
         });
       } catch {}
       pushMagicEffect(room, "gunner-missile", player, { radius: 150, playerId: player.id, targetId: target.id, targetX: target.x, targetY: target.y });
@@ -15545,6 +15985,7 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
 }
 
 function resultRanking(room) {
+  const ideaWinnerIds = new Set(ideaWinnerIdsFor(room));
   const entries = [...room.players.values()]
     .map((player) => ({
       id: player.id,
@@ -15561,7 +16002,8 @@ function resultRanking(room) {
       abilityContribution: Number(player.abilityContribution) || 0,
       taskContribution: Number(player.taskContribution) || 0,
       contributionScore: (Number(player.totalKills) || 0) * KILL_CONTRIBUTION,
-      luminousSuccess: Boolean(player.luminousActive)
+      luminousSuccess: Boolean(player.luminousActive),
+      ideaWinner: room.winner === "idea" && ideaWinnerIds.has(player.id)
     }))
     .sort((a, b) => (
       b.contributionScore - a.contributionScore ||
@@ -15763,6 +16205,10 @@ function serialize(room, viewer, options = {}) {
       dodgeActiveUntil: viewer.dodgeActiveUntil,
       slashActiveUntil: Number(viewer.slashActiveUntil) || 0,
       slashPerfectUntil: Number(viewer.slashPerfectUntil) || 0,
+      slashPerfectReadyAt: Number(viewer.slashPerfectReadyAt) || 0,
+      slashGuardDurationMs: FIGHTER_SLASH_GUARD_DURATION_MS,
+      slashPerfectGuardMs: FIGHTER_SLASH_PERFECT_GUARD_MS,
+      slashPerfectRearmMs: FIGHTER_SLASH_PERFECT_REARM_MS,
       teleportReadyAt: viewer.teleportReadyAt,
       floraReadyAt: viewer.floraReadyAt,
       limitBreakActive: viewer.limitBreakActive,
@@ -15775,6 +16221,7 @@ function serialize(room, viewer, options = {}) {
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
       fighterShockwaveCharges: Math.max(0, Math.floor(Number(viewer.fighterShockwaveCharges) || 0)),
       fighterInfiniteResources: hasFighterInfiniteResources(viewer),
+      fighterDestructionSlash: Number(viewer.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD,
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -15951,6 +16398,7 @@ function serialize(room, viewer, options = {}) {
     })(),
     winner: room.winner,
     ideaWinnerId: room.ideaWinnerId,
+    ideaWinnerIds: ideaWinnerIdsFor(room),
     pendingIdeaVictoryAt: room.pendingIdeaVictoryAt,
     finishReason: room.finishReason,
     results: room.phase === "ended" ? resultRanking(room) : [],
@@ -16374,7 +16822,14 @@ async function handleApi(req, res) {
 
     case "/api/fighter-slash": {
       const { room, player } = requireRoomPlayer(body);
-      fighterSlash(room, player, String(body.targetId || ""));
+      fighterSlash(room, player, String(body.targetId || ""), Boolean(body.perfectGuardIntent));
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/fighter-slash-release": {
+      const { room, player } = requireRoomPlayer(body);
+      releaseFighterSlashGuardInput(player);
       payload = serialize(room, player);
       break;
     }
@@ -16611,7 +17066,7 @@ async function handleApi(req, res) {
       room.operatorTurnIndex = 0;
       room.winner = null;
       room.finishReason = "";
-      room.ideaWinnerId = "";
+      setIdeaWinnerIds(room, []);
       room.pendingIdeaVictoryAt = 0;
       room.sabotage = null;
       room.activeEmps = [];
@@ -16659,6 +17114,10 @@ async function handleApi(req, res) {
         entry.sabotageReadyAt = 0;
         entry.dodgeReadyAt = 0;
         entry.dodgeActiveUntil = 0;
+        entry.slashActiveUntil = 0;
+        entry.slashPerfectUntil = 0;
+        entry.slashPerfectReadyAt = 0;
+        entry.slashGuardInputReleased = true;
         entry.teleportReadyAt = 0;
         entry.floraReadyAt = 0;
         entry.limitBreakActive = false;
@@ -17583,5 +18042,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "fighter-infinite-resources-v444" });
+self.postMessage({ type: "ready", version: "idea-multiwinner-slash-guard-v446" });
 })();
