@@ -8871,6 +8871,7 @@ function updateActionButtons(data) {
   const cameraIndices = availableCameraIndices(data);
   const aiming = Boolean(aimed && self.aimTargetId);
   const contextSource = utilityStation ? els.utilityButton : null;
+  const dodgeAccess = self.role === "defender" || fighterAccess;
 
   const hackerManualTask = self.special === "alchemist" && Boolean(task);
   els.taskButton.hidden = !hackerManualTask;
@@ -8898,7 +8899,7 @@ function updateActionButtons(data) {
     state.actionLayoutKey = actionLayoutKey;
     els.emergencyButton.hidden = false;
     els.ninjutsuButton.hidden = !canUseKill;
-    els.dodgeButton.hidden = self.role !== "defender";
+    els.dodgeButton.hidden = !dodgeAccess;
     els.teleportButton.hidden = true;
     els.shootButton.hidden = true;
     els.weaponButton.hidden = true;
@@ -9015,7 +9016,7 @@ function updateActionButtons(data) {
   els.gunnerReloadButton.textContent = reloadSeconds > 0 ? `リロード ${reloadSeconds.toFixed(1)}秒` : "リロード";
   els.gunnerReloadButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess && Number(gunnerWeapon.ammo) < Number(gunnerWeapon.maxAmmo) && reloadSeconds <= 0);
   els.dodgeButton.textContent = "回避 -100SP";
-  els.dodgeButton.disabled = !(canUseAbility && self.role === "defender" && self.stamina >= maxStamina && hasMana("dodge") && self.dodgeActiveUntil <= liveNow);
+  els.dodgeButton.disabled = !(canUseAbility && dodgeAccess && self.stamina >= maxStamina && hasMana("dodge") && self.dodgeActiveUntil <= liveNow);
   const teleportMode = els.teleportModeSelect.value === "heart" ? "heart" : "body";
   const teleportTargetIsSelf = (els.teleportTargetSelect.value || self.id) === self.id;
   els.teleportButton.textContent = teleportMode === "heart"
@@ -15146,7 +15147,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "idea-multiwinner-slash-guard-v446";
+const version = "attacker-fighter-kill-counter-v447";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

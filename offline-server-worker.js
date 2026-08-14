@@ -6960,7 +6960,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "エネルギーチャージ、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。ディフェンダー時は100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを12秒間発動し、発動ごとにHPを1消費してSPと加速を3倍ずつ重ねる。最終発動から12秒で解除され、発動中はマナを継続消費して即死回避を失う。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを12秒間発動し、発動ごとにHPを1消費してSPと加速を3倍ずつ重ねる。最終発動から12秒で解除され、発動中はマナを継続消費して即死回避を失う。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -11628,9 +11628,17 @@ function autoCompleteHackerTask(room, player, timestamp = now()) {
   return true;
 }
 
+function canActivateDodge(player) {
+  return player?.role === "defender" || hasOperatorAccess(player, "fighter");
+}
+
+function fighterKillCounterAvailable(player) {
+  return hasOperatorAccess(player, "fighter") && passivesEnabled(player);
+}
+
 function activateDodge(room, player) {
   if (room.phase !== "playing") throw new ApiError(400, "バトル中のみ回避を発動できます。");
-  if (player.role !== "defender") throw new ApiError(403, "ディフェンダーだけが回避を使用できます。");
+  if (!canActivateDodge(player)) throw new ApiError(403, "このオペレーターは回避を使用できません。");
   if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は回避できません。");
   ensureAbilityAvailable(player);
   const timestamp = now();
@@ -14726,7 +14734,7 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   if (!ignoreDodge && target.dodgeActiveUntil > timestamp) {
     target.dodgeActiveUntil = 0;
-    if (hasOperatorAccess(target, "fighter") && passivesEnabled(target)) {
+    if (fighterKillCounterAvailable(target)) {
       recordBotMatchElimination(room, killer, target);
       killer.alive = false;
       killer.bodyHits = 0;
@@ -18042,5 +18050,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "idea-multiwinner-slash-guard-v446" });
+self.postMessage({ type: "ready", version: "attacker-fighter-kill-counter-v447" });
 })();
