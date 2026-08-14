@@ -1728,13 +1728,17 @@ function drawTitleGodRays(timestamp, modeAlpha) {
   const sampledTime = Math.floor(timestamp / (1000 / 60)) / 60;
   const source = titleHeroPoint(0.965, 0.035);
   const clipStart = Math.max(state.titleFx.width * 0.46, titleHeroPoint(0.36, 0.5).x);
-  const coherentWind = Math.sin(sampledTime * 0.37) * 0.008
-    + Math.sin(sampledTime * 0.19 + 1.65) * 0.004;
+  const swayEnvelope = 0.72 + Math.sin(sampledTime * 0.11 + 0.8) * 0.18;
+  const coherentWind = (
+    Math.sin(sampledTime * 0.34) * 0.019
+    + Math.sin(sampledTime * 0.17 + 1.65) * 0.009
+  ) * swayEnvelope;
+  const coherentLift = Math.sin(sampledTime * 0.23 + 0.5) * 0.007;
   const rays = [
-    { u: 0.28, v: 0.48, width: 0.058, alpha: 0.15, phase: 0.1, sway: 1.0 },
-    { u: 0.42, v: 0.63, width: 0.066, alpha: 0.135, phase: 1.4, sway: 0.82 },
-    { u: 0.57, v: 0.76, width: 0.052, alpha: 0.145, phase: 2.7, sway: 0.64 },
-    { u: 0.70, v: 0.88, width: 0.038, alpha: 0.11, phase: 4.2, sway: 0.48 }
+    { u: 0.28, v: 0.48, width: 0.058, alpha: 0.19, phase: 0.1, sway: 1.0 },
+    { u: 0.42, v: 0.63, width: 0.066, alpha: 0.17, phase: 1.4, sway: 0.82 },
+    { u: 0.57, v: 0.76, width: 0.052, alpha: 0.18, phase: 2.7, sway: 0.64 },
+    { u: 0.70, v: 0.88, width: 0.038, alpha: 0.14, phase: 4.2, sway: 0.48 }
   ];
 
   titleFxCtx.save();
@@ -1744,14 +1748,21 @@ function drawTitleGodRays(timestamp, modeAlpha) {
   titleFxCtx.globalCompositeOperation = "screen";
 
   for (const ray of rays) {
-    const localFlutter = Math.sin(sampledTime * 0.73 + ray.phase) * 0.0032;
-    const target = titleHeroPoint(ray.u + coherentWind * ray.sway + localFlutter, ray.v);
+    const localFlutter = Math.sin(sampledTime * 0.61 + ray.phase) * 0.006
+      + Math.sin(sampledTime * 0.29 + ray.phase * 1.7) * 0.0025;
+    const endpointLift = coherentLift * ray.sway
+      + Math.sin(sampledTime * 0.41 + ray.phase) * 0.0035;
+    const target = titleHeroPoint(
+      ray.u + coherentWind * ray.sway + localFlutter,
+      ray.v + endpointLift
+    );
     const dx = target.x - source.x;
     const dy = target.y - source.y;
     const length = Math.max(1, Math.hypot(dx, dy));
     const normalX = -dy / length;
     const normalY = dx / length;
-    const halfWidth = Math.min(state.titleFx.width, state.titleFx.height) * ray.width;
+    const widthBreathing = 1 + Math.sin(sampledTime * 0.27 + ray.phase * 0.8) * 0.075;
+    const halfWidth = Math.min(state.titleFx.width, state.titleFx.height) * ray.width * widthBreathing;
     const transmission = 0.82
       + Math.sin(sampledTime * 0.51 + ray.phase) * 0.11
       + Math.sin(sampledTime * 1.07 + ray.phase * 1.9) * 0.045;
@@ -13694,7 +13705,7 @@ function drawPetSprite(player, data, ghost) {
     const walkAtlasSource = state.textures.playerWalkAtlases?.[skinId];
     const walkAtlas = walkAtlasSource ? transparentSpriteSource(walkAtlasSource, `skinWalk60-${skinId}`, 12) : null;
     if (walkAtlas) {
-      drawBlendedWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94);
+      drawBlendedWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94, true);
       drawNameplate(player, ghost, -78);
       return true;
     }
@@ -13736,11 +13747,23 @@ function walkAnimationFrame(player, motion) {
     stepBucket: -1,
     lastStepAt: 0
   };
-  const elapsed = clamp(now - animation.lastAt, 0, 50);
   if (motion.moving) {
-    if (!animation.moving) animation.frame = 0;
-    const cycleMs = player.movementMode === "dash" ? 500 : player.movementMode === "slow" ? 1040 : 720;
-    animation.frame = (animation.frame + elapsed * physicalMotionRateFor(player) / cycleMs * 60) % 60;
+    if (!animation.moving) {
+      animation.frame = 0;
+      animation.x = player.x;
+      animation.y = player.y;
+    }
+    const movementMode = player.id === state.data?.selfId
+      ? (isDashing() ? "dash" : isSlowWalking() ? "slow" : "walk")
+      : player.movementMode;
+    const strideDistance = movementMode === "dash" ? 94 : movementMode === "slow" ? 59 : 78;
+    const travelled = Math.hypot(player.x - animation.x, player.y - animation.y);
+    // Drive the gait from actual rendered displacement. Input against a wall
+    // no longer runs the legs in place, and acceleration raises cadence only
+    // because the character really covers more ground.
+    if (travelled <= strideDistance * 0.42) {
+      animation.frame = (animation.frame + travelled / strideDistance * 60) % 60;
+    }
     const stepBucket = Math.floor(animation.frame / 15) % 4;
     if (player.id === state.data?.selfId && player.alive && stepBucket !== animation.stepBucket && now - animation.lastStepAt > 170) {
       animation.stepBucket = stepBucket;
@@ -13816,11 +13839,15 @@ function drawProceduralWalkSprite(sprite, direction, frame, x, y, width, height)
   ctx.restore();
 }
 
-function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height) {
+function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height, registered = false) {
   const index = Math.floor(frame) % 60;
   const cellWidth = spriteWidth(atlas) / 20;
   const cellHeight = spriteHeight(atlas) / 12;
-  const anchor = playerWalkAnchors(atlas)[direction * 60 + index] || { x: 0, y: 0 };
+  const anchor = registered
+    ? { x: 0, y: 0 }
+    : playerWalkAnchors(atlas)[direction * 60 + index] || { x: 0, y: 0 };
+  const gaitPhase = frame / 60 * Math.PI * 2;
+  const bodyLift = registered ? (0.5 - Math.cos(gaitPhase * 2) * 0.5) * 0.9 : 0;
   drawAtlasCell(
     atlas,
     20,
@@ -13828,7 +13855,7 @@ function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height) {
     index % 20,
     direction * 3 + Math.floor(index / 20),
     x + anchor.x * (width / cellWidth),
-    y + anchor.y * (height / cellHeight),
+    y + anchor.y * (height / cellHeight) - bodyLift,
     width,
     height
   );
@@ -14894,7 +14921,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "title-godray-motion-v439";
+const version = "title-godray-sway-v441";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v439-title-godray-motion";
+const CACHE_NAME = "dva-static-v441-title-godray-sway";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
