@@ -6643,6 +6643,10 @@ const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
 const FIGHTER_SHOCKWAVE_ORIGIN_OFFSET = 20;
 const FIGHTER_THROW_SHOCKWAVE_RADIUS = 180;
+const FIGHTER_GIANT_SHOCKWAVE_EC_COST = 100;
+const FIGHTER_GIANT_SHOCKWAVE_RANGE = 1_900;
+const FIGHTER_GIANT_SHOCKWAVE_WIDTH = 240;
+const FIGHTER_GIANT_SHOCKWAVE_DURATION_MS = 1_150;
 const HACKER_MANA_GPU_DRAIN_PER_SECOND = 0.025;
 const HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA = 20_000;
 const HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS = 54_000;
@@ -9810,10 +9814,11 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     });
     reward += " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る・常時破壊 / ジャストガード・全攻撃反射";
   }
+  const milestoneMotion = reachedIaiMilestone || reachedInfiniteMilestone;
   pushMagicEffect(room, "fighter-energy-charge", player, {
     radius: 112,
     playerId: player.id,
-    variant: `${next}:shockwave-${player.fighterShockwaveCharges}`
+    variant: `${next}:shockwave-${player.fighterShockwaveCharges}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
   });
   setImmediateFeedback(player, "EC", reward);
   pushEvent(room, `${player.name} のECが1回進み、衝撃波を1発獲得しました${reachedIaiMilestone ? "。EC25回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
@@ -9822,13 +9827,22 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   return true;
 }
 
-function consumeFighterShockwaveCharge(player) {
+function fighterSlashShockwaveCost(player) {
+  const current = Math.max(0, Math.floor(Number(player?.fighterEnergyCharge) || 0));
+  return current >= FIGHTER_GIANT_SHOCKWAVE_EC_COST
+    ? FIGHTER_GIANT_SHOCKWAVE_EC_COST
+    : 1;
+}
+
+function consumeFighterShockwaveCharge(player, requestedCost = 1, label = "衝撃波") {
   const stored = Math.max(0, Math.floor(Number(player?.fighterShockwaveCharges) || 0));
-  if (!player || stored <= 0) return false;
-  player.fighterShockwaveCharges = stored - 1;
-  player.fighterEnergyCharge = Math.max(0, Math.floor(Number(player.fighterEnergyCharge) || 0) - 1);
-  setImmediateFeedback(player, "EC", `衝撃波発生 / EC${player.fighterEnergyCharge} / 衝撃波×${player.fighterShockwaveCharges}`);
-  return true;
+  const current = Math.max(0, Math.floor(Number(player?.fighterEnergyCharge) || 0));
+  const cost = Math.max(1, Math.floor(Number(requestedCost) || 1));
+  if (!player || current < cost) return 0;
+  player.fighterShockwaveCharges = Math.max(0, stored - cost);
+  player.fighterEnergyCharge = current - cost;
+  setImmediateFeedback(player, "EC", `${label}発生 / EC${cost}消費 / EC${player.fighterEnergyCharge} / 衝撃波×${player.fighterShockwaveCharges}`);
+  return cost;
 }
 
 function luckValueFor(player) {
@@ -11920,23 +11934,34 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
     const universalReflect = hasFighterInfiniteResources(player);
     pushEvent(room, `${player.name} が斬るを構えました。物理攻撃をガードし、${perfectGuardOpened ? `短いジャストガード受付で${universalReflect ? "全攻撃" : "物理攻撃"}を反射できます` : "今回はジャストガード再受付前です"}。`);
   }
-  if (player.alive && consumeFighterShockwaveCharge(player)) {
+  const requestedShockwaveCost = fighterSlashShockwaveCost(player);
+  const consumedShockwaveCost = player.alive
+    ? consumeFighterShockwaveCharge(
+        player,
+        requestedShockwaveCost,
+        requestedShockwaveCost === FIGHTER_GIANT_SHOCKWAVE_EC_COST ? "特大衝撃波" : "衝撃波"
+      )
+    : 0;
+  if (consumedShockwaveCost > 0) {
+    const giantShockwave = consumedShockwaveCost === FIGHTER_GIANT_SHOCKWAVE_EC_COST;
+    const shockwaveRange = giantShockwave ? FIGHTER_GIANT_SHOCKWAVE_RANGE : FIGHTER_SHOCKWAVE_RANGE;
+    const shockwaveWidth = giantShockwave ? FIGHTER_GIANT_SHOCKWAVE_WIDTH : FIGHTER_SHOCKWAVE_WIDTH;
     const swordOrigin = {
       ...player,
       x: player.x + slashAimX * FIGHTER_SHOCKWAVE_ORIGIN_OFFSET,
       y: player.y + slashAimY * FIGHTER_SHOCKWAVE_ORIGIN_OFFSET
     };
-    const targetX = swordOrigin.x + slashAimX * FIGHTER_SHOCKWAVE_RANGE;
-    const targetY = swordOrigin.y + slashAimY * FIGHTER_SHOCKWAVE_RANGE;
+    const targetX = swordOrigin.x + slashAimX * shockwaveRange;
+    const targetY = swordOrigin.y + slashAimY * shockwaveRange;
     pushMagicEffect(room, "fighter-shockwave", swordOrigin, {
-      radius: FIGHTER_SHOCKWAVE_WIDTH,
+      radius: shockwaveWidth,
       playerId: player.id,
       targetX,
       targetY,
-      durationMs: 760,
-      variant: `one-body-damage:remaining-${player.fighterShockwaveCharges}`
+      durationMs: giantShockwave ? FIGHTER_GIANT_SHOCKWAVE_DURATION_MS : 760,
+      variant: `${giantShockwave ? "giant-" : ""}one-body-damage:ec-cost-${consumedShockwaveCost}:remaining-${player.fighterShockwaveCharges}`
     });
-    const waveTargets = inventionLineTargets(room, swordOrigin, FIGHTER_SHOCKWAVE_RANGE, FIGHTER_SHOCKWAVE_WIDTH, false)
+    const waveTargets = inventionLineTargets(room, swordOrigin, shockwaveRange, shockwaveWidth, false)
       .filter(({ target: waveTarget }) => !struckIds.has(waveTarget.id));
     for (const { target: waveTarget } of waveTargets) {
       if (!player.alive || player.ejected) break;
@@ -11950,13 +11975,13 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
           preserveCooldown: true,
           magic: true,
           attackKind: "fighter-energy-shockwave",
-          attackLabel: "斬る衝撃波",
+          attackLabel: giantShockwave ? "斬る特大衝撃波" : "斬る衝撃波",
           slashGuardPhysical: true,
           slashGuardReflectable: false,
           slashGuardPerfectEligible: false,
           targetRole: waveTarget.role
         });
-        pushEvent(room, `${player.name} の斬る衝撃波が ${waveTarget.name} に命中しました（${outcome}）。`);
+        pushEvent(room, `${player.name} の${giantShockwave ? "斬る特大衝撃波" : "斬る衝撃波"}が ${waveTarget.name} に命中しました（${outcome}）。`);
       } catch (error) {
         if (!(error instanceof ApiError)) throw error;
       }
@@ -18325,7 +18350,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "orichalcum-iron-glint-v452",
+  version: "balanced-orichalcum-ec100-v453",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

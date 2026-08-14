@@ -12,15 +12,15 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v409.png">
-    <link rel="preload" as="image" href="assets/title-hero-v448.png?v=orichalcum-iron-glint-v452" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/title-hero-v448.png?v=balanced-orichalcum-ec100-v453" fetchpriority="high">
     <style>html,body,.start-screen{background:#8a684d}</style>
-  <link rel="stylesheet" href="styles.css?v=orichalcum-iron-glint-v452">
+  <link rel="stylesheet" href="styles.css?v=balanced-orichalcum-ec100-v453">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v448.png?v=orichalcum-iron-glint-v452" alt="簡素な木造室内で水の自己回復を行う白フードのフィリア" fetchpriority="high">
-      <img class="title-hero-character" src="assets/title-hero-v448.png?v=orichalcum-iron-glint-v452" alt="" aria-hidden="true">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v448.png?v=orichalcum-iron-glint-v452" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v448.png?v=balanced-orichalcum-ec100-v453" alt="簡素な木造室内で水の自己回復を行う白フードのフィリア" fetchpriority="high">
+      <img class="title-hero-character" src="assets/title-hero-v448.png?v=balanced-orichalcum-ec100-v453" alt="" aria-hidden="true">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v448.png?v=balanced-orichalcum-ec100-v453" alt="" aria-hidden="true">
       <div class="title-hero-vfx" aria-hidden="true"></div>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -138,7 +138,7 @@
                 <section><h4>ガンナー</h4><p>ARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れ時または射撃を止めた後に自動リロードします。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
                 <section><h4>SRと特殊弾</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。ウィークバレットは理知中に時間経過で自動装填され、命中対象と射手を破壊します。</p></section>
                 <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
-                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。一定時間ごとに1MPを自動消費してECと衝撃波を1増やし、斬るか投擲で衝撃波を1発発生させるたびECも1減ります。衝撃波は斬撃と同じ物理ガードの対象ですが、ジャストガード判定と反射は発生しません。初めてEC25へ到達すると居合を1回獲得します。居合は「即席」として獲得時に使用回数へ変換され、敵一人の有限の踏ん張りを全削除し、200SP相当を消費します。SP不足分は150SP=1MPで補い、総量不足なら死亡します。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張り無限、リミットブレイクの被確殺デメリット解除、斬るの常時破壊、通常攻撃へのジャストガードの全攻撃反射が永続します。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで反射します。固有武器「オリハルコン・ソード」の剣の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立します。ファイターは開始時に1振り所持し、所持者なら通常使用で斬る、投擲も可能です。自販機では200C、ハッカー生成ではMPを消費せず、最終クールタイム90秒です。Hのリミットブレイクは発動ごとにHPを1消費し、SPと加速を3倍ずつ重ね、マナが尽きるまで永続します。会議中は能力と残り時間が停止し、終了後に再開します。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しません。</p></section>
+                <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。一定時間ごとに1MPを自動消費してECと衝撃波を1増やします。通常ECではキャラモーションを行わず、初めてEC25・50へ到達したときだけ節目モーションを行います。斬るか投擲で通常衝撃波を1発発生させるたびECも1減り、EC100以上で斬るとEC100を消費して特大衝撃波を発生させます。通常・特大衝撃波は斬撃と同じ物理ガードの対象ですが、ジャストガード判定と反射は発生しません。初めてEC25へ到達すると居合を1回獲得します。居合は「即席」として獲得時に使用回数へ変換され、敵一人の有限の踏ん張りを全削除し、200SP相当を消費します。SP不足分は150SP=1MPで補い、総量不足なら死亡します。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張り無限、リミットブレイクの被確殺デメリット解除、斬るの常時破壊、通常攻撃へのジャストガードの全攻撃反射が永続します。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで反射します。固有武器「オリハルコン・ソード」の剣の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立します。ファイターは開始時に1振り所持し、所持者なら通常使用で斬る、投擲も可能です。自販機では200C、ハッカー生成ではMPを消費せず、最終クールタイム90秒です。Hのリミットブレイクは発動ごとにHPを1消費し、SPと加速を3倍ずつ重ね、マナが尽きるまで永続します。会議中は能力と残り時間が停止し、終了後に再開します。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しません。</p></section>
                 <section><h4>グラビティ</h4><p>重力と時空の相関を扱い、転移、時空加減速、リビテーション、グラビティストームを使用します。重力嵐は継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全です。</p></section>
                 <section><h4>フローラのアロマ</h4><p>理知中は本人の停止中スタミナ回復を1.75倍にします。ほかのプレイヤーには適用されません。</p></section>
               </div>
@@ -151,7 +151,7 @@
                 <section><h4>クレジット獲得</h4><p>タスク10C、サボタージュ成功8C、全生存者へ10秒ごと2C、キャッシュ15C。キル固定報酬はなく、倒した対象が持つ正のクレジットを全額奪います。</p></section>
                 <section><h4>欲望・気概・理知</h4><p>マナは0が欲望、1が気概、2以上が理知。別に、SPは0が欲望、1〜250が気概、251以上が理知です。一度でも欲望になると認知的不協和・確証バイアス・サンクコスト効果・内集団バイアスのいずれかが生じ、その対戦では真・美・善・善のイデアへ到達できません。回復しても進行は再開しません。</p></section>
                 <section><h4>心の状態</h4><p>理知はゲームを楽しむ知の快楽。気概は勝敗・劣等感・名誉欲の苦痛と、その緩和による偽の快楽。欲望は肉体的欲望の苦痛と、その緩和・利得による偽の快楽です。他責の念が生じた時はプレイを終了してください。</p></section>
-                <section><h4>練気</h4><p>スタミナ消費なし。3.5秒の精神統一中は完全行動不能となり、完了時にマナを1増やします。被攻撃が予想される場所での練気は退路を失います。</p></section>
+                <section><h4>練気</h4><p>スタミナ消費なし。キャラモーションは行わず、3.5秒の精神統一中は完全行動不能となり、完了時にマナを1増やします。被攻撃が予想される場所での練気は退路を失います。</p></section>
                 <section><h4>資源変換と募金</h4><p>SP上限時の回復超過は150SP相当ごとに1MPへ変換されます。MPが2を超え、SPが250未満なら余剰MPを毎秒30SPずつ自動変換します（1MP=150SP）。手動のMP→SP変換はありません。スマホ募金は10C単位で長押し連続実行でき、1回ごとに理知なら幸運／直観+0.05、気概・欲望なら-0.05です。</p></section>
                 <section><h4>哲学進行</h4><p>理知を連続維持して50秒で真または美、2分で残り、3分40秒で善、6分で善のイデア。幸運／直観が0.30を超えるほど進行速度が上がります。2未満へ落ちると次段階の連続維持時間はリセットされます。</p></section>
                 <section><h4>パッシブ条件</h4><p>踏ん張り、押し込み、変わり身、リビテーション、ハックなど、あらゆるパッシブ能力は理知中だけ発動します。所持回数は失われず、気概・欲望中は休止します。</p></section>
@@ -672,10 +672,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=orichalcum-iron-glint-v452"></script>
-    <script src="game-engine.js?v=orichalcum-iron-glint-v452"></script>
-    <script src="offline-runtime.js?v=orichalcum-iron-glint-v452"></script>
-    <script src="config.js?v=orichalcum-iron-glint-v452"></script>
-    <script src="app.js?v=orichalcum-iron-glint-v452"></script>
+    <script src="game-runtime.js?v=balanced-orichalcum-ec100-v453"></script>
+    <script src="game-engine.js?v=balanced-orichalcum-ec100-v453"></script>
+    <script src="offline-runtime.js?v=balanced-orichalcum-ec100-v453"></script>
+    <script src="config.js?v=balanced-orichalcum-ec100-v453"></script>
+    <script src="app.js?v=balanced-orichalcum-ec100-v453"></script>
 </body>
 </html>

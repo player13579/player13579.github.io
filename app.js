@@ -741,7 +741,7 @@ const generatedItemTextureFiles = new Map([
   ["molotov", { file: "item-molotov.webp" }],
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
-  ["orichalcum-sword", { file: "item-orichalcum-sword-v452.png" }],
+  ["orichalcum-sword", { file: "item-orichalcum-sword-v453.png" }],
   ["iai", { file: "instant-iai-abstract-v451.png" }],
   ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
   ["heal", { file: "alchemy-effect-heal-v311.png" }],
@@ -2036,7 +2036,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/fighter-slash": "slash",
   "/api/limit-break": "power",
   "/api/sleep": "rest",
-  "/api/renki": "focus",
   "/api/donate": "interact",
   "/api/teleport": "cast",
   "/api/gravity-time": "cast",
@@ -2136,7 +2135,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-smartphone-repair": "interact",
   "action-vending": "interact",
   "action-iai": "iai",
-  "action-renki": "focus",
   "action-mana": "focus",
   "action-alchemy": "cast",
   "action-jump": "jump",
@@ -2146,7 +2144,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "fighter-slash": "slash",
   "fighter-slash-parry": "slash",
   "fighter-iaido": "slash",
-  "fighter-energy-charge": "power",
   "fighter-energy-release": "throw",
   "fighter-energy-impact": null,
   "fighter-shockwave": "slash",
@@ -2177,7 +2174,10 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "idea-ascension": "power"
 });
 
-function magicCharacterActionKind(type) {
+function magicCharacterActionKind(type, variant = "") {
+  if (type === "fighter-energy-charge") {
+    return /(?:^|:)milestone-motion-(?:25|50)(?::|$)/.test(String(variant || "")) ? "power" : null;
+  }
   if (MAGIC_EFFECT_CHARACTER_ACTION[type]) return MAGIC_EFFECT_CHARACTER_ACTION[type];
   // Map objects keep their dedicated B effect, but do not drive a character motion.
   if (type.startsWith("object-") || type.startsWith("alchemy-object-")) return null;
@@ -6695,7 +6695,7 @@ function detectMagicEffects(previous, next) {
       ));
       if (object) showToast(`${object.label}: ${object.effectLabel}`);
     }
-    const actionKind = magicCharacterActionKind(effect.type);
+    const actionKind = magicCharacterActionKind(effect.type, effect.variant);
     if (actionKind && effect.playerId) {
       if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
         state.facing.set(
@@ -8255,7 +8255,7 @@ function collectOperatorPassiveEffects(self, liveNow) {
       ? ` / 最新: ${self.lastImmediateFeedback.detail}`
       : "";
     const energyPeak = Math.max(Number(self.fighterEnergyPeak) || 0, Number(self.fighterEnergyCharge) || 0);
-    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費してECと衝撃波を1増やし、衝撃波を1発発生させるたびECも1減る。衝撃波は斬撃と同じ通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると居合（即席）を1回獲得し、初めて50へ到達するとMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、通常攻撃へのジャストガードが全攻撃反射になる");
+    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費してECと衝撃波を1増やす。通常ECではキャラモーションを行わず、初回EC25・50だけ節目モーションを行う。斬るか投擲で通常衝撃波を1発発生させるたびECも1減る。EC100以上で斬るとEC100を消費して特大衝撃波を発生させる。衝撃波は斬撃と同じ通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると居合（即席）を1回獲得し、初めて50へ到達するとMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、通常攻撃へのジャストガードが全攻撃反射になる");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -13329,8 +13329,7 @@ const ACCELERATION_READY_PHYSICAL_KINDS = new Set([
 
 function accelerationReadyMotionDynamics(player, kind, motionId = kind) {
   const rate = physicalMotionRateFor(player);
-  const accelerationReady = ACCELERATION_READY_PHYSICAL_KINDS.has(kind) ||
-    motionId === "action-renki" || motionId === "fighter-energy-charge";
+  const accelerationReady = ACCELERATION_READY_PHYSICAL_KINDS.has(kind);
   if (!accelerationReady || rate <= 1) {
     return { rate, spatialScale: 1, poseTravel: 1 };
   }
@@ -13379,7 +13378,6 @@ function currentCharacterAction(player) {
   }
   if (player.movementMode === "jump-prepare") return { kind: "jump", progress: 0 };
   if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600, "action-rest"), motionId: "action-rest" };
-  if (player.movementMode === "meditating") return { kind: "focus", progress: loopedPhysicalMotionProgress(player, "focus", 1800, "action-renki"), motionId: "action-renki" };
   if (player.id === state.data?.selfId && state.enhanceHold.kind) {
     return { kind: "enhance", progress: loopedPhysicalMotionProgress(player, "enhance", 1180), variant: state.enhanceHold.kind };
   }
@@ -15091,7 +15089,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "orichalcum-iron-glint-v452";
+const version = "balanced-orichalcum-ec100-v453";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
