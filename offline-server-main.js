@@ -17553,7 +17553,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "gold-coin-sophia-muzzle-v438",
+  version: "title-godray-motion-v439",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

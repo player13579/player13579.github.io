@@ -17558,5 +17558,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "gold-coin-sophia-muzzle-v438" });
+self.postMessage({ type: "ready", version: "title-godray-motion-v439" });
 })();

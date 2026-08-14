@@ -1724,6 +1724,79 @@ function spawnTitleAtmosphere(timestamp) {
   state.titleFx.atmosphere = state.titleFx.atmosphere.slice(-110);
 }
 
+function drawTitleGodRays(timestamp, modeAlpha) {
+  const sampledTime = Math.floor(timestamp / (1000 / 60)) / 60;
+  const source = titleHeroPoint(0.965, 0.035);
+  const clipStart = Math.max(state.titleFx.width * 0.46, titleHeroPoint(0.36, 0.5).x);
+  const coherentWind = Math.sin(sampledTime * 0.37) * 0.008
+    + Math.sin(sampledTime * 0.19 + 1.65) * 0.004;
+  const rays = [
+    { u: 0.28, v: 0.48, width: 0.058, alpha: 0.15, phase: 0.1, sway: 1.0 },
+    { u: 0.42, v: 0.63, width: 0.066, alpha: 0.135, phase: 1.4, sway: 0.82 },
+    { u: 0.57, v: 0.76, width: 0.052, alpha: 0.145, phase: 2.7, sway: 0.64 },
+    { u: 0.70, v: 0.88, width: 0.038, alpha: 0.11, phase: 4.2, sway: 0.48 }
+  ];
+
+  titleFxCtx.save();
+  titleFxCtx.beginPath();
+  titleFxCtx.rect(clipStart, 0, Math.max(0, state.titleFx.width - clipStart), state.titleFx.height);
+  titleFxCtx.clip();
+  titleFxCtx.globalCompositeOperation = "screen";
+
+  for (const ray of rays) {
+    const localFlutter = Math.sin(sampledTime * 0.73 + ray.phase) * 0.0032;
+    const target = titleHeroPoint(ray.u + coherentWind * ray.sway + localFlutter, ray.v);
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const halfWidth = Math.min(state.titleFx.width, state.titleFx.height) * ray.width;
+    const transmission = 0.82
+      + Math.sin(sampledTime * 0.51 + ray.phase) * 0.11
+      + Math.sin(sampledTime * 1.07 + ray.phase * 1.9) * 0.045;
+    const layers = [
+      { width: 1.36, alpha: 0.24 },
+      { width: 0.92, alpha: 0.34 },
+      { width: 0.48, alpha: 0.42 }
+    ];
+
+    for (const layer of layers) {
+      const spread = halfWidth * layer.width;
+      const sourceSpread = Math.max(2, spread * 0.035);
+      const gradient = titleFxCtx.createLinearGradient(source.x, source.y, target.x, target.y);
+      gradient.addColorStop(0, "rgba(255, 252, 224, 0)");
+      gradient.addColorStop(0.08, "rgba(255, 251, 220, 0.92)");
+      gradient.addColorStop(0.48, "rgba(255, 239, 188, 0.52)");
+      gradient.addColorStop(0.84, "rgba(255, 230, 164, 0.18)");
+      gradient.addColorStop(1, "rgba(255, 224, 150, 0)");
+      titleFxCtx.globalAlpha = modeAlpha * ray.alpha * transmission * layer.alpha;
+      titleFxCtx.fillStyle = gradient;
+      titleFxCtx.beginPath();
+      titleFxCtx.moveTo(source.x + normalX * sourceSpread, source.y + normalY * sourceSpread);
+      titleFxCtx.lineTo(target.x + normalX * spread, target.y + normalY * spread);
+      titleFxCtx.lineTo(target.x - normalX * spread, target.y - normalY * spread);
+      titleFxCtx.lineTo(source.x - normalX * sourceSpread, source.y - normalY * sourceSpread);
+      titleFxCtx.closePath();
+      titleFxCtx.fill();
+    }
+  }
+
+  const sourceGlow = titleHeroPoint(0.905, 0.12);
+  const sourcePulse = 0.72 + Math.sin(sampledTime * 0.43) * 0.08;
+  const glowRadius = Math.min(state.titleFx.width, state.titleFx.height) * 0.19;
+  const glow = titleFxCtx.createRadialGradient(sourceGlow.x, sourceGlow.y, 0, sourceGlow.x, sourceGlow.y, glowRadius);
+  glow.addColorStop(0, `rgba(255, 253, 230, ${0.1 * sourcePulse * modeAlpha})`);
+  glow.addColorStop(0.42, `rgba(255, 244, 205, ${0.045 * sourcePulse * modeAlpha})`);
+  glow.addColorStop(1, "rgba(255, 238, 188, 0)");
+  titleFxCtx.globalAlpha = 1;
+  titleFxCtx.fillStyle = glow;
+  titleFxCtx.beginPath();
+  titleFxCtx.arc(sourceGlow.x, sourceGlow.y, glowRadius, 0, Math.PI * 2);
+  titleFxCtx.fill();
+  titleFxCtx.restore();
+}
+
 function drawTitleEffects(timestamp) {
   if (els.startScreen.hidden) return;
   resizeTitleEffects();
@@ -1743,6 +1816,7 @@ function drawTitleEffects(timestamp) {
   const modeAlpha = state.screen === "tactics" ? 0.28 : 1;
   state.titleFx.routeGlints = state.titleFx.routeGlints.filter((glint) => timestamp - glint.startedAt < glint.duration);
   state.titleFx.atmosphere = state.titleFx.atmosphere.filter((particle) => timestamp - particle.startedAt < particle.duration);
+  drawTitleGodRays(timestamp, modeAlpha);
   titleFxCtx.save();
   titleFxCtx.globalCompositeOperation = "lighter";
   for (const glint of state.titleFx.routeGlints) {
@@ -14820,7 +14894,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "gold-coin-sophia-muzzle-v438";
+const version = "title-godray-motion-v439";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
