@@ -741,7 +741,7 @@ const generatedItemTextureFiles = new Map([
   ["molotov", { file: "item-molotov.webp" }],
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
-  ["orichalcum-sword", { file: "item-orichalcum-sword-v451.png" }],
+  ["orichalcum-sword", { file: "item-orichalcum-sword-v452.png" }],
   ["iai", { file: "instant-iai-abstract-v451.png" }],
   ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
   ["heal", { file: "alchemy-effect-heal-v311.png" }],
@@ -15091,7 +15091,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "orichalcum-instant-title-ate-v451";
+const version = "orichalcum-iron-glint-v452";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

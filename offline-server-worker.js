@@ -18330,5 +18330,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "orichalcum-instant-title-ate-v451" });
+self.postMessage({ type: "ready", version: "orichalcum-iron-glint-v452" });
 })();

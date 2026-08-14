@@ -18325,7 +18325,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "orichalcum-instant-title-ate-v451",
+  version: "orichalcum-iron-glint-v452",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
