@@ -35,7 +35,6 @@ function assetUrl(path) {
 const els = {
   startScreen: $("#startScreen"),
   startHero: $("#startHero"),
-  titleFxCanvas: $("#titleFxCanvas"),
   screenFlash: $("#screenFlash"),
   gameApp: $("#gameApp"),
   sensoryOverlay: $("#sensoryOverlay"),
@@ -73,6 +72,7 @@ const els = {
   tabletShootShortcut: $("#tabletShootShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
   tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
+  tabletVendingShortcut: $("#tabletVendingShortcut"),
   tabletDodgeShortcut: $("#tabletDodgeShortcut"),
   tabletJumpShortcut: $("#tabletJumpShortcut"),
   tabletRenkiShortcut: $("#tabletRenkiShortcut"),
@@ -185,6 +185,7 @@ const els = {
   empPhaseSelect: $("#empPhaseSelect"),
   cameraButton: $("#cameraButton"),
   nextCameraButton: $("#nextCameraButton"),
+  vendingButton: $("#vendingButton"),
   healButton: $("#healButton"),
   alchemyButton: $("#alchemyButton"),
   alchemyControl: $("#alchemyControl"),
@@ -249,7 +250,6 @@ for (const overlay of [els.inventoryItemDetail, els.itemHoldBranchLines, els.ite
 // scenes are still being painted, which presents as a full-field flash.
 const ctx = els.canvas.getContext("2d", { alpha: false });
 const mapCtx = els.expandedMapCanvas.getContext("2d");
-const titleFxCtx = els.titleFxCanvas.getContext("2d");
 const CAMERA_ZOOM = 1.65;
 const SR_SCOPE_ZOOM = 0.92;
 const SFX_ASSETS = Object.freeze({
@@ -336,14 +336,6 @@ const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora",
 
 const state = {
   screen: "title",
-  titleFx: {
-    routeGlints: [],
-    atmosphere: [],
-    lastRouteAt: 0,
-    lastAtmosphereAt: 0,
-    width: 0,
-    height: 0
-  },
   data: null,
   soloMissionStarting: false,
   roomId: localStorage.getItem(storage.room) || "",
@@ -507,6 +499,7 @@ const state = {
   actionLayoutKey: "",
   activeEffectsRenderKey: "",
   inventoryVisualWeapon: "",
+  vendingOpen: false,
   vendingRenderKey: "",
   itemRenderKey: "",
   utilityRenderKey: "",
@@ -1648,317 +1641,11 @@ function switchScreenWithEffect(next) {
   setScreen(next);
 }
 
-function resizeTitleEffects() {
-  const rect = els.titleFxCanvas.getBoundingClientRect();
-  const width = Math.max(1, Math.round(rect.width));
-  const height = Math.max(1, Math.round(rect.height));
-  const ratio = Math.min(2, window.devicePixelRatio || 1);
-  if (state.titleFx.width === width && state.titleFx.height === height && els.titleFxCanvas.width === Math.round(width * ratio)) return;
-  state.titleFx.width = width;
-  state.titleFx.height = height;
-  els.titleFxCanvas.width = Math.round(width * ratio);
-  els.titleFxCanvas.height = Math.round(height * ratio);
-  titleFxCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  state.titleFx.routeGlints = [];
-  state.titleFx.atmosphere = [];
-}
-
-function titleHeroPoint(u, v) {
-  const width = state.titleFx.width;
-  const height = state.titleFx.height;
-  const naturalWidth = els.startHero.naturalWidth || 1659;
-  const naturalHeight = els.startHero.naturalHeight || 948;
-  const scale = Math.max(width / naturalWidth, height / naturalHeight);
-  const renderedWidth = naturalWidth * scale;
-  const renderedHeight = naturalHeight * scale;
-  const positionX = window.matchMedia("(max-width: 720px)").matches ? 0.66 : 0.5;
-  return {
-    x: (width - renderedWidth) * positionX + renderedWidth * u,
-    y: (height - renderedHeight) * 0.5 + renderedHeight * v
-  };
-}
-
-function spawnTitleRouteGlint(timestamp) {
-  const branch = Math.random();
-  const start = titleHeroPoint(0.76 + (Math.random() - 0.5) * 0.07, 0.86);
-  const control = branch < 0.52
-    ? titleHeroPoint(0.75, 0.68)
-    : branch < 0.8
-      ? titleHeroPoint(0.70, 0.62)
-      : titleHeroPoint(0.82, 0.63);
-  const end = branch < 0.52
-    ? titleHeroPoint(0.75, 0.48)
-    : branch < 0.8
-      ? titleHeroPoint(0.69, 0.51)
-      : titleHeroPoint(0.82, 0.52);
-  state.titleFx.routeGlints.push({
-    start,
-    control,
-    end,
-    startedAt: timestamp,
-    duration: 1180 + Math.random() * 620,
-    phase: Math.random() * Math.PI * 2,
-    hue: branch < 0.68 ? "aqua" : "sun"
-  });
-  state.titleFx.routeGlints = state.titleFx.routeGlints.slice(-18);
-}
-
-function spawnTitleAtmosphere(timestamp) {
-  const roll = Math.random();
-  const kind = roll < 0.48 ? "refract" : roll < 0.82 ? "mote" : "glint";
-  const anchor = kind === "refract"
-    ? titleHeroPoint(0.76 + (Math.random() - 0.5) * 0.18, 0.54 + Math.random() * 0.28)
-    : kind === "glint"
-      ? titleHeroPoint(0.75 + (Math.random() - 0.5) * 0.18, 0.48 + (Math.random() - 0.5) * 0.12)
-      : titleHeroPoint(0.62 + Math.random() * 0.3, 0.18 + Math.random() * 0.48);
-  const duration = kind === "refract" ? 1200 + Math.random() * 1300 : kind === "glint" ? 620 + Math.random() * 620 : 1100 + Math.random() * 1700;
-  state.titleFx.atmosphere.push({
-    kind,
-    x: anchor.x,
-    y: anchor.y,
-    vx: (Math.random() - 0.5) * (kind === "refract" ? 9 : 22),
-    vy: kind === "refract" ? -(7 + Math.random() * 12) : kind === "glint" ? 1 : -(2 + Math.random() * 7),
-    radius: kind === "refract" ? 8 + Math.random() * 15 : kind === "glint" ? 4 + Math.random() * 7 : 1.2 + Math.random() * 2.8,
-    startedAt: timestamp,
-    duration,
-    phase: Math.random() * Math.PI * 2
-  });
-  state.titleFx.atmosphere = state.titleFx.atmosphere.slice(-110);
-}
-
-function drawTitleGodRays(timestamp, modeAlpha) {
-  const sampledTime = Math.floor(timestamp / (1000 / 60)) / 60;
-  const source = titleHeroPoint(0.965, 0.035);
-  const clipStart = Math.max(state.titleFx.width * 0.46, titleHeroPoint(0.36, 0.5).x);
-  const swayEnvelope = 0.72 + Math.sin(sampledTime * 0.11 + 0.8) * 0.18;
-  const coherentWind = (
-    Math.sin(sampledTime * 0.34) * 0.019
-    + Math.sin(sampledTime * 0.17 + 1.65) * 0.009
-  ) * swayEnvelope;
-  const coherentLift = Math.sin(sampledTime * 0.23 + 0.5) * 0.007;
-  const rays = [
-    { u: 0.28, v: 0.48, width: 0.058, alpha: 0.19, phase: 0.1, sway: 1.0 },
-    { u: 0.42, v: 0.63, width: 0.066, alpha: 0.17, phase: 1.4, sway: 0.82 },
-    { u: 0.57, v: 0.76, width: 0.052, alpha: 0.18, phase: 2.7, sway: 0.64 },
-    { u: 0.70, v: 0.88, width: 0.038, alpha: 0.14, phase: 4.2, sway: 0.48 }
-  ];
-
-  titleFxCtx.save();
-  titleFxCtx.beginPath();
-  titleFxCtx.rect(clipStart, 0, Math.max(0, state.titleFx.width - clipStart), state.titleFx.height);
-  titleFxCtx.clip();
-  titleFxCtx.globalCompositeOperation = "screen";
-
-  for (const ray of rays) {
-    const localFlutter = Math.sin(sampledTime * 0.61 + ray.phase) * 0.006
-      + Math.sin(sampledTime * 0.29 + ray.phase * 1.7) * 0.0025;
-    const endpointLift = coherentLift * ray.sway
-      + Math.sin(sampledTime * 0.41 + ray.phase) * 0.0035;
-    const target = titleHeroPoint(
-      ray.u + coherentWind * ray.sway + localFlutter,
-      ray.v + endpointLift
-    );
-    const dx = target.x - source.x;
-    const dy = target.y - source.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const normalX = -dy / length;
-    const normalY = dx / length;
-    const widthBreathing = 1 + Math.sin(sampledTime * 0.27 + ray.phase * 0.8) * 0.075;
-    const halfWidth = Math.min(state.titleFx.width, state.titleFx.height) * ray.width * widthBreathing;
-    const transmission = 0.82
-      + Math.sin(sampledTime * 0.51 + ray.phase) * 0.11
-      + Math.sin(sampledTime * 1.07 + ray.phase * 1.9) * 0.045;
-    const layers = [
-      { width: 1.36, alpha: 0.24 },
-      { width: 0.92, alpha: 0.34 },
-      { width: 0.48, alpha: 0.42 }
-    ];
-
-    for (const layer of layers) {
-      const spread = halfWidth * layer.width;
-      const sourceSpread = Math.max(2, spread * 0.035);
-      const gradient = titleFxCtx.createLinearGradient(source.x, source.y, target.x, target.y);
-      gradient.addColorStop(0, "rgba(255, 252, 224, 0)");
-      gradient.addColorStop(0.08, "rgba(255, 251, 220, 0.92)");
-      gradient.addColorStop(0.48, "rgba(255, 239, 188, 0.52)");
-      gradient.addColorStop(0.84, "rgba(255, 230, 164, 0.18)");
-      gradient.addColorStop(1, "rgba(255, 224, 150, 0)");
-      titleFxCtx.globalAlpha = modeAlpha * ray.alpha * transmission * layer.alpha;
-      titleFxCtx.fillStyle = gradient;
-      titleFxCtx.beginPath();
-      titleFxCtx.moveTo(source.x + normalX * sourceSpread, source.y + normalY * sourceSpread);
-      titleFxCtx.lineTo(target.x + normalX * spread, target.y + normalY * spread);
-      titleFxCtx.lineTo(target.x - normalX * spread, target.y - normalY * spread);
-      titleFxCtx.lineTo(source.x - normalX * sourceSpread, source.y - normalY * sourceSpread);
-      titleFxCtx.closePath();
-      titleFxCtx.fill();
-    }
-  }
-
-  const sourceGlow = titleHeroPoint(0.905, 0.12);
-  const flareBreath = 0.5 + Math.sin(sampledTime * 0.43) * 0.5;
-  const flareAccent = Math.pow(Math.max(0, Math.sin(sampledTime * 0.91 + 0.35)), 10);
-  const sourcePulse = 0.66 + flareBreath * 0.2 + flareAccent * 0.34;
-  const glowRadius = Math.min(state.titleFx.width, state.titleFx.height) * 0.19;
-  const glow = titleFxCtx.createRadialGradient(sourceGlow.x, sourceGlow.y, 0, sourceGlow.x, sourceGlow.y, glowRadius);
-  glow.addColorStop(0, `rgba(255, 255, 238, ${0.16 * sourcePulse * modeAlpha})`);
-  glow.addColorStop(0.18, `rgba(255, 250, 218, ${0.095 * sourcePulse * modeAlpha})`);
-  glow.addColorStop(0.48, `rgba(255, 240, 190, ${0.048 * sourcePulse * modeAlpha})`);
-  glow.addColorStop(1, "rgba(255, 238, 188, 0)");
-  titleFxCtx.globalAlpha = 1;
-  titleFxCtx.fillStyle = glow;
-  titleFxCtx.beginPath();
-  titleFxCtx.arc(sourceGlow.x, sourceGlow.y, glowRadius, 0, Math.PI * 2);
-  titleFxCtx.fill();
-
-  const flareCoreRadius = glowRadius * (0.12 + flareAccent * 0.035);
-  const flareCore = titleFxCtx.createRadialGradient(
-    sourceGlow.x,
-    sourceGlow.y,
-    0,
-    sourceGlow.x,
-    sourceGlow.y,
-    flareCoreRadius
-  );
-  flareCore.addColorStop(0, `rgba(255, 255, 248, ${0.42 * sourcePulse * modeAlpha})`);
-  flareCore.addColorStop(0.36, `rgba(255, 244, 192, ${0.2 * sourcePulse * modeAlpha})`);
-  flareCore.addColorStop(1, "rgba(255, 224, 132, 0)");
-  titleFxCtx.fillStyle = flareCore;
-  titleFxCtx.beginPath();
-  titleFxCtx.ellipse(
-    sourceGlow.x,
-    sourceGlow.y,
-    flareCoreRadius * (1.8 + flareAccent * 0.32),
-    flareCoreRadius * 0.62,
-    -0.42,
-    0,
-    Math.PI * 2
-  );
-  titleFxCtx.fill();
-  titleFxCtx.restore();
-}
-
-function titleGoldenSeed(index, salt) {
-  const value = Math.sin((index + 1) * (12.9898 + salt * 17.123)) * 43758.5453;
-  return value - Math.floor(value);
-}
-
-function drawTitleGoldenParticles(timestamp, modeAlpha) {
-  const sampledTime = Math.floor(timestamp / (1000 / 60)) / 60;
-  const clipStart = Math.max(state.titleFx.width * 0.46, titleHeroPoint(0.36, 0.5).x);
-  const travelHeight = Math.max(180, state.titleFx.height * 0.58);
-
-  titleFxCtx.save();
-  titleFxCtx.beginPath();
-  titleFxCtx.rect(clipStart, 0, Math.max(0, state.titleFx.width - clipStart), state.titleFx.height);
-  titleFxCtx.clip();
-  titleFxCtx.globalCompositeOperation = "lighter";
-
-  for (let index = 0; index < 18; index += 1) {
-    const seedA = titleGoldenSeed(index, 0.17);
-    const seedB = titleGoldenSeed(index, 0.63);
-    const seedC = titleGoldenSeed(index, 1.21);
-    const duration = 4.6 + seedB * 3.8;
-    const progress = (sampledTime / duration + seedA) % 1;
-    const origin = titleHeroPoint(0.64 + seedB * 0.27, 0.94 + seedC * 0.035);
-    const lateralDrift = Math.sin(progress * Math.PI * 2 + seedC * Math.PI * 2) * (5 + seedB * 11)
-      + Math.sin(progress * Math.PI * 5 + seedA * 4) * 2.5;
-    const x = origin.x + lateralDrift + (progress - 0.5) * (seedA - 0.5) * 18;
-    const y = origin.y - progress * travelHeight * (0.72 + seedC * 0.38);
-    const envelope = Math.pow(Math.sin(Math.PI * progress), 1.35) * modeAlpha;
-    const twinkle = 0.7 + Math.sin(sampledTime * (1.7 + seedC) + seedA * 8) * 0.3;
-    const radius = 1.35 + seedB * 2.15;
-    const glowRadius = radius * (3.1 + seedC * 1.6);
-    const gradient = titleFxCtx.createRadialGradient(x, y, 0, x, y, glowRadius);
-    gradient.addColorStop(0, `rgba(255, 255, 238, ${0.96 * envelope * twinkle})`);
-    gradient.addColorStop(0.2, `rgba(255, 231, 128, ${0.82 * envelope})`);
-    gradient.addColorStop(0.56, `rgba(255, 184, 62, ${0.28 * envelope})`);
-    gradient.addColorStop(1, "rgba(255, 159, 38, 0)");
-    titleFxCtx.fillStyle = gradient;
-    titleFxCtx.beginPath();
-    titleFxCtx.ellipse(x, y, glowRadius * 0.72, glowRadius, seedC - 0.5, 0, Math.PI * 2);
-    titleFxCtx.fill();
-  }
-  titleFxCtx.restore();
-}
-
-function drawTitleEffects(timestamp) {
-  if (els.startScreen.hidden) return;
-  resizeTitleEffects();
-  const width = state.titleFx.width;
-  const height = state.titleFx.height;
-  titleFxCtx.clearRect(0, 0, width, height);
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reducedMotion) return;
-  if (timestamp - state.titleFx.lastRouteAt > 420 + Math.random() * 360) {
-    state.titleFx.lastRouteAt = timestamp;
-    spawnTitleRouteGlint(timestamp);
-  }
-  if (timestamp - state.titleFx.lastAtmosphereAt > 92 + Math.random() * 88) {
-    state.titleFx.lastAtmosphereAt = timestamp;
-    spawnTitleAtmosphere(timestamp);
-  }
-  const modeAlpha = state.screen === "tactics" ? 0.28 : 1;
-  state.titleFx.routeGlints = state.titleFx.routeGlints.filter((glint) => timestamp - glint.startedAt < glint.duration);
-  state.titleFx.atmosphere = state.titleFx.atmosphere.filter((particle) => timestamp - particle.startedAt < particle.duration);
-  drawTitleGodRays(timestamp, modeAlpha);
-  drawTitleGoldenParticles(timestamp, modeAlpha);
-  titleFxCtx.save();
-  titleFxCtx.globalCompositeOperation = "lighter";
-  for (const glint of state.titleFx.routeGlints) {
-    const progress = clamp((timestamp - glint.startedAt) / glint.duration, 0, 1);
-    const travel = 1 - Math.pow(1 - progress, 1.7);
-    const inverse = 1 - travel;
-    const x = inverse * inverse * glint.start.x + 2 * inverse * travel * glint.control.x + travel * travel * glint.end.x;
-    const y = inverse * inverse * glint.start.y + 2 * inverse * travel * glint.control.y + travel * travel * glint.end.y;
-    const envelope = Math.sin(Math.PI * progress) * modeAlpha;
-    const radius = 2.4 + Math.sin(glint.phase + progress * Math.PI * 4) * 0.8;
-    const color = glint.hue === "sun" ? "190, 242, 100" : "103, 232, 249";
-    const gradient = titleFxCtx.createRadialGradient(x, y, 0, x, y, radius * 5.5);
-    gradient.addColorStop(0, `rgba(255, 255, 255, ${0.92 * envelope})`);
-    gradient.addColorStop(0.22, `rgba(${color}, ${0.7 * envelope})`);
-    gradient.addColorStop(1, `rgba(${color}, 0)`);
-    titleFxCtx.globalAlpha = 1;
-    titleFxCtx.fillStyle = gradient;
-    titleFxCtx.beginPath();
-    titleFxCtx.arc(x, y, radius * 5.5, 0, Math.PI * 2);
-    titleFxCtx.fill();
-  }
-  for (const particle of state.titleFx.atmosphere) {
-    const age = timestamp - particle.startedAt;
-    const progress = age / particle.duration;
-    const seconds = age / 1000;
-    const phase = particle.phase + seconds * (particle.kind === "glint" ? 5.2 : 1.7);
-    const x = particle.x + particle.vx * seconds + Math.sin(phase) * (particle.kind === "refract" ? 5 : 2.4);
-    const y = particle.y + particle.vy * seconds;
-    const envelope = Math.sin(Math.PI * Math.min(1, progress)) * modeAlpha;
-    const gradient = titleFxCtx.createRadialGradient(x, y, 0, x, y, particle.radius * (1 + progress * 0.55));
-    if (particle.kind === "refract") {
-      gradient.addColorStop(0, `rgba(153, 246, 228, ${0.36 * envelope})`);
-      gradient.addColorStop(0.42, `rgba(103, 232, 249, ${0.16 * envelope})`);
-      gradient.addColorStop(1, "rgba(103, 232, 249, 0)");
-    } else if (particle.kind === "glint") {
-      gradient.addColorStop(0, `rgba(255, 255, 255, ${0.68 * envelope})`);
-      gradient.addColorStop(0.34, `rgba(190, 242, 100, ${0.26 * envelope})`);
-      gradient.addColorStop(1, "rgba(190, 242, 100, 0)");
-    } else {
-      gradient.addColorStop(0, `rgba(254, 243, 199, ${0.72 * envelope})`);
-      gradient.addColorStop(0.3, `rgba(252, 211, 77, ${0.28 * envelope})`);
-      gradient.addColorStop(1, "rgba(252, 211, 77, 0)");
-    }
-    titleFxCtx.globalAlpha = 1;
-    titleFxCtx.fillStyle = gradient;
-    titleFxCtx.beginPath();
-    titleFxCtx.arc(x, y, particle.radius * (1 + progress * 0.55), 0, Math.PI * 2);
-    titleFxCtx.fill();
-  }
-  titleFxCtx.restore();
-}
-
 function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   state.screen = next;
   if (next !== "game" && state.fieldFeedOpen) setFieldFeedOpen(false);
+  if (next !== "game" && state.vendingOpen) setVendingOpen(false, { focus: false });
   document.body.classList.toggle("start-open", next !== "game");
   document.body.classList.toggle("tactics-open", next === "tactics");
   document.body.classList.toggle("game-open", next === "game");
@@ -2309,6 +1996,7 @@ const actionHotkeys = {
   KeyX: "empButton",
   KeyB: "cameraButton",
   KeyN: "nextCameraButton",
+  KeyV: "vendingButton",
   KeyH: "operatorAbilityButton",
   KeyJ: "jumpButton",
   KeyK: "sleepButton",
@@ -4104,10 +3792,12 @@ function bindEvents() {
   els.tabletNinjutsuShortcut.addEventListener("click", () => els.ninjutsuButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
+  els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
   els.tabletRenkiShortcut.addEventListener("click", () => els.renkiButton.click());
   els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
+  els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
   window.addEventListener("resize", scheduleTabletBranchLayout, { passive: true });
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
   bindTabletControls();
@@ -5581,6 +5271,10 @@ function renderTabletControls(data) {
   els.tabletClairvoyanceShortcut.textContent = state.clairvoyance.active ? "千里眼解除" : "千里眼";
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
+  els.tabletVendingShortcut.textContent = state.vendingOpen ? "自販機を閉じる" : "自販機";
+  els.tabletVendingShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected || data.self.inVent;
+  els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
+  els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
   els.tabletDodgeShortcut.textContent = els.dodgeButton.textContent || "回避";
   els.tabletDodgeShortcut.disabled = els.dodgeButton.disabled || els.dodgeButton.hidden;
   els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
@@ -6696,6 +6390,7 @@ function resetLocalSession() {
   state.hackerDockRenderKey = "";
   state.hackerSelectedRecipeId = "";
   state.hackerSelectedByCategory = Object.create(null);
+  state.vendingOpen = false;
   state.vendingRenderKey = "";
   state.utilityRenderKey = "";
   state.lastCanvasStageError = "";
@@ -6763,6 +6458,7 @@ function applyState(data, options = {}) {
     stopVendingHold();
     cancelEnhanceAction();
     cancelThrowTargeting(true);
+    state.vendingOpen = false;
     els.vendingPanel.hidden = true;
     els.itemControl.hidden = true;
     state.vendingRenderKey = "";
@@ -8704,12 +8400,46 @@ function layoutActiveEffectsPanel() {
   }
 }
 
+function setVendingOpen(open, { focus = true } = {}) {
+  const data = state.data;
+  const available = Boolean(
+    state.screen === "game" &&
+    data?.phase === "playing" &&
+    data.self?.alive &&
+    !data.self.ejected &&
+    !data.self.inVent
+  );
+  state.vendingOpen = Boolean(open && available);
+  state.vendingRenderKey = "";
+  if (!state.vendingOpen) {
+    stopVendingHold();
+    if (state.itemHoldBranch.source?.closest?.("#vendingPanel")) closeItemHoldBranch();
+    if (selectedScrollRegion() === els.vendingPanel) setSelectedScrollRegion(null, { focus: false });
+  }
+  if (data) renderVending(data);
+  else els.vendingPanel.hidden = true;
+  els.vendingButton.classList.toggle("active", state.vendingOpen);
+  els.vendingButton.setAttribute("aria-expanded", String(state.vendingOpen));
+  els.tabletVendingShortcut.textContent = state.vendingOpen ? "自販機を閉じる" : "自販機";
+  els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
+  els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
+  if (state.vendingOpen) {
+    requestAnimationFrame(() => setSelectedScrollRegion(els.vendingPanel, { focus }));
+  }
+}
+
 function renderVending(data) {
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
     applyGeneratedItemTexture(button, button.dataset.vendingAsset || button.dataset.drink);
   });
-  const near = nearestStation((station) => station.type === "vending");
-  const visible = Boolean(data.phase === "playing" && data.self.alive && !data.self.ejected && near);
+  const available = Boolean(data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent);
+  if (!available) state.vendingOpen = false;
+  const visible = Boolean(available && state.vendingOpen);
+  els.vendingButton.disabled = !available;
+  els.vendingButton.classList.toggle("active", visible);
+  els.vendingButton.setAttribute("aria-expanded", String(visible));
+  els.tabletVendingShortcut?.classList.toggle("active", visible);
+  els.tabletVendingShortcut?.setAttribute("aria-expanded", String(visible));
   if (els.vendingPanel.hidden === visible) els.vendingPanel.hidden = !visible;
   if (!visible) {
     state.vendingRenderKey = "";
@@ -8725,7 +8455,6 @@ function renderVending(data) {
   });
   const mysteryVisible = data.self.lastMysteryResult && estimatedServerNow(data) - (data.self.lastMysteryResultAt || 0) < 20_000;
   const renderKey = JSON.stringify([
-    near.id,
     Math.floor(Number(data.self.stamina) || 0),
     Number(data.self.maxStoredStamina) || 500,
     Number(data.self.bodyHits) || 0,
@@ -9707,7 +9436,6 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
     state.lastMovementPumpAt = state.frameNow;
     sendMovement();
   }
-  drawTitleEffects(state.frameNow);
   updateJumpPreparationUi();
   try {
     if (state.screen === "game") draw();
@@ -9811,7 +9539,6 @@ function draw() {
   drawCanvasStage("scope-visibility", () => drawScopeVisibilityMask(data, camera, w, h, worldZoom));
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("repair-indicators", () => drawSabotageRepairIndicators(data, camera, w, h, worldZoom));
-  drawCanvasStage("vending-indicator", () => drawVendingEdgeIndicator(data, camera, w, h, worldZoom));
   drawCanvasStage("hud", () => drawHud(data, w, h));
   drawCanvasStage("smartphone-repair", () => drawSmartphoneRepairControl(data, w));
   drawCanvasStage("minimap", () => drawMinimap(data, w, h));
@@ -11137,18 +10864,15 @@ function drawStations(data) {
     } else if (station.type === "emergency") {
       color = "#ef4444";
       symbol = "!";
-    } else if (station.type === "vending") {
-      color = "#facc15";
-      symbol = "V";
     }
-    const propCell = station.type === "vending" ? 1 : station.type === "emergency" ? 5 : 0;
-    const propWidth = station.type === "vending" ? 72 : station.type === "emergency" ? 82 : 74;
-    const propHeight = station.type === "vending" ? 92 : station.type === "emergency" ? 64 : 70;
+    const propCell = station.type === "emergency" ? 5 : 0;
+    const propWidth = station.type === "emergency" ? 82 : 74;
+    const propHeight = station.type === "emergency" ? 64 : 70;
     const integrated = Boolean(roomCompositeForPoint(data, station.room, station));
     const textured = integrated
       ? true
       : drawGeneratedPropCell(facilityProps, propCell, station.x, station.y, propWidth, propHeight, activeTask ? 1 : 0.9);
-    if (!textured && station.type !== "vending") {
+    if (!textured) {
       ctx.fillStyle = color;
       ctx.strokeStyle = activeTask ? "#e0fbff" : "rgba(255,255,255,0.42)";
       ctx.lineWidth = activeTask ? 4 : 2;
@@ -11157,7 +10881,7 @@ function drawStations(data) {
       ctx.fill();
       ctx.stroke();
     }
-    if (station.type !== "task" && station.type !== "vending") {
+    if (station.type !== "task") {
       ctx.fillStyle = "rgba(7,16,20,0.88)";
       ctx.beginPath();
       ctx.arc(station.x, station.y + propHeight * 0.34, activeTask ? 14 : 11, 0, Math.PI * 2);
@@ -11178,14 +10902,7 @@ function drawStations(data) {
       ctx.font = "900 12px Segoe UI, sans-serif";
       ctx.fillText(station.label, station.x, station.y + 39);
     }
-    if (station.type === "vending") {
-      ctx.fillStyle = "rgba(24,32,38,0.94)";
-      roundRect(station.x - 50, station.y + 52, 100, 27, 7, true, false);
-      ctx.fillStyle = "#fde047";
-      ctx.font = "900 14px Segoe UI, sans-serif";
-      ctx.fillText("自販機", station.x, station.y + 65.5);
-    }
-    if (station.type !== "task" && station.type !== "vending" && self && dist(self, station) <= data.map.taskRange) {
+    if (station.type !== "task" && self && dist(self, station) <= data.map.taskRange) {
       ctx.strokeStyle = activeTask ? "rgba(6,214,255,0.85)" : "rgba(45,212,191,0.35)";
       ctx.lineWidth = activeTask ? 4 : 1;
       ctx.beginPath();
@@ -11273,12 +10990,6 @@ function drawFacilityEffects(data) {
       ctx.beginPath();
       ctx.arc(station.x, station.y, 28 + progress * 34, 0, Math.PI * 2);
       ctx.stroke();
-    } else if (station.type === "vending") {
-      for (let light = 0; light < 4; light += 1) {
-        const alpha = 0.28 + Math.sin(time * 5 + light * 1.3 + seed) * 0.2;
-        ctx.fillStyle = `rgba(${light % 2 ? "250,204,21" : "45,212,191"},${alpha})`;
-        ctx.fillRect(station.x - 18 + light * 12, station.y - 30, 5, 3);
-      }
     }
 
     if (station.type === "repair" && data.sabotage?.type === station.repair) {
@@ -11485,38 +11196,6 @@ function drawSabotageRepairMarker(targetCtx, x, y, size, pulse = 1) {
     targetCtx.strokeRect(-drawSize * 0.32, -drawSize * 0.32, drawSize * 0.64, drawSize * 0.64);
   }
   targetCtx.restore();
-}
-
-function drawVendingEdgeIndicator(data, camera, w, h, zoom = CAMERA_ZOOM) {
-  if (data.phase !== "playing") return;
-  const self = selfPlayer();
-  if (!self) return;
-  const station = data.map.stations
-    .filter((item) => item.type === "vending")
-    .map((item) => ({ ...item, distance: dist(self, item) }))
-    .sort((a, b) => a.distance - b.distance)[0];
-  if (!station) return;
-  const sx = (station.x - camera.x) * zoom;
-  const sy = (station.y - camera.y) * zoom;
-  const rightLimit = w - 54;
-  const inside = sx >= 40 && sy >= 100 && sx <= rightLimit && sy <= h - 40;
-  if (inside) return;
-  const x = clamp(sx, 54, rightLimit);
-  const y = clamp(sy, 112, h - 54);
-  ctx.save();
-  ctx.fillStyle = "rgba(24,32,38,0.94)";
-  ctx.strokeStyle = "#fde047";
-  ctx.lineWidth = 3;
-  roundRect(x - 47, y - 23, 94, 46, 8, true, true);
-  ctx.fillStyle = "#fde047";
-  ctx.font = "900 13px Segoe UI, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("V 自販機", x, y - 6);
-  ctx.fillStyle = "#f8fafc";
-  ctx.font = "800 11px Segoe UI, sans-serif";
-  ctx.fillText(`${Math.round(station.distance)}m`, x, y + 11);
-  ctx.restore();
 }
 
 function drawBodies(data) {
@@ -15147,7 +14826,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "attacker-fighter-kill-counter-v447";
+const version = "battle-continuity-vending-title-v448";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

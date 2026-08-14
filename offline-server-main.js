@@ -712,18 +712,6 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
           }
         },
         {
-          "id": "vending-station-c",
-          "type": "vending",
-          "u": 0.68,
-          "v": 0.83,
-          "worldX": 3416,
-          "worldY": 2288,
-          "worldFootprint": {
-            "width": 80,
-            "height": 72
-          }
-        },
-        {
           "id": "station-hush",
           "type": "hushField",
           "u": 0.67,
@@ -843,18 +831,6 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
           "worldFootprint": {
             "width": 112,
             "height": 76
-          }
-        },
-        {
-          "id": "vending-station-b",
-          "type": "vending",
-          "u": 0.87,
-          "v": 0.15,
-          "worldX": 990,
-          "worldY": 1778,
-          "worldFootprint": {
-            "width": 80,
-            "height": 72
           }
         },
         {
@@ -1242,18 +1218,6 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
           "v": 0.46,
           "worldX": 2410,
           "worldY": 1372,
-          "worldFootprint": {
-            "width": 80,
-            "height": 72
-          }
-        },
-        {
-          "id": "vending-station-a",
-          "type": "vending",
-          "u": 0.87,
-          "v": 0.16,
-          "worldX": 2438,
-          "worldY": 1162,
           "worldFootprint": {
             "width": 80,
             "height": 72
@@ -2004,18 +1968,6 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
           }
         },
         {
-          "id": "vending-outpost-c",
-          "type": "vending",
-          "u": 0.1,
-          "v": 0.85,
-          "worldX": 2664,
-          "worldY": 2141,
-          "worldFootprint": {
-            "width": 80,
-            "height": 72
-          }
-        },
-        {
           "id": "outpost-hush",
           "type": "hushField",
           "u": 0.8,
@@ -2216,18 +2168,6 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
           "v": 0.5,
           "worldX": 1955,
           "worldY": 1275,
-          "worldFootprint": {
-            "width": 80,
-            "height": 72
-          }
-        },
-        {
-          "id": "vending-outpost-a",
-          "type": "vending",
-          "u": 0.85,
-          "v": 0.14,
-          "worldX": 2225,
-          "worldY": 1034,
           "worldFootprint": {
             "width": 80,
             "height": 72
@@ -2595,18 +2535,6 @@ const MAP_ENVIRONMENT_CONTRACT = Object.freeze({
           "worldFootprint": {
             "width": 112,
             "height": 76
-          }
-        },
-        {
-          "id": "vending-outpost-b",
-          "type": "vending",
-          "u": 0.08,
-          "v": 0.15,
-          "worldX": 270,
-          "worldY": 1675,
-          "worldFootprint": {
-            "width": 80,
-            "height": 72
           }
         },
         {
@@ -5159,24 +5087,6 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "y": 592,
       "room": "reactor",
       "integrated": true
-    },
-    {
-      "id": "vending-station-a",
-      "type": "vending",
-      "label": "自販機",
-      "x": 2864,
-      "y": 1795,
-      "room": "atrium",
-      "integrated": true
-    },
-    {
-      "id": "vending-station-b",
-      "type": "vending",
-      "label": "自販機",
-      "x": 1845,
-      "y": 2953,
-      "room": "cafeteria",
-      "integrated": true
     }
   ],
   "objects": [
@@ -5920,6 +5830,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +15%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.15,
+      "effectDurationMs": 20000,
       "x": 1240,
       "y": 672,
       "corridor": "a01",
@@ -5932,8 +5843,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24,
-      "effectDurationMs": 20000
+      "visualHeight": 24
     },
     {
       "id": "v317-corridor-a02-1",
@@ -5942,6 +5852,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +12%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.12,
+      "effectDurationMs": 20000,
       "x": 485,
       "y": 1046,
       "corridor": "a02",
@@ -5950,12 +5861,11 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
       "sourceLocalX": 35,
-      "sourceLocalY": 205,
+      "sourceLocalY": 206,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 42,
-      "visualHeight": 42,
-      "effectDurationMs": 20000
+      "visualHeight": 42
     },
     {
       "id": "v317-corridor-a03-1",
@@ -5964,6 +5874,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +15%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.15,
+      "effectDurationMs": 20000,
       "x": 2005,
       "y": 632,
       "corridor": "a03",
@@ -5971,13 +5882,12 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "integrated": true,
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
-      "sourceLocalX": 44,
+      "sourceLocalX": 125,
       "sourceLocalY": 22,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24,
-      "effectDurationMs": 20000
+      "visualHeight": 24
     },
     {
       "id": "v317-corridor-a04-1",
@@ -5994,7 +5904,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "integrated": true,
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
-      "sourceLocalX": 200,
+      "sourceLocalX": 201,
       "sourceLocalY": 32,
       "cooldownMs": 32000,
       "useRange": 104,
@@ -6016,7 +5926,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
       "sourceLocalX": 34,
-      "sourceLocalY": 64,
+      "sourceLocalY": 65,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 42,
@@ -6051,6 +5961,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +15%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.15,
+      "effectDurationMs": 20000,
       "x": 3235,
       "y": 1422,
       "corridor": "a07",
@@ -6058,13 +5969,12 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "integrated": true,
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
-      "sourceLocalX": 84,
+      "sourceLocalX": 85,
       "sourceLocalY": 22,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24,
-      "effectDurationMs": 20000
+      "visualHeight": 24
     },
     {
       "id": "v317-corridor-a08-1",
@@ -6094,6 +6004,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +15%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.15,
+      "effectDurationMs": 20000,
       "x": 3928,
       "y": 1061,
       "corridor": "a09",
@@ -6102,12 +6013,11 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
       "sourceLocalX": 28,
-      "sourceLocalY": 60,
+      "sourceLocalY": 61,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24,
-      "effectDurationMs": 20000
+      "visualHeight": 24
     },
     {
       "id": "v317-corridor-a10-1",
@@ -6125,7 +6035,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
       "sourceLocalX": 28,
-      "sourceLocalY": 40,
+      "sourceLocalY": 41,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
@@ -6147,7 +6057,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
       "sourceLocalX": 28,
-      "sourceLocalY": 50,
+      "sourceLocalY": 51,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
@@ -6160,6 +6070,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +12%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.12,
+      "effectDurationMs": 20000,
       "x": 2434,
       "y": 2386,
       "corridor": "a12",
@@ -6168,12 +6079,11 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
       "sourceLocalX": 34,
-      "sourceLocalY": 135,
+      "sourceLocalY": 136,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 42,
-      "visualHeight": 42,
-      "effectDurationMs": 20000
+      "visualHeight": 42
     },
     {
       "id": "v317-corridor-a13-1",
@@ -6225,6 +6135,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +15%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.15,
+      "effectDurationMs": 20000,
       "x": 1085,
       "y": 2802,
       "corridor": "a14",
@@ -6232,13 +6143,12 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "integrated": true,
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
-      "sourceLocalX": 34,
+      "sourceLocalX": 135,
       "sourceLocalY": 22,
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 24,
-      "visualHeight": 24,
-      "effectDurationMs": 20000
+      "visualHeight": 24
     },
     {
       "id": "v317-corridor-a15-1",
@@ -6275,7 +6185,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "integrated": true,
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
-      "sourceLocalX": 34,
+      "sourceLocalX": 115,
       "sourceLocalY": 22,
       "cooldownMs": 32000,
       "useRange": 104,
@@ -6311,6 +6221,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "effectLabel": "幸運／直観 +12%・20秒",
       "effectKind": "luckBoost",
       "effectAmount": 0.12,
+      "effectDurationMs": 20000,
       "x": 745,
       "y": 1185,
       "corridor": "a17",
@@ -6323,8 +6234,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "cooldownMs": 32000,
       "useRange": 104,
       "visualWidth": 42,
-      "visualHeight": 42,
-      "effectDurationMs": 20000
+      "visualHeight": 42
     },
     {
       "id": "v317-corridor-a18-1",
@@ -6341,7 +6251,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "integrated": true,
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
-      "sourceLocalX": 250,
+      "sourceLocalX": 351,
       "sourceLocalY": 38,
       "cooldownMs": 32000,
       "useRange": 104,
@@ -6362,7 +6272,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "integrated": true,
       "assetAnchor": true,
       "sourceTexture": "field-aurelia-corridor-objects-v317.webp",
-      "sourceLocalX": 82,
+      "sourceLocalX": 183,
       "sourceLocalY": 250,
       "cooldownMs": 32000,
       "useRange": 104,
@@ -6742,7 +6652,6 @@ const EMP_INTERACTION_RANGE = EMP_RANGE * 2;
 const EMP_RESONANCE_LETHAL_RANGE = 110;
 const EMP_RESONANCE_BODY_RANGE = EMP_RANGE;
 const EMP_ITEM_LOCK_MS = 7_000;
-const VENDING_RANGE = 150;
 const MAP_OBJECT_RANGE = 150;
 const RESOLVE_POINT_USE_RANGE = 82;
 const RESOLVE_POINT_CLEARANCE = 118;
@@ -6960,7 +6869,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "エネルギーチャージ、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積3回ごとに押し込みも獲得する。斬るは忍殺を居合へ強化し、射撃を切断してジャストガード時は反射する。100SPの回避成功で攻撃者を即時キルする。Hでリミットブレイクを12秒間発動し、発動ごとにHPを1消費してSPと加速を3倍ずつ重ねる。最終発動から12秒で解除され、発動中はマナを継続消費して即死回避を失う。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してエネルギーを1回チャージし、1回につき斬るか投擲で使う衝撃波を1発獲得する。累積25回ごとに押し込みを2つ獲得する。50回到達後はMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、ジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7217,9 +7126,6 @@ const MAPS = {
       { id: "cameras", type: "utility", utility: "cameras", label: "Optics", x: 910, y: 180, room: "security" },
       { id: "vitals", type: "utility", utility: "vitals", label: "Biometrics", x: 765, y: 1135, room: "med" },
       { id: "doorlog", type: "utility", utility: "doorlog", label: "Transit Log", x: 1540, y: 915, room: "comms" }
-      ,{ id: "vending-station-a", type: "vending", label: "自販機", x: 1190, y: 815, room: "meeting" }
-      ,{ id: "vending-station-b", type: "vending", label: "自販機", x: 520, y: 1050, room: "electrical" }
-      ,{ id: "vending-station-c", type: "vending", label: "自販機", x: 1550, y: 1080, room: "comms" }
     ],
     objects: [
       { id: "station-recharge", type: "recharge", label: "スタミナ充填器", effectLabel: "スタミナ+200", x: 665, y: 655, room: "storage", interactive: true, cooldownMs: 15000 },
@@ -7319,9 +7225,6 @@ const MAPS = {
       { id: "cameras", type: "utility", utility: "cameras", label: "Optics", x: 210, y: 335, room: "labs" },
       { id: "vitals", type: "utility", utility: "vitals", label: "Biometrics", x: 470, y: 220, room: "labs" },
       { id: "doorlog", type: "utility", utility: "doorlog", label: "Transit Log", x: 1530, y: 1010, room: "greenhouse" }
-      ,{ id: "vending-outpost-a", type: "vending", label: "自販機", x: 1070, y: 735, room: "hub" }
-      ,{ id: "vending-outpost-b", type: "vending", label: "自販機", x: 470, y: 1010, room: "power" }
-      ,{ id: "vending-outpost-c", type: "vending", label: "自販機", x: 1450, y: 1010, room: "greenhouse" }
     ],
     objects: [
       { id: "outpost-recharge", type: "recharge", label: "スタミナ充填器", effectLabel: "スタミナ+200", x: 1085, y: 535, room: "hub", interactive: true, cooldownMs: 15000 },
@@ -8791,6 +8694,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     ascensionStartedAt: 0,
     ascensionUntil: 0,
     objectCooldowns: {},
+    objectContactUsedIds: [],
     objectLuckBonus: 0,
     objectLuckUntil: 0,
     donationLuckBonus: 0,
@@ -9218,6 +9122,7 @@ function startGame(room) {
     player.smartphoneSuspectId = "";
     player.luck = 1;
     player.objectCooldowns = {};
+    player.objectContactUsedIds = [];
     player.objectLuckBonus = 0;
     player.objectLuckUntil = 0;
     player.donationLuckBonus = 0;
@@ -9819,6 +9724,7 @@ function stopLimitBreak(room, player, reason = "") {
 
 function advanceLimitBreak(room, player, elapsedMs) {
   if (!player.limitBreakActive) return false;
+  if (room.phase === "meeting") return false;
   if (room.phase !== "playing" || !player.alive || player.ejected || !hasOperatorAccess(player, "fighter")) {
     return stopLimitBreak(room, player);
   }
@@ -9843,6 +9749,7 @@ function advanceLimitBreak(room, player, elapsedMs) {
 }
 
 function advanceFighterEnergyPassive(room, player, timestamp = now()) {
+  if (room.phase === "meeting") return false;
   if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent || !hasOperatorAccess(player, "fighter") || !passivesEnabled(player)) {
     player.fighterEnergyChargeReadyAt = Math.max(Number(player.fighterEnergyChargeReadyAt) || 0, timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS);
     return false;
@@ -10170,6 +10077,7 @@ function donateCredits(room, player) {
 }
 
 function finishRenki(room, player, timestamp) {
+  if (room.phase !== "playing") return;
   if (player.renkiTargetMana == null || !player.meditatingUntil || player.meditatingUntil > timestamp) return;
   const targetMana = player.renkiTargetMana;
   player.renkiTargetMana = null;
@@ -10392,6 +10300,7 @@ function setClairvoyanceActive(room, player, active) {
 
 function advanceClairvoyanceMana(room, player, elapsedMs) {
   if (!player.clairvoyanceActive) return;
+  if (room.phase === "meeting") return;
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
@@ -11221,6 +11130,126 @@ function completeTasksAfterDeath(room, player) {
   return completed;
 }
 
+const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
+  "gunnerReloadUntil",
+  "hoverSprintUntil",
+  "dodgeActiveUntil",
+  "limitBreakEndsAt",
+  "itemDisabledUntil",
+  "slowedUntil",
+  "taserSlowedUntil",
+  "gravityStormSlowUntil",
+  "sleepingUntil",
+  "unconsciousUntil",
+  "gravityPinnedUntil",
+  "abilityDisabledUntil",
+  "overhealSpeedUntil",
+  "airborneUntil",
+  "meditatingUntil",
+  "ascensionUntil",
+  "objectLuckUntil",
+  "gravityTimeEndsAt",
+  "particleCannonUntil",
+  "particleCannonNextAt",
+  "smartphoneUntil",
+  "botTargetUntil",
+  "botRetaliationUntil",
+  "botWitnessUntil",
+  "heardTargetUntil"
+]);
+
+const MEETING_PAUSED_PLAYER_ANCHOR_FIELDS = Object.freeze([
+  "gunnerLastShotAt",
+  "lastPassiveCreditAt",
+  "staminaUpdatedAt",
+  "taskPresenceSince",
+  "ideaProgressStartedAt",
+  "ideaProgressUpdatedAt",
+  "ascensionStartedAt",
+  "routeSharedSince",
+  "botTaskPresenceSince"
+]);
+
+function shiftMeetingDeadline(owner, key, pausedAt, elapsedMs) {
+  const value = Number(owner?.[key]) || 0;
+  if (value > pausedAt) owner[key] = value + elapsedMs;
+}
+
+function shiftMeetingAnchor(owner, key, elapsedMs) {
+  const value = Number(owner?.[key]) || 0;
+  if (value > 0) owner[key] = value + elapsedMs;
+}
+
+function pausePlayerBattleTime(player, pausedAt, elapsedMs) {
+  for (const [key] of Object.entries(player)) {
+    if (key.endsWith("ReadyAt")) shiftMeetingDeadline(player, key, pausedAt, elapsedMs);
+  }
+  for (const key of MEETING_PAUSED_PLAYER_DEADLINE_FIELDS) {
+    shiftMeetingDeadline(player, key, pausedAt, elapsedMs);
+  }
+  for (const key of MEETING_PAUSED_PLAYER_ANCHOR_FIELDS) {
+    shiftMeetingAnchor(player, key, elapsedMs);
+  }
+  player.objectCooldowns ||= {};
+  for (const key of Object.keys(player.objectCooldowns)) {
+    shiftMeetingDeadline(player.objectCooldowns, key, pausedAt, elapsedMs);
+  }
+  for (const effect of player.timedAccelerationEffects || []) {
+    if (Number(effect.endsAt) <= pausedAt) continue;
+    shiftMeetingAnchor(effect, "startedAt", elapsedMs);
+    effect.endsAt = Number(effect.endsAt) + elapsedMs;
+  }
+  for (const field of ["poisonStatus", "burnStatus"]) {
+    const status = player[field];
+    if (!status) continue;
+    shiftMeetingAnchor(status, "appliedAt", elapsedMs);
+    shiftMeetingDeadline(status, "nextTickAt", pausedAt, elapsedMs);
+  }
+  if (player.jumpMotion && Number(player.jumpMotion.endsAt) > pausedAt) {
+    shiftMeetingAnchor(player.jumpMotion, "startedAt", elapsedMs);
+    player.jumpMotion.endsAt = Number(player.jumpMotion.endsAt) + elapsedMs;
+  }
+  if (player.drone) shiftMeetingDeadline(player.drone, "readyAt", pausedAt, elapsedMs);
+}
+
+function pauseBattleTimeForMeeting(room, timestamp = now()) {
+  const meeting = room.meeting;
+  if (room.phase !== "meeting" || !meeting) return 0;
+  const pausedAt = Number(meeting.battlePauseUpdatedAt) || Number(meeting.startedAt) || timestamp;
+  const elapsedMs = Math.max(0, timestamp - pausedAt);
+  meeting.battlePauseUpdatedAt = timestamp;
+  if (!elapsedMs) return 0;
+
+  shiftMeetingDeadline(room, "preparationEndsAt", pausedAt, elapsedMs);
+  shiftMeetingDeadline(room, "pendingIdeaVictoryAt", pausedAt, elapsedMs);
+  for (const player of room.players.values()) pausePlayerBattleTime(player, pausedAt, elapsedMs);
+  for (const key of Object.keys(room.doorState || {})) {
+    shiftMeetingDeadline(room.doorState, key, pausedAt, elapsedMs);
+  }
+  for (const pulse of room.activeEmps || []) {
+    shiftMeetingAnchor(pulse, "at", elapsedMs);
+    shiftMeetingDeadline(pulse, "resolvesAt", pausedAt, elapsedMs);
+  }
+  for (const zone of room.gravityZones || []) {
+    shiftMeetingAnchor(zone, "lastPulseAt", elapsedMs);
+    shiftMeetingDeadline(zone, "endsAt", pausedAt, elapsedMs);
+  }
+  for (const field of room.hazardFields || []) {
+    shiftMeetingAnchor(field, "createdAt", elapsedMs);
+    shiftMeetingDeadline(field, "endsAt", pausedAt, elapsedMs);
+    shiftMeetingDeadline(field, "nextTickAt", pausedAt, elapsedMs);
+  }
+  for (const thrown of room.thrownItems || []) {
+    shiftMeetingAnchor(thrown, "createdAt", elapsedMs);
+    shiftMeetingDeadline(thrown, "landsAt", pausedAt, elapsedMs);
+  }
+  for (const object of room.alchemyObjects || []) {
+    shiftMeetingAnchor(object, "startedAt", elapsedMs);
+    shiftMeetingDeadline(object, "endsAt", pausedAt, elapsedMs);
+  }
+  return elapsedMs;
+}
+
 function startMeeting(room, reason, reporterId, options = {}) {
   if (room.phase !== "playing") return;
   const timestamp = now();
@@ -11234,13 +11263,25 @@ function startMeeting(room, reason, reporterId, options = {}) {
     endsAt: timestamp + (room.settings.discussionTime + room.settings.votingTime) * 1000,
     suspectId: String(options.suspectId || ""),
     evidenceKind: String(options.evidenceKind || ""),
-    votes: {}
+    votes: {},
+    battlePauseUpdatedAt: timestamp
   };
   for (const player of room.players.values()) {
     player.inVent = false;
     player.ventId = "";
-    player.dodgeActiveUntil = 0;
     player.drone.active = false;
+    player.vx = 0;
+    player.vy = 0;
+    player.gunFiring = false;
+    player.gunFiringWeapon = "";
+    player.gunFiringSince = 0;
+    player.gunScopeReadyAt = 0;
+    player.slashActiveUntil = 0;
+    player.slashPerfectUntil = 0;
+    player.slashGuardInputReleased = true;
+    player.jumpPreparingAt = 0;
+    player.jumpPrepareDx = 0;
+    player.jumpPrepareDy = 1;
     clearAttackState(player);
   }
   pushEvent(room, `会議開始: ${reason}`);
@@ -11248,6 +11289,7 @@ function startMeeting(room, reason, reporterId, options = {}) {
 }
 
 function tallyMeeting(room) {
+  pauseBattleTimeForMeeting(room, now());
   const meeting = room.meeting;
   if (!meeting) return;
   const alive = [...room.players.values()].filter((player) => player.alive && !player.ejected);
@@ -11292,12 +11334,6 @@ function tallyMeeting(room) {
   room.battleStartedAt = timestamp;
   for (const player of room.players.values()) {
     player.killsThisRound = 0;
-    if (canUseKill(player) && player.alive && !player.ejected) {
-      player.killReadyAt = timestamp + room.settings.killCooldown * 1000;
-    }
-    if (player.role === "attacker" && player.alive && !player.ejected) {
-      player.sabotageReadyAt = timestamp + SABOTAGE_COOLDOWN_MS;
-    }
   }
   pushEvent(room, `ラウンド ${room.round} 開始。`);
   checkWin(room);
@@ -11324,6 +11360,17 @@ function tickRoom(room) {
   const timestamp = now();
   const elapsedMs = Math.min(250, Math.max(0, timestamp - (Number(room.lastTickAt) || timestamp)));
   room.lastTickAt = timestamp;
+  if (room.phase === "meeting") {
+    pauseBattleTimeForMeeting(room, timestamp);
+    for (const player of room.players.values()) {
+      syncFighterInfiniteResources(player);
+      syncHackerRootState(room, player);
+      player.vx = 0;
+      player.vy = 0;
+    }
+    maybeEndMeeting(room);
+    return;
+  }
   advanceGravitySystems(room, timestamp, elapsedMs);
   advanceThrownItems(room, timestamp);
   advanceHazards(room, timestamp);
@@ -12886,10 +12933,6 @@ function activateEmp(room, player, rawPhase = "positive") {
   }
 }
 
-function nearbyVending(room, player) {
-  return nearestStation(room, player, (station) => station.type === "vending", VENDING_RANGE);
-}
-
 function nearbyMapObjects(room, player, objectId = "") {
   const objects = [
     ...(getMap(room).objects || []),
@@ -12905,6 +12948,19 @@ function nearbyMapObjects(room, player, objectId = "") {
 
 function nearbyMapObject(room, player, objectId = "") {
   return nearbyMapObjects(room, player, objectId)[0] || null;
+}
+
+function pruneObjectContactUses(player, nearbyEntries) {
+  const nearbyIds = new Set((nearbyEntries || []).map(({ object }) => object.id));
+  player.objectContactUsedIds = (Array.isArray(player.objectContactUsedIds) ? player.objectContactUsedIds : [])
+    .filter((id) => nearbyIds.has(id));
+  return new Set(player.objectContactUsedIds);
+}
+
+function markObjectContactUsed(player, objectId) {
+  const used = new Set(Array.isArray(player.objectContactUsedIds) ? player.objectContactUsedIds : []);
+  used.add(objectId);
+  player.objectContactUsedIds = [...used];
 }
 
 function reducePlayerCooldowns(player, reductionMs, timestamp = now()) {
@@ -12978,11 +13034,16 @@ function useMapObject(room, player, objectId) {
     throw new ApiError(403, "現在はマップオブジェクトを利用できません。");
   }
   ensureConscious(player);
-  const nearby = nearbyMapObject(room, player, objectId);
+  const nearbyEntries = nearbyMapObjects(room, player);
+  const nearby = nearbyEntries.find(({ object }) => object.id === objectId) || null;
   if (!nearby) throw new ApiError(400, "利用可能なオブジェクトに近づいてください。");
   const object = nearby.object;
   const timestamp = now();
   player.objectCooldowns ||= {};
+  const usedDuringContact = pruneObjectContactUses(player, nearbyEntries);
+  if (usedDuringContact.has(object.id)) {
+    throw new ApiError(400, `${object.label}は同じ接触中に再発動しません。一度離れてから利用してください。`);
+  }
   const readyAt = Number(player.objectCooldowns[object.id] || 0);
   if (readyAt > timestamp) {
     throw new ApiError(400, `${object.label}は再起動中です（残り${Math.ceil((readyAt - timestamp) / 1000)}秒）。`);
@@ -13082,6 +13143,7 @@ function useMapObject(room, player, objectId) {
     throw new ApiError(400, "このオブジェクトは接触時に自動で作動します。");
   }
 
+  markObjectContactUsed(player, object.id);
   player.objectCooldowns[object.id] = timestamp + Number(object.cooldownMs || 15000);
   pushMagicEffect(room, `object-${object.type}`, object, {
     radius: Number(object.radius || 100),
@@ -13105,7 +13167,10 @@ function autoUseNearbyMapObject(room, player, timestamp = now()) {
     Number(player.taserSlowedUntil) > timestamp || Number(player.abilityDisabledUntil) > timestamp ||
     Number(player.itemDisabledUntil) > timestamp || Number(player.gravityPinnedUntil) > timestamp);
   const hasCooldown = Object.entries(player).some(([key, value]) => key.endsWith("ReadyAt") && Number(value) > timestamp);
-  for (const { object } of nearbyMapObjects(room, player)) {
+  const nearbyEntries = nearbyMapObjects(room, player);
+  const usedDuringContact = pruneObjectContactUses(player, nearbyEntries);
+  for (const { object } of nearbyEntries) {
+    if (usedDuringContact.has(object.id)) continue;
     const readyAt = Number(player.objectCooldowns?.[object.id] || 0);
     if (readyAt > timestamp) continue;
     const useful = object.type === "resolvePoint" || object.effectKind === "mana" || object.effectKind === "decoy" ||
@@ -13178,7 +13243,6 @@ function purchaseDrink(room, player, itemId) {
   }
   ensureConscious(player);
   ensureItemStorageAvailable(player);
-  if (!nearbyVending(room, player)) throw new ApiError(400, "自販機に近づいてください。");
   const items = {
     "mineral-water": { label: "ミネラルウォーター", cost: MINERAL_WATER_COST, apply: () => { addItem(player, "mineral-water"); } },
     antidote: { label: "解毒剤", cost: ANTIDOTE_COST, apply: () => { addItem(player, "antidote"); } },
@@ -14222,6 +14286,7 @@ function vibeCodingCooldownMsFor(conversion) {
 }
 
 function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
+  if (room.phase === "meeting") return false;
   if (
     room.phase !== "playing" ||
     !isHackerOperator(player) ||
@@ -14414,6 +14479,7 @@ function useAlchemistInvention(room, player, invention) {
 }
 
 function advanceParticleCannon(room, player, timestamp) {
+  if (room.phase !== "playing") return;
   if ((Number(player.particleCannonUntil) || 0) <= timestamp || (Number(player.particleCannonNextAt) || 0) > timestamp || !player.alive) return;
   player.particleCannonNextAt = timestamp + 300;
   const targets = inventionLineTargets(room, player, 1250, 70, true);
@@ -15161,6 +15227,7 @@ function startGunnerReload(room, player, weaponId = gunnerWeaponFor(player).id, 
 }
 
 function advanceGunnerReload(room, player, timestamp = now()) {
+  if (room.phase === "meeting") return false;
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent || !hasFirearmAccess(player)) {
     player.gunnerReloadUntil = 0;
     player.gunnerReloadWeapon = "";
@@ -15194,6 +15261,7 @@ function advanceGunnerReload(room, player, timestamp = now()) {
 }
 
 function advanceWeakBulletPassive(room, player, timestamp = now()) {
+  if (room.phase === "meeting") return false;
   const eligible = room.phase === "playing" &&
     player.alive &&
     !player.ejected &&
@@ -17173,6 +17241,7 @@ async function handleApi(req, res) {
         entry.ascensionStartedAt = 0;
         entry.ascensionUntil = 0;
         entry.objectCooldowns = {};
+        entry.objectContactUsedIds = [];
         entry.objectLuckBonus = 0;
         entry.objectLuckUntil = 0;
         entry.donationLuckBonus = 0;
@@ -18045,7 +18114,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "attacker-fighter-kill-counter-v447",
+  version: "battle-continuity-vending-title-v448",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
