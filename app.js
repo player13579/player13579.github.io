@@ -8449,12 +8449,12 @@ function collectOperatorPassiveEffects(self, liveNow) {
     add("斬る", "忍殺強化", "rational", "忍殺を居合へ変え、射撃を切断してジャストガード時は反射する");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
-    const destruction = self.fighterDestructionSlash ? " / 斬る: 常時破壊" : "";
+    const infinite = self.fighterInfiniteResources ? " / MP・SP・HP・踏ん張り∞" : "";
     const recentCharge = self.lastImmediateFeedback?.label === "エネルギーチャージ" &&
       liveNow - Number(self.lastImmediateFeedback.at || 0) < 6500
       ? ` / 最新: ${self.lastImmediateFeedback.detail}`
       : "";
-    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${destruction} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後は斬るが常に対象を破壊する");
+    add("エネルギーチャージ", passiveEnabled ? `累計${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費して衝撃波を1発蓄積する。25回ごとに押し込みを2獲得し、50回到達後はMP・SP・HP・踏ん張りが無限になる");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -8878,7 +8878,7 @@ function updateActionButtons(data) {
     (self.ideaStage || 0) >= 1 && (self.ideaFirstAspect === "beauty" || (self.ideaStage || 0) >= 2) ? "美" : "",
     self.goodActive ? "善" : ""
   ].filter(Boolean).join("・");
-  els.gritStatusButton.textContent = `踏ん張り ×${standFirmCharges}（${itemBlocked ? "EMP遮断" : "自動"}）${philosophy ? ` / ${philosophy}` : ""}`;
+  els.gritStatusButton.textContent = `踏ん張り ${self.fighterInfiniteResources ? "∞" : `×${standFirmCharges}`}（${itemBlocked ? "EMP遮断" : "自動"}）${philosophy ? ` / ${philosophy}` : ""}`;
   els.reasonButton.textContent = `押し込み ×${pushCharges}（${itemBlocked ? "EMP遮断" : "自動"}）`;
   els.reasonButton.disabled = true;
   const gunnerWeapons = Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [];
@@ -11974,8 +11974,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "limit-break": ["limitBreakFieldEffect", 360],
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
   "fighter-energy-push-milestone": ["fighterPushDoubleMilestoneEffect", 250],
-  "fighter-energy-destruction-milestone": ["fighterDestructionSlashMilestoneEffect", 290],
-  "fighter-energy-destruction-slash": ["fighterDestructionSlashMilestoneEffect", 260],
+  "fighter-energy-destruction-milestone": ["fighterEnergyChargeEffect", 290],
   "fighter-energy-release": ["fighterEnergyReleaseEffect", 180],
   "fighter-energy-impact": ["fighterEnergyImpactEffect", 250],
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
@@ -12744,7 +12743,7 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
   manaGpu: ["マナGPU", "MPを短縮クールへ少しずつ変換し、次のバイブコーディングで自動消費します。"],
-  destructionSlash: ["常時破壊斬り", "エネルギー50回到達により、斬るが対象を無条件に破壊します。"],
+  infiniteResources: ["無限資源", "エネルギー50回到達により、MP・SP・HP・踏ん張りが無限です。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -13526,7 +13525,7 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   burning: Object.freeze({ texture: "hazardFireEffect", mode: "combustion", size: 30, alpha: 0.88, phase: 0.81 }),
   poison: Object.freeze({ texture: "hazardPoisonEffect", mode: "orbit", size: 30, alpha: 0.86, phase: 0.94 }),
   manaGpu: Object.freeze({ texture: "statusManaGpuEffect", mode: "data-accelerate", size: 30, alpha: 0.94, phase: 0.57 }),
-  destructionSlash: Object.freeze({ texture: "fighterDestructionSlashMilestoneEffect", mode: "beam", size: 30, alpha: 0.94, phase: 0.88 }),
+  infiniteResources: Object.freeze({ texture: "fighterEnergyChargeEffect", mode: "power", size: 30, alpha: 0.94, phase: 0.88 }),
   clairvoyance: Object.freeze({ texture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 })
 });
 
@@ -13537,7 +13536,7 @@ function persistentStatusAteState(player, data) {
   return {
     ...visibleState,
     manaGpu: Boolean(data.self?.manaGpuActive),
-    destructionSlash: Boolean(data.self?.fighterDestructionSlash)
+    infiniteResources: Boolean(data.self?.fighterInfiniteResources)
   };
 }
 
@@ -14645,9 +14644,9 @@ function drawHud(data, w, h) {
   const manaGaugeMax = Math.max(2, Math.ceil(Math.max(0, mana) / 2) * 2);
   const accelerationMultiplier = Math.max(1, Number(self.accelerationMultiplier) || 1);
   const bars = [
-    { label: "SP", value: Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: `${Math.round(stamina)}` },
-    { label: "MP", value: Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: `${Math.round(mana * 100) / 100}` },
-    { label: "HP", value: baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: `${baseHealth.toFixed(1).replace(/\.0$/, "")}/2${overheal ? `+${overheal}` : ""}` }
+    { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}` },
+    { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
+    { label: "HP", value: self.fighterInfiniteResources ? 2 : baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${baseHealth.toFixed(1).replace(/\.0$/, "")}/2${overheal ? `+${overheal}` : ""}` }
   ];
   if (self.special === "alchemist") {
     const cooldownCreditMs = Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0);
@@ -15007,7 +15006,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "sophia-minimal-gait-v443";
+const version = "fighter-infinite-resources-v444";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -15092,7 +15091,6 @@ const version = "sophia-minimal-gait-v443";
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
   const fighterPushDoubleMilestoneEffect = new Image();
-  const fighterDestructionSlashMilestoneEffect = new Image();
   const fighterEnergyReleaseEffect = new Image();
   const fighterEnergyImpactEffect = new Image();
   const fighterShockwaveEffect = new Image();
@@ -15188,7 +15186,6 @@ const version = "sophia-minimal-gait-v443";
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
   defer(fighterPushDoubleMilestoneEffect, "assets/generated/fighter-push-double-milestone-v435.png");
-  defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
   defer(fighterShockwaveEffect, "assets/generated/fighter-energy-release-ate-v404.png");
@@ -15294,7 +15291,6 @@ const version = "sophia-minimal-gait-v443";
     fighterSlashEffect,
     fighterEnergyChargeEffect,
     fighterPushDoubleMilestoneEffect,
-    fighterDestructionSlashMilestoneEffect,
     fighterEnergyReleaseEffect,
     fighterEnergyImpactEffect,
     fighterShockwaveEffect,

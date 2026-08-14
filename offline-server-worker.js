@@ -6722,7 +6722,7 @@ const FIGHTER_SLASH_STAMINA_COST = 75;
 const FIGHTER_ENERGY_CHARGE_MANA_COST = 1;
 const FIGHTER_PUSH_CHARGE_THRESHOLD = 25;
 const FIGHTER_PUSH_CHARGE_REWARD = 2;
-const FIGHTER_DESTRUCTION_SLASH_THRESHOLD = 50;
+const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 50;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
@@ -9668,6 +9668,23 @@ function remainingHealth(player) {
     Math.max(0, Number(player?.overheal) || 0);
 }
 
+function hasFighterInfiniteResources(player) {
+  return Boolean(
+    player?.alive &&
+    !player.ejected &&
+    hasOperatorAccess(player, "fighter") &&
+    Number(player.fighterEnergyCharge) >= FIGHTER_INFINITE_RESOURCE_THRESHOLD
+  );
+}
+
+function syncFighterInfiniteResources(player) {
+  if (!hasFighterInfiniteResources(player)) return false;
+  player.mana = Math.max(RATIONAL_MANA_THRESHOLD, Number(player.mana) || 0);
+  player.stamina = staminaCapacityFor(player);
+  player.bodyHits = 0;
+  return true;
+}
+
 function hasImmediateDeathProtection(player) {
   return (Number(player?.gritCharges) || 0) > 0 ||
     (Number(player?.substitutionCharges) || 0) > 0;
@@ -9719,6 +9736,7 @@ function limitBreakMultiplier(player) {
 }
 
 function spendLimitBreakHealth(player) {
+  if (hasFighterInfiniteResources(player)) return;
   if (remainingHealth(player) <= 0) {
     throw new ApiError(400, "リミットブレイクには消費できるHPが必要です。");
   }
@@ -9828,13 +9846,14 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     });
     reward += " / 押し込み×2獲得";
   }
-  if (next % FIGHTER_DESTRUCTION_SLASH_THRESHOLD === 0) {
+  if (next === FIGHTER_INFINITE_RESOURCE_THRESHOLD) {
+    syncFighterInfiniteResources(player);
     pushMagicEffect(room, "fighter-energy-destruction-milestone", player, {
       radius: 138,
       playerId: player.id,
       variant: String(next)
     });
-    reward += " / 斬る・破壊解放";
+    reward += " / MP・SP・HP・踏ん張り∞";
   }
   pushMagicEffect(room, "fighter-energy-charge", player, {
     radius: 112,
@@ -9842,7 +9861,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:shockwave-${player.fighterShockwaveCharges}`
   });
   setImmediateFeedback(player, "エネルギーチャージ", reward);
-  pushEvent(room, `${player.name} がエネルギーを自動チャージし、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みを2獲得しました" : ""}${next % FIGHTER_DESTRUCTION_SLASH_THRESHOLD === 0 ? "。斬るが常時破壊へ強化されました" : ""}。`);
+  pushEvent(room, `${player.name} がエネルギーを自動チャージし、衝撃波を1発獲得しました${next % FIGHTER_PUSH_CHARGE_THRESHOLD === 0 ? "。押し込みを2獲得しました" : ""}${next === FIGHTER_INFINITE_RESOURCE_THRESHOLD ? "。MP・SP・HP・踏ん張りが無限になりました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -10029,6 +10048,7 @@ function setMana(room, player, rawMana, sourceLabel = "") {
 
 function spendMana(room, player, amount, label) {
   const cost = Math.max(0, Number(amount) || 0);
+  if (hasFighterInfiniteResources(player)) return false;
   if (isHackerOperator(player)) return false;
   if ((Number(player.mana) || 0) < cost) {
     throw new ApiError(400, `${label}にはマナ ${cost} が必要です。`);
@@ -10599,6 +10619,7 @@ function availableStamina(entity) {
 }
 
 function spendStamina(entity, rawAmount, room = null, sourceLabel = "スタミナ消費") {
+  if (hasFighterInfiniteResources(entity)) return false;
   const baseAmount = Math.max(0, Number(rawAmount) || 0);
   const amount = entity?.desireBias === "sunk-cost" ? baseAmount * DESIRE_BIAS_COST_MULTIPLIER : baseAmount;
   const previous = Number(entity.stamina) || 0;
@@ -11257,6 +11278,7 @@ function tickRoom(room) {
   advanceThrownItems(room, timestamp);
   advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
+    syncFighterInfiniteResources(player);
     syncHackerRootState(room, player);
     advanceFighterEnergyPassive(room, player, timestamp);
     advanceAccelerationTime(room, player, elapsedMs, timestamp);
@@ -11595,13 +11617,7 @@ function fighterSlash(room, player, targetId = "") {
   const struckIds = new Set();
   if (target && distance(player, target) <= room.settings.killRange) {
     struckIds.add(target.id);
-    const destructionSlash = Number(player.fighterEnergyCharge) >= FIGHTER_DESTRUCTION_SLASH_THRESHOLD;
-    const outcome = destructionSlash
-      ? destroyPlayerUnconditionally(room, player, target, "エネルギー充填済みの斬る", {
-          noKillCutin: false,
-          ignorePreparationBarrier: true
-        }) ? "destroyed" : "friendlyFirePenalty"
-      : killPlayer(room, player, target.id, {
+    const outcome = killPlayer(room, player, target.id, {
           hitZone: "head",
           lockedAim: true,
           ignoreCooldown: true,
@@ -11610,14 +11626,6 @@ function fighterSlash(room, player, targetId = "") {
           noBody: true,
           targetRole: target.role
         });
-    if (destructionSlash) pushMagicEffect(room, "fighter-energy-destruction-slash", player, {
-      radius: 175,
-      playerId: player.id,
-      targetId: target.id,
-      targetX: target.x,
-      targetY: target.y,
-      variant: outcome
-    });
     pushEvent(room, `${player.name} の斬るが ${target.name} に命中しました（${outcome}）。`);
   } else {
     pushEvent(room, `${player.name} が斬るを構えました。射撃は切断でき、ジャストガードで反射します。`);
@@ -12952,6 +12960,10 @@ function grantPushCharge(player, enforceLimit = true) {
 }
 
 function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
+  if (hasFighterInfiniteResources(player)) {
+    syncFighterInfiniteResources(player);
+    return false;
+  }
   const chargeCount = Math.max(0, Math.floor(Number(removedCharges) || 0));
   const damage = Math.round(chargeCount * PUSH_BACKLASH_DAMAGE_PER_CHARGE * 100) / 100;
   if (!damage || !player?.alive || player.ejected) return false;
@@ -13894,6 +13906,11 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
 
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
+  if (hasFighterInfiniteResources(target)) {
+    syncFighterInfiniteResources(target);
+    pushEvent(room, `${target.name} はエネルギーチャージ50回到達により破壊を無効化しました。`);
+    return false;
+  }
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, now(), source)) return false;
   if (source?.role === target.role && ["defender", "attacker"].includes(source?.role) && source.id !== target.id) {
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, now());
@@ -14239,6 +14256,14 @@ function killPlayer(room, killer, targetId, options = {}) {
     checkWin(room);
     touch(room);
     return "friendlyFirePenalty";
+  }
+
+  if (hasFighterInfiniteResources(target)) {
+    syncFighterInfiniteResources(target);
+    pushHitEffect(room, target, "body", false);
+    pushEvent(room, `${target.name} は無限HPと無限踏ん張りで攻撃を防ぎました。`);
+    touch(room);
+    return "infiniteResources";
   }
 
   if (!options.destroy && triggerSubstitution(room, target, options.magic ? "magic" : ranged ? "ranged" : "attack", timestamp)) {
@@ -15749,7 +15774,7 @@ function serialize(room, viewer, options = {}) {
       fighterEnergyChargeReadyAt: Number(viewer.fighterEnergyChargeReadyAt) || 0,
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
       fighterShockwaveCharges: Math.max(0, Math.floor(Number(viewer.fighterShockwaveCharges) || 0)),
-      fighterDestructionSlash: Number(viewer.fighterEnergyCharge) >= FIGHTER_DESTRUCTION_SLASH_THRESHOLD,
+      fighterInfiniteResources: hasFighterInfiniteResources(viewer),
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -17558,5 +17583,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "sophia-minimal-gait-v443" });
+self.postMessage({ type: "ready", version: "fighter-infinite-resources-v444" });
 })();
