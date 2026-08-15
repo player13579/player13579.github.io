@@ -785,6 +785,8 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "texture-cache-recovery-v460";
+
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
   ["mercury", { file: "item-mercury.webp" }],
@@ -851,7 +853,7 @@ function applyGeneratedItemTexture(button, itemId) {
   const base = texture.file.startsWith("room-") || texture.file.startsWith("facility-")
     ? "assets/"
     : "assets/generated/";
-  icon.style.backgroundImage = `url("${assetUrl(`${base}${texture.file}?v=hacker-icons-v385`)}")`;
+  icon.style.backgroundImage = `url("${assetUrl(`${base}${texture.file}?v=${GENERATED_ITEM_TEXTURE_CACHE_VERSION}`)}")`;
   icon.style.backgroundPosition = texture.position || "center";
   icon.style.backgroundSize = texture.size || "contain";
   icon.style.backgroundRepeat = "no-repeat";
@@ -15660,7 +15662,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ec-effect-horizontal-v459";
+const version = "texture-cache-recovery-v460";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

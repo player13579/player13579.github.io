@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v459-ec-effect-horizontal";
+const CACHE_NAME = "dva-static-v460-texture-cache-recovery";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -195,6 +195,49 @@ const STATIC_ASSETS = [
   "/assets/generated/gunner-weapons-atlas.webp",
   "/assets/generated/gunner-taser.webp",
   "/assets/generated/ui-result-surface.webp",
+  "/assets/facility-props.webp",
+  "/assets/generated/alchemy-particle-cannon.webp",
+  "/assets/generated/alchemy-railgun.webp",
+  "/assets/generated/attacker-ally-marker.webp",
+  "/assets/generated/effect-hazard-poison.webp",
+  "/assets/generated/effect-hazard-water.webp",
+  "/assets/generated/effect-item-enhance.webp",
+  "/assets/generated/effect-quantum-cold.webp",
+  "/assets/generated/effect-quantum-hot.webp",
+  "/assets/generated/exile-clone.webp",
+  "/assets/generated/gravity-storm.webp",
+  "/assets/generated/item-fire-jutsu.webp",
+  "/assets/generated/skin-blue-dress-back.webp",
+  "/assets/generated/skin-blue-dress-front.webp",
+  "/assets/generated/skin-blue-dress-kill-cutin.webp",
+  "/assets/generated/skin-blue-dress-left.webp",
+  "/assets/generated/skin-blue-dress-master-chibi-v3.webp",
+  "/assets/generated/skin-blue-dress-right.webp",
+  "/assets/generated/status-instant-warp.webp",
+  "/assets/generated/status-push.webp",
+  "/assets/generated/status-stand-firm.webp",
+  "/assets/generated/status-substitution.webp",
+  "/assets/generated/tactical-systems-atlas.webp",
+  "/assets/generated/ui-action-surface.webp",
+  "/assets/generated/ui-battle-hud-surface.webp",
+  "/assets/generated/ui-hacker-surface.webp",
+  "/assets/generated/ui-lobby-surface.webp",
+  "/assets/generated/ui-map-surface.webp",
+  "/assets/generated/ui-meeting-surface.webp",
+  "/assets/generated/ui-operator-surface.webp",
+  "/assets/generated/ui-tablet-surface.webp",
+  "/assets/generated/ui-tactics-surface.webp",
+  "/assets/generated/ui-vending-surface.webp",
+  "/assets/kill-cutin-60.webp",
+  "/assets/operators-walk.webp",
+  "/assets/operators.webp",
+  "/assets/player-master-b.webp",
+  "/assets/player-walk-60.webp",
+  "/assets/room-props.webp",
+  "/assets/tutorials/poster-basics.webp",
+  "/assets/tutorials/poster-combat.webp",
+  "/assets/tutorials/poster-intel.webp",
+  "/assets/tutorials/poster-movement.webp",
   "/assets/sfx/alert.wav",
   "/assets/sfx/dash-step-1.wav",
   "/assets/sfx/dash-step-2.wav",
@@ -257,12 +300,16 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   event.respondWith(
-    fetch(event.request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-      return response;
-    }).catch(() => {
-      return caches.match(event.request);
+    fetch(event.request).then(async (response) => {
+      const cache = await caches.open(CACHE_NAME);
+      if (response.ok) {
+        await cache.put(event.request, response.clone());
+        return response;
+      }
+      return (await cache.match(event.request, { ignoreSearch: true })) || response;
+    }).catch(async () => {
+      const cache = await caches.open(CACHE_NAME);
+      return cache.match(event.request, { ignoreSearch: true });
     })
   );
 });

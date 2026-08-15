@@ -19500,5 +19500,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ec-effect-horizontal-v459" });
+self.postMessage({ type: "ready", version: "texture-cache-recovery-v460" });
 })();
