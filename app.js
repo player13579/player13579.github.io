@@ -166,9 +166,7 @@ const els = {
   roleName: $("#roleName"),
   specialName: $("#specialName"),
   movementAccControl: $("#movementAccControl"),
-  movementAccInput: $("#movementAccInput"),
-  movementAccMaximum: $("#movementAccMaximum"),
-  movementAccApplyButton: $("#movementAccApplyButton"),
+  movementAccToggleButton: $("#movementAccToggleButton"),
   objectiveText: $("#objectiveText"),
   sabotageAlert: $("#sabotageAlert"),
   taskButton: $("#taskButton"),
@@ -215,6 +213,9 @@ const els = {
   hackerCategoryLabel: $("#hackerCategoryLabel"),
   gunnerReloadButton: $("#gunnerReloadButton"),
   vendingPanel: $("#vendingPanel"),
+  vendingCategoryPreviousButton: $("#vendingCategoryPreviousButton"),
+  vendingCategoryNextButton: $("#vendingCategoryNextButton"),
+  vendingCategoryLabel: $("#vendingCategoryLabel"),
   magicInventory: $("#magicInventory"),
   sabotageControl: $("#sabotageControl"),
   sabotageSelect: $("#sabotageSelect"),
@@ -511,6 +512,8 @@ const state = {
   inventoryVisualWeapon: "",
   vendingOpen: false,
   vendingRenderKey: "",
+  vendingCategoryId: "generate-supply",
+  vendingSelectedByCategory: Object.create(null),
   itemRenderKey: "",
   utilityRenderKey: "",
   lastCanvasStageError: "",
@@ -575,9 +578,9 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   mystery: "幸運／直観に応じた強化または弱体",
   fire: "範囲へ継続燃焼。長押しで拡散",
   substitution: "次に受ける攻撃を無効化して転移",
-  grit: "即席。獲得時に踏ん張り回数へ変換し、次の確殺をボディダメージへ変換",
+  grit: "確殺1回をボディダメージ化",
   heal: "負傷回復。無傷時はオーバーヒール",
-  reason: "即席。獲得時に押し込み回数へ変換し、対象の踏ん張りを全無効化。数に応じ反動",
+  reason: "踏ん張り全消去。無効化数×0.5反動",
   mana: "マナを1回復",
   railgun: "遮蔽物を貫通する直線破壊射撃",
   "particle-cannon": "操作可能な破壊ビームを継続放射",
@@ -593,8 +596,8 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
   uranium: "量子制御の核分裂素材。通常使用は有害",
   plutonium: "量子制御の核分裂素材。通常使用は有害",
-  "orichalcum-sword": "オリハルコン・ソードの通常使用で発動する。斬れそうな物理攻撃をガードし、短いジャストガード受付で攻撃元へ反射する。剣の腹は受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせることで反射が成立する。EMP・毒・サンビームは通常ガードできず、連打中はジャストガードを再受付しない",
-  iai: "即席。獲得時に居合の使用回数へ変換。敵一人の有限の踏ん張りを全削除し、200SP相当を消費。SP不足分は150SP=1MPで補填し、総量不足なら死亡。投擲・譲渡不可",
+  "orichalcum-sword": "物理攻撃をガード。短いJGで衝撃を100%反射。EMP・毒・サンビームは通常不可",
+  iai: "踏ん張り全削除。200SP、不足分は150SP=1MP、総量不足で死亡",
   ice: "投擲できる低温変換済みの水",
   "heated-water": "投擲できる高温変換済みの水",
   rpg: "周囲を攻撃する使い切り重火器",
@@ -885,6 +888,59 @@ function hackerRecipeCategory(recipe) {
     "vending-exile", "vending-computer", "vending-molotov", "revive"
   ]);
   return technologyRecipes.has(recipe?.id) ? "generate-tech" : "generate-supply";
+}
+
+const vendingWeaponIds = new Set([
+  "orichalcum-sword", "handgun", "smg", "assault", "sniper", "taser", "rpg", "missile"
+]);
+const vendingTechnologyIds = new Set([
+  "evade", "speed", "warp", "mystery", "mana", "exile", "computer"
+]);
+const vendingInventionIds = new Set(["railgun", "particle-cannon", "excalibur"]);
+
+function vendingProductCategory(itemId) {
+  const normalized = String(itemId || "");
+  if (vendingInventionIds.has(normalized)) return "invention";
+  if (vendingWeaponIds.has(normalized)) return "weapon";
+  if (vendingTechnologyIds.has(normalized)) return "generate-tech";
+  return "generate-supply";
+}
+
+function vendingProductButtons() {
+  return [...els.vendingPanel.querySelectorAll("[data-drink]")];
+}
+
+function availableVendingCategories() {
+  const buttons = vendingProductButtons();
+  return hackerRecipeCategories.filter((category) =>
+    buttons.some((button) => vendingProductCategory(button.dataset.drink) === category.id)
+  );
+}
+
+function selectVendingCategory(categoryId, direction = 0) {
+  const categories = availableVendingCategories();
+  if (!categories.length) return false;
+  const currentIndex = Math.max(0, categories.findIndex((category) => category.id === state.vendingCategoryId));
+  const category = categoryId
+    ? categories.find((candidate) => candidate.id === categoryId)
+    : categories[(currentIndex + direction + categories.length) % categories.length];
+  if (!category) return false;
+  const focused = document.activeElement?.closest?.("[data-drink]");
+  if (focused?.dataset.drink) {
+    state.vendingSelectedByCategory[state.vendingCategoryId] = focused.dataset.drink;
+  }
+  state.vendingCategoryId = category.id;
+  state.vendingRenderKey = "";
+  renderVending(state.data);
+  const preferredId = state.vendingSelectedByCategory[category.id];
+  const next = els.vendingPanel.querySelector(
+    preferredId ? `[data-drink="${CSS.escape(preferredId)}"]` : "[data-drink]:not([hidden])"
+  );
+  if (next && !next.hidden) {
+    next.focus({ preventScroll: true });
+    next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }
+  return true;
 }
 
 function isHackerPlayer(player) {
@@ -3309,6 +3365,7 @@ function scrollRegionChoices(region) {
   const target = scrollRegionTarget(region);
   if (!target) return [];
   return [...target.querySelectorAll("button, [role='option'], [data-hacker-recipe], [data-item-choice]")].filter((element) =>
+    !element.matches(".hacker-category-step") &&
     !element.hidden && !element.disabled && !element.closest("[hidden]") && element.getClientRects().length > 0
   );
 }
@@ -3344,6 +3401,9 @@ function navigateSelectedScrollRegion(key) {
       else if (next) {
         next.focus({ preventScroll: true });
         next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        if (region === els.vendingPanel && next.dataset.drink) {
+          state.vendingSelectedByCategory[state.vendingCategoryId] = next.dataset.drink;
+        }
         moved = true;
       }
     }
@@ -3951,17 +4011,7 @@ function bindEvents() {
   els.keybindOverlay.addEventListener("click", (event) => {
     if (event.target === els.keybindOverlay) setKeybindOpen(false);
   });
-  els.movementAccApplyButton.addEventListener("click", () => void applyMovementAccInput());
-  els.movementAccInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void applyMovementAccInput();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      syncMovementAccControl();
-      els.movementAccInput.blur();
-    }
-  });
+  els.movementAccToggleButton.addEventListener("click", () => void toggleMovementAcc());
   document.addEventListener("fullscreenchange", syncFullscreenButton);
   els.titleHomeButton.addEventListener("click", () => switchScreenWithEffect("title"));
   els.tacticsBackButton.addEventListener("click", () => {
@@ -3986,7 +4036,7 @@ function bindEvents() {
   els.startButton.addEventListener("click", () => api("/api/start"));
   els.analyticsToggleButton.addEventListener("click", () => void loadDropoffAnalytics());
   els.hackerTargetButton.addEventListener("click", () => cycleHackerTarget(1));
-  const bindHackerCategoryStep = (button, direction) => {
+  const bindCategoryStep = (button, changeCategory) => {
     let repeatTimer = 0;
     let repeatInterval = 0;
     const stop = () => {
@@ -3995,20 +4045,22 @@ function bindEvents() {
       repeatTimer = 0;
       repeatInterval = 0;
     };
-    button.addEventListener("click", () => selectHackerCategory("", direction));
+    button.addEventListener("click", changeCategory);
     button.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       stop();
       repeatTimer = window.setTimeout(() => {
-        repeatInterval = window.setInterval(() => selectHackerCategory("", direction), 150);
+        repeatInterval = window.setInterval(changeCategory, 150);
       }, 420);
     });
     button.addEventListener("pointerup", stop);
     button.addEventListener("pointercancel", stop);
     button.addEventListener("pointerleave", stop);
   };
-  bindHackerCategoryStep(els.hackerCategoryPreviousButton, -1);
-  bindHackerCategoryStep(els.hackerCategoryNextButton, 1);
+  bindCategoryStep(els.hackerCategoryPreviousButton, () => selectHackerCategory("", -1));
+  bindCategoryStep(els.hackerCategoryNextButton, () => selectHackerCategory("", 1));
+  bindCategoryStep(els.vendingCategoryPreviousButton, () => selectVendingCategory("", -1));
+  bindCategoryStep(els.vendingCategoryNextButton, () => selectVendingCategory("", 1));
   els.hackerAbilityGrid.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-hacker-recipe]");
     if (!button || button.dataset.actionDisabled === "1") return;
@@ -4320,6 +4372,17 @@ function bindEvents() {
       if (!event.repeat) cycleSelectedScrollRegion(event.code === "PageUp" ? -1 : 1);
       return;
     }
+    if (
+      !typingField &&
+      selectedScrollRegion() === els.vendingPanel &&
+      event.shiftKey &&
+      ["ArrowLeft", "ArrowRight"].includes(event.key)
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!event.repeat) selectVendingCategory("", event.key === "ArrowRight" ? 1 : -1);
+      return;
+    }
     if (!typingField && selectedScrollRegion() && event.key.startsWith("Arrow") && !event.shiftKey) {
       event.preventDefault();
       navigateSelectedScrollRegion(event.key);
@@ -4378,10 +4441,7 @@ function bindEvents() {
     }
     if (!typingField && event.code === "KeyQ" && state.screen === "game" && ["playing", "meeting"].includes(state.data?.phase)) {
       event.preventDefault();
-      if (!event.repeat) {
-        els.movementAccInput.focus({ preventScroll: true });
-        els.movementAccInput.select();
-      }
+      if (!event.repeat) void toggleMovementAcc();
       return;
     }
     if (isActionBlocked()) {
@@ -6551,6 +6611,8 @@ function resetLocalSession() {
   state.hackerSelectedByCategory = Object.create(null);
   state.vendingOpen = false;
   state.vendingRenderKey = "";
+  state.vendingCategoryId = "generate-supply";
+  state.vendingSelectedByCategory = Object.create(null);
   state.utilityRenderKey = "";
   state.lastCanvasStageError = "";
   state.lastCanvasItemError = "";
@@ -7890,7 +7952,7 @@ function collectInventoryDisplayItems(self) {
     ...item,
     inventoryKind: item.kind === "instant" ? "instant" : item.kind === "charge" ? "charge" : "item",
     output: item.kind === "instant" ? "即席" : item.kind === "charge" ? "消耗品" : "所持品",
-    detail: chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲できる所持品",
+    detail: chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能",
     badge: `×${Number(item.amount) || 1}`
   }));
   const gunnerAccess = hasDisplayedOperatorAccess(self, "gunner") || (self.purchasedWeapons || []).length > 0;
@@ -7909,7 +7971,7 @@ function collectInventoryDisplayItems(self) {
           asset: weapon.id,
           inventoryKind: "weapon",
           output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}。射程${Math.round(Number(weapon.range) || 0)}、威力${Number(weapon.damage).toFixed(2)}。使用を長押しすると持続射撃し、停止後は自動リロードする${specialLabel ? `。特殊弾: ${specialLabel} 残り${self.gunnerSpecialAmmoRounds}発` : ""}。投擲すると武器を失う`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 射程${Math.round(Number(weapon.range) || 0)} / 威力${Number(weapon.damage).toFixed(2)}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -7926,7 +7988,7 @@ function collectInventoryDisplayItems(self) {
     asset: id,
     inventoryKind: "invention",
     output: "発明武器",
-    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "特殊な発明武器。通常使用と投擲に対応する",
+    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使用・投擲可能",
     badge: `×${count}`
   }));
   const heavyNames = { rpg: "RPG", missile: "ミサイル" };
@@ -7941,7 +8003,7 @@ function collectInventoryDisplayItems(self) {
     asset: id,
     inventoryKind: "heavy",
     output: "重火器",
-    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切りの重火器。通常使用と投擲に対応する",
+    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器",
     badge: `×${count}`
   }));
   return [...regularItems, ...weaponItems, ...inventionItems, ...heavyItems];
@@ -8182,7 +8244,7 @@ function showInventoryItemDetail(item, sourceButton) {
   sourceButton.setAttribute("aria-describedby", "inventoryItemDetailDescription");
   els.inventoryItemDetailName.textContent = item.label || "所持品";
   els.inventoryItemDetailType.textContent = [item.output || "所持品", item.badge || ""].filter(Boolean).join(" / ");
-  els.inventoryItemDetailDescription.textContent = item.detail || "通常使用と投擲に対応する所持品。";
+  els.inventoryItemDetailDescription.textContent = item.detail || "使用・投擲可能";
   els.inventoryItemDetail.hidden = false;
   positionInventoryItemDetail(sourceButton);
   state.inventoryItemDetailTimer = window.setTimeout(hideInventoryItemDetail, 12_000);
@@ -8512,45 +8574,41 @@ function isRepeatableDisplayedWeaponAction(weaponAction) {
 
 function collectOperatorPassiveEffects(self, liveNow) {
   const effects = [];
-  const add = (label, value, tone, detail) => effects.push({ label, value, tone, detail });
+  const add = (label, value, tone, detail, layout = "inline") => effects.push({ label, value, tone, detail, layout });
   const passiveEnabled = Boolean(self.passivesEnabled);
   const passiveValue = passiveEnabled ? "有効" : "理知まで休止";
   const passiveTone = passiveEnabled ? "rational" : "neutral";
 
   if (hasDisplayedOperatorAccess(self, "fighter")) {
-    add("キルカウンター", passiveValue, passiveTone, "回避成功時、攻撃者を即時キルする");
+    add("キルカウンター", passiveValue, passiveTone, "回避成功で攻撃者を即時キル");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
-    const infinite = self.fighterInfiniteResources ? " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る: 常時破壊 / JG: 全攻撃反射" : "";
-    const recentCharge = self.lastImmediateFeedback?.label === "EC" &&
-      liveNow - Number(self.lastImmediateFeedback.at || 0) < 6500
-      ? ` / 最新: ${self.lastImmediateFeedback.detail}`
-      : "";
+    const infinite = self.fighterInfiniteResources ? " / ∞資源・LB安全・破壊斬り・JG全反射" : "";
     const energyPeak = Math.max(Number(self.fighterEnergyPeak) || 0, Number(self.fighterEnergyCharge) || 0);
-    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別の衝撃波残弾は持たない。通常ECではキャラモーションを行わず、初回EC25・50だけ節目モーションを行う。斬るか投擲で通常衝撃波を1発発生させるたびECを1放出する。EC100以上で斬るとEC100を放出して特大衝撃波を発生させる。衝撃波は斬撃と同じ通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると居合（即席）を1回獲得し、初めて50へ到達するとMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、通常攻撃へのジャストガードが全攻撃反射になる");
+    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 次${formatEffectCountdown(energyWait)}${infinite}` : passiveValue, passiveTone, "12秒・1MPで+1。衝撃波で消費。25:居合、50:∞資源等、100:特大衝撃波", "stacked");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
-    add("リビテーション", self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床のない場所を浮揚でき、浮揚中はマナを消費する");
+    add("リビテーション", self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床外浮揚。浮揚中MP消費");
   }
 
   if (hasDisplayedOperatorAccess(self, "flora")) {
     const aromaValue = self.aromaActive
       ? `SP回復 ×${Number(self.aromaRegenMultiplier || 1.6).toFixed(2)}`
       : passiveValue;
-    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の停止中スタミナ回復速度を上昇させる");
+    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の停止中SP回復上昇");
   }
 
   if (self.special === "alchemist") {
-    add("ハック", "常時稼働", "rational", "生存者の位置を把握し、タスクを時間経過で自動完了する");
+    add("ハック", "常時稼働", "rational", "位置把握・タスク自動完了");
     const manaGpuDrain = Number(self.manaGpuDrainPerSecond || 0).toFixed(3);
     const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
       "マナGPU",
       `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積`,
       self.manaGpuActive ? "truth" : "neutral",
-      `毎秒${manaGpuDrain}MPを短縮クールへ変換し、1MPにつき${manaGpuReductionSeconds}秒蓄積する。次のバイブコーディングで必要分を自動消費する`
+      `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`
     );
-    add("root化", self.hackerRootActive ? "発動中" : "待機", self.hackerRootActive ? "truth" : "neutral", "絶体絶命時に他オペレーターの全能力を借用する");
+    add("root化", self.hackerRootActive ? "発動中" : "待機", self.hackerRootActive ? "truth" : "neutral", "絶体絶命時に全オペ能力を借用");
   }
 
   return effects;
@@ -8573,14 +8631,14 @@ function renderActiveEffects(data) {
   }
 
   if (self.rationalFreeAbilityReady) {
-    add("固有能力無料化", "準備完了", "rational", "次のオペ固有能力をマナ消費なしで発動できる");
+    add("固有能力無料化", "準備完了", "rational", "次の固有能力はMP消費なし");
   } else if (rational) {
-    timed("固有能力無料化", self.rationalFreeAbilityReadyAt, "rational", "理知を維持すると次のオペ固有能力が無料になる");
+    timed("固有能力無料化", self.rationalFreeAbilityReadyAt, "rational", "理知維持で準備");
   }
 
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
-  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "理知中、押し込み・踏ん張り・回復・加速・タスク消費軽減を同時に得る");
-  if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "移動速度が大幅に上昇する");
+  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "押し込み・踏ん張り・回復・加速・タスク軽減");
+  if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "移動速度大幅上昇");
   if (self.limitBreakActive) {
     const limitBreakDetail = self.fighterInfiniteResources
       ? `HP消費なし / MP・SP・HP・踏ん張り∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
@@ -8588,18 +8646,18 @@ function renderActiveEffects(data) {
     add("リミットブレイク", "永続", "truth", limitBreakDetail);
   }
   effects.push(...collectOperatorPassiveEffects(self, liveNow));
-  if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "次のボディダメージを吸収し、状態異常を解除する");
-  if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次に受ける確殺を1回だけボディダメージへ変換する");
-  if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "理知中、次のあらゆる攻撃を無効化し別地点へ移動する");
-  if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "理知中、次の攻撃対象の踏ん張りを全無効化し、無効化1回につき自身へ0.5ダメージ");
-  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席`, rational ? "truth" : "neutral", "獲得時にアイテムから使用回数へ即時変換される。発動すると敵一人の有限の踏ん張りを全削除し、200SP相当を消費する");
+  if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "ボディダメージ吸収・状態異常解除");
+  if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化");
+  if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
+  if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "踏ん張り全消去。1回につき反動0.5");
+  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席`, rational ? "truth" : "neutral", "踏ん張り全削除。200SP相当");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
       "重力減速",
       self.gravityStormSlowUntil,
       "desire",
-      `移動速度 ${Math.round(multiplier * 100)}% / 直近HP -${Number(self.lastGravityStormDamage || 0).toFixed(2)}`
+      `速度${Math.round(multiplier * 100)}% / HP-${Number(self.lastGravityStormDamage || 0).toFixed(2)}`
     );
   }
   const borrowedOperatorAccess = (type) => hasDisplayedOperatorAccess(self, type);
@@ -8608,14 +8666,14 @@ function renderActiveEffects(data) {
   if (self.gunnerSpecialAmmoType && Number(self.gunnerSpecialAmmoRounds) > 0) {
     const typeLabel = specialAmmoLabels[self.gunnerSpecialAmmoType] || "特殊弾";
     const detail = self.gunnerSpecialAmmoType === "weak"
-      ? "命中対象を破壊し、その後に射手自身も破壊する"
+      ? "対象と射手を破壊"
       : self.gunnerSpecialAmmoType === "penetrate"
-        ? "生成された遮蔽物を貫通する。壁は貫通しない"
-        : "幸運・直観が0未満なら確殺、0以上なら6秒間35%減速する";
+        ? "遮蔽物貫通。壁は不可"
+        : "幸運0未満:確殺 / 以上:35%減速";
     add("特殊弾装填", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail);
   }
   if (Number(self.gunnerSpecialAmmoReadyAt) > liveNow) {
-    timed("次の特殊弾装填", self.gunnerSpecialAmmoReadyAt, "rational", "理知中、18秒ごとに選択中の銃へ1マガジン装填する");
+    timed("次の特殊弾装填", self.gunnerSpecialAmmoReadyAt, "rational", "18秒ごとに1マガジン");
   }
   if (self.gravityTimeMode) timed(
     self.gravityTimeMode === "accelerate"
@@ -8623,16 +8681,16 @@ function renderActiveEffects(data) {
       : `ディーセラレート ×${Math.max(1, Number(self.gravityTimeStacks?.decelerate) || 1)}`,
     self.gravityTimeEndsAt,
     self.gravityTimeMode === "accelerate" ? "good" : "desire",
-    "1MPで8秒間、対象の移動・行動不能時間・クールタイムを相対変化させる"
+    "1MP・8秒。移動・行動不能・CTを変化"
   );
-  if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同じ経路を5秒以上進むとディフェンダーは継続ダメージを受ける");
-  timed("スマホ操作", self.smartphoneUntil, "neutral", "遠隔修復または緊急会議の送信完了まで行動不能になる");
+  if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ");
+  timed("スマホ操作", self.smartphoneUntil, "neutral", "完了まで行動不能");
 
   if ((self.dodgeDurationBonusMs || 0) > 0) {
-    add("回避時間拡張", `+${(self.dodgeDurationBonusMs / 1000).toFixed(2)}秒`, "beauty", "回避1回あたりのキル無効時間を延長する");
+    add("回避時間拡張", `+${(self.dodgeDurationBonusMs / 1000).toFixed(2)}秒`, "beauty", "キル無効時間を延長");
   }
-  if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "床の効果で移動速度が上昇する");
-  if (self.mapObjectEffects?.quiet) add("静音フィールド", "範囲内", "rational", "移動中の足音が周囲へ伝わらない");
+  if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "移動速度上昇");
+  if (self.mapObjectEffects?.quiet) add("静音フィールド", "範囲内", "rational", "足音なし");
   timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "キルを無効化し、キルカウンターを行う" : "効果中に受けたキル判定を無効化する");
   const slashPerfectRemaining = Math.max(0, Number(self.slashPerfectUntil) - liveNow);
   const slashGuardRemaining = Math.max(0, Number(self.slashActiveUntil) - liveNow);
@@ -8642,40 +8700,40 @@ function renderActiveEffects(data) {
       self.fighterInfiniteResources ? "斬る・全反射ジャストガード" : "斬る・ジャストガード",
       `${Math.ceil(slashPerfectRemaining)}ms`,
       "truth",
-      self.fighterInfiniteResources ? "オリハルコン・ソードの腹を攻撃へ正確に合わせ、この短い受付中だけ物理・サンビーム・EMP・毒を含む全攻撃を攻撃元へ反射する" : "オリハルコン・ソードの腹を攻撃へ正確に合わせ、受けた衝撃を100%そのまま攻撃元へ反発させる"
+      self.fighterInfiniteResources ? "受付中は全攻撃を反射" : "受付中は物理衝撃を100%反射"
     );
   } else if (slashGuardRemaining > 0) {
-    add("斬る・物理ガード", `${Math.ceil(slashGuardRemaining)}ms`, "rational", "斬れそうな物理攻撃を無効化する。EMP・毒・サンビームなどは通常ガードできない");
+    add("斬る・物理ガード", `${Math.ceil(slashGuardRemaining)}ms`, "rational", "物理攻撃を無効化。EMP・毒・光は不可");
   }
   if (hasDisplayedOrichalcumSword(self) && slashRearmRemaining > 0) {
-    add("ジャストガード再武装", `${(slashRearmRemaining / 1000).toFixed(1)}秒`, "neutral", "再武装前の連打は受付を後ろへ送る。いったん待ち、攻撃を見極めて押す");
+    add("ジャストガード再武装", `${(slashRearmRemaining / 1000).toFixed(1)}秒`, "neutral", "完了前の連打は受付遅延");
   }
   const floraAcceleration = self.timedAccelerationStacks?.flora;
   timed(
     `フローラ加速${floraAcceleration?.count > 1 ? ` ×${floraAcceleration.count}` : ""}`,
     floraAcceleration?.endsAt || self.overhealSpeedUntil,
     "good",
-    `1回につき移動速度1.80倍。現在${floraAcceleration?.count || 1}重で×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}`
+    `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}`
   );
   const hoverAcceleration = self.timedAccelerationStacks?.["hover-sprint"];
   timed(
     `ホバースプリント${hoverAcceleration?.count > 1 ? ` ×${hoverAcceleration.count}` : ""}`,
     hoverAcceleration?.endsAt || self.hoverSprintUntil,
     "good",
-    `1回につき移動速度1.80倍。現在${hoverAcceleration?.count || 1}重で×${Number(hoverAcceleration?.multiplier || 1.8).toFixed(2)}`
+    `現在×${Number(hoverAcceleration?.multiplier || 1.8).toFixed(2)}`
   );
-  timed("速度低下", self.slowedUntil, "desire", "一時的に移動速度が低下する");
-  timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度が35%低下する。行動不能やリキャスト低下は発生しない");
-  timed("ショック減速", self.shockSlowedUntil, "desire", "幸運・直観で即死を免れ、移動速度だけが35%低下している");
-  timed("能力封印", self.abilityDisabledUntil, "desire", "オペ固有能力を発動できない");
-  timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "全アイテムを使用できず、踏ん張り・押し込み・変わり身・装備・戦術PCなどの効果も停止する");
-  if (self.poisonStatus) add("中毒", "継続", "desire", "解毒剤またはフローラの回復を受けるまで継続ダメージを受ける");
-  if (self.burnStatus) add("燃焼", "継続", "desire", "水またはフローラの回復を受けるまで継続ダメージを受ける");
-  timed("意識消失", self.unconsciousUntil, "desire", "視覚・聴覚情報が消失し、行動できない");
-  timed("重力拘束", self.gravityPinnedUntil, "desire", "強い重力に押さえ込まれ、一時的に移動・行動できない");
-  timed("休息", self.sleepingUntil, "neutral", "行動不能になる代わりにスタミナ回復速度が4倍になる");
-  timed("精神統一", self.meditatingUntil, "rational", "行動不能になり、完了時にマナを1獲得する");
-  if (self.computerActive) add("パソコン", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "全生存者の位置情報を表示する" : "EMP解除後に自動復帰する");
+  timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
+  timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
+  timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
+  timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
+  timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "アイテム・装備効果停止");
+  if (self.poisonStatus) add("中毒", "継続", "desire", "解毒まで継続ダメージ");
+  if (self.burnStatus) add("燃焼", "継続", "desire", "消火まで継続ダメージ");
+  timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
+  timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
+  timed("休息", self.sleepingUntil, "neutral", "行動停止・SP回復×4");
+  timed("精神統一", self.meditatingUntil, "rational", "完了時MP+1");
+  if (self.computerActive) add("パソコン", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "全生存者を表示" : "EMP解除後に復帰");
 
   const panelHidden = !["playing", "meeting"].includes(data.phase);
   if (els.activeEffectsPanel.hidden !== panelHidden) els.activeEffectsPanel.hidden = panelHidden;
@@ -8687,7 +8745,7 @@ function renderActiveEffects(data) {
   }
   state.activeEffectsRenderKey = renderKey;
   els.activeEffectsList.innerHTML = visibleEffects.map((effect) => `
-    <li class="effect-tone-${escapeHtml(effect.tone)}">
+    <li class="effect-tone-${escapeHtml(effect.tone)}${effect.layout === "stacked" ? " effect-layout-stacked" : ""}">
       <span class="effect-copy">
         <strong class="effect-name">${escapeHtml(effect.label)}</strong>
         <small class="effect-detail">${escapeHtml(effect.detail)}</small>
@@ -8784,7 +8842,14 @@ function renderVending(data) {
     scheduleActiveEffectsLayout();
     return;
   }
-  els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
+  const buttons = vendingProductButtons();
+  const categories = availableVendingCategories();
+  const category = categories.find((entry) => entry.id === state.vendingCategoryId) || categories[0] || hackerRecipeCategories[0];
+  state.vendingCategoryId = category.id;
+  const categoryButtons = buttons.filter((button) => vendingProductCategory(button.dataset.drink) === category.id);
+  els.vendingCategoryLabel.textContent = `${category.label} ${categoryButtons.length}`;
+  buttons.forEach((button) => {
+    button.hidden = vendingProductCategory(button.dataset.drink) !== category.id;
     const copy = button.querySelector("span:last-child");
     const id = button.dataset.drink;
     const label = VENDING_PRODUCT_LABELS[id] || id;
@@ -8808,15 +8873,15 @@ function renderVending(data) {
     data.self.substitutionCharges || 0,
     data.self.standFirmCharges || 0,
     data.self.pushCharges || 0,
-    mysteryVisible ? data.self.lastMysteryResult : ""
+    mysteryVisible ? data.self.lastMysteryResult : "",
+    category.id
   ]);
   if (state.vendingRenderKey === renderKey) {
     scheduleActiveEffectsLayout();
     return;
   }
   state.vendingRenderKey = renderKey;
-  els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
-    if (button.hidden) button.hidden = false;
+  buttons.forEach((button) => {
     const staminaFull = false;
     const alreadyOwnsComputer = button.dataset.drink === "computer" && data.self.computerActive;
     const unavailable = staminaFull || alreadyOwnsComputer || data.self.credits < VENDING_PRODUCT_COSTS[button.dataset.drink];
@@ -8911,24 +8976,18 @@ function renderUtility(data) {
 function syncMovementAccControl(data = state.data) {
   const self = data?.self;
   if (!els.movementAccControl || !self) return;
-  const maximum = Math.max(0.1, Number(self.movementAccMax) || Number(self.accelerationMultiplier) || 1);
-  const selected = Math.min(maximum, Math.max(0.1, Number(self.movementAcc) || maximum));
-  els.movementAccInput.max = maximum.toFixed(2);
-  els.movementAccMaximum.textContent = `上限 ${maximum.toFixed(2)}`;
-  if (document.activeElement !== els.movementAccInput) els.movementAccInput.value = selected.toFixed(2);
-  els.movementAccApplyButton.disabled = !["playing", "meeting"].includes(data.phase) || self.ejected;
+  const enabled = self.movementAccEnabled !== false && Number(self.movementAcc) > 1.5;
+  els.movementAccToggleButton.textContent = `移動ACC 3.00　${enabled ? "ON" : "OFF"} [Q]`;
+  els.movementAccToggleButton.setAttribute("aria-pressed", String(enabled));
+  els.movementAccToggleButton.classList.toggle("active", enabled);
+  els.movementAccToggleButton.disabled = !["playing", "meeting"].includes(data.phase) || self.ejected;
 }
 
-async function applyMovementAccInput() {
-  const maximum = Math.max(0.1, Number(state.data?.self?.movementAccMax) || Number(state.data?.self?.accelerationMultiplier) || 1);
-  const requested = Number(els.movementAccInput.value);
-  if (!Number.isFinite(requested)) {
-    showToast("移動ACCを数値で指定してください。");
-    return false;
-  }
-  const clamped = Math.min(maximum, Math.max(0.1, requested));
-  els.movementAccInput.value = clamped.toFixed(2);
-  return api("/api/movement-acc", { acc: clamped });
+async function toggleMovementAcc() {
+  const self = state.data?.self;
+  if (!self || !["playing", "meeting"].includes(state.data?.phase) || self.ejected) return false;
+  const enabled = self.movementAccEnabled !== false && Number(self.movementAcc) > 1.5;
+  return api("/api/movement-acc", { enabled: !enabled });
 }
 
 function updateActionButtons(data) {
@@ -9689,19 +9748,19 @@ function applyMovementAck(result) {
     0.01,
     Number(result.accelerationMultiplier) || Number(data.self.accelerationMultiplier) || 1
   );
-  const authoritativeMovementAccMax = Math.max(0.1, Number(result.movementAccMax) || authoritativeAcceleration);
-  const authoritativeMovementAcc = Math.min(
-    authoritativeMovementAccMax,
-    Math.max(0.1, Number(result.movementAcc) || Number(data.self.movementAcc) || authoritativeMovementAccMax)
-  );
+  const authoritativeMovementAccEnabled = result.movementAccEnabled !== false && Number(result.movementAcc) > 1.5;
+  const authoritativeMovementAccMax = 3;
+  const authoritativeMovementAcc = authoritativeMovementAccEnabled ? 3 : 1;
   data.self.speedMultiplier = authoritativeSpeed;
   data.self.accelerationMultiplier = authoritativeAcceleration;
   data.self.movementAcc = authoritativeMovementAcc;
   data.self.movementAccMax = authoritativeMovementAccMax;
+  data.self.movementAccEnabled = authoritativeMovementAccEnabled;
   player.speedMultiplier = authoritativeSpeed;
   player.accelerationMultiplier = authoritativeAcceleration;
   player.movementAcc = authoritativeMovementAcc;
   player.movementAccMax = authoritativeMovementAccMax;
+  player.movementAccEnabled = authoritativeMovementAccEnabled;
   player.x = result.x;
   player.y = result.y;
   player.moveX = result.moveX;
@@ -15232,7 +15291,8 @@ function drawHud(data, w, h) {
   const maxStamina = Math.max(100, Number(self.maxStoredStamina) || 500);
   const manaGaugeMax = Math.max(2, Math.ceil(Math.max(0, mana) / 2) * 2);
   const accelerationMultiplier = Math.max(1, Number(self.accelerationMultiplier) || 1);
-  const movementAcc = Math.min(accelerationMultiplier, Math.max(0.1, Number(self.movementAcc) || accelerationMultiplier));
+  const movementAccEnabled = self.movementAccEnabled !== false && Number(self.movementAcc) > 1.5;
+  const movementAcc = movementAccEnabled ? 3 : 1;
   const bars = [
     { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}` },
     { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
@@ -15293,7 +15353,7 @@ function drawHud(data, w, h) {
   const fighterEcText = hasDisplayedOperatorAccess(self, "fighter")
     ? `   EC ${Math.max(0, Math.floor(Number(self.fighterEnergyCharge) || 0))}`
     : "";
-  const movementAccText = movementAcc < accelerationMultiplier - 0.005 ? ` / 移動 ${movementAcc.toFixed(2)}` : "";
+  const movementAccText = ` / 移動ACC3 ${movementAccEnabled ? "ON" : "OFF"}`;
   ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}${movementAccText}${fighterEcText}`, 27, detailTop);
   const drawReadyText = (label, remaining, x, y = detailTop + 19) => {
     const ready = remaining <= 0;
@@ -15600,7 +15660,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "philia-economy-laboratory-v458";
+const version = "ec-effect-horizontal-v459";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

@@ -7347,7 +7347,8 @@ const MAX_STORED_STAMINA = 500;
 const REMOTE_REPAIR_STAMINA_COST = 300;
 const SLEEP_REGEN_MULTIPLIER = 4;
 const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
-const MIN_MOVEMENT_ACC = 0.1;
+const FIXED_MOVEMENT_ACC = 3;
+const NORMAL_MOVEMENT_ACC = 1;
 const DASH_MULTIPLIER = 1.75;
 const DASH_DRAIN_PER_SECOND = 42;
 const WALK_DRAIN_PER_SECOND = 9;
@@ -7533,6 +7534,10 @@ const BOT_HEARING_MEMORY_MS = 5000;
 const BOT_STAND_FIRM_RETALIATION_MS = 30_000;
 const BOT_KILL_WITNESS_RANGE = 340;
 const BOT_BODY_NOTICE_RANGE = 760;
+const BOT_CLAIRVOYANCE_DURATION_MS = 4000;
+const BOT_CLAIRVOYANCE_MEMORY_MS = 8000;
+const BOT_CLAIRVOYANCE_INTERVAL_MIN_MS = 18_000;
+const BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS = 10_000;
 const MODERATION_DIR = path.join(__dirname, "data");
 const MODERATION_FILE = path.join(MODERATION_DIR, "moderation.json");
 const PLAYER_PROFILE_FILE = path.join(MODERATION_DIR, "player-profiles.json");
@@ -9438,7 +9443,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     lastMysteryResult: "",
     lastMysteryResultAt: 0,
     movementMode: "idle",
-    movementAccTarget: null,
+    movementAccEnabled: true,
     airborneUntil: 0,
     jumpPreparingAt: 0,
     jumpPrepareDx: 0,
@@ -9551,6 +9556,12 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botRetaliationUntil: 0,
     botWitnessTargetId: "",
     botWitnessUntil: 0,
+    nextBotClairvoyanceAt: now() + 4000 + Math.floor(Math.random() * 6000),
+    botClairvoyanceUntil: 0,
+    botClairvoyanceObservedUntil: 0,
+    botClairvoyanceTargetId: "",
+    botClairvoyanceTargetX: 0,
+    botClairvoyanceTargetY: 0,
     botRetaliationTargetId: "",
     botRetaliationUntil: 0,
     botWitnessTargetId: "",
@@ -9621,6 +9632,12 @@ function leaveRoom(room, player) {
     player.ventId = "";
     player.drone.active = false;
     player.nextBotActionAt = timestamp + 300;
+    player.nextBotClairvoyanceAt = timestamp + 4000 + Math.floor(Math.random() * 6000);
+    player.botClairvoyanceUntil = 0;
+    player.botClairvoyanceObservedUntil = 0;
+    player.botClairvoyanceTargetId = "";
+    player.botClairvoyanceTargetX = player.x;
+    player.botClairvoyanceTargetY = player.y;
     player.lastSeenAt = timestamp;
     clearAttackState(player);
     room.utilityViews.delete(playerId);
@@ -9853,7 +9870,7 @@ function startGame(room) {
     player.lastMysteryResult = "";
     player.lastMysteryResultAt = 0;
     player.movementMode = "idle";
-    player.movementAccTarget = null;
+    player.movementAccEnabled = true;
     player.airborneUntil = 0;
     player.falling = false;
     player.levitationEngaged = false;
@@ -9960,6 +9977,12 @@ function startGame(room) {
     player.botRetaliationUntil = 0;
     player.botWitnessTargetId = "";
     player.botWitnessUntil = 0;
+    player.nextBotClairvoyanceAt = timestamp + 4000 + Math.floor(Math.random() * 6000);
+    player.botClairvoyanceUntil = 0;
+    player.botClairvoyanceObservedUntil = 0;
+    player.botClairvoyanceTargetId = "";
+    player.botClairvoyanceTargetX = player.x;
+    player.botClairvoyanceTargetY = player.y;
     player.botRetaliationTargetId = "";
     player.botRetaliationUntil = 0;
     player.botWitnessTargetId = "";
@@ -11470,25 +11493,21 @@ function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
 }
 
 function movementAccState(room, player, timestamp = now()) {
-  const maximum = Math.max(MIN_MOVEMENT_ACC, effectiveAccelerationMultiplier(room, player, timestamp));
-  const hasRequestedTarget = player?.movementAccTarget !== null && player?.movementAccTarget !== undefined && player?.movementAccTarget !== "";
-  const requested = Number(player?.movementAccTarget);
-  const selected = hasRequestedTarget && Number.isFinite(requested)
-    ? clampNumber(requested, MIN_MOVEMENT_ACC, maximum, maximum)
-    : maximum;
-  return { selected, maximum };
+  const enabled = player?.movementAccEnabled !== false;
+  return {
+    enabled,
+    selected: enabled ? FIXED_MOVEMENT_ACC : NORMAL_MOVEMENT_ACC,
+    maximum: FIXED_MOVEMENT_ACC
+  };
 }
 
-function setMovementAccTarget(room, player, rawAcc) {
+function setMovementAccEnabled(room, player, rawEnabled) {
   if (!room || !player || !["playing", "meeting"].includes(room.phase) || player.ejected) {
     throw new ApiError(403, "現在は移動ACCを変更できません。");
   }
-  const maximum = Math.max(MIN_MOVEMENT_ACC, effectiveAccelerationMultiplier(room, player));
-  const requested = Number(rawAcc);
-  if (!Number.isFinite(requested)) throw new ApiError(400, "移動ACCを数値で指定してください。");
-  player.movementAccTarget = Math.round(clampNumber(requested, MIN_MOVEMENT_ACC, maximum, maximum) * 100) / 100;
+  player.movementAccEnabled = rawEnabled !== false;
   const state = movementAccState(room, player);
-  setImmediateFeedback(player, "移動ACC", `${state.selected.toFixed(2)} / 上限 ${state.maximum.toFixed(2)}`);
+  setImmediateFeedback(player, "移動ACC", state.enabled ? "ACC 3 ON" : "ACC 3 OFF");
   touch(room);
   return state;
 }
@@ -12005,6 +12024,9 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "botTargetUntil",
   "botRetaliationUntil",
   "botWitnessUntil",
+  "botClairvoyanceUntil",
+  "botClairvoyanceObservedUntil",
+  "nextBotClairvoyanceAt",
   "heardTargetUntil"
 ]);
 
@@ -14334,6 +14356,8 @@ function botPushBacklashWouldBeLethal(bot, target) {
 }
 
 function botKnownAttackerEvidence(room, bot, timestamp = now()) {
+  const scouted = botClairvoyanceContact(room, bot, timestamp);
+  if (scouted?.alive && !scouted.ejected && scouted.role === "attacker") return scouted;
   const witnessed = room.players.get(String(bot?.botWitnessTargetId || ""));
   if (witnessed?.alive && !witnessed.ejected && Number(bot.botWitnessUntil) > timestamp) return witnessed;
   const retaliatingAgainst = room.players.get(String(bot?.botRetaliationTargetId || ""));
@@ -17282,6 +17306,7 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
     movementAcc: movementAcc.selected,
     movementAccMax: movementAcc.maximum,
+    movementAccEnabled: movementAcc.enabled,
     slowedUntil: player.slowedUntil,
     taserSlowedUntil: player.taserSlowedUntil,
     shockSlowedUntil: player.shockSlowedUntil,
@@ -17395,6 +17420,7 @@ function serialize(room, viewer, options = {}) {
       accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
       movementAcc: movementAccState(room, player, timestamp).selected,
       movementAccMax: movementAccState(room, player, timestamp).maximum,
+      movementAccEnabled: movementAccState(room, player, timestamp).enabled,
       levitationActive: canLevitate(player),
       statusAte: persistentStatusAteState(room, player, timestamp),
       accelerationPhasing: Number(player.hoverSprintUntil) > timestamp,
@@ -17626,6 +17652,7 @@ function serialize(room, viewer, options = {}) {
       accelerationMultiplier: effectiveAccelerationMultiplier(room, viewer, timestamp),
       movementAcc: movementAccState(room, viewer, timestamp).selected,
       movementAccMax: movementAccState(room, viewer, timestamp).maximum,
+      movementAccEnabled: movementAccState(room, viewer, timestamp).enabled,
       timedAccelerationStacks: timedAccelerationSummary(viewer, timestamp).bySource,
       mapObjectEffects: viewerObjectEffects,
       dodgeDurationBonusMs: viewer.dodgeDurationBonusMs,
@@ -18034,7 +18061,7 @@ async function handleApi(req, res) {
 
     case "/api/movement-acc": {
       const { room, player } = requireRoomPlayer(body);
-      setMovementAccTarget(room, player, body.acc);
+      setMovementAccEnabled(room, player, body.enabled);
       payload = serialize(room, player);
       break;
     }
@@ -18467,7 +18494,7 @@ async function handleApi(req, res) {
         entry.lastMysteryResult = "";
         entry.lastMysteryResultAt = 0;
         entry.movementMode = "idle";
-        entry.movementAccTarget = null;
+        entry.movementAccEnabled = true;
         entry.bodyHits = 0;
         entry.overheal = 0;
         entry.credits = 0;
@@ -18934,6 +18961,97 @@ function heardDefenderTarget(room, bot, timestamp = now()) {
   };
 }
 
+function botHasHumanOpponent(room, bot) {
+  if (!bot?.isBot || room.soloMission) return false;
+  return [...room.players.values()].some((player) => (
+    !player.isBot &&
+    !player.midJoinAvailable &&
+    player.alive &&
+    !player.ejected &&
+    player.role !== bot.role
+  ));
+}
+
+function clearBotClairvoyanceContact(bot) {
+  bot.botClairvoyanceUntil = 0;
+  bot.botClairvoyanceObservedUntil = 0;
+  bot.botClairvoyanceTargetId = "";
+  bot.botClairvoyanceTargetX = 0;
+  bot.botClairvoyanceTargetY = 0;
+}
+
+function botClairvoyanceContact(room, bot, timestamp = now()) {
+  const target = room.players.get(String(bot?.botClairvoyanceTargetId || ""));
+  if (!target?.alive || target.ejected || target.role === bot.role) {
+    clearBotClairvoyanceContact(bot);
+    return null;
+  }
+  if (bot.clairvoyanceActive && Number(bot.botClairvoyanceUntil) > timestamp) {
+    bot.botClairvoyanceTargetX = target.x;
+    bot.botClairvoyanceTargetY = target.y;
+    bot.botClairvoyanceObservedUntil = Math.max(
+      Number(bot.botClairvoyanceObservedUntil) || 0,
+      timestamp + BOT_CLAIRVOYANCE_MEMORY_MS
+    );
+    return target;
+  }
+  if (Number(bot.botClairvoyanceObservedUntil) <= timestamp) {
+    clearBotClairvoyanceContact(bot);
+    return null;
+  }
+  return {
+    ...target,
+    x: Number(bot.botClairvoyanceTargetX) || target.x,
+    y: Number(bot.botClairvoyanceTargetY) || target.y
+  };
+}
+
+function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
+  if (!botHasHumanOpponent(room, bot) || !bot.alive || bot.ejected || bot.inVent) {
+    if (bot.clairvoyanceActive) setClairvoyanceActive(room, bot, false);
+    clearBotClairvoyanceContact(bot);
+    return null;
+  }
+
+  if (bot.clairvoyanceActive) {
+    const contact = botClairvoyanceContact(room, bot, timestamp);
+    if (Number(bot.botClairvoyanceUntil) > timestamp && Number(bot.mana) > 0) return contact;
+    setClairvoyanceActive(room, bot, false);
+  }
+
+  const remembered = botClairvoyanceContact(room, bot, timestamp);
+  if (remembered) return remembered;
+  if (Number(bot.nextBotClairvoyanceAt) > timestamp) return null;
+
+  const minimumMana = CLAIRVOYANCE_MANA_DRAIN_PER_SECOND * BOT_CLAIRVOYANCE_DURATION_MS / 1000;
+  if (Number(bot.mana) + 1e-9 < minimumMana) {
+    bot.nextBotClairvoyanceAt = timestamp + 3000;
+    return null;
+  }
+  const opponents = [...room.players.values()].filter((target) => (
+    target.id !== bot.id &&
+    target.role !== bot.role &&
+    target.alive &&
+    !target.ejected &&
+    !target.inVent
+  ));
+  if (!opponents.length) {
+    bot.nextBotClairvoyanceAt = timestamp + 3000;
+    return null;
+  }
+  const target = opponents[Math.floor(Math.random() * opponents.length)] || opponents[0];
+  bot.botClairvoyanceTargetId = target.id;
+  bot.botClairvoyanceTargetX = target.x;
+  bot.botClairvoyanceTargetY = target.y;
+  bot.botClairvoyanceUntil = timestamp + BOT_CLAIRVOYANCE_DURATION_MS;
+  bot.botClairvoyanceObservedUntil = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_MEMORY_MS;
+  bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_INTERVAL_MIN_MS +
+    Math.floor(Math.random() * BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS);
+  setClairvoyanceActive(room, bot, true);
+  pushEvent(room, `${bot.name} が千里眼で敵陣営を索敵しました。`);
+  return target;
+}
+
 function preferredDefenderTarget(room, bot, timestamp = now()) {
   const pendingTarget = room.players.get(String(bot.attackTargetId || ""));
   if (pendingTarget?.alive && !pendingTarget.ejected && pendingTarget.role === "defender") return pendingTarget;
@@ -18944,6 +19062,12 @@ function preferredDefenderTarget(room, bot, timestamp = now()) {
     lockedTarget.role === "defender" &&
     Number(bot.botTargetUntil) > timestamp
   ) return lockedTarget;
+  const scouted = botClairvoyanceContact(room, bot, timestamp);
+  if (scouted?.role === "defender" && !botPushBacklashWouldBeLethal(bot, scouted)) {
+    bot.botTarget = scouted.id;
+    bot.botTargetUntil = Math.max(timestamp + 2000, Number(bot.botClairvoyanceObservedUntil) || 0);
+    return scouted;
+  }
   const heard = heardDefenderTarget(room, bot, timestamp);
   if (heard && !botPushBacklashWouldBeLethal(bot, heard)) {
     bot.botTarget = heard.id;
@@ -19176,6 +19300,8 @@ function runPlayingBots(room) {
     if (runBotBodyReport(room, bot)) return;
     if (bot.alive && runBotStandFirmRetaliation(room, bot, timestamp)) continue;
 
+    const clairvoyanceTarget = bot.alive ? runBotClairvoyanceSearch(room, bot, timestamp) : null;
+
     if (bot.alive && refillBotMana(room, bot)) continue;
 
     if (bot.role === "attacker" && bot.alive) {
@@ -19262,6 +19388,11 @@ function runPlayingBots(room) {
         }
         continue;
       }
+    }
+
+    if (clairvoyanceTarget && clairvoyanceTarget.role !== bot.role) {
+      moveBotToward(room, bot, clairvoyanceTarget);
+      continue;
     }
 
     if (runFriendlyDefenderPatrol(room, bot, map)) continue;
@@ -19364,7 +19495,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "philia-economy-laboratory-v458",
+  version: "ec-effect-horizontal-v459",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
