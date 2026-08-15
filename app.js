@@ -3208,7 +3208,12 @@ function syncExpandedScrollRegion(region) {
   els.sidePanel?.classList.remove("scroll-region-expanded-host");
   els.statusPanel?.classList.remove("scroll-region-expanded-host");
   if (els.expandedScrollRegionHint) els.expandedScrollRegionHint.hidden = true;
-  if (!(region instanceof Element) || !els.sidePanel?.contains(region)) return;
+  if (
+    state.data?.phase !== "playing" ||
+    !(region instanceof Element) ||
+    region === els.sidePanel ||
+    !els.sidePanel?.contains(region)
+  ) return;
   const choiceCount = scrollRegionChoices(region).length;
   if (choiceCount < 7) return;
   region.classList.add("scroll-region-expanded");
@@ -7235,6 +7240,9 @@ function renderedPlayer(player) {
 
 function render() {
   const data = state.data;
+  if (data?.phase !== "playing" && (state.activeScrollRegion || !els.expandedScrollRegionHint?.hidden)) {
+    setSelectedScrollRegion(null, { focus: false });
+  }
   const offlineContext = state.offlineMode || (!data && !state.onlineAvailable);
   updateSensoryOverlay(data);
   els.soloMissionHud.hidden = !data?.soloMission;
@@ -15379,7 +15387,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "active-effects-layout-v456";
+const version = "sophia-title-ui-v457";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

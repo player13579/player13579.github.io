@@ -738,7 +738,7 @@ body.game-open .app-shell {
   z-index: 100;
   min-height: 100vh;
   overflow: hidden;
-  background: #8a684d;
+  background: #17283d;
 }
 
 .start-hero {
@@ -748,7 +748,7 @@ body.game-open .app-shell {
   height: 100%;
   object-fit: cover;
   object-position: center;
-  transform-origin: 74% 58%;
+  transform-origin: 70% 58%;
   opacity: 0;
   transition: opacity 180ms ease-out;
   animation: title-natural-camera 18s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
@@ -767,16 +767,14 @@ body.game-open .app-shell {
   object-fit: cover;
   object-position: center;
   pointer-events: none;
-  opacity: 0.26;
-  filter: saturate(1.18) brightness(1.11) blur(0.28px);
+  opacity: 0.24;
+  filter: saturate(1.22) brightness(1.1) blur(0.22px);
   mix-blend-mode: screen;
   -webkit-mask-image:
-    radial-gradient(ellipse 12% 18% at 64% 44%, #000 0 58%, rgba(0, 0, 0, 0.74) 76%, transparent 100%),
-    radial-gradient(ellipse 18% 10% at 70% 93%, #000 0 42%, rgba(0, 0, 0, 0.6) 68%, transparent 100%);
+    radial-gradient(ellipse 13% 17% at 63% 39%, #000 0 54%, rgba(0, 0, 0, 0.72) 76%, transparent 100%);
   mask-image:
-    radial-gradient(ellipse 12% 18% at 64% 44%, #000 0 58%, rgba(0, 0, 0, 0.74) 76%, transparent 100%),
-    radial-gradient(ellipse 18% 10% at 70% 93%, #000 0 42%, rgba(0, 0, 0, 0.6) 68%, transparent 100%);
-  animation: title-water-texture-drift 5.8s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
+    radial-gradient(ellipse 13% 17% at 63% 39%, #000 0 54%, rgba(0, 0, 0, 0.72) 76%, transparent 100%);
+  animation: title-energy-texture-phase 5.2s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
   animation-play-state: paused;
   visibility: hidden;
 }
@@ -790,11 +788,11 @@ body.game-open .app-shell {
   object-fit: cover;
   object-position: center;
   pointer-events: none;
-  transform-origin: 74% 94%;
+  transform-origin: 70% 94%;
   -webkit-mask-image:
-    radial-gradient(ellipse 24% 50% at 74% 53%, #000 0 68%, rgba(0, 0, 0, 0.84) 82%, transparent 100%);
+    radial-gradient(ellipse 27% 52% at 70% 54%, #000 0 68%, rgba(0, 0, 0, 0.84) 82%, transparent 100%);
   mask-image:
-    radial-gradient(ellipse 24% 50% at 74% 53%, #000 0 68%, rgba(0, 0, 0, 0.84) 82%, transparent 100%);
+    radial-gradient(ellipse 27% 52% at 70% 54%, #000 0 68%, rgba(0, 0, 0, 0.84) 82%, transparent 100%);
   animation: title-character-texture-breath 7.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
   animation-play-state: paused;
   visibility: hidden;
@@ -820,30 +818,51 @@ body.game-open .app-shell {
 }
 
 .title-hero-vfx::before {
-  left: 56.5%;
-  top: 27.5%;
-  width: 17.5%;
-  aspect-ratio: 1.15;
-  background: radial-gradient(ellipse at 52% 54%, rgba(224, 255, 252, 0.34), rgba(89, 225, 242, 0.13) 48%, transparent 76%);
-  -webkit-backdrop-filter: blur(1.35px) saturate(1.42) brightness(1.08);
-  backdrop-filter: blur(1.35px) saturate(1.42) brightness(1.08);
-  filter: blur(4.5px) saturate(1.28);
+  left: 57.4%;
+  top: 29.5%;
+  width: 13.5%;
+  aspect-ratio: 1.28;
+  background: radial-gradient(ellipse at 52% 53%, rgba(210, 242, 255, 0.16), rgba(95, 186, 255, 0.07) 46%, transparent 76%);
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.34) brightness(1.07);
+  backdrop-filter: blur(1.5px) saturate(1.34) brightness(1.07);
+  filter: blur(5px) saturate(1.22);
   animation: title-vfx-local-refraction 4.9s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
   animation-play-state: paused;
 }
 
 .title-hero-vfx::after {
-  left: 58.5%;
-  top: 83.5%;
-  width: 23%;
-  aspect-ratio: 2.4;
-  background: radial-gradient(ellipse at 50% 50%, rgba(255, 242, 199, 0.25), rgba(113, 227, 244, 0.11) 52%, transparent 79%);
-  -webkit-backdrop-filter: blur(0.9px) saturate(1.24) brightness(1.06);
-  backdrop-filter: blur(0.9px) saturate(1.24) brightness(1.06);
-  filter: blur(7px) saturate(1.18);
+  left: 56.5%;
+  top: 82.5%;
+  width: 25%;
+  aspect-ratio: 2.7;
+  background: radial-gradient(ellipse at 50% 50%, rgba(176, 220, 255, 0.2), rgba(76, 151, 219, 0.08) 53%, transparent 80%);
+  -webkit-backdrop-filter: blur(0.8px) saturate(1.2) brightness(1.045);
+  backdrop-filter: blur(0.8px) saturate(1.2) brightness(1.045);
+  filter: blur(8px) saturate(1.14);
   animation: title-vfx-floor-luminance 6.4s ease-in-out infinite alternate;
   animation-play-state: paused;
 }
+
+.title-hero-mote {
+  position: absolute;
+  left: var(--mote-x);
+  top: var(--mote-y);
+  width: var(--mote-size);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(225, 245, 255, 0.86) 0 12%, rgba(121, 198, 255, 0.42) 34%, transparent 72%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  filter: blur(0.35px);
+  animation: title-vfx-ambient-mote var(--mote-duration) ease-in-out var(--mote-delay) infinite;
+  animation-play-state: paused;
+  will-change: transform, opacity;
+}
+
+.title-hero-mote.mote-a { --mote-x: 55%; --mote-y: 61%; --mote-size: 5px; --mote-duration: 7.2s; --mote-delay: -1.4s; }
+.title-hero-mote.mote-b { --mote-x: 59%; --mote-y: 72%; --mote-size: 4px; --mote-duration: 8.1s; --mote-delay: -5.2s; }
+.title-hero-mote.mote-c { --mote-x: 83%; --mote-y: 58%; --mote-size: 6px; --mote-duration: 7.7s; --mote-delay: -3.8s; }
+.title-hero-mote.mote-d { --mote-x: 87%; --mote-y: 76%; --mote-size: 4px; --mote-duration: 8.6s; --mote-delay: -6.3s; }
 
 .start-screen.title-ready :is(.title-hero-character, .title-hero-atmosphere, .title-hero-vfx) {
   animation-play-state: running;
@@ -851,7 +870,8 @@ body.game-open .app-shell {
 }
 
 .start-screen.title-ready .title-hero-vfx::before,
-.start-screen.title-ready .title-hero-vfx::after {
+.start-screen.title-ready .title-hero-vfx::after,
+.start-screen.title-ready .title-hero-mote {
   animation-play-state: running;
 }
 
@@ -2998,16 +3018,16 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   to { transform: translate3d(0.3%, -0.22%, 0) scale(1.016); filter: saturate(1.025) brightness(1.012); }
 }
 
-@keyframes title-water-texture-drift {
-  0% { transform: translate3d(-0.22%, 0.28%, 0) scale(1.002); opacity: 0.17; filter: saturate(1.1) brightness(1.07) blur(0.42px); }
-  48% { transform: translate3d(0.3%, -0.32%, 0) scale(1.008); opacity: 0.33; filter: saturate(1.28) brightness(1.16) blur(0.22px); }
-  100% { transform: translate3d(-0.1%, -0.48%, 0) scale(1.012); opacity: 0.24; filter: saturate(1.2) brightness(1.11) blur(0.3px); }
+@keyframes title-energy-texture-phase {
+  0% { transform: translate3d(-0.18%, 0.22%, 0) scale(1.002, 0.996); opacity: 0.16; filter: saturate(1.1) brightness(1.06) blur(0.34px); }
+  46% { transform: translate3d(0.26%, -0.28%, 0) scale(1.01, 1.006); opacity: 0.31; filter: saturate(1.31) brightness(1.15) blur(0.18px); }
+  100% { transform: translate3d(-0.08%, -0.38%, 0) scale(1.005, 1.013); opacity: 0.22; filter: saturate(1.2) brightness(1.1) blur(0.26px); }
 }
 
 @keyframes title-character-texture-breath {
-  0%, 100% { transform: translate3d(0, 0.12%, 0) scale(1); filter: brightness(1); }
-  42% { transform: translate3d(0.1%, -0.48%, 0) scale(1.004, 1.008); filter: brightness(1.012); }
-  66% { transform: translate3d(-0.07%, -0.25%, 0) scale(1.002, 1.004); filter: brightness(1.006); }
+  0%, 100% { transform: translate3d(-0.04%, 0.1%, 0) rotate(-0.03deg) scale(1); filter: brightness(1); }
+  38% { transform: translate3d(0.08%, -0.34%, 0) rotate(0.05deg) scale(1.003, 1.006); filter: brightness(1.01); }
+  68% { transform: translate3d(-0.02%, -0.18%, 0) rotate(0.015deg) scale(1.001, 1.003); filter: brightness(1.005); }
 }
 
 @keyframes title-vfx-local-refraction {
@@ -3021,12 +3041,20 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   to { transform: translate3d(5%, -4%, 0) scale(1.2, 1.12); opacity: 0.7; }
 }
 
+@keyframes title-vfx-ambient-mote {
+  0%, 16% { transform: translate3d(0, 8px, 0) scale(0.55); opacity: 0; }
+  34% { opacity: 0.34; }
+  72% { opacity: 0.2; }
+  100% { transform: translate3d(7px, -54px, 0) scale(1.08); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .start-hero,
   .title-hero-character,
   .title-hero-atmosphere,
   .title-hero-vfx::before,
-  .title-hero-vfx::after {
+  .title-hero-vfx::after,
+  .title-hero-mote {
     animation: none;
   }
 }
@@ -6735,6 +6763,16 @@ body .hacker-ability-grid button:is(.selected, :focus-visible) .hacker-action-co
   text-shadow: 0 1px 2px rgba(0, 14, 25, 0.8);
 }
 
+body .item-name-meta,
+body .vending-panel button .item-name-meta,
+body #statusPanel .hacker-ability-grid button .hacker-action-copy .item-name-meta {
+  border-color: #7dd3fc !important;
+  color: #ffffff !important;
+  background: #083b55 !important;
+  font-size: 10px !important;
+  text-shadow: 0 1px 2px rgba(0, 12, 24, 0.92) !important;
+}
+
 body .board-wrap {
   border: 2px solid #273f48;
   background: #17282e;
@@ -6983,13 +7021,6 @@ body #statusPanel .vending-panel.scroll-region-expanded {
 
 .expanded-scroll-region-hint[hidden] {
   display: none !important;
-}
-
-.expanded-scroll-region-hint span {
-  display: inline-block;
-  margin-right: 5px;
-  font-size: 18px;
-  line-height: 1;
 }
 
 @media (max-width: 680px) {
