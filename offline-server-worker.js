@@ -6509,6 +6509,758 @@ const ADVANCED_STATION_MAP = Object.freeze({
   "sourceTexture": "assets/generated/field-aurelia-corridor-objects-v317.webp",
   "assetRevision": "v340-full-map-world-scale"
 });
+const LABORATORY_MAP = Object.freeze({
+  "schema": "dva-map-laboratory-v458",
+  "id": "outpost",
+  "label": "ルミナ総合研究・休養棟",
+  "authoredGeometry": true,
+  "width": 3800,
+  "height": 2480,
+  "playerRadius": 16,
+  "speed": 225,
+  "ghostSpeed": 280,
+  "reportRange": 84,
+  "taskRange": 140,
+  "ventRange": 76,
+  "spawns": [
+    {
+      "x": 1810,
+      "y": 1160
+    },
+    {
+      "x": 1990,
+      "y": 1160
+    },
+    {
+      "x": 1810,
+      "y": 1320
+    },
+    {
+      "x": 1990,
+      "y": 1320
+    },
+    {
+      "x": 1690,
+      "y": 1240
+    },
+    {
+      "x": 2110,
+      "y": 1240
+    },
+    {
+      "x": 1900,
+      "y": 1050
+    },
+    {
+      "x": 1900,
+      "y": 1430
+    }
+  ],
+  "rooms": [
+    {
+      "id": "labs",
+      "label": "分析・合成研究室",
+      "x": 160,
+      "y": 140,
+      "w": 1050,
+      "h": 650,
+      "textureBounds": {
+        "x": 160,
+        "y": 140,
+        "w": 1050,
+        "h": 650
+      },
+      "textureCode": "room-labs.py",
+      "textureAsset": "room-labs.png"
+    },
+    {
+      "id": "drill",
+      "label": "量子物性研究室",
+      "x": 2590,
+      "y": 140,
+      "w": 1050,
+      "h": 650,
+      "textureBounds": {
+        "x": 2590,
+        "y": 140,
+        "w": 1050,
+        "h": 650
+      },
+      "textureCode": "room-drill.py",
+      "textureAsset": "room-drill.png"
+    },
+    {
+      "id": "hub",
+      "label": "研究統合ロビー",
+      "x": 1400,
+      "y": 810,
+      "w": 1000,
+      "h": 860,
+      "textureBounds": {
+        "x": 1400,
+        "y": 810,
+        "w": 1000,
+        "h": 860
+      },
+      "textureCode": "room-hub.py",
+      "textureAsset": "room-hub.png"
+    },
+    {
+      "id": "power",
+      "label": "生体工学研究室",
+      "x": 160,
+      "y": 1690,
+      "w": 1050,
+      "h": 650,
+      "textureBounds": {
+        "x": 160,
+        "y": 1690,
+        "w": 1050,
+        "h": 650
+      },
+      "textureCode": "room-power.py",
+      "textureAsset": "room-power.png"
+    },
+    {
+      "id": "greenhouse",
+      "label": "リラクゼーションラウンジ",
+      "x": 2590,
+      "y": 1690,
+      "w": 1050,
+      "h": 650,
+      "textureBounds": {
+        "x": 2590,
+        "y": 1690,
+        "w": 1050,
+        "h": 650
+      },
+      "textureCode": "room-greenhouse.py",
+      "textureAsset": "room-greenhouse.png"
+    }
+  ],
+  "corridors": [
+    {
+      "id": "north-gallery",
+      "label": "北研究ギャラリー",
+      "x": 1210,
+      "y": 630,
+      "w": 1380,
+      "h": 180,
+      "textureBounds": {
+        "x": 1210,
+        "y": 630,
+        "w": 1380,
+        "h": 180
+      },
+      "textureCode": "corridor-north-gallery.py",
+      "textureAsset": "corridor-north-gallery.png",
+      "openings": [
+        "W",
+        "E",
+        "S"
+      ],
+      "topology": "junction"
+    },
+    {
+      "id": "south-gallery",
+      "label": "南静養ギャラリー",
+      "x": 1210,
+      "y": 1670,
+      "w": 1380,
+      "h": 180,
+      "textureBounds": {
+        "x": 1210,
+        "y": 1670,
+        "w": 1380,
+        "h": 180
+      },
+      "textureCode": "corridor-south-gallery.py",
+      "textureAsset": "corridor-south-gallery.png",
+      "openings": [
+        "W",
+        "E",
+        "N"
+      ],
+      "topology": "junction"
+    },
+    {
+      "id": "west-service",
+      "label": "西研究連絡廊",
+      "x": 520,
+      "y": 790,
+      "w": 200,
+      "h": 900,
+      "textureBounds": {
+        "x": 520,
+        "y": 790,
+        "w": 200,
+        "h": 900
+      },
+      "textureCode": "corridor-west-service.py",
+      "textureAsset": "corridor-west-service.png",
+      "openings": [
+        "N",
+        "S"
+      ],
+      "topology": "straight"
+    },
+    {
+      "id": "east-botanical",
+      "label": "東緑化連絡廊",
+      "x": 3080,
+      "y": 790,
+      "w": 200,
+      "h": 900,
+      "textureBounds": {
+        "x": 3080,
+        "y": 790,
+        "w": 200,
+        "h": 900
+      },
+      "textureCode": "corridor-east-botanical.py",
+      "textureAsset": "corridor-east-botanical.png",
+      "openings": [
+        "N",
+        "S"
+      ],
+      "topology": "straight"
+    }
+  ],
+  "stations": [
+    {
+      "id": "download-o-a",
+      "type": "task",
+      "task": "download",
+      "label": "分析データ取得",
+      "x": 370,
+      "y": 355,
+      "room": "labs"
+    },
+    {
+      "id": "upload-o-a",
+      "type": "task",
+      "task": "upload",
+      "label": "分析データ送信",
+      "x": 1000,
+      "y": 565,
+      "room": "labs"
+    },
+    {
+      "id": "download-o-b",
+      "type": "task",
+      "task": "download",
+      "label": "量子ログ取得",
+      "x": 2810,
+      "y": 345,
+      "room": "drill"
+    },
+    {
+      "id": "upload-o-b",
+      "type": "task",
+      "task": "upload",
+      "label": "量子ログ送信",
+      "x": 3420,
+      "y": 565,
+      "room": "drill"
+    },
+    {
+      "id": "download-o-c",
+      "type": "task",
+      "task": "download",
+      "label": "培養記録取得",
+      "x": 365,
+      "y": 1905,
+      "room": "power"
+    },
+    {
+      "id": "upload-o-c",
+      "type": "task",
+      "task": "upload",
+      "label": "培養記録送信",
+      "x": 995,
+      "y": 2160,
+      "room": "power"
+    },
+    {
+      "id": "download-o-d",
+      "type": "task",
+      "task": "download",
+      "label": "環境記録取得",
+      "x": 2810,
+      "y": 1905,
+      "room": "greenhouse"
+    },
+    {
+      "id": "upload-o-d",
+      "type": "task",
+      "task": "upload",
+      "label": "環境記録送信",
+      "x": 3420,
+      "y": 2160,
+      "room": "greenhouse"
+    },
+    {
+      "id": "download-o-e",
+      "type": "task",
+      "task": "download",
+      "label": "統合記録取得",
+      "x": 1580,
+      "y": 1040,
+      "room": "hub"
+    },
+    {
+      "id": "upload-o-e",
+      "type": "task",
+      "task": "upload",
+      "label": "統合記録送信",
+      "x": 2220,
+      "y": 1460,
+      "room": "hub"
+    },
+    {
+      "id": "meeting-button",
+      "type": "emergency",
+      "label": "緊急招集卓",
+      "x": 1900,
+      "y": 1240,
+      "room": "hub"
+    },
+    {
+      "id": "repair-lights",
+      "type": "repair",
+      "repair": "lights",
+      "label": "照明制御盤",
+      "x": 625,
+      "y": 2190,
+      "room": "power"
+    },
+    {
+      "id": "repair-comms",
+      "type": "repair",
+      "repair": "comms",
+      "label": "研究通信卓",
+      "x": 2180,
+      "y": 1040,
+      "room": "hub"
+    },
+    {
+      "id": "repair-reactor-a",
+      "type": "repair",
+      "repair": "reactor",
+      "label": "量子封止器A",
+      "x": 2860,
+      "y": 240,
+      "room": "drill"
+    },
+    {
+      "id": "repair-reactor-b",
+      "type": "repair",
+      "repair": "reactor",
+      "label": "量子封止器B",
+      "x": 3370,
+      "y": 470,
+      "room": "drill"
+    },
+    {
+      "id": "repair-oxygen-a",
+      "type": "repair",
+      "repair": "oxygen",
+      "label": "培養気相調整A",
+      "x": 485,
+      "y": 1775,
+      "room": "power"
+    },
+    {
+      "id": "repair-oxygen-b",
+      "type": "repair",
+      "repair": "oxygen",
+      "label": "温室気相調整B",
+      "x": 3310,
+      "y": 1775,
+      "room": "greenhouse"
+    },
+    {
+      "id": "admin",
+      "type": "utility",
+      "utility": "admin",
+      "label": "研究区画台帳",
+      "x": 1680,
+      "y": 1425,
+      "room": "hub"
+    },
+    {
+      "id": "cameras",
+      "type": "utility",
+      "utility": "cameras",
+      "label": "観測カメラ卓",
+      "x": 890,
+      "y": 250,
+      "room": "labs"
+    },
+    {
+      "id": "vitals",
+      "type": "utility",
+      "utility": "vitals",
+      "label": "生体指標端末",
+      "x": 850,
+      "y": 1835,
+      "room": "power"
+    },
+    {
+      "id": "doorlog",
+      "type": "utility",
+      "utility": "doorlog",
+      "label": "入退室記録",
+      "x": 2180,
+      "y": 1460,
+      "room": "hub"
+    }
+  ],
+  "objects": [
+    {
+      "id": "outpost-labs-recovery",
+      "type": "medPod",
+      "label": "試薬除染ポッド",
+      "effectLabel": "HP全回復・オーバーヒール",
+      "effectKind": "fullRecovery",
+      "effectAmount": 1,
+      "x": 915,
+      "y": 370,
+      "room": "labs",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 30000,
+      "useRange": 128,
+      "visualWidth": 112,
+      "visualHeight": 76
+    },
+    {
+      "id": "outpost-labs-mana",
+      "type": "specimenCase",
+      "label": "標準試料ケース",
+      "effectLabel": "マナ +1",
+      "effectKind": "mana",
+      "effectAmount": 1,
+      "x": 530,
+      "y": 650,
+      "room": "labs",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 36000,
+      "useRange": 128,
+      "visualWidth": 58,
+      "visualHeight": 58
+    },
+    {
+      "id": "outpost-drill-credit",
+      "type": "creditCache",
+      "label": "研究助成クレジット端末",
+      "effectLabel": "+30クレジット",
+      "effectKind": "credits",
+      "effectAmount": 30,
+      "x": 3310,
+      "y": 265,
+      "room": "drill",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 45000,
+      "useRange": 128,
+      "visualWidth": 96,
+      "visualHeight": 68
+    },
+    {
+      "id": "outpost-drill-cooldown",
+      "type": "mineralScanner",
+      "label": "位相同期計",
+      "effectLabel": "再使用待機 -6秒",
+      "effectKind": "cooldownReduction",
+      "effectAmount": 6000,
+      "x": 3060,
+      "y": 650,
+      "room": "drill",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 36000,
+      "useRange": 128,
+      "visualWidth": 96,
+      "visualHeight": 68
+    },
+    {
+      "id": "outpost-hub-stamina",
+      "type": "recharge",
+      "label": "研究員補給卓",
+      "effectLabel": "スタミナ +160",
+      "effectKind": "stamina",
+      "effectAmount": 160,
+      "x": 1575,
+      "y": 1450,
+      "room": "hub",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 24000,
+      "useRange": 128,
+      "visualWidth": 112,
+      "visualHeight": 76
+    },
+    {
+      "id": "outpost-hub-luck",
+      "type": "wallDisplay",
+      "label": "共同仮説ボード",
+      "effectLabel": "幸運／直観 +15%・20秒",
+      "effectKind": "luckBoost",
+      "effectAmount": 0.15,
+      "effectDurationMs": 20000,
+      "x": 2225,
+      "y": 1030,
+      "room": "hub",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 32000,
+      "useRange": 128,
+      "visualWidth": 96,
+      "visualHeight": 68
+    },
+    {
+      "id": "outpost-power-heal",
+      "type": "diagnosticBed",
+      "label": "細胞回復寝台",
+      "effectLabel": "HP +1",
+      "effectKind": "heal",
+      "effectAmount": 1,
+      "x": 850,
+      "y": 2070,
+      "room": "power",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 30000,
+      "useRange": 128,
+      "visualWidth": 144,
+      "visualHeight": 92
+    },
+    {
+      "id": "outpost-power-status",
+      "type": "sterilizer",
+      "label": "遺伝子汚染除去槽",
+      "effectLabel": "状態異常回復",
+      "effectKind": "statusRecovery",
+      "effectAmount": 1,
+      "x": 385,
+      "y": 2190,
+      "room": "power",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 32000,
+      "useRange": 128,
+      "visualWidth": 104,
+      "visualHeight": 132
+    },
+    {
+      "id": "outpost-relaxation-pod-a",
+      "type": "relaxationBed",
+      "label": "呼吸同期リラクゼーションポッド",
+      "effectLabel": "加速 1.35・12秒",
+      "effectKind": "relaxation",
+      "effectAmount": 1.35,
+      "effectDurationMs": 12000,
+      "x": 2815,
+      "y": 2020,
+      "room": "greenhouse",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 30000,
+      "useRange": 128,
+      "visualWidth": 144,
+      "visualHeight": 92
+    },
+    {
+      "id": "outpost-relaxation-pod-b",
+      "type": "relaxationBed",
+      "label": "温熱リラクゼーションポッド",
+      "effectLabel": "加速 1.35・12秒",
+      "effectKind": "relaxation",
+      "effectAmount": 1.35,
+      "effectDurationMs": 12000,
+      "x": 3390,
+      "y": 2030,
+      "room": "greenhouse",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 30000,
+      "useRange": 128,
+      "visualWidth": 144,
+      "visualHeight": 92
+    },
+    {
+      "id": "outpost-relaxation-tea",
+      "type": "hydration",
+      "label": "温製ハーブティー",
+      "effectLabel": "スタミナ +100",
+      "effectKind": "stamina",
+      "effectAmount": 100,
+      "x": 3140,
+      "y": 2215,
+      "room": "greenhouse",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 18000,
+      "useRange": 128,
+      "visualWidth": 72,
+      "visualHeight": 84
+    },
+    {
+      "id": "outpost-relaxation-sofa",
+      "type": "sofa",
+      "label": "ひだまりソファ",
+      "effectLabel": "再使用待機 -6秒",
+      "effectKind": "cooldownReduction",
+      "effectAmount": 6000,
+      "x": 3050,
+      "y": 1815,
+      "room": "greenhouse",
+      "interactive": true,
+      "integrated": true,
+      "cooldownMs": 30000,
+      "useRange": 128,
+      "visualWidth": 144,
+      "visualHeight": 92
+    }
+  ],
+  "vents": [
+    {
+      "id": "vent-labs",
+      "x": 1040,
+      "y": 690,
+      "links": [
+        "vent-hub",
+        "vent-power"
+      ]
+    },
+    {
+      "id": "vent-hub",
+      "x": 2250,
+      "y": 1530,
+      "links": [
+        "vent-labs",
+        "vent-drill",
+        "vent-garden"
+      ]
+    },
+    {
+      "id": "vent-drill",
+      "x": 3500,
+      "y": 680,
+      "links": [
+        "vent-hub"
+      ]
+    },
+    {
+      "id": "vent-power",
+      "x": 1060,
+      "y": 2250,
+      "links": [
+        "vent-labs",
+        "vent-garden"
+      ]
+    },
+    {
+      "id": "vent-garden",
+      "x": 3500,
+      "y": 2250,
+      "links": [
+        "vent-hub",
+        "vent-power"
+      ]
+    }
+  ],
+  "cameras": [
+    {
+      "id": "cam-labs",
+      "label": "分析・合成研究室",
+      "x": 1180,
+      "y": 700,
+      "range": 420
+    },
+    {
+      "id": "cam-hub",
+      "label": "研究統合ロビー",
+      "x": 1900,
+      "y": 860,
+      "range": 460
+    },
+    {
+      "id": "cam-drill",
+      "label": "量子物性研究室",
+      "x": 2620,
+      "y": 700,
+      "range": 420
+    },
+    {
+      "id": "cam-relax",
+      "label": "リラクゼーションラウンジ",
+      "x": 2620,
+      "y": 1770,
+      "range": 420
+    }
+  ],
+  "doors": [
+    {
+      "id": "door-labs",
+      "label": "分析区画扉",
+      "orientation": "vertical",
+      "x": 1182,
+      "y": 650,
+      "w": 56,
+      "h": 120
+    },
+    {
+      "id": "door-drill",
+      "label": "量子区画扉",
+      "orientation": "vertical",
+      "x": 2562,
+      "y": 650,
+      "w": 56,
+      "h": 120
+    },
+    {
+      "id": "door-hub-north",
+      "label": "中央北扉",
+      "orientation": "horizontal",
+      "x": 1840,
+      "y": 782,
+      "w": 120,
+      "h": 56
+    },
+    {
+      "id": "door-hub-south",
+      "label": "中央南扉",
+      "orientation": "horizontal",
+      "x": 1840,
+      "y": 1642,
+      "w": 120,
+      "h": 56
+    },
+    {
+      "id": "door-power",
+      "label": "生体区画扉",
+      "orientation": "vertical",
+      "x": 1182,
+      "y": 1710,
+      "w": 56,
+      "h": 120
+    },
+    {
+      "id": "door-garden",
+      "label": "休養区画扉",
+      "orientation": "vertical",
+      "x": 2562,
+      "y": 1710,
+      "w": 56,
+      "h": 120
+    }
+  ],
+  "sourceTexture": "assets/generated/field-lumina-laboratory-v458.webp",
+  "assetRevision": "v458-code-skeleton-individual-zones"
+});
 
 
 const PORT = Number(process.env.PORT || 3000);
@@ -6595,6 +7347,7 @@ const MAX_STORED_STAMINA = 500;
 const REMOTE_REPAIR_STAMINA_COST = 300;
 const SLEEP_REGEN_MULTIPLIER = 4;
 const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
+const MIN_MOVEMENT_ACC = 0.1;
 const DASH_MULTIPLIER = 1.75;
 const DASH_DRAIN_PER_SECOND = 42;
 const WALK_DRAIN_PER_SECOND = 9;
@@ -6631,8 +7384,8 @@ const HACKER_INVENTION_LABELS = Object.freeze({
   excalibur: "エクスカリバー"
 });
 const HEAVY_WEAPON_DEFINITIONS = Object.freeze({
-  rpg: Object.freeze({ id: "rpg", label: "RPG", cost: 160, asset: "rpg" }),
-  missile: Object.freeze({ id: "missile", label: "ミサイル", cost: 190, asset: "missile" })
+  rpg: Object.freeze({ id: "rpg", label: "RPG", cost: 170, asset: "rpg" }),
+  missile: Object.freeze({ id: "missile", label: "ミサイル", cost: 200, asset: "missile" })
 });
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ACTION_STAMINA_COST = 5;
@@ -6645,7 +7398,7 @@ const FIGHTER_IAI_REWARD_THRESHOLD = 25;
 const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 50;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const IAI_STAMINA_EQUIVALENT_COST = 200;
-const IAI_VENDING_COST = 100;
+const IAI_VENDING_COST = 110;
 const ORICHALCUM_SWORD_VENDING_COST = 200;
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
@@ -6658,8 +7411,7 @@ const FIGHTER_GIANT_SHOCKWAVE_DURATION_MS = 1_150;
 const HACKER_MANA_GPU_DRAIN_PER_SECOND = 0.025;
 const HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA = 20_000;
 const HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS = 54_000;
-const HACKER_MANA_GPU_BALANCED_COOLDOWN_MULTIPLIER = 1.5;
-const EXILE_COST = 250;
+const EXILE_COST = 260;
 const TASK_CONTRIBUTION = 0;
 const EMP_INTERACTION_WINDOW_MS = 900;
 const EMP_INTERACTION_RANGE = EMP_RANGE * 2;
@@ -6672,7 +7424,7 @@ const RESOLVE_POINT_CLEARANCE = 118;
 const MAP_OBJECT_SPEED_MULTIPLIER = 1.35;
 const LIMIT_BREAK_SPEED_MULTIPLIER = 3;
 const LIMIT_BREAK_MANA_DRAIN_PER_SECOND = 0.08;
-const FIRE_JUTSU_COST = 90;
+const FIRE_JUTSU_COST = 95;
 const FIRE_JUTSU_RADIUS = 240;
 const ENHANCE_HOLD_STEP_MS = 600;
 const ENHANCE_MAX_LEVEL = 4;
@@ -6694,11 +7446,11 @@ const QUANTUM_CREDITS_LEAD = 35;
 const QUANTUM_ACTION_STAMINA_COST = 8;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
 const MINERAL_WATER_STAMINA = 100;
-const MOLOTOV_COST = 45;
-const MINERAL_WATER_COST = 6;
-const ANTIDOTE_COST = 18;
-const SUBSTITUTION_COST = 75;
-const MYSTERY_COST = 40;
+const MOLOTOV_COST = 48;
+const MINERAL_WATER_COST = 12;
+const ANTIDOTE_COST = 24;
+const SUBSTITUTION_COST = 90;
+const MYSTERY_COST = 45;
 const MYSTERY_ABILITY_LOCK_MS = 15_000;
 const MYSTERY_UNCONSCIOUS_MS = 8_000;
 const RATIONAL_MANA_THRESHOLD = 2;
@@ -6736,11 +7488,11 @@ const GUNNER_MANA_COST = 0;
 const FLORA_MANA_COST = ABILITY_MANA_COST;
 const ALCHEMY_MANA_COST = ABILITY_MANA_COST;
 const SABOTAGE_MANA_COST = 0;
-const STAND_FIRM_COST = 30;
-const HEAL_COST = 35;
-const PUSH_COST = 45;
+const STAND_FIRM_COST = 60;
+const HEAL_COST = 50;
+const PUSH_COST = 65;
 const PUSH_BACKLASH_DAMAGE_PER_CHARGE = 0.5;
-const MANA_POTION_COST = 25;
+const MANA_POTION_COST = 30;
 // Six minutes without donations. Passive income fully donated shortens this to
 // about 5:30; six task rewards donated as well shorten it to about 5:00.
 const IDEA_FIRST_ASPECT_MS = 50_000;
@@ -6882,8 +7634,8 @@ const OPERATORS = {
       special: "fighter",
       limit: 99,
       asset: "fighter",
-      description: "EC、斬る、キルカウンター、リミットブレイクを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1回進め、1回につき斬るか投擲で使う衝撃波を1発獲得する。衝撃波を1発発生させるたび現在ECも1減る。衝撃波は斬るの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊となり、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの剣「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
+      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時破壊となり、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7180,7 +7932,7 @@ const MAPS = {
   },
   outpost: {
     id: "outpost",
-    label: "ノクティス地下施設",
+    label: "ルミナ総合研究・休養棟",
     width: 1900,
     height: 1240,
     playerRadius: 16,
@@ -7200,11 +7952,11 @@ const MAPS = {
       { x: 955, y: 715 }
     ],
     rooms: [
-      { id: "hub", label: "中央コンコース", x: 730, y: 470, w: 450, h: 335 },
-      { id: "labs", label: "合成研究室", x: 80, y: 80, w: 470, h: 320 },
-      { id: "drill", label: "掘削作業区", x: 1320, y: 90, w: 480, h: 330 },
-      { id: "power", label: "地熱配電区", x: 95, y: 785, w: 500, h: 350 },
-      { id: "greenhouse", label: "緑化ドーム", x: 1280, y: 790, w: 520, h: 330 }
+      { id: "hub", label: "研究統合ロビー", x: 730, y: 470, w: 450, h: 335 },
+      { id: "labs", label: "分析・合成研究室", x: 80, y: 80, w: 470, h: 320 },
+      { id: "drill", label: "量子物性研究室", x: 1320, y: 90, w: 480, h: 330 },
+      { id: "power", label: "生体工学研究室", x: 95, y: 785, w: 500, h: 350 },
+      { id: "greenhouse", label: "リラクゼーションラウンジ", x: 1280, y: 790, w: 520, h: 330 }
     ],
     corridors: [
       { id: "o1", x: 550, y: 205, w: 180, h: 100 },
@@ -7253,7 +8005,10 @@ const MAPS = {
       { id: "outpost-supply", type: "supply", label: "クレジットキャッシュ", effectLabel: "+30クレジット", x: 1680, y: 180, room: "drill", interactive: true, cooldownMs: 45000 },
       { id: "outpost-decoy", type: "decoy", label: "デコイビーコン", effectLabel: "スタミナ+100・偽足音", x: 235, y: 850, room: "power", interactive: true, cooldownMs: 20000 },
       { id: "outpost-speedpad", type: "speedPad", label: "加速パッド", effectLabel: "通過中速度+35%", x: 1260, y: 650, room: "corridor", radius: 92 },
-      { id: "outpost-hush", type: "hushField", label: "消音フィールド", effectLabel: "範囲内の足音を遮断", x: 1620, y: 900, room: "greenhouse", radius: 118 }
+      { id: "outpost-hush", type: "hushField", label: "消音フィールド", effectLabel: "範囲内の足音を遮断", x: 1620, y: 900, room: "greenhouse", radius: 118 },
+      { id: "outpost-relaxation-pod-a", type: "relaxationBed", label: "呼吸同期リラクゼーションポッド", effectLabel: "加速 1.35・12秒", effectKind: "relaxation", effectAmount: 1.35, effectDurationMs: 12000, x: 1400, y: 900, room: "greenhouse", interactive: true, cooldownMs: 30000 },
+      { id: "outpost-relaxation-pod-b", type: "relaxationBed", label: "温熱リラクゼーションポッド", effectLabel: "加速 1.35・12秒", effectKind: "relaxation", effectAmount: 1.35, effectDurationMs: 12000, x: 1680, y: 1020, room: "greenhouse", interactive: true, cooldownMs: 30000 },
+      { id: "outpost-credit-cache", type: "creditCache", label: "研究助成クレジット端末", effectLabel: "+30クレジット", effectKind: "credits", effectAmount: 30, x: 1515, y: 195, room: "drill", interactive: true, cooldownMs: 45000 }
     ],
     vents: [
       { id: "vent-labs", x: 475, y: 345, links: ["vent-hub", "vent-power"] },
@@ -7276,10 +8031,10 @@ const MAPS = {
   }
 };
 
-// The advanced station owns its final world coordinates. Keep the legacy map
-// definitions above only as migration input for old saved rooms.
+// The first map owns authored world coordinates. The second map keeps its code
+// skeleton and receives room-specific laboratory textures in the client.
 MAPS.station = JSON.parse(JSON.stringify(ADVANCED_STATION_MAP));
-delete MAPS.outpost;
+MAPS.outpost = JSON.parse(JSON.stringify(LABORATORY_MAP));
 
 for (const map of Object.values(MAPS)) {
   if (!map.authoredGeometry) {
@@ -8665,7 +9420,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     fighterEnergyCharge: 0,
     fighterEnergyPeak: 0,
     fighterEnergyChargeReadyAt: 0,
-    fighterShockwaveCharges: 0,
     empReadyAt: 0,
     itemDisabledUntil: 0,
     slowedUntil: 0,
@@ -8684,6 +9438,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     lastMysteryResult: "",
     lastMysteryResultAt: 0,
     movementMode: "idle",
+    movementAccTarget: null,
     airborneUntil: 0,
     jumpPreparingAt: 0,
     jumpPrepareDx: 0,
@@ -9080,7 +9835,6 @@ function startGame(room) {
     player.fighterEnergyCharge = 0;
     player.fighterEnergyPeak = 0;
     player.fighterEnergyChargeReadyAt = 0;
-    player.fighterShockwaveCharges = 0;
     player.empReadyAt = 0;
     player.itemDisabledUntil = 0;
     player.slowedUntil = 0;
@@ -9099,6 +9853,7 @@ function startGame(room) {
     player.lastMysteryResult = "";
     player.lastMysteryResultAt = 0;
     player.movementMode = "idle";
+    player.movementAccTarget = null;
     player.airborneUntil = 0;
     player.falling = false;
     player.levitationEngaged = false;
@@ -9391,7 +10146,6 @@ function startBattle(room) {
     player.fighterEnergyCharge = 0;
     player.fighterEnergyPeak = 0;
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
-    player.fighterShockwaveCharges = 0;
     player.manaGpuCooldownCreditMs = 0;
     player.manaGpuDrainCarry = 0;
     player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 0 : EMP_INITIAL_LOCK_MS);
@@ -9817,8 +10571,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   const reachedInfiniteMilestone = previousPeak < FIGHTER_INFINITE_RESOURCE_THRESHOLD && nextPeak >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
   player.fighterEnergyCharge = next;
   player.fighterEnergyPeak = nextPeak;
-  player.fighterShockwaveCharges = Math.max(0, Math.floor(Number(player.fighterShockwaveCharges) || 0)) + 1;
-  let reward = `衝撃波 ×${player.fighterShockwaveCharges}`;
+  let reward = `EC ${next}`;
   if (reachedIaiMilestone) {
     grantIaiCharge(room, player, false, `ec-${nextPeak}`);
     reward += " / 居合（即席）×1獲得";
@@ -9836,10 +10589,10 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   pushMagicEffect(room, "fighter-energy-charge", player, {
     radius: 112,
     playerId: player.id,
-    variant: `${next}:shockwave-${player.fighterShockwaveCharges}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
+    variant: `${next}:ec-${next}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
   });
   setImmediateFeedback(player, "EC", reward);
-  pushEvent(room, `${player.name} のECが1回進み、衝撃波を1発獲得しました${reachedIaiMilestone ? "。EC25回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
+  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC25回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -9852,14 +10605,12 @@ function fighterSlashShockwaveCost(player) {
     : 1;
 }
 
-function consumeFighterShockwaveCharge(player, requestedCost = 1, label = "衝撃波") {
-  const stored = Math.max(0, Math.floor(Number(player?.fighterShockwaveCharges) || 0));
+function consumeFighterEnergyCharge(player, requestedCost = 1, label = "衝撃波") {
   const current = Math.max(0, Math.floor(Number(player?.fighterEnergyCharge) || 0));
   const cost = Math.max(1, Math.floor(Number(requestedCost) || 1));
   if (!player || current < cost) return 0;
-  player.fighterShockwaveCharges = Math.max(0, stored - cost);
   player.fighterEnergyCharge = current - cost;
-  setImmediateFeedback(player, "EC", `${label}発生 / EC${cost}消費 / EC${player.fighterEnergyCharge} / 衝撃波×${player.fighterShockwaveCharges}`);
+  setImmediateFeedback(player, "EC", `${label}発生 / EC${cost}放出 / 残りEC${player.fighterEnergyCharge}`);
   return cost;
 }
 
@@ -10718,6 +11469,30 @@ function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
   return base * (player.desireBias === "cognitive-dissonance" ? DESIRE_BIAS_TIME_MULTIPLIER : 1);
 }
 
+function movementAccState(room, player, timestamp = now()) {
+  const maximum = Math.max(MIN_MOVEMENT_ACC, effectiveAccelerationMultiplier(room, player, timestamp));
+  const hasRequestedTarget = player?.movementAccTarget !== null && player?.movementAccTarget !== undefined && player?.movementAccTarget !== "";
+  const requested = Number(player?.movementAccTarget);
+  const selected = hasRequestedTarget && Number.isFinite(requested)
+    ? clampNumber(requested, MIN_MOVEMENT_ACC, maximum, maximum)
+    : maximum;
+  return { selected, maximum };
+}
+
+function setMovementAccTarget(room, player, rawAcc) {
+  if (!room || !player || !["playing", "meeting"].includes(room.phase) || player.ejected) {
+    throw new ApiError(403, "現在は移動ACCを変更できません。");
+  }
+  const maximum = Math.max(MIN_MOVEMENT_ACC, effectiveAccelerationMultiplier(room, player));
+  const requested = Number(rawAcc);
+  if (!Number.isFinite(requested)) throw new ApiError(400, "移動ACCを数値で指定してください。");
+  player.movementAccTarget = Math.round(clampNumber(requested, MIN_MOVEMENT_ACC, maximum, maximum) * 100) / 100;
+  const state = movementAccState(room, player);
+  setImmediateFeedback(player, "移動ACC", `${state.selected.toFixed(2)} / 上限 ${state.maximum.toFixed(2)}`);
+  touch(room);
+  return state;
+}
+
 function persistentStatusAteState(room, player, timestamp = now()) {
   const passive = activeMapObjectEffects(room, player);
   const acceleration = additiveAccelerationMultiplier(
@@ -10791,7 +11566,7 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
     ? clampNumber(player.gravityStormSlowMultiplier, GRAVITY_STORM_SLOW_MULTIPLIER_MIN, 1, 1)
     : 1;
   const groupMultiplier = desireBiasGroupActive(room, player) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
-  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * effectiveAccelerationMultiplier(room, player, timestamp) * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier;
+  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * movementAccState(room, player, timestamp).selected * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier;
 }
 
 function floraAromaSource(room, player) {
@@ -11898,6 +12673,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
   }
   if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は斬れません。");
   ensureAbilityAvailable(player);
+  ensureItemStorageAvailable(player);
   ensureConscious(player);
   const timestamp = now();
   const cost = FIGHTER_SLASH_STAMINA_COST;
@@ -11961,7 +12737,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
   }
   const requestedShockwaveCost = fighterSlashShockwaveCost(player);
   const consumedShockwaveCost = player.alive
-    ? consumeFighterShockwaveCharge(
+    ? consumeFighterEnergyCharge(
         player,
         requestedShockwaveCost,
         requestedShockwaveCost === FIGHTER_GIANT_SHOCKWAVE_EC_COST ? "特大衝撃波" : "衝撃波"
@@ -11984,7 +12760,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
       targetX,
       targetY,
       durationMs: giantShockwave ? FIGHTER_GIANT_SHOCKWAVE_DURATION_MS : 760,
-      variant: `${giantShockwave ? "giant-" : ""}one-body-damage:ec-cost-${consumedShockwaveCost}:remaining-${player.fighterShockwaveCharges}`
+      variant: `${giantShockwave ? "giant-" : ""}one-body-damage:ec-cost-${consumedShockwaveCost}:remaining-ec-${player.fighterEnergyCharge}`
     });
     const waveTargets = inventionLineTargets(room, swordOrigin, shockwaveRange, shockwaveWidth, false)
       .filter(({ target: waveTarget }) => !struckIds.has(waveTarget.id));
@@ -13366,17 +14142,19 @@ function purchaseDrink(room, player, itemId) {
     "mineral-water": { label: "ミネラルウォーター", cost: MINERAL_WATER_COST, apply: () => { addItem(player, "mineral-water"); } },
     antidote: { label: "解毒剤", cost: ANTIDOTE_COST, apply: () => { addItem(player, "antidote"); } },
     molotov: { label: "火炎瓶", cost: MOLOTOV_COST, apply: () => { addItem(player, "molotov"); } },
-    mercury: { label: "水銀瓶", cost: 20, apply: () => { addItem(player, "mercury"); } },
-    lead: { label: "鉛瓶", cost: 16, apply: () => { addItem(player, "lead"); } },
-    uranium: { label: "ウラン容器", cost: 120, apply: () => { addItem(player, "uranium"); } },
-    plutonium: { label: "プルトニウム容器", cost: 160, apply: () => { addItem(player, "plutonium"); } },
+    // Quantum conversion pays 55C/35C. Shop prices stay above those payouts so
+    // buying and immediately converting a bottle cannot mint infinite credits.
+    mercury: { label: "水銀瓶", cost: 60, apply: () => { addItem(player, "mercury"); } },
+    lead: { label: "鉛瓶", cost: 40, apply: () => { addItem(player, "lead"); } },
+    uranium: { label: "ウラン容器", cost: 140, apply: () => { addItem(player, "uranium"); } },
+    plutonium: { label: "プルトニウム容器", cost: 180, apply: () => { addItem(player, "plutonium"); } },
     "orichalcum-sword": { label: "オリハルコン・ソード", cost: ORICHALCUM_SWORD_VENDING_COST, apply: () => { addItem(player, "orichalcum-sword"); } },
     iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { grantIaiCharge(room, player, true, "vending"); } },
-    ice: { label: "氷結水", cost: 14, apply: () => { addItem(player, "ice"); } },
-    "heated-water": { label: "高温水", cost: 14, apply: () => { addItem(player, "heated-water"); } },
-    evade: { label: "回避拡張", cost: 10, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
-    speed: { label: "アクセラレート飲料", cost: 8, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
-    warp: { label: "即時ワープ", cost: 12, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
+    ice: { label: "氷結水", cost: 20, apply: () => { addItem(player, "ice"); } },
+    "heated-water": { label: "高温水", cost: 20, apply: () => { addItem(player, "heated-water"); } },
+    evade: { label: "回避拡張", cost: 45, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
+    speed: { label: "アクセラレート飲料", cost: 55, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
+    warp: { label: "即時ワープ", cost: 35, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
     mystery: { label: "ミステリー", cost: MYSTERY_COST, apply: () => applyMysteryDrink(room, player) },
     fire: { label: "火遁の術", cost: FIRE_JUTSU_COST, apply: () => { player.fireJutsuCharges = Math.min(2, player.fireJutsuCharges + 1); } },
     substitution: { label: "変わり身の術", cost: SUBSTITUTION_COST, apply: () => {
@@ -13392,18 +14170,18 @@ function purchaseDrink(room, player, itemId) {
       setMana(room, player, (Number(player.mana) || 0) + 1, "マナポーション");
     } },
     reason: { label: "押し込み", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
-    railgun: { label: "素敵な発明品・レールガン", cost: 140, apply: () => { player.inventions.push("railgun"); } },
-    "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 180, apply: () => { player.inventions.push("particle-cannon"); } },
-    excalibur: { label: "素敵な発明品・エクスカリバー", cost: 220, apply: () => { player.inventions.push("excalibur"); } },
-    computer: { label: "パソコン", cost: 120, apply: () => {
+    railgun: { label: "素敵な発明品・レールガン", cost: 150, apply: () => { player.inventions.push("railgun"); } },
+    "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 190, apply: () => { player.inventions.push("particle-cannon"); } },
+    excalibur: { label: "素敵な発明品・エクスカリバー", cost: 230, apply: () => { player.inventions.push("excalibur"); } },
+    computer: { label: "パソコン", cost: 125, apply: () => {
       if (player.computerActive) throw new ApiError(400, "パソコンは所持済みです。");
       player.computerActive = true;
     } },
-    handgun: { label: "ハンドガン", cost: 35, apply: () => purchaseFirearm(player, "handgun") },
-    smg: { label: "サブマシンガン", cost: 60, apply: () => purchaseFirearm(player, "smg") },
-    assault: { label: "アサルトライフル", cost: 80, apply: () => purchaseFirearm(player, "assault") },
-    sniper: { label: "スナイパーライフル", cost: 110, apply: () => purchaseFirearm(player, "sniper") },
-    taser: { label: "テーザー銃", cost: 55, apply: () => purchaseFirearm(player, "taser") },
+    handgun: { label: "ハンドガン", cost: 40, apply: () => purchaseFirearm(player, "handgun") },
+    smg: { label: "サブマシンガン", cost: 65, apply: () => purchaseFirearm(player, "smg") },
+    assault: { label: "アサルトライフル", cost: 85, apply: () => purchaseFirearm(player, "assault") },
+    sniper: { label: "スナイパーライフル", cost: 120, apply: () => purchaseFirearm(player, "sniper") },
+    taser: { label: "テーザー銃", cost: 60, apply: () => purchaseFirearm(player, "taser") },
     rpg: { label: "RPG", cost: HEAVY_WEAPON_DEFINITIONS.rpg.cost, apply: () => { (player.heavyWeapons ||= []).push("rpg"); } },
     missile: { label: "ミサイル", cost: HEAVY_WEAPON_DEFINITIONS.missile.cost, apply: () => { (player.heavyWeapons ||= []).push("missile"); } },
     exile: { label: "亡命・遠隔クローン運用", cost: EXILE_COST, apply: () => {
@@ -13441,6 +14219,10 @@ function purchaseFirearm(player, weaponId) {
 
 function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired") {
   if (!room || !player) return;
+  // Vibe Coding already emits its own generation ATE. Suppress only the
+  // generated instant item's acquisition ATE; vending, EC and other grants
+  // keep the normal item-specific acquisition feedback.
+  if (String(source || "").startsWith("hacker")) return;
   const effectType = {
     stamina: "instant-stamina-acquired",
     heal: "instant-heal-acquired",
@@ -13858,7 +14640,7 @@ function itemThrowFlightDuration(distanceToLanding) {
 function queueThrownItem(room, player, itemId, item, landing, level = 0) {
   const createdAt = now();
   const durationMs = itemThrowFlightDuration(landing.distance);
-  const energyShockwave = hasOperatorAccess(player, "fighter") && consumeFighterShockwaveCharge(player);
+  const energyShockwave = hasOperatorAccess(player, "fighter") && consumeFighterEnergyCharge(player);
   room.thrownItems ||= [];
   room.thrownItems.push({
     id: uid("throw_"),
@@ -13889,7 +14671,7 @@ function queueThrownItem(room, player, itemId, item, landing, level = 0) {
       playerId: player.id,
       targetX: landing.x,
       targetY: landing.y,
-      variant: `throw:remaining-${player.fighterShockwaveCharges}`,
+      variant: `throw:remaining-ec-${player.fighterEnergyCharge}`,
       durationMs
     });
   }
@@ -14540,22 +15322,58 @@ function humanTransmutation(room, player, targetId) {
   pushEvent(room, `${player.name} が人体生成で ${target.name} を復活させました。復活者はバトル中チャット不可です。`);
 }
 
+// Final cooldowns, before Mana GPU credit. Basic consumables remain available
+// within one active-income minute; permanent upgrades and decisive equipment
+// retain a meaningful wait even after the 54-second GPU credit cap is spent.
+const HACKER_RECIPE_COOLDOWN_MS = Object.freeze({
+  "orichalcum-sword": 90_000,
+  stamina: 30_000,
+  heal: 48_000,
+  fire: 75_000,
+  substitution: 72_000,
+  warp: 36_000,
+  grit: 54_000,
+  reason: 60_000,
+  mercury: 48_000,
+  lead: 36_000,
+  uranium: 90_000,
+  plutonium: 105_000,
+  "mineral-water": 18_000,
+  antidote: 24_000,
+  molotov: 42_000,
+  iai: 84_000,
+  "vending-evade": 42_000,
+  "vending-speed": 54_000,
+  "vending-mystery": 42_000,
+  "vending-mana": 30_000,
+  "vending-railgun": 90_000,
+  "vending-particle-cannon": 105_000,
+  "vending-excalibur": 120_000,
+  "vending-exile": 135_000,
+  "vending-computer": 75_000,
+  "vending-handgun": 36_000,
+  "vending-smg": 48_000,
+  "vending-assault": 60_000,
+  "vending-sniper": 75_000,
+  "vending-taser": 48_000,
+  "vending-mineral-water": 18_000,
+  "vending-molotov": 42_000,
+  "vending-antidote": 24_000,
+  "hack-credits-delete": 60_000,
+  "hack-credits-duplicate": 90_000,
+  "hack-items-delete": 75_000,
+  "hack-items-duplicate": 105_000,
+  "hack-hp-delete": 120_000,
+  "hack-hp-duplicate": 60_000,
+  "hack-mana-delete": 60_000,
+  "hack-mana-duplicate": 90_000,
+  "hack-status-recover": 36_000,
+  revive: 120_000
+});
+
 function vibeCodingCooldownMsFor(conversion) {
   const id = String(conversion || "");
-  const base = id === "orichalcum-sword"
-    ? 60_000
-    : id === "revive"
-    ? 36_000
-    : id === "hack-hp-delete"
-      ? 28_000
-      : id.startsWith("hack-")
-        ? 18_000
-        : id.startsWith("object-")
-          ? 12_000
-          : id.startsWith("vending-")
-            ? 9_000
-            : 7_000;
-  return Math.round(base * HACKER_MANA_GPU_BALANCED_COOLDOWN_MULTIPLIER);
+  return HACKER_RECIPE_COOLDOWN_MS[id] || (id.startsWith("object-") ? 30_000 : 36_000);
 }
 
 function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
@@ -16446,6 +17264,7 @@ function resyncMovementSession(room, player, body) {
 
 function serializeMovement(room, player, movementSeq = player.lastMovementSeq, movementClock = player.lastMovementClock) {
   const timestamp = now();
+  const movementAcc = movementAccState(room, player, timestamp);
   return {
     ok: true,
     serverNow: timestamp,
@@ -16461,6 +17280,8 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     movementMode: player.movementMode,
     speedMultiplier: effectiveMovementMultiplier(room, player, timestamp),
     accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
+    movementAcc: movementAcc.selected,
+    movementAccMax: movementAcc.maximum,
     slowedUntil: player.slowedUntil,
     taserSlowedUntil: player.taserSlowedUntil,
     shockSlowedUntil: player.shockSlowedUntil,
@@ -16572,6 +17393,8 @@ function serialize(room, viewer, options = {}) {
       gravityStormSlowMultiplier: player.gravityStormSlowMultiplier,
       speedMultiplier: effectiveMovementMultiplier(room, player),
       accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
+      movementAcc: movementAccState(room, player, timestamp).selected,
+      movementAccMax: movementAccState(room, player, timestamp).maximum,
       levitationActive: canLevitate(player),
       statusAte: persistentStatusAteState(room, player, timestamp),
       accelerationPhasing: Number(player.hoverSprintUntil) > timestamp,
@@ -16713,7 +17536,6 @@ function serialize(room, viewer, options = {}) {
       fighterEnergyPeak: fighterEnergyPeak(viewer),
       fighterEnergyChargeReadyAt: Number(viewer.fighterEnergyChargeReadyAt) || 0,
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
-      fighterShockwaveCharges: Math.max(0, Math.floor(Number(viewer.fighterShockwaveCharges) || 0)),
       fighterInfiniteResources: hasFighterInfiniteResources(viewer),
       fighterDestructionSlash: hasFighterInfiniteResources(viewer),
       empReadyAt: viewer.empReadyAt,
@@ -16802,6 +17624,8 @@ function serialize(room, viewer, options = {}) {
       taskContribution: viewer.taskContribution,
       speedMultiplier: effectiveMovementMultiplier(room, viewer),
       accelerationMultiplier: effectiveAccelerationMultiplier(room, viewer, timestamp),
+      movementAcc: movementAccState(room, viewer, timestamp).selected,
+      movementAccMax: movementAccState(room, viewer, timestamp).maximum,
       timedAccelerationStacks: timedAccelerationSummary(viewer, timestamp).bySource,
       mapObjectEffects: viewerObjectEffects,
       dodgeDurationBonusMs: viewer.dodgeDurationBonusMs,
@@ -17205,6 +18029,13 @@ async function handleApi(req, res) {
     case "/api/move": {
       const { room, player } = requireRoomPlayer(body);
       payload = processMovementInput(room, player, body);
+      break;
+    }
+
+    case "/api/movement-acc": {
+      const { room, player } = requireRoomPlayer(body);
+      setMovementAccTarget(room, player, body.acc);
+      payload = serialize(room, player);
       break;
     }
 
@@ -17618,7 +18449,6 @@ async function handleApi(req, res) {
         entry.fighterEnergyCharge = 0;
         entry.fighterEnergyPeak = 0;
         entry.fighterEnergyChargeReadyAt = 0;
-        entry.fighterShockwaveCharges = 0;
         entry.manaGpuCooldownCreditMs = 0;
         entry.empReadyAt = 0;
         entry.itemDisabledUntil = 0;
@@ -17637,6 +18467,7 @@ async function handleApi(req, res) {
         entry.lastMysteryResult = "";
         entry.lastMysteryResultAt = 0;
         entry.movementMode = "idle";
+        entry.movementAccTarget = null;
         entry.bodyHits = 0;
         entry.overheal = 0;
         entry.credits = 0;
@@ -18538,5 +19369,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "sophia-title-ui-v457" });
+self.postMessage({ type: "ready", version: "philia-economy-laboratory-v458" });
 })();

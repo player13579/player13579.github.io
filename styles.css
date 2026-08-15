@@ -3914,6 +3914,38 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   white-space: nowrap;
 }
 
+.movement-acc-control {
+  display: grid;
+  grid-template-columns: auto minmax(70px, 92px) auto auto;
+  align-items: center;
+  gap: 7px;
+  margin: 9px 0 5px;
+  padding: 7px 8px;
+  border: 1px solid rgba(74, 149, 169, 0.58);
+  border-radius: 8px;
+  background: rgba(227, 247, 250, 0.68);
+  color: #17334a;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.movement-acc-control input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.movement-acc-control span {
+  color: #28576a;
+  white-space: nowrap;
+}
+
+.movement-acc-control button {
+  min-height: 32px;
+  padding: 5px 10px;
+}
+
 .meter {
   display: grid;
   gap: 6px;
@@ -6871,6 +6903,37 @@ body :is(.side-panel, .active-effects-panel, .vending-panel, .hacker-ability-gri
   border-color: rgba(148, 163, 184, 0.82);
   background-color: #34434a;
   filter: saturate(0.58);
+}
+
+.game-tactics-button {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 64px);
+  z-index: 120;
+  min-width: 112px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(103, 232, 249, 0.88);
+  border-radius: 8px;
+  background-color: #123844;
+  background-image:
+    linear-gradient(rgba(14, 116, 144, 0.72), rgba(8, 51, 68, 0.86)),
+    url("assets/generated/ui-control-surface.webp");
+  background-position: center;
+  background-size: cover;
+  color: #ecfeff;
+  font-weight: 800;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.38), 0 8px 22px rgba(4, 30, 40, 0.34);
+}
+
+.game-tactics-button:hover,
+.game-tactics-button:focus-visible {
+  filter: brightness(1.16) saturate(1.08);
+  transform: translateY(-2px);
+}
+
+body.start-open .game-tactics-button {
+  display: none !important;
 }
 
 .tablet-launch-button[hidden] {

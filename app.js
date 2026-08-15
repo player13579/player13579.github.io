@@ -51,6 +51,7 @@ const els = {
   titleMuteButton: $("#titleMuteButton"),
   tacticsMuteButton: $("#tacticsMuteButton"),
   gameMuteButton: $("#gameMuteButton"),
+  gameTacticsButton: $("#gameTacticsButton"),
   titleHomeButton: $("#titleHomeButton"),
   tacticsPanel: $("#tacticsPanel"),
   tacticsBackButton: $("#tacticsBackButton"),
@@ -164,6 +165,10 @@ const els = {
   confirmEjectsInput: $("#confirmEjectsInput"),
   roleName: $("#roleName"),
   specialName: $("#specialName"),
+  movementAccControl: $("#movementAccControl"),
+  movementAccInput: $("#movementAccInput"),
+  movementAccMaximum: $("#movementAccMaximum"),
+  movementAccApplyButton: $("#movementAccApplyButton"),
   objectiveText: $("#objectiveText"),
   sabotageAlert: $("#sabotageAlert"),
   taskButton: $("#taskButton"),
@@ -337,6 +342,7 @@ const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora",
 
 const state = {
   screen: "title",
+  tacticsReturnScreen: "title",
   data: null,
   soloMissionStarting: false,
   roomId: localStorage.getItem(storage.room) || "",
@@ -421,6 +427,7 @@ const state = {
   continuousActionKeyAt: new Map(),
   fighterSlashGuardIntent: false,
   fighterSlashPendingRequests: new Set(),
+  selectedWeaponItemId: "",
   enhanceHold: { kind: "", pointerId: null, startedAt: 0, timer: 0 },
   throwTargeting: {
     active: false,
@@ -586,7 +593,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
   uranium: "量子制御の核分裂素材。通常使用は有害",
   plutonium: "量子制御の核分裂素材。通常使用は有害",
-  "orichalcum-sword": "通常使用で斬るを発動し、斬れそうな物理攻撃をガード。短いジャストガードで反射。投擲すると失う。ファイターは開始時に1振り所持",
+  "orichalcum-sword": "オリハルコン・ソードの通常使用で発動する。斬れそうな物理攻撃をガードし、短いジャストガード受付で攻撃元へ反射する。剣の腹は受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせることで反射が成立する。EMP・毒・サンビームは通常ガードできず、連打中はジャストガードを再受付しない",
   iai: "即席。獲得時に居合の使用回数へ変換。敵一人の有限の踏ん張りを全削除し、200SP相当を消費。SP不足分は150SP=1MPで補填し、総量不足なら死亡。投擲・譲渡不可",
   ice: "投擲できる低温変換済みの水",
   "heated-water": "投擲できる高温変換済みの水",
@@ -631,39 +638,39 @@ const VENDING_PRODUCT_LABELS = Object.freeze({
 });
 
 const VENDING_PRODUCT_COSTS = Object.freeze({
-  "mineral-water": 6,
-  antidote: 18,
-  molotov: 45,
-  evade: 10,
-  speed: 8,
-  warp: 12,
-  mystery: 40,
-  fire: 90,
-  substitution: 75,
-  grit: 30,
-  heal: 35,
-  reason: 45,
-  mana: 25,
-  railgun: 140,
-  "particle-cannon": 180,
-  excalibur: 220,
-  exile: 250,
-  computer: 120,
-  handgun: 35,
-  smg: 60,
-  assault: 80,
-  sniper: 110,
-  taser: 55,
-  mercury: 20,
-  lead: 16,
-  uranium: 120,
-  plutonium: 160,
+  "mineral-water": 12,
+  antidote: 24,
+  molotov: 48,
+  evade: 45,
+  speed: 55,
+  warp: 35,
+  mystery: 45,
+  fire: 95,
+  substitution: 90,
+  grit: 60,
+  heal: 50,
+  reason: 65,
+  mana: 30,
+  railgun: 150,
+  "particle-cannon": 190,
+  excalibur: 230,
+  exile: 260,
+  computer: 125,
+  handgun: 40,
+  smg: 65,
+  assault: 85,
+  sniper: 120,
+  taser: 60,
+  mercury: 60,
+  lead: 40,
+  uranium: 140,
+  plutonium: 180,
   "orichalcum-sword": 200,
-  iai: 100,
-  ice: 14,
-  "heated-water": 14,
-  rpg: 160,
-  missile: 190
+  iai: 110,
+  ice: 20,
+  "heated-water": 20,
+  rpg: 170,
+  missile: 200
 });
 
 const alchemyRecipes = [
@@ -712,15 +719,55 @@ const alchemyRecipes = [
   { id: "invention-particle-cannon", label: "荷電粒子砲", output: "破壊ビームを継続放射", kind: "invention", inventoryId: "particle-cannon" }
 ];
 
+const HACKER_RECIPE_COOLDOWN_MS = Object.freeze({
+  "orichalcum-sword": 90_000,
+  stamina: 30_000,
+  heal: 48_000,
+  fire: 75_000,
+  substitution: 72_000,
+  warp: 36_000,
+  grit: 54_000,
+  reason: 60_000,
+  mercury: 48_000,
+  lead: 36_000,
+  uranium: 90_000,
+  plutonium: 105_000,
+  "mineral-water": 18_000,
+  antidote: 24_000,
+  molotov: 42_000,
+  iai: 84_000,
+  "vending-evade": 42_000,
+  "vending-speed": 54_000,
+  "vending-mystery": 42_000,
+  "vending-mana": 30_000,
+  "vending-railgun": 90_000,
+  "vending-particle-cannon": 105_000,
+  "vending-excalibur": 120_000,
+  "vending-exile": 135_000,
+  "vending-computer": 75_000,
+  "vending-handgun": 36_000,
+  "vending-smg": 48_000,
+  "vending-assault": 60_000,
+  "vending-sniper": 75_000,
+  "vending-taser": 48_000,
+  "vending-mineral-water": 18_000,
+  "vending-molotov": 42_000,
+  "vending-antidote": 24_000,
+  "hack-credits-delete": 60_000,
+  "hack-credits-duplicate": 90_000,
+  "hack-items-delete": 75_000,
+  "hack-items-duplicate": 105_000,
+  "hack-hp-delete": 120_000,
+  "hack-hp-duplicate": 60_000,
+  "hack-mana-delete": 60_000,
+  "hack-mana-duplicate": 90_000,
+  "hack-status-recover": 36_000,
+  revive: 120_000
+});
+
 function hackerRecipeCooldownMs(recipeOrId) {
   const id = typeof recipeOrId === "string" ? recipeOrId : String(recipeOrId?.id || "");
-  if (id === "orichalcum-sword") return 90_000;
-  if (id === "revive") return 36_000;
-  if (id === "hack-hp-delete") return 28_000;
-  if (id.startsWith("hack-")) return 18_000;
-  if (id.startsWith("object-")) return 12_000;
-  if (id.startsWith("vending-")) return 9_000;
-  return 7_000;
+  return HACKER_RECIPE_COOLDOWN_MS[id] || (id.startsWith("object-") ? 30_000 : 36_000);
 }
 
 function hackerRecipePresentation(recipe) {
@@ -1684,6 +1731,12 @@ function setScreen(screen) {
   els.gameApp.setAttribute("aria-hidden", String(next !== "game"));
   els.titleMenu.hidden = next !== "title";
   els.tacticsPanel.hidden = next !== "tactics";
+  if (els.tacticsBackButton) {
+    const returnsToGame = next === "tactics" && state.tacticsReturnScreen === "game" && Boolean(state.data);
+    const label = returnsToGame ? "ゲームへ戻る" : "タイトルへ戻る";
+    els.tacticsBackButton.setAttribute("aria-label", label);
+    els.tacticsBackButton.title = label;
+  }
   if (next === "tactics") setActiveTacticsChapter(state.tacticsChapterId || "tactics-basics");
   if (next !== "game") clearMovementInput();
   window.scrollTo(0, 0);
@@ -2377,14 +2430,15 @@ function isContinuousGameActionButton(button) {
   ) return false;
   if ([
     "tabletAbilityShortcut",
-    "tabletNinjutsuShortcut",
     "tabletEmpShortcut",
     "tabletDodgeShortcut",
     "tabletRenkiShortcut",
     "tabletRestShortcut",
     "tabletDonateShortcut"
   ].includes(button.id)) return true;
-  if (button.id === "ninjutsuButton" && hasDisplayedFighterSlashAccess(state.data?.self)) return true;
+  if (["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button.id)) {
+    return isRepeatableDisplayedWeaponAction(displayedWeaponAction(state.data?.self));
+  }
   return Boolean(
     button.dataset.repeatableAbility === "1" ||
     button.closest("#actionCommandRegistry") ||
@@ -2408,7 +2462,7 @@ function invokeContinuousGameAction(button, { allowHidden = false, initial = fal
   // Holding only changes input cadence, so no new visual asset meaning is introduced.
   const source = button === els.tabletAbilityShortcut ? els.operatorAbilityButton : button;
   if (!source || isGameActionUnavailable(source) || source.hidden) return false;
-  const fighterSlash = isFighterSlashActionButton(button);
+  const fighterSlash = isOrichalcumSwordActionButton(button);
   const previousGuardIntent = state.fighterSlashGuardIntent;
   if (fighterSlash) state.fighterSlashGuardIntent = Boolean(initial);
   try {
@@ -2420,13 +2474,13 @@ function invokeContinuousGameAction(button, { allowHidden = false, initial = fal
 }
 
 function continuousGameActionInterval(button) {
-  return ["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button?.id) && hasDisplayedFighterSlashAccess(state.data?.self)
+  return ["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button?.id) && displayedWeaponAction(state.data?.self)?.kind === "sword"
     ? FIGHTER_SLASH_REPEAT_INTERVAL_MS
     : CONTINUOUS_ACTION_REPEAT_INTERVAL_MS;
 }
 
-function isFighterSlashActionButton(button) {
-  return [els.ninjutsuButton, els.tabletNinjutsuShortcut].includes(button) && hasDisplayedFighterSlashAccess(state.data?.self);
+function isOrichalcumSwordActionButton(button) {
+  return [els.ninjutsuButton, els.tabletNinjutsuShortcut].includes(button) && displayedWeaponAction(state.data?.self)?.kind === "sword";
 }
 
 function requestFighterSlash(targetId, perfectGuardIntent = false) {
@@ -2496,7 +2550,7 @@ function beginContinuousActionKeyHold(code, repeat, repeatInterval = CONTINUOUS_
 function beginContinuousButtonKeyHold(code, resolveButton) {
   const initialButton = resolveButton?.();
   const repeatInterval = continuousGameActionInterval(initialButton);
-  const fighterSlash = isFighterSlashActionButton(initialButton);
+  const fighterSlash = isOrichalcumSwordActionButton(initialButton);
   return beginContinuousActionKeyHold(code, (initial = false) => {
     const button = resolveButton?.();
     if (!isContinuousGameActionButton(button)) return false;
@@ -2531,7 +2585,7 @@ function beginContinuousActionHold(event) {
   const hold = state.continuousActionHold;
   hold.pointerId = event.pointerId;
   hold.button = button;
-  hold.fighterSlash = isFighterSlashActionButton(button);
+  hold.fighterSlash = isOrichalcumSwordActionButton(button);
   state.continuousActionSuppressClicks.set(button, Number.POSITIVE_INFINITY);
   try { button.setPointerCapture(event.pointerId); } catch {}
   invokeContinuousGameAction(button, { initial: true });
@@ -3012,7 +3066,7 @@ function triggerActionHotkey(event) {
   } else if (!allowContinuousActionKey(
     event,
     `action:${event.code}`,
-    elementKey === "ninjutsuButton" && hasDisplayedFighterSlashAccess(state.data?.self)
+    elementKey === "ninjutsuButton" && displayedWeaponAction(state.data?.self)?.kind === "sword"
       ? FIGHTER_SLASH_REPEAT_INTERVAL_MS
       : CONTINUOUS_ACTION_REPEAT_INTERVAL_MS
   )) {
@@ -3263,6 +3317,7 @@ function selectItemChoice(itemId, focus = true) {
   const button = els.itemInventoryGrid?.querySelector(`[data-item-choice="${CSS.escape(String(itemId || ""))}"]`);
   if (!button) return false;
   els.itemSelect.value = button.dataset.itemChoice;
+  if (isDisplayedWeaponItemId(button.dataset.itemChoice)) state.selectedWeaponItemId = button.dataset.itemChoice;
   els.itemSelect.dispatchEvent(new Event("change", { bubbles: true }));
   if (focus) button.focus({ preventScroll: true });
   button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
@@ -3662,6 +3717,16 @@ function triggerScreenHotkey(event) {
     if (!event.repeat) els.titleTacticsButton.click();
     return true;
   }
+  if (state.screen === "game" && event.code === "KeyI") {
+    event.preventDefault();
+    if (!event.repeat) els.gameTacticsButton.click();
+    return true;
+  }
+  if (state.screen === "tactics" && event.code === "KeyI" && state.tacticsReturnScreen === "game" && state.data) {
+    event.preventDefault();
+    if (!event.repeat) switchScreenWithEffect("game");
+    return true;
+  }
   if (state.screen === "tactics" && /^Digit[1-7]$/.test(event.code)) {
     const button = els.soloMissionGrid.querySelector(`[data-solo-mission="${soloMissionIds[Number(event.code.slice(-1)) - 1]}"]`);
     if (!button) return false;
@@ -3815,7 +3880,13 @@ function bindEvents() {
     switchScreenWithEffect("game");
   });
   els.titleTacticsButton.addEventListener("click", () => {
+    state.tacticsReturnScreen = "title";
     recordUsageCheckpoint("tactics_open");
+    switchScreenWithEffect("tactics");
+  });
+  els.gameTacticsButton.addEventListener("click", () => {
+    state.tacticsReturnScreen = "game";
+    recordUsageCheckpoint("tactics_open_from_game");
     switchScreenWithEffect("tactics");
   });
   els.soloMissionGrid.querySelectorAll("[data-solo-mission]").forEach((button) => {
@@ -3880,9 +3951,23 @@ function bindEvents() {
   els.keybindOverlay.addEventListener("click", (event) => {
     if (event.target === els.keybindOverlay) setKeybindOpen(false);
   });
+  els.movementAccApplyButton.addEventListener("click", () => void applyMovementAccInput());
+  els.movementAccInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void applyMovementAccInput();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      syncMovementAccControl();
+      els.movementAccInput.blur();
+    }
+  });
   document.addEventListener("fullscreenchange", syncFullscreenButton);
   els.titleHomeButton.addEventListener("click", () => switchScreenWithEffect("title"));
-  els.tacticsBackButton.addEventListener("click", () => switchScreenWithEffect("title"));
+  els.tacticsBackButton.addEventListener("click", () => {
+    const destination = state.tacticsReturnScreen === "game" && state.data ? "game" : "title";
+    switchScreenWithEffect(destination);
+  });
   els.titleMuteButton?.addEventListener("click", toggleGameMuted);
   els.tacticsMuteButton?.addEventListener("click", toggleGameMuted);
   els.gameMuteButton?.addEventListener("click", toggleGameMuted);
@@ -4107,8 +4192,13 @@ function bindEvents() {
   });
   els.itemSelect.addEventListener("change", () => {
     cancelThrowTargeting(true);
+    if (isDisplayedWeaponItemId(els.itemSelect.value)) state.selectedWeaponItemId = els.itemSelect.value;
     state.itemRenderKey = "";
-    if (state.data) renderItemControl(state.data);
+    if (state.data) {
+      renderItemControl(state.data);
+      updateActionButtons(state.data);
+      renderTabletControls(state.data);
+    }
   });
   els.emergencyButton.addEventListener("click", () => api("/api/emergency"));
   els.sabotageButton.addEventListener("click", () => api("/api/sabotage", { type: els.sabotageSelect.value }));
@@ -4280,7 +4370,18 @@ function bindEvents() {
     }
     if (event.key === "Escape" && state.screen !== "title") {
       event.preventDefault();
-      switchScreenWithEffect("title");
+      const destination = state.screen === "tactics" && state.tacticsReturnScreen === "game" && state.data
+        ? "game"
+        : "title";
+      switchScreenWithEffect(destination);
+      return;
+    }
+    if (!typingField && event.code === "KeyQ" && state.screen === "game" && ["playing", "meeting"].includes(state.data?.phase)) {
+      event.preventDefault();
+      if (!event.repeat) {
+        els.movementAccInput.focus({ preventScroll: true });
+        els.movementAccInput.select();
+      }
       return;
     }
     if (isActionBlocked()) {
@@ -6171,9 +6272,28 @@ function formatAnalyticsDuration(rawSeconds) {
 }
 
 async function performNinjutsu(event) {
+  const self = state.data?.self;
+  const weaponAction = displayedWeaponAction(self);
+  if (weaponAction?.kind === "firearm") {
+    if (weaponAction.sourceId !== self?.gunnerWeapon) {
+      const switched = await api("/api/gunner-weapon", { weaponId: weaponAction.sourceId });
+      if (!switched) return;
+    }
+    await pulseGunFire();
+    return;
+  }
+  if (weaponAction?.kind === "invention") {
+    await api("/api/alchemist-invention", { invention: weaponAction.sourceId || weaponAction.id.slice(10) });
+    return;
+  }
+  if (weaponAction?.kind === "heavy") {
+    await api("/api/gunner-heavy", { weapon: weaponAction.sourceId || weaponAction.id.slice(6) });
+    return;
+  }
+
   const target = nearestTarget();
-  const fighterSlash = hasDisplayedFighterSlashAccess(state.data.self);
-  const perfectGuardIntent = fighterSlash && Boolean(state.fighterSlashGuardIntent || event?.isTrusted);
+  const orichalcumSword = weaponAction?.kind === "sword";
+  const perfectGuardIntent = orichalcumSword && Boolean(state.fighterSlashGuardIntent || event?.isTrusted);
   const autoReleaseGuardInput = perfectGuardIntent &&
     !state.continuousActionHold.fighterSlash &&
     !state.continuousActionKeyHold.fighterSlash;
@@ -6186,7 +6306,7 @@ async function performNinjutsu(event) {
     }
   };
   if (!target) {
-    if (fighterSlash) {
+    if (orichalcumSword) {
       const ok = await performFighterSlash("");
       if (ok) showToast(perfectGuardIntent
         ? "斬るを発動しました。短いジャストガード受付中です。"
@@ -6196,11 +6316,11 @@ async function performNinjutsu(event) {
     showToast("忍殺できる距離に対象がいません。");
     return;
   }
-  const ok = fighterSlash
+  const ok = orichalcumSword
     ? await performFighterSlash(target.id)
     : await api("/api/ninjutsu", { targetId: target.id });
   if (ok) {
-    showToast(fighterSlash
+    showToast(orichalcumSword
       ? `${target.name}へ斬るを実行しました。`
       : `${target.name}への忍殺準備を開始しました。相手が動くと失敗します。`);
   }
@@ -8286,6 +8406,7 @@ function renderItemControl(data) {
   }
   const selected = items.find((item) => item.id === els.itemSelect.value) || items[0];
   if (selected && els.itemSelect.value !== selected.id) els.itemSelect.value = selected.id;
+  if (selected && displayedWeaponKind(selected)) state.selectedWeaponItemId = selected.id;
   els.itemInventoryGrid.querySelectorAll("[data-item-choice]").forEach((button) => {
     const active = button.dataset.itemChoice === selected?.id;
     button.classList.toggle("selected", active);
@@ -8351,8 +8472,42 @@ function hasDisplayedOrichalcumSword(self) {
   return ownsDisplayedItem(self, "orichalcum-sword");
 }
 
-function hasDisplayedFighterSlashAccess(self) {
-  return hasDisplayedOperatorAccess(self, "fighter") && hasDisplayedOrichalcumSword(self);
+function isDisplayedWeaponItemId(itemId) {
+  const id = String(itemId || "");
+  return id === "orichalcum-sword" || id.startsWith("weapon:") || id.startsWith("invention:") || id.startsWith("heavy:");
+}
+
+function displayedWeaponKind(item) {
+  if (!item) return "";
+  if (item.id === "orichalcum-sword") return "sword";
+  if (item.inventoryKind === "weapon" || String(item.id || "").startsWith("weapon:")) return "firearm";
+  if (item.inventoryKind === "invention" || String(item.id || "").startsWith("invention:")) return "invention";
+  if (item.inventoryKind === "heavy" || String(item.id || "").startsWith("heavy:")) return "heavy";
+  return "";
+}
+
+function displayedWeaponAction(self) {
+  if (!self) return null;
+  const items = collectInventoryDisplayItems(self);
+  const findWeapon = (id) => {
+    const item = items.find((candidate) => candidate.id === id);
+    const kind = displayedWeaponKind(item);
+    return kind ? { ...item, kind } : null;
+  };
+  const selected = findWeapon(els.itemSelect?.value);
+  if (selected) return selected;
+  const remembered = findWeapon(state.selectedWeaponItemId);
+  if (remembered) return remembered;
+  const equippedFirearm = findWeapon(self.gunnerWeapon ? `weapon:${self.gunnerWeapon}` : "");
+  if (equippedFirearm) return equippedFirearm;
+  const sword = findWeapon("orichalcum-sword");
+  if (sword) return sword;
+  const fallback = items.find((item) => displayedWeaponKind(item));
+  return fallback ? { ...fallback, kind: displayedWeaponKind(fallback) } : null;
+}
+
+function isRepeatableDisplayedWeaponAction(weaponAction) {
+  return ["sword", "firearm"].includes(weaponAction?.kind);
 }
 
 function collectOperatorPassiveEffects(self, liveNow) {
@@ -8362,21 +8517,16 @@ function collectOperatorPassiveEffects(self, liveNow) {
   const passiveValue = passiveEnabled ? "有効" : "理知まで休止";
   const passiveTone = passiveEnabled ? "rational" : "neutral";
 
-  if (hasDisplayedOrichalcumSword(self)) {
-    add("斬る", "物理ガード", "rational", "オリハルコン・ソードの通常使用で発動する。斬れそうな物理攻撃をガードし、短いジャストガード受付で攻撃元へ反射する。剣の腹は受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせることで反射が成立する。EMP・毒・サンビームは通常ガードできず、連打中はジャストガードを再受付しない");
-  }
-
   if (hasDisplayedOperatorAccess(self, "fighter")) {
     add("キルカウンター", passiveValue, passiveTone, "回避成功時、攻撃者を即時キルする");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
-    const shockwaves = Math.max(0, Number(self.fighterShockwaveCharges) || 0);
     const infinite = self.fighterInfiniteResources ? " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る: 常時破壊 / JG: 全攻撃反射" : "";
     const recentCharge = self.lastImmediateFeedback?.label === "EC" &&
       liveNow - Number(self.lastImmediateFeedback.at || 0) < 6500
       ? ` / 最新: ${self.lastImmediateFeedback.detail}`
       : "";
     const energyPeak = Math.max(Number(self.fighterEnergyPeak) || 0, Number(self.fighterEnergyCharge) || 0);
-    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 衝撃波×${shockwaves}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費してECと衝撃波を1増やす。通常ECではキャラモーションを行わず、初回EC25・50だけ節目モーションを行う。斬るか投擲で通常衝撃波を1発発生させるたびECも1減る。EC100以上で斬るとEC100を消費して特大衝撃波を発生させる。衝撃波は斬撃と同じ通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると居合（即席）を1回獲得し、初めて50へ到達するとMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、通常攻撃へのジャストガードが全攻撃反射になる");
+    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak}${infinite} / ${formatEffectCountdown(energyWait)}${recentCharge}` : passiveValue, passiveTone, "一定時間ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別の衝撃波残弾は持たない。通常ECではキャラモーションを行わず、初回EC25・50だけ節目モーションを行う。斬るか投擲で通常衝撃波を1発発生させるたびECを1放出する。EC100以上で斬るとEC100を放出して特大衝撃波を発生させる。衝撃波は斬撃と同じ通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると居合（即席）を1回獲得し、初めて50へ到達するとMP・SP・HP・踏ん張りが無限、リミットブレイクの被確殺デメリット解除、斬るが常時破壊、通常攻撃へのジャストガードが全攻撃反射になる");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -8721,7 +8871,7 @@ function objectiveText(data) {
   }
   const dodgeText = "回避 100SP";
   if (self.special === "fighter" && self.alive) {
-    return `ファイター / 斬る（物理ガード・JG反射）・キルカウンター・リミットブレイク / ${dodgeText}`;
+    return `ファイター / EC・キルカウンター・リミットブレイク / 初期装備: オリハルコン・ソード / ${dodgeText}`;
   }
   if (self.special === "teleport" && self.alive) {
     return `タスクを進めてください。テレポート ${self.abilityCosts?.teleport || 0}MP / ${dodgeText}`;
@@ -8758,10 +8908,34 @@ function renderUtility(data) {
   `;
 }
 
+function syncMovementAccControl(data = state.data) {
+  const self = data?.self;
+  if (!els.movementAccControl || !self) return;
+  const maximum = Math.max(0.1, Number(self.movementAccMax) || Number(self.accelerationMultiplier) || 1);
+  const selected = Math.min(maximum, Math.max(0.1, Number(self.movementAcc) || maximum));
+  els.movementAccInput.max = maximum.toFixed(2);
+  els.movementAccMaximum.textContent = `上限 ${maximum.toFixed(2)}`;
+  if (document.activeElement !== els.movementAccInput) els.movementAccInput.value = selected.toFixed(2);
+  els.movementAccApplyButton.disabled = !["playing", "meeting"].includes(data.phase) || self.ejected;
+}
+
+async function applyMovementAccInput() {
+  const maximum = Math.max(0.1, Number(state.data?.self?.movementAccMax) || Number(state.data?.self?.accelerationMultiplier) || 1);
+  const requested = Number(els.movementAccInput.value);
+  if (!Number.isFinite(requested)) {
+    showToast("移動ACCを数値で指定してください。");
+    return false;
+  }
+  const clamped = Math.min(maximum, Math.max(0.1, requested));
+  els.movementAccInput.value = clamped.toFixed(2);
+  return api("/api/movement-acc", { acc: clamped });
+}
+
 function updateActionButtons(data) {
   const self = data.self;
   const fighterAccess = hasDisplayedOperatorAccess(self, "fighter");
-  const fighterSlashAccess = hasDisplayedFighterSlashAccess(self);
+  const weaponAction = displayedWeaponAction(self);
+  const orichalcumSwordAction = weaponAction?.kind === "sword";
   const borrowedGunnerAccess = self.special === "alchemist" && hasDisplayedOperatorAccess(self, "gunner");
   const gunnerAccess = self.special === "gunner" || borrowedGunnerAccess || (self.purchasedWeapons || []).length > 0;
   const isPlaying = data.phase === "playing";
@@ -8808,7 +8982,7 @@ function updateActionButtons(data) {
     self.role,
     self.special,
     fighterAccess,
-    fighterSlashAccess,
+    weaponAction?.id || "",
     borrowedGunnerAccess,
     canUseKill,
     state.cameraViewIndex >= 0 && cameraIndices.length >= 2,
@@ -8826,7 +9000,7 @@ function updateActionButtons(data) {
   if (state.actionLayoutKey !== actionLayoutKey) {
     state.actionLayoutKey = actionLayoutKey;
     els.emergencyButton.hidden = false;
-    els.ninjutsuButton.hidden = !(canUseKill || fighterSlashAccess);
+    els.ninjutsuButton.hidden = !(canUseKill || weaponAction);
     els.dodgeButton.hidden = !dodgeAccess;
     els.teleportButton.hidden = true;
     els.shootButton.hidden = true;
@@ -8867,34 +9041,60 @@ function updateActionButtons(data) {
     els.contextActionButton.removeAttribute("data-hotkey");
   }
   const killSeconds = Math.max(0, Math.ceil(((self.killReadyAt || 0) - liveNow) / 1000));
-  const slashPerfectActive = fighterSlashAccess && Number(self.slashPerfectUntil) > liveNow;
-  const slashGuardActive = fighterSlashAccess && Number(self.slashActiveUntil) > liveNow;
-  const slashPerfectRearmSeconds = fighterSlashAccess
+  const slashPerfectActive = orichalcumSwordAction && Number(self.slashPerfectUntil) > liveNow;
+  const slashGuardActive = orichalcumSwordAction && Number(self.slashActiveUntil) > liveNow;
+  const slashPerfectRearmSeconds = orichalcumSwordAction
     ? Math.max(0, (Number(self.slashPerfectReadyAt) - liveNow) / 1000)
     : 0;
-  els.ninjutsuButton.textContent = fighterSlashAccess
+  const actionFirearm = weaponAction?.kind === "firearm"
+    ? (Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : []).find((weapon) => weapon.id === weaponAction.sourceId)
+    : null;
+  const actionFirearmReloadSeconds = actionFirearm
+    ? Math.max(0, ((Number(self.gunnerReloadUntil) || 0) - liveNow) / 1000)
+    : 0;
+  const actionFirearmCooldownSeconds = actionFirearm
+    ? Math.max(0, ((Number(self.gunReadyAt) || 0) - liveNow) / 1000)
+    : 0;
+  const actionFirearmHasAmmo = actionFirearm
+    ? Number(actionFirearm.ammo) >= Number(actionFirearm.ammoPerShot || 1)
+    : false;
+  els.ninjutsuButton.textContent = orichalcumSwordAction
     ? slashPerfectActive
-      ? self.fighterInfiniteResources ? "斬る 全反射JG" : "斬る JG反射"
+      ? self.fighterInfiniteResources ? "武器使用: 斬る 全反射JG" : "武器使用: 斬る JG反射"
       : slashGuardActive
-        ? "斬る 物理ガード"
+        ? "武器使用: 斬る 物理ガード"
         : slashPerfectRearmSeconds > 0
-          ? `斬る JG待機 ${slashPerfectRearmSeconds.toFixed(1)}秒`
-          : "斬る"
+          ? `武器使用: 斬る JG待機 ${slashPerfectRearmSeconds.toFixed(1)}秒`
+          : "武器使用: 斬る"
+    : actionFirearm
+      ? actionFirearmReloadSeconds > 0
+        ? `武器使用: ${actionFirearm.shortName || actionFirearm.name} リロード ${actionFirearmReloadSeconds.toFixed(1)}秒`
+        : !actionFirearmHasAmmo
+          ? `武器使用: ${actionFirearm.shortName || actionFirearm.name} 弾切れ`
+          : actionFirearmCooldownSeconds > 0
+            ? `武器使用: ${actionFirearm.shortName || actionFirearm.name} ${actionFirearmCooldownSeconds.toFixed(1)}秒`
+            : `武器使用: ${actionFirearm.shortName || actionFirearm.name}射撃`
+      : weaponAction
+        ? `武器使用: ${weaponAction.label}`
     : aiming
       ? `忍殺準備 ${(Math.max(0, self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒`
       : killSeconds > 0
         ? `忍殺 ${killSeconds}秒`
         : "忍殺";
-  const slashReady = fighterSlashAccess && canActAlive && Number(self.stamina) >= Number(self.fighterSlashStaminaCost || 75);
-  els.ninjutsuButton.disabled = fighterSlashAccess
-    ? !slashReady
+  const swordReady = orichalcumSwordAction && canUseAbility && !itemBlocked && Number(self.stamina) >= Number(self.fighterSlashStaminaCost || 75);
+  const firearmReady = actionFirearm && canUseAbility && !itemBlocked && actionFirearmHasAmmo && actionFirearmCooldownSeconds <= 0 && actionFirearmReloadSeconds <= 0;
+  const oneShotWeaponReady = weaponAction && ["invention", "heavy"].includes(weaponAction.kind) && canUseAbility && !itemBlocked;
+  els.ninjutsuButton.disabled = weaponAction
+    ? !(swordReady || firearmReady || oneShotWeaponReady)
     : !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
-  els.ninjutsuButton.classList.toggle("active", slashPerfectActive || slashGuardActive);
-  els.ninjutsuButton.title = fighterSlashAccess
+  els.ninjutsuButton.classList.toggle("active", slashPerfectActive || slashGuardActive || Boolean(actionFirearm && (self.gunFiring || state.gunTriggerHeld)));
+  els.ninjutsuButton.title = orichalcumSwordAction
     ? self.fighterInfiniteResources
       ? "オリハルコン・ソードの斬る: 物理攻撃をガード。衝撃を100%反発させる剣の腹を正確に合わせ、短いジャストガード受付ではサンビーム・EMP・毒を含む全攻撃を反射。連打すると再受付が遅れる"
       : "オリハルコン・ソードの斬る: 斬れそうな物理攻撃をガード。衝撃を100%反発させる剣の腹を正確に合わせ、短いジャストガード受付で反射。EMP・毒・サンビームはガード不可。連打すると再受付が遅れる"
-    : "忍殺";
+    : weaponAction
+      ? `${weaponAction.label}を使用する${weaponAction.detail ? `。${weaponAction.detail}` : ""}`
+      : "忍殺";
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   els.substitutionStatusButton.textContent = itemBlocked ? `変わり身 ×${self.substitutionCharges || 0}（EMP遮断）` : `変わり身 ×${self.substitutionCharges || 0}（自動）`;
@@ -9056,6 +9256,7 @@ function updateActionButtons(data) {
     els.contextActionButton.disabled = contextSource.disabled;
   }
   els.chatInput.disabled = !(data.phase === "meeting" && self.alive && !self.ejected && !self.chatMuted);
+  syncMovementAccControl(data);
   renderTabletControls(data);
 }
 
@@ -9488,10 +9689,19 @@ function applyMovementAck(result) {
     0.01,
     Number(result.accelerationMultiplier) || Number(data.self.accelerationMultiplier) || 1
   );
+  const authoritativeMovementAccMax = Math.max(0.1, Number(result.movementAccMax) || authoritativeAcceleration);
+  const authoritativeMovementAcc = Math.min(
+    authoritativeMovementAccMax,
+    Math.max(0.1, Number(result.movementAcc) || Number(data.self.movementAcc) || authoritativeMovementAccMax)
+  );
   data.self.speedMultiplier = authoritativeSpeed;
   data.self.accelerationMultiplier = authoritativeAcceleration;
+  data.self.movementAcc = authoritativeMovementAcc;
+  data.self.movementAccMax = authoritativeMovementAccMax;
   player.speedMultiplier = authoritativeSpeed;
   player.accelerationMultiplier = authoritativeAcceleration;
+  player.movementAcc = authoritativeMovementAcc;
+  player.movementAccMax = authoritativeMovementAccMax;
   player.x = result.x;
   player.y = result.y;
   player.moveX = result.moveX;
@@ -9507,6 +9717,7 @@ function applyMovementAck(result) {
   player.gravityStormSlowUntil = result.gravityStormSlowUntil;
   player.gravityStormSlowMultiplier = result.gravityStormSlowMultiplier;
   player.lastGravityStormDamage = result.lastGravityStormDamage;
+  syncMovementAccControl(data);
 
   const rendered = state.renderPlayers.get(player.id);
   if (!rendered) return;
@@ -15021,6 +15232,7 @@ function drawHud(data, w, h) {
   const maxStamina = Math.max(100, Number(self.maxStoredStamina) || 500);
   const manaGaugeMax = Math.max(2, Math.ceil(Math.max(0, mana) / 2) * 2);
   const accelerationMultiplier = Math.max(1, Number(self.accelerationMultiplier) || 1);
+  const movementAcc = Math.min(accelerationMultiplier, Math.max(0.1, Number(self.movementAcc) || accelerationMultiplier));
   const bars = [
     { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}` },
     { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
@@ -15081,7 +15293,8 @@ function drawHud(data, w, h) {
   const fighterEcText = hasDisplayedOperatorAccess(self, "fighter")
     ? `   EC ${Math.max(0, Math.floor(Number(self.fighterEnergyCharge) || 0))}`
     : "";
-  ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}${fighterEcText}`, 27, detailTop);
+  const movementAccText = movementAcc < accelerationMultiplier - 0.005 ? ` / 移動 ${movementAcc.toFixed(2)}` : "";
+  ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}${movementAccText}${fighterEcText}`, 27, detailTop);
   const drawReadyText = (label, remaining, x, y = detailTop + 19) => {
     const ready = remaining <= 0;
     ctx.save();
@@ -15387,7 +15600,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "sophia-title-ui-v457";
+const version = "philia-economy-laboratory-v458";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -15565,7 +15778,8 @@ const version = "sophia-title-ui-v457";
     ])
   );
   const fullMapComposites = {
-    station: image("assets/generated/field-aurelia-corridor-objects-v317.webp")
+    station: image("assets/generated/field-aurelia-corridor-objects-v317.webp"),
+    outpost: image("assets/generated/field-lumina-laboratory-v458.webp")
   };
   const tacticsStoryboard = new Image();
   const tacticsPlayerHood = new Image();

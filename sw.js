@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v457-sophia-title-ui";
+const CACHE_NAME = "dva-static-v458-philia-economy-laboratory";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -15,7 +15,7 @@ const STATIC_ASSETS = [
   "/manifest.webmanifest",
   "/icon.png",
   "/assets/title-hero-v457.png",
-  "/assets/site-thumbnail-v409.png",
+  "/assets/site-thumbnail-v458.png",
   "/assets/generated/throw-landing-preview-v384.png",
   "/assets/generated/clairvoyance-throw-ate-v412.png",
   "/assets/generated/gunner-weapon-icons-v422.png",
@@ -52,6 +52,7 @@ const STATIC_ASSETS = [
   "/assets/generated/effect-transfer-in.webp",
   "/assets/generated/effect-bottle-shards.webp",
   "/assets/generated/field-aurelia-corridor-objects-v317.webp",
+  "/assets/generated/field-lumina-laboratory-v458.webp",
   "/assets/generated/effect-footbath-hidden-spring-godray-v359.png",
   "/assets/generated/object-effect-stamina-v327.png",
   "/assets/generated/object-effect-credits-v438.png",
