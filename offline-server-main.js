@@ -7262,6 +7262,101 @@ const LABORATORY_MAP = Object.freeze({
   "assetRevision": "v458-code-skeleton-individual-zones"
 });
 
+(function exposeDvaEconomyCatalog(root, factory) {
+  const catalog = factory();
+  if (typeof module === "object" && module?.exports) module.exports = catalog;
+  if (root) root.DVAEconomyCatalog = catalog;
+})(typeof globalThis === "object" ? globalThis : this, () => {
+  "use strict";
+
+  const categories = Object.freeze([
+    Object.freeze({ id: "generate-supply", label: "生成・物資", defaultCooldownPerCredit: 900 }),
+    Object.freeze({ id: "weapon", label: "武器", defaultCooldownPerCredit: 600 }),
+    Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: 900 }),
+    Object.freeze({ id: "invention", label: "発明品", defaultCooldownPerCredit: 550 })
+  ]);
+
+  // Hacker CT = current vending price × fixed per-credit ratio. The explicit
+  // ratios preserve v467 values while making every later price edit proportional.
+  const rows = [
+    ["mineral-water", "ミネラルウォーター", 12, "generate-supply", "mineral-water", 18_000 / 12, "mineral-water"],
+    ["antidote", "解毒剤", 24, "generate-supply", "antidote", 24_000 / 24, "antidote"],
+    ["molotov", "火炎瓶", 48, "generate-supply", "molotov", 42_000 / 48, "molotov"],
+    ["evade", "回避拡張", 45, "generate-tech", "vending-evade", 42_000 / 45, "instant-evade"],
+    ["speed", "アクセラレート飲料", 55, "generate-tech", "vending-speed", 54_000 / 55, "instant-speed"],
+    ["warp", "即時ワープ", 35, "generate-tech", "warp", 36_000 / 35, "warp"],
+    ["mystery", "ミステリー", 45, "generate-tech", "vending-mystery", 42_000 / 45, "instant-mystery"],
+    ["fire", "火遁の術", 95, "generate-supply", "fire", 75_000 / 95, "fire"],
+    ["substitution", "変わり身の術", 90, "generate-supply", "substitution", 72_000 / 90, "substitution"],
+    ["grit", "踏ん張り", 60, "generate-supply", "grit", 54_000 / 60, "grit"],
+    ["heal", "回復", 50, "generate-supply", "heal", 48_000 / 50, "heal"],
+    ["reason", "押し込み", 65, "generate-supply", "reason", 60_000 / 65, "reason"],
+    ["mana", "マナポーション", 30, "generate-tech", "vending-mana", 30_000 / 30, "mana"],
+    ["railgun", "レールガン", 150, "invention", "vending-railgun", 90_000 / 150, "railgun"],
+    ["particle-cannon", "荷電粒子砲", 190, "invention", "vending-particle-cannon", 105_000 / 190, "particle-cannon"],
+    ["excalibur", "エクスカリバー", 230, "invention", "vending-excalibur", 120_000 / 230, "excalibur"],
+    ["exile", "亡命", 260, "generate-tech", "vending-exile", 135_000 / 260, "exile"],
+    ["computer", "パソコン", 125, "generate-tech", "vending-computer", 75_000 / 125, "computer"],
+    ["handgun", "ハンドガン", 40, "weapon", "vending-handgun", 36_000 / 40, "handgun"],
+    ["smg", "サブマシンガン", 65, "weapon", "vending-smg", 48_000 / 65, "smg"],
+    ["assault", "アサルトライフル", 85, "weapon", "vending-assault", 60_000 / 85, "assault"],
+    ["sniper", "スナイパーライフル", 120, "weapon", "vending-sniper", 75_000 / 120, "sniper"],
+    ["taser", "テーザー銃", 60, "weapon", "vending-taser", 48_000 / 60, "taser"],
+    ["mercury", "水銀瓶", 60, "generate-supply", "mercury", 48_000 / 60, "quantum-mercury"],
+    ["lead", "鉛瓶", 40, "generate-supply", "lead", 36_000 / 40, "quantum-lead"],
+    ["uranium", "ウラン容器", 140, "generate-supply", "uranium", 90_000 / 140, "quantum-uranium"],
+    ["plutonium", "プルトニウム容器", 180, "generate-supply", "plutonium", 105_000 / 180, "quantum-plutonium"],
+    ["orichalcum-sword", "オリハルコン・ソード", 200, "weapon", "orichalcum-sword", 90_000 / 200, "orichalcum-sword"],
+    ["iai", "居合", 110, "generate-supply", "iai", 84_000 / 110, "iai"],
+    ["ice", "氷結水", 20, "generate-supply", "vending-ice", 900, "ice"],
+    ["heated-water", "高温水", 20, "generate-supply", "vending-heated-water", 900, "heated-water"],
+    ["rpg", "RPG", 170, "weapon", "vending-rpg", 600, "rpg"],
+    ["missile", "ミサイル", 200, "weapon", "vending-missile", 600, "missile"]
+  ];
+
+  const products = Object.freeze(rows.map(([id, label, price, category, hackerRecipeId, cooldownPerCredit, asset]) =>
+    Object.freeze({ id, label, price, category, hackerRecipeId, cooldownPerCredit, asset })
+  ));
+  const categoryById = new Map(categories.map((entry) => [entry.id, entry]));
+  const productById = new Map(products.map((entry) => [entry.id, entry]));
+  const productByRecipeId = new Map(products.map((entry) => [entry.hackerRecipeId, entry]));
+  const productCosts = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.price])));
+  const productLabels = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.label])));
+
+  const product = (itemId) => productById.get(String(itemId || "")) || null;
+  const productForRecipe = (recipeId) => productByRecipeId.get(String(recipeId || "")) || null;
+  const categoryForProduct = (itemId) => product(itemId)?.category || "generate-supply";
+  const cooldownForRecipe = (recipeId) => {
+    const entry = productForRecipe(recipeId);
+    if (!entry) return 0;
+    const fallback = Number(categoryById.get(entry.category)?.defaultCooldownPerCredit) || 900;
+    return Math.max(1_000, Math.round(entry.price * (Number(entry.cooldownPerCredit) || fallback)));
+  };
+
+  return Object.freeze({
+    version: "shared-economy-heart-readability-v470",
+    categories,
+    products,
+    productCosts,
+    productLabels,
+    product,
+    productForRecipe,
+    categoryForProduct,
+    cooldownForRecipe
+  });
+});
+const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
+
+
+function vendingProductOrThrow(itemId) {
+  const product = DVA_ECONOMY.product(itemId);
+  if (!product) throw new Error(`Unknown shared economy product: ${itemId}`);
+  return product;
+}
+
+function vendingPrice(itemId) {
+  return vendingProductOrThrow(itemId).price;
+}
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -7387,8 +7482,8 @@ const HACKER_INVENTION_LABELS = Object.freeze({
   excalibur: "エクスカリバー"
 });
 const HEAVY_WEAPON_DEFINITIONS = Object.freeze({
-  rpg: Object.freeze({ id: "rpg", label: "RPG", cost: 170, asset: "rpg" }),
-  missile: Object.freeze({ id: "missile", label: "ミサイル", cost: 200, asset: "missile" })
+  rpg: Object.freeze({ id: "rpg", label: vendingProductOrThrow("rpg").label, cost: vendingPrice("rpg"), asset: "rpg" }),
+  missile: Object.freeze({ id: "missile", label: vendingProductOrThrow("missile").label, cost: vendingPrice("missile"), asset: "missile" })
 });
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ACTION_STAMINA_COST = 5;
@@ -7401,8 +7496,8 @@ const FIGHTER_IAI_REWARD_THRESHOLD = 25;
 const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 50;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const IAI_STAMINA_EQUIVALENT_COST = 200;
-const IAI_VENDING_COST = 110;
-const ORICHALCUM_SWORD_VENDING_COST = 200;
+const IAI_VENDING_COST = vendingPrice("iai");
+const ORICHALCUM_SWORD_VENDING_COST = vendingPrice("orichalcum-sword");
 const FIGHTER_SHOCKWAVE_RANGE = 950;
 const FIGHTER_SHOCKWAVE_WIDTH = 70;
 const FIGHTER_SHOCKWAVE_ORIGIN_OFFSET = 20;
@@ -7414,7 +7509,7 @@ const FIGHTER_GIANT_SHOCKWAVE_DURATION_MS = 1_150;
 const HACKER_MANA_GPU_DRAIN_PER_SECOND = 0.025;
 const HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA = 20_000;
 const HACKER_MANA_GPU_COOLDOWN_CREDIT_CAP_MS = 54_000;
-const EXILE_COST = 260;
+const EXILE_COST = vendingPrice("exile");
 const TASK_CONTRIBUTION = 0;
 const EMP_INTERACTION_WINDOW_MS = 900;
 const EMP_INTERACTION_RANGE = EMP_RANGE * 2;
@@ -7427,7 +7522,7 @@ const RESOLVE_POINT_CLEARANCE = 118;
 const MAP_OBJECT_SPEED_MULTIPLIER = 1.35;
 const LIMIT_BREAK_SPEED_MULTIPLIER = 3;
 const LIMIT_BREAK_MANA_DRAIN_PER_SECOND = 0.08;
-const FIRE_JUTSU_COST = 95;
+const FIRE_JUTSU_COST = vendingPrice("fire");
 const FIRE_JUTSU_RADIUS = 240;
 const ENHANCE_HOLD_STEP_MS = 600;
 const ENHANCE_MAX_LEVEL = 4;
@@ -7449,11 +7544,11 @@ const QUANTUM_CREDITS_LEAD = 35;
 const QUANTUM_ACTION_STAMINA_COST = 8;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
 const MINERAL_WATER_STAMINA = 100;
-const MOLOTOV_COST = 48;
-const MINERAL_WATER_COST = 12;
-const ANTIDOTE_COST = 24;
-const SUBSTITUTION_COST = 90;
-const MYSTERY_COST = 45;
+const MOLOTOV_COST = vendingPrice("molotov");
+const MINERAL_WATER_COST = vendingPrice("mineral-water");
+const ANTIDOTE_COST = vendingPrice("antidote");
+const SUBSTITUTION_COST = vendingPrice("substitution");
+const MYSTERY_COST = vendingPrice("mystery");
 const MYSTERY_ABILITY_LOCK_MS = 15_000;
 const MYSTERY_UNCONSCIOUS_MS = 8_000;
 const DESIRE_RESOURCE_DEBT = -100;
@@ -7491,11 +7586,11 @@ const GUNNER_MANA_COST = 0;
 const FLORA_MANA_COST = ABILITY_MANA_COST;
 const ALCHEMY_MANA_COST = ABILITY_MANA_COST;
 const SABOTAGE_MANA_COST = 0;
-const STAND_FIRM_COST = 60;
-const HEAL_COST = 50;
-const PUSH_COST = 65;
+const STAND_FIRM_COST = vendingPrice("grit");
+const HEAL_COST = vendingPrice("heal");
+const PUSH_COST = vendingPrice("reason");
 const PUSH_BACKLASH_DAMAGE_PER_CHARGE = 0.5;
-const MANA_POTION_COST = 30;
+const MANA_POTION_COST = vendingPrice("mana");
 // Six minutes without donations. Passive income fully donated shortens this to
 // about 5:30; six task rewards donated as well shorten it to about 5:00.
 const IDEA_FIRST_ASPECT_MS = 50_000;
@@ -9261,6 +9356,7 @@ function pushMagicEffect(room, type, source, options = {}) {
     targetY: Number.isFinite(options.targetY) ? Math.round(options.targetY) : null,
     playerId: String(options.playerId || source.id || ""),
     targetId: String(options.targetId || ""),
+    viewerId: String(options.viewerId || ""),
     variant: String(options.variant || ""),
     mode: String(options.mode || ""),
     effectKind: String(options.effectKind || ""),
@@ -12883,7 +12979,17 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   if (mode === "heart") {
     if (target.id === player.id) throw new ApiError(400, "自分の心臓は対象にできません。");
     spendMana(room, player, HEART_TELEPORT_MANA_COST, "心臓転移");
-    pushMagicEffect(room, "action-heart-teleport", target, { radius: 145, playerId: player.id, variant: target.role });
+    // The fist glow belongs to the caster and is private so this remote action
+    // never discloses the caster's position to the target or other players.
+    pushMagicEffect(room, "action-heart-teleport", player, {
+      radius: 64,
+      playerId: player.id,
+      targetId: target.id,
+      targetX: target.x,
+      targetY: target.y,
+      variant: target.role,
+      viewerId: player.id
+    });
     setImmediateFeedback(player, "心臓転移", `10MP / ${target.name}`);
     const eliminated = eliminatePlayerWithEmp(room, player, target, timestamp, "心臓転移");
     if (eliminated) pushEvent(room, `${player.name} が ${target.name} の心臓へ遠隔テレポートを適用しました。`);
@@ -14316,8 +14422,11 @@ function purchaseDrink(room, player, itemId) {
       player.exiled = true;
     } }
   };
+  const product = DVA_ECONOMY.product(itemId);
   const item = items[itemId];
-  if (!item) throw new ApiError(404, "その商品はありません。");
+  if (!product || !item) throw new ApiError(404, "その商品はありません。");
+  item.label = product.label;
+  item.cost = product.price;
   if (item.role && player.role !== item.role) throw new ApiError(403, "この商品はアタッカー専用です。");
   if (player.credits < item.cost) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
   const outcome = item.apply();
@@ -15345,6 +15454,10 @@ const ALCHEMY_RECIPES = {
   "vending-mineral-water": { label: "ミネラルウォーター", cost: 0, apply: (_room, player) => addItem(player, "mineral-water") },
   "vending-molotov": { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
   "vending-antidote": { label: "解毒剤", cost: 0, apply: (_room, player) => addItem(player, "antidote") },
+  "vending-ice": { label: "氷結水", cost: 0, apply: (_room, player) => addItem(player, "ice") },
+  "vending-heated-water": { label: "高温水", cost: 0, apply: (_room, player) => addItem(player, "heated-water") },
+  "vending-rpg": { label: "RPG", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("rpg"); } },
+  "vending-missile": { label: "ミサイル", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("missile"); } },
   "hack-credits-delete": { label: "クレジット削除", cost: 2, apply: (room, player, targetId) => { hackerTarget(room, player, targetId).credits = 0; } },
   "hack-credits-duplicate": { label: "クレジット増殖", cost: 2, apply: (room, player, targetId) => { const target = hackerTarget(room, player, targetId); target.credits = Math.max(0, Number(target.credits) || 0) * 2 + 25; } },
   "hack-items-delete": { label: "アイテム削除", cost: 2, apply: (room, player, targetId) => clearHackableInventory(hackerTarget(room, player, targetId)) },
@@ -15357,11 +15470,23 @@ const ALCHEMY_RECIPES = {
   revive: { label: "人体生成", cost: 3, apply: (room, player, targetId) => humanTransmutation(room, player, targetId) }
 };
 
+// Product identity is shared with the Vending catalog. Hacker-only recipes
+// retain their own labels and behavior, while every sellable generation recipe
+// inherits the canonical product name and is required to exist.
+for (const product of DVA_ECONOMY.products) {
+  const recipe = ALCHEMY_RECIPES[product.hackerRecipeId];
+  if (!recipe) throw new Error(`Missing Hacker recipe for Vending product: ${product.id}`);
+  recipe.label = product.label;
+}
+
 const ALCHEMY_RECIPE_ALIASES = Object.freeze({
   "stand-firm": "grit",
   push: "reason",
   "instant-warp": "warp",
-  "fire-jutsu": "fire"
+  "fire-jutsu": "fire",
+  "vending-mineral-water": "mineral-water",
+  "vending-molotov": "molotov",
+  "vending-antidote": "antidote"
 });
 
 function canonicalAlchemyConversion(rawConversion) {
@@ -15462,40 +15587,8 @@ function humanTransmutation(room, player, targetId) {
 // Final cooldowns, before Mana GPU credit. Basic consumables remain available
 // within one active-income minute; permanent upgrades and decisive equipment
 // retain a meaningful wait even after the 54-second GPU credit cap is spent.
-const HACKER_RECIPE_COOLDOWN_MS = Object.freeze({
-  "orichalcum-sword": 90_000,
+const HACKER_EXTENSION_COOLDOWN_MS = Object.freeze({
   stamina: 30_000,
-  heal: 48_000,
-  fire: 75_000,
-  substitution: 72_000,
-  warp: 36_000,
-  grit: 54_000,
-  reason: 60_000,
-  mercury: 48_000,
-  lead: 36_000,
-  uranium: 90_000,
-  plutonium: 105_000,
-  "mineral-water": 18_000,
-  antidote: 24_000,
-  molotov: 42_000,
-  iai: 84_000,
-  "vending-evade": 42_000,
-  "vending-speed": 54_000,
-  "vending-mystery": 42_000,
-  "vending-mana": 30_000,
-  "vending-railgun": 90_000,
-  "vending-particle-cannon": 105_000,
-  "vending-excalibur": 120_000,
-  "vending-exile": 135_000,
-  "vending-computer": 75_000,
-  "vending-handgun": 36_000,
-  "vending-smg": 48_000,
-  "vending-assault": 60_000,
-  "vending-sniper": 75_000,
-  "vending-taser": 48_000,
-  "vending-mineral-water": 18_000,
-  "vending-molotov": 42_000,
-  "vending-antidote": 24_000,
   "hack-credits-delete": 60_000,
   "hack-credits-duplicate": 90_000,
   "hack-items-delete": 75_000,
@@ -15510,7 +15603,7 @@ const HACKER_RECIPE_COOLDOWN_MS = Object.freeze({
 
 function vibeCodingCooldownMsFor(conversion) {
   const id = String(conversion || "");
-  return HACKER_RECIPE_COOLDOWN_MS[id] || (id.startsWith("object-") ? 30_000 : 36_000);
+  return DVA_ECONOMY.cooldownForRecipe(id) || HACKER_EXTENSION_COOLDOWN_MS[id] || (id.startsWith("object-") ? 30_000 : 36_000);
 }
 
 function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
@@ -17837,7 +17930,7 @@ function serialize(room, viewer, options = {}) {
     players,
     bodies: visibleBodies(room, viewer),
     hitEffects: room.hitEffects,
-    magicEffects: room.magicEffects,
+    magicEffects: room.magicEffects.filter((effect) => !effect.viewerId || effect.viewerId === viewer.id),
     hazardFields: (room.hazardFields || []).map((field) => ({ ...field })),
     gravityZones: room.gravityZones || [],
     sabotage: room.sabotage
@@ -19627,7 +19720,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "attacker-kill-deadline-v467",
+  version: "shared-economy-heart-readability-v470",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

@@ -1,10 +1,13 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v467-attacker-kill-deadline";
+// v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
+// raster finishes decoding, so the generic teleport ring never takes over.
+const CACHE_NAME = "dva-static-v470-shared-economy-heart-readability";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
   "/styles.css",
+  "/economy-catalog-v468.js",
   "/app.js",
   "/game-runtime.js",
   "/game-engine.js",
@@ -98,7 +101,7 @@ const STATIC_ASSETS = [
   "/assets/generated/jump-action-effect-v311.png",
   "/assets/generated/emp-resonance-v398.png",
   "/assets/generated/emp-cancel-v311.png",
-  "/assets/generated/heart-teleport-v311.png",
+  "/assets/generated/heart-transfer-fist-glow-ate-v468.png",
   "/assets/generated/action-effect-task-v311.png",
   "/assets/generated/action-effect-stand-v311.png",
   "/assets/generated/action-effect-dodge-v311.png",
@@ -157,6 +160,7 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-blue-dress-interact-v465.png",
   "/assets/generated/physical-motion-blue-dress-jump-v465.png",
   "/assets/generated/physical-motion-blue-dress-power-v465.png",
+  "/assets/generated/physical-motion-blue-dress-heart-transfer-v468.png",
   "/assets/generated/physical-motion-blue-dress-reload-v465.png",
   "/assets/generated/physical-motion-blue-dress-rest-v465.png",
   "/assets/generated/physical-motion-blue-dress-shoot-v465.png",
@@ -175,6 +179,7 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-white-hood-interact-v465.png",
   "/assets/generated/physical-motion-white-hood-jump-v465.png",
   "/assets/generated/physical-motion-white-hood-power-v465.png",
+  "/assets/generated/physical-motion-white-hood-heart-transfer-v468.png",
   "/assets/generated/physical-motion-white-hood-reload-v465.png",
   "/assets/generated/physical-motion-white-hood-rest-v465.png",
   "/assets/generated/physical-motion-white-hood-shoot-v465.png",
@@ -190,6 +195,7 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-male-bot-interact-v465.png",
   "/assets/generated/physical-motion-male-bot-jump-v465.png",
   "/assets/generated/physical-motion-male-bot-power-v465.png",
+  "/assets/generated/physical-motion-male-bot-heart-transfer-v468.png",
   "/assets/generated/physical-motion-male-bot-reload-v465.png",
   "/assets/generated/physical-motion-male-bot-rest-v465.png",
   "/assets/generated/physical-motion-male-bot-shoot-v465.png",

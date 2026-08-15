@@ -1,4 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
+const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
+if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
 const PLATFORM_OVERRIDE = URL_PARAMETERS.get("platform");
@@ -359,7 +361,7 @@ const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sn
 // asset-key list must exist before createTextures() is called.
 const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "iai", "shoot", "reload", "evade", "cast", "heal",
-  "power", "focus", "rest", "interact", "jump", "enhance", "throw"
+  "power", "heart-transfer", "focus", "rest", "interact", "jump", "enhance", "throw"
 ]);
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
@@ -644,77 +646,8 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   missile: "使い切り。最寄りの敵1人へ物理攻撃"
 });
 
-const VENDING_PRODUCT_LABELS = Object.freeze({
-  "mineral-water": "ミネラルウォーター",
-  antidote: "解毒剤",
-  molotov: "火炎瓶",
-  evade: "回避拡張",
-  speed: "アクセラレート飲料",
-  warp: "即時ワープ",
-  mystery: "ミステリー",
-  fire: "火遁の術",
-  substitution: "変わり身の術",
-  grit: "踏ん張り",
-  heal: "回復",
-  reason: "押し込み",
-  mana: "マナポーション",
-  railgun: "レールガン",
-  "particle-cannon": "荷電粒子砲",
-  excalibur: "エクスカリバー",
-  exile: "亡命",
-  computer: "パソコン",
-  handgun: "ハンドガン",
-  smg: "サブマシンガン",
-  assault: "アサルトライフル",
-  sniper: "スナイパーライフル",
-  taser: "テーザー銃",
-  mercury: "水銀瓶",
-  lead: "鉛瓶",
-  uranium: "ウラン容器",
-  plutonium: "プルトニウム容器",
-  "orichalcum-sword": "オリハルコン・ソード",
-  iai: "居合",
-  ice: "氷結水",
-  "heated-water": "高温水",
-  rpg: "RPG",
-  missile: "ミサイル"
-});
-
-const VENDING_PRODUCT_COSTS = Object.freeze({
-  "mineral-water": 12,
-  antidote: 24,
-  molotov: 48,
-  evade: 45,
-  speed: 55,
-  warp: 35,
-  mystery: 45,
-  fire: 95,
-  substitution: 90,
-  grit: 60,
-  heal: 50,
-  reason: 65,
-  mana: 30,
-  railgun: 150,
-  "particle-cannon": 190,
-  excalibur: 230,
-  exile: 260,
-  computer: 125,
-  handgun: 40,
-  smg: 65,
-  assault: 85,
-  sniper: 120,
-  taser: 60,
-  mercury: 60,
-  lead: 40,
-  uranium: 140,
-  plutonium: 180,
-  "orichalcum-sword": 200,
-  iai: 110,
-  ice: 20,
-  "heated-water": 20,
-  rpg: 170,
-  missile: 200
-});
+const VENDING_PRODUCT_LABELS = DVA_ECONOMY.productLabels;
+const VENDING_PRODUCT_COSTS = DVA_ECONOMY.productCosts;
 
 const alchemyRecipes = [
   { id: "stamina", label: "スタミナ", output: "+350SP" },
@@ -747,6 +680,10 @@ const alchemyRecipes = [
   { id: "vending-assault", label: "アサルトライフル", output: VENDING_PRODUCT_DESCRIPTIONS.assault, asset: "assault" },
   { id: "vending-sniper", label: "スナイパーライフル", output: VENDING_PRODUCT_DESCRIPTIONS.sniper, asset: "sniper" },
   { id: "vending-taser", label: "テーザー銃", output: VENDING_PRODUCT_DESCRIPTIONS.taser, asset: "taser" },
+  { id: "vending-ice", label: "氷結水", output: VENDING_PRODUCT_DESCRIPTIONS.ice, asset: "ice" },
+  { id: "vending-heated-water", label: "高温水", output: VENDING_PRODUCT_DESCRIPTIONS["heated-water"], asset: "heated-water" },
+  { id: "vending-rpg", label: "RPG", output: VENDING_PRODUCT_DESCRIPTIONS.rpg, asset: "rpg" },
+  { id: "vending-missile", label: "ミサイル", output: VENDING_PRODUCT_DESCRIPTIONS.missile, asset: "missile" },
   { id: "revive", label: "人体生成", output: "死者を一度だけ復活 / 0MP" },
   { id: "hack-credits-delete", label: "クレジット削除", output: "対象のクレジットを0にする", asset: "hack-credits-delete" },
   { id: "hack-credits-duplicate", label: "クレジット増殖", output: "対象のクレジットを複製", asset: "hack-credits-duplicate" },
@@ -762,40 +699,15 @@ const alchemyRecipes = [
   { id: "invention-particle-cannon", label: "荷電粒子砲", output: VENDING_PRODUCT_DESCRIPTIONS["particle-cannon"], kind: "invention", inventoryId: "particle-cannon" }
 ];
 
-const HACKER_RECIPE_COOLDOWN_MS = Object.freeze({
-  "orichalcum-sword": 90_000,
+for (const recipe of alchemyRecipes) {
+  const product = DVA_ECONOMY.productForRecipe(recipe.id);
+  if (!product) continue;
+  recipe.label = product.label;
+  recipe.asset ||= product.asset;
+}
+
+const HACKER_EXTENSION_COOLDOWN_MS = Object.freeze({
   stamina: 30_000,
-  heal: 48_000,
-  fire: 75_000,
-  substitution: 72_000,
-  warp: 36_000,
-  grit: 54_000,
-  reason: 60_000,
-  mercury: 48_000,
-  lead: 36_000,
-  uranium: 90_000,
-  plutonium: 105_000,
-  "mineral-water": 18_000,
-  antidote: 24_000,
-  molotov: 42_000,
-  iai: 84_000,
-  "vending-evade": 42_000,
-  "vending-speed": 54_000,
-  "vending-mystery": 42_000,
-  "vending-mana": 30_000,
-  "vending-railgun": 90_000,
-  "vending-particle-cannon": 105_000,
-  "vending-excalibur": 120_000,
-  "vending-exile": 135_000,
-  "vending-computer": 75_000,
-  "vending-handgun": 36_000,
-  "vending-smg": 48_000,
-  "vending-assault": 60_000,
-  "vending-sniper": 75_000,
-  "vending-taser": 48_000,
-  "vending-mineral-water": 18_000,
-  "vending-molotov": 42_000,
-  "vending-antidote": 24_000,
   "hack-credits-delete": 60_000,
   "hack-credits-duplicate": 90_000,
   "hack-items-delete": 75_000,
@@ -810,7 +722,7 @@ const HACKER_RECIPE_COOLDOWN_MS = Object.freeze({
 
 function hackerRecipeCooldownMs(recipeOrId) {
   const id = typeof recipeOrId === "string" ? recipeOrId : String(recipeOrId?.id || "");
-  return HACKER_RECIPE_COOLDOWN_MS[id] || (id.startsWith("object-") ? 30_000 : 36_000);
+  return DVA_ECONOMY.cooldownForRecipe(id) || HACKER_EXTENSION_COOLDOWN_MS[id] || (id.startsWith("object-") ? 30_000 : 36_000);
 }
 
 function hackerRecipePresentation(recipe) {
@@ -825,7 +737,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "attacker-kill-deadline-v467";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shared-economy-heart-readability-v470";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -909,43 +821,18 @@ alchemyRecipes.push(
 );
 
 const hackerRecipeCategories = [
-  { id: "generate-supply", label: "生成・物資" },
-  { id: "weapon", label: "武器" },
-  { id: "generate-tech", label: "生成・技術" },
-  { id: "hack", label: "対象操作" },
-  { id: "invention", label: "発明品" }
+  ...DVA_ECONOMY.categories.map(({ id, label }) => ({ id, label })),
+  { id: "hack", label: "対象操作" }
 ];
 
 function hackerRecipeCategory(recipe) {
   if (recipe?.kind === "invention") return "invention";
   if (recipe?.id?.startsWith("hack-")) return "hack";
-  const weaponRecipes = new Set([
-    "orichalcum-sword",
-    "vending-railgun", "vending-particle-cannon", "vending-excalibur",
-    "vending-handgun", "vending-smg", "vending-assault", "vending-sniper", "vending-taser"
-  ]);
-  if (weaponRecipes.has(recipe?.id)) return "weapon";
-  const technologyRecipes = new Set([
-    "vending-evade", "vending-speed", "vending-mystery", "vending-mana",
-    "vending-exile", "vending-computer", "vending-molotov", "revive"
-  ]);
-  return technologyRecipes.has(recipe?.id) ? "generate-tech" : "generate-supply";
+  return DVA_ECONOMY.productForRecipe(recipe?.id)?.category || (recipe?.id === "revive" ? "generate-tech" : "generate-supply");
 }
 
-const vendingWeaponIds = new Set([
-  "orichalcum-sword", "handgun", "smg", "assault", "sniper", "taser", "rpg", "missile"
-]);
-const vendingTechnologyIds = new Set([
-  "evade", "speed", "warp", "mystery", "mana", "exile", "computer"
-]);
-const vendingInventionIds = new Set(["railgun", "particle-cannon", "excalibur"]);
-
 function vendingProductCategory(itemId) {
-  const normalized = String(itemId || "");
-  if (vendingInventionIds.has(normalized)) return "invention";
-  if (vendingWeaponIds.has(normalized)) return "weapon";
-  if (vendingTechnologyIds.has(normalized)) return "generate-tech";
-  return "generate-supply";
+  return DVA_ECONOMY.categoryForProduct(itemId);
 }
 
 function vendingProductButtons() {
@@ -1534,7 +1421,7 @@ function playTitleCommandArrival() {
   state.titleArrivalTimer = window.setTimeout(() => {
     els.startScreen.classList.remove("title-arriving");
     state.titleArrivalTimer = null;
-  }, 1300);
+  }, 3000);
 }
 
 function init() {
@@ -2617,6 +2504,7 @@ const CHARACTER_ACTION_DURATION = Object.freeze({
   cast: 820,
   heal: 900,
   power: 980,
+  "heart-transfer": 1800,
   enhance: 980,
   focus: 1100,
   rest: 1300,
@@ -2634,6 +2522,7 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   cast: 5,
   heal: 6,
   power: 7,
+  "heart-transfer": 0,
   focus: 8,
   rest: 9,
   interact: 10,
@@ -2660,7 +2549,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-dodge": "evade",
   "action-rest": "rest",
   "action-teleport": "cast",
-  "action-heart-teleport": "power",
+  "action-heart-teleport": "heart-transfer",
   "action-warp": "cast",
   "action-ninjutsu-focus": "focus",
   "action-renki": "focus",
@@ -7070,7 +6959,7 @@ async function api(path, extra = {}, options = {}) {
   }
   let actionKind = CHARACTER_ACTION_BY_API[path];
   const requestedMode = String(extra?.mode || extra?.phase || extra?.conversion || "");
-  if (path === "/api/teleport" && requestedMode === "heart") actionKind = "power";
+  if (path === "/api/teleport" && requestedMode === "heart") actionKind = "heart-transfer";
   if (path === "/api/gravity-storm") actionKind = "power";
   if (path === "/api/quantum-control" && requestedMode.startsWith("fission-")) actionKind = "power";
   if (actionKind) {
@@ -7785,6 +7674,7 @@ function detectMagicEffects(previous, next) {
 }
 
 function magicEffectDuration(type) {
+  if (type === "action-heart-teleport") return 1800;
   if (type === "idea-ascension") return 5200;
   if (type === "mystery-reveal") return 2200;
   if (type === "fire") return 1500;
@@ -13950,35 +13840,45 @@ function drawDroneAltitudeEffect(effect, progress) {
 }
 
 function drawHeartTeleportEffect(effect, progress) {
-  const size = Math.max(145, Number(effect.radius) || 145);
-  const textured = drawEmpInteractionSprite(effect, 2, progress, size);
+  const player = state.data?.players?.find((entry) => entry.id === effect.playerId);
+  const source = state.textures.heartTeleportEffect;
+  const sprite = source ? transparentSpriteSource(source, "heart-transfer-fist-glow-ate-v468", 18) : null;
+  const position = player ? renderedPlayer(player) : { x: effect.x, y: effect.y };
+  const facing = player
+    ? facingFor(player, motionFor(player, state.data))
+    : state.facing.get(effect.playerId) || "right";
+  const direction = facing === "left" ? -1 : 1;
   const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+  const fistX = position.x + direction * (22 + Math.min(1, progress * 2.4) * 7);
+  const fistY = position.y - 31;
+  const width = 94 + pulse * 24;
+  const height = 72 + pulse * 18;
   ctx.save();
-  ctx.translate(effect.x, effect.y);
-  ctx.globalCompositeOperation = "screen";
-  // The raster owns the heart core and rings. E is limited to the red light
-  // response in the nearby medium and sparse inward-moving pressure motes.
-  const field = ctx.createRadialGradient(0, 0, size * 0.08, 0, 0, size * 0.72);
-  field.addColorStop(0, `rgba(255, 54, 78, ${0.14 + pulse * 0.12})`);
-  field.addColorStop(0.48, `rgba(168, 18, 48, ${0.08 + pulse * 0.06})`);
-  field.addColorStop(1, "rgba(87, 4, 28, 0)");
-  ctx.fillStyle = field;
-  ctx.fillRect(-size, -size, size * 2, size * 2);
-  ctx.fillStyle = "rgba(255, 116, 137, 0.78)";
-  for (let index = 0; index < 7; index += 1) {
-    const phase = (progress * 1.45 + index / 7) % 1;
-    const angle = index * 2.399963 + progress * (index % 2 ? -0.5 : 0.38);
-    const travel = size * (0.62 - phase * 0.5);
-    const moteSize = 2.2 + (1 - phase) * 2.4;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0.34, 1 - progress * 0.5);
+  ctx.translate(fistX, fistY);
+  ctx.scale(direction, 1);
+  if (sprite) {
+    drawAnimatedTextureCentered(sprite, 0, 0, width, height, {
+      mode: "energy", progress, phase: 0.41, intensity: 1, baseAlpha: 0.24, opacityBoost: 2.7
+    });
+  }
+  // E adds sparse detached sparks only; the raster owns the red fist glow.
+  ctx.fillStyle = "rgba(255, 192, 203, 0.86)";
+  for (let index = 0; index < 5; index += 1) {
+    const phase = (progress * 1.8 + index / 5) % 1;
+    const angle = -0.8 + index * 0.38;
+    const travel = 14 + phase * 28;
+    const moteSize = 1.8 + (1 - phase) * 2.2;
     ctx.save();
-    ctx.translate(Math.cos(angle) * travel, Math.sin(angle) * travel * 0.72);
+    ctx.translate(Math.cos(angle) * travel, Math.sin(angle) * travel * 0.52);
     ctx.rotate(angle + Math.PI / 4);
-    ctx.globalAlpha = Math.max(0.08, (1 - phase) * (0.42 + pulse * 0.3));
+    ctx.globalAlpha = Math.max(0.06, (1 - phase) * (0.36 + pulse * 0.28));
     ctx.fillRect(-moteSize / 2, -moteSize / 2, moteSize, moteSize);
     ctx.restore();
   }
   ctx.restore();
-  return textured;
+  return true;
 }
 
 function drawActionEffect(effect, progress, now) {
@@ -14038,10 +13938,9 @@ function drawActionEffect(effect, progress, now) {
 function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   const sources = [
     state.textures.empResonanceEffect,
-    state.textures.empCancelEffect,
-    state.textures.heartTeleportEffect
+    state.textures.empCancelEffect
   ];
-  const keys = ["emp-resonance-v398", "emp-cancel-v311", "heart-teleport-v311"];
+  const keys = ["emp-resonance-v398", "emp-cancel-v311"];
   const source = sources[index];
   const sprite = source ? transparentSpriteSource(source, keys[index], 28) : null;
   if (!sprite) return false;
@@ -14051,7 +13950,7 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.12, 1 - progress * 0.78);
   drawAnimatedTextureBottom(sprite, effect.x, effect.y + size / 2, size, size, {
-    mode: index === 0 ? "resonance" : index === 2 ? "teleport" : "glitch",
+    mode: index === 0 ? "resonance" : "glitch",
     progress,
     phase: index * 0.29,
     intensity: index === 0 ? 1.14 : 0.96,
@@ -14836,7 +14735,7 @@ function physicalMotionRateFor(player) {
 }
 
 const ACCELERATION_READY_PHYSICAL_KINDS = new Set([
-  "focus", "rest", "power", "cast", "heal", "reload", "shoot", "interact", "enhance", "iai"
+  "focus", "rest", "power", "cast", "heal", "reload", "shoot", "interact", "enhance", "iai", "heart-transfer"
 ]);
 
 function accelerationReadyMotionDynamics(player, kind, motionId = kind) {
@@ -15195,7 +15094,7 @@ function physicalActionFramePosition(kind, progress, motionId = kind) {
   }
   if (kind === "shoot") return Math.min(2, objectEffectEase(value / 0.42) * 2);
   if (kind === "evade") return Math.sin(value * Math.PI) * 2;
-  if (kind === "cast" || kind === "heal" || kind === "power" || kind === "enhance") {
+  if (kind === "cast" || kind === "heal" || kind === "power" || kind === "heart-transfer" || kind === "enhance") {
     const smooth = value * value * (3 - 2 * value);
     return smooth * 2;
   }
@@ -15372,7 +15271,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   const motionImage = overrideImage || state.textures.physicalActionMotions?.[atlasId]?.[action.kind];
   const sourceKey = overrideImage
     ? `physical-motion-${atlasId}-${action.kind}-frame-${frame}-v465`
-    : `physical-motion-${atlasId}-${action.kind}-v465`;
+    : `physical-motion-${atlasId}-${action.kind}-${action.kind === "heart-transfer" ? "v468" : "v465"}`;
   const prepared = motionImage ? transparentSpriteSource(motionImage, sourceKey, 20) : null;
   const sprite = prepared
     ? normalizedSpriteFrame(prepared, sourceKey, overrideImage ? 1 : 3, 1, 0, overrideImage ? 0 : frame)
@@ -16771,7 +16670,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "attacker-kill-deadline-v467";
+const version = "shared-economy-heart-readability-v470";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -16839,7 +16738,7 @@ const version = "attacker-kill-deadline-v467";
   ]);
   const empResonanceEffect = new Image();
   const empCancelEffect = new Image();
-  const heartTeleportEffect = new Image();
+  const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
   const gunnerWeaponsAtlas = new Image();
   const gunnerCombatStateEffects = imageSet([
     "assets/generated/gunner-break-handgun-v311.png",
@@ -16986,7 +16885,6 @@ const version = "attacker-kill-deadline-v467";
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
-  defer(heartTeleportEffect, "assets/generated/heart-teleport-v311.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
@@ -17056,7 +16954,7 @@ const version = "attacker-kill-deadline-v467";
   for (const [skinId, motions] of Object.entries(physicalActionMotions)) {
     for (const [kind, entry] of Object.entries(motions)) {
       if (skinId === "blue-dress" && kind === "attack") continue;
-      defer(entry, `assets/generated/physical-motion-${skinId}-${kind}-v465.png`);
+      defer(entry, `assets/generated/physical-motion-${skinId}-${kind}-${kind === "heart-transfer" ? "v468" : "v465"}.png`);
     }
   }
   defer(physicalActionFrameOverrides["blue-dress"].attack[0], "assets/generated/physical-motion-blue-dress-attack-frame-0-v465.png");

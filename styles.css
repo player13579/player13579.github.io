@@ -970,11 +970,11 @@ body.game-open .app-shell {
 }
 
 .start-screen.title-ready.title-arriving .title-command {
-  animation: title-command-arrive 920ms cubic-bezier(0.12, 0.82, 0.18, 1.08) forwards;
+  animation: title-command-arrive 2400ms cubic-bezier(0.12, 0.82, 0.18, 1.08) forwards;
 }
 
 .start-screen.title-ready.title-arriving .title-command:nth-child(2) {
-  animation-delay: 130ms;
+  animation-delay: 320ms;
 }
 
 .title-command[data-hotkey]::after,
@@ -2651,7 +2651,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   border-radius: 10px;
   background:
     linear-gradient(145deg, rgba(246, 253, 255, 0.97), rgba(218, 245, 252, 0.95)),
-    url("assets/generated/ui-ability-command-surface.webp?v=attacker-kill-deadline-v467");
+    url("assets/generated/ui-ability-command-surface.webp?v=shared-economy-heart-readability-v470");
   background-size: 100% 100%, 150% 150%;
   box-shadow: 0 18px 52px rgba(2, 12, 20, 0.45), inset 0 1px rgba(255, 255, 255, 0.88);
   padding: 11px;
@@ -3162,7 +3162,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=attacker-kill-deadline-v467") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=shared-economy-heart-readability-v470") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
