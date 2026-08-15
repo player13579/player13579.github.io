@@ -70,7 +70,7 @@
   };
 
   return Object.freeze({
-    version: "shared-economy-heart-readability-v470",
+    version: "gravity-target-teleport-v473",
     categories,
     products,
     productCosts,

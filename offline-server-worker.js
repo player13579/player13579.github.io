@@ -7334,7 +7334,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "shared-economy-heart-readability-v470",
+    version: "gravity-target-teleport-v473",
     categories,
     products,
     productCosts,
@@ -7374,9 +7374,9 @@ const MIN_KILL_COOLDOWN = 5;
 const QUICK_ATTACK_DELAY_MS = 1000;
 const QUICK_FOLLOW_UP_COOLDOWN_MS = 1000;
 const QUICK_ATTACK_LETHAL_CHANCE = 0.45;
-const NINJUTSU_DURATION_MS = 1800;
+const NINJUTSU_DURATION_MS = 5000;
 const AIM_HOLD_MS = 5000;
-const AIM_TARGET_MOVE_TOLERANCE = 4;
+const AIM_TARGET_MOVE_TOLERANCE = 1;
 const KILL_CONTRIBUTION = 1;
 const ACCELERATE_SPEED_MULTIPLIER = 2.5;
 const LUMINOUS_SPEED_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.66;
@@ -9483,6 +9483,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     aimStartedAt: 0,
     aimReadyAt: 0,
     aimExpiresAt: 0,
+    aimSourceX: 0,
+    aimSourceY: 0,
     aimTargetX: 0,
     aimTargetY: 0,
     lastAttackResult: "",
@@ -12971,8 +12973,13 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
     throw new ApiError(403, "現在はテレポートできません。");
   }
   ensureAbilityAvailable(player);
+  mode = String(mode || "body");
+  if (!["body", "near", "heart", "target"].includes(mode)) {
+    throw new ApiError(400, "テレポート方式が不正です。");
+  }
   const timestamp = now();
-  const target = targetId ? room.players.get(String(targetId)) : player;
+  const selectedTarget = targetId ? room.players.get(String(targetId)) : player;
+  const target = mode === "body" ? player : selectedTarget;
   if (!target || !target.alive || target.ejected || target.inVent) {
     throw new ApiError(404, "テレポート対象がいません。");
   }
@@ -12998,6 +13005,18 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
     touch(room);
     return;
   }
+  if (
+    mode === "target" &&
+    target.id !== player.id &&
+    target.role === player.role &&
+    ["defender", "attacker"].includes(player.role)
+  ) {
+    applyDefenderFriendlyFirePenalty(room, player, target, timestamp, { ignorePreparationBarrier: true });
+    pushEvent(room, `${player.name} の対象転移は味方への誤射として反射されました。${target.name} は移動しません。`);
+    checkWin(room);
+    touch(room);
+    return;
+  }
   let x = Number(rawX);
   let y = Number(rawY);
   let movingTarget = target;
@@ -13007,13 +13026,14 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
     const map = getMap(room);
     const baseAngle = Math.atan2(player.y - target.y, player.x - target.x) || 0;
     const candidates = [];
-    for (const radius of [92, 118, 148, 180]) {
-      for (let step = 0; step < 12; step += 1) {
-        const angle = baseAngle + step * Math.PI / 6;
+    for (const radius of [36, 48, 64, 80, 96, 112, 132, 156, 180]) {
+      for (let step = 0; step < 24; step += 1) {
+        const angle = baseAngle + step * Math.PI / 12;
         candidates.push({ x: target.x + Math.cos(angle) * radius, y: target.y + Math.sin(angle) * radius });
       }
     }
-    const destination = candidates.find((point) => isWalkable(room, point.x, point.y, map.playerRadius));
+    const destination = candidates.find((point) => isWalkable(room, point.x, point.y, map.playerRadius)) ||
+      (isWalkable(room, target.x, target.y, map.playerRadius) ? { x: target.x, y: target.y } : null);
     if (!destination) throw new ApiError(400, "対象付近に安全な転移地点がありません。");
     x = destination.x;
     y = destination.y;
@@ -13026,7 +13046,8 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
     throw new ApiError(400, "通行可能な場所を指定してください。");
   }
 
-  spendOperatorMana(room, player, mode === "near" ? "対象付近転移" : "地点転移");
+  const teleportLabel = mode === "near" ? "対象付近転移" : mode === "target" ? "対象転移" : "地点転移";
+  spendOperatorMana(room, player, teleportLabel);
   const origin = { x: movingTarget.x, y: movingTarget.y };
   movingTarget.x = x;
   movingTarget.y = y;
@@ -13038,7 +13059,13 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   awardAbilityContribution(player, 0.5);
   pushMagicEffect(room, "action-teleport", origin, { radius: 135, playerId: player.id, targetX: x, targetY: y });
   pushMagicEffect(room, "action-teleport", movingTarget, { radius: 135, playerId: movingTarget.id, variant: "arrival" });
-  pushEvent(room, mode === "near" ? `${player.name} が ${target.name} の近くへ転移しました。` : movingTarget.id === player.id ? `${player.name} が転移しました。` : `${player.name} が ${movingTarget.name} を転移させました。`);
+  pushEvent(room, mode === "near"
+    ? `${player.name} が ${target.name} の近くへ転移しました。`
+    : mode === "target"
+      ? `${player.name} が ${movingTarget.name} を指定地点へ対象転移させました。`
+      : movingTarget.id === player.id
+        ? `${player.name} が転移しました。`
+        : `${player.name} が ${movingTarget.name} を転移させました。`);
   touch(room);
 }
 
@@ -13059,6 +13086,18 @@ function toggleGravityTime(room, player, mode, targetId) {
   const selectedMode = mode === "decelerate" ? "decelerate" : "accelerate";
   const target = room.players.get(String(targetId || player.id));
   if (!target || !target.alive || target.ejected) throw new ApiError(404, "時空操作対象がいません。");
+  if (
+    selectedMode === "decelerate" &&
+    target.id !== player.id &&
+    target.role === player.role &&
+    ["defender", "attacker"].includes(player.role)
+  ) {
+    applyDefenderFriendlyFirePenalty(room, player, target, now(), { ignorePreparationBarrier: true });
+    pushEvent(room, `${player.name} のディーセラレートは味方への誤射として反射されました。${target.name} は減速しません。`);
+    checkWin(room);
+    touch(room);
+    return;
+  }
   spendOperatorMana(room, player, selectedMode === "accelerate" ? "アクセラレート" : "ディーセラレート");
   const timestamp = now();
   player.gravityTimeMode = selectedMode;
@@ -15830,7 +15869,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
   } else if (key === "gravity") {
     const mode = String(options.mode || "storm");
     const targetId = String(options.targetId || player.id);
-    if (["body", "near", "heart"].includes(mode)) {
+    if (["body", "near", "heart", "target"].includes(mode)) {
       teleportPlayer(room, player, options.x, options.y, targetId, mode);
     } else if (mode === "accelerate" || mode === "decelerate") {
       toggleGravityTime(room, player, mode, targetId);
@@ -15856,6 +15895,8 @@ function clearAimState(player) {
   player.aimStartedAt = 0;
   player.aimReadyAt = 0;
   player.aimExpiresAt = 0;
+  player.aimSourceX = 0;
+  player.aimSourceY = 0;
   player.aimTargetX = 0;
   player.aimTargetY = 0;
 }
@@ -15909,26 +15950,13 @@ function validateAttackStart(room, killer, targetId, options = {}) {
 }
 
 function startNinjutsu(room, player, targetId) {
-  const { target, timestamp } = validateAttackStart(room, player, targetId, {
-    ignoreCooldown: player.special === "fighter"
-  });
-  if (player.special === "fighter") {
-    const outcome = killPlayer(room, player, target.id, {
-      hitZone: "head",
-      lockedAim: true,
-      preserveCooldown: false,
-      ignoreCooldown: true,
-      noBody: true
-    });
-    pushMagicEffect(room, "fighter-iaido", player, { radius: 180, playerId: player.id, targetX: target.x, targetY: target.y });
-    pushSound(room, "fighter-iaido", player, { ownerId: player.id, sourceKind: "fighter", maxDistance: 1400, volume: 0.9 });
-    setAttackResult(player, outcome, timestamp);
-    return;
-  }
+  const { target, timestamp } = validateAttackStart(room, player, targetId);
   player.aimTargetId = target.id;
   player.aimStartedAt = timestamp;
   player.aimReadyAt = timestamp + NINJUTSU_DURATION_MS;
   player.aimExpiresAt = player.aimReadyAt + AIM_HOLD_MS;
+  player.aimSourceX = player.x;
+  player.aimSourceY = player.y;
   player.aimTargetX = target.x;
   player.aimTargetY = target.y;
   pushMagicEffect(room, "action-ninjutsu-focus", player, { radius: 115, playerId: player.id, targetId: target.id });
@@ -15950,7 +15978,9 @@ function setAttackResult(player, result, timestamp = now()) {
 
 function aimedTargetMoved(player, target) {
   if (!target) return true;
-  return Math.hypot(target.x - player.aimTargetX, target.y - player.aimTargetY) > AIM_TARGET_MOVE_TOLERANCE;
+  const sourceMoved = Math.hypot(player.x - player.aimSourceX, player.y - player.aimSourceY) > AIM_TARGET_MOVE_TOLERANCE;
+  const targetMoved = Math.hypot(target.x - player.aimTargetX, target.y - player.aimTargetY) > AIM_TARGET_MOVE_TOLERANCE;
+  return sourceMoved || targetMoved;
 }
 
 function failAimForMovement(room, player, timestamp = now()) {
@@ -15960,6 +15990,32 @@ function failAimForMovement(room, player, timestamp = now()) {
   }
   setAttackResult(player, "moved", timestamp);
   touch(room);
+}
+
+function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now()) {
+  const target = room.players.get(targetId);
+  if (!target?.alive || target.ejected) return "miss";
+  const disappeared = destroyPlayerUnconditionally(room, player, target, "忍殺", {
+    noBody: true,
+    attackKind: "ninjutsu",
+    attackLabel: "忍殺",
+    slashGuardPhysical: true,
+    slashGuardReflectable: true,
+    reflectDestroy: true
+  });
+  if (!disappeared) {
+    checkWin(room);
+    touch(room);
+    return "blocked";
+  }
+  player.killsThisRound += 1;
+  player.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+  recordBotKillWitnesses(room, player, target, timestamp);
+  evaluateSoloMission(room, timestamp);
+  pushDoorLog(room, `${whichRoom(getMap(room), target)} 付近で忍殺による反応消失`);
+  checkWin(room);
+  touch(room);
+  return "disappeared";
 }
 
 function performNinjutsuAttack(room, player, targetId) {
@@ -15976,7 +16032,7 @@ function performNinjutsuAttack(room, player, targetId) {
     failAimForMovement(room, player, timestamp);
     return;
   }
-  const outcome = killPlayer(room, player, targetId, { hitZone: "head", lockedAim: true, noBody: true });
+  const outcome = resolveNinjutsuDisappearance(room, player, targetId, timestamp);
   clearAimState(player);
   setAttackResult(player, outcome, timestamp);
   touch(room);
@@ -15990,7 +16046,7 @@ function resolveReadyAim(room, player, timestamp = now()) {
     return;
   }
   try {
-    const outcome = killPlayer(room, player, targetId, { hitZone: "head", lockedAim: true, noBody: true });
+    const outcome = resolveNinjutsuDisappearance(room, player, targetId, timestamp);
     clearAimState(player);
     setAttackResult(player, outcome, timestamp);
   } catch {
@@ -19725,5 +19781,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "shared-economy-heart-readability-v470" });
+self.postMessage({ type: "ready", version: "gravity-target-teleport-v473" });
 })();
