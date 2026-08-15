@@ -7289,6 +7289,7 @@ const DODGE_DURATION_MS = 1000;
 const TELEPORT_COOLDOWN_MS = 25_000;
 const SMARTPHONE_ACTION_MS = 4_000;
 const AUTO_REPORT_POST_KILL_GRACE_MS = 4_000;
+const ATTACKER_DEFENDER_KILL_DEADLINE_MS = 90_000;
 const PAIR_ROUTE_RADIUS = 82;
 const PAIR_ROUTE_GRACE_MS = 5_000;
 const PAIR_ROUTE_DAMAGE_INTERVAL_MS = 3_000;
@@ -7455,6 +7456,7 @@ const SUBSTITUTION_COST = 90;
 const MYSTERY_COST = 45;
 const MYSTERY_ABILITY_LOCK_MS = 15_000;
 const MYSTERY_UNCONSCIOUS_MS = 8_000;
+const DESIRE_RESOURCE_DEBT = -100;
 const RATIONAL_MANA_THRESHOLD = 2;
 const STARTING_MANA = RATIONAL_MANA_THRESHOLD;
 const MANA_CONVERSION_AMOUNT = 1;
@@ -7467,7 +7469,6 @@ const DONATION_LUCK_GAIN = 0.05;
 const DONATION_LUCK_MIN_BONUS = -0.7;
 const DONATION_LUCK_MAX_BONUS = 0.7;
 const ABILITY_MANA_COST = 1;
-const DESIRE_RESOURCE_DEBT = -100;
 const DESIRE_BIAS_COST_MULTIPLIER = 1.5;
 const DESIRE_BIAS_TIME_MULTIPLIER = 0.72;
 const DESIRE_BIAS_LUCK_PENALTY = 0.45;
@@ -7483,7 +7484,7 @@ const RENKI_FOCUS_DURATION_MS = 3500;
 const RATIONAL_FREE_ABILITY_INTERVAL_MS = 30_000;
 const DODGE_MANA_COST = 0;
 const TELEPORT_MANA_COST = 1;
-const HEART_TELEPORT_MANA_COST = 1;
+const HEART_TELEPORT_MANA_COST = 10;
 const DRONE_MANA_COST = 0;
 const EMP_MANA_COST = 0;
 const GUNNER_MANA_COST = 0;
@@ -7510,20 +7511,19 @@ const FLORA_AROMA_REGEN_MULTIPLIER = 1.75;
 const SUNBEAM_RANGE = 950;
 const SUNBEAM_WIDTH = 52;
 const SUNBEAM_KILL_CHANCE = 0.48;
-const GRAVITY_STORM_RANGE = 520;
-const GRAVITY_STORM_MANA_COST = 10;
-const GRAVITY_STORM_LOW_LUCK_THRESHOLD = 0;
+const GRAVITY_STORM_VISUAL_RADIUS = 520;
+const GRAVITY_STORM_MANA_COST = 100;
 const GRAVITY_STORM_DURATION_MS = 12_000;
 const GRAVITY_STORM_PULSE_MS = 600;
-const WORLD_UNITS_PER_METER = 100;
-const GRAVITY_STORM_SAFE_RADIUS = WORLD_UNITS_PER_METER * 2;
-const GRAVITY_STORM_DAMAGE_MIN = 0.05;
-const GRAVITY_STORM_DAMAGE_MAX = 0.16;
+const GRAVITY_STORM_BARRIER_RELEASE_MS = 1_000;
+const GRAVITY_STORM_BARRIER_RADIUS = 140;
+const GRAVITY_STORM_DAMAGE_MIN = 0.035;
+const GRAVITY_STORM_DAMAGE_MAX = 0.095;
+const GRAVITY_STORM_FINAL_DAMAGE_MIN = 0.55;
+const GRAVITY_STORM_FINAL_DAMAGE_MAX = 1.15;
 const GRAVITY_STORM_SLOW_MULTIPLIER_MIN = 0.35;
 const GRAVITY_STORM_SLOW_MULTIPLIER_MAX = 0.82;
 const GRAVITY_STORM_SLOW_LINGER_MS = 900;
-const GRAVITY_STORM_KNOCKBACK_MIN = 110;
-const GRAVITY_STORM_KNOCKBACK_MAX = 340;
 const GRAVITY_STORM_PULL_MIN = 80;
 const GRAVITY_STORM_PULL_MAX = 260;
 const GRAVITY_STORM_PIN_MIN_MS = 420;
@@ -7641,7 +7641,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時破壊となり、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避成功で攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7651,7 +7651,7 @@ const OPERATORS = {
       limit: 99,
       asset: "teleport",
       description: "重力と時空を操作し、転移・時間加減速・浮揚・重力嵐を扱う。",
-      details: "重力による時空の曲率を操作するオペレーター。転移は1MPを消費し、地点または他人の付近へ自分を移動する。心臓転移は位置を公開して遠隔確殺する。アクセラレートとディーセラレートは1MPで8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストームは前方に乱数強度の継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全地帯になる。"
+      details: "重力による時空の曲率を操作するオペレーター。転移は1MPを消費し、他人の付近へ自分を移動する。心臓転移は10MPを消費して対象を遠隔確殺する。アクセラレートとディーセラレートは1MPで8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストームは100MPを消費し、指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
     },
     {
       id: "defender-flora",
@@ -9426,6 +9426,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     fighterEnergyCharge: 0,
     fighterEnergyPeak: 0,
     fighterEnergyChargeReadyAt: 0,
+    attackerDefenderKillDeadlineAt: 0,
+    attackerDefenderKillDeadlineLastResetAt: 0,
     empReadyAt: 0,
     itemDisabledUntil: 0,
     slowedUntil: 0,
@@ -10170,6 +10172,10 @@ function startBattle(room) {
     player.fighterEnergyCharge = 0;
     player.fighterEnergyPeak = 0;
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
+    player.attackerDefenderKillDeadlineAt = !room.soloMission && player.role === "attacker" && player.alive && !player.ejected
+      ? timestamp + ATTACKER_DEFENDER_KILL_DEADLINE_MS
+      : 0;
+    player.attackerDefenderKillDeadlineLastResetAt = player.attackerDefenderKillDeadlineAt ? timestamp : 0;
     player.manaGpuCooldownCreditMs = 0;
     player.manaGpuDrainCarry = 0;
     player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 0 : EMP_INITIAL_LOCK_MS);
@@ -10607,7 +10613,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
       playerId: player.id,
       variant: String(next)
     });
-    reward += " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る・常時破壊 / ジャストガード・全攻撃反射";
+    reward += " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る・常時消滅（死体なし） / ジャストガード・全攻撃反射";
   }
   const milestoneMotion = reachedIaiMilestone || reachedInfiniteMilestone;
   pushMagicEffect(room, "fighter-energy-charge", player, {
@@ -10616,7 +10622,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:ec-${next}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
   });
   setImmediateFeedback(player, "EC", reward);
-  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC25回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが常時破壊、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
+  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC25回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが死体を残さない常時消滅、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -11859,6 +11865,7 @@ function finish(room, winner, reason, cause = {}) {
     player.drone.active = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
+    player.attackerDefenderKillDeadlineAt = 0;
     clearAttackState(player);
   });
   const ideaWinnerCount = winner === "idea" ? ideaWinnerIdsFor(room).length : 0;
@@ -11891,6 +11898,7 @@ function forceEnd(room, player) {
     entry.drone.active = false;
     entry.clairvoyanceActive = false;
     entry.clairvoyanceManaCarry = 0;
+    entry.attackerDefenderKillDeadlineAt = 0;
     clearAttackState(entry);
   });
   pushEvent(room, room.finishReason);
@@ -12034,7 +12042,8 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "botClairvoyanceUntil",
   "botClairvoyanceObservedUntil",
   "nextBotClairvoyanceAt",
-  "heardTargetUntil"
+  "heardTargetUntil",
+  "attackerDefenderKillDeadlineAt"
 ]);
 
 const MEETING_PAUSED_PLAYER_ANCHOR_FIELDS = Object.freeze([
@@ -12110,7 +12119,9 @@ function pauseBattleTimeForMeeting(room, timestamp = now()) {
     shiftMeetingDeadline(pulse, "resolvesAt", pausedAt, elapsedMs);
   }
   for (const zone of room.gravityZones || []) {
+    shiftMeetingAnchor(zone, "startedAt", elapsedMs);
     shiftMeetingAnchor(zone, "lastPulseAt", elapsedMs);
+    shiftMeetingDeadline(zone, "barrierUntil", pausedAt, elapsedMs);
     shiftMeetingDeadline(zone, "endsAt", pausedAt, elapsedMs);
   }
   for (const field of room.hazardFields || []) {
@@ -12347,6 +12358,8 @@ function tickRoom(room) {
       player.drone.movementMode = "idle";
     }
   }
+  advanceAttackerDefenderKillDeadlines(room, timestamp);
+  if (room.phase === "ended") return;
   if (runAutomaticHumanBodyReports(room, timestamp)) return;
   advancePairRouteRule(room, timestamp);
   advanceAlchemyObjects(room, timestamp);
@@ -12562,6 +12575,10 @@ function fighterKillCounterAvailable(player) {
   return hasOperatorAccess(player, "fighter") && passivesEnabled(player);
 }
 
+function fighterKillCounterTriggerIsCertainKill(hitZone, options = {}) {
+  return hitZone === "head" || Boolean(options.destroy);
+}
+
 function hasOrichalcumSword(player) {
   return itemCount(player, "orichalcum-sword") > 0;
 }
@@ -12726,7 +12743,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
     const destructionGuardOutcome = destructionSlash
       ? resolveFighterSlashGuard(room, player, target, {
           kind: "slash",
-          label: "EC50回到達後の斬る",
+          label: "EC50回到達後の消滅斬り",
           physical: true,
           reflectable: true,
           destroy: true,
@@ -12734,8 +12751,9 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
         }, timestamp)
       : "";
     const outcome = destructionSlash
-      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "EC50回到達後の斬る", {
+      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "EC50回到達後の消滅斬り", {
           noKillCutin: false,
+          noBody: true,
           ignorePreparationBarrier: true,
           ignoreInfiniteResources: true,
           bypassSlashGuard: true
@@ -12865,14 +12883,8 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   if (mode === "heart") {
     if (target.id === player.id) throw new ApiError(400, "自分の心臓は対象にできません。");
     spendMana(room, player, HEART_TELEPORT_MANA_COST, "心臓転移");
-    pushSound(room, "heartTeleportReveal", player, {
-      ownerId: player.id,
-      sourceKind: "magic",
-      maxDistance: 10000,
-      volume: 1
-    });
-    pushEvent(room, `${whichRoom(getMap(room), player)} 付近で心臓転移の発動座標を検知しました。`);
     pushMagicEffect(room, "action-heart-teleport", target, { radius: 145, playerId: player.id, variant: target.role });
+    setImmediateFeedback(player, "心臓転移", `10MP / ${target.name}`);
     const eliminated = eliminatePlayerWithEmp(room, player, target, timestamp, "心臓転移");
     if (eliminated) pushEvent(room, `${player.name} が ${target.name} の心臓へ遠隔テレポートを適用しました。`);
     player.teleportReadyAt = 0;
@@ -12970,16 +12982,20 @@ function useGravityStorm(room, player, targetId = "") {
   if (!target || !target.alive || target.ejected || target.inVent) {
     throw new ApiError(404, "グラビティストームの対象がいません。");
   }
+  const startedAt = now();
+  const endsAt = startedAt + GRAVITY_STORM_DURATION_MS;
   const zone = {
     id: uid("gravity_"), ownerId: player.id,
     targetId: target.id,
     x: clampNumber(target.x, 0, getMap(room).width, target.x),
     y: clampNumber(target.y, 0, getMap(room).height, target.y),
-    radius: GRAVITY_STORM_RANGE,
-    safeRadius: GRAVITY_STORM_SAFE_RADIUS,
+    radius: GRAVITY_STORM_VISUAL_RADIUS,
+    barrierRadius: GRAVITY_STORM_BARRIER_RADIUS,
     safeX: player.x,
     safeY: player.y,
-    endsAt: now() + GRAVITY_STORM_DURATION_MS,
+    startedAt,
+    barrierUntil: endsAt - GRAVITY_STORM_BARRIER_RELEASE_MS,
+    endsAt,
     lastPulseAt: 0
   };
   room.gravityZones ||= [];
@@ -12987,7 +13003,7 @@ function useGravityStorm(room, player, targetId = "") {
   pushMagicEffect(room, "gravity-storm", zone, { radius: zone.radius, playerId: player.id, variant: "debris-dent" });
   pushSound(room, "gravityStorm", zone, { ownerId: player.id, sourceKind: "magic", maxDistance: 2600, volume: 1 });
   awardAbilityContribution(player, 1);
-  pushEvent(room, `${player.name} が ${target.name} の周囲にグラビティストームを生成しました。`);
+  pushEvent(room, `${player.name} が ${target.name} の位置へグラビティストームを展開しました。全域の敵を吸引し、最後の1秒だけ発動者のバリアが消失します。`);
   touch(room);
 }
 
@@ -13029,27 +13045,12 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
     }
     if (timestamp - zone.lastPulseAt < GRAVITY_STORM_PULSE_MS) continue;
     zone.lastPulseAt = timestamp;
+    if (!owner) continue;
+    const enemyRole = attackTargetRole(owner);
     for (const candidate of room.players.values()) {
-      // The caster owns the moving 2 m eye and must never be processed as a
-      // storm victim, even if coordinates are corrected between server ticks.
       if (candidate.id === zone.ownerId) continue;
-      if (!candidate.alive || candidate.ejected || candidate.inVent || distance(zone, candidate) > zone.radius) continue;
-      const friendlyFire = Boolean(
-        owner?.alive &&
-        !owner.ejected &&
-        candidate.id !== owner.id &&
-        candidate.role === owner.role &&
-        ["defender", "attacker"].includes(owner.role)
-      );
-      if (friendlyFire) {
-        applyDefenderFriendlyFirePenalty(room, owner, candidate, timestamp, { ignorePreparationBarrier: true });
-        zone.endsAt = timestamp;
-        checkWin(room);
-        break;
-      }
+      if (!candidate.alive || candidate.ejected || candidate.inVent || candidate.role !== enemyRole) continue;
       const target = candidate;
-      const safeDistance = Math.hypot(target.x - Number(zone.safeX), target.y - Number(zone.safeY));
-      if (safeDistance <= Number(zone.safeRadius || GRAVITY_STORM_SAFE_RADIUS)) continue;
       if (resolveFighterSlashGuard(room, owner || null, target, {
         kind: "gravity-storm",
         label: "グラビティストーム",
@@ -13058,33 +13059,28 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       }, timestamp)) continue;
       if (absorbPreparationBarrier(room, target, timestamp, owner || null)) continue;
 
-      if (owner?.alive && luckValueFor(target) < GRAVITY_STORM_LOW_LUCK_THRESHOLD) {
-        const outcome = killPlayer(room, owner, target.id, {
-          ranged: true,
-          magic: true,
-          hitZone: "head",
-          damage: 2,
-          ignoreRange: true,
-          ignoreCooldown: true,
-          preserveCooldown: true,
-          targetRole: target.role
-        });
-        pushMagicEffect(room, "gravity-storm-crush", target, {
-          radius: 180,
-          playerId: zone.ownerId,
-          targetId: target.id,
-          variant: `low-luck-lethal:${outcome}`
-        });
-        continue;
-      }
-
-      // Higher adverse severity means more HP loss, a lower speed multiplier,
-      // and a stronger displacement. Luck biases this roll in the target's favor.
       const severity = luckAdjustedRoll(target);
-      const damage = Math.round((GRAVITY_STORM_DAMAGE_MIN +
-        (GRAVITY_STORM_DAMAGE_MAX - GRAVITY_STORM_DAMAGE_MIN) * severity) * 100) / 100;
+      const luck = luckValueFor(target);
+      const remainingMs = Math.max(0, Number(zone.endsAt) - timestamp);
+      const finalSecond = remainingMs <= GRAVITY_STORM_BARRIER_RELEASE_MS;
+      const damageMin = finalSecond ? GRAVITY_STORM_FINAL_DAMAGE_MIN : GRAVITY_STORM_DAMAGE_MIN;
+      const damageMax = finalSecond ? GRAVITY_STORM_FINAL_DAMAGE_MAX : GRAVITY_STORM_DAMAGE_MAX;
+      const luckDamageMultiplier = clampNumber(
+        1 - Math.max(0, luck) * 0.65 + Math.max(0, -luck) * 0.35,
+        0.35,
+        1.35,
+        1
+      );
+      const damage = Math.round((damageMin + (damageMax - damageMin) * severity) * luckDamageMultiplier * 100) / 100;
       const slowMultiplier = Math.round((GRAVITY_STORM_SLOW_MULTIPLIER_MAX -
         (GRAVITY_STORM_SLOW_MULTIPLIER_MAX - GRAVITY_STORM_SLOW_MULTIPLIER_MIN) * severity) * 100) / 100;
+
+      const distanceToCore = Math.hypot(zone.x - target.x, zone.y - target.y);
+      const pullAmount = GRAVITY_STORM_PULL_MIN +
+        (GRAVITY_STORM_PULL_MAX - GRAVITY_STORM_PULL_MIN) * severity +
+        Math.min(160, distanceToCore * 0.12);
+      displaceByGravity(room, target, zone.x - target.x, zone.y - target.y, pullAmount);
+
       const infiniteResources = hasFighterInfiniteResources(target);
       if (infiniteResources) syncFighterInfiniteResources(target);
       else target.bodyHits = Math.round((Number(target.bodyHits || 0) + damage) * 100) / 100;
@@ -13094,7 +13090,11 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       target.gravityStormSlowMultiplier = gravitySlowWasActive
         ? Math.min(Number(target.gravityStormSlowMultiplier) || 1, slowMultiplier)
         : slowMultiplier;
-      setImmediateFeedback(target, "グラビティストーム", `${infiniteResources ? "HP∞でダメージ無効" : `HP-${damage.toFixed(2)}`} / 移動速度${Math.round(slowMultiplier * 100)}%`);
+      setImmediateFeedback(
+        target,
+        finalSecond ? "グラビティストーム 最終1秒" : "グラビティストーム",
+        `${infiniteResources ? "HP∞でダメージ無効" : `HP-${damage.toFixed(2)}`} / 全域吸引 / 移動速度${Math.round(slowMultiplier * 100)}%`
+      );
 
       const lethalThreshold = 2;
       if (target.bodyHits >= lethalThreshold) {
@@ -13105,27 +13105,23 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       }
 
       const modeRoll = Math.random();
-      if (modeRoll < 0.45) {
-        const dx = target.x - zone.x;
-        const dy = target.y - zone.y;
-        const amount = GRAVITY_STORM_KNOCKBACK_MIN + (GRAVITY_STORM_KNOCKBACK_MAX - GRAVITY_STORM_KNOCKBACK_MIN) * severity;
-        displaceByGravity(room, target, dx, dy, amount);
-        pushMagicEffect(room, "gravity-storm-blast", target, { radius: 190, playerId: zone.ownerId, targetId: target.id, variant: String(Math.round(amount)) });
-      } else if (modeRoll < 0.72) {
-        const amount = GRAVITY_STORM_PULL_MIN + (GRAVITY_STORM_PULL_MAX - GRAVITY_STORM_PULL_MIN) * severity;
-        displaceByGravity(room, target, zone.x - target.x, zone.y - target.y, amount);
-        pushMagicEffect(room, "gravity-storm-pull", target, { radius: 175, playerId: zone.ownerId, targetId: target.id });
-      } else if (modeRoll < 0.90) {
-        const angle = Math.random() * Math.PI * 2;
-        const amount = GRAVITY_STORM_KNOCKBACK_MIN + (GRAVITY_STORM_KNOCKBACK_MAX - GRAVITY_STORM_KNOCKBACK_MIN) * severity * 0.72;
-        displaceByGravity(room, target, Math.cos(angle), Math.sin(angle), amount);
-        pushMagicEffect(room, "gravity-storm-heavy", target, { radius: 155, playerId: zone.ownerId, targetId: target.id, variant: String(Math.round(slowMultiplier * 100)) });
-      } else {
+      if (modeRoll < 0.22) {
         const pinMs = Math.round(GRAVITY_STORM_PIN_MIN_MS + (GRAVITY_STORM_PIN_MAX_MS - GRAVITY_STORM_PIN_MIN_MS) * severity);
         target.gravityPinnedUntil = Math.max(target.gravityPinnedUntil || 0, timestamp + pinMs);
         target.vx = 0;
         target.vy = 0;
-        pushMagicEffect(room, "gravity-storm-crush", target, { radius: 165, playerId: zone.ownerId, targetId: target.id, variant: String(pinMs) });
+        pushMagicEffect(room, "gravity-storm-crush", target, { radius: 165, playerId: zone.ownerId, targetId: target.id, variant: `pull-pin:${pinMs}` });
+      } else if (modeRoll < 0.48) {
+        const extraPull = pullAmount * (0.28 + severity * 0.22);
+        displaceByGravity(room, target, zone.x - target.x, zone.y - target.y, extraPull);
+        pushMagicEffect(room, "gravity-storm-heavy", target, { radius: 155, playerId: zone.ownerId, targetId: target.id, variant: `inward:${Math.round(extraPull)}` });
+      } else {
+        pushMagicEffect(room, "gravity-storm-pull", target, {
+          radius: 175,
+          playerId: zone.ownerId,
+          targetId: target.id,
+          variant: `${finalSecond ? "final" : "sustain"}:${Math.round(pullAmount)}`
+        });
       }
     }
   }
@@ -13248,8 +13244,97 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   return true;
 }
 
+function attackerDefenderKillDeadlineEnabled(room, player) {
+  return Boolean(
+    room?.phase === "playing" &&
+    !room.soloMission &&
+    player?.role === "attacker" &&
+    player.alive &&
+    !player.ejected
+  );
+}
+
+function resetAttackerDefenderKillDeadline(room, player, timestamp = now()) {
+  if (!attackerDefenderKillDeadlineEnabled(room, player)) {
+    if (player) player.attackerDefenderKillDeadlineAt = 0;
+    return false;
+  }
+  player.attackerDefenderKillDeadlineLastResetAt = timestamp;
+  player.attackerDefenderKillDeadlineAt = timestamp + ATTACKER_DEFENDER_KILL_DEADLINE_MS;
+  return true;
+}
+
+function recordAttackerDefenderKillDeadlineReset(room, killer, target, timestamp = now()) {
+  if (!killer || !target || killer.id === target.id) return false;
+  if (killer.role !== "attacker" || target.role !== "defender") return false;
+  if (!resetAttackerDefenderKillDeadline(room, killer, timestamp)) return false;
+  setImmediateFeedback(killer, "対DEFキル期限", "90秒へ更新");
+  return true;
+}
+
+function eliminateAttackerForMissedDefenderKill(room, player, timestamp = now()) {
+  if (!attackerDefenderKillDeadlineEnabled(room, player)) return false;
+  recordBotMatchElimination(room, player, null);
+  player.alive = false;
+  player.bodyHits = 0;
+  player.overheal = 0;
+  player.limitBreakActive = false;
+  player.limitBreakEndsAt = 0;
+  player.limitBreakStacks = 0;
+  player.attackerDefenderKillDeadlineAt = 0;
+  player.inVent = false;
+  player.ventId = "";
+  player.drone.active = false;
+  player.clairvoyanceActive = false;
+  player.clairvoyanceManaCarry = 0;
+  clearAttackState(player);
+  pushHitEffect(room, player, "body", true);
+  pushMagicEffect(room, "attacker-kill-deadline", player, {
+    radius: 230,
+    playerId: player.id,
+    variant: "expired",
+    durationMs: 1_800
+  });
+  room.bodies.push({
+    id: uid("body_"),
+    playerId: player.id,
+    killerId: "",
+    killerName: "対ディフェンダー・キル期限",
+    killerIsBot: false,
+    killerSkinId: "",
+    name: player.name,
+    x: player.x,
+    y: player.y,
+    at: timestamp,
+    deadlineFailure: true
+  });
+  pushDoorLog(room, `${whichRoom(getMap(room), player)} で対ディフェンダー・キル期限切れ`);
+  pushEvent(room, `${player.name} は90秒以内にディフェンダーをキルできず死亡しました。`);
+  checkWin(room);
+  touch(room);
+  return true;
+}
+
+function advanceAttackerDefenderKillDeadlines(room, timestamp = now()) {
+  if (room.phase !== "playing" || room.soloMission) return false;
+  if (!alivePlayers(room, "defender").length) return false;
+  let changed = false;
+  for (const player of room.players.values()) {
+    if (!attackerDefenderKillDeadlineEnabled(room, player)) continue;
+    if (!(Number(player.attackerDefenderKillDeadlineAt) > 0)) {
+      resetAttackerDefenderKillDeadline(room, player, timestamp);
+      continue;
+    }
+    if (Number(player.attackerDefenderKillDeadlineAt) > timestamp) continue;
+    changed = eliminateAttackerForMissedDefenderKill(room, player, timestamp) || changed;
+    if (room.phase !== "playing") break;
+  }
+  return changed;
+}
+
 function transferKillCredits(room, killer, target) {
   if (!killer || !target || killer.id === target.id) return 0;
+  recordAttackerDefenderKillDeadlineReset(room, killer, target);
   const amount = Math.max(0, Math.floor(Number(target.credits) || 0));
   if (amount <= 0) return 0;
   target.credits -= amount;
@@ -13529,7 +13614,27 @@ function preparationBarrierProtects(room, target, timestamp = now()) {
   return Boolean(target?.alive && !target.ejected && preparationBarrierActive(room, timestamp));
 }
 
+function activeGravityStormBarrier(room, target, timestamp = now()) {
+  if (!target?.alive || target.ejected) return null;
+  return (room?.gravityZones || []).find((zone) => (
+    String(zone.ownerId || "") === String(target.id || "") &&
+    Number(zone.endsAt) > timestamp &&
+    timestamp < Number(zone.barrierUntil || (Number(zone.endsAt) - GRAVITY_STORM_BARRIER_RELEASE_MS))
+  )) || null;
+}
+
 function absorbPreparationBarrier(room, target, timestamp = now(), source = null) {
+  const gravityBarrier = activeGravityStormBarrier(room, target, timestamp);
+  if (gravityBarrier) {
+    pushMagicEffect(room, "gravity-storm-barrier-hit", target, {
+      radius: Number(gravityBarrier.barrierRadius) || GRAVITY_STORM_BARRIER_RADIUS,
+      targetId: source?.id || "",
+      durationMs: 620,
+      variant: "caster-barrier"
+    });
+    setImmediateFeedback(target, "グラビティストーム・バリア", "攻撃を無効化");
+    return true;
+  }
   if (!preparationBarrierProtects(room, target, timestamp)) return false;
   pushMagicEffect(room, "preparation-barrier-hit", target, {
     radius: 110,
@@ -13613,13 +13718,6 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (hackerEmpOpeningProtected(room, target, timestamp)) return false;
   applyEmpDisruption(room, target, timestamp);
-  if (hasFighterInfiniteResources(target)) {
-    syncFighterInfiniteResources(target);
-    pushHitEffect(room, target, "body", false);
-    setImmediateFeedback(target, "到達報酬", "リミットブレイクの被確殺デメリットを解除 / EMP確殺無効");
-    pushEvent(room, `${target.name} はEC50回到達報酬により、${reason}の確殺を無効化しました。`);
-    return false;
-  }
   recordBotMatchElimination(room, target, source);
   target.alive = false;
   target.bodyHits = 0;
@@ -14748,39 +14846,45 @@ function releaseThrownEnergyShockwave(room, source, landing) {
 }
 
 function applyThrownImpactDamage(room, source, landing, label, damage, radius) {
-  const target = [...room.players.values()]
+  const targets = [...room.players.values()]
     .filter((candidate) => candidate.alive && !candidate.ejected && distance(landing, candidate) <= radius)
-    .sort((a, b) => distance(landing, a) - distance(landing, b))[0];
-  if (!target) return false;
+    .sort((a, b) => distance(landing, a) - distance(landing, b));
+  if (!targets.length) return false;
   const timestamp = now();
   const impactDamage = Math.max(0.1, Number(damage) || 0.1);
-  if (resolveFighterSlashGuard(room, source, target, {
-    kind: "thrown-impact",
-    label: `${label}の衝撃`,
-    physical: true,
-    reflectable: true,
-    damage: impactDamage,
-    hitZone: "body"
-  }, timestamp)) return false;
-  if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
-  if (source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
-    applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
-    return false;
+  let hitCount = 0;
+  for (const target of targets) {
+    if (!target.alive || target.ejected) continue;
+    if (resolveFighterSlashGuard(room, source, target, {
+      kind: "thrown-impact",
+      label: `${label}の衝撃`,
+      physical: true,
+      reflectable: true,
+      damage: impactDamage,
+      hitZone: "body"
+    }, timestamp)) continue;
+    if (absorbPreparationBarrier(room, target, timestamp, source)) continue;
+    if (source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
+      applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
+      continue;
+    }
+    if (hasFighterInfiniteResources(target)) {
+      syncFighterInfiniteResources(target);
+      pushHitEffect(room, target, "body", false);
+      hitCount += 1;
+      continue;
+    }
+    if (Number(target.overheal) > 0) {
+      target.overheal = Math.max(0, Number(target.overheal) - 1);
+    } else {
+      target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + impactDamage) * 100) / 100;
+    }
+    const lethal = Number(target.bodyHits) >= 2;
+    pushHitEffect(room, target, "body", lethal);
+    if (lethal) destroyPlayerUnconditionally(room, source, target, `${label}の衝撃`, { bypassSlashGuard: true });
+    hitCount += 1;
   }
-  if (hasFighterInfiniteResources(target)) {
-    syncFighterInfiniteResources(target);
-    pushHitEffect(room, target, "body", false);
-    return true;
-  }
-  if (Number(target.overheal) > 0) {
-    target.overheal = Math.max(0, Number(target.overheal) - 1);
-  } else {
-    target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + impactDamage) * 100) / 100;
-  }
-  const lethal = Number(target.bodyHits) >= 2;
-  pushHitEffect(room, target, "body", lethal);
-  if (lethal) destroyPlayerUnconditionally(room, source, target, `${label}の衝撃`, { bypassSlashGuard: true });
-  return true;
+  return hitCount > 0;
 }
 
 function resolveThrownInventoryLanding(room, source, thrown, landing) {
@@ -15158,7 +15262,10 @@ function floraSunbeam(room, player, converged = false, targetId = "", direction 
     })
     .filter((entry) => entry.along > 0 && entry.along <= SUNBEAM_RANGE && entry.perpendicular <= SUNBEAM_WIDTH)
     .sort((a, b) => a.along - b.along);
-  const selected = converged ? (tracked ? [{ target: tracked, along: distance(player, tracked) }] : candidates.slice(0, 1)) : candidates;
+  // Both the wide and converged beams are line areas: convergence changes
+  // lethality and width, not piercing. Every valid body intersecting the ray
+  // receives its own independent guard, barrier, dodge, and damage resolution.
+  const selected = candidates;
   let hits = 0;
   for (const entry of selected) {
     if (!player.alive || player.ejected || !entry.target?.alive || entry.target.ejected) break;
@@ -15176,9 +15283,8 @@ function floraSunbeam(room, player, converged = false, targetId = "", direction 
       slashGuardPhysical: false
     });
     hits += 1;
-    if (converged) break;
   }
-  const end = selected[0]?.target || { x: player.x + dx * SUNBEAM_RANGE, y: player.y + dy * SUNBEAM_RANGE };
+  const end = { x: player.x + dx * SUNBEAM_RANGE, y: player.y + dy * SUNBEAM_RANGE };
   pushMagicEffect(room, "flora-sunbeam", player, {
     radius: converged ? 110 : SUNBEAM_WIDTH * 2,
     targetX: end.x,
@@ -15489,11 +15595,6 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     });
     if (guardOutcome) return false;
   }
-  if (!options.ignoreInfiniteResources && hasFighterInfiniteResources(target)) {
-    syncFighterInfiniteResources(target);
-    pushEvent(room, `${target.name} はEC50回到達により破壊を無効化しました。`);
-    return false;
-  }
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, now(), source)) return false;
   if (!options.ignoreFriendlyFire && source?.role === target.role && ["defender", "attacker"].includes(source?.role) && source.id !== target.id) {
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, now());
@@ -15517,14 +15618,18 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     source.totalKills += 1;
   }
   pushHitEffect(room, target, "head", true);
-  room.bodies.push({
-    id: uid("body_"), playerId: target.id, killerId: source?.id || "destruction",
-    killerName: source?.name || reason, killerIsBot: Boolean(source?.isBot),
-    killerSkinId: source?.skinId || "operator", name: target.name,
-    x: target.x, y: target.y, at: now(), destruction: true,
-    noKillCutin: Boolean(options.noKillCutin)
-  });
-  pushEvent(room, `${target.name} は${reason}で破壊されました。`);
+  if (!options.noBody) {
+    room.bodies.push({
+      id: uid("body_"), playerId: target.id, killerId: source?.id || "destruction",
+      killerName: source?.name || reason, killerIsBot: Boolean(source?.isBot),
+      killerSkinId: source?.skinId || "operator", name: target.name,
+      x: target.x, y: target.y, at: now(), destruction: true,
+      noKillCutin: Boolean(options.noKillCutin)
+    });
+  }
+  pushEvent(room, options.noBody
+    ? `${target.name} は${reason}で消滅し、死体は残りませんでした。`
+    : `${target.name} は${reason}で破壊され、死体が残りました。`);
   return true;
 }
 
@@ -15605,13 +15710,15 @@ function advanceParticleCannon(room, player, timestamp) {
   if ((Number(player.particleCannonUntil) || 0) <= timestamp || (Number(player.particleCannonNextAt) || 0) > timestamp || !player.alive) return;
   player.particleCannonNextAt = timestamp + 300;
   const targets = inventionLineTargets(room, player, 1250, 70, true);
-  if (targets[0]) destroyPlayerUnconditionally(room, player, targets[0].target, "荷電粒子砲", {
-    attackKind: "particle-cannon",
-    attackLabel: "荷電粒子砲",
-    slashGuardPhysical: false,
-    slashGuardReflectable: false,
-    reflectDestroy: true
-  });
+  for (const { target } of targets) {
+    destroyPlayerUnconditionally(room, player, target, "荷電粒子砲", {
+      attackKind: "particle-cannon",
+      attackLabel: "荷電粒子砲",
+      slashGuardPhysical: false,
+      slashGuardReflectable: false,
+      reflectDestroy: true
+    });
+  }
   pushMagicEffect(room, "alchemy-particle-beam", player, {
     radius: 140, targetX: player.x + player.aimX * 1250, targetY: player.y + player.aimY * 1250, playerId: player.id
   });
@@ -15635,7 +15742,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
     } else if (mode === "accelerate" || mode === "decelerate") {
       toggleGravityTime(room, player, mode, targetId);
     } else if (mode === "storm") {
-      useGravityStorm(room, player);
+      useGravityStorm(room, player, targetId);
     } else {
       throw new ApiError(400, "借用グラビティの方式が不正です。");
     }
@@ -15923,7 +16030,8 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   if (!ignoreDodge && target.dodgeActiveUntil > timestamp) {
     target.dodgeActiveUntil = 0;
-    if (fighterKillCounterAvailable(target)) {
+    const incomingCertainKill = fighterKillCounterTriggerIsCertainKill(hitZone, options);
+    if (fighterKillCounterAvailable(target) && incomingCertainKill) {
       recordBotMatchElimination(room, killer, target);
       killer.alive = false;
       killer.bodyHits = 0;
@@ -15963,7 +16071,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       });
       pushSound(room, "fighterCounter", target, { ownerId: target.id, maxDistance: 1400, volume: 0.9 });
       pushDoorLog(room, `${whichRoom(map, target)} でファイターのキルカウンター発生`);
-      pushEvent(room, `${target.name} が回避に成功し、攻撃者 ${killer.name} を返り討ちにしました。`);
+      pushEvent(room, `${target.name} が確殺を回避し、攻撃者 ${killer.name} を返り討ちにしました。`);
       checkWin(room);
       touch(room);
       return "fighterCountered";
@@ -15971,7 +16079,7 @@ function killPlayer(room, killer, targetId, options = {}) {
     if (!ranged && !ignoreCooldown && !preserveCooldown) {
       killer.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
     }
-    pushEvent(room, `${target.name} が ${killer.name} のキルを回避しました。`);
+    pushEvent(room, `${target.name} が ${killer.name} の攻撃を回避しました。`);
     touch(room);
     return "dodged";
   }
@@ -17577,6 +17685,14 @@ function serialize(room, viewer, options = {}) {
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
       fighterInfiniteResources: hasFighterInfiniteResources(viewer),
       fighterDestructionSlash: hasFighterInfiniteResources(viewer),
+      attackerDefenderKillDeadlineAt: Number(viewer.attackerDefenderKillDeadlineAt) || 0,
+      attackerDefenderKillDeadlineIntervalMs: ATTACKER_DEFENDER_KILL_DEADLINE_MS,
+      attackerDefenderKillDeadlineActive: ["playing", "meeting"].includes(room.phase) &&
+        !room.soloMission &&
+        viewer.role === "attacker" &&
+        viewer.alive &&
+        !viewer.ejected &&
+        alivePlayers(room, "defender").length > 0,
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -17755,7 +17871,7 @@ function serialize(room, viewer, options = {}) {
         progress: soloMissionProgress(room, timestamp),
         hintUnlocked: Boolean(room.soloMission.hintUnlocked),
         hint: room.soloMission.hintUnlocked
-          ? "CPUは自分へアクセラレート→練気4回→再度アクセラレート→練気4回→心臓転移を繰り返します。練気中の行動不能時間か、心臓転移前の位置公開を狙って妨害してください。"
+          ? "CPUは自分へアクセラレート→練気4回→再度アクセラレート→練気4回→心臓転移を繰り返します。練気中の行動不能時間か、心臓転移に必要な10MPを確保する前を狙って妨害してください。"
           : ""
       };
     })(),
@@ -19516,5 +19632,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "movement-acc-threshold-v461" });
+self.postMessage({ type: "ready", version: "attacker-kill-deadline-v467" });
 })();

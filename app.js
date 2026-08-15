@@ -10,6 +10,8 @@ const IMAGE_SMOOTHING_QUALITY = "high";
 const SELECTION_ARROW_REPEAT_INTERVAL_MS = 110;
 const CONTINUOUS_ACTION_HOLD_DELAY_MS = 420;
 const CONTINUOUS_ACTION_REPEAT_INTERVAL_MS = 220;
+const SWITCH_DRAG_HOLD_DELAY_MS = 360;
+const SWITCH_DRAG_MOVE_CANCEL_PX = 14;
 const FIGHTER_SLASH_REPEAT_INTERVAL_MS = 620;
 const TABLET_SCROLL_GESTURE_THRESHOLD_PX = 12;
 const SMARTPHONE_REPAIR_STAMINA_COST = 300;
@@ -57,6 +59,17 @@ const els = {
   tacticsBackButton: $("#tacticsBackButton"),
   tacticsChapterList: $("#tacticsChapterList"),
   tacticsContent: $("#tacticsContent"),
+  tacticsNovelStage: $("#tacticsNovelStage"),
+  tacticsNovelCanvas: $("#tacticsNovelCanvas"),
+  tacticsNovelChapter: $("#tacticsNovelChapter"),
+  tacticsNovelProgress: $("#tacticsNovelProgress"),
+  tacticsNovelSpeakerRole: $("#tacticsNovelSpeakerRole"),
+  tacticsNovelSpeaker: $("#tacticsNovelSpeaker"),
+  tacticsNovelText: $("#tacticsNovelText"),
+  tacticsNovelRestart: $("#tacticsNovelRestart"),
+  tacticsNovelPrev: $("#tacticsNovelPrev"),
+  tacticsNovelAuto: $("#tacticsNovelAuto"),
+  tacticsNovelNext: $("#tacticsNovelNext"),
   soloTrainingProgress: $("#soloTrainingProgress"),
   soloMissionGrid: $("#soloMissionGrid"),
   canvas: $("#gameCanvas"),
@@ -122,6 +135,9 @@ const els = {
   itemHoldBranchTitle: $("#itemHoldBranchTitle"),
   itemHoldBranchContinuousButton: $("#itemHoldBranchContinuousButton"),
   itemHoldBranchDetailButton: $("#itemHoldBranchDetailButton"),
+  switchDragMenu: $("#switchDragMenu"),
+  switchDragTitle: $("#switchDragTitle"),
+  switchDragOptions: $("#switchDragOptions"),
   itemUseButton: $("#itemUseButton"),
   itemThrowButton: $("#itemThrowButton"),
   enhanceReadout: $("#enhanceReadout"),
@@ -339,6 +355,12 @@ const storage = {
 storage.cpuGravityHint = "dva_cpu_gravity_hint";
 
 const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sniper", "taser"]);
+// Texture construction runs while the main state object is initialized, so this
+// asset-key list must exist before createTextures() is called.
+const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
+  "attack", "slash", "iai", "shoot", "reload", "evade", "cast", "heal",
+  "power", "focus", "rest", "interact", "jump", "enhance", "throw"
+]);
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const state = {
@@ -385,7 +407,19 @@ const state = {
     repeatTimer: 0,
     repeatRunning: false
   },
+  switchDrag: {
+    pointerId: null,
+    source: null,
+    timer: 0,
+    opened: false,
+    hover: null,
+    options: [],
+    startX: 0,
+    startY: 0,
+    suppressClickUntil: new WeakMap()
+  },
   mysteryRevealTimer: null,
+  titleArrivalTimer: null,
   fieldFeedOpen: false,
   lastRoomChatId: "",
   lastRoomChatRoomId: "",
@@ -506,6 +540,12 @@ const state = {
   onlineAvailabilityCheckInFlight: false,
   startupFullscreenPending: false,
   tacticsChapterId: "tactics-basics",
+  tacticsNovelIndex: 0,
+  tacticsNovelAuto: false,
+  tacticsNovelSceneChangedAt: 0,
+  tacticsNovelFrame: 0,
+  tacticsNovelPointer: null,
+  tacticsNovelSuppressClickUntil: 0,
   phaseUiKey: "",
   actionLayoutKey: "",
   activeEffectsRenderKey: "",
@@ -569,39 +609,39 @@ const utilityLabels = {
 };
 
 const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
-  "mineral-water": "燃焼解除・SP回復。投擲時は周囲へ適用",
-  antidote: "毒を解除。投擲時は周囲へ適用",
-  molotov: "着弾地点を燃焼。長押しで範囲強化",
-  evade: "回避の有効時間を0.25秒延長",
-  speed: "加速を1段階追加",
-  warp: "指定地点へ即時移動する消耗品",
-  mystery: "幸運／直観に応じた強化または弱体",
-  fire: "範囲へ継続燃焼。長押しで拡散",
-  substitution: "次に受ける攻撃を無効化して転移",
-  grit: "確殺1回をボディダメージ化",
-  heal: "負傷回復。無傷時はオーバーヒール",
-  reason: "踏ん張り全消去。無効化数×0.5反動",
-  mana: "マナを1回復",
-  railgun: "遮蔽物を貫通する直線破壊射撃",
-  "particle-cannon": "操作可能な破壊ビームを継続放射",
-  excalibur: "前方半面を破壊し、使用者も死亡",
-  exile: "クローンを遠隔操作し全域破壊を回避",
-  computer: "生存者のスマホ位置情報を取得",
-  handgun: "低反動の近中距離銃",
-  smg: "高レート・近距離向け・距離減衰大",
-  assault: "中レート・距離減衰小の標準銃",
-  sniper: "長射程・確殺・低レート",
-  taser: "低ダメージ・移動速度低下",
-  mercury: "通常使用は有害。投擲時は着地点へ毒を拡散",
-  lead: "通常使用は有害。投擲時は着地点へ毒を拡散",
-  uranium: "量子制御の核分裂素材。通常使用は有害",
-  plutonium: "量子制御の核分裂素材。通常使用は有害",
-  "orichalcum-sword": "物理攻撃をガード。短いJGで衝撃を100%反射。EMP・毒・サンビームは通常不可",
-  iai: "踏ん張り全削除。200SP、不足分は150SP=1MP、総量不足で死亡",
-  ice: "投擲できる低温変換済みの水",
-  "heated-water": "投擲できる高温変換済みの水",
-  rpg: "周囲を攻撃する使い切り重火器",
-  missile: "最寄り対象を攻撃する使い切り重火器"
+  "mineral-water": "通常使用: 自分の燃焼解除・SP+100。投擲: 着地点半径135の全員へ同効果。瓶片は確率ダメージ",
+  antidote: "通常使用: 自分の毒解除。投擲: 着地点半径120の全員へ同効果。瓶片は確率ダメージ",
+  molotov: "通常使用は自分を燃焼。投擲は着地点周囲を継続燃焼し、瓶片が確率ダメージ。Enhanceは強度・範囲のみ強化",
+  evade: "回避受付+0.25秒（累積上限+1.50秒）。回避自体は100SPを消費",
+  speed: "加速+0.10（累積）。移動・物理モーション・クールタイム・行動不能・タスク速度へ適用",
+  warp: "1回分を獲得（最大3回）。拡大マップで地点を指定して即時転移",
+  mystery: "幸運／直観補正つき抽選: 80C／SP+250／完全活性／理知化／12秒減速／15秒能力封印／8秒意識消失",
+  fire: "1回分を獲得（最大2回）。周囲を継続燃焼。Enhanceは強度・範囲のみ強化",
+  substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
+  grit: "1回分を獲得。次の確殺をボディダメージ化。理知中のみ発動",
+  heal: "負傷時はHPを2まで全回復。無傷時はオーバーヒール+1",
+  reason: "1回分を獲得。次の攻撃対象の踏ん張りを全削除し、削除1回につき自分へ0.5ダメージ。理知中のみ発動",
+  mana: "MP+1",
+  railgun: "使い切り。全遮蔽物を貫通する直線破壊射撃。命中者は死体あり",
+  "particle-cannon": "使い切り。照準操作できる貫通破壊ビームを継続放射。経路上の全対象へ命中し死体を残す",
+  excalibur: "使い切り。前方半面を破壊して死体を残し、使用者も死亡",
+  exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
+  computer: "所持中、生存者のスマホ位置を表示。EMPストレージ遮断中は停止し、解除後に復帰",
+  handgun: "12発。射程520・威力0.48・0.38秒間隔。弾切れ／射撃停止後に自動リロード",
+  smg: "30発。射程460・威力0.42・0.10秒間隔。距離減衰大。自動リロード",
+  assault: "18発。射程760・威力0.58・0.24秒間隔。距離減衰小。自動リロード",
+  sniper: "5発。射程1200・確殺・1.10秒間隔。自動リロード",
+  taser: "8発。射程420・威力0.16・0.72秒間隔。命中対象を6秒間35%減速。自動リロード",
+  mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で55Cへ換金",
+  lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で35Cへ換金",
+  uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
+  plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
+  "orichalcum-sword": "斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後のJGは全攻撃反射、消滅斬りは死体なし。斬る／投擲の衝撃波はEC-1、EC100以上の斬るはEC-100で特大化。衝撃波はJG・反射不可",
+  iai: "敵1人の有限の踏ん張りを全削除。200SP相当をSPから消費し、不足分は150SP=1MPで補填。総量不足なら死亡。EC50の無限踏ん張りは削除不可",
+  ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
+  "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
+  rpg: "使い切り。自分以外の周囲全員へ物理攻撃",
+  missile: "使い切り。最寄りの敵1人へ物理攻撃"
 });
 
 const VENDING_PRODUCT_LABELS = Object.freeze({
@@ -691,22 +731,22 @@ const alchemyRecipes = [
   { id: "mineral-water", label: "ミネラルウォーター", output: VENDING_PRODUCT_DESCRIPTIONS["mineral-water"], asset: "mineral-water" },
   { id: "antidote", label: "解毒剤", output: VENDING_PRODUCT_DESCRIPTIONS.antidote, asset: "antidote" },
   { id: "molotov", label: "火炎瓶", output: VENDING_PRODUCT_DESCRIPTIONS.molotov, asset: "molotov" },
-  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: "固有武器を生成 / MP消費なし", asset: "orichalcum-sword" },
+  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: `MP消費なし。${VENDING_PRODUCT_DESCRIPTIONS["orichalcum-sword"]}`, asset: "orichalcum-sword" },
   { id: "iai", label: "居合", output: VENDING_PRODUCT_DESCRIPTIONS.iai, asset: "iai" },
   { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "instant-evade" },
-  { id: "vending-speed", label: "アクセラレート飲料", output: "移動速度 ×1.10（重複可）", asset: "instant-speed" },
-  { id: "vending-mystery", label: "ミステリー", output: "幸運値に応じたランダム効果", asset: "instant-mystery" },
-  { id: "vending-mana", label: "マナポーション", output: "マナ +1", asset: "mana" },
-  { id: "vending-railgun", label: "レールガン", output: "全遮蔽物貫通兵器", asset: "railgun" },
-  { id: "vending-particle-cannon", label: "荷電粒子砲", output: "破壊ビームを継続放射", asset: "particle-cannon" },
-  { id: "vending-excalibur", label: "エクスカリバー", output: "前方半面を破壊", asset: "excalibur" },
-  { id: "vending-exile", label: "亡命", output: "遠隔クローンを運用", asset: "exile" },
-  { id: "vending-computer", label: "パソコン", output: "生存者の位置情報を取得", asset: "computer" },
-  { id: "vending-handgun", label: "ハンドガン", output: "武器と弾薬を生成", asset: "handgun" },
-  { id: "vending-smg", label: "サブマシンガン", output: "武器と弾薬を生成", asset: "smg" },
-  { id: "vending-assault", label: "アサルトライフル", output: "武器と弾薬を生成", asset: "assault" },
-  { id: "vending-sniper", label: "スナイパーライフル", output: "武器と弾薬を生成", asset: "sniper" },
-  { id: "vending-taser", label: "テーザー銃", output: "武器と弾薬を生成", asset: "taser" },
+  { id: "vending-speed", label: "アクセラレート飲料", output: VENDING_PRODUCT_DESCRIPTIONS.speed, asset: "instant-speed" },
+  { id: "vending-mystery", label: "ミステリー", output: VENDING_PRODUCT_DESCRIPTIONS.mystery, asset: "instant-mystery" },
+  { id: "vending-mana", label: "マナポーション", output: VENDING_PRODUCT_DESCRIPTIONS.mana, asset: "mana" },
+  { id: "vending-railgun", label: "レールガン", output: VENDING_PRODUCT_DESCRIPTIONS.railgun, asset: "railgun" },
+  { id: "vending-particle-cannon", label: "荷電粒子砲", output: VENDING_PRODUCT_DESCRIPTIONS["particle-cannon"], asset: "particle-cannon" },
+  { id: "vending-excalibur", label: "エクスカリバー", output: VENDING_PRODUCT_DESCRIPTIONS.excalibur, asset: "excalibur" },
+  { id: "vending-exile", label: "亡命", output: VENDING_PRODUCT_DESCRIPTIONS.exile, asset: "exile" },
+  { id: "vending-computer", label: "パソコン", output: VENDING_PRODUCT_DESCRIPTIONS.computer, asset: "computer" },
+  { id: "vending-handgun", label: "ハンドガン", output: VENDING_PRODUCT_DESCRIPTIONS.handgun, asset: "handgun" },
+  { id: "vending-smg", label: "サブマシンガン", output: VENDING_PRODUCT_DESCRIPTIONS.smg, asset: "smg" },
+  { id: "vending-assault", label: "アサルトライフル", output: VENDING_PRODUCT_DESCRIPTIONS.assault, asset: "assault" },
+  { id: "vending-sniper", label: "スナイパーライフル", output: VENDING_PRODUCT_DESCRIPTIONS.sniper, asset: "sniper" },
+  { id: "vending-taser", label: "テーザー銃", output: VENDING_PRODUCT_DESCRIPTIONS.taser, asset: "taser" },
   { id: "revive", label: "人体生成", output: "死者を一度だけ復活 / 0MP" },
   { id: "hack-credits-delete", label: "クレジット削除", output: "対象のクレジットを0にする", asset: "hack-credits-delete" },
   { id: "hack-credits-duplicate", label: "クレジット増殖", output: "対象のクレジットを複製", asset: "hack-credits-duplicate" },
@@ -717,9 +757,9 @@ const alchemyRecipes = [
   { id: "hack-mana-delete", label: "マナ削除", output: "対象のマナを0にする", asset: "hack-mana-delete" },
   { id: "hack-mana-duplicate", label: "マナ増殖", output: "対象のマナを複製", asset: "hack-mana-duplicate" },
   { id: "hack-status-recover", label: "状態異常回復", output: "対象の状態異常を解除", asset: "hack-status-recover" },
-  { id: "invention-excalibur", label: "エクスカリバー", output: "前方半面を破壊", kind: "invention", inventoryId: "excalibur" },
-  { id: "invention-railgun", label: "レールガン", output: "全遮蔽物貫通", kind: "invention", inventoryId: "railgun" },
-  { id: "invention-particle-cannon", label: "荷電粒子砲", output: "破壊ビームを継続放射", kind: "invention", inventoryId: "particle-cannon" }
+  { id: "invention-excalibur", label: "エクスカリバー", output: VENDING_PRODUCT_DESCRIPTIONS.excalibur, kind: "invention", inventoryId: "excalibur" },
+  { id: "invention-railgun", label: "レールガン", output: VENDING_PRODUCT_DESCRIPTIONS.railgun, kind: "invention", inventoryId: "railgun" },
+  { id: "invention-particle-cannon", label: "荷電粒子砲", output: VENDING_PRODUCT_DESCRIPTIONS["particle-cannon"], kind: "invention", inventoryId: "particle-cannon" }
 ];
 
 const HACKER_RECIPE_COOLDOWN_MS = Object.freeze({
@@ -785,7 +825,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "movement-acc-threshold-v461";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "attacker-kill-deadline-v467";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1311,6 +1351,129 @@ function renderHackerAbilityDock(data = state.data, force = false) {
 
 const soloMissionIds = ["movement", "combat", "defense", "intel", "emp", "cpu-gravity", "cpu-stage2"];
 
+const TACTICS_NOVEL_SCENES = Object.freeze([
+  {
+    title: "ようこそ",
+    speaker: "sophia",
+    role: "TACTICAL GUIDE",
+    name: "ソフィア",
+    text: "戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。",
+    sophiaGesture: "interact",
+    philiaGesture: "rest",
+    symbols: [{ type: "note", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
+  },
+  {
+    title: "試合の流れ",
+    speaker: "philia",
+    role: "FLOW GUIDE",
+    name: "フィリア",
+    text: "オペレーター選択、バトル、会議、次ラウンド、リザルトの順です。死体通報かスマホ緊急会議で会議へ移ります。",
+    sophiaGesture: "focus",
+    philiaGesture: "interact",
+    symbols: [{ type: "cheer", owner: "philia" }, { type: "note", owner: "sophia" }]
+  },
+  {
+    title: "陣営と勝利",
+    speaker: "sophia",
+    role: "VICTORY GUIDE",
+    name: "ソフィア",
+    text: "ディフェンダーは全タスク完了か全アタッカー排除、アタッカーはディフェンダー全滅か致命サボタージュ完遂で勝利。各アタッカーは90秒以内にディフェンダーをキルできなければ死亡し、本人の成功時だけ90秒へ更新、会議中は停止します。",
+    sophiaGesture: "power",
+    philiaGesture: "focus",
+    symbols: [{ type: "sparkle", owner: "sophia" }, { type: "cheer", owner: "philia" }]
+  },
+  {
+    title: "移動とSP",
+    speaker: "philia",
+    role: "MOVEMENT GUIDE",
+    name: "フィリア",
+    text: "SPは満タン開始。歩行でも減り、ダッシュはより多く消費します。停止してからタスク、距離を決めて跳躍、と切り替えましょう。",
+    sophiaGesture: "rest",
+    philiaGesture: "focus",
+    symbols: [{ type: "idea", owner: "philia" }, { type: "note", owner: "sophia" }]
+  },
+  {
+    title: "MP・SPと心の状態",
+    speaker: "sophia",
+    role: "RESOURCE GUIDE",
+    name: "ソフィア",
+    text: "MPは0以下が欲望、1が気概、2以上が理知。SPは0が欲望、1～250が気概、251以上が理知です。満タンSPと余剰MPは互いへ少しずつ自動変換されます。",
+    sophiaGesture: "focus",
+    philiaGesture: "interact",
+    symbols: [{ type: "idea", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
+  },
+  {
+    title: "戦闘用語",
+    speaker: "philia",
+    role: "COMBAT GUIDE",
+    name: "フィリア",
+    text: "HPは2。確殺は残HPに関係なく倒します。破壊と消滅は同じ強制死亡ですが、破壊は死体あり、消滅は死体なしです。",
+    sophiaGesture: "interact",
+    philiaGesture: "power",
+    symbols: [{ type: "idea", owner: "philia" }, { type: "sparkle", owner: "sophia" }]
+  },
+  {
+    title: "ファイターとEC",
+    speaker: "sophia",
+    role: "FIGHTER GUIDE",
+    name: "ソフィア",
+    text: "オリハルコン・ソードは物理攻撃をガードし、正確なJGで反射。EC25で居合、EC50で無限資源、LB被確殺解除、消滅斬り、全攻撃JG反射を永続獲得します。",
+    sophiaGesture: "power",
+    philiaGesture: "focus",
+    symbols: [{ type: "sparkle", owner: "sophia" }, { type: "idea", owner: "philia" }]
+  },
+  {
+    title: "アイテムと自販機",
+    speaker: "philia",
+    role: "ITEM GUIDE",
+    name: "フィリア",
+    text: "自販機はどこでも開け、分類から選びます。全アイテムは通常使用と投擲ができ、瓶は着地で壊れて周囲へ効果。長押しで詳細を確認できます。",
+    sophiaGesture: "interact",
+    philiaGesture: "throw",
+    symbols: [{ type: "cheer", owner: "philia" }, { type: "note", owner: "sophia" }]
+  },
+  {
+    title: "オペレーター",
+    speaker: "sophia",
+    role: "OPERATOR GUIDE",
+    name: "ソフィア",
+    text: "ガンナーは銃と特殊弾、グラビティは時空と全域重力嵐、フローラは自己回復と光、ハッカーは生成、量子制御は物質変換を担当します。",
+    sophiaGesture: "interact",
+    philiaGesture: "cast",
+    symbols: [{ type: "note", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
+  },
+  {
+    title: "索敵・EMP・サボ",
+    speaker: "philia",
+    role: "INTEL GUIDE",
+    name: "フィリア",
+    text: "千里眼は全員共通で0.25MP/秒。同位相EMPは900ms以内で共振、逆位相は相殺します。敵陣営Botも千里眼で索敵します。",
+    sophiaGesture: "focus",
+    philiaGesture: "cast",
+    symbols: [{ type: "idea", owner: "philia" }, { type: "cheer", owner: "sophia" }]
+  },
+  {
+    title: "会議とルミナス",
+    speaker: "sophia",
+    role: "MEETING GUIDE",
+    name: "ソフィア",
+    text: "匿名投票とゲーム内テキストチャットで情報を整理します。ルミナスはディフェンダーが一試合に一度だけ使い、的中するとキル1です。",
+    sophiaGesture: "focus",
+    philiaGesture: "interact",
+    symbols: [{ type: "idea", owner: "sophia" }, { type: "note", owner: "philia" }]
+  },
+  {
+    title: "実戦へ",
+    speaker: "philia",
+    role: "READY GUIDE",
+    name: "フィリア",
+    text: "イデア到達者が複数なら、その全員が勝利します。仕様表とソロ訓練も使い、得意な判断を見つけたらプレイへ進みましょう。",
+    sophiaGesture: "heal",
+    philiaGesture: "power",
+    symbols: [{ type: "cheer", owner: "philia" }, { type: "sparkle", owner: "sophia" }, { type: "note", owner: "philia", secondary: true }]
+  }
+]);
+
 function completedSoloMissions() {
   try {
     const value = JSON.parse(localStorage.getItem(storage.soloMissions) || "[]");
@@ -1347,7 +1510,10 @@ function recordSoloMissionCompletion(missionId) {
 init();
 
 function prepareTitleHero() {
-  const reveal = () => els.startScreen.classList.add("title-ready");
+  const reveal = () => {
+    els.startScreen.classList.add("title-ready");
+    playTitleCommandArrival();
+  };
   if (!els.startHero) {
     reveal();
     return;
@@ -1358,6 +1524,17 @@ function prepareTitleHero() {
   }
   els.startHero.addEventListener("load", reveal, { once: true });
   els.startHero.addEventListener("error", reveal, { once: true });
+}
+
+function playTitleCommandArrival() {
+  if (state.titleArrivalTimer) window.clearTimeout(state.titleArrivalTimer);
+  els.startScreen.classList.remove("title-arriving");
+  void els.startScreen.offsetWidth;
+  els.startScreen.classList.add("title-arriving");
+  state.titleArrivalTimer = window.setTimeout(() => {
+    els.startScreen.classList.remove("title-arriving");
+    state.titleArrivalTimer = null;
+  }, 1300);
 }
 
 function init() {
@@ -1785,6 +1962,8 @@ function setScreen(screen) {
   document.body.classList.toggle("game-open", next === "game");
   document.documentElement.classList.toggle("game-open", next === "game");
   els.startScreen.hidden = next === "game";
+  els.startScreen.classList.remove("title-arriving");
+  if (next === "title") playTitleCommandArrival();
   if (els.titleMuteButton) els.titleMuteButton.hidden = next === "tactics";
   els.gameApp.setAttribute("aria-hidden", String(next !== "game"));
   els.titleMenu.hidden = next !== "title";
@@ -1796,6 +1975,7 @@ function setScreen(screen) {
     els.tacticsBackButton.title = label;
   }
   if (next === "tactics") setActiveTacticsChapter(state.tacticsChapterId || "tactics-basics");
+  else syncTacticsNovelAnimation();
   if (next !== "game") clearMovementInput();
   window.scrollTo(0, 0);
   syncBgm();
@@ -1860,10 +2040,12 @@ function initializeTacticsPanel() {
       setActiveTacticsChapter(article.id);
     });
   });
+  initializeTacticsNovel();
 }
 
 function setActiveTacticsChapter(id) {
   state.tacticsChapterId = id;
+  els.tacticsPanel?.classList.toggle("novel-active", id === "tactics-novel");
   els.tacticsChapterList.querySelectorAll("[data-tactics-target]").forEach((button) => {
     const active = button.dataset.tacticsTarget === id;
     button.classList.toggle("active", active);
@@ -1875,6 +2057,243 @@ function setActiveTacticsChapter(id) {
     article.setAttribute("aria-hidden", String(!active));
   });
   els.tacticsContent.scrollTop = 0;
+  syncTacticsNovelAnimation();
+}
+
+function initializeTacticsNovel() {
+  if (!els.tacticsNovelStage || !els.tacticsNovelCanvas) return;
+  els.tacticsNovelProgress.replaceChildren(...TACTICS_NOVEL_SCENES.map(() => document.createElement("i")));
+  els.tacticsNovelRestart.addEventListener("click", () => setTacticsNovelScene(0));
+  els.tacticsNovelPrev.addEventListener("click", () => setTacticsNovelScene(state.tacticsNovelIndex - 1));
+  els.tacticsNovelNext.addEventListener("click", () => {
+    if (state.tacticsNovelIndex >= TACTICS_NOVEL_SCENES.length - 1) {
+      setTacticsNovelAuto(false);
+      setTacticsNovelScene(0);
+      return;
+    }
+    setTacticsNovelScene(state.tacticsNovelIndex + 1);
+  });
+  els.tacticsNovelAuto.addEventListener("click", () => setTacticsNovelAuto(!state.tacticsNovelAuto));
+  els.tacticsNovelStage.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest("button")) return;
+    if (performance.now() < state.tacticsNovelSuppressClickUntil) return;
+    els.tacticsNovelNext.click();
+  });
+  els.tacticsNovelStage.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.target instanceof Element && event.target.closest("button")) return;
+    state.tacticsNovelPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    try { els.tacticsNovelStage.setPointerCapture(event.pointerId); } catch {}
+  });
+  els.tacticsNovelStage.addEventListener("pointerup", (event) => {
+    const pointer = state.tacticsNovelPointer;
+    state.tacticsNovelPointer = null;
+    if (!pointer || pointer.id !== event.pointerId) return;
+    const dx = event.clientX - pointer.x;
+    const dy = event.clientY - pointer.y;
+    if (Math.abs(dx) < 46 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+    state.tacticsNovelSuppressClickUntil = performance.now() + 650;
+    setTacticsNovelScene(state.tacticsNovelIndex + (dx < 0 ? 1 : -1));
+  });
+  els.tacticsNovelStage.addEventListener("pointercancel", () => {
+    state.tacticsNovelPointer = null;
+  });
+  setTacticsNovelScene(0, { quiet: true });
+}
+
+function setTacticsNovelAuto(enabled) {
+  state.tacticsNovelAuto = Boolean(enabled);
+  state.tacticsNovelSceneChangedAt = performance.now();
+  els.tacticsNovelAuto.setAttribute("aria-pressed", String(state.tacticsNovelAuto));
+  els.tacticsNovelAuto.textContent = state.tacticsNovelAuto ? "自動 ON" : "自動 OFF";
+  syncTacticsNovelAnimation();
+}
+
+function setTacticsNovelScene(requestedIndex, options = {}) {
+  const index = clamp(Number(requestedIndex) || 0, 0, TACTICS_NOVEL_SCENES.length - 1);
+  const changed = index !== state.tacticsNovelIndex;
+  state.tacticsNovelIndex = index;
+  state.tacticsNovelSceneChangedAt = performance.now();
+  const scene = TACTICS_NOVEL_SCENES[index];
+  els.tacticsNovelChapter.textContent = `${String(index + 1).padStart(2, "0")} / ${String(TACTICS_NOVEL_SCENES.length).padStart(2, "0")}　${scene.title}`;
+  els.tacticsNovelSpeakerRole.textContent = scene.role;
+  els.tacticsNovelSpeaker.textContent = scene.name;
+  els.tacticsNovelText.textContent = scene.text;
+  els.tacticsNovelPrev.disabled = index === 0;
+  els.tacticsNovelRestart.disabled = index === 0;
+  els.tacticsNovelNext.textContent = index === TACTICS_NOVEL_SCENES.length - 1 ? "もう一度 ↻" : "次へ →";
+  [...els.tacticsNovelProgress.children].forEach((dot, dotIndex) => {
+    dot.classList.toggle("active", dotIndex === index);
+    dot.classList.toggle("complete", dotIndex < index);
+  });
+  if (changed && !options.quiet) playSound("select");
+  syncTacticsNovelAnimation();
+}
+
+function syncTacticsNovelAnimation() {
+  const active = state.screen === "tactics" && state.tacticsChapterId === "tactics-novel" && !els.tacticsNovelStage?.hidden;
+  if (!active) {
+    if (state.tacticsNovelFrame) cancelAnimationFrame(state.tacticsNovelFrame);
+    state.tacticsNovelFrame = 0;
+    return;
+  }
+  if (!state.tacticsNovelFrame) state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
+}
+
+function tacticsNovelMotionFrame(timeSeconds) {
+  return [0, 1, 2, 1][Math.floor(timeSeconds * 1.35) % 4];
+}
+
+function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, active, timeSeconds, entrance) {
+  const image = state.textures.tacticsNovelMotions?.[person]?.[gesture];
+  const skin = person === "sophia" ? "blue-dress" : "white-hood";
+  const key = `physical-motion-${skin}-${gesture}-novel-v466`;
+  const source = image ? transparentSpriteSource(image, key, 20) : null;
+  if (!source) return;
+  const frame = tacticsNovelMotionFrame(timeSeconds + (person === "sophia" ? 0 : 0.37));
+  const sourceWidth = source.width / 3;
+  const sourceHeight = source.height;
+  const activeScale = active ? 1.045 : 0.94;
+  const drawHeight = height * activeScale;
+  const drawWidth = drawHeight * sourceWidth / sourceHeight;
+  const direction = person === "sophia" ? -1 : 1;
+  const slide = direction * (1 - entrance) * 54;
+  const bob = Math.sin(timeSeconds * 2.1 + (person === "sophia" ? 0 : 1.4)) * (active ? 3.4 : 1.8);
+  ctx.save();
+  ctx.globalAlpha = (active ? 1 : 0.72) * (0.48 + entrance * 0.52);
+  ctx.filter = active ? "saturate(1.05) brightness(1.03)" : "saturate(0.78) brightness(0.82)";
+  ctx.translate(x + slide, baseY + bob);
+  ctx.drawImage(source, frame * sourceWidth, 0, sourceWidth, sourceHeight, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  ctx.restore();
+}
+
+function drawTacticsNovelAmbientE(ctx, width, height, timeSeconds) {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  for (let index = 0; index < 18; index += 1) {
+    const phase = (timeSeconds * (0.022 + index * 0.0007) + index * 0.071) % 1;
+    const x = ((index * 83) % 997) / 997 * width + Math.sin(timeSeconds * 0.6 + index) * 10;
+    const y = height * (0.78 - phase * 0.66);
+    const alpha = Math.sin(phase * Math.PI) * 0.28;
+    ctx.fillStyle = index % 3 === 0 ? `rgba(250,204,21,${alpha})` : `rgba(94,234,212,${alpha * 0.74})`;
+    ctx.fillRect(x, y, 2 + index % 2, 2 + index % 2);
+  }
+  ctx.restore();
+}
+
+function drawTacticsNovelMangaE(ctx, type, x, y, size, timeSeconds, phase) {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  const pulse = 0.5 + Math.sin(timeSeconds * 4.2 + phase) * 0.5;
+  if (type === "sparkle") {
+    ctx.translate(x, y);
+    for (let index = 0; index < 5; index += 1) {
+      const angle = phase + index * Math.PI * 0.4;
+      const radius = size * (0.56 + pulse * 0.12);
+      ctx.fillStyle = `rgba(103,232,249,${0.14 + pulse * 0.2})`;
+      ctx.save();
+      ctx.translate(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      ctx.rotate(angle + timeSeconds * 0.3);
+      ctx.fillRect(-2, -2, 4, 4);
+      ctx.restore();
+    }
+  } else if (type === "idea") {
+    for (let index = 0; index < 4; index += 1) {
+      const angle = -Math.PI * 0.82 + index * Math.PI * 0.55;
+      ctx.fillStyle = `rgba(250,204,21,${0.12 + pulse * 0.19})`;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(angle) * size * 0.58, y + Math.sin(angle) * size * 0.58, 2.2 + pulse * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (type === "cheer") {
+    ctx.strokeStyle = `rgba(94,234,212,${0.12 + pulse * 0.17})`;
+    ctx.lineWidth = Math.max(3, size * 0.045);
+    ctx.beginPath();
+    ctx.moveTo(x - size * 0.55, y + size * 0.5);
+    ctx.bezierCurveTo(x - size * 0.2, y + size * 0.2, x + size * 0.08, y - size * 0.1, x + size * 0.58, y - size * 0.48);
+    ctx.stroke();
+  } else if (type === "note") {
+    for (let index = 0; index < 4; index += 1) {
+      const rise = (timeSeconds * 0.18 + index * 0.23 + phase) % 1;
+      const px = x + (index - 1.5) * size * 0.24 + Math.sin(timeSeconds + index) * 4;
+      const py = y + size * 0.5 - rise * size;
+      const radius = 2.8 + index % 2;
+      ctx.fillStyle = `rgba(165,243,252,${Math.sin(rise * Math.PI) * 0.24})`;
+      ctx.beginPath();
+      for (let side = 0; side < 6; side += 1) {
+        const angle = side * Math.PI / 3;
+        const hx = px + Math.cos(angle) * radius;
+        const hy = py + Math.sin(angle) * radius;
+        if (side === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance) {
+  const image = state.textures.tacticsNovelMangaSymbols?.[symbol.type];
+  if (!image?.complete || !image.naturalWidth) return;
+  const ownerAnchor = anchors[symbol.owner] || anchors.sophia;
+  const secondaryOffset = symbol.secondary ? 78 : 0;
+  const x = ownerAnchor.x + (symbol.owner === "sophia" ? -ownerAnchor.size * 0.52 : ownerAnchor.size * 0.52) + secondaryOffset;
+  const y = ownerAnchor.y - ownerAnchor.size * (symbol.secondary ? 0.36 : 0.72);
+  const baseSize = clamp(ownerAnchor.size * (symbol.secondary ? 0.23 : 0.3), 58, 118);
+  const localTime = timeSeconds + index * 0.73;
+  const scale = entrance * (0.94 + Math.sin(localTime * 3.2) * 0.055);
+  const rotation = Math.sin(localTime * 1.8) * 0.08;
+  drawTacticsNovelMangaE(ctx, symbol.type, x, y, baseSize, timeSeconds, index * 0.67);
+  ctx.save();
+  ctx.globalAlpha = entrance;
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.scale(scale, scale);
+  ctx.drawImage(image, -baseSize / 2, -baseSize / 2, baseSize, baseSize);
+  ctx.restore();
+}
+
+function drawTacticsNovelFrame(timestamp) {
+  state.tacticsNovelFrame = 0;
+  if (state.screen !== "tactics" || state.tacticsChapterId !== "tactics-novel") return;
+  const canvas = els.tacticsNovelCanvas;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 2 || rect.height < 2) {
+    state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
+    return;
+  }
+  const pixelRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const targetWidth = Math.round(rect.width * pixelRatio);
+  const targetHeight = Math.round(rect.height * pixelRatio);
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  const scene = TACTICS_NOVEL_SCENES[state.tacticsNovelIndex];
+  const elapsed = Math.max(0, timestamp - state.tacticsNovelSceneChangedAt);
+  const timeSeconds = timestamp / 1000;
+  const entrance = 1 - Math.pow(1 - clamp(elapsed / 520, 0, 1), 3);
+  drawTacticsNovelAmbientE(ctx, rect.width, rect.height, timeSeconds);
+  const compact = rect.width < 620;
+  const characterHeight = clamp(rect.height * (compact ? 0.56 : 0.72), 245, compact ? 360 : 520);
+  const baseY = rect.height * (compact ? 0.63 : 0.8);
+  const anchors = {
+    sophia: { x: rect.width * (compact ? 0.28 : 0.3), y: baseY, size: characterHeight },
+    philia: { x: rect.width * (compact ? 0.72 : 0.7), y: baseY, size: characterHeight }
+  };
+  drawTacticsNovelCharacter(ctx, "sophia", scene.sophiaGesture, anchors.sophia.x, baseY, characterHeight, scene.speaker === "sophia", timeSeconds, entrance);
+  drawTacticsNovelCharacter(ctx, "philia", scene.philiaGesture, anchors.philia.x, baseY, characterHeight, scene.speaker === "philia", timeSeconds, entrance);
+  scene.symbols.forEach((symbol, index) => drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance));
+  if (state.tacticsNovelAuto && elapsed >= 7_000) {
+    if (state.tacticsNovelIndex >= TACTICS_NOVEL_SCENES.length - 1) setTacticsNovelAuto(false);
+    else setTacticsNovelScene(state.tacticsNovelIndex + 1);
+  }
+  state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
 }
 
 function syncTacticsChapterFromScroll() {
@@ -2164,11 +2583,12 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/donate": "interact",
   "/api/teleport": "cast",
   "/api/gravity-time": "cast",
-  "/api/gravity-storm": "cast",
+  "/api/gravity-storm": "power",
   "/api/instant-warp": "cast",
   "/api/purchase": "interact",
   "/api/fire-jutsu": "cast",
   "/api/quantum-control": "cast",
+  "/api/clairvoyance": "focus",
   "/api/item-use": "interact",
   "/api/item-throw": "throw",
   "/api/flora-heal": "heal",
@@ -2222,7 +2642,6 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   // Throw release has dedicated timing and body mechanics while retaining the empty-hand attack cells.
   throw: 0
 });
-
 function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURATION[kind] || 700, startedAt = state.frameNow || performance.now(), sourceEffectId = "", variant = "", motionId = kind) {
   if (!playerId || !kind) return;
   state.characterActions.set(playerId, {
@@ -2241,9 +2660,13 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-dodge": "evade",
   "action-rest": "rest",
   "action-teleport": "cast",
-  "action-heart-teleport": "cast",
+  "action-heart-teleport": "power",
   "action-warp": "cast",
   "action-ninjutsu-focus": "focus",
+  "action-renki": "focus",
+  "action-task": "interact",
+  "action-clairvoyance": "focus",
+  "action-drone-altitude": "interact",
   "action-shoot": "shoot",
   "action-sniper-scope": "focus",
   "action-reload": "reload",
@@ -2284,7 +2707,11 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "emp-charge": "cast",
   "gravity-accelerate": "cast",
   "gravity-decelerate": "cast",
-  "gravity-storm": "cast",
+  "gravity-storm": "power",
+  "quantum-transmutation": "cast",
+  "quantum-temperature-cold": "cast",
+  "quantum-temperature-hot": "power",
+  "quantum-nuclear": "power",
   "alchemy-human-transmutation": "cast",
   "alchemy-excalibur": "slash",
   "alchemy-railgun": "shoot",
@@ -2299,13 +2726,18 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
 });
 
 function magicCharacterActionKind(type, variant = "") {
+  // Tasks and Hacker content application intentionally keep the character
+  // physically still; their UI/progress and Vibe Coding ATE own the feedback.
+  if (type === "action-task" || type === "action-alchemy" || type === "action-renki") return null;
   if (type === "fighter-energy-charge") {
     return /(?:^|:)milestone-motion-(?:25|50)(?::|$)/.test(String(variant || "")) ? "power" : null;
   }
   if (MAGIC_EFFECT_CHARACTER_ACTION[type]) return MAGIC_EFFECT_CHARACTER_ACTION[type];
   // Map objects keep their dedicated B effect, but do not drive a character motion.
   if (type.startsWith("object-") || type.startsWith("alchemy-object-")) return null;
-  if (type.startsWith("gravity-storm-")) return "cast";
+  // Storm victim and barrier-hit effects must not repeatedly overwrite the
+  // caster's activation motion. Only the root gravity-storm event owns it.
+  if (type.startsWith("gravity-storm-")) return null;
   if (type.startsWith("emp-")) return "cast";
   if (/fighter-(iaido|slash)|action-fighter/.test(type)) return "slash";
   if (/gunner-(rpg|missile|nuclear)|railgun|particle|sunbeam/.test(type)) return "shoot";
@@ -2481,6 +2913,7 @@ const NON_REPEATABLE_ACTION_HOTKEY_BUTTONS = new Set([
 function isContinuousGameActionButton(button) {
   if (!(button instanceof HTMLButtonElement) || button.hidden) return false;
   if (state.screen !== "game" || state.data?.phase !== "playing") return false;
+  if (switchDragDescriptorForSource(button)) return false;
   if (
     SPECIALIZED_HOLD_ACTION_IDS.has(button.id) ||
     NON_REPEATABLE_ACTION_HOTKEY_BUTTONS.has(button.id) ||
@@ -3652,6 +4085,241 @@ function cycleSelectBy(select, direction = 1) {
   return true;
 }
 
+function switchDragSelectOptions(select, group, onApply = null) {
+  if (!(select instanceof HTMLSelectElement) || select.disabled) return [];
+  return [...select.options]
+    .filter((option) => !option.disabled && !option.hidden)
+    .map((option) => ({
+      key: `${group}:${option.value}`,
+      group,
+      label: option.textContent?.trim() || option.value,
+      selected: option.value === select.value,
+      apply() {
+        select.value = option.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        onApply?.(option.value, option);
+      }
+    }));
+}
+
+function switchDragDescriptorForSource(source) {
+  if (!(source instanceof Element)) return null;
+  const options = [];
+  let title = "切り替え先";
+  if ([els.operatorAbilityButton, els.tabletAbilityShortcut].includes(source)) {
+    title = "能力・対象を切り替え";
+    const self = state.data?.self;
+    const borrowedTypes = availableBorrowedOperatorTypes(self);
+    if (borrowedTypes.length > 1) {
+      options.push(...borrowedTypes.map((type) => ({
+        key: `ability:${type}`,
+        group: "能力",
+        label: specialLabels[type] || type,
+        selected: type === selectedBorrowedOperator(),
+        apply() {
+          state.borrowedOperatorType = type;
+          renderTargetOptions(state.data);
+          updateActionButtons(state.data);
+        }
+      })));
+    }
+    if (els.teleportModeSelect.options.length > 1 && !els.teleportModeSelect.closest("label")?.hidden) {
+      options.push(...switchDragSelectOptions(els.teleportModeSelect, "方式"));
+    }
+    if (els.teleportTargetSelect.options.length > 1 && !els.teleportTargetSelect.closest("label")?.hidden) {
+      options.push(...switchDragSelectOptions(els.teleportTargetSelect, "対象"));
+    }
+  } else if ([els.empButton, els.tabletEmpShortcut].includes(source)) {
+    title = "EMP位相を切り替え";
+    options.push(...switchDragSelectOptions(els.empPhaseSelect, "位相"));
+  } else if (source === els.hackerTargetButton) {
+    title = "ハッカー対象を切り替え";
+    options.push(...hackerTargets().map((player) => ({
+      key: `hacker-target:${player.id}`,
+      group: "対象",
+      label: `${playerIdentityLabel(player)}${player.id === state.data?.selfId ? "（自分）" : ""}`,
+      selected: player.id === state.hackerTargetId,
+      apply() {
+        state.hackerTargetId = player.id;
+        renderHackerAbilityDock(state.data, true);
+      }
+    })));
+  } else if ([els.sabotageButton, els.sabotageSelect].includes(source)) {
+    title = "サボタージュを切り替え";
+    options.push(...switchDragSelectOptions(els.sabotageSelect, "内容"));
+  } else if ([els.transferItemButton, els.transferCreditsButton, els.transferTargetSelect].includes(source)) {
+    title = "譲渡対象を切り替え";
+    options.push(...switchDragSelectOptions(els.transferTargetSelect, "対象"));
+  } else if (source === els.teleportModeSelect) {
+    title = "能力方式を切り替え";
+    options.push(...switchDragSelectOptions(els.teleportModeSelect, "方式"));
+  } else if (source === els.teleportTargetSelect) {
+    title = "能力対象を切り替え";
+    options.push(...switchDragSelectOptions(els.teleportTargetSelect, "対象"));
+  } else if (source === els.empPhaseSelect) {
+    title = "EMP位相を切り替え";
+    options.push(...switchDragSelectOptions(els.empPhaseSelect, "位相"));
+  } else if (source === els.weaponButton) {
+    title = "武器を切り替え";
+    const weapons = Array.isArray(state.data?.self?.gunnerWeapons) ? state.data.self.gunnerWeapons : [];
+    options.push(...weapons.map((weapon) => ({
+      key: `weapon:${weapon.id}`,
+      group: "武器",
+      label: weapon.shortName || weapon.name || weapon.id,
+      selected: weapon.id === state.data?.self?.gunnerWeapon,
+      apply() { void api("/api/gunner-weapon", { weaponId: weapon.id }); }
+    })));
+  }
+  const unique = options.filter((option, index, all) => all.findIndex((entry) => entry.key === option.key) === index);
+  return unique.length > 1 ? { title, options: unique } : null;
+}
+
+function positionSwitchDragMenu(source = state.switchDrag.source) {
+  if (!source?.isConnected || els.switchDragMenu.hidden) return;
+  const sourceRect = source.getBoundingClientRect();
+  const menuRect = els.switchDragMenu.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const leftEdge = Number(viewport?.offsetLeft) || 0;
+  const topEdge = Number(viewport?.offsetTop) || 0;
+  const rightEdge = leftEdge + (Number(viewport?.width) || window.innerWidth);
+  const bottomEdge = topEdge + (Number(viewport?.height) || window.innerHeight);
+  const margin = 10;
+  const gap = 12;
+  const maxLeft = Math.max(leftEdge + margin, rightEdge - menuRect.width - margin);
+  let left = Math.min(maxLeft, Math.max(leftEdge + margin, sourceRect.left + sourceRect.width / 2 - menuRect.width / 2));
+  let top = sourceRect.top - menuRect.height - gap;
+  if (top < topEdge + margin) top = sourceRect.bottom + gap;
+  top = Math.min(Math.max(topEdge + margin, top), Math.max(topEdge + margin, bottomEdge - menuRect.height - margin));
+  els.switchDragMenu.style.left = `${Math.round(left)}px`;
+  els.switchDragMenu.style.top = `${Math.round(top)}px`;
+}
+
+function clearSwitchDragHover() {
+  state.switchDrag.hover?.classList.remove("switch-drag-hover");
+  state.switchDrag.hover = null;
+}
+
+function updateSwitchDragHover(clientX, clientY) {
+  if (!state.switchDrag.opened) return;
+  const candidate = document.elementsFromPoint(clientX, clientY)
+    .map((element) => element.closest?.("#switchDragOptions button"))
+    .find(Boolean) || null;
+  if (candidate === state.switchDrag.hover) return;
+  clearSwitchDragHover();
+  if (!candidate) return;
+  state.switchDrag.hover = candidate;
+  candidate.classList.add("switch-drag-hover");
+  if (navigator.vibrate) navigator.vibrate(8);
+}
+
+function closeSwitchDragMenu() {
+  const gesture = state.switchDrag;
+  if (gesture.timer) window.clearTimeout(gesture.timer);
+  gesture.timer = 0;
+  gesture.source?.classList.remove("switch-drag-source");
+  clearSwitchDragHover();
+  gesture.pointerId = null;
+  gesture.source = null;
+  gesture.opened = false;
+  gesture.options = [];
+  els.switchDragMenu.hidden = true;
+  els.switchDragOptions.replaceChildren();
+}
+
+function openSwitchDragMenu(descriptor) {
+  const gesture = state.switchDrag;
+  if (gesture.pointerId === null || !gesture.source?.isConnected) return;
+  gesture.opened = true;
+  gesture.options = descriptor.options;
+  gesture.source.classList.add("switch-drag-source");
+  els.switchDragTitle.textContent = descriptor.title;
+  els.switchDragOptions.replaceChildren();
+  descriptor.options.forEach((option, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.switchDragIndex = String(index);
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", String(Boolean(option.selected)));
+    button.className = `switch-drag-option${option.selected ? " selected" : ""}`;
+    button.innerHTML = `<small>${escapeHtml(option.group)}</small><strong>${escapeHtml(option.label)}</strong>`;
+    button.addEventListener("click", (event) => event.preventDefault());
+    els.switchDragOptions.append(button);
+  });
+  els.switchDragMenu.hidden = false;
+  positionSwitchDragMenu();
+  try { gesture.source.setPointerCapture?.(gesture.pointerId); } catch {}
+  if (navigator.vibrate) navigator.vibrate(16);
+}
+
+function beginSwitchDragGesture(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  const source = event.currentTarget;
+  const descriptor = switchDragDescriptorForSource(source);
+  if (!descriptor) return;
+  closeSwitchDragMenu();
+  const gesture = state.switchDrag;
+  gesture.pointerId = event.pointerId;
+  gesture.source = source;
+  gesture.startX = event.clientX;
+  gesture.startY = event.clientY;
+  gesture.timer = window.setTimeout(() => openSwitchDragMenu(descriptor), SWITCH_DRAG_HOLD_DELAY_MS);
+}
+
+function moveSwitchDragGesture(event) {
+  const gesture = state.switchDrag;
+  if (gesture.pointerId !== event.pointerId) return;
+  if (!gesture.opened) {
+    if (Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) > SWITCH_DRAG_MOVE_CANCEL_PX) {
+      closeSwitchDragMenu();
+    }
+    return;
+  }
+  event.preventDefault();
+  updateSwitchDragHover(event.clientX, event.clientY);
+}
+
+function finishSwitchDragGesture(event, cancelled = false) {
+  const gesture = state.switchDrag;
+  if (gesture.pointerId !== event.pointerId) return false;
+  const source = gesture.source;
+  const opened = gesture.opened;
+  if (opened) {
+    event.preventDefault();
+    updateSwitchDragHover(event.clientX, event.clientY);
+    const index = cancelled ? -1 : Number(gesture.hover?.dataset.switchDragIndex);
+    const choice = Number.isInteger(index) && index >= 0 ? gesture.options[index] : null;
+    gesture.suppressClickUntil.set(source, performance.now() + 900);
+    closeSwitchDragMenu();
+    if (choice) {
+      choice.apply();
+      showToast(`${choice.group}: ${choice.label}`);
+      playSound("select");
+    }
+    return true;
+  }
+  closeSwitchDragMenu();
+  return false;
+}
+
+function suppressSwitchDragClick(event) {
+  const source = event.target instanceof Element ? event.target.closest("button, select") : null;
+  const suppressUntil = source ? Number(state.switchDrag.suppressClickUntil.get(source)) || 0 : 0;
+  if (performance.now() >= suppressUntil) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  state.switchDrag.suppressClickUntil.delete(source);
+}
+
+function bindSwitchDragControl(source) {
+  if (!source) return;
+  source.classList.add("switch-drag-control");
+  source.addEventListener("pointerdown", beginSwitchDragGesture);
+  source.addEventListener("contextmenu", (event) => {
+    if (!switchDragDescriptorForSource(source)) return;
+    event.preventDefault();
+  });
+}
+
 function selectAlchemyRecipe(conversion, focus = false) {
   const recipe = alchemyRecipes.find((candidate) => candidate.id === conversion) || alchemyRecipes[0];
   els.alchemySelect.value = recipe.id;
@@ -3789,6 +4457,23 @@ function triggerScreenHotkey(event) {
     if (!event.repeat) switchScreenWithEffect("game");
     return true;
   }
+  if (state.screen === "tactics" && state.tacticsChapterId === "tactics-novel") {
+    const buttonFocused = document.activeElement?.matches?.("button");
+    const action = event.code === "ArrowLeft"
+      ? () => els.tacticsNovelPrev.click()
+      : event.code === "ArrowRight"
+        ? () => els.tacticsNovelNext.click()
+        : event.code === "Home"
+          ? () => els.tacticsNovelRestart.click()
+          : !buttonFocused && ["Space", "Enter"].includes(event.code)
+            ? () => els.tacticsNovelNext.click()
+          : null;
+    if (action) {
+      event.preventDefault();
+      if (!event.repeat) action();
+      return true;
+    }
+  }
   if (state.screen === "tactics" && /^Digit[1-7]$/.test(event.code)) {
     const button = els.soloMissionGrid.querySelector(`[data-solo-mission="${soloMissionIds[Number(event.code.slice(-1)) - 1]}"]`);
     if (!button) return false;
@@ -3909,12 +4594,128 @@ function triggerScreenHotkey(event) {
   return false;
 }
 
+const UNIVERSAL_DRAG_SCROLL_SKIP_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "option",
+  "[contenteditable='true']",
+  "#gameCanvas",
+  "#switchDragMenu",
+  "#itemHoldBranch",
+  ".switch-drag-control",
+  ".operator-card",
+  ".item-inventory-choice",
+  ".vending-item-with-icon",
+  ".hacker-direct-action",
+  ".enhance-hold-control",
+  ".tablet-joystick"
+].join(",");
+
+const universalDragScroll = {
+  pointerId: null,
+  container: null,
+  source: null,
+  originX: 0,
+  originY: 0,
+  scrollLeft: 0,
+  scrollTop: 0,
+  canScrollX: false,
+  canScrollY: false,
+  moved: false,
+  suppressClickUntil: 0
+};
+
+function dragScrollableAxes(element) {
+  if (!(element instanceof HTMLElement) || element.hidden) return { x: false, y: false };
+  const rect = element.getBoundingClientRect();
+  if (rect.width < 2 || rect.height < 2) return { x: false, y: false };
+  const style = getComputedStyle(element);
+  const scrollable = (value) => value === "auto" || value === "scroll";
+  return {
+    x: scrollable(style.overflowX) && element.scrollWidth > element.clientWidth + 1,
+    y: scrollable(style.overflowY) && element.scrollHeight > element.clientHeight + 1
+  };
+}
+
+function resolveDragScrollable(target) {
+  if (!(target instanceof Element) || target.closest(UNIVERSAL_DRAG_SCROLL_SKIP_SELECTOR)) return null;
+  for (let candidate = target; candidate && candidate !== document.body; candidate = candidate.parentElement) {
+    const axes = dragScrollableAxes(candidate);
+    if (axes.x || axes.y) return { element: candidate, ...axes };
+  }
+  return null;
+}
+
+function resetUniversalDragScroll() {
+  universalDragScroll.container?.removeAttribute("data-drag-scroll-active");
+  document.documentElement.classList.remove("universal-drag-scrolling");
+  universalDragScroll.pointerId = null;
+  universalDragScroll.container = null;
+  universalDragScroll.source = null;
+  universalDragScroll.canScrollX = false;
+  universalDragScroll.canScrollY = false;
+  universalDragScroll.moved = false;
+}
+
+function beginUniversalDragScroll(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  const resolved = resolveDragScrollable(event.target);
+  if (!resolved) return;
+  resetUniversalDragScroll();
+  universalDragScroll.pointerId = event.pointerId;
+  universalDragScroll.container = resolved.element;
+  universalDragScroll.source = event.target;
+  universalDragScroll.originX = event.clientX;
+  universalDragScroll.originY = event.clientY;
+  universalDragScroll.scrollLeft = resolved.element.scrollLeft;
+  universalDragScroll.scrollTop = resolved.element.scrollTop;
+  universalDragScroll.canScrollX = resolved.x;
+  universalDragScroll.canScrollY = resolved.y;
+}
+
+function moveUniversalDragScroll(event) {
+  if (universalDragScroll.pointerId !== event.pointerId || !universalDragScroll.container) return;
+  const deltaX = event.clientX - universalDragScroll.originX;
+  const deltaY = event.clientY - universalDragScroll.originY;
+  if (!universalDragScroll.moved && Math.hypot(deltaX, deltaY) < 10) return;
+  if (!universalDragScroll.moved) {
+    universalDragScroll.moved = true;
+    universalDragScroll.container.setAttribute("data-drag-scroll-active", "true");
+    document.documentElement.classList.add("universal-drag-scrolling");
+  }
+  if (event.cancelable) event.preventDefault();
+  if (universalDragScroll.canScrollX) universalDragScroll.container.scrollLeft = universalDragScroll.scrollLeft - deltaX;
+  if (universalDragScroll.canScrollY) universalDragScroll.container.scrollTop = universalDragScroll.scrollTop - deltaY;
+}
+
+function endUniversalDragScroll(event) {
+  if (universalDragScroll.pointerId !== event.pointerId) return;
+  if (universalDragScroll.moved) universalDragScroll.suppressClickUntil = performance.now() + 700;
+  resetUniversalDragScroll();
+}
+
+function bindUniversalDragScrolling() {
+  document.addEventListener("pointerdown", beginUniversalDragScroll, { capture: true, passive: true });
+  document.addEventListener("pointermove", moveUniversalDragScroll, { capture: true, passive: false });
+  document.addEventListener("pointerup", endUniversalDragScroll, true);
+  document.addEventListener("pointercancel", endUniversalDragScroll, true);
+  window.addEventListener("blur", resetUniversalDragScroll);
+  document.addEventListener("click", (event) => {
+    if (performance.now() >= universalDragScroll.suppressClickUntil) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+}
+
 function bindEvents() {
   ensureDynamicAlchemyChoices();
+  bindUniversalDragScrolling();
   document.addEventListener("pointerdown", unlockAudio, { passive: true });
   document.addEventListener("keydown", unlockAudio);
   document.addEventListener("pointerdown", beginContinuousActionHold, true);
   document.addEventListener("click", suppressContinuousActionClick, true);
+  document.addEventListener("click", suppressSwitchDragClick, true);
   document.addEventListener("pointerdown", (event) => {
     const button = event.target instanceof Element ? event.target.closest("button") : null;
   if (!button) return;
@@ -3972,6 +4773,29 @@ function bindEvents() {
   window.addEventListener("resize", scheduleTabletBranchLayout, { passive: true });
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
   bindTabletControls();
+  [
+    els.tabletAbilityShortcut,
+    els.operatorAbilityButton,
+    els.tabletEmpShortcut,
+    els.empButton,
+    els.hackerTargetButton,
+    els.sabotageButton,
+    els.transferItemButton,
+    els.transferCreditsButton,
+    els.teleportModeSelect,
+    els.teleportTargetSelect,
+    els.empPhaseSelect,
+    els.sabotageSelect,
+    els.transferTargetSelect,
+    els.weaponButton
+  ].forEach(bindSwitchDragControl);
+  window.addEventListener("pointermove", moveSwitchDragGesture, true);
+  window.addEventListener("pointerup", (event) => finishSwitchDragGesture(event), true);
+  window.addEventListener("pointercancel", (event) => finishSwitchDragGesture(event, true), true);
+  window.addEventListener("blur", closeSwitchDragMenu);
+  window.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
+  window.visualViewport?.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
+  window.visualViewport?.addEventListener("scroll", () => positionSwitchDragMenu(), { passive: true });
   els.operatorBranchCloseButton.addEventListener("click", () => setOperatorBranchesOpen(false));
   els.itemHoldBranchContinuousButton.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -4335,9 +5159,15 @@ function bindEvents() {
   els.chatTab.addEventListener("click", () => setFeed());
 
   window.addEventListener("keydown", (event) => {
+    const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+    const editableTarget = eventTarget?.matches?.('input, textarea, [contenteditable="true"]')
+      ? eventTarget
+      : document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')
+        ? document.activeElement
+        : null;
+    if (editableTarget) return;
     if (triggerDeveloperAnalyticsHotkey(event)) return;
     const typingField = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
-    if (document.activeElement === els.chatInput) return;
     if (!typingField && state.enhanceHold.kind) {
       const movementInput = Boolean(keyName(event.key)) ||
         event.key.startsWith("Arrow") ||
@@ -4542,6 +5372,9 @@ function bindEvents() {
     }
   });
   window.addEventListener("keyup", (event) => {
+    const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+    if (eventTarget?.matches?.('input, textarea, [contenteditable="true"]') ||
+      document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')) return;
     stopContinuousActionKeyHold(event.code);
     if (releaseThrowTargetMovement(event)) return;
     if (releaseClairvoyanceMovement(event)) return;
@@ -5457,19 +6290,24 @@ function renderTabletControls(data) {
   els.tabletNinjutsuShortcut.hidden = els.ninjutsuButton.hidden;
   els.tabletNinjutsuShortcut.title = els.ninjutsuButton.title;
   els.tabletAbilityShortcut.textContent = els.operatorAbilityButton.textContent || "オペ能力";
-  els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.disabled || els.operatorAbilityButton.hidden;
+  els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.dataset.operator = els.operatorAbilityButton.dataset.operator || "none";
   els.tabletAbilityShortcut.dataset.repeatableAbility = "1";
-  els.tabletAbilityShortcut.title = "タップして現在のオペ能力を発動";
-  els.tabletAbilityShortcut.setAttribute("aria-haspopup", "false");
+  els.tabletAbilityShortcut.dataset.actionDisabled = els.operatorAbilityButton.disabled ? "1" : "0";
+  els.tabletAbilityShortcut.classList.toggle("action-disabled", els.operatorAbilityButton.disabled);
+  els.tabletAbilityShortcut.title = "タップで現在の能力を発動 / 長押しして切り替え先へドラッグ";
+  els.tabletAbilityShortcut.setAttribute("aria-haspopup", String(Boolean(switchDragDescriptorForSource(els.tabletAbilityShortcut))));
   els.tabletShootShortcut.textContent = els.shootButton.textContent || "射撃";
   els.tabletShootShortcut.disabled = els.shootButton.disabled;
   els.tabletShootShortcut.hidden = els.shootButton.hidden;
   els.tabletShootShortcut.classList.toggle("active", els.shootButton.classList.contains("active"));
   els.tabletEmpShortcut.textContent = els.empButton.textContent || "EMP";
-  els.tabletEmpShortcut.disabled = els.empButton.disabled || els.empButton.hidden;
+  els.tabletEmpShortcut.disabled = els.empButton.hidden;
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
+  els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
+  els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
+  els.tabletEmpShortcut.title = "タップで現在のEMPを発動 / 長押しして位相へドラッグ";
   els.tabletClairvoyanceShortcut.textContent = state.clairvoyance.active ? "千里眼解除" : "千里眼";
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
@@ -5863,10 +6701,10 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
   if (activeType === "teleport" || activeType === "gravity") {
     const gravityDescriptions = {
       near: "1MP。選択した他プレイヤーの近くへ全身転移する",
-      heart: "1MP。対象の心臓へ干渉して遠隔確殺を試み、使用者の位置が露見する",
+      heart: "10MP。拳を握り、対象の心臓へ干渉して遠隔確殺を試みる",
       accelerate: "1MP。8秒間×2.5。移動・行動不能時間・クールタイム・タスク・物理モーションを加速する",
       decelerate: "1MP。8秒間×0.38。移動・行動不能時間・クールタイム・タスク・物理モーションを減速する",
-      storm: "10MP。12秒間、乱数強度の継続ダメージ・減速・重力変位。自身の半径2mは安全。幸運／直観が0未満なら侵入だけで確殺判定"
+      storm: "100MP。指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
     };
     const gravityModes = new Set(["near", "heart", "accelerate", "decelerate", "storm"]);
     [...els.teleportModeSelect.options].filter((option) => gravityModes.has(option.value)).forEach((option) => {
@@ -6230,7 +7068,11 @@ async function api(path, extra = {}, options = {}) {
     showToast(message);
     return result;
   }
-  const actionKind = CHARACTER_ACTION_BY_API[path];
+  let actionKind = CHARACTER_ACTION_BY_API[path];
+  const requestedMode = String(extra?.mode || extra?.phase || extra?.conversion || "");
+  if (path === "/api/teleport" && requestedMode === "heart") actionKind = "power";
+  if (path === "/api/gravity-storm") actionKind = "power";
+  if (path === "/api/quantum-control" && requestedMode.startsWith("fission-")) actionKind = "power";
   if (actionKind) {
     const actionVariant = ["/api/shoot", "/api/gunner-weapon"].includes(path)
       ? String(
@@ -6240,7 +7082,24 @@ async function api(path, extra = {}, options = {}) {
         state.data?.self?.gunnerWeapon ||
         ""
       )
-      : "";
+      : path === "/api/gunner-reload"
+        ? String(
+          result?.self?.gunnerReloadWeapon ||
+          result?.self?.gunnerWeapon ||
+          state.data?.self?.gunnerReloadWeapon ||
+          state.data?.self?.gunnerWeapon ||
+          ""
+        )
+        : [
+            "/api/teleport",
+            "/api/gravity-time",
+            "/api/gravity-storm",
+            "/api/quantum-control",
+            "/api/emp",
+            "/api/alchemy"
+          ].includes(path)
+          ? requestedMode
+          : "";
     triggerCharacterAction(state.playerId, actionKind, undefined, undefined, "", actionVariant, path);
   }
   applyState(result, { authoritative: Boolean(options.authoritative) });
@@ -6938,6 +7797,7 @@ function magicEffectDuration(type) {
   if (type === "action-special-ammo-shot") return 620;
   if (type === "action-special-ammo-impact") return 1050;
   if (type === "quantum-transmutation") return 3600;
+  if (type === "attacker-kill-deadline") return 1800;
   if (type === "instant-iai-acquired") return 820;
   if (type === "instant-stand-firm-acquired") return 1050;
   if (type === "instant-push-acquired") return 900;
@@ -7006,7 +7866,6 @@ function detectWorldSounds(previous, next) {
     if (volume <= 0.01) continue;
     const kind = {
       gunshot: "gunshot",
-      heartTeleportReveal: "teleport",
       emp: "emp",
       dash: "worldDash",
       walk: "worldStep",
@@ -7050,15 +7909,6 @@ function detectWorldSounds(previous, next) {
         z: clamp(dy / maxDistance, -1, 1) * 4
       }
     });
-    // Gunshots remain spatial audio only. Heart teleport intentionally reveals
-    // a position, but firearm use must not create an exact minimap marker.
-    if (sound.type === "heartTeleportReveal") {
-      state.worldSoundEffects.push({
-        ...sound,
-        startedAt: state.frameNow || performance.now(),
-        duration: 2200
-      });
-    }
   }
 }
 
@@ -7860,10 +8710,10 @@ function abilityModeDescription(owner, mode, self) {
   const descriptions = {
     teleport: {
       near: `対象の近くへ全身転移する。${cost("teleport")}。`,
-      heart: `対象の心臓へ転移して遠隔確殺を試み、使用者の位置が露見する。${cost("heartTeleport")}。`,
+      heart: `拳を握って対象の心臓へ干渉し、遠隔確殺を試みる。位置は公開しない。${cost("heartTeleport", 10)}。`,
       accelerate: `対象を8秒間×2.5加速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
       decelerate: `対象を8秒間×0.38へ減速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
-      storm: `対象中心に12秒間の重力変動域を生成。継続ダメージ、減速、吹き飛ばし・引き寄せ・拘束が乱数変動し、発動者の半径2mは安全。幸運／直観が0未満なら安全域外への侵入だけで確殺判定。${cost("gravityStorm", 10)}。`
+      storm: `指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 100)}。`
     },
     gravity: null,
     flora: {
@@ -7879,8 +8729,8 @@ function abilityModeDescription(owner, mode, self) {
       "transmute-lead": "鉛を核変換して金へ変え、自動的にクレジットへ換金する。",
       "cool-water": "水の原子・分子運動を抑えて氷へ変換し、攻撃力を上げる。",
       "heat-water": "水の原子・分子運動を増やして高温化し、燃焼効果を付与する。",
-      "fission-uranium": `ウランの核分裂連鎖で全域を破壊する。${cost("quantumNuclear")}。`,
-      "fission-plutonium": `プルトニウムの核分裂連鎖で全域を破壊する。${cost("quantumNuclear")}。`
+      "fission-uranium": `ウランの核分裂連鎖で全域を破壊し、死体を残す。${cost("quantumNuclear")}。`,
+      "fission-plutonium": `プルトニウムの核分裂連鎖で全域を破壊し、死体を残す。${cost("quantumNuclear")}。`
     }
   };
   const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
@@ -8581,27 +9431,45 @@ function collectOperatorPassiveEffects(self, liveNow) {
   const passiveValue = passiveEnabled ? "有効" : "理知まで休止";
   const passiveTone = passiveEnabled ? "rational" : "neutral";
 
+  if (self.role === "attacker" && self.attackerDefenderKillDeadlineActive) {
+    const deadlineWait = Math.max(0, Number(self.attackerDefenderKillDeadlineAt || 0) - liveNow);
+    add(
+      "対DEFキル期限",
+      `残り${formatEffectCountdown(deadlineWait)}`,
+      deadlineWait <= 15_000 ? "desire" : "spirit",
+      "90秒以内にディフェンダーをキル。本人の成功で90秒へ更新、未達は死亡。会議中停止"
+    );
+  }
+
   if (hasDisplayedOperatorAccess(self, "fighter")) {
-    add("キルカウンター", passiveValue, passiveTone, "回避成功で攻撃者を即時キル");
+    add("キルカウンター", passiveValue, passiveTone, "確殺を回避した時だけ攻撃者を即時確殺");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
-    const infinite = self.fighterInfiniteResources ? " / ∞資源・LB安全・破壊斬り・JG全反射" : "";
+    const infinite = self.fighterInfiniteResources
+      ? " / MP・SP・HP・踏ん張り∞ / LB被確殺解除 / 消滅斬り / JG全反射"
+      : "";
     const energyPeak = Math.max(Number(self.fighterEnergyPeak) || 0, Number(self.fighterEnergyCharge) || 0);
-    add("EC", passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 次${formatEffectCountdown(energyWait)}${infinite}` : passiveValue, passiveTone, "12秒・1MPで+1。衝撃波で消費。25:居合、50:∞資源等、100:特大衝撃波", "stacked");
+    add(
+      "EC",
+      passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 次${formatEffectCountdown(energyWait)}${infinite}` : passiveValue,
+      passiveTone,
+      "12秒ごとに1MPでEC+1。通常衝撃波はEC-1。初回25:居合+1。初回50:MP・SP・HP・踏ん張り∞、LB被確殺解除、消滅斬り（死体なし）、JG全反射。EC100以上の斬る:EC-100で特大衝撃波",
+      "stacked"
+    );
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
-    add("リビテーション", self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床外浮揚。浮揚中MP消費");
+    add("リビテーション", self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床外移動中0.04MP/秒。終了時に床がなければ落下死");
   }
 
   if (hasDisplayedOperatorAccess(self, "flora")) {
     const aromaValue = self.aromaActive
       ? `SP回復 ×${Number(self.aromaRegenMultiplier || 1.6).toFixed(2)}`
       : passiveValue;
-    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の停止中SP回復上昇");
+    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の停止中SP回復だけを1.75倍化");
   }
 
   if (self.special === "alchemist") {
-    add("ハック", "常時稼働", "rational", "位置把握・タスク自動完了");
+    add("ハック", "常時稼働", "rational", "対象位置を把握。タスクは12秒ごとに自動完了");
     const manaGpuDrain = Number(self.manaGpuDrainPerSecond || 0).toFixed(3);
     const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
@@ -8610,7 +9478,7 @@ function collectOperatorPassiveEffects(self, liveNow) {
       self.manaGpuActive ? "truth" : "neutral",
       `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`
     );
-    add("root化", self.hackerRootActive ? "発動中" : "待機", self.hackerRootActive ? "truth" : "neutral", "絶体絶命時に全オペ能力を借用");
+    add("root化", self.hackerRootActive ? "発動中" : "待機", self.hackerRootActive ? "truth" : "neutral", "残HP1以下かつ踏ん張り・変わり身なしの時だけ全オペ能力を借用");
   }
 
   return effects;
@@ -8639,8 +9507,8 @@ function renderActiveEffects(data) {
   }
 
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
-  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "押し込み・踏ん張り・回復・加速・タスク軽減");
-  if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "移動速度大幅上昇");
+  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "押し込み+1・踏ん張り+1・HP/状態回復・加速・タスクSP軽減");
+  if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "加速×1.65。移動・物理モーション・CT・行動不能・タスク速度へ適用");
   if (self.limitBreakActive) {
     const limitBreakDetail = self.fighterInfiniteResources
       ? `HP消費なし / MP・SP・HP・踏ん張り∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
@@ -8648,11 +9516,11 @@ function renderActiveEffects(data) {
     add("リミットブレイク", "永続", "truth", limitBreakDetail);
   }
   effects.push(...collectOperatorPassiveEffects(self, liveNow));
-  if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "ボディダメージ吸収・状態異常解除");
+  if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "1回につきボディダメージ1回を吸収し、状態異常を解除");
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
   if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "踏ん張り全消去。1回につき反動0.5");
-  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席`, rational ? "truth" : "neutral", "踏ん張り全削除。200SP相当");
+  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席`, rational ? "truth" : "neutral", "敵1人の有限踏ん張りを全削除。200SP、不足分は150SP=1MP。総量不足で死亡");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
@@ -8668,10 +9536,10 @@ function renderActiveEffects(data) {
   if (self.gunnerSpecialAmmoType && Number(self.gunnerSpecialAmmoRounds) > 0) {
     const typeLabel = specialAmmoLabels[self.gunnerSpecialAmmoType] || "特殊弾";
     const detail = self.gunnerSpecialAmmoType === "weak"
-      ? "対象と射手を破壊"
+      ? "対象と射手を破壊し、死体を残す"
       : self.gunnerSpecialAmmoType === "penetrate"
         ? "遮蔽物貫通。壁は不可"
-        : "幸運0未満:確殺 / 以上:35%減速";
+        : "幸運/直観0未満:確殺 / 0以上:6秒間35%減速";
     add("特殊弾装填", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail);
   }
   if (Number(self.gunnerSpecialAmmoReadyAt) > liveNow) {
@@ -8683,7 +9551,7 @@ function renderActiveEffects(data) {
       : `ディーセラレート ×${Math.max(1, Number(self.gravityTimeStacks?.decelerate) || 1)}`,
     self.gravityTimeEndsAt,
     self.gravityTimeMode === "accelerate" ? "good" : "desire",
-    "1MP・8秒。移動・行動不能・CTを変化"
+    "1MP・8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用"
   );
   if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ");
   timed("スマホ操作", self.smartphoneUntil, "neutral", "完了まで行動不能");
@@ -8691,9 +9559,9 @@ function renderActiveEffects(data) {
   if ((self.dodgeDurationBonusMs || 0) > 0) {
     add("回避時間拡張", `+${(self.dodgeDurationBonusMs / 1000).toFixed(2)}秒`, "beauty", "キル無効時間を延長");
   }
-  if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "移動速度上昇");
+  if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "加速×1.35。移動・物理モーション・CT・行動不能・タスク速度へ適用");
   if (self.mapObjectEffects?.quiet) add("静音フィールド", "範囲内", "rational", "足音なし");
-  timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "キルを無効化し、キルカウンターを行う" : "効果中に受けたキル判定を無効化する");
+  timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "確殺を無効化した時だけキルカウンター" : "効果中に受けた攻撃を無効化する");
   const slashPerfectRemaining = Math.max(0, Number(self.slashPerfectUntil) - liveNow);
   const slashGuardRemaining = Math.max(0, Number(self.slashActiveUntil) - liveNow);
   const slashRearmRemaining = Math.max(0, Number(self.slashPerfectReadyAt) - liveNow);
@@ -8715,14 +9583,14 @@ function renderActiveEffects(data) {
     `フローラ加速${floraAcceleration?.count > 1 ? ` ×${floraAcceleration.count}` : ""}`,
     floraAcceleration?.endsAt || self.overhealSpeedUntil,
     "good",
-    `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}`
+    `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`
   );
   const hoverAcceleration = self.timedAccelerationStacks?.["hover-sprint"];
   timed(
     `ホバースプリント${hoverAcceleration?.count > 1 ? ` ×${hoverAcceleration.count}` : ""}`,
     hoverAcceleration?.endsAt || self.hoverSprintUntil,
     "good",
-    `現在×${Number(hoverAcceleration?.multiplier || 1.8).toFixed(2)}`
+    `現在×${Number(hoverAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`
   );
   timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
@@ -8747,7 +9615,7 @@ function renderActiveEffects(data) {
   }
   state.activeEffectsRenderKey = renderKey;
   els.activeEffectsList.innerHTML = visibleEffects.map((effect) => `
-    <li class="effect-tone-${escapeHtml(effect.tone)}${effect.layout === "stacked" ? " effect-layout-stacked" : ""}">
+    <li class="effect-tone-${escapeHtml(effect.tone)}${effect.layout === "stacked" ? " effect-layout-stacked" : ""}${effect.label === "対DEFキル期限" ? " effect-attacker-kill-deadline" : ""}">
       <span class="effect-copy">
         <strong class="effect-name">${escapeHtml(effect.label)}</strong>
         <small class="effect-detail">${escapeHtml(effect.detail)}</small>
@@ -11283,45 +12151,54 @@ function drawGravityZones(data) {
   const stormTexture = transparentSpriteSource(state.textures.gravityStorm, "gravity-storm-v122", 20);
   const safeEyeTexture = transparentSpriteSource(state.textures.gravityStormSafeEye, "gravity-storm-safe-eye-v320", 18);
   for (const zone of data.gravityZones || []) {
-    if (!worldPointVisible(zone.x, zone.y, Number(zone.radius || 200) + 100)) continue;
     const radius = Number(zone.radius || 220);
     const phase = (state.frameNow || performance.now()) / 420;
-    ctx.save();
-    ctx.translate(zone.x, zone.y);
-    ctx.globalCompositeOperation = "lighter";
-    if (stormTexture) {
-      const spin = phase * 0.08;
+    const stormVisible = worldPointVisible(zone.x, zone.y, radius + 100);
+    if (stormVisible) {
       ctx.save();
-      ctx.rotate(spin);
-      ctx.globalAlpha = 0.72;
-      ctx.drawImage(stormTexture, -radius, -radius, radius * 2, radius * 2);
+      ctx.translate(zone.x, zone.y);
+      ctx.globalCompositeOperation = "lighter";
+      if (stormTexture) {
+        const spin = phase * 0.08;
+        ctx.save();
+        ctx.rotate(spin);
+        ctx.globalAlpha = 0.72;
+        ctx.drawImage(stormTexture, -radius, -radius, radius * 2, radius * 2);
+        ctx.restore();
+      }
+      ctx.fillStyle = "rgba(76,29,149,0.34)";
+      ctx.strokeStyle = "rgba(196,181,253,0.9)";
+      ctx.lineWidth = 8;
+      ctx.setLineDash([18, 12]);
+      ctx.lineDashOffset = -phase * 18;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      for (let index = 0; index < 20; index += 1) {
+        const angle = phase * (index % 2 ? -0.7 : 0.9) + index / 12 * Math.PI * 2;
+        const orbit = radius * (0.18 + (index % 5) * 0.16);
+        ctx.fillStyle = index % 3 ? "#a78bfa" : "#e9d5ff";
+        ctx.fillRect(Math.cos(angle) * orbit - 4, Math.sin(angle) * orbit - 4, 8, 8);
+      }
+      const barrierUntil = Number(zone.barrierUntil || (Number(zone.endsAt) - 1000));
+      ctx.fillStyle = "#f5f3ff";
+      ctx.font = "900 11px Segoe UI, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        `${now < barrierUntil ? "全域吸引" : "最終1秒・バリアなし"} ${Math.ceil(Math.max(0, zone.endsAt - now) / 1000)}秒`,
+        0,
+        radius + 20
+      );
       ctx.restore();
     }
-    ctx.fillStyle = "rgba(76,29,149,0.34)";
-    ctx.strokeStyle = "rgba(196,181,253,0.9)";
-    ctx.lineWidth = 8;
-    ctx.setLineDash([18, 12]);
-    ctx.lineDashOffset = -phase * 18;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.setLineDash([]);
-    for (let index = 0; index < 20; index += 1) {
-      const angle = phase * (index % 2 ? -0.7 : 0.9) + index / 12 * Math.PI * 2;
-      const orbit = radius * (0.18 + (index % 5) * 0.16);
-      ctx.fillStyle = index % 3 ? "#a78bfa" : "#e9d5ff";
-      ctx.fillRect(Math.cos(angle) * orbit - 4, Math.sin(angle) * orbit - 4, 8, 8);
-    }
-    ctx.fillStyle = "#f5f3ff";
-    ctx.font = "900 11px Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(`重力変動 ${Math.ceil(Math.max(0, zone.endsAt - now) / 1000)}秒`, 0, radius + 20);
-    ctx.restore();
-    if (safeEyeTexture) {
-      const safeRadius = Number(zone.safeRadius || 200);
+    const barrierUntil = Number(zone.barrierUntil || (Number(zone.endsAt) - 1000));
+    if (safeEyeTexture && now < barrierUntil) {
+      const safeRadius = Number(zone.barrierRadius || 140);
       const safeX = Number.isFinite(Number(zone.safeX)) ? Number(zone.safeX) : zone.x;
       const safeY = Number.isFinite(Number(zone.safeY)) ? Number(zone.safeY) : zone.y;
+      if (!worldPointVisible(safeX, safeY, safeRadius + 70)) continue;
       const safePulse = 1 + Math.sin(phase * 1.65) * 0.04;
       ctx.save();
       ctx.translate(safeX, safeY);
@@ -12361,6 +13238,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "substitution": ["substitutionFieldEffect", 300],
   "limit-break": ["limitBreakFieldEffect", 360],
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
+  "attacker-kill-deadline": ["attackerKillDeadlineEffect", 320],
   "instant-iai-acquired": ["itemIaiTexture", 230],
   "instant-stand-firm-acquired": ["instantStandFirmTexture", 230],
   "instant-push-acquired": ["instantPushTexture", 230],
@@ -12538,6 +13416,22 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     renderHeight,
     { mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant), progress, intensity: 0.94, baseAlpha: 0.16 }
   );
+  if (effect.type === "attacker-kill-deadline") {
+    const fade = Math.max(0, 1 - progress);
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 9; index += 1) {
+      const travel = clamp((progress - index * 0.035) / 0.72, 0, 1);
+      const angle = index * 2.3999632297 + travel * 1.7;
+      const orbit = 42 + travel * (74 + (index % 3) * 14);
+      const x = Math.cos(angle) * orbit;
+      const y = -renderHeight * 0.35 + Math.sin(angle) * orbit * 0.52 + travel * 78;
+      ctx.globalAlpha = fade * (1 - travel) * (0.35 + (index % 3) * 0.12);
+      ctx.fillStyle = index % 2 ? "#fb7185" : "#fbbf24";
+      ctx.beginPath();
+      ctx.arc(x, y, 1.8 + (index % 3) * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
   if (effect.type === "quantum-transmutation") {
     const goldImage = state.textures?.itemTextures?.gold;
     const coinImage = state.textures?.creditGainCoinsEffect;
@@ -12890,10 +13784,20 @@ const ACTION_EFFECT_CELLS = {
 
 const GUNNER_WEAPON_CELLS = { handgun: 0, smg: 1, assault: 2, sniper: 3, taser: 4 };
 
+function gunnerWeaponIdFromActionVariant(variant, fallback = "") {
+  const weaponId = String(variant || "")
+    .split(":")
+    .find((token) => GUNNER_WEAPON_MOTION_IDS.includes(token));
+  if (weaponId) return weaponId;
+  return GUNNER_WEAPON_MOTION_IDS.includes(fallback) ? fallback : "";
+}
+
 function drawGunnerActionEffect(effect, progress) {
-  const index = GUNNER_WEAPON_CELLS[effect.variant] ?? 0;
   const stateEffect = ["action-shoot", "action-sniper-scope", "action-reload"].includes(effect.type);
   if (!stateEffect) return false;
+  const weaponId = gunnerWeaponIdFromActionVariant(effect.variant);
+  if (!weaponId) return false;
+  const index = GUNNER_WEAPON_CELLS[weaponId];
   const sourceIndex = 5 + index;
   const sprite = transparentSpriteSource(
     state.textures.gunnerCombatStateEffects?.[sourceIndex],
@@ -12918,9 +13822,9 @@ function drawGunnerActionEffect(effect, progress) {
       assault: { forward: 43, height: -36 },
       sniper: { forward: 57, height: -37 },
       taser: { forward: 31, height: -32 }
-    })[effect.variant] || { forward: 35, height: -34 };
-    const flashLength = ({ handgun: 42, smg: 48, assault: 56, sniper: 72, taser: 40 })[effect.variant] || 46;
-    const flashHeight = ({ handgun: 34, smg: 38, assault: 42, sniper: 48, taser: 34 })[effect.variant] || 38;
+    })[weaponId] || { forward: 35, height: -34 };
+    const flashLength = ({ handgun: 42, smg: 48, assault: 56, sniper: 72, taser: 40 })[weaponId] || 46;
+    const flashHeight = ({ handgun: 34, smg: 38, assault: 42, sniper: 48, taser: 34 })[weaponId] || 38;
     const horizontalShot = unitX !== 0;
     const bodyAnchorX = horizontalShot ? 0 : unitY < 0 ? 8 : -8;
     const bodyAnchorY = horizontalShot ? muzzle.height : unitY < 0 ? -43 : -10;
@@ -13045,6 +13949,38 @@ function drawDroneAltitudeEffect(effect, progress) {
   return true;
 }
 
+function drawHeartTeleportEffect(effect, progress) {
+  const size = Math.max(145, Number(effect.radius) || 145);
+  const textured = drawEmpInteractionSprite(effect, 2, progress, size);
+  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+  ctx.save();
+  ctx.translate(effect.x, effect.y);
+  ctx.globalCompositeOperation = "screen";
+  // The raster owns the heart core and rings. E is limited to the red light
+  // response in the nearby medium and sparse inward-moving pressure motes.
+  const field = ctx.createRadialGradient(0, 0, size * 0.08, 0, 0, size * 0.72);
+  field.addColorStop(0, `rgba(255, 54, 78, ${0.14 + pulse * 0.12})`);
+  field.addColorStop(0.48, `rgba(168, 18, 48, ${0.08 + pulse * 0.06})`);
+  field.addColorStop(1, "rgba(87, 4, 28, 0)");
+  ctx.fillStyle = field;
+  ctx.fillRect(-size, -size, size * 2, size * 2);
+  ctx.fillStyle = "rgba(255, 116, 137, 0.78)";
+  for (let index = 0; index < 7; index += 1) {
+    const phase = (progress * 1.45 + index / 7) % 1;
+    const angle = index * 2.399963 + progress * (index % 2 ? -0.5 : 0.38);
+    const travel = size * (0.62 - phase * 0.5);
+    const moteSize = 2.2 + (1 - phase) * 2.4;
+    ctx.save();
+    ctx.translate(Math.cos(angle) * travel, Math.sin(angle) * travel * 0.72);
+    ctx.rotate(angle + Math.PI / 4);
+    ctx.globalAlpha = Math.max(0.08, (1 - phase) * (0.42 + pulse * 0.3));
+    ctx.fillRect(-moteSize / 2, -moteSize / 2, moteSize, moteSize);
+    ctx.restore();
+  }
+  ctx.restore();
+  return textured;
+}
+
 function drawActionEffect(effect, progress, now) {
   // Weapon switching is represented only by the weapon-specific character
   // motion. The former first-row combat-state raster was a stray line-like
@@ -13053,7 +13989,7 @@ function drawActionEffect(effect, progress, now) {
   if (["action-shoot", "action-sniper-scope", "action-reload"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-drone-altitude" && drawDroneAltitudeEffect(effect, progress)) return;
-  if (effect.type === "action-heart-teleport" && drawEmpInteractionSprite(effect, 2, progress, Math.max(145, Number(effect.radius) || 145))) return;
+  if (effect.type === "action-heart-teleport" && drawHeartTeleportEffect(effect, progress)) return;
   const alchemyIndex = effect.type === "action-alchemy"
     ? ALCHEMY_VARIANT_CELLS[effect.variant] ?? ALCHEMY_EFFECT_CELLS[effect.type]
     : ALCHEMY_EFFECT_CELLS[effect.type];
@@ -13170,6 +14106,26 @@ function drawEmpEffect(effect, progress, now) {
 }
 
 function drawGravityStormImpactEffect(effect, progress) {
+  if (effect.type === "gravity-storm-barrier-hit") {
+    const prepared = transparentSpriteSource(state.textures.gravityStormSafeEye, "gravity-storm-safe-eye-v320-hit", 18);
+    if (!prepared) return false;
+    const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+    const size = Math.max(170, Number(effect.radius || 140) * 2) * (0.88 + pulse * 0.24);
+    ctx.save();
+    ctx.translate(effect.x, effect.y);
+    ctx.rotate(-progress * 0.18);
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
+    drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
+      mode: "guard",
+      progress,
+      phase: 0.37,
+      intensity: 0.96,
+      baseAlpha: 0.18
+    });
+    ctx.restore();
+    return true;
+  }
   const atlas = transparentSpriteSource(state.textures.tacticalSystemsAtlas, "tactical-systems-atlas", 18);
   const sprite = atlas ? normalizedSpriteFrame(atlas, "gravity-storm-impact", 3, 3, 2, 0) : null;
   if (!sprite) return false;
@@ -13301,36 +14257,36 @@ function headMarkerRowCount(count) {
 }
 
 const GAIN_MARKER_EXPLANATIONS = Object.freeze({
-  stamina: ["スタミナ獲得", "スタミナが即座に回復しました。"],
-  credits: ["クレジット獲得", "クレジットを獲得しました。"],
-  mana: ["マナ獲得", "マナが即座に増加しました。"],
-  cooldownReduction: ["待機時間短縮", "能力や行動の待機時間が短縮されました。"],
-  statusRecovery: ["状態異常回復", "燃焼・毒・EMP妨害などが解除されました。"],
-  acceleration: ["加速獲得", "行動全般を速める加速効果を獲得しました。"],
+  stamina: ["SP獲得", "SPが即時回復しました。獲得量は発動元の表示値です。"],
+  credits: ["クレジット獲得", "クレジットが即時加算されました。獲得量は発動元の表示値です。"],
+  mana: ["MP獲得", "MPが即時回復しました。獲得量は発動元の表示値です。"],
+  cooldownReduction: ["待機時間短縮", "進行中の能力・行動・オブジェクトCTを発動元の表示秒数だけ短縮しました。"],
+  statusRecovery: ["状態異常回復", "燃焼・毒・通常/テーザー/ショック/重力減速・能力封印・EMP遮断・重力拘束を解除しました。"],
+  acceleration: ["加速獲得", "移動・物理モーション・CT・行動不能・タスク速度を発動元の倍率・時間で加速します。"],
   luckBoost: ["幸運／直観上昇", "乱数判定とイデア到達時間に有利な補正を得ました。"],
-  overheal: ["オーバーヒール", "通常HPを超える追加耐久を獲得しました。"],
-  relaxation: ["リラックス", "休息による回復効果を獲得しました。"],
-  herbalRecovery: ["植物療法", "植物由来の回復効果を獲得しました。"],
-  healthyMeal: ["健康的な食事", "複数の回復効果を獲得しました。"],
-  mineralWater: ["ミネラルウォーター", "燃焼解除とスタミナ回復を受けました。"],
-  heal: ["HP回復", "受けていたダメージが回復しました。"],
-  fullRecovery: ["全回復", "複数の資源と状態が回復しました。"],
-  decoy: ["デコイ獲得", "攻撃を逸らすための効果を獲得しました。"]
+  overheal: ["オーバーヒール", "通常HPを超える耐久+1。次のボディダメージを吸収します。"],
+  relaxation: ["リラックス", "12秒間、加速×1.35を得ました。移動・物理モーション・CT・行動不能・タスク速度へ適用します。"],
+  herbalRecovery: ["植物療法", "HP+1。"],
+  healthyMeal: ["健康的な食事", "HP+1・SP+120・MP+1。"],
+  mineralWater: ["ミネラルウォーター", "燃焼解除・SP+100。"],
+  heal: ["HP回復", "発動元の表示量だけHPを回復しました。"],
+  fullRecovery: ["全回復", "HPを2まで全回復し、オーバーヒールを最低1にしました。"],
+  decoy: ["デコイ作動", "SP+100と偽足音を発生させました。"]
 });
 
 const STATUS_MARKER_EXPLANATIONS = Object.freeze({
-  acceleration: ["加速", "移動・行動・モーション・待機時間の進行が加速しています。"],
-  levitation: ["浮揚", "床のない場所を移動できます。浮揚中はMPを消費します。"],
+  acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
+  levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
-  resistanceBreak: ["耐性破壊", "踏ん張りや変わり身などの確殺防御が機能しません。"],
+  resistanceBreak: ["確殺耐性無効", "リミットブレイク中は踏ん張り・変わり身による確殺回避が無効です。EC50到達後は解除されます。"],
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
-  iai: ["居合・即席", "獲得した居合は使用回数へ変換済みです。発動すると敵一人の有限の踏ん張りを全削除します。"],
+  iai: ["居合・即席", "敵1人の有限踏ん張りを全削除。200SP、不足分は150SP=1MP。総量不足なら死亡します。"],
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
-  manaGpu: ["マナGPU", "MPを短縮クールへ少しずつ変換し、次のバイブコーディングで自動消費します。"],
+  manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
-  destructionSlash: ["常時破壊斬り", "EC50回到達により、斬るがアイテムの有無にかかわらず対象を破壊します。"],
+  destructionSlash: ["常時消滅斬り", "EC50回到達後、オリハルコン・ソードの斬るで対象を死体なしで消滅させます。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -13917,10 +14873,12 @@ function displayedGunnerState(player, data = state.data) {
   const authoritative = isSelf ? data?.self : player;
   const selectedWeapon = String(authoritative?.gunnerWeapon || player?.gunnerWeapon || "");
   const firingWeapon = String(authoritative?.gunFiringWeapon || player?.gunFiringWeapon || selectedWeapon);
+  const reloadWeapon = String(authoritative?.gunnerReloadWeapon || player?.gunnerReloadWeapon || selectedWeapon);
   return {
     firing: Boolean(authoritative?.gunFiring || player?.gunFiring || (isSelf && state.gunTriggerHeld)),
     selectedWeapon,
-    firingWeapon
+    firingWeapon,
+    reloadWeapon
   };
 }
 
@@ -14247,12 +15205,94 @@ function physicalActionFramePosition(kind, progress, motionId = kind) {
   return objectEffectEase(value) * 2;
 }
 
-function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spatialScale = 1) {
+function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId, motionScale, variant = "") {
+  const id = String(motionId || kind);
+  const mode = String(variant || "");
+  const impulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
+  const ease = objectEffectEase(clamp(progress, 0, 1));
+  const hasId = (...tokens) => tokens.some((token) => id === token || id.includes(token));
+
+  if (hasId("action-heart-teleport") || (id === "/api/teleport" && mode === "heart")) {
+    const clench = objectEffectEase(clamp(progress / 0.46, 0, 1));
+    const release = objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
+    ctx.translate(facing * (-4.5 * clench + 3 * release) * motionScale, (3.2 * clench - 2 * release) * motionScale);
+    ctx.rotate(facing * (-0.048 * clench + 0.025 * release) * motionScale);
+    ctx.scale(1 - clench * 0.038 * motionScale, 1 + clench * 0.052 * motionScale);
+    return true;
+  }
+  if (hasId("gravity-storm", "/api/gravity-storm")) {
+    const plant = objectEffectEase(clamp(progress / 0.36, 0, 1));
+    const release = objectEffectEase(clamp((progress - 0.72) / 0.28, 0, 1));
+    ctx.translate(facing * Math.sin(progress * Math.PI * 2) * 1.4 * plant * motionScale, (5.5 * plant - 3 * release) * motionScale);
+    ctx.rotate(facing * Math.sin(progress * Math.PI * 2) * 0.012 * plant * motionScale);
+    ctx.scale(1 + plant * 0.055 * motionScale, 1 - plant * 0.045 * motionScale);
+    return true;
+  }
+  const accelerating = hasId("gravity-accelerate") || (id === "/api/gravity-time" && mode === "accelerate");
+  if (accelerating) {
+    ctx.translate(facing * ease * 4.2 * motionScale, -impulse * 7 * motionScale);
+    ctx.rotate(facing * impulse * 0.042 * motionScale);
+    ctx.scale(1 - impulse * 0.025 * motionScale, 1 + impulse * 0.05 * motionScale);
+    return true;
+  }
+  const decelerating = hasId("gravity-decelerate") || (id === "/api/gravity-time" && mode === "decelerate");
+  if (decelerating) {
+    ctx.translate(-facing * impulse * 3.6 * motionScale, impulse * 5.2 * motionScale);
+    ctx.rotate(-facing * impulse * 0.036 * motionScale);
+    ctx.scale(1 + impulse * 0.045 * motionScale, 1 - impulse * 0.05 * motionScale);
+    return true;
+  }
+  if (hasId("action-teleport") || id === "/api/teleport") {
+    const vanish = Math.sin(clamp(progress / 0.62, 0, 1) * Math.PI);
+    ctx.translate(facing * (ease - 0.5) * 5 * motionScale, -vanish * 3.5 * motionScale);
+    ctx.rotate(facing * (progress - 0.5) * 0.05 * motionScale);
+    ctx.scale(1 - vanish * 0.075 * motionScale, 1 + vanish * 0.04 * motionScale);
+    return true;
+  }
+  if (hasId("fighter-energy-charge")) {
+    const gather = objectEffectEase(clamp(progress / 0.7, 0, 1));
+    ctx.translate(0, gather * 2.8 * motionScale);
+    ctx.scale(1 - gather * 0.03 * motionScale, 1 + gather * 0.04 * motionScale);
+    return true;
+  }
+  if (hasId("emp") || id === "/api/emp") {
+    const polarity = mode.includes("negative") ? -1 : 1;
+    ctx.translate(facing * polarity * impulse * 4 * motionScale, -impulse * 2.2 * motionScale);
+    ctx.rotate(facing * polarity * impulse * 0.048 * motionScale);
+    ctx.scale(1 + impulse * 0.032 * motionScale, 1 - impulse * 0.022 * motionScale);
+    return true;
+  }
+  if (hasId("action-vibe-coding")) {
+    const step = Math.sin(progress * Math.PI * 4) * impulse;
+    ctx.translate(facing * step * 3.2 * motionScale, -Math.abs(step) * 1.8 * motionScale);
+    ctx.rotate(facing * step * 0.026 * motionScale);
+    return true;
+  }
+  if (hasId("quantum-") || id === "/api/quantum-control") {
+    const cold = id.includes("cold") || mode.includes("cool-");
+    const hot = id.includes("hot") || mode.includes("heat-");
+    const nuclear = id.includes("nuclear") || mode.startsWith("fission-");
+    const direction = cold ? -1 : 1;
+    ctx.translate(facing * direction * impulse * (nuclear ? 2 : 4.5) * motionScale, (cold ? 3.5 : -3.5) * impulse * motionScale);
+    ctx.rotate(facing * direction * impulse * (nuclear ? 0.02 : 0.055) * motionScale);
+    ctx.scale(
+      1 + impulse * (nuclear ? 0.06 : hot ? 0.045 : -0.028) * motionScale,
+      1 + impulse * (nuclear ? 0.06 : hot ? 0.025 : 0.04) * motionScale
+    );
+    return true;
+  }
+  return false;
+}
+
+function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spatialScale = 1, variant = "") {
   const impulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
   const facing = flip ? -1 : 1;
   const signature = physicalMotionSignature(motionId, kind);
   const motionScale = clamp(Number(spatialScale) || 0, 0.1, 1);
-  if (kind === "iai") {
+  const abilitySpecific = applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId, motionScale, variant);
+  if (abilitySpecific) {
+    // Ability-specific choreography already applies the authored displacement.
+  } else if (kind === "iai") {
     const anticipation = objectEffectEase(clamp(progress / 0.46, 0, 1));
     const drawCut = objectEffectEase(clamp((progress - 0.43) / 0.13, 0, 1));
     const resheath = objectEffectEase(clamp((progress - 0.62) / 0.38, 0, 1));
@@ -14318,22 +15358,25 @@ function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spa
 function drawPhysicalActionSprite(player, data, ghost, action) {
   if (action?.kind === "shoot" && drawWeaponFireMotion(player, data, ghost, action)) return true;
   if (action?.kind === "weapon-switch" && drawWeaponSwitchMotion(player, data, ghost, action)) return true;
-  const sequence = PHYSICAL_ACTION_SEQUENCE[action?.kind];
-  if (!Number.isInteger(sequence)) return false;
+  if (action?.kind === "reload" && drawWeaponReloadMotion(player, data, ghost, action)) return true;
+  if (!Object.hasOwn(PHYSICAL_ACTION_SEQUENCE, action?.kind)) return false;
   const skinId = displayedSkinId(player, data);
   const atlasId = player.isBot ? "male-bot" : skinId === "blue-dress" ? "blue-dress" : "white-hood";
-  const atlasImage = state.textures.physicalActionAtlases?.[atlasId];
-  const atlas = atlasImage ? transparentSpriteSource(atlasImage, `physical-action-${atlasId}`, 20) : null;
-  if (!atlas) return false;
 
   const normalizedProgress = clamp(Number(action.progress) || 0, 0, 1);
   const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
   const rawPhase = physicalActionFramePosition(action.kind, normalizedProgress, action.motionId);
   const phase = 1 + (rawPhase - 1) * dynamics.poseTravel;
   const frame = Math.min(2, Math.max(0, Math.round(phase)));
-  const row = Math.floor(sequence / 2);
-  const column = (sequence % 2) * 3 + frame;
-  const sprite = normalizedSpriteFrame(atlas, `physical-action-${atlasId}`, 6, 6, row, column);
+  const overrideImage = state.textures.physicalActionFrameOverrides?.[atlasId]?.[action.kind]?.[frame];
+  const motionImage = overrideImage || state.textures.physicalActionMotions?.[atlasId]?.[action.kind];
+  const sourceKey = overrideImage
+    ? `physical-motion-${atlasId}-${action.kind}-frame-${frame}-v465`
+    : `physical-motion-${atlasId}-${action.kind}-v465`;
+  const prepared = motionImage ? transparentSpriteSource(motionImage, sourceKey, 20) : null;
+  const sprite = prepared
+    ? normalizedSpriteFrame(prepared, sourceKey, overrideImage ? 1 : 3, 1, 0, overrideImage ? 0 : frame)
+    : null;
   if (!sprite) return false;
 
   const facing = facingFor(player, motionFor(player, data));
@@ -14342,7 +15385,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
-  applyPhysicalActionTransform(action.kind, normalizedProgress, flip, action.motionId, dynamics.spatialScale);
+  applyPhysicalActionTransform(action.kind, normalizedProgress, flip, action.motionId, dynamics.spatialScale, action.variant);
   drawNormalizedSprite(sprite, 0, 31, 98, actionHeight, flip);
   ctx.restore();
   drawNameplate(player, ghost, -78);
@@ -14357,6 +15400,48 @@ function gunnerWeaponMotionSprite(player, data, weaponId) {
   return prepared
     ? normalizedSpriteFrame(prepared, `weapon-motion-${skinId}-${weaponId}`, 1, 1, 0, 0)
     : null;
+}
+
+function drawWeaponReloadMotion(player, data, ghost, action) {
+  const gunnerState = displayedGunnerState(player, data);
+  const weaponId = gunnerWeaponIdFromActionVariant(action?.variant, gunnerState.reloadWeapon);
+  const sprite = gunnerWeaponMotionSprite(player, data, weaponId);
+  if (!sprite) return false;
+
+  const progress = clamp(Number(action.progress) || 0, 0, 1);
+  const profile = {
+    handgun: { width: 108, lower: 9.0, side: 5.0, roll: 7.5, magazine: 3.0, chamber: 2.0, checks: 1 },
+    smg: { width: 116, lower: 11.0, side: 8.0, roll: 5.2, magazine: 6.0, chamber: 3.0, checks: 2 },
+    assault: { width: 128, lower: 12.5, side: 10.0, roll: 4.1, magazine: 7.5, chamber: 4.5, checks: 2 },
+    sniper: { width: 146, lower: 7.0, side: 15.0, roll: 2.6, magazine: 3.5, chamber: 8.0, checks: 1 },
+    taser: { width: 108, lower: 5.5, side: 4.0, roll: 9.0, magazine: 2.0, chamber: 1.5, checks: 3 }
+  }[weaponId];
+  const lowerIn = Math.sin(clamp(progress / 0.34, 0, 1) * Math.PI / 2);
+  const raiseOut = 1 - Math.sin(clamp((progress - 0.68) / 0.32, 0, 1) * Math.PI / 2);
+  const lowered = lowerIn * raiseOut;
+  const magazineSeat = Math.sin(clamp((progress - 0.16) / 0.55, 0, 1) * Math.PI);
+  const chamberCheck = Math.sin(clamp((progress - 0.64) / 0.36, 0, 1) * Math.PI);
+  const weaponCheck = Math.sin(progress * Math.PI * profile.checks) * Math.sin(progress * Math.PI);
+  const facing = facingFor(player, motionFor(player, data));
+  const flip = facing === "left";
+  const direction = flip ? 1 : -1;
+  const dynamics = accelerationReadyMotionDynamics(player, "reload", action.motionId);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
+  ctx.translate(
+    direction * (profile.side * magazineSeat - profile.chamber * chamberCheck + weaponCheck * 0.8) * dynamics.spatialScale,
+    (profile.lower * lowered - chamberCheck * 1.8) * dynamics.spatialScale
+  );
+  ctx.rotate(direction * (profile.roll * lowered - profile.roll * 0.28 * chamberCheck) * Math.PI / 180 * dynamics.spatialScale);
+  ctx.scale(
+    1 + magazineSeat * profile.magazine * 0.0014 * dynamics.spatialScale,
+    1 - magazineSeat * profile.magazine * 0.0010 * dynamics.spatialScale
+  );
+  drawNormalizedSprite(sprite, 0, 31, profile.width, 98, flip);
+  ctx.restore();
+  drawNameplate(player, ghost, -78);
+  return true;
 }
 
 function drawWeaponSwitchMotion(player, data, ghost, action) {
@@ -15686,7 +16771,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "movement-acc-threshold-v461";
+const version = "attacker-kill-deadline-v467";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -15695,6 +16780,11 @@ const version = "movement-acc-threshold-v461";
   const image = (path) => {
     const entry = new Image();
     return defer(entry, path);
+  };
+  const eagerImage = (path) => {
+    const entry = new Image();
+    entry.src = assetUrl(`${path}?v=${version}`);
+    return entry;
   };
   const imageSet = (paths) => paths.map(image);
   const operators = new Image();
@@ -15770,6 +16860,7 @@ const version = "movement-acc-threshold-v461";
   ]);
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
+  const attackerKillDeadlineEffect = new Image();
   const itemIaiTexture = new Image();
   const instantStandFirmTexture = philosophyEffectTextures[4];
   const instantPushTexture = philosophyEffectTextures[5];
@@ -15852,10 +16943,16 @@ const version = "movement-acc-threshold-v461";
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
   ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-ingot-v436.png" : `assets/generated/item-${id}.webp`)]));
-  const physicalActionAtlases = {
-    "white-hood": new Image(),
-    "blue-dress": new Image(),
-    "male-bot": new Image()
+  const physicalActionMotions = Object.fromEntries(
+    ["white-hood", "blue-dress", "male-bot"].map((skinId) => [
+      skinId,
+      Object.fromEntries(PHYSICAL_ACTION_MOTION_KINDS.map((kind) => [kind, new Image()]))
+    ])
+  );
+  const physicalActionFrameOverrides = {
+    "blue-dress": {
+      attack: [new Image(), new Image(), new Image()]
+    }
   };
   const weaponFireMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map((skinId) => [
@@ -15870,6 +16967,15 @@ const version = "movement-acc-threshold-v461";
   const tacticsStoryboard = new Image();
   const tacticsPlayerHood = new Image();
   const tacticsPlayerBlue = new Image();
+  const tacticsNovelMangaSymbols = Object.fromEntries(["sparkle", "idea", "cheer", "note"].map((type) => [
+    type,
+    eagerImage(`assets/generated/tactics-manga-${type}-v466.png`)
+  ]));
+  const tacticsNovelMotionKinds = ["interact", "rest", "focus", "power", "throw", "cast", "heal"];
+  const tacticsNovelMotions = {
+    sophia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-blue-dress-${kind}-v465.png`)])),
+    philia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-white-hood-${kind}-v465.png`)]))
+  };
   defer(operators, "assets/operators.webp");
   defer(operatorsWalk, "assets/operators-walk.webp");
   defer(playerMaster, "assets/player-master-b.webp");
@@ -15884,6 +16990,7 @@ const version = "movement-acc-threshold-v461";
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
+  defer(attackerKillDeadlineEffect, "assets/generated/attacker-kill-deadline-ate-v467.png");
   defer(itemIaiTexture, "assets/generated/instant-iai-abstract-v451.png");
   defer(iaiStandFirmBreakEffect, "assets/generated/effect-iai-stand-firm-break-v449.png");
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
@@ -15946,9 +17053,15 @@ const version = "movement-acc-threshold-v461";
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(creditGainCoinsEffect, "assets/generated/object-effect-credits-v438.png");
   defer(blueDressWalk60, "assets/generated/skin-blue-dress-walk-60.webp");
-  defer(physicalActionAtlases["white-hood"], "assets/generated/physical-action-atlas-white-hood.webp?v=focus-sd-v308");
-  defer(physicalActionAtlases["blue-dress"], "assets/generated/physical-action-atlas-blue-dress.webp");
-  defer(physicalActionAtlases["male-bot"], "assets/generated/physical-action-atlas-male-bot.webp");
+  for (const [skinId, motions] of Object.entries(physicalActionMotions)) {
+    for (const [kind, entry] of Object.entries(motions)) {
+      if (skinId === "blue-dress" && kind === "attack") continue;
+      defer(entry, `assets/generated/physical-motion-${skinId}-${kind}-v465.png`);
+    }
+  }
+  defer(physicalActionFrameOverrides["blue-dress"].attack[0], "assets/generated/physical-motion-blue-dress-attack-frame-0-v465.png");
+  defer(physicalActionFrameOverrides["blue-dress"].attack[1], "assets/generated/physical-motion-blue-dress-attack-frame-1-v465.png");
+  defer(physicalActionFrameOverrides["blue-dress"].attack[2], "assets/generated/physical-motion-blue-dress-attack-frame-2-v465.png");
   for (const [skinId, weapons] of Object.entries(weaponFireMotions)) {
     for (const [weaponId, entry] of Object.entries(weapons)) {
       // The original white-hood SMG/AR exports were named in reverse. Keep the
@@ -15994,6 +17107,7 @@ const version = "movement-acc-threshold-v461";
     droneAltitudeEffects,
     fighterSlashEffect,
     fighterEnergyChargeEffect,
+    attackerKillDeadlineEffect,
     itemIaiTexture,
     instantStandFirmTexture,
     instantPushTexture,
@@ -16066,12 +17180,15 @@ const version = "movement-acc-threshold-v461";
     throwLandingPreview,
     clairvoyanceThrowAte,
     creditGainCoinsEffect,
-    physicalActionAtlases,
+    physicalActionMotions,
+    physicalActionFrameOverrides,
     weaponFireMotions,
     fullMapComposites,
     tacticsStoryboard,
     tacticsPlayerHood,
     tacticsPlayerBlue,
+    tacticsNovelMangaSymbols,
+    tacticsNovelMotions,
     facilityProps,
     roomProps,
     assetVersion: version,
@@ -16107,9 +17224,11 @@ function transparentSpriteSource(image, key, threshold = 24) {
     const data = imageData.data;
     const w = canvas.width;
     const h = canvas.height;
+    const physicalMotionKey = key.startsWith("physical-motion-");
     const strictGreenKey = key === "cutin-blue-dress" ||
       key === "blueDressMaster" ||
       key.startsWith("physical-action-") ||
+      physicalMotionKey ||
       key.startsWith("skinWalk60-blue-dress") ||
       key.startsWith("playerSkin-blue-dress-");
     const transparentCorner = data[3] < 8 || data[(w - 1) * 4 + 3] < 8 || data[((h - 1) * w) * 4 + 3] < 8;
@@ -16125,7 +17244,13 @@ function transparentSpriteSource(image, key, threshold = 24) {
       const i = index * 4;
       const dark = data[i] < threshold && data[i + 1] < threshold && data[i + 2] < threshold;
       const greenKey = data[i + 1] > 76 && data[i] < 82 && data[i + 2] < 92 && data[i + 1] > data[i] * 1.35 && data[i + 1] > data[i + 2] * 1.25;
-      return data[i + 3] < 8 || dark || greenKey;
+      const minimum = Math.min(data[i], data[i + 1], data[i + 2]);
+      const maximum = Math.max(data[i], data[i + 1], data[i + 2]);
+      // Some generated motion sheets contain a baked neutral checkerboard even
+      // though they were authored for alpha. Remove only bright neutral pixels
+      // connected to an outer edge, preserving enclosed white clothing.
+      const checkerboardKey = physicalMotionKey && minimum > 224 && maximum - minimum < 20;
+      return data[i + 3] < 8 || dark || greenKey || checkerboardKey;
     };
     const enqueue = (x, y) => {
       if (x < 0 || y < 0 || x >= w || y >= h) return;

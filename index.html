@@ -12,15 +12,15 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v458.png">
-    <link rel="preload" as="image" href="assets/title-hero-v457.png?v=movement-acc-threshold-v461" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/title-hero-v466.png?v=attacker-kill-deadline-v467" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=movement-acc-threshold-v461">
+  <link rel="stylesheet" href="styles.css?v=attacker-kill-deadline-v467">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v457.png?v=movement-acc-threshold-v461" alt="簡素な青灰色の室内で青白いエネルギーを集束するソフィア" fetchpriority="high">
-      <img class="title-hero-character" src="assets/title-hero-v457.png?v=movement-acc-threshold-v461" alt="" aria-hidden="true">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v457.png?v=movement-acc-threshold-v461" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v466.png?v=attacker-kill-deadline-v467" alt="遠近感のあるブリーフィング室でウィンクし、手を差し向けるソフィア" fetchpriority="high">
+      <img class="title-hero-character" src="assets/title-hero-v466.png?v=attacker-kill-deadline-v467" alt="" aria-hidden="true">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v466.png?v=attacker-kill-deadline-v467" alt="" aria-hidden="true">
       <div class="title-hero-vfx" aria-hidden="true">
         <i class="title-hero-mote mote-a"></i>
         <i class="title-hero-mote mote-b"></i>
@@ -104,6 +104,7 @@
             <button data-tactics-target="tactics-resources" type="button"><span>四</span>資源とイデア</button>
             <button data-tactics-target="tactics-intel" type="button"><span>五</span>索敵・EMP・サボ</button>
             <button data-tactics-target="tactics-meeting" type="button"><span>六</span>会議と高度判断</button>
+            <button data-tactics-target="tactics-novel" type="button"><span>七</span>ノベルダイジェスト</button>
           </nav>
 
           <div id="tacticsContent" class="tactics-content" data-scroll-region="戦術いろは・本文" aria-label="戦術いろは本文" tabindex="0">
@@ -113,6 +114,7 @@
               <div class="tactics-rule-grid">
                 <section><h4>ディフェンダー勝利</h4><p>全タスク完了、または全アタッカーの追放・排除で勝利します。死亡したディフェンダーの残タスクは自動完了するため、死亡者数だけでタスク勝利は消えません。</p></section>
                 <section><h4>アタッカー勝利</h4><p>生存アタッカー数が生存ディフェンダー数以上になるか、致命的サボタージュが制限時間を迎えると勝利します。人数同数は投票を待たず即時判定です。</p></section>
+                <section><h4>対ディフェンダー・キル期限</h4><p>通常対戦では各アタッカーに個別の90秒期限があります。本人がディフェンダーをキルすると90秒へ更新し、未達なら踏ん張り・バリア・EC50などを無視して死亡し、死体を残します。会議中は停止し、ソロ訓練では発生しません。</p></section>
                 <section><h4>選択順</h4><p>ホストから参加順に1人ずつオペレーターを確定します。オペレーターは陣営を問わず選択でき、攻撃判定は原則として敵陣営へ向きます。</p></section>
                 <section><h4>会議初期値</h4><p>既定値は討論0秒・投票300秒、匿名投票オン、追放陣営の即時開示オフ、緊急会議1回です。Botは会議開始時にスキップへ投票します。</p></section>
               </div>
@@ -122,9 +124,9 @@
               <header><span>二</span><div><p>MOVEMENT & SOUND</p><h3>移動・音響・タスク</h3></div></header>
               <p class="tactics-lead">移動方向は斜めを含む8方向です。速度だけでなく、発する音とスタミナ回復停止が位置情報へ直結します。</p>
               <div class="tactics-rule-grid">
-                <section><h4>長押し説明</h4><p>オペレーター、所持品、自販機商品、ハッカー生成などのカードは、名前を長押しすると詳細を表示します。通常表示は名前・価格・クールタイムなど、選択に必要な情報だけです。</p></section>
+                <section><h4>長押し説明</h4><p>オペレーター、所持品、自販機商品、ハッカー生成のカードは、名前を長押しすると資源消費、対象、効果、時間、条件、例外を表示します。通常表示には名前と、商品なら価格、生成ならクールタイムを表示します。</p></section>
                 <section><h4>タブレットモード</h4><p>実端末向けの標準操作で、初期状態はONです。仮想スティックの倒し量で移動速度を決め、タッチだけで全行動と長押し説明を利用できます。</p></section>
-                <section><h4>三つの移動と移動ACC</h4><p>通常歩行、SP消費の大きいダッシュ、遅い無音歩行があります。右上の移動ACC 3は初期ONで、ボタンまたはQによりON／OFFを切り替えます。</p></section>
+                <section><h4>三つの移動と移動ACC</h4><p>通常歩行、SP消費の大きいダッシュ、遅い無音歩行があります。移動ACC 3は初期ONですが、実加速がACC3以上の間だけ速度をACC3へ固定します。ボタンまたはQでOFFにできます。</p></section>
                 <section><h4>スタミナ</h4><p>自然回復は完全停止中だけ毎秒19。通常上限100、購入・充填で500まで蓄積できます。タスクは200、回避は100を一括消費します。</p></section>
                 <section><h4>休息</h4><p>不足量を毎秒76で回復するため所要時間は残量で変化します。休息中も視覚・聴覚は残りますが、完了まで移動とアクションが不能です。</p></section>
                 <section><h4>タスク経済</h4><p>DownloadとUploadは200SPを消費し、端末の範囲内で停止し続けると自動実行されます。キー操作は不要です。1件につき10Cを獲得し、死亡したディフェンダーの残タスクは完了扱いになります。</p></section>
@@ -135,38 +137,38 @@
             </article>
 
             <article id="tactics-combat" class="tactics-article" data-tactics-chapter="2">
-              <header><span>三</span><div><p>COMBAT DOCTRINE</p><h3>HP・確殺・射撃</h3></div></header>
-              <p class="tactics-lead">HPは2。確殺は残HPに関係なく倒し、ボディ攻撃は累積ダメージでHPを削ります。命中時の虹色粒子は命中確認として扱えます。</p>
+              <header><span>三</span><div><p>COMBAT DOCTRINE</p><h3>HP・確殺・破壊・消滅</h3></div></header>
+              <p class="tactics-lead">HPは2。確殺は残HPに関係なく倒します。破壊と消滅は同じ強制死亡で、破壊は死体あり、消滅は死体なしです。ボディ攻撃は累積ダメージでHPを削ります。</p>
               <div class="tactics-rule-grid">
-                <section><h4>攻撃</h4><p>通常キルはありません。忍殺、銃器、オペ能力で攻撃します。</p></section>
-                <section><h4>忍殺</h4><p>対象を1.8秒固定できれば自動発動し、対象が開始位置から4以上動くと失敗します。気概中は非確殺です。</p></section>
+                <section><h4>攻撃</h4><p>通常キルはありません。武器なしでは忍殺、武器所持中は同じ操作で斬る・射撃・重火器を使用します。オペ能力も対象と範囲に従って攻撃します。</p></section>
+                <section><h4>忍殺</h4><p>対象を1.8秒固定できれば自動発動し、対象が開始位置から4以上動くと失敗します。気概中は非確殺です。忍殺は例外として死体を残しません。</p></section>
                 <section><h4>防御優先順</h4><p>美は確殺を上書き不能の不殺へ、踏ん張りは次に受ける確殺を1回だけボディダメージへ変換します。押し込みは対象の踏ん張りを全無効化し、1回につき使用者へ0.5ダメージを与えます。</p></section>
-                <section><h4>回避とファイター</h4><p>全ディフェンダーは100SPで回避を1秒展開します。ファイターが回避に成功した場合は攻撃者をキルします。独立したカウンターキルは存在しません。</p></section>
+                <section><h4>回避とファイター</h4><p>全員が100SPで回避を1秒展開します。ファイターは確殺を回避した時だけキルカウンターで攻撃者を即時確殺します。陣営は問いません。非確殺攻撃は回避しますが反撃しません。</p></section>
                 <section><h4>ガンナー</h4><p>ARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れ時または射撃を止めた後に自動リロードします。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
-                <section><h4>SRと特殊弾装填</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。理知中は18秒ごとに選択中の銃へ特殊弾を1マガジン装填します。ウィークは対象と射手を破壊、ペネトレイトは遮蔽物を貫通、ショックは低幸運・直観なら確殺、高ければ6秒間減速させます。</p></section>
+                <section><h4>SRと特殊弾装填</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。理知中は18秒ごとに選択中の銃へ特殊弾を1マガジン装填します。ウィークは対象と射手を破壊して死体を残し、ペネトレイトは遮蔽物を貫通、ショックは低幸運・直観なら確殺、高ければ6秒間減速させます。</p></section>
                 <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
-                <section><h4>ファイター</h4><p>EC、キルカウンター、リミットブレイクと初期装備のオリハルコン・ソードを扱います。一定時間ごとに1MPを自動消費してECを1増やします。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾はありません。通常ECではキャラモーションを行わず、初めてEC25・50へ到達したときだけ節目モーションを行います。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたびECを1放出し、EC100以上で斬るとEC100を放出して特大衝撃波を発生させます。通常・特大衝撃波は斬撃と同じ物理ガードの対象ですが、ジャストガード判定と反射は発生しません。初めてEC25へ到達すると居合を1回獲得します。居合は「即席」として獲得時に使用回数へ変換され、敵一人の有限の踏ん張りを全削除し、200SP相当を消費します。SP不足分は150SP=1MPで補い、総量不足なら死亡します。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張り無限、リミットブレイクの被確殺デメリット解除、オリハルコン・ソードの斬るの常時破壊、通常攻撃へのジャストガードの全攻撃反射が永続します。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動です。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで反射します。固有武器「オリハルコン・ソード」の剣の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立します。ファイターは開始時に1振り所持し、所持者なら通常使用で斬る、投擲も可能です。自販機では200C、ハッカー生成ではMPを消費せず、最終クールタイム90秒です。Hのリミットブレイクは発動ごとにHPを1消費し、SPと加速を3倍ずつ重ね、マナが尽きるまで永続します。会議中は能力と残り時間が停止し、終了後に再開します。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しません。</p></section>
-                <section><h4>グラビティ</h4><p>重力と時空の相関を扱い、転移、時空加減速、リビテーション、グラビティストームを使用します。重力嵐は継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全です。</p></section>
+                <section><h4>ファイター</h4><p>12秒ごとに1MPでEC+1。斬る／投擲の通常衝撃波はEC-1、EC100以上の斬るはEC-100で特大衝撃波を放ちます。衝撃波は物理ガード可能ですがJG・反射不可。初回EC25で即席の居合+1。居合は敵1人の有限踏ん張りを全削除し、200SP、不足分を150SP=1MPで補い、総量不足なら死亡します。初回EC50でMP・SP・HP・踏ん張り∞、LB被確殺解除、消滅斬り、JG全攻撃反射を永続獲得します。消滅斬りで倒した敵は死体を残しません。オリハルコン・ソードの斬るは75SP・CTなし、700ms物理ガード、先頭140msのJGで衝撃を100%反射し、連打すると1.1秒の再武装が遅れます。EMP・毒・サンビームは通常ガード不可。剣の腹は受けた衝撃を100%反発する金属製です。開始時に1振り所持し、自販機200C、ハッカー生成0MP・CT90秒。リミットブレイクは1回ごとにHP-1、SP・加速×3を累積し、0.08MP/秒で維持します。HPを使い切ると死亡し、EC50前は確殺回避不能。会議中は維持消費と時間進行を停止し、終了後に再開します。</p></section>
+                <section><h4>グラビティ</h4><p>転移は1MP、心臓転移は10MPで対象を遠隔確殺し位置を公開しません。時空加減速は1MP・8秒で、移動・物理モーション・CT・行動不能・タスク速度へ適用。理知中の床外浮揚は0.04MP/秒で、終了時に床がなければ落下死。重力嵐は100MPで指定地点へ全域の敵を12秒吸引し、幸運に応じた継続ダメージ・減速・拘束を与えます。発動者には最後の1秒を除いてバリアが発生します。</p></section>
                 <section><h4>フローラのアロマ</h4><p>理知中は本人の停止中スタミナ回復を1.75倍にします。ほかのプレイヤーには適用されません。</p></section>
               </div>
             </article>
 
             <article id="tactics-resources" class="tactics-article" data-tactics-chapter="3">
               <header><span>四</span><div><p>RESOURCE THEORY</p><h3>クレジット・マナ・善のイデア</h3></div></header>
-              <p class="tactics-lead">短期戦ではクレジットとスタミナ、長期戦では理知維持時間が勝敗を変えます。固有能力は原則マナ1を消費しますが、ハッカーだけは例外です。</p>
+              <p class="tactics-lead">短期戦ではクレジットとSP、長期戦では理知維持時間が勝敗を変えます。固有能力は表示されたMPを消費します。ハッカーは0MP、心臓転移は10MP、重力嵐は100MP、量子核分裂は2MPです。</p>
               <div class="tactics-rule-grid">
                 <section><h4>クレジット獲得</h4><p>タスク10C、サボタージュ成功8C、全生存者へ10秒ごと2C、キャッシュ30C。キル固定報酬はなく、倒した対象が持つ正のクレジットを全額奪います。</p></section>
-                <section><h4>欲望・気概・理知</h4><p>マナは0が欲望、1が気概、2以上が理知。別に、SPは0が欲望、1〜250が気概、251以上が理知です。一度でも欲望になると認知的不協和・確証バイアス・サンクコスト効果・内集団バイアスのいずれかが生じ、その対戦では真・美・善・善のイデアへ到達できません。回復しても進行は再開しません。</p></section>
+                <section><h4>欲望・気概・理知</h4><p>MPは0以下が欲望、1が気概、2以上が理知。SPは0が欲望、1〜250が気概、251以上が理知です。MPとSPのどちらでも状態は変化します。一度でも欲望になると認知的不協和・確証バイアス・サンクコスト効果・内集団バイアスの1つが生じ、その試合では真・美・善・善のイデアへ到達不能です。</p></section>
                 <section><h4>心の状態</h4><p>理知はゲームを楽しむ知の快楽。気概は勝敗・劣等感・名誉欲の苦痛と、その緩和による偽の快楽。欲望は肉体的欲望の苦痛と、その緩和・利得による偽の快楽です。他責の念が生じた時はプレイを終了してください。</p></section>
                 <section><h4>練気</h4><p>スタミナ消費なし。キャラモーションは行わず、3.5秒の精神統一中は完全行動不能となり、完了時にマナを1増やします。被攻撃が予想される場所での練気は退路を失います。</p></section>
                 <section><h4>資源変換と募金</h4><p>SP上限時の回復超過は150SP相当ごとに1MPへ変換されます。MPが2を超え、SPが250未満なら余剰MPを毎秒30SPずつ自動変換します（1MP=150SP）。手動のMP→SP変換はありません。スマホ募金は10C単位で長押し連続実行でき、1回ごとに理知なら幸運／直観+0.05、気概・欲望なら-0.05です。</p></section>
-                <section><h4>哲学進行</h4><p>理知を連続維持して50秒で真または美、2分で残り、3分40秒で善、6分で善のイデア。幸運／直観が0.30を超えるほど進行速度が上がります。2未満へ落ちると次段階の連続維持時間はリセットされます。</p></section>
-                <section><h4>パッシブ条件</h4><p>踏ん張り、押し込み、変わり身、リビテーション、ハックなど、あらゆるパッシブ能力は理知中だけ発動します。所持回数は失われず、気概・欲望中は休止します。</p></section>
-                <section><h4>真・美・善</h4><p>真の獲得時は次の攻撃対象が持つ踏ん張りをすべて無効化する押し込み、美の獲得時は次の確殺をボディダメージに変える踏ん張りを得ます。善は両方に加え回復、加速、タスク軽減を統合します。善のイデア到達者は翼とともに昇天し特殊勝利します。</p></section>
-                <section><h4>自販機の確定商品</h4><p>スタミナ+100は6C、回避拡張10C、速度+0.1は8C、即時ワープ12C、回復35C、マナポーション+1MPは25C、踏ん張り30C、押し込み45C、変わり身75C、火遁90C、オリハルコン・ソード200C。Vまたはタブレットからどこでも開け、長押しで連続購入できます。</p></section>
+                <section><h4>哲学進行</h4><p>理知を連続維持して50秒で真または美、2分で残り、3分40秒で善、6分で善のイデア。幸運／直観が0.30を超えるほど進行が加速します。MPが2未満へ落ちるか欲望になると、次段階の連続維持時間はリセットされます。</p></section>
+                <section><h4>パッシブ条件</h4><p>踏ん張り、押し込み、変わり身、リビテーション、ハック、EC、特殊弾装填は理知中だけ発動します。所持回数と進捗は失われず、気概・欲望中は休止します。</p></section>
+                <section><h4>真・美・善</h4><p>真で押し込み+1、美で踏ん張り+1。善は両方にHP/状態回復・加速・タスクSP軽減を加えます。善のイデア到達者は翼とともに昇天し、同時到達者が複数なら全員が特殊勝利します。</p></section>
+                <section><h4>自販機</h4><p>Vまたはタブレットから全域で開けます。商品名の横に価格を表示し、長押しで資源量、対象、時間、条件、例外を確認できます。主な価格はミネラルウォーター12C、回避拡張45C、加速55C、即時ワープ35C、回復50C、MP+1は30C、踏ん張り60C、押し込み65C、変わり身90C、火遁95C、居合110C、オリハルコン・ソード200Cです。</p></section>
                 <section><h4>即席アイテム</h4><p>スタミナ、回復、火遁、変わり身、即時ワープ、回避拡張、加速、ミステリー、マナ、踏ん張り、押し込み、居合は、獲得時に現物として残らず資源・効果・使用回数へ即時変換される「即席」です。居合などの手動発動回数は操作用の仮想表示だけ所持欄に現れます。各即席は抽象テクスチャと固有の獲得ATEを持ち、変換後の効果・回数を含め投擲・手動譲渡はできません。</p></section>
                 <section><h4>意志の焦点</h4><p>通常オブジェクトから踏ん張り・押し込みは得られません。試合ごとに1地点だけ出現する意志の焦点へ近づくと、踏ん張りか押し込みを1つ獲得し、焦点は消滅します。</p></section>
-                <section><h4>ミステリー40C</h4><p>80C獲得18%、スタミナ+250が18%、完全活性16%、理知化12%、12秒鈍足14%、15秒能力封印12%、8秒意識消失10%。不利結果の合計は36%です。</p></section>
+                <section><h4>ミステリー45C</h4><p>80C獲得18%、SP+250が18%、完全活性16%、理知化12%、12秒減速14%、15秒能力封印12%、8秒意識消失10%。幸運／直観が抽選を補正し、不利結果の合計は36%です。</p></section>
                 <section><h4>ハッカー</h4><p>固有行動はマナ消費0・クールタイムあり・少量のスタミナ消費です。固有武器オリハルコン・ソードの生成もMPを消費せず、最終クールタイムは90秒です。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒蓄積します。次のバイブコーディングで必要分を自動消費します。タスクは時間経過で自動完了し、端末付近では手動完了もできます。HP1以下で確殺無効を持たない絶体絶命時だけroot化し、他オペの全能力を借用します。</p></section>
               </div>
             </article>
@@ -176,8 +178,8 @@
               <p class="tactics-lead">通常は他プレイヤーの位置を地図で追えません。音、カメラ、千里眼、サボタージュ反応から間接的に推定します。</p>
               <div class="tactics-rule-grid">
                 <section><h4>千里眼</h4><p>障害物を越えて観測焦点を動かし、遠隔地の攻撃やキルを含むマップ全域の現場を直接観測できます。秘密の陣営情報は開示しません。観測中は0.25MP/秒を消費し、画面外への投擲時にも自動発動します。</p></section>
-                <section><h4>監視カメラ</h4><p>ディフェンダーは設置カメラを切り替えて視界を取得します。カメラもEMPで破壊可能なため、映像消失そのものが敵の接近情報になります。</p></section>
-                <section><h4>EMP基本</h4><p>開始直後は8秒、使用後は24秒の再充填。被弾者は7秒間ストレージを遮断され、全アイテムを使用できず、踏ん張り・押し込み・変わり身・武器・パソコンなどの効果も停止します。所持品は失われず、解除後に復旧します。人間のオペ能力は封印しません。</p></section>
+                <section><h4>監視カメラ</h4><p>ディフェンダーは設置カメラを切り替えて視界を取得します。カメラもEMPで機能停止するため、映像消失そのものが敵の接近情報になります。</p></section>
+                <section><h4>EMP基本</h4><p>開始後15秒で初回装填、使用後CT18秒。被弾者は7秒間ストレージを遮断され、全アイテムを使用できず、踏ん張り・押し込み・変わり身・武器・パソコンも停止します。所持品は失われず解除後に復旧し、人間のオペ能力は封印しません。</p></section>
                 <section><h4>位相干渉</h4><p>900ms以内に重なった同位相EMPは共振し、中心110以内で確殺、260以内でボディダメージ。逆位相は相殺します。同地点の第三者も共振範囲へ巻き込まれます。</p></section>
                 <section><h4>サボタージュ</h4><p>アタッカーのみ表示され、開始時と発動後に45秒のクールタイム。成功で8C。遠隔修復はハッカー限定で、300SPを消費し送信完了まで4秒間行動不能。ほかのオペレーターは現地端末で修復します。</p></section>
                 <section><h4>地図と公開情報</h4><p>拡大マップは部屋名、未完了タスク、自分の現在地を表示します。オブジェクトと他者位置は表示しません。銃声は立体音響で聞こえますが位置情報として公開されません。</p></section>
@@ -193,11 +195,35 @@
                 <section><h4>追放結果</h4><p>既定では追放者の陣営を即時開示しません。次ラウンドの人数、行動、勝敗判定から間接的に確かめる必要があります。</p></section>
                 <section><h4>ルミナス</h4><p>ディフェンダーが一試合に一度だけ会議中に指名排除を宣言します。的中なら対象を排除し、キルとして記録されます。会議で外すと発動者が死亡します。戦闘中のキルでは発動しません。</p></section>
                 <section><h4>貢献度</h4><p>基本スコアはキル数のみです。ルミナスの的中もキル1として加算され、能力使用やタスク完了はスコアに加算されません。リザルトは陣営別に表示します。</p></section>
-                <section><h4>高度な優先順位</h4><p>即時脅威は致命サボ、人数同数、善のイデア6分到達、破壊兵器、SR射線の順に評価します。幸運／直観による進行加速をカウントダウンで確認してください。会議では位置関係と一部の戦況がリセットされます。</p></section>
+                <section><h4>高度な優先順位</h4><p>即時脅威は対ディフェンダー・キル期限、致命サボ、人数同数、善のイデア6分到達、破壊兵器、SR射線の順に評価します。幸運／直観による進行加速はカウントダウンへ反映されます。会議中はキル期限、リミットブレイク、EC、各効果の残り時間と維持消費が停止し、終了後に再開します。</p></section>
                 <section><h4>操作体系</h4><p>タイトルはPでプレイ、Iで戦術いろは。新規オンラインロビーにはBotが7人自動参加します。BでBot追加、Sで開始、Mでマップ、Tでホスト陣営を操作できます。バトルはWASD、Shiftダッシュ、Ctrl／Alt無音歩行、J長押しで跳躍、Hでオペ能力、K休息、C練気、数字キーで各戦術アクション、Backspaceで退出です。</p></section>
                 <section><h4>会議チャット規定</h4><p>卑猥・残虐な投稿は他者へ公開せず投稿者を即時退出させ、5回で永久停止します。タイトルから独立した公開チャット機能はありません。</p></section>
               </div>
               <footer class="tactics-credits">BGM: MusMus（<a href="https://musmus.main.jp/" target="_blank" rel="noopener noreferrer">musmus.main.jp</a>）</footer>
+            </article>
+
+            <article id="tactics-novel" class="tactics-article tactics-novel-article" data-tactics-chapter="6">
+              <header><span>七</span><div><p>STORY DIGEST</p><h3>ソフィアとフィリアの戦術案内</h3></div></header>
+              <p class="tactics-lead">二人の身振りと肯定的な漫符ATEを見ながら、試合の流れ、資源、戦闘、索敵、会議、勝利条件を短く一周します。画面タップ、左右キー、または左右スワイプで進められます。</p>
+              <section id="tacticsNovelStage" class="tactics-novel-stage" tabindex="0" aria-label="ノベルダイジェスト" aria-describedby="tacticsNovelText">
+                <img class="tactics-novel-background" src="assets/generated/tactics-novel-briefing-room-v466.png?v=attacker-kill-deadline-v467" alt="木と青緑の研究設備、ソファを備えた戦術ブリーフィング室">
+                <canvas id="tacticsNovelCanvas" width="1280" height="720" aria-hidden="true"></canvas>
+                <div class="tactics-novel-topline">
+                  <span id="tacticsNovelChapter">01 / 12　ようこそ</span>
+                  <div id="tacticsNovelProgress" class="tactics-novel-progress" aria-hidden="true"></div>
+                </div>
+                <section class="tactics-novel-dialogue" aria-live="polite">
+                  <div class="tactics-novel-speaker"><span id="tacticsNovelSpeakerRole">DEFENDER GUIDE</span><strong id="tacticsNovelSpeaker">ソフィア</strong></div>
+                  <p id="tacticsNovelText">戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを軽やかに案内します。</p>
+                  <div class="tactics-novel-controls">
+                    <button id="tacticsNovelRestart" type="button">最初から</button>
+                    <button id="tacticsNovelPrev" type="button">← 戻る</button>
+                    <button id="tacticsNovelAuto" type="button" aria-pressed="false">自動 OFF</button>
+                    <button id="tacticsNovelNext" class="primary" type="button">次へ →</button>
+                  </div>
+                </section>
+                <p class="tactics-novel-hint">画面タップ / ← → / 左右スワイプ</p>
+              </section>
             </article>
           </div>
         </div>
@@ -300,7 +326,7 @@
             </div>
             <div id="chatFeed" class="feed"></div>
             <form id="chatForm" class="chat-form">
-              <input id="chatInput" maxlength="180" placeholder="会議中のみ送信できます">
+              <input id="chatInput" type="text" inputmode="text" enterkeyhint="send" autocomplete="off" maxlength="180" placeholder="会議中のみ送信できます">
               <button>送信</button>
             </form>
           </section>
@@ -650,6 +676,12 @@
       </aside>
     </main>
 
+    <section id="switchDragMenu" class="switch-drag-menu" role="listbox" aria-label="切り替え先" hidden>
+      <strong id="switchDragTitle">切り替え先</strong>
+      <div id="switchDragOptions" class="switch-drag-options"></div>
+      <small>切り替え先へドラッグして指を離す</small>
+    </section>
+
     <button id="expandedScrollRegionHint" class="expanded-scroll-region-hint" type="button" aria-live="polite" hidden>拡張表示を解除する</button>
 
     <button id="leaveRoomButton" class="leave-room-button leave-room-launch-button" data-hotkey="Backspace" type="button"
@@ -685,7 +717,7 @@
           <section><h3>移動</h3><dl><dt>W A S D</dt><dd>移動</dd><dt>Shift</dt><dd>ダッシュ</dd><dt>Ctrl / Alt</dt><dd>無音歩行</dd></dl></section>
           <section><h3>基本操作</h3><dl><dt>Shift + Enter</dt><dd>オフラインルームを作成</dd><dt>J 長押し</dt><dd>全オペ共通の跳躍</dd><dt>\\</dt><dd>ゲーム音オン / オフ</dd><dt>@</dt><dd>キー割り当て表</dd><dt>I</dt><dd>戦術いろはを開く / ゲームへ戻る</dd><dt>Tab</dt><dd>タブレット</dd><dt>3 / 4</dt><dd>緊急会議 / スマホ修理</dd><dt>6</dt><dd>忍殺</dd><dt>8</dt><dd>回避</dd><dt>C / K</dt><dd>練気 / 休息</dd><dt>G / ' 長押し</dt><dd>スマホ募金</dd><dt>M</dt><dd>マップ</dd><dt>Backspace</dt><dd>退出</dd></dl></section>
           <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>千里眼 / EMP</dd><dt>B / N</dt><dd>監視カメラ / 次のカメラ</dd><dt>千里眼中の移動キー</dt><dd>障害物を無視して全域の現場を観測</dd><dt>投擲中の移動キー</dt><dd>着地点を動かし、画面外では千里眼を自動発動</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動</dd><dt>矢印 + Enter / Space</dt><dd>サボ内容を選択して起動</dd><dt>L</dt><dd>選択中のサボを直接起動</dd></dl></section>
-          <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>全オペ共通の固有能力</dd><dt>O / P</dt><dd>全オペ共通の能力モード / 対象切替</dd><dt>7</dt><dd>ガンナー射撃</dd><dt>T / Shift+T</dt><dd>武器を次 / 前へ切替</dd><dt>R</dt><dd>リロード</dd><dt>所持品欄</dt><dd>武器・発明品・重火器を選択して使用</dd><dt>PageUp / PageDown</dt><dd>操作するUI領域を前 / 次へ切替</dd><dt>Shift + ← / →</dt><dd>ハッカー／自販機の分類を切替</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中UI内を移動。↑↓は同時にスクロール</dd><dt>P</dt><dd>ハッカーの適用対象を切替</dd><dt>Enter / Space</dt><dd>選択中の内容を実行</dd></dl></section>
+          <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>全オペ共通の固有能力</dd><dt>能力・対象ボタン長押し</dt><dd>候補を表示し、切り替え先へドラッグして離す</dd><dt>O / P</dt><dd>全オペ共通の能力モード / 対象切替</dd><dt>7</dt><dd>ガンナー射撃</dd><dt>T / Shift+T</dt><dd>武器を次 / 前へ切替</dd><dt>R</dt><dd>リロード</dd><dt>所持品欄</dt><dd>武器・発明品・重火器を選択して使用</dd><dt>PageUp / PageDown</dt><dd>操作するUI領域を前 / 次へ切替</dd><dt>Shift + ← / →</dt><dd>ハッカー／自販機の分類を切替</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中UI内を移動。↑↓は同時にスクロール</dd><dt>P</dt><dd>ハッカーの適用対象を切替</dd><dt>Enter / Space</dt><dd>選択中の内容を実行</dd></dl></section>
           <section><h3>自販機・所持品</h3><dl><dt>V</dt><dd>どこでも自販機を開く / 閉じる</dd><dt>1〜0 / P</dt><dd>自販機を開いている間の商品ショートカット</dd><dt>PageUp / PageDown</dt><dd>自販機・所持品UIへ前後移動</dd><dt>↑ ↓ ← →</dt><dd>商品・所持品を選択移動</dd><dt>Shift+V / Shift+G</dt><dd>使用 / 投擲（長押しでエンハンス）</dd><dt>Alt+V / Alt+C</dt><dd>所持品 / 設定量Cを譲渡</dd><dt>Alt+1 / 2 / 3 / 5</dt><dd>自販機表示中はレールガン / 荷電粒子砲 / エクスカリバー / 亡命</dd><dt>Alt+4</dt><dd>自販機表示中はパソコン</dd><dt>Alt+6 / 7 / 8 / 9 / 0</dt><dd>自販機表示中はHG / SMG / AR / SR / テーザー</dd></dl></section>
           <section><h3>ロビー</h3><dl><dt>B</dt><dd>ボット追加</dd><dt>S</dt><dd>対戦開始</dd><dt>M / T</dt><dd>マップ / ホスト陣営</dd><dt>Shift+数字</dt><dd>対象をキック</dd></dl></section>
           <section><h3>選択</h3><dl><dt>↑ ↓ ← →</dt><dd>表示方向へ候補を選択</dd><dt>Shift + ← / →</dt><dd>分類を切替</dd><dt>Enter / Space</dt><dd>選択を実行</dd><dt>O / L</dt><dd>オフライン / オンライン</dd><dt>Escape</dt><dd>閉じる・戻る</dd></dl></section>
@@ -694,10 +726,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=movement-acc-threshold-v461"></script>
-    <script src="game-engine.js?v=movement-acc-threshold-v461"></script>
-    <script src="offline-runtime.js?v=movement-acc-threshold-v461"></script>
-    <script src="config.js?v=movement-acc-threshold-v461"></script>
-    <script src="app.js?v=movement-acc-threshold-v461"></script>
+    <script src="game-runtime.js?v=attacker-kill-deadline-v467"></script>
+    <script src="game-engine.js?v=attacker-kill-deadline-v467"></script>
+    <script src="offline-runtime.js?v=attacker-kill-deadline-v467"></script>
+    <script src="config.js?v=attacker-kill-deadline-v467"></script>
+    <script src="app.js?v=attacker-kill-deadline-v467"></script>
 </body>
 </html>
