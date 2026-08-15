@@ -18533,7 +18533,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "gunner-special-ammo-title-ate-v455",
+  version: "active-effects-layout-v456",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

@@ -108,6 +108,7 @@ const els = {
   chatNotificationText: $("#chatNotificationText"),
   activeEffectsPanel: $("#activeEffectsPanel"),
   activeEffectsList: $("#activeEffectsList"),
+  expandedScrollRegionHint: $("#expandedScrollRegionHint"),
   itemControl: $("#itemControl"),
   itemSelect: $("#itemSelect"),
   itemInventoryGrid: $("#itemInventoryGrid"),
@@ -3195,6 +3196,7 @@ function selectedScrollRegion() {
   if (region) region.classList.remove("scroll-region-selected", "scroll-region-expanded");
   els.sidePanel?.classList.remove("scroll-region-expanded-host");
   els.statusPanel?.classList.remove("scroll-region-expanded-host");
+  if (els.expandedScrollRegionHint) els.expandedScrollRegionHint.hidden = true;
   state.activeScrollRegion = null;
   return null;
 }
@@ -3205,12 +3207,14 @@ function syncExpandedScrollRegion(region) {
   });
   els.sidePanel?.classList.remove("scroll-region-expanded-host");
   els.statusPanel?.classList.remove("scroll-region-expanded-host");
+  if (els.expandedScrollRegionHint) els.expandedScrollRegionHint.hidden = true;
   if (!(region instanceof Element) || !els.sidePanel?.contains(region)) return;
   const choiceCount = scrollRegionChoices(region).length;
   if (choiceCount < 7) return;
   region.classList.add("scroll-region-expanded");
   els.sidePanel.classList.add("scroll-region-expanded-host");
   region.closest("#statusPanel")?.classList.add("scroll-region-expanded-host");
+  if (els.expandedScrollRegionHint) els.expandedScrollRegionHint.hidden = false;
 }
 
 function setSelectedScrollRegion(region, { focus = true } = {}) {
@@ -4132,6 +4136,7 @@ function bindEvents() {
     const scrollRegion = element.closest("[data-scroll-region]");
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
   });
+  els.expandedScrollRegionHint?.addEventListener("click", () => setSelectedScrollRegion(null, { focus: false }));
   const suppressIosGameCallout = (event) => {
     if (state.screen !== "game") return;
     const target = event.target instanceof Element ? event.target : null;
@@ -8546,7 +8551,20 @@ function layoutActiveEffectsPanel() {
   activeEffectsLayoutFrame = 0;
   const panel = els.activeEffectsPanel;
   if (!panel || panel.hidden) return;
-  const availableHeight = Math.max(116, Math.min(250, Math.floor(window.innerHeight * 0.24)));
+  const lowerRow = els.fieldLowerRow;
+  const fieldSlot = lowerRow?.parentElement;
+  const board = fieldSlot?.querySelector(".board-wrap");
+  const fieldStyle = fieldSlot ? getComputedStyle(fieldSlot) : null;
+  const stageGap = Number.parseFloat(fieldStyle?.rowGap || fieldStyle?.gap || "0") || 0;
+  const currentPanelHeight = panel.getBoundingClientRect().height;
+  const lowerExtras = lowerRow
+    ? Math.max(0, lowerRow.getBoundingClientRect().height - currentPanelHeight)
+    : 0;
+  const measuredFieldRemainder = fieldSlot && board
+    ? fieldSlot.getBoundingClientRect().height - board.getBoundingClientRect().height - stageGap - lowerExtras
+    : 0;
+  const fallbackHeight = Math.min(360, Math.floor(window.innerHeight * 0.36));
+  const availableHeight = Math.max(116, Math.floor(measuredFieldRemainder > 0 ? measuredFieldRemainder : fallbackHeight));
   const borderHeight = (Number.parseFloat(getComputedStyle(panel).borderTopWidth) || 0) +
     (Number.parseFloat(getComputedStyle(panel).borderBottomWidth) || 0);
   const naturalHeight = Math.ceil(panel.scrollHeight + borderHeight);
@@ -8556,8 +8574,6 @@ function layoutActiveEffectsPanel() {
   panel.style.overflowY = shouldScroll ? "auto" : "visible";
   panel.classList.toggle("effects-scrollable", shouldScroll);
 
-  const lowerRow = els.fieldLowerRow;
-  const fieldSlot = lowerRow?.parentElement;
   if (lowerRow && fieldSlot && !lowerRow.hidden) {
     const lowerHeight = Math.ceil(lowerRow.getBoundingClientRect().height);
     fieldSlot.style.setProperty("--field-lower-height", `${lowerHeight}px`);
@@ -15363,7 +15379,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "gunner-special-ammo-title-ate-v455";
+const version = "active-effects-layout-v456";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

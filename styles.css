@@ -1435,6 +1435,8 @@ select:focus {
 :fullscreen .app-shell {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
+  min-height: 100%;
   max-width: none;
 }
 
@@ -2237,7 +2239,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .field-lower-row .status-active-effects {
   grid-column: 1 / -1;
   width: 100%;
-  max-height: 250px;
+  max-height: none;
   margin: 0;
 }
 
@@ -2755,6 +2757,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   padding: 6px 7px;
   font-size: 10px;
 }
+
 
 .active-effects-panel .effect-copy {
   display: grid;
@@ -6517,6 +6520,9 @@ body #tabletPanel::after {
 }
 
 /* Static outer workspace: the field remains the visual focus and no surface drifts. */
+html.game-open,
+html.game-open:fullscreen,
+html.game-open body.game-open,
 body .app-shell {
   background-color: #dce4e3;
   background-image:
@@ -6956,6 +6962,43 @@ body #statusPanel .alchemy-control:has(.alchemy-choice-grid.scroll-region-expand
 body #statusPanel .vending-panel.scroll-region-expanded {
   max-height: none;
   overflow-y: auto;
+}
+
+.expanded-scroll-region-hint {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(82px, calc(env(safe-area-inset-bottom) + 82px));
+  z-index: 165;
+  width: min(360px, calc(100vw - 36px));
+  min-height: 42px;
+  border: 1px solid rgba(8, 145, 178, 0.72);
+  border-radius: 999px;
+  background: rgba(239, 250, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(8, 47, 73, 0.24);
+  color: #0c4a6e;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.expanded-scroll-region-hint[hidden] {
+  display: none !important;
+}
+
+.expanded-scroll-region-hint span {
+  display: inline-block;
+  margin-right: 5px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+@media (max-width: 680px) {
+  .expanded-scroll-region-hint {
+    right: 50%;
+    bottom: max(76px, calc(env(safe-area-inset-bottom) + 76px));
+    width: min(440px, calc(100vw - 24px));
+    transform: translateX(50%);
+  }
 }
 
 body .vending-panel {
