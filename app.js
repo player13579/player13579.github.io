@@ -471,6 +471,8 @@ const state = {
   gunFireStartPromise: null,
   renderDrone: null,
   operatorRenderKey: "",
+  operatorDetailTimer: 0,
+  operatorDetailSource: null,
   resultCelebrationKey: "",
   mapPointer: null,
   actionSelectionId: "",
@@ -678,7 +680,7 @@ const alchemyRecipes = [
   { id: "mineral-water", label: "ミネラルウォーター", output: VENDING_PRODUCT_DESCRIPTIONS["mineral-water"], asset: "mineral-water" },
   { id: "antidote", label: "解毒剤", output: VENDING_PRODUCT_DESCRIPTIONS.antidote, asset: "antidote" },
   { id: "molotov", label: "火炎瓶", output: VENDING_PRODUCT_DESCRIPTIONS.molotov, asset: "molotov" },
-  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: "固有武器を生成 / MP消費なし / クールタイム90秒", asset: "orichalcum-sword" },
+  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: "固有武器を生成 / MP消費なし", asset: "orichalcum-sword" },
   { id: "iai", label: "居合", output: VENDING_PRODUCT_DESCRIPTIONS.iai, asset: "iai" },
   { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "instant-evade" },
   { id: "vending-speed", label: "アクセラレート飲料", output: "移動速度 ×1.10（重複可）", asset: "instant-speed" },
@@ -721,9 +723,15 @@ function hackerRecipeCooldownMs(recipeOrId) {
 }
 
 function hackerRecipePresentation(recipe) {
-  const description = String(recipe?.output || "").trim();
-  const cooldown = `クールタイム ${Math.round(hackerRecipeCooldownMs(recipe) / 1000)}秒`;
-  return description ? `${description} / ${cooldown}` : cooldown;
+  return String(recipe?.output || "").trim();
+}
+
+function hackerRecipeCooldownLabel(recipe) {
+  return `CT ${Math.round(hackerRecipeCooldownMs(recipe) / 1000)}秒`;
+}
+
+function hackerRecipeNameMarkup(recipe) {
+  return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
 const generatedItemTextureFiles = new Map([
@@ -753,8 +761,8 @@ const generatedItemTextureFiles = new Map([
   ["instant-evade", { file: "action-effect-dodge-v311.png" }],
   ["instant-speed", { file: "status-marker-acceleration-v376.png" }],
   ["instant-mystery", { file: "philosophy-effect-mystery-v311.png" }],
-  ["grit", { file: "instant-stand-firm-abstract-v451.png" }],
-  ["reason", { file: "instant-push-abstract-v451.png" }],
+  ["grit", { file: "philosophy-effect-stand-v311.png" }],
+  ["reason", { file: "philosophy-effect-push-v311.png" }],
   ["mana", { file: "alchemy-effect-rational-free-v311.png" }],
   ["railgun", { file: "alchemy-railgun.webp" }],
   ["particle-cannon", { file: "alchemy-particle-cannon.webp" }],
@@ -856,17 +864,22 @@ function alchemyRecipeAvailable(recipe, self = state.data?.self) {
 function ensureDynamicAlchemyChoices() {
   for (const recipe of alchemyRecipes) {
     if (recipe.kind === "invention") continue;
-    if (!els.alchemySelect.querySelector(`option[value="${recipe.id}"]`)) {
-      const option = document.createElement("option");
+    let option = els.alchemySelect.querySelector(`option[value="${recipe.id}"]`);
+    if (!option) {
+      option = document.createElement("option");
       option.value = recipe.id;
-      option.textContent = recipe.label;
       els.alchemySelect.append(option);
     }
+    option.textContent = `${recipe.label}（${hackerRecipeCooldownLabel(recipe)}）`;
     if (recipe.kind === "borrowed") continue;
     const existingButton = els.alchemyChoiceGrid.querySelector(`[data-alchemy-choice="${recipe.id}"]`);
     if (existingButton) {
-      existingButton.querySelector("small")?.remove();
-      existingButton.setAttribute("aria-label", recipe.label);
+      const copy = existingButton.querySelector(":scope > span:last-child");
+      if (copy) {
+        copy.classList.add("item-name-line");
+        copy.innerHTML = hackerRecipeNameMarkup(recipe);
+      }
+      existingButton.setAttribute("aria-label", `${recipe.label} ${hackerRecipeCooldownLabel(recipe)}`);
     } else {
       const button = document.createElement("button");
       button.type = "button";
@@ -875,8 +888,8 @@ function ensureDynamicAlchemyChoices() {
       button.dataset.atlasCell = recipe.kind === "invention" ? "3" : "1";
       if (recipe.asset) button.dataset.alchemyAsset = recipe.asset;
       button.setAttribute("aria-pressed", "false");
-      button.setAttribute("aria-label", recipe.label);
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span><strong>${escapeHtml(recipe.label)}</strong></span>`;
+      button.setAttribute("aria-label", `${recipe.label} ${hackerRecipeCooldownLabel(recipe)}`);
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-name-line">${hackerRecipeNameMarkup(recipe)}</span>`;
       els.alchemyChoiceGrid.append(button);
     }
   }
@@ -1141,16 +1154,16 @@ function renderHackerAbilityDock(data = state.data, force = false) {
       button.dataset.alchemyChoice = recipe.id;
       button.dataset.atlasCell = source?.dataset.atlasCell || (recipe.kind === "invention" ? "3" : "1");
       if (recipe.asset) button.dataset.alchemyAsset = recipe.asset;
-      button.setAttribute("aria-label", recipe.label);
+      button.setAttribute("aria-label", `${recipe.label} ${hackerRecipeCooldownLabel(recipe)}`);
       button.innerHTML = `
         <span class="alchemy-choice-icon hacker-action-icon" aria-hidden="true"></span>
-        <span class="hacker-action-copy"><strong>${escapeHtml(recipe.label)}</strong></span>
+        <span class="hacker-action-copy item-name-line">${hackerRecipeNameMarkup(recipe)}</span>
       `;
       applyGeneratedItemTexture(button, recipe.asset || recipe.id);
       bindInventoryDetailHold(button, {
         label: recipe.label,
         output: category.label,
-        badge: `クールタイム ${Math.round(hackerRecipeCooldownMs(recipe) / 1000)}秒`,
+        badge: "",
         detail: recipe.output || "バイブコーディングで生成・適用する対象。"
       }, els.hackerAbilityGrid);
       els.hackerAbilityGrid.append(button);
@@ -2028,7 +2041,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/kill": "attack",
   "/api/ninjutsu": "attack",
   "/api/shoot": "shoot",
-  "/api/gunner-weapon": "interact",
+  "/api/gunner-weapon": "weapon-switch",
   "/api/gunner-reload": "reload",
   "/api/gunner-hover-sprint": "power",
   "/api/gunner-heavy": "shoot",
@@ -2066,6 +2079,7 @@ const CHARACTER_ACTION_DURATION = Object.freeze({
   slash: 620,
   iai: 780,
   shoot: 260,
+  "weapon-switch": 560,
   reload: 760,
   evade: 560,
   cast: 820,
@@ -2123,10 +2137,8 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-reload": "reload",
   "action-item-use": "enhance",
   "action-item-throw": "throw",
-  "action-weak-bullet": "shoot",
-  "action-weak-bullet-load": "reload",
-  "action-taser": "shoot",
-  "action-weapon-switch": "reload",
+  "action-special-ammo-load": "reload",
+  "action-weapon-switch": "weapon-switch",
   "action-reason": "attack",
   "action-push": "attack",
   "action-sabotage": "interact",
@@ -2237,7 +2249,7 @@ function vendingProductDetail(button) {
   return {
     label: VENDING_PRODUCT_LABELS[id] || id || "自販機商品",
     output: "自販機商品",
-    badge: Number.isFinite(VENDING_PRODUCT_COSTS[id]) ? `${VENDING_PRODUCT_COSTS[id]}C` : "",
+    badge: "",
     detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "購入後に所持品から使用できます。"
   };
 }
@@ -3445,7 +3457,7 @@ function preferredKeyboardElement(elements) {
         : phase === "lobby"
           ? els.mapSelect
           : phase === "selecting"
-            ? els.operatorList.querySelector(".operator-card:not(:disabled)")
+            ? els.operatorList.querySelector('.operator-card[data-selectable="1"]') || els.operatorList.querySelector(".operator-card")
             : phase === "meeting"
               ? els.voteList.querySelector(".vote-card:not(:disabled)")
               : els.resetButton;
@@ -3517,7 +3529,7 @@ function cycleSelectBy(select, direction = 1) {
 function selectAlchemyRecipe(conversion, focus = false) {
   const recipe = alchemyRecipes.find((candidate) => candidate.id === conversion) || alchemyRecipes[0];
   els.alchemySelect.value = recipe.id;
-  els.alchemySelectionText.textContent = `${recipe.label} ${hackerRecipePresentation(recipe)}`;
+  els.alchemySelectionText.textContent = `${recipe.label}（${hackerRecipeCooldownLabel(recipe)}） ${hackerRecipePresentation(recipe)}`;
   els.alchemyChoiceGrid.querySelectorAll("[data-alchemy-choice]").forEach((button) => {
     const selected = button.dataset.alchemyChoice === recipe.id;
     button.classList.toggle("selected", selected);
@@ -3718,7 +3730,6 @@ function triggerScreenHotkey(event) {
       if (!event.repeat) {
         const direction = event.shiftKey ? -1 : 1;
         beginContinuousActionKeyHold(event.code, () => {
-          if (els.weaponButton.hidden) return false;
           if (!els.weaponButton.disabled) void api("/api/gunner-weapon", { direction });
           return true;
         });
@@ -3746,7 +3757,7 @@ function triggerScreenHotkey(event) {
   }
   if (state.screen === "game" && state.data?.phase === "selecting" && /^Digit[1-9]$/.test(event.code)) {
     const hotkey = event.code.slice(-1);
-    const button = els.operatorList.querySelector(`.operator-card[data-hotkey="${hotkey}"]:not(:disabled)`);
+    const button = els.operatorList.querySelector(`.operator-card[data-hotkey="${hotkey}"][data-selectable="1"]`);
     if (!button) return false;
     event.preventDefault();
     if (!event.repeat) button.click();
@@ -6048,7 +6059,7 @@ async function api(path, extra = {}, options = {}) {
   }
   const actionKind = CHARACTER_ACTION_BY_API[path];
   if (actionKind) {
-    const actionVariant = path === "/api/shoot"
+    const actionVariant = ["/api/shoot", "/api/gunner-weapon"].includes(path)
       ? String(
         result?.self?.gunFiringWeapon ||
         result?.self?.gunnerWeapon ||
@@ -6729,6 +6740,9 @@ function magicEffectDuration(type) {
   if (type === "alchemy-railgun") return 900;
   if (type === "alchemy-particle-cannon") return 900;
   if (type === "alchemy-particle-beam") return 420;
+  if (type === "action-special-ammo-load") return 1450;
+  if (type === "action-special-ammo-shot") return 620;
+  if (type === "action-special-ammo-impact") return 1050;
   if (type === "quantum-transmutation") return 3600;
   if (type === "instant-iai-acquired") return 820;
   if (type === "instant-stand-firm-acquired") return 1050;
@@ -7412,31 +7426,22 @@ function renderOperatorSelect(data) {
   });
   if (state.operatorRenderKey === renderKey) return;
   state.operatorRenderKey = renderKey;
+  hideOperatorDetail();
   els.operatorList.innerHTML = "";
-  els.operatorDetail.hidden = operators.length === 0;
-
-  const showOperatorDetail = (operator) => {
-    if (!operator) return;
-    els.operatorList.querySelectorAll(".operator-card").forEach((card) => {
-      card.classList.toggle("detail-active", card.dataset.operatorId === operator.id);
-    });
-    els.operatorDetail.innerHTML = `
-      <div class="operator-detail-head">
-        <strong>${escapeHtml(operator.name)}</strong>
-      </div>
-      <p>${escapeHtml(operator.details || operator.description)}</p>
-    `;
-  };
+  els.operatorDetail.hidden = true;
 
   operators.forEach((operator, operatorIndex) => {
     const selected = self.operatorId === operator.id;
     const available = selected || operator.taken < operator.limit;
+    const selectable = Boolean(isTurn && !self.operatorReady && available);
     const button = document.createElement("button");
     button.className = `operator-card${selected ? " selected" : ""}${operator.asset ? " has-visual" : ""}`;
     button.type = "button";
     button.dataset.operatorId = operator.id;
+    button.dataset.selectable = selectable ? "1" : "0";
     if (operatorIndex < 9) button.dataset.hotkey = String(operatorIndex + 1);
-    button.disabled = !isTurn || self.operatorReady || !available;
+    button.setAttribute("aria-disabled", String(!selectable));
+    button.setAttribute("aria-label", `${operator.name}。長押しで説明`);
     button.innerHTML = `
       ${operator.asset ? `<span class="operator-visual operator-visual-${escapeHtml(operator.asset)}" aria-hidden="true"></span>` : ""}
       <span class="operator-meta">
@@ -7444,13 +7449,104 @@ function renderOperatorSelect(data) {
       </span>
       <span class="badge">${operator.taken} / ${operator.limit >= 99 ? "∞" : operator.limit}</span>
     `;
-    button.addEventListener("pointerenter", () => showOperatorDetail(operator));
-    button.addEventListener("focus", () => showOperatorDetail(operator));
-    button.addEventListener("click", () => selectOperatorFromCard(operator));
+    bindOperatorDetailHold(button, operator);
+    button.addEventListener("click", () => {
+      if (selectable) void selectOperatorFromCard(operator);
+    });
     els.operatorList.appendChild(button);
   });
+}
 
-  showOperatorDetail(operators.find((operator) => operator.id === self.operatorId) || operators[0]);
+function hideOperatorDetail() {
+  if (state.operatorDetailTimer) window.clearTimeout(state.operatorDetailTimer);
+  state.operatorDetailTimer = 0;
+  state.operatorDetailSource?.removeAttribute("aria-describedby");
+  state.operatorDetailSource = null;
+  els.operatorList?.querySelectorAll(".operator-card.detail-active").forEach((card) => card.classList.remove("detail-active"));
+  els.operatorDetail.hidden = true;
+}
+
+function showOperatorDetail(operator, sourceButton) {
+  if (!operator || !sourceButton) return;
+  hideOperatorDetail();
+  state.operatorDetailSource = sourceButton;
+  sourceButton.setAttribute("aria-describedby", "operatorDetail");
+  sourceButton.classList.add("detail-active");
+  els.operatorDetail.innerHTML = `
+    <span class="operator-detail-kicker">OPERATOR DETAIL</span>
+    <div class="operator-detail-head"><strong>${escapeHtml(operator.name)}</strong></div>
+    <p>${escapeHtml(operator.details || operator.description)}</p>
+  `;
+  els.operatorDetail.hidden = false;
+  state.operatorDetailTimer = window.setTimeout(hideOperatorDetail, 12_000);
+}
+
+function bindOperatorDetailHold(button, operator) {
+  const clickGate = createInventoryClickGate();
+  let pointerId = null;
+  let pointerType = "";
+  const clearSelection = () => window.getSelection?.()?.removeAllRanges?.();
+  const gesture = createInventoryTouchGesture({
+    onTap: () => {
+      if (pointerType === "mouse") return;
+      button.click();
+      clickGate.arm();
+    },
+    onHold: () => {
+      clickGate.arm();
+      clearSelection();
+      showOperatorDetail(operator, button);
+      if (navigator.vibrate) navigator.vibrate(18);
+    },
+    onScroll: (deltaY) => { els.operatorList.scrollTop += deltaY; },
+    onClearSelection: clearSelection
+  });
+  const suppressNative = (event) => {
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    clearSelection();
+  };
+  for (const type of ["contextmenu", "selectstart", "dragstart", "copy"]) button.addEventListener(type, suppressNative);
+  button.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    hideOperatorDetail();
+    pointerId = event.pointerId;
+    pointerType = event.pointerType || "mouse";
+    clickGate.reset();
+    gesture.start(pointerId, event.clientX, event.clientY);
+    try { button.setPointerCapture(pointerId); } catch {}
+  });
+  button.addEventListener("pointermove", (event) => {
+    if (pointerId !== event.pointerId) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    gesture.move(pointerId, event.clientX, event.clientY);
+  });
+  button.addEventListener("pointerup", (event) => {
+    if (pointerId !== event.pointerId) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    const result = gesture.end(pointerId);
+    if (result === "hold") clickGate.arm();
+    pointerId = null;
+    pointerType = "";
+  });
+  const cancel = (event) => {
+    if (pointerId !== event.pointerId) return;
+    gesture.cancel(pointerId);
+    pointerId = null;
+    pointerType = "";
+    clickGate.reset();
+  };
+  button.addEventListener("pointercancel", cancel);
+  button.addEventListener("lostpointercapture", cancel);
+  button.addEventListener("click", (event) => {
+    if (!clickGate.consume()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
 }
 
 async function selectOperatorFromCard(operator) {
@@ -7668,16 +7764,22 @@ function collectInventoryDisplayItems(self) {
   const weaponItems = gunnerAccess
     ? (Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [])
       .filter((weapon) => weapon.available !== false)
-      .map((weapon) => ({
-        id: `weapon:${weapon.id}`,
-        sourceId: weapon.id,
-        label: weapon.name,
-        asset: weapon.id,
-        inventoryKind: "weapon",
-        output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発`,
-        detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}。射程${Math.round(Number(weapon.range) || 0)}、威力${Number(weapon.damage).toFixed(2)}。使用を長押しすると持続射撃し、停止後は自動リロードする。投擲すると武器を失う`,
-        badge: weapon.id === self.gunnerWeapon ? "選択中" : ""
-      }))
+      .map((weapon) => {
+        const specialType = weapon.id === self.gunnerSpecialAmmoWeapon && Number(self.gunnerSpecialAmmoRounds) > 0
+          ? String(self.gunnerSpecialAmmoType || "")
+          : "";
+        const specialLabel = { weak: "ウィーク", penetrate: "ペネトレイト", shock: "ショック" }[specialType] || "";
+        return {
+          id: `weapon:${weapon.id}`,
+          sourceId: weapon.id,
+          label: weapon.name,
+          asset: weapon.id,
+          inventoryKind: "weapon",
+          output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}。射程${Math.round(Number(weapon.range) || 0)}、威力${Number(weapon.damage).toFixed(2)}。使用を長押しすると持続射撃し、停止後は自動リロードする${specialLabel ? `。特殊弾: ${specialLabel} 残り${self.gunnerSpecialAmmoRounds}発` : ""}。投擲すると武器を失う`,
+          badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
+        };
+      })
     : [];
   const inventionNames = { railgun: "レールガン", "particle-cannon": "荷電粒子砲", excalibur: "エクスカリバー" };
   const inventionCounts = (self.inventions || []).reduce((counts, id) => {
@@ -8110,7 +8212,7 @@ function renderItemControl(data) {
   els.itemControl.hidden = !visible;
   if (!visible) {
     state.itemRenderKey = "";
-    hideInventoryItemDetail();
+    if (state.inventoryItemDetailSource && els.itemControl.contains(state.inventoryItemDetailSource)) hideInventoryItemDetail();
     return;
   }
   const previousItem = els.itemSelect.value;
@@ -8161,6 +8263,14 @@ function renderItemControl(data) {
       els.itemInventoryGrid.append(button);
     });
   }
+  const weaponChanged = Boolean(state.inventoryVisualWeapon && state.inventoryVisualWeapon !== self.gunnerWeapon);
+  state.inventoryVisualWeapon = self.gunnerWeapon || "";
+  const equippedWeaponItemId = self.gunnerWeapon ? `weapon:${self.gunnerWeapon}` : "";
+  if (weaponChanged && items.some((item) => item.id === equippedWeaponItemId)) {
+    // Keyboard weapon switching must move the visible inventory selection with
+    // the authoritative weapon, otherwise the old firearm remains highlighted.
+    els.itemSelect.value = equippedWeaponItemId;
+  }
   const selected = items.find((item) => item.id === els.itemSelect.value) || items[0];
   if (selected && els.itemSelect.value !== selected.id) els.itemSelect.value = selected.id;
   els.itemInventoryGrid.querySelectorAll("[data-item-choice]").forEach((button) => {
@@ -8191,8 +8301,6 @@ function renderItemControl(data) {
   els.itemUseButton.textContent = `${selectedUseLabel} [Shift+V]`;
   els.itemThrowButton.textContent = "投擲 [Shift+G]";
   els.transferCreditsButton.textContent = `${transferCredits}C譲渡（所持${Math.floor(Number(self.credits) || 0)}C）`;
-  const weaponChanged = Boolean(state.inventoryVisualWeapon && state.inventoryVisualWeapon !== self.gunnerWeapon);
-  state.inventoryVisualWeapon = self.gunnerWeapon || "";
   if (weaponChanged) {
     const equipped = els.itemInventoryGrid.querySelector(`[data-item-choice="weapon:${CSS.escape(self.gunnerWeapon || "")}"]`);
     equipped?.classList.add("weapon-switch-confirm");
@@ -8332,10 +8440,19 @@ function renderActiveEffects(data) {
     );
   }
   const borrowedOperatorAccess = (type) => hasDisplayedOperatorAccess(self, type);
-  if (self.weakBulletLoaded) {
-    add("ウィークバレット", "自動装填済み", "truth", "次に命中した対象を破壊し、射手自身も破壊される");
-  } else if (Number(self.weakBulletReadyAt) > liveNow) {
-    timed("ウィークバレット自動装填", self.weakBulletReadyAt, "rational", "理知中に時間経過で自動装填される");
+  const specialAmmoLabels = { weak: "ウィーク", penetrate: "ペネトレイト", shock: "ショック" };
+  const specialAmmoWeapon = (self.gunnerWeapons || []).find((weapon) => weapon.id === self.gunnerSpecialAmmoWeapon);
+  if (self.gunnerSpecialAmmoType && Number(self.gunnerSpecialAmmoRounds) > 0) {
+    const typeLabel = specialAmmoLabels[self.gunnerSpecialAmmoType] || "特殊弾";
+    const detail = self.gunnerSpecialAmmoType === "weak"
+      ? "命中対象を破壊し、その後に射手自身も破壊する"
+      : self.gunnerSpecialAmmoType === "penetrate"
+        ? "生成された遮蔽物を貫通する。壁は貫通しない"
+        : "幸運・直観が0未満なら確殺、0以上なら6秒間35%減速する";
+    add("特殊弾装填", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail);
+  }
+  if (Number(self.gunnerSpecialAmmoReadyAt) > liveNow) {
+    timed("次の特殊弾装填", self.gunnerSpecialAmmoReadyAt, "rational", "理知中、18秒ごとに選択中の銃へ1マガジン装填する");
   }
   if (self.gravityTimeMode) timed(
     self.gravityTimeMode === "accelerate"
@@ -8386,6 +8503,7 @@ function renderActiveEffects(data) {
   );
   timed("速度低下", self.slowedUntil, "desire", "一時的に移動速度が低下する");
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度が35%低下する。行動不能やリキャスト低下は発生しない");
+  timed("ショック減速", self.shockSlowedUntil, "desire", "幸運・直観で即死を免れ、移動速度だけが35%低下している");
   timed("能力封印", self.abilityDisabledUntil, "desire", "オペ固有能力を発動できない");
   timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "全アイテムを使用できず、踏ん張り・押し込み・変わり身・装備・戦術PCなどの効果も停止する");
   if (self.poisonStatus) add("中毒", "継続", "desire", "解毒剤またはフローラの回復を受けるまで継続ダメージを受ける");
@@ -8494,9 +8612,15 @@ function renderVending(data) {
   }
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
     const copy = button.querySelector("span:last-child");
-    const label = VENDING_PRODUCT_LABELS[button.dataset.drink] || button.dataset.drink;
-    if (copy && copy.textContent !== label) copy.textContent = label;
-    button.setAttribute("aria-label", label);
+    const id = button.dataset.drink;
+    const label = VENDING_PRODUCT_LABELS[id] || id;
+    const price = Number.isFinite(VENDING_PRODUCT_COSTS[id]) ? `${VENDING_PRODUCT_COSTS[id]}C` : "";
+    const visibleName = `${label}${price ? ` ${price}` : ""}`;
+    if (copy && copy.textContent.trim() !== visibleName) {
+      copy.classList.add("item-name-line");
+      copy.innerHTML = `<span class="item-name-label">${escapeHtml(label)}</span>${price ? `<small class="item-name-meta">${escapeHtml(price)}</small>` : ""}`;
+    }
+    button.setAttribute("aria-label", visibleName);
     button.removeAttribute("title");
   });
   const mysteryVisible = data.self.lastMysteryResult && estimatedServerNow(data) - (data.self.lastMysteryResultAt || 0) < 20_000;
@@ -8555,6 +8679,9 @@ function objectiveText(data) {
   }
   if ((self.taserSlowedUntil || 0) > liveNow) {
     return `テーザー痺れ / 行動速度低下 / 残り${((self.taserSlowedUntil - liveNow) / 1000).toFixed(1)}秒`;
+  }
+  if ((self.shockSlowedUntil || 0) > liveNow) {
+    return `ショック減速 / 移動速度35%低下 / 残り${((self.shockSlowedUntil - liveNow) / 1000).toFixed(1)}秒`;
   }
   if ((self.abilityDisabledUntil || 0) > liveNow) {
     return `能力封印中 / 残り${((self.abilityDisabledUntil - liveNow) / 1000).toFixed(1)}秒`;
@@ -8769,7 +8896,10 @@ function updateActionButtons(data) {
   const shootLabel = "射撃";
   els.weaponButton.dataset.weapon = gunnerWeapon.id;
   els.weaponButton.dataset.destroyed = "false";
-  els.weaponButton.textContent = `${gunnerWeapon.shortName || gunnerWeapon.name} ${gunnerWeapon.ammo}/${gunnerWeapon.maxAmmo}`;
+  const activeSpecialAmmo = self.gunnerSpecialAmmoWeapon === gunnerWeapon.id && Number(self.gunnerSpecialAmmoRounds) > 0
+    ? ({ weak: "ウィーク", penetrate: "ペネトレイト", shock: "ショック" }[self.gunnerSpecialAmmoType] || "特殊弾")
+    : "";
+  els.weaponButton.textContent = `${gunnerWeapon.shortName || gunnerWeapon.name} ${gunnerWeapon.ammo}/${gunnerWeapon.maxAmmo}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}×${self.gunnerSpecialAmmoRounds}` : ""}`;
   const falloffPercent = Math.round((1 - (Number(gunnerWeapon.minDamageRatio) || 1)) * 100);
   els.weaponButton.title = gunnerWeapon.id === "sniper"
     ? `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / 長押し連射 / 確殺 / Tで切替`
@@ -9321,6 +9451,7 @@ function applyMovementAck(result) {
   data.self.stamina = result.stamina;
   data.self.slowedUntil = result.slowedUntil;
   data.self.taserSlowedUntil = result.taserSlowedUntil;
+  data.self.shockSlowedUntil = result.shockSlowedUntil;
   data.self.gravityStormSlowUntil = result.gravityStormSlowUntil;
   data.self.gravityStormSlowMultiplier = result.gravityStormSlowMultiplier;
   data.self.lastGravityStormDamage = result.lastGravityStormDamage;
@@ -9348,6 +9479,7 @@ function applyMovementAck(result) {
   player.movementClock = Number(result.movementClock) || 0;
   player.slowedUntil = result.slowedUntil;
   player.taserSlowedUntil = result.taserSlowedUntil;
+  player.shockSlowedUntil = result.shockSlowedUntil;
   player.gravityStormSlowUntil = result.gravityStormSlowUntil;
   player.gravityStormSlowMultiplier = result.gravityStormSlowMultiplier;
   player.lastGravityStormDamage = result.lastGravityStormDamage;
@@ -11519,6 +11651,109 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   targetContext.restore();
 }
 
+function drawGunnerSpecialAmmoEffect(effect, progress) {
+  if (!["action-special-ammo-load", "action-special-ammo-shot", "action-special-ammo-impact"].includes(effect.type)) return false;
+  const type = String(effect.variant || "").split(":")[0];
+  const texture = state.textures.gunnerSpecialAmmoEffects?.[type];
+  const prepared = texture ? transparentSpriteSource(texture, `gunner-special-ammo-${type}`, 14) : null;
+  const sprite = prepared ? normalizedSpriteFrame(prepared, `gunner-special-ammo-${type}`, 1, 1, 0, 0) : null;
+  if (!sprite) return false;
+
+  const time = (state.frameNow || performance.now()) / 1000;
+  const pulse = Math.sin(progress * Math.PI);
+  const targetX = Number.isFinite(Number(effect.targetX)) ? Number(effect.targetX) : Number(effect.x) || 0;
+  const targetY = Number.isFinite(Number(effect.targetY)) ? Number(effect.targetY) : Number(effect.y) || 0;
+  let x = Number(effect.x) || 0;
+  let y = Number(effect.y) || 0;
+  let rotation = 0;
+  let width = effect.type === "action-special-ammo-load" ? 245 : 205;
+  let height = effect.type === "action-special-ammo-load" ? 150 : 118;
+  let mode = type === "weak" ? "resonance" : type === "penetrate" ? "recoil" : "glitch";
+  let alpha = Math.max(0.1, 1 - progress * 0.82);
+
+  if (effect.type === "action-special-ammo-shot") {
+    const dx = targetX - x;
+    const dy = targetY - y;
+    const distance = Math.hypot(dx, dy) || 1;
+    const nx = dx / distance;
+    const ny = dy / distance;
+    const travel = type === "penetrate"
+      ? 1 - Math.pow(1 - progress, 3)
+      : type === "shock"
+        ? progress
+        : progress * progress * (3 - 2 * progress);
+    const phaseOffset = type === "shock" ? Math.sin(progress * Math.PI * 18) * (1 - progress) * 7 : 0;
+    x += dx * travel - ny * phaseOffset;
+    y += dy * travel + nx * phaseOffset;
+    rotation = Math.atan2(dy, dx);
+    width = type === "penetrate" ? 250 + pulse * 52 : type === "shock" ? 205 : 220;
+    height = type === "penetrate" ? 110 - pulse * 14 : 120;
+    alpha = Math.max(0.2, 1 - progress * 0.5);
+  } else if (effect.type === "action-special-ammo-load") {
+    y -= 34;
+    if (type === "weak") {
+      width *= 0.84 + pulse * 0.22;
+      height *= 1.08 - pulse * 0.1;
+    } else if (type === "penetrate") {
+      x += (1 - progress) * -74 + pulse * 12;
+      width *= 0.78 + progress * 0.22 + pulse * 0.12;
+      height *= 0.92 - pulse * 0.08;
+    } else {
+      x += Math.sin(progress * Math.PI * 14) * (1 - progress) * 8;
+      y += Math.cos(progress * Math.PI * 11) * (1 - progress) * 4;
+      width *= 0.9 + pulse * 0.12;
+    }
+  } else {
+    if (type === "weak") {
+      width = 250 * (0.82 + pulse * 0.38);
+      height = 145 * (1.08 - pulse * 0.16);
+    } else if (type === "penetrate") {
+      x += progress * 24;
+      width = 270 * (0.76 + pulse * 0.3);
+      height = 116 * (1.08 - pulse * 0.2);
+    } else {
+      x += Math.sin(progress * Math.PI * 22) * (1 - progress) * 9;
+      y += Math.cos(progress * Math.PI * 17) * (1 - progress) * 5;
+      width = 225 * (0.88 + pulse * 0.2);
+      height = 135 * (0.92 + pulse * 0.16);
+    }
+  }
+
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.rotate(rotation);
+  ctx.globalCompositeOperation = "lighter";
+  const eGradient = ctx.createRadialGradient(0, 0, 2, 0, 0, Math.max(width, height) * 0.58);
+  if (type === "weak") {
+    eGradient.addColorStop(0, `rgba(255, 226, 250, ${0.2 + pulse * 0.1})`);
+    eGradient.addColorStop(0.36, `rgba(187, 31, 91, ${0.14 + pulse * 0.08})`);
+    eGradient.addColorStop(1, "rgba(95, 5, 42, 0)");
+  } else if (type === "penetrate") {
+    eGradient.addColorStop(0, `rgba(255, 255, 255, ${0.18 + pulse * 0.11})`);
+    eGradient.addColorStop(0.42, `rgba(178, 198, 211, ${0.1 + pulse * 0.06})`);
+    eGradient.addColorStop(1, "rgba(99, 117, 128, 0)");
+  } else {
+    eGradient.addColorStop(0, `rgba(229, 252, 255, ${0.24 + pulse * 0.14})`);
+    eGradient.addColorStop(0.4, `rgba(35, 174, 255, ${0.15 + pulse * 0.1})`);
+    eGradient.addColorStop(1, "rgba(22, 64, 170, 0)");
+  }
+  ctx.globalAlpha = alpha * 0.72;
+  ctx.fillStyle = eGradient;
+  ctx.fillRect(-width * 0.62, -height * 0.72, width * 1.24, height * 1.44);
+  ctx.globalAlpha = alpha;
+  drawAnimatedTextureCentered(sprite, 0, 0, width, height, {
+    mode,
+    time,
+    progress,
+    phase: type === "weak" ? 0.12 : type === "penetrate" ? 0.46 : 0.78,
+    intensity: 0.96,
+    baseAlpha: 0.26,
+    opacityBoost: 3.4
+  });
+  ctx.restore();
+  return true;
+}
+
 function drawMagicEffects() {
   if (!["playing", "meeting"].includes(state.data?.phase)) {
     state.magicEffects = [];
@@ -11534,6 +11769,7 @@ function drawMagicEffects() {
       drawGainAcquisitionEffect(effect, progress, now, peerEffects.indexOf(effect), peerEffects.length);
       continue;
     }
+    if (drawGunnerSpecialAmmoEffect(effect, progress)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
     if (drawTacticalSystemsEffect(effect, progress)) continue;
@@ -11855,16 +12091,16 @@ const GENERATED_EFFECT_TEXTURES = {
 function semanticEffectMotion(type, variant = "", fallback = "energy") {
   const token = `${String(type || "")} ${String(variant || "")}`.toLowerCase();
   if (/gravity|decelerate|accelerate/.test(token)) return "gravity";
-  if (/emp|taser|vibe|hack|pair-route|smartphone/.test(token)) return "glitch";
+  if (/emp|taser|shock|vibe|hack|pair-route|smartphone/.test(token)) return "glitch";
   if (/teleport|warp|substitution|transfer/.test(token)) return "teleport";
   if (/fire|burn|hot|nuclear|rpg|missile/.test(token)) return "combustion";
   if (/railgun|particle|sunbeam|excalibur|slash|shoot|beam/.test(token)) return "beam";
-  if (/reload|weapon-switch|sustained-fire/.test(token)) return "recoil";
+  if (/reload|sustained-fire|penetrate/.test(token)) return "recoil";
   if (/grit|stand|shield|overheal|beauty/.test(token)) return "shield";
   if (/mana|water|antidote|heal|flora|recovery|cold|ice/.test(token)) return "ripple";
   if (/credits|luck|mystery|transmutation|invention/.test(token)) return "orbit";
   if (/jump|hover|limit-break|speed|acceleration|power/.test(token)) return "flow-up";
-  if (/aim|weak-bullet|scope|reason|truth/.test(token)) return "shimmer";
+  if (/aim|weak|scope|reason|truth/.test(token)) return "shimmer";
   if (/push|impact|storm|violation/.test(token)) return "impact";
   return fallback;
 }
@@ -12207,8 +12443,6 @@ const TACTICAL_SYSTEM_EFFECT_CELLS = {
   "action-smartphone": 1,
   "action-smartphone-repair": 1,
   "pair-route-violation": 2,
-  "action-weak-bullet": 3,
-  "action-weak-bullet-load": 3,
   "action-taser": 4,
   "gravity-accelerate": 5,
   "gravity-decelerate": 5,
@@ -12341,10 +12575,9 @@ const GUNNER_WEAPON_CELLS = { handgun: 0, smg: 1, assault: 2, sniper: 3, taser: 
 
 function drawGunnerActionEffect(effect, progress) {
   const index = GUNNER_WEAPON_CELLS[effect.variant] ?? 0;
-  const stateEffect = ["action-shoot", "action-weapon-switch", "action-sniper-scope", "action-reload"].includes(effect.type);
+  const stateEffect = ["action-shoot", "action-sniper-scope", "action-reload"].includes(effect.type);
   if (!stateEffect) return false;
-  const row = effect.type === "action-weapon-switch" ? 0 : 1;
-  const sourceIndex = row * 5 + index;
+  const sourceIndex = 5 + index;
   const sprite = transparentSpriteSource(
     state.textures.gunnerCombatStateEffects?.[sourceIndex],
     `gunner-combat-state-${sourceIndex}`,
@@ -12496,7 +12729,11 @@ function drawDroneAltitudeEffect(effect, progress) {
 }
 
 function drawActionEffect(effect, progress, now) {
-  if (["action-shoot", "action-weapon-switch", "action-sniper-scope", "action-reload"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
+  // Weapon switching is represented only by the weapon-specific character
+  // motion. The former first-row combat-state raster was a stray line-like
+  // overlay with no additional gameplay meaning.
+  if (effect.type === "action-weapon-switch") return;
+  if (["action-shoot", "action-sniper-scope", "action-reload"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-drone-altitude" && drawDroneAltitudeEffect(effect, progress)) return;
   if (effect.type === "action-heart-teleport" && drawEmpInteractionSprite(effect, 2, progress, Math.max(145, Number(effect.radius) || 145))) return;
@@ -13763,6 +14000,7 @@ function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spa
 
 function drawPhysicalActionSprite(player, data, ghost, action) {
   if (action?.kind === "shoot" && drawWeaponFireMotion(player, data, ghost, action)) return true;
+  if (action?.kind === "weapon-switch" && drawWeaponSwitchMotion(player, data, ghost, action)) return true;
   const sequence = PHYSICAL_ACTION_SEQUENCE[action?.kind];
   if (!Number.isInteger(sequence)) return false;
   const skinId = displayedSkinId(player, data);
@@ -13794,25 +14032,59 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   return true;
 }
 
+function gunnerWeaponMotionSprite(player, data, weaponId) {
+  if (!GUNNER_WEAPON_MOTION_IDS.includes(weaponId)) return null;
+  const skinId = player.isBot ? "male-bot" : displayedSkinId(player, data) === "blue-dress" ? "blue-dress" : "white-hood";
+  const image = state.textures.weaponFireMotions?.[skinId]?.[weaponId];
+  const prepared = image ? transparentSpriteSource(image, `weapon-motion-${skinId}-${weaponId}`, 20) : null;
+  return prepared
+    ? normalizedSpriteFrame(prepared, `weapon-motion-${skinId}-${weaponId}`, 1, 1, 0, 0)
+    : null;
+}
+
+function drawWeaponSwitchMotion(player, data, ghost, action) {
+  const gunnerState = displayedGunnerState(player, data);
+  const weaponId = GUNNER_WEAPON_MOTION_IDS.includes(action?.variant)
+    ? action.variant
+    : (GUNNER_WEAPON_MOTION_IDS.includes(gunnerState.selectedWeapon) ? gunnerState.selectedWeapon : "");
+  const sprite = gunnerWeaponMotionSprite(player, data, weaponId);
+  if (!sprite) return false;
+
+  const progress = clamp(Number(action.progress) || 0, 0, 1);
+  const easeOut = 1 - Math.pow(1 - progress, 3);
+  const settle = Math.sin(progress * Math.PI);
+  const profile = {
+    handgun: { width: 108, drawX: 7, drawY: 13, lift: 3.2, roll: 2.8, brace: 1.2 },
+    smg: { width: 116, drawX: 10, drawY: 10, lift: 2.2, roll: 1.4, brace: 2.3 },
+    assault: { width: 128, drawX: 13, drawY: 9, lift: 2.8, roll: 1.9, brace: 3.1 },
+    sniper: { width: 146, drawX: 17, drawY: 7, lift: 1.7, roll: 1.1, brace: 4.6 },
+    taser: { width: 108, drawX: 6, drawY: 14, lift: 3.8, roll: 3.4, brace: 0.8 }
+  }[weaponId];
+  const facing = facingFor(player, motionFor(player, data));
+  const flip = facing === "left";
+  const dynamics = accelerationReadyMotionDynamics(player, "weapon-switch", action.motionId);
+  const direction = flip ? 1 : -1;
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
+  ctx.translate(
+    direction * ((1 - easeOut) * profile.drawX + settle * profile.brace) * dynamics.spatialScale,
+    ((1 - easeOut) * profile.drawY - settle * profile.lift) * dynamics.spatialScale
+  );
+  ctx.rotate(direction * (1 - easeOut) * profile.roll * Math.PI / 180 * dynamics.spatialScale);
+  drawNormalizedSprite(sprite, 0, 31, profile.width, 98, flip);
+  ctx.restore();
+  drawNameplate(player, ghost, -78);
+  return true;
+}
+
 function drawWeaponFireMotion(player, data, ghost, action) {
   const gunnerState = displayedGunnerState(player, data);
   const weaponId = GUNNER_WEAPON_MOTION_IDS.includes(action?.variant)
     ? action.variant
     : (GUNNER_WEAPON_MOTION_IDS.includes(gunnerState.firingWeapon) ? gunnerState.firingWeapon : "");
   if (!weaponId) return false;
-  const skinId = player.isBot ? "male-bot" : displayedSkinId(player, data) === "blue-dress" ? "blue-dress" : "white-hood";
-  const image = state.textures.weaponFireMotions?.[skinId]?.[weaponId];
-  const prepared = image ? transparentSpriteSource(image, `weapon-motion-${skinId}-${weaponId}`, 20) : null;
-  const sprite = prepared
-    ? normalizedSpriteFrame(
-      prepared,
-      `weapon-motion-${skinId}-${weaponId}`,
-      1,
-      1,
-      0,
-      0
-    )
-    : null;
+  const sprite = gunnerWeaponMotionSprite(player, data, weaponId);
   if (!sprite) return false;
 
   const progress = clamp(Number(action.progress) || 0, 0, 1);
@@ -15091,7 +15363,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "station-texture-guard-v454";
+const version = "gunner-special-ammo-title-ate-v455";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -15176,8 +15448,8 @@ const version = "station-texture-guard-v454";
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
   const itemIaiTexture = new Image();
-  const instantStandFirmTexture = new Image();
-  const instantPushTexture = new Image();
+  const instantStandFirmTexture = philosophyEffectTextures[4];
+  const instantPushTexture = philosophyEffectTextures[5];
   const instantStaminaTexture = alchemyEffectTextures[5];
   const instantHealTexture = alchemyEffectTextures[6];
   const instantFireTexture = alchemyEffectTextures[7];
@@ -15215,6 +15487,11 @@ const version = "station-texture-guard-v454";
   const statusManaGpuEffect = new Image();
   const vibeCodingEffect = new Image();
   const gunnerHoverSprintEffect = new Image();
+  const gunnerSpecialAmmoEffects = {
+    weak: new Image(),
+    penetrate: new Image(),
+    shock: new Image()
+  };
   const gunnerRpgEffect = new Image();
   const gunnerMissileEffect = new Image();
   const quantumTransmutationEffect = new Image();
@@ -15284,8 +15561,6 @@ const version = "station-texture-guard-v454";
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
   defer(itemIaiTexture, "assets/generated/instant-iai-abstract-v451.png");
-  defer(instantStandFirmTexture, "assets/generated/instant-stand-firm-abstract-v451.png");
-  defer(instantPushTexture, "assets/generated/instant-push-abstract-v451.png");
   defer(iaiStandFirmBreakEffect, "assets/generated/effect-iai-stand-firm-break-v449.png");
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
@@ -15312,6 +15587,9 @@ const version = "station-texture-guard-v454";
   defer(statusManaGpuEffect, "assets/generated/status-mana-gpu-ate-v402.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
   defer(gunnerHoverSprintEffect, "assets/generated/gunner-hover-sprint-v311.png");
+  defer(gunnerSpecialAmmoEffects.weak, "assets/generated/gunner-special-ammo-weak-v455.png");
+  defer(gunnerSpecialAmmoEffects.penetrate, "assets/generated/gunner-special-ammo-penetrate-v455.png");
+  defer(gunnerSpecialAmmoEffects.shock, "assets/generated/gunner-special-ammo-shock-v455.png");
   defer(gunnerRpgEffect, "assets/generated/gunner-rpg-v311.png");
   defer(gunnerMissileEffect, "assets/generated/gunner-missile-v311.png");
   defer(quantumTransmutationEffect, "assets/generated/effect-gold-transmutation-v436.png");
@@ -15432,6 +15710,7 @@ const version = "station-texture-guard-v454";
     statusManaGpuEffect,
     vibeCodingEffect,
     gunnerHoverSprintEffect,
+    gunnerSpecialAmmoEffects,
     gunnerRpgEffect,
     gunnerMissileEffect,
     quantumTransmutationEffect,

@@ -6547,7 +6547,15 @@ const HACKER_AUTO_TASK_INTERVAL_MS = 12_000;
 const PREPARATION_PHASE_MS = 5_000;
 const GUNNER_RELOAD_MS = 2_200;
 const GUNNER_IDLE_AUTO_RELOAD_DELAY_MS = 2_600;
-const GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS = 18_000;
+const GUNNER_SPECIAL_AMMO_INTERVAL_MS = 18_000;
+const GUNNER_SPECIAL_AMMO_TYPES = Object.freeze(["weak", "penetrate", "shock"]);
+const GUNNER_SPECIAL_AMMO_LABELS = Object.freeze({
+  weak: "ウィーク",
+  penetrate: "ペネトレイト",
+  shock: "ショック"
+});
+const GUNNER_SHOCK_SLOW_MS = 6_000;
+const GUNNER_SHOCK_LOW_LUCK_THRESHOLD = 0;
 const DEFAULT_GUNNER_WEAPON = "assault";
 const GUNNER_WEAPON_ORDER = ["handgun", "smg", "assault", "sniper", "taser"];
 const GUNNER_WEAPONS = Object.freeze({
@@ -6917,7 +6925,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARを初期装備し、5種の銃器とホバースプリントを扱う。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。ウィークバレットは理知中に時間経過で自動装填され、命中対象と射手を破壊する。ホバースプリントは1MPで8秒間加速し障害物を無視する。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。射撃はマナを消費せず、テーザーは6秒間の移動速度低下だけを付与する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィーク・ペネトレイト・ショックのいずれかを1マガジン装填する。ウィークは命中対象と射手を破壊し、ペネトレイトは遮蔽物を貫通し、ショックは対象の幸運・直観が低いと確殺、高いと6秒間減速させる。ホバースプリントは1MPで8秒間加速し障害物を無視する。"
     },
     {
       id: "attacker-alchemist",
@@ -7033,11 +7041,11 @@ const SOLO_MISSIONS = Object.freeze({
   }),
   emp: Object.freeze({
     id: "emp",
-    name: "EMP共鳴訓練",
-    objective: "3秒周期で停止発動するBotのEMPへ同位相または逆位相EMPを重ねる",
+    name: "EMP打ち消し・増強訓練",
+    objective: "停止BotのEMPへ逆位相で打ち消し、同位相で増強する",
     team: "defender",
     operatorId: "operator-fighter",
-    botCount: 2,
+    botCount: 1,
     attackerCount: 1,
     taskCount: 6,
     metric: "emp"
@@ -8633,8 +8641,11 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunnerReloadUntil: 0,
     gunnerReloadWeapon: "",
     unavailableGunnerWeapons: [],
-    weakBulletLoaded: false,
-    weakBulletReadyAt: 0,
+    gunnerSpecialAmmoType: "",
+    gunnerSpecialAmmoWeapon: "",
+    gunnerSpecialAmmoRounds: 0,
+    gunnerSpecialAmmoReadyAt: 0,
+    gunnerSpecialAmmoBag: [],
     hoverSprintUntil: 0,
     timedAccelerationEffects: [],
     heavyWeapons: [],
@@ -8659,6 +8670,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     itemDisabledUntil: 0,
     slowedUntil: 0,
     taserSlowedUntil: 0,
+    shockSlowedUntil: 0,
     gravityStormSlowUntil: 0,
     gravityStormSlowMultiplier: 1,
     lastGravityStormDamage: 0,
@@ -9044,8 +9056,11 @@ function startGame(room) {
     player.gunnerReloadUntil = 0;
     player.gunnerReloadWeapon = "";
     player.unavailableGunnerWeapons = [];
-    player.weakBulletLoaded = false;
-    player.weakBulletReadyAt = 0;
+    player.gunnerSpecialAmmoType = "";
+    player.gunnerSpecialAmmoWeapon = "";
+    player.gunnerSpecialAmmoRounds = 0;
+    player.gunnerSpecialAmmoReadyAt = 0;
+    player.gunnerSpecialAmmoBag = [];
     player.hoverSprintUntil = 0;
     player.timedAccelerationEffects = [];
     player.heavyWeapons = [];
@@ -9070,6 +9085,7 @@ function startGame(room) {
     player.itemDisabledUntil = 0;
     player.slowedUntil = 0;
     player.taserSlowedUntil = 0;
+    player.shockSlowedUntil = 0;
     player.gravityStormSlowUntil = 0;
     player.gravityStormSlowMultiplier = 1;
     player.lastGravityStormDamage = 0;
@@ -9383,6 +9399,7 @@ function startBattle(room) {
     player.lastPassiveCreditAt = timestamp;
     player.slowedUntil = 0;
     player.taserSlowedUntil = 0;
+    player.shockSlowedUntil = 0;
     player.gravityStormSlowUntil = 0;
     player.gravityStormSlowMultiplier = 1;
     player.lastGravityStormDamage = 0;
@@ -9469,7 +9486,8 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
     defenseActivatedAt: 0,
     clairvoyanceUsed: false,
     sabotageUsed: false,
-    empResonated: false,
+    empCancelled: false,
+    empAmplified: false,
     hintUnlocked: false,
     cpuPhase: "accelerate-1",
     cpuRenkiCount: 0,
@@ -10164,6 +10182,7 @@ function grantIdeaGood(room, player, timestamp) {
   player.overheal = Math.max(1, Number(player.overheal) || 0);
   player.slowedUntil = 0;
   player.taserSlowedUntil = 0;
+  player.shockSlowedUntil = 0;
   player.gravityStormSlowUntil = 0;
   player.gravityStormSlowMultiplier = 1;
   player.abilityDisabledUntil = 0;
@@ -10730,6 +10749,7 @@ const ACCELERATED_ACTION_UNTIL_FIELDS = Object.freeze([
   "itemDisabledUntil",
   "abilityDisabledUntil",
   "taserSlowedUntil",
+  "shockSlowedUntil",
   "gunnerReloadUntil",
   "attackResolveAt"
 ]);
@@ -10764,12 +10784,14 @@ function activeMapObjectEffects(room, player) {
 }
 
 function effectiveMovementMultiplier(room, player, timestamp = now()) {
-  const taserMultiplier = Number(player.taserSlowedUntil) > timestamp ? TASER_MOVEMENT_MULTIPLIER : 1;
+  const electricSlowMultiplier = Number(player.taserSlowedUntil) > timestamp || Number(player.shockSlowedUntil) > timestamp
+    ? TASER_MOVEMENT_MULTIPLIER
+    : 1;
   const gravityStormMultiplier = Number(player.gravityStormSlowUntil) > timestamp
     ? clampNumber(player.gravityStormSlowMultiplier, GRAVITY_STORM_SLOW_MULTIPLIER_MIN, 1, 1)
     : 1;
   const groupMultiplier = desireBiasGroupActive(room, player) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
-  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * effectiveAccelerationMultiplier(room, player, timestamp) * taserMultiplier * gravityStormMultiplier * groupMultiplier;
+  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * effectiveAccelerationMultiplier(room, player, timestamp) * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier;
 }
 
 function floraAromaSource(room, player) {
@@ -11095,7 +11117,9 @@ function soloMissionProgress(room, timestamp = now()) {
   if (mission.metric === "intel") {
     return `千里眼投擲 ${state.clairvoyanceUsed ? "完了" : "未完了"} / サボ ${state.sabotageUsed ? "完了" : "未完了"}`;
   }
-  if (mission.metric === "emp") return state.empResonated ? "EMP相互作用 完了" : "EMP相互作用 未完了";
+  if (mission.metric === "emp") {
+    return `打ち消し ${state.empCancelled ? "完了" : "未完了"} / 増強 ${state.empAmplified ? "完了" : "未完了"}`;
+  }
   if (mission.metric === "cpu") return "グラビティCPUの手順を妨害して生存";
   return mission.objective;
 }
@@ -11125,7 +11149,7 @@ function evaluateSoloMission(room, timestamp = now()) {
       timestamp - state.defenseActivatedAt >= mission.surviveMs || alivePlayers(room, "attacker").length === 0
     );
   } else if (mission.metric === "intel") completed = state.clairvoyanceUsed && state.sabotageUsed;
-  else if (mission.metric === "emp") completed = state.empResonated;
+  else if (mission.metric === "emp") completed = state.empCancelled && state.empAmplified;
   else if (mission.metric === "cpu") completed = room.phase === "ended" && room.winner === "defenders";
   return completed ? completeSoloMission(room, mission) : false;
 }
@@ -11188,6 +11212,7 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "itemDisabledUntil",
   "slowedUntil",
   "taserSlowedUntil",
+  "shockSlowedUntil",
   "gravityStormSlowUntil",
   "sleepingUntil",
   "unconsciousUntil",
@@ -11437,7 +11462,7 @@ function tickRoom(room) {
     advanceParticleCannon(room, player, timestamp);
     resolveSmartphoneAction(room, player, timestamp);
     advanceGunnerReload(room, player, timestamp);
-    advanceWeakBulletPassive(room, player, timestamp);
+    advanceGunnerSpecialAmmoPassive(room, player, timestamp);
     advanceGunnerFire(room, player, timestamp);
     if (player.attackResolveAt && player.attackResolveAt <= timestamp) resolvePendingAttack(room, player, timestamp);
     if (player.aimTargetId) {
@@ -12921,17 +12946,31 @@ function resolveStandardEmp(room, pulse, timestamp) {
 }
 
 function resolveEmpInteraction(room, first, second, timestamp) {
-  if (room.soloMission?.id === "emp" && [first.playerId, second.playerId].includes(room.soloMission.playerId)) {
-    room.soloMission.empResonated = true;
-  }
   const firstOwner = room.players.get(first.playerId);
   const secondOwner = room.players.get(second.playerId);
   const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
   const samePhase = first.phase === second.phase;
+  const soloEmpPractice = room.soloMission?.id === "emp" && [first.playerId, second.playerId].includes(room.soloMission.playerId);
+  if (soloEmpPractice) {
+    if (samePhase) room.soloMission.empAmplified = true;
+    else room.soloMission.empCancelled = true;
+  }
   if (!samePhase) {
     pushMagicEffect(room, "emp-cancel", midpoint, { radius: EMP_INTERACTION_RANGE, variant: "opposite" });
     pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 1800, volume: 0.8 });
-    pushEvent(room, "正相EMPと逆相EMPが干渉し、互いに相殺されました。");
+    pushEvent(room, soloEmpPractice
+      ? "EMP訓練: 逆位相の重ね合わせで打ち消しに成功しました。"
+      : "正相EMPと逆相EMPが干渉し、互いに相殺されました。");
+    checkWin(room);
+    touch(room);
+    return;
+  }
+
+  if (soloEmpPractice) {
+    pushMagicEffect(room, "emp-resonance", midpoint, { radius: EMP_INTERACTION_RANGE, variant: first.phase });
+    pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1 });
+    pushEvent(room, "EMP訓練: 同位相の重ね合わせで増強に成功しました。");
+    checkWin(room);
     touch(room);
     return;
   }
@@ -12987,7 +13026,7 @@ function activateEmp(room, player, rawPhase = "positive") {
     throw new ApiError(400, `EMP再充填中です（残り${Math.ceil((player.empReadyAt - timestamp) / 1000)}秒）。`);
   }
   const phase = rawPhase === "negative" ? "negative" : "positive";
-  player.empReadyAt = timestamp + EMP_COOLDOWN_MS;
+  player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS);
   room.activeEmps ||= [];
   room.activeEmps = room.activeEmps.filter((pulse) => pulse.resolvesAt > timestamp);
   const pulse = {
@@ -13086,13 +13125,14 @@ function extendPlayerCooldowns(player, extensionMs, timestamp = now()) {
 function recoverMapObjectStatuses(room, player, source) {
   const hadStatus = Boolean(
     player.burnStatus || player.poisonStatus || Number(player.slowedUntil) > 0 ||
-    Number(player.taserSlowedUntil) > 0 || Number(player.abilityDisabledUntil) > 0 ||
+    Number(player.taserSlowedUntil) > 0 || Number(player.shockSlowedUntil) > 0 || Number(player.abilityDisabledUntil) > 0 ||
     Number(player.itemDisabledUntil) > 0 || Number(player.gravityPinnedUntil) > 0
   );
   clearBurning(room, player, source);
   clearPoison(room, player, source);
   player.slowedUntil = 0;
   player.taserSlowedUntil = 0;
+  player.shockSlowedUntil = 0;
   player.gravityStormSlowUntil = 0;
   player.gravityStormSlowMultiplier = 1;
   player.abilityDisabledUntil = 0;
@@ -13242,7 +13282,7 @@ function useMapObject(room, player, objectId) {
 function autoUseNearbyMapObject(room, player, timestamp = now()) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent || actionBlockedUntil(player) > timestamp) return false;
   const hasStatus = Boolean(player.burnStatus || player.poisonStatus || Number(player.slowedUntil) > timestamp ||
-    Number(player.taserSlowedUntil) > timestamp || Number(player.abilityDisabledUntil) > timestamp ||
+    Number(player.taserSlowedUntil) > timestamp || Number(player.shockSlowedUntil) > timestamp || Number(player.abilityDisabledUntil) > timestamp ||
     Number(player.itemDisabledUntil) > timestamp || Number(player.gravityPinnedUntil) > timestamp);
   const hasCooldown = Object.entries(player).some(([key, value]) => key.endsWith("ReadyAt") && Number(value) > timestamp);
   const nearbyEntries = nearbyMapObjects(room, player);
@@ -13287,6 +13327,7 @@ function applyMysteryDrink(room, player, timestamp = now()) {
     player.overheal = 1;
     player.slowedUntil = 0;
     player.taserSlowedUntil = 0;
+    player.shockSlowedUntil = 0;
     player.gravityStormSlowUntil = 0;
     player.gravityStormSlowMultiplier = 1;
     player.abilityDisabledUntil = 0;
@@ -14247,6 +14288,7 @@ function healFlora(room, player) {
   else player.overheal = 1;
   player.slowedUntil = 0;
   player.taserSlowedUntil = 0;
+  player.shockSlowedUntil = 0;
   player.gravityStormSlowUntil = 0;
   player.gravityStormSlowMultiplier = 1;
   player.abilityDisabledUntil = 0;
@@ -14437,7 +14479,7 @@ function recoverHackerTargetStatus(room, player, targetId) {
   if (!target.alive || target.ejected) throw new ApiError(400, "状態異常を回復できる対象ではありません。");
   const timestamp = now();
   const timerFields = [
-    "itemDisabledUntil", "slowedUntil", "taserSlowedUntil",
+    "itemDisabledUntil", "slowedUntil", "taserSlowedUntil", "shockSlowedUntil",
     "unconsciousUntil", "gravityPinnedUntil", "abilityDisabledUntil"
   ];
   const hadTimedStatus = timerFields.some((field) => Number(target[field]) > timestamp);
@@ -14752,7 +14794,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
     useFloraAbility(room, player, String(options.mode || "heal"), options);
   } else if (key === "gunner") {
     if (String(options.mode || "hover-sprint") !== "hover-sprint") {
-      throw new ApiError(400, "ウィークバレットは借用操作ではなく自動装填パッシブです。");
+      throw new ApiError(400, "特殊弾装填は借用操作ではなく自動装填パッシブです。");
     }
     activateHoverSprint(room, player);
   } else if (key === "quantum") {
@@ -15184,7 +15226,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   return "lethal";
 }
 
-function clearShotPath(room, shooter, target, directionX, directionY) {
+function clearShotPath(room, shooter, target, directionX, directionY, options = {}) {
   const along = (target.x - shooter.x) * directionX + (target.y - shooter.y) * directionY;
   const steps = Math.max(1, Math.ceil(along / 18));
   for (let step = 1; step < steps; step += 1) {
@@ -15192,7 +15234,7 @@ function clearShotPath(room, shooter, target, directionX, directionY) {
     const x = shooter.x + directionX * distanceAlong;
     const y = shooter.y + directionY * distanceAlong;
     if (!isWalkable(room, x, y, 2)) return false;
-    if ((room.alchemyObjects || []).some((object) => object.type === "cover" && (!object.endsAt || object.endsAt > now()) && Math.hypot(x - object.x, y - object.y) <= object.radius)) return false;
+    if (!options.ignoreCover && (room.alchemyObjects || []).some((object) => object.type === "cover" && (!object.endsAt || object.endsAt > now()) && Math.hypot(x - object.x, y - object.y) <= object.radius)) return false;
   }
   return true;
 }
@@ -15284,7 +15326,7 @@ function gunnerDamageAtDistance(weapon, distanceToTarget) {
   return Math.round(weapon.damage * multiplier * 100) / 100;
 }
 
-function findGunnerTarget(room, shooter, weapon, dx, dy) {
+function findGunnerTarget(room, shooter, weapon, dx, dy, options = {}) {
   return [...room.players.values()]
     .filter((player) => player.id !== shooter.id && player.alive && !player.ejected)
     .map((player) => {
@@ -15295,14 +15337,92 @@ function findGunnerTarget(room, shooter, weapon, dx, dy) {
       return { player, along, perpendicular };
     })
     .filter((entry) => entry.along > 8 && entry.along <= weapon.range && entry.perpendicular <= weapon.lineWidth)
-    .filter((entry) => clearShotPath(room, shooter, entry.player, dx, dy))
+    .filter((entry) => clearShotPath(room, shooter, entry.player, dx, dy, { ignoreCover: Boolean(options.ignoreCover) }))
     .sort((a, b) => a.along - b.along)[0] || null;
+}
+
+function gunnerSpecialAmmoLabel(type) {
+  return GUNNER_SPECIAL_AMMO_LABELS[type] || "特殊弾";
+}
+
+function gunnerSpecialAmmoTypeForShot(player, weaponId) {
+  const type = String(player?.gunnerSpecialAmmoType || "");
+  if (!GUNNER_SPECIAL_AMMO_TYPES.includes(type)) return "";
+  if (String(player?.gunnerSpecialAmmoWeapon || "") !== String(weaponId || "")) return "";
+  return Math.max(0, Number(player?.gunnerSpecialAmmoRounds) || 0) > 0 ? type : "";
+}
+
+function clearGunnerSpecialAmmo(player) {
+  player.gunnerSpecialAmmoType = "";
+  player.gunnerSpecialAmmoWeapon = "";
+  player.gunnerSpecialAmmoRounds = 0;
+}
+
+function consumeGunnerSpecialAmmoRound(player, weaponId) {
+  const type = gunnerSpecialAmmoTypeForShot(player, weaponId);
+  if (!type) return "";
+  player.gunnerSpecialAmmoRounds = Math.max(0, Number(player.gunnerSpecialAmmoRounds) - 1);
+  if (player.gunnerSpecialAmmoRounds <= 0) clearGunnerSpecialAmmo(player);
+  return type;
+}
+
+function applyShockSpecialRound(room, shooter, target, timestamp = now(), options = {}) {
+  if (!target?.alive || target.ejected) return "miss";
+  if (!options.ignoreFriendlyFire && shooter?.role === target.role && ["defender", "attacker"].includes(shooter?.role) && shooter.id !== target.id) {
+    applyDefenderFriendlyFirePenalty(room, shooter, target, timestamp);
+    return "friendlyFirePenalty";
+  }
+  if (!options.bypassSlashGuard) {
+    const guardOutcome = resolveFighterSlashGuard(room, shooter, target, {
+      kind: "shock-bullet",
+      label: "ショック弾",
+      physical: true,
+      reflectable: true,
+      damage: 0.01,
+      hitZone: "body",
+      reflectEffect: ({ defender, source }) => applyShockSpecialRound(room, defender, source, timestamp, {
+        bypassSlashGuard: true,
+        ignoreFriendlyFire: true,
+        reflected: true
+      })
+    }, timestamp);
+    if (guardOutcome) return guardOutcome;
+  }
+  if (absorbPreparationBarrier(room, target, timestamp, shooter)) return "preparationBarrier";
+  if (hasFighterInfiniteResources(target)) {
+    syncFighterInfiniteResources(target);
+    pushEvent(room, `${target.name} は無限HPと無限踏ん張りでショック弾を防ぎました。`);
+    touch(room);
+    return "infiniteResources";
+  }
+  if (luckValueFor(target) < GUNNER_SHOCK_LOW_LUCK_THRESHOLD) {
+    return killPlayer(room, shooter, target.id, {
+      ranged: true,
+      hitZone: "head",
+      damage: 2,
+      allowAnyKiller: true,
+      ignoreRange: true,
+      ignoreCooldown: true,
+      preserveCooldown: true,
+      ignoreFriendlyFire: true,
+      bypassSlashGuard: true,
+      targetRole: target.role,
+      attackKind: options.reflected ? "reflected-shock-bullet" : "shock-bullet",
+      attackLabel: options.reflected ? "反射されたショック弾" : "ショック弾",
+      slashGuardPhysical: true
+    });
+  }
+  target.shockSlowedUntil = Math.max(Number(target.shockSlowedUntil) || 0, timestamp + GUNNER_SHOCK_SLOW_MS);
+  pushEvent(room, `${target.name} はショック弾で6秒間移動速度が35%低下します。`);
+  touch(room);
+  return "shockSlowed";
 }
 
 function fireGunnerRound(room, shooter, weapon, timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
   shooter.gunnerAmmo[weapon.id] = remainingAmmo - weapon.ammoPerShot;
+  const specialAmmoType = consumeGunnerSpecialAmmoRound(shooter, weapon.id);
   shooter.gunnerLastShotAt = timestamp;
   shooter.gunReadyAt = timestamp + weapon.cooldownMs;
   pushSound(room, "gunshot", shooter, {
@@ -15314,7 +15434,9 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   });
 
   const { dx, dy } = finiteDirection(shooter.aimX, shooter.aimY, 0, 1);
-  const targetEntry = findGunnerTarget(room, shooter, weapon, dx, dy);
+  const targetEntry = findGunnerTarget(room, shooter, weapon, dx, dy, {
+    ignoreCover: specialAmmoType === "penetrate"
+  });
   const endPoint = targetEntry
     ? { x: shooter.x + dx * targetEntry.along, y: shooter.y + dy * targetEntry.along }
     : shotEndPoint(room, shooter, dx, dy, weapon.range);
@@ -15325,26 +15447,34 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
     targetY: endPoint.y,
     variant: weapon.id
   });
+  if (specialAmmoType) {
+    pushMagicEffect(room, "action-special-ammo-shot", shooter, {
+      radius: Math.max(110, weapon.lineWidth * 2.2),
+      playerId: shooter.id,
+      targetId: targetEntry?.player?.id || "",
+      targetX: endPoint.x,
+      targetY: endPoint.y,
+      variant: `${specialAmmoType}:${weapon.id}`
+    });
+  }
 
   if (targetEntry) {
-    if (shooter.weakBulletLoaded) {
-      shooter.weakBulletLoaded = false;
-      shooter.weakBulletReadyAt = timestamp + GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS;
-      pushMagicEffect(room, "action-weak-bullet", targetEntry.player, {
+    if (specialAmmoType === "weak") {
+      pushMagicEffect(room, "action-special-ammo-impact", targetEntry.player, {
         radius: 145,
         playerId: shooter.id,
         targetId: targetEntry.player.id,
-        variant: "mutual-destruction"
+        variant: "weak:mutual-destruction"
       });
       const targetDestroyed = destroyPlayerUnconditionally(
         room,
         shooter,
         targetEntry.player,
-        "ウィークバレット",
+        "ウィーク弾",
         {
           noKillCutin: false,
           attackKind: "weak-bullet",
-          attackLabel: "ウィークバレット",
+          attackLabel: "ウィーク弾",
           slashGuardPhysical: true,
           slashGuardReflectable: true,
           reflectDestroy: true
@@ -15355,11 +15485,23 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
           room,
           shooter,
           shooter,
-          targetDestroyed ? "ウィークバレットの代償" : "ウィークバレット不発時の代償",
+          targetDestroyed ? "ウィーク弾の代償" : "ウィーク弾不発時の代償",
           { noKillCutin: true }
         );
       }
-      pushEvent(room, `${shooter.name} のウィークバレットが発動し、射手にも破壊の代償が生じました。`);
+      pushEvent(room, `${shooter.name} のウィーク弾が命中し、射手にも破壊の代償が生じました。`);
+      checkWin(room);
+      touch(room);
+      return true;
+    }
+    if (specialAmmoType === "shock") {
+      const outcome = applyShockSpecialRound(room, shooter, targetEntry.player, timestamp);
+      pushMagicEffect(room, "action-special-ammo-impact", targetEntry.player, {
+        radius: 135,
+        playerId: shooter.id,
+        targetId: targetEntry.player.id,
+        variant: `shock:${outcome}`
+      });
       checkWin(room);
       touch(room);
       return true;
@@ -15371,10 +15513,18 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
       damage: weapon.id === "sniper" ? undefined : damage,
       allowAnyKiller: true,
       targetRole: targetEntry.player.role,
-      attackKind: "bullet",
-      attackLabel: `${weapon.name}の銃弾`,
+      attackKind: specialAmmoType === "penetrate" ? "penetrate-bullet" : "bullet",
+      attackLabel: specialAmmoType === "penetrate" ? "ペネトレイト弾" : `${weapon.name}の銃弾`,
       slashGuardPhysical: true
     });
+    if (specialAmmoType === "penetrate") {
+      pushMagicEffect(room, "action-special-ammo-impact", targetEntry.player, {
+        radius: 130,
+        playerId: shooter.id,
+        targetId: targetEntry.player.id,
+        variant: `penetrate:${outcome}`
+      });
+    }
     if (weapon.id === "taser" && !["lethal", "slashGuarded", "slashPerfectGuarded", "slashPerfectReflected"].includes(outcome) && targetEntry.player.alive) {
       targetEntry.player.taserSlowedUntil = Math.max(targetEntry.player.taserSlowedUntil || 0, timestamp + weapon.slowMs);
       pushMagicEffect(room, "action-taser", targetEntry.player, { radius: 95, playerId: shooter.id, targetId: targetEntry.player.id });
@@ -15475,6 +15625,7 @@ function advanceGunnerReload(room, player, timestamp = now()) {
     if (!weapon || !gunnerWeaponAvailable(player, weaponId)) return false;
     player.gunnerAmmo ||= createGunnerAmmo();
     player.gunnerAmmo[weaponId] = weapon.maxAmmo;
+    if (String(player.gunnerSpecialAmmoWeapon || "") === weaponId) clearGunnerSpecialAmmo(player);
     pushMagicEffect(room, "action-reload", player, { radius: 90, playerId: player.id, variant: `${weapon.id}:complete` });
     setImmediateFeedback(player, "自動リロード完了", `${weapon.name} ${weapon.maxAmmo}発`);
     touch(room);
@@ -15492,7 +15643,25 @@ function advanceGunnerReload(room, player, timestamp = now()) {
   return false;
 }
 
-function advanceWeakBulletPassive(room, player, timestamp = now()) {
+function nextGunnerSpecialAmmoType(player) {
+  let bag = Array.isArray(player.gunnerSpecialAmmoBag)
+    ? player.gunnerSpecialAmmoBag.filter((type) => GUNNER_SPECIAL_AMMO_TYPES.includes(type))
+    : [];
+  if (!bag.length) {
+    bag = [...GUNNER_SPECIAL_AMMO_TYPES];
+    for (let index = bag.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [bag[index], bag[swapIndex]] = [bag[swapIndex], bag[index]];
+    }
+    const previous = String(player.gunnerSpecialAmmoType || "");
+    if (bag.length > 1 && bag[0] === previous) [bag[0], bag[1]] = [bag[1], bag[0]];
+  }
+  const type = bag.shift() || GUNNER_SPECIAL_AMMO_TYPES[0];
+  player.gunnerSpecialAmmoBag = bag;
+  return type;
+}
+
+function advanceGunnerSpecialAmmoPassive(room, player, timestamp = now()) {
   if (room.phase === "meeting") return false;
   const eligible = room.phase === "playing" &&
     player.alive &&
@@ -15501,25 +15670,37 @@ function advanceWeakBulletPassive(room, player, timestamp = now()) {
     hasOperatorAccess(player, "gunner") &&
     passivesEnabled(player);
   if (!eligible) {
-    player.weakBulletLoaded = false;
-    player.weakBulletReadyAt = 0;
+    player.gunnerSpecialAmmoReadyAt = 0;
     return false;
   }
-  if (player.weakBulletLoaded) return false;
-  if (!(Number(player.weakBulletReadyAt) > 0)) {
-    player.weakBulletReadyAt = timestamp + GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS;
+  if (!(Number(player.gunnerSpecialAmmoReadyAt) > 0)) {
+    player.gunnerSpecialAmmoReadyAt = timestamp + GUNNER_SPECIAL_AMMO_INTERVAL_MS;
     return false;
   }
-  if (timestamp < player.weakBulletReadyAt) return false;
-  player.weakBulletLoaded = true;
-  player.weakBulletReadyAt = 0;
-  pushMagicEffect(room, "action-weak-bullet-load", player, {
-    radius: 105,
+  if (timestamp < player.gunnerSpecialAmmoReadyAt) return false;
+  const weapon = gunnerWeaponFor(player);
+  if (!gunnerWeaponAvailable(player, weapon.id)) {
+    player.gunnerSpecialAmmoReadyAt = timestamp + GUNNER_SPECIAL_AMMO_INTERVAL_MS;
+    return false;
+  }
+  const type = nextGunnerSpecialAmmoType(player);
+  player.gunnerAmmo ||= createGunnerAmmo();
+  player.gunnerAmmo[weapon.id] = weapon.maxAmmo;
+  player.gunnerSpecialAmmoType = type;
+  player.gunnerSpecialAmmoWeapon = weapon.id;
+  player.gunnerSpecialAmmoRounds = weapon.maxAmmo;
+  player.gunnerSpecialAmmoReadyAt = timestamp + GUNNER_SPECIAL_AMMO_INTERVAL_MS;
+  if (player.gunnerReloadWeapon === weapon.id) {
+    player.gunnerReloadUntil = 0;
+    player.gunnerReloadWeapon = "";
+  }
+  pushMagicEffect(room, "action-special-ammo-load", player, {
+    radius: 125,
     playerId: player.id,
-    variant: gunnerWeaponFor(player).id
+    variant: `${type}:${weapon.id}`
   });
-  setImmediateFeedback(player, "ウィークバレット", "自動装填完了");
-  pushEvent(room, `${player.name} のウィークバレットが自動装填されました。`);
+  setImmediateFeedback(player, "特殊弾装填", `${gunnerSpecialAmmoLabel(type)} / ${weapon.shortName} ${weapon.maxAmmo}発`);
+  pushEvent(room, `${player.name} の${weapon.name}へ${gunnerSpecialAmmoLabel(type)}弾が1マガジン装填されました。`);
   touch(room);
   return true;
 }
@@ -16282,6 +16463,7 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
     slowedUntil: player.slowedUntil,
     taserSlowedUntil: player.taserSlowedUntil,
+    shockSlowedUntil: player.shockSlowedUntil,
     gravityStormSlowUntil: player.gravityStormSlowUntil,
     gravityStormSlowMultiplier: player.gravityStormSlowMultiplier,
     lastGravityStormDamage: player.lastGravityStormDamage,
@@ -16385,6 +16567,7 @@ function serialize(room, viewer, options = {}) {
       jumpMotion: player.jumpMotion ? { ...player.jumpMotion } : null,
       slowedUntil: player.slowedUntil,
       taserSlowedUntil: player.taserSlowedUntil,
+      shockSlowedUntil: player.shockSlowedUntil,
       gravityStormSlowUntil: player.gravityStormSlowUntil,
       gravityStormSlowMultiplier: player.gravityStormSlowMultiplier,
       speedMultiplier: effectiveMovementMultiplier(room, player),
@@ -16497,9 +16680,11 @@ function serialize(room, viewer, options = {}) {
       gunScopeReadyAt: Number(viewer.gunScopeReadyAt) || 0,
       gunnerReloadUntil: Number(viewer.gunnerReloadUntil) || 0,
       gunnerReloadWeapon: String(viewer.gunnerReloadWeapon || ""),
-      weakBulletLoaded: Boolean(viewer.weakBulletLoaded),
-      weakBulletReadyAt: Number(viewer.weakBulletReadyAt) || 0,
-      weakBulletPassiveIntervalMs: GUNNER_WEAK_BULLET_PASSIVE_INTERVAL_MS,
+      gunnerSpecialAmmoType: String(viewer.gunnerSpecialAmmoType || ""),
+      gunnerSpecialAmmoWeapon: String(viewer.gunnerSpecialAmmoWeapon || ""),
+      gunnerSpecialAmmoRounds: Math.max(0, Number(viewer.gunnerSpecialAmmoRounds) || 0),
+      gunnerSpecialAmmoReadyAt: Number(viewer.gunnerSpecialAmmoReadyAt) || 0,
+      gunnerSpecialAmmoIntervalMs: GUNNER_SPECIAL_AMMO_INTERVAL_MS,
       hoverSprintUntil: Number(viewer.hoverSprintUntil) || 0,
       accelerationPhasing: Number(viewer.hoverSprintUntil) > timestamp,
       statusAte: persistentStatusAteState(room, viewer, timestamp),
@@ -16535,6 +16720,7 @@ function serialize(room, viewer, options = {}) {
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
       taserSlowedUntil: viewer.taserSlowedUntil,
+      shockSlowedUntil: viewer.shockSlowedUntil,
       gravityStormSlowUntil: viewer.gravityStormSlowUntil,
       gravityStormSlowMultiplier: viewer.gravityStormSlowMultiplier,
       lastGravityStormDamage: viewer.lastGravityStormDamage,
@@ -17105,10 +17291,6 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/gunner-weak-bullet": {
-      throw new ApiError(410, "ウィークバレットは時間経過で自動装填されるパッシブです。");
-    }
-
     case "/api/gunner-hover-sprint": {
       const { room, player } = requireRoomPlayer(body);
       activateHoverSprint(room, player);
@@ -17442,6 +17624,7 @@ async function handleApi(req, res) {
         entry.itemDisabledUntil = 0;
         entry.slowedUntil = 0;
         entry.taserSlowedUntil = 0;
+        entry.shockSlowedUntil = 0;
         entry.sleepingUntil = 0;
         entry.resting = false;
         entry.meditatingUntil = 0;
@@ -18355,5 +18538,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "station-texture-guard-v454" });
+self.postMessage({ type: "ready", version: "gunner-special-ammo-title-ate-v455" });
 })();

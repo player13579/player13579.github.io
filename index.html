@@ -12,15 +12,15 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v409.png">
-    <link rel="preload" as="image" href="assets/title-hero-v448.png?v=station-texture-guard-v454" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/title-hero-v448.png?v=gunner-special-ammo-title-ate-v455" fetchpriority="high">
     <style>html,body,.start-screen{background:#8a684d}</style>
-  <link rel="stylesheet" href="styles.css?v=station-texture-guard-v454">
+  <link rel="stylesheet" href="styles.css?v=gunner-special-ammo-title-ate-v455">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v448.png?v=station-texture-guard-v454" alt="簡素な木造室内で水の自己回復を行う白フードのフィリア" fetchpriority="high">
-      <img class="title-hero-character" src="assets/title-hero-v448.png?v=station-texture-guard-v454" alt="" aria-hidden="true">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v448.png?v=station-texture-guard-v454" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v448.png?v=gunner-special-ammo-title-ate-v455" alt="簡素な木造室内で水の自己回復を行う白フードのフィリア" fetchpriority="high">
+      <img class="title-hero-character" src="assets/title-hero-v448.png?v=gunner-special-ammo-title-ate-v455" alt="" aria-hidden="true">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v448.png?v=gunner-special-ammo-title-ate-v455" alt="" aria-hidden="true">
       <div class="title-hero-vfx" aria-hidden="true"></div>
       <div id="titleMenu" class="title-menu">
         <p class="title-kicker">ONLINE TACTICAL DEDUCTION</p>
@@ -44,6 +44,11 @@
             <button id="tacticsBackButton" class="title-icon-button inline" type="button" aria-label="タイトルへ戻る" title="タイトルへ戻る">×</button>
           </div>
         </header>
+        <section class="tactics-operation-primer" aria-label="最初に確認する操作">
+          <h3>最初に：長押し説明とタブレットモード</h3>
+          <p><strong>長押し説明</strong>：オペレーター、所持品、自販機商品、ハッカー生成などのカードは、名前を長押しすると効果や仕様の詳細を表示します。通常表示は選択に必要な名前・価格・クールタイムなどへ絞られています。</p>
+          <p><strong>タブレットモード</strong>：実端末向けの標準操作で、初期状態はONです。仮想スティックの倒し量で移動速度を調整し、タブレット内のタッチ操作だけで移動・選択・全行動を完結できます。長押し説明も同じ操作で利用できます。</p>
+        </section>
         <section class="solo-training" data-scroll-region="ソロ実戦訓練" data-scroll-target="soloMissionGrid" aria-labelledby="soloTrainingTitle" tabindex="0">
           <div class="solo-training-heading">
             <div>
@@ -74,8 +79,8 @@
               <button type="button" data-solo-mission="intel" data-hotkey="4">開始</button>
             </article>
             <article class="solo-mission-card" data-solo-card="emp">
-              <img src="assets/tutorials/poster-intel.webp" alt="EMP共鳴訓練のフィールド">
-              <div><p>DRILL 05</p><h4>EMP共鳴</h4><span>停止したBotが3秒周期で放つEMPへ位相を重ねる。</span></div>
+              <img src="assets/tutorials/poster-intel.webp" alt="EMP打ち消し・増強訓練のフィールド">
+              <div><p>DRILL 05</p><h4>EMP打ち消し・増強</h4><span>停止BotのEMPへ逆位相で打ち消し、同位相で増強する。</span></div>
               <button type="button" data-solo-mission="emp" data-hotkey="5">開始</button>
             </article>
             <article class="solo-mission-card" data-solo-card="cpu-gravity">
@@ -136,7 +141,7 @@
                 <section><h4>防御優先順</h4><p>美は確殺を上書き不能の不殺へ、踏ん張りは次に受ける確殺を1回だけボディダメージへ変換します。押し込みは対象の踏ん張りを全無効化し、1回につき使用者へ0.5ダメージを与えます。</p></section>
                 <section><h4>回避とファイター</h4><p>全ディフェンダーは100SPで回避を1秒展開します。ファイターが回避に成功した場合は攻撃者をキルします。独立したカウンターキルは存在しません。</p></section>
                 <section><h4>ガンナー</h4><p>ARを初期装備としてHG、SMG、AR、SR、テーザーを切り替え、長押しで連射します。射撃はマナを消費せず、弾切れ時または射撃を止めた後に自動リロードします。テーザーは低威力で、6秒間の移動速度低下だけを付与します。</p></section>
-                <section><h4>SRと特殊弾</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。ウィークバレットは理知中に時間経過で自動装填され、命中対象と射手を破壊します。</p></section>
+                <section><h4>SRと特殊弾装填</h4><p>SRも他銃と同様に長押し連射し、武器相応の低レートで確殺弾を発射します。理知中は18秒ごとに選択中の銃へ特殊弾を1マガジン装填します。ウィークは対象と射手を破壊、ペネトレイトは遮蔽物を貫通、ショックは低幸運・直観なら確殺、高ければ6秒間減速させます。</p></section>
                 <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
                 <section><h4>ファイター</h4><p>斬る、キルカウンター、リミットブレイクを統合。一定時間ごとに1MPを自動消費してECと衝撃波を1増やします。通常ECではキャラモーションを行わず、初めてEC25・50へ到達したときだけ節目モーションを行います。斬るか投擲で通常衝撃波を1発発生させるたびECも1減り、EC100以上で斬るとEC100を消費して特大衝撃波を発生させます。通常・特大衝撃波は斬撃と同じ物理ガードの対象ですが、ジャストガード判定と反射は発生しません。初めてEC25へ到達すると居合を1回獲得します。居合は「即席」として獲得時に使用回数へ変換され、敵一人の有限の踏ん張りを全削除し、200SP相当を消費します。SP不足分は150SP=1MPで補い、総量不足なら死亡します。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張り無限、リミットブレイクの被確殺デメリット解除、斬るの常時破壊、通常攻撃へのジャストガードの全攻撃反射が永続します。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで反射します。固有武器「オリハルコン・ソード」の剣の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立します。ファイターは開始時に1振り所持し、所持者なら通常使用で斬る、投擲も可能です。自販機では200C、ハッカー生成ではMPを消費せず、最終クールタイム90秒です。Hのリミットブレイクは発動ごとにHPを1消費し、SPと加速を3倍ずつ重ね、マナが尽きるまで永続します。会議中は能力と残り時間が停止し、終了後に再開します。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しません。</p></section>
                 <section><h4>グラビティ</h4><p>重力と時空の相関を扱い、転移、時空加減速、リビテーション、グラビティストームを使用します。重力嵐は継続ダメージ・減速・重力変位を起こし、発動者の半径2mは安全です。</p></section>
@@ -672,10 +677,10 @@
     </section>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="game-runtime.js?v=station-texture-guard-v454"></script>
-    <script src="game-engine.js?v=station-texture-guard-v454"></script>
-    <script src="offline-runtime.js?v=station-texture-guard-v454"></script>
-    <script src="config.js?v=station-texture-guard-v454"></script>
-    <script src="app.js?v=station-texture-guard-v454"></script>
+    <script src="game-runtime.js?v=gunner-special-ammo-title-ate-v455"></script>
+    <script src="game-engine.js?v=gunner-special-ammo-title-ate-v455"></script>
+    <script src="offline-runtime.js?v=gunner-special-ammo-title-ate-v455"></script>
+    <script src="config.js?v=gunner-special-ammo-title-ate-v455"></script>
+    <script src="app.js?v=gunner-special-ammo-title-ate-v455"></script>
 </body>
 </html>

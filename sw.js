@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v454-station-texture-guard";
+const CACHE_NAME = "dva-static-v455-gunner-special-ammo-title-ate";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -20,6 +20,9 @@ const STATIC_ASSETS = [
   "/assets/generated/clairvoyance-throw-ate-v412.png",
   "/assets/generated/gunner-weapon-icons-v422.png",
   "/assets/generated/gunner-weapon-icons-v422.webp",
+  "/assets/generated/gunner-special-ammo-weak-v455.png",
+  "/assets/generated/gunner-special-ammo-penetrate-v455.png",
+  "/assets/generated/gunner-special-ammo-shock-v455.png",
   "/assets/generated/ui-panel-surface.webp",
   "/assets/generated/ui-control-surface.webp",
   "/assets/generated/ui-lobby-signal-surface.webp",
@@ -36,8 +39,6 @@ const STATIC_ASSETS = [
   "/assets/generated/fighter-energy-charge-ate-v404.png",
   "/assets/generated/item-orichalcum-sword-v453.png",
   "/assets/generated/instant-iai-abstract-v451.png",
-  "/assets/generated/instant-stand-firm-abstract-v451.png",
-  "/assets/generated/instant-push-abstract-v451.png",
   "/assets/generated/item-iai-v449.png",
   "/assets/generated/effect-iai-stand-firm-break-v449.png",
   "/assets/generated/fighter-energy-release-ate-v404.png",
