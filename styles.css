@@ -3986,6 +3986,13 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   box-shadow: inset 3px 0 #0891b2;
 }
 
+.movement-acc-toggle.waiting {
+  border-color: rgba(217, 119, 6, 0.76);
+  background: linear-gradient(135deg, rgba(254, 249, 195, 0.96), rgba(254, 240, 138, 0.88));
+  color: #713f12;
+  box-shadow: inset 3px 0 #d97706;
+}
+
 .meter {
   display: grid;
   gap: 6px;

@@ -1,6 +1,6 @@
 // Keep the deployed cache contract explicit so old Plicy workers are evicted.
 // Previous contract: dva-static-v173-gameplay-polish.
-const CACHE_NAME = "dva-static-v460-texture-cache-recovery";
+const CACHE_NAME = "dva-static-v461-movement-acc-threshold";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

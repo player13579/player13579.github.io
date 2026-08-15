@@ -7349,6 +7349,7 @@ const SLEEP_REGEN_MULTIPLIER = 4;
 const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
 const FIXED_MOVEMENT_ACC = 3;
 const NORMAL_MOVEMENT_ACC = 1;
+const MOVEMENT_ACC_ACTIVATION_THRESHOLD = 3;
 const DASH_MULTIPLIER = 1.75;
 const DASH_DRAIN_PER_SECOND = 42;
 const WALK_DRAIN_PER_SECOND = 9;
@@ -11494,10 +11495,16 @@ function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
 
 function movementAccState(room, player, timestamp = now()) {
   const enabled = player?.movementAccEnabled !== false;
+  const acceleration = effectiveAccelerationMultiplier(room, player, timestamp);
+  const available = acceleration + 1e-6 >= MOVEMENT_ACC_ACTIVATION_THRESHOLD;
+  const active = enabled && available;
   return {
     enabled,
-    selected: enabled ? FIXED_MOVEMENT_ACC : NORMAL_MOVEMENT_ACC,
-    maximum: FIXED_MOVEMENT_ACC
+    active,
+    available,
+    selected: active ? FIXED_MOVEMENT_ACC : NORMAL_MOVEMENT_ACC,
+    maximum: FIXED_MOVEMENT_ACC,
+    threshold: MOVEMENT_ACC_ACTIVATION_THRESHOLD
   };
 }
 
@@ -11507,7 +11514,7 @@ function setMovementAccEnabled(room, player, rawEnabled) {
   }
   player.movementAccEnabled = rawEnabled !== false;
   const state = movementAccState(room, player);
-  setImmediateFeedback(player, "移動ACC", state.enabled ? "ACC 3 ON" : "ACC 3 OFF");
+  setImmediateFeedback(player, "移動ACC", state.active ? "ACC 3 固定中" : state.enabled ? "ACC 3 待機" : "ACC 3 OFF");
   touch(room);
   return state;
 }
@@ -17307,6 +17314,9 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     movementAcc: movementAcc.selected,
     movementAccMax: movementAcc.maximum,
     movementAccEnabled: movementAcc.enabled,
+    movementAccActive: movementAcc.active,
+    movementAccAvailable: movementAcc.available,
+    movementAccThreshold: movementAcc.threshold,
     slowedUntil: player.slowedUntil,
     taserSlowedUntil: player.taserSlowedUntil,
     shockSlowedUntil: player.shockSlowedUntil,
@@ -17421,6 +17431,9 @@ function serialize(room, viewer, options = {}) {
       movementAcc: movementAccState(room, player, timestamp).selected,
       movementAccMax: movementAccState(room, player, timestamp).maximum,
       movementAccEnabled: movementAccState(room, player, timestamp).enabled,
+      movementAccActive: movementAccState(room, player, timestamp).active,
+      movementAccAvailable: movementAccState(room, player, timestamp).available,
+      movementAccThreshold: movementAccState(room, player, timestamp).threshold,
       levitationActive: canLevitate(player),
       statusAte: persistentStatusAteState(room, player, timestamp),
       accelerationPhasing: Number(player.hoverSprintUntil) > timestamp,
@@ -17653,6 +17666,9 @@ function serialize(room, viewer, options = {}) {
       movementAcc: movementAccState(room, viewer, timestamp).selected,
       movementAccMax: movementAccState(room, viewer, timestamp).maximum,
       movementAccEnabled: movementAccState(room, viewer, timestamp).enabled,
+      movementAccActive: movementAccState(room, viewer, timestamp).active,
+      movementAccAvailable: movementAccState(room, viewer, timestamp).available,
+      movementAccThreshold: movementAccState(room, viewer, timestamp).threshold,
       timedAccelerationStacks: timedAccelerationSummary(viewer, timestamp).bySource,
       mapObjectEffects: viewerObjectEffects,
       dodgeDurationBonusMs: viewer.dodgeDurationBonusMs,
@@ -19495,7 +19511,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "texture-cache-recovery-v460",
+  version: "movement-acc-threshold-v461",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

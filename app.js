@@ -785,7 +785,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "texture-cache-recovery-v460";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "movement-acc-threshold-v461";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -8978,17 +8978,28 @@ function renderUtility(data) {
 function syncMovementAccControl(data = state.data) {
   const self = data?.self;
   if (!els.movementAccControl || !self) return;
-  const enabled = self.movementAccEnabled !== false && Number(self.movementAcc) > 1.5;
-  els.movementAccToggleButton.textContent = `移動ACC 3.00　${enabled ? "ON" : "OFF"} [Q]`;
+  const enabled = self.movementAccEnabled !== false;
+  const threshold = Math.max(1, Number(self.movementAccThreshold) || 3);
+  const acceleration = Math.max(1, Number(self.accelerationMultiplier) || 1);
+  const active = self.movementAccActive === true || (
+    self.movementAccActive == null && enabled && acceleration + 1e-6 >= threshold && Number(self.movementAcc) > 1.5
+  );
+  els.movementAccToggleButton.textContent = active
+    ? "移動ACC 3.00　固定中 [Q]"
+    : enabled
+      ? `移動ACC固定　待機（ACC ${threshold.toFixed(0)}以上） [Q]`
+      : "移動ACC固定　OFF [Q]";
   els.movementAccToggleButton.setAttribute("aria-pressed", String(enabled));
-  els.movementAccToggleButton.classList.toggle("active", enabled);
+  els.movementAccToggleButton.dataset.state = active ? "active" : enabled ? "waiting" : "off";
+  els.movementAccToggleButton.classList.toggle("active", active);
+  els.movementAccToggleButton.classList.toggle("waiting", enabled && !active);
   els.movementAccToggleButton.disabled = !["playing", "meeting"].includes(data.phase) || self.ejected;
 }
 
 async function toggleMovementAcc() {
   const self = state.data?.self;
   if (!self || !["playing", "meeting"].includes(state.data?.phase) || self.ejected) return false;
-  const enabled = self.movementAccEnabled !== false && Number(self.movementAcc) > 1.5;
+  const enabled = self.movementAccEnabled !== false;
   return api("/api/movement-acc", { enabled: !enabled });
 }
 
@@ -9121,22 +9132,22 @@ function updateActionButtons(data) {
     : false;
   els.ninjutsuButton.textContent = orichalcumSwordAction
     ? slashPerfectActive
-      ? self.fighterInfiniteResources ? "武器使用: 斬る 全反射JG" : "武器使用: 斬る JG反射"
+      ? self.fighterInfiniteResources ? "斬る 全反射JG" : "斬る JG反射"
       : slashGuardActive
-        ? "武器使用: 斬る 物理ガード"
+        ? "斬る 物理ガード"
         : slashPerfectRearmSeconds > 0
-          ? `武器使用: 斬る JG待機 ${slashPerfectRearmSeconds.toFixed(1)}秒`
-          : "武器使用: 斬る"
+          ? `斬る JG待機 ${slashPerfectRearmSeconds.toFixed(1)}秒`
+          : "斬る"
     : actionFirearm
       ? actionFirearmReloadSeconds > 0
-        ? `武器使用: ${actionFirearm.shortName || actionFirearm.name} リロード ${actionFirearmReloadSeconds.toFixed(1)}秒`
+        ? `${actionFirearm.shortName || actionFirearm.name} リロード ${actionFirearmReloadSeconds.toFixed(1)}秒`
         : !actionFirearmHasAmmo
-          ? `武器使用: ${actionFirearm.shortName || actionFirearm.name} 弾切れ`
+          ? `${actionFirearm.shortName || actionFirearm.name} 弾切れ`
           : actionFirearmCooldownSeconds > 0
-            ? `武器使用: ${actionFirearm.shortName || actionFirearm.name} ${actionFirearmCooldownSeconds.toFixed(1)}秒`
-            : `武器使用: ${actionFirearm.shortName || actionFirearm.name}射撃`
+            ? `${actionFirearm.shortName || actionFirearm.name} ${actionFirearmCooldownSeconds.toFixed(1)}秒`
+            : `${actionFirearm.shortName || actionFirearm.name}射撃`
       : weaponAction
-        ? `武器使用: ${weaponAction.label}`
+        ? weaponAction.label
     : aiming
       ? `忍殺準備 ${(Math.max(0, self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒`
       : killSeconds > 0
@@ -9750,19 +9761,29 @@ function applyMovementAck(result) {
     0.01,
     Number(result.accelerationMultiplier) || Number(data.self.accelerationMultiplier) || 1
   );
-  const authoritativeMovementAccEnabled = result.movementAccEnabled !== false && Number(result.movementAcc) > 1.5;
+  const authoritativeMovementAccEnabled = result.movementAccEnabled !== false;
+  const authoritativeMovementAccThreshold = Math.max(1, Number(result.movementAccThreshold) || 3);
+  const authoritativeMovementAccActive = result.movementAccActive === true || (
+    result.movementAccActive == null && authoritativeMovementAccEnabled && authoritativeAcceleration + 1e-6 >= authoritativeMovementAccThreshold && Number(result.movementAcc) > 1.5
+  );
   const authoritativeMovementAccMax = 3;
-  const authoritativeMovementAcc = authoritativeMovementAccEnabled ? 3 : 1;
+  const authoritativeMovementAcc = authoritativeMovementAccActive ? 3 : 1;
   data.self.speedMultiplier = authoritativeSpeed;
   data.self.accelerationMultiplier = authoritativeAcceleration;
   data.self.movementAcc = authoritativeMovementAcc;
   data.self.movementAccMax = authoritativeMovementAccMax;
   data.self.movementAccEnabled = authoritativeMovementAccEnabled;
+  data.self.movementAccActive = authoritativeMovementAccActive;
+  data.self.movementAccAvailable = result.movementAccAvailable === true;
+  data.self.movementAccThreshold = authoritativeMovementAccThreshold;
   player.speedMultiplier = authoritativeSpeed;
   player.accelerationMultiplier = authoritativeAcceleration;
   player.movementAcc = authoritativeMovementAcc;
   player.movementAccMax = authoritativeMovementAccMax;
   player.movementAccEnabled = authoritativeMovementAccEnabled;
+  player.movementAccActive = authoritativeMovementAccActive;
+  player.movementAccAvailable = result.movementAccAvailable === true;
+  player.movementAccThreshold = authoritativeMovementAccThreshold;
   player.x = result.x;
   player.y = result.y;
   player.moveX = result.moveX;
@@ -15293,8 +15314,11 @@ function drawHud(data, w, h) {
   const maxStamina = Math.max(100, Number(self.maxStoredStamina) || 500);
   const manaGaugeMax = Math.max(2, Math.ceil(Math.max(0, mana) / 2) * 2);
   const accelerationMultiplier = Math.max(1, Number(self.accelerationMultiplier) || 1);
-  const movementAccEnabled = self.movementAccEnabled !== false && Number(self.movementAcc) > 1.5;
-  const movementAcc = movementAccEnabled ? 3 : 1;
+  const movementAccEnabled = self.movementAccEnabled !== false;
+  const movementAccThreshold = Math.max(1, Number(self.movementAccThreshold) || 3);
+  const movementAccActive = self.movementAccActive === true || (
+    self.movementAccActive == null && movementAccEnabled && accelerationMultiplier + 1e-6 >= movementAccThreshold && Number(self.movementAcc) > 1.5
+  );
   const bars = [
     { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}` },
     { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
@@ -15355,7 +15379,7 @@ function drawHud(data, w, h) {
   const fighterEcText = hasDisplayedOperatorAccess(self, "fighter")
     ? `   EC ${Math.max(0, Math.floor(Number(self.fighterEnergyCharge) || 0))}`
     : "";
-  const movementAccText = ` / 移動ACC3 ${movementAccEnabled ? "ON" : "OFF"}`;
+  const movementAccText = ` / 移動固定 ${movementAccActive ? "ACC3" : movementAccEnabled ? "待機" : "OFF"}`;
   ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}${movementAccText}${fighterEcText}`, 27, detailTop);
   const drawReadyText = (label, remaining, x, y = detailTop + 19) => {
     const ready = remaining <= 0;
@@ -15662,7 +15686,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "texture-cache-recovery-v460";
+const version = "movement-acc-threshold-v461";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
