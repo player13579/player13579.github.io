@@ -7663,6 +7663,10 @@ const BOT_CLAIRVOYANCE_DURATION_MS = 4000;
 const BOT_CLAIRVOYANCE_MEMORY_MS = 8000;
 const BOT_CLAIRVOYANCE_INTERVAL_MIN_MS = 18_000;
 const BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS = 10_000;
+const BOT_ATTACKER_FAKE_TASK_TRAVEL_MS = 7_000;
+const BOT_ATTACKER_FAKE_TASK_PRESENCE_MS = 1_350;
+const BOT_ATTACKER_DECOY_PURSUIT_MS = 2_800;
+const BOT_ATTACKER_COMMIT_MS = 6_200;
 const MODERATION_DIR = path.join(__dirname, "data");
 const MODERATION_FILE = path.join(MODERATION_DIR, "moderation.json");
 const PLAYER_PROFILE_FILE = path.join(MODERATION_DIR, "player-profiles.json");
@@ -9682,6 +9686,12 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botTargetUntil: 0,
     botTaskTargetId: "",
     botTaskPresenceSince: 0,
+    botDeceptionPhase: "",
+    botDeceptionUntil: 0,
+    botDeceptionTargetId: "",
+    botDeceptionStationId: "",
+    botDeceptionPresenceSince: 0,
+    botDeceptionCycle: 0,
     navPath: [],
     navTargetX: 0,
     navTargetY: 0,
@@ -10121,6 +10131,12 @@ function startGame(room) {
     player.nextBotActionAt = timestamp + 1000 + Math.floor(Math.random() * 2000);
     player.botTaskTargetId = "";
     player.botTaskPresenceSince = 0;
+    player.botDeceptionPhase = "";
+    player.botDeceptionUntil = 0;
+    player.botDeceptionTargetId = "";
+    player.botDeceptionStationId = "";
+    player.botDeceptionPresenceSince = 0;
+    player.botDeceptionCycle = 0;
     player.botTarget = null;
     player.botTargetUntil = 0;
     player.navPath = [];
@@ -12253,6 +12269,7 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "botClairvoyanceUntil",
   "botClairvoyanceObservedUntil",
   "nextBotClairvoyanceAt",
+  "botDeceptionUntil",
   "heardTargetUntil",
   "attackerDefenderKillDeadlineAt"
 ]);
@@ -12266,7 +12283,8 @@ const MEETING_PAUSED_PLAYER_ANCHOR_FIELDS = Object.freeze([
   "ideaProgressUpdatedAt",
   "ascensionStartedAt",
   "routeSharedSince",
-  "botTaskPresenceSince"
+  "botTaskPresenceSince",
+  "botDeceptionPresenceSince"
 ]);
 
 function shiftMeetingDeadline(owner, key, pausedAt, elapsedMs) {
@@ -16744,7 +16762,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         targetId: targetEntry.player.id,
         variant: weapon.id
       });
-      killPlayer(room, shooter, targetEntry.player.id, {
+      const outcome = killPlayer(room, shooter, targetEntry.player.id, {
         ranged: true,
         hitZone: "head",
         allowAnyKiller: true,
@@ -16753,6 +16771,12 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         attackLabel: `狙撃・${weapon.name}HS`,
         slashGuardPhysical: true
       });
+      if (outcome === "lethal" || !targetEntry.player.alive || targetEntry.player.ejected) {
+        // A lethal SR result can replace the pressed control with the kill
+        // presentation before its release is observed. End the authoritative
+        // firing action here so no held-fire state can lock later actions.
+        stopGunnerFire(room, shooter, { reason: "狙撃キル成立" });
+      }
       checkWin(room);
       touch(room);
       return true;
@@ -19572,6 +19596,31 @@ function botHasHumanOpponent(room, bot) {
   return botOpposesLivingHuman(room, bot);
 }
 
+function stableBotHash(value) {
+  let hash = 2166136261;
+  for (const character of String(value || "")) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function activeBotClaimCount(room, bot, targetId, targetField, untilField, timestamp = now()) {
+  return [...room.players.values()].filter((other) => (
+    other.isBot &&
+    other.id !== bot.id &&
+    other.role === bot.role &&
+    other.alive &&
+    !other.ejected &&
+    String(other[targetField] || "") === String(targetId || "") &&
+    Number(other[untilField]) > timestamp
+  )).length;
+}
+
+function botTargetAffinity(bot, target, cycle = 0) {
+  return stableBotHash(`${bot?.id || "bot"}:${target?.id || "target"}:${cycle}`);
+}
+
 function clearBotClairvoyanceContact(bot) {
   bot.botClairvoyanceUntil = 0;
   bot.botClairvoyanceObservedUntil = 0;
@@ -19641,17 +19690,26 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
     return null;
   }
   const target = opponents.sort((a, b) => {
-    const humanPriority = Number(!b.isBot) - Number(!a.isBot);
+    const claimsA = activeBotClaimCount(room, bot, a.id, "botClairvoyanceTargetId", "botClairvoyanceObservedUntil", timestamp);
+    const claimsB = activeBotClaimCount(room, bot, b.id, "botClairvoyanceTargetId", "botClairvoyanceObservedUntil", timestamp);
     const durabilityA = Math.max(0, 2 - Number(a.bodyHits || 0) - Number(a.overheal || 0));
     const durabilityB = Math.max(0, 2 - Number(b.bodyHits || 0) - Number(b.overheal || 0));
-    return humanPriority || durabilityA - durabilityB || distance(bot, a) - distance(bot, b) || a.id.localeCompare(b.id);
+    const scoutCycle = Math.floor(timestamp / Math.max(1, BOT_CLAIRVOYANCE_INTERVAL_MIN_MS));
+    return claimsA - claimsB ||
+      durabilityA - durabilityB ||
+      botTargetAffinity(bot, a, scoutCycle) - botTargetAffinity(bot, b, scoutCycle) ||
+      distance(bot, a) - distance(bot, b) ||
+      a.id.localeCompare(b.id);
   })[0];
   bot.botClairvoyanceTargetId = target.id;
   bot.botClairvoyanceTargetX = target.x;
   bot.botClairvoyanceTargetY = target.y;
   bot.botClairvoyanceUntil = timestamp + BOT_CLAIRVOYANCE_DURATION_MS;
   bot.botClairvoyanceObservedUntil = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_MEMORY_MS;
-  bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + BOT_TICK_MS;
+  const intervalJitter = BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS > 0
+    ? stableBotHash(`${bot.id}:${target.id}:${Math.floor(timestamp / BOT_CLAIRVOYANCE_DURATION_MS)}`) % BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS
+    : 0;
+  bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_INTERVAL_MIN_MS + intervalJitter;
   setClairvoyanceActive(room, bot, true);
   pushEvent(room, `${bot.name} が千里眼で敵陣営を索敵しました。`);
   return target;
@@ -19683,11 +19741,200 @@ function preferredDefenderTarget(room, bot, timestamp = now()) {
   const selected = defenders.sort((a, b) => {
     const riskA = botPushBacklashWouldBeLethal(bot, a) ? 1 : 0;
     const riskB = botPushBacklashWouldBeLethal(bot, b) ? 1 : 0;
-    return riskA - riskB || distance(bot, a) - distance(bot, b);
+    const claimsA = activeBotClaimCount(room, bot, a.id, "botTarget", "botTargetUntil", timestamp);
+    const claimsB = activeBotClaimCount(room, bot, b.id, "botTarget", "botTargetUntil", timestamp);
+    const durabilityA = Math.max(0, 2 - Number(a.bodyHits || 0) - Number(a.overheal || 0));
+    const durabilityB = Math.max(0, 2 - Number(b.bodyHits || 0) - Number(b.overheal || 0));
+    return riskA - riskB ||
+      claimsA - claimsB ||
+      durabilityA - durabilityB ||
+      distance(bot, a) - distance(bot, b) ||
+      botTargetAffinity(bot, a, Math.floor(timestamp / 12_000)) - botTargetAffinity(bot, b, Math.floor(timestamp / 12_000)) ||
+      a.id.localeCompare(b.id);
   })[0] || null;
   bot.botTarget = selected?.id || "";
   bot.botTargetUntil = selected ? timestamp + 12_000 : 0;
   return selected;
+}
+
+function defenderBotOwnsPursuitSlot(room, bot, target, timestamp = now()) {
+  if (!bot?.isBot || bot.role !== "defender" || !target || target.role === bot.role) return false;
+  const eligible = [...room.players.values()].filter((candidate) => {
+    if (!candidate.isBot || candidate.role !== "defender" || !candidate.alive || candidate.ejected || candidate.inVent) return false;
+    return botKnownAttackerEvidence(room, candidate, timestamp)?.id === target.id;
+  }).sort((a, b) => {
+    const distanceBandA = Math.floor(distance(a, target) / 160);
+    const distanceBandB = Math.floor(distance(b, target) / 160);
+    return distanceBandA - distanceBandB ||
+      botTargetAffinity(a, target, 0) - botTargetAffinity(b, target, 0) ||
+      distance(a, target) - distance(b, target) ||
+      a.id.localeCompare(b.id);
+  });
+  return eligible[0]?.id === bot.id;
+}
+
+function clearBotAttackerDeception(bot) {
+  bot.botDeceptionPhase = "";
+  bot.botDeceptionUntil = 0;
+  bot.botDeceptionTargetId = "";
+  bot.botDeceptionStationId = "";
+  bot.botDeceptionPresenceSince = 0;
+}
+
+function botHasImmediateLethalOpportunity(room, bot, target, timestamp = now()) {
+  if (!target?.alive || target.ejected || target.role !== "defender") return false;
+  const targetDistance = distance(bot, target);
+  if (bot.attackResolveAt > timestamp) return true;
+  if (bot.killReadyAt <= timestamp && targetDistance <= Math.max(72, room.settings.killRange * 0.58)) return true;
+  if (bot.special !== "gunner" || !bot.gunnerSnipingActive || bot.gunnerReloadUntil > timestamp || bot.gunReadyAt > timestamp) return false;
+  const loadedWeapon = Object.values(GUNNER_WEAPONS)
+    .filter((weapon) => gunnerWeaponAvailable(bot, weapon.id))
+    .filter((weapon) => (Number(bot.gunnerAmmo?.[weapon.id]) || 0) >= weapon.ammoPerShot)
+    .filter((weapon) => targetDistance <= weapon.range)
+    .sort((a, b) => a.cooldownMs - b.cooldownMs || b.range - a.range)[0];
+  if (!loadedWeapon) return false;
+  const dx = target.x - bot.x;
+  const dy = target.y - bot.y;
+  const length = Math.hypot(dx, dy) || 1;
+  return clearShotPath(room, bot, target, dx / length, dy / length);
+}
+
+function attackerFakeTaskStation(room, bot, map, actualTarget, timestamp = now()) {
+  const cycle = Math.max(0, Number(bot.botDeceptionCycle) || 0);
+  return (map.stations || [])
+    .filter((station) => station.type === "task" && isWalkable(room, station.x, station.y, map.playerRadius))
+    .sort((a, b) => {
+      const claimsA = [...room.players.values()].filter((other) => (
+        other.isBot && other.id !== bot.id && other.role === "attacker" && other.alive && !other.ejected &&
+        other.botDeceptionPhase === "fake-task" && other.botDeceptionStationId === a.id && Number(other.botDeceptionUntil) > timestamp
+      )).length;
+      const claimsB = [...room.players.values()].filter((other) => (
+        other.isBot && other.id !== bot.id && other.role === "attacker" && other.alive && !other.ejected &&
+        other.botDeceptionPhase === "fake-task" && other.botDeceptionStationId === b.id && Number(other.botDeceptionUntil) > timestamp
+      )).length;
+      const actualSeparationA = actualTarget ? distance(a, actualTarget) : 0;
+      const actualSeparationB = actualTarget ? distance(b, actualTarget) : 0;
+      return claimsA - claimsB ||
+        actualSeparationB - actualSeparationA ||
+        botTargetAffinity(bot, a, cycle) - botTargetAffinity(bot, b, cycle) ||
+        distance(bot, a) - distance(bot, b) ||
+        a.id.localeCompare(b.id);
+    })[0] || null;
+}
+
+function beginBotAttackerCommit(bot, timestamp = now()) {
+  const cycle = Math.max(0, Number(bot.botDeceptionCycle) || 0);
+  bot.botDeceptionPhase = "commit";
+  bot.botDeceptionUntil = timestamp + BOT_ATTACKER_COMMIT_MS + stableBotHash(`${bot.id}:commit:${cycle}`) % 1_400;
+  bot.botDeceptionTargetId = "";
+  bot.botDeceptionStationId = "";
+  bot.botDeceptionPresenceSince = 0;
+}
+
+function beginBotAttackerDecoy(room, bot, actualTarget, timestamp = now()) {
+  const cycle = Math.max(0, Number(bot.botDeceptionCycle) || 0);
+  const decoy = alivePlayers(room, "defender")
+    .filter((candidate) => candidate.id !== actualTarget?.id)
+    .sort((a, b) => {
+      const claimsA = activeBotClaimCount(room, bot, a.id, "botDeceptionTargetId", "botDeceptionUntil", timestamp);
+      const claimsB = activeBotClaimCount(room, bot, b.id, "botDeceptionTargetId", "botDeceptionUntil", timestamp);
+      return claimsA - claimsB ||
+        botTargetAffinity(bot, a, cycle) - botTargetAffinity(bot, b, cycle) ||
+        distance(bot, a) - distance(bot, b) ||
+        a.id.localeCompare(b.id);
+    })[0] || null;
+  if (!decoy) {
+    beginBotAttackerCommit(bot, timestamp);
+    return null;
+  }
+  bot.botDeceptionPhase = "decoy";
+  bot.botDeceptionTargetId = decoy.id;
+  bot.botDeceptionStationId = "";
+  bot.botDeceptionPresenceSince = 0;
+  bot.botDeceptionUntil = timestamp + BOT_ATTACKER_DECOY_PURSUIT_MS + stableBotHash(`${bot.id}:decoy:${cycle}`) % 900;
+  bot.navPath = [];
+  bot.navCalculatedAt = 0;
+  return decoy;
+}
+
+function beginBotAttackerFakeTask(room, bot, map, actualTarget, timestamp = now()) {
+  bot.botDeceptionCycle = Math.max(0, Number(bot.botDeceptionCycle) || 0) + 1;
+  const station = attackerFakeTaskStation(room, bot, map, actualTarget, timestamp);
+  if (!station) {
+    beginBotAttackerDecoy(room, bot, actualTarget, timestamp);
+    return null;
+  }
+  bot.botDeceptionPhase = "fake-task";
+  bot.botDeceptionTargetId = "";
+  bot.botDeceptionStationId = station.id;
+  bot.botDeceptionPresenceSince = 0;
+  bot.botDeceptionUntil = timestamp + BOT_ATTACKER_FAKE_TASK_TRAVEL_MS + stableBotHash(`${bot.id}:task:${bot.botDeceptionCycle}`) % 1_600;
+  bot.navPath = [];
+  bot.navCalculatedAt = 0;
+  return station;
+}
+
+function runBotAttackerDeception(room, bot, map, actualTarget, timestamp = now()) {
+  if (bot.role !== "attacker" || !botHasHumanOpponent(room, bot) || !bot.alive || bot.ejected || bot.inVent) {
+    clearBotAttackerDeception(bot);
+    return false;
+  }
+  if (bot.attackResolveAt > timestamp || botHasImmediateLethalOpportunity(room, bot, actualTarget, timestamp)) {
+    beginBotAttackerCommit(bot, timestamp);
+    return false;
+  }
+  if (bot.botDeceptionPhase === "commit" && Number(bot.botDeceptionUntil) > timestamp) return false;
+  if (!bot.botDeceptionPhase || Number(bot.botDeceptionUntil) <= timestamp) {
+    if (bot.botDeceptionPhase === "fake-task") beginBotAttackerDecoy(room, bot, actualTarget, timestamp);
+    else if (bot.botDeceptionPhase === "decoy") beginBotAttackerCommit(bot, timestamp);
+    else beginBotAttackerFakeTask(room, bot, map, actualTarget, timestamp);
+  }
+  if (bot.botDeceptionPhase === "commit") return false;
+
+  if (bot.gunFiring) stopGunnerFire(room, bot, { reason: "偽装行動" });
+  if (bot.botDeceptionPhase === "fake-task") {
+    const station = (map.stations || []).find((entry) => entry.id === bot.botDeceptionStationId);
+    if (!station) {
+      beginBotAttackerDecoy(room, bot, actualTarget, timestamp);
+      return bot.botDeceptionPhase !== "commit";
+    }
+    if (distance(bot, station) > Math.max(56, map.taskRange * 0.72)) {
+      moveBotToward(room, bot, station);
+      return true;
+    }
+    stopBotForInteraction(bot, timestamp);
+    if (!Number(bot.botDeceptionPresenceSince)) {
+      bot.botDeceptionPresenceSince = timestamp;
+      pushMagicEffect(room, "action-task", bot, { radius: 82, playerId: bot.id, variant: "attendance" });
+    }
+    if (timestamp - Number(bot.botDeceptionPresenceSince) >= BOT_ATTACKER_FAKE_TASK_PRESENCE_MS) {
+      beginBotAttackerDecoy(room, bot, actualTarget, timestamp);
+    }
+    return bot.botDeceptionPhase !== "commit";
+  }
+
+  if (bot.botDeceptionPhase === "decoy") {
+    const decoy = room.players.get(String(bot.botDeceptionTargetId || ""));
+    if (!decoy?.alive || decoy.ejected || decoy.role !== "defender") {
+      beginBotAttackerCommit(bot, timestamp);
+      return false;
+    }
+    // A fresh target evaluation may promote the apparent target to the real
+    // target. From that point it is no longer a feint and normal combat resumes.
+    if (decoy.id === actualTarget?.id) {
+      beginBotAttackerCommit(bot, timestamp);
+      return false;
+    }
+    const dx = decoy.x - bot.x;
+    const dy = decoy.y - bot.y;
+    const length = Math.hypot(dx, dy) || 1;
+    bot.aimX = dx / length;
+    bot.aimY = dy / length;
+    if (distance(bot, decoy) <= Math.max(115, room.settings.killRange * 0.78)) stopBotForInteraction(bot, timestamp);
+    else moveBotToward(room, bot, decoy);
+    return true;
+  }
+  return false;
 }
 
 function useBotSabotage(room, bot, timestamp) {
@@ -19930,7 +20177,7 @@ function runPlayingBots(room) {
     if (runBotBodyReport(room, bot)) return;
     if (bot.alive && runBotStandFirmRetaliation(room, bot, timestamp)) continue;
 
-    const clairvoyanceTarget = bot.alive ? runBotClairvoyanceSearch(room, bot, timestamp) : null;
+    if (bot.alive) runBotClairvoyanceSearch(room, bot, timestamp);
 
     if (bot.alive && refillBotMana(room, bot)) continue;
 
@@ -19939,6 +20186,7 @@ function runPlayingBots(room) {
         try { useAlchemy(room, bot, bot.substitutionCharges < 1 ? "substitution" : "stamina"); } catch {}
       }
       const target = preferredDefenderTarget(room, bot, timestamp);
+      if (runBotAttackerDeception(room, bot, map, target, timestamp)) continue;
       if (bot.gunFiring && (!target || distance(bot, target) > gunnerWeaponFor(bot).range)) stopGunnerFire(room, bot, { reason: "対象喪失" });
       if (target && distance(bot, target) <= EMP_RANGE && bot.empReadyAt <= timestamp && (maximumStrength || Math.random() < 0.08)) {
         try { activateEmp(room, bot); } catch {}
@@ -20044,8 +20292,13 @@ function runPlayingBots(room) {
       }
     }
 
-    if (clairvoyanceTarget && clairvoyanceTarget.role !== bot.role) {
-      moveBotToward(room, bot, clairvoyanceTarget);
+    const defenderEvidenceTarget = botKnownAttackerEvidence(room, bot, timestamp);
+    if (
+      defenderEvidenceTarget &&
+      defenderEvidenceTarget.role !== bot.role &&
+      defenderBotOwnsPursuitSlot(room, bot, defenderEvidenceTarget, timestamp)
+    ) {
+      moveBotToward(room, bot, defenderEvidenceTarget);
       continue;
     }
 
@@ -20154,5 +20407,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "right-panel-hsg-daily-v485" });
+self.postMessage({ type: "ready", version: "bot-ui-hsg-recovery-v486" });
 })();

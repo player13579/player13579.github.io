@@ -395,6 +395,7 @@ const state = {
     source: null,
     timer: 0,
     opened: false,
+    persistent: false,
     hover: null,
     options: [],
     startX: 0,
@@ -724,7 +725,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-panel-hsg-daily-v485";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "bot-ui-hsg-recovery-v486";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -742,7 +743,7 @@ const generatedItemTextureFiles = new Map([
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
   ["orichalcum-sword", { file: "item-orichalcum-sword-v453.png" }],
-  ["hsg", { file: "item-hsg-v483.png" }],
+  ["hsg", { file: "item-hsg-v486.png" }],
   ["iai", { file: "instant-iai-abstract-v451.png" }],
   ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
   ["heal", { file: "alchemy-effect-heal-v311.png" }],
@@ -3602,8 +3603,9 @@ function resetJumpPreparationLocal() {
   [els.jumpButton, els.tabletJumpShortcut].forEach((button) => {
     button?.classList.remove("charging");
     button?.style.removeProperty("--jump-charge");
-    if (button) button.textContent = "跳躍";
   });
+  els.jumpButton.textContent = "跳躍";
+  setTabletShortcutLabel(els.tabletJumpShortcut, "跳躍");
 }
 
 function updateJumpPreparationUi() {
@@ -3614,8 +3616,10 @@ function updateJumpPreparationUi() {
   const pulse = (preparedMs % 700) / 700;
   [els.jumpButton, els.tabletJumpShortcut].forEach((button) => {
     button?.style.setProperty("--jump-charge", pulse.toFixed(3));
-    if (button) button.textContent = `跳躍 ${Math.round(distance)}m / ${Math.ceil(stamina)}SP`;
   });
+  const jumpDetail = `跳躍 ${Math.round(distance)}m / ${Math.ceil(stamina)}SP`;
+  els.jumpButton.textContent = jumpDetail;
+  setTabletShortcutLabel(els.tabletJumpShortcut, "跳躍", jumpDetail);
 }
 
 async function beginJumpPreparation() {
@@ -4226,6 +4230,7 @@ function closeSwitchDragMenu() {
   gesture.pointerId = null;
   gesture.source = null;
   gesture.opened = false;
+  gesture.persistent = false;
   gesture.options = [];
   els.switchDragMenu.hidden = true;
   els.switchDragMenu.setAttribute("aria-hidden", "true");
@@ -4237,14 +4242,15 @@ function closeSwitchDragMenu() {
   }
 }
 
-function openSwitchDragMenu(descriptor) {
+function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
   const gesture = state.switchDrag;
-  if (gesture.pointerId === null) return;
+  if (!persistent && gesture.pointerId === null) return;
   if (!gesture.source?.isConnected || gesture.source.hidden || gesture.source.disabled || gesture.source.getClientRects().length === 0) {
     closeSwitchDragMenu();
     return;
   }
   gesture.opened = true;
+  gesture.persistent = persistent;
   gesture.options = descriptor.options;
   gesture.source.classList.add("switch-drag-source");
   els.switchDragTitle.textContent = descriptor.title;
@@ -4259,12 +4265,24 @@ function openSwitchDragMenu(descriptor) {
     button.className = `switch-drag-option${option.selected ? " selected" : ""}`;
     button.innerHTML = `<small>${escapeHtml(option.group)}</small><strong>${escapeHtml(option.label)}</strong>`;
     button.addEventListener("click", (event) => event.preventDefault());
+    button.addEventListener("click", (event) => {
+      if (!state.switchDrag.opened || !state.switchDrag.persistent) return;
+      event.stopPropagation();
+      const choice = state.switchDrag.options[index];
+      closeSwitchDragMenu();
+      if (!choice) return;
+      choice.apply();
+      showToast(`${choice.group}: ${choice.label}`);
+      playSound("select");
+    });
     els.switchDragOptions.append(button);
   });
   els.switchDragMenu.hidden = false;
   els.switchDragMenu.setAttribute("aria-hidden", "false");
   positionSwitchDragMenu();
-  try { gesture.source.setPointerCapture?.(gesture.pointerId); } catch {}
+  if (gesture.pointerId !== null) {
+    try { gesture.source.setPointerCapture?.(gesture.pointerId); } catch {}
+  }
   if (navigator.vibrate) navigator.vibrate(16);
 }
 
@@ -4273,6 +4291,7 @@ function beginSwitchDragGesture(event) {
   const source = event.currentTarget;
   const descriptor = switchDragDescriptorForSource(source);
   if (!descriptor) return;
+  event.preventDefault();
   closeSwitchDragMenu();
   const gesture = state.switchDrag;
   gesture.pointerId = event.pointerId;
@@ -4312,6 +4331,15 @@ function finishSwitchDragGesture(event, cancelled = false) {
       showToast(`${choice.group}: ${choice.label}`);
       playSound("select");
     }
+    return true;
+  }
+  const descriptor = !cancelled ? switchDragDescriptorForSource(source) : null;
+  if (descriptor) {
+    event.preventDefault();
+    gesture.suppressClickUntil.set(source, performance.now() + 900);
+    closeSwitchDragMenu();
+    gesture.source = source;
+    openSwitchDragMenu(descriptor, { persistent: true });
     return true;
   }
   closeSwitchDragMenu();
@@ -4656,6 +4684,18 @@ function bindEvents() {
     els.transferTargetSelect,
     els.weaponButton
   ].forEach(bindSwitchDragControl);
+  document.addEventListener("pointerdown", (event) => {
+    const gesture = state.switchDrag;
+    if (!gesture.opened || !gesture.persistent) return;
+    const target = event.target instanceof Node ? event.target : null;
+    if (target && (els.switchDragMenu.contains(target) || gesture.source?.contains?.(target))) return;
+    closeSwitchDragMenu();
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !state.switchDrag.opened) return;
+    event.preventDefault();
+    closeSwitchDragMenu();
+  }, true);
   window.addEventListener("pointermove", moveSwitchDragGesture, true);
   window.addEventListener("pointerup", (event) => finishSwitchDragGesture(event), true);
   window.addEventListener("pointercancel", (event) => finishSwitchDragGesture(event, true), true);
@@ -6162,47 +6202,89 @@ function renderTabletBranch(data, force = false) {
   scheduleTabletBranchLayout();
 }
 
+function conciseTabletAbilityName(data) {
+  const owner = els.operatorAbilityButton.dataset.operator || data?.self?.special || "none";
+  const mode = els.teleportModeSelect.value;
+  const modeNames = {
+    teleport: {
+      near: "転移・対象付近",
+      target: "対象転移",
+      heart: "心臓転移",
+      accelerate: "アクセラレート",
+      decelerate: "ディーセラレート",
+      storm: "グラビティストーム"
+    },
+    flora: {
+      heal: "回復",
+      sunbeam: "サンビーム放射",
+      "sunbeam-converged": "サンビーム収束"
+    },
+    quantum: {
+      "transmute-mercury": "水銀→金",
+      "transmute-lead": "鉛→金",
+      "cool-water": "水→氷",
+      "heat-water": "水→高温水",
+      "fission-uranium": "ウラン核分裂",
+      "fission-plutonium": "プルトニウム核分裂"
+    }
+  };
+  if (owner === "fighter") return "リミットブレイク";
+  if (owner === "gunner") return "狙撃";
+  if (owner === "alchemist") return "借用能力";
+  return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
+}
+
+function setTabletShortcutLabel(button, name, detail = "") {
+  if (!button) return;
+  button.textContent = name;
+  button.setAttribute("aria-label", name);
+  button.title = detail || name;
+}
+
 function renderTabletControls(data) {
   if (!data?.self) return;
-  els.tabletNinjutsuShortcut.textContent = els.ninjutsuButton.textContent || "忍殺";
+  setTabletShortcutLabel(els.tabletNinjutsuShortcut, "忍殺", els.ninjutsuButton.textContent || "忍殺");
   els.tabletNinjutsuShortcut.disabled = els.ninjutsuButton.disabled || els.ninjutsuButton.hidden;
   els.tabletNinjutsuShortcut.hidden = els.ninjutsuButton.hidden;
-  els.tabletNinjutsuShortcut.title = els.ninjutsuButton.title;
-  els.tabletAbilityShortcut.textContent = els.operatorAbilityButton.textContent || "オペ能力";
+  setTabletShortcutLabel(
+    els.tabletAbilityShortcut,
+    conciseTabletAbilityName(data),
+    `${els.operatorAbilityButton.textContent || "現在の能力を発動"}。能力切替は専用選択欄をタップまたは長押し`
+  );
   els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.dataset.operator = els.operatorAbilityButton.dataset.operator || "none";
   els.tabletAbilityShortcut.dataset.repeatableAbility = els.operatorAbilityButton.dataset.repeatableAbility || "0";
   els.tabletAbilityShortcut.dataset.actionDisabled = els.operatorAbilityButton.disabled ? "1" : "0";
   els.tabletAbilityShortcut.classList.toggle("action-disabled", els.operatorAbilityButton.disabled);
-  els.tabletAbilityShortcut.title = "現在の能力を発動。能力切替は専用選択欄を長押し";
   els.tabletAbilityShortcut.setAttribute("aria-haspopup", "false");
-  els.tabletShootShortcut.textContent = els.shootButton.textContent || "射撃";
+  setTabletShortcutLabel(els.tabletShootShortcut, "射撃", els.shootButton.textContent || "射撃");
   els.tabletShootShortcut.disabled = els.shootButton.disabled;
   els.tabletShootShortcut.hidden = els.shootButton.hidden;
   els.tabletShootShortcut.classList.toggle("active", els.shootButton.classList.contains("active"));
-  els.tabletEmpShortcut.textContent = els.empButton.textContent || "EMP";
+  setTabletShortcutLabel(els.tabletEmpShortcut, "EMP", els.empButton.textContent || "EMP");
   els.tabletEmpShortcut.disabled = els.empButton.hidden;
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
-  els.tabletEmpShortcut.title = "現在のEMPを発動。位相切替は専用選択欄を長押し";
-  els.tabletClairvoyanceShortcut.textContent = state.clairvoyance.active ? "千里眼解除" : "千里眼";
+  setTabletShortcutLabel(els.tabletClairvoyanceShortcut, "千里眼", state.clairvoyance.active ? "千里眼を解除" : "千里眼を発動");
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
-  els.tabletVendingShortcut.textContent = state.vendingOpen ? "自販機を閉じる" : "自販機";
+  els.tabletClairvoyanceShortcut.setAttribute("aria-pressed", String(state.clairvoyance.active));
+  setTabletShortcutLabel(els.tabletVendingShortcut, "自販機", state.vendingOpen ? "自販機を閉じる" : "自販機を開く");
   els.tabletVendingShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected || data.self.inVent;
   els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
   els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
-  els.tabletDodgeShortcut.textContent = els.dodgeButton.textContent || "回避";
+  setTabletShortcutLabel(els.tabletDodgeShortcut, "回避", els.dodgeButton.textContent || "回避");
   els.tabletDodgeShortcut.disabled = els.dodgeButton.disabled || els.dodgeButton.hidden;
   els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
-  els.tabletJumpShortcut.textContent = els.jumpButton.textContent || "跳躍";
+  setTabletShortcutLabel(els.tabletJumpShortcut, "跳躍", els.jumpButton.textContent || "跳躍");
   els.tabletJumpShortcut.disabled = els.jumpButton.disabled;
-  els.tabletRenkiShortcut.textContent = els.renkiButton.textContent || "練気";
+  setTabletShortcutLabel(els.tabletRenkiShortcut, "練気", els.renkiButton.textContent || "練気");
   els.tabletRenkiShortcut.disabled = els.renkiButton.disabled;
-  els.tabletRestShortcut.textContent = els.sleepButton.textContent || "休息";
+  setTabletShortcutLabel(els.tabletRestShortcut, "休息", els.sleepButton.textContent || "休息");
   els.tabletRestShortcut.disabled = els.sleepButton.disabled;
+  setTabletShortcutLabel(els.tabletDonateShortcut, "募金", "10Cを募金");
   const canAct = data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent;
   els.tabletDonateShortcut.disabled = !canAct || Number(data.self.credits || 0) < 10;
   renderTabletBranch(data);
@@ -6822,6 +6904,10 @@ function normalizeSkinId(value) {
   return value === "blue-dress" ? "blue-dress" : "hood";
 }
 
+function renderSkinAssetId(value) {
+  return normalizeSkinId(value) === "blue-dress" ? "blue-dress" : "white-hood";
+}
+
 function normalizeKillerSkinId(value, killerIsBot = false) {
   if (killerIsBot || value === "operator") return "operator";
   return normalizeSkinId(value);
@@ -6835,8 +6921,10 @@ function playerIdentityLabel(player) {
 }
 
 function displayedSkinId(player, data = state.data) {
-  if (player && player.id === data?.selfId && state.pendingSkinId) return state.pendingSkinId;
-  return normalizeSkinId(player?.skinId);
+  const selected = player && player.id === data?.selfId && state.pendingSkinId
+    ? state.pendingSkinId
+    : player?.skinId;
+  return renderSkinAssetId(selected);
 }
 
 async function syncSelectedSkin() {
@@ -7293,6 +7381,21 @@ async function attackFromCanvas(event) {
   }
 }
 
+function clearLocalGunTrigger() {
+  const pointerId = state.gunTriggerPointerId;
+  state.gunTriggerHeld = false;
+  state.gunTriggerPointerId = null;
+  state.gunFireStartPromise = null;
+  els.shootButton.classList.remove("active");
+  els.tabletShootShortcut?.classList.remove("active");
+  if (pointerId === null) return;
+  for (const button of [els.shootButton, els.tabletShootShortcut]) {
+    try {
+      if (button?.hasPointerCapture?.(pointerId)) button.releasePointerCapture(pointerId);
+    } catch {}
+  }
+}
+
 async function beginGunFire() {
   if (state.gunTriggerHeld || state.gunFireStartPromise || els.shootButton.disabled) return false;
   state.gunTriggerHeld = true;
@@ -7301,23 +7404,18 @@ async function beginGunFire() {
   const request = api("/api/shoot", { action: "start", dx: direction.dx, dy: direction.dy });
   state.gunFireStartPromise = request;
   const result = await request;
-  if (!result && state.gunFireStartPromise === request) {
-    state.gunTriggerHeld = false;
-    state.gunTriggerPointerId = null;
+  if (state.gunFireStartPromise === request) {
     state.gunFireStartPromise = null;
-    els.shootButton.classList.remove("active");
+    if (!result || result.self?.gunFiring === false) clearLocalGunTrigger();
   }
   return Boolean(result);
 }
 
 async function endGunFire() {
   const hadTrigger = state.gunTriggerHeld || state.gunFireStartPromise;
-  state.gunTriggerHeld = false;
-  state.gunTriggerPointerId = null;
-  els.shootButton.classList.remove("active");
-  if (!hadTrigger) return;
   const pending = state.gunFireStartPromise;
-  state.gunFireStartPromise = null;
+  clearLocalGunTrigger();
+  if (!hadTrigger) return;
   state.hackerGenerationInFlight = false;
   clearHackerCooldownWake();
   if (pending) await pending;
@@ -7537,6 +7635,9 @@ function applyState(data, options = {}) {
     return false;
   }
   const previousPhase = state.data?.phase || "";
+  if (!data.self?.gunFiring && state.gunTriggerHeld && !state.gunFireStartPromise) {
+    clearLocalGunTrigger();
+  }
   const soloJustCompleted = Boolean(
     data.soloMission?.completed &&
     (!state.data || state.data.roomId !== data.roomId || !state.data.soloMission?.completed)
@@ -9585,7 +9686,7 @@ function setVendingOpen(open, { focus = true } = {}) {
   else els.vendingPanel.hidden = true;
   els.vendingButton.classList.toggle("active", state.vendingOpen);
   els.vendingButton.setAttribute("aria-expanded", String(state.vendingOpen));
-  els.tabletVendingShortcut.textContent = state.vendingOpen ? "自販機を閉じる" : "自販機";
+  setTabletShortcutLabel(els.tabletVendingShortcut, "自販機", state.vendingOpen ? "自販機を閉じる" : "自販機を開く");
   els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
   els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
   if (state.vendingOpen) {
@@ -15485,8 +15586,14 @@ function walkAnimationFrame(player, motion) {
     // Drive the gait from actual rendered displacement. Input against a wall
     // no longer runs the legs in place, and acceleration raises cadence only
     // because the character really covers more ground.
-    if (travelled <= strideDistance * 0.42) {
+    const discontinuityDistance = Math.max(360, strideDistance * 4);
+    if (travelled <= discontinuityDistance) {
+      // Render prediction and remote interpolation can legitimately cover more
+      // than 42% of a stride between samples, especially under acceleration.
+      // Preserve all ordinary displacement and reject only an actual teleport.
       animation.frame = (animation.frame + travelled / strideDistance * 60) % 60;
+    } else {
+      animation.frame = 0;
     }
     const stepBucket = Math.floor(animation.frame / 15) % 4;
     if (player.id === state.data?.selfId && player.alive && stepBucket !== animation.stepBucket && now - animation.lastStepAt > 170) {
@@ -15565,8 +15672,10 @@ function drawProceduralWalkSprite(sprite, direction, frame, x, y, width, height)
 
 function drawMinimalWalkFrame(atlas, key, direction, frame, moving, x, y, width, height) {
   // Each direction is one independent horizontal row: neutral, one foot, the
-  // opposite foot. Real displacement drives the two authored step poses.
-  const poseIndex = moving ? 1 + (Math.floor(frame / 15) % 2) : 0;
+  // opposite foot. Passing through neutral makes the authored steps readable
+  // at game scale while real rendered displacement remains the only clock.
+  const gaitSequence = [0, 1, 0, 2];
+  const poseIndex = moving ? gaitSequence[Math.floor(frame / 15) % gaitSequence.length] : 0;
   if (IS_VERIFICATION_MODE) {
     els.canvas.dataset.walkPose = String(poseIndex);
     els.canvas.dataset.walkGaitFrame = Number(frame).toFixed(2);
@@ -15574,10 +15683,18 @@ function drawMinimalWalkFrame(atlas, key, direction, frame, moving, x, y, width,
     els.canvas.dataset.walkTexture = key;
   }
   const gaitPhase = frame / 60 * Math.PI * 2;
-  const bodyLift = (0.5 - Math.cos(gaitPhase * 2) * 0.5) * 0.65;
+  const contact = 0.5 - Math.cos(gaitPhase * 2) * 0.5;
+  const stride = Math.sin(gaitPhase);
+  const bodyLift = moving ? contact * 2.2 : 0;
+  const bodySway = moving ? stride * (direction === "left" || direction === "right" ? 0.75 : 1.1) : 0;
+  const bodyLean = moving ? stride * (direction === "left" || direction === "right" ? 0.01 : 0.006) : 0;
   const sprite = normalizedSpriteFrame(atlas, key, 3, 1, 0, poseIndex);
   if (!sprite) return false;
+  ctx.save();
+  ctx.translate(bodySway, 0);
+  ctx.rotate(bodyLean);
   drawNormalizedSprite(sprite, x + width / 2, y + height - bodyLift, width, height);
+  ctx.restore();
   return true;
 }
 
@@ -16669,7 +16786,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "right-panel-hsg-daily-v485";
+const version = "bot-ui-hsg-recovery-v486";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -16914,7 +17031,7 @@ const version = "right-panel-hsg-daily-v485";
   defer(statusHpReductionEffect, "assets/generated/status-hp-reduction-v375.png");
   defer(statusManaGpuEffect, "assets/generated/status-mana-gpu-ate-v402.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
-  defer(hsgItemTexture, "assets/generated/item-hsg-v483.png");
+  defer(hsgItemTexture, "assets/generated/item-hsg-v486.png");
   defer(gunnerSpecialAmmoEffects.weak, "assets/generated/gunner-special-ammo-weak-v455.png");
   defer(gunnerSpecialAmmoEffects.shock, "assets/generated/gunner-special-ammo-shock-v455.png");
   defer(gunnerRpgEffect, "assets/generated/gunner-rpg-v311.png");

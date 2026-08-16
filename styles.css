@@ -2735,7 +2735,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .switch-drag-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(84px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   min-height: 0;
   overflow-y: auto;
@@ -2780,7 +2780,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 @media (max-width: 560px) {
   .switch-drag-options {
-    grid-template-columns: repeat(3, minmax(76px, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -3224,7 +3224,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=right-panel-hsg-daily-v485") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=bot-ui-hsg-recovery-v486") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
