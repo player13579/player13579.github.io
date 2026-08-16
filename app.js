@@ -1967,6 +1967,7 @@ function buildTitleCommandDepthFlyby() {
     plane.style.setProperty("--plane-delay", `${18 + (index % 5) * 24}ms`);
     plane.style.setProperty("--plane-duration", `${670 + (index % 4) * 38}ms`);
     plane.style.setProperty("--plane-roll", `${((index % 5) - 2) * 0.7}deg`);
+    plane.style.setProperty("--plane-end-roll", `${((index % 5) - 2) * -0.7}deg`);
     field.appendChild(plane);
   });
   return planes.length;

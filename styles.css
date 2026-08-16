@@ -5927,7 +5927,7 @@ body.tablet-mode-active .hacker-direct-action {
   100% {
     opacity: 0;
     filter: blur(6px) saturate(1.18) brightness(1.22);
-    transform: translate3d(var(--plane-end-x), var(--plane-end-y), 520px) scale(4.8) rotate(calc(var(--plane-roll) * -1));
+    transform: translate3d(var(--plane-end-x), var(--plane-end-y), 520px) scale(4.8) rotate(var(--plane-end-roll));
   }
 }
 
