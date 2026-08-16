@@ -124,7 +124,6 @@ const els = {
   chatNotificationText: $("#chatNotificationText"),
   activeEffectsPanel: $("#activeEffectsPanel"),
   activeEffectsList: $("#activeEffectsList"),
-  expandedScrollRegionHint: $("#expandedScrollRegionHint"),
   itemControl: $("#itemControl"),
   itemSelect: $("#itemSelect"),
   itemInventoryGrid: $("#itemInventoryGrid"),
@@ -155,10 +154,14 @@ const els = {
   analyticsToggleButton: $("#analyticsToggleButton"),
   selectTimer: $("#selectTimer"),
   selectTeamText: $("#selectTeamText"),
+  offlineTeamChoice: $("#offlineTeamChoice"),
+  offlineDefenderButton: $("#offlineDefenderButton"),
+  offlineAttackerButton: $("#offlineAttackerButton"),
   operatorList: $("#operatorList"),
   operatorDetail: $("#operatorDetail"),
   debugForceEndButton: $("#debugForceEndButton"),
   leaveRoomButton: $("#leaveRoomButton"),
+  operatorReselectButton: $("#operatorReselectButton"),
   roleName: $("#roleName"),
   specialName: $("#specialName"),
   movementAccControl: $("#movementAccControl"),
@@ -510,6 +513,8 @@ const state = {
   hackerCooldownWakeTimer: 0,
   hackerCooldownWakeAt: 0,
   activeScrollRegion: null,
+  expandedScrollRegion: null,
+  blankPaneTap: null,
   keyboardContext: "",
   keyboardElement: null,
   debugForceEndEnabled: localStorage.getItem(storage.debugForceEnd) === "1",
@@ -717,7 +722,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "matchmaking-direct-select-v480";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "interaction-runtime-v481";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1920,6 +1925,7 @@ async function runTitleCommandTransition(button, action) {
 function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   state.screen = next;
+  closeSwitchDragMenu();
   if (next !== "game" && state.fieldFeedOpen) setFieldFeedOpen(false);
   if (next !== "game" && state.vendingOpen) setVendingOpen(false, { focus: false });
   document.body.classList.toggle("start-open", next !== "game");
@@ -3723,8 +3729,8 @@ function selectedScrollRegion() {
   if (region) region.classList.remove("scroll-region-selected", "scroll-region-expanded");
   els.sidePanel?.classList.remove("scroll-region-expanded-host");
   els.statusPanel?.classList.remove("scroll-region-expanded-host");
-  if (els.expandedScrollRegionHint) els.expandedScrollRegionHint.hidden = true;
   state.activeScrollRegion = null;
+  state.expandedScrollRegion = null;
   return null;
 }
 
@@ -3734,19 +3740,19 @@ function syncExpandedScrollRegion(region) {
   });
   els.sidePanel?.classList.remove("scroll-region-expanded-host");
   els.statusPanel?.classList.remove("scroll-region-expanded-host");
-  if (els.expandedScrollRegionHint) els.expandedScrollRegionHint.hidden = true;
+  state.expandedScrollRegion = null;
   if (
     state.data?.phase !== "playing" ||
     !(region instanceof Element) ||
     region === els.sidePanel ||
     !els.sidePanel?.contains(region)
   ) return;
-  const choiceCount = scrollRegionChoices(region).length;
-  if (choiceCount < 7) return;
+  const visibleRightPanes = visibleScrollRegions().filter((entry) => entry !== els.sidePanel && els.sidePanel?.contains(entry));
+  if (visibleRightPanes.length < 2) return;
   region.classList.add("scroll-region-expanded");
   els.sidePanel.classList.add("scroll-region-expanded-host");
   region.closest("#statusPanel")?.classList.add("scroll-region-expanded-host");
-  if (els.expandedScrollRegionHint) els.expandedScrollRegionHint.hidden = false;
+  state.expandedScrollRegion = region;
 }
 
 function setSelectedScrollRegion(region, { focus = true } = {}) {
@@ -3761,10 +3767,33 @@ function setSelectedScrollRegion(region, { focus = true } = {}) {
   }
   region.classList.add("scroll-region-selected");
   region.setAttribute("aria-current", "true");
-  syncExpandedScrollRegion(region);
   if (focus) region.focus?.({ preventScroll: true });
   const target = scrollRegionTarget(region);
   target?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  return true;
+}
+
+function toggleExpandedScrollRegion(region) {
+  if (!(region instanceof Element) || region === els.sidePanel || !els.sidePanel?.contains(region)) return false;
+  if (state.expandedScrollRegion === region) {
+    syncExpandedScrollRegion(null);
+    return true;
+  }
+  setSelectedScrollRegion(region, { focus: false });
+  syncExpandedScrollRegion(region);
+  return state.expandedScrollRegion === region;
+}
+
+function isBlankPaneTapTarget(event, region) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || !region?.contains(target)) return false;
+  if (target.closest("button, input, select, textarea, a, label, [role='button'], [role='option'], [contenteditable='true'], [data-hacker-recipe], [data-item-choice]")) return false;
+  const scrollTarget = scrollRegionTarget(region);
+  const rect = scrollTarget?.getBoundingClientRect?.();
+  if (rect && (
+    (scrollTarget.scrollHeight > scrollTarget.clientHeight && event.clientX >= rect.right - 18) ||
+    (scrollTarget.scrollWidth > scrollTarget.clientWidth && event.clientY >= rect.bottom - 18)
+  )) return false;
   return true;
 }
 
@@ -4184,21 +4213,33 @@ function updateSwitchDragHover(clientX, clientY) {
 
 function closeSwitchDragMenu() {
   const gesture = state.switchDrag;
+  const source = gesture.source;
+  const pointerId = gesture.pointerId;
   if (gesture.timer) window.clearTimeout(gesture.timer);
   gesture.timer = 0;
-  gesture.source?.classList.remove("switch-drag-source");
+  source?.classList.remove("switch-drag-source");
   clearSwitchDragHover();
   gesture.pointerId = null;
   gesture.source = null;
   gesture.opened = false;
   gesture.options = [];
   els.switchDragMenu.hidden = true;
+  els.switchDragMenu.setAttribute("aria-hidden", "true");
   els.switchDragOptions.replaceChildren();
+  if (source && pointerId !== null) {
+    try {
+      if (source.hasPointerCapture?.(pointerId)) source.releasePointerCapture(pointerId);
+    } catch {}
+  }
 }
 
 function openSwitchDragMenu(descriptor) {
   const gesture = state.switchDrag;
-  if (gesture.pointerId === null || !gesture.source?.isConnected) return;
+  if (gesture.pointerId === null) return;
+  if (!gesture.source?.isConnected || gesture.source.hidden || gesture.source.disabled || gesture.source.getClientRects().length === 0) {
+    closeSwitchDragMenu();
+    return;
+  }
   gesture.opened = true;
   gesture.options = descriptor.options;
   gesture.source.classList.add("switch-drag-source");
@@ -4217,6 +4258,7 @@ function openSwitchDragMenu(descriptor) {
     els.switchDragOptions.append(button);
   });
   els.switchDragMenu.hidden = false;
+  els.switchDragMenu.setAttribute("aria-hidden", "false");
   positionSwitchDragMenu();
   try { gesture.source.setPointerCapture?.(gesture.pointerId); } catch {}
   if (navigator.vibrate) navigator.vibrate(16);
@@ -4285,6 +4327,7 @@ function bindSwitchDragControl(source) {
   if (!source) return;
   source.classList.add("switch-drag-control");
   source.addEventListener("pointerdown", beginSwitchDragGesture);
+  source.addEventListener("lostpointercapture", (event) => finishSwitchDragGesture(event, true));
   source.addEventListener("contextmenu", (event) => {
     if (!switchDragDescriptorForSource(source)) return;
     event.preventDefault();
@@ -4618,6 +4661,9 @@ function bindEvents() {
   window.addEventListener("pointerup", (event) => finishSwitchDragGesture(event), true);
   window.addEventListener("pointercancel", (event) => finishSwitchDragGesture(event, true), true);
   window.addEventListener("blur", closeSwitchDragMenu);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) closeSwitchDragMenu();
+  });
   window.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
   window.visualViewport?.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
   window.visualViewport?.addEventListener("scroll", () => positionSwitchDragMenu(), { passive: true });
@@ -4723,6 +4769,10 @@ function bindEvents() {
   });
   els.debugForceEndButton.addEventListener("click", () => api("/api/force-end"));
   els.leaveRoomButton.addEventListener("click", () => void returnToTitle());
+  els.operatorReselectButton.addEventListener("click", () => void returnOfflineToOperatorSelect());
+  [els.offlineDefenderButton, els.offlineAttackerButton].forEach((button) => {
+    button.addEventListener("click", () => void chooseOfflineTeam(button.dataset.offlineTeam));
+  });
   els.mapActionButton.addEventListener("click", () => toggleExpandedMapFromAction());
   els.mapCloseButton.addEventListener("click", () => setExpandedMapOpen(false));
   els.taskButton.addEventListener("click", () => api("/api/task", { taskId: nearestTask()?.id || "nearest" }));
@@ -4929,8 +4979,30 @@ function bindEvents() {
     if (!(element instanceof Element)) return;
     const scrollRegion = element.closest("[data-scroll-region]");
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
+    state.blankPaneTap = (
+      event.isPrimary &&
+      state.data?.phase === "playing" &&
+      scrollRegion &&
+      isBlankPaneTapTarget(event, scrollRegion)
+    ) ? {
+      pointerId: event.pointerId,
+      region: scrollRegion,
+      x: event.clientX,
+      y: event.clientY
+    } : null;
   });
-  els.expandedScrollRegionHint?.addEventListener("click", () => setSelectedScrollRegion(null, { focus: false }));
+  document.addEventListener("pointermove", (event) => {
+    const tap = state.blankPaneTap;
+    if (!tap || tap.pointerId !== event.pointerId) return;
+    if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 9) state.blankPaneTap = null;
+  }, { passive: true });
+  document.addEventListener("pointerup", (event) => {
+    const tap = state.blankPaneTap;
+    state.blankPaneTap = null;
+    if (!tap || tap.pointerId !== event.pointerId || !isBlankPaneTapTarget(event, tap.region)) return;
+    toggleExpandedScrollRegion(tap.region);
+  });
+  document.addEventListener("pointercancel", () => { state.blankPaneTap = null; });
   const suppressIosGameCallout = (event) => {
     if (state.screen !== "game") return;
     const target = event.target instanceof Element ? event.target : null;
@@ -6530,7 +6602,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         heart: "10MP。拳を握り、対象の心臓へ干渉して遠隔確殺を試みる",
       accelerate: "1MP。8秒間×2.5。移動・行動不能時間・クールタイム・タスク・物理モーションを加速する",
       decelerate: "1MP。8秒間×0.38。移動・行動不能時間・クールタイム・タスク・物理モーションを減速する",
-      storm: "100MP。指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
+      storm: "10MP。指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
     };
     const gravityModes = new Set(["near", "target", "heart", "accelerate", "decelerate", "storm"]);
     [...els.teleportModeSelect.options].filter((option) => gravityModes.has(option.value)).forEach((option) => {
@@ -6968,6 +7040,50 @@ async function rematch() {
     return false;
   }
   await startMatchmaking();
+  return true;
+}
+
+async function returnOfflineToOperatorSelect() {
+  if (!state.offlineMode || !state.roomId || !state.playerId || state.data?.phase !== "playing") return false;
+  const roomId = state.roomId;
+  const playerId = state.playerId;
+  els.operatorReselectButton.disabled = true;
+  clearMovementInput();
+  closeSwitchDragMenu();
+  closeItemHoldBranch();
+  if (state.expandedMapOpen) setExpandedMapOpen(false);
+  const result = await request("/api/operator-reselect", {
+    roomId,
+    playerId,
+    localOffline: true
+  }, { quiet: true, forceOffline: true });
+  els.operatorReselectButton.disabled = false;
+  if (!result || state.roomId !== roomId || state.playerId !== playerId) {
+    showToast("オペレーター選択へ戻れませんでした。");
+    return false;
+  }
+  applyState(result);
+  showToast("陣営とオペレーターを選び直してください。");
+  return true;
+}
+
+async function chooseOfflineTeam(role) {
+  if (!state.offlineMode || state.data?.phase !== "selecting" || !["defender", "attacker"].includes(role)) return false;
+  els.offlineDefenderButton.disabled = true;
+  els.offlineAttackerButton.disabled = true;
+  const result = await request("/api/offline-team", {
+    roomId: state.roomId,
+    playerId: state.playerId,
+    role,
+    localOffline: true
+  }, { quiet: true, forceOffline: true });
+  els.offlineDefenderButton.disabled = false;
+  els.offlineAttackerButton.disabled = false;
+  if (!result) {
+    showToast("陣営を変更できませんでした。");
+    return false;
+  }
+  applyState(result);
   return true;
 }
 
@@ -8159,7 +8275,7 @@ function renderedPlayer(player) {
 
 function render() {
   const data = state.data;
-  if (data?.phase !== "playing" && (state.activeScrollRegion || !els.expandedScrollRegionHint?.hidden)) {
+  if (data?.phase !== "playing" && (state.activeScrollRegion || state.expandedScrollRegion)) {
     setSelectedScrollRegion(null, { focus: false });
   }
   const offlineContext = state.offlineMode || (!data && !state.onlineAvailable);
@@ -8173,6 +8289,7 @@ function render() {
   }
   const phaseUiKey = data ? `${data.roomId}:${data.phase}` : "disconnected";
   if (state.phaseUiKey !== phaseUiKey) {
+    closeSwitchDragMenu();
     state.phaseUiKey = phaseUiKey;
     els.joinPanel.hidden = Boolean(data);
     els.selectPanel.hidden = !data || data.phase !== "selecting";
@@ -8185,6 +8302,12 @@ function render() {
   state.fieldFeedOpen = Boolean(data && data.phase === "meeting");
   els.fieldFeedPanel.hidden = !state.fieldFeedOpen;
   els.leaveRoomButton.hidden = state.screen === "title";
+  els.operatorReselectButton.hidden = !(
+    state.screen === "game" &&
+    state.offlineMode &&
+    data?.phase === "playing" &&
+    !data?.soloMission
+  );
   els.tabletButton.hidden = false;
   els.tabletButton.disabled = !data || data.phase !== "playing";
   els.gameMuteButton.hidden = false;
@@ -8219,6 +8342,9 @@ function renderOperatorSelect(data) {
   if (data.phase !== "selecting") return;
   const self = data.self;
   const role = roleLabels[self.role] || self.role;
+  els.offlineTeamChoice.hidden = !state.offlineMode;
+  els.offlineDefenderButton.setAttribute("aria-pressed", String(state.offlineMode && self.role === "defender"));
+  els.offlineAttackerButton.setAttribute("aria-pressed", String(state.offlineMode && self.role === "attacker"));
   const isTurn = state.offlineMode
     ? !self.operatorReady
     : data.operatorTurnPlayerId === self.id;
@@ -8463,7 +8589,7 @@ function abilityModeDescription(owner, mode, self) {
       heart: `拳を握って対象の心臓へ干渉し、遠隔確殺を試みる。位置は公開しない。${cost("heartTeleport", 10)}。`,
       accelerate: `対象を8秒間×2.5加速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
       decelerate: `対象を8秒間×0.38へ減速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。${cost("teleport")}。`,
-      storm: `指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 100)}。`
+      storm: `指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 10)}。`
     },
     gravity: null,
     flora: {
@@ -13016,72 +13142,23 @@ function semanticEffectMotion(type, variant = "", fallback = "energy") {
   return fallback;
 }
 
-function drawGoldTransmutationStages(goldSprite, coinSprite, progress) {
+function drawGoldTransmutationStages(goldSprite, progress) {
   const reveal = clamp((progress - 0.08) / 0.2, 0, 1);
-  const exchange = clamp((progress - 0.4) / 0.28, 0, 1);
-  const coinsAppear = clamp((progress - 0.5) / 0.24, 0, 1);
-  const creditConvert = clamp((progress - 0.76) / 0.22, 0, 1);
+  const settle = objectEffectEase(clamp((progress - 0.24) / 0.28, 0, 1));
+  const fade = 1 - objectEffectEase(clamp((progress - 0.84) / 0.16, 0, 1));
   const smoothReveal = reveal * reveal * (3 - 2 * reveal);
   const ingotWidth = 138;
   const ingotHeight = 49;
 
-  if (reveal > 0 && exchange < 1) {
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = smoothReveal * (1 - exchange * 0.94);
-    drawNormalizedSpriteCentered(
-      goldSprite,
-      0,
-      -42 - (1 - smoothReveal) * 30 - exchange * 8,
-      ingotWidth * (0.84 + smoothReveal * 0.16 - exchange * 0.08),
-      ingotHeight * (0.84 + smoothReveal * 0.16 - exchange * 0.08)
-    );
-  }
-
-  if (coinsAppear <= 0 || !coinSprite) return;
-  const coinAlpha = coinsAppear * (1 - creditConvert * 0.82);
-  const settle = objectEffectEase(coinsAppear);
-  ctx.save();
   ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha = coinAlpha;
-  ctx.translate(0, -42 - creditConvert * 58);
-  ctx.rotate((1 - settle) * -0.09 + Math.sin(progress * Math.PI * 5) * 0.012);
-  const coinSize = 106 * (0.72 + settle * 0.28);
-  drawNormalizedSpriteCentered(coinSprite, 0, (1 - settle) * 20, coinSize, coinSize);
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (let index = 0; index < 10; index += 1) {
-    const phase = index * 2.3999632297 + progress * 2.1;
-    const radius = (1 - creditConvert) * (20 + (index % 4) * 8);
-    const x = Math.cos(phase) * radius;
-    const y = -44 + Math.sin(phase) * radius * 0.62 - creditConvert * 48;
-    const particleSize = 1.3 + (index % 3) * 0.7;
-    ctx.globalAlpha = coinAlpha * (0.24 + (index % 4) * 0.08);
-    ctx.fillStyle = index % 3 === 0 ? "#fff7cf" : index % 3 === 1 ? "#ffd75a" : "#f2a91c";
-    ctx.beginPath();
-    ctx.arc(x, y, particleSize, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-
-  if (creditConvert > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < 12; index += 1) {
-      const phase = index * 2.3999632297;
-      const radius = (1 - creditConvert) * (22 + (index % 4) * 9);
-      const x = Math.cos(phase) * radius;
-      const y = -90 + Math.sin(phase) * radius * 0.62;
-      const particleSize = 1.8 + (index % 3) * 0.9;
-      ctx.globalAlpha = (1 - creditConvert) * (0.42 + (index % 4) * 0.12);
-      ctx.fillStyle = index % 3 === 0 ? "#fff3bd" : index % 3 === 1 ? "#ffd45d" : "#e9a91f";
-      ctx.beginPath();
-      ctx.arc(x, y, particleSize, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
+  ctx.globalAlpha = smoothReveal * fade;
+  drawNormalizedSpriteCentered(
+    goldSprite,
+    0,
+    -42 - (1 - settle) * 30,
+    ingotWidth * (0.84 + settle * 0.16),
+    ingotHeight * (0.84 + settle * 0.16)
+  );
 }
 
 function drawGeneratedStandaloneEffect(effect, progress) {
@@ -13165,13 +13242,10 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   }
   if (effect.type === "quantum-transmutation") {
     const goldImage = state.textures?.itemTextures?.gold;
-    const coinImage = state.textures?.creditGainCoinsEffect;
     const goldPrepared = goldImage ? transparentSpriteSource(goldImage, "item-gold", 12) : null;
-    const coinPrepared = coinImage ? transparentSpriteSource(coinImage, "credit-gain-coins", 12) : null;
     const goldSprite = goldPrepared ? normalizedSpriteFrame(goldPrepared, "item-gold", 1, 1, 0, 0) : null;
-    const coinSprite = coinPrepared ? normalizedSpriteFrame(coinPrepared, "credit-gain-coins", 1, 1, 0, 0) : null;
     if (goldSprite) {
-      drawGoldTransmutationStages(goldSprite, coinSprite, progress);
+      drawGoldTransmutationStages(goldSprite, progress);
     }
   }
   ctx.restore();
@@ -14146,28 +14220,36 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
   if (!prepared) return;
   const player = gainEffectPlayer(effect);
   if (!player || !player.alive || player.ejected || player.inVent) return;
-  const marker = headMarkerSlot(index, total, gainMarkerStartRow(player, state.data));
+  const markerCount = Math.max(1, Math.floor(Number(effect.markerCount) || 1));
+  const peerEffects = state.magicEffects.filter((entry) => entry.type.startsWith("gain-") && entry.playerId === effect.playerId);
+  const baseIndex = peerEffects.slice(0, Math.max(0, peerEffects.indexOf(effect)))
+    .reduce((sum, entry) => sum + Math.max(1, Math.floor(Number(entry.markerCount) || 1)), 0);
+  const expandedTotal = peerEffects.reduce((sum, entry) => sum + Math.max(1, Math.floor(Number(entry.markerCount) || 1)), 0);
   const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind] || OBJECT_EFFECT_PRESENTATIONS.mana;
   const fade = objectEffectFade(progress);
   const reveal = objectEffectEase(progress / 0.2);
-  const bob = Math.sin(now / 170 + index * 1.7) * 0.8;
   const size = HEAD_MARKER_LAYOUT.markerSize * (0.76 + reveal * 0.24);
-  ctx.save();
-  ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
   const explanation = GAIN_MARKER_EXPLANATIONS[effect.effectKind] || ["獲得効果", "即時効果を獲得しました。"];
-  registerMarkerHitTarget(`gain:${effect.id || effect.createdAt || effect.effectKind}:${player.id}`, 0, 0, size * 0.62, explanation[0], explanation[1]);
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = fade;
-  drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
-    mode: profile.motion,
-    time: now / 1000,
-    phase: index * 0.23,
-    intensity: 0.9,
-    baseAlpha: 0.16,
-    opacityBoost: 3
-  });
-  drawAteComplementaryVfx(ctx, profile.motion, size, size, now / 1000, progress, fade * 0.42);
-  ctx.restore();
+  for (let markerIndex = 0; markerIndex < markerCount; markerIndex += 1) {
+    const expandedIndex = baseIndex + markerIndex;
+    const marker = headMarkerSlot(expandedIndex, expandedTotal, gainMarkerStartRow(player, state.data));
+    const bob = Math.sin(now / 170 + expandedIndex * 1.7) * 0.8;
+    ctx.save();
+    ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
+    registerMarkerHitTarget(`gain:${effect.id || effect.createdAt || effect.effectKind}:${player.id}:${markerIndex}`, 0, 0, size * 0.62, explanation[0], explanation[1]);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = fade;
+    drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
+      mode: profile.motion,
+      time: now / 1000,
+      phase: expandedIndex * 0.23,
+      intensity: 0.9,
+      baseAlpha: 0.16,
+      opacityBoost: 3
+    });
+    drawAteComplementaryVfx(ctx, profile.motion, size, size, now / 1000, progress, fade * 0.42);
+    ctx.restore();
+  }
 }
 
 function objectEffectEase(value) {
@@ -15311,7 +15393,7 @@ function drawPetSprite(player, data, ghost) {
   if (skinId === "blue-dress") {
     const walkAtlasSource = state.textures.playerWalkAtlases?.[skinId];
     const walkAtlas = walkAtlasSource ? transparentSpriteSource(walkAtlasSource, `skinWalk60-${skinId}`, 12) : null;
-    if (walkAtlas) {
+    if (walkAtlas && motion.moving) {
       drawSophiaMinimalWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94);
       drawNameplate(player, ghost, -78);
       return true;
@@ -16550,7 +16632,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "matchmaking-direct-select-v480";
+const version = "interaction-runtime-v481";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -16717,7 +16799,6 @@ const version = "matchmaking-direct-select-v480";
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
-  const creditGainCoinsEffect = new Image();
   const blueDressWalk60 = new Image();
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
@@ -16829,7 +16910,6 @@ const version = "matchmaking-direct-select-v480";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
-  defer(creditGainCoinsEffect, "assets/generated/object-effect-credits-v438.png");
   defer(blueDressWalk60, "assets/generated/skin-blue-dress-walk-60.webp");
   for (const [skinId, motions] of Object.entries(physicalActionMotions)) {
     for (const [kind, entry] of Object.entries(motions)) {
@@ -16957,7 +17037,6 @@ const version = "matchmaking-direct-select-v480";
     smartphoneRepairIcon,
     throwLandingPreview,
     clairvoyanceThrowAte,
-    creditGainCoinsEffect,
     physicalActionMotions,
     physicalActionFrameOverrides,
     weaponFireMotions,

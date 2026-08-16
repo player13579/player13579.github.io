@@ -7635,7 +7635,7 @@ const SUNBEAM_RANGE = 950;
 const SUNBEAM_WIDTH = 52;
 const SUNBEAM_KILL_CHANCE = 0.48;
 const GRAVITY_STORM_VISUAL_RADIUS = 520;
-const GRAVITY_STORM_MANA_COST = 100;
+const GRAVITY_STORM_MANA_COST = 10;
 const GRAVITY_STORM_DURATION_MS = 12_000;
 const GRAVITY_STORM_PULSE_MS = 600;
 const GRAVITY_STORM_BARRIER_RELEASE_MS = 1_000;
@@ -7774,7 +7774,7 @@ const OPERATORS = {
       limit: 99,
       asset: "teleport",
       description: "重力と時空を操作し、転移・時間加減速・浮揚・重力嵐を扱う。",
-      details: "重力による時空の曲率を操作するオペレーター。転移は1MPを消費し、他人の付近へ自分を移動する。心臓転移は10MPを消費して対象を遠隔確殺する。アクセラレートとディーセラレートは1MPで8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストームは100MPを消費し、指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
+      details: "重力による時空の曲率を操作するオペレーター。転移は1MPを消費し、他人の付近へ自分を移動する。心臓転移は10MPを消費して対象を遠隔確殺する。アクセラレートとディーセラレートは1MPで8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストームは10MPを消費し、指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
     },
     {
       id: "defender-flora",
@@ -9390,6 +9390,7 @@ function pushMagicEffect(room, type, source, options = {}) {
     variant: String(options.variant || ""),
     mode: String(options.mode || ""),
     effectKind: String(options.effectKind || ""),
+    markerCount: Math.max(1, Math.floor(Number(options.markerCount) || 1)),
     durationMs: Math.max(0, Number(options.durationMs) || 0),
     at: now()
   });
@@ -9403,6 +9404,7 @@ function pushGainAte(room, player, effectKind, options = {}) {
     playerId: player.id,
     effectKind,
     variant: String(options.variant || ""),
+    markerCount: Math.max(1, Math.floor(Number(options.markerCount) || 1)),
     durationMs: Math.max(900, Number(options.durationMs) || 1500)
   });
 }
@@ -9411,7 +9413,10 @@ function grantCredits(room, player, rawAmount, source = "") {
   const amount = Math.max(0, Math.floor(Number(rawAmount) || 0));
   if (!amount) return 0;
   player.credits = (Number(player.credits) || 0) + amount;
-  pushGainAte(room, player, "credits", { variant: source || `credits:${amount}` });
+  pushGainAte(room, player, "credits", {
+    variant: source || `credits:${amount}`,
+    markerCount: amount
+  });
   return amount;
 }
 
@@ -11888,11 +11893,20 @@ function taskProgress(room) {
 }
 
 function soleHumanBotMatchPlayer(room) {
-  if (room.soloMission) return null;
   const players = [...room.players.values()].filter((player) => !player.midJoinAvailable);
   if (!players.some((player) => player.isBot)) return null;
   const humans = players.filter((player) => !player.isBot);
   return humans.length === 1 ? humans[0] : null;
+}
+
+function humanPlayersInBotMatch(room) {
+  const players = [...room.players.values()].filter((player) => !player.midJoinAvailable);
+  if (!players.some((player) => player.isBot)) return [];
+  return players.filter((player) => !player.isBot);
+}
+
+function winningHumansInBotMatch(room, winnerRole) {
+  return humanPlayersInBotMatch(room).filter((player) => player.role === winnerRole);
 }
 
 function recordBotMatchElimination(room, target, source = null) {
@@ -11901,32 +11915,34 @@ function recordBotMatchElimination(room, target, source = null) {
 }
 
 function botMatchHumanEarnedEliminationVictory(room, winnerRole) {
-  const human = soleHumanBotMatchPlayer(room);
-  if (!human || human.role !== winnerRole) return true;
+  const winningHumans = winningHumansInBotMatch(room, winnerRole);
+  if (winningHumans.length === 0) return true;
+  const winningHumanIds = new Set(winningHumans.map((player) => player.id));
   const opponents = [...room.players.values()].filter((player) => (
     !player.midJoinAvailable && player.role !== winnerRole
   ));
   return opponents.length > 0 && opponents.every((player) => (
-    (!player.alive || player.ejected) && player.botMatchEliminatedById === human.id
+    (!player.alive || player.ejected) && winningHumanIds.has(player.botMatchEliminatedById)
   ));
 }
 
 function botMatchHumanOwnsCriticalSabotage(room) {
-  const human = soleHumanBotMatchPlayer(room);
-  if (!human || human.role !== "attacker") return true;
-  return String(room.sabotage?.sourceId || "") === human.id;
+  const humanAttackers = winningHumansInBotMatch(room, "attacker");
+  if (humanAttackers.length === 0) return true;
+  const sourceId = String(room.sabotage?.sourceId || "");
+  return humanAttackers.some((player) => player.id === sourceId);
 }
 
 function botMatchHumanOwnsVictory(room, winner, cause = null) {
-  const human = soleHumanBotMatchPlayer(room);
-  if (!human) return true;
+  const humans = humanPlayersInBotMatch(room);
+  if (humans.length === 0) return true;
   const victoryCause = cause || {};
 
   if (winner === "idea") {
     const sourceIds = Array.isArray(victoryCause.sourceIds)
       ? victoryCause.sourceIds.map(String)
       : ideaWinnerIdsFor(room);
-    return victoryCause.type === "idea" && sourceIds.includes(human.id);
+    return victoryCause.type === "idea" && humans.some((player) => sourceIds.includes(player.id));
   }
 
   const winnerRole = winner === "defenders"
@@ -11934,17 +11950,28 @@ function botMatchHumanOwnsVictory(room, winner, cause = null) {
     : winner === "attackers"
       ? "attacker"
       : "";
-  if (!winnerRole || winnerRole !== human.role) return true;
+  if (room.soloMission) {
+    const trainee = room.players.get(room.soloMission.playerId);
+    if (!trainee || !winnerRole || winnerRole !== trainee.role) return true;
+    return victoryCause.type === "soloMission" &&
+      String(victoryCause.sourceId || "") === trainee.id &&
+      Boolean(room.soloMission.completed);
+  }
+  const winningHumans = winningHumansInBotMatch(room, winnerRole);
+  if (!winnerRole || winningHumans.length === 0) return true;
 
   if (victoryCause.type === "elimination") {
     return botMatchHumanEarnedEliminationVictory(room, winnerRole);
   }
   if (victoryCause.type === "tasks") {
-    const tasks = Array.isArray(human.taskList) ? human.taskList : [];
-    return human.alive && !human.ejected && tasks.length > 0 && tasks.every((task) => task.done);
+    return winningHumans.every((human) => {
+      const tasks = Array.isArray(human.taskList) ? human.taskList : [];
+      return human.alive && !human.ejected && tasks.length > 0 && tasks.every((task) => task.done);
+    });
   }
   if (victoryCause.type === "criticalSabotage") {
-    return winnerRole === "attacker" && String(victoryCause.sourceId || "") === human.id;
+    const sourceId = String(victoryCause.sourceId || "");
+    return winnerRole === "attacker" && winningHumans.some((human) => human.id === sourceId);
   }
 
   return false;
@@ -11975,13 +12002,13 @@ function botAllyCannotFinishTarget(room, source, target) {
 }
 
 function taskProgressForWin(room) {
-  const human = soleHumanBotMatchPlayer(room);
-  if (!human) return taskProgress(room);
-  // In a bot match, defender bots must never complete the human attacker's loss condition.
-  if (human.role !== "defender") return { done: 0, total: 0 };
-  const tasks = Array.isArray(human.taskList) ? human.taskList : [];
-  // Death completion remains valid online, but must not hand an idle solo human a bot-match win.
-  if (!human.alive || human.ejected) return { done: 0, total: tasks.length };
+  const humans = humanPlayersInBotMatch(room);
+  if (humans.length === 0) return taskProgress(room);
+  const defenderHumans = humans.filter((player) => player.role === "defender");
+  // Bot defenders may defeat human attackers, but cannot supply a human defender's win.
+  if (defenderHumans.length === 0) return taskProgress(room);
+  const tasks = defenderHumans.flatMap((player) => Array.isArray(player.taskList) ? player.taskList : []);
+  if (defenderHumans.some((player) => !player.alive || player.ejected)) return { done: 0, total: tasks.length };
   return { done: tasks.filter((task) => task.done).length, total: tasks.length };
 }
 
@@ -12083,11 +12110,12 @@ function completeSoloMission(room, mission) {
   if (!room.soloMission || room.soloMission.completed || room.phase !== "playing") return false;
   room.soloMission.completed = true;
   const winner = mission.team === "attacker" ? "attackers" : "defenders";
-  finish(room, winner, `ソロ訓練「${mission.name}」を達成しました。`, {
+  const finished = finish(room, winner, `ソロ訓練「${mission.name}」を達成しました。`, {
     type: "soloMission",
     sourceId: room.soloMission.playerId
   });
-  return true;
+  if (!finished) room.soloMission.completed = false;
+  return finished;
 }
 
 function evaluateSoloMission(room, timestamp = now()) {
@@ -12100,12 +12128,13 @@ function evaluateSoloMission(room, timestamp = now()) {
   if (mission.metric === "task") completed = state.taskCount >= 1;
   else if (mission.metric === "kill") completed = player.totalKills >= 1;
   else if (mission.metric === "defense") {
-    completed = Boolean(state.defenseActivatedAt) && (
-      timestamp - state.defenseActivatedAt >= mission.surviveMs || alivePlayers(room, "attacker").length === 0
-    );
+    completed = Boolean(state.defenseActivatedAt) && timestamp - state.defenseActivatedAt >= mission.surviveMs;
   } else if (mission.metric === "intel") completed = state.clairvoyanceUsed && state.sabotageUsed;
   else if (mission.metric === "emp") completed = state.empCancelled && state.empAmplified;
-  else if (mission.metric === "cpu") completed = room.phase === "ended" && room.winner === "defenders";
+  else if (mission.metric === "cpu" || mission.metric === "cpu2") {
+    const cpu = room.players.get(state.cpuBotId);
+    completed = Boolean(cpu) && (!cpu.alive || cpu.ejected) && cpu.botMatchEliminatedById === player.id;
+  }
   return completed ? completeSoloMission(room, mission) : false;
 }
 
@@ -12123,6 +12152,17 @@ function checkWin(room) {
   if (room.phase !== "playing" && room.phase !== "meeting") return;
   if (room.pendingIdeaVictoryAt) return;
   if (evaluateSoloMission(room)) return;
+  if (room.soloMission) {
+    const trainee = room.players.get(room.soloMission.playerId);
+    if (trainee && (!trainee.alive || trainee.ejected)) {
+      const winner = trainee.role === "attacker" ? "defenders" : "attackers";
+      finish(room, winner, "訓練目標の達成前にプレイヤーが行動不能になりました。", {
+        type: "soloMissionFailure",
+        sourceId: ""
+      });
+    }
+    return;
+  }
   const attackers = alivePlayers(room, "attacker");
   const defenders = alivePlayers(room, "defender");
   const progress = taskProgressForWin(room);
@@ -18257,6 +18297,7 @@ async function handleApi(req, res) {
       if (body.offlineFallback === true) {
         const room = createRoom(roomCode());
         const player = createMatchedPlayer(room, requestedName, body.skinId, profileId, identityKey);
+        room.matchmaking = { status: "offline" };
         addDefaultOnlineBots(room);
         startGame(room);
         payload = {
@@ -18445,6 +18486,45 @@ async function handleApi(req, res) {
     case "/api/operator": {
       const { room, player } = requireRoomPlayer(body);
       selectOperator(room, player, String(body.operatorId || ""), String(body.operatorSpecial || ""));
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/operator-reselect": {
+      const { room, player } = requireRoomPlayer(body);
+      if (body.localOffline !== true || room.matchmaking?.status !== "offline") {
+        throw new ApiError(403, "オフライン対戦だけがオペレーターを選び直せます。");
+      }
+      if (room.soloMission || room.phase !== "playing") {
+        throw new ApiError(409, "いまはオペレーター選択へ戻れません。");
+      }
+      const roles = new Map([...room.players.values()].map((entry) => [entry.id, entry.role]));
+      startGame(room);
+      for (const entry of room.players.values()) entry.role = roles.get(entry.id) || entry.role;
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/offline-team": {
+      const { room, player } = requireRoomPlayer(body);
+      const role = String(body.role || "");
+      if (body.localOffline !== true || room.matchmaking?.status !== "offline") {
+        throw new ApiError(403, "オフライン対戦だけが陣営を選択できます。");
+      }
+      if (room.phase !== "selecting" || !["defender", "attacker"].includes(role)) {
+        throw new ApiError(409, "いまは陣営を選択できません。");
+      }
+      player.role = role;
+      const bots = [...room.players.values()].filter((entry) => entry.isBot);
+      if (role === "attacker") {
+        bots.forEach((entry) => { entry.role = "defender"; });
+      } else {
+        bots.forEach((entry, index) => { entry.role = index === 0 ? "attacker" : "defender"; });
+      }
+      const attackerCount = [...room.players.values()].filter((entry) => entry.role === "attacker").length;
+      const defenderCount = [...room.players.values()].filter((entry) => entry.role === "defender").length;
+      room.killRateAttackerTarget = Math.max(1, Math.ceil(defenderCount / Math.max(1, attackerCount)));
+      touch(room);
       payload = serialize(room, player);
       break;
     }
@@ -19907,7 +19987,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "matchmaking-direct-select-v480",
+  version: "interaction-runtime-v481",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

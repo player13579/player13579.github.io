@@ -2700,6 +2700,11 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   user-select: none;
 }
 
+.switch-drag-menu[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .switch-drag-menu > strong {
   display: none;
 }
@@ -3199,7 +3204,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=matchmaking-direct-select-v480") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=interaction-runtime-v481") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
@@ -4083,6 +4088,24 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   margin: 10px 0 0;
   padding: 0;
   list-style: none;
+}
+
+.offline-team-choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.offline-team-choice[hidden] {
+  display: none !important;
+}
+
+.offline-team-choice button[aria-pressed="true"] {
+  border-color: #22d3ee;
+  background: linear-gradient(180deg, #155e75, #164e63);
+  color: #ecfeff;
+  box-shadow: inset 0 0 0 2px rgba(103, 232, 249, 0.28);
 }
 
 .room-list:empty::before {
@@ -7657,6 +7680,35 @@ body.start-open .game-tactics-button {
   display: none !important;
 }
 
+.operator-reselect-button {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 128px);
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  border: 1px solid rgba(103, 232, 249, 0.88);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(8, 70, 91, 0.96), rgba(14, 116, 144, 0.92));
+  color: #ecfeff;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.32), 0 8px 22px rgba(4, 47, 67, 0.34);
+}
+
+.operator-reselect-button:hover,
+.operator-reselect-button:focus-visible {
+  filter: brightness(1.16) saturate(1.08);
+  transform: translateY(-2px);
+}
+
+.operator-reselect-button[hidden] {
+  display: none !important;
+}
+
 .tablet-launch-glyph {
   position: relative;
   display: block;
@@ -7750,36 +7802,6 @@ body #statusPanel .alchemy-control:has(.alchemy-choice-grid.scroll-region-expand
 body #statusPanel .vending-panel.scroll-region-expanded {
   max-height: none;
   overflow-y: auto;
-}
-
-.expanded-scroll-region-hint {
-  position: fixed;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(82px, calc(env(safe-area-inset-bottom) + 82px));
-  z-index: 165;
-  width: min(360px, calc(100vw - 36px));
-  min-height: 42px;
-  border: 1px solid rgba(8, 145, 178, 0.72);
-  border-radius: 999px;
-  background: rgba(239, 250, 255, 0.96);
-  box-shadow: 0 10px 24px rgba(8, 47, 73, 0.24);
-  color: #0c4a6e;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-}
-
-.expanded-scroll-region-hint[hidden] {
-  display: none !important;
-}
-
-@media (max-width: 680px) {
-  .expanded-scroll-region-hint {
-    right: 50%;
-    bottom: max(76px, calc(env(safe-area-inset-bottom) + 76px));
-    width: min(440px, calc(100vw - 24px));
-    transform: translateX(50%);
-  }
 }
 
 body .vending-panel {
