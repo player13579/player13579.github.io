@@ -40,6 +40,7 @@ const els = {
   startScreen: $("#startScreen"),
   startHero: $("#startHero"),
   titleCommandTransitionAte: $("#titleCommandTransitionAte"),
+  titleCommandDepthField: $("#titleCommandDepthField"),
   titleCommandPixelField: $("#titleCommandPixelField"),
   screenFlash: $("#screenFlash"),
   gameApp: $("#gameApp"),
@@ -741,7 +742,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "native-swipe-weapon-ate-v477";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "title-depth-texture-flyby-v478";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1908,14 +1909,79 @@ function switchScreenWithEffect(next) {
   setScreen(next);
 }
 
+function buildTitleCommandDepthFlyby() {
+  const field = els.titleCommandDepthField;
+  const hero = els.startHero;
+  if (!field || !hero) return 0;
+  field.replaceChildren();
+  const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+  const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+  const naturalWidth = Math.max(1, hero.naturalWidth || viewportWidth);
+  const naturalHeight = Math.max(1, hero.naturalHeight || viewportHeight);
+  const heroRect = hero.getBoundingClientRect();
+  const style = window.getComputedStyle(hero);
+  const objectPosition = String(style.objectPosition || "50% 50%").split(/\s+/);
+  const positionFraction = (value, fallback) => String(value || "").endsWith("%")
+    ? Math.max(0, Math.min(1, Number.parseFloat(value) / 100))
+    : fallback;
+  const positionX = positionFraction(objectPosition[0], 0.5);
+  const positionY = positionFraction(objectPosition[1], 0.5);
+  const imageScale = Math.max(heroRect.width / naturalWidth, heroRect.height / naturalHeight);
+  const imageWidth = naturalWidth * imageScale;
+  const imageHeight = naturalHeight * imageScale;
+  const imageLeft = heroRect.left + (heroRect.width - imageWidth) * positionX;
+  const imageTop = heroRect.top + (heroRect.height - imageHeight) * positionY;
+  const vanishingX = viewportWidth * 0.55;
+  const vanishingY = viewportHeight * 0.43;
+  const travelBase = Math.hypot(viewportWidth, viewportHeight);
+  const heroUrl = String(hero.currentSrc || hero.src || "").replace(/"/g, "%22");
+  const planes = [
+    [0.02, 0.05, 0.19, 0.18], [0.25, 0.02, 0.17, 0.16], [0.58, 0.03, 0.17, 0.17], [0.80, 0.06, 0.18, 0.19],
+    [0.01, 0.31, 0.16, 0.23], [0.83, 0.30, 0.16, 0.23], [0.03, 0.68, 0.18, 0.22], [0.25, 0.79, 0.18, 0.18],
+    [0.59, 0.79, 0.17, 0.18], [0.81, 0.68, 0.18, 0.22], [0.16, 0.18, 0.14, 0.17], [0.69, 0.19, 0.15, 0.18],
+    [0.15, 0.53, 0.15, 0.18], [0.70, 0.52, 0.15, 0.19]
+  ];
+  planes.forEach(([xRatio, yRatio, widthRatio, heightRatio], index) => {
+    const plane = document.createElement("i");
+    const x = viewportWidth * xRatio;
+    const y = viewportHeight * yRatio;
+    const width = Math.max(48, viewportWidth * widthRatio);
+    const height = Math.max(42, viewportHeight * heightRatio);
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const rayX = centerX - vanishingX;
+    const rayY = centerY - vanishingY;
+    const rayLength = Math.max(1, Math.hypot(rayX, rayY));
+    const travel = travelBase * (0.62 + (index % 4) * 0.07);
+    plane.style.left = `${x}px`;
+    plane.style.top = `${y}px`;
+    plane.style.width = `${width}px`;
+    plane.style.height = `${height}px`;
+    plane.style.backgroundImage = `url("${heroUrl}")`;
+    plane.style.backgroundSize = `${imageWidth}px ${imageHeight}px`;
+    plane.style.backgroundPosition = `${imageLeft - x}px ${imageTop - y}px`;
+    plane.style.setProperty("--plane-start-x", `${vanishingX - centerX}px`);
+    plane.style.setProperty("--plane-start-y", `${vanishingY - centerY}px`);
+    plane.style.setProperty("--plane-end-x", `${rayX / rayLength * travel}px`);
+    plane.style.setProperty("--plane-end-y", `${rayY / rayLength * travel}px`);
+    plane.style.setProperty("--plane-delay", `${18 + (index % 5) * 24}ms`);
+    plane.style.setProperty("--plane-duration", `${670 + (index % 4) * 38}ms`);
+    plane.style.setProperty("--plane-roll", `${((index % 5) - 2) * 0.7}deg`);
+    field.appendChild(plane);
+  });
+  return planes.length;
+}
+
 async function runTitleCommandTransition(button, action) {
   if (!button || state.titleCommandTransitionRunning) return false;
   state.titleCommandTransitionRunning = true;
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  const duration = reduced ? 160 : 640;
+  const duration = reduced ? 160 : 880;
   const rect = button.getBoundingClientRect();
   const overlay = els.titleCommandTransitionAte;
+  const depthField = els.titleCommandDepthField;
   const pixels = els.titleCommandPixelField;
+  buildTitleCommandDepthFlyby();
   pixels.replaceChildren();
   overlay.style.setProperty("--command-left", `${rect.left}px`);
   overlay.style.setProperty("--command-top", `${rect.top}px`);
@@ -1932,6 +1998,7 @@ async function runTitleCommandTransition(button, action) {
     pixels.appendChild(pixel);
   }
   overlay.hidden = false;
+  overlay.classList.toggle("reduced", Boolean(reduced));
   void overlay.offsetWidth;
   overlay.classList.add("active");
   button.classList.add("title-command-dispersing");
@@ -1941,7 +2008,9 @@ async function runTitleCommandTransition(button, action) {
   action();
   await delay(reduced ? 20 : 140);
   overlay.classList.remove("active");
+  overlay.classList.remove("reduced");
   overlay.hidden = true;
+  depthField?.replaceChildren();
   pixels.replaceChildren();
   button.classList.remove("title-command-dispersing");
   els.titlePlayButton.disabled = false;
@@ -16713,7 +16782,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "native-swipe-weapon-ate-v477";
+const version = "title-depth-texture-flyby-v478";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

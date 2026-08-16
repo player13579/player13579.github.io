@@ -19821,7 +19821,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "native-swipe-weapon-ate-v477",
+  version: "title-depth-texture-flyby-v478",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
