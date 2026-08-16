@@ -12,15 +12,15 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v458.png">
-    <link rel="preload" as="image" href="assets/title-hero-v466.png?v=input-team-acc-v482" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/title-hero-v466.png?v=right-panel-hsg-daily-v485" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=input-team-acc-v482">
+  <link rel="stylesheet" href="styles.css?v=right-panel-hsg-daily-v485">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v466.png?v=input-team-acc-v482" alt="遠近感のあるブリーフィング室でウィンクし、手を差し向けるソフィア" fetchpriority="high">
-      <img class="title-hero-character" src="assets/title-hero-v466.png?v=input-team-acc-v482" alt="" aria-hidden="true">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v466.png?v=input-team-acc-v482" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v466.png?v=right-panel-hsg-daily-v485" alt="遠近感のあるブリーフィング室でウィンクし、手を差し向けるソフィア" fetchpriority="high">
+      <img class="title-hero-character" src="assets/title-hero-v466.png?v=right-panel-hsg-daily-v485" alt="" aria-hidden="true">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v466.png?v=right-panel-hsg-daily-v485" alt="" aria-hidden="true">
       <div class="title-hero-vfx" aria-hidden="true">
         <i class="title-hero-mote mote-a"></i>
         <i class="title-hero-mote mote-b"></i>
@@ -206,7 +206,7 @@
               <header><span>七</span><div><p>STORY DIGEST</p><h3>ソフィアとフィリアの戦術案内</h3></div></header>
               <p class="tactics-lead">二人の短い身振りと、台詞の節目だけ現れる肯定的な漫符ATEを見ながら、試合の流れ、資源、戦闘、索敵、会議、勝利条件を短く一周します。画面タップ、左右キー、または左右スワイプで進められます。</p>
               <section id="tacticsNovelStage" class="tactics-novel-stage" tabindex="0" aria-label="ノベルダイジェスト" aria-describedby="tacticsNovelText">
-                <img class="tactics-novel-background" src="assets/generated/tactics-novel-briefing-room-v466.png?v=input-team-acc-v482" alt="木と青緑の研究設備、ソファを備えた戦術ブリーフィング室">
+                <img class="tactics-novel-background" src="assets/generated/tactics-novel-briefing-room-v466.png?v=right-panel-hsg-daily-v485" alt="木と青緑の研究設備、ソファを備えた戦術ブリーフィング室">
                 <canvas id="tacticsNovelCanvas" width="1280" height="720" aria-hidden="true"></canvas>
                 <div class="tactics-novel-topline">
                   <span id="tacticsNovelChapter">01 / 12　ようこそ</span>
@@ -355,7 +355,7 @@
         </div>
       </section>
 
-      <aside id="sidePanel" class="side-panel" data-ui-region="tactical-sidebar" data-scroll-region="タクティカルサイドバー" aria-label="タクティカルサイドバー" tabindex="0">
+      <aside id="sidePanel" class="side-panel" data-ui-region="tactical-sidebar" data-scroll-region="タクティカルサイドバー" data-right-panel-scroll aria-label="タクティカルサイドバー" tabindex="0">
         <section id="joinPanel" class="panel">
           <h2>マッチング</h2>
           <p class="objective">対戦相手が見つかればオンライン、見つからなければオフラインで開始します。</p>
@@ -384,7 +384,7 @@
             <button id="offlineDefenderButton" type="button" data-offline-team="defender" aria-pressed="false">防衛</button>
             <button id="offlineAttackerButton" type="button" data-offline-team="attacker" aria-pressed="false">攻撃</button>
           </div>
-          <div id="operatorList" class="operator-list"></div>
+          <div id="operatorList" class="operator-list" data-right-panel-scroll></div>
           <div id="operatorDetail" class="operator-detail" aria-live="polite" hidden></div>
         </section>
 
@@ -410,7 +410,7 @@
               </div>
               <button id="hackerTargetButton" class="hacker-target-button" type="button" title="Pで対象を変更">対象を選択</button>
             </div>
-            <div id="hackerAbilityGrid" class="hacker-ability-grid" role="group" aria-label="ハッカー能力一覧"></div>
+            <div id="hackerAbilityGrid" class="hacker-ability-grid" data-right-panel-scroll role="group" aria-label="ハッカー能力一覧"></div>
           </aside>
           <aside id="itemControl" class="item-control" data-scroll-region="所持品" data-scroll-target="itemInventoryGrid" aria-label="所持品操作" tabindex="0" hidden>
             <div class="item-control-head">
@@ -418,7 +418,7 @@
               <span>↑↓←→ 選択・武器はタップで切替・Shift+V 使用・Shift+G 投擲</span>
             </div>
             <select id="itemSelect" class="visually-hidden-select" aria-label="所持品"></select>
-            <div id="itemInventoryGrid" class="item-inventory-grid" role="listbox" aria-label="所持品一覧"></div>
+            <div id="itemInventoryGrid" class="item-inventory-grid" data-right-panel-scroll role="listbox" aria-label="所持品一覧"></div>
             <div class="item-control-actions">
               <button id="itemUseButton" type="button" data-hotkey="Shift+V">使用 [Shift+V]</button>
               <button id="itemThrowButton" type="button" data-hotkey="Shift+G">投擲 [Shift+G]</button>
@@ -449,7 +449,7 @@
               <button id="itemHoldBranchDetailButton" class="item-hold-branch-node detail" type="button">詳細</button>
             </div>
           </section>
-          <div id="vendingPanel" class="vending-panel" data-scroll-region="自販機" aria-label="自販機" tabindex="0" hidden>
+          <div id="vendingPanel" class="vending-panel" data-scroll-region="自販機" data-right-panel-scroll aria-label="自販機" tabindex="0" hidden>
             <div class="panel-title-row vending-title-row">
               <h3>自販機</h3>
               <div class="vending-category-control hacker-category-control" role="group" aria-label="商品の分類">
@@ -502,7 +502,7 @@
               </span>
               <span class="badge">矢印で選択・Enterで実行</span>
             </div>
-            <div id="alchemyChoiceGrid" class="alchemy-choice-grid" data-scroll-region="ハッカー生成候補" role="group" aria-label="バイブコーディング生成候補" tabindex="0">
+            <div id="alchemyChoiceGrid" class="alchemy-choice-grid" data-scroll-region="ハッカー生成候補" data-right-panel-scroll role="group" aria-label="バイブコーディング生成候補" tabindex="0">
               <button type="button" class="alchemy-choice selected" data-alchemy-choice="stamina" data-atlas-cell="5" aria-pressed="true">
                 <span class="alchemy-choice-icon" aria-hidden="true"></span>
                 <span><strong>スタミナ</strong></span>
@@ -665,11 +665,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="economy-catalog-v468.js?v=input-team-acc-v482"></script>
-    <script src="game-runtime.js?v=input-team-acc-v482"></script>
-    <script src="game-engine.js?v=input-team-acc-v482"></script>
-    <script src="offline-runtime.js?v=input-team-acc-v482"></script>
-    <script src="config.js?v=input-team-acc-v482"></script>
-    <script src="app.js?v=input-team-acc-v482"></script>
+    <script src="economy-catalog-v468.js?v=right-panel-hsg-daily-v485"></script>
+    <script src="game-runtime.js?v=right-panel-hsg-daily-v485"></script>
+    <script src="game-engine.js?v=right-panel-hsg-daily-v485"></script>
+    <script src="offline-runtime.js?v=right-panel-hsg-daily-v485"></script>
+    <script src="config.js?v=right-panel-hsg-daily-v485"></script>
+    <script src="app.js?v=right-panel-hsg-daily-v485"></script>
 </body>
 </html>

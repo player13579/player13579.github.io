@@ -625,7 +625,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後のJGは全攻撃反射、消滅斬りは死体なし。斬る／投擲の衝撃波はEC-1、EC100以上の斬るはEC-100で特大化。衝撃波はJG・反射不可",
-  hsg: "再使用可能。使用で8秒間浮揚・ACC 1.8。Enhanceごとに効果時間+4秒、ACC+0.4",
+  hsg: "再使用可能。使用で8秒間浮揚・ACC 1.8。Enhanceごとに効果時間+4秒、ACC+0.4。有効中の再使用は既存効果をリセットせず追加累積",
   iai: "敵1人の有限の踏ん張りを全削除。200SP相当をSPから消費し、不足分は150SP=1MPで補填。総量不足なら死亡。EC50の無限踏ん張りは削除不可",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -724,7 +724,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "input-team-acc-v482";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-panel-hsg-daily-v485";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -742,7 +742,7 @@ const generatedItemTextureFiles = new Map([
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
   ["orichalcum-sword", { file: "item-orichalcum-sword-v453.png" }],
-  ["hsg", { file: "item-hsg-v482.png" }],
+  ["hsg", { file: "item-hsg-v483.png" }],
   ["iai", { file: "instant-iai-abstract-v451.png" }],
   ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
   ["heal", { file: "alchemy-effect-heal-v311.png" }],
@@ -1791,6 +1791,25 @@ function scheduleViewportScaleRestore(force = false) {
     viewportScaleResetTimer = 0;
     restoreLockedViewportScale(force);
   }, force ? 0 : 80);
+}
+
+const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-region], .tablet-branch-list, .hacker-ability-grid, .active-effects-panel, .item-inventory-grid, .vending-panel, .operator-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .keybind-list";
+
+function resolveFullscreenScrollableSurface(target) {
+  if (!(target instanceof Element)) return null;
+  const visited = new Set();
+  let fallback = null;
+  let candidate = target.closest(FULLSCREEN_SCROLL_SELECTOR);
+  while (candidate) {
+    const mapped = candidate.matches("[data-scroll-region]") ? scrollRegionTarget(candidate) : candidate;
+    if (mapped instanceof Element && !visited.has(mapped)) {
+      visited.add(mapped);
+      fallback ||= mapped;
+      if (mapped.scrollHeight > mapped.clientHeight + 1) return mapped;
+    }
+    candidate = candidate.parentElement?.closest(FULLSCREEN_SCROLL_SELECTOR) || null;
+  }
+  return fallback;
 }
 
 function createFullscreenSwipeGuard({ isActive, resolveScrollable }) {
@@ -5310,10 +5329,9 @@ function bindEvents() {
       event.preventDefault();
     }
   });
-  const fullscreenScrollSelector = "[data-scroll-region], .tablet-branch-list, .hacker-ability-grid, .active-effects-panel, .item-inventory-grid, .vending-panel, .operator-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .keybind-list";
   const fullscreenSwipeGuard = createFullscreenSwipeGuard({
     isActive: () => state.screen === "game",
-    resolveScrollable: (target) => target instanceof Element ? target.closest(fullscreenScrollSelector) : null
+    resolveScrollable: resolveFullscreenScrollableSurface
   });
   document.addEventListener("touchstart", (event) => {
     Array.from(event.changedTouches || []).forEach((touch) => {
@@ -9467,10 +9485,10 @@ function renderActiveEffects(data) {
   );
   const hsgAcceleration = self.timedAccelerationStacks?.hsg;
   timed(
-    "HSG 浮揚・加速",
+    `HSG 浮揚・加速${hsgAcceleration?.count > 1 ? ` ×${hsgAcceleration.count}` : ""}`,
     hsgAcceleration?.endsAt || self.hsgUntil,
     "good",
-    `現在ACC ${Number(hsgAcceleration?.multiplier || 1.8).toFixed(1)}。浮揚・移動・物理モーション・CT・行動不能・タスク速度へ適用`
+    `累積ACC ${Number(hsgAcceleration?.multiplier || 1.8).toFixed(1)}。各使用分の効果時間を維持し、浮揚・移動・物理モーション・CT・行動不能・タスク速度へ適用`
   );
   if (self.gunnerSnipingActive) add("狙撃", "ON", "truth", "全射撃HS確殺 / 移動速度12%");
   timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
@@ -15242,14 +15260,14 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   const rawPhase = physicalActionFramePosition(action.kind, normalizedProgress, action.motionId);
   const phase = 1 + (rawPhase - 1) * dynamics.poseTravel;
   const frame = Math.min(2, Math.max(0, Math.round(phase)));
-  const overrideImage = state.textures.physicalActionFrameOverrides?.[atlasId]?.[action.kind]?.[frame];
-  const motionImage = overrideImage || state.textures.physicalActionMotions?.[atlasId]?.[action.kind];
-  const sourceKey = overrideImage
-    ? `physical-motion-${atlasId}-${action.kind}-frame-${frame}-v465`
-    : `physical-motion-${atlasId}-${action.kind}-${action.kind === "heart-transfer" ? "v468" : "v465"}`;
+  const motionImage = state.textures.physicalActionMotions?.[atlasId]?.[action.kind];
+  const sourceVersion = atlasId === "male-bot"
+    ? (action.kind === "heart-transfer" ? "v468" : "v465")
+    : "v483";
+  const sourceKey = `physical-motion-${atlasId}-${action.kind}-${sourceVersion}`;
   const prepared = motionImage ? transparentSpriteSource(motionImage, sourceKey, 20) : null;
   const sprite = prepared
-    ? normalizedSpriteFrame(prepared, sourceKey, overrideImage ? 1 : 3, 1, 0, overrideImage ? 0 : frame)
+    ? normalizedSpriteFrame(prepared, sourceKey, 3, 1, 0, frame)
     : null;
   if (!sprite) return false;
 
@@ -15266,23 +15284,28 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   return true;
 }
 
-function gunnerWeaponMotionSprite(player, data, weaponId) {
+function gunnerWeaponMotionSprite(player, data, weaponId, actionId, progress) {
   if (!GUNNER_WEAPON_MOTION_IDS.includes(weaponId)) return null;
   const skinId = player.isBot ? "male-bot" : displayedSkinId(player, data) === "blue-dress" ? "blue-dress" : "white-hood";
-  const image = state.textures.weaponFireMotions?.[skinId]?.[weaponId];
-  const prepared = image ? transparentSpriteSource(image, `weapon-motion-${skinId}-${weaponId}`, 20) : null;
+  const image = state.textures.weaponActionMotions?.[skinId]?.[weaponId]?.[actionId];
+  const version = skinId === "male-bot" ? "v313" : "v483";
+  const sourceKey = `weapon-motion-${skinId}-${weaponId}-${actionId}-${version}`;
+  const prepared = image ? transparentSpriteSource(image, sourceKey, 20) : null;
+  const frame = skinId === "male-bot"
+    ? 0
+    : progress < 0.32 ? 0 : progress < 0.72 ? 1 : 2;
   return prepared
-    ? normalizedSpriteFrame(prepared, `weapon-motion-${skinId}-${weaponId}`, 1, 1, 0, 0)
+    ? normalizedSpriteFrame(prepared, sourceKey, skinId === "male-bot" ? 1 : 3, 1, 0, frame)
     : null;
 }
 
 function drawWeaponReloadMotion(player, data, ghost, action) {
   const gunnerState = displayedGunnerState(player, data);
   const weaponId = gunnerWeaponIdFromActionVariant(action?.variant, gunnerState.reloadWeapon);
-  const sprite = gunnerWeaponMotionSprite(player, data, weaponId);
+  const progress = clamp(Number(action.progress) || 0, 0, 1);
+  const sprite = gunnerWeaponMotionSprite(player, data, weaponId, "reload", progress);
   if (!sprite) return false;
 
-  const progress = clamp(Number(action.progress) || 0, 0, 1);
   const profile = {
     handgun: { width: 108, lower: 9.0, side: 5.0, roll: 7.5, magazine: 3.0, chamber: 2.0, checks: 1 },
     smg: { width: 116, lower: 11.0, side: 8.0, roll: 5.2, magazine: 6.0, chamber: 3.0, checks: 2 },
@@ -15323,10 +15346,9 @@ function drawWeaponSwitchMotion(player, data, ghost, action) {
   const weaponId = GUNNER_WEAPON_MOTION_IDS.includes(action?.variant)
     ? action.variant
     : (GUNNER_WEAPON_MOTION_IDS.includes(gunnerState.selectedWeapon) ? gunnerState.selectedWeapon : "");
-  const sprite = gunnerWeaponMotionSprite(player, data, weaponId);
-  if (!sprite) return false;
-
   const progress = clamp(Number(action.progress) || 0, 0, 1);
+  const sprite = gunnerWeaponMotionSprite(player, data, weaponId, "switch", progress);
+  if (!sprite) return false;
   const easeOut = 1 - Math.pow(1 - progress, 3);
   const settle = Math.sin(progress * Math.PI);
   const profile = {
@@ -15360,10 +15382,9 @@ function drawWeaponFireMotion(player, data, ghost, action) {
     ? action.variant
     : (GUNNER_WEAPON_MOTION_IDS.includes(gunnerState.firingWeapon) ? gunnerState.firingWeapon : "");
   if (!weaponId) return false;
-  const sprite = gunnerWeaponMotionSprite(player, data, weaponId);
-  if (!sprite) return false;
-
   const progress = clamp(Number(action.progress) || 0, 0, 1);
+  const sprite = gunnerWeaponMotionSprite(player, data, weaponId, "fire", progress);
+  if (!sprite) return false;
   const profile = {
     handgun: { width: 108, recoil: 2.2, lift: 0.7, rotation: 1.6, pulses: 1, brace: 0.8 },
     smg: { width: 116, recoil: 1.35, lift: 0.45, rotation: 0.65, pulses: 4, brace: 1.8 },
@@ -15401,16 +15422,17 @@ function drawPetSprite(player, data, ghost) {
   const skinId = displayedSkinId(player, data);
   const motion = motionFor(player, data);
   const facing = facingFor(player, motion);
-  const direction = { down: 0, left: 1, right: 2, up: 3 }[facing] ?? 0;
+  const direction = { down: "front", left: "left", right: "right", up: "back" }[facing] || "front";
   const frame = walkAnimationFrame(player, motion);
+  const walkRowSource = state.textures.playerWalkRows?.[skinId]?.[direction];
+  const walkRowKey = `skinWalk3-${skinId}-${direction}-v483`;
+  const walkRow = walkRowSource ? transparentSpriteSource(walkRowSource, walkRowKey, 12) : null;
+  if (walkRow) {
+    drawMinimalWalkFrame(walkRow, walkRowKey, direction, frame, motion.moving, -47, -63, 94, 94);
+    drawNameplate(player, ghost, -78);
+    return true;
+  }
   if (skinId === "blue-dress") {
-    const walkAtlasSource = state.textures.playerWalkAtlases?.[skinId];
-    const walkAtlas = walkAtlasSource ? transparentSpriteSource(walkAtlasSource, `skinWalk60-${skinId}`, 12) : null;
-    if (walkAtlas) {
-      drawSophiaMinimalWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94);
-      drawNameplate(player, ghost, -78);
-      return true;
-    }
     const skinSet = state.textures.playerSkins[skinId];
     const directional = transparentSpriteSource(skinSet?.[direction], `playerSkin-${skinId}-${direction}`, 24);
     if (directional && drawStandaloneWalkFrame(directional, `playerSkin-${skinId}-${direction}`, frame, -47, -63, 94, 94)) {
@@ -15541,29 +15563,22 @@ function drawProceduralWalkSprite(sprite, direction, frame, x, y, width, height)
   ctx.restore();
 }
 
-function drawSophiaMinimalWalkFrame(atlas, direction, frame, x, y, width, height) {
-  // The compact atlas contains two authored opposite-foot poses per direction.
-  // Toggle once per quarter gait so even a short real movement visibly changes
-  // the advancing foot; cadence is still driven only by rendered distance.
-  const poseIndex = Math.floor(frame / 15) % 2;
+function drawMinimalWalkFrame(atlas, key, direction, frame, moving, x, y, width, height) {
+  // Each direction is one independent horizontal row: neutral, one foot, the
+  // opposite foot. Real displacement drives the two authored step poses.
+  const poseIndex = moving ? 1 + (Math.floor(frame / 15) % 2) : 0;
   if (IS_VERIFICATION_MODE) {
-    els.canvas.dataset.sophiaPose = String(poseIndex);
-    els.canvas.dataset.sophiaGaitFrame = Number(frame).toFixed(2);
-    els.canvas.dataset.sophiaDirection = String(direction);
+    els.canvas.dataset.walkPose = String(poseIndex);
+    els.canvas.dataset.walkGaitFrame = Number(frame).toFixed(2);
+    els.canvas.dataset.walkDirection = String(direction);
+    els.canvas.dataset.walkTexture = key;
   }
   const gaitPhase = frame / 60 * Math.PI * 2;
   const bodyLift = (0.5 - Math.cos(gaitPhase * 2) * 0.5) * 0.65;
-  drawAtlasCell(
-    atlas,
-    2,
-    4,
-    poseIndex,
-    direction,
-    x,
-    y - bodyLift,
-    width,
-    height
-  );
+  const sprite = normalizedSpriteFrame(atlas, key, 3, 1, 0, poseIndex);
+  if (!sprite) return false;
+  drawNormalizedSprite(sprite, x + width / 2, y + height - bodyLift, width, height);
+  return true;
 }
 
 function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height) {
@@ -16654,7 +16669,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "input-team-acc-v482";
+const version = "right-panel-hsg-daily-v485";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -16820,7 +16835,10 @@ const version = "input-team-acc-v482";
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
-  const blueDressWalk60 = new Image();
+  const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
+    skinId,
+    Object.fromEntries(["front", "left", "right", "back"].map((direction) => [direction, new Image()]))
+  ]));
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
   ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-ingot-v436.png" : `assets/generated/item-${id}.webp`)]));
@@ -16830,15 +16848,14 @@ const version = "input-team-acc-v482";
       Object.fromEntries(PHYSICAL_ACTION_MOTION_KINDS.map((kind) => [kind, new Image()]))
     ])
   );
-  const physicalActionFrameOverrides = {
-    "blue-dress": {
-      attack: [new Image(), new Image(), new Image()]
-    }
-  };
-  const weaponFireMotions = Object.fromEntries(
+  const weaponActionMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map((skinId) => [
       skinId,
-      Object.fromEntries(GUNNER_WEAPON_MOTION_IDS.map((weaponId) => [weaponId, new Image()]))
+      Object.fromEntries(GUNNER_WEAPON_MOTION_IDS.map((weaponId) => [weaponId, {
+        fire: new Image(),
+        switch: new Image(),
+        reload: new Image()
+      }]))
     ])
   );
   const fullMapComposites = {
@@ -16854,8 +16871,8 @@ const version = "input-team-acc-v482";
   ]));
   const tacticsNovelMotionKinds = ["interact", "rest", "focus", "power", "throw", "cast", "heal"];
   const tacticsNovelMotions = {
-    sophia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-blue-dress-${kind}-v465.png`)])),
-    philia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-white-hood-${kind}-v465.png`)]))
+    sophia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-blue-dress-${kind}-v483.png`)])),
+    philia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-white-hood-${kind}-v483.png`)]))
   };
   defer(operators, "assets/operators.webp");
   defer(operatorsWalk, "assets/operators-walk.webp");
@@ -16897,7 +16914,7 @@ const version = "input-team-acc-v482";
   defer(statusHpReductionEffect, "assets/generated/status-hp-reduction-v375.png");
   defer(statusManaGpuEffect, "assets/generated/status-mana-gpu-ate-v402.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
-  defer(hsgItemTexture, "assets/generated/item-hsg-v482.png");
+  defer(hsgItemTexture, "assets/generated/item-hsg-v483.png");
   defer(gunnerSpecialAmmoEffects.weak, "assets/generated/gunner-special-ammo-weak-v455.png");
   defer(gunnerSpecialAmmoEffects.shock, "assets/generated/gunner-special-ammo-shock-v455.png");
   defer(gunnerRpgEffect, "assets/generated/gunner-rpg-v311.png");
@@ -16930,26 +16947,25 @@ const version = "input-team-acc-v482";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
-  defer(blueDressWalk60, "assets/generated/skin-blue-dress-walk-60.webp");
+  for (const [skinId, rows] of Object.entries(playerWalkRows)) {
+    ["front", "left", "right", "back"].forEach((direction) => {
+      defer(rows[direction], `assets/generated/skin-${skinId}-walk-${direction}-v483.png`);
+    });
+  }
   for (const [skinId, motions] of Object.entries(physicalActionMotions)) {
     for (const [kind, entry] of Object.entries(motions)) {
-      if (skinId === "blue-dress" && kind === "attack") continue;
-      defer(entry, `assets/generated/physical-motion-${skinId}-${kind}-${kind === "heart-transfer" ? "v468" : "v465"}.png`);
+      const version = skinId === "male-bot" ? (kind === "heart-transfer" ? "v468" : "v465") : "v483";
+      defer(entry, `assets/generated/physical-motion-${skinId}-${kind}-${version}.png`);
     }
   }
-  defer(physicalActionFrameOverrides["blue-dress"].attack[0], "assets/generated/physical-motion-blue-dress-attack-frame-0-v465.png");
-  defer(physicalActionFrameOverrides["blue-dress"].attack[1], "assets/generated/physical-motion-blue-dress-attack-frame-1-v465.png");
-  defer(physicalActionFrameOverrides["blue-dress"].attack[2], "assets/generated/physical-motion-blue-dress-attack-frame-2-v465.png");
-  for (const [skinId, weapons] of Object.entries(weaponFireMotions)) {
-    for (const [weaponId, entry] of Object.entries(weapons)) {
-      // The original white-hood SMG/AR exports were named in reverse. Keep the
-      // accepted B assets intact and correct their semantic binding here.
-      const assetWeaponId = skinId === "white-hood" && weaponId === "smg"
-        ? "assault"
-        : skinId === "white-hood" && weaponId === "assault"
-          ? "smg"
-          : weaponId;
-      defer(entry, `assets/generated/weapon-motion-${skinId}-${assetWeaponId}-v313.webp`);
+  for (const [skinId, weapons] of Object.entries(weaponActionMotions)) {
+    for (const [weaponId, actions] of Object.entries(weapons)) {
+      for (const [actionId, entry] of Object.entries(actions)) {
+        const source = skinId === "male-bot"
+          ? `assets/generated/weapon-motion-${skinId}-${weaponId}-v313.webp`
+          : `assets/generated/weapon-motion-${skinId}-${weaponId}-${actionId}-v483.png`;
+        defer(entry, source);
+      }
     }
   }
   const facilityProps = image("assets/facility-props.webp");
@@ -16968,7 +16984,8 @@ const version = "input-team-acc-v482";
     operatorsWalk,
     playerMaster,
     playerSkins,
-    playerWalkAtlases: { "blue-dress": blueDressWalk60 },
+    playerWalkAtlases: {},
+    playerWalkRows,
     playerWalk60,
     blueDressMaster,
     killCutinMaster,
@@ -17058,8 +17075,7 @@ const version = "input-team-acc-v482";
     throwLandingPreview,
     clairvoyanceThrowAte,
     physicalActionMotions,
-    physicalActionFrameOverrides,
-    weaponFireMotions,
+    weaponActionMotions,
     fullMapComposites,
     tacticsStoryboard,
     tacticsPlayerHood,
@@ -17102,10 +17118,11 @@ function transparentSpriteSource(image, key, threshold = 24) {
     const w = canvas.width;
     const h = canvas.height;
     const physicalMotionKey = key.startsWith("physical-motion-");
+    const generatedMotionKey = physicalMotionKey || key.startsWith("weapon-motion-") || key.startsWith("skinWalk3-");
     const strictGreenKey = key === "cutin-blue-dress" ||
       key === "blueDressMaster" ||
       key.startsWith("physical-action-") ||
-      physicalMotionKey ||
+      generatedMotionKey ||
       key.startsWith("skinWalk60-blue-dress") ||
       key.startsWith("playerSkin-blue-dress-");
     const transparentCorner = data[3] < 8 || data[(w - 1) * 4 + 3] < 8 || data[((h - 1) * w) * 4 + 3] < 8;
@@ -17126,7 +17143,7 @@ function transparentSpriteSource(image, key, threshold = 24) {
       // Some generated motion sheets contain a baked neutral checkerboard even
       // though they were authored for alpha. Remove only bright neutral pixels
       // connected to an outer edge, preserving enclosed white clothing.
-      const checkerboardKey = physicalMotionKey && minimum > 224 && maximum - minimum < 20;
+      const checkerboardKey = generatedMotionKey && minimum > 224 && maximum - minimum < 20;
       return data[i + 3] < 8 || dark || greenKey || checkerboardKey;
     };
     const enqueue = (x, y) => {

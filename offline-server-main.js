@@ -7807,7 +7807,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARとHSGを初期装備し、5種の銃器と狙撃能力を扱う。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下する。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得する。HSGは使用で8秒間浮揚とACC 1.8を得て、エンハンスごとに4秒とACC 0.4が加算される。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下する。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得する。HSGは使用で8秒間浮揚とACC 1.8を得て、エンハンスごとに4秒とACC 0.4が加算される。有効中の再使用は既存効果をリセットせず、追加分として累積する。"
     },
     {
       id: "attacker-alchemist",
@@ -11622,10 +11622,6 @@ function addTimedAcceleration(player, source, multiplier, durationMs, timestamp 
   return timedAccelerationSummary(player, timestamp);
 }
 
-function clearTimedAccelerationSource(player, source) {
-  player.timedAccelerationEffects = activeTimedAccelerationEffects(player).filter((effect) => effect.source !== source);
-}
-
 function accelerationMultipliersFor(player, timestamp = now()) {
   const values = [];
   const purchased = Math.max(1, Number(player.speedMultiplier) || 1);
@@ -11761,9 +11757,11 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
     ? clampNumber(player.gravityStormSlowMultiplier, GRAVITY_STORM_SLOW_MULTIPLIER_MIN, 1, 1)
     : 1;
   const groupMultiplier = desireBiasGroupActive(room, player) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
-  const hsgMultiplier = activeTimedAccelerationEffects(player, timestamp)
-    .filter((effect) => effect.source === "hsg")
-    .reduce((maximum, effect) => Math.max(maximum, Number(effect.multiplier) || 1), 1);
+  const activeHsgEffects = activeTimedAccelerationEffects(player, timestamp)
+    .filter((effect) => effect.source === "hsg");
+  const hsgMultiplier = activeHsgEffects.length
+    ? activeHsgEffects.reduce((sum, effect) => sum + (Number(effect.multiplier) || 1), 0)
+    : 1;
   const snipingMultiplier = player.gunnerSnipingActive ? GUNNER_SNIPING_MOVEMENT_MULTIPLIER : 1;
   return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * movementAccState(room, player, timestamp).selected * hsgMultiplier * snipingMultiplier * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier;
 }
@@ -12004,6 +12002,17 @@ function botSharesTeamWithHuman(room, bot) {
     !player.isBot &&
     !player.midJoinAvailable &&
     player.role === bot.role
+  ));
+}
+
+function botOpposesLivingHuman(room, bot) {
+  if (!bot?.isBot || room.soloMission) return false;
+  return [...room.players.values()].some((player) => (
+    !player.isBot &&
+    !player.midJoinAvailable &&
+    player.alive &&
+    !player.ejected &&
+    player.role !== bot.role
   ));
 }
 
@@ -15258,9 +15267,8 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
     const timestamp = now();
     const durationMs = HSG_BASE_DURATION_MS + level * HSG_DURATION_PER_ENHANCE_MS;
     const multiplier = Math.round((HSG_BASE_ACC_MULTIPLIER + level * HSG_ACC_PER_ENHANCE) * 10) / 10;
-    clearTimedAccelerationSource(player, "hsg");
-    player.hsgUntil = 0;
-    addTimedAcceleration(player, "hsg", multiplier, durationMs, timestamp);
+    const acceleration = addTimedAcceleration(player, "hsg", multiplier, durationMs, timestamp);
+    const hsgStack = acceleration.bySource.hsg;
     awardAbilityContribution(player, 0.75 + level * 0.25);
     pushMagicEffect(room, "item-hsg-activate", player, {
       radius: 135 + level * 10,
@@ -15269,8 +15277,8 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
       durationMs,
       accelerationMultiplier: multiplier
     });
-    setImmediateFeedback(player, "HSG起動", `浮揚 / ACC ${multiplier.toFixed(1)} / ${(durationMs / 1000).toFixed(0)}秒`);
-    pushEvent(room, `${player.name} がHSGを起動し、${durationMs / 1000}秒間浮揚・ACC ${multiplier.toFixed(1)}を得ました${level ? `（エンハンス${level}）` : ""}。`);
+    setImmediateFeedback(player, "HSG起動", `既存効果を維持 / 累積ACC ${hsgStack.multiplier.toFixed(1)} / ${hsgStack.count}スタック`);
+    pushEvent(room, `${player.name} がHSGを起動し、既存効果を維持したまま${durationMs / 1000}秒間の浮揚・ACC ${multiplier.toFixed(1)}を追加しました（累積ACC ${hsgStack.multiplier.toFixed(1)} / ${hsgStack.count}スタック）${level ? `（エンハンス${level}）` : ""}。`);
     touch(room);
     return;
   }
@@ -19444,7 +19452,17 @@ function runMeetingBots(room) {
       } catch {}
       if (!room.meeting || room.phase !== "meeting") return;
     }
-    if (!room.meeting.votes[bot.id]) room.meeting.votes[bot.id] = "skip";
+    if (!room.meeting.votes[bot.id]) {
+      const livingHumanOpponent = botOpposesLivingHuman(room, bot)
+        ? [...room.players.values()]
+          .filter((player) => !player.isBot && player.alive && !player.ejected && player.role !== bot.role)
+          .sort((a, b) => a.id.localeCompare(b.id))[0]
+        : null;
+      const evidenceTarget = bot.role === "defender" ? knownAttacker : null;
+      room.meeting.votes[bot.id] = evidenceTarget?.id ||
+        (bot.role === "attacker" ? livingHumanOpponent?.id : "") ||
+        "skip";
+    }
   }
   maybeEndMeeting(room);
 }
@@ -19551,14 +19569,7 @@ function heardDefenderTarget(room, bot, timestamp = now()) {
 }
 
 function botHasHumanOpponent(room, bot) {
-  if (!bot?.isBot || room.soloMission) return false;
-  return [...room.players.values()].some((player) => (
-    !player.isBot &&
-    !player.midJoinAvailable &&
-    player.alive &&
-    !player.ejected &&
-    player.role !== bot.role
-  ));
+  return botOpposesLivingHuman(room, bot);
 }
 
 function clearBotClairvoyanceContact(bot) {
@@ -19596,7 +19607,8 @@ function botClairvoyanceContact(room, bot, timestamp = now()) {
 }
 
 function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
-  if (!botHasHumanOpponent(room, bot) || !bot.alive || bot.ejected || bot.inVent) {
+  const maximumStrength = botHasHumanOpponent(room, bot);
+  if (!maximumStrength || !bot.alive || bot.ejected || bot.inVent) {
     if (bot.clairvoyanceActive) setClairvoyanceActive(room, bot, false);
     clearBotClairvoyanceContact(bot);
     return null;
@@ -19628,14 +19640,18 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
     bot.nextBotClairvoyanceAt = timestamp + 3000;
     return null;
   }
-  const target = opponents[Math.floor(Math.random() * opponents.length)] || opponents[0];
+  const target = opponents.sort((a, b) => {
+    const humanPriority = Number(!b.isBot) - Number(!a.isBot);
+    const durabilityA = Math.max(0, 2 - Number(a.bodyHits || 0) - Number(a.overheal || 0));
+    const durabilityB = Math.max(0, 2 - Number(b.bodyHits || 0) - Number(b.overheal || 0));
+    return humanPriority || durabilityA - durabilityB || distance(bot, a) - distance(bot, b) || a.id.localeCompare(b.id);
+  })[0];
   bot.botClairvoyanceTargetId = target.id;
   bot.botClairvoyanceTargetX = target.x;
   bot.botClairvoyanceTargetY = target.y;
   bot.botClairvoyanceUntil = timestamp + BOT_CLAIRVOYANCE_DURATION_MS;
   bot.botClairvoyanceObservedUntil = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_MEMORY_MS;
-  bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_INTERVAL_MIN_MS +
-    Math.floor(Math.random() * BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS);
+  bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + BOT_TICK_MS;
   setClairvoyanceActive(room, bot, true);
   pushEvent(room, `${bot.name} が千里眼で敵陣営を索敵しました。`);
   return target;
@@ -19678,10 +19694,11 @@ function useBotSabotage(room, bot, timestamp) {
   const human = soleHumanBotMatchPlayer(room);
   if (human && bot.role === human.role) return false;
   if (bot.sabotageReadyAt > timestamp || bot.nextBotSabotageAt > timestamp || room.sabotage) return false;
-  const types = room.round % 2 === 0 ? ["oxygen", "comms"] : ["reactor", "comms"];
+  const maximumStrength = botHasHumanOpponent(room, bot);
+  const types = room.round % 2 === 0 ? ["oxygen", "reactor", "comms"] : ["reactor", "oxygen", "comms"];
   try {
-    startSabotage(room, bot, types[Math.floor(Math.random() * types.length)]);
-    bot.nextBotSabotageAt = timestamp + 18_000 + Math.floor(Math.random() * 7000);
+    startSabotage(room, bot, maximumStrength ? types[0] : types[Math.floor(Math.random() * types.length)]);
+    bot.nextBotSabotageAt = maximumStrength ? timestamp + BOT_TICK_MS : timestamp + 18_000 + Math.floor(Math.random() * 7000);
     return true;
   } catch {
     bot.nextBotSabotageAt = timestamp + 3000;
@@ -19709,6 +19726,16 @@ function refillBotMana(room, bot) {
 }
 
 function runBotDefenseDecision(room, bot, nearbyAttacker, timestamp) {
+  if (botHasHumanOpponent(room, bot)) {
+    bot.botDefensePlannedAt = 0;
+    bot.botDefenseKind = "";
+    bot.botDefenseTargetId = "";
+    bot.nextBotDefenseDecisionAt = timestamp + BOT_TICK_MS;
+    if (!nearbyAttacker || distance(bot, nearbyAttacker) > room.settings.killRange * 1.35) return;
+    if (bot.dodgeActiveUntil > timestamp) return;
+    try { activateDodge(room, bot); } catch {}
+    return;
+  }
   if (bot.botDefensePlannedAt > 0 && bot.botDefensePlannedAt <= timestamp) {
     const plannedTarget = room.players.get(bot.botDefenseTargetId);
     const canReact = plannedTarget && plannedTarget.alive && !plannedTarget.ejected &&
@@ -19740,7 +19767,7 @@ function runBotDefenseDecision(room, bot, nearbyAttacker, timestamp) {
   bot.botDefensePlannedAt = timestamp + 500 + Math.floor(Math.random() * 1000);
 }
 
-function selectBotGunnerWeapon(bot, targetDistance) {
+function selectBotGunnerWeapon(bot, targetDistance, maximumStrength = false) {
   if (!bot.gunnerAmmo || typeof bot.gunnerAmmo !== "object") bot.gunnerAmmo = createGunnerAmmo();
   if (bot.gunFiring && GUNNER_WEAPONS[bot.gunFiringWeapon]) return GUNNER_WEAPONS[bot.gunFiringWeapon];
   const preferred = targetDistance > 700
@@ -19750,10 +19777,23 @@ function selectBotGunnerWeapon(bot, targetDistance) {
       : targetDistance < 260
         ? ["smg", "taser", "handgun", "assault", "sniper"]
         : ["handgun", "taser", "smg", "assault", "sniper"];
-  const weaponId = preferred.find((id) => {
+  const usable = preferred.filter((id) => {
     const weapon = GUNNER_WEAPONS[id];
     return targetDistance <= weapon.range && (Number(bot.gunnerAmmo[id]) || 0) >= weapon.ammoPerShot;
   });
+  const weaponId = maximumStrength
+    ? usable.sort((a, b) => {
+      const weaponA = GUNNER_WEAPONS[a];
+      const weaponB = GUNNER_WEAPONS[b];
+      const scoreA = bot.gunnerSnipingActive
+        ? 1_000_000 / Math.max(1, weaponA.cooldownMs)
+        : weaponA.damage * Math.max(weaponA.minDamageRatio, 1 - targetDistance / Math.max(1, weaponA.range) * (1 - weaponA.minDamageRatio)) * 1000 / weaponA.cooldownMs;
+      const scoreB = bot.gunnerSnipingActive
+        ? 1_000_000 / Math.max(1, weaponB.cooldownMs)
+        : weaponB.damage * Math.max(weaponB.minDamageRatio, 1 - targetDistance / Math.max(1, weaponB.range) * (1 - weaponB.minDamageRatio)) * 1000 / weaponB.cooldownMs;
+      return scoreB - scoreA || GUNNER_WEAPON_ORDER.indexOf(a) - GUNNER_WEAPON_ORDER.indexOf(b);
+    })[0]
+    : usable[0];
   if (!weaponId) return null;
   bot.gunnerWeapon = weaponId;
   return GUNNER_WEAPONS[weaponId];
@@ -19869,6 +19909,7 @@ function runPlayingBots(room) {
   for (const bot of room.players.values()) {
     if (!bot.isBot || bot.ejected || bot.inVent || timestamp < bot.nextBotActionAt) continue;
     bot.nextBotActionAt = timestamp + BOT_TICK_MS - 5;
+    const maximumStrength = botHasHumanOpponent(room, bot);
 
     if (runCpuStage2Script(room, bot, timestamp)) continue;
     if (runCpuGravityScript(room, bot, timestamp)) continue;
@@ -19899,12 +19940,36 @@ function runPlayingBots(room) {
       }
       const target = preferredDefenderTarget(room, bot, timestamp);
       if (bot.gunFiring && (!target || distance(bot, target) > gunnerWeaponFor(bot).range)) stopGunnerFire(room, bot, { reason: "対象喪失" });
-      if (target && distance(bot, target) <= EMP_RANGE && bot.empReadyAt <= timestamp && Math.random() < 0.08) {
+      if (target && distance(bot, target) <= EMP_RANGE && bot.empReadyAt <= timestamp && (maximumStrength || Math.random() < 0.08)) {
         try { activateEmp(room, bot); } catch {}
       }
       const targetDistance = target ? distance(bot, target) : Infinity;
+      if (
+        maximumStrength &&
+        target &&
+        bot.special === "gunner" &&
+        !bot.gunnerSnipingActive &&
+        targetDistance <= GUNNER_WEAPONS.sniper.range
+      ) {
+        const dx = target.x - bot.x;
+        const dy = target.y - bot.y;
+        const length = Math.hypot(dx, dy) || 1;
+        if (clearShotPath(room, bot, target, dx / length, dy / length)) {
+          try { toggleGunnerSniping(room, bot); } catch {}
+        }
+      }
+      if (
+        maximumStrength &&
+        target &&
+        bot.special === "gunner" &&
+        Number(bot.hsgUntil) <= timestamp &&
+        targetDistance > 520 &&
+        itemCount(bot, "hsg") > 0
+      ) {
+        try { useInventoryItem(room, bot, "hsg", 0); } catch {}
+      }
       const botGunnerWeapon = target && bot.special === "gunner"
-        ? selectBotGunnerWeapon(bot, targetDistance)
+        ? selectBotGunnerWeapon(bot, targetDistance, maximumStrength)
         : null;
       if (target && bot.special === "gunner" && !botGunnerWeapon && bot.gunnerReloadUntil <= timestamp) {
         try { reloadGunner(room, bot); } catch {}
@@ -19935,7 +20000,7 @@ function runPlayingBots(room) {
           const aimed = bot.aimTargetId ? room.players.get(bot.aimTargetId) : null;
           if (aimed && aimed.alive && !aimed.ejected && distance(bot, aimed) <= room.settings.killRange) {
             if (bot.aimReadyAt <= timestamp && bot.aimExpiresAt > timestamp) performNinjutsuAttack(room, bot, aimed.id);
-          } else if (
+          } else if (!maximumStrength &&
             Math.hypot(Number(target.vx) || 0, Number(target.vy) || 0) <= 0.05 &&
             Math.random() < 0.2
           ) {
@@ -20084,7 +20149,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "input-team-acc-v482",
+  version: "right-panel-hsg-daily-v485",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
