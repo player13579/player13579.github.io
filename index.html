@@ -12,15 +12,15 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v458.png">
-    <link rel="preload" as="image" href="assets/title-hero-v466.png?v=natural-novel-cues-v476" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/title-hero-v466.png?v=native-swipe-weapon-ate-v477" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=natural-novel-cues-v476">
+  <link rel="stylesheet" href="styles.css?v=native-swipe-weapon-ate-v477">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v466.png?v=natural-novel-cues-v476" alt="遠近感のあるブリーフィング室でウィンクし、手を差し向けるソフィア" fetchpriority="high">
-      <img class="title-hero-character" src="assets/title-hero-v466.png?v=natural-novel-cues-v476" alt="" aria-hidden="true">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v466.png?v=natural-novel-cues-v476" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v466.png?v=native-swipe-weapon-ate-v477" alt="遠近感のあるブリーフィング室でウィンクし、手を差し向けるソフィア" fetchpriority="high">
+      <img class="title-hero-character" src="assets/title-hero-v466.png?v=native-swipe-weapon-ate-v477" alt="" aria-hidden="true">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v466.png?v=native-swipe-weapon-ate-v477" alt="" aria-hidden="true">
       <div class="title-hero-vfx" aria-hidden="true">
         <i class="title-hero-mote mote-a"></i>
         <i class="title-hero-mote mote-b"></i>
@@ -33,7 +33,7 @@
         <p class="title-japanese">ディフェンダー vs アタッカー</p>
         <div class="title-actions">
           <button id="titlePlayButton" class="title-command title-play" data-hotkey="P" type="button" aria-describedby="titlePlayProgress"><span aria-hidden="true">▶</span>プレイ</button>
-          <button id="titleTacticsButton" class="title-command" data-hotkey="I" type="button"><span aria-hidden="true">◎</span>戦術いろは</button>
+          <button id="titleTacticsButton" class="title-command title-command-mark" data-hotkey="I" type="button" aria-label="戦術いろは" title="戦術いろは"><span aria-hidden="true">◎</span><span class="visually-hidden">戦術いろは</span></button>
         </div>
         <p id="titlePlayProgress" class="title-play-progress" aria-live="polite">オフラインプレイ / ソロ訓練 0/7</p>
       </div>
@@ -46,7 +46,7 @@
             <p>ソロ実戦訓練と仕様表で、基礎規則から数値、相互作用、意思決定まで確認できます。</p>
           </div>
           <div class="tactics-header-actions">
-            <button id="tacticsBackButton" class="title-icon-button inline" type="button" aria-label="タイトルへ戻る" title="タイトルへ戻る">×</button>
+            <button id="tacticsBackButton" class="title-icon-button inline" type="button" aria-label="タイトルへ戻る" title="タイトルへ戻る">⌂</button>
           </div>
         </header>
         <section class="solo-training" data-scroll-region="ソロ実戦訓練" data-scroll-target="soloMissionGrid" aria-labelledby="soloTrainingTitle" tabindex="0">
@@ -165,11 +165,11 @@
                 <section><h4>哲学進行</h4><p>理知を連続維持して50秒で真または美、2分で残り、3分40秒で善、6分で善のイデア。幸運／直観が0.30を超えるほど進行が加速します。MPが2未満へ落ちるか欲望になると、次段階の連続維持時間はリセットされます。</p></section>
                 <section><h4>パッシブ条件</h4><p>踏ん張り、押し込み、変わり身、リビテーション、ハック、EC、特殊弾装填は理知中だけ発動します。所持回数と進捗は失われず、気概・欲望中は休止します。</p></section>
                 <section><h4>真・美・善</h4><p>真で押し込み+1、美で踏ん張り+1。善は両方にHP/状態回復・加速・タスクSP軽減を加えます。善のイデア到達者は翼とともに昇天し、同時到達者が複数なら全員が特殊勝利します。</p></section>
-                <section><h4>自販機</h4><p>Vまたはタブレットから全域で開けます。最低価格はミネラルウォーター1Cで、全商品をその相対価値と実収入に合わせて1〜22Cへ調整しています。商品名の横に価格を表示し、長押しで資源量、対象、時間、条件、例外を確認できます。主な価格は回避拡張4C、加速5C、即時ワープ3C、回復4C、MP+1は3C、踏ん張り5C、押し込み5C、変わり身8C、火遁8C、居合9C、オリハルコン・ソード17Cです。</p></section>
+                <section><h4>自販機</h4><p>Vまたはタブレットから全域で開けます。最低価格はミネラルウォーターと鉛瓶の1Cで、販売商品を相対価値と実収入に合わせて1〜22Cへ調整しています。氷結水・高温水など量子制御後の物質は販売しません。商品名の横に価格を表示し、長押しで資源量、対象、時間、条件、例外を確認できます。水銀瓶3Cは量子制御で4C、鉛瓶1Cは2Cへ変換でき、どちらも1Cの増殖になります。</p></section>
                 <section><h4>即席アイテム</h4><p>スタミナ、回復、火遁、変わり身、即時ワープ、回避拡張、加速、ミステリー、マナ、踏ん張り、押し込み、居合は、獲得時に現物として残らず資源・効果・使用回数へ即時変換される「即席」です。居合などの手動発動回数は操作用の仮想表示だけ所持欄に現れます。各即席は抽象テクスチャと固有の獲得ATEを持ち、変換後の効果・回数を含め投擲・手動譲渡はできません。</p></section>
                 <section><h4>意志の焦点</h4><p>通常オブジェクトから踏ん張り・押し込みは得られません。試合ごとに1地点だけ出現する意志の焦点へ近づくと、踏ん張りか押し込みを1つ獲得し、焦点は消滅します。</p></section>
                 <section><h4>ミステリー4C</h4><p>6C獲得18%、SP+250が18%、完全活性16%、理知化12%、12秒減速14%、15秒能力封印12%、8秒意識消失10%。幸運／直観が抽選を補正し、不利結果の合計は36%です。</p></section>
-                <section><h4>ハッカー</h4><p>固有行動はマナ消費0・クールタイムあり・少量のスタミナ消費です。共有商品の最終クールタイムは自販機価格1Cにつき5秒で、商品名の横へ表示します。オリハルコン・ソードは17C・生成0MP・CT85秒です。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒、最大54秒を蓄積して次の生成に使います。タスクは時間経過で自動完了し、端末付近では手動完了もできます。HP1以下で確殺無効を持たない絶体絶命時だけroot化し、他オペの全能力を借用します。</p></section>
+                <section><h4>ハッカー</h4><p>自販機をハッキングし、バイブコーディングで生成する設定です。固有行動はマナ消費0・クールタイムあり・少量のスタミナ消費で、共有商品の最終クールタイムは価格1Cにつき5秒です。通常時は量子変換後の氷結水・高温水を生成候補へ出しませんが、HP1以下で確殺無効を持たない絶体絶命時にroot化すると生成可能になり、他オペの全能力も借用します。生成候補には「即席アイテム」分類があり、マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒、最大54秒を蓄積します。</p></section>
               </div>
             </article>
 
@@ -206,7 +206,7 @@
               <header><span>七</span><div><p>STORY DIGEST</p><h3>ソフィアとフィリアの戦術案内</h3></div></header>
               <p class="tactics-lead">二人の短い身振りと、台詞の節目だけ現れる肯定的な漫符ATEを見ながら、試合の流れ、資源、戦闘、索敵、会議、勝利条件を短く一周します。画面タップ、左右キー、または左右スワイプで進められます。</p>
               <section id="tacticsNovelStage" class="tactics-novel-stage" tabindex="0" aria-label="ノベルダイジェスト" aria-describedby="tacticsNovelText">
-                <img class="tactics-novel-background" src="assets/generated/tactics-novel-briefing-room-v466.png?v=natural-novel-cues-v476" alt="木と青緑の研究設備、ソファを備えた戦術ブリーフィング室">
+                <img class="tactics-novel-background" src="assets/generated/tactics-novel-briefing-room-v466.png?v=native-swipe-weapon-ate-v477" alt="木と青緑の研究設備、ソファを備えた戦術ブリーフィング室">
                 <canvas id="tacticsNovelCanvas" width="1280" height="720" aria-hidden="true"></canvas>
                 <div class="tactics-novel-topline">
                   <span id="tacticsNovelChapter">01 / 12　ようこそ</span>
@@ -235,7 +235,7 @@
         <header class="topbar">
           <div class="topbar-actions">
             <button id="fullscreenButton" class="title-home-button fullscreen-button" data-hotkey="Y" type="button" title="全画面表示を切り替える" aria-label="全画面表示を切り替える">⛶</button>
-            <button id="titleHomeButton" class="title-home-button" type="button" title="タイトルへ戻る">タイトル</button>
+            <button id="titleHomeButton" class="title-home-button semantic-mark-button" type="button" title="タイトルへ戻る" aria-label="タイトルへ戻る">⌂</button>
             <button id="debugForceEndButton" class="debug-force-end" type="button" title="デバッグ用の強制終了" hidden>強制終了</button>
           </div>
         </header>
@@ -551,8 +551,6 @@
               <button class="vending-item-with-icon" data-drink="lead" data-vending-asset="lead"><span class="vending-item-icon" aria-hidden="true"></span><span>鉛瓶</span></button>
               <button class="vending-item-with-icon" data-drink="uranium" data-vending-asset="uranium"><span class="vending-item-icon" aria-hidden="true"></span><span>ウラン容器</span></button>
               <button class="vending-item-with-icon" data-drink="plutonium" data-vending-asset="plutonium"><span class="vending-item-icon" aria-hidden="true"></span><span>プルトニウム容器</span></button>
-              <button class="vending-item-with-icon" data-drink="ice" data-vending-asset="ice"><span class="vending-item-icon" aria-hidden="true"></span><span>氷結水</span></button>
-              <button class="vending-item-with-icon" data-drink="heated-water" data-vending-asset="heated-water"><span class="vending-item-icon" aria-hidden="true"></span><span>高温水</span></button>
               <button class="vending-item-with-icon" data-drink="rpg" data-vending-asset="rpg"><span class="vending-item-icon" aria-hidden="true"></span><span>RPG</span></button>
               <button class="vending-item-with-icon" data-drink="missile" data-vending-asset="missile"><span class="vending-item-icon" aria-hidden="true"></span><span>ミサイル</span></button>
             </div>
@@ -683,16 +681,16 @@
       <small>切り替え先へドラッグして指を離す</small>
     </section>
 
-    <button id="expandedScrollRegionHint" class="expanded-scroll-region-hint" type="button" aria-live="polite" hidden>拡張表示を解除する</button>
+    <button id="expandedScrollRegionHint" class="expanded-scroll-region-hint semantic-mark-button" type="button" aria-label="拡張表示を解除する" title="拡張表示を解除する" hidden>⊟</button>
 
     <button id="leaveRoomButton" class="leave-room-button leave-room-launch-button" data-hotkey="Backspace" type="button"
-      title="タイトルへ戻る" aria-label="タイトルへ戻る" hidden>タイトルへ戻る</button>
+      title="タイトルへ戻る" aria-label="タイトルへ戻る" hidden>⌂</button>
 
     <button id="gameMuteButton" class="tablet-launch-button audio-launch-button" type="button" data-hotkey="\\"
       title="ゲーム音をオフ" aria-label="ゲーム音をオフ">♪</button>
 
     <button id="gameTacticsButton" class="game-tactics-button" type="button" data-hotkey="I"
-      title="戦術いろはを開く" aria-label="戦術いろはを開く">戦術いろは</button>
+      title="戦術いろはを開く" aria-label="戦術いろはを開く">◎</button>
 
     <button id="tabletButton" class="tablet-launch-button" type="button" data-hotkey="Tab"
       title="タブレットモード" aria-label="タブレットモードを切り替える"
@@ -725,13 +723,17 @@
         </div>
       </div>
     </section>
+    <div id="titleCommandTransitionAte" class="title-command-transition-ate" aria-hidden="true" hidden>
+      <img src="assets/generated/title-forward-speed-lines-v477.png?v=native-swipe-weapon-ate-v477" alt="">
+      <div id="titleCommandPixelField" class="title-command-pixel-field"></div>
+    </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="economy-catalog-v468.js?v=natural-novel-cues-v476"></script>
-    <script src="game-runtime.js?v=natural-novel-cues-v476"></script>
-    <script src="game-engine.js?v=natural-novel-cues-v476"></script>
-    <script src="offline-runtime.js?v=natural-novel-cues-v476"></script>
-    <script src="config.js?v=natural-novel-cues-v476"></script>
-    <script src="app.js?v=natural-novel-cues-v476"></script>
+    <script src="economy-catalog-v468.js?v=native-swipe-weapon-ate-v477"></script>
+    <script src="game-runtime.js?v=native-swipe-weapon-ate-v477"></script>
+    <script src="game-engine.js?v=native-swipe-weapon-ate-v477"></script>
+    <script src="offline-runtime.js?v=native-swipe-weapon-ate-v477"></script>
+    <script src="config.js?v=native-swipe-weapon-ate-v477"></script>
+    <script src="app.js?v=native-swipe-weapon-ate-v477"></script>
 </body>
 </html>

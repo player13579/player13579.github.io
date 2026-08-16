@@ -39,6 +39,8 @@ function assetUrl(path) {
 const els = {
   startScreen: $("#startScreen"),
   startHero: $("#startHero"),
+  titleCommandTransitionAte: $("#titleCommandTransitionAte"),
+  titleCommandPixelField: $("#titleCommandPixelField"),
   screenFlash: $("#screenFlash"),
   gameApp: $("#gameApp"),
   sensoryOverlay: $("#sensoryOverlay"),
@@ -739,7 +741,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-novel-cues-v476";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "native-swipe-weapon-ate-v477";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -830,7 +832,7 @@ const hackerRecipeCategories = [
 function hackerRecipeCategory(recipe) {
   if (recipe?.kind === "invention") return "invention";
   if (recipe?.id?.startsWith("hack-")) return "hack";
-  return DVA_ECONOMY.productForRecipe(recipe?.id)?.category || (recipe?.id === "revive" ? "generate-tech" : "generate-supply");
+  return DVA_ECONOMY.productForRecipe(recipe?.id)?.category || (recipe?.id === "stamina" ? "instant-item" : recipe?.id === "revive" ? "generate-tech" : "generate-supply");
 }
 
 function vendingProductCategory(itemId) {
@@ -844,7 +846,7 @@ function vendingProductButtons() {
 function availableVendingCategories() {
   const buttons = vendingProductButtons();
   return hackerRecipeCategories.filter((category) =>
-    buttons.some((button) => vendingProductCategory(button.dataset.drink) === category.id)
+    buttons.some((button) => DVA_ECONOMY.product(button.dataset.drink)?.vendingAvailable && vendingProductCategory(button.dataset.drink) === category.id)
   );
 }
 
@@ -890,6 +892,8 @@ function availableHackerRecipes(self = state.data?.self) {
 }
 
 function alchemyRecipeAvailable(recipe, self = state.data?.self) {
+  const product = DVA_ECONOMY.productForRecipe(recipe?.id);
+  if (product?.hackerAccess === "root" && !self?.hackerRootActive) return false;
   if (!recipe?.kind) return true;
   if (recipe.kind === "invention") return (self?.inventions || []).includes(recipe.inventoryId);
   if (recipe.kind === "borrowed") return availableBorrowedOperatorTypes(self).includes(recipe.inventoryId);
@@ -1904,6 +1908,48 @@ function switchScreenWithEffect(next) {
   setScreen(next);
 }
 
+async function runTitleCommandTransition(button, action) {
+  if (!button || state.titleCommandTransitionRunning) return false;
+  state.titleCommandTransitionRunning = true;
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  const duration = reduced ? 160 : 640;
+  const rect = button.getBoundingClientRect();
+  const overlay = els.titleCommandTransitionAte;
+  const pixels = els.titleCommandPixelField;
+  pixels.replaceChildren();
+  overlay.style.setProperty("--command-left", `${rect.left}px`);
+  overlay.style.setProperty("--command-top", `${rect.top}px`);
+  overlay.style.setProperty("--command-width", `${rect.width}px`);
+  overlay.style.setProperty("--command-height", `${rect.height}px`);
+  for (let index = 0; index < 38; index += 1) {
+    const pixel = document.createElement("i");
+    const side = index % 2 ? 1 : -1;
+    pixel.style.setProperty("--pixel-x", `${(index * 47) % 100}%`);
+    pixel.style.setProperty("--pixel-y", `${(index * 29) % 100}%`);
+    pixel.style.setProperty("--pixel-dx", `${side * (70 + (index % 9) * 21)}px`);
+    pixel.style.setProperty("--pixel-delay", `${(index % 8) * 18}ms`);
+    pixel.style.setProperty("--pixel-size", `${2 + index % 4}px`);
+    pixels.appendChild(pixel);
+  }
+  overlay.hidden = false;
+  void overlay.offsetWidth;
+  overlay.classList.add("active");
+  button.classList.add("title-command-dispersing");
+  els.titlePlayButton.disabled = true;
+  els.titleTacticsButton.disabled = true;
+  await delay(duration);
+  action();
+  await delay(reduced ? 20 : 140);
+  overlay.classList.remove("active");
+  overlay.hidden = true;
+  pixels.replaceChildren();
+  button.classList.remove("title-command-dispersing");
+  els.titlePlayButton.disabled = false;
+  els.titleTacticsButton.disabled = false;
+  state.titleCommandTransitionRunning = false;
+  return true;
+}
+
 function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   state.screen = next;
@@ -2804,8 +2850,6 @@ function stopVendingHold() {
 function startVendingHold(event, button) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   if (!button) return;
-  event.preventDefault();
-  event.stopPropagation();
   stopVendingHold();
   vendingHold.button = button;
   vendingHold.pointerId = event.pointerId;
@@ -2813,12 +2857,12 @@ function startVendingHold(event, button) {
   vendingHold.originY = event.clientY;
   vendingHold.lastY = event.clientY;
   vendingHold.scrollContainer = button.closest(".vending-panel");
-  try { button.setPointerCapture(event.pointerId); } catch {}
   vendingHold.timer = window.setTimeout(() => {
     if (vendingHold.button !== button || vendingHold.moved) return;
     vendingHold.timer = 0;
     vendingHold.held = true;
     vendingHold.suppressClickUntil = performance.now() + 1_200;
+    try { button.setPointerCapture(event.pointerId); } catch {}
     openItemHoldBranch({
       source: button,
       detail: vendingProductDetail(button),
@@ -2832,13 +2876,12 @@ function startVendingHold(event, button) {
 
 function moveVendingHold(event) {
   if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
-  event.preventDefault();
-  event.stopPropagation();
   if (vendingHold.held) {
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
     updateItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
     return;
   }
-  const deltaY = vendingHold.lastY - event.clientY;
   vendingHold.lastY = event.clientY;
   if (!vendingHold.moved && Math.hypot(
     event.clientX - vendingHold.originX,
@@ -2848,27 +2891,23 @@ function moveVendingHold(event) {
     if (vendingHold.timer) window.clearTimeout(vendingHold.timer);
     vendingHold.timer = 0;
   }
-  if (vendingHold.moved && vendingHold.scrollContainer) {
-    vendingHold.scrollContainer.scrollTop += deltaY;
-  }
 }
 
 function finishVendingHold(event) {
   if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
-  event.preventDefault();
-  event.stopPropagation();
-  const button = vendingHold.button;
   const wasHeld = vendingHold.held;
-  const wasMoved = vendingHold.moved;
-  vendingHold.suppressClickUntil = performance.now() + 1_200;
-  if (wasHeld) finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+  if (wasHeld) {
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    vendingHold.suppressClickUntil = performance.now() + 1_200;
+    finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+  }
   stopVendingHold();
-  if (!wasHeld && !wasMoved) void purchaseVendingItem(button);
 }
 
 function cancelVendingHold(event) {
   if (vendingHold.pointerId !== event.pointerId) return;
-  vendingHold.suppressClickUntil = performance.now() + 1_200;
+  if (vendingHold.held) vendingHold.suppressClickUntil = performance.now() + 1_200;
   if (state.itemHoldBranch.source === vendingHold.button) closeItemHoldBranch();
   stopVendingHold();
 }
@@ -4572,123 +4611,8 @@ function triggerScreenHotkey(event) {
   return false;
 }
 
-const UNIVERSAL_DRAG_SCROLL_SKIP_SELECTOR = [
-  "input",
-  "textarea",
-  "select",
-  "option",
-  "[contenteditable='true']",
-  "#gameCanvas",
-  "#switchDragMenu",
-  "#itemHoldBranch",
-  ".switch-drag-control",
-  ".operator-card",
-  ".item-inventory-choice",
-  ".vending-item-with-icon",
-  ".hacker-direct-action",
-  ".enhance-hold-control",
-  ".tablet-joystick"
-].join(",");
-
-const universalDragScroll = {
-  pointerId: null,
-  container: null,
-  source: null,
-  originX: 0,
-  originY: 0,
-  scrollLeft: 0,
-  scrollTop: 0,
-  canScrollX: false,
-  canScrollY: false,
-  moved: false,
-  suppressClickUntil: 0
-};
-
-function dragScrollableAxes(element) {
-  if (!(element instanceof HTMLElement) || element.hidden) return { x: false, y: false };
-  const rect = element.getBoundingClientRect();
-  if (rect.width < 2 || rect.height < 2) return { x: false, y: false };
-  const style = getComputedStyle(element);
-  const scrollable = (value) => value === "auto" || value === "scroll";
-  return {
-    x: scrollable(style.overflowX) && element.scrollWidth > element.clientWidth + 1,
-    y: scrollable(style.overflowY) && element.scrollHeight > element.clientHeight + 1
-  };
-}
-
-function resolveDragScrollable(target) {
-  if (!(target instanceof Element) || target.closest(UNIVERSAL_DRAG_SCROLL_SKIP_SELECTOR)) return null;
-  for (let candidate = target; candidate && candidate !== document.body; candidate = candidate.parentElement) {
-    const axes = dragScrollableAxes(candidate);
-    if (axes.x || axes.y) return { element: candidate, ...axes };
-  }
-  return null;
-}
-
-function resetUniversalDragScroll() {
-  universalDragScroll.container?.removeAttribute("data-drag-scroll-active");
-  document.documentElement.classList.remove("universal-drag-scrolling");
-  universalDragScroll.pointerId = null;
-  universalDragScroll.container = null;
-  universalDragScroll.source = null;
-  universalDragScroll.canScrollX = false;
-  universalDragScroll.canScrollY = false;
-  universalDragScroll.moved = false;
-}
-
-function beginUniversalDragScroll(event) {
-  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
-  const resolved = resolveDragScrollable(event.target);
-  if (!resolved) return;
-  resetUniversalDragScroll();
-  universalDragScroll.pointerId = event.pointerId;
-  universalDragScroll.container = resolved.element;
-  universalDragScroll.source = event.target;
-  universalDragScroll.originX = event.clientX;
-  universalDragScroll.originY = event.clientY;
-  universalDragScroll.scrollLeft = resolved.element.scrollLeft;
-  universalDragScroll.scrollTop = resolved.element.scrollTop;
-  universalDragScroll.canScrollX = resolved.x;
-  universalDragScroll.canScrollY = resolved.y;
-}
-
-function moveUniversalDragScroll(event) {
-  if (universalDragScroll.pointerId !== event.pointerId || !universalDragScroll.container) return;
-  const deltaX = event.clientX - universalDragScroll.originX;
-  const deltaY = event.clientY - universalDragScroll.originY;
-  if (!universalDragScroll.moved && Math.hypot(deltaX, deltaY) < 10) return;
-  if (!universalDragScroll.moved) {
-    universalDragScroll.moved = true;
-    universalDragScroll.container.setAttribute("data-drag-scroll-active", "true");
-    document.documentElement.classList.add("universal-drag-scrolling");
-  }
-  if (event.cancelable) event.preventDefault();
-  if (universalDragScroll.canScrollX) universalDragScroll.container.scrollLeft = universalDragScroll.scrollLeft - deltaX;
-  if (universalDragScroll.canScrollY) universalDragScroll.container.scrollTop = universalDragScroll.scrollTop - deltaY;
-}
-
-function endUniversalDragScroll(event) {
-  if (universalDragScroll.pointerId !== event.pointerId) return;
-  if (universalDragScroll.moved) universalDragScroll.suppressClickUntil = performance.now() + 700;
-  resetUniversalDragScroll();
-}
-
-function bindUniversalDragScrolling() {
-  document.addEventListener("pointerdown", beginUniversalDragScroll, { capture: true, passive: true });
-  document.addEventListener("pointermove", moveUniversalDragScroll, { capture: true, passive: false });
-  document.addEventListener("pointerup", endUniversalDragScroll, true);
-  document.addEventListener("pointercancel", endUniversalDragScroll, true);
-  window.addEventListener("blur", resetUniversalDragScroll);
-  document.addEventListener("click", (event) => {
-    if (performance.now() >= universalDragScroll.suppressClickUntil) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
-}
-
 function bindEvents() {
   ensureDynamicAlchemyChoices();
-  bindUniversalDragScrolling();
   document.addEventListener("pointerdown", unlockAudio, { passive: true });
   document.addEventListener("keydown", unlockAudio);
   document.addEventListener("pointerdown", beginContinuousActionHold, true);
@@ -4717,13 +4641,13 @@ function bindEvents() {
       activateOfflineMode();
       recordUsageCheckpoint("offline_open");
     }
-    enterFullscreen();
-    switchScreenWithEffect("game");
+    void enterFullscreen();
+    void runTitleCommandTransition(els.titlePlayButton, () => switchScreenWithEffect("game"));
   });
   els.titleTacticsButton.addEventListener("click", () => {
     state.tacticsReturnScreen = "title";
     recordUsageCheckpoint("tactics_open");
-    switchScreenWithEffect("tactics");
+    void runTitleCommandTransition(els.titleTacticsButton, () => switchScreenWithEffect("tactics"));
   });
   els.gameTacticsButton.addEventListener("click", () => {
     state.tacticsReturnScreen = "game";
@@ -5096,7 +5020,6 @@ function bindEvents() {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
   };
-  document.addEventListener("touchstart", suppressIosGameCallout, { capture: true, passive: false });
   document.addEventListener("contextmenu", suppressIosGameCallout, { capture: true });
   document.addEventListener("selectstart", suppressIosGameCallout, { capture: true });
   document.addEventListener("dragstart", suppressIosGameCallout, { capture: true });
@@ -5431,7 +5354,7 @@ function bindEvents() {
       event.preventDefault();
     }
   });
-  const fullscreenScrollSelector = ".tablet-branch-list, .hacker-ability-grid, .active-effects-panel, .item-inventory-grid, .vending-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .keybind-list";
+  const fullscreenScrollSelector = "[data-scroll-region], .tablet-branch-list, .hacker-ability-grid, .active-effects-panel, .item-inventory-grid, .vending-panel, .operator-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .keybind-list";
   const fullscreenSwipeGuard = createFullscreenSwipeGuard({
     isActive: () => state.screen === "game",
     resolveScrollable: (target) => target instanceof Element ? target.closest(fullscreenScrollSelector) : null
@@ -7065,7 +6988,7 @@ async function leaveCurrentRoom(options = {}) {
   const playerId = state.playerId;
   const destination = options.destination || (state.data?.soloMission ? "tactics" : "title");
   els.leaveRoomButton.disabled = true;
-  const result = await request("/api/leave", { roomId, playerId });
+  const result = await request("/api/leave", { roomId, playerId }, { quiet: true });
   els.leaveRoomButton.disabled = false;
   if (!result || state.roomId !== roomId || state.playerId !== playerId) return false;
   resetLocalSession();
@@ -8531,18 +8454,13 @@ function bindOperatorDetailHold(button, operator) {
   let pointerType = "";
   const clearSelection = () => window.getSelection?.()?.removeAllRanges?.();
   const gesture = createInventoryTouchGesture({
-    onTap: () => {
-      if (pointerType === "mouse") return;
-      button.click();
-      clickGate.arm();
-    },
     onHold: () => {
       clickGate.arm();
       clearSelection();
+      try { button.setPointerCapture(pointerId); } catch {}
       showOperatorDetail(operator, button);
       if (navigator.vibrate) navigator.vibrate(18);
     },
-    onScroll: (deltaY) => { els.operatorList.scrollTop += deltaY; },
     onClearSelection: clearSelection
   });
   const suppressNative = (event) => {
@@ -8553,27 +8471,24 @@ function bindOperatorDetailHold(button, operator) {
   for (const type of ["contextmenu", "selectstart", "dragstart", "copy"]) button.addEventListener(type, suppressNative);
   button.addEventListener("pointerdown", (event) => {
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
     hideOperatorDetail();
     pointerId = event.pointerId;
     pointerType = event.pointerType || "mouse";
     clickGate.reset();
     gesture.start(pointerId, event.clientX, event.clientY);
-    try { button.setPointerCapture(pointerId); } catch {}
   });
   button.addEventListener("pointermove", (event) => {
     if (pointerId !== event.pointerId) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
     gesture.move(pointerId, event.clientX, event.clientY);
   });
   button.addEventListener("pointerup", (event) => {
     if (pointerId !== event.pointerId) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
     const result = gesture.end(pointerId);
-    if (result === "hold") clickGate.arm();
+    if (result === "hold") {
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      clickGate.arm();
+    }
     pointerId = null;
     pointerType = "";
   });
@@ -8860,9 +8775,7 @@ function collectInventoryDisplayItems(self) {
 }
 
 function createInventoryTouchGesture({
-  onTap,
   onHold,
-  onScroll,
   onClearSelection,
   schedule = (callback, delay) => window.setTimeout(callback, delay),
   cancelSchedule = (timer) => window.clearTimeout(timer),
@@ -8873,7 +8786,6 @@ function createInventoryTouchGesture({
   let touchId = null;
   let originX = 0;
   let originY = 0;
-  let lastY = 0;
   let moved = false;
   let held = false;
 
@@ -8894,7 +8806,6 @@ function createInventoryTouchGesture({
       touchId = id;
       originX = clientX;
       originY = clientY;
-      lastY = clientY;
       onClearSelection();
       timer = schedule(() => {
         if (touchId !== id || moved) return;
@@ -8906,13 +8817,10 @@ function createInventoryTouchGesture({
     },
     move(id, clientX, clientY) {
       if (touchId !== id) return false;
-      const deltaY = lastY - clientY;
-      lastY = clientY;
       if (!moved && Math.hypot(clientX - originX, clientY - originY) > moveTolerance) {
         moved = true;
         clearTimer();
       }
-      if (moved) onScroll(deltaY);
       return moved;
     },
     end(id) {
@@ -8920,7 +8828,6 @@ function createInventoryTouchGesture({
       const result = held ? "hold" : moved ? "scroll" : "tap";
       clearTimer();
       onClearSelection();
-      if (result === "tap") onTap();
       reset();
       return result;
     },
@@ -9175,14 +9082,10 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   button.addEventListener("dragstart", suppressNativeLongPress);
   button.addEventListener("copy", suppressNativeLongPress);
   const pointerGesture = createInventoryTouchGesture({
-    onTap: () => {
-      if (activePointerType === "mouse") return;
-      button.click();
-      clickGate.arm();
-    },
     onHold: () => {
       clickGate.arm();
       clearNativeSelection();
+      try { button.setPointerCapture(activePointerId); } catch {}
       if (holdBranch?.repeat) {
         openItemHoldBranch({
           source: button,
@@ -9196,39 +9099,39 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
       }
       if (navigator.vibrate) navigator.vibrate(18);
     },
-    onScroll: (deltaY) => {
-      if (scrollContainer) scrollContainer.scrollTop += deltaY;
-    },
     onClearSelection: clearNativeSelection
   });
   button.addEventListener("pointerdown", (event) => {
     if (!event.isPrimary) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
     activePointerId = event.pointerId;
     activePointerType = event.pointerType || "mouse";
     clickGate.reset();
     pointerGesture.start(event.pointerId, event.clientX, event.clientY);
-    try { button.setPointerCapture(event.pointerId); } catch {}
   });
   button.addEventListener("pointermove", (event) => {
     if (activePointerId !== event.pointerId) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
-    if (!updateItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY)) {
+    if (state.itemHoldBranch.source === button) {
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      updateItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+    } else {
       pointerGesture.move(event.pointerId, event.clientX, event.clientY);
     }
   });
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
     const result = pointerGesture.end(event.pointerId);
     if (result === "hold" && holdBranch?.repeat) {
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
       finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
     }
-    if (result === "hold") clickGate.arm();
+    if (result === "hold") {
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      clickGate.arm();
+    }
     activePointerId = null;
     activePointerType = "";
   });
@@ -9714,10 +9617,11 @@ function renderVending(data) {
   const categories = availableVendingCategories();
   const category = categories.find((entry) => entry.id === state.vendingCategoryId) || categories[0] || hackerRecipeCategories[0];
   state.vendingCategoryId = category.id;
-  const categoryButtons = buttons.filter((button) => vendingProductCategory(button.dataset.drink) === category.id);
+  const categoryButtons = buttons.filter((button) => DVA_ECONOMY.product(button.dataset.drink)?.vendingAvailable && vendingProductCategory(button.dataset.drink) === category.id);
   els.vendingCategoryLabel.textContent = `${category.label} ${categoryButtons.length}`;
   buttons.forEach((button) => {
-    button.hidden = vendingProductCategory(button.dataset.drink) !== category.id;
+    const product = DVA_ECONOMY.product(button.dataset.drink);
+    button.hidden = !product?.vendingAvailable || product.category !== category.id;
     const copy = button.querySelector("span:last-child");
     const id = button.dataset.drink;
     const label = VENDING_PRODUCT_LABELS[id] || id;
@@ -13179,6 +13083,31 @@ function drawInventionEnergyTexture(effect, progress) {
     renderHeight,
     { mode: "beam", progress, intensity: railgun ? 1 : 0.92, baseAlpha: 0.15 }
   );
+  const now = (state.frameNow || performance.now()) / 1000;
+  ctx.globalCompositeOperation = "lighter";
+  if (railgun) {
+    const shock = objectEffectEase(clamp(progress / 0.42, 0, 1));
+    for (let index = 0; index < 11; index += 1) {
+      const along = ((index + 0.5) / 11) * length;
+      const spread = (1 - shock) * (18 + (index % 3) * 9);
+      ctx.globalAlpha = (1 - progress) * (0.24 + (index % 4) * 0.055);
+      ctx.fillStyle = index % 3 === 0 ? "#fff4cf" : "#8be9ff";
+      ctx.fillRect(along, (index % 2 ? -1 : 1) * spread, 12 + (index % 4) * 8, 1.4 + (index % 2));
+    }
+  } else {
+    for (let index = 0; index < 18; index += 1) {
+      const along = ((index / 18 + progress * 0.48) % 1) * length;
+      const helix = Math.sin(index * 1.73 + now * 9.2) * renderHeight * 0.26 * (1 - progress * 0.35);
+      const size = 1.4 + (index % 4) * 0.75;
+      ctx.globalAlpha = Math.max(0, 1 - progress) * (0.28 + (index % 5) * 0.06);
+      ctx.fillStyle = index % 2 ? "#e5b7ff" : "#7df4ff";
+      ctx.save();
+      ctx.translate(along, helix);
+      ctx.rotate(Math.PI / 4 + now * 0.7);
+      ctx.fillRect(-size, -size, size * 2, size * 2);
+      ctx.restore();
+    }
+  }
   ctx.restore();
   return true;
 }
@@ -13366,6 +13295,21 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     renderHeight,
     { mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant), progress, intensity: 0.94, baseAlpha: 0.16 }
   );
+  if (effect.type === "alchemy-excalibur") {
+    const edge = Math.sin(clamp(progress / 0.74, 0, 1) * Math.PI);
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 14; index += 1) {
+      const sweep = clamp((progress - index * 0.018) / 0.58, 0, 1);
+      const angle = -0.62 + sweep * 1.24 + (index - 7) * 0.018;
+      const radius = size * (0.26 + (index % 5) * 0.035);
+      ctx.globalAlpha = edge * (1 - sweep * 0.55) * (0.18 + (index % 4) * 0.06);
+      ctx.fillStyle = index % 3 === 0 ? "#ffe6a3" : "#baf6ff";
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.fillRect(radius, -1.2, 18 + (index % 4) * 7, 2.4);
+      ctx.restore();
+    }
+  }
   if (effect.type === "attacker-kill-deadline") {
     const fade = Math.max(0, 1 - progress);
     ctx.globalCompositeOperation = "lighter";
@@ -15171,6 +15115,45 @@ function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId,
   const ease = objectEffectEase(clamp(progress, 0, 1));
   const hasId = (...tokens) => tokens.some((token) => id === token || id.includes(token));
 
+  if (hasId("alchemy-railgun")) {
+    const brace = objectEffectEase(clamp(progress / 0.32, 0, 1));
+    const recoil = Math.sin(clamp((progress - 0.26) / 0.42, 0, 1) * Math.PI);
+    ctx.translate(facing * (-5.5 * brace - 15 * recoil) * motionScale, (5 * brace + 1.5 * recoil) * motionScale);
+    ctx.rotate(-facing * (0.052 * brace + 0.075 * recoil) * motionScale);
+    ctx.scale(1 + recoil * 0.07 * motionScale, 1 - brace * 0.055 * motionScale);
+    return true;
+  }
+  if (hasId("alchemy-particle-cannon", "alchemy-particle-beam")) {
+    const plant = objectEffectEase(clamp(progress / 0.26, 0, 1));
+    const sweep = Math.sin(progress * Math.PI * 3.2) * impulse;
+    ctx.translate(facing * (-7 * plant + sweep * 2.4) * motionScale, (4.2 * plant - Math.abs(sweep) * 1.2) * motionScale);
+    ctx.rotate(facing * (-0.038 * plant + sweep * 0.024) * motionScale);
+    ctx.scale(1 + plant * 0.045 * motionScale, 1 - plant * 0.035 * motionScale);
+    return true;
+  }
+  if (hasId("alchemy-excalibur")) {
+    const windup = objectEffectEase(clamp(progress / 0.34, 0, 1));
+    const cut = objectEffectEase(clamp((progress - 0.3) / 0.27, 0, 1));
+    const settle = objectEffectEase(clamp((progress - 0.62) / 0.38, 0, 1));
+    ctx.translate(facing * (-7 * windup + 24 * cut - 10 * settle) * motionScale, (3 * windup - 8 * cut + 5 * settle) * motionScale);
+    ctx.rotate(facing * (-0.13 * windup + 0.28 * cut - 0.11 * settle) * motionScale);
+    ctx.scale(1 - cut * 0.06 * motionScale, 1 + cut * 0.09 * motionScale);
+    return true;
+  }
+  if (hasId("gunner-rpg")) {
+    const launch = Math.sin(clamp((progress - 0.18) / 0.56, 0, 1) * Math.PI);
+    ctx.translate(-facing * launch * 12 * motionScale, launch * 4 * motionScale);
+    ctx.rotate(-facing * launch * 0.085 * motionScale);
+    return true;
+  }
+  if (hasId("gunner-missile")) {
+    const lock = objectEffectEase(clamp(progress / 0.44, 0, 1));
+    const launch = Math.sin(clamp((progress - 0.42) / 0.5, 0, 1) * Math.PI);
+    ctx.translate(facing * (lock * 4 - launch * 8) * motionScale, (-lock * 5 + launch * 2) * motionScale);
+    ctx.rotate(facing * (lock * 0.045 - launch * 0.055) * motionScale);
+    return true;
+  }
+
   if (hasId("action-heart-teleport") || (id === "/api/teleport" && mode === "heart")) {
     const clench = objectEffectEase(clamp(progress / 0.46, 0, 1));
     const release = objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
@@ -16730,7 +16713,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "natural-novel-cues-v476";
+const version = "native-swipe-weapon-ate-v477";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

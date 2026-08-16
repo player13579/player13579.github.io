@@ -21,6 +21,7 @@
 
   const categories = Object.freeze([
     Object.freeze({ id: "generate-supply", label: "生成・物資", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
+    Object.freeze({ id: "instant-item", label: "即席アイテム", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "weapon", label: "武器", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "invention", label: "発明品", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
@@ -33,16 +34,16 @@
     ["mineral-water", "ミネラルウォーター", 1, "generate-supply", "mineral-water", "mineral-water"],
     ["antidote", "解毒剤", 2, "generate-supply", "antidote", "antidote"],
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
-    ["evade", "回避拡張", 4, "generate-tech", "vending-evade", "instant-evade"],
-    ["speed", "アクセラレート飲料", 5, "generate-tech", "vending-speed", "instant-speed"],
-    ["warp", "即時ワープ", 3, "generate-tech", "warp", "warp"],
-    ["mystery", "ミステリー", 4, "generate-tech", "vending-mystery", "instant-mystery"],
-    ["fire", "火遁の術", 8, "generate-supply", "fire", "fire"],
-    ["substitution", "変わり身の術", 8, "generate-supply", "substitution", "substitution"],
-    ["grit", "踏ん張り", 5, "generate-supply", "grit", "grit"],
-    ["heal", "回復", 4, "generate-supply", "heal", "heal"],
-    ["reason", "押し込み", 5, "generate-supply", "reason", "reason"],
-    ["mana", "マナポーション", 3, "generate-tech", "vending-mana", "mana"],
+    ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
+    ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
+    ["warp", "即時ワープ", 3, "instant-item", "warp", "warp"],
+    ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
+    ["fire", "火遁の術", 8, "instant-item", "fire", "fire"],
+    ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
+    ["grit", "踏ん張り", 5, "instant-item", "grit", "grit"],
+    ["heal", "回復", 4, "instant-item", "heal", "heal"],
+    ["reason", "押し込み", 5, "instant-item", "reason", "reason"],
+    ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["railgun", "レールガン", 13, "invention", "vending-railgun", "railgun"],
     ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
@@ -53,25 +54,36 @@
     ["assault", "アサルトライフル", 7, "weapon", "vending-assault", "assault"],
     ["sniper", "スナイパーライフル", 10, "weapon", "vending-sniper", "sniper"],
     ["taser", "テーザー銃", 5, "weapon", "vending-taser", "taser"],
-    ["mercury", "水銀瓶", 5, "generate-supply", "mercury", "quantum-mercury"],
-    ["lead", "鉛瓶", 3, "generate-supply", "lead", "quantum-lead"],
+    ["mercury", "水銀瓶", 3, "generate-supply", "mercury", "quantum-mercury"],
+    ["lead", "鉛瓶", 1, "generate-supply", "lead", "quantum-lead"],
     ["uranium", "ウラン容器", 12, "generate-supply", "uranium", "quantum-uranium"],
     ["plutonium", "プルトニウム容器", 15, "generate-supply", "plutonium", "quantum-plutonium"],
     ["orichalcum-sword", "オリハルコン・ソード", 17, "weapon", "orichalcum-sword", "orichalcum-sword"],
-    ["iai", "居合", 9, "generate-supply", "iai", "iai"],
-    ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice"],
-    ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water"],
+    ["iai", "居合", 9, "instant-item", "iai", "iai"],
+    ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice", "root-only"],
+    ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water", "root-only"],
     ["rpg", "RPG", 14, "weapon", "vending-rpg", "rpg"],
     ["missile", "ミサイル", 17, "weapon", "vending-missile", "missile"]
   ];
 
-  const products = Object.freeze(rows.map(([id, label, price, category, hackerRecipeId, asset]) =>
-    Object.freeze({ id, label, price, category, hackerRecipeId, cooldownPerCredit: COOLDOWN_MS_PER_CREDIT, asset })
+  const products = Object.freeze(rows.map(([id, label, price, category, hackerRecipeId, asset, availability = "shared"]) =>
+    Object.freeze({
+      id,
+      label,
+      price,
+      category,
+      hackerRecipeId,
+      cooldownPerCredit: COOLDOWN_MS_PER_CREDIT,
+      asset,
+      availability,
+      vendingAvailable: availability === "shared",
+      hackerAccess: availability === "root-only" ? "root" : "ordinary"
+    })
   ));
   const categoryById = new Map(categories.map((entry) => [entry.id, entry]));
   const productById = new Map(products.map((entry) => [entry.id, entry]));
   const productByRecipeId = new Map(products.map((entry) => [entry.hackerRecipeId, entry]));
-  const productCosts = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.price])));
+  const productCosts = Object.freeze(Object.fromEntries(products.filter((entry) => entry.vendingAvailable).map((entry) => [entry.id, entry.price])));
   const productLabels = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.label])));
 
   const product = (itemId) => productById.get(String(itemId || "")) || null;
@@ -85,7 +97,7 @@
   };
 
   return Object.freeze({
-    version: "economy-omission-audit-v475",
+    version: "quantum-root-instant-v477",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

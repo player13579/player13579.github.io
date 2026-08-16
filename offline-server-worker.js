@@ -7285,6 +7285,7 @@ const LABORATORY_MAP = Object.freeze({
 
   const categories = Object.freeze([
     Object.freeze({ id: "generate-supply", label: "生成・物資", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
+    Object.freeze({ id: "instant-item", label: "即席アイテム", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "weapon", label: "武器", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "invention", label: "発明品", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
@@ -7297,16 +7298,16 @@ const LABORATORY_MAP = Object.freeze({
     ["mineral-water", "ミネラルウォーター", 1, "generate-supply", "mineral-water", "mineral-water"],
     ["antidote", "解毒剤", 2, "generate-supply", "antidote", "antidote"],
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
-    ["evade", "回避拡張", 4, "generate-tech", "vending-evade", "instant-evade"],
-    ["speed", "アクセラレート飲料", 5, "generate-tech", "vending-speed", "instant-speed"],
-    ["warp", "即時ワープ", 3, "generate-tech", "warp", "warp"],
-    ["mystery", "ミステリー", 4, "generate-tech", "vending-mystery", "instant-mystery"],
-    ["fire", "火遁の術", 8, "generate-supply", "fire", "fire"],
-    ["substitution", "変わり身の術", 8, "generate-supply", "substitution", "substitution"],
-    ["grit", "踏ん張り", 5, "generate-supply", "grit", "grit"],
-    ["heal", "回復", 4, "generate-supply", "heal", "heal"],
-    ["reason", "押し込み", 5, "generate-supply", "reason", "reason"],
-    ["mana", "マナポーション", 3, "generate-tech", "vending-mana", "mana"],
+    ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
+    ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
+    ["warp", "即時ワープ", 3, "instant-item", "warp", "warp"],
+    ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
+    ["fire", "火遁の術", 8, "instant-item", "fire", "fire"],
+    ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
+    ["grit", "踏ん張り", 5, "instant-item", "grit", "grit"],
+    ["heal", "回復", 4, "instant-item", "heal", "heal"],
+    ["reason", "押し込み", 5, "instant-item", "reason", "reason"],
+    ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["railgun", "レールガン", 13, "invention", "vending-railgun", "railgun"],
     ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
@@ -7317,25 +7318,36 @@ const LABORATORY_MAP = Object.freeze({
     ["assault", "アサルトライフル", 7, "weapon", "vending-assault", "assault"],
     ["sniper", "スナイパーライフル", 10, "weapon", "vending-sniper", "sniper"],
     ["taser", "テーザー銃", 5, "weapon", "vending-taser", "taser"],
-    ["mercury", "水銀瓶", 5, "generate-supply", "mercury", "quantum-mercury"],
-    ["lead", "鉛瓶", 3, "generate-supply", "lead", "quantum-lead"],
+    ["mercury", "水銀瓶", 3, "generate-supply", "mercury", "quantum-mercury"],
+    ["lead", "鉛瓶", 1, "generate-supply", "lead", "quantum-lead"],
     ["uranium", "ウラン容器", 12, "generate-supply", "uranium", "quantum-uranium"],
     ["plutonium", "プルトニウム容器", 15, "generate-supply", "plutonium", "quantum-plutonium"],
     ["orichalcum-sword", "オリハルコン・ソード", 17, "weapon", "orichalcum-sword", "orichalcum-sword"],
-    ["iai", "居合", 9, "generate-supply", "iai", "iai"],
-    ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice"],
-    ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water"],
+    ["iai", "居合", 9, "instant-item", "iai", "iai"],
+    ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice", "root-only"],
+    ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water", "root-only"],
     ["rpg", "RPG", 14, "weapon", "vending-rpg", "rpg"],
     ["missile", "ミサイル", 17, "weapon", "vending-missile", "missile"]
   ];
 
-  const products = Object.freeze(rows.map(([id, label, price, category, hackerRecipeId, asset]) =>
-    Object.freeze({ id, label, price, category, hackerRecipeId, cooldownPerCredit: COOLDOWN_MS_PER_CREDIT, asset })
+  const products = Object.freeze(rows.map(([id, label, price, category, hackerRecipeId, asset, availability = "shared"]) =>
+    Object.freeze({
+      id,
+      label,
+      price,
+      category,
+      hackerRecipeId,
+      cooldownPerCredit: COOLDOWN_MS_PER_CREDIT,
+      asset,
+      availability,
+      vendingAvailable: availability === "shared",
+      hackerAccess: availability === "root-only" ? "root" : "ordinary"
+    })
   ));
   const categoryById = new Map(categories.map((entry) => [entry.id, entry]));
   const productById = new Map(products.map((entry) => [entry.id, entry]));
   const productByRecipeId = new Map(products.map((entry) => [entry.hackerRecipeId, entry]));
-  const productCosts = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.price])));
+  const productCosts = Object.freeze(Object.fromEntries(products.filter((entry) => entry.vendingAvailable).map((entry) => [entry.id, entry.price])));
   const productLabels = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.label])));
 
   const product = (itemId) => productById.get(String(itemId || "")) || null;
@@ -7349,7 +7361,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "economy-omission-audit-v475",
+    version: "quantum-root-instant-v477",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -14432,16 +14444,14 @@ function purchaseDrink(room, player, itemId) {
     "mineral-water": { label: "ミネラルウォーター", cost: MINERAL_WATER_COST, apply: () => { addItem(player, "mineral-water"); } },
     antidote: { label: "解毒剤", cost: ANTIDOTE_COST, apply: () => { addItem(player, "antidote"); } },
     molotov: { label: "火炎瓶", cost: MOLOTOV_COST, apply: () => { addItem(player, "molotov"); } },
-    // Quantum conversion pays 4C/2C. Shop prices stay above those payouts so
-    // buying and immediately converting a bottle cannot mint infinite credits.
+    // Quantum Control deliberately turns these low-price feedstocks into a
+    // small credit profit (Hg +1C / Pb +1C).
     mercury: { label: "水銀瓶", cost: 60, apply: () => { addItem(player, "mercury"); } },
     lead: { label: "鉛瓶", cost: 40, apply: () => { addItem(player, "lead"); } },
     uranium: { label: "ウラン容器", cost: 140, apply: () => { addItem(player, "uranium"); } },
     plutonium: { label: "プルトニウム容器", cost: 180, apply: () => { addItem(player, "plutonium"); } },
     "orichalcum-sword": { label: "オリハルコン・ソード", cost: ORICHALCUM_SWORD_VENDING_COST, apply: () => { addItem(player, "orichalcum-sword"); } },
     iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { grantIaiCharge(room, player, true, "vending"); } },
-    ice: { label: "氷結水", cost: 20, apply: () => { addItem(player, "ice"); } },
-    "heated-water": { label: "高温水", cost: 20, apply: () => { addItem(player, "heated-water"); } },
     evade: { label: "回避拡張", cost: 45, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
     speed: { label: "アクセラレート飲料", cost: 55, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
     warp: { label: "即時ワープ", cost: 35, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
@@ -14481,7 +14491,7 @@ function purchaseDrink(room, player, itemId) {
   };
   const product = DVA_ECONOMY.product(itemId);
   const item = items[itemId];
-  if (!product || !item) throw new ApiError(404, "その商品はありません。");
+  if (!product || !item || !product.vendingAvailable) throw new ApiError(404, "その商品は自販機では販売していません。");
   item.label = product.label;
   item.cost = product.price;
   if (item.role && player.role !== item.role) throw new ApiError(403, "この商品はアタッカー専用です。");
@@ -15706,6 +15716,10 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   const recipe = ALCHEMY_RECIPES[conversion];
   if (!recipe) {
     throw new ApiError(400, `生成先が不正です。画面を更新して再選択してください（${conversion || "未選択"}）。`);
+  }
+  const catalogProduct = DVA_ECONOMY.productForRecipe(conversion);
+  if (catalogProduct?.hackerAccess === "root" && !hackerRootEligible(player)) {
+    throw new ApiError(403, `${catalogProduct.label}はroot化中だけ生成できます。`);
   }
   recipe.apply(room, player, targetId);
   player.vibeCodingCooldownMs = vibeCodingCooldownMsFor(conversion);
@@ -18275,7 +18289,20 @@ async function handleApi(req, res) {
     }
 
     case "/api/leave": {
-      const { room, player } = requireRoomPlayer(body);
+      const room = rooms.get(String(body.roomId || ""));
+      const player = room?.players.get(String(body.playerId || ""));
+      if (!room || !player) {
+        payload = {
+          ok: true,
+          left: true,
+          alreadyGone: true,
+          roomId: String(body.roomId || ""),
+          roomDeleted: !room,
+          newHostId: room?.hostId || null,
+          midJoinOpen: Boolean(room?.midJoinOpen)
+        };
+        break;
+      }
       const result = leaveRoom(room, player);
       payload = {
         ok: true,
@@ -19799,5 +19826,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "natural-novel-cues-v476" });
+self.postMessage({ type: "ready", version: "native-swipe-weapon-ate-v477" });
 })();
