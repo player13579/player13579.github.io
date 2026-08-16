@@ -70,7 +70,7 @@
   };
 
   return Object.freeze({
-    version: "gravity-target-teleport-v473",
+    version: "ability-name-self-teleport-v474",
     categories,
     products,
     productCosts,

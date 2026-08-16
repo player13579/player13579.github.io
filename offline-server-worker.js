@@ -7334,7 +7334,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "gravity-target-teleport-v473",
+    version: "ability-name-self-teleport-v474",
     categories,
     products,
     productCosts,
@@ -19781,5 +19781,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "gravity-target-teleport-v473" });
+self.postMessage({ type: "ready", version: "ability-name-self-teleport-v474" });
 })();

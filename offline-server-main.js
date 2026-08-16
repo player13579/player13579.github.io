@@ -7334,7 +7334,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "gravity-target-teleport-v473",
+    version: "ability-name-self-teleport-v474",
     categories,
     products,
     productCosts,
@@ -19776,7 +19776,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "gravity-target-teleport-v473",
+  version: "ability-name-self-teleport-v474",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

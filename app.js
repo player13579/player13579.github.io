@@ -521,6 +521,7 @@ const state = {
   operatorDetailSource: null,
   resultCelebrationKey: "",
   mapPointer: null,
+  expandedMapTap: null,
   actionSelectionId: "",
   hackerSelectedRecipeId: "",
   hackerSelectedByCategory: Object.create(null),
@@ -738,7 +739,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "gravity-target-teleport-v473";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ability-name-self-teleport-v474";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4036,39 +4037,6 @@ function cycleSelectBy(select, direction = 1) {
   return true;
 }
 
-const SWITCH_DRAG_ABILITY_ATE_PATHS = Object.freeze({
-  fighter: "assets/generated/operator-fighter-ate-v391.png",
-  gravity: "assets/generated/operator-gravity-ate-v391.png",
-  teleport: "assets/generated/operator-gravity-ate-v391.png",
-  flora: "assets/generated/operator-flora-ate-v391.png",
-  gunner: "assets/generated/operator-gunner-ate-v391.png",
-  quantum: "assets/generated/operator-quantum-control-ate-v391.png",
-  near: "assets/generated/action-effect-teleport-v311.png",
-  target: "assets/generated/action-effect-teleport-v311.png",
-  heart: "assets/generated/heart-transfer-fist-glow-ate-v468.png",
-  accelerate: "assets/generated/status-marker-acceleration-v376.png",
-  decelerate: "assets/generated/operator-gravity-ate-v391.png",
-  storm: "assets/generated/gravity-storm.webp",
-  heal: "assets/generated/flora-self-heal-v336.png",
-  sunbeam: "assets/generated/flora-sunbeam-v3-v336.png",
-  "sunbeam-converged": "assets/generated/flora-sunbeam-v3-v336.png",
-  "hover-sprint": "assets/generated/gunner-hover-sprint-v311.png",
-  "transmute-mercury": "assets/generated/effect-gold-transmutation-v436.png",
-  "transmute-lead": "assets/generated/effect-gold-transmutation-v436.png",
-  "cool-water": "assets/generated/effect-quantum-cold.webp",
-  "heat-water": "assets/generated/effect-quantum-hot.webp",
-  "fission-uranium": "assets/generated/effect-quantum-nuclear-v311.png",
-  "fission-plutonium": "assets/generated/effect-quantum-nuclear-v311.png",
-  positive: "assets/generated/emp-resonance-v398.png",
-  negative: "assets/generated/emp-cancel-v311.png"
-});
-
-function switchDragAbilityAte(group, value) {
-  if (!["能力", "方式", "位相"].includes(group)) return "";
-  const path = SWITCH_DRAG_ABILITY_ATE_PATHS[String(value || "")];
-  return path ? assetUrl(`${path}?v=${GENERATED_ITEM_TEXTURE_CACHE_VERSION}`) : "";
-}
-
 function switchDragSelectOptions(select, group, onApply = null) {
   if (!(select instanceof HTMLSelectElement) || select.disabled) return [];
   return [...select.options]
@@ -4077,7 +4045,6 @@ function switchDragSelectOptions(select, group, onApply = null) {
       key: `${group}:${option.value}`,
       group,
       label: option.textContent?.trim() || option.value,
-      ate: switchDragAbilityAte(group, option.value),
       selected: option.value === select.value,
       apply() {
         select.value = option.value;
@@ -4100,7 +4067,6 @@ function switchDragDescriptorForSource(source) {
         key: `ability:${type}`,
         group: "能力",
         label: specialLabels[type] || type,
-        ate: switchDragAbilityAte("能力", type),
         selected: type === selectedBorrowedOperator(),
         apply() {
           state.borrowedOperatorType = type;
@@ -4208,7 +4174,6 @@ function closeSwitchDragMenu() {
   gesture.source = null;
   gesture.opened = false;
   gesture.options = [];
-  document.body.classList.remove("switch-drag-open");
   els.switchDragMenu.hidden = true;
   els.switchDragOptions.replaceChildren();
 }
@@ -4229,21 +4194,10 @@ function openSwitchDragMenu(descriptor) {
     button.setAttribute("aria-selected", String(Boolean(option.selected)));
     button.setAttribute("aria-label", `${option.group}: ${option.label}`);
     button.className = `switch-drag-option${option.selected ? " selected" : ""}`;
-    if (option.ate) {
-      button.classList.add("switch-drag-ate-option", `switch-drag-shape-${index % 16}`);
-      const texture = document.createElement("img");
-      texture.src = option.ate;
-      texture.alt = "";
-      texture.setAttribute("aria-hidden", "true");
-      texture.draggable = false;
-      button.append(texture);
-    } else {
-      button.innerHTML = `<small>${escapeHtml(option.group)}</small><strong>${escapeHtml(option.label)}</strong>`;
-    }
+    button.innerHTML = `<small>${escapeHtml(option.group)}</small><strong>${escapeHtml(option.label)}</strong>`;
     button.addEventListener("click", (event) => event.preventDefault());
     els.switchDragOptions.append(button);
   });
-  document.body.classList.add("switch-drag-open");
   els.switchDragMenu.hidden = false;
   positionSwitchDragMenu();
   try { gesture.source.setPointerCapture?.(gesture.pointerId); } catch {}
@@ -5508,11 +5462,14 @@ function bindEvents() {
     syncBgm();
   });
 
-  els.expandedMapCanvas.addEventListener("pointermove", updateExpandedMapPointer);
+  els.expandedMapCanvas.addEventListener("pointerdown", beginExpandedMapTap);
+  els.expandedMapCanvas.addEventListener("pointermove", moveExpandedMapTap);
+  els.expandedMapCanvas.addEventListener("pointerup", (event) => finishExpandedMapTap(event));
+  els.expandedMapCanvas.addEventListener("pointercancel", (event) => finishExpandedMapTap(event, true));
+  els.expandedMapCanvas.addEventListener("lostpointercapture", (event) => finishExpandedMapTap(event, true));
   els.expandedMapCanvas.addEventListener("pointerleave", () => {
-    state.mapPointer = null;
+    if (!state.expandedMapTap) state.mapPointer = null;
   });
-  els.expandedMapCanvas.addEventListener("click", teleportFromExpandedMap);
   els.canvas.addEventListener("pointerdown", attackFromCanvas);
 }
 
@@ -6372,6 +6329,7 @@ function setExpandedMapOpen(open) {
     state.teleportTargetMode = "body";
     state.instantWarpTargeting = false;
     state.mapPointer = null;
+    state.expandedMapTap = null;
   }
   els.expandedMapOverlay.hidden = !state.expandedMapOpen;
   els.mapActionButton.setAttribute("aria-expanded", String(state.expandedMapOpen));
@@ -6488,28 +6446,33 @@ function toggleExpandedMapFromAction() {
     setExpandedMapOpen(false);
     return;
   }
-  const data = state.data;
-  const self = data?.self;
-  if (
-    data?.phase === "playing" &&
-    self?.special === "teleport" &&
-    self.alive &&
-    !self.ejected &&
-    !self.inVent
-  ) {
-    const liveNow = estimatedServerNow(data);
-    if ((Number(self.teleportReadyAt) || 0) <= liveNow) {
-      els.teleportModeSelect.value = "body";
-      state.teleportTargetId = self.id;
-      state.teleportTargetMode = "body";
-      state.teleportTargeting = true;
-      state.teleportBorrowed = false;
-      setExpandedMapOpen(true);
-      initializeMapKeyboardPointer();
-      return;
-    }
-  }
+  if (beginSelfLocationTeleportFromMap()) return;
   setExpandedMapOpen(true);
+}
+
+function selfLocationTeleportContext(data = state.data) {
+  const self = data?.self;
+  if (!self || data.phase !== "playing" || !self.alive || self.ejected || self.inVent) return null;
+  const nativeGravity = self.special === "teleport";
+  const borrowedGravity = self.special === "alchemist" &&
+    selectedBorrowedOperator() === "gravity" &&
+    hasDisplayedOperatorAccess(self, "gravity");
+  if (!nativeGravity && !borrowedGravity) return null;
+  if ((Number(self.teleportReadyAt) || 0) > estimatedServerNow(data)) return null;
+  return { self, borrowed: borrowedGravity };
+}
+
+function beginSelfLocationTeleportFromMap() {
+  const context = selfLocationTeleportContext();
+  if (!context) return false;
+  state.teleportTargetId = context.self.id;
+  state.teleportTargetMode = "body";
+  state.teleportTargeting = true;
+  state.teleportBorrowed = context.borrowed;
+  setExpandedMapOpen(true);
+  initializeMapKeyboardPointer();
+  syncExpandedMapUi();
+  return true;
 }
 
 function syncExpandedMapUi() {
@@ -6845,6 +6808,34 @@ function updateExpandedMapPointer(event) {
   state.mapPointer = expandedMapPoint(event);
 }
 
+function beginExpandedMapTap(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  state.expandedMapTap = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false
+  };
+  updateExpandedMapPointer(event);
+  try { els.expandedMapCanvas.setPointerCapture(event.pointerId); } catch {}
+}
+
+function moveExpandedMapTap(event) {
+  updateExpandedMapPointer(event);
+  const tap = state.expandedMapTap;
+  if (!tap || tap.pointerId !== event.pointerId || tap.moved) return;
+  tap.moved = Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) > 10;
+}
+
+function finishExpandedMapTap(event, cancelled = false) {
+  const tap = state.expandedMapTap;
+  if (!tap || tap.pointerId !== event.pointerId) return;
+  state.expandedMapTap = null;
+  if (cancelled || tap.moved) return;
+  event.preventDefault();
+  void teleportFromExpandedMap(event);
+}
+
 function nearestExpandedMapDestination(point) {
   const data = state.data;
   if (!data || !point) return null;
@@ -6862,13 +6853,8 @@ function nearestExpandedMapDestination(point) {
 }
 
 async function teleportFromExpandedMap(event) {
-  const self = state.data?.self;
   if (!state.teleportTargeting && !state.instantWarpTargeting) {
-    if (state.data?.phase !== "playing" || self?.special !== "teleport" || !self.alive || self.ejected || self.inVent) return;
-    state.teleportTargeting = true;
-    state.teleportBorrowed = false;
-    state.teleportTargetId = self.id;
-    state.teleportTargetMode = "body";
+    if (!beginSelfLocationTeleportFromMap()) return;
     state.mapPointer = nearestExpandedMapDestination(expandedMapPoint(event));
     syncExpandedMapUi();
     await activateExpandedMapPoint(state.mapPointer);
@@ -16719,7 +16705,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "gravity-target-teleport-v473";
+const version = "ability-name-self-teleport-v474";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

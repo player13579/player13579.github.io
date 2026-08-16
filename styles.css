@@ -1916,22 +1916,6 @@ select:focus {
   box-shadow: var(--shadow);
 }
 
-.board-wrap::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 190;
-  border-radius: inherit;
-  background: rgba(2, 6, 10, 0.68);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms ease;
-}
-
-body.switch-drag-open .board-wrap::after {
-  opacity: 1;
-}
-
 .field-stage-slot:has(.field-lower-row[hidden]) .board-wrap {
   width: min(100cqw, calc(100cqh * 98 / 62));
 }
@@ -2717,60 +2701,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   transform: scale(1.035);
 }
 
-.switch-drag-ate-option {
-  display: grid;
-  place-items: center;
-  min-height: 92px;
-  height: 92px;
-  padding: 0;
-  overflow: visible;
-  border: 0 !important;
-  border-radius: 0;
-  background: none !important;
-  box-shadow: none;
-}
-
-.switch-drag-ate-option img {
-  display: block;
-  width: 92px;
-  height: 92px;
-  object-fit: cover;
-  object-position: center;
-  filter: drop-shadow(0 0 8px rgba(125, 211, 252, 0.48));
-  transition: filter 130ms ease, transform 130ms ease;
-}
-
-.switch-drag-ate-option.selected img {
-  filter: drop-shadow(0 0 4px #fef08a) drop-shadow(0 0 12px rgba(250, 204, 21, 0.92));
-}
-
-.switch-drag-ate-option.switch-drag-hover {
-  background: none !important;
-  box-shadow: none;
-  transform: scale(1.08);
-}
-
-.switch-drag-ate-option.switch-drag-hover img {
-  filter: brightness(1.2) saturate(1.16) drop-shadow(0 0 14px rgba(245, 158, 11, 0.95));
-}
-
-.switch-drag-shape-0 img { clip-path: circle(47% at 50% 50%); }
-.switch-drag-shape-1 img { clip-path: polygon(24% 2%, 76% 2%, 100% 50%, 76% 98%, 24% 98%, 0 50%); }
-.switch-drag-shape-2 img { clip-path: polygon(50% 0, 98% 50%, 50% 100%, 2% 50%); }
-.switch-drag-shape-3 img { clip-path: polygon(15% 0, 100% 0, 84% 100%, 0 100%); }
-.switch-drag-shape-4 img { clip-path: ellipse(48% 38% at 50% 50%); }
-.switch-drag-shape-5 img { clip-path: polygon(50% 0, 62% 32%, 98% 36%, 70% 58%, 80% 96%, 50% 74%, 20% 96%, 30% 58%, 2% 36%, 38% 32%); }
-.switch-drag-shape-6 img { clip-path: polygon(0 18%, 82% 0, 100% 82%, 18% 100%); }
-.switch-drag-shape-7 img { clip-path: polygon(50% 0, 94% 24%, 88% 76%, 50% 100%, 12% 76%, 6% 24%); }
-.switch-drag-shape-8 img { clip-path: polygon(8% 8%, 72% 0, 100% 46%, 78% 100%, 16% 90%, 0 42%); }
-.switch-drag-shape-9 img { clip-path: polygon(50% 0, 100% 28%, 82% 100%, 18% 100%, 0 28%); }
-.switch-drag-shape-10 img { clip-path: polygon(0 0, 78% 8%, 100% 100%, 20% 90%); }
-.switch-drag-shape-11 img { clip-path: polygon(22% 0, 78% 0, 100% 32%, 72% 100%, 28% 100%, 0 32%); }
-.switch-drag-shape-12 img { clip-path: polygon(50% 0, 68% 22%, 100% 20%, 82% 52%, 100% 84%, 64% 80%, 50% 100%, 36% 80%, 0 84%, 18% 52%, 0 20%, 32% 22%); }
-.switch-drag-shape-13 img { clip-path: polygon(0 24%, 40% 0, 100% 18%, 88% 78%, 44% 100%, 8% 76%); }
-.switch-drag-shape-14 img { clip-path: polygon(18% 0, 100% 16%, 82% 100%, 0 84%); }
-.switch-drag-shape-15 img { clip-path: polygon(50% 0, 88% 12%, 100% 50%, 88% 88%, 50% 100%, 12% 88%, 0 50%, 12% 12%); }
-
 .switch-drag-source {
   outline: 3px solid rgba(103, 232, 249, 0.78);
   outline-offset: 2px;
@@ -3227,7 +3157,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=gravity-target-teleport-v473") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=ability-name-self-teleport-v474") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
@@ -3371,6 +3301,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   min-width: 0;
   min-height: 0;
   background: #d7e3e9;
+  touch-action: none;
 }
 
 #expandedMapCanvas.teleport-targeting {
@@ -7776,4 +7707,3 @@ body [data-scroll-region].scroll-region-selected {
     transition-duration: 1ms !important;
   }
 }
-
