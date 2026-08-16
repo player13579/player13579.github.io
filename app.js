@@ -619,7 +619,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   evade: "回避受付+0.25秒（累積上限+1.50秒）。回避自体は100SPを消費",
   speed: "加速+0.10（累積）。移動・物理モーション・クールタイム・行動不能・タスク速度へ適用",
   warp: "1回分を獲得（最大3回）。拡大マップで地点を指定して即時転移",
-  mystery: "幸運／直観補正つき抽選: 80C／SP+250／完全活性／理知化／12秒減速／15秒能力封印／8秒意識消失",
+  mystery: "幸運／直観補正つき抽選: 6C／SP+250／完全活性／理知化／12秒減速／15秒能力封印／8秒意識消失",
   fire: "1回分を獲得（最大2回）。周囲を継続燃焼。Enhanceは強度・範囲のみ強化",
   substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
   grit: "1回分を獲得。次の確殺をボディダメージ化。理知中のみ発動",
@@ -636,8 +636,8 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   assault: "18発。射程760・威力0.58・0.24秒間隔。距離減衰小。自動リロード",
   sniper: "5発。射程1200・確殺・1.10秒間隔。自動リロード",
   taser: "8発。射程420・威力0.16・0.72秒間隔。命中対象を6秒間35%減速。自動リロード",
-  mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で55Cへ換金",
-  lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で35Cへ換金",
+  mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で4Cへ換金",
+  lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で2Cへ換金",
   uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後のJGは全攻撃反射、消滅斬りは死体なし。斬る／投擲の衝撃波はEC-1、EC100以上の斬るはEC-100で特大化。衝撃波はJG・反射不可",
@@ -739,7 +739,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ability-name-self-teleport-v474";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-novel-cues-v476";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2097,21 +2097,40 @@ function tacticsNovelMotionFrame(timeSeconds) {
   return [0, 1, 2, 1][Math.floor(timeSeconds * 1.35) % 4];
 }
 
-function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, active, timeSeconds, entrance) {
-  const image = state.textures.tacticsNovelMotions?.[person]?.[gesture];
+function tacticsNovelCueEnvelope(elapsed, start, end, fade = 240) {
+  if (elapsed <= start - fade || elapsed >= end + fade) return 0;
+  if (elapsed < start) return clamp((elapsed - (start - fade)) / fade, 0, 1);
+  if (elapsed > end) return clamp(((end + fade) - elapsed) / fade, 0, 1);
+  return 1;
+}
+
+function tacticsNovelGestureActivity(elapsed, active, person) {
+  const offset = person === "sophia" ? 0 : 120;
+  const windows = active
+    ? [[520 + offset, 1_900 + offset], [4_180 + offset, 5_080 + offset]]
+    : [[2_520 + offset, 3_260 + offset]];
+  return Math.max(...windows.map(([start, end]) => tacticsNovelCueEnvelope(elapsed, start, end, 210)));
+}
+
+function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, active, timeSeconds, entrance, elapsed) {
+  const gestureActivity = tacticsNovelGestureActivity(elapsed, active, person);
+  const displayedGesture = gestureActivity > 0.01 ? gesture : "rest";
+  const image = state.textures.tacticsNovelMotions?.[person]?.[displayedGesture];
   const skin = person === "sophia" ? "blue-dress" : "white-hood";
-  const key = `physical-motion-${skin}-${gesture}-novel-v466`;
+  const key = `physical-motion-${skin}-${displayedGesture}-novel-v466`;
   const source = image ? transparentSpriteSource(image, key, 20) : null;
   if (!source) return;
-  const frame = tacticsNovelMotionFrame(timeSeconds + (person === "sophia" ? 0 : 0.37));
+  const frame = gestureActivity > 0.01
+    ? tacticsNovelMotionFrame(timeSeconds + (person === "sophia" ? 0 : 0.37))
+    : 1;
   const sourceWidth = source.width / 3;
   const sourceHeight = source.height;
-  const activeScale = active ? 1.045 : 0.94;
+  const activeScale = active ? 1 + gestureActivity * 0.045 : 0.94 + gestureActivity * 0.018;
   const drawHeight = height * activeScale;
   const drawWidth = drawHeight * sourceWidth / sourceHeight;
   const direction = person === "sophia" ? -1 : 1;
   const slide = direction * (1 - entrance) * 54;
-  const bob = Math.sin(timeSeconds * 2.1 + (person === "sophia" ? 0 : 1.4)) * (active ? 3.4 : 1.8);
+  const bob = Math.sin(timeSeconds * 1.45 + (person === "sophia" ? 0 : 1.4)) * (0.45 + gestureActivity * (active ? 2.95 : 1.2));
   ctx.save();
   ctx.globalAlpha = (active ? 1 : 0.72) * (0.48 + entrance * 0.52);
   ctx.filter = active ? "saturate(1.05) brightness(1.03)" : "saturate(0.78) brightness(0.82)";
@@ -2134,8 +2153,9 @@ function drawTacticsNovelAmbientE(ctx, width, height, timeSeconds) {
   ctx.restore();
 }
 
-function drawTacticsNovelMangaE(ctx, type, x, y, size, timeSeconds, phase) {
+function drawTacticsNovelMangaE(ctx, type, x, y, size, timeSeconds, phase, visibility) {
   ctx.save();
+  ctx.globalAlpha = visibility;
   ctx.globalCompositeOperation = "screen";
   const pulse = 0.5 + Math.sin(timeSeconds * 4.2 + phase) * 0.5;
   if (type === "sparkle") {
@@ -2187,7 +2207,12 @@ function drawTacticsNovelMangaE(ctx, type, x, y, size, timeSeconds, phase) {
   ctx.restore();
 }
 
-function drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance) {
+function drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance, elapsed) {
+  const cueStarts = [980, 3_720, 5_380];
+  const cueDurations = [1_020, 900, 720];
+  const cueIndex = Math.min(index, cueStarts.length - 1);
+  const visibility = tacticsNovelCueEnvelope(elapsed, cueStarts[cueIndex], cueStarts[cueIndex] + cueDurations[cueIndex], 220);
+  if (visibility <= 0) return;
   const image = state.textures.tacticsNovelMangaSymbols?.[symbol.type];
   if (!image?.complete || !image.naturalWidth) return;
   const ownerAnchor = anchors[symbol.owner] || anchors.sophia;
@@ -2198,9 +2223,9 @@ function drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entr
   const localTime = timeSeconds + index * 0.73;
   const scale = entrance * (0.94 + Math.sin(localTime * 3.2) * 0.055);
   const rotation = Math.sin(localTime * 1.8) * 0.08;
-  drawTacticsNovelMangaE(ctx, symbol.type, x, y, baseSize, timeSeconds, index * 0.67);
+  drawTacticsNovelMangaE(ctx, symbol.type, x, y, baseSize, timeSeconds, index * 0.67, visibility);
   ctx.save();
-  ctx.globalAlpha = entrance;
+  ctx.globalAlpha = entrance * visibility;
   ctx.translate(x, y);
   ctx.rotate(rotation);
   ctx.scale(scale, scale);
@@ -2239,9 +2264,9 @@ function drawTacticsNovelFrame(timestamp) {
     sophia: { x: rect.width * (compact ? 0.28 : 0.3), y: baseY, size: characterHeight },
     philia: { x: rect.width * (compact ? 0.72 : 0.7), y: baseY, size: characterHeight }
   };
-  drawTacticsNovelCharacter(ctx, "sophia", scene.sophiaGesture, anchors.sophia.x, baseY, characterHeight, scene.speaker === "sophia", timeSeconds, entrance);
-  drawTacticsNovelCharacter(ctx, "philia", scene.philiaGesture, anchors.philia.x, baseY, characterHeight, scene.speaker === "philia", timeSeconds, entrance);
-  scene.symbols.forEach((symbol, index) => drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance));
+  drawTacticsNovelCharacter(ctx, "sophia", scene.sophiaGesture, anchors.sophia.x, baseY, characterHeight, scene.speaker === "sophia", timeSeconds, entrance, elapsed);
+  drawTacticsNovelCharacter(ctx, "philia", scene.philiaGesture, anchors.philia.x, baseY, characterHeight, scene.speaker === "philia", timeSeconds, entrance, elapsed);
+  scene.symbols.forEach((symbol, index) => drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance, elapsed));
   if (state.tacticsNovelAuto && elapsed >= 7_000) {
     if (state.tacticsNovelIndex >= TACTICS_NOVEL_SCENES.length - 1) setTacticsNovelAuto(false);
     else setTacticsNovelScene(state.tacticsNovelIndex + 1);
@@ -16705,7 +16730,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ability-name-self-teleport-v474";
+const version = "natural-novel-cues-v476";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

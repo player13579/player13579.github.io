@@ -5112,9 +5112,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-archive-archiveCabinet-2",
       "type": "archiveCabinet",
       "label": "保存箪笥",
-      "effectLabel": "24C 獲得",
+      "effectLabel": "2C 獲得",
       "effectKind": "credits",
-      "effectAmount": 24,
+      "effectAmount": 2,
       "x": 916,
       "y": 365,
       "room": "archive",
@@ -5333,9 +5333,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-power-cableSpool-2",
       "type": "cableSpool",
       "label": "手仕事台",
-      "effectLabel": "20C 獲得",
+      "effectLabel": "2C 獲得",
       "effectKind": "credits",
-      "effectAmount": 20,
+      "effectAmount": 2,
       "x": 830,
       "y": 1502,
       "room": "power",
@@ -5369,9 +5369,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-storage-cargoCrate-1",
       "type": "cargoCrate",
       "label": "保存木箱",
-      "effectLabel": "30C 獲得",
+      "effectLabel": "3C 獲得",
       "effectKind": "credits",
-      "effectAmount": 30,
+      "effectAmount": 3,
       "x": 1203,
       "y": 1696,
       "room": "storage",
@@ -5515,9 +5515,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-engineering-toolCart-2",
       "type": "toolCart",
       "label": "端材手押し棚",
-      "effectLabel": "20C 獲得",
+      "effectLabel": "2C 獲得",
       "effectKind": "credits",
-      "effectAmount": 20,
+      "effectAmount": 2,
       "x": 4308,
       "y": 1316,
       "room": "engineering",
@@ -5569,9 +5569,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-fabrication-recyclingUnit-2",
       "type": "recyclingUnit",
       "label": "粘土再生槽",
-      "effectLabel": "32C 獲得",
+      "effectLabel": "3C 獲得",
       "effectKind": "credits",
-      "effectAmount": 32,
+      "effectAmount": 3,
       "x": 4315,
       "y": 2102,
       "room": "fabrication",
@@ -5791,9 +5791,9 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-comms-serverRack-2",
       "type": "serverRack",
       "label": "文箱棚",
-      "effectLabel": "28C 獲得",
+      "effectLabel": "3C 獲得",
       "effectKind": "credits",
-      "effectAmount": 28,
+      "effectAmount": 3,
       "x": 4346,
       "y": 2882,
       "room": "comms",
@@ -6955,9 +6955,9 @@ const LABORATORY_MAP = Object.freeze({
       "id": "outpost-drill-credit",
       "type": "creditCache",
       "label": "研究助成クレジット端末",
-      "effectLabel": "+30クレジット",
+      "effectLabel": "+3クレジット",
       "effectKind": "credits",
-      "effectAmount": 30,
+      "effectAmount": 3,
       "x": 3310,
       "y": 265,
       "room": "drill",
@@ -7269,53 +7269,68 @@ const LABORATORY_MAP = Object.freeze({
 })(typeof globalThis === "object" ? globalThis : this, () => {
   "use strict";
 
+  const COOLDOWN_MS_PER_CREDIT = 5_000;
+  const creditIncome = Object.freeze({
+    passiveIntervalMs: 10_000,
+    passiveReward: 1,
+    taskReward: 2,
+    sabotageReward: 2,
+    cacheReward: 3,
+    quantumMercuryReward: 4,
+    quantumLeadReward: 2,
+    mysteryJackpot: 6,
+    donationCost: 1,
+    hackerDuplicateBonus: 2
+  });
+
   const categories = Object.freeze([
-    Object.freeze({ id: "generate-supply", label: "生成・物資", defaultCooldownPerCredit: 900 }),
-    Object.freeze({ id: "weapon", label: "武器", defaultCooldownPerCredit: 600 }),
-    Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: 900 }),
-    Object.freeze({ id: "invention", label: "発明品", defaultCooldownPerCredit: 550 })
+    Object.freeze({ id: "generate-supply", label: "生成・物資", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
+    Object.freeze({ id: "weapon", label: "武器", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
+    Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
+    Object.freeze({ id: "invention", label: "発明品", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
   ]);
 
-  // Hacker CT = current vending price × fixed per-credit ratio. The explicit
-  // ratios preserve v467 values while making every later price edit proportional.
+  // One credit is the price of the least expensive product. Every other price
+  // is a relative gameplay-value unit. Hacker CT uses the same five seconds per
+  // credit for every shared product, so price changes cannot drift from CT.
   const rows = [
-    ["mineral-water", "ミネラルウォーター", 12, "generate-supply", "mineral-water", 18_000 / 12, "mineral-water"],
-    ["antidote", "解毒剤", 24, "generate-supply", "antidote", 24_000 / 24, "antidote"],
-    ["molotov", "火炎瓶", 48, "generate-supply", "molotov", 42_000 / 48, "molotov"],
-    ["evade", "回避拡張", 45, "generate-tech", "vending-evade", 42_000 / 45, "instant-evade"],
-    ["speed", "アクセラレート飲料", 55, "generate-tech", "vending-speed", 54_000 / 55, "instant-speed"],
-    ["warp", "即時ワープ", 35, "generate-tech", "warp", 36_000 / 35, "warp"],
-    ["mystery", "ミステリー", 45, "generate-tech", "vending-mystery", 42_000 / 45, "instant-mystery"],
-    ["fire", "火遁の術", 95, "generate-supply", "fire", 75_000 / 95, "fire"],
-    ["substitution", "変わり身の術", 90, "generate-supply", "substitution", 72_000 / 90, "substitution"],
-    ["grit", "踏ん張り", 60, "generate-supply", "grit", 54_000 / 60, "grit"],
-    ["heal", "回復", 50, "generate-supply", "heal", 48_000 / 50, "heal"],
-    ["reason", "押し込み", 65, "generate-supply", "reason", 60_000 / 65, "reason"],
-    ["mana", "マナポーション", 30, "generate-tech", "vending-mana", 30_000 / 30, "mana"],
-    ["railgun", "レールガン", 150, "invention", "vending-railgun", 90_000 / 150, "railgun"],
-    ["particle-cannon", "荷電粒子砲", 190, "invention", "vending-particle-cannon", 105_000 / 190, "particle-cannon"],
-    ["excalibur", "エクスカリバー", 230, "invention", "vending-excalibur", 120_000 / 230, "excalibur"],
-    ["exile", "亡命", 260, "generate-tech", "vending-exile", 135_000 / 260, "exile"],
-    ["computer", "パソコン", 125, "generate-tech", "vending-computer", 75_000 / 125, "computer"],
-    ["handgun", "ハンドガン", 40, "weapon", "vending-handgun", 36_000 / 40, "handgun"],
-    ["smg", "サブマシンガン", 65, "weapon", "vending-smg", 48_000 / 65, "smg"],
-    ["assault", "アサルトライフル", 85, "weapon", "vending-assault", 60_000 / 85, "assault"],
-    ["sniper", "スナイパーライフル", 120, "weapon", "vending-sniper", 75_000 / 120, "sniper"],
-    ["taser", "テーザー銃", 60, "weapon", "vending-taser", 48_000 / 60, "taser"],
-    ["mercury", "水銀瓶", 60, "generate-supply", "mercury", 48_000 / 60, "quantum-mercury"],
-    ["lead", "鉛瓶", 40, "generate-supply", "lead", 36_000 / 40, "quantum-lead"],
-    ["uranium", "ウラン容器", 140, "generate-supply", "uranium", 90_000 / 140, "quantum-uranium"],
-    ["plutonium", "プルトニウム容器", 180, "generate-supply", "plutonium", 105_000 / 180, "quantum-plutonium"],
-    ["orichalcum-sword", "オリハルコン・ソード", 200, "weapon", "orichalcum-sword", 90_000 / 200, "orichalcum-sword"],
-    ["iai", "居合", 110, "generate-supply", "iai", 84_000 / 110, "iai"],
-    ["ice", "氷結水", 20, "generate-supply", "vending-ice", 900, "ice"],
-    ["heated-water", "高温水", 20, "generate-supply", "vending-heated-water", 900, "heated-water"],
-    ["rpg", "RPG", 170, "weapon", "vending-rpg", 600, "rpg"],
-    ["missile", "ミサイル", 200, "weapon", "vending-missile", 600, "missile"]
+    ["mineral-water", "ミネラルウォーター", 1, "generate-supply", "mineral-water", "mineral-water"],
+    ["antidote", "解毒剤", 2, "generate-supply", "antidote", "antidote"],
+    ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
+    ["evade", "回避拡張", 4, "generate-tech", "vending-evade", "instant-evade"],
+    ["speed", "アクセラレート飲料", 5, "generate-tech", "vending-speed", "instant-speed"],
+    ["warp", "即時ワープ", 3, "generate-tech", "warp", "warp"],
+    ["mystery", "ミステリー", 4, "generate-tech", "vending-mystery", "instant-mystery"],
+    ["fire", "火遁の術", 8, "generate-supply", "fire", "fire"],
+    ["substitution", "変わり身の術", 8, "generate-supply", "substitution", "substitution"],
+    ["grit", "踏ん張り", 5, "generate-supply", "grit", "grit"],
+    ["heal", "回復", 4, "generate-supply", "heal", "heal"],
+    ["reason", "押し込み", 5, "generate-supply", "reason", "reason"],
+    ["mana", "マナポーション", 3, "generate-tech", "vending-mana", "mana"],
+    ["railgun", "レールガン", 13, "invention", "vending-railgun", "railgun"],
+    ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
+    ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
+    ["exile", "亡命", 22, "generate-tech", "vending-exile", "exile"],
+    ["computer", "パソコン", 10, "generate-tech", "vending-computer", "computer"],
+    ["handgun", "ハンドガン", 3, "weapon", "vending-handgun", "handgun"],
+    ["smg", "サブマシンガン", 5, "weapon", "vending-smg", "smg"],
+    ["assault", "アサルトライフル", 7, "weapon", "vending-assault", "assault"],
+    ["sniper", "スナイパーライフル", 10, "weapon", "vending-sniper", "sniper"],
+    ["taser", "テーザー銃", 5, "weapon", "vending-taser", "taser"],
+    ["mercury", "水銀瓶", 5, "generate-supply", "mercury", "quantum-mercury"],
+    ["lead", "鉛瓶", 3, "generate-supply", "lead", "quantum-lead"],
+    ["uranium", "ウラン容器", 12, "generate-supply", "uranium", "quantum-uranium"],
+    ["plutonium", "プルトニウム容器", 15, "generate-supply", "plutonium", "quantum-plutonium"],
+    ["orichalcum-sword", "オリハルコン・ソード", 17, "weapon", "orichalcum-sword", "orichalcum-sword"],
+    ["iai", "居合", 9, "generate-supply", "iai", "iai"],
+    ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice"],
+    ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water"],
+    ["rpg", "RPG", 14, "weapon", "vending-rpg", "rpg"],
+    ["missile", "ミサイル", 17, "weapon", "vending-missile", "missile"]
   ];
 
-  const products = Object.freeze(rows.map(([id, label, price, category, hackerRecipeId, cooldownPerCredit, asset]) =>
-    Object.freeze({ id, label, price, category, hackerRecipeId, cooldownPerCredit, asset })
+  const products = Object.freeze(rows.map(([id, label, price, category, hackerRecipeId, asset]) =>
+    Object.freeze({ id, label, price, category, hackerRecipeId, cooldownPerCredit: COOLDOWN_MS_PER_CREDIT, asset })
   ));
   const categoryById = new Map(categories.map((entry) => [entry.id, entry]));
   const productById = new Map(products.map((entry) => [entry.id, entry]));
@@ -7329,12 +7344,14 @@ const LABORATORY_MAP = Object.freeze({
   const cooldownForRecipe = (recipeId) => {
     const entry = productForRecipe(recipeId);
     if (!entry) return 0;
-    const fallback = Number(categoryById.get(entry.category)?.defaultCooldownPerCredit) || 900;
+    const fallback = Number(categoryById.get(entry.category)?.defaultCooldownPerCredit) || COOLDOWN_MS_PER_CREDIT;
     return Math.max(1_000, Math.round(entry.price * (Number(entry.cooldownPerCredit) || fallback)));
   };
 
   return Object.freeze({
-    version: "ability-name-self-teleport-v474",
+    version: "economy-omission-audit-v475",
+    cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
+    creditIncome,
     categories,
     products,
     productCosts,
@@ -7347,6 +7364,7 @@ const LABORATORY_MAP = Object.freeze({
 });
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 
+const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 
 function vendingProductOrThrow(itemId) {
   const product = DVA_ECONOMY.product(itemId);
@@ -7461,10 +7479,10 @@ const JUMP_BASE_COST = 24;
 const JUMP_DISTANCE_COST = 0.14;
 const DRONE_SPEED_MULTIPLIER = 3.4;
 const DRONE_ALTITUDE_MAX = 2;
-const TASK_CREDIT_REWARD = 10;
-const SABOTAGE_CREDIT_REWARD = 8;
-const PASSIVE_CREDIT_INTERVAL_MS = 10_000;
-const PASSIVE_CREDIT_REWARD = 2;
+const TASK_CREDIT_REWARD = CREDIT_ECONOMY.taskReward;
+const SABOTAGE_CREDIT_REWARD = CREDIT_ECONOMY.sabotageReward;
+const PASSIVE_CREDIT_INTERVAL_MS = CREDIT_ECONOMY.passiveIntervalMs;
+const PASSIVE_CREDIT_REWARD = CREDIT_ECONOMY.passiveReward;
 const SABOTAGE_COOLDOWN_MS = 45_000;
 const SLOW_WALK_MULTIPLIER = 0.52;
 const EMP_RANGE = 260;
@@ -7539,8 +7557,8 @@ const HAZARD_FIELD_DURATION_MS = 12_000;
 const HAZARD_TICK_MS = 1_000;
 const POISON_DAMAGE_PER_TICK = 0.2;
 const BURN_DAMAGE_PER_TICK = 0.25;
-const QUANTUM_CREDITS_MERCURY = 55;
-const QUANTUM_CREDITS_LEAD = 35;
+const QUANTUM_CREDITS_MERCURY = CREDIT_ECONOMY.quantumMercuryReward;
+const QUANTUM_CREDITS_LEAD = CREDIT_ECONOMY.quantumLeadReward;
 const QUANTUM_ACTION_STAMINA_COST = 8;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
 const MINERAL_WATER_STAMINA = 100;
@@ -7559,7 +7577,7 @@ const STAMINA_TO_MANA_COST = 150;
 const AUTO_MANA_TO_STAMINA_RESERVE = RATIONAL_MANA_THRESHOLD;
 const AUTO_MANA_TO_STAMINA_THRESHOLD = 250;
 const AUTO_MANA_TO_STAMINA_RATE_PER_SECOND = 30;
-const DONATION_CREDIT_COST = 10;
+const DONATION_CREDIT_COST = CREDIT_ECONOMY.donationCost;
 const DONATION_LUCK_GAIN = 0.05;
 const DONATION_LUCK_MIN_BONUS = -0.7;
 const DONATION_LUCK_MAX_BONUS = 0.7;
@@ -7788,7 +7806,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで生成候補を選び、資源、所持品、永続オブジェクト、オペ能力を生成する。対象のクレジット・アイテム・HP・マナは削除または増殖でき、生成時のMP消費はなく、実行後はクールタイムが発生する。オリハルコン・ソードの短縮前の最終クールタイムは90秒。パッシブ「マナGPU」は再使用待機中に毎秒0.025MPを自動消費し、1MPにつき残りクールタイムを20秒短縮する。パッシブ「ハック」で他人の位置を常時把握し、タスクを時間経過で自動完了する。手動タスクも実行でき、自身のスマホはハッキングされない。"
+      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTは自販機価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒、最大54秒を蓄積して次の生成に使う。ハックで他人の位置を把握し、タスクを時間経過で自動完了する。手動タスクも可能で、自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -8004,7 +8022,7 @@ const MAPS = {
     objects: [
       { id: "station-recharge", type: "recharge", label: "スタミナ充填器", effectLabel: "スタミナ+200", x: 665, y: 655, room: "storage", interactive: true, cooldownMs: 15000 },
       { id: "station-medpod", type: "medPod", label: "応急処置ポッド", effectLabel: "全回復・状態異常解除・オーバーヒール", x: 950, y: 1050, room: "med", interactive: true, cooldownMs: 30000 },
-      { id: "station-supply", type: "supply", label: "クレジットキャッシュ", effectLabel: "+30クレジット", x: 405, y: 145, room: "archive", interactive: true, cooldownMs: 45000 },
+      { id: "station-supply", type: "supply", label: "クレジットキャッシュ", effectLabel: "+3クレジット", effectKind: "credits", effectAmount: CREDIT_ECONOMY.cacheReward, x: 405, y: 145, room: "archive", interactive: true, cooldownMs: 45000 },
       { id: "station-decoy", type: "decoy", label: "デコイビーコン", effectLabel: "スタミナ+100・偽足音", x: 820, y: 300, room: "security", interactive: true, cooldownMs: 20000 },
       { id: "station-speedpad", type: "speedPad", label: "加速パッド", effectLabel: "通過中速度+35%", x: 1215, y: 240, room: "corridor", radius: 92 },
       { id: "station-hush", type: "hushField", label: "消音フィールド", effectLabel: "範囲内の足音を遮断", x: 1770, y: 1040, room: "comms", radius: 118 }
@@ -8103,13 +8121,13 @@ const MAPS = {
     objects: [
       { id: "outpost-recharge", type: "recharge", label: "スタミナ充填器", effectLabel: "スタミナ+200", x: 1085, y: 535, room: "hub", interactive: true, cooldownMs: 15000 },
       { id: "outpost-medpod", type: "medPod", label: "応急処置ポッド", effectLabel: "全回復・状態異常解除・オーバーヒール", x: 360, y: 270, room: "labs", interactive: true, cooldownMs: 30000 },
-      { id: "outpost-supply", type: "supply", label: "クレジットキャッシュ", effectLabel: "+30クレジット", x: 1680, y: 180, room: "drill", interactive: true, cooldownMs: 45000 },
+      { id: "outpost-supply", type: "supply", label: "クレジットキャッシュ", effectLabel: "+3クレジット", effectKind: "credits", effectAmount: CREDIT_ECONOMY.cacheReward, x: 1680, y: 180, room: "drill", interactive: true, cooldownMs: 45000 },
       { id: "outpost-decoy", type: "decoy", label: "デコイビーコン", effectLabel: "スタミナ+100・偽足音", x: 235, y: 850, room: "power", interactive: true, cooldownMs: 20000 },
       { id: "outpost-speedpad", type: "speedPad", label: "加速パッド", effectLabel: "通過中速度+35%", x: 1260, y: 650, room: "corridor", radius: 92 },
       { id: "outpost-hush", type: "hushField", label: "消音フィールド", effectLabel: "範囲内の足音を遮断", x: 1620, y: 900, room: "greenhouse", radius: 118 },
       { id: "outpost-relaxation-pod-a", type: "relaxationBed", label: "呼吸同期リラクゼーションポッド", effectLabel: "加速 1.35・12秒", effectKind: "relaxation", effectAmount: 1.35, effectDurationMs: 12000, x: 1400, y: 900, room: "greenhouse", interactive: true, cooldownMs: 30000 },
       { id: "outpost-relaxation-pod-b", type: "relaxationBed", label: "温熱リラクゼーションポッド", effectLabel: "加速 1.35・12秒", effectKind: "relaxation", effectAmount: 1.35, effectDurationMs: 12000, x: 1680, y: 1020, room: "greenhouse", interactive: true, cooldownMs: 30000 },
-      { id: "outpost-credit-cache", type: "creditCache", label: "研究助成クレジット端末", effectLabel: "+30クレジット", effectKind: "credits", effectAmount: 30, x: 1515, y: 195, room: "drill", interactive: true, cooldownMs: 45000 }
+      { id: "outpost-credit-cache", type: "creditCache", label: "研究助成クレジット端末", effectLabel: "+3クレジット", effectKind: "credits", effectAmount: CREDIT_ECONOMY.cacheReward, x: 1515, y: 195, room: "drill", interactive: true, cooldownMs: 45000 }
     ],
     vents: [
       { id: "vent-labs", x: 475, y: 345, links: ["vent-hub", "vent-power"] },
@@ -14365,8 +14383,8 @@ function applyMysteryDrink(room, player, timestamp = now()) {
   const roll = luckAdjustedRoll(player);
   let result;
   if (roll < 0.18) {
-    grantCredits(room, player, 80, "mystery");
-    result = "ジャックポット +80C";
+    grantCredits(room, player, CREDIT_ECONOMY.mysteryJackpot, "mystery");
+    result = `ジャックポット +${CREDIT_ECONOMY.mysteryJackpot}C`;
   } else if (roll < 0.36) {
     player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 250);
     result = "エナジーサージ スタミナ+250";
@@ -14414,7 +14432,7 @@ function purchaseDrink(room, player, itemId) {
     "mineral-water": { label: "ミネラルウォーター", cost: MINERAL_WATER_COST, apply: () => { addItem(player, "mineral-water"); } },
     antidote: { label: "解毒剤", cost: ANTIDOTE_COST, apply: () => { addItem(player, "antidote"); } },
     molotov: { label: "火炎瓶", cost: MOLOTOV_COST, apply: () => { addItem(player, "molotov"); } },
-    // Quantum conversion pays 55C/35C. Shop prices stay above those payouts so
+    // Quantum conversion pays 4C/2C. Shop prices stay above those payouts so
     // buying and immediately converting a bottle cannot mint infinite credits.
     mercury: { label: "水銀瓶", cost: 60, apply: () => { addItem(player, "mercury"); } },
     lead: { label: "鉛瓶", cost: 40, apply: () => { addItem(player, "lead"); } },
@@ -15498,7 +15516,7 @@ const ALCHEMY_RECIPES = {
   "vending-rpg": { label: "RPG", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("rpg"); } },
   "vending-missile": { label: "ミサイル", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("missile"); } },
   "hack-credits-delete": { label: "クレジット削除", cost: 2, apply: (room, player, targetId) => { hackerTarget(room, player, targetId).credits = 0; } },
-  "hack-credits-duplicate": { label: "クレジット増殖", cost: 2, apply: (room, player, targetId) => { const target = hackerTarget(room, player, targetId); target.credits = Math.max(0, Number(target.credits) || 0) * 2 + 25; } },
+  "hack-credits-duplicate": { label: "クレジット増殖", cost: 2, apply: (room, player, targetId) => { const target = hackerTarget(room, player, targetId); target.credits = Math.max(0, Number(target.credits) || 0) * 2 + CREDIT_ECONOMY.hackerDuplicateBonus; } },
   "hack-items-delete": { label: "アイテム削除", cost: 2, apply: (room, player, targetId) => clearHackableInventory(hackerTarget(room, player, targetId)) },
   "hack-items-duplicate": { label: "アイテム増殖", cost: 2, apply: (room, player, targetId) => duplicateHackableInventory(hackerTarget(room, player, targetId)) },
   "hack-hp-delete": { label: "HP削除", cost: 2, apply: (room, player, targetId) => deleteHackerTargetHp(room, player, targetId) },
@@ -19781,5 +19799,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ability-name-self-teleport-v474" });
+self.postMessage({ type: "ready", version: "natural-novel-cues-v476" });
 })();
