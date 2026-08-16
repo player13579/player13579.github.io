@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v478-title-depth-texture-flyby-r1";
+const CACHE_NAME = "dva-static-v479-title-command-ui-icons-r1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -246,7 +246,6 @@ const STATIC_ASSETS = [
   "/assets/generated/hack-mana-duplicate.webp",
   "/assets/generated/alchemy-railgun-field-effect.webp",
   "/assets/generated/alchemy-particle-cannon-field-effect.webp",
-  "/assets/generated/title-forward-speed-lines-v477.png",
   "/assets/generated/item-computer-v404.png",
   "/assets/generated/human-transmutation-sd-silhouette-v407.png",
   "/assets/generated/gunner-weapons-atlas.webp",
