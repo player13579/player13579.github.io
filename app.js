@@ -115,8 +115,6 @@ const els = {
   soloMissionHudName: $("#soloMissionHudName"),
   soloMissionHudProgress: $("#soloMissionHudProgress"),
   joinPanel: $("#joinPanel"),
-  lobbyPanel: $("#lobbyPanel"),
-  lobbyTitle: $("#lobbyTitle"),
   selectPanel: $("#selectPanel"),
   statusPanel: $("#statusPanel"),
   meetingPanel: $("#meetingPanel"),
@@ -151,38 +149,16 @@ const els = {
   transferCreditsButton: $("#transferCreditsButton"),
   nameInput: $("#nameInput"),
   namePolicy: $("#namePolicy"),
-  roomCodeLabel: $("#roomCodeLabel"),
-  roomInput: $("#roomInput"),
   skinSelect: $("#skinSelect"),
-  joinButton: $("#joinButton"),
-  offlineJoinButton: $("#offlineJoinButton"),
-  publicRoomsHeader: $("#publicRoomsHeader"),
-  refreshRoomsButton: $("#refreshRoomsButton"),
-  roomList: $("#roomList"),
-  addBotButton: $("#addBotButton"),
-  startButton: $("#startButton"),
+  matchmakingButton: $("#matchmakingButton"),
   analyticsPanel: $("#analyticsPanel"),
   analyticsToggleButton: $("#analyticsToggleButton"),
-  lobbyList: $("#lobbyList"),
-  hostBadge: $("#hostBadge"),
   selectTimer: $("#selectTimer"),
   selectTeamText: $("#selectTeamText"),
   operatorList: $("#operatorList"),
   operatorDetail: $("#operatorDetail"),
   debugForceEndButton: $("#debugForceEndButton"),
   leaveRoomButton: $("#leaveRoomButton"),
-  settingsPanel: $("#settingsPanel"),
-  mapSelect: $("#mapSelect"),
-  hostTeamSelect: $("#hostTeamSelect"),
-  attackerCountInput: $("#attackerCountInput"),
-  taskCountInput: $("#taskCountInput"),
-  killCooldownInput: $("#killCooldownInput"),
-  killRangeInput: $("#killRangeInput"),
-  discussionTimeInput: $("#discussionTimeInput"),
-  votingTimeInput: $("#votingTimeInput"),
-  emergencyLimitInput: $("#emergencyLimitInput"),
-  anonymousVotesInput: $("#anonymousVotesInput"),
-  confirmEjectsInput: $("#confirmEjectsInput"),
   roleName: $("#roleName"),
   specialName: $("#specialName"),
   movementAccControl: $("#movementAccControl"),
@@ -428,8 +404,9 @@ const state = {
   lastRoomChatId: "",
   lastRoomChatRoomId: "",
   chatNotificationTimer: null,
-  roomsLoadedAt: 0,
-  settingsDirty: false,
+  matchmakingInFlight: false,
+  matchmakingSerial: 0,
+  matchmakingTicket: null,
   textures: createTextures(),
   motion: new Map(),
   facing: new Map(),
@@ -569,7 +546,6 @@ const state = {
   drawViewport: null,
   minimapFrameCache: null,
   minimapLastDrawAt: 0,
-  roomListKey: "",
   audio: {
     context: null,
     master: null,
@@ -741,7 +717,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "title-command-ui-icons-v479";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "matchmaking-direct-select-v480";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1380,7 +1356,7 @@ function updateSoloProgressUi() {
   const completed = completedSoloMissions();
   const count = completed.size;
   els.titlePlayButton.disabled = false;
-  const playMode = state.onlineAvailable ? "オンライン利用可能" : "オフラインプレイ";
+  const playMode = state.onlineAvailable ? "オンライン優先マッチング" : "オフライン自動切替";
   els.titlePlayProgress.textContent = `${playMode} / ソロ訓練 ${count}/${soloMissionIds.length}`;
   els.soloTrainingProgress.textContent = `${count} / ${soloMissionIds.length} 完了`;
   els.soloMissionGrid.querySelectorAll("[data-solo-card]").forEach((card) => {
@@ -1498,7 +1474,6 @@ function init() {
   prepareTitleHero();
   const savedName = localStorage.getItem(storage.name) || "";
   els.nameInput.value = savedName;
-  els.roomInput.value = state.roomId || "";
   els.skinSelect.value = normalizeSkinId(localStorage.getItem(storage.skin));
   syncGameAudioButtons();
   updateSoloProgressUi();
@@ -1526,9 +1501,6 @@ function init() {
   }, 15_000);
   setInterval(pollState, 250);
   setInterval(() => void checkOnlineAvailability(), 60_000);
-  setInterval(() => {
-    if (state.onlineAvailable) void refreshRooms();
-  }, 5500);
   state.frameDriver = globalThis.DVAFrameLoop?.start(drawLoop) || null;
 }
 
@@ -1689,7 +1661,6 @@ function activateOfflineMode(reason = "") {
   state.offlineMode = true;
   state.realtime?.disconnect();
   document.documentElement.dataset.connectionMode = "offline";
-  if (els.lobbyTitle) els.lobbyTitle.textContent = "オフラインロビー";
   if (reason) showToast(reason);
   return true;
 }
@@ -1697,29 +1668,24 @@ function activateOfflineMode(reason = "") {
 function deactivateOfflineMode() {
   state.offlineMode = false;
   document.documentElement.dataset.connectionMode = "online";
-  if (els.lobbyTitle) els.lobbyTitle.textContent = "オンラインロビー";
 }
 
 function applyOnlineAvailabilityUi() {
   const available = state.onlineAvailable;
-  els.roomCodeLabel.hidden = !available;
-  els.joinButton.hidden = !available;
-  els.publicRoomsHeader.hidden = !available;
-  els.roomList.hidden = !available;
   document.documentElement.dataset.onlineAvailability = available ? "available" : "unavailable";
-  if (!available) {
-    els.roomInput.value = "";
-    renderRoomList([]);
-  }
   updateSoloProgressUi();
   render();
 }
 
 async function checkOnlineAvailability() {
-  if (state.onlineAvailabilityCheckInFlight) return state.onlineAvailable;
+  if (state.onlineAvailabilityCheckInFlight) {
+    const deadline = performance.now() + 2600;
+    while (state.onlineAvailabilityCheckInFlight && performance.now() < deadline) await delay(60);
+    return state.onlineAvailable;
+  }
   state.onlineAvailabilityCheckInFlight = true;
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  const timeout = window.setTimeout(() => controller.abort(), 2500);
   try {
     const response = await fetch(apiUrl("/api/online-capacity"), {
       method: "GET",
@@ -1737,7 +1703,6 @@ async function checkOnlineAvailability() {
     state.onlineAvailabilityCheckInFlight = false;
     applyOnlineAvailabilityUi();
   }
-  if (state.onlineAvailable) void refreshRooms();
   return state.onlineAvailable;
 }
 
@@ -2623,7 +2588,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/emergency": "interact",
   "/api/luminous": "cast",
   "/api/vote": "interact",
-  "/api/kick": "interact",
   "/api/sabotage": "interact",
   "/api/repair": "interact",
   "/api/utility": "interact",
@@ -4000,9 +3964,7 @@ function contextKeyboardElements() {
   if (phase === "playing") return [];
   const panel = phase === "join"
     ? els.joinPanel
-    : phase === "lobby"
-      ? els.lobbyPanel
-      : phase === "selecting"
+    : phase === "selecting"
         ? els.selectPanel
         : phase === "meeting"
           ? els.meetingPanel
@@ -4030,10 +3992,8 @@ function preferredKeyboardElement(elements) {
     : state.screen === "tactics"
       ? els.tacticsChapterList.querySelector("button.active")
     : phase === "join"
-        ? els.offlineJoinButton
-        : phase === "lobby"
-          ? els.mapSelect
-          : phase === "selecting"
+        ? els.matchmakingButton
+        : phase === "selecting"
             ? els.operatorList.querySelector('.operator-card[data-selectable="1"]') || els.operatorList.querySelector(".operator-card")
             : phase === "meeting"
               ? els.voteList.querySelector(".vote-card:not(:disabled)")
@@ -4085,14 +4045,6 @@ function activateKeyboardSelection() {
   }
   element.focus();
   return false;
-}
-
-function cycleLobbySelect(select) {
-  if (!select || select.disabled || select.options.length < 2) return false;
-  select.selectedIndex = (select.selectedIndex + 1) % select.options.length;
-  select.dispatchEvent(new Event("change", { bubbles: true }));
-  select.focus({ preventScroll: true });
-  return true;
 }
 
 function cycleSelectBy(select, direction = 1) {
@@ -4506,14 +4458,7 @@ function triggerScreenHotkey(event) {
     return true;
   }
   if (state.screen === "game" && (state.data?.phase || "join") === "join") {
-    const joinAction = event.code === "KeyO"
-      ? () => els.offlineJoinButton.click()
-      : event.code === "KeyL"
-        ? () => {
-            if (els.joinButton.hidden || els.joinButton.disabled) showToast("オンラインルームは現在利用できません。");
-            else els.joinButton.click();
-          }
-        : null;
+    const joinAction = event.code === "KeyL" ? () => els.matchmakingButton.click() : null;
     if (joinAction) {
       event.preventDefault();
       if (!event.repeat) joinAction();
@@ -4524,27 +4469,6 @@ function triggerScreenHotkey(event) {
     event.preventDefault();
     if (!event.repeat) setTabletOpen(!state.tabletOpen);
     return true;
-  }
-  if (state.screen === "game" && state.data?.phase === "lobby") {
-    if (event.shiftKey && /^Digit[1-9]$/.test(event.code)) {
-      const kickButton = els.lobbyList.querySelector(`[data-kick-hotkey="${event.code.slice(-1)}"]`);
-      if (kickButton && !kickButton.disabled) {
-        event.preventDefault();
-        if (!event.repeat) kickButton.click();
-        return true;
-      }
-    }
-    const lobbyAction = {
-      KeyB: () => !els.addBotButton.disabled && els.addBotButton.click(),
-      KeyS: () => !els.startButton.disabled && els.startButton.click(),
-      KeyM: () => cycleLobbySelect(els.mapSelect),
-      KeyT: () => cycleLobbySelect(els.hostTeamSelect)
-    }[event.code];
-    if (lobbyAction) {
-      event.preventDefault();
-      if (!event.repeat) lobbyAction();
-      return true;
-    }
   }
   if (state.screen === "game" && state.data?.phase === "playing") {
     const self = state.data?.self;
@@ -4636,13 +4560,10 @@ function bindEvents() {
   els.titlePlayButton.addEventListener("click", () => {
     if (els.titlePlayButton.disabled) return;
     loadGameplayTextures();
-    if (state.onlineAvailable) {
-      deactivateOfflineMode();
-      recordUsageCheckpoint("online_open");
-    } else {
-      activateOfflineMode();
-      recordUsageCheckpoint("offline_open");
-    }
+    state.offlineMode = false;
+    state.realtime?.disconnect();
+    document.documentElement.dataset.connectionMode = "matching";
+    recordUsageCheckpoint("matchmaking_open");
     void enterFullscreen();
     void runTitleCommandTransition(els.titlePlayButton, () => switchScreenWithEffect("game"));
   });
@@ -4752,18 +4673,14 @@ function bindEvents() {
   els.tacticsMuteButton?.addEventListener("click", toggleGameMuted);
   els.gameMuteButton?.addEventListener("click", toggleGameMuted);
   els.skinSelect.addEventListener("change", syncSelectedSkin);
-  els.joinButton.addEventListener("click", joinRoom);
-  els.offlineJoinButton.addEventListener("click", () => joinRoom({ forceOffline: true }));
-  [els.nameInput, els.roomInput].forEach((input) => {
+  els.matchmakingButton.addEventListener("click", startMatchmaking);
+  [els.nameInput].forEach((input) => {
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
-      joinRoom({ forceOffline: event.shiftKey || !state.onlineAvailable });
+      startMatchmaking();
     });
   });
-  els.refreshRoomsButton.addEventListener("click", refreshRooms);
-  els.addBotButton.addEventListener("click", () => api("/api/add-bot"));
-  els.startButton.addEventListener("click", () => api("/api/start"));
   els.analyticsToggleButton.addEventListener("click", () => void loadDropoffAnalytics());
   els.hackerTargetButton.addEventListener("click", () => cycleHackerTarget(1));
   const bindCategoryStep = (button, changeCategory) => {
@@ -4802,7 +4719,7 @@ function bindEvents() {
       void leaveCurrentRoom();
       return;
     }
-    void api("/api/reset");
+    void rematch();
   });
   els.debugForceEndButton.addEventListener("click", () => api("/api/force-end"));
   els.leaveRoomButton.addEventListener("click", () => void returnToTitle());
@@ -5035,21 +4952,6 @@ function bindEvents() {
   els.slowWalkButton.addEventListener("pointerup", () => setSlowWalkHeld(false));
   els.slowWalkButton.addEventListener("pointercancel", () => setSlowWalkHeld(false));
   els.slowWalkButton.addEventListener("pointerleave", () => setSlowWalkHeld(false));
-
-  const settingsInputs = [
-    els.mapSelect,
-    els.hostTeamSelect,
-    els.attackerCountInput,
-    els.taskCountInput,
-    els.killCooldownInput,
-    els.killRangeInput,
-    els.discussionTimeInput,
-    els.votingTimeInput,
-    els.emergencyLimitInput,
-    els.anonymousVotesInput,
-    els.confirmEjectsInput
-  ];
-  settingsInputs.forEach((input) => input.addEventListener("change", sendSettings));
 
   els.chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -6879,12 +6781,51 @@ async function syncSelectedSkin() {
   if (!ok) state.pendingSkinId = "";
 }
 
-async function joinRoom(options = {}) {
-  loadGameplayTextures();
-  if (!options.forceOffline && !state.onlineAvailable) {
-    showToast("オンライン機能は現在利用できません。");
-    return;
+function acceptMatchmakingResult(result, name, offline) {
+  if (!result || result.phase === "lobby") return false;
+  if (offline) activateOfflineMode();
+  else deactivateOfflineMode();
+  lockPlayerName(result.profile?.name || responsePlayerName(result, name));
+  state.roomId = result.roomId;
+  state.playerId = result.playerId;
+  localStorage.setItem(storage.room, state.roomId);
+  localStorage.setItem(storage.player, state.playerId);
+  applyState(result);
+  recordUsageCheckpoint(offline ? "matchmaking_offline" : "matchmaking_online");
+  showToast(offline
+    ? "対戦相手が見つからなかったため、オフライン対戦を開始します。"
+    : "対戦相手が見つかりました。オンライン対戦を開始します。");
+  return true;
+}
+
+async function waitForOnlineMatch(ticket, serial, waitMs = 3600) {
+  const deadline = performance.now() + waitMs;
+  while (serial === state.matchmakingSerial && performance.now() < deadline) {
+    await delay(420);
+    const result = await request("/api/state", ticket, {
+      quiet: true,
+      forceOnline: true,
+      timeoutMs: 1800,
+      attempts: 1
+    });
+    if (result && result.phase !== "lobby") return result;
   }
+  return null;
+}
+
+async function cancelOnlineMatchmaking(ticket) {
+  if (!ticket?.roomId || !ticket?.playerId) return null;
+  return request("/api/matchmake/cancel", ticket, {
+    quiet: true,
+    forceOnline: true,
+    timeoutMs: 1800,
+    attempts: 1
+  });
+}
+
+async function startMatchmaking() {
+  if (state.matchmakingInFlight) return;
+  loadGameplayTextures();
   const name = els.nameInput.value.trim();
   if (!name) {
     showToast("最初に名前を入力してください。");
@@ -6894,33 +6835,51 @@ async function joinRoom(options = {}) {
   const skinId = normalizeSkinId(els.skinSelect.value);
   localStorage.setItem(storage.name, name);
   localStorage.setItem(storage.skin, skinId);
-  const requestBody = {
-    name,
-    skinId,
-    roomId: els.roomInput.value.trim(),
-    playerId: state.playerId
-  };
-  let result = null;
-  if (!options.forceOffline) {
-    deactivateOfflineMode();
-    result = await request("/api/join", requestBody, { quiet: true, forceOnline: true });
+  const serial = ++state.matchmakingSerial;
+  state.matchmakingInFlight = true;
+  state.matchmakingTicket = null;
+  els.matchmakingButton.disabled = true;
+  els.matchmakingButton.textContent = "対戦相手を検索中…";
+  document.documentElement.dataset.connectionMode = "matching";
+  try {
+    const available = state.onlineAvailable || await checkOnlineAvailability();
+    let result = null;
+    if (available && serial === state.matchmakingSerial) {
+      result = await request("/api/matchmake", { name, skinId }, {
+        quiet: true,
+        forceOnline: true,
+        timeoutMs: 2500,
+        attempts: 1
+      });
+      if (result?.matchmaking?.status === "waiting") {
+        const ticket = { roomId: result.roomId, playerId: result.playerId };
+        state.matchmakingTicket = ticket;
+        showToast("オンラインの対戦相手を検索しています。");
+        result = await waitForOnlineMatch(ticket, serial);
+        if (!result && serial === state.matchmakingSerial) {
+          const cancelled = await cancelOnlineMatchmaking(ticket);
+          result = cancelled?.phase && cancelled.phase !== "lobby" ? cancelled : null;
+        }
+        state.matchmakingTicket = null;
+      }
+      if (result && serial === state.matchmakingSerial && acceptMatchmakingResult(result, name, false)) return;
+    }
+    if (serial !== state.matchmakingSerial) return;
+    if (!activateOfflineMode()) {
+      showToast("オフライン対戦を準備できませんでした。");
+      return;
+    }
+    result = await request("/api/matchmake", { name, skinId, offlineFallback: true }, { forceOffline: true });
+    if (serial !== state.matchmakingSerial) return;
+    acceptMatchmakingResult(result, name, true);
+  } finally {
+    if (serial === state.matchmakingSerial) {
+      state.matchmakingInFlight = false;
+      state.matchmakingTicket = null;
+      els.matchmakingButton.disabled = false;
+      els.matchmakingButton.textContent = "マッチング開始 [L]";
+    }
   }
-  if (!result) {
-    if (!activateOfflineMode(options.forceOffline
-      ? "オフラインルームを作成します。"
-      : "公開サーバーに接続できないため、オフラインルームへ切り替えました。")) return;
-    result = await request("/api/join", requestBody, { forceOffline: true });
-  }
-  if (!result) return;
-  lockPlayerName(result.profile?.name || responsePlayerName(result, name));
-  state.roomId = result.roomId;
-  state.playerId = result.playerId;
-  localStorage.setItem(storage.room, state.roomId);
-  localStorage.setItem(storage.player, state.playerId);
-  applyState(result);
-  recordUsageCheckpoint(state.offlineMode ? "offline_joined" : "online_joined");
-  if (result.offline) showToast(`オフラインルーム ${result.roomId}`);
-  if (result.midJoined) showToast("進行中の試合へ途中参加しました。");
 }
 
 async function startSoloMission(missionId) {
@@ -6995,12 +6954,33 @@ async function leaveCurrentRoom(options = {}) {
   if (!result || state.roomId !== roomId || state.playerId !== playerId) return false;
   resetLocalSession();
   switchScreenWithEffect(destination);
-  showToast("部屋から退出しました。");
-  refreshRooms();
+  if (options.announce !== false) showToast("マッチから退出しました。");
+  return true;
+}
+
+async function rematch() {
+  if (state.data?.soloMission) return leaveCurrentRoom();
+  els.resetButton.disabled = true;
+  const left = await leaveCurrentRoom({ destination: "game", announce: false });
+  els.resetButton.disabled = false;
+  if (!left) {
+    showToast("現在のマッチを終了できませんでした。");
+    return false;
+  }
+  await startMatchmaking();
   return true;
 }
 
 async function returnToTitle() {
+  if (state.matchmakingInFlight) {
+    const ticket = state.matchmakingTicket;
+    state.matchmakingSerial += 1;
+    state.matchmakingInFlight = false;
+    state.matchmakingTicket = null;
+    els.matchmakingButton.disabled = false;
+    els.matchmakingButton.textContent = "マッチング開始 [L]";
+    void cancelOnlineMatchmaking(ticket);
+  }
   if (state.roomId && state.playerId) {
     return leaveCurrentRoom({ destination: "title" });
   }
@@ -7011,7 +6991,7 @@ async function returnToTitle() {
 
 async function api(path, extra = {}, options = {}) {
   if (!state.roomId || !state.playerId) {
-    showToast("先に入室してください。");
+    showToast("先にマッチングを開始してください。");
     return false;
   }
   const result = await request(path, {
@@ -7099,10 +7079,13 @@ async function loadDropoffAnalytics(toggle = true) {
   }
   const labels = {
     title_loaded: "タイトル",
-    online_open: "オンライン入口",
+    matchmaking_open: "マッチング入口",
+    matchmaking_online: "オンライン成立",
+    matchmaking_offline: "オフライン自動切替",
+    online_open: "旧オンライン入口",
     tactics_open: "戦術いろは",
-    online_joined: "オンライン入室",
-    offline_joined: "オフライン入室",
+    online_joined: "旧オンライン入室",
+    offline_joined: "旧オフライン入室",
     operator_select: "オペレーター選択",
     battle_started: "バトル",
     meeting_started: "会議",
@@ -7277,20 +7260,21 @@ async function request(path, body = {}, options = {}) {
   }
   const retryable = [
     "/api/state",
-    "/api/rooms",
     "/api/profile",
-    "/api/join",
     "/api/solo/start",
     "/api/checkpoints",
     "/api/checkpoints/exclude"
   ].includes(path);
-  const attempts = retryable ? 3 : 1;
+  const attempts = Number.isFinite(options.attempts) ? Math.max(1, options.attempts) : retryable ? 3 : 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), Number(options.timeoutMs) || 12_000);
     try {
       const response = await fetch(apiUrl(path), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...body, clientId: clientId() })
+        body: JSON.stringify({ ...body, clientId: clientId() }),
+        signal: controller.signal
       });
       let result = null;
       try {
@@ -7322,6 +7306,8 @@ async function request(path, body = {}, options = {}) {
       }
       if (!options.quiet) showToast("サーバーに接続できません。公開サーバーの起動待ち、またはローカルアプリの起動状態を確認してください。");
       return null;
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
   return null;
@@ -7409,39 +7395,16 @@ function resetLocalSession() {
   clearMovementInput();
   localStorage.removeItem(storage.room);
   localStorage.removeItem(storage.player);
-  els.roomInput.value = "";
   render();
-}
-
-async function refreshRooms() {
-  if (!state.onlineAvailable) {
-    renderRoomList([]);
-    return;
-  }
-  const result = await request("/api/rooms", {}, { quiet: true, forceOnline: true });
-  if (!result) return;
-  renderRoomList(result.rooms || []);
-}
-
-async function sendSettings() {
-  if (!state.data || state.data.phase !== "lobby" || state.data.hostId !== state.playerId) return;
-  await api("/api/settings", {
-    mapId: els.mapSelect.value,
-    hostTeam: els.hostTeamSelect.value,
-    attackerCount: Number(els.attackerCountInput.value),
-    taskCount: Number(els.taskCountInput.value),
-    killCooldown: Number(els.killCooldownInput.value),
-    killRange: Number(els.killRangeInput.value),
-    discussionTime: Number(els.discussionTimeInput.value),
-    votingTime: Number(els.votingTimeInput.value),
-    emergencyLimit: Number(els.emergencyLimitInput.value),
-    anonymousVotes: els.anonymousVotesInput.checked,
-    confirmEjects: els.confirmEjectsInput.checked
-  });
 }
 
 function applyState(data, options = {}) {
   if (!options.authoritative && isStaleState(data)) return false;
+  if (data?.phase === "lobby" && !data.soloMission) {
+    resetLocalSession();
+    showToast("旧ルームを終了しました。マッチングを開始してください。");
+    return false;
+  }
   const previousPhase = state.data?.phase || "";
   const soloJustCompleted = Boolean(
     data.soloMission?.completed &&
@@ -8212,9 +8175,8 @@ function render() {
   if (state.phaseUiKey !== phaseUiKey) {
     state.phaseUiKey = phaseUiKey;
     els.joinPanel.hidden = Boolean(data);
-    els.lobbyPanel.hidden = !data || data.phase !== "lobby";
     els.selectPanel.hidden = !data || data.phase !== "selecting";
-    els.statusPanel.hidden = !data || data.phase === "lobby" || data.phase === "selecting";
+    els.statusPanel.hidden = !data || data.phase === "selecting";
     els.meetingPanel.hidden = !data || data.phase !== "meeting";
     if (data?.phase === "playing" && tabletModePreferenceEnabled()) {
       requestAnimationFrame(() => setTabletOpen(true, { persist: false, focus: false }));
@@ -8239,7 +8201,6 @@ function render() {
   }
 
   renderEnd(data);
-  renderLobby(data);
   renderOperatorSelect(data);
   renderStatus(data);
   renderMeeting(data);
@@ -8247,119 +8208,11 @@ function render() {
   syncKeyboardContext();
 }
 
-function phaseLabel(phase) {
-  if (phase === "lobby") return "オンラインロビー";
-  if (phase === "selecting") return "オペレーター選択";
-  if (phase === "playing") return "バトル";
-  if (phase === "meeting") return "会議";
-  if (phase === "ended") return "試合終了";
-  return phase;
-}
-
 function formatBattleTime(data) {
   const elapsedSeconds = Math.max(0, Math.floor((estimatedServerNow(data) - (data.battleStartedAt || estimatedServerNow(data))) / 1000));
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function renderRoomList(rooms) {
-  const renderKey = JSON.stringify(rooms.map((room) => [
-    room.id,
-    room.host,
-    room.hostKillRate,
-    room.phase,
-    room.players,
-    room.humans,
-    room.availableSlots,
-    room.midJoinAvailable,
-    room.joinable
-  ]));
-  if (state.roomListKey === renderKey) return;
-  state.roomListKey = renderKey;
-  els.roomList.innerHTML = "";
-  rooms.forEach((room) => {
-    const card = document.createElement("button");
-    card.className = `room-card${room.midJoinAvailable ? " is-mid-join" : ""}`;
-    card.type = "button";
-    card.disabled = room.joinable === false;
-    const phaseText = room.midJoinAvailable
-      ? `途中参加可 / 空き${room.availableSlots}`
-      : room.joinable === false
-        ? `${phaseLabel(room.phase)} / 参加不可`
-        : phaseLabel(room.phase);
-    card.innerHTML = `
-      <span class="room-meta">
-        <span class="name-line">${escapeHtml(room.id)} / ${escapeHtml(playerIdentityLabel({ name: room.host, killRate: room.hostKillRate }))}</span>
-        <span class="sub-line">${escapeHtml(room.map)} · ${room.humans ?? room.players}/${room.players}人 · ${escapeHtml(phaseText)}</span>
-      </span>
-      ${room.midJoinAvailable ? '<span class="room-join-badge">途中参加</span>' : ""}
-    `;
-    card.addEventListener("click", () => {
-      els.roomInput.value = room.id;
-    });
-    els.roomList.appendChild(card);
-  });
-}
-
-function renderLobby(data) {
-  if (data.phase !== "lobby") return;
-  const isHost = data.hostId === state.playerId;
-  els.hostBadge.hidden = !isHost;
-  els.addBotButton.disabled = !isHost;
-  els.startButton.disabled = !isHost;
-  els.settingsPanel.querySelectorAll("input, select").forEach((input) => {
-    input.disabled = !isHost;
-  });
-  els.anonymousVotesInput.disabled = !isHost;
-  els.confirmEjectsInput.disabled = !isHost;
-  fillMapSelect(data);
-  const s = data.settings;
-  setInputValue(els.mapSelect, s.mapId);
-  setInputValue(els.hostTeamSelect, s.hostTeam || "random");
-  setInputValue(els.attackerCountInput, s.attackerCount);
-  setInputValue(els.taskCountInput, s.taskCount);
-  setInputValue(els.killCooldownInput, s.killCooldown);
-  setInputValue(els.killRangeInput, s.killRange);
-  setInputValue(els.discussionTimeInput, s.discussionTime);
-  setInputValue(els.votingTimeInput, s.votingTime);
-  setInputValue(els.emergencyLimitInput, s.emergencyLimit);
-  els.anonymousVotesInput.checked = Boolean(s.anonymousVotes);
-  els.confirmEjectsInput.checked = Boolean(s.confirmEjects);
-
-  els.lobbyList.innerHTML = "";
-  let kickHotkeyIndex = 0;
-  data.players.forEach((player) => {
-    const skinId = displayedSkinId(player, data);
-    const displayedRole = roleLabels[player.role] || (player.role === "unassigned" ? "" : player.role);
-    const item = document.createElement("li");
-    item.innerHTML = `
-      <span class="color-dot" style="background:${player.color}"></span>
-      <span class="player-meta">
-        <span class="name-line">${escapeHtml(playerIdentityLabel(player))}${player.host ? " / ホスト" : ""}</span>
-        ${player.isBot ? "" : `<span class="sub-line">${skinId === "blue-dress" ? "ソフィア" : "フィリア"}</span>`}
-      </span>
-      ${displayedRole ? `<span class="badge">${escapeHtml(displayedRole)}</span>` : ""}
-    `;
-    if (isHost && player.id !== data.selfId) {
-      kickHotkeyIndex += 1;
-      const kickButton = document.createElement("button");
-      kickButton.type = "button";
-      kickButton.className = "lobby-kick-button";
-      kickButton.textContent = kickHotkeyIndex <= 9 ? `退出 [Shift+${kickHotkeyIndex}]` : "退出";
-      kickButton.title = `${player.name}を退出させる`;
-      if (kickHotkeyIndex <= 9) kickButton.dataset.kickHotkey = String(kickHotkeyIndex);
-      kickButton.addEventListener("click", () => {
-        api("/api/kick", { targetId: player.id });
-      });
-      item.appendChild(kickButton);
-    }
-    els.lobbyList.appendChild(item);
-  });
-  const ownPlayer = data.players.find((player) => player.id === data.selfId);
-  if (ownPlayer && document.activeElement !== els.skinSelect) {
-    els.skinSelect.value = state.pendingSkinId || normalizeSkinId(ownPlayer.skinId);
-  }
 }
 
 function renderOperatorSelect(data) {
@@ -8531,24 +8384,6 @@ async function selectOperatorFromCard(operator) {
   }
   applyState(result);
   return true;
-}
-
-function fillMapSelect(data) {
-  const currentOptions = [...els.mapSelect.options].map((option) => option.value).join(",");
-  const nextOptions = (data.availableMaps || []).map((map) => map.id).join(",");
-  if (currentOptions === nextOptions) return;
-  els.mapSelect.innerHTML = "";
-  (data.availableMaps || []).forEach((map) => {
-    const option = document.createElement("option");
-    option.value = map.id;
-    option.textContent = map.label;
-    els.mapSelect.appendChild(option);
-  });
-}
-
-function setInputValue(input, value) {
-  if (document.activeElement === input) return;
-  input.value = value;
 }
 
 function renderTargetOptions(data) {
@@ -10154,8 +9989,8 @@ function renderFeeds(data) {
 function renderEnd(data) {
   const ended = data.phase === "ended";
   els.endOverlay.hidden = !ended;
-  els.resetButton.hidden = !(ended && data.hostId === state.playerId);
-  els.resetButton.textContent = data.soloMission ? "戦術いろはへ戻る" : "オンラインロビーへ戻る";
+  els.resetButton.hidden = !ended;
+  els.resetButton.textContent = data.soloMission ? "戦術いろはへ戻る" : "もう一度マッチング";
   if (!ended) {
     els.endTitle.textContent = "";
     els.endReason.textContent = "";
@@ -16715,7 +16550,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "title-command-ui-icons-v479";
+const version = "matchmaking-direct-select-v480";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

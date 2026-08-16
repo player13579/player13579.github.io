@@ -7390,13 +7390,11 @@ function vendingPrice(itemId) {
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
-const RENDER_CAPACITY_AVAILABLE = /^(?:1|true|yes|available)$/i.test(String(process.env.RENDER_CAPACITY_AVAILABLE || ""));
-
 function renderCapacityStatus() {
   return {
-    available: RENDER_CAPACITY_AVAILABLE,
-    renderCapacity: RENDER_CAPACITY_AVAILABLE ? "available" : "unavailable",
-    source: "render-capacity-env"
+    available: true,
+    renderCapacity: "available",
+    source: "reachable-matchmaking-service"
   };
 }
 
@@ -8510,6 +8508,7 @@ function finalizeMapEnvironment(map) {
 }
 
 const rooms = new Map();
+const MATCHMAKING_WAIT_MS = 5000;
 
 const RANKS = Object.freeze([
   { id: "bronze", label: "ブロンズ", min: 0 },
@@ -9235,6 +9234,7 @@ function createRoom(id) {
     destroyedCameras: {},
     utilityViews: new Map(),
     doorLog: [],
+    matchmaking: null,
     soloMission: null,
     casual: false,
     rankUpdated: false
@@ -9733,6 +9733,24 @@ function addDefaultOnlineBots(room) {
   for (let index = currentBotCount + 1; index <= DEFAULT_ONLINE_BOT_COUNT; index += 1) {
     addPlayer(room, `Bot ${index}`, true);
   }
+}
+
+function waitingMatchmakingRoom(identityKey) {
+  const timestamp = now();
+  return [...rooms.values()]
+    .filter((room) => {
+      if (room.phase !== "lobby" || room.soloMission || room.matchmaking?.status !== "waiting") return false;
+      if (Number(room.matchmaking.expiresAt) <= timestamp) return false;
+      const humans = [...room.players.values()].filter((player) => !player.isBot);
+      return humans.length === 1 && humans[0].moderationKey !== identityKey;
+    })
+    .sort((left, right) => Number(left.matchmaking.createdAt) - Number(right.matchmaking.createdAt))[0] || null;
+}
+
+function createMatchedPlayer(room, name, skinId, profileId, identityKey) {
+  const player = addPlayer(room, name, false, skinId, profileId);
+  player.moderationKey = identityKey;
+  return player;
 }
 
 function leaveRoom(room, player) {
@@ -18110,6 +18128,11 @@ function requireRoomPlayer(body) {
   return { room, player };
 }
 
+function requireLegacyRoomTestFixture(req, body) {
+  if (body._offlineDeveloper === true && isDeveloperProfileId(playerProfileId(req))) return;
+  throw new ApiError(410, "部屋作成・部屋設定機能は廃止されました。マッチングを使用してください。");
+}
+
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
@@ -18139,7 +18162,7 @@ async function handleApi(req, res) {
   const body = req.method === "GET" ? Object.fromEntries(new URL(req.url, `http://${req.headers.host}`).searchParams) : await parseBody(req);
   const pathname = new URL(req.url, `http://${req.headers.host}`).pathname;
   const identityKey = moderationKey(req, body.clientId);
-  if (pathname !== "/api/rooms" && moderationRecord(identityKey).banned) {
+  if (moderationRecord(identityKey).banned) {
     throw new ApiError(403, "この端末からの参加は永久停止されています。");
   }
   let payload;
@@ -18190,10 +18213,6 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/rooms":
-      payload = { ok: true, rooms: publicRooms() };
-      break;
-
     case "/api/online-capacity":
       payload = { ok: true, ...renderCapacityStatus() };
       break;
@@ -18232,31 +18251,89 @@ async function handleApi(req, res) {
       break;
     }
 
+    case "/api/matchmake": {
+      const profileId = playerProfileId(req);
+      const requestedName = reservePlayerName(body.name, profileId, legacyPlayerProfileId(body.clientId));
+      if (body.offlineFallback === true) {
+        const room = createRoom(roomCode());
+        const player = createMatchedPlayer(room, requestedName, body.skinId, profileId, identityKey);
+        addDefaultOnlineBots(room);
+        startGame(room);
+        payload = {
+          ...serialize(room, player),
+          roomId: room.id,
+          playerId: player.id,
+          matchmaking: { status: "offline" },
+          profile: { name: requestedName, locked: true }
+        };
+        break;
+      }
+
+      const waitingRoom = waitingMatchmakingRoom(identityKey);
+      if (waitingRoom) {
+        const player = createMatchedPlayer(waitingRoom, requestedName, body.skinId, profileId, identityKey);
+        waitingRoom.matchmaking = { status: "matched", matchedAt: now() };
+        addDefaultOnlineBots(waitingRoom);
+        startGame(waitingRoom);
+        payload = {
+          ...serialize(waitingRoom, player),
+          roomId: waitingRoom.id,
+          playerId: player.id,
+          matchmaking: { status: "online" },
+          profile: { name: requestedName, locked: true }
+        };
+        break;
+      }
+
+      const room = createRoom(roomCode());
+      const player = createMatchedPlayer(room, requestedName, body.skinId, profileId, identityKey);
+      room.matchmaking = {
+        status: "waiting",
+        createdAt: now(),
+        expiresAt: now() + MATCHMAKING_WAIT_MS
+      };
+      payload = {
+        ...serialize(room, player),
+        roomId: room.id,
+        playerId: player.id,
+        matchmaking: { ...room.matchmaking },
+        profile: { name: requestedName, locked: true }
+      };
+      break;
+    }
+
+    case "/api/matchmake/cancel": {
+      const { room, player } = requireRoomPlayer(body);
+      if (room.phase !== "lobby") {
+        payload = {
+          ...serialize(room, player),
+          matchmaking: { status: "online" }
+        };
+        break;
+      }
+      const humans = [...room.players.values()].filter((entry) => !entry.isBot);
+      if (room.matchmaking?.status === "waiting" && humans.length === 1 && humans[0].id === player.id) {
+        rooms.delete(room.id);
+        payload = { ok: true, cancelled: true };
+        break;
+      }
+      throw new ApiError(409, "マッチング待機を解除できませんでした。");
+    }
+
+    // Regression fixtures only. These routes are unavailable to normal clients
+    // and are retained solely so the established offline simulation suite can
+    // construct exact combat states without reintroducing player-facing rooms.
     case "/api/join": {
+      requireLegacyRoomTestFixture(req, body);
       const profileId = playerProfileId(req);
       const requestedName = reservePlayerName(body.name, profileId, legacyPlayerProfileId(body.clientId));
       const requested = cleanRoomId(body.roomId);
       const room = requested ? getRoom(requested) || createRoom(requested) : createRoom(roomCode());
-      if (room.soloMission) throw new ApiError(403, "ソロ訓練ルームへ途中参加できません。");
       const shouldAddDefaultBots = room.phase === "lobby" && room.players.size === 0;
       const existing = body.playerId ? room.players.get(String(body.playerId)) : null;
-      let player = existing;
-      let midJoined = false;
-      if (player?.midJoinAvailable) {
-        player = claimMidJoinSlot(room, player, requestedName, body.skinId);
-        player.profileId = profileId;
-        midJoined = true;
-      } else if (!player && room.phase === "lobby") {
-        player = addPlayer(room, requestedName, false, body.skinId, profileId);
-      } else if (!player) {
-        const slot = availableMidJoinSlot(room);
-        if (!slot) throw new ApiError(409, "この試合には途中参加できる枠がありません。");
-        player = claimMidJoinSlot(room, slot, requestedName, body.skinId);
-        player.profileId = profileId;
-        midJoined = true;
-      }
+      const player = existing || addPlayer(room, requestedName, false, body.skinId, profileId);
       player.moderationKey = identityKey;
-      if (existing && !midJoined) {
+      if (existing) {
         player.name = requestedName || player.name;
         player.profileId ||= profileId;
         player.isBot = false;
@@ -18268,9 +18345,59 @@ async function handleApi(req, res) {
         ...serialize(room, player),
         roomId: room.id,
         playerId: player.id,
-        midJoined,
         profile: { name: requestedName, locked: true }
       };
+      break;
+    }
+
+    case "/api/settings": {
+      requireLegacyRoomTestFixture(req, body);
+      const { room, player } = requireRoomPlayer(body);
+      if (room.hostId !== player.id || room.phase !== "lobby") throw new ApiError(400, "テスト用設定を変更できません。");
+      const next = { ...room.settings };
+      if (MAPS[body.mapId]) next.mapId = body.mapId;
+      if (["random", "attacker", "defender"].includes(body.hostTeam)) next.hostTeam = body.hostTeam;
+      next.attackerCount = Math.floor(clampNumber(body.attackerCount, 1, 3, next.attackerCount));
+      next.taskCount = Math.floor(clampNumber(body.taskCount, 6, 30, next.taskCount));
+      next.killCooldown = Math.floor(clampNumber(body.killCooldown, 8, 45, next.killCooldown));
+      next.killRange = Math.floor(clampNumber(body.killRange, 60, 180, next.killRange));
+      next.discussionTime = Math.floor(clampNumber(body.discussionTime, 0, 45, next.discussionTime));
+      next.votingTime = Math.floor(clampNumber(body.votingTime, 20, 600, next.votingTime));
+      next.anonymousVotes = Boolean(body.anonymousVotes);
+      next.confirmEjects = Boolean(body.confirmEjects);
+      next.emergencyLimit = Math.floor(clampNumber(body.emergencyLimit, 0, 5, next.emergencyLimit));
+      room.settings = next;
+      touch(room);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/add-bot": {
+      requireLegacyRoomTestFixture(req, body);
+      const { room, player } = requireRoomPlayer(body);
+      if (room.hostId !== player.id || room.phase !== "lobby") throw new ApiError(400, "テスト用Botを追加できません。");
+      addPlayer(room, `Bot ${room.players.size + 1}`, true);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/start": {
+      requireLegacyRoomTestFixture(req, body);
+      const { room, player } = requireRoomPlayer(body);
+      if (room.hostId !== player.id) throw new ApiError(403, "テスト用開始権限がありません。");
+      startGame(room);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/kick": {
+      requireLegacyRoomTestFixture(req, body);
+      const { room, player } = requireRoomPlayer(body);
+      if (room.hostId !== player.id) throw new ApiError(403, "テスト用退出権限がありません。");
+      const target = room.players.get(String(body.targetId || ""));
+      if (!target || target.id === player.id) throw new ApiError(400, "退出対象を選択してください。");
+      leaveRoom(room, target);
+      payload = serialize(room, player);
       break;
     }
 
@@ -18312,56 +18439,6 @@ async function handleApi(req, res) {
         newHostId: result.newHostId,
         midJoinOpen: result.midJoinOpen
       };
-      break;
-    }
-
-    case "/api/kick": {
-      const { room, player } = requireRoomPlayer(body);
-      if (room.hostId !== player.id) throw new ApiError(403, "ホストだけが参加者を退出させられます。");
-      const target = room.players.get(String(body.targetId || ""));
-      if (!target || target.id === player.id) throw new ApiError(400, "退出対象を選択してください。");
-      pushEvent(room, `${player.name} が ${target.name} に退出命令を実行しました。`);
-      leaveRoom(room, target);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/settings": {
-      const { room, player } = requireRoomPlayer(body);
-      if (room.hostId !== player.id) throw new ApiError(403, "ホストだけが設定を変更できます。");
-      if (room.phase !== "lobby") throw new ApiError(400, "開始後は設定を変更できません。");
-      const next = { ...room.settings };
-      if (MAPS[body.mapId]) next.mapId = body.mapId;
-      if (["random", "attacker", "defender"].includes(body.hostTeam)) next.hostTeam = body.hostTeam;
-      next.attackerCount = Math.floor(clampNumber(body.attackerCount, 1, 3, next.attackerCount));
-      next.taskCount = Math.floor(clampNumber(body.taskCount, 6, 30, next.taskCount));
-      next.killCooldown = Math.floor(clampNumber(body.killCooldown, 8, 45, next.killCooldown));
-      next.killRange = Math.floor(clampNumber(body.killRange, 60, 180, next.killRange));
-      next.discussionTime = Math.floor(clampNumber(body.discussionTime, 0, 45, next.discussionTime));
-      next.votingTime = Math.floor(clampNumber(body.votingTime, 20, 600, next.votingTime));
-      next.anonymousVotes = Boolean(body.anonymousVotes);
-      next.confirmEjects = Boolean(body.confirmEjects);
-      next.emergencyLimit = Math.floor(clampNumber(body.emergencyLimit, 0, 5, next.emergencyLimit));
-      room.settings = next;
-      touch(room);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/add-bot": {
-      const { room, player } = requireRoomPlayer(body);
-      if (room.hostId !== player.id) throw new ApiError(403, "ホストだけがBotを追加できます。");
-      if (room.phase !== "lobby") throw new ApiError(400, "開始後はBotを追加できません。");
-      addPlayer(room, `Bot ${room.players.size + 1}`, true);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/start": {
-      const { room, player } = requireRoomPlayer(body);
-      if (room.hostId !== player.id) throw new ApiError(403, "ホストだけが開始できます。");
-      startGame(room);
-      payload = serialize(room, player);
       break;
     }
 
@@ -18721,6 +18798,7 @@ async function handleApi(req, res) {
     }
 
     case "/api/reset": {
+      throw new ApiError(410, "ロビーへの復帰機能は廃止されました。再マッチングしてください。");
       const { room, player } = requireRoomPlayer(body);
       if (room.hostId !== player.id) throw new ApiError(403, "ホストだけがオンラインロビーへ戻せます。");
       if (room.soloMission) throw new ApiError(400, "ソロ訓練からオンラインロビーへ移動することはできません。");
@@ -19149,6 +19227,14 @@ function pushRealtimeStates() {
 
 function botTick() {
   for (const room of rooms.values()) {
+    if (
+      room.phase === "lobby" &&
+      room.matchmaking?.status === "waiting" &&
+      now() > Number(room.matchmaking.expiresAt || 0) + 15_000
+    ) {
+      rooms.delete(room.id);
+      continue;
+    }
     if (now() - room.updatedAt > ROOM_TTL_MS) {
       rooms.delete(room.id);
       continue;
@@ -19821,7 +19907,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "title-command-ui-icons-v479",
+  version: "matchmaking-direct-select-v480",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
