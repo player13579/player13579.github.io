@@ -13463,6 +13463,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   }
   recordBotMatchElimination(room, target, source);
   target.alive = false;
+  target.gunnerSnipingActive = false;
   target.bodyHits = 0;
   target.overheal = 0;
   target.limitBreakActive = false;
@@ -16419,6 +16420,7 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   recordBotMatchElimination(room, target, killer);
   target.alive = false;
+  target.gunnerSnipingActive = false;
   target.bodyHits = 0;
   target.overheal = 0;
   target.limitBreakActive = false;
