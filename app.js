@@ -410,6 +410,7 @@ const state = {
   matchmakingInFlight: false,
   matchmakingSerial: 0,
   matchmakingTicket: null,
+  offlineTeamChoiceInFlight: false,
   textures: createTextures(),
   motion: new Map(),
   facing: new Map(),
@@ -475,7 +476,7 @@ const state = {
   operatorBranchesOpen: false,
   operatorBranchType: "",
   borrowedOperatorType: "gravity",
-  borrowedAbilityModes: { gravity: "accelerate", flora: "heal", gunner: "hover-sprint" },
+  borrowedAbilityModes: { gravity: "accelerate", flora: "heal", gunner: "sniping" },
   arrowRepeatKey: "",
   arrowRepeatAt: 0,
   keybindOpen: false,
@@ -617,13 +618,14 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   handgun: "12発。射程520・威力0.48・0.38秒間隔。弾切れ／射撃停止後に自動リロード",
   smg: "30発。射程460・威力0.42・0.10秒間隔。距離減衰大。自動リロード",
   assault: "18発。射程760・威力0.58・0.24秒間隔。距離減衰小。自動リロード",
-  sniper: "5発。射程1200・確殺・1.10秒間隔。自動リロード",
+  sniper: "5発。射程1200・威力1.35・1.10秒間隔。固有の確殺なし。自動リロード",
   taser: "8発。射程420・威力0.16・0.72秒間隔。命中対象を6秒間35%減速。自動リロード",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で4Cへ換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で2Cへ換金",
   uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後のJGは全攻撃反射、消滅斬りは死体なし。斬る／投擲の衝撃波はEC-1、EC100以上の斬るはEC-100で特大化。衝撃波はJG・反射不可",
+  hsg: "再使用可能。使用で8秒間浮揚・ACC 1.8。Enhanceごとに効果時間+4秒、ACC+0.4",
   iai: "敵1人の有限の踏ん張りを全削除。200SP相当をSPから消費し、不足分は150SP=1MPで補填。総量不足なら死亡。EC50の無限踏ん張りは削除不可",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -722,7 +724,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "interaction-runtime-v481";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "input-team-acc-v482";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -740,6 +742,7 @@ const generatedItemTextureFiles = new Map([
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
   ["orichalcum-sword", { file: "item-orichalcum-sword-v453.png" }],
+  ["hsg", { file: "item-hsg-v482.png" }],
   ["iai", { file: "instant-iai-abstract-v451.png" }],
   ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
   ["heal", { file: "alchemy-effect-heal-v311.png" }],
@@ -766,6 +769,8 @@ const generatedItemTextureFiles = new Map([
   ["taser", { file: "gunner-taser.webp" }],
   ["rpg", { file: "gunner-rpg.webp" }],
   ["missile", { file: "gunner-missile.webp" }],
+  ["gunner-special-ammo-weak", { file: "gunner-special-ammo-weak-v455.png" }],
+  ["gunner-special-ammo-shock", { file: "gunner-special-ammo-shock-v455.png" }],
   ["revive", { file: "human-transmutation-sd-silhouette-v407.png", size: "contain" }],
   ["hack-credits-delete", { file: "hack-credits-delete.webp" }],
   ["hack-credits-duplicate", { file: "hack-credits-duplicate.webp" }],
@@ -2418,7 +2423,7 @@ function drawTacticsMovement(ctx, w, h, time) {
 }
 
 function drawTacticsCombat(ctx, w, h, time) {
-  const weapons = ["HG 0.48", "SMG 0.42", "AR 0.58", "SR 確殺"];
+  const weapons = ["HG 0.48", "SMG 0.42", "AR 0.58", "SR 1.35"];
   const weaponIndex = Math.min(3, Math.floor((time % 32) / 8));
   const local = (time % 8) / 8;
   const shooterX = 210;
@@ -2571,7 +2576,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/shoot": "shoot",
   "/api/gunner-weapon": "weapon-switch",
   "/api/gunner-reload": "reload",
-  "/api/gunner-hover-sprint": "power",
+  "/api/gunner-sniping": "focus",
   "/api/gunner-heavy": "shoot",
   "/api/dodge": "evade",
   "/api/fighter-slash": "slash",
@@ -2671,6 +2676,9 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-item-use": "enhance",
   "action-item-throw": "throw",
   "action-special-ammo-load": "reload",
+  "action-sniping-headshot": "shoot",
+  "item-hsg-activate": "power",
+  "gunner-sniping-stance": "focus",
   "action-weapon-switch": "weapon-switch",
   "action-reason": "attack",
   "action-push": "attack",
@@ -2692,7 +2700,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "fighter-energy-release": "throw",
   "fighter-energy-impact": null,
   "fighter-shockwave": "slash",
-  "gunner-hover-sprint": "power",
   "gunner-rpg": "shoot",
   "gunner-missile": "shoot",
   "gunner-nuclear": "power",
@@ -2741,7 +2748,8 @@ function magicCharacterActionKind(type, variant = "") {
   if (/gunner-(rpg|missile|nuclear)|railgun|particle|sunbeam/.test(type)) return "shoot";
   if (/flora/.test(type)) return "heal";
   if (/dodge|substitution|stand/.test(type)) return "evade";
-  if (/limit-break|hover-sprint|idea-/.test(type)) return "power";
+  if (/limit-break|item-hsg|idea-/.test(type)) return "power";
+  if (/sniping/.test(type)) return "focus";
   if (/emp|gravity|fire|vibe|alchemy|teleport/.test(type)) return "cast";
   if (/vending|object|push/.test(type)) return "interact";
   return "";
@@ -2906,13 +2914,16 @@ function isContinuousGameActionButton(button) {
   if (!(button instanceof HTMLButtonElement) || button.hidden) return false;
   if (state.screen !== "game" || state.data?.phase !== "playing") return false;
   if (switchDragDescriptorForSource(button)) return false;
+  if (button.dataset.repeatableAbility === "0") return false;
   if (
     SPECIALIZED_HOLD_ACTION_IDS.has(button.id) ||
     NON_REPEATABLE_ACTION_HOTKEY_BUTTONS.has(button.id) ||
     button.matches("[data-drink]")
   ) return false;
+  if (button.id === "tabletAbilityShortcut") {
+    return button.dataset.repeatableAbility === "1";
+  }
   if ([
-    "tabletAbilityShortcut",
     "tabletEmpShortcut",
     "tabletDodgeShortcut",
     "tabletRenkiShortcut",
@@ -4105,33 +4116,7 @@ function switchDragDescriptorForSource(source) {
   if (!(source instanceof Element)) return null;
   const options = [];
   let title = "切り替え先";
-  if (source === els.operatorAbilityButton) {
-    title = "能力・対象を切り替え";
-    const self = state.data?.self;
-    const borrowedTypes = availableBorrowedOperatorTypes(self);
-    if (borrowedTypes.length > 1) {
-      options.push(...borrowedTypes.map((type) => ({
-        key: `ability:${type}`,
-        group: "能力",
-        label: specialLabels[type] || type,
-        selected: type === selectedBorrowedOperator(),
-        apply() {
-          state.borrowedOperatorType = type;
-          renderTargetOptions(state.data);
-          updateActionButtons(state.data);
-        }
-      })));
-    }
-    if (els.teleportModeSelect.options.length > 1 && !els.teleportModeSelect.closest("label")?.hidden) {
-      options.push(...switchDragSelectOptions(els.teleportModeSelect, "方式"));
-    }
-    if (els.teleportTargetSelect.options.length > 1 && !els.teleportTargetSelect.closest("label")?.hidden) {
-      options.push(...switchDragSelectOptions(els.teleportTargetSelect, "対象"));
-    }
-  } else if (source === els.empButton) {
-    title = "EMP位相を切り替え";
-    options.push(...switchDragSelectOptions(els.empPhaseSelect, "位相"));
-  } else if (source === els.hackerTargetButton) {
+  if (source === els.hackerTargetButton) {
     title = "ハッカー対象を切り替え";
     options.push(...hackerTargets().map((player) => ({
       key: `hacker-target:${player.id}`,
@@ -4143,10 +4128,10 @@ function switchDragDescriptorForSource(source) {
         renderHackerAbilityDock(state.data, true);
       }
     })));
-  } else if ([els.sabotageButton, els.sabotageSelect].includes(source)) {
+  } else if (source === els.sabotageSelect) {
     title = "サボタージュを切り替え";
     options.push(...switchDragSelectOptions(els.sabotageSelect, "内容"));
-  } else if ([els.transferItemButton, els.transferCreditsButton, els.transferTargetSelect].includes(source)) {
+  } else if (source === els.transferTargetSelect) {
     title = "譲渡対象を切り替え";
     options.push(...switchDragSelectOptions(els.transferTargetSelect, "対象"));
   } else if (source === els.teleportModeSelect) {
@@ -4644,12 +4629,7 @@ function bindEvents() {
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
   bindTabletControls();
   [
-    els.operatorAbilityButton,
-    els.empButton,
     els.hackerTargetButton,
-    els.sabotageButton,
-    els.transferItemButton,
-    els.transferCreditsButton,
     els.teleportModeSelect,
     els.teleportTargetSelect,
     els.empPhaseSelect,
@@ -6104,7 +6084,7 @@ function renderTabletBranch(data, force = false) {
       addModeAction("サンビーム放射", "sunbeam");
       addModeAction("サンビーム収束", "sunbeam-converged");
     } else if (self.special === "gunner") {
-      addModeAction("ホバースプリント", "hover-sprint");
+      addModeAction(self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON", "sniping");
     } else if (self.special === "quantum") {
       [
         ["水銀→金", "transmute-mercury"],
@@ -6174,7 +6154,7 @@ function renderTabletControls(data) {
   els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.dataset.operator = els.operatorAbilityButton.dataset.operator || "none";
-  els.tabletAbilityShortcut.dataset.repeatableAbility = "1";
+  els.tabletAbilityShortcut.dataset.repeatableAbility = els.operatorAbilityButton.dataset.repeatableAbility || "0";
   els.tabletAbilityShortcut.dataset.actionDisabled = els.operatorAbilityButton.disabled ? "1" : "0";
   els.tabletAbilityShortcut.classList.toggle("action-disabled", els.operatorAbilityButton.disabled);
   els.tabletAbilityShortcut.title = "現在の能力を発動。能力切替は専用選択欄を長押し";
@@ -6588,7 +6568,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     button.title = description || label;
     button.setAttribute("aria-label", description ? `${label}: ${description}` : label);
     button.classList.toggle("selected", selected);
-    button.dataset.repeatableAbility = "1";
+    button.dataset.repeatableAbility = activeType === "gunner" ? "0" : "1";
     button.addEventListener("click", () => {
       action();
     });
@@ -6631,14 +6611,14 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
       }, option.value === (borrowedPreview ? state.borrowedAbilityModes.flora : els.teleportModeSelect.value), floraDescriptions[option.value] || "");
     });
   } else if (activeType === "gunner") {
-    addBranch("ホバースプリント", () => {
-      state.borrowedAbilityModes.gunner = "hover-sprint";
-      if ([...els.teleportModeSelect.options].some((option) => option.value === "hover-sprint")) {
-        els.teleportModeSelect.value = "hover-sprint";
+    addBranch(self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON", () => {
+      state.borrowedAbilityModes.gunner = "sniping";
+      if ([...els.teleportModeSelect.options].some((option) => option.value === "sniping")) {
+        els.teleportModeSelect.value = "sniping";
       }
-      if (borrowedPreview) triggerBorrowedAbility("gunner", "hover-sprint");
+      if (borrowedPreview) triggerBorrowedAbility("gunner", "sniping");
       else triggerOperatorAbility();
-    }, (borrowedPreview ? state.borrowedAbilityModes.gunner : els.teleportModeSelect.value) === "hover-sprint", "8秒間加速し、壁と障害物を無視して移動する");
+    }, self.gunnerSnipingActive, "ON中は全射撃がHS確殺。移動速度は通常の12%まで低下する");
   } else if (activeType === "quantum") {
     const quantumModes = new Set(["transmute-mercury", "transmute-lead", "cool-water", "heat-water", "fission-uranium", "fission-plutonium"]);
     [...els.teleportModeSelect.options].filter((option) => quantumModes.has(option.value)).forEach((option) => {
@@ -6677,7 +6657,7 @@ function triggerOperatorAbility() {
       dy: Number(self.aimY) || 1
     });
   } else if (self.special === "gunner") {
-    void api("/api/gunner-hover-sprint");
+    void api("/api/gunner-sniping");
   } else if (self.special === "quantum") {
     void api("/api/quantum-control", { mode: els.teleportModeSelect.value || self.quantumMode });
   } else if (self.special === "alchemist") {
@@ -7067,23 +7047,40 @@ async function returnOfflineToOperatorSelect() {
   return true;
 }
 
+function syncOfflineTeamChoiceVisual(role) {
+  const activeRole = state.offlineMode && ["defender", "attacker"].includes(role) ? role : "";
+  const busy = state.offlineTeamChoiceInFlight;
+  [
+    [els.offlineDefenderButton, "defender"],
+    [els.offlineAttackerButton, "attacker"]
+  ].forEach(([button, value]) => {
+    const selected = activeRole === value;
+    button.setAttribute("aria-pressed", String(selected));
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-disabled", String(busy));
+  });
+  els.offlineTeamChoice.setAttribute("aria-busy", String(busy));
+}
+
 async function chooseOfflineTeam(role) {
-  if (!state.offlineMode || state.data?.phase !== "selecting" || !["defender", "attacker"].includes(role)) return false;
-  els.offlineDefenderButton.disabled = true;
-  els.offlineAttackerButton.disabled = true;
+  if (state.offlineTeamChoiceInFlight || !state.offlineMode || state.data?.phase !== "selecting" || !["defender", "attacker"].includes(role)) return false;
+  const previousRole = state.data?.self?.role || "defender";
+  state.offlineTeamChoiceInFlight = true;
+  syncOfflineTeamChoiceVisual(role);
   const result = await request("/api/offline-team", {
     roomId: state.roomId,
     playerId: state.playerId,
     role,
     localOffline: true
   }, { quiet: true, forceOffline: true });
-  els.offlineDefenderButton.disabled = false;
-  els.offlineAttackerButton.disabled = false;
+  state.offlineTeamChoiceInFlight = false;
   if (!result) {
+    syncOfflineTeamChoiceVisual(previousRole);
     showToast("陣営を変更できませんでした。");
     return false;
   }
   applyState(result);
+  syncOfflineTeamChoiceVisual(result.self?.role || previousRole);
   return true;
 }
 
@@ -8343,8 +8340,7 @@ function renderOperatorSelect(data) {
   const self = data.self;
   const role = roleLabels[self.role] || self.role;
   els.offlineTeamChoice.hidden = !state.offlineMode;
-  els.offlineDefenderButton.setAttribute("aria-pressed", String(state.offlineMode && self.role === "defender"));
-  els.offlineAttackerButton.setAttribute("aria-pressed", String(state.offlineMode && self.role === "attacker"));
+  syncOfflineTeamChoiceVisual(state.offlineMode ? self.role : "");
   const isTurn = state.offlineMode
     ? !self.operatorReady
     : data.operatorTurnPlayerId === self.id;
@@ -8518,7 +8514,7 @@ function renderTargetOptions(data) {
     teleport: [["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
     gravity: [["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
     flora: [["heal", "回復"], ["sunbeam", "サンビーム・放射"], ["sunbeam-converged", "サンビーム・収束"]],
-    gunner: [["hover-sprint", "ホバースプリント"]],
+    gunner: [["sniping", "狙撃"]],
     quantum: [["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]]
   };
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value);
@@ -8598,7 +8594,7 @@ function abilityModeDescription(owner, mode, self) {
       "sunbeam-converged": `光を一点へ収束し、貫通を失う代わりに対象を確殺する。${cost("flora")}。`
     },
     gunner: {
-      "hover-sprint": `8秒間加速・浮揚し、障害物を無視して移動する。${cost("hoverSprint")}。`
+      sniping: "ON中は全銃の命中をHS確殺にする。代わりに移動速度が通常の12%まで低下する。再操作でOFF。0MP。"
     },
     quantum: {
       "transmute-mercury": "水銀を核変換して金へ変え、自動的にクレジットへ換金する。",
@@ -8691,7 +8687,7 @@ function collectInventoryDisplayItems(self) {
         const specialType = weapon.id === self.gunnerSpecialAmmoWeapon && Number(self.gunnerSpecialAmmoRounds) > 0
           ? String(self.gunnerSpecialAmmoType || "")
           : "";
-        const specialLabel = { weak: "ウィーク", penetrate: "ペネトレイト", shock: "ショック" }[specialType] || "";
+        const specialLabel = { weak: "ウィーク", shock: "ショック" }[specialType] || "";
         return {
           id: `weapon:${weapon.id}`,
           sourceId: weapon.id,
@@ -8703,6 +8699,28 @@ function collectInventoryDisplayItems(self) {
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
+    : [];
+  const specialAmmoLabels = { weak: "ウィーク弾", shock: "ショック弾" };
+  const specialAmmoInventory = self.gunnerSpecialAmmoInventory && typeof self.gunnerSpecialAmmoInventory === "object"
+    ? self.gunnerSpecialAmmoInventory
+    : {};
+  const specialAmmoItems = gunnerAccess
+    ? Object.entries(specialAmmoLabels).filter(([type]) => Number(specialAmmoInventory[type]) > 0).map(([type, label]) => {
+      const count = Math.max(0, Math.floor(Number(specialAmmoInventory[type]) || 0));
+      const loaded = self.gunnerSpecialAmmoType === type && Number(self.gunnerSpecialAmmoRounds) > 0;
+      return {
+        id: `special-ammo:${type}`,
+        sourceId: type,
+        label,
+        asset: `gunner-special-ammo-${type}`,
+        inventoryKind: "special-ammo",
+        output: `所持 ${count}発${loaded ? " / 装填中" : ""}`,
+        detail: `${label}の獲得済み所持弾。装填中でも追加獲得でき、通常リロードでは失われません。`,
+        badge: `${loaded ? "装填中 / " : ""}×${count}`,
+        throwable: false,
+        transferable: false
+      };
+    })
     : [];
   const inventionNames = { railgun: "レールガン", "particle-cannon": "荷電粒子砲", excalibur: "エクスカリバー" };
   const inventionCounts = (self.inventions || []).reduce((counts, id) => {
@@ -8734,7 +8752,7 @@ function collectInventoryDisplayItems(self) {
     detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器",
     badge: `×${count}`
   }));
-  return [...regularItems, ...weaponItems, ...inventionItems, ...heavyItems];
+  return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems];
 }
 
 function createInventoryTouchGesture({
@@ -9161,7 +9179,7 @@ function renderItemControl(data) {
       button.style.userSelect = "none";
       button.setAttribute("role", "option");
       button.setAttribute("aria-label", item.label);
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong></span>`;
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong>${item.inventoryKind === "special-ammo" ? `<small>${escapeHtml(item.badge)}</small>` : ""}</span>`;
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
@@ -9191,7 +9209,7 @@ function renderItemControl(data) {
     button.setAttribute("aria-selected", String(active));
   });
   const blocked = (Number(self.itemDisabledUntil) || 0) > estimatedServerNow(data);
-  const canUse = Boolean(selected) && !blocked;
+  const canUse = Boolean(selected) && !blocked && selected?.inventoryKind !== "special-ammo";
   const selectedInstant = selected?.inventoryKind === "instant";
   const selectedWeaponReloading = selected?.inventoryKind === "weapon" &&
     selected.sourceId === self.gunnerReloadWeapon &&
@@ -9395,15 +9413,13 @@ function renderActiveEffects(data) {
     );
   }
   const borrowedOperatorAccess = (type) => hasDisplayedOperatorAccess(self, type);
-  const specialAmmoLabels = { weak: "ウィーク", penetrate: "ペネトレイト", shock: "ショック" };
+  const specialAmmoLabels = { weak: "ウィーク", shock: "ショック" };
   const specialAmmoWeapon = (self.gunnerWeapons || []).find((weapon) => weapon.id === self.gunnerSpecialAmmoWeapon);
   if (self.gunnerSpecialAmmoType && Number(self.gunnerSpecialAmmoRounds) > 0) {
     const typeLabel = specialAmmoLabels[self.gunnerSpecialAmmoType] || "特殊弾";
     const detail = self.gunnerSpecialAmmoType === "weak"
       ? "対象と射手を破壊し、死体を残す"
-      : self.gunnerSpecialAmmoType === "penetrate"
-        ? "遮蔽物貫通。壁は不可"
-        : "幸運/直観0未満:確殺 / 0以上:6秒間35%減速";
+      : "幸運/直観0未満:確殺 / 0以上:6秒間35%減速";
     add("特殊弾装填", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail);
   }
   if (Number(self.gunnerSpecialAmmoReadyAt) > liveNow) {
@@ -9449,13 +9465,14 @@ function renderActiveEffects(data) {
     "good",
     `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`
   );
-  const hoverAcceleration = self.timedAccelerationStacks?.["hover-sprint"];
+  const hsgAcceleration = self.timedAccelerationStacks?.hsg;
   timed(
-    `ホバースプリント${hoverAcceleration?.count > 1 ? ` ×${hoverAcceleration.count}` : ""}`,
-    hoverAcceleration?.endsAt || self.hoverSprintUntil,
+    "HSG 浮揚・加速",
+    hsgAcceleration?.endsAt || self.hsgUntil,
     "good",
-    `現在×${Number(hoverAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`
+    `現在ACC ${Number(hsgAcceleration?.multiplier || 1.8).toFixed(1)}。浮揚・移動・物理モーション・CT・行動不能・タスク速度へ適用`
   );
+  if (self.gunnerSnipingActive) add("狙撃", "ON", "truth", "全射撃HS確殺 / 移動速度12%");
   timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
@@ -9712,13 +9729,14 @@ function syncMovementAccControl(data = state.data) {
   const self = data?.self;
   if (!els.movementAccControl || !self) return;
   const enabled = self.movementAccEnabled !== false;
-  const threshold = Math.max(1, Number(self.movementAccThreshold) || 3);
+  const threshold = Math.max(1, Number(self.movementAccThreshold) || 2);
+  const fixedAcc = Math.max(1, Number(self.movementAccMax) || 2);
   const acceleration = Math.max(1, Number(self.accelerationMultiplier) || 1);
   const active = self.movementAccActive === true || (
     self.movementAccActive == null && enabled && acceleration + 1e-6 >= threshold && Number(self.movementAcc) > 1.5
   );
   els.movementAccToggleButton.textContent = active
-    ? "移動ACC 3.00　固定中 [Q]"
+    ? `移動ACC ${fixedAcc.toFixed(2)}　固定中 [Q]`
     : enabled
       ? `移動ACC固定　待機（ACC ${threshold.toFixed(0)}以上） [Q]`
       : "移動ACC固定　OFF [Q]";
@@ -9877,7 +9895,7 @@ function updateActionButtons(data) {
   els.weaponButton.dataset.weapon = gunnerWeapon.id;
   els.weaponButton.dataset.destroyed = "false";
   const activeSpecialAmmo = self.gunnerSpecialAmmoWeapon === gunnerWeapon.id && Number(self.gunnerSpecialAmmoRounds) > 0
-    ? ({ weak: "ウィーク", penetrate: "ペネトレイト", shock: "ショック" }[self.gunnerSpecialAmmoType] || "特殊弾")
+    ? ({ weak: "ウィーク", shock: "ショック" }[self.gunnerSpecialAmmoType] || "特殊弾")
     : "";
   els.weaponButton.textContent = `${gunnerWeapon.shortName || gunnerWeapon.name} ${gunnerWeapon.ammo}/${gunnerWeapon.maxAmmo}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}×${self.gunnerSpecialAmmoRounds}` : ""}`;
   const falloffPercent = Math.round((1 - (Number(gunnerWeapon.minDamageRatio) || 1)) * 100);
@@ -9924,10 +9942,10 @@ function updateActionButtons(data) {
   const borrowedModeLabel = selectedBorrowedRecipe
     ? activeBorrowedOperator === "gravity"
       ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
-      : activeBorrowedOperator === "flora"
+        : activeBorrowedOperator === "flora"
         ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
         : activeBorrowedOperator === "gunner"
-          ? "ホバースプリント"
+          ? self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON"
           : activeBorrowedOperator === "fighter"
             ? self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク"
             : "常時パッシブ"
@@ -9941,7 +9959,7 @@ function updateActionButtons(data) {
             : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
               : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : operatorMode === "sunbeam-converged" ? `サンビーム収束 ${operatorCostLabel("flora")}` : `サンビーム放射 ${operatorCostLabel("flora")}`,
-    gunner: `ホバースプリント ${operatorCostLabel("hoverSprint")}`,
+    gunner: self.gunnerSnipingActive ? "狙撃 OFF / 現在HS確殺・移動12%" : "狙撃 ON / 全射撃HS確殺・移動12%",
     quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "量子制御",
     alchemist: selectedBorrowedRecipe
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
@@ -9953,7 +9971,7 @@ function updateActionButtons(data) {
         ? "flora"
       : activeBorrowedOperator === "fighter"
         ? "fighterCharge"
-      : "hoverSprint";
+      : "sniping";
   const selectedBorrowedFree = selectedBorrowedRecipe &&
     Number(borrowedFreeUses[activeBorrowedOperator]) > 0;
   const borrowedStateBlocked = Boolean(selectedBorrowedRecipe) && (
@@ -9968,11 +9986,11 @@ function updateActionButtons(data) {
     ? `借用 ${specialLabels[displayedOperator] || displayedOperator} / ${displayedOperatorLabel}`
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
-  els.operatorAbilityButton.dataset.repeatableAbility = "1";
+  els.operatorAbilityButton.dataset.repeatableAbility = displayedOperator === "gunner" ? "0" : "1";
+  els.operatorAbilityButton.classList.toggle("active", displayedOperator === "gunner" && Boolean(self.gunnerSnipingActive));
   els.operatorAbilityButton.disabled = !canUseAbility ||
     (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : "teleport")) ||
     (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
-    (displayedOperator === "gunner" && ((Number(self.hoverSprintUntil) || 0) > liveNow || !hasMana("hoverSprint"))) ||
     (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
     (activeBorrowedOperator && borrowedStateBlocked);
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
@@ -10447,12 +10465,12 @@ function applyMovementAck(result) {
     Number(result.accelerationMultiplier) || Number(data.self.accelerationMultiplier) || 1
   );
   const authoritativeMovementAccEnabled = result.movementAccEnabled !== false;
-  const authoritativeMovementAccThreshold = Math.max(1, Number(result.movementAccThreshold) || 3);
+  const authoritativeMovementAccThreshold = Math.max(1, Number(result.movementAccThreshold) || 2);
   const authoritativeMovementAccActive = result.movementAccActive === true || (
     result.movementAccActive == null && authoritativeMovementAccEnabled && authoritativeAcceleration + 1e-6 >= authoritativeMovementAccThreshold && Number(result.movementAcc) > 1.5
   );
-  const authoritativeMovementAccMax = 3;
-  const authoritativeMovementAcc = authoritativeMovementAccActive ? 3 : 1;
+  const authoritativeMovementAccMax = Math.max(1, Number(result.movementAccMax) || 2);
+  const authoritativeMovementAcc = authoritativeMovementAccActive ? authoritativeMovementAccMax : 1;
   data.self.speedMultiplier = authoritativeSpeed;
   data.self.accelerationMultiplier = authoritativeAcceleration;
   data.self.movementAcc = authoritativeMovementAcc;
@@ -12679,7 +12697,7 @@ function drawGunnerSpecialAmmoEffect(effect, progress) {
   let rotation = 0;
   let width = effect.type === "action-special-ammo-load" ? 245 : 205;
   let height = effect.type === "action-special-ammo-load" ? 150 : 118;
-  let mode = type === "weak" ? "resonance" : type === "penetrate" ? "recoil" : "glitch";
+  let mode = type === "weak" ? "resonance" : "glitch";
   let alpha = Math.max(0.1, 1 - progress * 0.82);
 
   if (effect.type === "action-special-ammo-shot") {
@@ -12688,27 +12706,19 @@ function drawGunnerSpecialAmmoEffect(effect, progress) {
     const distance = Math.hypot(dx, dy) || 1;
     const nx = dx / distance;
     const ny = dy / distance;
-    const travel = type === "penetrate"
-      ? 1 - Math.pow(1 - progress, 3)
-      : type === "shock"
-        ? progress
-        : progress * progress * (3 - 2 * progress);
+    const travel = type === "shock" ? progress : progress * progress * (3 - 2 * progress);
     const phaseOffset = type === "shock" ? Math.sin(progress * Math.PI * 18) * (1 - progress) * 7 : 0;
     x += dx * travel - ny * phaseOffset;
     y += dy * travel + nx * phaseOffset;
     rotation = Math.atan2(dy, dx);
-    width = type === "penetrate" ? 250 + pulse * 52 : type === "shock" ? 205 : 220;
-    height = type === "penetrate" ? 110 - pulse * 14 : 120;
+    width = type === "shock" ? 205 : 220;
+    height = 120;
     alpha = Math.max(0.2, 1 - progress * 0.5);
   } else if (effect.type === "action-special-ammo-load") {
     y -= 34;
     if (type === "weak") {
       width *= 0.84 + pulse * 0.22;
       height *= 1.08 - pulse * 0.1;
-    } else if (type === "penetrate") {
-      x += (1 - progress) * -74 + pulse * 12;
-      width *= 0.78 + progress * 0.22 + pulse * 0.12;
-      height *= 0.92 - pulse * 0.08;
     } else {
       x += Math.sin(progress * Math.PI * 14) * (1 - progress) * 8;
       y += Math.cos(progress * Math.PI * 11) * (1 - progress) * 4;
@@ -12718,10 +12728,6 @@ function drawGunnerSpecialAmmoEffect(effect, progress) {
     if (type === "weak") {
       width = 250 * (0.82 + pulse * 0.38);
       height = 145 * (1.08 - pulse * 0.16);
-    } else if (type === "penetrate") {
-      x += progress * 24;
-      width = 270 * (0.76 + pulse * 0.3);
-      height = 116 * (1.08 - pulse * 0.2);
     } else {
       x += Math.sin(progress * Math.PI * 22) * (1 - progress) * 9;
       y += Math.cos(progress * Math.PI * 17) * (1 - progress) * 5;
@@ -12739,10 +12745,6 @@ function drawGunnerSpecialAmmoEffect(effect, progress) {
     eGradient.addColorStop(0, `rgba(255, 226, 250, ${0.2 + pulse * 0.1})`);
     eGradient.addColorStop(0.36, `rgba(187, 31, 91, ${0.14 + pulse * 0.08})`);
     eGradient.addColorStop(1, "rgba(95, 5, 42, 0)");
-  } else if (type === "penetrate") {
-    eGradient.addColorStop(0, `rgba(255, 255, 255, ${0.18 + pulse * 0.11})`);
-    eGradient.addColorStop(0.42, `rgba(178, 198, 211, ${0.1 + pulse * 0.06})`);
-    eGradient.addColorStop(1, "rgba(99, 117, 128, 0)");
   } else {
     eGradient.addColorStop(0, `rgba(229, 252, 255, ${0.24 + pulse * 0.14})`);
     eGradient.addColorStop(0.4, `rgba(35, 174, 255, ${0.15 + pulse * 0.1})`);
@@ -12756,7 +12758,7 @@ function drawGunnerSpecialAmmoEffect(effect, progress) {
     mode,
     time,
     progress,
-    phase: type === "weak" ? 0.12 : type === "penetrate" ? 0.46 : 0.78,
+    phase: type === "weak" ? 0.12 : 0.78,
     intensity: 0.96,
     baseAlpha: 0.26,
     opacityBoost: 3.4
@@ -12780,6 +12782,15 @@ function drawMagicEffects() {
       drawGainAcquisitionEffect(effect, progress, now, peerEffects.indexOf(effect), peerEffects.length);
       continue;
     }
+    // Map-object activation already communicates its awarded categories through
+    // the persistent head markers. When both arrive in the same state sample,
+    // keep those readable markers and skip only the redundant full-size object
+    // presentation for the same recipient. Combat, hazards and transmutation
+    // remain independent even when they happen nearby.
+    const concurrentGainMarker = effect.type.startsWith("object-") && activeGainEffects.some((entry) => (
+      entry.playerId === effect.playerId && Math.abs(entry.startedAt - effect.startedAt) <= 80
+    ));
+    if (concurrentGainMarker) continue;
     if (drawGunnerSpecialAmmoEffect(effect, progress)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
@@ -13105,7 +13116,9 @@ const GENERATED_EFFECT_TEXTURES = {
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
   "action-vibe-coding": ["vibeCodingEffect", 220],
-  "gunner-hover-sprint": ["gunnerHoverSprintEffect", 240],
+  "item-hsg-activate": ["hsgItemTexture", 240],
+  "gunner-sniping-stance": ["gunnerWeaponsAtlas", 240],
+  "action-sniping-headshot": ["gunnerWeaponsAtlas", 210],
   "gunner-rpg": ["gunnerRpgEffect", 280],
   "gunner-missile": ["gunnerMissileEffect", 250],
   "quantum-transmutation": ["quantumTransmutationEffect", 260],
@@ -13132,7 +13145,7 @@ function semanticEffectMotion(type, variant = "", fallback = "energy") {
   if (/teleport|warp|substitution|transfer/.test(token)) return "teleport";
   if (/fire|burn|hot|nuclear|rpg|missile/.test(token)) return "combustion";
   if (/railgun|particle|sunbeam|excalibur|slash|shoot|beam/.test(token)) return "beam";
-  if (/reload|sustained-fire|penetrate/.test(token)) return "recoil";
+  if (/reload|sustained-fire/.test(token)) return "recoil";
   if (/grit|stand|shield|overheal|beauty/.test(token)) return "shield";
   if (/mana|water|antidote|heal|flora|recovery|cold|ice/.test(token)) return "ripple";
   if (/credits|luck|mystery|transmutation|invention/.test(token)) return "orbit";
@@ -13147,8 +13160,8 @@ function drawGoldTransmutationStages(goldSprite, progress) {
   const settle = objectEffectEase(clamp((progress - 0.24) / 0.28, 0, 1));
   const fade = 1 - objectEffectEase(clamp((progress - 0.84) / 0.16, 0, 1));
   const smoothReveal = reveal * reveal * (3 - 2 * reveal);
-  const ingotWidth = 138;
-  const ingotHeight = 49;
+  const ingotWidth = 82;
+  const ingotHeight = 29;
 
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = smoothReveal * fade;
@@ -15393,7 +15406,7 @@ function drawPetSprite(player, data, ghost) {
   if (skinId === "blue-dress") {
     const walkAtlasSource = state.textures.playerWalkAtlases?.[skinId];
     const walkAtlas = walkAtlasSource ? transparentSpriteSource(walkAtlasSource, `skinWalk60-${skinId}`, 12) : null;
-    if (walkAtlas && motion.moving) {
+    if (walkAtlas) {
       drawSophiaMinimalWalkFrame(walkAtlas, direction, frame, -47, -63, 94, 94);
       drawNameplate(player, ghost, -78);
       return true;
@@ -15529,7 +15542,15 @@ function drawProceduralWalkSprite(sprite, direction, frame, x, y, width, height)
 }
 
 function drawSophiaMinimalWalkFrame(atlas, direction, frame, x, y, width, height) {
-  const poseIndex = Math.floor(frame / 30) % 2;
+  // The compact atlas contains two authored opposite-foot poses per direction.
+  // Toggle once per quarter gait so even a short real movement visibly changes
+  // the advancing foot; cadence is still driven only by rendered distance.
+  const poseIndex = Math.floor(frame / 15) % 2;
+  if (IS_VERIFICATION_MODE) {
+    els.canvas.dataset.sophiaPose = String(poseIndex);
+    els.canvas.dataset.sophiaGaitFrame = Number(frame).toFixed(2);
+    els.canvas.dataset.sophiaDirection = String(direction);
+  }
   const gaitPhase = frame / 60 * Math.PI * 2;
   const bodyLift = (0.5 - Math.cos(gaitPhase * 2) * 0.5) * 0.65;
   drawAtlasCell(
@@ -16261,7 +16282,8 @@ function drawHud(data, w, h) {
   const manaGaugeMax = Math.max(2, Math.ceil(Math.max(0, mana) / 2) * 2);
   const accelerationMultiplier = Math.max(1, Number(self.accelerationMultiplier) || 1);
   const movementAccEnabled = self.movementAccEnabled !== false;
-  const movementAccThreshold = Math.max(1, Number(self.movementAccThreshold) || 3);
+  const movementAccThreshold = Math.max(1, Number(self.movementAccThreshold) || 2);
+  const movementAccMax = Math.max(1, Number(self.movementAccMax) || 2);
   const movementAccActive = self.movementAccActive === true || (
     self.movementAccActive == null && movementAccEnabled && accelerationMultiplier + 1e-6 >= movementAccThreshold && Number(self.movementAcc) > 1.5
   );
@@ -16272,11 +16294,11 @@ function drawHud(data, w, h) {
   ];
   if (self.special === "alchemist") {
     const cooldownCreditMs = Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0);
-    const cooldownCreditCapMs = Math.max(1, Number(self.manaGpuCooldownCreditCapMs) || 1);
+    const cooldownCreditGaugeMaxMs = Math.max(60_000, Math.ceil(cooldownCreditMs / 60_000) * 60_000);
     bars.push({
       label: "短縮",
       value: cooldownCreditMs,
-      max: cooldownCreditCapMs,
+      max: cooldownCreditGaugeMaxMs,
       color: "#22d3ee",
       text: `${(cooldownCreditMs / 1000).toFixed(1)}s`
     });
@@ -16325,7 +16347,7 @@ function drawHud(data, w, h) {
   const fighterEcText = hasDisplayedOperatorAccess(self, "fighter")
     ? `   EC ${Math.max(0, Math.floor(Number(self.fighterEnergyCharge) || 0))}`
     : "";
-  const movementAccText = ` / 移動固定 ${movementAccActive ? "ACC3" : movementAccEnabled ? "待機" : "OFF"}`;
+  const movementAccText = ` / 移動固定 ${movementAccActive ? `ACC${movementAccMax.toFixed(0)}` : movementAccEnabled ? "待機" : "OFF"}`;
   ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}${movementAccText}${fighterEcText}`, 27, detailTop);
   const drawReadyText = (label, remaining, x, y = detailTop + 19) => {
     const ready = remaining <= 0;
@@ -16632,7 +16654,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "interaction-runtime-v481";
+const version = "input-team-acc-v482";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -16761,10 +16783,9 @@ const version = "interaction-runtime-v481";
   const statusHpReductionEffect = new Image();
   const statusManaGpuEffect = new Image();
   const vibeCodingEffect = new Image();
-  const gunnerHoverSprintEffect = new Image();
+  const hsgItemTexture = new Image();
   const gunnerSpecialAmmoEffects = {
     weak: new Image(),
-    penetrate: new Image(),
     shock: new Image()
   };
   const gunnerRpgEffect = new Image();
@@ -16876,9 +16897,8 @@ const version = "interaction-runtime-v481";
   defer(statusHpReductionEffect, "assets/generated/status-hp-reduction-v375.png");
   defer(statusManaGpuEffect, "assets/generated/status-mana-gpu-ate-v402.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
-  defer(gunnerHoverSprintEffect, "assets/generated/gunner-hover-sprint-v311.png");
+  defer(hsgItemTexture, "assets/generated/item-hsg-v482.png");
   defer(gunnerSpecialAmmoEffects.weak, "assets/generated/gunner-special-ammo-weak-v455.png");
-  defer(gunnerSpecialAmmoEffects.penetrate, "assets/generated/gunner-special-ammo-penetrate-v455.png");
   defer(gunnerSpecialAmmoEffects.shock, "assets/generated/gunner-special-ammo-shock-v455.png");
   defer(gunnerRpgEffect, "assets/generated/gunner-rpg-v311.png");
   defer(gunnerMissileEffect, "assets/generated/gunner-missile-v311.png");
@@ -17005,7 +17025,7 @@ const version = "interaction-runtime-v481";
     statusHpReductionEffect,
     statusManaGpuEffect,
     vibeCodingEffect,
-    gunnerHoverSprintEffect,
+    hsgItemTexture,
     gunnerSpecialAmmoEffects,
     gunnerRpgEffect,
     gunnerMissileEffect,

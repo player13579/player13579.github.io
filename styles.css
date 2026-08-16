@@ -3204,7 +3204,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=interaction-runtime-v481") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=input-team-acc-v482") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
@@ -4101,11 +4101,30 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   display: none !important;
 }
 
-.offline-team-choice button[aria-pressed="true"] {
-  border-color: #22d3ee;
-  background: linear-gradient(180deg, #155e75, #164e63);
-  color: #ecfeff;
-  box-shadow: inset 0 0 0 2px rgba(103, 232, 249, 0.28);
+body .offline-team-choice button[data-offline-team] {
+  border-color: rgba(78, 172, 197, 0.62);
+  background: linear-gradient(180deg, #ffffff, #e3f7fc 62%, #d2f0f8);
+  color: #17334a;
+}
+
+.offline-team-choice button[data-offline-team="defender"]:is(.selected, [aria-pressed="true"]),
+.offline-team-choice button[data-offline-team="defender"]:is(.selected, [aria-pressed="true"]):is(:hover, :focus-visible, :active) {
+  border-color: #38bdf8;
+  background: linear-gradient(180deg, #0369a1, #075985);
+  color: #f0f9ff;
+  box-shadow: inset 0 0 0 2px rgba(125, 211, 252, 0.34), 0 0 16px rgba(14, 165, 233, 0.22);
+}
+
+.offline-team-choice button[data-offline-team="attacker"]:is(.selected, [aria-pressed="true"]),
+.offline-team-choice button[data-offline-team="attacker"]:is(.selected, [aria-pressed="true"]):is(:hover, :focus-visible, :active) {
+  border-color: #fb7185;
+  background: linear-gradient(180deg, #be123c, #9f1239);
+  color: #fff1f2;
+  box-shadow: inset 0 0 0 2px rgba(253, 164, 175, 0.34), 0 0 16px rgba(244, 63, 94, 0.2);
+}
+
+.offline-team-choice button[aria-disabled="true"] {
+  cursor: progress;
 }
 
 .room-list:empty::before {

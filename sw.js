@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v481-interaction-runtime-r1";
+const CACHE_NAME = "dva-static-v482-input-team-acc-r3";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -30,7 +30,6 @@ const STATIC_ASSETS = [
   "/assets/generated/gunner-weapon-icons-v422.png",
   "/assets/generated/gunner-weapon-icons-v422.webp",
   "/assets/generated/gunner-special-ammo-weak-v455.png",
-  "/assets/generated/gunner-special-ammo-penetrate-v455.png",
   "/assets/generated/gunner-special-ammo-shock-v455.png",
   "/assets/generated/ui-panel-surface.webp",
   "/assets/generated/ui-control-surface.webp",
@@ -92,7 +91,7 @@ const STATIC_ASSETS = [
   "/assets/generated/flora-self-heal-v336.png",
   "/assets/generated/flora-sunbeam-v3-v336.png",
   "/assets/generated/action-vibe-coding-v311.png",
-  "/assets/generated/gunner-hover-sprint-v311.png",
+  "/assets/generated/item-hsg-v482.png",
   "/assets/generated/gunner-rpg-v311.png",
   "/assets/generated/gunner-missile-v311.png",
   "/assets/generated/gunner-rpg.webp",
