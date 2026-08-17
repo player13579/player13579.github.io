@@ -3389,32 +3389,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   font-size: 10px;
 }
 
-.active-effects-panel li.effect-attacker-kill-deadline {
-  overflow: hidden;
-  padding-right: 50px;
-}
-
-.active-effects-panel li.effect-attacker-kill-deadline::after {
-  content: "";
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  width: 42px;
-  height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495") center / contain no-repeat;
-  opacity: 0.78;
-  transform: translateY(-50%) scale(0.94);
-  transform-origin: 50% 50%;
-  pointer-events: none;
-  animation: attacker-kill-deadline-hourglass 1.8s cubic-bezier(.45, 0, .55, 1) infinite alternate;
-}
-
-@keyframes attacker-kill-deadline-hourglass {
-  from { opacity: 0.62; transform: translateY(-50%) scale(0.9) rotate(-1deg); }
-  to { opacity: 0.9; transform: translateY(-50%) scale(1) rotate(1deg); }
-}
-
-
 .active-effects-panel .effect-copy {
   display: grid;
   gap: 2px;
@@ -5079,7 +5053,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=map-select-root-matrix-marker-ability-idea-teleport-v497"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,
@@ -5566,6 +5540,12 @@ body.tablet-mode-active .hacker-direct-action {
   background: linear-gradient(145deg, rgba(91, 33, 182, 0.76), rgba(30, 27, 75, 0.84));
   color: #ede9fe;
   font-size: 10px;
+}
+
+.hacker-target-select {
+  appearance: auto;
+  cursor: pointer;
+  font: inherit;
 }
 
 .hacker-ability-grid {

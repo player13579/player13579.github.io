@@ -24,8 +24,7 @@
     Object.freeze({ id: "generate-supply", label: "生成・物資", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "instant-item", label: "即席アイテム", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "weapon", label: "武器", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
-    Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
-    Object.freeze({ id: "invention", label: "発明品", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
+    Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
   ]);
 
   // One credit is the price of the least expensive product. Every other price
@@ -47,10 +46,10 @@
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
     ["hsg", "HSG", 8, "instant-item", "hsg", "hsg"],
-    ["railgun", "レールガン", 13, "invention", "vending-railgun", "railgun"],
-    ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
-    ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
-    ["exile", "亡命", 22, "generate-tech", "vending-exile", "exile"],
+    ["railgun", "レールガン", 13, "weapon", "vending-railgun", "railgun"],
+    ["particle-cannon", "荷電粒子砲", 16, "weapon", "vending-particle-cannon", "particle-cannon"],
+    ["excalibur", "エクスカリバー", 19, "weapon", "vending-excalibur", "excalibur"],
+    ["exile", "亡命", 22, "instant-item", "vending-exile", "exile"],
     ["computer", "パソコン", 10, "instant-item", "vending-computer", "computer"],
     ["handgun", "ハンドガン", 3, "weapon", "vending-handgun", "handgun"],
     ["smg", "サブマシンガン", 5, "weapon", "vending-smg", "smg"],
@@ -103,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495",
+    version: "map-select-root-matrix-marker-ability-idea-teleport-v497",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

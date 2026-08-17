@@ -6525,56 +6525,56 @@ const LABORATORY_MAP = Object.freeze({
   "id": "outpost",
   "label": "ルミナ総合研究・休養棟",
   "authoredGeometry": true,
-  "width": 3800,
-  "height": 2480,
-  "playerRadius": 16,
-  "speed": 225,
-  "ghostSpeed": 280,
-  "reportRange": 84,
-  "taskRange": 140,
-  "ventRange": 76,
+  "width": 4750,
+  "height": 3100,
+  "playerRadius": 20,
+  "speed": 281,
+  "ghostSpeed": 350,
+  "reportRange": 105,
+  "taskRange": 175,
+  "ventRange": 95,
   "spawns": [
     {
-      "x": 1810,
-      "y": 1160
+      "x": 2263,
+      "y": 1450
     },
     {
-      "x": 1990,
-      "y": 1160
+      "x": 2488,
+      "y": 1450
     },
     {
-      "x": 1810,
-      "y": 1320
+      "x": 2263,
+      "y": 1650
     },
     {
-      "x": 1990,
-      "y": 1320
+      "x": 2488,
+      "y": 1650
     },
     {
-      "x": 1690,
-      "y": 1240
+      "x": 2113,
+      "y": 1550
     },
     {
-      "x": 2110,
-      "y": 1240
+      "x": 2638,
+      "y": 1550
     },
     {
-      "x": 1900,
-      "y": 1050
+      "x": 2375,
+      "y": 1313
     },
     {
-      "x": 1900,
-      "y": 1430
+      "x": 2375,
+      "y": 1788
     }
   ],
   "rooms": [
     {
       "id": "labs",
       "label": "分析・合成研究室",
-      "x": 160,
-      "y": 140,
-      "w": 1050,
-      "h": 650,
+      "x": 200,
+      "y": 175,
+      "w": 1313,
+      "h": 813,
       "textureBounds": {
         "x": 160,
         "y": 140,
@@ -6587,10 +6587,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "drill",
       "label": "量子物性研究室",
-      "x": 2590,
-      "y": 140,
-      "w": 1050,
-      "h": 650,
+      "x": 3238,
+      "y": 175,
+      "w": 1313,
+      "h": 813,
       "textureBounds": {
         "x": 2590,
         "y": 140,
@@ -6603,10 +6603,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "hub",
       "label": "研究統合ロビー",
-      "x": 1400,
-      "y": 810,
-      "w": 1000,
-      "h": 860,
+      "x": 1750,
+      "y": 1013,
+      "w": 1250,
+      "h": 1075,
       "textureBounds": {
         "x": 1400,
         "y": 810,
@@ -6619,10 +6619,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "power",
       "label": "生体工学研究室",
-      "x": 160,
-      "y": 1690,
-      "w": 1050,
-      "h": 650,
+      "x": 200,
+      "y": 2113,
+      "w": 1313,
+      "h": 813,
       "textureBounds": {
         "x": 160,
         "y": 1690,
@@ -6635,10 +6635,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "greenhouse",
       "label": "リラクゼーションラウンジ",
-      "x": 2590,
-      "y": 1690,
-      "w": 1050,
-      "h": 650,
+      "x": 3238,
+      "y": 2113,
+      "w": 1313,
+      "h": 813,
       "textureBounds": {
         "x": 2590,
         "y": 1690,
@@ -6653,10 +6653,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "north-gallery",
       "label": "北研究ギャラリー",
-      "x": 1210,
-      "y": 630,
-      "w": 1380,
-      "h": 180,
+      "x": 1513,
+      "y": 788,
+      "w": 1725,
+      "h": 225,
       "textureBounds": {
         "x": 1210,
         "y": 630,
@@ -6675,10 +6675,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "south-gallery",
       "label": "南静養ギャラリー",
-      "x": 1210,
-      "y": 1670,
-      "w": 1380,
-      "h": 180,
+      "x": 1513,
+      "y": 2088,
+      "w": 1725,
+      "h": 225,
       "textureBounds": {
         "x": 1210,
         "y": 1670,
@@ -6697,10 +6697,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "west-service",
       "label": "西研究連絡廊",
-      "x": 520,
-      "y": 790,
-      "w": 200,
-      "h": 900,
+      "x": 650,
+      "y": 988,
+      "w": 250,
+      "h": 1125,
       "textureBounds": {
         "x": 520,
         "y": 790,
@@ -6718,10 +6718,10 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "east-botanical",
       "label": "東緑化連絡廊",
-      "x": 3080,
-      "y": 790,
-      "w": 200,
-      "h": 900,
+      "x": 3850,
+      "y": 988,
+      "w": 250,
+      "h": 1125,
       "textureBounds": {
         "x": 3080,
         "y": 790,
@@ -6743,8 +6743,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "download",
       "label": "分析データ取得",
-      "x": 370,
-      "y": 355,
+      "x": 463,
+      "y": 444,
       "room": "labs"
     },
     {
@@ -6752,8 +6752,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "upload",
       "label": "分析データ送信",
-      "x": 1000,
-      "y": 565,
+      "x": 1250,
+      "y": 706,
       "room": "labs"
     },
     {
@@ -6761,8 +6761,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "download",
       "label": "量子ログ取得",
-      "x": 2810,
-      "y": 345,
+      "x": 3513,
+      "y": 431,
       "room": "drill"
     },
     {
@@ -6770,8 +6770,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "upload",
       "label": "量子ログ送信",
-      "x": 3420,
-      "y": 565,
+      "x": 4275,
+      "y": 706,
       "room": "drill"
     },
     {
@@ -6779,8 +6779,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "download",
       "label": "培養記録取得",
-      "x": 365,
-      "y": 1905,
+      "x": 456,
+      "y": 2381,
       "room": "power"
     },
     {
@@ -6788,8 +6788,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "upload",
       "label": "培養記録送信",
-      "x": 995,
-      "y": 2160,
+      "x": 1244,
+      "y": 2700,
       "room": "power"
     },
     {
@@ -6797,8 +6797,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "download",
       "label": "環境記録取得",
-      "x": 2810,
-      "y": 1905,
+      "x": 3513,
+      "y": 2381,
       "room": "greenhouse"
     },
     {
@@ -6806,8 +6806,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "upload",
       "label": "環境記録送信",
-      "x": 3420,
-      "y": 2160,
+      "x": 4275,
+      "y": 2700,
       "room": "greenhouse"
     },
     {
@@ -6815,8 +6815,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "download",
       "label": "統合記録取得",
-      "x": 1580,
-      "y": 1040,
+      "x": 1975,
+      "y": 1300,
       "room": "hub"
     },
     {
@@ -6824,16 +6824,16 @@ const LABORATORY_MAP = Object.freeze({
       "type": "task",
       "task": "upload",
       "label": "統合記録送信",
-      "x": 2220,
-      "y": 1460,
+      "x": 2775,
+      "y": 1825,
       "room": "hub"
     },
     {
       "id": "meeting-button",
       "type": "emergency",
       "label": "緊急招集卓",
-      "x": 1900,
-      "y": 1240,
+      "x": 2375,
+      "y": 1550,
       "room": "hub"
     },
     {
@@ -6841,8 +6841,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "repair",
       "repair": "lights",
       "label": "照明制御盤",
-      "x": 625,
-      "y": 2190,
+      "x": 781,
+      "y": 2738,
       "room": "power"
     },
     {
@@ -6850,8 +6850,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "repair",
       "repair": "comms",
       "label": "研究通信卓",
-      "x": 2180,
-      "y": 1040,
+      "x": 2725,
+      "y": 1300,
       "room": "hub"
     },
     {
@@ -6859,8 +6859,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "repair",
       "repair": "reactor",
       "label": "量子封止器A",
-      "x": 2860,
-      "y": 240,
+      "x": 3575,
+      "y": 300,
       "room": "drill"
     },
     {
@@ -6868,8 +6868,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "repair",
       "repair": "reactor",
       "label": "量子封止器B",
-      "x": 3370,
-      "y": 470,
+      "x": 4213,
+      "y": 588,
       "room": "drill"
     },
     {
@@ -6877,8 +6877,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "repair",
       "repair": "oxygen",
       "label": "培養気相調整A",
-      "x": 485,
-      "y": 1775,
+      "x": 606,
+      "y": 2219,
       "room": "power"
     },
     {
@@ -6886,8 +6886,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "repair",
       "repair": "oxygen",
       "label": "温室気相調整B",
-      "x": 3310,
-      "y": 1775,
+      "x": 4138,
+      "y": 2219,
       "room": "greenhouse"
     },
     {
@@ -6895,8 +6895,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "utility",
       "utility": "admin",
       "label": "研究区画台帳",
-      "x": 1680,
-      "y": 1425,
+      "x": 2100,
+      "y": 1781,
       "room": "hub"
     },
     {
@@ -6904,8 +6904,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "utility",
       "utility": "cameras",
       "label": "観測カメラ卓",
-      "x": 890,
-      "y": 250,
+      "x": 1113,
+      "y": 313,
       "room": "labs"
     },
     {
@@ -6913,8 +6913,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "utility",
       "utility": "vitals",
       "label": "生体指標端末",
-      "x": 850,
-      "y": 1835,
+      "x": 1063,
+      "y": 2294,
       "room": "power"
     },
     {
@@ -6922,8 +6922,8 @@ const LABORATORY_MAP = Object.freeze({
       "type": "utility",
       "utility": "doorlog",
       "label": "入退室記録",
-      "x": 2180,
-      "y": 1460,
+      "x": 2725,
+      "y": 1825,
       "room": "hub"
     }
   ],
@@ -6935,15 +6935,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "HP全回復・オーバーヒール",
       "effectKind": "fullRecovery",
       "effectAmount": 1,
-      "x": 915,
-      "y": 370,
+      "x": 1144,
+      "y": 463,
       "room": "labs",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 30000,
-      "useRange": 128,
-      "visualWidth": 112,
-      "visualHeight": 76
+      "useRange": 160,
+      "visualWidth": 140,
+      "visualHeight": 95
     },
     {
       "id": "outpost-labs-mana",
@@ -6952,15 +6952,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "マナ +1",
       "effectKind": "mana",
       "effectAmount": 1,
-      "x": 530,
-      "y": 650,
+      "x": 663,
+      "y": 813,
       "room": "labs",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 36000,
-      "useRange": 128,
-      "visualWidth": 58,
-      "visualHeight": 58
+      "useRange": 160,
+      "visualWidth": 73,
+      "visualHeight": 73
     },
     {
       "id": "outpost-drill-credit",
@@ -6969,15 +6969,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "+3クレジット",
       "effectKind": "credits",
       "effectAmount": 3,
-      "x": 3310,
-      "y": 265,
+      "x": 4138,
+      "y": 331,
       "room": "drill",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 45000,
-      "useRange": 128,
-      "visualWidth": 96,
-      "visualHeight": 68
+      "useRange": 160,
+      "visualWidth": 120,
+      "visualHeight": 85
     },
     {
       "id": "outpost-drill-cooldown",
@@ -6986,15 +6986,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "再使用待機 -6秒",
       "effectKind": "cooldownReduction",
       "effectAmount": 6000,
-      "x": 3060,
-      "y": 650,
+      "x": 3825,
+      "y": 813,
       "room": "drill",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 36000,
-      "useRange": 128,
-      "visualWidth": 96,
-      "visualHeight": 68
+      "useRange": 160,
+      "visualWidth": 120,
+      "visualHeight": 85
     },
     {
       "id": "outpost-hub-stamina",
@@ -7003,15 +7003,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "スタミナ +160",
       "effectKind": "stamina",
       "effectAmount": 160,
-      "x": 1575,
-      "y": 1450,
+      "x": 1969,
+      "y": 1813,
       "room": "hub",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 24000,
-      "useRange": 128,
-      "visualWidth": 112,
-      "visualHeight": 76
+      "useRange": 160,
+      "visualWidth": 140,
+      "visualHeight": 95
     },
     {
       "id": "outpost-hub-luck",
@@ -7021,15 +7021,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectKind": "luckBoost",
       "effectAmount": 0.15,
       "effectDurationMs": 20000,
-      "x": 2225,
-      "y": 1030,
+      "x": 2781,
+      "y": 1288,
       "room": "hub",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 32000,
-      "useRange": 128,
-      "visualWidth": 96,
-      "visualHeight": 68
+      "useRange": 160,
+      "visualWidth": 120,
+      "visualHeight": 85
     },
     {
       "id": "outpost-power-heal",
@@ -7038,15 +7038,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "HP +1",
       "effectKind": "heal",
       "effectAmount": 1,
-      "x": 850,
-      "y": 2070,
+      "x": 1063,
+      "y": 2588,
       "room": "power",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 30000,
-      "useRange": 128,
-      "visualWidth": 144,
-      "visualHeight": 92
+      "useRange": 160,
+      "visualWidth": 180,
+      "visualHeight": 115
     },
     {
       "id": "outpost-power-status",
@@ -7055,15 +7055,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "状態異常回復",
       "effectKind": "statusRecovery",
       "effectAmount": 1,
-      "x": 385,
-      "y": 2190,
+      "x": 481,
+      "y": 2738,
       "room": "power",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 32000,
-      "useRange": 128,
-      "visualWidth": 104,
-      "visualHeight": 132
+      "useRange": 160,
+      "visualWidth": 130,
+      "visualHeight": 165
     },
     {
       "id": "outpost-relaxation-pod-a",
@@ -7073,15 +7073,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectKind": "relaxation",
       "effectAmount": 1.35,
       "effectDurationMs": 12000,
-      "x": 2815,
-      "y": 2020,
+      "x": 3519,
+      "y": 2525,
       "room": "greenhouse",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 30000,
-      "useRange": 128,
-      "visualWidth": 144,
-      "visualHeight": 92
+      "useRange": 160,
+      "visualWidth": 180,
+      "visualHeight": 115
     },
     {
       "id": "outpost-relaxation-pod-b",
@@ -7091,15 +7091,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectKind": "relaxation",
       "effectAmount": 1.35,
       "effectDurationMs": 12000,
-      "x": 3390,
-      "y": 2030,
+      "x": 4238,
+      "y": 2538,
       "room": "greenhouse",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 30000,
-      "useRange": 128,
-      "visualWidth": 144,
-      "visualHeight": 92
+      "useRange": 160,
+      "visualWidth": 180,
+      "visualHeight": 115
     },
     {
       "id": "outpost-relaxation-tea",
@@ -7108,15 +7108,15 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "スタミナ +100",
       "effectKind": "stamina",
       "effectAmount": 100,
-      "x": 3140,
-      "y": 2215,
+      "x": 3925,
+      "y": 2769,
       "room": "greenhouse",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 18000,
-      "useRange": 128,
-      "visualWidth": 72,
-      "visualHeight": 84
+      "useRange": 160,
+      "visualWidth": 90,
+      "visualHeight": 105
     },
     {
       "id": "outpost-relaxation-sofa",
@@ -7125,22 +7125,22 @@ const LABORATORY_MAP = Object.freeze({
       "effectLabel": "再使用待機 -6秒",
       "effectKind": "cooldownReduction",
       "effectAmount": 6000,
-      "x": 3050,
-      "y": 1815,
+      "x": 3813,
+      "y": 2269,
       "room": "greenhouse",
       "interactive": true,
       "integrated": true,
       "cooldownMs": 30000,
-      "useRange": 128,
-      "visualWidth": 144,
-      "visualHeight": 92
+      "useRange": 160,
+      "visualWidth": 180,
+      "visualHeight": 115
     }
   ],
   "vents": [
     {
       "id": "vent-labs",
-      "x": 1040,
-      "y": 690,
+      "x": 1300,
+      "y": 863,
       "links": [
         "vent-hub",
         "vent-power"
@@ -7148,8 +7148,8 @@ const LABORATORY_MAP = Object.freeze({
     },
     {
       "id": "vent-hub",
-      "x": 2250,
-      "y": 1530,
+      "x": 2813,
+      "y": 1913,
       "links": [
         "vent-labs",
         "vent-drill",
@@ -7158,16 +7158,16 @@ const LABORATORY_MAP = Object.freeze({
     },
     {
       "id": "vent-drill",
-      "x": 3500,
-      "y": 680,
+      "x": 4375,
+      "y": 850,
       "links": [
         "vent-hub"
       ]
     },
     {
       "id": "vent-power",
-      "x": 1060,
-      "y": 2250,
+      "x": 1325,
+      "y": 2813,
       "links": [
         "vent-labs",
         "vent-garden"
@@ -7175,8 +7175,8 @@ const LABORATORY_MAP = Object.freeze({
     },
     {
       "id": "vent-garden",
-      "x": 3500,
-      "y": 2250,
+      "x": 4375,
+      "y": 2813,
       "links": [
         "vent-hub",
         "vent-power"
@@ -7187,30 +7187,30 @@ const LABORATORY_MAP = Object.freeze({
     {
       "id": "cam-labs",
       "label": "分析・合成研究室",
-      "x": 1180,
-      "y": 700,
-      "range": 420
+      "x": 1475,
+      "y": 875,
+      "range": 525
     },
     {
       "id": "cam-hub",
       "label": "研究統合ロビー",
-      "x": 1900,
-      "y": 860,
-      "range": 460
+      "x": 2375,
+      "y": 1075,
+      "range": 575
     },
     {
       "id": "cam-drill",
       "label": "量子物性研究室",
-      "x": 2620,
-      "y": 700,
-      "range": 420
+      "x": 3275,
+      "y": 875,
+      "range": 525
     },
     {
       "id": "cam-relax",
       "label": "リラクゼーションラウンジ",
-      "x": 2620,
-      "y": 1770,
-      "range": 420
+      "x": 3275,
+      "y": 2213,
+      "range": 525
     }
   ],
   "doors": [
@@ -7218,59 +7218,64 @@ const LABORATORY_MAP = Object.freeze({
       "id": "door-labs",
       "label": "分析区画扉",
       "orientation": "vertical",
-      "x": 1182,
-      "y": 650,
-      "w": 56,
-      "h": 120
+      "x": 1478,
+      "y": 813,
+      "w": 70,
+      "h": 150
     },
     {
       "id": "door-drill",
       "label": "量子区画扉",
       "orientation": "vertical",
-      "x": 2562,
-      "y": 650,
-      "w": 56,
-      "h": 120
+      "x": 3203,
+      "y": 813,
+      "w": 70,
+      "h": 150
     },
     {
       "id": "door-hub-north",
       "label": "中央北扉",
       "orientation": "horizontal",
-      "x": 1840,
-      "y": 782,
-      "w": 120,
-      "h": 56
+      "x": 2300,
+      "y": 978,
+      "w": 150,
+      "h": 70
     },
     {
       "id": "door-hub-south",
       "label": "中央南扉",
       "orientation": "horizontal",
-      "x": 1840,
-      "y": 1642,
-      "w": 120,
-      "h": 56
+      "x": 2300,
+      "y": 2053,
+      "w": 150,
+      "h": 70
     },
     {
       "id": "door-power",
       "label": "生体区画扉",
       "orientation": "vertical",
-      "x": 1182,
-      "y": 1710,
-      "w": 56,
-      "h": 120
+      "x": 1478,
+      "y": 2138,
+      "w": 70,
+      "h": 150
     },
     {
       "id": "door-garden",
       "label": "休養区画扉",
       "orientation": "vertical",
-      "x": 2562,
-      "y": 1710,
-      "w": 56,
-      "h": 120
+      "x": 3203,
+      "y": 2138,
+      "w": 70,
+      "h": 150
     }
   ],
   "sourceTexture": "assets/generated/field-lumina-laboratory-v458.webp",
-  "assetRevision": "v458-code-skeleton-individual-zones"
+  "sourceWidth": 3800,
+  "sourceHeight": 2480,
+  "worldScale": 1.25,
+  "expandedScale": 1.25,
+  "runtimePixelsPerWorldUnit": 0.8,
+  "assetRevision": "v497-uniform-world-scale-1-25"
 });
 
 (function exposeDvaEconomyCatalog(root, factory) {
@@ -7299,8 +7304,7 @@ const LABORATORY_MAP = Object.freeze({
     Object.freeze({ id: "generate-supply", label: "生成・物資", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "instant-item", label: "即席アイテム", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
     Object.freeze({ id: "weapon", label: "武器", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
-    Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT }),
-    Object.freeze({ id: "invention", label: "発明品", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
+    Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
   ]);
 
   // One credit is the price of the least expensive product. Every other price
@@ -7322,10 +7326,10 @@ const LABORATORY_MAP = Object.freeze({
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
     ["hsg", "HSG", 8, "instant-item", "hsg", "hsg"],
-    ["railgun", "レールガン", 13, "invention", "vending-railgun", "railgun"],
-    ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
-    ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
-    ["exile", "亡命", 22, "generate-tech", "vending-exile", "exile"],
+    ["railgun", "レールガン", 13, "weapon", "vending-railgun", "railgun"],
+    ["particle-cannon", "荷電粒子砲", 16, "weapon", "vending-particle-cannon", "particle-cannon"],
+    ["excalibur", "エクスカリバー", 19, "weapon", "vending-excalibur", "excalibur"],
+    ["exile", "亡命", 22, "instant-item", "vending-exile", "exile"],
     ["computer", "パソコン", 10, "instant-item", "vending-computer", "computer"],
     ["handgun", "ハンドガン", 3, "weapon", "vending-handgun", "handgun"],
     ["smg", "サブマシンガン", 5, "weapon", "vending-smg", "smg"],
@@ -7378,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495",
+    version: "map-select-root-matrix-marker-ability-idea-teleport-v497",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7431,7 +7435,6 @@ const DODGE_DURATION_MS = 1000;
 const TELEPORT_COOLDOWN_MS = 25_000;
 const SMARTPHONE_ACTION_MS = 4_000;
 const AUTO_REPORT_POST_KILL_GRACE_MS = 4_000;
-const ATTACKER_DEFENDER_KILL_DEADLINE_MS = 90_000;
 const PAIR_ROUTE_RADIUS = 82;
 const PAIR_ROUTE_GRACE_MS = 5_000;
 const PAIR_ROUTE_DAMAGE_INTERVAL_MS = 3_000;
@@ -7652,8 +7655,7 @@ const IDEA_GOOD_MS = 220_000;
 const IDEA_ASCENSION_MS = 360_000;
 const IDEA_ASCENSION_ANIMATION_MS = 5_000;
 const IDEA_LUCK_BASELINE = 0.3;
-const IDEA_LUCK_RATE_PER_POINT = 0.5;
-const IDEA_LUCK_MAX_RATE = 1.35;
+const IDEA_LUCK_MAX_TIME_REDUCTION_MS = 1_000;
 const GOOD_SPEED_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.56;
 const FLORA_AROMA_REGEN_MULTIPLIER = 1.75;
 const SUNBEAM_RANGE = 950;
@@ -7682,8 +7684,6 @@ const GRAVITY_TIME_SCALE_SLOW = 0.38;
 const BOT_HEARING_MEMORY_MS = 5000;
 const BOT_STAND_FIRM_RETALIATION_MS = 30_000;
 const BOT_KILL_WITNESS_RANGE = 340;
-const BOT_ATTACKER_KILL_URGENT_MS = 30_000;
-const BOT_ATTACKER_KILL_CRITICAL_MS = 12_000;
 const BOT_ATTACKER_ISOLATION_RANGE = 430;
 const BOT_BODY_NOTICE_RANGE = 760;
 const BOT_CLAIRVOYANCE_DURATION_MS = 4000;
@@ -9321,6 +9321,11 @@ function getRoom(id) {
   return rooms.get(cleanRoomId(id));
 }
 
+function normalizeMapId(value) {
+  const mapId = String(value || "").trim();
+  return Object.hasOwn(MAPS, mapId) ? mapId : DEFAULT_SETTINGS.mapId;
+}
+
 function getMap(room) {
   return MAPS[room.settings.mapId] || MAPS.station;
 }
@@ -9650,8 +9655,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     fighterEnergyCharge: 0,
     fighterEnergyPeak: 0,
     fighterEnergyChargeReadyAt: 0,
-    attackerDefenderKillDeadlineAt: 0,
-    attackerDefenderKillDeadlineLastResetAt: 0,
     empReadyAt: 0,
     itemDisabledUntil: 0,
     slowedUntil: 0,
@@ -9838,12 +9841,14 @@ function addDefaultOnlineBots(room) {
   }
 }
 
-function waitingMatchmakingRoom(identityKey) {
+function waitingMatchmakingRoom(identityKey, mapId) {
   const timestamp = now();
+  const requestedMapId = normalizeMapId(mapId);
   return [...rooms.values()]
     .filter((room) => {
       if (room.phase !== "lobby" || room.soloMission || room.matchmaking?.status !== "waiting") return false;
       if (Number(room.matchmaking.expiresAt) <= timestamp) return false;
+      if (normalizeMapId(room.settings?.mapId) !== requestedMapId) return false;
       const humans = [...room.players.values()].filter((player) => !player.isBot);
       return humans.length === 1 && humans[0].moderationKey !== identityKey;
     })
@@ -10438,10 +10443,6 @@ function startBattle(room) {
     player.fighterEnergyCharge = 0;
     player.fighterEnergyPeak = 0;
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
-    player.attackerDefenderKillDeadlineAt = !room.soloMission && player.role === "attacker" && player.alive && !player.ejected
-      ? timestamp + ATTACKER_DEFENDER_KILL_DEADLINE_MS
-      : 0;
-    player.attackerDefenderKillDeadlineLastResetAt = player.attackerDefenderKillDeadlineAt ? timestamp : 0;
     player.manaGpuCooldownCreditMs = 0;
     player.manaGpuDrainCarry = 0;
     player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 0 : EMP_INITIAL_LOCK_MS);
@@ -10951,13 +10952,14 @@ function luckValueFor(player) {
 }
 
 function ideaProgressRateFor(player) {
-  const luckAboveBaseline = Math.max(0, luckValueFor(player) - IDEA_LUCK_BASELINE);
-  return clampNumber(
-    1 + luckAboveBaseline * IDEA_LUCK_RATE_PER_POINT,
+  const luckBenefit = clampNumber(
+    (luckValueFor(player) - IDEA_LUCK_BASELINE) / (1 - IDEA_LUCK_BASELINE),
+    0,
     1,
-    IDEA_LUCK_MAX_RATE,
-    1
+    0
   );
+  const reductionMs = luckBenefit * IDEA_LUCK_MAX_TIME_REDUCTION_MS;
+  return IDEA_ASCENSION_MS / (IDEA_ASCENSION_MS - reductionMs);
 }
 
 function resetIdeaProgress(player) {
@@ -12252,7 +12254,6 @@ function finish(room, winner, reason, cause = {}) {
     player.drone.active = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
-    player.attackerDefenderKillDeadlineAt = 0;
     clearAttackState(player);
   });
   const ideaWinnerCount = winner === "idea" ? ideaWinnerIdsFor(room).length : 0;
@@ -12285,7 +12286,6 @@ function forceEnd(room, player) {
     entry.drone.active = false;
     entry.clairvoyanceActive = false;
     entry.clairvoyanceManaCarry = 0;
-    entry.attackerDefenderKillDeadlineAt = 0;
     clearAttackState(entry);
   });
   pushEvent(room, room.finishReason);
@@ -12447,8 +12447,7 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "botClairvoyanceObservedUntil",
   "nextBotClairvoyanceAt",
   "botDeceptionUntil",
-  "heardTargetUntil",
-  "attackerDefenderKillDeadlineAt"
+  "heardTargetUntil"
 ]);
 
 const MEETING_PAUSED_PLAYER_ANCHOR_FIELDS = Object.freeze([
@@ -12768,8 +12767,6 @@ function tickRoom(room) {
       player.drone.movementMode = "idle";
     }
   }
-  advanceAttackerDefenderKillDeadlines(room, timestamp);
-  if (room.phase === "ended") return;
   if (runAutomaticHumanBodyReports(room, timestamp)) return;
   advancePairRouteRule(room, timestamp);
   advanceAlchemyObjects(room, timestamp);
@@ -13724,103 +13721,8 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   return true;
 }
 
-function attackerDefenderKillDeadlineEnabled(room, player) {
-  return Boolean(
-    room?.phase === "playing" &&
-    !room.soloMission &&
-    player?.role === "attacker" &&
-    player.alive &&
-    !player.ejected
-  );
-}
-
-function resetAttackerDefenderKillDeadline(room, player, timestamp = now()) {
-  if (!attackerDefenderKillDeadlineEnabled(room, player)) {
-    if (player) player.attackerDefenderKillDeadlineAt = 0;
-    return false;
-  }
-  player.attackerDefenderKillDeadlineLastResetAt = timestamp;
-  player.attackerDefenderKillDeadlineAt = timestamp + ATTACKER_DEFENDER_KILL_DEADLINE_MS;
-  return true;
-}
-
-function recordAttackerDefenderKillDeadlineReset(room, killer, target, timestamp = now()) {
-  if (!killer || !target || killer.id === target.id) return false;
-  if (killer.role !== "attacker" || target.role !== "defender") return false;
-  if (!resetAttackerDefenderKillDeadline(room, killer, timestamp)) return false;
-  setImmediateFeedback(killer, "対DEFキル期限", "90秒へ更新");
-  return true;
-}
-
-function eliminateAttackerForMissedDefenderKill(room, player, timestamp = now()) {
-  if (!attackerDefenderKillDeadlineEnabled(room, player)) return false;
-  recordBotMatchElimination(room, player, null);
-  player.alive = false;
-  recordKillCamera(room, player, null, {
-    timestamp,
-    killerName: "対ディフェンダー・キル期限",
-    actionLabel: "90秒以内のディフェンダーキル未達",
-    actionKind: "attacker-kill-deadline"
-  });
-  player.bodyHits = 0;
-  player.overheal = 0;
-  player.limitBreakActive = false;
-  player.limitBreakEndsAt = 0;
-  player.limitBreakStacks = 0;
-  player.attackerDefenderKillDeadlineAt = 0;
-  player.inVent = false;
-  player.ventId = "";
-  player.drone.active = false;
-  player.clairvoyanceActive = false;
-  player.clairvoyanceManaCarry = 0;
-  clearAttackState(player);
-  pushHitEffect(room, player, "body", true);
-  pushMagicEffect(room, "attacker-kill-deadline", player, {
-    radius: 230,
-    playerId: player.id,
-    variant: "expired",
-    durationMs: 1_800
-  });
-  room.bodies.push({
-    id: uid("body_"),
-    playerId: player.id,
-    killerId: "",
-    killerName: "対ディフェンダー・キル期限",
-    killerIsBot: false,
-    killerSkinId: "",
-    name: player.name,
-    x: player.x,
-    y: player.y,
-    at: timestamp,
-    deadlineFailure: true
-  });
-  pushDoorLog(room, `${whichRoom(getMap(room), player)} で対ディフェンダー・キル期限切れ`);
-  pushEvent(room, `${player.name} は90秒以内にディフェンダーをキルできず死亡しました。`);
-  checkWin(room);
-  touch(room);
-  return true;
-}
-
-function advanceAttackerDefenderKillDeadlines(room, timestamp = now()) {
-  if (room.phase !== "playing" || room.soloMission) return false;
-  if (!alivePlayers(room, "defender").length) return false;
-  let changed = false;
-  for (const player of room.players.values()) {
-    if (!attackerDefenderKillDeadlineEnabled(room, player)) continue;
-    if (!(Number(player.attackerDefenderKillDeadlineAt) > 0)) {
-      resetAttackerDefenderKillDeadline(room, player, timestamp);
-      continue;
-    }
-    if (Number(player.attackerDefenderKillDeadlineAt) > timestamp) continue;
-    changed = eliminateAttackerForMissedDefenderKill(room, player, timestamp) || changed;
-    if (room.phase !== "playing") break;
-  }
-  return changed;
-}
-
 function transferKillCredits(room, killer, target) {
   if (!killer || !target || killer.id === target.id) return 0;
-  recordAttackerDefenderKillDeadlineReset(room, killer, target);
   const amount = Math.max(0, Math.floor(Number(target.credits) || 0));
   if (amount <= 0) return 0;
   target.credits -= amount;
@@ -14772,7 +14674,7 @@ function purchaseDrink(room, player, itemId) {
     "orichalcum-sword": { label: "オリハルコン・ソード", cost: ORICHALCUM_SWORD_VENDING_COST, apply: () => { addItem(player, "orichalcum-sword"); } },
     iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { grantIaiCharge(room, player, true, "vending"); } },
     evade: { label: "回避拡張", cost: 45, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
-    speed: { label: "アクセラレート飲料", cost: 55, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
+    speed: { label: "アクセラレート飲料", cost: 55, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.15) * 100) / 100; } },
     warp: { label: "テレポートマップスクロール", cost: 35, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
     mystery: { label: "ミステリー", cost: MYSTERY_COST, apply: () => applyMysteryDrink(room, player) },
     fire: { label: "火遁の術", cost: FIRE_JUTSU_COST, apply: () => { player.fireJutsuCharges = Math.min(2, player.fireJutsuCharges + 1); } },
@@ -15028,7 +14930,6 @@ function setEnhanceChargeState(room, player, active, kind = "", itemId = "") {
     throw new ApiError(403, "現在はエンハンスを溜められません。");
   }
   ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
   ensureConscious(player);
   const normalizedKind = String(kind || "");
   if (!["shoot", "use", "throw", "fire"].includes(normalizedKind)) throw new ApiError(400, "エンハンス対象が不正です。");
@@ -15816,7 +15717,6 @@ function instantWarp(room, player, rawX, rawY) {
     throw new ApiError(403, "現在はワープできません。");
   }
   ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
   if (player.warpCharges <= 0) throw new ApiError(400, "ワープ可能回数がありません。");
   const destination = resolveExpandedMapTeleportDestination(room, rawX, rawY);
   player.warpCharges -= 1;
@@ -15973,7 +15873,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   molotov: { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
   iai: { label: "居合", cost: 1, apply: (room, player) => grantIaiCharge(room, player, false, "hacker") },
   "vending-evade": { label: "回避拡張", cost: 0, apply: (room, player) => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); pushInstantItemAcquisitionAte(room, player, "evade", "hacker"); } },
-  "vending-speed": { label: "アクセラレート飲料", cost: 0, apply: (room, player) => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; pushInstantItemAcquisitionAte(room, player, "speed", "hacker"); } },
+  "vending-speed": { label: "アクセラレート飲料", cost: 0, apply: (room, player) => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.15) * 100) / 100; pushInstantItemAcquisitionAte(room, player, "speed", "hacker"); } },
   "vending-mystery": { label: "ミステリー", cost: 0, apply: (room, player) => { const result = applyMysteryDrink(room, player); pushInstantItemAcquisitionAte(room, player, "mystery", `hacker:${result}`); } },
   "vending-mana": { label: "マナポーション", cost: 0, apply: (room, player) => { setMana(room, player, (Number(player.mana) || 0) + 1, "バイブコーディング"); pushInstantItemAcquisitionAte(room, player, "mana", "hacker"); } },
   "vending-railgun": { label: "レールガン", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("railgun")) player.inventions.push("railgun"); } },
@@ -16867,7 +16767,11 @@ function killPlayer(room, killer, targetId, options = {}) {
   const killActionKind = String(options.attackKind || (ranged ? "ranged" : lockedAim ? "ninjutsu" : options.quick ? "quick-attack" : "attack"));
   const killActionLabel = String(options.attackLabel || (
     lockedAim ? "忍殺" :
-      options.quick ? "即撃" :
+      options.quick
+        ? hitZone === "head"
+          ? "通常近接攻撃の頭部命中（確殺）"
+          : "通常近接攻撃の胴体命中（累積2.00ダメージ）"
+        :
         ranged ? `${gunnerWeaponFor(killer).name}射撃` : "攻撃"
   ));
   recordKillCamera(room, target, killer, {
@@ -18382,6 +18286,7 @@ function serialize(room, viewer, options = {}) {
       levitationActive: canLevitate(player),
       statusAte: persistentStatusAteState(room, player, timestamp),
       accelerationPhasing: Number(player.hsgUntil) > timestamp,
+      hackerRootActive: hackerRootEligible(player),
       gunnerSnipingActive: Boolean(player.gunnerSnipingActive),
       aromaActive: Boolean(aromaSource),
       aromaSource: aromaSource?.id === player.id,
@@ -18538,14 +18443,6 @@ function serialize(room, viewer, options = {}) {
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
       fighterInfiniteResources: hasFighterInfiniteResources(viewer),
       fighterDestructionSlash: hasFighterInfiniteResources(viewer),
-      attackerDefenderKillDeadlineAt: Number(viewer.attackerDefenderKillDeadlineAt) || 0,
-      attackerDefenderKillDeadlineIntervalMs: ATTACKER_DEFENDER_KILL_DEADLINE_MS,
-      attackerDefenderKillDeadlineActive: ["playing", "meeting"].includes(room.phase) &&
-        !room.soloMission &&
-        viewer.role === "attacker" &&
-        viewer.alive &&
-        !viewer.ejected &&
-        alivePlayers(room, "defender").length > 0,
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -18932,8 +18829,10 @@ async function handleApi(req, res) {
     case "/api/matchmake": {
       const profileId = playerProfileId(req);
       const requestedName = reservePlayerName(body.name, profileId, legacyPlayerProfileId(body.clientId));
+      const requestedMapId = normalizeMapId(body.mapId);
       if (body.offlineFallback === true) {
         const room = createRoom(roomCode());
+        room.settings.mapId = requestedMapId;
         const player = createMatchedPlayer(room, requestedName, body.skinId, profileId, identityKey);
         room.matchmaking = { status: "offline" };
         addDefaultOnlineBots(room);
@@ -18948,7 +18847,7 @@ async function handleApi(req, res) {
         break;
       }
 
-      const waitingRoom = waitingMatchmakingRoom(identityKey);
+      const waitingRoom = waitingMatchmakingRoom(identityKey, requestedMapId);
       if (waitingRoom) {
         const player = createMatchedPlayer(waitingRoom, requestedName, body.skinId, profileId, identityKey);
         waitingRoom.matchmaking = { status: "matched", matchedAt: now() };
@@ -18965,6 +18864,7 @@ async function handleApi(req, res) {
       }
 
       const room = createRoom(roomCode());
+      room.settings.mapId = requestedMapId;
       const player = createMatchedPlayer(room, requestedName, body.skinId, profileId, identityKey);
       room.matchmaking = {
         status: "waiting",
@@ -20266,27 +20166,21 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
 }
 
 function attackerBotKillUrgencyState(room, bot, timestamp = now()) {
-  const deadlineAt = Number(bot?.attackerDefenderKillDeadlineAt) || 0;
   if (
     room?.phase !== "playing" ||
     !bot?.isBot ||
     bot.role !== "attacker" ||
     !bot.alive ||
-    bot.ejected ||
-    !(deadlineAt > 0)
-  ) return { level: "none", remainingMs: Infinity, urgent: false, critical: false };
-  const deadlineRemainingMs = Math.max(0, deadlineAt - timestamp);
+    bot.ejected
+  ) return { level: "none", ideaThreatStage: 0, urgent: false, critical: false };
   const ideaThreatStage = alivePlayers(room, "defender").reduce(
     (maximum, defender) => Math.max(maximum, defenderIdeaVisibleThreatStage(defender)),
     0
   );
-  const remainingMs = deadlineRemainingMs;
-  const critical = deadlineRemainingMs <= BOT_ATTACKER_KILL_CRITICAL_MS || ideaThreatStage >= 3;
-  const urgent = critical || deadlineRemainingMs <= BOT_ATTACKER_KILL_URGENT_MS || ideaThreatStage >= 2;
+  const critical = ideaThreatStage >= 3;
+  const urgent = critical || ideaThreatStage >= 2;
   return {
     level: critical ? "critical" : urgent ? "urgent" : "comfortable",
-    remainingMs,
-    deadlineRemainingMs,
     ideaThreatStage,
     urgent,
     critical
@@ -21087,5 +20981,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495" });
+self.postMessage({ type: "ready", version: "map-select-root-matrix-marker-ability-idea-teleport-v497" });
 })();

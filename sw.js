@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v495-hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail";
+const CACHE_NAME = "dva-static-v497-map-select-root-matrix-marker-ability-idea-teleport";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -18,13 +18,12 @@ const STATIC_ASSETS = [
   "/manifest.webmanifest",
   "/icon.png",
   "/assets/title-hero-v466.png",
-  "/assets/site-thumbnail-v495.png",
+  "/assets/site-thumbnail-v497.png",
   "/assets/generated/tactics-novel-briefing-room-v466.png",
   "/assets/generated/tactics-manga-sparkle-v466.png",
   "/assets/generated/tactics-manga-idea-v466.png",
   "/assets/generated/tactics-manga-cheer-v466.png",
   "/assets/generated/tactics-manga-note-v466.png",
-  "/assets/generated/attacker-kill-deadline-ate-v467.png",
   "/assets/generated/throw-landing-preview-v384.png",
   "/assets/generated/clairvoyance-throw-ate-v412.png",
   "/assets/generated/gunner-weapon-icons-v422.png",
@@ -89,7 +88,7 @@ const STATIC_ASSETS = [
   "/assets/generated/status-levitation-v375.png",
   "/assets/generated/status-hp-reduction-v375.png",
   "/assets/generated/status-mana-gpu-ate-v402.png",
-  "/assets/generated/hacker-root-rainbow.webp",
+  "/assets/generated/hacker-root-matrix-v497.png",
   "/assets/generated/fire-jutsu-field.webp",
   "/assets/generated/substitution-field.webp",
   "/assets/generated/limit-break-field-v307.png",

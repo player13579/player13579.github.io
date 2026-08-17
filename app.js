@@ -81,8 +81,6 @@ const els = {
   killCameraTitle: $("#killCameraTitle"),
   killCameraKiller: $("#killCameraKiller"),
   killCameraAction: $("#killCameraAction"),
-  killCameraSource: $("#killCameraSource"),
-  killCameraArea: $("#killCameraArea"),
   killCameraCloseButton: $("#killCameraCloseButton"),
   actionCommandRegistry: $("#actionCommandRegistry"),
   fieldLowerRow: $("#fieldLowerRow"),
@@ -156,6 +154,7 @@ const els = {
   nameInput: $("#nameInput"),
   namePolicy: $("#namePolicy"),
   skinSelect: $("#skinSelect"),
+  mapSelect: $("#mapSelect"),
   matchmakingButton: $("#matchmakingButton"),
   analyticsPanel: $("#analyticsPanel"),
   analyticsToggleButton: $("#analyticsToggleButton"),
@@ -212,7 +211,7 @@ const els = {
   contextActionButton: $("#contextActionButton"),
   hackerAbilityDock: $("#hackerAbilityDock"),
   hackerAbilityGrid: $("#hackerAbilityGrid"),
-  hackerTargetButton: $("#hackerTargetButton"),
+  hackerTargetSelect: $("#hackerTargetSelect"),
   hackerCategoryPreviousButton: $("#hackerCategoryPreviousButton"),
   hackerCategoryNextButton: $("#hackerCategoryNextButton"),
   hackerCategoryLabel: $("#hackerCategoryLabel"),
@@ -331,6 +330,7 @@ const storage = {
   room: "dva_room",
   player: "dva_player",
   skin: "dva_skin",
+  map: "dva_map",
   debugForceEnd: "dva_debug_force_end",
   musicMuted: "dva_music_muted",
   gameMuted: "dva_game_muted",
@@ -358,6 +358,12 @@ const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
   gunner: "ガンナー",
   quantum: "量子制御"
 });
+const MATCHMAKING_MAP_IDS = Object.freeze(["station", "outpost"]);
+
+function normalizeMatchmakingMapId(value) {
+  const mapId = String(value || "").trim();
+  return MATCHMAKING_MAP_IDS.includes(mapId) ? mapId : "station";
+}
 const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   fighter: Object.freeze([["limit-break", "リミットブレイク"]]),
   teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]]),
@@ -642,7 +648,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   antidote: "通常使用: 自分の毒解除。投擲: 着地点半径120の全員へ同効果。瓶片は確率ダメージ",
   molotov: "通常使用は自分を燃焼。投擲は着地点周囲を継続燃焼し、瓶片が確率ダメージ。Enhanceは強度・範囲のみ強化",
   evade: "回避受付+0.25秒（累積上限+1.50秒）。回避自体は100SPを消費",
-  speed: "加速+0.10（累積）。移動・物理モーション・クールタイム・行動不能・タスク速度へ適用",
+  speed: "加速+0.15（累積）。移動・物理モーション・クールタイム・行動不能・タスク速度へ適用",
   warp: "獲得時に即席をワープ権利1回へ変換（最大3回）。任意のタイミングで拡大マップを開き、地点を選ぶと1回消費",
   mystery: "幸運／直観補正つき抽選: 6C／SP+250／完全活性／理知化／12秒減速／15秒能力封印／8秒意識消失",
   fire: "1回分を獲得（最大2回）。周囲を継続燃焼。Enhanceは強度・範囲のみ強化",
@@ -733,7 +739,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "map-select-root-matrix-marker-ability-idea-teleport-v497";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -831,9 +837,9 @@ const hackerRecipeCategories = [
 ];
 
 function hackerRecipeCategory(recipe) {
-  if (recipe?.kind === "invention") return "invention";
+  if (recipe?.kind === "invention") return "weapon";
   if (recipe?.id?.startsWith("hack-")) return "hack";
-  return DVA_ECONOMY.productForRecipe(recipe?.id)?.category || (recipe?.id === "stamina" ? "instant-item" : recipe?.id === "revive" ? "generate-tech" : "generate-supply");
+  return DVA_ECONOMY.productForRecipe(recipe?.id)?.category || (["stamina", "revive"].includes(recipe?.id) ? "instant-item" : "generate-supply");
 }
 
 function vendingProductCategory(itemId) {
@@ -988,6 +994,24 @@ function ensureHackerTarget(data = state.data) {
   return targets.find((player) => player.id === state.hackerTargetId) || null;
 }
 
+function syncHackerTargetSelect(data = state.data) {
+  const targets = hackerTargets(data);
+  const key = targets.map((player) => `${player.id}:${player.name}`).join("|");
+  if (els.hackerTargetSelect.dataset.key !== key) {
+    els.hackerTargetSelect.dataset.key = key;
+    els.hackerTargetSelect.replaceChildren(...targets.map((player) => {
+      const option = document.createElement("option");
+      option.value = player.id;
+      option.textContent = `${playerIdentityLabel(player)}${player.id === data?.selfId ? "（自分）" : ""}`;
+      return option;
+    }));
+  }
+  els.hackerTargetSelect.value = targets.some((player) => player.id === state.hackerTargetId)
+    ? state.hackerTargetId
+    : targets[0]?.id || "";
+  els.hackerTargetSelect.disabled = targets.length < 2;
+}
+
 function cycleHackerTarget(direction = 1) {
   const targets = hackerTargets();
   if (!targets.length) {
@@ -999,7 +1023,7 @@ function cycleHackerTarget(direction = 1) {
   const nextIndex = (Math.max(0, currentIndex) + direction + targets.length) % targets.length;
   state.hackerTargetId = targets[nextIndex].id;
   renderHackerAbilityDock(state.data, true);
-  els.hackerTargetButton.focus({ preventScroll: true });
+  els.hackerTargetSelect.focus({ preventScroll: true });
   const selected = targets[nextIndex];
   showToast(`ハッカー対象: ${selected.name}${selected.id === state.data?.selfId ? "（自分）" : ""}`);
   return true;
@@ -1192,10 +1216,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
   const liveNow = estimatedServerNow(data);
 
   const target = ensureHackerTarget(data);
-  els.hackerTargetButton.textContent = target
-    ? `対象: ${target.name}${target.id === data.selfId ? "（自分）" : ""}`
-    : "対象なし";
-  els.hackerTargetButton.disabled = hackerTargets(data).length < 2;
+  syncHackerTargetSelect(data);
 
   const availableRecipes = availableHackerRecipes(self);
   const availableCategories = hackerRecipeCategories.filter((entry) =>
@@ -1301,7 +1322,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "VICTORY GUIDE",
     name: "ソフィア",
-    text: "ディフェンダーは全タスク完了か全アタッカー排除、アタッカーはディフェンダー全滅か致命サボタージュ完遂で勝利。各アタッカーは90秒以内にディフェンダーをキルできなければ死亡し、本人の成功時だけ90秒へ更新、会議中は停止します。",
+    text: "ディフェンダーは全タスク完了か全アタッカー排除、アタッカーはディフェンダー全滅か致命サボタージュ完遂で勝利。善のイデア到達は幸運／直観が最大でも1秒だけ早まり、アタッカーに対ディフェンダーの定期キル期限はありません。",
     sophiaGesture: "power",
     philiaGesture: "focus",
     symbols: [{ type: "sparkle", owner: "sophia" }, { type: "cheer", owner: "philia" }]
@@ -1530,6 +1551,7 @@ function init() {
   const savedName = localStorage.getItem(storage.name) || "";
   els.nameInput.value = savedName;
   els.skinSelect.value = normalizeSkinId(localStorage.getItem(storage.skin));
+  els.mapSelect.value = normalizeMatchmakingMapId(localStorage.getItem(storage.map));
   syncGameAudioButtons();
   updateSoloProgressUi();
   setScreen("title");
@@ -4201,19 +4223,7 @@ function switchDragDescriptorForSource(source) {
   if (!(source instanceof Element)) return null;
   const options = [];
   let title = "切り替え先";
-  if (source === els.hackerTargetButton) {
-    title = "ハッカー対象を切り替え";
-    options.push(...hackerTargets().map((player) => ({
-      key: `hacker-target:${player.id}`,
-      group: "対象",
-      label: `${playerIdentityLabel(player)}${player.id === state.data?.selfId ? "（自分）" : ""}`,
-      selected: player.id === state.hackerTargetId,
-      apply() {
-        state.hackerTargetId = player.id;
-        renderHackerAbilityDock(state.data, true);
-      }
-    })));
-  } else if (source === els.weaponButton) {
+  if (source === els.weaponButton) {
     title = "武器を切り替え";
     const weapons = Array.isArray(state.data?.self?.gunnerWeapons) ? state.data.self.gunnerWeapons : [];
     options.push(...weapons.map((weapon) => ({
@@ -4987,7 +4997,7 @@ function bindEvents() {
   window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
   bindTabletControls();
   [
-    els.hackerTargetButton,
+    els.hackerTargetSelect,
     els.teleportModeSelect,
     els.teleportTargetSelect,
     els.empPhaseSelect,
@@ -5086,6 +5096,11 @@ function bindEvents() {
   els.tacticsMuteButton?.addEventListener("click", toggleGameMuted);
   els.gameMuteButton?.addEventListener("click", toggleGameMuted);
   els.skinSelect.addEventListener("change", syncSelectedSkin);
+  els.mapSelect.addEventListener("change", () => {
+    const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
+    els.mapSelect.value = mapId;
+    localStorage.setItem(storage.map, mapId);
+  });
   els.matchmakingButton.addEventListener("click", startMatchmaking);
   [els.nameInput].forEach((input) => {
     input.addEventListener("keydown", (event) => {
@@ -5095,7 +5110,13 @@ function bindEvents() {
     });
   });
   els.analyticsToggleButton.addEventListener("click", () => void loadDropoffAnalytics());
-  els.hackerTargetButton.addEventListener("click", () => cycleHackerTarget(1));
+  els.hackerTargetSelect.addEventListener("change", () => {
+    if (!hackerTargets().some((player) => player.id === els.hackerTargetSelect.value)) return;
+    state.hackerTargetId = els.hackerTargetSelect.value;
+    renderHackerAbilityDock(state.data, true);
+    const target = currentHackerTarget();
+    if (target) showToast(`ハッカー対象: ${target.name}${target.id === state.data?.selfId ? "（自分）" : ""}`);
+  });
   const bindCategoryStep = (button, changeCategory) => {
     let repeatTimer = 0;
     let repeatInterval = 0;
@@ -5179,7 +5200,11 @@ function bindEvents() {
   [els.teleportModeSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
     select.addEventListener("change", () => {
       if (select === els.teleportModeSelect) {
+        const rootStageBeforeCommit = state.rootAbilitySelectStage;
         if (commitRootAbilityModeSelect()) {
+          if (rootStageBeforeCommit !== "operator" && state.rootAbilitySelectStage === "selected") {
+            triggerOperatorAbility();
+          }
           select.blur();
           return;
         }
@@ -5187,6 +5212,7 @@ function bindEvents() {
         ensureTeleportTargetForMode(state.data);
         const owner = selectedBorrowedOperator() || state.data?.self?.special || "";
         syncAbilityModeDescription(owner, state.data?.self);
+        triggerOperatorAbility();
       }
       if (state.data) updateActionButtons(state.data);
       select.blur();
@@ -5754,7 +5780,7 @@ function bindEvents() {
   els.expandedMapCanvas.addEventListener("pointermove", moveExpandedMapTap);
   els.expandedMapCanvas.addEventListener("pointerup", (event) => finishExpandedMapTap(event));
   els.expandedMapCanvas.addEventListener("pointercancel", (event) => finishExpandedMapTap(event, true));
-  els.expandedMapCanvas.addEventListener("lostpointercapture", (event) => finishExpandedMapTap(event, true));
+  els.expandedMapCanvas.addEventListener("lostpointercapture", (event) => finishExpandedMapTap(event));
   els.expandedMapCanvas.addEventListener("pointerleave", () => {
     if (!state.expandedMapTap) state.mapPointer = null;
   });
@@ -7011,8 +7037,6 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         state.borrowedAbilityModes.gravity = option.value;
         els.teleportModeSelect.value = option.value;
         els.teleportModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
-        if (borrowedPreview) triggerBorrowedAbility("gravity", option.value);
-        else triggerOperatorAbility();
       }, option.value === (borrowedPreview ? state.borrowedAbilityModes.gravity : els.teleportModeSelect.value), gravityDescriptions[option.value] || "");
     });
   } else if (activeType === "flora") {
@@ -7027,8 +7051,6 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         state.borrowedAbilityModes.flora = option.value;
         els.teleportModeSelect.value = option.value;
         els.teleportModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
-        if (borrowedPreview) triggerBorrowedAbility("flora", option.value);
-        else triggerOperatorAbility();
       }, option.value === (borrowedPreview ? state.borrowedAbilityModes.flora : els.teleportModeSelect.value), floraDescriptions[option.value] || "");
     });
   } else if (activeType === "gunner") {
@@ -7316,8 +7338,10 @@ async function startMatchmaking() {
     return;
   }
   const skinId = normalizeSkinId(els.skinSelect.value);
+  const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
   localStorage.setItem(storage.name, name);
   localStorage.setItem(storage.skin, skinId);
+  localStorage.setItem(storage.map, mapId);
   const serial = ++state.matchmakingSerial;
   state.matchmakingInFlight = true;
   state.matchmakingTicket = null;
@@ -7328,7 +7352,7 @@ async function startMatchmaking() {
     const available = state.onlineAvailable || await checkOnlineAvailability();
     let result = null;
     if (available && serial === state.matchmakingSerial) {
-      result = await request("/api/matchmake", { name, skinId }, {
+      result = await request("/api/matchmake", { name, skinId, mapId }, {
         quiet: true,
         forceOnline: true,
         timeoutMs: 2500,
@@ -7352,7 +7376,7 @@ async function startMatchmaking() {
       showToast("オフライン対戦を準備できませんでした。");
       return;
     }
-    result = await request("/api/matchmake", { name, skinId, offlineFallback: true }, { forceOffline: true });
+    result = await request("/api/matchmake", { name, skinId, mapId, offlineFallback: true }, { forceOffline: true });
     if (serial !== state.matchmakingSerial) return;
     acceptMatchmakingResult(result, name, true);
   } finally {
@@ -8237,7 +8261,6 @@ function magicEffectDuration(type) {
   if (type === "action-special-ammo-shot") return 620;
   if (type === "action-special-ammo-impact") return 1050;
   if (type === "quantum-transmutation") return 3600;
-  if (type === "attacker-kill-deadline") return 1800;
   if (type === "instant-iai-acquired") return 820;
   if (type === "instant-stand-firm-acquired") return 1050;
   if (type === "instant-push-acquired") return 900;
@@ -8726,11 +8749,6 @@ function renderKillCamera(data) {
   els.killCameraTitle.textContent = `${record.victimName || "あなた"} の死亡記録`;
   els.killCameraKiller.textContent = record.killerName || "環境・ルール";
   els.killCameraAction.textContent = record.actionLabel || "死亡原因不明";
-  els.killCameraSource.textContent = [record.sourceLabel, record.reflected ? "反射" : ""].filter(Boolean).join(" / ") || record.actionKind || "環境";
-  const happenedAt = Number(record.at) > 0
-    ? new Date(Number(record.at)).toLocaleTimeString("ja-JP", { hour12: false })
-    : "時刻不明";
-  els.killCameraArea.textContent = `${record.areaLabel || "不明区画"} / ${happenedAt}`;
 }
 
 function render() {
@@ -9864,16 +9882,6 @@ function collectOperatorPassiveEffects(self, liveNow) {
   const passiveValue = passiveEnabled ? "有効" : "理知まで休止";
   const passiveTone = passiveEnabled ? "rational" : "neutral";
 
-  if (self.role === "attacker" && self.attackerDefenderKillDeadlineActive) {
-    const deadlineWait = Math.max(0, Number(self.attackerDefenderKillDeadlineAt || 0) - liveNow);
-    add(
-      "対DEFキル期限",
-      `残り${formatEffectCountdown(deadlineWait)}`,
-      deadlineWait <= 15_000 ? "desire" : "spirit",
-      "90秒以内にディフェンダーをキル。本人の成功で90秒へ更新、未達は死亡。会議中停止"
-    );
-  }
-
   if (hasDisplayedOperatorAccess(self, "fighter")) {
     add("キルカウンター", passiveValue, passiveTone, "確殺を回避した時だけ攻撃者を即時確殺");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
@@ -10056,7 +10064,7 @@ function renderActiveEffects(data) {
   }
   state.activeEffectsRenderKey = renderKey;
   els.activeEffectsList.innerHTML = visibleEffects.map((effect) => `
-    <li class="effect-tone-${escapeHtml(effect.tone)}${effect.layout === "stacked" ? " effect-layout-stacked" : ""}${effect.label === "対DEFキル期限" ? " effect-attacker-kill-deadline" : ""}">
+    <li class="effect-tone-${escapeHtml(effect.tone)}${effect.layout === "stacked" ? " effect-layout-stacked" : ""}">
       <span class="effect-copy">
         <strong class="effect-name">${escapeHtml(effect.label)}</strong>
         <small class="effect-detail">${escapeHtml(effect.detail)}</small>
@@ -13456,6 +13464,10 @@ function drawMagicEffects() {
       drawGainAcquisitionEffect(effect, progress, now, peerEffects.indexOf(effect), peerEffects.length);
       continue;
     }
+    // A persistent head marker is the sole field presentation for grants that
+    // already own one. Do not also flash the same semantic texture at ordinary
+    // action size over the character or focus point.
+    if (MARKER_OWNED_EFFECT_TYPES.has(effect.type)) continue;
     // Map-object activation already communicates its awarded categories through
     // the persistent head markers. When both arrive in the same state sample,
     // keep those readable markers and skip only the redundant full-size object
@@ -13760,12 +13772,20 @@ function drawInventionEnergyTexture(effect, progress) {
   return true;
 }
 
+const MARKER_OWNED_EFFECT_TYPES = new Set([
+  "instant-stand-firm-acquired",
+  "instant-push-acquired",
+  "instant-iai-acquired",
+  "instant-speed-acquired",
+  "fighter-push-acquired",
+  "resolve-focus"
+]);
+
 const GENERATED_EFFECT_TEXTURES = {
   "fire": ["fireJutsuFieldEffect", 520],
   "substitution": ["substitutionFieldEffect", 300],
   "limit-break": ["limitBreakFieldEffect", 360],
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
-  "attacker-kill-deadline": ["attackerKillDeadlineEffect", 320],
   "instant-iai-acquired": ["itemIaiTexture", 230],
   "iai-destruction-attack": ["itemIaiTexture", 270],
   "instant-stand-firm-acquired": ["instantStandFirmTexture", 230],
@@ -13786,7 +13806,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "fighter-energy-impact": ["fighterEnergyImpactEffect", 250],
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
   "fighter-push-acquired": ["pushMarkerEffect", 96],
-  "hacker-root": ["hackerRootRainbow", 190],
+  "hacker-root": ["hackerRootMatrix", 190],
   "preparation-barrier-hit": ["preparationBarrierEffect", 220],
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
@@ -13905,22 +13925,6 @@ function drawGeneratedStandaloneEffect(effect, progress) {
       ctx.rotate(angle);
       ctx.fillRect(radius, -1.2, 18 + (index % 4) * 7, 2.4);
       ctx.restore();
-    }
-  }
-  if (effect.type === "attacker-kill-deadline") {
-    const fade = Math.max(0, 1 - progress);
-    ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < 9; index += 1) {
-      const travel = clamp((progress - index * 0.035) / 0.72, 0, 1);
-      const angle = index * 2.3999632297 + travel * 1.7;
-      const orbit = 42 + travel * (74 + (index % 3) * 14);
-      const x = Math.cos(angle) * orbit;
-      const y = -renderHeight * 0.35 + Math.sin(angle) * orbit * 0.52 + travel * 78;
-      ctx.globalAlpha = fade * (1 - travel) * (0.35 + (index % 3) * 0.12);
-      ctx.fillStyle = index % 2 ? "#fb7185" : "#fbbf24";
-      ctx.beginPath();
-      ctx.arc(x, y, 1.8 + (index % 3) * 0.7, 0, Math.PI * 2);
-      ctx.fill();
     }
   }
   if (effect.type === "quantum-transmutation") {
@@ -15212,7 +15216,7 @@ function drawKillCameraWorldMarkers(data) {
     ctx.fillText(label, point.x, point.y - 22);
   };
   marker(victim, "#f87171", "死亡地点");
-  if (separated) marker(killer, "#facc15", "加害者");
+  if (separated) marker(killer, "#facc15", "キラー");
   ctx.restore();
 }
 
@@ -15400,6 +15404,20 @@ function displayedGunnerState(player, data = state.data) {
     firingWeapon,
     reloadWeapon
   };
+}
+
+function gunnerFiringFacingFor(player, data = state.data) {
+  const isSelf = player?.id === data?.selfId;
+  const authoritative = isSelf ? data?.self : player;
+  const aimX = Number(authoritative?.aimX ?? player?.aimX);
+  if (Number.isFinite(aimX) && Math.abs(aimX) > 0.05) {
+    const facing = aimX < 0 ? "left" : "right";
+    state.facing.set(player.id, facing);
+    return facing;
+  }
+  const current = state.facing.get(player.id);
+  if (current === "left" || current === "right") return current;
+  return "right";
 }
 
 function displayedEnhanceCharge(player, data = state.data) {
@@ -15636,8 +15654,8 @@ function drawEnhanceRimLightGlints(rim) {
 
 function drawHackerRootState(player) {
   if (!player.hackerRootActive || !player.alive || player.ejected) return;
-  const prepared = transparentSpriteSource(state.textures.hackerRootRainbow, "hacker-root-rainbow", 18);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, "hacker-root-rainbow", 1, 1, 0, 0) : null;
+  const prepared = transparentSpriteSource(state.textures.hackerRootMatrix, "hacker-root-matrix-v497", 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "hacker-root-matrix-v497", 1, 1, 0, 0) : null;
   if (!sprite) return;
   const time = (state.frameNow || performance.now()) / 1000;
   ctx.save();
@@ -15645,10 +15663,12 @@ function drawHackerRootState(player) {
   ctx.globalAlpha *= 0.72 + Math.sin(time * 5.2) * 0.06;
   ctx.translate(0, 5);
   drawAnimatedTextureCentered(sprite, 0, -8, 170, 170, {
-    mode: "energy",
+    mode: "data-down",
     time,
+    phase: (player.id?.length || 0) * 0.13,
     intensity: 0.92,
-    baseAlpha: 0.13
+    baseAlpha: 0.13,
+    opacityBoost: 2.8
   });
   ctx.restore();
 }
@@ -16121,7 +16141,10 @@ function drawWeaponFireMotion(player, data, ghost, action) {
     ? (0.66 + Math.max(0, Math.sin(progress * Math.PI * profile.pulses * 2)) * 0.34) * mainImpulse
     : mainImpulse;
   const settle = Math.sin(Math.min(1, progress * 1.45) * Math.PI);
-  const facing = facingFor(player, motionFor(player, data));
+  // The projectile and muzzle flash follow aimX/aimY. Keep the authored
+  // side-facing firearm pose on the same horizontal side even when the player
+  // is stationary or moving away from the shot direction.
+  const facing = gunnerFiringFacingFor(player, data);
   const flip = facing === "left";
   const dynamics = accelerationReadyMotionDynamics(player, "shoot", action.motionId);
   ctx.save();
@@ -17500,7 +17523,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495";
+const version = "map-select-root-matrix-marker-ability-idea-teleport-v497";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -17589,7 +17612,6 @@ const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail
   ]);
   const fighterSlashEffect = new Image();
   const fighterEnergyChargeEffect = new Image();
-  const attackerKillDeadlineEffect = new Image();
   const itemIaiTexture = new Image();
   const computerItemTexture = new Image();
   const instantStandFirmTexture = philosophyEffectTextures[4];
@@ -17616,7 +17638,7 @@ const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail
   const gravityStormSafeEye = new Image();
   const luminousMeetingEffect = new Image();
   const attackerAllyMarker = new Image();
-  const hackerRootRainbow = new Image();
+  const hackerRootMatrix = new Image();
   const fireJutsuFieldEffect = new Image();
   const substitutionFieldEffect = new Image();
   const limitBreakFieldEffect = new Image();
@@ -17728,7 +17750,6 @@ const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
-  defer(attackerKillDeadlineEffect, "assets/generated/attacker-kill-deadline-ate-v467.png");
   defer(itemIaiTexture, "assets/generated/instant-iai-abstract-v451.png");
   defer(computerItemTexture, "assets/generated/item-computer-v404.png");
   defer(instantWarpTexture, "assets/generated/item-teleport-map-scroll-v495.png");
@@ -17744,7 +17765,7 @@ const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail
   defer(gravityStormSafeEye, "assets/generated/gravity-storm-safe-eye-v320.png");
   defer(luminousMeetingEffect, "assets/generated/luminous-meeting-effect-v311.png");
   defer(attackerAllyMarker, "assets/generated/attacker-ally-marker.webp");
-  defer(hackerRootRainbow, "assets/generated/hacker-root-rainbow.webp");
+  defer(hackerRootMatrix, "assets/generated/hacker-root-matrix-v497.png");
   defer(fireJutsuFieldEffect, "assets/generated/fire-jutsu-field.webp");
   defer(substitutionFieldEffect, "assets/generated/substitution-field.webp");
   defer(limitBreakFieldEffect, "assets/generated/limit-break-field-v307.png");
@@ -17844,7 +17865,6 @@ const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail
     droneAltitudeEffects,
     fighterSlashEffect,
     fighterEnergyChargeEffect,
-    attackerKillDeadlineEffect,
     itemIaiTexture,
     computerItemTexture,
     instantStandFirmTexture,
@@ -17872,7 +17892,7 @@ const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail
     gravityStormSafeEye,
     luminousMeetingEffect,
     attackerAllyMarker,
-    hackerRootRainbow,
+    hackerRootMatrix,
     fireJutsuFieldEffect,
     substitutionFieldEffect,
     limitBreakFieldEffect,
