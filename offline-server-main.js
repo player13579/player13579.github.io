@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497",
+    version: "all-levitation-exact-killcam-v498",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7825,7 +7825,7 @@ const OPERATORS = {
     {
       id: "operator-quantum-control",
       role: "defender",
-      name: "量子制御",
+      name: "クオンタム",
       special: "quantum",
       limit: 99,
       asset: "quantum",
@@ -7842,7 +7842,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARと即席HSGパッシブを持ち、5種の銃器と狙撃能力を扱う。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下する。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得する。即席HSGパッシブは足場上から足場のない場所へ進む直前に自動起動し、8秒間の浮揚とACC 1.8を付与する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・エンハンスできない。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下する。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得する。即席HSGパッシブは足場上から足場のない場所へ進む直前に自動起動し、8秒間の浮揚とACC 1.8を付与する。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・エンハンスできない。"
     },
     {
       id: "attacker-alchemist",
@@ -9684,6 +9684,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     falling: false,
     levitationEngaged: false,
     levitationManaCarry: 0,
+    sharedLevitationActive: false,
     clairvoyanceActive: false,
     clairvoyanceManaCarry: 0,
     bodyHits: 0,
@@ -9887,6 +9888,7 @@ function leaveRoom(room, player) {
     player.falling = false;
     player.levitationEngaged = false;
     player.levitationManaCarry = 0;
+    player.sharedLevitationActive = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
     player.inVent = false;
@@ -10143,6 +10145,7 @@ function startGame(room) {
     player.falling = false;
     player.levitationEngaged = false;
     player.levitationManaCarry = 0;
+    player.sharedLevitationActive = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
     player.bodyHits = 0;
@@ -11415,12 +11418,6 @@ function advanceLevitationMana(room, player, elapsedMs) {
   if (Number(player.mana) <= 0) {
     player.levitationEngaged = false;
     player.levitationManaCarry = 0;
-    // Levitation expiry over unsupported void is a lethal fall.
-    if (!isFloorArea(room, player.x, player.y, radius)) {
-      destroyPlayerUnconditionally(room, null, player, "足場外への落下", { noKillCutin: true });
-      checkWin(room);
-      touch(room);
-    }
   }
 }
 
@@ -11465,13 +11462,40 @@ function advanceClairvoyanceMana(room, player, elapsedMs) {
   }
 }
 
-function canLevitate(player) {
-  if (Number(player?.hsgUntil) > now()) return true;
-  return Boolean(
+function activeLevitationSources(player, timestamp = now()) {
+  const sources = [];
+  if (Number(player?.hsgUntil) > timestamp) sources.push("hsg");
+  if (
     hasOperatorAccess(player, "gravity") &&
     Number(player.mana) > 0 &&
     (passivesEnabled(player) || player.levitationEngaged)
-  );
+  ) sources.push("gravity");
+  return sources;
+}
+
+function canLevitate(player, timestamp = now()) {
+  return activeLevitationSources(player, timestamp).length > 0;
+}
+
+function synchronizeSharedLevitationExpiry(room, player, timestamp = now()) {
+  if (!player) return false;
+  const active = activeLevitationSources(player, timestamp).length > 0;
+  const wasActive = Boolean(player.sharedLevitationActive);
+  player.sharedLevitationActive = active;
+  if (active || !wasActive) return false;
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) return false;
+  const radius = getMap(room).playerRadius || 36;
+  if (isFloorArea(room, player.x, player.y, radius)) return false;
+  const destroyed = destroyPlayerUnconditionally(room, null, player, "共有浮揚終了後の足場外落下", {
+    noKillCutin: true,
+    attackKind: "unsupported-fall-after-levitation",
+    attackLabel: "共有浮揚終了後の足場外落下"
+  });
+  if (destroyed) {
+    checkWin(room);
+    touch(room);
+  }
+  return destroyed;
 }
 
 function moveToward(room, player, target, dtSeconds, sprint = false) {
@@ -12203,11 +12227,34 @@ function recordBotMatchElimination(room, target, source = null) {
   clearEnhanceChargeState(target);
 }
 
+const AMBIGUOUS_KILL_CAMERA_ACTION_LABELS = new Set([
+  "",
+  "死亡原因不明",
+  "通常攻撃",
+  "攻撃",
+  "能力",
+  "射撃",
+  "物理攻撃",
+  "非物理攻撃",
+  "破壊",
+  "反射された攻撃",
+  "居合を帯びた攻撃"
+]);
+
+function requireExactKillCameraActionLabel(value, context = "death") {
+  const label = String(value || "").trim();
+  if (AMBIGUOUS_KILL_CAMERA_ACTION_LABELS.has(label)) {
+    throw new Error(`Exact kill-camera action label required for ${context}.`);
+  }
+  return label;
+}
+
 function recordKillCamera(room, target, source = null, details = {}) {
   if (!room || !target || target.ejected) return null;
   const timestamp = Number(details.timestamp) || now();
-  const actionLabel = String(details.actionLabel || details.reason || "死亡原因不明");
-  const actionKind = String(details.actionKind || "environment");
+  const actionLabel = requireExactKillCameraActionLabel(details.actionLabel, details.actionKind || "death");
+  const actionKind = String(details.actionKind || "").trim();
+  if (!actionKind) throw new Error(`Exact kill-camera action kind required for ${actionLabel}.`);
   const sourceLabel = String(details.sourceLabel || "");
   const killerName = String(details.killerName || source?.name || "環境・ルール");
   const record = {
@@ -12810,7 +12857,9 @@ function tickRoom(room) {
       continue;
     }
     advanceFighterEnergyPassive(room, player, timestamp);
+    if (synchronizeSharedLevitationExpiry(room, player, timestamp)) continue;
     advanceLevitationMana(room, player, elapsedMs);
+    if (synchronizeSharedLevitationExpiry(room, player, timestamp)) continue;
     advanceClairvoyanceMana(room, player, elapsedMs);
     advanceLimitBreak(room, player, elapsedMs);
     advanceHackerManaGpu(room, player, elapsedMs, timestamp);
@@ -13176,9 +13225,12 @@ function applyReflectedSlashAttack(room, defender, source, attack = {}, timestam
     if (typeof attack.reflectEffect === "function") {
       return attack.reflectEffect({ room, defender, source, attack, timestamp }) !== false;
     }
+    const reflectedActionLabel = `反射された${requireExactKillCameraActionLabel(attack.label, attack.kind || "reflected-attack")}`;
     if (attack.destroy) {
-      destroyPlayerUnconditionally(room, defender, source, `反射された${attack.label || "攻撃"}`, {
+      destroyPlayerUnconditionally(room, defender, source, reflectedActionLabel, {
         noKillCutin: false,
+        attackKind: `reflected-${attack.kind || "destruction"}`,
+        attackLabel: reflectedActionLabel,
         ignorePreparationBarrier: true,
         ignoreInfiniteResources: Boolean(attack.ignoreInfiniteResourcesOnReflect),
         ignoreFriendlyFire: true,
@@ -13201,6 +13253,7 @@ function applyReflectedSlashAttack(room, defender, source, attack = {}, timestam
       origin: { x: defender.x, y: defender.y },
       targetRole: source.role,
       attackKind: `reflected-${attack.kind || "physical"}`,
+      attackLabel: reflectedActionLabel,
       slashGuardPhysical: Boolean(attack.physical)
     });
     return true;
@@ -14223,6 +14276,8 @@ function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now()
   if (mode === "lethal") {
     destroyPlayerUnconditionally(room, defender, source, "反射されたEMP", {
       noKillCutin: false,
+      attackKind: "reflected-emp-lethal",
+      attackLabel: "反射されたEMP",
       ignorePreparationBarrier: true,
       ignoreFriendlyFire: true,
       bypassSlashGuard: true
@@ -14245,6 +14300,7 @@ function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now()
       origin: { x: defender.x, y: defender.y },
       targetRole: source.role,
       attackKind: "reflected-emp",
+      attackLabel: "反射されたEMP",
       slashGuardPhysical: false
     });
     return true;
@@ -15765,13 +15821,13 @@ function useOwnedItem(room, player, itemId, rawHoldMs = 0) {
 
 function useQuantumControl(room, player, rawMode) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "quantum") || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "量子制御を使用できません。");
+    throw new ApiError(403, "クオンタムを使用できません。");
   }
   ensureAbilityAvailable(player);
   const mode = String(rawMode || player.quantumMode || "transmute-mercury");
   player.quantumMode = mode;
-  if (Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `量子制御には${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
-  spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "量子制御");
+  if (Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `クオンタムには${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
+  spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
   if (mode === "transmute-mercury" || mode === "transmute-lead") {
     const itemId = mode.endsWith("mercury") ? "mercury" : "lead";
     consumeItem(player, itemId);
@@ -15811,7 +15867,7 @@ function useQuantumControl(room, player, rawMode) {
     if (room.phase !== "ended" && !player.exiled) destroyPlayerUnconditionally(room, player, player, "核分裂の代償");
     pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}へ中性子を作用させ、核分裂の連鎖を開始しました。`);
   } else {
-    throw new ApiError(400, "量子制御方式が不正です。");
+    throw new ApiError(400, "クオンタム方式が不正です。");
   }
   checkWin(room);
   touch(room);
@@ -16327,7 +16383,8 @@ function consumeIaiChargeForSuccessfulAttack(room, source, target, reason, optio
 
 function resolveIaiDestructionUpgrade(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected || !iaiChargeAvailable(source)) return false;
-  return destroyPlayerUnconditionally(room, source, target, `居合を帯びた${reason || "攻撃"}`, {
+  const exactReason = requireExactKillCameraActionLabel(reason, "iai-upgrade");
+  return destroyPlayerUnconditionally(room, source, target, `居合を帯びた${exactReason}`, {
     ...options,
     bypassSlashGuard: true,
     ignorePreparationBarrier: true,
@@ -16338,6 +16395,7 @@ function resolveIaiDestructionUpgrade(room, source, target, reason, options = {}
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
   const timestamp = now();
+  const exactActionLabel = requireExactKillCameraActionLabel(options.attackLabel || reason, options.attackKind || "destruction");
   if (options.attackKind && !options.bypassSlashGuard) {
     const guardOutcome = resolveFighterSlashGuard(room, source, target, {
       kind: String(options.attackKind),
@@ -16360,7 +16418,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
-    actionLabel: String(options.attackLabel || reason || "破壊"),
+    actionLabel: exactActionLabel,
     actionKind: String(options.attackKind || (options.noBody ? "disappearance" : "destruction")),
     sourceLabel: String(options.sourceLabel || reason || ""),
     reflected: String(options.attackKind || "").includes("reflected")
@@ -16701,7 +16759,15 @@ function resolvePendingAttack(room, player, timestamp = now()) {
   try {
     const usePush = !player.limitBreakActive && passivesEnabled(player) && (Number(player.reasonCharges) || 0) > 0;
     const hitZone = usePush || Math.random() < QUICK_ATTACK_LETHAL_CHANCE ? "head" : "body";
-    const outcome = killPlayer(room, player, targetId, { hitZone, quick: true, consumePush: usePush });
+    const outcome = killPlayer(room, player, targetId, {
+      hitZone,
+      quick: true,
+      consumePush: usePush,
+      attackKind: "quick-attack",
+      attackLabel: hitZone === "head"
+        ? "通常近接攻撃の頭部命中（確殺）"
+        : "通常近接攻撃の胴体命中（累積2.00ダメージ）"
+    });
     setAttackResult(player, outcome, timestamp);
   } catch {
     if (room.phase === "playing" && player.alive && !player.ejected) {
@@ -16941,18 +17007,11 @@ function killPlayer(room, killer, targetId, options = {}) {
     }
   }
 
+  const killActionKind = String(options.attackKind || "").trim();
+  if (!killActionKind) throw new Error("Exact lethal action kind is required before committing a kill.");
+  const killActionLabel = requireExactKillCameraActionLabel(options.attackLabel, killActionKind);
   recordBotMatchElimination(room, target, killer);
   target.alive = false;
-  const killActionKind = String(options.attackKind || (ranged ? "ranged" : lockedAim ? "ninjutsu" : options.quick ? "quick-attack" : "attack"));
-  const killActionLabel = String(options.attackLabel || (
-    lockedAim ? "忍殺" :
-      options.quick
-        ? hitZone === "head"
-          ? "通常近接攻撃の頭部命中（確殺）"
-          : "通常近接攻撃の胴体命中（累積2.00ダメージ）"
-        :
-        ranged ? `${gunnerWeaponFor(killer).name}射撃` : "攻撃"
-  ));
   recordKillCamera(room, target, killer, {
     timestamp,
     actionLabel: killActionLabel,
@@ -20141,7 +20200,9 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
       lockedAim: true,
       allowAnyKiller: true,
       targetRole: target.role,
-      ignorePush: true
+      ignorePush: true,
+      attackKind: "stand-firm-retaliation",
+      attackLabel: "踏ん張り反撃の頭部命中（確殺）"
     });
     bot.botRetaliationTargetId = "";
     bot.botRetaliationUntil = 0;
@@ -21165,7 +21226,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497",
+  version: "all-levitation-exact-killcam-v498",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

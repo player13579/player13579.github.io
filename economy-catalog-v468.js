@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497",
+    version: "all-levitation-exact-killcam-v498",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -182,6 +182,8 @@ const els = {
   teleportButton: $("#teleportButton"),
   teleportControl: $("#teleportControl"),
   teleportModeSelect: $("#teleportModeSelect"),
+  abilityAutoActivateControl: $("#abilityAutoActivateControl"),
+  abilityAutoActivateToggle: $("#abilityAutoActivateToggle"),
   teleportModeDescription: $("#teleportModeDescription"),
   teleportTargetSelect: $("#teleportTargetSelect"),
   emergencyButton: $("#emergencyButton"),
@@ -339,7 +341,8 @@ const storage = {
   analyticsDisabled: "dva_analytics_disabled",
   analyticsQueue: "dva_analytics_queue_v1",
   developerIdentity: "dva_developer_identity_v1",
-  tabletMode: "dva_tablet_mode"
+  tabletMode: "dva_tablet_mode",
+  abilityAutoActivate: "dva_ability_auto_activate_v1"
 };
 storage.cpuGravityHint = "dva_cpu_gravity_hint";
 
@@ -356,7 +359,7 @@ const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
   gravity: "グラビティ",
   flora: "フローラ",
   gunner: "ガンナー",
-  quantum: "量子制御"
+  quantum: "クオンタム"
 });
 const MATCHMAKING_MAP_IDS = Object.freeze(["station", "outpost"]);
 
@@ -524,6 +527,7 @@ const state = {
   borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", gunner: "sniping", quantum: "transmute-mercury" },
   rootAbilitySelectStage: "operator",
   rootAbilitySelectWasActive: false,
+  abilityAutoActivate: localStorage.getItem(storage.abilityAutoActivate) !== "0",
   arrowRepeatKey: "",
   arrowRepeatAt: 0,
   keybindOpen: false,
@@ -628,7 +632,7 @@ specialLabels.teleport = "グラビティ";
 specialLabels.gunner = "ガンナー";
 specialLabels.flora = "フローラ";
 specialLabels.alchemist = "ハッカー";
-specialLabels.quantum = "量子制御";
+specialLabels.quantum = "クオンタム";
 
 const sabotageLabels = {
   comms: "通信妨害",
@@ -668,12 +672,12 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。狙撃ON時はHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で金へ核変換し、取得時に100Cへ即時換金",
-  lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で金へ核変換し、取得時に100Cへ即時換金",
-  uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
-  plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
+  mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
+  lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
+  uranium: "通常使用は自分へ強毒。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
+  plutonium: "通常使用は自分へ強毒。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後は斬撃が消滅（死体なし）、JGは全攻撃反射。斬る／投擲の衝撃波は与ダメージ1.00・EC-1、EC100以上の斬るはEC-100で特大化。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。衝撃波はJG・反射不可",
-  hsg: "取得時に即席HSGパッシブへ変換。足場のない場所へ進む直前に自動起動し、8秒間浮揚・ACC 1.8。起動から20秒CT中は再起動・延長・累積・リセット・Enhance不可",
+  hsg: "取得時に即席HSGパッシブへ変換。足場のない場所へ進む直前に自動起動し、8秒間浮揚・ACC 1.8。最後の浮揚が床のない場所で終了すると落下死。起動から20秒CT中は再起動・延長・累積・リセット・Enhance不可",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -739,7 +743,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "all-levitation-exact-killcam-v498";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -828,7 +832,7 @@ alchemyRecipes.push(
   { id: "borrowed-gravity", label: "グラビティ", output: "root借用中", kind: "borrowed", inventoryId: "gravity" },
   { id: "borrowed-flora", label: "フローラ", output: "root借用中", kind: "borrowed", inventoryId: "flora" },
   { id: "borrowed-gunner", label: "ガンナー", output: "root借用中", kind: "borrowed", inventoryId: "gunner" },
-  { id: "borrowed-quantum", label: "量子制御", output: "root借用中", kind: "borrowed", inventoryId: "quantum" }
+  { id: "borrowed-quantum", label: "クオンタム", output: "root借用中", kind: "borrowed", inventoryId: "quantum" }
 );
 
 const hackerRecipeCategories = [
@@ -1382,7 +1386,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "OPERATOR GUIDE",
     name: "ソフィア",
-    text: "ガンナーは銃と特殊弾、グラビティは時空と全域重力嵐、フローラは自己回復と光、ハッカーは生成、量子制御は物質変換を担当します。",
+    text: "ガンナーは銃と特殊弾、グラビティは時空と全域重力嵐、フローラは自己回復と光、ハッカーは生成、クオンタムは物質変換を担当します。",
     sophiaGesture: "interact",
     philiaGesture: "cast",
     symbols: [{ type: "note", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
@@ -5204,7 +5208,7 @@ function bindEvents() {
       if (select === els.teleportModeSelect) {
         const rootStageBeforeCommit = state.rootAbilitySelectStage;
         if (commitRootAbilityModeSelect()) {
-          if (rootStageBeforeCommit !== "operator" && state.rootAbilitySelectStage === "selected") {
+          if (state.abilityAutoActivate && rootStageBeforeCommit !== "operator" && state.rootAbilitySelectStage === "selected") {
             triggerOperatorAbility();
           }
           select.blur();
@@ -5214,12 +5218,25 @@ function bindEvents() {
         ensureTeleportTargetForMode(state.data);
         const owner = selectedBorrowedOperator() || state.data?.self?.special || "";
         syncAbilityModeDescription(owner, state.data?.self);
-        triggerOperatorAbility();
+        if (state.abilityAutoActivate) triggerOperatorAbility();
       }
       if (state.data) updateActionButtons(state.data);
       select.blur();
     });
   });
+  els.abilityAutoActivateToggle.checked = state.abilityAutoActivate;
+  els.abilityAutoActivateToggle.addEventListener("change", () => {
+    state.abilityAutoActivate = els.abilityAutoActivateToggle.checked;
+    localStorage.setItem(storage.abilityAutoActivate, state.abilityAutoActivate ? "1" : "0");
+    els.abilityAutoActivateControl.dataset.enabled = state.abilityAutoActivate ? "1" : "0";
+    els.abilityAutoActivateControl.title = state.abilityAutoActivate
+      ? "ON: 能力を選択した時に即実行します"
+      : "OFF: 能力の選択だけを確定し、既存の能力操作で実行します";
+    const owner = selectedBorrowedOperator() || state.data?.self?.special || "";
+    syncAbilityModeDescription(owner, state.data?.self);
+    showToast(state.abilityAutoActivate ? "能力の選択時実行: ON" : "能力の選択時実行: OFF");
+  });
+  els.abilityAutoActivateControl.dataset.enabled = state.abilityAutoActivate ? "1" : "0";
   els.cameraButton.addEventListener("click", toggleCameraView);
   els.nextCameraButton.addEventListener("click", nextCameraView);
   els.healButton.addEventListener("click", () => api("/api/flora-heal"));
@@ -7011,7 +7028,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     gravity: "グラビティ能力",
     flora: "フローラ能力",
     gunner: "ガンナー能力",
-    quantum: "量子制御",
+    quantum: "クオンタム",
     alchemist: "バイブコーディング"
   };
   els.operatorBranchTitle.textContent = titles[activeType] || "派生能力";
@@ -7077,7 +7094,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
       addBranch(option.textContent, () => {
         els.teleportModeSelect.value = option.value;
         void api("/api/quantum-control", { mode: option.value });
-      }, option.value === els.teleportModeSelect.value, "選択した物質または温度状態を量子制御する");
+      }, option.value === els.teleportModeSelect.value, "クオンタムで選択した物質または温度状態を制御する");
     });
   } else if (activeType === "alchemist") {
     availableHackerRecipes(self).forEach((recipe) => {
@@ -8759,7 +8776,7 @@ function renderKillCamera(data) {
   if (!record) return;
   els.killCameraTitle.textContent = `${record.victimName || "あなた"} の死亡記録`;
   els.killCameraKiller.textContent = record.killerName || "環境・ルール";
-  els.killCameraAction.textContent = record.actionLabel || "死亡原因不明";
+  els.killCameraAction.textContent = record.actionLabel || "死因記録エラー（未定義）";
 }
 
 function render() {
@@ -9097,6 +9114,7 @@ function renderTargetOptions(data) {
   const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible) && self.alive && !self.ejected;
   els.teleportControl.hidden = !controlVisible;
   els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length;
+  els.abilityAutoActivateControl.hidden = !rootAbilitySwitchVisible && !options.length;
   const currentAbilityMode = els.teleportModeSelect.value;
   els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && (
     !["teleport", "gravity"].includes(modeOwner) || currentAbilityMode === "time-keeper"
@@ -9201,7 +9219,8 @@ function abilityModeDescription(owner, mode, self) {
 
 function syncAbilityModeDescription(owner, self) {
   if (!els.teleportModeDescription) return;
-  els.teleportModeDescription.textContent = abilityModeDescription(owner, els.teleportModeSelect.value, self);
+  const autoState = state.abilityAutoActivate ? "ON（選択時に即実行）" : "OFF（選択だけ確定）";
+  els.teleportModeDescription.textContent = `${abilityModeDescription(owner, els.teleportModeSelect.value, self)} 選択時実行: ${autoState}`;
 }
 
 function ensureTeleportTargetForMode(data) {
@@ -10045,7 +10064,7 @@ function renderActiveEffects(data) {
     const activeMs = Math.max(0, Number(self.hsgUntil) - liveNow);
     const readyMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
     if (activeMs > 0) {
-      add("HSG", `作動 ${(activeMs / 1000).toFixed(1)}秒`, "good", `自動浮揚・ACC 1.8 / 再起動まで ${(readyMs / 1000).toFixed(1)}秒`);
+      add("HSG", `作動 ${(activeMs / 1000).toFixed(1)}秒`, "good", `自動浮揚・ACC 1.8 / 最後の浮揚が床外で終了すると落下死 / 再起動まで ${(readyMs / 1000).toFixed(1)}秒`);
     } else if (readyMs > 0) {
       add("HSG", `CT ${(readyMs / 1000).toFixed(1)}秒`, "neutral", "再起動・延長・累積・リセット・Enhance不可");
     } else if (Number(self.itemDisabledUntil) > liveNow) {
@@ -10053,7 +10072,7 @@ function renderActiveEffects(data) {
     } else if (!self.passivesEnabled) {
       add("HSG", "理知まで休止", "neutral", "足場のない場所への移動検知を休止中");
     } else {
-      add("HSG", "待機", "rational", "足場のない場所へ進む直前に自動起動");
+      add("HSG", "待機", "rational", "足場のない場所へ進む直前に自動起動。最後の浮揚が床外で終了すると落下死");
     }
   }
   if (self.gunnerSnipingActive) add("狙撃", "ON", "truth", "全射撃HS確殺 / 移動速度12%");
@@ -10572,7 +10591,7 @@ function updateActionButtons(data) {
                 : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : operatorMode === "sunbeam-converged" ? `サンビーム収束 ${operatorCostLabel("flora")}` : `サンビーム放射 ${operatorCostLabel("flora")}`,
     gunner: self.gunnerSnipingActive ? "狙撃 OFF / 現在HS確殺・移動12%" : "狙撃 ON / 全射撃HS確殺・移動12%",
-    quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "量子制御",
+    quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "クオンタム",
     alchemist: selectedBorrowedRecipe
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
       : self.hackerRootActive ? "借用能力" : "Root化"
@@ -17573,7 +17592,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497";
+const version = "all-levitation-exact-killcam-v498";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
