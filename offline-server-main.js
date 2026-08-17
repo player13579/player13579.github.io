@@ -15504,7 +15504,7 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
 function useOwnedItem(room, player, itemId, rawHoldMs = 0) {
   if (ITEM_DEFINITIONS[itemId]) return useInventoryItem(room, player, itemId, rawHoldMs);
   if (itemId === "fire-jutsu") return useFireJutsu(room, player, rawHoldMs);
-  if (itemId === "instant-warp") throw new ApiError(400, "拡大マップから転移地点を指定してください。");
+  if (itemId === "instant-warp") throw new ApiError(400, "即時ワープは即席のため使用せず、拡大マップから権利を行使してください。");
   if (["substitution", "stand-firm", "push", "iai"].includes(itemId)) {
     throw new ApiError(400, "このアイテムは条件成立時に自動発動します。");
   }
@@ -15648,7 +15648,7 @@ function instantWarp(room, player, rawX, rawY) {
   }
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
-  if (player.warpCharges <= 0) throw new ApiError(400, "インスタントワープ飲料を所持していません。");
+  if (player.warpCharges <= 0) throw new ApiError(400, "ワープ可能回数がありません。");
   const x = Number(rawX);
   const y = Number(rawY);
   const map = getMap(room);
@@ -20816,7 +20816,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "switch-hold-ui-v490",
+  version: "warp-right-switch-input-v491",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

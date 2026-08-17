@@ -196,7 +196,6 @@ const els = {
   alchemyChoiceGrid: $("#alchemyChoiceGrid"),
   alchemySelectionText: $("#alchemySelectionText"),
   alchemySelect: $("#alchemySelect"),
-  instantWarpButton: $("#instantWarpButton"),
   fireJutsuButton: $("#fireJutsuButton"),
   substitutionStatusButton: $("#substitutionStatusButton"),
   gritStatusButton: $("#gritStatusButton"),
@@ -634,7 +633,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   molotov: "通常使用は自分を燃焼。投擲は着地点周囲を継続燃焼し、瓶片が確率ダメージ。Enhanceは強度・範囲のみ強化",
   evade: "回避受付+0.25秒（累積上限+1.50秒）。回避自体は100SPを消費",
   speed: "加速+0.10（累積）。移動・物理モーション・クールタイム・行動不能・タスク速度へ適用",
-  warp: "1回分を獲得（最大3回）。拡大マップで地点を指定して即時転移",
+  warp: "獲得時に即席をワープ権利1回へ変換（最大3回）。任意のタイミングで拡大マップを開き、地点を選ぶと1回消費",
   mystery: "幸運／直観補正つき抽選: 6C／SP+250／完全活性／理知化／12秒減速／15秒能力封印／8秒意識消失",
   fire: "1回分を獲得（最大2回）。周囲を継続燃焼。Enhanceは強度・範囲のみ強化",
   substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
@@ -724,7 +723,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "switch-hold-ui-v490";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "warp-right-switch-input-v491";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3560,11 +3559,6 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
     return false;
   }
   if (kind === "use" && itemId === "fire-jutsu") return api("/api/fire-jutsu", { holdMs });
-  if (kind === "use" && itemId === "instant-warp") {
-    await clearServerEnhanceCharge();
-    beginInstantWarpTargeting();
-    return true;
-  }
   if (kind === "throw") {
     await clearServerEnhanceCharge();
     return beginThrowTargeting(itemId, holdMs);
@@ -4468,6 +4462,12 @@ function openSharedSwitchMenuForSource(source, { persistent = false } = {}) {
   return state.switchDrag.opened;
 }
 
+// Tap and long hold are only two input routes into this one existing selector.
+// Candidate data, DOM, styling and selection behavior stay owned by the tap UI.
+function openSwitchControlTapUi(source) {
+  return openSharedSwitchMenuForSource(source, { persistent: true });
+}
+
 function beginSwitchDragGesture(event) {
   if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
   const source = event.currentTarget;
@@ -4480,7 +4480,7 @@ function beginSwitchDragGesture(event) {
   gesture.source = source;
   gesture.startX = event.clientX;
   gesture.startY = event.clientY;
-  gesture.timer = window.setTimeout(() => openSharedSwitchMenuForSource(source), SWITCH_DRAG_HOLD_DELAY_MS);
+  gesture.timer = window.setTimeout(() => openSwitchControlTapUi(source), SWITCH_DRAG_HOLD_DELAY_MS);
 }
 
 function moveSwitchDragGesture(event) {
@@ -4535,7 +4535,7 @@ function finishSwitchDragGesture(event, cancelled = false) {
     gesture.suppressClickUntil.set(source, performance.now() + 900);
     closeSwitchDragMenu();
     gesture.source = source;
-    openSharedSwitchMenuForSource(source, { persistent: true });
+    openSwitchControlTapUi(source);
     return true;
   }
   closeSwitchDragMenu();
@@ -4591,11 +4591,9 @@ function beginNativeSelectHold(event) {
   hold.startedAt = performance.now();
   hold.startX = event.clientX;
   hold.startY = event.clientY;
-  hold.timer = window.setTimeout(() => {
-    if (hold.pointerId !== event.pointerId || hold.source !== source) return;
-    hold.timer = 0;
-    hold.opened = openNativeSelectPicker(source);
-  }, SWITCH_DRAG_HOLD_DELAY_MS);
+  // Open the exact browser/device picker used by tap while transient user
+  // activation is still available. Long hold never builds another menu.
+  hold.opened = openNativeSelectPicker(source, true);
 }
 
 function moveNativeSelectHold(event) {
@@ -4652,7 +4650,7 @@ function bindSwitchDragControl(source) {
     event.stopImmediatePropagation();
     closeSwitchDragMenu();
     state.switchDrag.source = source;
-    openSharedSwitchMenuForSource(source, { persistent: true });
+    openSwitchControlTapUi(source);
   }, true);
   source.addEventListener("lostpointercapture", (event) => finishSwitchDragGesture(event, true));
   source.addEventListener("contextmenu", (event) => {
@@ -5240,7 +5238,6 @@ function bindEvents() {
   });
   els.sleepButton.addEventListener("click", () => api("/api/sleep"));
   els.renkiButton.addEventListener("click", () => api("/api/renki"));
-  els.instantWarpButton.addEventListener("click", beginInstantWarpTargeting);
   const bindEnhanceButton = (button, kind) => {
     let suppressClickUntil = 0;
     button.classList.add("enhance-hold-control");
@@ -6761,6 +6758,7 @@ function toggleExpandedMapFromAction() {
     setExpandedMapOpen(false);
     return;
   }
+  if (beginInstantWarpTargeting()) return;
   if (beginSelfLocationTeleportFromMap()) return;
   setExpandedMapOpen(true);
 }
@@ -6807,12 +6805,13 @@ function syncExpandedMapUi() {
 
 function beginInstantWarpTargeting() {
   const data = state.data;
-  if (!data || data.phase !== "playing" || !data.self.alive || data.self.warpCharges <= 0) return;
+  if (!data || data.phase !== "playing" || !data.self.alive || data.self.ejected || data.self.inVent || data.self.warpCharges <= 0) return false;
   state.instantWarpTargeting = true;
   state.teleportTargeting = false;
   state.teleportBorrowed = false;
   setExpandedMapOpen(true);
   initializeMapKeyboardPointer();
+  return true;
 }
 
 function toggleCameraView() {
@@ -9105,8 +9104,7 @@ function renderStatus(data) {
 
 function collectInventoryDisplayItems(self) {
   const chargeDescriptions = {
-    "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire,
-    "instant-warp": VENDING_PRODUCT_DESCRIPTIONS.warp
+    "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire
   };
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
     item && (!item.kind || ["item", "charge", "instant"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
@@ -9826,6 +9824,7 @@ function renderActiveEffects(data) {
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
   if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "踏ん張り全消去。1回につき反動0.5");
   if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持");
+  if ((self.warpCharges || 0) > 0) add("即時ワープ", `ワープ可能回数 ×${self.warpCharges}`, "truth", "即席の獲得時に現物をワープ権利へ変換。任意のタイミングで拡大マップを開き、地点を選ぶと1回消費");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
@@ -10230,7 +10229,6 @@ function updateActionButtons(data) {
     borrowedGunnerAccess,
     canUseKill,
     state.cameraViewIndex >= 0 && cameraIndices.length >= 2,
-    (self.warpCharges || 0) > 0,
     (self.fireJutsuCharges || 0) > 0,
     hasDisplayedOperatorAccess(self, "gravity"),
     hasDisplayedOperatorAccess(self, "flora"),
@@ -10261,7 +10259,6 @@ function updateActionButtons(data) {
     els.empButton.hidden = false;
     els.cameraButton.hidden = self.role !== "defender";
     els.nextCameraButton.hidden = self.role !== "defender";
-    els.instantWarpButton.hidden = true;
     els.fireJutsuButton.hidden = true;
     els.mapActionButton.hidden = false;
     els.substitutionStatusButton.hidden = true;
@@ -10452,8 +10449,6 @@ function updateActionButtons(data) {
   els.cameraButton.classList.toggle("active", state.cameraViewIndex >= 0);
   els.cameraButton.disabled = !(canUseAbility && self.role === "defender" && cameraIndices.length);
   els.nextCameraButton.disabled = state.cameraViewIndex < 0;
-  els.instantWarpButton.textContent = `即時ワープ ×${self.warpCharges || 0}`;
-  els.instantWarpButton.disabled = !canUseAbility || itemBlocked;
   const sleepSeconds = Math.max(0, Math.ceil(((self.sleepingUntil || 0) - liveNow) / 1000));
   const sleepEstimate = Math.max(0.1, ((self.maxStoredStamina || 500) - self.stamina) / (self.sleepRegenPerSecond || 76));
   els.sleepButton.textContent = sleepSeconds > 0 ? `休息 ${sleepSeconds}秒` : `休息 約${sleepEstimate.toFixed(1)}秒`;
@@ -17315,7 +17310,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "switch-hold-ui-v490";
+const version = "warp-right-switch-input-v491";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
