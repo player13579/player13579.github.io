@@ -12796,7 +12796,6 @@ function tickRoom(room) {
   for (const player of room.players.values()) {
     syncFighterInfiniteResources(player);
     syncHackerRootState(room, player);
-    advanceFighterEnergyPassive(room, player, timestamp);
     advanceAccelerationTime(room, player, elapsedMs, timestamp);
     freezePlayerTimeKeeperState(player, elapsedMs, timestamp);
     if (timeKeeperStops(player, timestamp)) {
@@ -12810,6 +12809,7 @@ function tickRoom(room) {
       }
       continue;
     }
+    advanceFighterEnergyPassive(room, player, timestamp);
     advanceLevitationMana(room, player, elapsedMs);
     advanceClairvoyanceMana(room, player, elapsedMs);
     advanceLimitBreak(room, player, elapsedMs);
