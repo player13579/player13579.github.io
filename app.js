@@ -743,7 +743,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "all-levitation-exact-killcam-v498";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "flora-sunbeam-piercing-target-v499";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5208,6 +5208,7 @@ function bindEvents() {
       if (select === els.teleportModeSelect) {
         const rootStageBeforeCommit = state.rootAbilitySelectStage;
         if (commitRootAbilityModeSelect()) {
+          if (state.data) renderTargetOptions(state.data);
           if (state.abilityAutoActivate && rootStageBeforeCommit !== "operator" && state.rootAbilitySelectStage === "selected") {
             triggerOperatorAbility();
           }
@@ -5215,6 +5216,7 @@ function bindEvents() {
           return;
         }
         rememberSelectedOperatorMode();
+        if (state.data) renderTargetOptions(state.data);
         ensureTeleportTargetForMode(state.data);
         const owner = selectedBorrowedOperator() || state.data?.self?.special || "";
         syncAbilityModeDescription(owner, state.data?.self);
@@ -6406,6 +6408,7 @@ function renderTabletBranch(data, force = false) {
     "gravity-transfer": "転移",
     "gravity-time": "時空制御",
     "gravity-target": "対象選択",
+    "flora-target": "サンビーム対象選択",
     "hacker-resources": "対象データ操作",
     "hacker-supplies": "戦術物資",
     "hacker-weapons": "武器",
@@ -6503,9 +6506,19 @@ function renderTabletBranch(data, force = false) {
         addSubmenu("特殊生成", "hacker-special");
       }
     } else if (self.special === "flora") {
-      addModeAction("回復・オーバーヒール", "heal");
-      addModeAction("サンビーム放射", "sunbeam");
-      addModeAction("サンビーム収束", "sunbeam-converged");
+      if (branchPath === "flora-target") {
+        [...els.teleportTargetSelect.options].forEach((option) => {
+          appendTabletBranchButton(option.textContent, () => {
+            setSelectValue(els.teleportTargetSelect, option.value);
+            setTabletBranchPath("");
+          }, { kind: "target", selected: option.value === els.teleportTargetSelect.value });
+        });
+      } else {
+        addModeAction("回復・オーバーヒール", "heal");
+        addModeAction("サンビーム放射", "sunbeam");
+        addModeAction("サンビーム収束", "sunbeam-converged");
+        if (els.teleportModeSelect.value.startsWith("sunbeam")) addSubmenu("サンビーム対象を選択", "flora-target");
+      }
     } else if (self.special === "gunner") {
       addModeAction(self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON", "sniping");
     } else if (self.special === "quantum") {
@@ -6965,7 +6978,9 @@ function borrowedAbilityPayload(recipe, requestedMode = "") {
     ability: recipe.inventoryId,
     mode: recipe.inventoryId === "flora" ? (mode.startsWith("sunbeam") ? "sunbeam" : "heal") : mode,
     converged: recipe.inventoryId === "flora" && mode === "sunbeam-converged",
-    targetId: combatTarget || (recipe.inventoryId === "flora" ? "" : (els.teleportTargetSelect.value || state.data?.self?.id || "")),
+    targetId: combatTarget || (recipe.inventoryId === "flora"
+      ? (mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "")
+      : (els.teleportTargetSelect.value || state.data?.self?.id || "")),
     dx: Number(state.data?.self?.aimX) || 0,
     dy: Number(state.data?.self?.aimY) || 1
   };
@@ -7068,8 +7083,8 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
   } else if (activeType === "flora") {
     const floraDescriptions = {
       heal: "周囲のHP・SP・状態異常を回復し、加速を付与する",
-      sunbeam: "屈折・散乱・回折する貫通光線で複数対象を攻撃する",
-      "sunbeam-converged": "光を一点へ収束し、貫通を失う代わりに確殺する"
+      sunbeam: "選択対象へ屈折・散乱・回折する貫通光線を放ち、交差した複数対象を攻撃する",
+      "sunbeam-converged": "選択対象へ光を収束し、交差した全対象を貫通して確殺する"
     };
     const floraModes = new Set(["heal", "sunbeam", "sunbeam-converged"]);
     [...els.teleportModeSelect.options].filter((option) => floraModes.has(option.value)).forEach((option) => {
@@ -7121,7 +7136,7 @@ function triggerOperatorAbility() {
     void api("/api/flora-heal", {
       mode: mode.startsWith("sunbeam") ? "sunbeam" : "heal",
       converged: mode === "sunbeam-converged",
-      targetId: "",
+      targetId: mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "",
       dx: Number(self.aimX) || 0,
       dy: Number(self.aimY) || 1
     });
@@ -9115,10 +9130,6 @@ function renderTargetOptions(data) {
   els.teleportControl.hidden = !controlVisible;
   els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length;
   els.abilityAutoActivateControl.hidden = !rootAbilitySwitchVisible && !options.length;
-  const currentAbilityMode = els.teleportModeSelect.value;
-  els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && (
-    !["teleport", "gravity"].includes(modeOwner) || currentAbilityMode === "time-keeper"
-  );
   els.empPhaseControl.hidden = data.phase !== "playing" || !self.alive || self.ejected;
   if (!controlVisible && self.special !== "alchemist") return;
 
@@ -9156,13 +9167,22 @@ function renderTargetOptions(data) {
     syncAbilityModeDescription(modeOwner, self);
   }
 
+  const currentAbilityMode = els.teleportModeSelect.value;
+  const floraTargeting = modeOwner === "flora" &&
+    (!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "selected") &&
+    currentAbilityMode.startsWith("sunbeam");
+  const gravityTargeting = ["teleport", "gravity"].includes(modeOwner) && currentAbilityMode !== "time-keeper";
+  els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && !gravityTargeting && !floraTargeting;
+  els.teleportTargetSelect.setAttribute("aria-label", floraTargeting ? "サンビーム対象" : "能力対象");
+
   const includeDead = self.special === "alchemist" && els.alchemySelect.value === "revive";
   const hackerTargeting = self.special === "alchemist" && els.alchemySelect.value.startsWith("hack-");
   const targets = data.players.filter((player) => includeDead
     ? !player.alive && !player.ejected
-    : player.alive && !player.ejected && !player.inVent && (!hackerTargeting || player.id !== self.id));
+    : player.alive && !player.ejected && !player.inVent && (!(hackerTargeting || floraTargeting) || player.id !== self.id));
   const previous = els.teleportTargetSelect.value || self.id;
-  const key = targets.map((player) => `${player.id}:${player.name}`).join("|");
+  const key = `${includeDead ? "dead" : floraTargeting ? "flora" : hackerTargeting ? "hacker" : "living"}:` +
+    targets.map((player) => `${player.id}:${player.name}`).join("|");
   if (els.teleportTargetSelect.dataset.key !== key) {
     els.teleportTargetSelect.dataset.key = key;
     els.teleportTargetSelect.innerHTML = "";
@@ -9198,8 +9218,8 @@ function abilityModeDescription(owner, mode, self) {
     gravity: null,
     flora: {
       heal: `自分のHP・SP・状態異常を即時回復し、12秒間加速する。${cost("flora")}。`,
-      sunbeam: `屈折・散乱・回折で経路を変える貫通光線を放ち、複数対象へ確率キル判定。${cost("flora")}。`,
-      "sunbeam-converged": `光を一点へ収束し、貫通を失う代わりに対象を確殺する。${cost("flora")}。`
+      sunbeam: `選択対象へ屈折・散乱・回折で経路を変える貫通光線を放ち、交差した複数対象へ確率キル判定。${cost("flora")}。`,
+      "sunbeam-converged": `選択対象へ光を収束し、交差した全対象を貫通して確殺する。${cost("flora")}。`
     },
     gunner: {
       sniping: "ON中は全銃の命中をHS確殺にする。代わりに移動速度が通常の12%まで低下する。再操作でOFF。0MP。"
@@ -17592,7 +17612,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "all-levitation-exact-killcam-v498";
+const version = "flora-sunbeam-piercing-target-v499";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

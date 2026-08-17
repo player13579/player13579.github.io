@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "all-levitation-exact-killcam-v498",
+    version: "flora-sunbeam-piercing-target-v499",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7398,7 +7398,6 @@ const LABORATORY_MAP = Object.freeze({
   });
 });
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
-
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 
 function vendingProductOrThrow(itemId) {
@@ -7820,7 +7819,7 @@ const OPERATORS = {
       limit: 99,
       asset: "flora",
       description: "回復とサンビームを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "回復は自分へHP・スタミナ・状態解除・加速を付与する。サンビームは黄色系の強い光を前方へ放ち、通常時は複数対象へ確率キル、収束時は単体を確殺する。理知中はアロマにより自分のスタミナ回復を速める。"
+      details: "回復は自分へHP・スタミナ・状態解除・加速を付与する。サンビームは選択対象へ黄色系の強い貫通光を放ち、通常時は交差した複数対象へ確率キル、収束時は交差した全対象を確殺する。理知中はアロマにより自分のスタミナ回復を速める。"
     },
     {
       id: "operator-quantum-control",
@@ -16007,7 +16006,7 @@ function floraSunbeam(room, player, converged = false, targetId = "", direction 
   }
   ensureAbilityAvailable(player);
   spendOperatorMana(room, player, "サンビーム");
-  const trackedCandidate = room.players.get(converged ? targetId : "");
+  const trackedCandidate = room.players.get(String(targetId || ""));
   const tracked = trackedCandidate &&
     trackedCandidate.id !== player.id &&
     trackedCandidate.alive &&
@@ -16055,7 +16054,7 @@ function floraSunbeam(room, player, converged = false, targetId = "", direction 
       targetRole: entry.target.role,
       magic: true,
       attackKind: "sunbeam",
-      attackLabel: "サンビーム",
+      attackLabel: converged ? "サンビーム収束" : "サンビーム放射",
       slashGuardPhysical: false
     });
     hits += 1;
@@ -21189,7 +21188,6 @@ Promise.allSettled([hydrateCheckpointArchive(), hydratePlayerProfiles()]).finall
   });
 });
 
-
 function offlineApiRequest(pathname, body = {}) {
   return new Promise((resolve) => {
     const text = JSON.stringify(body || {});
@@ -21231,5 +21229,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "all-levitation-exact-killcam-v498" });
+self.postMessage({ type: "ready", version: "flora-sunbeam-piercing-target-v499" });
 })();

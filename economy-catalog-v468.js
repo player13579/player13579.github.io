@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "all-levitation-exact-killcam-v498",
+    version: "flora-sunbeam-piercing-target-v499",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
