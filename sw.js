@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v497-map-select-root-matrix-marker-ability-idea-teleport";
+const CACHE_NAME = "dva-static-v497-map-select-root-matrix-marker-ability-idea-teleport-time-keeper";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -89,6 +89,7 @@ const STATIC_ASSETS = [
   "/assets/generated/status-hp-reduction-v375.png",
   "/assets/generated/status-mana-gpu-ate-v402.png",
   "/assets/generated/hacker-root-matrix-v497.png",
+  "/assets/generated/gravity-time-keeper-v497.png",
   "/assets/generated/fire-jutsu-field.webp",
   "/assets/generated/substitution-field.webp",
   "/assets/generated/limit-break-field-v307.png",

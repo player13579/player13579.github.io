@@ -366,8 +366,8 @@ function normalizeMatchmakingMapId(value) {
 }
 const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   fighter: Object.freeze([["limit-break", "リミットブレイク"]]),
-  teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]]),
-  gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]]),
+  teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
+  gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム・放射"], ["sunbeam-converged", "サンビーム・収束"]]),
   gunner: Object.freeze([["sniping", "狙撃"]]),
   quantum: Object.freeze([["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]])
@@ -739,7 +739,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "map-select-root-matrix-marker-ability-idea-teleport-v497";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2680,6 +2680,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/donate": "interact",
   "/api/teleport": "cast",
   "/api/gravity-time": "cast",
+  "/api/gravity-time-keeper": "power",
   "/api/gravity-storm": "power",
   "/api/instant-warp": "cast",
   "/api/purchase": "interact",
@@ -2803,6 +2804,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "emp-charge": "cast",
   "gravity-accelerate": "cast",
   "gravity-decelerate": "cast",
+  "gravity-time-keeper": "power",
   "gravity-storm": "power",
   "quantum-transmutation": "cast",
   "quantum-temperature-cold": "cast",
@@ -6444,9 +6446,10 @@ function renderTabletBranch(data, force = false) {
         addModeAction("心臓転移", "heart");
         addSubmenu("転移対象を選択", "gravity-target");
       } else if (branchPath === "gravity-time") {
-        addModeAction("アクセラレート", "accelerate");
-        addModeAction("ディーセラレート", "decelerate");
-        addSubmenu("時間操作対象を選択", "gravity-target");
+	        addModeAction("アクセラレート", "accelerate");
+	        addModeAction("ディーセラレート", "decelerate");
+	        addModeAction("時の番人", "time-keeper");
+	        addSubmenu("時間操作対象を選択", "gravity-target");
       } else if (branchPath === "gravity-target") {
         [...els.teleportTargetSelect.options].forEach((option) => {
           appendTabletBranchButton(option.textContent, () => {
@@ -6557,6 +6560,7 @@ function conciseTabletAbilityName(data) {
       heart: "心臓転移",
       accelerate: "アクセラレート",
       decelerate: "ディーセラレート",
+      "time-keeper": "時の番人",
       storm: "グラビティストーム"
     },
     flora: {
@@ -6905,6 +6909,10 @@ function triggerTeleportAction() {
     void api("/api/gravity-storm", { targetId: els.teleportTargetSelect.value || data.self.id });
     return;
   }
+  if (mode === "time-keeper") {
+    void api("/api/gravity-time-keeper");
+    return;
+  }
   beginTeleportTargeting("body");
 }
 
@@ -7029,9 +7037,10 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         heart: "10MP。拳を握り、対象の心臓へ干渉して遠隔確殺を試みる",
       accelerate: "1MP。8秒間×2.5。移動・行動不能時間・クールタイム・タスク・物理モーションを加速する",
       decelerate: "1MP。8秒間×0.38。移動・行動不能時間・クールタイム・タスク・物理モーションを減速する",
+      "time-keeper": "50MP。5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する",
       storm: "10MP。指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
     };
-    const gravityModes = new Set(["near", "target", "heart", "accelerate", "decelerate", "storm"]);
+    const gravityModes = new Set(["near", "target", "heart", "accelerate", "decelerate", "time-keeper", "storm"]);
     [...els.teleportModeSelect.options].filter((option) => gravityModes.has(option.value)).forEach((option) => {
       addBranch(option.textContent, () => {
         state.borrowedAbilityModes.gravity = option.value;
@@ -7578,6 +7587,7 @@ async function api(path, extra = {}, options = {}) {
   const requestedMode = String(extra?.mode || extra?.phase || extra?.conversion || "");
   if (path === "/api/teleport" && requestedMode === "heart") actionKind = "heart-transfer";
   if (path === "/api/gravity-storm") actionKind = "power";
+  if (path === "/api/gravity-time-keeper") actionKind = "power";
   if (path === "/api/quantum-control" && requestedMode.startsWith("fission-")) actionKind = "power";
   if (actionKind) {
     const actionVariant = ["/api/shoot", "/api/gunner-weapon"].includes(path)
@@ -7599,6 +7609,7 @@ async function api(path, extra = {}, options = {}) {
         : [
             "/api/teleport",
             "/api/gravity-time",
+            "/api/gravity-time-keeper",
             "/api/gravity-storm",
             "/api/quantum-control",
             "/api/emp",
@@ -9086,8 +9097,10 @@ function renderTargetOptions(data) {
   const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible) && self.alive && !self.ejected;
   els.teleportControl.hidden = !controlVisible;
   els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length;
-  els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible &&
-    !["teleport", "gravity"].includes(modeOwner);
+  const currentAbilityMode = els.teleportModeSelect.value;
+  els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && (
+    !["teleport", "gravity"].includes(modeOwner) || currentAbilityMode === "time-keeper"
+  );
   els.empPhaseControl.hidden = data.phase !== "playing" || !self.alive || self.ejected;
   if (!controlVisible && self.special !== "alchemist") return;
 
@@ -9161,6 +9174,7 @@ function abilityModeDescription(owner, mode, self) {
       heart: `拳を握って対象の心臓へ干渉し、遠隔確殺を試みる。位置は公開しない。${cost("heartTeleport", 10)}。`,
       accelerate: `対象を8秒間×2.5加速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
       decelerate: `対象を8秒間×0.38へ減速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。${cost("teleport")}。`,
+      "time-keeper": `5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する。${cost("timeKeeper", 50)}。`,
       storm: `指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 10)}。`
     },
     gravity: null,
@@ -9993,6 +10007,8 @@ function renderActiveEffects(data) {
     self.gravityTimeMode === "accelerate" ? "good" : "desire",
     "1MP・8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用"
   );
+  timed("時の番人", self.timeKeeperEndsAt, "truth", "50MP・5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止");
+  timed("時間停止", self.timeStoppedUntil, "desire", "入力・行動・クールタイム・物理モーション停止");
   if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ");
   timed("スマホ操作", self.smartphoneUntil, "neutral", "完了まで行動不能");
 
@@ -10552,7 +10568,8 @@ function updateActionButtons(data) {
         : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
           : operatorMode === "accelerate" ? `アクセラレート 8秒 ${operatorCostLabel("teleport")}`
             : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
-              : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
+              : operatorMode === "time-keeper" ? `時の番人 5秒 ${operatorCostLabel("timeKeeper")}`
+                : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : operatorMode === "sunbeam-converged" ? `サンビーム収束 ${operatorCostLabel("flora")}` : `サンビーム放射 ${operatorCostLabel("flora")}`,
     gunner: self.gunnerSnipingActive ? "狙撃 OFF / 現在HS確殺・移動12%" : "狙撃 ON / 全射撃HS確殺・移動12%",
     quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "量子制御",
@@ -10561,7 +10578,7 @@ function updateActionButtons(data) {
       : self.hackerRootActive ? "借用能力" : "Root化"
   };
   const borrowedCostKey = activeBorrowedOperator === "gravity"
-      ? (operatorMode === "heart" ? "heartTeleport" : operatorMode === "storm" ? "gravityStorm" : "teleport")
+      ? (operatorMode === "heart" ? "heartTeleport" : operatorMode === "storm" ? "gravityStorm" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")
       : activeBorrowedOperator === "flora"
         ? "flora"
       : activeBorrowedOperator === "fighter"
@@ -10584,7 +10601,7 @@ function updateActionButtons(data) {
   els.operatorAbilityButton.dataset.repeatableAbility = displayedOperator === "gunner" || (displayedOperator === "alchemist" && !self.hackerRootActive) ? "0" : "1";
   els.operatorAbilityButton.classList.toggle("active", displayedOperator === "gunner" && Boolean(self.gunnerSnipingActive));
   els.operatorAbilityButton.disabled = !canUseAbility ||
-    (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : "teleport")) ||
+    (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
     (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
     (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
     (activeBorrowedOperator && borrowedStateBlocked);
@@ -13807,6 +13824,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
   "fighter-push-acquired": ["pushMarkerEffect", 96],
   "hacker-root": ["hackerRootMatrix", 190],
+  "gravity-time-keeper": ["gravityTimeKeeperEffect", 260],
   "preparation-barrier-hit": ["preparationBarrierEffect", 220],
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
@@ -13876,6 +13894,31 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   const prepared = transparentSpriteSource(state.textures[textureKey], textureKey, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
   if (!sprite) return false;
+  if (effect.type === "gravity-time-keeper") {
+    const arrive = objectEffectEase(clamp(progress / 0.12, 0, 1));
+    const fade = 1 - objectEffectEase(clamp((progress - 0.84) / 0.16, 0, 1));
+    const size = Math.max(defaultSize, Number(effect.radius || 0) * 2.05);
+    ctx.save();
+    ctx.translate(effect.x, effect.y);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = fade * (0.45 + arrive * 0.5);
+    drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
+      mode: "hold",
+      progress: 0.5,
+      intensity: 0.86,
+      baseAlpha: 0.12
+    });
+    // Complementary E: sparse particles remain spatially fixed for the whole
+    // stop. They support the frozen-state read without redrawing the clockwork.
+    const fixedMotes = [[-0.36, -0.28], [0.31, -0.34], [-0.42, 0.08], [0.39, 0.16], [-0.2, 0.39], [0.23, 0.33]];
+    fixedMotes.forEach(([px, py], index) => {
+      ctx.globalAlpha = fade * (0.28 + (index % 3) * 0.11);
+      ctx.fillStyle = index % 2 ? "#f9d985" : "#bdf7ff";
+      ctx.fillRect(px * size - 2, py * size - 2, 4, 4);
+    });
+    ctx.restore();
+    return true;
+  }
   if (effect.type.startsWith("instant-") && effect.type.endsWith("-acquired")) {
     return drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize);
   }
@@ -15878,6 +15921,13 @@ function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId,
     ctx.scale(1 + plant * 0.055 * motionScale, 1 - plant * 0.045 * motionScale);
     return true;
   }
+  if (hasId("gravity-time-keeper", "/api/gravity-time-keeper")) {
+    const lock = objectEffectEase(clamp(progress / 0.28, 0, 1));
+    ctx.translate(0, -5 * lock * motionScale);
+    ctx.rotate(facing * Math.sin(progress * Math.PI) * 0.018 * motionScale);
+    ctx.scale(1 + lock * 0.045 * motionScale, 1 - lock * 0.035 * motionScale);
+    return true;
+  }
   const accelerating = hasId("gravity-accelerate") || (id === "/api/gravity-time" && mode === "accelerate");
   if (accelerating) {
     ctx.translate(facing * ease * 4.2 * motionScale, -impulse * 7 * motionScale);
@@ -17523,7 +17573,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "map-select-root-matrix-marker-ability-idea-teleport-v497";
+const version = "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -17639,6 +17689,7 @@ const version = "map-select-root-matrix-marker-ability-idea-teleport-v497";
   const luminousMeetingEffect = new Image();
   const attackerAllyMarker = new Image();
   const hackerRootMatrix = new Image();
+  const gravityTimeKeeperEffect = new Image();
   const fireJutsuFieldEffect = new Image();
   const substitutionFieldEffect = new Image();
   const limitBreakFieldEffect = new Image();
@@ -17766,6 +17817,7 @@ const version = "map-select-root-matrix-marker-ability-idea-teleport-v497";
   defer(luminousMeetingEffect, "assets/generated/luminous-meeting-effect-v311.png");
   defer(attackerAllyMarker, "assets/generated/attacker-ally-marker.webp");
   defer(hackerRootMatrix, "assets/generated/hacker-root-matrix-v497.png");
+  defer(gravityTimeKeeperEffect, "assets/generated/gravity-time-keeper-v497.png");
   defer(fireJutsuFieldEffect, "assets/generated/fire-jutsu-field.webp");
   defer(substitutionFieldEffect, "assets/generated/substitution-field.webp");
   defer(limitBreakFieldEffect, "assets/generated/limit-break-field-v307.png");
@@ -17893,6 +17945,7 @@ const version = "map-select-root-matrix-marker-ability-idea-teleport-v497";
     luminousMeetingEffect,
     attackerAllyMarker,
     hackerRootMatrix,
+    gravityTimeKeeperEffect,
     fireJutsuFieldEffect,
     substitutionFieldEffect,
     limitBreakFieldEffect,

@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "map-select-root-matrix-marker-ability-idea-teleport-v497",
+    version: "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7681,6 +7681,8 @@ const GRAVITY_STORM_PIN_MAX_MS = 1_800;
 const GRAVITY_TIME_DURATION_MS = 8_000;
 const GRAVITY_TIME_SCALE_FAST = ACCELERATE_SPEED_MULTIPLIER;
 const GRAVITY_TIME_SCALE_SLOW = 0.38;
+const GRAVITY_TIME_KEEPER_DURATION_MS = 5_000;
+const GRAVITY_TIME_KEEPER_MANA_COST = 50;
 const BOT_HEARING_MEMORY_MS = 5000;
 const BOT_STAND_FIRM_RETALIATION_MS = 30_000;
 const BOT_KILL_WITNESS_RANGE = 340;
@@ -9733,6 +9735,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gravityTimeMode: "",
     gravityTimeTargetId: "",
     gravityTimeEndsAt: 0,
+    timeKeeperEndsAt: 0,
+    timeStoppedUntil: 0,
     gravityStormReadyAt: 0,
     alchemyReviveUsed: false,
     vibeCodingReadyAt: 0,
@@ -10170,6 +10174,8 @@ function startGame(room) {
     player.gravityTimeMode = "";
     player.gravityTimeTargetId = "";
     player.gravityTimeEndsAt = 0;
+    player.timeKeeperEndsAt = 0;
+    player.timeStoppedUntil = 0;
     player.gravityStormReadyAt = 0;
     player.alchemyReviveUsed = false;
     player.vibeCodingReadyAt = 0;
@@ -10622,7 +10628,8 @@ function actionBlockedUntil(player) {
     Number(player.meditatingUntil) || 0,
     Number(player.smartphoneUntil) || 0,
     Number(player.gravityPinnedUntil) || 0,
-    Number(player.ascensionUntil) || 0
+    Number(player.ascensionUntil) || 0,
+    Number(player.timeStoppedUntil) || 0
   );
 }
 
@@ -10636,6 +10643,8 @@ function ensureConscious(player) {
   if (blockedUntil <= timestamp) return;
   const label = (player.ascensionUntil || 0) > timestamp
     ? "昇天演出が終わる"
+    : (player.timeStoppedUntil || 0) > timestamp
+      ? "時間停止が解ける"
     : (player.meditatingUntil || 0) > timestamp
       ? "精神統一が終わる"
     : (player.sleepingUntil || 0) > timestamp
@@ -11847,6 +11856,110 @@ const ACCELERATED_ACTION_UNTIL_FIELDS = Object.freeze([
   "attackResolveAt"
 ]);
 
+const TIME_KEEPER_FROZEN_DEADLINE_FIELDS = Object.freeze([
+  "hsgUntil",
+  "dodgeActiveUntil",
+  "limitBreakEndsAt",
+  "slowedUntil",
+  "gravityStormSlowUntil",
+  "overhealSpeedUntil",
+  "airborneUntil",
+  "objectLuckUntil",
+  "gravityTimeEndsAt",
+  "timeKeeperEndsAt",
+  "particleCannonUntil",
+  "particleCannonNextAt",
+  "gunnerFiringNextAt",
+  "gunnerFiringEndsAt",
+  "botTargetUntil",
+  "botRetaliationUntil",
+  "botWitnessUntil",
+  "botClairvoyanceUntil",
+  "botClairvoyanceObservedUntil",
+  "nextBotClairvoyanceAt",
+  "botDeceptionUntil",
+  "heardTargetUntil"
+]);
+
+const TIME_KEEPER_FROZEN_ANCHOR_FIELDS = Object.freeze([
+  "gunnerLastShotAt",
+  "lastPassiveCreditAt",
+  "staminaUpdatedAt",
+  "taskPresenceSince",
+  "ideaProgressStartedAt",
+  "ideaProgressUpdatedAt",
+  "ascensionStartedAt",
+  "routeSharedSince",
+  "botTaskPresenceSince",
+  "botDeceptionPresenceSince"
+]);
+
+function timeKeeperStops(player, timestamp = now()) {
+  return Number(player?.timeStoppedUntil) > timestamp;
+}
+
+function roomTimeKeeperActive(room, timestamp = now()) {
+  return [...room.players.values()].some((player) => (
+    Number(player.timeKeeperEndsAt) > timestamp
+  ));
+}
+
+function synchronizeTimeKeeperStops(room, timestamp = now()) {
+  const activeCasters = [...room.players.values()].filter((player) => Number(player.timeKeeperEndsAt) > timestamp);
+  if (!activeCasters.length) return;
+  for (const target of room.players.values()) {
+    if (!target.alive || target.ejected) continue;
+    const controllingCaster = activeCasters
+      .filter((caster) => caster.id !== target.id)
+      .sort((a, b) => Number(b.timeKeeperEndsAt) - Number(a.timeKeeperEndsAt))[0];
+    if (!controllingCaster) continue;
+    target.timeStoppedUntil = Math.max(Number(target.timeStoppedUntil) || 0, Number(controllingCaster.timeKeeperEndsAt) || timestamp);
+  }
+}
+
+function freezeRoomTimeKeeperState(room, elapsedMs, timestamp = now()) {
+  if (!roomTimeKeeperActive(room, timestamp)) return false;
+  const elapsed = Math.max(0, Number(elapsedMs) || 0);
+  for (const zone of room.gravityZones || []) {
+    if (Number(zone.endsAt) <= timestamp) continue;
+    zone.startedAt = (Number(zone.startedAt) || timestamp) + elapsed;
+    zone.barrierUntil = (Number(zone.barrierUntil) || timestamp) + elapsed;
+    zone.endsAt = Number(zone.endsAt) + elapsed;
+    zone.lastPulseAt = (Number(zone.lastPulseAt) || timestamp) + elapsed;
+  }
+  return true;
+}
+
+function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
+  if (!timeKeeperStops(player, timestamp)) return;
+  const elapsed = Math.max(0, Number(elapsedMs) || 0);
+  if (!elapsed) return;
+  for (const field of TIME_KEEPER_FROZEN_DEADLINE_FIELDS) {
+    const deadline = Number(player[field]) || 0;
+    if (deadline > timestamp) player[field] = deadline + elapsed;
+  }
+  for (const field of TIME_KEEPER_FROZEN_ANCHOR_FIELDS) {
+    const anchor = Number(player[field]) || 0;
+    if (anchor > 0) player[field] = anchor + elapsed;
+  }
+  for (const effect of player.timedAccelerationEffects || []) {
+    if (Number(effect.endsAt) <= timestamp) continue;
+    effect.startedAt = (Number(effect.startedAt) || timestamp) + elapsed;
+    effect.endsAt = Number(effect.endsAt) + elapsed;
+  }
+  for (const field of ["poisonStatus", "burnStatus"]) {
+    const status = player[field];
+    if (!status) continue;
+    if (Number(status.appliedAt) > 0) status.appliedAt = Number(status.appliedAt) + elapsed;
+    if (Number(status.nextTickAt) > timestamp) status.nextTickAt = Number(status.nextTickAt) + elapsed;
+  }
+  if (player.jumpMotion && Number(player.jumpMotion.endsAt) > timestamp) {
+    player.jumpMotion.startedAt = (Number(player.jumpMotion.startedAt) || timestamp) + elapsed;
+    player.jumpMotion.endsAt = Number(player.jumpMotion.endsAt) + elapsed;
+  }
+  if (player.drone && Number(player.drone.readyAt) > timestamp) player.drone.readyAt = Number(player.drone.readyAt) + elapsed;
+}
+
 function advanceAccelerationTime(room, player, elapsedMs, timestamp = now()) {
   if (room.phase !== "playing" || !player.alive || player.ejected) return;
   const elapsed = Math.max(0, Number(elapsedMs) || 0);
@@ -11877,6 +11990,7 @@ function activeMapObjectEffects(room, player) {
 }
 
 function effectiveMovementMultiplier(room, player, timestamp = now()) {
+  if (timeKeeperStops(player, timestamp)) return 0;
   const electricSlowMultiplier = Number(player.taserSlowedUntil) > timestamp || Number(player.shockSlowedUntil) > timestamp
     ? TASER_MOVEMENT_MULTIPLIER
     : 1;
@@ -11944,7 +12058,9 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
         ? "sleep"
         : player.gravityPinnedUntil > timestamp
           ? "gravity-pinned"
-        : "unconscious";
+        : timeKeeperStops(player, timestamp)
+          ? "time-stopped"
+          : "unconscious";
     return;
   }
   const dt = forcedDt ?? Math.min(0.08, Math.max(0.008, (timestamp - player.lastMoveAt) / 1000));
@@ -12437,6 +12553,8 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "ascensionUntil",
   "objectLuckUntil",
   "gravityTimeEndsAt",
+  "timeKeeperEndsAt",
+  "timeStoppedUntil",
   "particleCannonUntil",
   "particleCannonNextAt",
   "smartphoneUntil",
@@ -12670,14 +12788,28 @@ function tickRoom(room) {
     maybeEndMeeting(room);
     return;
   }
-  advanceGravitySystems(room, timestamp, elapsedMs);
-  advanceThrownItems(room, timestamp);
-  advanceHazards(room, timestamp);
+  synchronizeTimeKeeperStops(room, timestamp);
+  const roomTimeStopped = freezeRoomTimeKeeperState(room, elapsedMs, timestamp);
+  if (!roomTimeStopped) advanceGravitySystems(room, timestamp, elapsedMs);
+  advanceThrownItems(room, timestamp, elapsedMs);
+  if (!roomTimeStopped) advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
     syncFighterInfiniteResources(player);
     syncHackerRootState(room, player);
     advanceFighterEnergyPassive(room, player, timestamp);
     advanceAccelerationTime(room, player, elapsedMs, timestamp);
+    freezePlayerTimeKeeperState(player, elapsedMs, timestamp);
+    if (timeKeeperStops(player, timestamp)) {
+      player.vx = 0;
+      player.vy = 0;
+      player.movementMode = "time-stopped";
+      if (player.drone) {
+        player.drone.vx = 0;
+        player.drone.vy = 0;
+        player.drone.movementMode = "time-stopped";
+      }
+      continue;
+    }
     advanceLevitationMana(room, player, elapsedMs);
     advanceClairvoyanceMana(room, player, elapsedMs);
     advanceLimitBreak(room, player, elapsedMs);
@@ -12768,9 +12900,11 @@ function tickRoom(room) {
     }
   }
   if (runAutomaticHumanBodyReports(room, timestamp)) return;
-  advancePairRouteRule(room, timestamp);
-  advanceAlchemyObjects(room, timestamp);
-  resolvePendingEmps(room, timestamp);
+  if (!roomTimeStopped) {
+    advancePairRouteRule(room, timestamp);
+    advanceAlchemyObjects(room, timestamp);
+    resolvePendingEmps(room, timestamp);
+  }
   if (room.sabotage?.type === "lights") {
     room.sabotage = null;
     touch(room);
@@ -13395,12 +13529,47 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
 }
 
 function gravityTimeScaleFor(room, target, timestamp = now()) {
+  if (timeKeeperStops(target, timestamp)) return 0;
   const controllers = [...room.players.values()].filter((player) => (
     hasOperatorAccess(player, "gravity") && player.gravityTimeMode && player.gravityTimeTargetId === target.id &&
     Number(player.gravityTimeEndsAt) > timestamp && player.alive && !player.ejected
   ));
   if (controllers.some((player) => player.gravityTimeMode === "decelerate")) return GRAVITY_TIME_SCALE_SLOW;
   return 1;
+}
+
+function useTimeKeeper(room, player) {
+  if (room.phase !== "playing" || !hasOperatorAccess(player, "gravity") || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在は時の番人を使用できません。");
+  }
+  ensureAbilityAvailable(player);
+  spendOperatorMana(room, player, "時の番人", GRAVITY_TIME_KEEPER_MANA_COST);
+  const startedAt = now();
+  const endsAt = startedAt + GRAVITY_TIME_KEEPER_DURATION_MS;
+  player.timeKeeperEndsAt = Math.max(Number(player.timeKeeperEndsAt) || 0, endsAt);
+  let stoppedCount = 0;
+  for (const target of room.players.values()) {
+    if (target.id === player.id || !target.alive || target.ejected) continue;
+    target.timeStoppedUntil = Math.max(Number(target.timeStoppedUntil) || 0, endsAt);
+    target.vx = 0;
+    target.vy = 0;
+    target.movementMode = "time-stopped";
+    if (target.drone) {
+      target.drone.vx = 0;
+      target.drone.vy = 0;
+      target.drone.movementMode = "time-stopped";
+    }
+    stoppedCount += 1;
+  }
+  pushMagicEffect(room, "gravity-time-keeper", player, {
+    radius: 155,
+    playerId: player.id,
+    durationMs: GRAVITY_TIME_KEEPER_DURATION_MS,
+    variant: "total-stop"
+  });
+  awardAbilityContribution(player, 1);
+  pushEvent(room, `${player.name} が時の番人を発動し、術者以外の全てを${GRAVITY_TIME_KEEPER_DURATION_MS / 1000}秒間停止しました（${stoppedCount}人 / マナ${GRAVITY_TIME_KEEPER_MANA_COST}）。`);
+  touch(room);
 }
 
 function toggleGravityTime(room, player, mode, targetId) {
@@ -15490,9 +15659,17 @@ function resolveThrownItemLanding(room, thrown) {
   touch(room);
 }
 
-function advanceThrownItems(room, timestamp = now()) {
+function advanceThrownItems(room, timestamp = now(), elapsedMs = 0) {
+  const timeKeeperActive = roomTimeKeeperActive(room, timestamp);
   const pending = [];
   for (const thrown of room.thrownItems || []) {
+    if (timeKeeperActive) {
+      const elapsed = Math.max(0, Number(elapsedMs) || 0);
+      thrown.createdAt = (Number(thrown.createdAt) || timestamp) + elapsed;
+      thrown.landsAt = (Number(thrown.landsAt) || timestamp) + elapsed;
+      pending.push(thrown);
+      continue;
+    }
     if (Number(thrown.landsAt) > timestamp) pending.push(thrown);
     else resolveThrownItemLanding(room, thrown);
   }
@@ -16330,6 +16507,8 @@ function useBorrowedAbility(room, player, type, options = {}) {
       toggleGravityTime(room, player, mode, targetId);
     } else if (mode === "storm") {
       useGravityStorm(room, player, targetId);
+    } else if (mode === "time-keeper") {
+      useTimeKeeper(room, player);
     } else {
       throw new ApiError(400, "借用グラビティの方式が不正です。");
     }
@@ -18513,6 +18692,7 @@ function serialize(room, viewer, options = {}) {
         teleport: TELEPORT_MANA_COST,
         heartTeleport: HEART_TELEPORT_MANA_COST,
         gravityStorm: GRAVITY_STORM_MANA_COST,
+        timeKeeper: GRAVITY_TIME_KEEPER_MANA_COST,
         emp: EMP_MANA_COST,
         shoot: GUNNER_MANA_COST,
         sniping: 0,
@@ -18560,6 +18740,8 @@ function serialize(room, viewer, options = {}) {
       gravityTimeMode: viewer.gravityTimeMode || "",
       gravityTimeTargetId: viewer.gravityTimeTargetId || "",
       gravityTimeEndsAt: Number(viewer.gravityTimeEndsAt) || 0,
+      timeKeeperEndsAt: Number(viewer.timeKeeperEndsAt) || 0,
+      timeStoppedUntil: Number(viewer.timeStoppedUntil) || 0,
       levitationActive: canLevitate(viewer),
       clairvoyanceActive: Boolean(viewer.clairvoyanceActive),
       clairvoyanceManaPerSecond: CLAIRVOYANCE_MANA_DRAIN_PER_SECOND,
@@ -19257,6 +19439,13 @@ async function handleApi(req, res) {
     case "/api/gravity-time": {
       const { room, player } = requireRoomPlayer(body);
       toggleGravityTime(room, player, String(body.mode || "accelerate"), String(body.targetId || player.id));
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/gravity-time-keeper": {
+      const { room, player } = requireRoomPlayer(body);
+      useTimeKeeper(room, player);
       payload = serialize(room, player);
       break;
     }
@@ -20723,7 +20912,7 @@ function runPlayingBots(room) {
   const timestamp = now();
   const map = getMap(room);
   for (const bot of room.players.values()) {
-    if (!bot.isBot || bot.ejected || bot.inVent || timestamp < bot.nextBotActionAt) continue;
+    if (!bot.isBot || bot.ejected || bot.inVent || timeKeeperStops(bot, timestamp) || timestamp < bot.nextBotActionAt) continue;
     bot.nextBotActionAt = timestamp + BOT_TICK_MS - 5;
     const maximumStrength = botHasHumanOpponent(room, bot);
     const attackerUrgency = attackerBotKillUrgencyState(room, bot, timestamp);
@@ -20976,7 +21165,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "map-select-root-matrix-marker-ability-idea-teleport-v497",
+  version: "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

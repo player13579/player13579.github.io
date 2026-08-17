@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "map-select-root-matrix-marker-ability-idea-teleport-v497",
+    version: "map-select-root-matrix-marker-ability-idea-teleport-time-keeper-v497",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
