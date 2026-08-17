@@ -175,6 +175,7 @@ const els = {
   dodgeButton: $("#dodgeButton"),
   teleportButton: $("#teleportButton"),
   teleportControl: $("#teleportControl"),
+  rootAbilitySwitchButton: $("#rootAbilitySwitchButton"),
   teleportModeSelect: $("#teleportModeSelect"),
   teleportModeDescription: $("#teleportModeDescription"),
   teleportTargetSelect: $("#teleportTargetSelect"),
@@ -345,6 +346,21 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "power", "heart-transfer", "focus", "rest", "interact", "jump", "enhance", "throw"
 ]);
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
+const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
+  fighter: "ファイター",
+  gravity: "グラビティ",
+  flora: "フローラ",
+  gunner: "ガンナー",
+  quantum: "量子制御"
+});
+const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
+  fighter: Object.freeze([["limit-break", "リミットブレイク"]]),
+  teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]]),
+  gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]]),
+  flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム・放射"], ["sunbeam-converged", "サンビーム・収束"]]),
+  gunner: Object.freeze([["sniping", "狙撃"]]),
+  quantum: Object.freeze([["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]])
+});
 
 const state = {
   screen: "title",
@@ -397,6 +413,11 @@ const state = {
     opened: false,
     persistent: false,
     hover: null,
+    operatorHover: null,
+    hierarchical: false,
+    branchOperatorIndex: -1,
+    branchOptions: [],
+    finalChoice: null,
     options: [],
     startX: 0,
     startY: 0,
@@ -477,7 +498,7 @@ const state = {
   operatorBranchesOpen: false,
   operatorBranchType: "",
   borrowedOperatorType: "gravity",
-  borrowedAbilityModes: { gravity: "accelerate", flora: "heal", gunner: "sniping" },
+  borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", gunner: "sniping", quantum: "transmute-mercury" },
   arrowRepeatKey: "",
   arrowRepeatAt: 0,
   keybindOpen: false,
@@ -611,27 +632,27 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   heal: "負傷時はHPを2まで全回復。無傷時はオーバーヒール+1",
   reason: "1回分を獲得。次の攻撃対象の踏ん張りを全削除し、削除1回につき自分へ0.5ダメージ。理知中のみ発動",
   mana: "MP+1",
-  railgun: "使い切り。全遮蔽物を貫通する直線破壊射撃。命中者は死体あり",
-  "particle-cannon": "使い切り。照準操作できる貫通破壊ビームを継続放射。経路上の全対象へ命中し死体を残す",
-  excalibur: "使い切り。前方半面を破壊して死体を残し、使用者も死亡",
+  railgun: "使用: 使い切り。全遮蔽物を貫通する直線射撃で、命中時は確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
+  "particle-cannon": "使用: 使い切り。6秒間、0.30秒間隔で照準操作できる貫通ビームを放射し、経路上の全対象は命中時に確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
+  excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
   computer: "所持中、生存者のスマホ位置を表示。EMPストレージ遮断中は停止し、解除後に復帰",
-  handgun: "12発。射程520・威力0.48・0.38秒間隔。弾切れ／射撃停止後に自動リロード",
-  smg: "30発。射程460・威力0.42・0.10秒間隔。距離減衰大。自動リロード",
-  assault: "18発。射程760・威力0.58・0.24秒間隔。距離減衰小。自動リロード",
-  sniper: "5発。射程1200・威力1.35・1.10秒間隔。固有の確殺なし。自動リロード",
-  taser: "8発。射程420・威力0.16・0.72秒間隔。命中対象を6秒間35%減速。自動リロード",
+  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。ため撃ちLv1〜4は0.58/0.67/0.77/0.86（最遠0.37/0.43/0.50/0.56）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。ため撃ちLv1〜4は0.50/0.59/0.67/0.76（最遠0.14/0.17/0.19/0.22）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。狙撃ON時はHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で4Cへ換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で2Cへ換金",
   uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
-  "orichalcum-sword": "斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後のJGは全攻撃反射、消滅斬りは死体なし。斬る／投擲の衝撃波はEC-1、EC100以上の斬るはEC-100で特大化。衝撃波はJG・反射不可",
+  "orichalcum-sword": "直接斬撃は確殺（消滅・死体なし）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後のJGは全攻撃反射。斬る／投擲の衝撃波は与ダメージ1.00・EC-1、EC100以上の斬るはEC-100で特大化。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。衝撃波はJG・反射不可",
   hsg: "再使用可能。使用で8秒間浮揚・ACC 1.8。Enhanceごとに効果時間+4秒、ACC+0.4。有効中の再使用は既存効果をリセットせず追加累積",
   iai: "敵1人の有限の踏ん張りを全削除。200SP相当をSPから消費し、不足分は150SP=1MPで補填。総量不足なら死亡。EC50の無限踏ん張りは削除不可",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
-  rpg: "使い切り。自分以外の周囲全員へ物理攻撃",
-  missile: "使い切り。最寄りの敵1人へ物理攻撃"
+  rpg: "使用: 使い切り。半径300以内にいる自分以外の全員へ与ダメージ1.00の物理攻撃。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える",
+  missile: "使用: 使い切り。最寄りの自分以外1人へ確殺の物理攻撃（HS・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える"
 });
 
 const VENDING_PRODUCT_LABELS = DVA_ECONOMY.productLabels;
@@ -725,7 +746,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "bot-ui-hsg-recovery-v486";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-walk-title-ui-v487";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1477,7 +1498,7 @@ function playTitleCommandArrival() {
   state.titleArrivalTimer = window.setTimeout(() => {
     els.startScreen.classList.remove("title-arriving");
     state.titleArrivalTimer = null;
-  }, 3000);
+  }, 700);
 }
 
 function init() {
@@ -1796,6 +1817,14 @@ function scheduleViewportScaleRestore(force = false) {
 
 const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-region], .tablet-branch-list, .hacker-ability-grid, .active-effects-panel, .item-inventory-grid, .vending-panel, .operator-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .keybind-list";
 
+function isFullscreenScrollableSurface(surface) {
+  if (!(surface instanceof Element) || surface.scrollHeight <= surface.clientHeight + 1) return false;
+  const overflowY = typeof getComputedStyle === "function"
+    ? String(getComputedStyle(surface).overflowY || "")
+    : String(surface.overflowY || "auto");
+  return /^(auto|scroll|overlay)$/.test(overflowY);
+}
+
 function resolveFullscreenScrollableSurface(target) {
   if (!(target instanceof Element)) return null;
   const visited = new Set();
@@ -1806,7 +1835,7 @@ function resolveFullscreenScrollableSurface(target) {
     if (mapped instanceof Element && !visited.has(mapped)) {
       visited.add(mapped);
       fallback ||= mapped;
-      if (mapped.scrollHeight > mapped.clientHeight + 1) return mapped;
+      if (isFullscreenScrollableSurface(mapped)) return mapped;
     }
     candidate = candidate.parentElement?.closest(FULLSCREEN_SCROLL_SELECTOR) || null;
   }
@@ -2584,6 +2613,7 @@ const actionHotkeys = {
   KeyC: "renkiButton",
   KeyL: "sabotageButton",
   KeyU: "utilityButton",
+  KeyE: "contextActionButton",
   KeyY: "fullscreenButton",
   KeyM: "mapActionButton",
   Backslash: "gameMuteButton",
@@ -2612,6 +2642,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/quantum-control": "cast",
   "/api/clairvoyance": "focus",
   "/api/item-use": "interact",
+  "/api/item-pickup": "interact",
   "/api/item-throw": "throw",
   "/api/flora-heal": "heal",
   "/api/alchemist-invention": "cast",
@@ -2927,7 +2958,8 @@ const NON_REPEATABLE_ACTION_HOTKEY_BUTTONS = new Set([
   "mapActionButton",
   "gameMuteButton",
   "fullscreenButton",
-  "ninjutsuButton"
+  "ninjutsuButton",
+  "contextActionButton"
 ]);
 
 function isContinuousGameActionButton(button) {
@@ -3474,7 +3506,11 @@ function updateEnhanceReadout() {
 
 function beginEnhanceAction(kind, pointerId = null) {
   if (!kind || state.enhanceHold.kind) return false;
-  state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0 };
+  const itemId = ["use", "throw"].includes(kind) ? String(els.itemSelect?.value || "") : "";
+  const chargePromise = state.roomId && state.playerId
+    ? api("/api/enhance-charge", { active: true, kind, itemId })
+    : Promise.resolve(false);
+  state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0, itemId, chargePromise };
   state.movementQueue?.clear?.();
   clearMovementInput();
   // A new movement session makes any request that was already in flight before
@@ -3491,7 +3527,18 @@ function cancelEnhanceAction(kind = state.enhanceHold.kind) {
   if (hold.timer) cancelAnimationFrame(hold.timer);
   state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0 };
   updateEnhanceReadout();
+  // Preserve request order: if the start request is still travelling, clear it
+  // only after that request settles so a cancelled charge cannot reappear.
+  void Promise.resolve(hold.chargePromise).then(() => {
+    if (state.roomId && state.playerId) return api("/api/enhance-charge", { active: false });
+    return false;
+  });
   return true;
+}
+
+async function clearServerEnhanceCharge() {
+  if (!state.roomId || !state.playerId) return false;
+  return api("/api/enhance-charge", { active: false });
 }
 
 async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = null) {
@@ -3501,32 +3548,51 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
   if (hold.timer) cancelAnimationFrame(hold.timer);
   state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0 };
   updateEnhanceReadout();
+  await Promise.resolve(hold.chargePromise);
+  if (kind === "shoot") {
+    const result = await beginGunFire(holdMs);
+    if (!result) await clearServerEnhanceCharge();
+    return result;
+  }
   if (kind === "fire") return api("/api/fire-jutsu", { holdMs });
-  const itemId = els.itemSelect?.value || "";
-  if (!itemId) return false;
+  const itemId = hold.itemId || els.itemSelect?.value || "";
+  if (!itemId) {
+    await clearServerEnhanceCharge();
+    return false;
+  }
   if (kind === "use" && itemId === "fire-jutsu") return api("/api/fire-jutsu", { holdMs });
   if (kind === "use" && itemId === "instant-warp") {
+    await clearServerEnhanceCharge();
     beginInstantWarpTargeting();
     return true;
   }
   if (kind === "throw") {
+    await clearServerEnhanceCharge();
     return beginThrowTargeting(itemId, holdMs);
   }
   if (kind === "use" && itemId.startsWith("invention:")) {
+    await clearServerEnhanceCharge();
     return api("/api/alchemist-invention", { invention: itemId.slice(10) });
   }
   if (kind === "use" && itemId.startsWith("weapon:")) {
     const weaponId = itemId.slice(7);
     if (weaponId !== state.data?.self?.gunnerWeapon) {
       const switched = await api("/api/gunner-weapon", { weaponId });
-      if (!switched) return false;
+      if (!switched) {
+        await clearServerEnhanceCharge();
+        return false;
+      }
     }
-    return pulseGunFire();
+    const result = await beginGunFire(holdMs);
+    if (!result) await clearServerEnhanceCharge();
+    return result;
   }
   if (kind === "use" && itemId.startsWith("heavy:")) {
+    await clearServerEnhanceCharge();
     return api("/api/gunner-heavy", { weapon: itemId.slice(6) });
   }
   if (kind === "use" && ["substitution", "stand-firm", "push"].includes(itemId)) {
+    await clearServerEnhanceCharge();
     showToast("このアイテムは条件成立時に自動発動します。");
     return true;
   }
@@ -4118,23 +4184,6 @@ function cycleSelectBy(select, direction = 1) {
   return true;
 }
 
-function switchDragSelectOptions(select, group, onApply = null) {
-  if (!(select instanceof HTMLSelectElement) || select.disabled) return [];
-  return [...select.options]
-    .filter((option) => !option.disabled && !option.hidden)
-    .map((option) => ({
-      key: `${group}:${option.value}`,
-      group,
-      label: option.textContent?.trim() || option.value,
-      selected: option.value === select.value,
-      apply() {
-        select.value = option.value;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-        onApply?.(option.value, option);
-      }
-    }));
-}
-
 function switchDragDescriptorForSource(source) {
   if (!(source instanceof Element)) return null;
   const options = [];
@@ -4151,21 +4200,6 @@ function switchDragDescriptorForSource(source) {
         renderHackerAbilityDock(state.data, true);
       }
     })));
-  } else if (source === els.sabotageSelect) {
-    title = "サボタージュを切り替え";
-    options.push(...switchDragSelectOptions(els.sabotageSelect, "内容"));
-  } else if (source === els.transferTargetSelect) {
-    title = "譲渡対象を切り替え";
-    options.push(...switchDragSelectOptions(els.transferTargetSelect, "対象"));
-  } else if (source === els.teleportModeSelect) {
-    title = "能力方式を切り替え";
-    options.push(...switchDragSelectOptions(els.teleportModeSelect, "方式"));
-  } else if (source === els.teleportTargetSelect) {
-    title = "能力対象を切り替え";
-    options.push(...switchDragSelectOptions(els.teleportTargetSelect, "対象"));
-  } else if (source === els.empPhaseSelect) {
-    title = "EMP位相を切り替え";
-    options.push(...switchDragSelectOptions(els.empPhaseSelect, "位相"));
   } else if (source === els.weaponButton) {
     title = "武器を切り替え";
     const weapons = Array.isArray(state.data?.self?.gunnerWeapons) ? state.data.self.gunnerWeapons : [];
@@ -4176,9 +4210,30 @@ function switchDragDescriptorForSource(source) {
       selected: weapon.id === state.data?.self?.gunnerWeapon,
       apply() { void api("/api/gunner-weapon", { weaponId: weapon.id }); }
     })));
+  } else if (source === els.rootAbilitySwitchButton) {
+    title = "ROOT借用能力を切り替え";
+    const self = state.data?.self;
+    options.push(...availableBorrowedOperatorTypes(self).map((type) => {
+      const operatorLabel = HACKER_ROOT_OPERATOR_LABELS[type] || type;
+      const savedMode = state.borrowedAbilityModes[type] || OPERATOR_ABILITY_MODE_OPTIONS[type]?.[0]?.[0] || "";
+      return {
+        key: `root-operator:${type}`,
+        group: "オペ",
+        label: operatorLabel,
+        selected: type === selectedBorrowedOperator(),
+        branches: (OPERATOR_ABILITY_MODE_OPTIONS[type] || []).map(([mode, label]) => ({
+          key: `root-ability:${type}:${mode}`,
+          group: operatorLabel,
+          label,
+          selected: type === selectedBorrowedOperator() && mode === savedMode,
+          apply() { selectBorrowedAbilityMode(type, mode); }
+        }))
+      };
+    }));
   }
   const unique = options.filter((option, index, all) => all.findIndex((entry) => entry.key === option.key) === index);
-  return unique.length > 1 ? { title, options: unique } : null;
+  const hierarchical = unique.some((option) => Array.isArray(option.branches));
+  return unique.length > 1 ? { title, options: unique, hierarchical } : null;
 }
 
 function positionSwitchDragMenu(source = state.switchDrag.source) {
@@ -4203,7 +4258,53 @@ function positionSwitchDragMenu(source = state.switchDrag.source) {
 
 function clearSwitchDragHover() {
   state.switchDrag.hover?.classList.remove("switch-drag-hover");
+  state.switchDrag.operatorHover?.classList.remove("switch-drag-hover");
   state.switchDrag.hover = null;
+  state.switchDrag.operatorHover = null;
+  state.switchDrag.finalChoice = null;
+}
+
+function renderSwitchDragAbilityBranch(operatorIndex) {
+  const gesture = state.switchDrag;
+  if (!gesture.hierarchical || !Number.isInteger(operatorIndex) || operatorIndex < 0) return false;
+  const operator = gesture.options[operatorIndex];
+  const branchColumn = els.switchDragOptions.querySelector(".switch-drag-ability-column");
+  if (!operator || !branchColumn) return false;
+  gesture.branchOperatorIndex = operatorIndex;
+  gesture.branchOptions = Array.isArray(operator.branches) ? operator.branches : [];
+  gesture.hover?.classList.remove("switch-drag-hover");
+  gesture.hover = null;
+  gesture.finalChoice = null;
+  els.switchDragOptions.querySelectorAll("[data-switch-drag-operator-index]").forEach((button) => {
+    const active = Number(button.dataset.switchDragOperatorIndex) === operatorIndex;
+    button.classList.toggle("branch-open", active);
+    button.setAttribute("aria-expanded", String(active));
+  });
+  branchColumn.replaceChildren();
+  branchColumn.setAttribute("aria-label", `${operator.label}の能力`);
+  gesture.branchOptions.forEach((ability, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.switchDragAbilityIndex = String(index);
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", String(Boolean(ability.selected)));
+    button.setAttribute("aria-label", `${ability.group}: ${ability.label}`);
+    button.className = `switch-drag-option switch-drag-ability${ability.selected ? " selected" : ""}`;
+    button.innerHTML = `<small>${escapeHtml(ability.group)}</small><strong>${escapeHtml(ability.label)}</strong>`;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (!state.switchDrag.opened || !state.switchDrag.persistent) return;
+      event.stopPropagation();
+      const choice = state.switchDrag.branchOptions[index];
+      closeSwitchDragMenu();
+      if (!choice) return;
+      choice.apply();
+      showToast(`${choice.group}: ${choice.label}`);
+      playSound("select");
+    });
+    branchColumn.append(button);
+  });
+  return true;
 }
 
 function updateSwitchDragHover(clientX, clientY) {
@@ -4211,8 +4312,39 @@ function updateSwitchDragHover(clientX, clientY) {
   const candidate = document.elementsFromPoint(clientX, clientY)
     .map((element) => element.closest?.("#switchDragOptions button"))
     .find(Boolean) || null;
+  const gesture = state.switchDrag;
+  if (gesture.hierarchical) {
+    if (!candidate) {
+      gesture.hover?.classList.remove("switch-drag-hover");
+      gesture.hover = null;
+      gesture.finalChoice = null;
+      return;
+    }
+    if (candidate.dataset.switchDragOperatorIndex !== undefined) {
+      const operatorIndex = Number(candidate.dataset.switchDragOperatorIndex);
+      if (gesture.branchOperatorIndex !== operatorIndex) renderSwitchDragAbilityBranch(operatorIndex);
+      if (candidate !== gesture.operatorHover) {
+        gesture.operatorHover?.classList.remove("switch-drag-hover");
+        gesture.operatorHover = candidate;
+        candidate.classList.add("switch-drag-hover");
+        if (navigator.vibrate) navigator.vibrate(8);
+      }
+      return;
+    }
+    if (candidate.dataset.switchDragAbilityIndex !== undefined) {
+      if (candidate === gesture.hover) return;
+      gesture.hover?.classList.remove("switch-drag-hover");
+      gesture.hover = candidate;
+      candidate.classList.add("switch-drag-hover");
+      const abilityIndex = Number(candidate.dataset.switchDragAbilityIndex);
+      gesture.finalChoice = Number.isInteger(abilityIndex) ? gesture.branchOptions[abilityIndex] || null : null;
+      if (navigator.vibrate) navigator.vibrate(8);
+      return;
+    }
+  }
   if (candidate === state.switchDrag.hover) return;
-  clearSwitchDragHover();
+  state.switchDrag.hover?.classList.remove("switch-drag-hover");
+  state.switchDrag.hover = null;
   if (!candidate) return;
   state.switchDrag.hover = candidate;
   candidate.classList.add("switch-drag-hover");
@@ -4231,9 +4363,15 @@ function closeSwitchDragMenu() {
   gesture.source = null;
   gesture.opened = false;
   gesture.persistent = false;
+  gesture.hierarchical = false;
+  gesture.branchOperatorIndex = -1;
+  gesture.branchOptions = [];
+  gesture.finalChoice = null;
   gesture.options = [];
   els.switchDragMenu.hidden = true;
+  els.switchDragMenu.classList.remove("hierarchical");
   els.switchDragMenu.setAttribute("aria-hidden", "true");
+  source?.setAttribute("aria-expanded", "false");
   els.switchDragOptions.replaceChildren();
   if (source && pointerId !== null) {
     try {
@@ -4251,10 +4389,43 @@ function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
   }
   gesture.opened = true;
   gesture.persistent = persistent;
+  gesture.hierarchical = Boolean(descriptor.hierarchical);
+  els.switchDragMenu.classList.toggle("hierarchical", gesture.hierarchical);
   gesture.options = descriptor.options;
   gesture.source.classList.add("switch-drag-source");
+  gesture.source.setAttribute("aria-expanded", "true");
   els.switchDragTitle.textContent = descriptor.title;
   els.switchDragOptions.replaceChildren();
+  els.switchDragOptions.classList.toggle("hierarchical", gesture.hierarchical);
+  if (gesture.hierarchical) {
+    const operatorColumn = document.createElement("div");
+    operatorColumn.className = "switch-drag-operator-column";
+    operatorColumn.setAttribute("role", "group");
+    operatorColumn.setAttribute("aria-label", "オペレーター");
+    const abilityColumn = document.createElement("div");
+    abilityColumn.className = "switch-drag-ability-column";
+    abilityColumn.setAttribute("role", "group");
+    descriptor.options.forEach((option, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.switchDragOperatorIndex = String(index);
+      button.setAttribute("aria-haspopup", "listbox");
+      button.setAttribute("aria-expanded", "false");
+      button.setAttribute("aria-label", `オペ: ${option.label}`);
+      button.className = `switch-drag-option switch-drag-operator${option.selected ? " selected" : ""}`;
+      button.innerHTML = `<small>オペ</small><strong>${escapeHtml(option.label)}</strong>`;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (!state.switchDrag.opened || !state.switchDrag.persistent) return;
+        event.stopPropagation();
+        renderSwitchDragAbilityBranch(index);
+      });
+      operatorColumn.append(button);
+    });
+    els.switchDragOptions.append(operatorColumn, abilityColumn);
+    const selectedIndex = Math.max(0, descriptor.options.findIndex((option) => option.selected));
+    renderSwitchDragAbilityBranch(selectedIndex);
+  } else {
   descriptor.options.forEach((option, index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -4277,6 +4448,7 @@ function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
     });
     els.switchDragOptions.append(button);
   });
+  }
   els.switchDragMenu.hidden = false;
   els.switchDragMenu.setAttribute("aria-hidden", "false");
   positionSwitchDragMenu();
@@ -4284,6 +4456,17 @@ function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
     try { gesture.source.setPointerCapture?.(gesture.pointerId); } catch {}
   }
   if (navigator.vibrate) navigator.vibrate(16);
+}
+
+function openSharedSwitchMenuForSource(source, { persistent = false } = {}) {
+  const descriptor = switchDragDescriptorForSource(source);
+  if (!descriptor) return false;
+  if (state.switchDrag.source !== source) {
+    closeSwitchDragMenu();
+    state.switchDrag.source = source;
+  }
+  openSwitchDragMenu(descriptor, { persistent });
+  return state.switchDrag.opened;
 }
 
 function beginSwitchDragGesture(event) {
@@ -4298,7 +4481,7 @@ function beginSwitchDragGesture(event) {
   gesture.source = source;
   gesture.startX = event.clientX;
   gesture.startY = event.clientY;
-  gesture.timer = window.setTimeout(() => openSwitchDragMenu(descriptor), SWITCH_DRAG_HOLD_DELAY_MS);
+  gesture.timer = window.setTimeout(() => openSharedSwitchMenuForSource(source), SWITCH_DRAG_HOLD_DELAY_MS);
 }
 
 function moveSwitchDragGesture(event) {
@@ -4323,7 +4506,11 @@ function finishSwitchDragGesture(event, cancelled = false) {
     event.preventDefault();
     updateSwitchDragHover(event.clientX, event.clientY);
     const index = cancelled ? -1 : Number(gesture.hover?.dataset.switchDragIndex);
-    const choice = Number.isInteger(index) && index >= 0 ? gesture.options[index] : null;
+    const choice = cancelled
+      ? null
+      : gesture.hierarchical
+        ? gesture.finalChoice
+        : Number.isInteger(index) && index >= 0 ? gesture.options[index] : null;
     gesture.suppressClickUntil.set(source, performance.now() + 900);
     closeSwitchDragMenu();
     if (choice) {
@@ -4333,13 +4520,12 @@ function finishSwitchDragGesture(event, cancelled = false) {
     }
     return true;
   }
-  const descriptor = !cancelled ? switchDragDescriptorForSource(source) : null;
-  if (descriptor) {
+  if (!cancelled && switchDragDescriptorForSource(source)) {
     event.preventDefault();
     gesture.suppressClickUntil.set(source, performance.now() + 900);
     closeSwitchDragMenu();
     gesture.source = source;
-    openSwitchDragMenu(descriptor, { persistent: true });
+    openSharedSwitchMenuForSource(source, { persistent: true });
     return true;
   }
   closeSwitchDragMenu();
@@ -4357,8 +4543,29 @@ function suppressSwitchDragClick(event) {
 
 function bindSwitchDragControl(source) {
   if (!source) return;
+  if (source instanceof HTMLSelectElement) {
+    source.dataset.switchUi = "native-default";
+    return;
+  }
   source.classList.add("switch-drag-control");
+  source.setAttribute("aria-haspopup", "listbox");
+  source.setAttribute("aria-controls", "switchDragMenu");
+  source.setAttribute("aria-expanded", "false");
   source.addEventListener("pointerdown", beginSwitchDragGesture);
+  source.addEventListener("mousedown", (event) => {
+    if (switchDragDescriptorForSource(source)) event.preventDefault();
+  }, true);
+  source.addEventListener("touchstart", (event) => {
+    if (switchDragDescriptorForSource(source)) event.preventDefault();
+  }, { capture: true, passive: false });
+  source.addEventListener("click", (event) => {
+    if (!switchDragDescriptorForSource(source)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeSwitchDragMenu();
+    state.switchDrag.source = source;
+    openSharedSwitchMenuForSource(source, { persistent: true });
+  }, true);
   source.addEventListener("lostpointercapture", (event) => finishSwitchDragGesture(event, true));
   source.addEventListener("contextmenu", (event) => {
     if (!switchDragDescriptorForSource(source)) return;
@@ -4465,6 +4672,23 @@ function cycleBorrowedOperator(direction = 1) {
   updateActionButtons(state.data);
   setActionSelection(els.operatorAbilityButton);
   showToast(`借用オペ: ${recipe.label}`);
+  return true;
+}
+
+function selectBorrowedAbilityMode(type, mode) {
+  const self = state.data?.self;
+  if (!availableBorrowedOperatorTypes(self).includes(type)) return false;
+  const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
+  if (!choices.some(([value]) => value === mode)) return false;
+  state.borrowedOperatorType = type;
+  state.borrowedAbilityModes[type] = mode;
+  renderTargetOptions(state.data);
+  if ([...els.teleportModeSelect.options].some((option) => option.value === mode)) {
+    els.teleportModeSelect.value = mode;
+    els.teleportModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  updateActionButtons(state.data);
+  setActionSelection(els.rootAbilitySwitchButton);
   return true;
 }
 
@@ -4682,6 +4906,7 @@ function bindEvents() {
     els.empPhaseSelect,
     els.sabotageSelect,
     els.transferTargetSelect,
+    els.rootAbilitySwitchButton,
     els.weaponButton
   ].forEach(bindSwitchDragControl);
   document.addEventListener("pointerdown", (event) => {
@@ -4715,13 +4940,13 @@ function bindEvents() {
     selectItemHoldBranchChoice("continuous");
     try { els.itemHoldBranchContinuousButton.setPointerCapture(event.pointerId); } catch {}
   });
-  const finishContinuousItemBranch = (event) => {
+  const finishContinuousPurchaseBranch = (event) => {
     if (state.itemHoldBranch.pointerId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
     finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
   };
-  els.itemHoldBranchContinuousButton.addEventListener("pointerup", finishContinuousItemBranch);
+  els.itemHoldBranchContinuousButton.addEventListener("pointerup", finishContinuousPurchaseBranch);
   els.itemHoldBranchContinuousButton.addEventListener("pointercancel", () => closeItemHoldBranch());
   els.itemHoldBranchContinuousButton.addEventListener("lostpointercapture", (event) => {
     if (state.itemHoldBranch.pointerId === event.pointerId) closeItemHoldBranch();
@@ -4822,11 +5047,11 @@ function bindEvents() {
       event.preventDefault();
       state.gunTriggerPointerId = event.pointerId;
       button.setPointerCapture?.(event.pointerId);
-      void beginGunFire();
+      beginEnhanceAction("shoot", event.pointerId);
     });
     button.addEventListener("pointerup", releaseGunPointer);
-    button.addEventListener("pointercancel", releaseGunPointer);
-    button.addEventListener("lostpointercapture", releaseGunPointer);
+    button.addEventListener("pointercancel", cancelGunPointer);
+    button.addEventListener("lostpointercapture", cancelGunPointer);
     button.addEventListener("click", (event) => {
       if (event.detail === 0) void pulseGunFire();
     });
@@ -4834,7 +5059,12 @@ function bindEvents() {
   const releaseGunPointer = (event) => {
     if (state.gunTriggerPointerId !== null && event.pointerId !== state.gunTriggerPointerId) return;
     state.gunTriggerPointerId = null;
-    void endGunFire();
+    void finishEnhanceAction("shoot", event.pointerId);
+  };
+  const cancelGunPointer = (event) => {
+    if (state.gunTriggerPointerId !== null && event.pointerId !== state.gunTriggerPointerId) return;
+    state.gunTriggerPointerId = null;
+    cancelEnhanceAction("shoot");
   };
   bindGunTriggerButton(els.shootButton);
   bindGunTriggerButton(els.tabletShootShortcut);
@@ -4894,6 +5124,13 @@ function bindEvents() {
   bindJumpPointerButton(els.jumpButton);
   bindJumpPointerButton(els.tabletJumpShortcut);
   els.contextActionButton.addEventListener("click", () => {
+    if (els.contextActionButton.dataset.context === "ground-item") {
+      const groundItemId = String(els.contextActionButton.dataset.groundItemId || "");
+      if (groundItemId && !els.contextActionButton.disabled) {
+        void api("/api/item-pickup", { groundItemId });
+      }
+      return;
+    }
     const source = document.getElementById(els.contextActionButton.dataset.sourceId || "");
     if (source && !source.disabled) source.click();
   });
@@ -4918,12 +5155,6 @@ function bindEvents() {
     button.addEventListener("selectstart", suppressNativeHoldUi);
     button.addEventListener("dragstart", suppressNativeHoldUi);
     const finishPointerAction = (event) => {
-      if (kind === "use" && state.gunTriggerPointerId === event.pointerId) {
-        event.preventDefault();
-        suppressClickUntil = performance.now() + 700;
-        void endGunFire();
-        return true;
-      }
       if (state.enhanceHold.pointerId !== event.pointerId) return false;
       event.preventDefault();
       suppressClickUntil = performance.now() + 700;
@@ -4935,19 +5166,15 @@ function bindEvents() {
       if (button.disabled) return;
       event.preventDefault();
       button.setPointerCapture?.(event.pointerId);
-      if (kind === "use" && String(els.itemSelect?.value || "").startsWith("weapon:")) {
-        suppressClickUntil = performance.now() + 1200;
-        state.gunTriggerPointerId = event.pointerId;
-        void beginInventoryWeaponFire(event.pointerId);
-        return;
-      }
       beginEnhanceAction(kind, event.pointerId);
     });
     button.addEventListener("pointerup", (event) => {
       finishPointerAction(event);
     });
     button.addEventListener("pointercancel", (event) => {
-      finishPointerAction(event);
+      if (state.enhanceHold.pointerId !== event.pointerId) return;
+      suppressClickUntil = performance.now() + 700;
+      cancelEnhanceAction(kind);
     });
     button.addEventListener("lostpointercapture", (event) => {
       finishPointerAction(event);
@@ -5317,8 +5544,7 @@ function bindEvents() {
     stopContinuousActionHold();
     stopContinuousActionKeyHold();
     cancelThrowTargeting(true);
-    if (state.enhanceHold.timer) cancelAnimationFrame(state.enhanceHold.timer);
-    state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0 };
+    cancelEnhanceAction();
     state.continuousActionKeyAt.clear();
     clearMovementInput();
   });
@@ -5335,17 +5561,13 @@ function bindEvents() {
     if (state.enhanceHold.pointerId === event.pointerId) void finishEnhanceAction(state.enhanceHold.kind, event.pointerId);
     stopContinuousActionHold(event.pointerId);
     releasePointerInput(event.pointerId);
-    if (state.gunTriggerPointerId === event.pointerId) void endGunFire();
+    if (state.gunTriggerPointerId === event.pointerId) state.gunTriggerPointerId = null;
   });
   window.addEventListener("pointercancel", (event) => {
-    if (state.enhanceHold.pointerId === event.pointerId) {
-      if (state.enhanceHold.timer) cancelAnimationFrame(state.enhanceHold.timer);
-      state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0 };
-      updateEnhanceReadout();
-    }
+    if (state.enhanceHold.pointerId === event.pointerId) cancelEnhanceAction(state.enhanceHold.kind);
     stopContinuousActionHold(event.pointerId);
     releasePointerInput(event.pointerId);
-    if (state.gunTriggerPointerId === event.pointerId) void endGunFire();
+    if (state.gunTriggerPointerId === event.pointerId) state.gunTriggerPointerId = null;
   });
   window.addEventListener("lostpointercapture", (event) => {
     stopContinuousActionHold(event.pointerId);
@@ -5956,21 +6178,14 @@ function appendTabletBranchButton(label, action, {
   };
 
   if (hold === "shoot") {
-    let firing = false;
     bindScrollableHold({
-      delay: 140,
       interval: 0,
-      tapInvoke: () => void pulseGunFire(),
-      holdInvoke: () => {
-        if (!firing) {
-          firing = true;
-          void beginGunFire();
-        }
-      },
-      holdEnd: () => {
-        if (!firing) return;
-        firing = false;
-        void endGunFire();
+      pointerStart: () => beginEnhanceAction("shoot"),
+      pointerCancel: () => cancelEnhanceAction("shoot"),
+      tapInvoke: () => void finishEnhanceAction("shoot"),
+      holdInvoke: () => {},
+      holdEnd: ({ cancelled }) => {
+        if (!cancelled) void finishEnhanceAction("shoot");
       }
     });
   } else if (hold === "enhance-use" || hold === "enhance-throw") {
@@ -6230,7 +6445,7 @@ function conciseTabletAbilityName(data) {
   };
   if (owner === "fighter") return "リミットブレイク";
   if (owner === "gunner") return "狙撃";
-  if (owner === "alchemist") return "借用能力";
+  if (owner === "alchemist") return data?.self?.hackerRootActive ? "借用能力" : "Root化";
   return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
 }
 
@@ -6761,6 +6976,10 @@ function triggerOperatorAbility() {
   } else if (self.special === "quantum") {
     void api("/api/quantum-control", { mode: els.teleportModeSelect.value || self.quantumMode });
   } else if (self.special === "alchemist") {
+    if (!self.hackerRootActive) {
+      void api("/api/hacker-root");
+      return;
+    }
     const borrowedType = selectedBorrowedOperator();
     if (borrowedType) triggerBorrowedAbility(borrowedType, state.borrowedAbilityModes[borrowedType] || "");
   }
@@ -7396,17 +7615,16 @@ function clearLocalGunTrigger() {
   }
 }
 
-async function beginGunFire() {
+async function beginGunFire(holdMs = 0) {
   if (state.gunTriggerHeld || state.gunFireStartPromise || els.shootButton.disabled) return false;
   state.gunTriggerHeld = true;
   els.shootButton.classList.add("active");
   const direction = gunnerDirection();
-  const request = api("/api/shoot", { action: "start", dx: direction.dx, dy: direction.dy });
+  const request = api("/api/shoot", { action: "start", dx: direction.dx, dy: direction.dy, holdMs });
   state.gunFireStartPromise = request;
   const result = await request;
   if (state.gunFireStartPromise === request) {
-    state.gunFireStartPromise = null;
-    if (!result || result.self?.gunFiring === false) clearLocalGunTrigger();
+    clearLocalGunTrigger();
   }
   return Boolean(result);
 }
@@ -7419,7 +7637,6 @@ async function endGunFire() {
   state.hackerGenerationInFlight = false;
   clearHackerCooldownWake();
   if (pending) await pending;
-  if (state.roomId && state.playerId) await api("/api/shoot", { action: "stop" });
 }
 
 async function beginInventoryWeaponFire(pointerId) {
@@ -7435,8 +7652,7 @@ async function beginInventoryWeaponFire(pointerId) {
 }
 
 async function pulseGunFire() {
-  if (!await beginGunFire()) return;
-  window.setTimeout(() => void endGunFire(), 90);
+  return beginGunFire(0);
 }
 
 function cardinalDirectionVector(dx, dy, fallback = { dx: 0, dy: 1 }) {
@@ -8629,23 +8845,18 @@ async function selectOperatorFromCard(operator) {
 
 function renderTargetOptions(data) {
   const self = data.self;
-  const modeOptions = {
-    teleport: [["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
-    gravity: [["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["storm", "グラビティストーム"]],
-    flora: [["heal", "回復"], ["sunbeam", "サンビーム・放射"], ["sunbeam-converged", "サンビーム・収束"]],
-    gunner: [["sniping", "狙撃"]],
-    quantum: [["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]]
-  };
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value);
   const borrowedOperator = selectedBorrowedOperator();
   const modeOwner = borrowedOperator || self.special;
   els.teleportTargetSelect.dataset.ownerKey = modeOwner;
-  const options = modeOptions[modeOwner] || [];
+  const options = OPERATOR_ABILITY_MODE_OPTIONS[modeOwner] || [];
+  const rootAbilitySwitchVisible = self.special === "alchemist" && self.hackerRootActive && availableBorrowedOperatorTypes(self).length > 0;
   const alchemyTargetVisible = self.special === "alchemist" &&
     (els.alchemySelect.value === "revive" || els.alchemySelect.value.startsWith("hack-"));
-  const controlVisible = data.phase === "playing" && (options.length > 1 || alchemyTargetVisible) && self.alive && !self.ejected;
+  const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible) && self.alive && !self.ejected;
   els.teleportControl.hidden = !controlVisible;
-  els.teleportModeSelect.closest("label").hidden = !options.length;
+  els.rootAbilitySwitchButton.hidden = !rootAbilitySwitchVisible;
+  els.teleportModeSelect.closest("label").hidden = rootAbilitySwitchVisible || !options.length;
   els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible &&
     !["teleport", "gravity"].includes(modeOwner);
   els.empPhaseControl.hidden = data.phase !== "playing" || !self.alive || self.ejected;
@@ -8667,6 +8878,15 @@ function renderTargetOptions(data) {
           ? previousMode
           : defaultMode;
     rememberSelectedOperatorMode();
+  }
+
+  if (rootAbilitySwitchVisible) {
+    const selectedMode = state.borrowedAbilityModes[modeOwner] || options[0]?.[0] || "";
+    const selectedLabel = options.find(([value]) => value === selectedMode)?.[1] || selectedMode;
+    const operatorLabel = HACKER_ROOT_OPERATOR_LABELS[modeOwner] || modeOwner;
+    els.rootAbilitySwitchButton.textContent = `${operatorLabel} → ${selectedLabel}`;
+    els.rootAbilitySwitchButton.title = "長押し→オペ名へスワイプ→能力へスワイプ→指を離して確定";
+    els.rootAbilitySwitchButton.setAttribute("aria-label", `ROOT借用能力: ${operatorLabel}、${selectedLabel}。長押ししてオペ名から能力へスワイプし、指を離して確定`);
   }
 
   syncAbilityModeDescription(modeOwner, self);
@@ -8698,6 +8918,9 @@ function abilityModeDescription(owner, mode, self) {
   const free = self?.hackerManaFree || self?.rationalFreeAbilityReady;
   const cost = (key, fallback = 1) => free ? "今回0MP" : `${Number(costs[key] ?? fallback)}MP`;
   const descriptions = {
+    fighter: {
+      "limit-break": "HPを1消費してSPと加速を3倍ずつ累積する。HPを使い切ると死亡する。"
+    },
     teleport: {
       near: `対象の近くへ全身転移する。${cost("teleport")}。`,
       target: `マップで指定した地点へ選択対象を転移する。味方への誤射は発動者が即死する。${cost("teleport")}。`,
@@ -8814,7 +9037,7 @@ function collectInventoryDisplayItems(self) {
           asset: weapon.id,
           inventoryKind: "weapon",
           output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 射程${Math.round(Number(weapon.range) || 0)} / 威力${Number(weapon.damage).toFixed(2)}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}${self.gunnerSnipingActive ? " / 現在: 確殺（狙撃ON・HS）" : ""}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -8834,7 +9057,7 @@ function collectInventoryDisplayItems(self) {
         asset: `gunner-special-ammo-${type}`,
         inventoryKind: "special-ammo",
         output: `所持 ${count}発${loaded ? " / 装填中" : ""}`,
-        detail: `${label}の獲得済み所持弾。装填中でも追加獲得でき、通常リロードでは失われません。`,
+        detail: `${label}の獲得済み所持弾。現在の選択武器へ適用され、武器を切り替えると新しい選択武器へ追従します。装填中でも追加獲得でき、通常リロードでは失われません。`,
         badge: `${loaded ? "装填中 / " : ""}×${count}`,
         throwable: false,
         transferable: false
@@ -9011,8 +9234,8 @@ function positionItemHoldBranch() {
   requestAnimationFrame(drawItemHoldBranchLine);
 }
 
-function openItemHoldBranch({ source, detail, repeat, continuousLabel = "連続実行", pointerId = null }) {
-  if (!source || typeof repeat !== "function") return false;
+function openItemHoldBranch({ source, detail, repeat, continuousLabel = "連続購入", pointerId = null }) {
+  if (!source || !detail || typeof repeat !== "function") return false;
   hideInventoryItemDetail();
   closeItemHoldBranch();
   state.itemHoldBranch.source = source;
@@ -9164,7 +9387,7 @@ function createInventoryClickGate({
   };
 }
 
-function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid, holdBranch = null) {
+function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid) {
   const clickGate = createInventoryClickGate();
   let activePointerId = null;
   let activePointerType = "";
@@ -9186,17 +9409,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
       clickGate.arm();
       clearNativeSelection();
       try { button.setPointerCapture(activePointerId); } catch {}
-      if (holdBranch?.repeat) {
-        openItemHoldBranch({
-          source: button,
-          detail: item,
-          repeat: holdBranch.repeat,
-          continuousLabel: holdBranch.continuousLabel,
-          pointerId: activePointerId
-        });
-      } else {
-        showInventoryItemDetail(item, button);
-      }
+      showInventoryItemDetail(item, button);
       if (navigator.vibrate) navigator.vibrate(18);
     },
     onClearSelection: clearNativeSelection
@@ -9222,11 +9435,6 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
     const result = pointerGesture.end(event.pointerId);
-    if (result === "hold" && holdBranch?.repeat) {
-      if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
-      finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
-    }
     if (result === "hold") {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -9479,7 +9687,7 @@ function collectOperatorPassiveEffects(self, liveNow) {
       self.manaGpuActive ? "truth" : "neutral",
       `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`
     );
-    add("root化", self.hackerRootActive ? "発動中" : "待機", self.hackerRootActive ? "truth" : "neutral", "残HP1以下かつ踏ん張り・変わり身なしの時だけ全オペ能力を借用");
+    add("Root化", self.hackerRootActive ? "発動中" : "Hで発動", self.hackerRootActive ? "truth" : "neutral", "能力ボタンで発動。踏ん張り・変わり身は所持を維持したままROOT中だけ無効。自己ダメージでHPを0.0001にして全オペ能力を借用");
   }
 
   return effects;
@@ -9906,12 +10114,13 @@ function updateActionButtons(data) {
   const aimed = aimedTarget(data);
   const task = nearestTask();
   const utilityStation = nearestStation((station) => station.type === "utility");
+  const groundItem = nearestGroundItem(data);
   const liveNow = estimatedServerNow(data);
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
   const maxStamina = Number(self.maxStamina) || 100;
   const cameraIndices = availableCameraIndices(data);
   const aiming = Boolean(aimed && self.aimTargetId);
-  const contextSource = utilityStation ? els.utilityButton : null;
+  const contextSource = !groundItem && utilityStation ? els.utilityButton : null;
   const dodgeAccess = self.role === "defender" || fighterAccess;
 
   const hackerManualTask = self.special === "alchemist" && Boolean(task);
@@ -9950,7 +10159,7 @@ function updateActionButtons(data) {
     els.alchemyButton.hidden = true;
     els.operatorAbilityButton.hidden = activeBorrowedOperator
       ? false
-      : !["fighter", "teleport", "flora", "gunner", "quantum"].includes(self.special);
+      : !["fighter", "teleport", "flora", "gunner", "quantum", "alchemist"].includes(self.special);
     els.jumpButton.hidden = true;
     els.gunnerReloadButton.hidden = true;
     els.empButton.hidden = false;
@@ -9967,16 +10176,28 @@ function updateActionButtons(data) {
   els.jumpButton.disabled = !canActAlive || Number(self.stamina) < 41;
   els.jumpButton.dataset.hotkey = "J";
   els.jumpButton.title = "Jを長押しして跳躍距離を延ばす";
-  els.contextActionButton.hidden = !contextSource;
-  if (contextSource) {
+  els.contextActionButton.hidden = !(groundItem || contextSource);
+  if (groundItem) {
+    els.contextActionButton.dataset.sourceId = "";
+    els.contextActionButton.dataset.context = "ground-item";
+    els.contextActionButton.dataset.groundItemId = groundItem.id;
+    els.contextActionButton.dataset.hotkey = "E";
+    els.contextActionButton.textContent = `拾う: ${groundItem.label}`;
+    els.contextActionButton.title = `${groundItem.label}を拾う（誰でも取得可能）`;
+    els.contextActionButton.disabled = !(canActAlive && !itemBlocked);
+  } else if (contextSource) {
     els.contextActionButton.dataset.sourceId = contextSource.id;
     els.contextActionButton.dataset.context = contextSource.id.replace(/Button$/, "");
+    els.contextActionButton.dataset.groundItemId = "";
     els.contextActionButton.dataset.hotkey = contextSource.dataset.hotkey || "";
     els.contextActionButton.textContent = contextSource.textContent;
+    els.contextActionButton.title = contextSource.title || contextSource.textContent;
     els.contextActionButton.disabled = contextSource.disabled;
   } else {
     els.contextActionButton.dataset.sourceId = "";
     els.contextActionButton.dataset.context = "";
+    els.contextActionButton.dataset.groundItemId = "";
+    els.contextActionButton.title = "";
     els.contextActionButton.removeAttribute("data-hotkey");
   }
   const killSeconds = Math.max(0, Math.ceil(((self.killReadyAt || 0) - liveNow) / 1000));
@@ -9990,7 +10211,12 @@ function updateActionButtons(data) {
   els.ninjutsuButton.title = "忍殺: 自分と対象が5秒間静止すると対象を消滅させ、死体を残さない。移動または対象喪失で失敗";
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
-  els.substitutionStatusButton.textContent = itemBlocked ? `変わり身 ×${self.substitutionCharges || 0}（EMP遮断）` : `変わり身 ×${self.substitutionCharges || 0}（自動）`;
+  const rootProtectionBlocked = Boolean(self.hackerRootActive);
+  els.substitutionStatusButton.textContent = rootProtectionBlocked
+    ? `変わり身 ×${self.substitutionCharges || 0}（ROOT中無効・所持維持）`
+    : itemBlocked
+      ? `変わり身 ×${self.substitutionCharges || 0}（EMP遮断）`
+      : `変わり身 ×${self.substitutionCharges || 0}（自動）`;
   const standFirmCharges = Number(self.standFirmCharges ?? self.gritCharges) || 0;
   const pushCharges = Number(self.pushCharges ?? self.reasonCharges) || 0;
   const philosophy = [
@@ -9998,7 +10224,13 @@ function updateActionButtons(data) {
     (self.ideaStage || 0) >= 1 && (self.ideaFirstAspect === "beauty" || (self.ideaStage || 0) >= 2) ? "美" : "",
     self.goodActive ? "善" : ""
   ].filter(Boolean).join("・");
-  const standFirmMode = self.fighterInfiniteResources ? "50回到達報酬" : itemBlocked ? "EMP遮断" : "自動";
+  const standFirmMode = self.fighterInfiniteResources
+    ? "50回到達報酬"
+    : rootProtectionBlocked
+      ? "ROOT中無効・所持維持"
+      : itemBlocked
+        ? "EMP遮断"
+        : "自動";
   els.gritStatusButton.textContent = `踏ん張り ${self.fighterInfiniteResources ? "∞" : `×${standFirmCharges}`}（${standFirmMode}）${philosophy ? ` / ${philosophy}` : ""}`;
   els.reasonButton.textContent = `押し込み ×${pushCharges}（${itemBlocked ? "EMP遮断" : "自動"}）`;
   els.reasonButton.disabled = true;
@@ -10017,13 +10249,18 @@ function updateActionButtons(data) {
     ? ({ weak: "ウィーク", shock: "ショック" }[self.gunnerSpecialAmmoType] || "特殊弾")
     : "";
   els.weaponButton.textContent = `${gunnerWeapon.shortName || gunnerWeapon.name} ${gunnerWeapon.ammo}/${gunnerWeapon.maxAmmo}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}×${self.gunnerSpecialAmmoRounds}` : ""}`;
-  const falloffPercent = Math.round((1 - (Number(gunnerWeapon.minDamageRatio) || 1)) * 100);
-  els.weaponButton.title = gunnerWeapon.id === "sniper"
-    ? `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / 長押し連射 / 確殺 / Tで切替`
-    : `${gunnerWeapon.name} / ${Number(gunnerWeapon.damage).toFixed(2)}ダメージ / 距離減衰${falloffPercent}% / Tで切替`;
+  const normalDamage = Math.max(0, Number(gunnerWeapon.damage) || 0);
+  const minimumDamage = Math.round(normalDamage * Math.max(0, Number(gunnerWeapon.minDamageRatio) || 1) * 100) / 100;
+  const normalDamageDetail = minimumDamage < normalDamage
+    ? `通常与ダメージ${normalDamage.toFixed(2)}（最遠${minimumDamage.toFixed(2)}）`
+    : `通常与ダメージ${normalDamage.toFixed(2)}（距離減衰なし）`;
+  const snipingDamageDetail = self.gunnerSnipingActive
+    ? "現在: 確殺（狙撃ON・HS）"
+    : "ガンナー狙撃ON時: 確殺（HS）";
+  els.weaponButton.title = `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / ${normalDamageDetail} / ${snipingDamageDetail}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}特殊弾はこの選択武器へ適用中` : ""} / Tで切替`;
   els.weaponButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess);
   if (self.gunFiring) {
-    els.shootButton.textContent = `${firingWeapon.shortName || firingWeapon.name} 持続射撃中`;
+    els.shootButton.textContent = `${firingWeapon.shortName || firingWeapon.name} 1弾倉射撃中（残り${Math.max(0, Number(self.gunnerBurstRoundsRemaining) || 0)}発）`;
   } else if (reloadSeconds > 0) {
     els.shootButton.textContent = `リロード ${reloadSeconds.toFixed(1)}秒`;
   } else if (!gunAmmoReady) {
@@ -10031,12 +10268,11 @@ function updateActionButtons(data) {
   } else if (gunSeconds > 0) {
     els.shootButton.textContent = `${shootLabel} ${gunSeconds.toFixed(1)}秒`;
   } else {
-    els.shootButton.textContent = gunnerWeapon.id === "sniper" ? "長押しSR連射" : "長押し射撃";
+    els.shootButton.textContent = shootLabel;
   }
   els.shootButton.classList.toggle("active", Boolean(self.gunFiring || state.gunTriggerHeld));
-  els.shootButton.disabled = self.gunFiring || state.gunTriggerHeld
-    ? false
-    : !(canUseAbility && !itemBlocked && gunnerAccess && gunAmmoReady && gunSeconds <= 0 && reloadSeconds <= 0);
+  els.shootButton.disabled = Boolean(self.gunFiring || state.gunTriggerHeld || state.gunFireStartPromise) ||
+    !(canUseAbility && !itemBlocked && gunnerAccess && gunAmmoReady && gunSeconds <= 0 && reloadSeconds <= 0);
   els.gunnerReloadButton.textContent = reloadSeconds > 0 ? `リロード ${reloadSeconds.toFixed(1)}秒` : "リロード";
   els.gunnerReloadButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess && Number(gunnerWeapon.ammo) < Number(gunnerWeapon.maxAmmo) && reloadSeconds <= 0);
   els.dodgeButton.textContent = "回避 -100SP";
@@ -10082,7 +10318,7 @@ function updateActionButtons(data) {
     quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "量子制御",
     alchemist: selectedBorrowedRecipe
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
-      : "借用能力"
+      : self.hackerRootActive ? "借用能力" : "Root化"
   };
   const borrowedCostKey = activeBorrowedOperator === "gravity"
       ? (operatorMode === "heart" ? "heartTeleport" : operatorMode === "storm" ? "gravityStorm" : "teleport")
@@ -10105,7 +10341,7 @@ function updateActionButtons(data) {
     ? `借用 ${specialLabels[displayedOperator] || displayedOperator} / ${displayedOperatorLabel}`
     : displayedOperatorLabel;
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
-  els.operatorAbilityButton.dataset.repeatableAbility = displayedOperator === "gunner" ? "0" : "1";
+  els.operatorAbilityButton.dataset.repeatableAbility = displayedOperator === "gunner" || (displayedOperator === "alchemist" && !self.hackerRootActive) ? "0" : "1";
   els.operatorAbilityButton.classList.toggle("active", displayedOperator === "gunner" && Boolean(self.gunnerSnipingActive));
   els.operatorAbilityButton.disabled = !canUseAbility ||
     (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : "teleport")) ||
@@ -10145,7 +10381,7 @@ function updateActionButtons(data) {
     els.utilityButton.textContent = utilityLabels[utilityStation.utility] || "情報端末を使用";
   }
   els.utilityButton.disabled = !(canUseAbility && utilityStation);
-  if (contextSource) {
+  if (contextSource && !groundItem) {
     els.contextActionButton.textContent = contextSource.textContent;
     els.contextActionButton.disabled = contextSource.disabled;
   }
@@ -10743,6 +10979,15 @@ function nearestMapObject() {
     .sort((a, b) => a.dist - b.dist)[0] || null;
 }
 
+function nearestGroundItem(data = state.data) {
+  const self = selfPlayer();
+  if (!data || !self || data.phase !== "playing" || !self.alive || self.ejected || self.inVent) return null;
+  return (Array.isArray(data.groundItems) ? data.groundItems : [])
+    .map((groundItem) => ({ ...groundItem, dist: dist(self, groundItem) }))
+    .filter((groundItem) => groundItem.dist <= Math.max(1, Number(groundItem.pickupRange) || 92))
+    .sort((a, b) => a.dist - b.dist)[0] || null;
+}
+
 function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
@@ -10840,6 +11085,7 @@ function draw() {
       drawAlchemyObjects(data);
       drawGravityZones(data);
       drawHazardFields(data);
+      drawGroundItems(data);
       drawFacilityEffects(data);
       drawBodies(data);
       drawWorldSoundEffects();
@@ -12637,6 +12883,75 @@ function drawHazardFields(data) {
   }
 }
 
+const GROUND_FIREARM_ICON_CELLS = Object.freeze({ handgun: 0, smg: 1, assault: 2, sniper: 3 });
+
+function drawGroundItemTexture(groundItem) {
+  const asset = String(groundItem.asset || "");
+  const kind = String(groundItem.kind || "");
+  const atlasCell = GROUND_FIREARM_ICON_CELLS[asset];
+  if (Number.isInteger(atlasCell)) {
+    const atlas = state.textures?.groundFirearmIcons;
+    if (atlas?.complete && atlas.naturalWidth > 0) {
+      const cellWidth = atlas.naturalWidth / 4;
+      ctx.drawImage(atlas, atlasCell * cellWidth, 0, cellWidth, atlas.naturalHeight, -34, -17, 68, 34);
+      return true;
+    }
+  }
+  const image = state.textures?.groundItemTextures?.[asset];
+  if (image?.complete && image.naturalWidth > 0) {
+    const width = kind === "sword" ? 76 : kind === "heavy" ? 72 : kind === "invention" ? 68 : 56;
+    const height = kind === "sword" ? 42 : kind === "heavy" ? 42 : kind === "invention" ? 48 : 38;
+    ctx.drawImage(image, -width / 2, -height / 2, width, height);
+    return true;
+  }
+  return false;
+}
+
+function drawGroundItems(data) {
+  const groundItems = Array.isArray(data.groundItems) ? data.groundItems : [];
+  if (!groundItems.length) return;
+  const nearest = nearestGroundItem(data);
+  for (const groundItem of groundItems) {
+    const x = Number(groundItem.x) || 0;
+    const y = Number(groundItem.y) || 0;
+    const angle = Number(groundItem.angle) || 0;
+    const selected = nearest?.id === groundItem.id;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "rgba(7, 15, 27, .35)";
+    ctx.beginPath();
+    ctx.ellipse(0, 9, 35, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.rotate(angle * 0.18);
+    if (selected) {
+      ctx.shadowColor = "rgba(103, 232, 249, .92)";
+      ctx.shadowBlur = 18;
+    }
+    if (!drawGroundItemTexture(groundItem)) {
+      ctx.fillStyle = selected ? "#a5f3fc" : "#cbd5e1";
+      ctx.strokeStyle = "#0f172a";
+      ctx.lineWidth = 2;
+      ctx.fillRect(-25, -9, 50, 18);
+      ctx.strokeRect(-25, -9, 50, 18);
+    }
+    ctx.restore();
+
+    if (selected) {
+      ctx.save();
+      ctx.font = "800 13px Segoe UI, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(8, 15, 27, .88)";
+      ctx.fillStyle = "#ecfeff";
+      const label = `E 拾う ${groundItem.label || "アイテム"}`;
+      ctx.strokeText(label, x, y - 28);
+      ctx.fillText(label, x, y - 28);
+      ctx.restore();
+    }
+  }
+}
+
 const ATE_GLOW_PROFILES = Object.freeze({
   energy: Object.freeze({ core: "rgba(245,243,255,.52)", aura: "rgba(167,139,250,.42)", outer: "rgba(34,211,238,.26)", blur: 15, pulse: 0.18 }),
   beam: Object.freeze({ core: "rgba(255,255,255,.58)", aura: "rgba(103,232,249,.46)", outer: "rgba(96,165,250,.28)", blur: 18, pulse: 0.12 }),
@@ -13248,6 +13563,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "hazard-antidote": ["hazardWaterEffect", 250],
   "action-item-use": ["itemEnhanceEffect", 180],
   "action-item-throw": ["itemEnhanceEffect", 180],
+  "item-enhance-release": ["itemEnhanceEffect", 220],
   "bottle-shards": ["bottleShardEffect", 220],
   "action-jump": ["jumpActionEffect", 320],
   "action-push": ["pushStandFirmBreak", 230],
@@ -13730,7 +14046,7 @@ function gunnerWeaponIdFromActionVariant(variant, fallback = "") {
 }
 
 function drawGunnerActionEffect(effect, progress) {
-  const stateEffect = ["action-shoot", "action-sniper-scope", "action-reload"].includes(effect.type);
+  const stateEffect = ["action-shoot", "action-sniper-scope"].includes(effect.type);
   if (!stateEffect) return false;
   const weaponId = gunnerWeaponIdFromActionVariant(effect.variant);
   if (!weaponId) return false;
@@ -13929,11 +14245,11 @@ function drawHeartTeleportEffect(effect, progress) {
 }
 
 function drawActionEffect(effect, progress, now) {
-  // Weapon switching is represented only by the weapon-specific character
-  // motion. The former first-row combat-state raster was a stray line-like
-  // overlay with no additional gameplay meaning.
-  if (effect.type === "action-weapon-switch") return;
-  if (["action-shoot", "action-sniper-scope", "action-reload"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
+  // Weapon switching and reloading are represented by their exact
+  // weapon-specific character motions. Reusing the firearm-flash strip for
+  // either state creates an unrelated line-like overlay.
+  if (["action-weapon-switch", "action-reload"].includes(effect.type)) return;
+  if (["action-shoot", "action-sniper-scope"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-drone-altitude" && drawDroneAltitudeEffect(effect, progress)) return;
   if (effect.type === "action-heart-teleport" && drawHeartTeleportEffect(effect, progress)) return;
@@ -14836,6 +15152,25 @@ function displayedGunnerState(player, data = state.data) {
   };
 }
 
+function displayedEnhanceCharge(player, data = state.data) {
+  const isSelf = player?.id === data?.selfId;
+  if (isSelf && state.enhanceHold.kind) {
+    return {
+      active: true,
+      kind: state.enhanceHold.kind,
+      elapsedMs: Math.max(0, performance.now() - Number(state.enhanceHold.startedAt || performance.now()))
+    };
+  }
+  const authoritative = isSelf ? data?.self : player;
+  const startedAt = Number(authoritative?.enhanceChargeStartedAt || player?.enhanceChargeStartedAt) || 0;
+  const kind = String(authoritative?.enhanceChargeKind || player?.enhanceChargeKind || "");
+  return {
+    active: startedAt > 0 && Boolean(kind),
+    kind,
+    elapsedMs: startedAt > 0 ? Math.max(0, estimatedServerNow(data) - startedAt) : 0
+  };
+}
+
 function currentCharacterAction(player) {
   const timestamp = state.frameNow || performance.now();
   const jumpMotion = player.jumpMotion;
@@ -14846,8 +15181,9 @@ function currentCharacterAction(player) {
   }
   if (player.movementMode === "jump-prepare") return { kind: "jump", progress: 0 };
   if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600, "action-rest"), motionId: "action-rest" };
-  if (player.id === state.data?.selfId && state.enhanceHold.kind) {
-    return { kind: "enhance", progress: loopedPhysicalMotionProgress(player, "enhance", 1180), variant: state.enhanceHold.kind };
+  const enhanceCharge = displayedEnhanceCharge(player);
+  if (enhanceCharge.active) {
+    return { kind: "enhance", progress: loopedPhysicalMotionProgress(player, "enhance", 1180), variant: enhanceCharge.kind };
   }
   if (player.id === state.data?.selfId && state.throwTargeting.active) {
     // Hold the authored wind-up pose while the landing point is being placed.
@@ -14908,6 +15244,7 @@ function drawHuman(player, data) {
   }
 
   drawPersistentIdeaState(player, data, ascensionProgress);
+  drawEnhanceChargeAte(player, data);
   drawHackerRootState(player);
   if (drawPlayerSprite(player, data, ghost, characterAction)) {
     drawPreparationBarrierAte(player);
@@ -14988,6 +15325,33 @@ function drawPreparationBarrierAte(player) {
     baseAlpha: 0.14,
     opacityBoost: 3
   });
+  ctx.restore();
+}
+
+function drawEnhanceChargeAte(player, data) {
+  if (!player.alive || player.ejected) return;
+  const charge = displayedEnhanceCharge(player, data);
+  if (!charge.active) return;
+  const prepared = transparentSpriteSource(state.textures.itemEnhanceEffect, "item-enhance-charge-v487", 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "item-enhance-charge-v487", 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  const stepMs = Math.max(1, Number(data?.self?.enhanceHoldStepMs) || ENHANCE_HOLD_STEP_MS_CLIENT);
+  const maximum = Math.max(1, Number(data?.self?.enhanceMaxLevel) || ENHANCE_MAX_LEVEL_CLIENT);
+  const level = Math.min(maximum, Math.floor(charge.elapsedMs / stepMs));
+  const time = (state.frameNow || performance.now()) / 1000;
+  const size = 126 + level * 13;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= 0.68 + Math.sin(time * (4.2 + level * 0.35)) * 0.08;
+  drawAnimatedTextureCentered(sprite, 0, -5, size, size, {
+    mode: charge.kind === "shoot" ? "beam" : charge.kind === "throw" ? "orbit" : "energy",
+    time,
+    phase: level * 0.17,
+    intensity: 0.78 + level * 0.05,
+    baseAlpha: 0.13,
+    opacityBoost: 2.8
+  });
+  drawAteComplementaryVfx(ctx, charge.kind === "shoot" ? "beam" : "energy", size, size, time, charge.elapsedMs / stepMs, 0.32 + level * 0.04);
   ctx.restore();
 }
 
@@ -15519,17 +15883,95 @@ function drawWeaponFireMotion(player, data, ghost, action) {
   return true;
 }
 
+const WALK_MOTION_PROFILES = Object.freeze({
+  slow: Object.freeze({
+    strideDistance: 59,
+    poseSequence: Object.freeze([0, 1, 0, 0, 2, 0]),
+    operatorSequence: Object.freeze([0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 1, 1]),
+    lift: 0.8,
+    sideSway: 0.28,
+    frontSway: 0.42,
+    sideLean: 0.003,
+    frontLean: 0.002,
+    directionalLean: 0,
+    stepSoundMinInterval: 300
+  }),
+  walk: Object.freeze({
+    strideDistance: 78,
+    poseSequence: Object.freeze([0, 1, 0, 2]),
+    operatorSequence: Object.freeze([0, 1, 2, 3, 2, 1, 0, 3]),
+    lift: 2.2,
+    sideSway: 0.75,
+    frontSway: 1.1,
+    sideLean: 0.01,
+    frontLean: 0.006,
+    directionalLean: 0,
+    stepSoundMinInterval: 170
+  }),
+  dash: Object.freeze({
+    strideDistance: 94,
+    poseSequence: Object.freeze([1, 1, 1, 0, 2, 2, 2, 0]),
+    operatorSequence: Object.freeze([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
+    lift: 3.4,
+    sideSway: 1.05,
+    frontSway: 1.45,
+    sideLean: 0.012,
+    frontLean: 0.008,
+    directionalLean: 0.022,
+    stepSoundMinInterval: 115
+  })
+});
+
+function normalizeWalkMotionMode(value) {
+  return value === "slow" || value === "dash" ? value : "walk";
+}
+
+function walkMotionProfile(value) {
+  return WALK_MOTION_PROFILES[normalizeWalkMotionMode(value)];
+}
+
+function walkMotionPose(value, frame, moving) {
+  if (!moving) return 0;
+  const sequence = walkMotionProfile(value).poseSequence;
+  const phase = ((Number(frame) % 60) + 60) % 60 / 60;
+  return sequence[Math.min(sequence.length - 1, Math.floor(phase * sequence.length))];
+}
+
+function walkBodyMotion(value, direction, frame, moving) {
+  if (!moving) return { lift: 0, sway: 0, lean: 0 };
+  const profile = walkMotionProfile(value);
+  const gaitPhase = ((Number(frame) % 60) + 60) % 60 / 60 * Math.PI * 2;
+  const contact = 0.5 - Math.cos(gaitPhase * 2) * 0.5;
+  const stride = Math.sin(gaitPhase);
+  const sideFacing = direction === "left" || direction === "right";
+  const directionSign = direction === "left" ? -1 : direction === "right" ? 1 : 0;
+  return {
+    lift: contact * profile.lift,
+    sway: stride * (sideFacing ? profile.sideSway : profile.frontSway),
+    lean: directionSign * profile.directionalLean + stride * (sideFacing ? profile.sideLean : profile.frontLean)
+  };
+}
+
+function walkMotionMode(player) {
+  if (player?.id === state.data?.selfId) {
+    const canDash = isDashing() && Number(state.data?.self?.stamina || 0) > 0.5;
+    return canDash ? "dash" : isSlowWalking() ? "slow" : "walk";
+  }
+  return normalizeWalkMotionMode(player?.movementMode);
+}
+
 function drawPetSprite(player, data, ghost) {
   const skinId = displayedSkinId(player, data);
   const motion = motionFor(player, data);
   const facing = facingFor(player, motion);
   const direction = { down: "front", left: "left", right: "right", up: "back" }[facing] || "front";
-  const frame = walkAnimationFrame(player, motion);
+  const movementMode = walkMotionMode(player);
+  const frame = walkAnimationFrame(player, motion, movementMode);
   const walkRowSource = state.textures.playerWalkRows?.[skinId]?.[direction];
   const walkRowKey = `skinWalk3-${skinId}-${direction}-v483`;
   const walkRow = walkRowSource ? transparentSpriteSource(walkRowSource, walkRowKey, 12) : null;
   if (walkRow) {
-    drawMinimalWalkFrame(walkRow, walkRowKey, direction, frame, motion.moving, -47, -63, 94, 94);
+    drawMinimalWalkFrame(walkRow, walkRowKey, direction, frame, motion.moving, movementMode, -47, -63, 94, 94);
     drawNameplate(player, ghost, -78);
     return true;
   }
@@ -15561,7 +16003,7 @@ function drawPetSprite(player, data, ghost) {
   return true;
 }
 
-function walkAnimationFrame(player, motion) {
+function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(player)) {
   const now = state.frameNow || performance.now();
   const animation = state.walkAnimations.get(player.id) || {
     frame: 0,
@@ -15578,10 +16020,9 @@ function walkAnimationFrame(player, motion) {
       animation.x = player.x;
       animation.y = player.y;
     }
-    const movementMode = player.id === state.data?.selfId
-      ? (isDashing() ? "dash" : isSlowWalking() ? "slow" : "walk")
-      : player.movementMode;
-    const strideDistance = movementMode === "dash" ? 94 : movementMode === "slow" ? 59 : 78;
+    const movementMode = normalizeWalkMotionMode(requestedMode);
+    const profile = walkMotionProfile(movementMode);
+    const strideDistance = profile.strideDistance;
     const travelled = Math.hypot(player.x - animation.x, player.y - animation.y);
     // Drive the gait from actual rendered displacement. Input against a wall
     // no longer runs the legs in place, and acceleration raises cadence only
@@ -15595,11 +16036,13 @@ function walkAnimationFrame(player, motion) {
     } else {
       animation.frame = 0;
     }
-    const stepBucket = Math.floor(animation.frame / 15) % 4;
-    if (player.id === state.data?.selfId && player.alive && stepBucket !== animation.stepBucket && now - animation.lastStepAt > 170) {
-      animation.stepBucket = stepBucket;
+    const stepPose = walkMotionPose(movementMode, animation.frame, true);
+    if (player.id === state.data?.selfId && player.alive && stepPose > 0 && stepPose !== animation.stepBucket && now - animation.lastStepAt > profile.stepSoundMinInterval) {
+      animation.stepBucket = stepPose;
       animation.lastStepAt = now;
-      if (!isSlowWalking()) playSound(isDashing() ? "dashStep" : "step");
+      if (movementMode !== "slow") playSound(movementMode === "dash" ? "dashStep" : "step");
+    } else if (stepPose === 0) {
+      animation.stepBucket = 0;
     }
   } else {
     animation.frame = 0;
@@ -15670,30 +16113,29 @@ function drawProceduralWalkSprite(sprite, direction, frame, x, y, width, height)
   ctx.restore();
 }
 
-function drawMinimalWalkFrame(atlas, key, direction, frame, moving, x, y, width, height) {
+function drawMinimalWalkFrame(atlas, key, direction, frame, moving, movementMode, x, y, width, height) {
   // Each direction is one independent horizontal row: neutral, one foot, the
-  // opposite foot. Passing through neutral makes the authored steps readable
-  // at game scale while real rendered displacement remains the only clock.
-  const gaitSequence = [0, 1, 0, 2];
-  const poseIndex = moving ? gaitSequence[Math.floor(frame / 15) % gaitSequence.length] : 0;
+  // opposite foot. Slow, normal, and dash use distinct contact timing and body
+  // dynamics while real rendered displacement remains the only clock.
+  const profile = walkMotionProfile(movementMode);
+  const poseIndex = walkMotionPose(movementMode, frame, moving);
+  const body = walkBodyMotion(movementMode, direction, frame, moving);
   if (IS_VERIFICATION_MODE) {
     els.canvas.dataset.walkPose = String(poseIndex);
     els.canvas.dataset.walkGaitFrame = Number(frame).toFixed(2);
     els.canvas.dataset.walkDirection = String(direction);
     els.canvas.dataset.walkTexture = key;
+    els.canvas.dataset.walkMode = normalizeWalkMotionMode(movementMode);
+    els.canvas.dataset.walkStrideDistance = String(profile.strideDistance);
+    els.canvas.dataset.walkLift = body.lift.toFixed(3);
+    els.canvas.dataset.walkLean = body.lean.toFixed(4);
   }
-  const gaitPhase = frame / 60 * Math.PI * 2;
-  const contact = 0.5 - Math.cos(gaitPhase * 2) * 0.5;
-  const stride = Math.sin(gaitPhase);
-  const bodyLift = moving ? contact * 2.2 : 0;
-  const bodySway = moving ? stride * (direction === "left" || direction === "right" ? 0.75 : 1.1) : 0;
-  const bodyLean = moving ? stride * (direction === "left" || direction === "right" ? 0.01 : 0.006) : 0;
   const sprite = normalizedSpriteFrame(atlas, key, 3, 1, 0, poseIndex);
   if (!sprite) return false;
   ctx.save();
-  ctx.translate(bodySway, 0);
-  ctx.rotate(bodyLean);
-  drawNormalizedSprite(sprite, x + width / 2, y + height - bodyLift, width, height);
+  ctx.translate(body.sway, 0);
+  ctx.rotate(body.lean);
+  drawNormalizedSprite(sprite, x + width / 2, y + height - body.lift, width, height);
   ctx.restore();
   return true;
 }
@@ -15793,8 +16235,11 @@ function drawOperatorWalkSprite(player, data, ghost) {
   const atlas = transparentSpriteSource(state.textures.operatorsWalk, "operatorsWalk", 24);
   if (!atlas) return false;
   const motion = motionFor(player, data);
-  const sequence = [0, 1, 2, 3, 2, 1, 0, 3];
-  const phase = walkAnimationFrame(player, motion) / 60 * sequence.length;
+  const movementMode = walkMotionMode(player);
+  const profile = walkMotionProfile(movementMode);
+  const sequence = profile.operatorSequence;
+  const frame = walkAnimationFrame(player, motion, movementMode);
+  const phase = frame / 60 * sequence.length;
   const index = Math.floor(phase) % sequence.length;
   const nextIndex = (index + 1) % sequence.length;
   const blend = phase - Math.floor(phase);
@@ -15802,6 +16247,12 @@ function drawOperatorWalkSprite(player, data, ghost) {
   const sprite = normalizedSpriteFrame(atlas, "operatorsWalk", 4, 2, row, sequence[index]);
   const nextSprite = normalizedSpriteFrame(atlas, "operatorsWalk", 4, 2, row, sequence[nextIndex]);
   if (!sprite || !nextSprite) return false;
+  const facing = facingFor(player, motion);
+  const direction = { down: "front", left: "left", right: "right", up: "back" }[facing] || "front";
+  const body = walkBodyMotion(movementMode, direction, frame, motion.moving);
+  ctx.save();
+  ctx.translate(body.sway * 0.75, -body.lift * 0.75);
+  ctx.rotate(body.lean * 0.8);
   ctx.save();
   ctx.globalAlpha *= 1 - blend;
   drawNormalizedSprite(sprite, 0, 31, 70, 94, motion.moving && motion.dx < -0.18);
@@ -15812,6 +16263,7 @@ function drawOperatorWalkSprite(player, data, ghost) {
     drawNormalizedSprite(nextSprite, 0, 31, 70, 94, motion.moving && motion.dx < -0.18);
     ctx.restore();
   }
+  ctx.restore();
   drawNameplate(player, ghost, -76);
   return true;
 }
@@ -16419,10 +16871,13 @@ function drawHud(data, w, h) {
   const movementAccActive = self.movementAccActive === true || (
     self.movementAccActive == null && movementAccEnabled && accelerationMultiplier + 1e-6 >= movementAccThreshold && Number(self.movementAcc) > 1.5
   );
+  const healthText = baseHealth > 0 && baseHealth < 0.001
+    ? baseHealth.toFixed(4)
+    : baseHealth.toFixed(1).replace(/\.0$/, "");
   const bars = [
     { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}` },
     { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
-    { label: "HP", value: self.fighterInfiniteResources ? 2 : baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${baseHealth.toFixed(1).replace(/\.0$/, "")}/2${overheal ? `+${overheal}` : ""}` }
+    { label: "HP", value: self.fighterInfiniteResources ? 2 : baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${healthText}/2${overheal ? `+${overheal}` : ""}` }
   ];
   if (self.special === "alchemist") {
     const cooldownCreditMs = Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0);
@@ -16786,7 +17241,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "bot-ui-hsg-recovery-v486";
+const version = "root-walk-title-ui-v487";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -16959,6 +17414,16 @@ const version = "bot-ui-hsg-recovery-v486";
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
   ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-ingot-v436.png" : `assets/generated/item-${id}.webp`)]));
+  const groundFirearmIcons = image("assets/generated/gunner-weapon-icons-v422.webp");
+  const groundItemTextures = {
+    taser: image("assets/generated/gunner-taser.webp"),
+    "orichalcum-sword": image("assets/generated/item-orichalcum-sword-v453.png"),
+    excalibur: image("assets/generated/alchemy-excalibur.webp"),
+    railgun: image("assets/generated/alchemy-railgun.webp"),
+    "particle-cannon": image("assets/generated/alchemy-particle-cannon.webp"),
+    rpg: image("assets/generated/gunner-rpg.webp"),
+    missile: image("assets/generated/gunner-missile.webp")
+  };
   const physicalActionMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map((skinId) => [
       skinId,
@@ -17180,6 +17645,8 @@ const version = "bot-ui-hsg-recovery-v486";
     itemAntidote,
     itemHeal,
     itemTextures,
+    groundFirearmIcons,
+    groundItemTextures,
     alchemyRailgunFieldEffect,
     alchemyParticleCannonFieldEffect,
     jumpActionEffect,

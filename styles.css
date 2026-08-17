@@ -738,6 +738,42 @@ body.game-open :is([data-right-panel-scroll], .tablet-branch-list, .hacker-abili
   -webkit-overflow-scrolling: touch;
 }
 
+/*
+ * The tactical sidebar is one continuous vertical flick surface.  Nested
+ * inventory, generation and vending scrollers used to trap a gesture at
+ * their top/bottom edge, so momentum appeared to stop depending on where the
+ * finger started.  Let the sidebar own vertical overflow and keep the inner
+ * grids expanded; horizontal tablet-mode carousels remain independent.
+ */
+body.game-open #sidePanel {
+  max-height: calc(100dvh - 20px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+}
+
+body.game-open #sidePanel :is(
+  #operatorList,
+  #itemInventoryGrid,
+  #vendingPanel,
+  #alchemyChoiceGrid
+) {
+  max-height: none;
+  overflow: visible;
+  overscroll-behavior: auto;
+  -webkit-overflow-scrolling: auto;
+  scroll-behavior: auto;
+}
+
+body.game-open #sidePanel #hackerAbilityGrid {
+  max-height: none;
+  overflow: visible;
+  overscroll-behavior: auto;
+  -webkit-overflow-scrolling: auto;
+}
+
 body.game-open .app-shell {
   width: 100%;
   height: 100%;
@@ -972,11 +1008,11 @@ body.game-open .app-shell {
 }
 
 .start-screen.title-ready.title-arriving .title-command {
-  animation: title-command-arrive 2400ms cubic-bezier(0.12, 0.82, 0.18, 1.08) both;
+  animation: title-command-arrive 560ms cubic-bezier(0.18, 0.78, 0.24, 1) both;
 }
 
 .start-screen.title-ready.title-arriving .title-command:nth-child(2) {
-  animation-delay: 320ms;
+  animation-delay: 60ms;
 }
 
 .title-command[data-hotkey]::after,
@@ -2720,6 +2756,17 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   user-select: none;
 }
 
+.switch-drag-menu.hierarchical {
+  width: min(720px, calc(100vw - 20px));
+}
+
+.switch-drag-control {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .switch-drag-menu[hidden] {
   display: none !important;
   pointer-events: none !important;
@@ -2740,6 +2787,50 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.switch-drag-options.hierarchical {
+  grid-template-columns: minmax(120px, 0.78fr) minmax(170px, 1.22fr);
+  gap: 12px;
+  overflow: hidden;
+}
+
+.switch-drag-operator-column,
+.switch-drag-ability-column {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  max-height: min(58vh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.switch-drag-option.switch-drag-operator {
+  position: relative;
+}
+
+.switch-drag-option.switch-drag-operator::after {
+  content: "›";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  font-size: 20px;
+  transform: translateY(-50%);
+}
+
+.switch-drag-option.switch-drag-operator.branch-open {
+  border-color: rgba(14, 165, 233, 0.86);
+  background: linear-gradient(180deg, #ecfeff, #dbeafe);
+}
+
+.root-ability-switch-button {
+  width: 100%;
+  min-height: 46px;
+  border-color: rgba(34, 211, 238, 0.82);
+  background: linear-gradient(112deg, rgba(8, 51, 68, 0.97), rgba(29, 24, 78, 0.94));
+  color: #ecfeff;
+  text-align: left;
 }
 
 .switch-drag-option {
@@ -2781,6 +2872,11 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 @media (max-width: 560px) {
   .switch-drag-options {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .switch-drag-options.hierarchical {
+    grid-template-columns: minmax(104px, 0.76fr) minmax(148px, 1.24fr);
+    gap: 7px;
   }
 }
 
@@ -3224,7 +3320,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=bot-ui-hsg-recovery-v486") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=root-walk-title-ui-v487") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
@@ -3511,28 +3607,9 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 @keyframes title-command-arrive {
   0% {
-    opacity: 0.06;
-    transform: translate3d(var(--title-depth-start-x), var(--title-depth-start-y), -1100px) rotateY(72deg) rotateZ(var(--title-depth-roll)) scale(0.035) skewX(-4deg);
-    filter: blur(10px) brightness(0.38);
-  }
-  16% {
-    opacity: 0.28;
-    transform: translate3d(var(--title-depth-far-x), var(--title-depth-far-y), -760px) rotateY(58deg) rotateZ(var(--title-depth-roll)) scale(0.13) skewX(-4deg);
-    filter: blur(7px) brightness(0.54);
-  }
-  52% {
-    opacity: 0.88;
-    transform: translate3d(var(--title-depth-approach-x), var(--title-depth-approach-y), -230px) rotateY(22deg) rotateZ(var(--title-depth-approach-roll)) scale(0.68) skewX(-4deg);
-    filter: blur(2.4px) brightness(0.88);
-  }
-  72% {
-    opacity: 1;
-    transform: translate3d(var(--title-depth-overshoot-x), var(--title-depth-overshoot-y), 44px) rotateY(-9deg) rotateZ(-1.5deg) scale(1.045) skewX(-4deg);
-    filter: blur(0) brightness(1.16);
-  }
-  88% {
-    transform: translate3d(var(--title-depth-settle-x), var(--title-depth-settle-y), -8px) rotateY(-2deg) rotateZ(0.5deg) scale(0.992) skewX(-4deg);
-    filter: brightness(0.98);
+    opacity: 0.16;
+    transform: translate3d(var(--title-depth-start-x), var(--title-depth-start-y), -680px) rotateY(48deg) rotateZ(var(--title-depth-roll)) scale(0.12) skewX(-4deg);
+    filter: blur(6px) brightness(0.58);
   }
   100% {
     opacity: 1;

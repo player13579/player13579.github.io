@@ -7516,6 +7516,7 @@ const HEAVY_WEAPON_DEFINITIONS = Object.freeze({
   missile: Object.freeze({ id: "missile", label: vendingProductOrThrow("missile").label, cost: vendingPrice("missile"), asset: "missile" })
 });
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
+const HACKER_ROOT_HEALTH = 0.0001;
 const HACKER_ACTION_STAMINA_COST = 5;
 const FIGHTER_SLASH_STAMINA_COST = 75;
 const FIGHTER_SLASH_GUARD_DURATION_MS = 700;
@@ -7555,15 +7556,22 @@ const FIRE_JUTSU_COST = vendingPrice("fire");
 const FIRE_JUTSU_RADIUS = 240;
 const ENHANCE_HOLD_STEP_MS = 600;
 const ENHANCE_MAX_LEVEL = 4;
+const FIGHTER_ENHANCE_SLASH_RANGE_PER_LEVEL = 40;
+const FIGHTER_ENHANCE_SLASH_GUARD_MS_PER_LEVEL = 90;
+const GUNNER_ENHANCE_DAMAGE_PER_LEVEL = 0.20;
 const ITEM_THROW_BASE_DISTANCE = 220;
 const ITEM_THROW_SPEED = 1120;
 const ITEM_THROW_MIN_FLIGHT_MS = 240;
 const ITEM_THROW_MAX_FLIGHT_MS = 920;
 const BOTTLE_ITEM_IDS = new Set(["mercury", "lead", "mineral-water", "antidote", "molotov", "ice", "heated-water"]);
+const NON_PERSISTENT_THROW_ITEM_IDS = new Set([...BOTTLE_ITEM_IDS, "uranium", "plutonium"]);
 const BOTTLE_SHARD_BASE_RADIUS = 112;
 const BOTTLE_SHARD_HIT_CHANCE = 0.32;
 const BOTTLE_SHARD_MIN_DAMAGE = 0.18;
 const BOTTLE_SHARD_MAX_DAMAGE = 0.42;
+const RIGID_THROW_COLLISION_RADIUS = 42;
+const RIGID_THROW_BLADE_SEVERITY = 0.82;
+const GROUND_ITEM_PICKUP_RANGE = 92;
 const HAZARD_FIELD_DURATION_MS = 12_000;
 const HAZARD_TICK_MS = 1_000;
 const POISON_DAMAGE_PER_TICK = 0.2;
@@ -7658,6 +7666,9 @@ const GRAVITY_TIME_SCALE_SLOW = 0.38;
 const BOT_HEARING_MEMORY_MS = 5000;
 const BOT_STAND_FIRM_RETALIATION_MS = 30_000;
 const BOT_KILL_WITNESS_RANGE = 340;
+const BOT_ATTACKER_KILL_URGENT_MS = 30_000;
+const BOT_ATTACKER_KILL_CRITICAL_MS = 12_000;
+const BOT_ATTACKER_ISOLATION_RANGE = 430;
 const BOT_BODY_NOTICE_RANGE = 760;
 const BOT_CLAIRVOYANCE_DURATION_MS = 4000;
 const BOT_CLAIRVOYANCE_MEMORY_MS = 8000;
@@ -7821,7 +7832,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTは自販機価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、タスクを時間経過で自動完了する。手動タスクも可能で、自身のスマホはハッキングされない。"
+      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTは自販機価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化は踏ん張り・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化し、自身へダメージを与えてHPを0.0001にした後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、タスクを時間経過で自動完了する。手動タスクも可能で、自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -9234,6 +9245,7 @@ function createRoom(id) {
     alchemyObjects: [],
     hazardFields: [],
     thrownItems: [],
+    groundItems: [],
     resolvePoint: null,
     lastTickAt: now(),
     doorState: {},
@@ -9536,6 +9548,11 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunFiring: false,
     gunFiringWeapon: "",
     gunFiringSince: 0,
+    gunnerBurstRoundsRemaining: 0,
+    gunnerBurstEnhanceLevel: 0,
+    enhanceChargeStartedAt: 0,
+    enhanceChargeKind: "",
+    enhanceChargeItemId: "",
     gunnerLastShotAt: 0,
     gunScopeReadyAt: 0,
     gunnerReloadUntil: 0,
@@ -9991,6 +10008,8 @@ function startGame(room) {
     player.gunFiring = false;
     player.gunFiringWeapon = "";
     player.gunFiringSince = 0;
+    player.gunnerBurstRoundsRemaining = 0;
+    player.gunnerBurstEnhanceLevel = 0;
     player.gunnerLastShotAt = 0;
     player.gunScopeReadyAt = 0;
     player.gunnerReloadUntil = 0;
@@ -10178,6 +10197,7 @@ function startGame(room) {
   room.magicEffects = [];
   room.hazardFields = [];
   room.thrownItems = [];
+  room.groundItems = [];
   room.chat = [];
   room.events = [];
   room.sounds = [];
@@ -10322,6 +10342,8 @@ function startBattle(room) {
     player.gunFiring = false;
     player.gunFiringWeapon = "";
     player.gunFiringSince = 0;
+    player.gunnerBurstRoundsRemaining = 0;
+    player.gunnerBurstEnhanceLevel = 0;
     player.gunnerLastShotAt = 0;
     player.gunScopeReadyAt = 0;
     player.gunnerReloadUntil = 0;
@@ -10613,40 +10635,55 @@ function hasLimitBreakDeathVulnerability(player) {
   return Boolean(player?.limitBreakActive && !hasFighterInfiniteResources(player));
 }
 
-function hasImmediateDeathProtection(player) {
-  return (Number(player?.gritCharges) || 0) > 0 ||
-    (Number(player?.substitutionCharges) || 0) > 0;
-}
-
-function hackerRootRemainingHealth(player) {
-  return remainingHealth(player);
-}
-
-function hackerHasImmediateDeathProtection(player) {
-  return hasImmediateDeathProtection(player);
-}
-
 function hackerRootEligible(player) {
-  return Boolean(
-    isHackerOperational(player) &&
-    hackerRootRemainingHealth(player) <= 1 &&
-    !hackerHasImmediateDeathProtection(player)
-  );
+  return Boolean(isHackerOperational(player) && player.hackerRootActive);
 }
 
 function syncHackerRootState(room, player) {
-  const active = hackerRootEligible(player);
-  if (Boolean(player.hackerRootActive) === active) return active;
-  player.hackerRootActive = active;
-  if (active) {
-    pushMagicEffect(room, "hacker-root", player, {
-      radius: 155,
-      playerId: player.id,
-      variant: "all-operators"
-    });
-    setImmediateFeedback(player, "root化", "全オペレーター能力を借用可能");
+  if (!isHackerOperational(player)) player.hackerRootActive = false;
+  return hackerRootEligible(player);
+}
+
+function activateHackerRoot(room, player) {
+  if (room.phase !== "playing" || !isHackerOperator(player)) {
+    throw new ApiError(403, "ハッカーのバトル中だけroot化できます。");
   }
-  return active;
+  if (!player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在はroot化できません。");
+  }
+  ensureAbilityAvailable(player);
+  ensureConscious(player);
+  if (hackerRootEligible(player)) throw new ApiError(400, "すでにroot化しています。");
+
+  const healthBefore = remainingHealth(player);
+  const retainedProtections = {
+    grit: Math.max(0, Math.floor(Number(player.gritCharges) || 0)),
+    substitution: Math.max(0, Math.floor(Number(player.substitutionCharges) || 0))
+  };
+  player.overheal = 0;
+  player.bodyHits = 2 - HACKER_ROOT_HEALTH;
+  player.hackerRootActive = true;
+  const retainedLabels = [
+    retainedProtections.grit ? `踏ん張り${retainedProtections.grit}` : "",
+    retainedProtections.substitution ? `変わり身${retainedProtections.substitution}` : ""
+  ].filter(Boolean);
+  pushHitEffect(room, player, "body", false);
+  pushMagicEffect(room, "hacker-root", player, {
+    radius: 155,
+    playerId: player.id,
+    variant: "all-operators"
+  });
+  setImmediateFeedback(
+    player,
+    "root化",
+    `HP ${HACKER_ROOT_HEALTH}${retainedLabels.length ? ` / ${retainedLabels.join("・")}はROOT中無効（所持維持）` : ""}`
+  );
+  pushEvent(
+    room,
+    `${player.name} が能力ボタンでroot化し、${Math.max(0, healthBefore - HACKER_ROOT_HEALTH).toFixed(4)}ダメージを受けてHP ${HACKER_ROOT_HEALTH}になりました。${retainedLabels.length ? `${retainedLabels.join("・")}は所持したままROOT中だけ無効です。` : ""}`
+  );
+  touch(room);
+  return { health: remainingHealth(player), retainedProtections };
 }
 
 function passivesEnabled(player) {
@@ -11942,6 +11979,8 @@ function winningHumansInBotMatch(room, winnerRole) {
 function recordBotMatchElimination(room, target, source = null) {
   if (!target) return;
   target.botMatchEliminatedById = String(source?.id || "");
+  target.hackerRootActive = false;
+  clearEnhanceChargeState(target);
 }
 
 function botMatchHumanEarnedEliminationVictory(room, winnerRole) {
@@ -12394,6 +12433,8 @@ function startMeeting(room, reason, reporterId, options = {}) {
     player.gunFiring = false;
     player.gunFiringWeapon = "";
     player.gunFiringSince = 0;
+    player.gunnerBurstRoundsRemaining = 0;
+    player.gunnerBurstEnhanceLevel = 0;
     player.gunScopeReadyAt = 0;
     player.gunnerSnipingActive = false;
     player.slashActiveUntil = 0;
@@ -12943,7 +12984,7 @@ function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp =
   return outcome;
 }
 
-function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
+function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, rawEnhanceLevel = 0) {
   if (room.phase !== "playing" || !hasOrichalcumSword(player)) {
     throw new ApiError(403, "オリハルコン・ソードを所持していないため斬るは使用できません。");
   }
@@ -12955,19 +12996,28 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
   const cost = FIGHTER_SLASH_STAMINA_COST;
   if (Number(player.stamina) < cost) throw new ApiError(400, `斬るにはスタミナ ${cost} が必要です。`);
   spendStamina(player, cost, room, "踏ん張り");
+  const enhanceLevel = Math.min(ENHANCE_MAX_LEVEL, Math.max(0, Math.floor(Number(rawEnhanceLevel) || 0)));
   const perfectGuardOpened = beginFighterSlashGuard(player, timestamp, perfectGuardIntent);
+  player.slashActiveUntil += enhanceLevel * FIGHTER_ENHANCE_SLASH_GUARD_MS_PER_LEVEL;
   const slashAimX = Number(player.aimX) || 1;
   const slashAimY = Number(player.aimY) || 0;
+  const slashRange = room.settings.killRange + enhanceLevel * FIGHTER_ENHANCE_SLASH_RANGE_PER_LEVEL;
   pushMagicEffect(room, "fighter-slash", player, {
-    radius: 160,
+    radius: 160 + enhanceLevel * 18,
     playerId: player.id,
-    targetX: player.x + slashAimX * 220,
-    targetY: player.y + slashAimY * 220
+    targetX: player.x + slashAimX * (220 + enhanceLevel * FIGHTER_ENHANCE_SLASH_RANGE_PER_LEVEL),
+    targetY: player.y + slashAimY * (220 + enhanceLevel * FIGHTER_ENHANCE_SLASH_RANGE_PER_LEVEL),
+    variant: `enhance-${enhanceLevel}`
+  });
+  if (enhanceLevel > 0) pushMagicEffect(room, "item-enhance-release", player, {
+    radius: 128 + enhanceLevel * 18,
+    playerId: player.id,
+    variant: `slash:${enhanceLevel}`
   });
   pushSound(room, "fighterSlash", player, { ownerId: player.id, sourceKind: "fighter", maxDistance: 1300, volume: 0.9 });
   const target = attackTargetFor(room, player, targetId);
   const struckIds = new Set();
-  if (target && distance(player, target) <= room.settings.killRange) {
+  if (target && distance(player, target) <= slashRange) {
     struckIds.add(target.id);
     const destructionSlash = hasFighterInfiniteResources(player);
     const destructionGuardOutcome = destructionSlash
@@ -13007,7 +13057,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false) {
       targetY: target.y,
       variant: outcome
     });
-    pushEvent(room, `${player.name} の斬るが ${target.name} に命中しました（${outcome}）。`);
+    pushEvent(room, `${player.name} の${enhanceLevel ? `ため斬りLv${enhanceLevel}` : "斬る"}が ${target.name} に命中しました（${outcome} / 射程${slashRange}）。`);
   } else {
     const universalReflect = hasFighterInfiniteResources(player);
     pushEvent(room, `${player.name} が斬るを構えました。物理攻撃をガードし、${perfectGuardOpened ? `短いジャストガード受付で${universalReflect ? "全攻撃" : "物理攻撃"}を反射できます` : "今回はジャストガード再受付前です"}。`);
@@ -13443,7 +13493,7 @@ function ensureItemStorageAvailable(player, timestamp = now()) {
 }
 
 function triggerSubstitution(room, player, reason, timestamp = now()) {
-  if (hasLimitBreakDeathVulnerability(player) || player.substitutionCharges <= 0 || !passivesEnabled(player) || !itemStorageAvailable(player, timestamp)) return false;
+  if (hackerRootEligible(player) || hasLimitBreakDeathVulnerability(player) || player.substitutionCharges <= 0 || !passivesEnabled(player) || !itemStorageAvailable(player, timestamp)) return false;
   const origin = { x: player.x, y: player.y, id: player.id };
   const destination = substitutionDestination(room, player, origin);
   player.substitutionCharges -= 1;
@@ -13762,6 +13812,8 @@ function removeTransferableItem(player, itemId, amount = 1) {
       player.gunFiring = false;
       player.gunFiringWeapon = "";
       player.gunFiringSince = 0;
+      player.gunnerBurstRoundsRemaining = 0;
+      player.gunnerBurstEnhanceLevel = 0;
     }
     if (player.gunnerWeapon === weapon) {
       const currentIndex = Math.max(0, GUNNER_WEAPON_ORDER.indexOf(weapon));
@@ -14767,11 +14819,52 @@ function botCanCommitLuminous(room, bot, targetId, timestamp = now()) {
 }
 
 function resolveEnhance(room, player, rawHoldMs, label) {
-  const requested = Math.min(ENHANCE_MAX_LEVEL, Math.floor(Math.max(0, Number(rawHoldMs) || 0) / ENHANCE_HOLD_STEP_MS));
+  const claimedHoldMs = Math.max(0, Number(rawHoldMs) || 0);
+  const observedHoldMs = Number(player.enhanceChargeStartedAt) > 0
+    ? Math.max(0, now() - Number(player.enhanceChargeStartedAt))
+    : claimedHoldMs;
+  const acceptedHoldMs = Number(player.enhanceChargeStartedAt) > 0
+    ? Math.min(claimedHoldMs, observedHoldMs + 120)
+    : claimedHoldMs;
+  clearEnhanceChargeState(player);
+  const requested = Math.min(ENHANCE_MAX_LEVEL, Math.floor(acceptedHoldMs / ENHANCE_HOLD_STEP_MS));
   const available = Math.max(0, Math.floor(Number(player.mana) || 0));
   const level = Math.min(requested, available);
   if (level > 0) spendMana(room, player, level, `${label}・エンハンス`);
   return level;
+}
+
+function clearEnhanceChargeState(player) {
+  if (!player) return false;
+  const changed = Boolean(player.enhanceChargeStartedAt || player.enhanceChargeKind || player.enhanceChargeItemId);
+  player.enhanceChargeStartedAt = 0;
+  player.enhanceChargeKind = "";
+  player.enhanceChargeItemId = "";
+  return changed;
+}
+
+function setEnhanceChargeState(room, player, active, kind = "", itemId = "") {
+  if (!active) {
+    const changed = clearEnhanceChargeState(player);
+    if (changed) touch(room);
+    return changed;
+  }
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在はエンハンスを溜められません。");
+  }
+  ensureAbilityAvailable(player);
+  ensureItemStorageAvailable(player);
+  ensureConscious(player);
+  const normalizedKind = String(kind || "");
+  if (!["shoot", "use", "throw", "fire"].includes(normalizedKind)) throw new ApiError(400, "エンハンス対象が不正です。");
+  player.enhanceChargeStartedAt = now();
+  player.enhanceChargeKind = normalizedKind;
+  player.enhanceChargeItemId = String(itemId || "");
+  player.vx = 0;
+  player.vy = 0;
+  player.movementMode = "idle";
+  touch(room);
+  return true;
 }
 
 function iaiTargetFor(room, source, origin = source, range = room.settings.killRange) {
@@ -15132,9 +15225,11 @@ function releaseThrownEnergyShockwave(room, source, landing) {
   }
 }
 
-function applyThrownImpactDamage(room, source, landing, label, damage, radius) {
+function applyThrownImpactDamage(room, source, landing, label, damage, radius, options = {}) {
+  const requestedTargetId = String(options.targetId || "");
   const targets = [...room.players.values()]
     .filter((candidate) => candidate.alive && !candidate.ejected && distance(landing, candidate) <= radius)
+    .filter((candidate) => !requestedTargetId || candidate.id === requestedTargetId)
     .sort((a, b) => distance(landing, a) - distance(landing, b));
   if (!targets.length) return false;
   const timestamp = now();
@@ -15172,6 +15267,175 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius) {
     hitCount += 1;
   }
   return hitCount > 0;
+}
+
+function rigidThrownItemKind(itemId, item = {}) {
+  const id = String(itemId || "");
+  if (!id || id === "fire-jutsu" || NON_PERSISTENT_THROW_ITEM_IDS.has(id)) return "";
+  if (id === "orichalcum-sword") return "sword";
+  if (id.startsWith("weapon:")) return "firearm";
+  if (id.startsWith("invention:")) return "invention";
+  if (id.startsWith("heavy:")) return "heavy";
+  if (item?.kind === "item" && ITEM_DEFINITIONS[id]?.throwable !== false) return "rigid";
+  return "";
+}
+
+function rigidGroundItemAssetId(itemId) {
+  return String(itemId || "").replace(/^(?:weapon:|invention:|heavy:)/, "");
+}
+
+function rigidThrownCollision(room, thrown) {
+  const startX = Number(thrown?.x) || 0;
+  const startY = Number(thrown?.y) || 0;
+  const endX = Number(thrown?.targetX) || startX;
+  const endY = Number(thrown?.targetY) || startY;
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared <= 0.001) return null;
+  return [...room.players.values()]
+    .filter((target) => (
+      target.id !== String(thrown?.ownerId || "") &&
+      target.alive &&
+      !target.ejected &&
+      !target.inVent
+    ))
+    .map((target) => {
+      const along = clampNumber(((target.x - startX) * dx + (target.y - startY) * dy) / lengthSquared, 0, 1, 0);
+      const x = startX + dx * along;
+      const y = startY + dy * along;
+      return { target, along, x, y, missDistance: Math.hypot(target.x - x, target.y - y) };
+    })
+    .filter((entry) => entry.along > 0.03 && entry.missDistance <= RIGID_THROW_COLLISION_RADIUS)
+    .sort((a, b) => a.along - b.along || a.missDistance - b.missDistance)[0] || null;
+}
+
+function rigidThrownImpactProfile(target, kind) {
+  const severity = luckAdjustedRoll(target);
+  const luck = luckValueFor(target);
+  if (kind === "sword" && severity >= RIGID_THROW_BLADE_SEVERITY) {
+    return { severity, luck, certainKill: true, contact: "blade", damage: 2 };
+  }
+  const [minimum, maximum] = kind === "firearm"
+    ? [0.08, 0.36]
+    : kind === "sword"
+      ? [0.12, 0.51]
+      : [0.10, 0.60];
+  const boundedSeverity = kind === "sword"
+    ? Math.min(1, severity / RIGID_THROW_BLADE_SEVERITY)
+    : severity;
+  return {
+    severity,
+    luck,
+    certainKill: false,
+    contact: kind === "sword" ? "safe-side" : "body",
+    damage: Math.round((minimum + (maximum - minimum) * boundedSeverity) * 100) / 100
+  };
+}
+
+function applyRigidThrownImpact(room, source, thrown, collision, kind) {
+  if (!collision?.target) return null;
+  const target = collision.target;
+  const label = thrown?.item?.label || ITEM_DEFINITIONS[thrown?.itemId]?.label || "剛体アイテム";
+  const profile = rigidThrownImpactProfile(target, kind);
+  let outcome = "body";
+  if (profile.certainKill && source?.alive && !source.ejected) {
+    try {
+      outcome = killPlayer(room, source, target.id, {
+        ranged: true,
+        hitZone: "head",
+        ignoreRange: true,
+        allowAnyKiller: true,
+        targetRole: target.role,
+        magic: false,
+        attackKind: "thrown-sword-blade",
+        attackLabel: "投擲オリハルコン剣の刃",
+        slashGuardPhysical: true
+      });
+    } catch (error) {
+      if (!(error instanceof ApiError)) throw error;
+      outcome = "blocked";
+    }
+  } else {
+    applyThrownImpactDamage(
+      room,
+      source,
+      { x: collision.x, y: collision.y },
+      label,
+      profile.damage,
+      RIGID_THROW_COLLISION_RADIUS,
+      { targetId: target.id }
+    );
+  }
+  pushMagicEffect(room, "rigid-item-impact", { x: collision.x, y: collision.y }, {
+    radius: kind === "sword" ? 112 : 82,
+    playerId: source?.id || "",
+    targetId: target.id,
+    variant: `${kind}:${profile.contact}:${profile.damage.toFixed(2)}:luck-${profile.luck.toFixed(2)}`
+  });
+  const resultText = profile.certainKill
+    ? `刃が直撃し確殺判定（${outcome}）`
+    : `${profile.damage.toFixed(2)}ダメージ判定`;
+  setImmediateFeedback(target, `${label}被弾`, `${resultText} / 幸運 ${profile.luck.toFixed(2)}`);
+  pushEvent(room, `${target.name} に投擲された${label}が被弾し、幸運 ${profile.luck.toFixed(2)}から${resultText}になりました。`);
+  return { targetId: target.id, outcome, ...profile };
+}
+
+function placeRigidGroundItem(room, thrown, landing, kind, impact = null) {
+  const itemId = String(thrown?.itemId || "");
+  const item = thrown?.item && typeof thrown.item === "object"
+    ? { ...thrown.item }
+    : { id: itemId, label: ITEM_DEFINITIONS[itemId]?.label || itemId, kind: "item" };
+  const angle = Math.atan2(
+    (Number(thrown?.targetY) || Number(landing.y) || 0) - (Number(thrown?.y) || 0),
+    (Number(thrown?.targetX) || Number(landing.x) || 0) - (Number(thrown?.x) || 0)
+  );
+  const groundItem = {
+    id: uid("ground_item_"),
+    itemId,
+    item,
+    label: item.label || ITEM_DEFINITIONS[itemId]?.label || itemId,
+    asset: rigidGroundItemAssetId(itemId),
+    kind,
+    x: Math.round(Number(landing.x) || 0),
+    y: Math.round(Number(landing.y) || 0),
+    angle: Math.round(angle * 1000) / 1000,
+    pickupRange: GROUND_ITEM_PICKUP_RANGE,
+    ownerId: String(thrown?.ownerId || ""),
+    createdAt: now(),
+    impact
+  };
+  room.groundItems ||= [];
+  room.groundItems.push(groundItem);
+  return groundItem;
+}
+
+function pickupGroundItem(room, player, groundItemId = "") {
+  if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在は接地アイテムを拾えません。");
+  }
+  ensureConscious(player);
+  ensureItemStorageAvailable(player);
+  const requestedId = String(groundItemId || "");
+  const candidates = (room.groundItems || [])
+    .map((groundItem, index) => ({ groundItem, index, distance: distance(player, groundItem) }))
+    .filter(({ groundItem, distance: itemDistance }) => (
+      (!requestedId || groundItem.id === requestedId) &&
+      itemDistance <= Number(groundItem.pickupRange || GROUND_ITEM_PICKUP_RANGE)
+    ))
+    .sort((a, b) => a.distance - b.distance);
+  const selected = candidates[0];
+  if (!selected) throw new ApiError(404, "拾える接地アイテムが近くにありません。");
+  receiveTransferableItem(player, selected.groundItem.item);
+  room.groundItems.splice(selected.index, 1);
+  pushMagicEffect(room, "action-item-pickup", player, {
+    radius: 84,
+    playerId: player.id,
+    variant: selected.groundItem.asset
+  });
+  pushEvent(room, `${player.name} が接地していた${selected.groundItem.label}を拾いました。`);
+  touch(room);
+  return selected.groundItem;
 }
 
 function resolveThrownInventoryLanding(room, source, thrown, landing) {
@@ -15219,9 +15483,21 @@ function resolveThrownItemLanding(room, thrown) {
     name: "投擲者",
     role: ""
   };
-  const landing = { x: Number(thrown.targetX) || 0, y: Number(thrown.targetY) || 0 };
-  if (ITEM_DEFINITIONS[thrown.itemId]) resolveThrownInventoryLanding(room, source, thrown, landing);
-  else resolveThrownOwnedLanding(room, source, thrown, landing);
+  const intendedLanding = { x: Number(thrown.targetX) || 0, y: Number(thrown.targetY) || 0 };
+  const rigidKind = rigidThrownItemKind(thrown.itemId, thrown.item);
+  const collision = rigidKind ? rigidThrownCollision(room, thrown) : null;
+  const landing = collision
+    ? { x: Number(collision.x) || intendedLanding.x, y: Number(collision.y) || intendedLanding.y }
+    : intendedLanding;
+  let groundItem = null;
+  if (rigidKind) {
+    const impact = collision ? applyRigidThrownImpact(room, source, thrown, collision, rigidKind) : null;
+    groundItem = placeRigidGroundItem(room, thrown, landing, rigidKind, impact);
+  } else if (ITEM_DEFINITIONS[thrown.itemId]) {
+    resolveThrownInventoryLanding(room, source, thrown, landing);
+  } else {
+    resolveThrownOwnedLanding(room, source, thrown, landing);
+  }
   if (thrown.energyShockwave) releaseThrownEnergyShockwave(room, source, landing);
   pushMagicEffect(room, "action-item-throw", landing, {
     radius: 110 + Number(thrown.level || 0) * 14,
@@ -15229,7 +15505,9 @@ function resolveThrownItemLanding(room, thrown) {
     durationMs: 950
   });
   const label = thrown.item?.label || ITEM_DEFINITIONS[thrown.itemId]?.label || "アイテム";
-  pushEvent(room, `${label}は接地して破壊され、効果が発動しました。`);
+  pushEvent(room, groundItem
+    ? `${label}は${collision ? "被弾地点" : "接地点"}へ剛体のまま残りました。誰でも拾えます。`
+    : `${label}は接地して破壊され、効果が発動しました。`);
   checkWin(room);
   touch(room);
 }
@@ -15276,10 +15554,10 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
   ensureItemStorageAvailable(player);
   const definition = ITEM_DEFINITIONS[itemId];
   if (!definition) throw new ApiError(400, "使用対象が不正です。");
-  if (itemId === "orichalcum-sword") {
-    return fighterSlash(room, player, "", true);
-  }
   const level = resolveEnhance(room, player, rawHoldMs, definition.label);
+  if (itemId === "orichalcum-sword") {
+    return fighterSlash(room, player, "", true, level);
+  }
   if (itemId === "hsg") {
     if (itemCount(player, "hsg") <= 0) throw new ApiError(400, "HSGを所持していません。");
     const timestamp = now();
@@ -16019,7 +16297,7 @@ function advanceParticleCannon(room, player, timestamp) {
 function useBorrowedAbility(room, player, type, options = {}) {
   const key = String(type || "");
   if (!isHackerOperational(player) || !hackerRootEligible(player)) {
-    throw new ApiError(403, "絶体絶命時のroot化中だけ他オペレーターの能力を借用できます。");
+    throw new ApiError(403, "能力ボタンでroot化した後だけ他オペレーターの能力を借用できます。");
   }
   if (!HACKER_ROOT_OPERATOR_TYPES.includes(key)) {
     throw new ApiError(400, "借用能力の種類が不正です。");
@@ -16069,6 +16347,7 @@ function clearPendingAttack(player) {
 function clearAttackState(player) {
   clearAimState(player);
   clearPendingAttack(player);
+  clearEnhanceChargeState(player);
 }
 
 function attackTargetFor(room, killer, targetId) {
@@ -16393,7 +16672,7 @@ function killPlayer(room, killer, targetId, options = {}) {
     return "dodged";
   }
 
-  if (hitZone === "head" && !hasLimitBreakDeathVulnerability(target) && itemStorageAvailable(target, timestamp) && passivesEnabled(target) && target.gritCharges > 0) {
+  if (hitZone === "head" && !hackerRootEligible(target) && !hasLimitBreakDeathVulnerability(target) && itemStorageAvailable(target, timestamp) && passivesEnabled(target) && target.gritCharges > 0) {
     target.gritCharges -= 1;
     hitZone = "body";
     standFirmConverted = true;
@@ -16546,8 +16825,22 @@ function stopGunnerFire(room, player, options = {}) {
   player.gunFiring = false;
   player.gunFiringWeapon = "";
   player.gunFiringSince = 0;
+  player.gunnerBurstRoundsRemaining = 0;
+  player.gunnerBurstEnhanceLevel = 0;
   player.gunScopeReadyAt = 0;
   touch(room);
+  return true;
+}
+
+function finishGunnerBurstRound(room, shooter, weapon, timestamp = now()) {
+  shooter.gunnerBurstRoundsRemaining = Math.max(0, Math.floor(Number(shooter.gunnerBurstRoundsRemaining) || 0) - 1);
+  const magazineConsumed = shooter.gunnerBurstRoundsRemaining <= 0 ||
+    (Number(shooter.gunnerAmmo?.[weapon.id]) || 0) < weapon.ammoPerShot;
+  if (!magazineConsumed) return false;
+  stopGunnerFire(room, shooter, { reason: "1弾倉を撃ち切り" });
+  if (shooter.alive && !shooter.ejected && !shooter.inVent) {
+    startGunnerReload(room, shooter, weapon.id, timestamp, "1弾倉を撃ち切ったため");
+  }
   return true;
 }
 
@@ -16578,6 +16871,11 @@ function switchGunnerWeapon(room, player, requestedWeaponId = "", direction = 1)
   if (!nextWeaponId) throw new ApiError(400, "使用できる銃が残っていません。");
   player.gunnerWeapon = nextWeaponId;
   const weapon = gunnerWeaponFor(player);
+  // Special ammunition belongs to the currently selected firearm rather than
+  // remaining pinned to whichever firearm happened to be selected on pickup.
+  // Preserve the active ammunition kind when possible, then expose its stored
+  // rounds through the newly selected weapon.
+  activateStoredGunnerSpecialAmmo(player, weapon.id);
   pushMagicEffect(room, "action-weapon-switch", player, {
     radius: 90,
     playerId: player.id,
@@ -16626,9 +16924,12 @@ function ensureGunnerSpecialAmmoInventory(player) {
   return player.gunnerSpecialAmmoInventory;
 }
 
-function activateStoredGunnerSpecialAmmo(player, weaponId = player?.gunnerSpecialAmmoWeapon) {
+function activateStoredGunnerSpecialAmmo(player, weaponId = player?.gunnerWeapon) {
   const inventory = ensureGunnerSpecialAmmoInventory(player);
-  const nextType = GUNNER_SPECIAL_AMMO_TYPES.find((type) => inventory[type] > 0) || "";
+  const activeType = String(player?.gunnerSpecialAmmoType || "");
+  const nextType = GUNNER_SPECIAL_AMMO_TYPES.includes(activeType) && inventory[activeType] > 0
+    ? activeType
+    : GUNNER_SPECIAL_AMMO_TYPES.find((type) => inventory[type] > 0) || "";
   if (!nextType) {
     clearGunnerSpecialAmmo(player);
     return "";
@@ -16720,6 +17021,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
   shooter.gunnerAmmo[weapon.id] = remainingAmmo - weapon.ammoPerShot;
+  const enhanceLevel = Math.min(ENHANCE_MAX_LEVEL, Math.max(0, Math.floor(Number(shooter.gunnerBurstEnhanceLevel) || 0)));
   const specialAmmoType = consumeGunnerSpecialAmmoRound(shooter, weapon.id);
   shooter.gunnerLastShotAt = timestamp;
   shooter.gunReadyAt = timestamp + weapon.cooldownMs;
@@ -16771,12 +17073,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         attackLabel: `狙撃・${weapon.name}HS`,
         slashGuardPhysical: true
       });
-      if (outcome === "lethal" || !targetEntry.player.alive || targetEntry.player.ejected) {
-        // A lethal SR result can replace the pressed control with the kill
-        // presentation before its release is observed. End the authoritative
-        // firing action here so no held-fire state can lock later actions.
-        stopGunnerFire(room, shooter, { reason: "狙撃キル成立" });
-      }
+      finishGunnerBurstRound(room, shooter, weapon, timestamp);
       checkWin(room);
       touch(room);
       return true;
@@ -16812,6 +17109,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         );
       }
       pushEvent(room, `${shooter.name} のウィーク弾が命中し、射手にも破壊の代償が生じました。`);
+      finishGunnerBurstRound(room, shooter, weapon, timestamp);
       checkWin(room);
       touch(room);
       return true;
@@ -16824,11 +17122,13 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         targetId: targetEntry.player.id,
         variant: `shock:${outcome}`
       });
+      finishGunnerBurstRound(room, shooter, weapon, timestamp);
       checkWin(room);
       touch(room);
       return true;
     }
-    const damage = gunnerDamageAtDistance(weapon, targetEntry.along);
+    const baseDamage = gunnerDamageAtDistance(weapon, targetEntry.along);
+    const damage = Math.round(baseDamage * (1 + enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL) * 100) / 100;
     const outcome = killPlayer(room, shooter, targetEntry.player.id, {
       ranged: true,
       hitZone: "body",
@@ -16847,9 +17147,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   } else {
     touch(room);
   }
-  if ((Number(shooter.gunnerAmmo?.[weapon.id]) || 0) < weapon.ammoPerShot) {
-    startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空になったため");
-  }
+  finishGunnerBurstRound(room, shooter, weapon, timestamp);
   return true;
 }
 
@@ -16869,10 +17167,12 @@ function advanceGunnerFire(room, shooter, timestamp = now()) {
   }
 }
 
-function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
+function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 0) {
   if (!hasFirearmAccess(shooter)) throw new ApiError(403, "使用できる銃器を所持していません。");
   if (action === "stop") {
-    stopGunnerFire(room, shooter, { reason: "長押し終了" });
+    // Trigger release no longer controls firing. One accepted activation owns
+    // the current magazine until it is consumed or an authoritative state
+    // interruption stops it.
     return;
   }
   if (room.phase !== "playing") throw new ApiError(400, "バトル中のみ射撃できます。");
@@ -16889,6 +17189,7 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
     startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空のため");
     return;
   }
+  const enhanceLevel = resolveEnhance(room, shooter, rawHoldMs, `${weapon.name}ため撃ち`);
   const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
   const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
   let dx = clampNumber(rawDx, -1, 1, fallbackDx);
@@ -16901,8 +17202,20 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start") {
   shooter.gunFiring = true;
   shooter.gunFiringWeapon = weapon.id;
   shooter.gunFiringSince = timestamp;
+  shooter.gunnerBurstRoundsRemaining = Math.max(1, Math.ceil(remainingAmmo / weapon.ammoPerShot));
+  shooter.gunnerBurstEnhanceLevel = enhanceLevel;
   shooter.gunReadyAt = timestamp;
   shooter.gunScopeReadyAt = 0;
+  if (enhanceLevel > 0) pushMagicEffect(room, "item-enhance-release", shooter, {
+    radius: 126 + enhanceLevel * 18,
+    playerId: shooter.id,
+    variant: `shot:${weapon.id}:${enhanceLevel}`
+  });
+  setImmediateFeedback(
+    shooter,
+    enhanceLevel ? `ため撃ち Lv${enhanceLevel}` : "1弾倉射撃",
+    `${weapon.name} / 残り${shooter.gunnerBurstRoundsRemaining}発${enhanceLevel ? ` / 与ダメージ×${(1 + enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL).toFixed(1)}` : ""}`
+  );
   advanceGunnerFire(room, shooter, timestamp);
   touch(room);
 }
@@ -17001,12 +17314,10 @@ function advanceGunnerSpecialAmmoPassive(room, player, timestamp = now()) {
   player.gunnerAmmo ||= createGunnerAmmo();
   player.gunnerAmmo[weapon.id] = weapon.maxAmmo;
   inventory[type] += weapon.maxAmmo;
-  const activeType = String(player.gunnerSpecialAmmoType || "");
-  if (!GUNNER_SPECIAL_AMMO_TYPES.includes(activeType) || inventory[activeType] <= 0) {
-    player.gunnerSpecialAmmoType = type;
-    player.gunnerSpecialAmmoWeapon = weapon.id;
-  }
-  player.gunnerSpecialAmmoRounds = inventory[player.gunnerSpecialAmmoType] || 0;
+  // A different newly awarded kind remains stored while a valid loaded kind
+  // stays active. Whichever kind is active is rebound to the firearm selected
+  // at award time; later weapon switches rebind it again.
+  const activeType = activateStoredGunnerSpecialAmmo(player, weapon.id);
   player.gunnerSpecialAmmoReadyAt = timestamp + GUNNER_SPECIAL_AMMO_INTERVAL_MS;
   if (player.gunnerReloadWeapon === weapon.id) {
     player.gunnerReloadUntil = 0;
@@ -17017,8 +17328,9 @@ function advanceGunnerSpecialAmmoPassive(room, player, timestamp = now()) {
     playerId: player.id,
     variant: `${type}:${weapon.id}`
   });
-  setImmediateFeedback(player, "特殊弾獲得", `${gunnerSpecialAmmoLabel(type)} +${weapon.maxAmmo}発 / 所持${inventory[type]}発`);
-  pushEvent(room, `${player.name} が${gunnerSpecialAmmoLabel(type)}弾を${weapon.maxAmmo}発獲得しました（所持${inventory[type]}発）。`);
+  const activeLabel = gunnerSpecialAmmoLabel(activeType || type);
+  setImmediateFeedback(player, "特殊弾獲得", `${gunnerSpecialAmmoLabel(type)} +${weapon.maxAmmo}発 / ${activeLabel}を${weapon.shortName || weapon.name}へ適用 / ${gunnerSpecialAmmoLabel(type)}所持${inventory[type]}発`);
+  pushEvent(room, `${player.name} が${gunnerSpecialAmmoLabel(type)}弾を${weapon.maxAmmo}発獲得し、装填中の${activeLabel}を選択中の${weapon.shortName || weapon.name}へ適用しました（${gunnerSpecialAmmoLabel(type)}所持${inventory[type]}発）。`);
   touch(room);
   return true;
 }
@@ -17889,6 +18201,11 @@ function serialize(room, viewer, options = {}) {
       gunFiring: Boolean(player.gunFiring),
       gunFiringWeapon: player.gunFiringWeapon || "",
       gunFiringSince: Number(player.gunFiringSince) || 0,
+      gunnerBurstRoundsRemaining: Math.max(0, Math.floor(Number(player.gunnerBurstRoundsRemaining) || 0)),
+      gunnerBurstEnhanceLevel: Math.max(0, Math.floor(Number(player.gunnerBurstEnhanceLevel) || 0)),
+      enhanceChargeStartedAt: Number(player.enhanceChargeStartedAt) || 0,
+      enhanceChargeKind: String(player.enhanceChargeKind || ""),
+      enhanceChargeItemId: String(player.enhanceChargeItemId || ""),
       aimX: Number.isFinite(Number(player.aimX)) ? Number(player.aimX) : 0,
       aimY: Number.isFinite(Number(player.aimY)) ? Number(player.aimY) : 1,
       jumpPreparingAt: Number(player.jumpPreparingAt) || 0,
@@ -18014,6 +18331,14 @@ function serialize(room, viewer, options = {}) {
       gunFiring: Boolean(viewer.gunFiring),
       gunFiringWeapon: viewer.gunFiringWeapon || "",
       gunFiringSince: Number(viewer.gunFiringSince) || 0,
+      gunnerBurstRoundsRemaining: Math.max(0, Math.floor(Number(viewer.gunnerBurstRoundsRemaining) || 0)),
+      gunnerBurstEnhanceLevel: Math.max(0, Math.floor(Number(viewer.gunnerBurstEnhanceLevel) || 0)),
+      gunnerEnhanceDamagePerLevel: GUNNER_ENHANCE_DAMAGE_PER_LEVEL,
+      enhanceChargeStartedAt: Number(viewer.enhanceChargeStartedAt) || 0,
+      enhanceChargeKind: String(viewer.enhanceChargeKind || ""),
+      enhanceChargeItemId: String(viewer.enhanceChargeItemId || ""),
+      enhanceHoldStepMs: ENHANCE_HOLD_STEP_MS,
+      enhanceMaxLevel: ENHANCE_MAX_LEVEL,
       gunScopeReadyAt: Number(viewer.gunScopeReadyAt) || 0,
       gunnerReloadUntil: Number(viewer.gunnerReloadUntil) || 0,
       gunnerReloadWeapon: String(viewer.gunnerReloadWeapon || ""),
@@ -18206,6 +18531,27 @@ function serialize(room, viewer, options = {}) {
     hitEffects: room.hitEffects,
     magicEffects: room.magicEffects.filter((effect) => !effect.viewerId || effect.viewerId === viewer.id),
     hazardFields: (room.hazardFields || []).map((field) => ({ ...field })),
+    groundItems: (room.groundItems || []).map((groundItem) => ({
+      id: groundItem.id,
+      itemId: groundItem.itemId,
+      label: groundItem.label,
+      asset: groundItem.asset,
+      kind: groundItem.kind,
+      x: groundItem.x,
+      y: groundItem.y,
+      angle: groundItem.angle,
+      pickupRange: groundItem.pickupRange,
+      createdAt: groundItem.createdAt,
+      impact: groundItem.impact ? {
+        targetId: groundItem.impact.targetId,
+        damage: groundItem.impact.damage,
+        certainKill: Boolean(groundItem.impact.certainKill),
+        contact: groundItem.impact.contact,
+        luck: groundItem.impact.luck,
+        severity: groundItem.impact.severity,
+        outcome: groundItem.impact.outcome
+      } : null
+    })),
     gravityZones: room.gravityZones || [],
     sabotage: room.sabotage
       ? {
@@ -18741,7 +19087,14 @@ async function handleApi(req, res) {
 
     case "/api/shoot": {
       const { room, player } = requireRoomPlayer(body);
-      shootGunner(room, player, body.dx, body.dy, String(body.action || "start"));
+      shootGunner(room, player, body.dx, body.dy, String(body.action || "start"), body.holdMs);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/enhance-charge": {
+      const { room, player } = requireRoomPlayer(body);
+      setEnhanceChargeState(room, player, Boolean(body.active), String(body.kind || ""), String(body.itemId || ""));
       payload = serialize(room, player);
       break;
     }
@@ -18798,6 +19151,13 @@ async function handleApi(req, res) {
     case "/api/limit-break": {
       const { room, player } = requireRoomPlayer(body);
       toggleLimitBreak(room, player);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/hacker-root": {
+      const { room, player } = requireRoomPlayer(body);
+      activateHackerRoot(room, player);
       payload = serialize(room, player);
       break;
     }
@@ -18889,6 +19249,13 @@ async function handleApi(req, res) {
     case "/api/item-throw": {
       const { room, player } = requireRoomPlayer(body);
       throwOwnedItem(room, player, String(body.itemId || ""), body.holdMs, body.targetX, body.targetY);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/item-pickup": {
+      const { room, player } = requireRoomPlayer(body);
+      pickupGroundItem(room, player, String(body.groundItemId || ""));
       payload = serialize(room, player);
       break;
     }
@@ -19017,6 +19384,7 @@ async function handleApi(req, res) {
       room.magicEffects = [];
       room.hazardFields = [];
       room.thrownItems = [];
+      room.groundItems = [];
       room.chat = [];
       room.events = [];
       room.sounds = [];
@@ -19068,6 +19436,8 @@ async function handleApi(req, res) {
         entry.gunFiring = false;
         entry.gunFiringWeapon = "";
         entry.gunFiringSince = 0;
+        entry.gunnerBurstRoundsRemaining = 0;
+        entry.gunnerBurstEnhanceLevel = 0;
         entry.gunnerLastShotAt = 0;
         entry.gunScopeReadyAt = 0;
         entry.gunnerReloadUntil = 0;
@@ -19715,16 +20085,61 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
   return target;
 }
 
+function attackerBotKillUrgencyState(room, bot, timestamp = now()) {
+  const deadlineAt = Number(bot?.attackerDefenderKillDeadlineAt) || 0;
+  if (
+    room?.phase !== "playing" ||
+    !bot?.isBot ||
+    bot.role !== "attacker" ||
+    !bot.alive ||
+    bot.ejected ||
+    !(deadlineAt > 0)
+  ) return { level: "none", remainingMs: Infinity, urgent: false, critical: false };
+  const remainingMs = Math.max(0, deadlineAt - timestamp);
+  const critical = remainingMs <= BOT_ATTACKER_KILL_CRITICAL_MS;
+  const urgent = critical || remainingMs <= BOT_ATTACKER_KILL_URGENT_MS;
+  return { level: critical ? "critical" : urgent ? "urgent" : "comfortable", remainingMs, urgent, critical };
+}
+
+function botKillOpportunityProfile(room, bot, target) {
+  if (!target?.alive || target.ejected || target.inVent || target.role !== "defender") {
+    return { witnesses: [], thirdParties: [], witnessCount: Infinity, thirdPartyCount: Infinity, isolated: false, hidden: false };
+  }
+  const thirdParties = [...room.players.values()].filter((candidate) => (
+    candidate.id !== bot.id &&
+    candidate.id !== target.id &&
+    candidate.alive &&
+    !candidate.ejected &&
+    !candidate.inVent &&
+    (
+      distance(candidate, target) <= BOT_ATTACKER_ISOLATION_RANGE ||
+      distance(candidate, bot) <= BOT_ATTACKER_ISOLATION_RANGE
+    )
+  ));
+  const witnesses = thirdParties.filter((candidate) => {
+    const sees = (subject) => {
+      if (distance(candidate, subject) > BOT_KILL_WITNESS_RANGE) return false;
+      const dx = subject.x - candidate.x;
+      const dy = subject.y - candidate.y;
+      const length = Math.hypot(dx, dy) || 1;
+      return clearShotPath(room, candidate, subject, dx / length, dy / length);
+    };
+    return sees(bot) || sees(target);
+  });
+  return {
+    witnesses,
+    thirdParties,
+    witnessCount: witnesses.length,
+    thirdPartyCount: thirdParties.length,
+    isolated: thirdParties.length === 0,
+    hidden: witnesses.length === 0
+  };
+}
+
 function preferredDefenderTarget(room, bot, timestamp = now()) {
   const pendingTarget = room.players.get(String(bot.attackTargetId || ""));
   if (pendingTarget?.alive && !pendingTarget.ejected && pendingTarget.role === "defender") return pendingTarget;
   const lockedTarget = room.players.get(String(bot.botTarget || ""));
-  if (
-    lockedTarget?.alive &&
-    !lockedTarget.ejected &&
-    lockedTarget.role === "defender" &&
-    Number(bot.botTargetUntil) > timestamp
-  ) return lockedTarget;
   const scouted = botClairvoyanceContact(room, bot, timestamp);
   if (scouted?.role === "defender" && !botPushBacklashWouldBeLethal(bot, scouted)) {
     bot.botTarget = scouted.id;
@@ -19745,9 +20160,19 @@ function preferredDefenderTarget(room, bot, timestamp = now()) {
     const claimsB = activeBotClaimCount(room, bot, b.id, "botTarget", "botTargetUntil", timestamp);
     const durabilityA = Math.max(0, 2 - Number(a.bodyHits || 0) - Number(a.overheal || 0));
     const durabilityB = Math.max(0, 2 - Number(b.bodyHits || 0) - Number(b.overheal || 0));
+    const opportunityA = botKillOpportunityProfile(room, bot, a);
+    const opportunityB = botKillOpportunityProfile(room, bot, b);
+    const immediateA = botHasImmediateLethalOpportunity(room, bot, a, timestamp) ? 1 : 0;
+    const immediateB = botHasImmediateLethalOpportunity(room, bot, b, timestamp) ? 1 : 0;
+    const lockedA = lockedTarget?.id === a.id && Number(bot.botTargetUntil) > timestamp ? 0 : 1;
+    const lockedB = lockedTarget?.id === b.id && Number(bot.botTargetUntil) > timestamp ? 0 : 1;
     return riskA - riskB ||
+      opportunityA.witnessCount - opportunityB.witnessCount ||
+      opportunityA.thirdPartyCount - opportunityB.thirdPartyCount ||
+      immediateB - immediateA ||
       claimsA - claimsB ||
       durabilityA - durabilityB ||
+      lockedA - lockedB ||
       distance(bot, a) - distance(bot, b) ||
       botTargetAffinity(bot, a, Math.floor(timestamp / 12_000)) - botTargetAffinity(bot, b, Math.floor(timestamp / 12_000)) ||
       a.id.localeCompare(b.id);
@@ -19879,7 +20304,15 @@ function runBotAttackerDeception(room, bot, map, actualTarget, timestamp = now()
     clearBotAttackerDeception(bot);
     return false;
   }
-  if (bot.attackResolveAt > timestamp || botHasImmediateLethalOpportunity(room, bot, actualTarget, timestamp)) {
+  const urgency = attackerBotKillUrgencyState(room, bot, timestamp);
+  const opportunity = botKillOpportunityProfile(room, bot, actualTarget);
+  if (
+    urgency.urgent ||
+    opportunity.isolated ||
+    (opportunity.hidden && distance(bot, actualTarget) <= Math.max(BOT_ATTACKER_ISOLATION_RANGE, room.settings.killRange * 2)) ||
+    bot.attackResolveAt > timestamp ||
+    botHasImmediateLethalOpportunity(room, bot, actualTarget, timestamp)
+  ) {
     beginBotAttackerCommit(bot, timestamp);
     return false;
   }
@@ -20150,6 +20583,23 @@ function runFriendlyDefenderPatrol(room, bot, map) {
   return true;
 }
 
+function runBotGroundItemPickup(room, bot) {
+  if (!bot?.alive || bot.ejected || bot.inVent || !itemStorageAvailable(bot)) return false;
+  const nearby = (room.groundItems || [])
+    .map((groundItem) => ({ groundItem, distance: distance(bot, groundItem) }))
+    .filter(({ groundItem, distance: itemDistance }) => itemDistance <= Number(groundItem.pickupRange || GROUND_ITEM_PICKUP_RANGE))
+    .sort((a, b) => a.distance - b.distance)[0]?.groundItem;
+  if (!nearby) return false;
+  try {
+    pickupGroundItem(room, bot, nearby.id);
+    stopBotForInteraction(bot);
+    return true;
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    return false;
+  }
+}
+
 function runPlayingBots(room) {
   const timestamp = now();
   const map = getMap(room);
@@ -20157,6 +20607,7 @@ function runPlayingBots(room) {
     if (!bot.isBot || bot.ejected || bot.inVent || timestamp < bot.nextBotActionAt) continue;
     bot.nextBotActionAt = timestamp + BOT_TICK_MS - 5;
     const maximumStrength = botHasHumanOpponent(room, bot);
+    const attackerUrgency = attackerBotKillUrgencyState(room, bot, timestamp);
 
     if (runCpuStage2Script(room, bot, timestamp)) continue;
     if (runCpuGravityScript(room, bot, timestamp)) continue;
@@ -20174,12 +20625,13 @@ function runPlayingBots(room) {
       continue;
     }
 
-    if (runBotBodyReport(room, bot)) return;
+    if (!attackerUrgency.urgent && runBotBodyReport(room, bot)) return;
     if (bot.alive && runBotStandFirmRetaliation(room, bot, timestamp)) continue;
+    if (!attackerUrgency.urgent && bot.alive && runBotGroundItemPickup(room, bot)) continue;
 
     if (bot.alive) runBotClairvoyanceSearch(room, bot, timestamp);
 
-    if (bot.alive && refillBotMana(room, bot)) continue;
+    if (!attackerUrgency.urgent && bot.alive && refillBotMana(room, bot)) continue;
 
     if (bot.role === "attacker" && bot.alive) {
       if (bot.special === "alchemist" && Number(bot.mana) >= RATIONAL_MANA_THRESHOLD && (bot.stamina < MAX_STAMINA || bot.substitutionCharges < 1)) {
@@ -20192,6 +20644,19 @@ function runPlayingBots(room) {
         try { activateEmp(room, bot); } catch {}
       }
       const targetDistance = target ? distance(bot, target) : Infinity;
+      const killOpportunity = botKillOpportunityProfile(room, bot, target);
+      if (
+        target &&
+        bot.special === "teleport" &&
+        bot.teleportReadyAt <= timestamp &&
+        Number(bot.mana) >= HEART_TELEPORT_MANA_COST &&
+        (attackerUrgency.urgent || killOpportunity.hidden || killOpportunity.isolated)
+      ) {
+        try {
+          teleportPlayer(room, bot, undefined, undefined, target.id, "heart");
+          continue;
+        } catch {}
+      }
       if (
         maximumStrength &&
         target &&
@@ -20258,10 +20723,10 @@ function runPlayingBots(room) {
           }
         } catch {}
       } else if (target) {
-        useBotSabotage(room, bot, timestamp);
+        if (!attackerUrgency.urgent) useBotSabotage(room, bot, timestamp);
         moveBotToward(room, bot, target);
       } else {
-        useBotSabotage(room, bot, timestamp);
+        if (!attackerUrgency.urgent) useBotSabotage(room, bot, timestamp);
         const patrol = map.stations[(Math.floor(timestamp / 2500) + Number.parseInt(bot.id.replace(/\D/g, "") || "0", 10)) % map.stations.length];
         if (patrol) moveBotToward(room, bot, patrol);
       }
@@ -20402,7 +20867,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "bot-ui-hsg-recovery-v486",
+  version: "root-walk-title-ui-v487",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
