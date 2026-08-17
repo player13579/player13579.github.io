@@ -342,8 +342,8 @@ const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sn
 // Texture construction runs while the main state object is initialized, so this
 // asset-key list must exist before createTextures() is called.
 const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
-  "attack", "slash", "iai", "shoot", "reload", "evade", "cast", "heal",
-  "power", "heart-transfer", "focus", "rest", "interact", "jump", "enhance", "throw"
+  "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
+  "power", "heart-transfer", "focus", "rest", "interact", "jump", "throw"
 ]);
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
@@ -646,9 +646,9 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で2Cへ換金",
   uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
-  "orichalcum-sword": "直接斬撃は確殺（消滅・死体なし）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後のJGは全攻撃反射。斬る／投擲の衝撃波は与ダメージ1.00・EC-1、EC100以上の斬るはEC-100で特大化。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。衝撃波はJG・反射不可",
+  "orichalcum-sword": "直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後は斬撃が消滅（死体なし）、JGは全攻撃反射。斬る／投擲の衝撃波は与ダメージ1.00・EC-1、EC100以上の斬るはEC-100で特大化。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。衝撃波はJG・反射不可",
   hsg: "再使用可能。使用で8秒間浮揚・ACC 1.8。Enhanceごとに効果時間+4秒、ACC+0.4。有効中の再使用は既存効果をリセットせず追加累積",
-  iai: "敵1人の有限の踏ん張りを全削除。200SP相当をSPから消費し、不足分は150SP=1MPで補填。総量不足なら死亡。EC50の無限踏ん張りは削除不可",
+  iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
   rpg: "使用: 使い切り。半径300以内にいる自分以外の全員へ与ダメージ1.00の物理攻撃。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える",
@@ -660,39 +660,14 @@ const VENDING_PRODUCT_COSTS = DVA_ECONOMY.productCosts;
 
 const alchemyRecipes = [
   { id: "stamina", label: "スタミナ", output: "+350SP" },
-  { id: "heal", label: "回復", output: "負傷治療／オーバーヒール" },
-  { id: "fire", label: "火遁の術", output: VENDING_PRODUCT_DESCRIPTIONS.fire },
-  { id: "substitution", label: "変わり身の術", output: VENDING_PRODUCT_DESCRIPTIONS.substitution },
-  { id: "warp", label: "即時ワープ", output: VENDING_PRODUCT_DESCRIPTIONS.warp },
-  { id: "grit", label: "踏ん張り", output: VENDING_PRODUCT_DESCRIPTIONS.grit },
-  { id: "reason", label: "押し込み", output: VENDING_PRODUCT_DESCRIPTIONS.reason },
-  { id: "mercury", label: "水銀瓶", output: VENDING_PRODUCT_DESCRIPTIONS.mercury, asset: "quantum-mercury" },
-  { id: "lead", label: "鉛瓶", output: VENDING_PRODUCT_DESCRIPTIONS.lead, asset: "quantum-lead" },
-  { id: "uranium", label: "ウラン容器", output: VENDING_PRODUCT_DESCRIPTIONS.uranium, asset: "quantum-uranium" },
-  { id: "plutonium", label: "プルトニウム容器", output: VENDING_PRODUCT_DESCRIPTIONS.plutonium, asset: "quantum-plutonium" },
-  { id: "mineral-water", label: "ミネラルウォーター", output: VENDING_PRODUCT_DESCRIPTIONS["mineral-water"], asset: "mineral-water" },
-  { id: "antidote", label: "解毒剤", output: VENDING_PRODUCT_DESCRIPTIONS.antidote, asset: "antidote" },
-  { id: "molotov", label: "火炎瓶", output: VENDING_PRODUCT_DESCRIPTIONS.molotov, asset: "molotov" },
-  { id: "orichalcum-sword", label: "オリハルコン・ソード", output: `MP消費なし。${VENDING_PRODUCT_DESCRIPTIONS["orichalcum-sword"]}`, asset: "orichalcum-sword" },
-  { id: "iai", label: "居合", output: VENDING_PRODUCT_DESCRIPTIONS.iai, asset: "iai" },
-  { id: "vending-evade", label: "回避拡張", output: "回避時間 +0.25秒", asset: "instant-evade" },
-  { id: "vending-speed", label: "アクセラレート飲料", output: VENDING_PRODUCT_DESCRIPTIONS.speed, asset: "instant-speed" },
-  { id: "vending-mystery", label: "ミステリー", output: VENDING_PRODUCT_DESCRIPTIONS.mystery, asset: "instant-mystery" },
-  { id: "vending-mana", label: "マナポーション", output: VENDING_PRODUCT_DESCRIPTIONS.mana, asset: "mana" },
-  { id: "vending-railgun", label: "レールガン", output: VENDING_PRODUCT_DESCRIPTIONS.railgun, asset: "railgun" },
-  { id: "vending-particle-cannon", label: "荷電粒子砲", output: VENDING_PRODUCT_DESCRIPTIONS["particle-cannon"], asset: "particle-cannon" },
-  { id: "vending-excalibur", label: "エクスカリバー", output: VENDING_PRODUCT_DESCRIPTIONS.excalibur, asset: "excalibur" },
-  { id: "vending-exile", label: "亡命", output: VENDING_PRODUCT_DESCRIPTIONS.exile, asset: "exile" },
-  { id: "vending-computer", label: "パソコン", output: VENDING_PRODUCT_DESCRIPTIONS.computer, asset: "computer" },
-  { id: "vending-handgun", label: "ハンドガン", output: VENDING_PRODUCT_DESCRIPTIONS.handgun, asset: "handgun" },
-  { id: "vending-smg", label: "サブマシンガン", output: VENDING_PRODUCT_DESCRIPTIONS.smg, asset: "smg" },
-  { id: "vending-assault", label: "アサルトライフル", output: VENDING_PRODUCT_DESCRIPTIONS.assault, asset: "assault" },
-  { id: "vending-sniper", label: "スナイパーライフル", output: VENDING_PRODUCT_DESCRIPTIONS.sniper, asset: "sniper" },
-  { id: "vending-taser", label: "テーザー銃", output: VENDING_PRODUCT_DESCRIPTIONS.taser, asset: "taser" },
-  { id: "vending-ice", label: "氷結水", output: VENDING_PRODUCT_DESCRIPTIONS.ice, asset: "ice" },
-  { id: "vending-heated-water", label: "高温水", output: VENDING_PRODUCT_DESCRIPTIONS["heated-water"], asset: "heated-water" },
-  { id: "vending-rpg", label: "RPG", output: VENDING_PRODUCT_DESCRIPTIONS.rpg, asset: "rpg" },
-  { id: "vending-missile", label: "ミサイル", output: VENDING_PRODUCT_DESCRIPTIONS.missile, asset: "missile" },
+  ...DVA_ECONOMY.products.map((product) => ({
+    id: product.hackerRecipeId,
+    productId: product.id,
+    label: product.label,
+    output: VENDING_PRODUCT_DESCRIPTIONS[product.id] || "自販機と同期した共有商品を生成します。",
+    asset: product.asset,
+    hackerAccess: product.hackerAccess
+  })),
   { id: "revive", label: "人体生成", output: "死者を一度だけ復活 / 0MP" },
   { id: "hack-credits-delete", label: "クレジット削除", output: "対象のクレジットを0にする", asset: "hack-credits-delete" },
   { id: "hack-credits-duplicate", label: "クレジット増殖", output: "対象のクレジットを複製", asset: "hack-credits-duplicate" },
@@ -707,13 +682,6 @@ const alchemyRecipes = [
   { id: "invention-railgun", label: "レールガン", output: VENDING_PRODUCT_DESCRIPTIONS.railgun, kind: "invention", inventoryId: "railgun" },
   { id: "invention-particle-cannon", label: "荷電粒子砲", output: VENDING_PRODUCT_DESCRIPTIONS["particle-cannon"], kind: "invention", inventoryId: "particle-cannon" }
 ];
-
-for (const recipe of alchemyRecipes) {
-  const product = DVA_ECONOMY.productForRecipe(recipe.id);
-  if (!product) continue;
-  recipe.label = product.label;
-  recipe.asset ||= product.asset;
-}
 
 const HACKER_EXTENSION_COOLDOWN_MS = Object.freeze({
   stamina: 30_000,
@@ -746,7 +714,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "instruction-recovery-v488";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "iai-rim-catalog-sync-v489";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -849,6 +817,32 @@ function vendingProductCategory(itemId) {
 
 function vendingProductButtons() {
   return [...els.vendingPanel.querySelectorAll("[data-drink]")];
+}
+
+function ensureDynamicVendingChoices() {
+  const grid = els.vendingPanel.querySelector(".vending-grid");
+  if (!grid) return;
+  const catalogIds = new Set(DVA_ECONOMY.products.map((product) => product.id));
+  for (const button of vendingProductButtons()) {
+    if (!catalogIds.has(button.dataset.drink)) button.remove();
+  }
+  for (const product of DVA_ECONOMY.products) {
+    let button = grid.querySelector(`[data-drink="${CSS.escape(product.id)}"]`);
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "vending-item-with-icon";
+      button.innerHTML = '<span class="vending-item-icon" aria-hidden="true"></span><span></span>';
+      grid.append(button);
+    }
+    button.dataset.drink = product.id;
+    button.dataset.vendingAsset = product.asset;
+    button.dataset.vendingCategory = product.category;
+    button.dataset.vendingAvailable = product.vendingAvailable ? "1" : "0";
+    button.querySelector(":scope > span:last-child").textContent = product.label;
+    button.setAttribute("aria-label", `${product.label} ${product.price}C`);
+    applyGeneratedItemTexture(button, product.asset || product.id);
+  }
 }
 
 function availableVendingCategories() {
@@ -2661,7 +2655,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
 const CHARACTER_ACTION_DURATION = Object.freeze({
   attack: 520,
   slash: 620,
-  iai: 780,
   shoot: 260,
   "weapon-switch": 560,
   reload: 760,
@@ -2670,7 +2663,6 @@ const CHARACTER_ACTION_DURATION = Object.freeze({
   heal: 900,
   power: 980,
   "heart-transfer": 1800,
-  enhance: 980,
   focus: 1100,
   rest: 1300,
   interact: 620,
@@ -2680,7 +2672,6 @@ const CHARACTER_ACTION_DURATION = Object.freeze({
 const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   attack: 0,
   slash: 1,
-  iai: 0,
   shoot: 2,
   reload: 3,
   evade: 4,
@@ -2692,7 +2683,6 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   rest: 9,
   interact: 10,
   jump: 11,
-  enhance: 7,
   // Throw release has dedicated timing and body mechanics while retaining the empty-hand attack cells.
   throw: 0
 });
@@ -2724,7 +2714,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-shoot": "shoot",
   "action-sniper-scope": "focus",
   "action-reload": "reload",
-  "action-item-use": "enhance",
+  "action-item-use": "interact",
   "action-item-throw": "throw",
   "action-special-ammo-load": "reload",
   "action-sniping-headshot": "shoot",
@@ -2738,7 +2728,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-smartphone": "interact",
   "action-smartphone-repair": "interact",
   "action-vending": "interact",
-  "action-iai": "iai",
   "action-mana": "focus",
   "action-alchemy": "cast",
   "action-jump": "jump",
@@ -4837,6 +4826,7 @@ function triggerScreenHotkey(event) {
 }
 
 function bindEvents() {
+  ensureDynamicVendingChoices();
   ensureDynamicAlchemyChoices();
   document.addEventListener("pointerdown", unlockAudio, { passive: true });
   document.addEventListener("keydown", unlockAudio);
@@ -9727,7 +9717,7 @@ function renderActiveEffects(data) {
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
   if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "踏ん張り全消去。1回につき反動0.5");
-  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席`, rational ? "truth" : "neutral", "敵1人の有限踏ん張りを全削除。200SP、不足分は150SP=1MP。総量不足で死亡");
+  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
@@ -13525,6 +13515,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "fighter-energy-charge": ["fighterEnergyChargeEffect", 220],
   "attacker-kill-deadline": ["attackerKillDeadlineEffect", 320],
   "instant-iai-acquired": ["itemIaiTexture", 230],
+  "iai-destruction-attack": ["itemIaiTexture", 270],
   "instant-stand-firm-acquired": ["instantStandFirmTexture", 230],
   "instant-push-acquired": ["instantPushTexture", 230],
   "instant-stamina-acquired": ["instantStaminaTexture", 230],
@@ -13542,7 +13533,6 @@ const GENERATED_EFFECT_TEXTURES = {
   "fighter-energy-impact": ["fighterEnergyImpactEffect", 250],
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
   "fighter-push-acquired": ["pushMarkerEffect", 96],
-  "iai-stand-firm-break": ["iaiStandFirmBreakEffect", 250],
   "hacker-root": ["hackerRootRainbow", 190],
   "preparation-barrier-hit": ["preparationBarrierEffect", 220],
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
@@ -13559,9 +13549,6 @@ const GENERATED_EFFECT_TEXTURES = {
   "quantum-ice-impact": ["quantumColdEffect", 280],
   "quantum-nuclear": ["quantumNuclearEffect", 760],
   "hazard-antidote": ["hazardWaterEffect", 250],
-  "action-item-use": ["itemEnhanceEffect", 180],
-  "action-item-throw": ["itemEnhanceEffect", 180],
-  "item-enhance-release": ["itemEnhanceEffect", 220],
   "bottle-shards": ["bottleShardEffect", 220],
   "action-jump": ["jumpActionEffect", 320],
   "action-push": ["pushStandFirmBreak", 230],
@@ -13618,9 +13605,6 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   if (!sprite) return false;
   if (effect.type.startsWith("instant-") && effect.type.endsWith("-acquired")) {
     return drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize);
-  }
-  if (effect.type === "iai-stand-firm-break") {
-    return drawIaiStandFirmBreakEffect(effect, progress, sprite, defaultSize);
   }
   if (effect.type === "transfer-out" || effect.type === "transfer-in") {
     return drawTransferGeneratedEffect(effect, progress, sprite, defaultSize);
@@ -13846,31 +13830,6 @@ function drawUtilityInstantItemAcquisitionEffect(effect, progress, sprite, defau
     ctx.ellipse(x, y, profile.mote === "lateral" ? 3.2 : 1.6, 1.1, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.restore();
-  return true;
-}
-
-function drawIaiStandFirmBreakEffect(effect, progress, sprite, defaultSize) {
-  const cutArrival = objectEffectEase(clamp(progress / 0.16, 0, 1));
-  const fragmentRelease = objectEffectEase(clamp((progress - 0.1) / 0.48, 0, 1));
-  const fade = 1 - objectEffectEase(clamp((progress - 0.56) / 0.44, 0, 1));
-  const radiusSize = Number(effect.radius) > 0 ? Number(effect.radius) * 2.05 : defaultSize;
-  const size = Math.min(390, Math.max(defaultSize, radiusSize));
-  const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x - 1;
-  const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y + 1;
-  const sourceAngle = Math.atan2(effect.y - targetY, effect.x - targetX);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0, fade * (0.36 + cutArrival * 0.64));
-  ctx.translate(effect.x, effect.y);
-  ctx.rotate(sourceAngle - Math.PI / 4);
-  ctx.scale(0.72 + cutArrival * 0.28 + fragmentRelease * 0.08, 0.92 + fragmentRelease * 0.18);
-  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
-    mode: "impact",
-    progress: fragmentRelease,
-    intensity: 0.96,
-    baseAlpha: 0.12
-  });
   ctx.restore();
   return true;
 }
@@ -14541,7 +14500,7 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   resistanceBreak: ["確殺耐性無効", "リミットブレイク中は踏ん張り・変わり身による確殺回避が無効です。EC50到達後は解除されます。"],
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
-  iai: ["居合・即席", "敵1人の有限踏ん張りを全削除。200SP、不足分は150SP=1MP。総量不足なら死亡します。"],
+  iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
   burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
@@ -15104,7 +15063,7 @@ function physicalMotionRateFor(player) {
 }
 
 const ACCELERATION_READY_PHYSICAL_KINDS = new Set([
-  "focus", "rest", "power", "cast", "heal", "reload", "shoot", "interact", "enhance", "iai", "heart-transfer"
+  "focus", "rest", "power", "cast", "heal", "reload", "shoot", "interact", "heart-transfer"
 ]);
 
 function accelerationReadyMotionDynamics(player, kind, motionId = kind) {
@@ -15179,10 +15138,6 @@ function currentCharacterAction(player) {
   }
   if (player.movementMode === "jump-prepare") return { kind: "jump", progress: 0 };
   if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600, "action-rest"), motionId: "action-rest" };
-  const enhanceCharge = displayedEnhanceCharge(player);
-  if (enhanceCharge.active) {
-    return { kind: "enhance", progress: loopedPhysicalMotionProgress(player, "enhance", 1180), variant: enhanceCharge.kind };
-  }
   if (player.id === state.data?.selfId && state.throwTargeting.active) {
     // Hold the authored wind-up pose while the landing point is being placed.
     // The release animation is emitted independently by /api/item-throw.
@@ -15242,9 +15197,14 @@ function drawHuman(player, data) {
   }
 
   drawPersistentIdeaState(player, data, ascensionProgress);
-  drawEnhanceChargeAte(player, data);
   drawHackerRootState(player);
-  if (drawPlayerSprite(player, data, ghost, characterAction)) {
+  const enhanceRim = enhanceRimLightState(player, data);
+  ctx.save();
+  if (enhanceRim) ctx.filter = enhanceRim.filter;
+  const drewPlayerSprite = drawPlayerSprite(player, data, ghost, characterAction);
+  ctx.restore();
+  if (drewPlayerSprite) {
+    drawEnhanceRimLightGlints(enhanceRim);
     drawPreparationBarrierAte(player);
     drawLuminousFeathers(player);
     drawAttackerAllyMarker(player);
@@ -15254,6 +15214,8 @@ function drawHuman(player, data) {
   }
 
   const skin = state.textures.skin;
+  ctx.save();
+  if (enhanceRim) ctx.filter = enhanceRim.filter;
   ctx.fillStyle = player.color;
   ctx.strokeStyle = "#0f172a";
   ctx.lineWidth = 2;
@@ -15286,6 +15248,8 @@ function drawHuman(player, data) {
   ctx.beginPath();
   ctx.arc(0, -12, 4, 0.2, Math.PI - 0.2);
   ctx.stroke();
+  ctx.restore();
+  drawEnhanceRimLightGlints(enhanceRim);
 
   ctx.font = "800 10px Segoe UI, sans-serif";
   const identityLabel = playerIdentityLabel(player).slice(0, 14);
@@ -15326,30 +15290,54 @@ function drawPreparationBarrierAte(player) {
   ctx.restore();
 }
 
-function drawEnhanceChargeAte(player, data) {
-  if (!player.alive || player.ejected) return;
+function enhanceRimLightState(player, data) {
+  if (!player.alive || player.ejected) return null;
   const charge = displayedEnhanceCharge(player, data);
-  if (!charge.active) return;
-  const prepared = transparentSpriteSource(state.textures.itemEnhanceEffect, "item-enhance-charge-v487", 18);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, "item-enhance-charge-v487", 1, 1, 0, 0) : null;
-  if (!sprite) return;
+  if (!charge.active) return null;
   const stepMs = Math.max(1, Number(data?.self?.enhanceHoldStepMs) || ENHANCE_HOLD_STEP_MS_CLIENT);
   const maximum = Math.max(1, Number(data?.self?.enhanceMaxLevel) || ENHANCE_MAX_LEVEL_CLIENT);
   const level = Math.min(maximum, Math.floor(charge.elapsedMs / stepMs));
   const time = (state.frameNow || performance.now()) / 1000;
-  const size = 126 + level * 13;
+  const phase = time * (3.8 + level * 0.32) + (player.id?.length || 0) * 0.41;
+  const offsetX = Math.cos(phase) * (1.35 + level * 0.24);
+  const offsetY = Math.sin(phase) * (1.15 + level * 0.2);
+  const innerBlur = 1.6 + level * 0.36;
+  const outerBlur = 5.5 + level * 1.15;
+  return {
+    charge,
+    level,
+    time,
+    filter: [
+      `drop-shadow(${offsetX.toFixed(2)}px ${offsetY.toFixed(2)}px ${innerBlur.toFixed(2)}px rgba(240,253,255,.98))`,
+      `drop-shadow(${(-offsetX).toFixed(2)}px ${(-offsetY).toFixed(2)}px ${(innerBlur + 0.8).toFixed(2)}px rgba(34,211,238,.9))`,
+      `drop-shadow(0 0 ${outerBlur.toFixed(2)}px rgba(139,92,246,.72))`
+    ].join(" ")
+  };
+}
+
+function drawEnhanceRimLightGlints(rim) {
+  if (!rim) return;
+  const anchors = [
+    [-29, -54], [25, -44], [-35, -17], [34, 3], [-22, 30], [23, 33]
+  ];
+  const visibleGlints = Math.min(6, 3 + rim.level);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha *= 0.68 + Math.sin(time * (4.2 + level * 0.35)) * 0.08;
-  drawAnimatedTextureCentered(sprite, 0, -5, size, size, {
-    mode: charge.kind === "shoot" ? "beam" : charge.kind === "throw" ? "orbit" : "energy",
-    time,
-    phase: level * 0.17,
-    intensity: 0.78 + level * 0.05,
-    baseAlpha: 0.13,
-    opacityBoost: 2.8
-  });
-  drawAteComplementaryVfx(ctx, charge.kind === "shoot" ? "beam" : "energy", size, size, time, charge.elapsedMs / stepMs, 0.32 + level * 0.04);
+  for (let index = 0; index < visibleGlints; index += 1) {
+    const [baseX, baseY] = anchors[index];
+    const cycle = ((rim.time * (0.72 + index * 0.035) + index * 0.193) % 1 + 1) % 1;
+    const life = Math.sin(cycle * Math.PI);
+    const size = 2.2 + rim.level * 0.34 + life * 2.1;
+    ctx.save();
+    ctx.translate(baseX + Math.sin(rim.time * 2.1 + index) * 2.4, baseY - cycle * 9);
+    ctx.rotate(Math.PI / 4 + rim.time * 0.18 * (index % 2 ? -1 : 1));
+    ctx.globalAlpha = life * (0.38 + rim.level * 0.1);
+    ctx.fillStyle = index % 2 ? "#e0f2fe" : "#a5f3fc";
+    ctx.shadowColor = index % 2 ? "#c4b5fd" : "#22d3ee";
+    ctx.shadowBlur = 7 + rim.level * 2;
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -15493,12 +15481,6 @@ function physicalMotionSignature(motionId, kind) {
 function physicalActionFramePosition(kind, progress, motionId = kind) {
   const signature = physicalMotionSignature(motionId, kind);
   const value = clamp((progress - signature.lead) / Math.max(0.5, signature.release - signature.lead), 0, 1);
-  if (kind === "iai") {
-    if (value < 0.48) return objectEffectEase(value / 0.48) * 0.3;
-    if (value < 0.58) return 0.3 + objectEffectEase((value - 0.48) / 0.1) * 1.7;
-    if (value < 0.78) return 2;
-    return 2 - objectEffectEase((value - 0.78) / 0.22);
-  }
   if (kind === "attack" || kind === "slash") {
     if (value < 0.34) return objectEffectEase(value / 0.34) * 0.62;
     if (value < 0.58) return 0.62 + objectEffectEase((value - 0.34) / 0.24) * 1.38;
@@ -15511,7 +15493,7 @@ function physicalActionFramePosition(kind, progress, motionId = kind) {
   }
   if (kind === "shoot") return Math.min(2, objectEffectEase(value / 0.42) * 2);
   if (kind === "evade") return Math.sin(value * Math.PI) * 2;
-  if (kind === "cast" || kind === "heal" || kind === "power" || kind === "heart-transfer" || kind === "enhance") {
+  if (kind === "cast" || kind === "heal" || kind === "power" || kind === "heart-transfer") {
     const smooth = value * value * (3 - 2 * value);
     return smooth * 2;
   }
@@ -15647,16 +15629,6 @@ function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spa
   const abilitySpecific = applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId, motionScale, variant);
   if (abilitySpecific) {
     // Ability-specific choreography already applies the authored displacement.
-  } else if (kind === "iai") {
-    const anticipation = objectEffectEase(clamp(progress / 0.46, 0, 1));
-    const drawCut = objectEffectEase(clamp((progress - 0.43) / 0.13, 0, 1));
-    const resheath = objectEffectEase(clamp((progress - 0.62) / 0.38, 0, 1));
-    ctx.translate(
-      facing * (-anticipation * 3 + drawCut * 10 - resheath * 7) * motionScale,
-      (anticipation * 2 - drawCut * 3 + resheath * 1.5) * motionScale
-    );
-    ctx.rotate(facing * (-anticipation * 0.035 + drawCut * 0.08 - resheath * 0.045) * motionScale);
-    ctx.scale(1 - drawCut * 0.024 * motionScale, 1 + drawCut * 0.034 * motionScale);
   } else if (kind === "attack") {
     ctx.translate(facing * impulse * 7 * motionScale, -impulse * 1.4 * motionScale);
     ctx.rotate(facing * impulse * 0.035 * motionScale);
@@ -15684,10 +15656,6 @@ function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spa
     const charge = clamp(progress / 0.65, 0, 1);
     ctx.translate(0, -Math.sin(charge * Math.PI) * 4 * motionScale);
     ctx.scale(1 + charge * 0.045 * motionScale, 1 + charge * 0.045 * motionScale);
-  } else if (kind === "enhance") {
-    const gather = 0.5 - Math.cos(progress * Math.PI * 2) * 0.5;
-    ctx.translate(0, gather * 2.2 * motionScale);
-    ctx.scale(1 - gather * 0.028 * motionScale, 1 + gather * 0.038 * motionScale);
   } else if (kind === "focus") {
     ctx.translate(0, Math.sin(progress * Math.PI * 2) * 1.5 * motionScale);
   } else if (kind === "rest") {
@@ -17239,7 +17207,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "instruction-recovery-v488";
+const version = "iai-rim-catalog-sync-v489";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -17340,7 +17308,6 @@ const version = "instruction-recovery-v488";
   const instantEvadeTexture = actionEffectTextures[2];
   const instantMysteryTexture = philosophyEffectTextures[10];
   const instantManaTexture = alchemyEffectTextures[2];
-  const iaiStandFirmBreakEffect = new Image();
   const fighterDestructionSlashMilestoneEffect = new Image();
   const fighterEnergyReleaseEffect = new Image();
   const fighterEnergyImpactEffect = new Image();
@@ -17381,7 +17348,6 @@ const version = "instruction-recovery-v488";
   const quantumNuclearEffect = new Image();
   const hazardPoisonEffect = new Image();
   const hazardWaterEffect = new Image();
-  const itemEnhanceEffect = new Image();
   const bottleShardEffect = new Image();
   const footBathSparkleEffect = new Image();
   const mapObjectEffectTextures = Object.fromEntries([
@@ -17469,7 +17435,6 @@ const version = "instruction-recovery-v488";
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
   defer(attackerKillDeadlineEffect, "assets/generated/attacker-kill-deadline-ate-v467.png");
   defer(itemIaiTexture, "assets/generated/instant-iai-abstract-v451.png");
-  defer(iaiStandFirmBreakEffect, "assets/generated/effect-iai-stand-firm-break-v449.png");
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
@@ -17505,7 +17470,6 @@ const version = "instruction-recovery-v488";
   defer(quantumNuclearEffect, "assets/generated/effect-quantum-nuclear-v311.png");
   defer(hazardPoisonEffect, "assets/generated/effect-hazard-poison.webp");
   defer(hazardWaterEffect, "assets/generated/effect-hazard-water.webp");
-  defer(itemEnhanceEffect, "assets/generated/effect-item-enhance.webp");
   defer(bottleShardEffect, "assets/generated/effect-bottle-shards.webp");
   defer(footBathSparkleEffect, "assets/generated/effect-footbath-hidden-spring-godray-v359.png");
   for (const [id, entry] of Object.entries(mapObjectEffectTextures)) {
@@ -17595,7 +17559,6 @@ const version = "instruction-recovery-v488";
     instantSpeedTexture,
     instantMysteryTexture,
     instantManaTexture,
-    iaiStandFirmBreakEffect,
     fighterDestructionSlashMilestoneEffect,
     fighterEnergyReleaseEffect,
     fighterEnergyImpactEffect,
@@ -17633,7 +17596,6 @@ const version = "instruction-recovery-v488";
     hazardFireEffect: fireJutsuFieldEffect,
     hazardPoisonEffect,
     hazardWaterEffect,
-    itemEnhanceEffect,
     bottleShardEffect,
     footBathSparkleEffect,
     mapObjectEffectTextures,

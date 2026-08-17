@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v488-instruction-recovery";
+const CACHE_NAME = "dva-static-v489-iai-rim-catalog-sync";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -48,7 +48,6 @@ const STATIC_ASSETS = [
   "/assets/generated/item-orichalcum-sword-v453.png",
   "/assets/generated/instant-iai-abstract-v451.png",
   "/assets/generated/item-iai-v449.png",
-  "/assets/generated/effect-iai-stand-firm-break-v449.png",
   "/assets/generated/fighter-energy-release-ate-v404.png",
   "/assets/generated/fighter-energy-impact-ate-v404.png",
   "/assets/generated/white-hood-kill-cutin-v404.png",
@@ -159,12 +158,10 @@ const STATIC_ASSETS = [
   "/assets/generated/drone-altitude-high-v311.png",
   "/assets/generated/physical-motion-blue-dress-attack-v483.png",
   "/assets/generated/physical-motion-blue-dress-cast-v483.png",
-  "/assets/generated/physical-motion-blue-dress-enhance-v483.png",
   "/assets/generated/physical-motion-blue-dress-evade-v483.png",
   "/assets/generated/physical-motion-blue-dress-focus-v483.png",
   "/assets/generated/physical-motion-blue-dress-heal-v483.png",
   "/assets/generated/physical-motion-blue-dress-heart-transfer-v483.png",
-  "/assets/generated/physical-motion-blue-dress-iai-v483.png",
   "/assets/generated/physical-motion-blue-dress-interact-v483.png",
   "/assets/generated/physical-motion-blue-dress-jump-v483.png",
   "/assets/generated/physical-motion-blue-dress-power-v483.png",
@@ -175,12 +172,10 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-blue-dress-throw-v483.png",
   "/assets/generated/physical-motion-white-hood-attack-v483.png",
   "/assets/generated/physical-motion-white-hood-cast-v483.png",
-  "/assets/generated/physical-motion-white-hood-enhance-v483.png",
   "/assets/generated/physical-motion-white-hood-evade-v483.png",
   "/assets/generated/physical-motion-white-hood-focus-v483.png",
   "/assets/generated/physical-motion-white-hood-heal-v483.png",
   "/assets/generated/physical-motion-white-hood-heart-transfer-v483.png",
-  "/assets/generated/physical-motion-white-hood-iai-v483.png",
   "/assets/generated/physical-motion-white-hood-interact-v483.png",
   "/assets/generated/physical-motion-white-hood-jump-v483.png",
   "/assets/generated/physical-motion-white-hood-power-v483.png",
@@ -191,11 +186,9 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-white-hood-throw-v483.png",
   "/assets/generated/physical-motion-male-bot-attack-v465.png",
   "/assets/generated/physical-motion-male-bot-cast-v465.png",
-  "/assets/generated/physical-motion-male-bot-enhance-v465.png",
   "/assets/generated/physical-motion-male-bot-evade-v465.png",
   "/assets/generated/physical-motion-male-bot-focus-v465.png",
   "/assets/generated/physical-motion-male-bot-heal-v465.png",
-  "/assets/generated/physical-motion-male-bot-iai-v465.png",
   "/assets/generated/physical-motion-male-bot-interact-v465.png",
   "/assets/generated/physical-motion-male-bot-jump-v465.png",
   "/assets/generated/physical-motion-male-bot-power-v465.png",
@@ -281,7 +274,6 @@ const STATIC_ASSETS = [
   "/assets/generated/attacker-ally-marker.webp",
   "/assets/generated/effect-hazard-poison.webp",
   "/assets/generated/effect-hazard-water.webp",
-  "/assets/generated/effect-item-enhance.webp",
   "/assets/generated/effect-quantum-cold.webp",
   "/assets/generated/effect-quantum-hot.webp",
   "/assets/generated/exile-clone.webp",

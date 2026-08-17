@@ -85,6 +85,8 @@
   const productByRecipeId = new Map(products.map((entry) => [entry.hackerRecipeId, entry]));
   const productCosts = Object.freeze(Object.fromEntries(products.filter((entry) => entry.vendingAvailable).map((entry) => [entry.id, entry.price])));
   const productLabels = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.label])));
+  const vendingProducts = Object.freeze(products.filter((entry) => entry.vendingAvailable));
+  const ordinaryHackerProducts = Object.freeze(products.filter((entry) => entry.hackerAccess === "ordinary"));
 
   const product = (itemId) => productById.get(String(itemId || "")) || null;
   const productForRecipe = (recipeId) => productByRecipeId.get(String(recipeId || "")) || null;
@@ -102,6 +104,8 @@
     creditIncome,
     categories,
     products,
+    vendingProducts,
+    ordinaryHackerProducts,
     productCosts,
     productLabels,
     product,

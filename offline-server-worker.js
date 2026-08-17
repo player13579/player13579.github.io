@@ -7349,6 +7349,8 @@ const LABORATORY_MAP = Object.freeze({
   const productByRecipeId = new Map(products.map((entry) => [entry.hackerRecipeId, entry]));
   const productCosts = Object.freeze(Object.fromEntries(products.filter((entry) => entry.vendingAvailable).map((entry) => [entry.id, entry.price])));
   const productLabels = Object.freeze(Object.fromEntries(products.map((entry) => [entry.id, entry.label])));
+  const vendingProducts = Object.freeze(products.filter((entry) => entry.vendingAvailable));
+  const ordinaryHackerProducts = Object.freeze(products.filter((entry) => entry.hackerAccess === "ordinary"));
 
   const product = (itemId) => productById.get(String(itemId || "")) || null;
   const productForRecipe = (recipeId) => productByRecipeId.get(String(recipeId || "")) || null;
@@ -7366,6 +7368,8 @@ const LABORATORY_MAP = Object.freeze({
     creditIncome,
     categories,
     products,
+    vendingProducts,
+    ordinaryHackerProducts,
     productCosts,
     productLabels,
     product,
@@ -7526,7 +7530,6 @@ const FIGHTER_ENERGY_CHARGE_MANA_COST = 1;
 const FIGHTER_IAI_REWARD_THRESHOLD = 25;
 const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 50;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
-const IAI_STAMINA_EQUIVALENT_COST = 200;
 const IAI_VENDING_COST = vendingPrice("iai");
 const ORICHALCUM_SWORD_VENDING_COST = vendingPrice("orichalcum-sword");
 const FIGHTER_SHOCKWAVE_RANGE = 950;
@@ -7780,7 +7783,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は敵一人の有限の踏ん張りを全削除し、200SP相当を消費する。SP不足分は150SP=1MPで補い、それでも不足する場合は死亡する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は押し込みの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7854,7 +7857,7 @@ const ITEM_DEFINITIONS = Object.freeze({
 const INSTANT_ITEM_DEFINITIONS = Object.freeze({
   grit: Object.freeze({ id: "grit", label: "踏ん張り", field: "gritCharges", automatic: true }),
   reason: Object.freeze({ id: "reason", label: "押し込み", field: "reasonCharges", automatic: true }),
-  iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: false })
+  iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: true })
 });
 
 const QUANTUM_STARTING_ITEMS = Object.freeze({ mercury: 1, lead: 1, uranium: 1, plutonium: 1 });
@@ -13009,11 +13012,6 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
     targetY: player.y + slashAimY * (220 + enhanceLevel * FIGHTER_ENHANCE_SLASH_RANGE_PER_LEVEL),
     variant: `enhance-${enhanceLevel}`
   });
-  if (enhanceLevel > 0) pushMagicEffect(room, "item-enhance-release", player, {
-    radius: 128 + enhanceLevel * 18,
-    playerId: player.id,
-    variant: `slash:${enhanceLevel}`
-  });
   pushSound(room, "fighterSlash", player, { ownerId: player.id, sourceKind: "fighter", maxDistance: 1300, volume: 0.9 });
   const target = attackTargetFor(room, player, targetId);
   const struckIds = new Set();
@@ -13044,9 +13042,9 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
           ignoreCooldown: true,
           preserveCooldown: true,
           ignoreDodge: false,
-          noBody: true,
           targetRole: target.role,
           attackKind: "slash",
+          attackLabel: "斬る",
           slashGuardPhysical: true
         });
     if (destructionSlash) pushMagicEffect(room, "fighter-energy-destruction-slash", player, {
@@ -13746,18 +13744,6 @@ function transferableItemsFor(player) {
   for (const [itemId, definition] of Object.entries(TRANSFERABLE_CHARGES)) {
     const amount = Math.max(0, Math.floor(Number(player[definition.field]) || 0));
     if (amount > 0) entries.push({ id: itemId, label: definition.label, amount, asset: itemId, kind: "charge" });
-  }
-  const iaiAmount = Math.max(0, Math.floor(Number(player.iaiCharges) || 0));
-  if (iaiAmount > 0) {
-    entries.push({
-      id: "iai",
-      label: "居合",
-      amount: iaiAmount,
-      asset: "iai",
-      kind: "instant",
-      throwable: false,
-      transferable: false
-    });
   }
   for (const invention of player.inventions || []) {
     entries.push({ id: `invention:${invention}`, label: inventionLabel(invention), amount: 1, asset: invention, kind: "invention" });
@@ -14867,111 +14853,6 @@ function setEnhanceChargeState(room, player, active, kind = "", itemId = "") {
   return true;
 }
 
-function iaiTargetFor(room, source, origin = source, range = room.settings.killRange) {
-  const targetRole = attackTargetRole(source);
-  return [...room.players.values()]
-    .filter((target) => (
-      target.id !== source.id &&
-      target.role === targetRole &&
-      target.alive &&
-      !target.ejected &&
-      !hasFighterInfiniteResources(target) &&
-      Math.max(0, Math.floor(Number(target.gritCharges) || 0)) > 0 &&
-      distance(origin, target) <= Math.max(0, Number(range) || 0)
-    ))
-    .sort((a, b) => distance(origin, a) - distance(origin, b))[0] || null;
-}
-
-function settleIaiResourceCost(room, player) {
-  if (hasFighterInfiniteResources(player)) {
-    return { fatal: false, staminaSpent: 0, manaSpent: 0, infinite: true };
-  }
-  const stamina = Math.max(0, Number(player.stamina) || 0);
-  const mana = Math.max(0, Number(player.mana) || 0);
-  const staminaSpent = Math.min(IAI_STAMINA_EQUIVALENT_COST, stamina);
-  const manaSpent = Math.max(0, (IAI_STAMINA_EQUIVALENT_COST - staminaSpent) / STAMINA_TO_MANA_COST);
-  if (mana + 0.0001 < manaSpent) {
-    player.stamina = 0;
-    player.mana = 0;
-    player.staminaUpdatedAt = now();
-    destroyPlayerUnconditionally(room, player, player, "居合の資源不足", {
-      bypassSlashGuard: true,
-      ignoreInfiniteResources: true,
-      ignorePreparationBarrier: true,
-      ignoreFriendlyFire: true,
-      noKillCutin: true
-    });
-    setImmediateFeedback(player, "居合", `200SP相当不足 / SP${Math.round(stamina)} + MP${Math.round(mana * 100) / 100}`);
-    return { fatal: true, staminaSpent: stamina, manaSpent: mana, infinite: false };
-  }
-
-  const nextStamina = Math.max(0, stamina - staminaSpent);
-  const nextMana = Math.max(0, mana - manaSpent);
-  if (nextStamina <= 0 || nextMana <= 0) {
-    enterDesireState(room, player, "居合");
-  } else {
-    player.stamina = nextStamina;
-    player.staminaUpdatedAt = now();
-    setMana(room, player, nextMana, "居合");
-  }
-  return { fatal: false, staminaSpent, manaSpent, infinite: false };
-}
-
-function applyIaiStandFirmBreak(room, source, target, level = 0, origin = source) {
-  const removed = Math.max(0, Math.floor(Number(target.gritCharges) || 0));
-  if (!removed || hasFighterInfiniteResources(target)) return 0;
-  target.gritCharges = 0;
-  pushMagicEffect(room, "iai-stand-firm-break", target, {
-    radius: 118 + Math.max(0, Number(level) || 0) * 14,
-    playerId: source.id,
-    targetId: target.id,
-    targetX: Number(origin?.x) || source.x,
-    targetY: Number(origin?.y) || source.y,
-    variant: `removed-${removed}:enhance-${Math.max(0, Number(level) || 0)}`,
-    durationMs: 920
-  });
-  pushEvent(room, `${source.name} の居合が${target.name}の踏ん張り${removed}個を全て削除しました。`);
-  return removed;
-}
-
-function useIai(room, player, rawHoldMs = 0) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は居合を使用できません。");
-  ensureAbilityAvailable(player);
-  ensureConscious(player);
-  ensureItemStorageAvailable(player);
-  if (Math.max(0, Math.floor(Number(player.iaiCharges) || 0)) <= 0) throw new ApiError(400, "居合の使用回数がありません。");
-  const requestedLevel = Math.min(ENHANCE_MAX_LEVEL, Math.floor(Math.max(0, Number(rawHoldMs) || 0) / ENHANCE_HOLD_STEP_MS));
-  const previewLevel = Math.min(requestedLevel, Math.max(0, Math.floor(Number(player.mana) || 0)));
-  const range = room.settings.killRange + previewLevel * 32;
-  const target = iaiTargetFor(room, player, player, range);
-  if (!target) throw new ApiError(404, "効果範囲内に有限の踏ん張りを持つ敵がいません。");
-  const level = resolveEnhance(room, player, rawHoldMs, "居合");
-  player.iaiCharges = Math.max(0, Math.floor(Number(player.iaiCharges) || 0) - 1);
-  const resource = settleIaiResourceCost(room, player);
-  if (resource.fatal) {
-    checkWin(room);
-    touch(room);
-    return;
-  }
-  pushMagicEffect(room, "action-iai", player, {
-    radius: 92,
-    playerId: player.id,
-    targetId: target.id,
-    targetX: target.x,
-    targetY: target.y,
-    variant: `enhance-${level}`,
-    durationMs: 780
-  });
-  const removed = applyIaiStandFirmBreak(room, player, target, level, player);
-  const costText = resource.infinite
-    ? "EC50報酬により資源消費なし"
-    : `SP${Math.round(resource.staminaSpent)} / MP${Math.round(resource.manaSpent * 100) / 100}`;
-  setImmediateFeedback(player, "居合", `${target.name} / 踏ん張り${removed}個削除 / ${costText}`);
-  pushSound(room, "fighterSlash", player, { ownerId: player.id, sourceKind: "iai", maxDistance: 1300, volume: 0.94 });
-  checkWin(room);
-  touch(room);
-}
-
 function clearBurning(room, player, source = "水") {
   if (!player?.burnStatus) return false;
   player.burnStatus = null;
@@ -15009,6 +14890,13 @@ function applyPersistentStatus(room, source, target, kind, strength = 1, timesta
   if (!options.ignoreFriendlyFire && source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) {
     applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
     return false;
+  }
+  if (resolveIaiDestructionUpgrade(room, source, target, kind === "poison" ? "毒攻撃" : "燃焼攻撃", {
+    ignoreFriendlyFire: true
+  })) {
+    checkWin(room);
+    touch(room);
+    return true;
   }
   const field = kind === "poison" ? "poisonStatus" : "burnStatus";
   const current = target[field];
@@ -15614,11 +15502,10 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
 }
 
 function useOwnedItem(room, player, itemId, rawHoldMs = 0) {
-  if (itemId === "iai") return useIai(room, player, rawHoldMs);
   if (ITEM_DEFINITIONS[itemId]) return useInventoryItem(room, player, itemId, rawHoldMs);
   if (itemId === "fire-jutsu") return useFireJutsu(room, player, rawHoldMs);
   if (itemId === "instant-warp") throw new ApiError(400, "拡大マップから転移地点を指定してください。");
-  if (["substitution", "stand-firm", "push"].includes(itemId)) {
+  if (["substitution", "stand-firm", "push", "iai"].includes(itemId)) {
     throw new ApiError(400, "このアイテムは条件成立時に自動発動します。");
   }
   if (itemId.startsWith("weapon:")) {
@@ -15897,7 +15784,7 @@ function useFloraAbility(room, player, mode, options = {}) {
   else healFlora(room, player);
 }
 
-const ALCHEMY_RECIPES = {
+const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "orichalcum-sword": { label: "オリハルコン・ソード", cost: 0, apply: (_room, player) => addItem(player, "orichalcum-sword") },
   stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
   heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(1, player.overheal); pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
@@ -15928,9 +15815,6 @@ const ALCHEMY_RECIPES = {
   "vending-assault": { label: "アサルトライフル", cost: 0, apply: (_room, player) => purchaseFirearm(player, "assault") },
   "vending-sniper": { label: "スナイパーライフル", cost: 0, apply: (_room, player) => purchaseFirearm(player, "sniper") },
   "vending-taser": { label: "テーザー銃", cost: 0, apply: (_room, player) => purchaseFirearm(player, "taser") },
-  "vending-mineral-water": { label: "ミネラルウォーター", cost: 0, apply: (_room, player) => addItem(player, "mineral-water") },
-  "vending-molotov": { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
-  "vending-antidote": { label: "解毒剤", cost: 0, apply: (_room, player) => addItem(player, "antidote") },
   "vending-ice": { label: "氷結水", cost: 0, apply: (_room, player) => addItem(player, "ice") },
   "vending-heated-water": { label: "高温水", cost: 0, apply: (_room, player) => addItem(player, "heated-water") },
   "vending-rpg": { label: "RPG", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("rpg"); } },
@@ -15947,14 +15831,27 @@ const ALCHEMY_RECIPES = {
   revive: { label: "人体生成", cost: 3, apply: (room, player, targetId) => humanTransmutation(room, player, targetId) }
 };
 
-// Product identity is shared with the Vending catalog. Hacker-only recipes
-// retain their own labels and behavior, while every sellable generation recipe
-// inherits the canonical product name and is required to exist.
-for (const product of DVA_ECONOMY.products) {
-  const recipe = ALCHEMY_RECIPES[product.hackerRecipeId];
-  if (!recipe) throw new Error(`Missing Hacker recipe for Vending product: ${product.id}`);
-  recipe.label = product.label;
-}
+// Vending and Vibe Coding use one runtime catalog membership. Only behavior is
+// implemented here; identity, label, category, availability and CT are always
+// derived from DVA_ECONOMY so a new sellable product cannot disappear from the
+// Hacker generator because somebody forgot a second display list.
+const HACKER_EXTENSION_RECIPE_IDS = new Set([
+  "stamina", "hack-credits-delete", "hack-credits-duplicate", "hack-items-delete",
+  "hack-items-duplicate", "hack-hp-delete", "hack-hp-duplicate", "hack-mana-delete",
+  "hack-mana-duplicate", "hack-status-recover", "revive"
+]);
+const ALCHEMY_RECIPES = Object.fromEntries([
+  ...DVA_ECONOMY.products.map((product) => {
+    const implementation = ALCHEMY_RECIPE_IMPLEMENTATIONS[product.hackerRecipeId];
+    if (!implementation) throw new Error(`Missing Hacker behavior for shared product: ${product.id}`);
+    return [product.hackerRecipeId, { ...implementation, label: product.label, productId: product.id }];
+  }),
+  ...[...HACKER_EXTENSION_RECIPE_IDS].map((id) => {
+    const implementation = ALCHEMY_RECIPE_IMPLEMENTATIONS[id];
+    if (!implementation) throw new Error(`Missing Hacker extension behavior: ${id}`);
+    return [id, implementation];
+  })
+]);
 
 const ALCHEMY_RECIPE_ALIASES = Object.freeze({
   "stand-firm": "grit",
@@ -16150,6 +16047,43 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   touch(room);
 }
 
+function iaiChargeAvailable(player, timestamp = now()) {
+  return Boolean(
+    player?.alive &&
+    !player.ejected &&
+    Math.max(0, Math.floor(Number(player.iaiCharges) || 0)) > 0 &&
+    itemStorageAvailable(player, timestamp) &&
+    passivesEnabled(player)
+  );
+}
+
+function consumeIaiChargeForSuccessfulAttack(room, source, target, reason, options = {}) {
+  if (!source || source.id === target?.id || !iaiChargeAvailable(source)) return false;
+  source.iaiCharges = Math.max(0, Math.floor(Number(source.iaiCharges) || 0) - 1);
+  pushMagicEffect(room, "iai-destruction-attack", target, {
+    radius: 148,
+    playerId: source.id,
+    targetId: target.id,
+    targetX: target.x,
+    targetY: target.y,
+    variant: options.iaiUpgrade ? "upgraded-to-destruction" : options.noBody ? "existing-disappearance" : "existing-destruction",
+    durationMs: 900
+  });
+  setImmediateFeedback(source, "居合", `${reason || "攻撃"}を${options.noBody ? "消滅のまま" : "破壊"}へ接続 / 残り${source.iaiCharges}`);
+  pushEvent(room, `${source.name} の居合が次の成功攻撃へ自動発動しました。${options.noBody ? "既存の消滅結果を維持します。" : `${target.name}を破壊します。`}`);
+  return true;
+}
+
+function resolveIaiDestructionUpgrade(room, source, target, reason, options = {}) {
+  if (!target?.alive || target.ejected || !iaiChargeAvailable(source)) return false;
+  return destroyPlayerUnconditionally(room, source, target, `居合を帯びた${reason || "攻撃"}`, {
+    ...options,
+    bypassSlashGuard: true,
+    ignorePreparationBarrier: true,
+    iaiUpgrade: true
+  });
+}
+
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
   if (options.attackKind && !options.bypassSlashGuard) {
@@ -16187,6 +16121,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     transferKillInventory(room, source, target);
     source.totalKills += 1;
   }
+  consumeIaiChargeForSuccessfulAttack(room, source, target, reason, options);
   pushHitEffect(room, target, "head", true);
   if (!options.noBody) {
     room.bodies.push({
@@ -16577,6 +16512,22 @@ function killPlayer(room, killer, targetId, options = {}) {
   }
 
   if (absorbPreparationBarrier(room, target, timestamp, killer)) return "preparationBarrier";
+
+  if ((ignoreDodge || Number(target.dodgeActiveUntil) <= timestamp) && resolveIaiDestructionUpgrade(
+    room,
+    killer,
+    target,
+    String(options.attackLabel || (options.attackKind === "slash" ? "斬る" : ranged ? "射撃" : "攻撃")),
+    { ignoreFriendlyFire: true }
+  )) {
+    if (!ranged && !ignoreCooldown && !preserveCooldown) {
+      killer.killsThisRound += 1;
+      killer.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+    }
+    checkWin(room);
+    touch(room);
+    return "destroyed";
+  }
 
   if (hasFighterInfiniteResources(target)) {
     syncFighterInfiniteResources(target);
@@ -17206,11 +17157,6 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 
   shooter.gunnerBurstEnhanceLevel = enhanceLevel;
   shooter.gunReadyAt = timestamp;
   shooter.gunScopeReadyAt = 0;
-  if (enhanceLevel > 0) pushMagicEffect(room, "item-enhance-release", shooter, {
-    radius: 126 + enhanceLevel * 18,
-    playerId: shooter.id,
-    variant: `shot:${weapon.id}:${enhanceLevel}`
-  });
   setImmediateFeedback(
     shooter,
     enhanceLevel ? `ため撃ち Lv${enhanceLevel}` : "1弾倉射撃",
@@ -18514,7 +18460,10 @@ function serialize(room, viewer, options = {}) {
       manaGpuDrainPerSecond: HACKER_MANA_GPU_DRAIN_PER_SECOND,
       manaGpuCooldownReductionMsPerMana: HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA,
       manaGpuCooldownCreditMs: Math.max(0, Number(viewer.manaGpuCooldownCreditMs) || 0),
-      alchemyRecipeIds: isHackerOperator(viewer) ? Object.keys(ALCHEMY_RECIPES) : [],
+      alchemyRecipeIds: isHackerOperator(viewer) ? Object.keys(ALCHEMY_RECIPES).filter((recipeId) => {
+        const product = DVA_ECONOMY.productForRecipe(recipeId);
+        return product?.hackerAccess !== "root" || hackerRootEligible(viewer);
+      }) : [],
       inventions: [...(viewer.inventions || [])],
       exiled: Boolean(viewer.exiled),
       hackTracking: isHackerOperator(viewer),
@@ -20872,5 +20821,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "instruction-recovery-v488" });
+self.postMessage({ type: "ready", version: "iai-rim-catalog-sync-v489" });
 })();
