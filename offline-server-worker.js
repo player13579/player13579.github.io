@@ -20821,5 +20821,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "iai-rim-catalog-sync-v489" });
+self.postMessage({ type: "ready", version: "switch-hold-ui-v490" });
 })();

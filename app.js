@@ -423,6 +423,16 @@ const state = {
     startY: 0,
     suppressClickUntil: new WeakMap()
   },
+  nativeSelectHold: {
+    pointerId: null,
+    source: null,
+    timer: 0,
+    startedAt: 0,
+    startX: 0,
+    startY: 0,
+    opened: false,
+    suppressClickUntil: new WeakMap()
+  },
   mysteryRevealTimer: null,
   titleArrivalTimer: null,
   fieldFeedOpen: false,
@@ -714,7 +724,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "iai-rim-catalog-sync-v489";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "switch-hold-ui-v490";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4501,6 +4511,17 @@ function finishSwitchDragGesture(event, cancelled = false) {
         ? gesture.finalChoice
         : Number.isInteger(index) && index >= 0 ? gesture.options[index] : null;
     gesture.suppressClickUntil.set(source, performance.now() + 900);
+    if (!cancelled && !choice) {
+      if (gesture.timer) window.clearTimeout(gesture.timer);
+      gesture.timer = 0;
+      gesture.pointerId = null;
+      gesture.persistent = true;
+      clearSwitchDragHover();
+      try {
+        if (source?.hasPointerCapture?.(event.pointerId)) source.releasePointerCapture(event.pointerId);
+      } catch {}
+      return true;
+    }
     closeSwitchDragMenu();
     if (choice) {
       choice.apply();
@@ -4530,10 +4551,94 @@ function suppressSwitchDragClick(event) {
   state.switchDrag.suppressClickUntil.delete(source);
 }
 
+function clearNativeSelectHold() {
+  const hold = state.nativeSelectHold;
+  if (hold.timer) window.clearTimeout(hold.timer);
+  hold.timer = 0;
+  hold.pointerId = null;
+  hold.source = null;
+  hold.startedAt = 0;
+  hold.startX = 0;
+  hold.startY = 0;
+  hold.opened = false;
+}
+
+function openNativeSelectPicker(source, allowLegacyClick = false) {
+  if (!(source instanceof HTMLSelectElement) || !source.isConnected || source.disabled || source.hidden) return false;
+  try { source.focus({ preventScroll: true }); } catch { source.focus(); }
+  if (typeof source.showPicker !== "function") {
+    if (allowLegacyClick) {
+      try { source.click(); } catch {}
+    }
+    return false;
+  }
+  try {
+    source.showPicker();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function beginNativeSelectHold(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  const source = event.currentTarget;
+  if (!(source instanceof HTMLSelectElement) || source.disabled || source.options.length < 2) return;
+  clearNativeSelectHold();
+  const hold = state.nativeSelectHold;
+  hold.pointerId = event.pointerId;
+  hold.source = source;
+  hold.startedAt = performance.now();
+  hold.startX = event.clientX;
+  hold.startY = event.clientY;
+  hold.timer = window.setTimeout(() => {
+    if (hold.pointerId !== event.pointerId || hold.source !== source) return;
+    hold.timer = 0;
+    hold.opened = openNativeSelectPicker(source);
+  }, SWITCH_DRAG_HOLD_DELAY_MS);
+}
+
+function moveNativeSelectHold(event) {
+  const hold = state.nativeSelectHold;
+  if (hold.pointerId !== event.pointerId || hold.opened) return;
+  if (Math.hypot(event.clientX - hold.startX, event.clientY - hold.startY) > SWITCH_DRAG_MOVE_CANCEL_PX) {
+    clearNativeSelectHold();
+  }
+}
+
+function finishNativeSelectHold(event, cancelled = false) {
+  const hold = state.nativeSelectHold;
+  if (hold.pointerId !== event.pointerId) return false;
+  const source = hold.source;
+  const heldLongEnough = performance.now() - hold.startedAt >= SWITCH_DRAG_HOLD_DELAY_MS;
+  let opened = hold.opened;
+  if (!cancelled && heldLongEnough && !opened) opened = openNativeSelectPicker(source, true);
+  if (opened) {
+    event.preventDefault();
+    hold.suppressClickUntil.set(source, performance.now() + 900);
+  }
+  clearNativeSelectHold();
+  return opened;
+}
+
+function suppressNativeSelectHoldClick(event) {
+  const source = event.target instanceof HTMLSelectElement ? event.target : null;
+  const suppressUntil = source ? Number(state.nativeSelectHold.suppressClickUntil.get(source)) || 0 : 0;
+  if (performance.now() >= suppressUntil) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  state.nativeSelectHold.suppressClickUntil.delete(source);
+}
+
 function bindSwitchDragControl(source) {
   if (!source) return;
   if (source instanceof HTMLSelectElement) {
     source.dataset.switchUi = "native-default";
+    source.classList.add("native-switch-hold-control");
+    source.addEventListener("pointerdown", beginNativeSelectHold);
+    source.addEventListener("contextmenu", (event) => {
+      if (state.nativeSelectHold.source === source) event.preventDefault();
+    });
     return;
   }
   source.classList.add("switch-drag-control");
@@ -4541,12 +4646,6 @@ function bindSwitchDragControl(source) {
   source.setAttribute("aria-controls", "switchDragMenu");
   source.setAttribute("aria-expanded", "false");
   source.addEventListener("pointerdown", beginSwitchDragGesture);
-  source.addEventListener("mousedown", (event) => {
-    if (switchDragDescriptorForSource(source)) event.preventDefault();
-  }, true);
-  source.addEventListener("touchstart", (event) => {
-    if (switchDragDescriptorForSource(source)) event.preventDefault();
-  }, { capture: true, passive: false });
   source.addEventListener("click", (event) => {
     if (!switchDragDescriptorForSource(source)) return;
     event.preventDefault();
@@ -4833,6 +4932,7 @@ function bindEvents() {
   document.addEventListener("pointerdown", beginContinuousActionHold, true);
   document.addEventListener("click", suppressContinuousActionClick, true);
   document.addEventListener("click", suppressSwitchDragClick, true);
+  document.addEventListener("click", suppressNativeSelectHoldClick, true);
   document.addEventListener("pointerdown", (event) => {
     const button = event.target instanceof Element ? event.target.closest("button") : null;
   if (!button) return;
@@ -4914,9 +5014,17 @@ function bindEvents() {
   window.addEventListener("pointermove", moveSwitchDragGesture, true);
   window.addEventListener("pointerup", (event) => finishSwitchDragGesture(event), true);
   window.addEventListener("pointercancel", (event) => finishSwitchDragGesture(event, true), true);
-  window.addEventListener("blur", closeSwitchDragMenu);
+  window.addEventListener("pointermove", moveNativeSelectHold, true);
+  window.addEventListener("pointerup", (event) => finishNativeSelectHold(event), true);
+  window.addEventListener("pointercancel", (event) => finishNativeSelectHold(event, true), true);
+  window.addEventListener("blur", () => {
+    closeSwitchDragMenu();
+    clearNativeSelectHold();
+  });
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) closeSwitchDragMenu();
+    if (!document.hidden) return;
+    closeSwitchDragMenu();
+    clearNativeSelectHold();
   });
   window.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
   window.visualViewport?.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
@@ -17207,7 +17315,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "iai-rim-catalog-sync-v489";
+const version = "switch-hold-ui-v490";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

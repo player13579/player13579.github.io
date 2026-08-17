@@ -2767,6 +2767,13 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   user-select: none;
 }
 
+.native-switch-hold-control {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .switch-drag-menu[hidden] {
   display: none !important;
   pointer-events: none !important;
@@ -3320,7 +3327,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=iai-rim-catalog-sync-v489") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=switch-hold-ui-v490") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
