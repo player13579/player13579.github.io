@@ -14,6 +14,7 @@
     cacheReward: 3,
     quantumMercuryReward: 4,
     quantumLeadReward: 2,
+    goldInstantReward: 4,
     mysteryJackpot: 6,
     donationCost: 1,
     hackerDuplicateBonus: 2
@@ -48,7 +49,7 @@
     ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
     ["exile", "亡命", 22, "generate-tech", "vending-exile", "exile"],
-    ["computer", "パソコン", 10, "generate-tech", "vending-computer", "computer"],
+    ["computer", "パソコン", 10, "instant-item", "vending-computer", "computer"],
     ["handgun", "ハンドガン", 3, "weapon", "vending-handgun", "handgun"],
     ["smg", "サブマシンガン", 5, "weapon", "vending-smg", "smg"],
     ["assault", "アサルトライフル", 7, "weapon", "vending-assault", "assault"],
@@ -62,7 +63,7 @@
     ["iai", "居合", 9, "instant-item", "iai", "iai"],
     ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice", "root-only"],
     ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water", "root-only"],
-    ["gold", "金", 2, "generate-supply", "gold", "gold", "root-only"],
+    ["gold", "金", 4, "instant-item", "gold", "gold", "root-only"],
     ["rpg", "RPG", 14, "weapon", "vending-rpg", "rpg"],
     ["missile", "ミサイル", 17, "weapon", "vending-missile", "missile"]
   ];
@@ -100,7 +101,7 @@
   };
 
   return Object.freeze({
-    version: "root-gold-inventory-v492",
+    version: "instant-gold-computer-v493",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

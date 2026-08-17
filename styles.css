@@ -2831,15 +2831,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   background: linear-gradient(180deg, #ecfeff, #dbeafe);
 }
 
-.root-ability-switch-button {
-  width: 100%;
-  min-height: 46px;
-  border-color: rgba(34, 211, 238, 0.82);
-  background: linear-gradient(112deg, rgba(8, 51, 68, 0.97), rgba(29, 24, 78, 0.94));
-  color: #ecfeff;
-  text-align: left;
-}
-
 .switch-drag-option {
   display: grid;
   gap: 2px;
@@ -3327,7 +3318,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=root-sequential-switch-v492") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=instant-gold-computer-v493") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
@@ -3610,6 +3601,17 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .vending-item-icon,
 .alchemy-choice-icon {
   animation: texture-detail-live 4.6s ease-in-out infinite alternate;
+}
+
+.vending-item-icon.generated-item-texture-visible,
+.alchemy-choice-icon.generated-item-texture-visible {
+  background-image: var(--generated-item-texture) !important;
+  background-position: var(--generated-item-position, center) !important;
+  background-size: var(--generated-item-size, contain) !important;
+  background-repeat: no-repeat !important;
+  animation: none;
+  opacity: 1;
+  visibility: visible;
 }
 
 @keyframes title-command-arrive {

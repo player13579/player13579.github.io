@@ -7278,6 +7278,7 @@ const LABORATORY_MAP = Object.freeze({
     cacheReward: 3,
     quantumMercuryReward: 4,
     quantumLeadReward: 2,
+    goldInstantReward: 4,
     mysteryJackpot: 6,
     donationCost: 1,
     hackerDuplicateBonus: 2
@@ -7312,7 +7313,7 @@ const LABORATORY_MAP = Object.freeze({
     ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
     ["exile", "亡命", 22, "generate-tech", "vending-exile", "exile"],
-    ["computer", "パソコン", 10, "generate-tech", "vending-computer", "computer"],
+    ["computer", "パソコン", 10, "instant-item", "vending-computer", "computer"],
     ["handgun", "ハンドガン", 3, "weapon", "vending-handgun", "handgun"],
     ["smg", "サブマシンガン", 5, "weapon", "vending-smg", "smg"],
     ["assault", "アサルトライフル", 7, "weapon", "vending-assault", "assault"],
@@ -7326,7 +7327,7 @@ const LABORATORY_MAP = Object.freeze({
     ["iai", "居合", 9, "instant-item", "iai", "iai"],
     ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice", "root-only"],
     ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water", "root-only"],
-    ["gold", "金", 2, "generate-supply", "gold", "gold", "root-only"],
+    ["gold", "金", 4, "instant-item", "gold", "gold", "root-only"],
     ["rpg", "RPG", 14, "weapon", "vending-rpg", "rpg"],
     ["missile", "ミサイル", 17, "weapon", "vending-missile", "missile"]
   ];
@@ -7364,7 +7365,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "root-gold-inventory-v492",
+    version: "instant-gold-computer-v493",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7582,6 +7583,7 @@ const POISON_DAMAGE_PER_TICK = 0.2;
 const BURN_DAMAGE_PER_TICK = 0.25;
 const QUANTUM_CREDITS_MERCURY = CREDIT_ECONOMY.quantumMercuryReward;
 const QUANTUM_CREDITS_LEAD = CREDIT_ECONOMY.quantumLeadReward;
+const GOLD_INSTANT_CREDITS = CREDIT_ECONOMY.goldInstantReward;
 const QUANTUM_ACTION_STAMINA_COST = 8;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
 const MINERAL_WATER_STAMINA = 100;
@@ -7854,14 +7856,15 @@ const ITEM_DEFINITIONS = Object.freeze({
   antidote: Object.freeze({ id: "antidote", label: "解毒剤", asset: "antidote", throwable: true }),
   molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true }),
   ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true }),
-  "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true }),
-  gold: Object.freeze({ id: "gold", label: "金", asset: "gold", throwable: true, transformed: true, usable: false })
+  "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true })
 });
 
 const INSTANT_ITEM_DEFINITIONS = Object.freeze({
   grit: Object.freeze({ id: "grit", label: "踏ん張り", field: "gritCharges", automatic: true }),
   reason: Object.freeze({ id: "reason", label: "押し込み", field: "reasonCharges", automatic: true }),
-  iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: true })
+  iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: true }),
+  gold: Object.freeze({ id: "gold", label: "金", automatic: true }),
+  computer: Object.freeze({ id: "computer", label: "パソコン", field: "computerActive", automatic: true })
 });
 
 const QUANTUM_STARTING_ITEMS = Object.freeze({ mercury: 1, lead: 1, uranium: 1, plutonium: 1 });
@@ -13714,11 +13717,6 @@ function transferKillInventory(room, killer, target) {
     transferred.push(`銃器:${target.purchasedWeapons.length}`);
     target.purchasedWeapons = [];
   }
-  if (target.computerActive) {
-    killer.computerActive = true;
-    target.computerActive = false;
-    transferred.push("パソコン:1");
-  }
   if (transferred.length) pushEvent(room, `${killer.name} が ${target.name} の所持品をすべて獲得しました。`);
   return transferred;
 }
@@ -13913,10 +13911,6 @@ function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, optio
 
 function destroyElectronicInventoryByEmp(room, target) {
   let destroyed = 0;
-  if (target.computerActive) {
-    target.computerActive = false;
-    destroyed += 1;
-  }
   if (Array.isArray(target.purchasedWeapons) && target.purchasedWeapons.includes("taser")) {
     target.purchasedWeapons = target.purchasedWeapons.filter((weaponId) => weaponId !== "taser");
     target.gunnerAmmo.taser = 0;
@@ -14629,10 +14623,7 @@ function purchaseDrink(room, player, itemId) {
     railgun: { label: "素敵な発明品・レールガン", cost: 150, apply: () => { player.inventions.push("railgun"); } },
     "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 190, apply: () => { player.inventions.push("particle-cannon"); } },
     excalibur: { label: "素敵な発明品・エクスカリバー", cost: 230, apply: () => { player.inventions.push("excalibur"); } },
-    computer: { label: "パソコン", cost: 125, apply: () => {
-      if (player.computerActive) throw new ApiError(400, "パソコンは所持済みです。");
-      player.computerActive = true;
-    } },
+    computer: { label: "パソコン", cost: 125, apply: () => activateComputerInstant(player) },
     handgun: { label: "ハンドガン", cost: 40, apply: () => purchaseFirearm(player, "handgun") },
     smg: { label: "サブマシンガン", cost: 65, apply: () => purchaseFirearm(player, "smg") },
     assault: { label: "アサルトライフル", cost: 85, apply: () => purchaseFirearm(player, "assault") },
@@ -14676,6 +14667,11 @@ function purchaseFirearm(player, weaponId) {
   player.gunnerWeapon = weaponId;
 }
 
+function activateComputerInstant(player) {
+  if (player.computerActive) throw new ApiError(400, "パソコン効果は適用済みです。");
+  player.computerActive = true;
+}
+
 function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired") {
   if (!room || !player) return;
   // Vibe Coding already emits its own generation ATE. Suppress only the
@@ -14694,7 +14690,8 @@ function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired"
     mana: "instant-mana-acquired",
     grit: "instant-stand-firm-acquired",
     reason: "instant-push-acquired",
-    iai: "instant-iai-acquired"
+    iai: "instant-iai-acquired",
+    computer: "instant-computer-acquired"
   }[itemId];
   if (!effectType) return;
   pushMagicEffect(room, effectType, player, {
@@ -15818,7 +15815,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "vending-particle-cannon": { label: "荷電粒子砲", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("particle-cannon")) player.inventions.push("particle-cannon"); } },
   "vending-excalibur": { label: "エクスカリバー", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("excalibur")) player.inventions.push("excalibur"); } },
   "vending-exile": { label: "亡命", cost: 0, apply: (_room, player) => { player.exiled = true; } },
-  "vending-computer": { label: "パソコン", cost: 0, apply: (_room, player) => { player.computerActive = true; } },
+  "vending-computer": { label: "パソコン", cost: 0, apply: (_room, player) => activateComputerInstant(player) },
   "vending-handgun": { label: "ハンドガン", cost: 0, apply: (_room, player) => purchaseFirearm(player, "handgun") },
   "vending-smg": { label: "サブマシンガン", cost: 0, apply: (_room, player) => purchaseFirearm(player, "smg") },
   "vending-assault": { label: "アサルトライフル", cost: 0, apply: (_room, player) => purchaseFirearm(player, "assault") },
@@ -15826,7 +15823,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "vending-taser": { label: "テーザー銃", cost: 0, apply: (_room, player) => purchaseFirearm(player, "taser") },
   "vending-ice": { label: "氷結水", cost: 0, apply: (_room, player) => addItem(player, "ice") },
   "vending-heated-water": { label: "高温水", cost: 0, apply: (_room, player) => addItem(player, "heated-water") },
-  gold: { label: "金", cost: 0, apply: (_room, player) => addItem(player, "gold") },
+  gold: { label: "金", cost: 0, apply: (room, player) => { grantCredits(room, player, GOLD_INSTANT_CREDITS, "hacker-gold"); } },
   "vending-rpg": { label: "RPG", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("rpg"); } },
   "vending-missile": { label: "ミサイル", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("missile"); } },
   "hack-credits-delete": { label: "クレジット削除", cost: 2, apply: (room, player, targetId) => { hackerTarget(room, player, targetId).credits = 0; } },
@@ -20891,5 +20888,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "root-sequential-switch-v492" });
+self.postMessage({ type: "ready", version: "instant-gold-computer-v493" });
 })();

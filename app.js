@@ -175,7 +175,6 @@ const els = {
   dodgeButton: $("#dodgeButton"),
   teleportButton: $("#teleportButton"),
   teleportControl: $("#teleportControl"),
-  rootAbilitySwitchButton: $("#rootAbilitySwitchButton"),
   teleportModeSelect: $("#teleportModeSelect"),
   teleportModeDescription: $("#teleportModeDescription"),
   teleportTargetSelect: $("#teleportTargetSelect"),
@@ -509,6 +508,8 @@ const state = {
   operatorBranchType: "",
   borrowedOperatorType: "gravity",
   borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", gunner: "sniping", quantum: "transmute-mercury" },
+  rootAbilitySelectStage: "operator",
+  rootAbilitySelectWasActive: false,
   arrowRepeatKey: "",
   arrowRepeatAt: 0,
   keybindOpen: false,
@@ -646,7 +647,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "particle-cannon": "使用: 使い切り。6秒間、0.30秒間隔で照準操作できる貫通ビームを放射し、経路上の全対象は命中時に確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
-  computer: "所持中、生存者のスマホ位置を表示。EMPストレージ遮断中は停止し、解除後に復帰",
+  computer: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
   handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。ため撃ちLv1〜4は0.58/0.67/0.77/0.86（最遠0.37/0.43/0.50/0.56）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。ため撃ちLv1〜4は0.50/0.59/0.67/0.76（最遠0.14/0.17/0.19/0.22）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
@@ -661,7 +662,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
-  gold: "ROOTハッカーだけが生成できる純金インゴット。通常使用はできない。投擲被弾は対象の幸運で低ダメージになり、接地後は実体が残って誰でも拾える",
+  gold: "ROOTハッカー限定の即席生成。取得時に純金インゴットを4Cへ即時換金し、物理所持品には残らない",
   rpg: "使用: 使い切り。半径300以内にいる自分以外の全員へ与ダメージ1.00の物理攻撃。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える",
   missile: "使用: 使い切り。最寄りの自分以外1人へ確殺の物理攻撃（HS・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える"
 });
@@ -725,7 +726,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-sequential-switch-v492";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "instant-gold-computer-v493";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -796,7 +797,13 @@ function applyGeneratedItemTexture(button, itemId) {
   const base = texture.file.startsWith("room-") || texture.file.startsWith("facility-")
     ? "assets/"
     : "assets/generated/";
-  icon.style.backgroundImage = `url("${assetUrl(`${base}${texture.file}?v=${GENERATED_ITEM_TEXTURE_CACHE_VERSION}`)}")`;
+  const imageUrl = assetUrl(`${base}${texture.file}?v=${GENERATED_ITEM_TEXTURE_CACHE_VERSION}`);
+  icon.classList.add("generated-item-texture-visible");
+  icon.dataset.generatedTexture = normalizedId;
+  icon.style.setProperty("--generated-item-texture", `url("${imageUrl}")`);
+  icon.style.setProperty("--generated-item-position", texture.position || "center");
+  icon.style.setProperty("--generated-item-size", texture.size || "contain");
+  icon.style.backgroundImage = `url("${imageUrl}")`;
   icon.style.backgroundPosition = texture.position || "center";
   icon.style.backgroundSize = texture.size || "contain";
   icon.style.backgroundRepeat = "no-repeat";
@@ -1211,7 +1218,6 @@ function renderHackerAbilityDock(data = state.data, force = false) {
         <span class="alchemy-choice-icon hacker-action-icon" aria-hidden="true"></span>
         <span class="hacker-action-copy item-name-line">${hackerRecipeNameMarkup(recipe)}</span>
       `;
-      applyGeneratedItemTexture(button, recipe.asset || recipe.id);
       bindInventoryDetailHold(button, {
         label: recipe.label,
         output: category.label,
@@ -1219,6 +1225,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
         detail: recipe.output || "バイブコーディングで生成・適用する対象。"
       }, els.hackerAbilityGrid);
       els.hackerAbilityGrid.append(button);
+      applyGeneratedItemTexture(button, recipe.asset || recipe.id);
     });
     selectHackerAction(
       state.hackerSelectedRecipeId || state.hackerSelectedByCategory[category.id] || "",
@@ -1230,6 +1237,10 @@ function renderHackerAbilityDock(data = state.data, force = false) {
     els.hackerAbilityDock.classList.add("page-transition");
   }
   syncHackerSelectedName();
+  els.hackerAbilityGrid.querySelectorAll("[data-hacker-recipe]").forEach((button) => {
+    const recipe = alchemyRecipes.find((entry) => entry.id === button.dataset.hackerRecipe);
+    if (recipe) applyGeneratedItemTexture(button, recipe.asset || recipe.id);
+  });
 
   const canAct = self.alive &&
     !self.ejected &&
@@ -4205,26 +4216,6 @@ function switchDragDescriptorForSource(source) {
       selected: weapon.id === state.data?.self?.gunnerWeapon,
       apply() { void api("/api/gunner-weapon", { weaponId: weapon.id }); }
     })));
-  } else if (source === els.rootAbilitySwitchButton) {
-    title = "ROOT借用能力を切り替え";
-    const self = state.data?.self;
-    options.push(...availableBorrowedOperatorTypes(self).map((type) => {
-      const operatorLabel = HACKER_ROOT_OPERATOR_LABELS[type] || type;
-      const savedMode = state.borrowedAbilityModes[type] || OPERATOR_ABILITY_MODE_OPTIONS[type]?.[0]?.[0] || "";
-      return {
-        key: `root-operator:${type}`,
-        group: "オペ",
-        label: operatorLabel,
-        selected: type === selectedBorrowedOperator(),
-        branches: (OPERATOR_ABILITY_MODE_OPTIONS[type] || []).map(([mode, label]) => ({
-          key: `root-ability:${type}:${mode}`,
-          group: operatorLabel,
-          label,
-          selected: type === selectedBorrowedOperator() && mode === savedMode,
-          apply() { selectBorrowedAbilityMode(type, mode); }
-        }))
-      };
-    }));
   }
   const unique = options.filter((option, index, all) => all.findIndex((entry) => entry.key === option.key) === index);
   const hierarchical = unique.some((option) => Array.isArray(option.branches));
@@ -4775,7 +4766,7 @@ function selectBorrowedAbilityMode(type, mode) {
     els.teleportModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
   }
   updateActionButtons(state.data);
-  setActionSelection(els.rootAbilitySwitchButton);
+  setActionSelection(els.teleportModeSelect);
   return true;
 }
 
@@ -4995,9 +4986,11 @@ function bindEvents() {
     els.empPhaseSelect,
     els.sabotageSelect,
     els.transferTargetSelect,
-    els.rootAbilitySwitchButton,
     els.weaponButton
   ].forEach(bindSwitchDragControl);
+  els.teleportModeSelect.addEventListener("pointerdown", () => {
+    prepareRootAbilityModeSelectForOpen();
+  }, true);
   document.addEventListener("pointerdown", (event) => {
     const gesture = state.switchDrag;
     if (!gesture.opened || !gesture.persistent) return;
@@ -5173,6 +5166,10 @@ function bindEvents() {
   [els.teleportModeSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
     select.addEventListener("change", () => {
       if (select === els.teleportModeSelect) {
+        if (commitRootAbilityModeSelect()) {
+          select.blur();
+          return;
+        }
         rememberSelectedOperatorMode();
         ensureTeleportTargetForMode(state.data);
         const owner = selectedBorrowedOperator() || state.data?.self?.special || "";
@@ -8939,6 +8936,84 @@ async function selectOperatorFromCard(operator) {
   return true;
 }
 
+function rootAbilityModeSelectActive(self = state.data?.self) {
+  return Boolean(
+    self?.special === "alchemist" &&
+    self.hackerRootActive &&
+    availableBorrowedOperatorTypes(self).length > 0
+  );
+}
+
+function populateRootOperatorModeSelect(self = state.data?.self) {
+  const types = availableBorrowedOperatorTypes(self);
+  if (!types.length) return false;
+  state.rootAbilitySelectStage = "operator";
+  els.teleportModeSelect.dataset.specialKey = `root-operators:${types.join("|")}`;
+  els.teleportModeSelect.innerHTML = [
+    '<option value="" selected disabled>オペ名を選択</option>',
+    ...types.map((type) => `<option value="root-operator:${escapeHtml(type)}">${escapeHtml(HACKER_ROOT_OPERATOR_LABELS[type] || type)}</option>`)
+  ].join("");
+  els.teleportModeSelect.value = "";
+  els.teleportModeSelect.setAttribute("aria-label", "ROOT借用オペ名");
+  els.teleportModeDescription.textContent = "オペ名を選択すると、同じ能力方式UIがそのオペの能力一覧へ切り替わります。";
+  return true;
+}
+
+function populateRootAbilityModeSelect(type, { prompt = false } = {}) {
+  const self = state.data?.self;
+  if (!availableBorrowedOperatorTypes(self).includes(type)) return false;
+  const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
+  if (!choices.length) return false;
+  state.borrowedOperatorType = type;
+  state.rootAbilitySelectStage = prompt ? "ability" : "selected";
+  els.teleportModeSelect.dataset.specialKey = `root-abilities:${type}:${choices.map(([value]) => value).join("|")}`;
+  els.teleportModeSelect.innerHTML = [
+    ...(prompt ? ['<option value="" selected disabled>能力を選択</option>'] : []),
+    ...choices.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+  ].join("");
+  const remembered = state.borrowedAbilityModes[type] || choices[0][0];
+  els.teleportModeSelect.value = prompt ? "" : choices.some(([value]) => value === remembered) ? remembered : choices[0][0];
+  els.teleportModeSelect.setAttribute("aria-label", `ROOT借用能力方式・${HACKER_ROOT_OPERATOR_LABELS[type] || type}`);
+  if (prompt) {
+    els.teleportModeDescription.textContent = `${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択してください。`;
+  }
+  return true;
+}
+
+function prepareRootAbilityModeSelectForOpen() {
+  const self = state.data?.self;
+  if (!rootAbilityModeSelectActive(self)) return false;
+  if (state.rootAbilitySelectStage === "selected") populateRootOperatorModeSelect(self);
+  return true;
+}
+
+function commitRootAbilityModeSelect() {
+  const self = state.data?.self;
+  if (!rootAbilityModeSelectActive(self)) return false;
+  if (state.rootAbilitySelectStage === "operator") {
+    const type = String(els.teleportModeSelect.value || "").replace(/^root-operator:/, "");
+    if (!availableBorrowedOperatorTypes(self).includes(type)) return true;
+    populateRootAbilityModeSelect(type, { prompt: true });
+    showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択`);
+    updateActionButtons(state.data);
+    return true;
+  }
+  if (state.rootAbilitySelectStage === "ability") {
+    const type = selectedBorrowedOperator();
+    const mode = els.teleportModeSelect.value;
+    const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
+    if (!choices.some(([value]) => value === mode)) return true;
+    state.borrowedAbilityModes[type] = mode;
+    state.rootAbilitySelectStage = "selected";
+    syncAbilityModeDescription(type, self);
+    ensureTeleportTargetForMode(state.data);
+    showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}: ${choices.find(([value]) => value === mode)?.[1] || mode}`);
+    updateActionButtons(state.data);
+    return true;
+  }
+  return true;
+}
+
 function renderTargetOptions(data) {
   const self = data.self;
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value);
@@ -8946,20 +9021,35 @@ function renderTargetOptions(data) {
   const modeOwner = borrowedOperator || self.special;
   els.teleportTargetSelect.dataset.ownerKey = modeOwner;
   const options = OPERATOR_ABILITY_MODE_OPTIONS[modeOwner] || [];
-  const rootAbilitySwitchVisible = self.special === "alchemist" && self.hackerRootActive && availableBorrowedOperatorTypes(self).length > 0;
+  const rootAbilitySwitchVisible = rootAbilityModeSelectActive(self);
+  if (rootAbilitySwitchVisible && !state.rootAbilitySelectWasActive) {
+    state.rootAbilitySelectStage = "operator";
+  }
+  state.rootAbilitySelectWasActive = rootAbilitySwitchVisible;
   const alchemyTargetVisible = self.special === "alchemist" &&
     (els.alchemySelect.value === "revive" || els.alchemySelect.value.startsWith("hack-"));
   const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible) && self.alive && !self.ejected;
   els.teleportControl.hidden = !controlVisible;
-  els.rootAbilitySwitchButton.hidden = !rootAbilitySwitchVisible;
-  els.teleportModeSelect.closest("label").hidden = rootAbilitySwitchVisible || !options.length;
+  els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length;
   els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible &&
     !["teleport", "gravity"].includes(modeOwner);
   els.empPhaseControl.hidden = data.phase !== "playing" || !self.alive || self.ejected;
   if (!controlVisible && self.special !== "alchemist") return;
 
   const modeKey = options.map((option) => option[0]).join("|");
-  if (options.length && els.teleportModeSelect.dataset.specialKey !== `${modeOwner}:${modeKey}`) {
+  if (rootAbilitySwitchVisible) {
+    if (state.rootAbilitySelectStage === "operator") {
+      const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
+      if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self);
+    } else {
+      const rootType = selectedBorrowedOperator();
+      const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
+      const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
+      if (els.teleportModeSelect.dataset.specialKey !== abilityKey) {
+        populateRootAbilityModeSelect(rootType, { prompt: state.rootAbilitySelectStage === "ability" });
+      }
+    }
+  } else if (options.length && els.teleportModeSelect.dataset.specialKey !== `${modeOwner}:${modeKey}`) {
     const previousMode = els.teleportModeSelect.value;
     els.teleportModeSelect.dataset.specialKey = `${modeOwner}:${modeKey}`;
     els.teleportModeSelect.innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
@@ -8976,16 +9066,9 @@ function renderTargetOptions(data) {
     rememberSelectedOperatorMode();
   }
 
-  if (rootAbilitySwitchVisible) {
-    const selectedMode = state.borrowedAbilityModes[modeOwner] || options[0]?.[0] || "";
-    const selectedLabel = options.find(([value]) => value === selectedMode)?.[1] || selectedMode;
-    const operatorLabel = HACKER_ROOT_OPERATOR_LABELS[modeOwner] || modeOwner;
-    els.rootAbilitySwitchButton.textContent = `${operatorLabel} → ${selectedLabel}`;
-    els.rootAbilitySwitchButton.title = "タップまたは長押し→オペ名を確定→同じメニューで能力を確定";
-    els.rootAbilitySwitchButton.setAttribute("aria-label", `ROOT借用能力: ${operatorLabel}、${selectedLabel}。タップまたは長押しでオペ名を確定し、同じメニューで能力を確定`);
+  if (!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "selected") {
+    syncAbilityModeDescription(modeOwner, self);
   }
-
-  syncAbilityModeDescription(modeOwner, self);
 
   const includeDead = self.special === "alchemist" && els.alchemySelect.value === "revive";
   const hackerTargeting = self.special === "alchemist" && els.alchemySelect.value.startsWith("hack-");
@@ -9193,20 +9276,7 @@ function collectInventoryDisplayItems(self) {
     detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器",
     badge: `×${count}`
   }));
-  const computerItems = self.computerActive ? [{
-    id: "computer",
-    sourceId: "computer",
-    label: "パソコン",
-    asset: "computer",
-    inventoryKind: "passive-item",
-    output: self.computerEffective === false ? "遮断中" : "稼働中",
-    detail: VENDING_PRODUCT_DESCRIPTIONS.computer,
-    badge: self.computerEffective === false ? "EMP遮断中" : "所持中",
-    usable: false,
-    throwable: false,
-    transferable: false
-  }] : [];
-  return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems, ...computerItems];
+  return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems];
 }
 
 function createInventoryTouchGesture({
@@ -9619,7 +9689,6 @@ function renderItemControl(data) {
       button.setAttribute("role", "option");
       button.setAttribute("aria-label", item.label);
       button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong>${item.inventoryKind === "special-ammo" ? `<small>${escapeHtml(item.badge)}</small>` : ""}</span>`;
-      applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
         hideInventoryItemDetail();
@@ -9629,8 +9698,13 @@ function renderItemControl(data) {
         }
       });
       els.itemInventoryGrid.append(button);
+      applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
     });
   }
+  els.itemInventoryGrid.querySelectorAll("[data-item-choice]").forEach((button) => {
+    const item = items.find((entry) => entry.id === button.dataset.itemChoice);
+    if (item) applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
+  });
   const weaponChanged = Boolean(state.inventoryVisualWeapon && state.inventoryVisualWeapon !== self.gunnerWeapon);
   state.inventoryVisualWeapon = self.gunnerWeapon || "";
   const equippedWeaponItemId = self.gunnerWeapon ? `weapon:${self.gunnerWeapon}` : "";
@@ -9925,7 +9999,7 @@ function renderActiveEffects(data) {
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
   timed("休息", self.sleepingUntil, "neutral", "行動停止・SP回復×4");
   timed("精神統一", self.meditatingUntil, "rational", "完了時MP+1");
-  if (self.computerActive) add("パソコン", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "全生存者を表示" : "EMP解除後に復帰");
+  if (self.computerActive) add("パソコン効果", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "即席適用・全生存者を表示" : "即席効果を保持・EMP解除後に復帰");
 
   const panelHidden = !["playing", "meeting"].includes(data.phase);
   if (els.activeEffectsPanel.hidden !== panelHidden) els.activeEffectsPanel.hidden = panelHidden;
@@ -10067,6 +10141,7 @@ function renderVending(data) {
     data.self.standFirmCharges || 0,
     data.self.pushCharges || 0,
     mysteryVisible ? data.self.lastMysteryResult : "",
+    Boolean(data.self.computerActive),
     category.id
   ]);
   if (state.vendingRenderKey === renderKey) {
@@ -10085,7 +10160,7 @@ function renderVending(data) {
   });
   if (els.magicInventory.hidden) els.magicInventory.hidden = false;
   const carriedItems = (data.self.itemInventory || []).map((item) => `${item.label} ${item.amount}`).join(" / ");
-  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}火遁 ${data.self.fireJutsuCharges || 0} / 変わり身 ${data.self.substitutionCharges || 0} / 銃器 ${(data.self.purchasedWeapons || []).length}${data.self.computerActive ? " / 戦術PC" : ""}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
+  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}火遁 ${data.self.fireJutsuCharges || 0} / 変わり身 ${data.self.substitutionCharges || 0} / 銃器 ${(data.self.purchasedWeapons || []).length}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
   if (els.magicInventory.textContent !== inventoryText) els.magicInventory.textContent = inventoryText;
   scheduleActiveEffectsLayout();
 }
@@ -13649,6 +13724,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "instant-speed-acquired": ["instantSpeedTexture", 210],
   "instant-mystery-acquired": ["instantMysteryTexture", 240],
   "instant-mana-acquired": ["instantManaTexture", 240],
+  "instant-computer-acquired": ["computerItemTexture", 240],
   "fighter-energy-destruction-milestone": ["fighterDestructionSlashMilestoneEffect", 290],
   "fighter-energy-destruction-slash": ["fighterDestructionSlashMilestoneEffect", 260],
   "fighter-energy-release": ["fighterEnergyReleaseEffect", 180],
@@ -13683,7 +13759,7 @@ const GENERATED_EFFECT_TEXTURES = {
 function semanticEffectMotion(type, variant = "", fallback = "energy") {
   const token = `${String(type || "")} ${String(variant || "")}`.toLowerCase();
   if (/gravity|decelerate|accelerate/.test(token)) return "gravity";
-  if (/emp|taser|shock|vibe|hack|pair-route|smartphone/.test(token)) return "glitch";
+  if (/emp|taser|shock|vibe|hack|pair-route|smartphone|computer/.test(token)) return "glitch";
   if (/teleport|warp|substitution|transfer/.test(token)) return "teleport";
   if (/fire|burn|hot|nuclear|rpg|missile/.test(token)) return "combustion";
   if (/railgun|particle|sunbeam|excalibur|slash|shoot|beam/.test(token)) return "beam";
@@ -13900,7 +13976,8 @@ function drawUtilityInstantItemAcquisitionEffect(effect, progress, sprite, defau
     evade: { mode: "recoil", rotate: 0.06, dx: 72, dy: 0, sx: 0.38, sy: 0.82, color: "#a787ff", mote: "lateral" },
     speed: { mode: "flow-up", rotate: 0, dx: 0, dy: 78, sx: 0.6, sy: 0.34, color: "#76f4ff", mote: "rise" },
     mystery: { mode: "orbit", rotate: 2.4, dx: 0, dy: 0, sx: 0.52, sy: 0.52, color: "#ffcf67", mote: "orbit" },
-    mana: { mode: "ripple", rotate: -0.28, dx: -42, dy: 0, sx: 0.48, sy: 0.7, color: "#8ea7ff", mote: "wave" }
+    mana: { mode: "ripple", rotate: -0.28, dx: -42, dy: 0, sx: 0.48, sy: 0.7, color: "#8ea7ff", mote: "wave" },
+    computer: { mode: "glitch", rotate: 0.04, dx: 0, dy: 54, sx: 0.68, sy: 0.5, color: "#77f4ff", mote: "scan" }
   };
   const profile = profiles[kind] || profiles.mana;
   ctx.save();
@@ -13945,6 +14022,9 @@ function drawUtilityInstantItemAcquisitionEffect(effect, progress, sprite, defau
     } else if (profile.mote === "wave") {
       x = -86 + travel * 172;
       y = Math.sin(travel * Math.PI * 3 + index * 0.8) * 26;
+    } else if (profile.mote === "scan") {
+      x = -76 + travel * 152;
+      y = (index - 3) * 10;
     }
     ctx.globalAlpha = fade * (1 - travel) * (0.24 + (index % 3) * 0.055);
     ctx.fillStyle = index % 3 === 0 ? "#ffffff" : profile.color;
@@ -17329,7 +17409,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "root-sequential-switch-v492";
+const version = "instant-gold-computer-v493";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -17420,6 +17500,7 @@ const version = "root-sequential-switch-v492";
   const fighterEnergyChargeEffect = new Image();
   const attackerKillDeadlineEffect = new Image();
   const itemIaiTexture = new Image();
+  const computerItemTexture = new Image();
   const instantStandFirmTexture = philosophyEffectTextures[4];
   const instantPushTexture = philosophyEffectTextures[5];
   const instantStaminaTexture = alchemyEffectTextures[5];
@@ -17557,6 +17638,7 @@ const version = "root-sequential-switch-v492";
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
   defer(attackerKillDeadlineEffect, "assets/generated/attacker-kill-deadline-ate-v467.png");
   defer(itemIaiTexture, "assets/generated/instant-iai-abstract-v451.png");
+  defer(computerItemTexture, "assets/generated/item-computer-v404.png");
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
@@ -17670,6 +17752,7 @@ const version = "root-sequential-switch-v492";
     fighterEnergyChargeEffect,
     attackerKillDeadlineEffect,
     itemIaiTexture,
+    computerItemTexture,
     instantStandFirmTexture,
     instantPushTexture,
     instantStaminaTexture,
