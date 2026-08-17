@@ -7326,6 +7326,7 @@ const LABORATORY_MAP = Object.freeze({
     ["iai", "居合", 9, "instant-item", "iai", "iai"],
     ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice", "root-only"],
     ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water", "root-only"],
+    ["gold", "金", 2, "generate-supply", "gold", "gold", "root-only"],
     ["rpg", "RPG", 14, "weapon", "vending-rpg", "rpg"],
     ["missile", "ミサイル", 17, "weapon", "vending-missile", "missile"]
   ];
@@ -7363,7 +7364,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "quantum-root-instant-v477",
+    version: "root-gold-inventory-v492",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7677,6 +7678,8 @@ const BOT_CLAIRVOYANCE_DURATION_MS = 4000;
 const BOT_CLAIRVOYANCE_MEMORY_MS = 8000;
 const BOT_CLAIRVOYANCE_INTERVAL_MIN_MS = 18_000;
 const BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS = 10_000;
+const BOT_ATTACKER_CLAIRVOYANCE_INTERVAL_MIN_MS = 6_500;
+const BOT_ATTACKER_CLAIRVOYANCE_INTERVAL_JITTER_MS = 3_500;
 const BOT_ATTACKER_FAKE_TASK_TRAVEL_MS = 7_000;
 const BOT_ATTACKER_FAKE_TASK_PRESENCE_MS = 1_350;
 const BOT_ATTACKER_DECOY_PURSUIT_MS = 2_800;
@@ -7851,7 +7854,8 @@ const ITEM_DEFINITIONS = Object.freeze({
   antidote: Object.freeze({ id: "antidote", label: "解毒剤", asset: "antidote", throwable: true }),
   molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true }),
   ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true }),
-  "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true })
+  "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true }),
+  gold: Object.freeze({ id: "gold", label: "金", asset: "gold", throwable: true, transformed: true, usable: false })
 });
 
 const INSTANT_ITEM_DEFINITIONS = Object.freeze({
@@ -9674,6 +9678,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     manaGpuDrainCarry: 0,
     manaGpuCooldownCreditMs: 0,
     inventions: [],
+    computerActive: false,
     particleCannonUntil: 0,
     particleCannonNextAt: 0,
     hackerRootActive: false,
@@ -10105,6 +10110,7 @@ function startGame(room) {
     player.manaGpuDrainCarry = 0;
     player.manaGpuCooldownCreditMs = 0;
     player.inventions = [];
+    player.computerActive = false;
     player.particleCannonUntil = 0;
     player.particleCannonNextAt = 0;
     player.hackerRootActive = false;
@@ -13737,6 +13743,7 @@ function transferableItemsFor(player) {
         asset: ITEM_DEFINITIONS[itemId].asset,
         kind: "item",
         throwable: ITEM_DEFINITIONS[itemId].throwable !== false,
+        usable: ITEM_DEFINITIONS[itemId].usable !== false,
         reusable: Boolean(ITEM_DEFINITIONS[itemId].reusable)
       });
     }
@@ -14786,8 +14793,9 @@ function botPushBacklashWouldBeLethal(bot, target) {
 }
 
 function botKnownAttackerEvidence(room, bot, timestamp = now()) {
-  const scouted = botClairvoyanceContact(room, bot, timestamp);
-  if (scouted?.alive && !scouted.ejected && scouted.role === "attacker") return scouted;
+  // Clairvoyance is an observation route, not a role-reveal route. A Defender
+  // bot, like an ordinary Defender user, needs witnessed hostile action or
+  // retaliation evidence before treating an observed player as an Attacker.
   const witnessed = room.players.get(String(bot?.botWitnessTargetId || ""));
   if (witnessed?.alive && !witnessed.ejected && Number(bot.botWitnessUntil) > timestamp) return witnessed;
   const retaliatingAgainst = room.players.get(String(bot?.botRetaliationTargetId || ""));
@@ -15442,6 +15450,7 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
   ensureItemStorageAvailable(player);
   const definition = ITEM_DEFINITIONS[itemId];
   if (!definition) throw new ApiError(400, "使用対象が不正です。");
+  if (definition.usable === false) throw new ApiError(400, `${definition.label}は通常使用できません。`);
   const level = resolveEnhance(room, player, rawHoldMs, definition.label);
   if (itemId === "orichalcum-sword") {
     return fighterSlash(room, player, "", true, level);
@@ -15817,6 +15826,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "vending-taser": { label: "テーザー銃", cost: 0, apply: (_room, player) => purchaseFirearm(player, "taser") },
   "vending-ice": { label: "氷結水", cost: 0, apply: (_room, player) => addItem(player, "ice") },
   "vending-heated-water": { label: "高温水", cost: 0, apply: (_room, player) => addItem(player, "heated-water") },
+  gold: { label: "金", cost: 0, apply: (_room, player) => addItem(player, "gold") },
   "vending-rpg": { label: "RPG", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("rpg"); } },
   "vending-missile": { label: "ミサイル", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("missile"); } },
   "hack-credits-delete": { label: "クレジット削除", cost: 2, apply: (room, player, targetId) => { hackerTarget(room, player, targetId).credits = 0; } },
@@ -18465,6 +18475,8 @@ function serialize(room, viewer, options = {}) {
         return product?.hackerAccess !== "root" || hackerRootEligible(viewer);
       }) : [],
       inventions: [...(viewer.inventions || [])],
+      computerActive: Boolean(viewer.computerActive),
+      computerEffective: Boolean(viewer.computerActive && itemStorageAvailable(viewer, timestamp)),
       exiled: Boolean(viewer.exiled),
       hackTracking: isHackerOperator(viewer),
       hackerRootActive: hackerRootEligible(viewer),
@@ -19818,7 +19830,7 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
     return false;
   }
   const target = room.players.get(bot.botRetaliationTargetId);
-  if (!target?.alive || target.ejected || target.role === bot.role) {
+  if (!target?.alive || target.ejected || target.inVent || target.role === bot.role) {
     bot.botRetaliationTargetId = "";
     bot.botRetaliationUntil = 0;
     return false;
@@ -19949,9 +19961,14 @@ function clearBotClairvoyanceContact(bot) {
 }
 
 function botClairvoyanceContact(room, bot, timestamp = now()) {
+  const hadTarget = Boolean(bot?.botClairvoyanceTargetId);
   const target = room.players.get(String(bot?.botClairvoyanceTargetId || ""));
-  if (!target?.alive || target.ejected || target.role === bot.role) {
+  if (!target?.alive || target.ejected) {
     clearBotClairvoyanceContact(bot);
+    if (hadTarget && bot?.role === "attacker") {
+      const scheduled = Number(bot.nextBotClairvoyanceAt) || Infinity;
+      bot.nextBotClairvoyanceAt = Math.min(scheduled, timestamp + BOT_TICK_MS);
+    }
     return null;
   }
   if (bot.clairvoyanceActive && Number(bot.botClairvoyanceUntil) > timestamp) {
@@ -19997,27 +20014,29 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
     bot.nextBotClairvoyanceAt = timestamp + 3000;
     return null;
   }
-  const opponents = [...room.players.values()].filter((target) => (
+  const observableCandidates = [...room.players.values()].filter((target) => (
     target.id !== bot.id &&
-    target.role !== bot.role &&
+    (bot.role !== "attacker" || target.role !== bot.role) &&
     target.alive &&
     !target.ejected &&
     !target.inVent
   ));
-  if (!opponents.length) {
+  if (!observableCandidates.length) {
     bot.nextBotClairvoyanceAt = timestamp + 3000;
     return null;
   }
-  const target = opponents.sort((a, b) => {
+  const target = observableCandidates.sort((a, b) => {
     const claimsA = activeBotClaimCount(room, bot, a.id, "botClairvoyanceTargetId", "botClairvoyanceObservedUntil", timestamp);
     const claimsB = activeBotClaimCount(room, bot, b.id, "botClairvoyanceTargetId", "botClairvoyanceObservedUntil", timestamp);
-    const durabilityA = Math.max(0, 2 - Number(a.bodyHits || 0) - Number(a.overheal || 0));
-    const durabilityB = Math.max(0, 2 - Number(b.bodyHits || 0) - Number(b.overheal || 0));
     const scoutCycle = Math.floor(timestamp / Math.max(1, BOT_CLAIRVOYANCE_INTERVAL_MIN_MS));
+    if (bot.role === "attacker" && a.role === "defender" && b.role === "defender") {
+      return defenderIdeaVisibleThreatStage(b) - defenderIdeaVisibleThreatStage(a) ||
+        claimsA - claimsB ||
+        botTargetAffinity(bot, a, scoutCycle) - botTargetAffinity(bot, b, scoutCycle) ||
+        a.id.localeCompare(b.id);
+    }
     return claimsA - claimsB ||
-      durabilityA - durabilityB ||
       botTargetAffinity(bot, a, scoutCycle) - botTargetAffinity(bot, b, scoutCycle) ||
-      distance(bot, a) - distance(bot, b) ||
       a.id.localeCompare(b.id);
   })[0];
   bot.botClairvoyanceTargetId = target.id;
@@ -20025,10 +20044,16 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
   bot.botClairvoyanceTargetY = target.y;
   bot.botClairvoyanceUntil = timestamp + BOT_CLAIRVOYANCE_DURATION_MS;
   bot.botClairvoyanceObservedUntil = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_MEMORY_MS;
-  const intervalJitter = BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS > 0
-    ? stableBotHash(`${bot.id}:${target.id}:${Math.floor(timestamp / BOT_CLAIRVOYANCE_DURATION_MS)}`) % BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS
+  const intervalMinimum = bot.role === "attacker"
+    ? BOT_ATTACKER_CLAIRVOYANCE_INTERVAL_MIN_MS
+    : BOT_CLAIRVOYANCE_INTERVAL_MIN_MS;
+  const intervalJitterRange = bot.role === "attacker"
+    ? BOT_ATTACKER_CLAIRVOYANCE_INTERVAL_JITTER_MS
+    : BOT_CLAIRVOYANCE_INTERVAL_JITTER_MS;
+  const intervalJitter = intervalJitterRange > 0
+    ? stableBotHash(`${bot.id}:${target.id}:${Math.floor(timestamp / BOT_CLAIRVOYANCE_DURATION_MS)}`) % intervalJitterRange
     : 0;
-  bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + BOT_CLAIRVOYANCE_INTERVAL_MIN_MS + intervalJitter;
+  bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + intervalMinimum + intervalJitter;
   setClairvoyanceActive(room, bot, true);
   pushEvent(room, `${bot.name} が千里眼で敵陣営を索敵しました。`);
   return target;
@@ -20044,10 +20069,35 @@ function attackerBotKillUrgencyState(room, bot, timestamp = now()) {
     bot.ejected ||
     !(deadlineAt > 0)
   ) return { level: "none", remainingMs: Infinity, urgent: false, critical: false };
-  const remainingMs = Math.max(0, deadlineAt - timestamp);
-  const critical = remainingMs <= BOT_ATTACKER_KILL_CRITICAL_MS;
-  const urgent = critical || remainingMs <= BOT_ATTACKER_KILL_URGENT_MS;
-  return { level: critical ? "critical" : urgent ? "urgent" : "comfortable", remainingMs, urgent, critical };
+  const deadlineRemainingMs = Math.max(0, deadlineAt - timestamp);
+  const ideaThreatStage = alivePlayers(room, "defender").reduce(
+    (maximum, defender) => Math.max(maximum, defenderIdeaVisibleThreatStage(defender)),
+    0
+  );
+  const remainingMs = deadlineRemainingMs;
+  const critical = deadlineRemainingMs <= BOT_ATTACKER_KILL_CRITICAL_MS || ideaThreatStage >= 3;
+  const urgent = critical || deadlineRemainingMs <= BOT_ATTACKER_KILL_URGENT_MS || ideaThreatStage >= 2;
+  return {
+    level: critical ? "critical" : urgent ? "urgent" : "comfortable",
+    remainingMs,
+    deadlineRemainingMs,
+    ideaThreatStage,
+    urgent,
+    critical
+  };
+}
+
+function defenderIdeaVisibleThreatStage(defender) {
+  if (!defender?.alive || defender.ejected || defender.role !== "defender") return 0;
+  // ideaStage/goodActive/ascension are serialized to every ordinary player and
+  // have field ATEs. Exact ideaProgressMs, resources and thresholds are self-only
+  // and must never be read by a bot for target selection.
+  return Math.max(
+    0,
+    Math.min(4, Number(defender.ideaStage) || 0),
+    defender.goodActive ? 3 : 0,
+    Number(defender.ascensionUntil) > 0 ? 4 : 0
+  );
 }
 
 function botKillOpportunityProfile(room, bot, target) {
@@ -20060,6 +20110,7 @@ function botKillOpportunityProfile(room, bot, target) {
     candidate.alive &&
     !candidate.ejected &&
     !candidate.inVent &&
+    botCanDirectlyObservePlayer(room, bot, candidate) &&
     (
       distance(candidate, target) <= BOT_ATTACKER_ISOLATION_RANGE ||
       distance(candidate, bot) <= BOT_ATTACKER_ISOLATION_RANGE
@@ -20085,50 +20136,69 @@ function botKillOpportunityProfile(room, bot, target) {
   };
 }
 
+function compareAttackerDefenderPriority(room, bot, a, b, timestamp = now(), claimsA = 0, claimsB = 0) {
+  const ideaA = defenderIdeaVisibleThreatStage(a);
+  const ideaB = defenderIdeaVisibleThreatStage(b);
+  const opportunityA = botKillOpportunityProfile(room, bot, a);
+  const opportunityB = botKillOpportunityProfile(room, bot, b);
+  const immediateA = botHasImmediateLethalOpportunity(room, bot, a, timestamp) ? 1 : 0;
+  const immediateB = botHasImmediateLethalOpportunity(room, bot, b, timestamp) ? 1 : 0;
+  return ideaB - ideaA ||
+    immediateB - immediateA ||
+    claimsA - claimsB ||
+    opportunityA.witnessCount - opportunityB.witnessCount ||
+    opportunityA.thirdPartyCount - opportunityB.thirdPartyCount ||
+    distance(bot, a) - distance(bot, b) ||
+    botTargetAffinity(bot, a, Math.floor(timestamp / 12_000)) - botTargetAffinity(bot, b, Math.floor(timestamp / 12_000)) ||
+    a.id.localeCompare(b.id);
+}
+
+function botCanDirectlyObservePlayer(room, bot, target) {
+  if (!target?.alive || target.ejected || target.inVent || target.id === bot?.id) return false;
+  const targetDistance = distance(bot, target);
+  if (targetDistance > BOT_BODY_NOTICE_RANGE) return false;
+  const dx = target.x - bot.x;
+  const dy = target.y - bot.y;
+  const length = Math.hypot(dx, dy) || 1;
+  return clearShotPath(room, bot, target, dx / length, dy / length);
+}
+
+function visibleDefenderCandidates(room, bot, timestamp = now()) {
+  return alivePlayers(room, "defender").filter((target) => botCanDirectlyObservePlayer(room, bot, target)).sort((a, b) => {
+    const claimsA = activeBotClaimCount(room, bot, a.id, "botTarget", "botTargetUntil", timestamp);
+    const claimsB = activeBotClaimCount(room, bot, b.id, "botTarget", "botTargetUntil", timestamp);
+    return compareAttackerDefenderPriority(room, bot, a, b, timestamp, claimsA, claimsB);
+  });
+}
+
+function visibleDefenderTarget(room, bot, timestamp = now()) {
+  return visibleDefenderCandidates(room, bot, timestamp)[0] || null;
+}
+
 function preferredDefenderTarget(room, bot, timestamp = now()) {
   const pendingTarget = room.players.get(String(bot.attackTargetId || ""));
   if (pendingTarget?.alive && !pendingTarget.ejected && pendingTarget.role === "defender") return pendingTarget;
-  const lockedTarget = room.players.get(String(bot.botTarget || ""));
   const scouted = botClairvoyanceContact(room, bot, timestamp);
-  if (scouted?.role === "defender" && !botPushBacklashWouldBeLethal(bot, scouted)) {
+  if (scouted?.role === "defender") {
     bot.botTarget = scouted.id;
     bot.botTargetUntil = Math.max(timestamp + 2000, Number(bot.botClairvoyanceObservedUntil) || 0);
     return scouted;
   }
+  const visible = visibleDefenderTarget(room, bot, timestamp);
+  if (visible) {
+    bot.botTarget = visible.id;
+    bot.botTargetUntil = timestamp + BOT_HEARING_MEMORY_MS;
+    return visible;
+  }
   const heard = heardDefenderTarget(room, bot, timestamp);
-  if (heard && !botPushBacklashWouldBeLethal(bot, heard)) {
+  if (heard) {
     bot.botTarget = heard.id;
     bot.botTargetUntil = timestamp + 12_000;
     return heard;
   }
-  const defenders = alivePlayers(room, "defender");
-  const selected = defenders.sort((a, b) => {
-    const riskA = botPushBacklashWouldBeLethal(bot, a) ? 1 : 0;
-    const riskB = botPushBacklashWouldBeLethal(bot, b) ? 1 : 0;
-    const claimsA = activeBotClaimCount(room, bot, a.id, "botTarget", "botTargetUntil", timestamp);
-    const claimsB = activeBotClaimCount(room, bot, b.id, "botTarget", "botTargetUntil", timestamp);
-    const durabilityA = Math.max(0, 2 - Number(a.bodyHits || 0) - Number(a.overheal || 0));
-    const durabilityB = Math.max(0, 2 - Number(b.bodyHits || 0) - Number(b.overheal || 0));
-    const opportunityA = botKillOpportunityProfile(room, bot, a);
-    const opportunityB = botKillOpportunityProfile(room, bot, b);
-    const immediateA = botHasImmediateLethalOpportunity(room, bot, a, timestamp) ? 1 : 0;
-    const immediateB = botHasImmediateLethalOpportunity(room, bot, b, timestamp) ? 1 : 0;
-    const lockedA = lockedTarget?.id === a.id && Number(bot.botTargetUntil) > timestamp ? 0 : 1;
-    const lockedB = lockedTarget?.id === b.id && Number(bot.botTargetUntil) > timestamp ? 0 : 1;
-    return riskA - riskB ||
-      opportunityA.witnessCount - opportunityB.witnessCount ||
-      opportunityA.thirdPartyCount - opportunityB.thirdPartyCount ||
-      immediateB - immediateA ||
-      claimsA - claimsB ||
-      durabilityA - durabilityB ||
-      lockedA - lockedB ||
-      distance(bot, a) - distance(bot, b) ||
-      botTargetAffinity(bot, a, Math.floor(timestamp / 12_000)) - botTargetAffinity(bot, b, Math.floor(timestamp / 12_000)) ||
-      a.id.localeCompare(b.id);
-  })[0] || null;
-  bot.botTarget = selected?.id || "";
-  bot.botTargetUntil = selected ? timestamp + 12_000 : 0;
-  return selected;
+  bot.botTarget = "";
+  bot.botTargetUntil = 0;
+  return null;
 }
 
 function defenderBotOwnsPursuitSlot(room, bot, target, timestamp = now()) {
@@ -20207,7 +20277,7 @@ function beginBotAttackerCommit(bot, timestamp = now()) {
 
 function beginBotAttackerDecoy(room, bot, actualTarget, timestamp = now()) {
   const cycle = Math.max(0, Number(bot.botDeceptionCycle) || 0);
-  const decoy = alivePlayers(room, "defender")
+  const decoy = visibleDefenderCandidates(room, bot, timestamp)
     .filter((candidate) => candidate.id !== actualTarget?.id)
     .sort((a, b) => {
       const claimsA = activeBotClaimCount(room, bot, a.id, "botDeceptionTargetId", "botDeceptionUntil", timestamp);
@@ -20821,5 +20891,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "warp-right-switch-input-v491" });
+self.postMessage({ type: "ready", version: "root-sequential-switch-v492" });
 })();

@@ -62,6 +62,7 @@
     ["iai", "居合", 9, "instant-item", "iai", "iai"],
     ["ice", "氷結水", 2, "generate-supply", "vending-ice", "ice", "root-only"],
     ["heated-water", "高温水", 2, "generate-supply", "vending-heated-water", "heated-water", "root-only"],
+    ["gold", "金", 2, "generate-supply", "gold", "gold", "root-only"],
     ["rpg", "RPG", 14, "weapon", "vending-rpg", "rpg"],
     ["missile", "ミサイル", 17, "weapon", "vending-missile", "missile"]
   ];
@@ -99,7 +100,7 @@
   };
 
   return Object.freeze({
-    version: "quantum-root-instant-v477",
+    version: "root-gold-inventory-v492",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

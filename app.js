@@ -414,6 +414,7 @@ const state = {
     hover: null,
     operatorHover: null,
     hierarchical: false,
+    hierarchicalStage: "operator",
     branchOperatorIndex: -1,
     branchOptions: [],
     finalChoice: null,
@@ -660,6 +661,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
+  gold: "ROOTハッカーだけが生成できる純金インゴット。通常使用はできない。投擲被弾は対象の幸運で低ダメージになり、接地後は実体が残って誰でも拾える",
   rpg: "使用: 使い切り。半径300以内にいる自分以外の全員へ与ダメージ1.00の物理攻撃。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える",
   missile: "使用: 使い切り。最寄りの自分以外1人へ確殺の物理攻撃（HS・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える"
 });
@@ -723,7 +725,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "warp-right-switch-input-v491";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-sequential-switch-v492";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4261,20 +4263,14 @@ function renderSwitchDragAbilityBranch(operatorIndex) {
   const gesture = state.switchDrag;
   if (!gesture.hierarchical || !Number.isInteger(operatorIndex) || operatorIndex < 0) return false;
   const operator = gesture.options[operatorIndex];
-  const branchColumn = els.switchDragOptions.querySelector(".switch-drag-ability-column");
-  if (!operator || !branchColumn) return false;
+  if (!operator) return false;
+  gesture.hierarchicalStage = "ability";
   gesture.branchOperatorIndex = operatorIndex;
   gesture.branchOptions = Array.isArray(operator.branches) ? operator.branches : [];
-  gesture.hover?.classList.remove("switch-drag-hover");
-  gesture.hover = null;
-  gesture.finalChoice = null;
-  els.switchDragOptions.querySelectorAll("[data-switch-drag-operator-index]").forEach((button) => {
-    const active = Number(button.dataset.switchDragOperatorIndex) === operatorIndex;
-    button.classList.toggle("branch-open", active);
-    button.setAttribute("aria-expanded", String(active));
-  });
-  branchColumn.replaceChildren();
-  branchColumn.setAttribute("aria-label", `${operator.label}の能力`);
+  clearSwitchDragHover();
+  els.switchDragTitle.textContent = `${operator.label}の能力を選択`;
+  els.switchDragOptions.replaceChildren();
+  els.switchDragOptions.setAttribute("aria-label", `${operator.label}の能力`);
   gesture.branchOptions.forEach((ability, index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -4295,8 +4291,9 @@ function renderSwitchDragAbilityBranch(operatorIndex) {
       showToast(`${choice.group}: ${choice.label}`);
       playSound("select");
     });
-    branchColumn.append(button);
+    els.switchDragOptions.append(button);
   });
+  positionSwitchDragMenu();
   return true;
 }
 
@@ -4314,8 +4311,6 @@ function updateSwitchDragHover(clientX, clientY) {
       return;
     }
     if (candidate.dataset.switchDragOperatorIndex !== undefined) {
-      const operatorIndex = Number(candidate.dataset.switchDragOperatorIndex);
-      if (gesture.branchOperatorIndex !== operatorIndex) renderSwitchDragAbilityBranch(operatorIndex);
       if (candidate !== gesture.operatorHover) {
         gesture.operatorHover?.classList.remove("switch-drag-hover");
         gesture.operatorHover = candidate;
@@ -4357,6 +4352,7 @@ function closeSwitchDragMenu() {
   gesture.opened = false;
   gesture.persistent = false;
   gesture.hierarchical = false;
+  gesture.hierarchicalStage = "operator";
   gesture.branchOperatorIndex = -1;
   gesture.branchOptions = [];
   gesture.finalChoice = null;
@@ -4383,21 +4379,16 @@ function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
   gesture.opened = true;
   gesture.persistent = persistent;
   gesture.hierarchical = Boolean(descriptor.hierarchical);
-  els.switchDragMenu.classList.toggle("hierarchical", gesture.hierarchical);
+  gesture.hierarchicalStage = "operator";
+  els.switchDragMenu.classList.remove("hierarchical");
   gesture.options = descriptor.options;
   gesture.source.classList.add("switch-drag-source");
   gesture.source.setAttribute("aria-expanded", "true");
   els.switchDragTitle.textContent = descriptor.title;
   els.switchDragOptions.replaceChildren();
-  els.switchDragOptions.classList.toggle("hierarchical", gesture.hierarchical);
+  els.switchDragOptions.classList.remove("hierarchical");
   if (gesture.hierarchical) {
-    const operatorColumn = document.createElement("div");
-    operatorColumn.className = "switch-drag-operator-column";
-    operatorColumn.setAttribute("role", "group");
-    operatorColumn.setAttribute("aria-label", "オペレーター");
-    const abilityColumn = document.createElement("div");
-    abilityColumn.className = "switch-drag-ability-column";
-    abilityColumn.setAttribute("role", "group");
+    els.switchDragOptions.setAttribute("aria-label", "オペレーター");
     descriptor.options.forEach((option, index) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -4413,12 +4404,10 @@ function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
         event.stopPropagation();
         renderSwitchDragAbilityBranch(index);
       });
-      operatorColumn.append(button);
+      els.switchDragOptions.append(button);
     });
-    els.switchDragOptions.append(operatorColumn, abilityColumn);
-    const selectedIndex = Math.max(0, descriptor.options.findIndex((option) => option.selected));
-    renderSwitchDragAbilityBranch(selectedIndex);
   } else {
+  els.switchDragOptions.removeAttribute("aria-label");
   descriptor.options.forEach((option, index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -4505,12 +4494,24 @@ function finishSwitchDragGesture(event, cancelled = false) {
     event.preventDefault();
     updateSwitchDragHover(event.clientX, event.clientY);
     const index = cancelled ? -1 : Number(gesture.hover?.dataset.switchDragIndex);
+    const operatorIndex = cancelled ? -1 : Number(gesture.operatorHover?.dataset.switchDragOperatorIndex);
     const choice = cancelled
       ? null
       : gesture.hierarchical
-        ? gesture.finalChoice
+        ? gesture.hierarchicalStage === "ability" ? gesture.finalChoice : null
         : Number.isInteger(index) && index >= 0 ? gesture.options[index] : null;
     gesture.suppressClickUntil.set(source, performance.now() + 900);
+    if (!cancelled && gesture.hierarchical && gesture.hierarchicalStage === "operator" && Number.isInteger(operatorIndex) && operatorIndex >= 0) {
+      if (gesture.timer) window.clearTimeout(gesture.timer);
+      gesture.timer = 0;
+      gesture.pointerId = null;
+      gesture.persistent = true;
+      renderSwitchDragAbilityBranch(operatorIndex);
+      try {
+        if (source?.hasPointerCapture?.(event.pointerId)) source.releasePointerCapture(event.pointerId);
+      } catch {}
+      return true;
+    }
     if (!cancelled && !choice) {
       if (gesture.timer) window.clearTimeout(gesture.timer);
       gesture.timer = 0;
@@ -8980,8 +8981,8 @@ function renderTargetOptions(data) {
     const selectedLabel = options.find(([value]) => value === selectedMode)?.[1] || selectedMode;
     const operatorLabel = HACKER_ROOT_OPERATOR_LABELS[modeOwner] || modeOwner;
     els.rootAbilitySwitchButton.textContent = `${operatorLabel} → ${selectedLabel}`;
-    els.rootAbilitySwitchButton.title = "長押し→オペ名へスワイプ→能力へスワイプ→指を離して確定";
-    els.rootAbilitySwitchButton.setAttribute("aria-label", `ROOT借用能力: ${operatorLabel}、${selectedLabel}。長押ししてオペ名から能力へスワイプし、指を離して確定`);
+    els.rootAbilitySwitchButton.title = "タップまたは長押し→オペ名を確定→同じメニューで能力を確定";
+    els.rootAbilitySwitchButton.setAttribute("aria-label", `ROOT借用能力: ${operatorLabel}、${selectedLabel}。タップまたは長押しでオペ名を確定し、同じメニューで能力を確定`);
   }
 
   syncAbilityModeDescription(modeOwner, self);
@@ -9107,7 +9108,7 @@ function collectInventoryDisplayItems(self) {
     "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire
   };
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
-    item && (!item.kind || ["item", "charge", "instant"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0 && item.usable !== false
+    item && (!item.kind || ["item", "charge", "instant"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0
   ).map((item) => ({
     ...item,
     inventoryKind: item.kind === "instant" ? "instant" : item.kind === "charge" ? "charge" : "item",
@@ -9115,10 +9116,14 @@ function collectInventoryDisplayItems(self) {
     detail: chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能",
     badge: `×${Number(item.amount) || 1}`
   }));
-  const gunnerAccess = hasDisplayedOperatorAccess(self, "gunner") || (self.purchasedWeapons || []).length > 0;
+  const availableGunnerWeapons = (Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [])
+    .filter((weapon) => weapon.available !== false);
+  // Purchased/Hacker-generated firearms are already authoritative in
+  // gunnerWeapons. Gating only on the native Gunner operator made those owned
+  // weapons disappear from a Hacker's inventory even though they were usable.
+  const gunnerAccess = hasDisplayedOperatorAccess(self, "gunner") || availableGunnerWeapons.length > 0;
   const weaponItems = gunnerAccess
-    ? (Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [])
-      .filter((weapon) => weapon.available !== false)
+    ? availableGunnerWeapons
       .map((weapon) => {
         const specialType = weapon.id === self.gunnerSpecialAmmoWeapon && Number(self.gunnerSpecialAmmoRounds) > 0
           ? String(self.gunnerSpecialAmmoType || "")
@@ -9188,7 +9193,20 @@ function collectInventoryDisplayItems(self) {
     detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器",
     badge: `×${count}`
   }));
-  return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems];
+  const computerItems = self.computerActive ? [{
+    id: "computer",
+    sourceId: "computer",
+    label: "パソコン",
+    asset: "computer",
+    inventoryKind: "passive-item",
+    output: self.computerEffective === false ? "遮断中" : "稼働中",
+    detail: VENDING_PRODUCT_DESCRIPTIONS.computer,
+    badge: self.computerEffective === false ? "EMP遮断中" : "所持中",
+    usable: false,
+    throwable: false,
+    transferable: false
+  }] : [];
+  return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems, ...computerItems];
 }
 
 function createInventoryTouchGesture({
@@ -9630,7 +9648,8 @@ function renderItemControl(data) {
     button.setAttribute("aria-selected", String(active));
   });
   const blocked = (Number(self.itemDisabledUntil) || 0) > estimatedServerNow(data);
-  const canUse = Boolean(selected) && !blocked && selected?.inventoryKind !== "special-ammo";
+  const canActOnItem = Boolean(selected) && !blocked && selected?.inventoryKind !== "special-ammo";
+  const canUse = canActOnItem && selected?.usable !== false;
   const selectedInstant = selected?.inventoryKind === "instant";
   const selectedWeaponReloading = selected?.inventoryKind === "weapon" &&
     selected.sourceId === self.gunnerReloadWeapon &&
@@ -9640,7 +9659,7 @@ function renderItemControl(data) {
   els.itemUseButton.disabled = !canUse || selectedWeaponReloading;
   els.itemUseButton.hidden = false;
   els.itemThrowButton.hidden = selectedInstant;
-  els.itemThrowButton.disabled = selectedInstant || !canUse || selected?.throwable === false;
+  els.itemThrowButton.disabled = selectedInstant || !canActOnItem || selected?.throwable === false;
   els.transferItemButton.hidden = selectedInstant;
   els.transferItemButton.disabled = selectedInstant || !selected || !targets.length || blocked || selected?.transferable === false;
   els.transferCreditsButton.disabled = Number(self.credits) < transferCredits || !targets.length;
@@ -9648,7 +9667,7 @@ function renderItemControl(data) {
     ? selectedWeaponReloading ? `自動リロード ${Math.max(0, (Number(self.gunnerReloadUntil) - estimatedServerNow(data)) / 1000).toFixed(1)}秒` : "射撃"
     : selected?.sourceId === "orichalcum-sword" || selected?.id === "orichalcum-sword"
       ? "斬る"
-      : selectedInstant ? "発動" : "使用";
+      : selectedInstant ? "発動" : selected?.usable === false ? "使用不可" : "使用";
   els.itemUseButton.textContent = `${selectedUseLabel} [Shift+V]`;
   els.itemThrowButton.textContent = "投擲 [Shift+G]";
   els.transferCreditsButton.textContent = `${transferCredits}C譲渡（所持${Math.floor(Number(self.credits) || 0)}C）`;
@@ -17310,7 +17329,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "warp-right-switch-input-v491";
+const version = "root-sequential-switch-v492";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
