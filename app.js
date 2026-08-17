@@ -746,7 +746,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-walk-title-ui-v487";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "instruction-recovery-v488";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5172,9 +5172,7 @@ function bindEvents() {
       finishPointerAction(event);
     });
     button.addEventListener("pointercancel", (event) => {
-      if (state.enhanceHold.pointerId !== event.pointerId) return;
-      suppressClickUntil = performance.now() + 700;
-      cancelEnhanceAction(kind);
+      finishPointerAction(event);
     });
     button.addEventListener("lostpointercapture", (event) => {
       finishPointerAction(event);
@@ -17241,7 +17239,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "root-walk-title-ui-v487";
+const version = "instruction-recovery-v488";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

@@ -20872,5 +20872,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "root-walk-title-ui-v487" });
+self.postMessage({ type: "ready", version: "instruction-recovery-v488" });
 })();
