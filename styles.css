@@ -2024,6 +2024,89 @@ select:focus {
   height: 100%;
 }
 
+.kill-camera-overlay {
+  position: absolute;
+  z-index: 52;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  max-width: 720px;
+  margin-inline: auto;
+  border: 1px solid rgba(248, 113, 113, 0.86);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(20, 8, 13, 0.94), rgba(20, 32, 41, 0.94));
+  box-shadow: 0 12px 40px rgba(2, 6, 23, 0.62), inset 0 0 28px rgba(239, 68, 68, 0.08);
+  color: #f8fafc;
+  padding: 12px 14px 14px;
+  pointer-events: auto;
+}
+
+.kill-camera-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.kill-camera-heading div {
+  display: grid;
+  gap: 1px;
+}
+
+.kill-camera-heading small {
+  color: #fca5a5;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.kill-camera-heading strong {
+  font-size: 18px;
+}
+
+.kill-camera-heading button {
+  width: 38px;
+  min-width: 38px;
+  height: 34px;
+  padding: 0;
+}
+
+.kill-camera-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 12px;
+  margin: 0;
+}
+
+.kill-camera-facts div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.kill-camera-facts dt {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.kill-camera-facts dd {
+  min-width: 0;
+  margin: 0;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .kill-camera-overlay { left: 8px; right: 8px; bottom: 8px; padding: 9px 10px 11px; }
+  .kill-camera-facts { grid-template-columns: 1fr; gap: 5px; }
+}
+
 .field-action-bar {
   grid-area: actions;
   display: grid;
@@ -3318,7 +3401,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   top: 50%;
   width: 42px;
   height: 42px;
-  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=gold-100-credits-v494") center / contain no-repeat;
+  background: url("assets/generated/attacker-kill-deadline-ate-v467.png?v=hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495") center / contain no-repeat;
   opacity: 0.78;
   transform: translateY(-50%) scale(0.94);
   transform-origin: 50% 50%;
@@ -4123,7 +4206,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .vending-item-with-icon[data-vending-asset="heal"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-heal-v311.png"); }
 .vending-item-with-icon[data-vending-asset="fire"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-fire-v311.png"); }
 .vending-item-with-icon[data-vending-asset="substitution"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-substitution-v311.png"); }
-.vending-item-with-icon[data-vending-asset="warp"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-warp-v311.png"); }
+.vending-item-with-icon[data-vending-asset="warp"] .vending-alchemy-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png"); }
 .vending-item-with-icon[data-vending-asset="grit"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-grit-v311.png"); }
 .vending-item-with-icon[data-vending-asset="reason"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-reason-v311.png"); }
 
@@ -4996,7 +5079,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/status-instant-warp.webp?v=rational-icons-v270"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,

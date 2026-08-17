@@ -25,8 +25,19 @@ const fs = {
   readFileSync() { throw new Error("offline storage is empty"); },
   mkdirSync() {},
   writeFileSync() {},
+  renameSync() {},
   stat(_path, callback) { callback(new Error("offline static files are not served")); },
   createReadStream() { return { pipe() {} }; }
+};
+const net = {
+  isIP(value) {
+    const candidate = String(value || "");
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(candidate) && candidate.split(".").every((part) => Number(part) <= 255)) return 4;
+    if (candidate.includes(":")) {
+      try { new URL(`http://[${candidate}]`); return 6; } catch { return 0; }
+    }
+    return 0;
+  }
 };
 function offlineHash(value) {
   let a = 0x811c9dc5;
@@ -7276,8 +7287,8 @@ const LABORATORY_MAP = Object.freeze({
     taskReward: 2,
     sabotageReward: 2,
     cacheReward: 3,
-    quantumMercuryReward: 4,
-    quantumLeadReward: 2,
+    quantumMercuryReward: 100,
+    quantumLeadReward: 100,
     goldInstantReward: 100,
     mysteryJackpot: 6,
     donationCost: 1,
@@ -7301,7 +7312,7 @@ const LABORATORY_MAP = Object.freeze({
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
     ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
-    ["warp", "即時ワープ", 3, "instant-item", "warp", "warp"],
+    ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
     ["fire", "火遁の術", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
@@ -7309,6 +7320,8 @@ const LABORATORY_MAP = Object.freeze({
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
     ["reason", "押し込み", 5, "instant-item", "reason", "reason"],
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
+    ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
+    ["hsg", "HSG", 8, "instant-item", "hsg", "hsg"],
     ["railgun", "レールガン", 13, "invention", "vending-railgun", "railgun"],
     ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
@@ -7365,7 +7378,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "gold-100-credits-v494",
+    version: "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7508,9 +7521,8 @@ const TASER_MOVEMENT_MULTIPLIER = 0.65;
 const EMP_INITIAL_LOCK_MS = 15_000;
 const HACKER_EMP_OPENING_PROTECTION_MS = 30_000;
 const HSG_BASE_DURATION_MS = 8_000;
-const HSG_DURATION_PER_ENHANCE_MS = 4_000;
 const HSG_BASE_ACC_MULTIPLIER = 1.8;
-const HSG_ACC_PER_ENHANCE = 0.4;
+const HSG_ACTIVATION_COOLDOWN_MS = 20_000;
 const GUNNER_SNIPING_MOVEMENT_MULTIPLIER = 0.12;
 const HACKER_INVENTION_LABELS = Object.freeze({
   railgun: "レールガン",
@@ -7581,8 +7593,6 @@ const HAZARD_FIELD_DURATION_MS = 12_000;
 const HAZARD_TICK_MS = 1_000;
 const POISON_DAMAGE_PER_TICK = 0.2;
 const BURN_DAMAGE_PER_TICK = 0.25;
-const QUANTUM_CREDITS_MERCURY = CREDIT_ECONOMY.quantumMercuryReward;
-const QUANTUM_CREDITS_LEAD = CREDIT_ECONOMY.quantumLeadReward;
 const GOLD_INSTANT_CREDITS = CREDIT_ECONOMY.goldInstantReward;
 const QUANTUM_ACTION_STAMINA_COST = 8;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
@@ -7704,7 +7714,7 @@ const ANALYTICS_REMOTE_WRITE_URL = String(process.env.ANALYTICS_REMOTE_WRITE_URL
 })()).trim();
 const PROFILE_REMOTE_URL = String(
   process.env.PROFILE_REMOTE_URL ||
-  "https://raw.githubusercontent.com/player13579/-/analytics-data/data/player-profiles.json"
+  "https://raw.githubusercontent.com/player13579/player13579.github.io/Codex-honoo/runtime-data/player-profiles.json"
 ).trim();
 const PROFILE_REMOTE_WRITE_URL = String(process.env.PROFILE_REMOTE_WRITE_URL || (() => {
   const match = PROFILE_REMOTE_URL.match(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
@@ -7818,7 +7828,7 @@ const OPERATORS = {
       limit: 99,
       asset: "quantum",
       description: "元素・中性子・分子運動を制御し、核変換と温度変換を行う。",
-      details: "水銀・鉛・ウラン・プルトニウムを所持して開始する。水銀か鉛を金へ核変換して自動換金し、水を氷または高温水へ変換する。ウランかプルトニウムは2MPで核分裂させ、既存の核爆弾と同じ破壊効果を起こす。"
+      details: "水銀・鉛・ウラン・プルトニウムを所持して開始する。水銀か鉛を金へ核変換し、金の共通取得処理で100Cへ即時換金する。水は氷または高温水へ変換する。ウランかプルトニウムは2MPで核分裂させ、既存の核爆弾と同じ破壊効果を起こす。"
     }
   ],
   attacker: [
@@ -7829,8 +7839,8 @@ const OPERATORS = {
       special: "gunner",
       limit: 99,
       asset: "gunner",
-      description: "ARとHSGを初期装備し、5種の銃器と狙撃能力を扱う。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下する。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得する。HSGは使用で8秒間浮揚とACC 1.8を得て、エンハンスごとに4秒とACC 0.4が加算される。有効中の再使用は既存効果をリセットせず、追加分として累積する。"
+      description: "ARと即席HSGパッシブを持ち、5種の銃器と狙撃能力を扱う。",
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下する。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得する。即席HSGパッシブは足場上から足場のない場所へ進む直前に自動起動し、8秒間の浮揚とACC 1.8を付与する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・エンハンスできない。"
     },
     {
       id: "attacker-alchemist",
@@ -7847,7 +7857,6 @@ const OPERATORS = {
 
 const ITEM_DEFINITIONS = Object.freeze({
   "orichalcum-sword": Object.freeze({ id: "orichalcum-sword", label: "オリハルコン・ソード", asset: "orichalcum-sword", throwable: true, weapon: true, reusable: true }),
-  hsg: Object.freeze({ id: "hsg", label: "HSG", asset: "hsg", throwable: false, reusable: true }),
   mercury: Object.freeze({ id: "mercury", label: "水銀瓶", asset: "quantum-mercury", throwable: true }),
   lead: Object.freeze({ id: "lead", label: "鉛瓶", asset: "quantum-lead", throwable: true }),
   uranium: Object.freeze({ id: "uranium", label: "ウラン容器", asset: "quantum-uranium", throwable: true }),
@@ -7864,7 +7873,9 @@ const INSTANT_ITEM_DEFINITIONS = Object.freeze({
   reason: Object.freeze({ id: "reason", label: "押し込み", field: "reasonCharges", automatic: true }),
   iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: true }),
   gold: Object.freeze({ id: "gold", label: "金", automatic: true }),
-  computer: Object.freeze({ id: "computer", label: "パソコン", field: "computerActive", automatic: true })
+  computer: Object.freeze({ id: "computer", label: "パソコン", field: "computerActive", automatic: true }),
+  stamina: Object.freeze({ id: "stamina", label: "スタミナ", automatic: true }),
+  hsg: Object.freeze({ id: "hsg", label: "HSG", field: "hsgPassiveOwned", automatic: true })
 });
 
 const QUANTUM_STARTING_ITEMS = Object.freeze({ mercury: 1, lead: 1, uranium: 1, plutonium: 1 });
@@ -8563,7 +8574,9 @@ let profileHydrationStatus = {
 
 function savePlayerProfiles(syncRemote = true) {
   fs.mkdirSync(MODERATION_DIR, { recursive: true });
-  fs.writeFileSync(PLAYER_PROFILE_FILE, JSON.stringify(playerProfiles, null, 2), "utf8");
+  const temporaryFile = `${PLAYER_PROFILE_FILE}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`;
+  fs.writeFileSync(temporaryFile, JSON.stringify(playerProfiles, null, 2), "utf8");
+  fs.renameSync(temporaryFile, PLAYER_PROFILE_FILE);
   if (syncRemote && ANALYTICS_REMOTE_TOKEN && PROFILE_REMOTE_WRITE_URL) {
     clearTimeout(profileRemoteSaveTimer);
     profileRemoteSaveTimer = setTimeout(() => void persistPlayerProfilesRemote(), 1_200);
@@ -8571,13 +8584,46 @@ function savePlayerProfiles(syncRemote = true) {
 }
 
 function normalizedRequestIp(req) {
-  const forwarded = String(req?.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
-  const candidate = String(req?.headers?.["cf-connecting-ip"] || req?.headers?.["x-real-ip"] || forwarded || req?.socket?.remoteAddress || "unknown").trim();
-  return candidate.replace(/^::ffff:/i, "").replace(/%.+$/, "").slice(0, 128) || "unknown";
+  const forwardedFor = String(req?.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+  const standardForwarded = String(req?.headers?.forwarded || "")
+    .split(",")[0]
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => /^for=/i.test(part));
+  let candidate = String(
+    req?.headers?.["cf-connecting-ip"] ||
+    req?.headers?.["x-real-ip"] ||
+    forwardedFor ||
+    standardForwarded?.replace(/^for=/i, "") ||
+    req?.socket?.remoteAddress ||
+    ""
+  ).trim().replace(/^"|"$/g, "");
+  const bracketed = candidate.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketed) candidate = bracketed[1];
+  else {
+    const ipv4WithPort = candidate.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/);
+    if (ipv4WithPort) candidate = ipv4WithPort[1];
+  }
+  candidate = candidate.replace(/%.+$/, "").toLowerCase();
+  const mappedIpv4 = candidate.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (mappedIpv4 && net.isIP(mappedIpv4[1]) === 4) candidate = mappedIpv4[1];
+  const version = net.isIP(candidate);
+  if (!version) return "";
+  if (version === 6) {
+    try {
+      candidate = new URL(`http://[${candidate}]`).hostname.replace(/^\[|\]$/g, "");
+    } catch {
+      return "";
+    }
+  }
+  return candidate.slice(0, 128);
 }
 
 function playerProfileId(req) {
-  return crypto.createHash("sha256").update(`ip-profile:${normalizedRequestIp(req)}`).digest("hex").slice(0, 24);
+  const normalizedIp = normalizedRequestIp(req);
+  return normalizedIp
+    ? crypto.createHash("sha256").update(`ip-profile:${normalizedIp}`).digest("hex").slice(0, 24)
+    : "";
 }
 
 function legacyPlayerProfileId(rawClientId) {
@@ -9448,6 +9494,13 @@ function grantCredits(room, player, rawAmount, source = "") {
   return amount;
 }
 
+// Gold is an instant result rather than physical inventory. Every producer
+// must finish through this one function so Quantum Control and Root Hacker
+// cannot drift to different payouts or leave an ingot behind.
+function acquireGoldAsCredits(room, player, source = "gold-acquisition") {
+  return grantCredits(room, player, GOLD_INSTANT_CREDITS, source);
+}
+
 function pushMapObjectGainAtes(room, player, effectKind) {
   const categories = {
     stamina: ["stamina"], credits: ["credits"], mana: ["mana"],
@@ -9574,7 +9627,10 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunnerSpecialAmmoInventory: { weak: 0, shock: 0 },
     gunnerSpecialAmmoReadyAt: 0,
     gunnerSpecialAmmoBag: [],
+    hsgPassiveOwned: false,
     hsgUntil: 0,
+    hsgReadyAt: 0,
+    killCamera: null,
     gunnerSnipingActive: false,
     timedAccelerationEffects: [],
     heavyWeapons: [],
@@ -10032,7 +10088,10 @@ function startGame(room) {
     player.gunnerSpecialAmmoInventory = { weak: 0, shock: 0 };
     player.gunnerSpecialAmmoReadyAt = 0;
     player.gunnerSpecialAmmoBag = [];
+    player.hsgPassiveOwned = false;
     player.hsgUntil = 0;
+    player.hsgReadyAt = 0;
+    player.killCamera = null;
     player.gunnerSnipingActive = false;
     player.timedAccelerationEffects = [];
     player.heavyWeapons = [];
@@ -10400,7 +10459,10 @@ function startBattle(room) {
     player.gravityPinnedUntil = 0;
     player.abilityDisabledUntil = 0;
     player.overhealSpeedUntil = 0;
+    player.hsgPassiveOwned = player.special === "gunner";
     player.hsgUntil = 0;
+    player.hsgReadyAt = 0;
+    player.killCamera = null;
     player.gunnerSnipingActive = false;
     player.timedAccelerationEffects = [];
     player.lastMysteryResult = "";
@@ -10437,9 +10499,6 @@ function startBattle(room) {
       : createItemInventory(player.itemInventory);
     if (player.special === "fighter" && itemCount(player, "orichalcum-sword") <= 0) {
       addItem(player, "orichalcum-sword");
-    }
-    if (player.special === "gunner" && itemCount(player, "hsg") <= 0) {
-      addItem(player, "hsg");
     }
     player.poisonStatus = null;
     player.burnStatus = null;
@@ -10483,6 +10542,7 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
     sabotageUsed: false,
     empCancelled: false,
     empAmplified: false,
+    empTrainingOutcomes: [],
     hintUnlocked: false,
     cpuPhase: "accelerate-1",
     cpuRenkiCount: 0,
@@ -11841,6 +11901,35 @@ function floraAromaMultiplier(room, player) {
   return floraAromaSource(room, player) ? FLORA_AROMA_REGEN_MULTIPLIER : 1;
 }
 
+function activateHsgForUnsupportedMovement(room, player, targetX, targetY, timestamp = now()) {
+  const radius = getMap(room).playerRadius;
+  if (
+    !player?.hsgPassiveOwned ||
+    !player.alive ||
+    player.ejected ||
+    player.inVent ||
+    !passivesEnabled(player) ||
+    !itemStorageAvailable(player, timestamp) ||
+    Number(player.hsgUntil) > timestamp ||
+    Number(player.hsgReadyAt) > timestamp ||
+    !hasFloorSupport(room, player.x, player.y, radius) ||
+    hasFloorSupport(room, targetX, targetY, radius)
+  ) return false;
+  addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
+  player.hsgReadyAt = timestamp + HSG_ACTIVATION_COOLDOWN_MS;
+  awardAbilityContribution(player, 0.75);
+  pushMagicEffect(room, "item-hsg-activate", player, {
+    radius: 135,
+    playerId: player.id,
+    variant: "auto-unsupported",
+    durationMs: HSG_BASE_DURATION_MS,
+    accelerationMultiplier: HSG_BASE_ACC_MULTIPLIER
+  });
+  setImmediateFeedback(player, "HSG自動起動", `浮揚 ${HSG_BASE_DURATION_MS / 1000}秒 / ACC ${HSG_BASE_ACC_MULTIPLIER.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒`);
+  pushEvent(room, `${player.name} のHSGが足場のない場所への移動を検知して自動起動しました（浮揚 ${HSG_BASE_DURATION_MS / 1000}秒 / ACC ${HSG_BASE_ACC_MULTIPLIER.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
+  return true;
+}
+
 function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wantsSlow = false) {
   if (room.phase !== "playing" || player.ejected || player.inVent) return;
   const timestamp = now();
@@ -11908,6 +11997,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   const beforeY = mover.y;
   const nx = mover.x + dx * speed * dt;
   const ny = mover.y + dy * speed * dt;
+  if (!controllingDrone && player.alive) activateHsgForUnsupportedMovement(room, player, nx, ny, timestamp);
   if (controllingDrone) {
     mover.x = clampNumber(nx, radius, map.width - radius, mover.x);
     mover.y = clampNumber(ny, radius, map.height - radius, mover.y);
@@ -11993,6 +12083,38 @@ function recordBotMatchElimination(room, target, source = null) {
   target.botMatchEliminatedById = String(source?.id || "");
   target.hackerRootActive = false;
   clearEnhanceChargeState(target);
+}
+
+function recordKillCamera(room, target, source = null, details = {}) {
+  if (!room || !target || target.ejected) return null;
+  const timestamp = Number(details.timestamp) || now();
+  const actionLabel = String(details.actionLabel || details.reason || "死亡原因不明");
+  const actionKind = String(details.actionKind || "environment");
+  const sourceLabel = String(details.sourceLabel || "");
+  const killerName = String(details.killerName || source?.name || "環境・ルール");
+  const record = {
+    id: uid("killcam_"),
+    at: timestamp,
+    mapId: String(getMap(room).id || ""),
+    areaLabel: whichRoom(getMap(room), target),
+    victimId: target.id,
+    victimName: target.name,
+    victimX: Math.round(Number(target.x) || 0),
+    victimY: Math.round(Number(target.y) || 0),
+    killerId: String(source?.id || ""),
+    killerName,
+    killerIsBot: Boolean(source?.isBot),
+    killerSkinId: String(source?.skinId || (source?.isBot ? "operator" : "")),
+    killerX: Math.round(Number(source?.x ?? target.x) || 0),
+    killerY: Math.round(Number(source?.y ?? target.y) || 0),
+    actionLabel,
+    actionKind,
+    sourceLabel,
+    reflected: actionKind.includes("reflected") || Boolean(details.reflected),
+    result: String(details.result || "死亡")
+  };
+  target.killCamera = record;
+  return record;
 }
 
 function botMatchHumanEarnedEliminationVictory(room, winnerRole) {
@@ -12192,7 +12314,8 @@ function soloMissionProgress(room, timestamp = now()) {
     return `千里眼投擲 ${state.clairvoyanceUsed ? "完了" : "未完了"} / サボ ${state.sabotageUsed ? "完了" : "未完了"}`;
   }
   if (mission.metric === "emp") {
-    return `打ち消し ${state.empCancelled ? "完了" : "未完了"} / 増強 ${state.empAmplified ? "完了" : "未完了"}`;
+    const outcomes = new Set(Array.isArray(state.empTrainingOutcomes) ? state.empTrainingOutcomes : []);
+    return `打ち消し ${outcomes.has("cancel") ? "完了" : "未完了"} / 増強 ${outcomes.has("amplify") ? "完了" : "未完了"}`;
   }
   if (mission.metric === "cpu") return "グラビティCPUの手順を妨害して生存";
   return mission.objective;
@@ -12222,7 +12345,10 @@ function evaluateSoloMission(room, timestamp = now()) {
   else if (mission.metric === "defense") {
     completed = Boolean(state.defenseActivatedAt) && timestamp - state.defenseActivatedAt >= mission.surviveMs;
   } else if (mission.metric === "intel") completed = state.clairvoyanceUsed && state.sabotageUsed;
-  else if (mission.metric === "emp") completed = state.empCancelled && state.empAmplified;
+  else if (mission.metric === "emp") {
+    const outcomes = new Set(Array.isArray(state.empTrainingOutcomes) ? state.empTrainingOutcomes : []);
+    completed = outcomes.has("cancel") && outcomes.has("amplify");
+  }
   else if (mission.metric === "cpu" || mission.metric === "cpu2") {
     const cpu = room.players.get(state.cpuBotId);
     completed = Boolean(cpu) && (!cpu.alive || cpu.ejected) && cpu.botMatchEliminatedById === player.id;
@@ -12485,6 +12611,7 @@ function tallyMeeting(room) {
     recordBotMatchElimination(room, ejected, null);
     ejected.alive = false;
     ejected.ejected = true;
+    ejected.killCamera = null;
     ejected.inVent = false;
     ejected.ventId = "";
     clearAttackState(ejected);
@@ -13153,6 +13280,30 @@ function startRest(room, player) {
   touch(room);
 }
 
+function resolveExpandedMapTeleportDestination(room, rawX, rawY) {
+  const x = Number(rawX);
+  const y = Number(rawY);
+  const map = getMap(room);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new ApiError(400, "テレポート先が不正です。");
+  }
+  if (!isWalkable(room, x, y, map.playerRadius)) {
+    throw new ApiError(400, "通行可能な場所を指定してください。");
+  }
+  return { x, y };
+}
+
+function moveByExpandedMapTeleport(target, destination, timestamp = now()) {
+  const origin = { x: target.x, y: target.y };
+  target.x = destination.x;
+  target.y = destination.y;
+  target.vx = 0;
+  target.vy = 0;
+  target.lastMoveAt = timestamp;
+  target.navPath = [];
+  return origin;
+}
+
 function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") {
   if (room.phase !== "playing") throw new ApiError(400, "バトル中のみテレポートできます。");
   if (!hasOperatorAccess(player, "gravity")) {
@@ -13227,26 +13378,14 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
     x = destination.x;
     y = destination.y;
   }
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new ApiError(400, "テレポート先が不正です。");
-  }
-  const map = getMap(room);
-  if (!isWalkable(room, x, y, map.playerRadius)) {
-    throw new ApiError(400, "通行可能な場所を指定してください。");
-  }
+  const destination = resolveExpandedMapTeleportDestination(room, x, y);
 
   const teleportLabel = mode === "near" ? "対象付近転移" : mode === "target" ? "対象転移" : "地点転移";
   spendOperatorMana(room, player, teleportLabel);
-  const origin = { x: movingTarget.x, y: movingTarget.y };
-  movingTarget.x = x;
-  movingTarget.y = y;
-  movingTarget.vx = 0;
-  movingTarget.vy = 0;
-  movingTarget.lastMoveAt = timestamp;
-  movingTarget.navPath = [];
+  const origin = moveByExpandedMapTeleport(movingTarget, destination, timestamp);
   player.teleportReadyAt = 0;
   awardAbilityContribution(player, 0.5);
-  pushMagicEffect(room, "action-teleport", origin, { radius: 135, playerId: player.id, targetX: x, targetY: y });
+  pushMagicEffect(room, "action-teleport", origin, { radius: 135, playerId: player.id, targetX: destination.x, targetY: destination.y });
   pushMagicEffect(room, "action-teleport", movingTarget, { radius: 135, playerId: movingTarget.id, variant: "arrival" });
   pushEvent(room, mode === "near"
     ? `${player.name} が ${target.name} の近くへ転移しました。`
@@ -13547,6 +13686,12 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   }
   recordBotMatchElimination(room, target, source);
   target.alive = false;
+  recordKillCamera(room, target, source, {
+    timestamp,
+    actionLabel: "EMP確殺（リミットブレイク反応）",
+    actionKind: "emp-limit-break-lethal",
+    sourceLabel: "EMP"
+  });
   target.gunnerSnipingActive = false;
   target.bodyHits = 0;
   target.overheal = 0;
@@ -13611,6 +13756,12 @@ function eliminateAttackerForMissedDefenderKill(room, player, timestamp = now())
   if (!attackerDefenderKillDeadlineEnabled(room, player)) return false;
   recordBotMatchElimination(room, player, null);
   player.alive = false;
+  recordKillCamera(room, player, null, {
+    timestamp,
+    killerName: "対ディフェンダー・キル期限",
+    actionLabel: "90秒以内のディフェンダーキル未達",
+    actionKind: "attacker-kill-deadline"
+  });
   player.bodyHits = 0;
   player.overheal = 0;
   player.limitBreakActive = false;
@@ -13880,6 +14031,13 @@ function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, optio
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, killer, timestamp, target)) return false;
   recordBotMatchElimination(room, killer, killer);
   killer.alive = false;
+  recordKillCamera(room, killer, null, {
+    timestamp,
+    killerName: "同陣営誤射ペナルティ",
+    actionLabel: `${target.name}への同陣営攻撃`,
+    actionKind: "friendly-fire-penalty",
+    sourceLabel: "戦闘ルール"
+  });
   killer.bodyHits = 0;
   killer.overheal = 0;
   killer.limitBreakActive = false;
@@ -14045,6 +14203,13 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   applyEmpDisruption(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
   target.alive = false;
+  recordKillCamera(room, target, source, {
+    timestamp,
+    actionLabel: reason,
+    actionKind: String(reason).includes("反射") ? "reflected-emp-lethal" : "emp-resonance-lethal",
+    sourceLabel: "EMP",
+    reflected: String(reason).includes("反射")
+  });
   target.bodyHits = 0;
   target.overheal = 0;
   target.limitBreakActive = false;
@@ -14180,8 +14345,12 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   const samePhase = first.phase === second.phase;
   const soloEmpPractice = room.soloMission?.id === "emp" && [first.playerId, second.playerId].includes(room.soloMission.playerId);
   if (soloEmpPractice) {
-    if (samePhase) room.soloMission.empAmplified = true;
-    else room.soloMission.empCancelled = true;
+    const outcome = samePhase ? "amplify" : "cancel";
+    const outcomes = new Set(Array.isArray(room.soloMission.empTrainingOutcomes) ? room.soloMission.empTrainingOutcomes : []);
+    outcomes.add(outcome);
+    room.soloMission.empTrainingOutcomes = [...outcomes];
+    room.soloMission.empAmplified = outcomes.has("amplify");
+    room.soloMission.empCancelled = outcomes.has("cancel");
   }
   if (!samePhase) {
     pushMagicEffect(room, "emp-cancel", midpoint, { radius: EMP_INTERACTION_RANGE, variant: "opposite" });
@@ -14604,7 +14773,7 @@ function purchaseDrink(room, player, itemId) {
     iai: { label: "居合", cost: IAI_VENDING_COST, apply: () => { grantIaiCharge(room, player, true, "vending"); } },
     evade: { label: "回避拡張", cost: 45, apply: () => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); } },
     speed: { label: "アクセラレート飲料", cost: 55, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.1) * 100) / 100; } },
-    warp: { label: "即時ワープ", cost: 35, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
+    warp: { label: "テレポートマップスクロール", cost: 35, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
     mystery: { label: "ミステリー", cost: MYSTERY_COST, apply: () => applyMysteryDrink(room, player) },
     fire: { label: "火遁の術", cost: FIRE_JUTSU_COST, apply: () => { player.fireJutsuCharges = Math.min(2, player.fireJutsuCharges + 1); } },
     substitution: { label: "変わり身の術", cost: SUBSTITUTION_COST, apply: () => {
@@ -14619,6 +14788,10 @@ function purchaseDrink(room, player, itemId) {
     mana: { label: "マナポーション +1MP", cost: MANA_POTION_COST, apply: () => {
       setMana(room, player, (Number(player.mana) || 0) + 1, "マナポーション");
     } },
+    stamina: { label: "スタミナ", cost: 6, apply: () => {
+      player.stamina = Math.min(MAX_STORED_STAMINA, Math.max(0, Number(player.stamina) || 0) + 350);
+    } },
+    hsg: { label: "HSG", cost: 8, apply: () => activateHsgInstant(player) },
     reason: { label: "押し込み", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
     railgun: { label: "素敵な発明品・レールガン", cost: 150, apply: () => { player.inventions.push("railgun"); } },
     "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 190, apply: () => { player.inventions.push("particle-cannon"); } },
@@ -14672,6 +14845,11 @@ function activateComputerInstant(player) {
   player.computerActive = true;
 }
 
+function activateHsgInstant(player) {
+  if (player.hsgPassiveOwned) throw new ApiError(400, "HSGパッシブは取得済みです。");
+  player.hsgPassiveOwned = true;
+}
+
 function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired") {
   if (!room || !player) return;
   // Vibe Coding already emits its own generation ATE. Suppress only the
@@ -14683,7 +14861,7 @@ function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired"
     heal: "instant-heal-acquired",
     fire: "instant-fire-acquired",
     substitution: "instant-substitution-acquired",
-    warp: "instant-warp-acquired",
+    warp: "teleport-map-scroll-acquired",
     evade: "instant-evade-acquired",
     speed: "instant-speed-acquired",
     mystery: "instant-mystery-acquired",
@@ -14753,6 +14931,12 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
   }
   recordBotMatchElimination(room, player, player);
   player.alive = false;
+  recordKillCamera(room, player, player, {
+    timestamp,
+    actionLabel: "押し込み反動",
+    actionKind: "push-backlash",
+    sourceLabel: `踏ん張り${chargeCount}回分解除・反動${damage.toFixed(1)}`
+  });
   player.bodyHits = 0;
   player.overheal = 0;
   player.limitBreakActive = false;
@@ -15452,26 +15636,6 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
   if (itemId === "orichalcum-sword") {
     return fighterSlash(room, player, "", true, level);
   }
-  if (itemId === "hsg") {
-    if (itemCount(player, "hsg") <= 0) throw new ApiError(400, "HSGを所持していません。");
-    const timestamp = now();
-    const durationMs = HSG_BASE_DURATION_MS + level * HSG_DURATION_PER_ENHANCE_MS;
-    const multiplier = Math.round((HSG_BASE_ACC_MULTIPLIER + level * HSG_ACC_PER_ENHANCE) * 10) / 10;
-    const acceleration = addTimedAcceleration(player, "hsg", multiplier, durationMs, timestamp);
-    const hsgStack = acceleration.bySource.hsg;
-    awardAbilityContribution(player, 0.75 + level * 0.25);
-    pushMagicEffect(room, "item-hsg-activate", player, {
-      radius: 135 + level * 10,
-      playerId: player.id,
-      variant: String(level),
-      durationMs,
-      accelerationMultiplier: multiplier
-    });
-    setImmediateFeedback(player, "HSG起動", `既存効果を維持 / 累積ACC ${hsgStack.multiplier.toFixed(1)} / ${hsgStack.count}スタック`);
-    pushEvent(room, `${player.name} がHSGを起動し、既存効果を維持したまま${durationMs / 1000}秒間の浮揚・ACC ${multiplier.toFixed(1)}を追加しました（累積ACC ${hsgStack.multiplier.toFixed(1)} / ${hsgStack.count}スタック）${level ? `（エンハンス${level}）` : ""}。`);
-    touch(room);
-    return;
-  }
   consumeItem(player, itemId);
   if (itemId === "mineral-water") {
     useMineralWater(room, player, player, level, false);
@@ -15510,7 +15674,7 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
 function useOwnedItem(room, player, itemId, rawHoldMs = 0) {
   if (ITEM_DEFINITIONS[itemId]) return useInventoryItem(room, player, itemId, rawHoldMs);
   if (itemId === "fire-jutsu") return useFireJutsu(room, player, rawHoldMs);
-  if (itemId === "instant-warp") throw new ApiError(400, "即時ワープは即席のため使用せず、拡大マップから権利を行使してください。");
+  if (itemId === "instant-warp") throw new ApiError(400, "テレポートマップスクロールは即席です。拡大マップからワープ権利を行使してください。");
   if (["substitution", "stand-firm", "push", "iai"].includes(itemId)) {
     throw new ApiError(400, "このアイテムは条件成立時に自動発動します。");
   }
@@ -15533,8 +15697,7 @@ function useQuantumControl(room, player, rawMode) {
   if (mode === "transmute-mercury" || mode === "transmute-lead") {
     const itemId = mode.endsWith("mercury") ? "mercury" : "lead";
     consumeItem(player, itemId);
-    const credits = itemId === "mercury" ? QUANTUM_CREDITS_MERCURY : QUANTUM_CREDITS_LEAD;
-    grantCredits(room, player, credits, "quantum-transmutation");
+    const credits = acquireGoldAsCredits(room, player, `quantum-gold:${itemId}`);
     pushMagicEffect(room, "quantum-transmutation", player, {
       radius: 150,
       playerId: player.id,
@@ -15655,20 +15818,21 @@ function instantWarp(room, player, rawX, rawY) {
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
   if (player.warpCharges <= 0) throw new ApiError(400, "ワープ可能回数がありません。");
-  const x = Number(rawX);
-  const y = Number(rawY);
-  const map = getMap(room);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !isWalkable(room, x, y, map.playerRadius)) {
-    throw new ApiError(400, "通行可能な場所を指定してください。");
-  }
+  const destination = resolveExpandedMapTeleportDestination(room, rawX, rawY);
   player.warpCharges -= 1;
-  player.x = x;
-  player.y = y;
-  player.vx = 0;
-  player.vy = 0;
-  player.lastMoveAt = now();
-  pushMagicEffect(room, "action-warp", player, { radius: 125, playerId: player.id });
-  pushEvent(room, `${player.name} がインスタントワープしました。`);
+  const origin = moveByExpandedMapTeleport(player, destination);
+  pushMagicEffect(room, "action-warp", origin, {
+    radius: 125,
+    playerId: player.id,
+    targetX: destination.x,
+    targetY: destination.y
+  });
+  pushMagicEffect(room, "action-warp", player, {
+    radius: 125,
+    playerId: player.id,
+    variant: "arrival"
+  });
+  pushEvent(room, `${player.name} がテレポートマップスクロールの権利を行使しました。`);
   touch(room);
 }
 
@@ -15681,7 +15845,7 @@ function healFlora(room, player) {
   const timestamp = now();
   spendOperatorMana(room, player, "フローラ");
   if (player.bodyHits > 0) player.bodyHits = 0;
-  else player.overheal = 1;
+  else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
   player.slowedUntil = 0;
   player.taserSlowedUntil = 0;
   player.shockSlowedUntil = 0;
@@ -15793,10 +15957,11 @@ function useFloraAbility(room, player, mode, options = {}) {
 const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "orichalcum-sword": { label: "オリハルコン・ソード", cost: 0, apply: (_room, player) => addItem(player, "orichalcum-sword") },
   stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
-  heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(1, player.overheal); pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
+  hsg: { label: "HSG", cost: 0, apply: (_room, player) => activateHsgInstant(player) },
+  heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1; pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
   fire: { label: "火遁の術", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
   substitution: { label: "変わり身の術", cost: 1, apply: (room, player) => { player.substitutionCharges += 1; pushInstantItemAcquisitionAte(room, player, "substitution", "hacker"); } },
-  warp: { label: "即時ワープ", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
+  warp: { label: "テレポートマップスクロール", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
   grit: { label: "踏ん張り", cost: 1, apply: (room, player) => grantStandFirmCharge(room, player, false, "hacker") },
   reason: { label: "押し込み", cost: 1, apply: (room, player) => grantPushCharge(room, player, false, "hacker") },
   mercury: { label: "水銀瓶", cost: 0, apply: (_room, player) => addItem(player, "mercury") },
@@ -15823,7 +15988,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "vending-taser": { label: "テーザー銃", cost: 0, apply: (_room, player) => purchaseFirearm(player, "taser") },
   "vending-ice": { label: "氷結水", cost: 0, apply: (_room, player) => addItem(player, "ice") },
   "vending-heated-water": { label: "高温水", cost: 0, apply: (_room, player) => addItem(player, "heated-water") },
-  gold: { label: "金", cost: 0, apply: (room, player) => { grantCredits(room, player, GOLD_INSTANT_CREDITS, "hacker-gold"); } },
+  gold: { label: "金", cost: 0, apply: (room, player) => { acquireGoldAsCredits(room, player, "hacker-gold"); } },
   "vending-rpg": { label: "RPG", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("rpg"); } },
   "vending-missile": { label: "ミサイル", cost: 0, apply: (_room, player) => { (player.heavyWeapons ||= []).push("missile"); } },
   "hack-credits-delete": { label: "クレジット削除", cost: 2, apply: (room, player, targetId) => { hackerTarget(room, player, targetId).credits = 0; } },
@@ -15843,7 +16008,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
 // derived from DVA_ECONOMY so a new sellable product cannot disappear from the
 // Hacker generator because somebody forgot a second display list.
 const HACKER_EXTENSION_RECIPE_IDS = new Set([
-  "stamina", "hack-credits-delete", "hack-credits-duplicate", "hack-items-delete",
+  "hack-credits-delete", "hack-credits-duplicate", "hack-items-delete",
   "hack-items-duplicate", "hack-hp-delete", "hack-hp-duplicate", "hack-mana-delete",
   "hack-mana-duplicate", "hack-status-recover", "revive"
 ]);
@@ -15968,7 +16133,6 @@ function humanTransmutation(room, player, targetId) {
 // Final cooldowns before stored Mana GPU credit. Credit itself is uncapped;
 // each generation consumes only the amount required by this table.
 const HACKER_EXTENSION_COOLDOWN_MS = Object.freeze({
-  stamina: 30_000,
   "hack-credits-delete": 60_000,
   "hack-credits-duplicate": 90_000,
   "hack-items-delete": 75_000,
@@ -16040,7 +16204,10 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   player.manaGpuCooldownCreditMs = Math.max(0, Number(player.manaGpuCooldownCreditMs) - shortenedCooldownMs);
   player.vibeCodingReadyAt = timestamp + player.vibeCodingCooldownMs - shortenedCooldownMs;
   if (Number(player.mana) <= 0) {
-    player.credits = DESIRE_RESOURCE_DEBT;
+    // Gold has already been authoritatively acquired. The legacy desire-state
+    // resource normalization must never overwrite its 100C payout afterward.
+    // Other recipes retain their existing zero-mana credit debt behavior.
+    if (conversion !== "gold") player.credits = DESIRE_RESOURCE_DEBT;
     player.stamina = DESIRE_RESOURCE_DEBT;
   }
   player.staminaUpdatedAt = now();
@@ -16093,6 +16260,7 @@ function resolveIaiDestructionUpgrade(room, source, target, reason, options = {}
 
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
+  const timestamp = now();
   if (options.attackKind && !options.bypassSlashGuard) {
     const guardOutcome = resolveFighterSlashGuard(room, source, target, {
       kind: String(options.attackKind),
@@ -16106,13 +16274,20 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     });
     if (guardOutcome) return false;
   }
-  if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, now(), source)) return false;
+  if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (!options.ignoreFriendlyFire && source?.role === target.role && ["defender", "attacker"].includes(source?.role) && source.id !== target.id) {
-    if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, now());
+    if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
     return false;
   }
   recordBotMatchElimination(room, target, source);
   target.alive = false;
+  recordKillCamera(room, target, source, {
+    timestamp,
+    actionLabel: String(options.attackLabel || reason || "破壊"),
+    actionKind: String(options.attackKind || (options.noBody ? "disappearance" : "destruction")),
+    sourceLabel: String(options.sourceLabel || reason || ""),
+    reflected: String(options.attackKind || "").includes("reflected")
+  });
   target.bodyHits = 0;
   target.overheal = 0;
   target.gritCharges = 0;
@@ -16135,7 +16310,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
       id: uid("body_"), playerId: target.id, killerId: source?.id || "destruction",
       killerName: source?.name || reason, killerIsBot: Boolean(source?.isBot),
       killerSkinId: source?.skinId || "operator", name: target.name,
-      x: target.x, y: target.y, at: now(), destruction: true,
+      x: target.x, y: target.y, at: timestamp, destruction: true,
       noKillCutin: Boolean(options.noKillCutin)
     });
   }
@@ -16580,6 +16755,12 @@ function killPlayer(room, killer, targetId, options = {}) {
     if (fighterKillCounterAvailable(target) && incomingCertainKill) {
       recordBotMatchElimination(room, killer, target);
       killer.alive = false;
+      recordKillCamera(room, killer, target, {
+        timestamp,
+        actionLabel: "回避キルカウンター",
+        actionKind: "fighter-dodge-counter",
+        sourceLabel: "100SP回避による確殺反撃"
+      });
       killer.bodyHits = 0;
       killer.overheal = 0;
       killer.limitBreakActive = false;
@@ -16683,6 +16864,19 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   recordBotMatchElimination(room, target, killer);
   target.alive = false;
+  const killActionKind = String(options.attackKind || (ranged ? "ranged" : lockedAim ? "ninjutsu" : options.quick ? "quick-attack" : "attack"));
+  const killActionLabel = String(options.attackLabel || (
+    lockedAim ? "忍殺" :
+      options.quick ? "即撃" :
+        ranged ? `${gunnerWeaponFor(killer).name}射撃` : "攻撃"
+  ));
+  recordKillCamera(room, target, killer, {
+    timestamp,
+    actionLabel: killActionLabel,
+    actionKind: killActionKind,
+    sourceLabel: ranged ? gunnerWeaponFor(killer).name : killActionLabel,
+    reflected: killActionKind.includes("reflected")
+  });
   target.gunnerSnipingActive = false;
   target.bodyHits = 0;
   target.overheal = 0;
@@ -17697,6 +17891,7 @@ function useLuminous(room, player, targetId) {
     recordBotMatchElimination(room, target, player);
     target.alive = false;
     target.ejected = true;
+    target.killCamera = null;
     target.inVent = false;
     target.ventId = "";
     target.bodyHits = 0;
@@ -17713,6 +17908,12 @@ function useLuminous(room, player, targetId) {
   } else {
     recordBotMatchElimination(room, player, player);
     player.alive = false;
+    recordKillCamera(room, player, player, {
+      timestamp,
+      actionLabel: "ルミナス失敗の代償",
+      actionKind: "luminous-failure",
+      sourceLabel: `対象: ${target.name}`
+    });
     player.inVent = false;
     player.ventId = "";
     player.bodyHits = 0;
@@ -18301,7 +18502,11 @@ function serialize(room, viewer, options = {}) {
       gunnerSpecialAmmoInventory: { ...ensureGunnerSpecialAmmoInventory(viewer) },
       gunnerSpecialAmmoReadyAt: Number(viewer.gunnerSpecialAmmoReadyAt) || 0,
       gunnerSpecialAmmoIntervalMs: GUNNER_SPECIAL_AMMO_INTERVAL_MS,
+      hsgPassiveOwned: Boolean(viewer.hsgPassiveOwned),
       hsgUntil: Number(viewer.hsgUntil) || 0,
+      hsgReadyAt: Number(viewer.hsgReadyAt) || 0,
+      hsgDurationMs: HSG_BASE_DURATION_MS,
+      hsgCooldownMs: HSG_ACTIVATION_COOLDOWN_MS,
       accelerationPhasing: Number(viewer.hsgUntil) > timestamp,
       gunnerSnipingActive: Boolean(viewer.gunnerSnipingActive),
       gunnerSnipingMovementMultiplier: GUNNER_SNIPING_MOVEMENT_MULTIPLIER,
@@ -18368,6 +18573,7 @@ function serialize(room, viewer, options = {}) {
       jumpMotion: viewer.jumpMotion ? { ...viewer.jumpMotion } : null,
       bodyHits: viewer.bodyHits,
       overheal: viewer.overheal,
+      killCamera: viewer.killCamera ? { ...viewer.killCamera } : null,
       credits: viewer.credits,
       mana: Math.round((Number(viewer.mana) || 0) * 10) / 10,
       rationalManaThreshold: RATIONAL_MANA_THRESHOLD,
@@ -19429,7 +19635,10 @@ async function handleApi(req, res) {
         entry.unconsciousUntil = 0;
         entry.abilityDisabledUntil = 0;
         entry.overhealSpeedUntil = 0;
+        entry.hsgPassiveOwned = false;
         entry.hsgUntil = 0;
+        entry.hsgReadyAt = 0;
+        entry.killCamera = null;
         entry.gunnerSnipingActive = false;
         entry.timedAccelerationEffects = [];
         entry.lastMysteryResult = "";
@@ -20687,16 +20896,6 @@ function runPlayingBots(room) {
           try { toggleGunnerSniping(room, bot); } catch {}
         }
       }
-      if (
-        maximumStrength &&
-        target &&
-        bot.special === "gunner" &&
-        Number(bot.hsgUntil) <= timestamp &&
-        targetDistance > 520 &&
-        itemCount(bot, "hsg") > 0
-      ) {
-        try { useInventoryItem(room, bot, "hsg", 0); } catch {}
-      }
       const botGunnerWeapon = target && bot.special === "gunner"
         ? selectBotGunnerWeapon(bot, targetDistance, maximumStrength)
         : null;
@@ -20888,5 +21087,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "gold-100-credits-v494" });
+self.postMessage({ type: "ready", version: "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495" });
 })();

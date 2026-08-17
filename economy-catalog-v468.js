@@ -12,8 +12,8 @@
     taskReward: 2,
     sabotageReward: 2,
     cacheReward: 3,
-    quantumMercuryReward: 4,
-    quantumLeadReward: 2,
+    quantumMercuryReward: 100,
+    quantumLeadReward: 100,
     goldInstantReward: 100,
     mysteryJackpot: 6,
     donationCost: 1,
@@ -37,7 +37,7 @@
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
     ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
-    ["warp", "即時ワープ", 3, "instant-item", "warp", "warp"],
+    ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
     ["fire", "火遁の術", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
@@ -45,6 +45,8 @@
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
     ["reason", "押し込み", 5, "instant-item", "reason", "reason"],
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
+    ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
+    ["hsg", "HSG", 8, "instant-item", "hsg", "hsg"],
     ["railgun", "レールガン", 13, "invention", "vending-railgun", "railgun"],
     ["particle-cannon", "荷電粒子砲", 16, "invention", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "invention", "vending-excalibur", "excalibur"],
@@ -101,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "gold-100-credits-v494",
+    version: "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

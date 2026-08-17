@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "gold-100-credits-v494";
+const OFFLINE_WORKER_VERSION = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495";
 const OFFLINE_WORKER_READY_TIMEOUT_MS = 40_000;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 

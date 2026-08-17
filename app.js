@@ -77,6 +77,13 @@ const els = {
   soloTrainingProgress: $("#soloTrainingProgress"),
   soloMissionGrid: $("#soloMissionGrid"),
   canvas: $("#gameCanvas"),
+  killCameraOverlay: $("#killCameraOverlay"),
+  killCameraTitle: $("#killCameraTitle"),
+  killCameraKiller: $("#killCameraKiller"),
+  killCameraAction: $("#killCameraAction"),
+  killCameraSource: $("#killCameraSource"),
+  killCameraArea: $("#killCameraArea"),
+  killCameraCloseButton: $("#killCameraCloseButton"),
   actionCommandRegistry: $("#actionCommandRegistry"),
   fieldLowerRow: $("#fieldLowerRow"),
   tabletButton: $("#tabletButton"),
@@ -453,6 +460,7 @@ const state = {
   frameNow: 0,
   lastFrameAt: 0,
   killEffects: [],
+  dismissedKillCameraId: "",
   hitEffects: [],
   magicEffects: [],
   worldSoundEffects: [],
@@ -643,6 +651,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   heal: "負傷時はHPを2まで全回復。無傷時はオーバーヒール+1",
   reason: "1回分を獲得。次の攻撃対象の踏ん張りを全削除し、削除1回につき自分へ0.5ダメージ。理知中のみ発動",
   mana: "MP+1",
+  stamina: "取得時に即席でSP+350。物理所持品には残らない",
   railgun: "使用: 使い切り。全遮蔽物を貫通する直線射撃で、命中時は確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   "particle-cannon": "使用: 使い切り。6秒間、0.30秒間隔で照準操作できる貫通ビームを放射し、経路上の全対象は命中時に確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
@@ -653,12 +662,12 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。狙撃ON時はHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で4Cへ換金",
-  lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で2Cへ換金",
+  mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で金へ核変換し、取得時に100Cへ即時換金",
+  lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。量子制御で金へ核変換し、取得時に100Cへ即時換金",
   uranium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "通常使用は自分へ強毒。量子制御は2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後は斬撃が消滅（死体なし）、JGは全攻撃反射。斬る／投擲の衝撃波は与ダメージ1.00・EC-1、EC100以上の斬るはEC-100で特大化。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。衝撃波はJG・反射不可",
-  hsg: "再使用可能。使用で8秒間浮揚・ACC 1.8。Enhanceごとに効果時間+4秒、ACC+0.4。有効中の再使用は既存効果をリセットせず追加累積",
+  hsg: "取得時に即席HSGパッシブへ変換。足場のない場所へ進む直前に自動起動し、8秒間浮揚・ACC 1.8。起動から20秒CT中は再起動・延長・累積・リセット・Enhance不可",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -671,7 +680,6 @@ const VENDING_PRODUCT_LABELS = DVA_ECONOMY.productLabels;
 const VENDING_PRODUCT_COSTS = DVA_ECONOMY.productCosts;
 
 const alchemyRecipes = [
-  { id: "stamina", label: "スタミナ", output: "+350SP" },
   ...DVA_ECONOMY.products.map((product) => ({
     id: product.hackerRecipeId,
     productId: product.id,
@@ -696,7 +704,6 @@ const alchemyRecipes = [
 ];
 
 const HACKER_EXTENSION_COOLDOWN_MS = Object.freeze({
-  stamina: 30_000,
   "hack-credits-delete": 60_000,
   "hack-credits-duplicate": 90_000,
   "hack-items-delete": 75_000,
@@ -726,7 +733,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "gold-100-credits-v494";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -751,8 +758,8 @@ const generatedItemTextureFiles = new Map([
   ["fire", { file: "alchemy-effect-fire-v311.png" }],
   ["fire-jutsu", { file: "alchemy-effect-fire-v311.png" }],
   ["substitution", { file: "alchemy-effect-substitution-v311.png" }],
-  ["warp", { file: "alchemy-effect-warp-v311.png" }],
-  ["instant-warp", { file: "alchemy-effect-warp-v311.png" }],
+  ["warp", { file: "item-teleport-map-scroll-v495.png" }],
+  ["instant-warp", { file: "item-teleport-map-scroll-v495.png" }],
   ["instant-evade", { file: "action-effect-dodge-v311.png" }],
   ["instant-speed", { file: "status-marker-acceleration-v376.png" }],
   ["instant-mystery", { file: "philosophy-effect-mystery-v311.png" }],
@@ -5059,6 +5066,12 @@ function bindEvents() {
     closeItemHoldBranch();
   });
   els.keybindCloseButton.addEventListener("click", () => setKeybindOpen(false));
+  els.killCameraCloseButton.addEventListener("click", () => {
+    const record = state.data?.self?.killCamera;
+    if (record?.id) state.dismissedKillCameraId = record.id;
+    els.killCameraOverlay.hidden = true;
+    els.canvas.focus({ preventScroll: true });
+  });
   els.keybindOverlay.addEventListener("click", (event) => {
     if (event.target === els.keybindOverlay) setKeybindOpen(false);
   });
@@ -6791,7 +6804,7 @@ function syncExpandedMapUi() {
   const area = currentAreaLabel(state.data);
   const teleportTarget = state.data?.players?.find((player) => player.id === state.teleportTargetId);
   els.expandedMapTitle.textContent = state.instantWarpTargeting
-    ? "即時ワープ先"
+    ? "テレポートマップスクロール：転移先"
     : targeting
       ? state.teleportTargetMode === "target"
         ? `${teleportTarget?.name || "対象"} の対象転移先`
@@ -7878,6 +7891,7 @@ function resetLocalSession() {
   state.renderPlayers.clear();
   state.camera = { x: 0, y: 0, initialized: false, mode: "", frame: -1 };
   state.killEffects = [];
+  state.dismissedKillCameraId = "";
   state.hitEffects = [];
   state.magicEffects = [];
   state.worldSoundEffects = [];
@@ -8698,6 +8712,27 @@ function renderedPlayer(player) {
   return { ...player, x: current.x, y: current.y, jumpHeight: current.jumpHeight || 0 };
 }
 
+function activeKillCameraRecord(data = state.data) {
+  const record = data?.self?.killCamera;
+  if (!record?.id || data.self.alive || data.self.ejected || data.phase === "meeting") return null;
+  if (state.dismissedKillCameraId === record.id) return null;
+  return record;
+}
+
+function renderKillCamera(data) {
+  const record = activeKillCameraRecord(data);
+  els.killCameraOverlay.hidden = !record;
+  if (!record) return;
+  els.killCameraTitle.textContent = `${record.victimName || "あなた"} の死亡記録`;
+  els.killCameraKiller.textContent = record.killerName || "環境・ルール";
+  els.killCameraAction.textContent = record.actionLabel || "死亡原因不明";
+  els.killCameraSource.textContent = [record.sourceLabel, record.reflected ? "反射" : ""].filter(Boolean).join(" / ") || record.actionKind || "環境";
+  const happenedAt = Number(record.at) > 0
+    ? new Date(Number(record.at)).toLocaleTimeString("ja-JP", { hour12: false })
+    : "時刻不明";
+  els.killCameraArea.textContent = `${record.areaLabel || "不明区画"} / ${happenedAt}`;
+}
+
 function render() {
   const data = state.data;
   if (data?.phase !== "playing" && (state.activeScrollRegion || state.expandedScrollRegion)) {
@@ -8743,11 +8778,13 @@ function render() {
 
   if (!data) {
     els.endOverlay.hidden = true;
+    els.killCameraOverlay.hidden = true;
     if (state.expandedMapOpen) setExpandedMapOpen(false);
     syncKeyboardContext();
     return;
   }
 
+  renderKillCamera(data);
   renderEnd(data);
   renderOperatorSelect(data);
   renderStatus(data);
@@ -9917,7 +9954,7 @@ function renderActiveEffects(data) {
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
   if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "踏ん張り全消去。1回につき反動0.5");
   if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持");
-  if ((self.warpCharges || 0) > 0) add("即時ワープ", `ワープ可能回数 ×${self.warpCharges}`, "truth", "即席の獲得時に現物をワープ権利へ変換。任意のタイミングで拡大マップを開き、地点を選ぶと1回消費");
+  if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `ワープ可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にワープ権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
@@ -9980,13 +10017,21 @@ function renderActiveEffects(data) {
     "good",
     `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`
   );
-  const hsgAcceleration = self.timedAccelerationStacks?.hsg;
-  timed(
-    `HSG 浮揚・加速${hsgAcceleration?.count > 1 ? ` ×${hsgAcceleration.count}` : ""}`,
-    hsgAcceleration?.endsAt || self.hsgUntil,
-    "good",
-    `累積ACC ${Number(hsgAcceleration?.multiplier || 1.8).toFixed(1)}。各使用分の効果時間を維持し、浮揚・移動・物理モーション・CT・行動不能・タスク速度へ適用`
-  );
+  if (self.hsgPassiveOwned) {
+    const activeMs = Math.max(0, Number(self.hsgUntil) - liveNow);
+    const readyMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
+    if (activeMs > 0) {
+      add("HSG", `作動 ${(activeMs / 1000).toFixed(1)}秒`, "good", `自動浮揚・ACC 1.8 / 再起動まで ${(readyMs / 1000).toFixed(1)}秒`);
+    } else if (readyMs > 0) {
+      add("HSG", `CT ${(readyMs / 1000).toFixed(1)}秒`, "neutral", "再起動・延長・累積・リセット・Enhance不可");
+    } else if (Number(self.itemDisabledUntil) > liveNow) {
+      add("HSG", "EMP遮断中", "desire", "パッシブは保持・ストレージ復旧後に自動待機");
+    } else if (!self.passivesEnabled) {
+      add("HSG", "理知まで休止", "neutral", "足場のない場所への移動検知を休止中");
+    } else {
+      add("HSG", "待機", "rational", "足場のない場所へ進む直前に自動起動");
+    }
+  }
   if (self.gunnerSnipingActive) add("狙撃", "ON", "truth", "全射撃HS確殺 / 移動速度12%");
   timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
@@ -11278,6 +11323,7 @@ function draw() {
       drawThrowLandingPreview(data);
       drawStandaloneClairvoyanceAte(data);
       drawPlayers(data);
+      drawKillCameraWorldMarkers(data);
       drawHitEffects();
       drawMagicEffects();
       drawAttackTargets(data);
@@ -11422,6 +11468,13 @@ function drawIdle(w, h) {
 
 function cameraFor(data, w, h, zoom = 1) {
   const self = selfPlayer();
+  const killCamera = activeKillCameraRecord(data);
+  const killCameraTarget = killCamera
+    ? {
+        x: (Number(killCamera.victimX) + Number(killCamera.killerX)) / 2,
+        y: (Number(killCamera.victimY) + Number(killCamera.killerY)) / 2
+      }
+    : null;
   const selectedCamera = currentCamera(data);
   const throwTarget = state.throwTargeting.active
     ? { x: state.throwTargeting.targetX, y: state.throwTargeting.targetY }
@@ -11435,12 +11488,14 @@ function cameraFor(data, w, h, zoom = 1) {
         y: renderedPlayer(self).y + (Number(data.self.aimY) || 1) * 470
       }
     : null;
-  const target = throwTarget || clairvoyanceTarget || selectedCamera || scopeTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
+  const target = killCameraTarget || throwTarget || clairvoyanceTarget || selectedCamera || scopeTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
   const viewW = w / zoom;
   const viewH = h / zoom;
   const desiredX = clamp(target.x - viewW / 2, 0, Math.max(0, data.map.width - viewW));
   const desiredY = clamp(target.y - viewH / 2, 0, Math.max(0, data.map.height - viewH));
-  const mode = throwTarget
+  const mode = killCameraTarget
+    ? `kill-camera:${killCamera.id}:${zoom}`
+    : throwTarget
     ? `throw-target:${throwTargetClairvoyanceActive(data) ? "clairvoyance" : "follow"}:${zoom}`
     : clairvoyanceTarget
       ? `clairvoyance:${zoom}`
@@ -13719,7 +13774,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "instant-heal-acquired": ["instantHealTexture", 230],
   "instant-fire-acquired": ["instantFireTexture", 240],
   "instant-substitution-acquired": ["instantSubstitutionTexture", 230],
-  "instant-warp-acquired": ["instantWarpTexture", 250],
+  "teleport-map-scroll-acquired": ["teleportMapScrollAcquisitionTexture", 250],
   "instant-evade-acquired": ["instantEvadeTexture", 240],
   "instant-speed-acquired": ["instantSpeedTexture", 210],
   "instant-mystery-acquired": ["instantMysteryTexture", 240],
@@ -15123,6 +15178,42 @@ function drawPlayers(data) {
     if (player.inVent) return;
     drawHuman(player, data);
   });
+}
+
+function drawKillCameraWorldMarkers(data) {
+  const record = activeKillCameraRecord(data);
+  if (!record) return;
+  const victim = { x: Number(record.victimX) || 0, y: Number(record.victimY) || 0 };
+  const killer = { x: Number(record.killerX) || victim.x, y: Number(record.killerY) || victim.y };
+  const separated = Math.hypot(killer.x - victim.x, killer.y - victim.y) > 10;
+  ctx.save();
+  ctx.lineWidth = 4;
+  ctx.setLineDash([11, 8]);
+  ctx.strokeStyle = "rgba(248, 113, 113, 0.9)";
+  if (separated) {
+    ctx.beginPath();
+    ctx.moveTo(killer.x, killer.y - 22);
+    ctx.lineTo(victim.x, victim.y - 22);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  const marker = (point, color, label) => {
+    ctx.fillStyle = "rgba(2, 6, 23, 0.82)";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y - 22, 48, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.font = "900 14px Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, point.x, point.y - 22);
+  };
+  marker(victim, "#f87171", "死亡地点");
+  if (separated) marker(killer, "#facc15", "加害者");
+  ctx.restore();
 }
 
 function drawDrones(data) {
@@ -17409,7 +17500,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "gold-100-credits-v494";
+const version = "hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail-v495";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -17471,7 +17562,7 @@ const version = "gold-100-credits-v494";
     "assets/generated/alchemy-effect-heal-v311.png",
     "assets/generated/alchemy-effect-fire-v311.png",
     "assets/generated/alchemy-effect-substitution-v311.png",
-    "assets/generated/alchemy-effect-warp-v311.png",
+    "assets/generated/teleport-map-scroll-acquisition-ate-v495.png",
     "assets/generated/alchemy-effect-grit-v311.png",
     "assets/generated/alchemy-effect-reason-v311.png"
   ]);
@@ -17507,7 +17598,8 @@ const version = "gold-100-credits-v494";
   const instantHealTexture = alchemyEffectTextures[6];
   const instantFireTexture = alchemyEffectTextures[7];
   const instantSubstitutionTexture = alchemyEffectTextures[8];
-  const instantWarpTexture = alchemyEffectTextures[9];
+  const instantWarpTexture = new Image();
+  const teleportMapScrollAcquisitionTexture = new Image();
   const instantEvadeTexture = actionEffectTextures[2];
   const instantMysteryTexture = philosophyEffectTextures[10];
   const instantManaTexture = alchemyEffectTextures[2];
@@ -17639,6 +17731,8 @@ const version = "gold-100-credits-v494";
   defer(attackerKillDeadlineEffect, "assets/generated/attacker-kill-deadline-ate-v467.png");
   defer(itemIaiTexture, "assets/generated/instant-iai-abstract-v451.png");
   defer(computerItemTexture, "assets/generated/item-computer-v404.png");
+  defer(instantWarpTexture, "assets/generated/item-teleport-map-scroll-v495.png");
+  defer(teleportMapScrollAcquisitionTexture, "assets/generated/teleport-map-scroll-acquisition-ate-v495.png");
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
@@ -17760,6 +17854,7 @@ const version = "gold-100-credits-v494";
     instantFireTexture,
     instantSubstitutionTexture,
     instantWarpTexture,
+    teleportMapScrollAcquisitionTexture,
     instantEvadeTexture,
     instantSpeedTexture,
     instantMysteryTexture,

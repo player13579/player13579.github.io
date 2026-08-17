@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v494-gold-100-credits";
+const CACHE_NAME = "dva-static-v495-hsg-catalog-flora-emp-killcam-gold-ip-teleport-scroll-thumbnail";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -18,7 +18,7 @@ const STATIC_ASSETS = [
   "/manifest.webmanifest",
   "/icon.png",
   "/assets/title-hero-v466.png",
-  "/assets/site-thumbnail-v458.png",
+  "/assets/site-thumbnail-v495.png",
   "/assets/generated/tactics-novel-briefing-room-v466.png",
   "/assets/generated/tactics-manga-sparkle-v466.png",
   "/assets/generated/tactics-manga-idea-v466.png",
@@ -140,7 +140,8 @@ const STATIC_ASSETS = [
   "/assets/generated/alchemy-effect-heal-v311.png",
   "/assets/generated/alchemy-effect-fire-v311.png",
   "/assets/generated/alchemy-effect-substitution-v311.png",
-  "/assets/generated/alchemy-effect-warp-v311.png",
+  "/assets/generated/item-teleport-map-scroll-v495.png",
+  "/assets/generated/teleport-map-scroll-acquisition-ate-v495.png",
   "/assets/generated/alchemy-effect-grit-v311.png",
   "/assets/generated/alchemy-effect-reason-v311.png",
   "/assets/generated/gunner-break-handgun-v311.png",
@@ -285,7 +286,6 @@ const STATIC_ASSETS = [
   "/assets/generated/skin-blue-dress-left.webp",
   "/assets/generated/skin-blue-dress-master-chibi-v3.webp",
   "/assets/generated/skin-blue-dress-right.webp",
-  "/assets/generated/status-instant-warp.webp",
   "/assets/generated/status-push.webp",
   "/assets/generated/status-stand-firm.webp",
   "/assets/generated/status-substitution.webp",

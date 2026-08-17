@@ -1,0 +1,16 @@
+{
+  "dfc48197c51d6b2a02fc8a7c": {
+    "name": "プレイヤー",
+    "points": 3,
+    "games": 21,
+    "kills": 7,
+    "killPoints": 5.285714285714286,
+    "killRate": 5.29,
+    "deaths": 5,
+    "rank": "silver",
+    "developer": true,
+    "messages": [],
+    "updatedAt": 1786952052757,
+    "identityVersion": 2
+  }
+}
