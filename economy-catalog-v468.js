@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "flora-sunbeam-piercing-target-v499",
+    version: "killcam-teleport-sunbeam-root-v500",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "flora-sunbeam-piercing-target-v499",
+    version: "killcam-teleport-sunbeam-root-v500",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -10747,6 +10747,7 @@ function activateHackerRoot(room, player) {
   player.overheal = 0;
   player.bodyHits = 2 - HACKER_ROOT_HEALTH;
   player.hackerRootActive = true;
+  const inheritedStartingItems = grantHackerRootStartingItems(player);
   const retainedLabels = [
     retainedProtections.grit ? `踏ん張り${retainedProtections.grit}` : "",
     retainedProtections.substitution ? `変わり身${retainedProtections.substitution}` : ""
@@ -10760,14 +10761,33 @@ function activateHackerRoot(room, player) {
   setImmediateFeedback(
     player,
     "root化",
-    `HP ${HACKER_ROOT_HEALTH}${retainedLabels.length ? ` / ${retainedLabels.join("・")}はROOT中無効（所持維持）` : ""}`
+    `HP ${HACKER_ROOT_HEALTH}${retainedLabels.length ? ` / ${retainedLabels.join("・")}はROOT中無効（所持維持）` : ""}${inheritedStartingItems.length ? ` / 開始装備:${inheritedStartingItems.join("・")}` : ""}`
   );
   pushEvent(
     room,
-    `${player.name} が能力ボタンでroot化し、${Math.max(0, healthBefore - HACKER_ROOT_HEALTH).toFixed(4)}ダメージを受けてHP ${HACKER_ROOT_HEALTH}になりました。${retainedLabels.length ? `${retainedLabels.join("・")}は所持したままROOT中だけ無効です。` : ""}`
+    `${player.name} が能力ボタンでroot化し、${Math.max(0, healthBefore - HACKER_ROOT_HEALTH).toFixed(4)}ダメージを受けてHP ${HACKER_ROOT_HEALTH}になりました。${retainedLabels.length ? `${retainedLabels.join("・")}は所持したままROOT中だけ無効です。` : ""}${inheritedStartingItems.length ? ` 各オペレーターの開始装備（${inheritedStartingItems.join("・")}）を継承しました。` : ""}`
   );
   touch(room);
-  return { health: remainingHealth(player), retainedProtections };
+  return { health: remainingHealth(player), retainedProtections, inheritedStartingItems };
+}
+
+function grantHackerRootStartingItems(player) {
+  const inherited = [];
+  if (itemCount(player, "orichalcum-sword") < 1) {
+    addItem(player, "orichalcum-sword");
+    inherited.push(ITEM_DEFINITIONS["orichalcum-sword"].label);
+  }
+  if (!player.hsgPassiveOwned) {
+    player.hsgPassiveOwned = true;
+    inherited.push("HSG");
+  }
+  for (const [itemId, required] of Object.entries(QUANTUM_STARTING_ITEMS)) {
+    const missing = Math.max(0, Number(required) - itemCount(player, itemId));
+    if (!missing) continue;
+    addItem(player, itemId, missing);
+    inherited.push(ITEM_DEFINITIONS[itemId].label);
+  }
+  return inherited;
 }
 
 function passivesEnabled(player) {
@@ -12229,7 +12249,6 @@ function recordBotMatchElimination(room, target, source = null) {
 const AMBIGUOUS_KILL_CAMERA_ACTION_LABELS = new Set([
   "",
   "死亡原因不明",
-  "通常攻撃",
   "攻撃",
   "能力",
   "射撃",
@@ -12242,7 +12261,10 @@ const AMBIGUOUS_KILL_CAMERA_ACTION_LABELS = new Set([
 
 function requireExactKillCameraActionLabel(value, context = "death") {
   const label = String(value || "").trim();
-  if (AMBIGUOUS_KILL_CAMERA_ACTION_LABELS.has(label)) {
+  if (
+    AMBIGUOUS_KILL_CAMERA_ACTION_LABELS.has(label) ||
+    (label.includes("通常") && label.includes("攻撃"))
+  ) {
     throw new Error(`Exact kill-camera action label required for ${context}.`);
   }
   return label;
@@ -12868,7 +12890,7 @@ function tickRoom(room) {
     advanceGunnerReload(room, player, timestamp);
     advanceGunnerSpecialAmmoPassive(room, player, timestamp);
     advanceGunnerFire(room, player, timestamp);
-    if (player.attackResolveAt && player.attackResolveAt <= timestamp) resolvePendingAttack(room, player, timestamp);
+    if (player.attackResolveAt && player.attackResolveAt <= timestamp) clearPendingAttack(player);
     if (player.aimTargetId) {
       const aimTarget = room.players.get(player.aimTargetId);
       if (room.phase !== "playing" || !aimTarget || !aimTarget.alive || aimTarget.ejected) {
@@ -13478,12 +13500,16 @@ function resolveExpandedMapTeleportDestination(room, rawX, rawY) {
 
 function moveByExpandedMapTeleport(target, destination, timestamp = now()) {
   const origin = { x: target.x, y: target.y };
+  clearStoredMovementInput(target, timestamp);
   target.x = destination.x;
   target.y = destination.y;
   target.vx = 0;
   target.vy = 0;
   target.lastMoveAt = timestamp;
   target.navPath = [];
+  if (Math.hypot(target.x - destination.x, target.y - destination.y) > 0.001) {
+    throw new ApiError(500, "テレポート先への移動を確定できませんでした。");
+  }
   return origin;
 }
 
@@ -15807,7 +15833,7 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
 function useOwnedItem(room, player, itemId, rawHoldMs = 0) {
   if (ITEM_DEFINITIONS[itemId]) return useInventoryItem(room, player, itemId, rawHoldMs);
   if (itemId === "fire-jutsu") return useFireJutsu(room, player, rawHoldMs);
-  if (itemId === "instant-warp") throw new ApiError(400, "テレポートマップスクロールは即席です。拡大マップからワープ権利を行使してください。");
+  if (itemId === "instant-warp") throw new ApiError(400, "テレポートマップスクロールは即席です。拡大マップからテレポート権利を行使してください。");
   if (["substitution", "stand-firm", "push", "iai"].includes(itemId)) {
     throw new ApiError(400, "このアイテムは条件成立時に自動発動します。");
   }
@@ -15944,15 +15970,15 @@ function useFireJutsu(room, player, rawHoldMs = 0) {
   touch(room);
 }
 
-function instantWarp(room, player, rawX, rawY) {
+function useTeleportMapScroll(room, player, rawX, rawY) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はワープできません。");
+    throw new ApiError(403, "現在はテレポートできません。");
   }
   ensureAbilityAvailable(player);
-  if (player.warpCharges <= 0) throw new ApiError(400, "ワープ可能回数がありません。");
+  if (player.warpCharges <= 0) throw new ApiError(400, "テレポート可能回数がありません。");
   const destination = resolveExpandedMapTeleportDestination(room, rawX, rawY);
-  player.warpCharges -= 1;
   const origin = moveByExpandedMapTeleport(player, destination);
+  player.warpCharges -= 1;
   pushMagicEffect(room, "action-warp", origin, {
     radius: 125,
     playerId: player.id,
@@ -16000,7 +16026,7 @@ function healFlora(room, player) {
   touch(room);
 }
 
-function floraSunbeam(room, player, converged = false, targetId = "", direction = {}) {
+function floraSunbeam(room, player, targetId = "", direction = {}) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "flora") || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在はサンビームを使用できません。");
   }
@@ -16037,39 +16063,38 @@ function floraSunbeam(room, player, converged = false, targetId = "", direction 
     })
     .filter((entry) => entry.along > 0 && entry.along <= SUNBEAM_RANGE && entry.perpendicular <= SUNBEAM_WIDTH)
     .sort((a, b) => a.along - b.along);
-  // Both the wide and converged beams are line areas: convergence changes
-  // lethality and width, not piercing. Every valid body intersecting the ray
-  // receives its own independent guard, barrier, dodge, and damage resolution.
+  // One canonical Sunbeam combines target-directed convergence with full-ray
+  // piercing. Every valid body intersecting the ray receives its own
+  // independent guard, barrier, dodge, and certain-kill resolution.
   const selected = candidates;
   let hits = 0;
   for (const entry of selected) {
     if (!player.alive || player.ejected || !entry.target?.alive || entry.target.ejected) break;
-    const lethal = converged || luckAdjustedRoll(player) < SUNBEAM_KILL_CHANCE;
     killPlayer(room, player, entry.target.id, {
       ranged: true,
-      hitZone: lethal ? "head" : "body",
+      hitZone: "head",
       damage: 1,
       ignoreRange: true,
       allowAnyKiller: true,
       targetRole: entry.target.role,
       magic: true,
       attackKind: "sunbeam",
-      attackLabel: converged ? "サンビーム収束" : "サンビーム放射",
+      attackLabel: "サンビーム",
       slashGuardPhysical: false
     });
     hits += 1;
   }
   const end = { x: player.x + dx * SUNBEAM_RANGE, y: player.y + dy * SUNBEAM_RANGE };
   pushMagicEffect(room, "flora-sunbeam", player, {
-    radius: converged ? 110 : SUNBEAM_WIDTH * 2,
+    radius: SUNBEAM_WIDTH * 2,
     targetX: end.x,
     targetY: end.y,
     playerId: player.id,
-    variant: `${opticalVariant}:${converged ? "converged" : "piercing"}`
+    variant: `${opticalVariant}:piercing`
   });
   pushSound(room, "sunbeam", player, { ownerId: player.id, sourceKind: "magic", maxDistance: 2100, volume: 0.9 });
   awardAbilityContribution(player, hits ? 1 : 0.25);
-  pushEvent(room, `${player.name} がサンビームを${converged ? "収束" : "放射"}しました（${opticalVariant}・判定${hits}人）。`);
+  pushEvent(room, `${player.name} がサンビームを発動しました（${opticalVariant}・判定${hits}人）。`);
   checkWin(room);
   touch(room);
 }
@@ -16078,7 +16103,7 @@ function useFloraAbility(room, player, mode, options = {}) {
   const selected = mode === "sunbeam" ? "sunbeam" : "heal";
   player.floraMode = selected;
   if (selected === "sunbeam") {
-    floraSunbeam(room, player, Boolean(options.converged), String(options.targetId || ""), {
+    floraSunbeam(room, player, String(options.targetId || ""), {
       dx: options.dx,
       dy: options.dy
     });
@@ -16655,14 +16680,6 @@ function startNinjutsu(room, player, targetId) {
   touch(room);
 }
 
-function queueQuickAttack(room, player, targetId) {
-  const { target, timestamp } = validateAttackStart(room, player, targetId);
-  clearAimState(player);
-  player.attackTargetId = target.id;
-  player.attackResolveAt = timestamp + QUICK_ATTACK_DELAY_MS;
-  touch(room);
-}
-
 function setAttackResult(player, result, timestamp = now()) {
   player.lastAttackResult = result;
   player.lastAttackResultAt = timestamp;
@@ -16745,32 +16762,6 @@ function resolveReadyAim(room, player, timestamp = now()) {
     clearAimState(player);
     if (room.phase === "playing" && player.alive && !player.ejected) {
       player.killReadyAt = Math.max(player.killReadyAt, timestamp + room.settings.killCooldown * 1000);
-    }
-    setAttackResult(player, "miss", timestamp);
-  }
-  touch(room);
-}
-
-function resolvePendingAttack(room, player, timestamp = now()) {
-  if (!player.attackResolveAt || player.attackResolveAt > timestamp) return;
-  const targetId = player.attackTargetId;
-  clearPendingAttack(player);
-  try {
-    const usePush = !player.limitBreakActive && passivesEnabled(player) && (Number(player.reasonCharges) || 0) > 0;
-    const hitZone = usePush || Math.random() < QUICK_ATTACK_LETHAL_CHANCE ? "head" : "body";
-    const outcome = killPlayer(room, player, targetId, {
-      hitZone,
-      quick: true,
-      consumePush: usePush,
-      attackKind: "quick-attack",
-      attackLabel: hitZone === "head"
-        ? "通常近接攻撃の頭部命中（確殺）"
-        : "通常近接攻撃の胴体命中（累積2.00ダメージ）"
-    });
-    setAttackResult(player, outcome, timestamp);
-  } catch {
-    if (room.phase === "playing" && player.alive && !player.ejected) {
-      player.killReadyAt = Math.max(player.killReadyAt, timestamp + MIN_KILL_COOLDOWN * 1000);
     }
     setAttackResult(player, "miss", timestamp);
   }
@@ -19517,7 +19508,7 @@ async function handleApi(req, res) {
 
     case "/api/instant-warp": {
       const { room, player } = requireRoomPlayer(body);
-      instantWarp(room, player, body.x, body.y);
+      useTeleportMapScroll(room, player, body.x, body.y);
       payload = serialize(room, player);
       break;
     }
@@ -21061,24 +21052,16 @@ function runPlayingBots(room) {
         try {
           shootGunner(room, bot, target.x - bot.x, target.y - bot.y);
         } catch {}
+      } else if (bot.aimTargetId) {
+        stopBotForInteraction(bot, timestamp);
       } else if (
         target &&
         distance(bot, target) <= Math.max(72, room.settings.killRange * 0.58) &&
         bot.killReadyAt <= timestamp &&
-        !bot.attackResolveAt
+        !bot.aimTargetId
       ) {
         try {
-          const aimed = bot.aimTargetId ? room.players.get(bot.aimTargetId) : null;
-          if (aimed && aimed.alive && !aimed.ejected && distance(bot, aimed) <= room.settings.killRange) {
-            if (bot.aimReadyAt <= timestamp && bot.aimExpiresAt > timestamp) performNinjutsuAttack(room, bot, aimed.id);
-          } else if (!maximumStrength &&
-            Math.hypot(Number(target.vx) || 0, Number(target.vy) || 0) <= 0.05 &&
-            Math.random() < 0.2
-          ) {
-            startNinjutsu(room, bot, target.id);
-          } else {
-            queueQuickAttack(room, bot, target.id);
-          }
+          startNinjutsu(room, bot, target.id);
         } catch {}
       } else if (target) {
         if (!attackerUrgency.urgent) useBotSabotage(room, bot, timestamp);
@@ -21224,7 +21207,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "flora-sunbeam-piercing-target-v499",
+  version: "killcam-teleport-sunbeam-root-v500",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

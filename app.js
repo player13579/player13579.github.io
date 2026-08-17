@@ -371,7 +371,7 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   fighter: Object.freeze([["limit-break", "リミットブレイク"]]),
   teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
-  flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム・放射"], ["sunbeam-converged", "サンビーム・収束"]]),
+  flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム"]]),
   gunner: Object.freeze([["sniping", "狙撃"]]),
   quantum: Object.freeze([["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]])
 });
@@ -653,7 +653,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   molotov: "通常使用は自分を燃焼。投擲は着地点周囲を継続燃焼し、瓶片が確率ダメージ。Enhanceは強度・範囲のみ強化",
   evade: "回避受付+0.25秒（累積上限+1.50秒）。回避自体は100SPを消費",
   speed: "加速+0.15（累積）。移動・物理モーション・クールタイム・行動不能・タスク速度へ適用",
-  warp: "獲得時に即席をワープ権利1回へ変換（最大3回）。任意のタイミングで拡大マップを開き、地点を選ぶと1回消費",
+  warp: "獲得時に即席をテレポート権利1回へ変換（最大3回）。任意のタイミングで拡大マップを開き、地点を選ぶと1回消費",
   mystery: "幸運／直観補正つき抽選: 6C／SP+250／完全活性／理知化／12秒減速／15秒能力封印／8秒意識消失",
   fire: "1回分を獲得（最大2回）。周囲を継続燃焼。Enhanceは強度・範囲のみ強化",
   substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
@@ -743,7 +743,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "flora-sunbeam-piercing-target-v499";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "killcam-teleport-sunbeam-root-v500";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -6515,8 +6515,7 @@ function renderTabletBranch(data, force = false) {
         });
       } else {
         addModeAction("回復・オーバーヒール", "heal");
-        addModeAction("サンビーム放射", "sunbeam");
-        addModeAction("サンビーム収束", "sunbeam-converged");
+        addModeAction("サンビーム", "sunbeam");
         if (els.teleportModeSelect.value.startsWith("sunbeam")) addSubmenu("サンビーム対象を選択", "flora-target");
       }
     } else if (self.special === "gunner") {
@@ -6595,8 +6594,7 @@ function conciseTabletAbilityName(data) {
     },
     flora: {
       heal: "回復",
-      sunbeam: "サンビーム放射",
-      "sunbeam-converged": "サンビーム収束"
+      sunbeam: "サンビーム"
     },
     quantum: {
       "transmute-mercury": "水銀→金",
@@ -6977,7 +6975,6 @@ function borrowedAbilityPayload(recipe, requestedMode = "") {
   return {
     ability: recipe.inventoryId,
     mode: recipe.inventoryId === "flora" ? (mode.startsWith("sunbeam") ? "sunbeam" : "heal") : mode,
-    converged: recipe.inventoryId === "flora" && mode === "sunbeam-converged",
     targetId: combatTarget || (recipe.inventoryId === "flora"
       ? (mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "")
       : (els.teleportTargetSelect.value || state.data?.self?.id || "")),
@@ -7083,10 +7080,9 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
   } else if (activeType === "flora") {
     const floraDescriptions = {
       heal: "周囲のHP・SP・状態異常を回復し、加速を付与する",
-      sunbeam: "選択対象へ屈折・散乱・回折する貫通光線を放ち、交差した複数対象を攻撃する",
-      "sunbeam-converged": "選択対象へ光を収束し、交差した全対象を貫通して確殺する"
+      sunbeam: "選択対象へ光線を放ち、交差した全対象を貫通して確殺する"
     };
-    const floraModes = new Set(["heal", "sunbeam", "sunbeam-converged"]);
+    const floraModes = new Set(["heal", "sunbeam"]);
     [...els.teleportModeSelect.options].filter((option) => floraModes.has(option.value)).forEach((option) => {
       addBranch(option.textContent, () => {
         state.borrowedAbilityModes.flora = option.value;
@@ -7135,7 +7131,6 @@ function triggerOperatorAbility() {
     const mode = els.teleportModeSelect.value;
     void api("/api/flora-heal", {
       mode: mode.startsWith("sunbeam") ? "sunbeam" : "heal",
-      converged: mode === "sunbeam-converged",
       targetId: mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "",
       dx: Number(self.aimX) || 0,
       dy: Number(self.aimY) || 1
@@ -7269,6 +7264,11 @@ async function activateExpandedMapPoint(point) {
     : state.teleportBorrowed
       ? "/api/borrowed-ability"
       : "/api/teleport";
+  if (state.instantWarpTargeting) {
+    clearMovementInput(false);
+    rotateMovementSession();
+    sendMovement(true);
+  }
   const ok = await api(endpoint, {
     x: point.x,
     y: point.y,
@@ -7276,7 +7276,15 @@ async function activateExpandedMapPoint(point) {
     mode: state.teleportTargeting ? state.teleportTargetMode : "body",
     ability: state.teleportBorrowed ? "gravity" : undefined
   });
-  if (ok) setExpandedMapOpen(false);
+  if (!ok) return;
+  if (
+    endpoint === "/api/instant-warp" &&
+    Math.hypot(Number(ok.self?.x) - point.x, Number(ok.self?.y) - point.y) > 2
+  ) {
+    showToast("テレポート先への移動を確認できませんでした。権利は消費されていません。");
+    return;
+  }
+  setExpandedMapOpen(false);
 }
 
 function keyName(key) {
@@ -9218,8 +9226,7 @@ function abilityModeDescription(owner, mode, self) {
     gravity: null,
     flora: {
       heal: `自分のHP・SP・状態異常を即時回復し、12秒間加速する。${cost("flora")}。`,
-      sunbeam: `選択対象へ屈折・散乱・回折で経路を変える貫通光線を放ち、交差した複数対象へ確率キル判定。${cost("flora")}。`,
-      "sunbeam-converged": `選択対象へ光を収束し、交差した全対象を貫通して確殺する。${cost("flora")}。`
+      sunbeam: `選択対象へ光線を放ち、交差した全対象を貫通して確殺する。${cost("flora")}。`
     },
     gunner: {
       sniping: "ON中は全銃の命中をHS確殺にする。代わりに移動速度が通常の12%まで低下する。再操作でOFF。0MP。"
@@ -10015,7 +10022,7 @@ function renderActiveEffects(data) {
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
   if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "踏ん張り全消去。1回につき反動0.5");
   if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持");
-  if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `ワープ可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にワープ権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費");
+  if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `テレポート可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にテレポート権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
@@ -10609,7 +10616,7 @@ function updateActionButtons(data) {
             : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
               : operatorMode === "time-keeper" ? `時の番人 5秒 ${operatorCostLabel("timeKeeper")}`
                 : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
-    flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : operatorMode === "sunbeam-converged" ? `サンビーム収束 ${operatorCostLabel("flora")}` : `サンビーム放射 ${operatorCostLabel("flora")}`,
+    flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : `サンビーム ${operatorCostLabel("flora")}`,
     gunner: self.gunnerSnipingActive ? "狙撃 OFF / 現在HS確殺・移動12%" : "狙撃 ON / 全射撃HS確殺・移動12%",
     quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "クオンタム",
     alchemist: selectedBorrowedRecipe
@@ -14287,7 +14294,7 @@ function drawDirectedEnergyEffect(effect, progress, now) {
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y - 600;
   const flora = effect.type === "flora-sunbeam";
   const particle = effect.type.includes("particle");
-  const width = flora ? (String(effect.variant || "").includes("converged") ? 15 : 34) : particle ? 42 : 18;
+  const width = flora ? 34 : particle ? 42 : 18;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
@@ -17612,7 +17619,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "flora-sunbeam-piercing-target-v499";
+const version = "killcam-teleport-sunbeam-root-v500";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
