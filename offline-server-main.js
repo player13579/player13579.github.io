@@ -7278,7 +7278,7 @@ const LABORATORY_MAP = Object.freeze({
     cacheReward: 3,
     quantumMercuryReward: 4,
     quantumLeadReward: 2,
-    goldInstantReward: 4,
+    goldInstantReward: 100,
     mysteryJackpot: 6,
     donationCost: 1,
     hackerDuplicateBonus: 2
@@ -7365,7 +7365,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "instant-gold-computer-v493",
+    version: "gold-100-credits-v494",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -20883,7 +20883,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "instant-gold-computer-v493",
+  version: "gold-100-credits-v494",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

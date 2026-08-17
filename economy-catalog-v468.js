@@ -14,7 +14,7 @@
     cacheReward: 3,
     quantumMercuryReward: 4,
     quantumLeadReward: 2,
-    goldInstantReward: 4,
+    goldInstantReward: 100,
     mysteryJackpot: 6,
     donationCost: 1,
     hackerDuplicateBonus: 2
@@ -101,7 +101,7 @@
   };
 
   return Object.freeze({
-    version: "instant-gold-computer-v493",
+    version: "gold-100-credits-v494",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

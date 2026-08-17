@@ -662,7 +662,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
-  gold: "ROOTハッカー限定の即席生成。取得時に純金インゴットを4Cへ即時換金し、物理所持品には残らない",
+  gold: "ROOTハッカー限定の即席生成。取得時に純金インゴットを100Cへ即時換金し、物理所持品には残らない",
   rpg: "使用: 使い切り。半径300以内にいる自分以外の全員へ与ダメージ1.00の物理攻撃。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える",
   missile: "使用: 使い切り。最寄りの自分以外1人へ確殺の物理攻撃（HS・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える"
 });
@@ -726,7 +726,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "instant-gold-computer-v493";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "gold-100-credits-v494";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17409,7 +17409,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "instant-gold-computer-v493";
+const version = "gold-100-credits-v494";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
