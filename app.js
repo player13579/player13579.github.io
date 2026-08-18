@@ -743,7 +743,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "killcam-teleport-sunbeam-root-v500";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "tactics-pane-tap-expand-v501";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2027,7 +2027,11 @@ async function runTitleCommandTransition(button, action) {
 
 function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
+  const previous = state.screen;
   state.screen = next;
+  if (previous !== next && (state.activeScrollRegion || state.expandedScrollRegion)) {
+    setSelectedScrollRegion(null, { focus: false });
+  }
   closeSwitchDragMenu();
   if (next !== "game" && state.fieldFeedOpen) setFieldFeedOpen(false);
   if (next !== "game" && state.vendingOpen) setVendingOpen(false, { focus: false });
@@ -3864,12 +3868,26 @@ function visibleScrollRegions() {
   );
 }
 
+function isTacticsScrollRegion(region) {
+  return state.screen === "tactics" && (region === els.tacticsChapterList || region === els.tacticsContent);
+}
+
+function isExpandableScrollRegion(region) {
+  if (!(region instanceof Element)) return false;
+  if (isTacticsScrollRegion(region)) return true;
+  return state.screen === "game" &&
+    state.data?.phase === "playing" &&
+    region !== els.sidePanel &&
+    Boolean(els.sidePanel?.contains(region));
+}
+
 function selectedScrollRegion() {
   const region = state.activeScrollRegion;
   if (region && region.isConnected && visibleScrollRegions().includes(region)) return region;
   if (region) region.classList.remove("scroll-region-selected", "scroll-region-expanded");
   els.sidePanel?.classList.remove("scroll-region-expanded-host");
   els.statusPanel?.classList.remove("scroll-region-expanded-host");
+  els.tacticsPanel?.classList.remove("tactics-region-expanded-host");
   state.activeScrollRegion = null;
   state.expandedScrollRegion = null;
   return null;
@@ -3881,8 +3899,20 @@ function syncExpandedScrollRegion(region) {
   });
   els.sidePanel?.classList.remove("scroll-region-expanded-host");
   els.statusPanel?.classList.remove("scroll-region-expanded-host");
+  els.tacticsPanel?.classList.remove("tactics-region-expanded-host");
   state.expandedScrollRegion = null;
+  if (isTacticsScrollRegion(region)) {
+    const visibleTacticsPanes = [els.tacticsChapterList, els.tacticsContent].filter((entry) =>
+      entry && !entry.hidden && !entry.closest("[hidden]") && entry.getClientRects().length > 0
+    );
+    if (visibleTacticsPanes.length < 2) return;
+    region.classList.add("scroll-region-expanded");
+    els.tacticsPanel?.classList.add("tactics-region-expanded-host");
+    state.expandedScrollRegion = region;
+    return;
+  }
   if (
+    state.screen !== "game" ||
     state.data?.phase !== "playing" ||
     !(region instanceof Element) ||
     region === els.sidePanel ||
@@ -3915,7 +3945,7 @@ function setSelectedScrollRegion(region, { focus = true } = {}) {
 }
 
 function toggleExpandedScrollRegion(region) {
-  if (!(region instanceof Element) || region === els.sidePanel || !els.sidePanel?.contains(region)) return false;
+  if (!isExpandableScrollRegion(region)) return false;
   if (state.expandedScrollRegion === region) {
     syncExpandedScrollRegion(null);
     return true;
@@ -5398,8 +5428,8 @@ function bindEvents() {
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
     state.blankPaneTap = (
       event.isPrimary &&
-      state.data?.phase === "playing" &&
       scrollRegion &&
+      isExpandableScrollRegion(scrollRegion) &&
       isBlankPaneTapTarget(event, scrollRegion)
     ) ? {
       pointerId: event.pointerId,
@@ -8804,7 +8834,9 @@ function renderKillCamera(data) {
 
 function render() {
   const data = state.data;
-  if (data?.phase !== "playing" && (state.activeScrollRegion || state.expandedScrollRegion)) {
+  const tacticsScrollActive = state.screen === "tactics" &&
+    (isTacticsScrollRegion(state.activeScrollRegion) || isTacticsScrollRegion(state.expandedScrollRegion));
+  if (!tacticsScrollActive && data?.phase !== "playing" && (state.activeScrollRegion || state.expandedScrollRegion)) {
     setSelectedScrollRegion(null, { focus: false });
   }
   const offlineContext = state.offlineMode || (!data && !state.onlineAvailable);
@@ -17619,7 +17651,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "killcam-teleport-sunbeam-root-v500";
+const version = "tactics-pane-tap-expand-v501";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

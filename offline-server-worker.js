@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "killcam-teleport-sunbeam-root-v500",
+    version: "tactics-pane-tap-expand-v501",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21212,5 +21212,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "killcam-teleport-sunbeam-root-v500" });
+self.postMessage({ type: "ready", version: "tactics-pane-tap-expand-v501" });
 })();

@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "killcam-teleport-sunbeam-root-v500",
+    version: "tactics-pane-tap-expand-v501",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
