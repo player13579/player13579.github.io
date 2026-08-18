@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "ability-renki-batch-regression-repairs-v517",
+    version: "fighter-ec-native-scroll-auto-hold-v519",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -4,7 +4,7 @@
 // raster finishes decoding, so the generic teleport ring never takes over.
 // v517 replaces ability/Renki repeat loops with server-observed batches and
 // repairs icon identity, ordinary Ninjutsu bodies, HSG duplication and debuffs.
-const CACHE_NAME = "dva-static-v517-ability-renki-batch-regression-repairs";
+const CACHE_NAME = "dva-static-v519-fighter-ec-native-scroll-auto-hold";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

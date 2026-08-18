@@ -687,7 +687,11 @@ html.game-open {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: none;
+  /* A page-wide `none` intersects with every descendant's touch-action, so
+     local native scrollers can never receive a flick.  Keep the document
+     vertically pannable; the canvas and gesture-owned controls opt out
+     locally. */
+  touch-action: pan-y;
 }
 
 #gameCanvas {
@@ -720,7 +724,9 @@ body.game-open {
   height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: none;
+  /* Do not disable touch at this ancestor: Result and the other local
+     overflow panes need their native scroll owner to win the gesture. */
+  touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -5245,7 +5251,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=ability-renki-batch-regression-repairs-v517"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=fighter-ec-native-scroll-auto-hold-v519"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,
@@ -7670,6 +7676,35 @@ body.game-open .hacker-ability-grid .hacker-direct-action {
   overscroll-behavior-x: contain;
 }
 
+/* Native local-flick contract.  These are the actual overflow owners; do not
+ * replace them with pointer-drag scrolling or let an ancestor capture them. */
+body.game-open :is(
+  #sidePanel,
+  .tablet-branch-list,
+  .operator-branch-list,
+  .item-inventory-grid,
+  .vending-panel,
+  .active-effects-panel,
+  .active-effects-list,
+  .field-feed-list,
+  .keybind-list,
+  .tactics-content,
+  .tactics-chapters
+) {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+}
+
+body.game-open .solo-mission-grid,
+body.game-open .hacker-ability-grid {
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-behavior: auto;
+}
+
 .item-inventory-choice[data-inventory-kind="weapon"][aria-selected="true"]::after {
   content: "SELECTED";
   position: absolute;
@@ -8257,10 +8292,13 @@ body [data-scroll-region].scroll-region-selected {
 .result-dialog .result-row.is-rank-up .result-rank-movement { color: #a7f3d0; background-color: rgba(6, 58, 43, 0.98); }
 .result-dialog .result-row.is-rank-down .result-rank-movement { color: #fecdd3; background-color: rgba(76, 18, 33, 0.98); }
 
-/* The dialog uses the overlay safe height; only the ranking locally scrolls. */
-.end-overlay { overflow: hidden; }
+/* The dialog uses the overlay safe height; only the ranking locally scrolls.
+ * `place-items:center` is useful for small overlays but lets this result
+ * dialog collapse to its content height.  Stretch it across the usable field
+ * instead, while preserving the 980x620 canvas backing store. */
+.end-overlay { overflow: hidden; place-items: stretch; }
 .end-overlay .result-dialog { align-self: stretch; justify-self: stretch; width: 100%; height: 100%; min-height: 0; max-height: 100%; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
-.end-overlay .result-ranking { min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.end-overlay .result-ranking { min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; scroll-behavior: auto; }
 .end-overlay #resetButton { min-height: 40px; }
 @media (min-width: 901px) { .result-dialog .result-ranking { padding: 8px; } .end-overlay .result-dialog { padding: clamp(14px, 2.4cqh, 22px); } }
 @media (max-width: 900px) { .result-dialog .result-ranking { padding: 6px; } .result-dialog .result-row { gap: 8px; } .end-overlay .result-dialog { padding: clamp(8px, 2cqh, 16px); } }

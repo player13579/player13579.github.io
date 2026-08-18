@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ability-renki-batch-regression-repairs-v517",
+    version: "fighter-ec-native-scroll-auto-hold-v519",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7543,8 +7543,8 @@ const FIGHTER_SLASH_GUARD_DURATION_MS = 700;
 const FIGHTER_SLASH_PERFECT_GUARD_MS = 140;
 const FIGHTER_SLASH_PERFECT_REARM_MS = 1_100;
 const FIGHTER_ENERGY_CHARGE_MANA_COST = 1;
-const FIGHTER_IAI_REWARD_THRESHOLD = 25;
-const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 50;
+const FIGHTER_IAI_REWARD_THRESHOLD = 500;
+const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 1000;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const IAI_VENDING_COST = vendingPrice("iai");
 const ORICHALCUM_SWORD_VENDING_COST = vendingPrice("orichalcum-sword");
@@ -7821,7 +7821,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC25へ到達すると即席の居合を1回獲得する。居合は押し込みの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC50へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC500へ到達すると即席の居合を1回獲得する。居合は押し込みの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -10853,6 +10853,23 @@ function cancelAbilityHold(room, player, rawHoldId, rawActionPath) {
   return true;
 }
 
+async function awaitAbilityHoldAutoCommitThreshold(player, rawBody, expectedActionPath) {
+  const body = rawBody && typeof rawBody === "object" ? rawBody : {};
+  if (body.abilityHoldAutoCommit !== true) return;
+  const holdId = String(body.renkiHoldId || body.abilityHoldId || "").trim();
+  const hold = player?.abilityHold;
+  if (!hold || !holdId || hold.id !== holdId || hold.actionPath !== expectedActionPath) {
+    throw new ApiError(409, "能力長押し状態が一致しません。もう一度押し直してください。");
+  }
+  // The automatic client timer begins with pointer/key ownership, while the
+  // authoritative start timestamp begins when this server accepts start.
+  // Absorb asymmetric network latency here so an automatic threshold commit
+  // can never be downgraded into an ordinary tap.  The client still reports no
+  // duration, MP amount, or batch count.
+  const remainingMs = Math.max(0, Number(hold.startedAt) + ABILITY_BATCH_HOLD_MIN_MS - now());
+  if (remainingMs > 0) await new Promise((resolve) => setTimeout(resolve, remainingMs));
+}
+
 function quantumBatchCapacity(player, rawMode) {
   const mode = normalizeQuantumMode(rawMode);
   const itemIds = mode === "nuclear-transmutation"
@@ -11308,7 +11325,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:ec-${next}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
   });
   setImmediateFeedback(player, "EC", reward);
-  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC25回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。MP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが死体を残さない常時消滅、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
+  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC500回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。EC1000回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが死体を残さない常時消滅、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -13857,8 +13874,8 @@ function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp =
     setImmediateFeedback(target, "ジャストガード", `${label}を反射`);
     pushEvent(room, `${target.name} が${label}をジャストガードし、${source?.name || "攻撃元"}へ反射しました。`);
   } else if (universalPerfect) {
-    setImmediateFeedback(target, "50回到達ジャストガード", `${label}を反射（攻撃元なし）`);
-    pushEvent(room, `${target.name} がEC50回到達後のジャストガードで${label}を弾き返しました。反射可能な攻撃元はありませんでした。`);
+    setImmediateFeedback(target, "EC1000到達ジャストガード", `${label}を反射（攻撃元なし）`);
+    pushEvent(room, `${target.name} がEC1000回到達後のジャストガードで${label}を弾き返しました。反射可能な攻撃元はありませんでした。`);
   } else {
     setImmediateFeedback(target, perfect ? "ジャストガード" : "斬る・ガード", `${label}を無効化`);
     pushEvent(room, `${target.name} が斬るで${label}をガードしました。`);
@@ -13912,7 +13929,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
     const destructionGuardOutcome = destructionSlash
       ? resolveFighterSlashGuard(room, player, target, {
           kind: "slash",
-          label: "EC50回到達後の消滅斬り",
+          label: "EC1000回到達後の消滅斬り",
           physical: true,
           reflectable: true,
           destroy: true,
@@ -13920,7 +13937,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
         }, timestamp)
       : "";
     const outcome = destructionSlash
-      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "EC50回到達後の消滅斬り", {
+      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "EC1000回到達後の消滅斬り", {
           noKillCutin: false,
           noBody: true,
           ignorePreparationBarrier: true,
@@ -14496,7 +14513,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
     applyEmpDisruption(room, target, timestamp);
     syncFighterInfiniteResources(target);
     pushHitEffect(room, target, "body", false);
-    pushEvent(room, `${target.name} はEC50回到達報酬により、リミットブレイク中のEMP確殺を無効化しました。`);
+    pushEvent(room, `${target.name} はEC1000回到達報酬により、リミットブレイク中のEMP確殺を無効化しました。`);
     return false;
   }
   recordBotMatchElimination(room, target, source);
@@ -20216,6 +20233,11 @@ async function handleApi(req, res) {
   }
   let payload;
 
+  if (body.abilityHoldAutoCommit === true && ABILITY_BATCH_ACTION_PATHS.has(pathname)) {
+    const { player } = requireRoomPlayer(body);
+    await awaitAbilityHoldAutoCommitThreshold(player, body, pathname);
+  }
+
   switch (pathname) {
     case "/api/checkpoint":
       {
@@ -22578,5 +22600,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ability-renki-batch-regression-repairs-v517" });
+self.postMessage({ type: "ready", version: "fighter-ec-native-scroll-auto-hold-v519" });
 })();

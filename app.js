@@ -760,7 +760,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ability-renki-batch-regression-repairs-v517";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "fighter-ec-native-scroll-auto-hold-v519";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1402,7 +1402,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "FIGHTER GUIDE",
     name: "ソフィア",
-    text: "オリハルコン・ソード自体は物理斬撃・ガード・JG反射を行う剣です。これとは別に、ファイター能力のECは25で居合、50で無限資源、LB被確殺解除、消滅斬り、全攻撃JG反射を永続獲得します。",
+    text: "オリハルコン・ソード自体は物理斬撃・ガード・JG反射を行う剣です。これとは別に、ファイター能力のECは初回500で居合、初回1000で無限資源、LB被確殺解除、消滅斬り、全攻撃JG反射を永続獲得します。EC100以上の斬るではEC100を使い特大衝撃波も起こせます。",
     sophiaGesture: "power",
     philiaGesture: "focus",
     symbols: [{ type: "sparkle", owner: "sophia" }, { type: "idea", owner: "philia" }]
@@ -1900,7 +1900,7 @@ function scheduleViewportScaleRestore(force = false) {
   }, force ? 0 : 80);
 }
 
-const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-region], .tablet-branch-list, .hacker-ability-grid, .active-effects-panel, .item-inventory-grid, .vending-panel, .operator-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .keybind-list";
+const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-region], #sidePanel, .tablet-branch-list, .operator-branch-list, .hacker-ability-grid, .active-effects-panel, .active-effects-list, .item-inventory-grid, .vending-panel, .operator-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .solo-mission-grid, .keybind-list, .result-ranking";
 
 function isFullscreenScrollableSurface(surface) {
   if (!(surface instanceof Element) || surface.scrollHeight <= surface.clientHeight + 1) return false;
@@ -2870,7 +2870,7 @@ function magicCharacterActionKind(type, variant = "") {
   // physically still; their UI/progress and Vibe Coding ATE own the feedback.
   if (type === "action-task" || type === "action-alchemy" || type === "action-renki") return null;
   if (type === "fighter-energy-charge") {
-    return /(?:^|:)milestone-motion-(?:25|50)(?::|$)/.test(String(variant || "")) ? "power" : null;
+    return /(?:^|:)milestone-motion-(?:500|1000)(?::|$)/.test(String(variant || "")) ? "power" : null;
   }
   if (MAGIC_EFFECT_CHARACTER_ACTION[type]) return MAGIC_EFFECT_CHARACTER_ACTION[type];
   // Map objects keep their dedicated B effect, but do not drive a character motion.
@@ -3510,11 +3510,15 @@ async function beginAbilityBatchTransaction(button, hold) {
   return holdId;
 }
 
-async function dispatchAbilityBatch(button, hold) {
+async function dispatchAbilityBatch(button, hold, { autoCommit = false } = {}) {
   const source = abilityBatchSource(button);
   const holdId = await hold.startPromise;
   if (!source || isGameActionUnavailable(source) || !holdId || !abilityBatchActionSupported(hold.action)) return false;
-  const payload = { ...hold.action.action, [hold.action.renki ? "renkiHoldId" : "abilityHoldId"]: holdId };
+  const payload = {
+    ...hold.action.action,
+    [hold.action.renki ? "renkiHoldId" : "abilityHoldId"]: holdId,
+    ...(autoCommit ? { abilityHoldAutoCommit: true } : {})
+  };
   await api(hold.action.path, payload);
   return true;
 }
@@ -3525,7 +3529,7 @@ async function cancelAbilityBatchTransaction(hold) {
   return api("/api/ability-hold", { phase: "cancel", actionPath: hold.action.path, holdId });
 }
 
-function stopAbilityBatchHold(pointerId = null, { dispatch = false } = {}) {
+function stopAbilityBatchHold(pointerId = null, { dispatch = false, autoCommit = false } = {}) {
   const hold = state.abilityBatchHold;
   if (pointerId !== null && hold.pointerId !== pointerId) return false;
   if (hold.timer) window.clearTimeout(hold.timer);
@@ -3539,7 +3543,7 @@ function stopAbilityBatchHold(pointerId = null, { dispatch = false } = {}) {
   hold.action = null;
   hold.startPromise = null;
   if (button) state.continuousActionSuppressClicks.set(button, performance.now() + 700);
-  if (dispatch) return dispatchAbilityBatch(button, transaction);
+  if (dispatch) return dispatchAbilityBatch(button, transaction, { autoCommit });
   if (button) void cancelAbilityBatchTransaction(transaction);
   return Boolean(button);
 }
@@ -3548,16 +3552,23 @@ function beginAbilityBatchHold(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const button = event.target instanceof Element ? event.target.closest("button") : null;
   if (!abilityBatchEligible(button)) return;
-  event.preventDefault();
+  // Do not claim a pointer that began in an actually overflowing native
+  // surface.  Touch scrolling then emits pointercancel before the threshold;
+  // a stationary tap/hold still reaches the same global finish/timer route.
+  const localScroll = event.pointerType !== "mouse" && isFullscreenScrollableSurface(resolveFullscreenScrollableSurface(button));
+  if (!localScroll) event.preventDefault();
   stopAbilityBatchHold();
   const hold = state.abilityBatchHold;
   hold.pointerId = event.pointerId;
   hold.button = button;
   hold.startPromise = beginAbilityBatchTransaction(button, hold);
-  try { button.setPointerCapture(event.pointerId); } catch {}
+  if (!localScroll) {
+    try { button.setPointerCapture(event.pointerId); } catch {}
+  }
   hold.timer = window.setTimeout(() => {
     if (hold.pointerId !== event.pointerId || hold.button !== button) return;
     hold.held = true;
+    void stopAbilityBatchHold(event.pointerId, { dispatch: true, autoCommit: true });
   }, ABILITY_BATCH_HOLD_DELAY_MS);
 }
 
@@ -3569,7 +3580,7 @@ function finishAbilityBatchPointerHold(event, cancelled = false) {
   return Boolean(button);
 }
 
-function stopAbilityBatchKeyHold(code = "", { dispatch = false } = {}) {
+function stopAbilityBatchKeyHold(code = "", { dispatch = false, autoCommit = false } = {}) {
   const hold = state.abilityBatchKeyHold;
   if (code && hold.code !== code) return false;
   if (hold.timer) window.clearTimeout(hold.timer);
@@ -3582,7 +3593,7 @@ function stopAbilityBatchKeyHold(code = "", { dispatch = false } = {}) {
   hold.holdId = "";
   hold.action = null;
   hold.startPromise = null;
-  if (dispatch) return dispatchAbilityBatch(button, transaction);
+  if (dispatch) return dispatchAbilityBatch(button, transaction, { autoCommit });
   if (button) void cancelAbilityBatchTransaction(transaction);
   return Boolean(button);
 }
@@ -3595,7 +3606,9 @@ function beginAbilityBatchKeyHold(code, button) {
   hold.button = button;
   hold.startPromise = beginAbilityBatchTransaction(button, hold);
   hold.timer = window.setTimeout(() => {
-    if (hold.code === code && hold.button === button) hold.held = true;
+    if (hold.code !== code || hold.button !== button) return;
+    hold.held = true;
+    void stopAbilityBatchKeyHold(code, { dispatch: true, autoCommit: true });
   }, ABILITY_BATCH_HOLD_DELAY_MS);
   return true;
 }
@@ -6907,7 +6920,10 @@ function renderTabletBranch(data, force = false) {
     populateNativeQuantumModeSelect();
     updateActionButtons(state.data);
     if (state.abilityAutoActivate) els.operatorAbilityButton.click();
-    renderTabletBranch(state.data, true);
+    // A terminal selection is complete after one executable mode.  Leaving
+    // the old kinetic submenu path active made later polling draw its stale
+    // accelerate/decelerate controls over nuclear selections.
+    setTabletBranchPath("", { focus: false });
   }, {
     kind: mode === "nuclear-fission" ? "danger" : "action",
     selected: selectedQuantumExecutableMode(false) === mode,
@@ -6982,7 +6998,7 @@ function renderTabletBranch(data, force = false) {
         if (els.teleportModeSelect.value.startsWith("sunbeam")) addSubmenu("サンビーム対象を選択", "flora-target");
       }
     } else if (self.special === "quantum") {
-      if (branchPath === "quantum-kinetic") {
+      if (tabletQuantumKineticTerminalActive(self)) {
         addQuantumModeAction("加速", "kinetic-accelerate");
         addQuantumModeAction("減速", "kinetic-decelerate");
       } else {
@@ -9665,6 +9681,38 @@ function selectedQuantumKineticMode(borrowed = false) {
   return normalizeQuantumClientMode(state.quantumKineticModes[borrowed ? "borrowed" : "native"] || "kinetic-accelerate");
 }
 
+// The terminal picker is a transient child of the currently selected kinetic
+// branch.  A remembered stage alone is not authoritative: polls, ROOT exit,
+// and a later nuclear selection must never resurrect it or change a mode back
+// to kinetic.
+function nativeQuantumKineticTerminalActive(self = state.data?.self) {
+  return Boolean(
+    self?.special === "quantum" &&
+    !rootAbilityModeSelectActive(self) &&
+    state.quantumSelectStage === "kinetic" &&
+    els.teleportModeSelect?.dataset.specialKey?.startsWith("quantum:") &&
+    els.teleportModeSelect.value === "quantum-kinetic"
+  );
+}
+
+function rootQuantumKineticTerminalActive(self = state.data?.self) {
+  return Boolean(
+    rootAbilityModeSelectActive(self) &&
+    selectedBorrowedOperator() === "quantum" &&
+    state.rootAbilitySelectStage === "quantum-kinetic" &&
+    !els.rootAbilityBranchControl.hidden &&
+    els.rootAbilityBranchSelect.value === "quantum-kinetic"
+  );
+}
+
+function tabletQuantumKineticTerminalActive(self = state.data?.self) {
+  return Boolean(
+    self?.special === "quantum" &&
+    state.tabletBranchGroup === "operator" &&
+    state.tabletBranchPath === "quantum-kinetic"
+  );
+}
+
 function syncAbilityCascadeSelectVisibility() {
   const rootVisible = Boolean(els.rootAbilityBranchControl && !els.rootAbilityBranchControl.hidden);
   const kineticVisible = Boolean(els.quantumKineticBranchControl && !els.quantumKineticBranchControl.hidden);
@@ -9935,6 +9983,27 @@ function renderTargetOptions(data) {
   els.teleportTargetSelect.dataset.ownerKey = modeOwner;
   const options = OPERATOR_ABILITY_MODE_OPTIONS[modeOwner] || [];
   const rootAbilitySwitchVisible = rootAbilityModeSelectActive(self);
+  // A stale stage must not recreate a terminal picker after the visible
+  // selector has moved to a different ability or ROOT has ended.
+  if (!rootAbilitySwitchVisible && state.rootAbilitySelectStage === "quantum-kinetic") {
+    state.rootAbilitySelectStage = "operator";
+    clearAbilityCascadeSelects();
+  }
+  if (self.special !== "quantum" && state.quantumSelectStage === "kinetic") {
+    state.quantumSelectStage = "ability";
+    clearAbilityCascadeSelects({ root: false, kinetic: true });
+  }
+  if (self.special !== "quantum" && state.tabletBranchPath === "quantum-kinetic") {
+    setTabletBranchPath("", { focus: false });
+  }
+  if (state.quantumSelectStage === "kinetic" && !nativeQuantumKineticTerminalActive(self)) {
+    state.quantumSelectStage = "ability";
+    clearAbilityCascadeSelects({ root: false, kinetic: true });
+  }
+  if (state.rootAbilitySelectStage === "quantum-kinetic" && !rootQuantumKineticTerminalActive(self)) {
+    state.rootAbilitySelectStage = "operator";
+    clearAbilityCascadeSelects();
+  }
   if (rootAbilitySwitchVisible && !state.rootAbilitySelectWasActive) {
     state.rootAbilitySelectStage = "operator";
   }
@@ -9973,7 +10042,7 @@ function renderTargetOptions(data) {
     } else {
       populateRootOperatorModeSelect(self);
     }
-  } else if (modeOwner === "quantum" && state.quantumSelectStage === "kinetic") {
+  } else if (modeOwner === "quantum" && nativeQuantumKineticTerminalActive(self)) {
     const quantumKey = `quantum:${QUANTUM_ABILITY_MODE_OPTIONS.map(([value]) => value).join("|")}`;
     if (els.teleportModeSelect.dataset.specialKey !== quantumKey) {
       populateNativeQuantumModeSelect({ preserveCascade: true });
@@ -10001,7 +10070,7 @@ function renderTargetOptions(data) {
     rememberSelectedOperatorMode();
   }
 
-  if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && state.quantumSelectStage !== "kinetic") {
+  if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && !nativeQuantumKineticTerminalActive(self)) {
     const explicitMode = modeOwner === "quantum"
       ? selectedQuantumExecutableMode(Boolean(borrowedOperator))
       : "";
@@ -10672,7 +10741,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       "EC",
       passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 次${formatEffectCountdown(energyWait)}${infinite}` : passiveValue,
       passiveTone,
-      "12秒ごとに1MPでEC+1。通常衝撃波はEC-1。初回25:居合+1。初回50:MP・SP・HP・踏ん張り∞、LB被確殺解除、消滅斬り（死体なし）、JG全反射。EC100以上の斬る:EC-100で特大衝撃波",
+      "12秒ごとに1MPでEC+1。通常衝撃波はEC-1。初回500:居合+1。初回1000:MP・SP・HP・踏ん張り∞、LB被確殺解除、消滅斬り（死体なし）、JG全反射。EC100以上の斬る:EC-100で特大衝撃波",
       "stacked"
     );
   }
@@ -11360,7 +11429,7 @@ function updateActionButtons(data) {
     self.goodActive ? "善" : ""
   ].filter(Boolean).join("・");
   const standFirmMode = self.fighterInfiniteResources
-    ? "50回到達報酬"
+    ? "EC1000到達報酬"
     : rootProtectionBlocked
       ? "ROOT中無効・所持維持"
       : itemBlocked
@@ -14401,7 +14470,7 @@ function drawMagicEffects() {
   }
   const now = state.frameNow || performance.now();
   state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
-  const activeGainEffects = state.magicEffects.filter((effect) => effect.type.startsWith("gain-") && effect.playerId);
+  const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect));
   for (const effect of state.magicEffects) {
     const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
     if (effect.type.startsWith("gain-")) {
@@ -14412,6 +14481,10 @@ function drawMagicEffects() {
     // A persistent head marker is the sole field presentation for grants that
     // already own one. Do not also flash the same semantic texture at ordinary
     // action size over the character or focus point.
+    if (effect.type === "fighter-energy-charge") {
+      drawFighterEnergyChargeMarker(effect, progress, now);
+      continue;
+    }
     if (MARKER_OWNED_EFFECT_TYPES.has(effect.type)) continue;
     // Map-object activation already communicates its awarded categories through
     // the persistent head markers. When both arrive in the same state sample,
@@ -15725,15 +15798,15 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
-  resistanceBreak: ["確殺耐性無効", "リミットブレイク中は踏ん張り・変わり身による確殺回避が無効です。EC50到達後は解除されます。"],
+  resistanceBreak: ["確殺耐性無効", "リミットブレイク中は踏ん張り・変わり身による確殺回避が無効です。EC1000到達後は解除されます。"],
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
   iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
   burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・フローラ回復・理知中の自然回復で解除できます。"],
   poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・フローラ回復・理知中の自然回復で解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
-  infiniteResources: ["無限資源", "EC50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
-  destructionSlash: ["常時消滅斬り", "EC50回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
+  infiniteResources: ["無限資源", "EC1000回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
+  destructionSlash: ["常時消滅斬り", "EC1000回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -15838,6 +15911,36 @@ function gainEffectPlayer(effect) {
   return source ? renderedPlayer(source) : null;
 }
 
+// Compact grants and EC share one player-attached marker lane.  This keeps
+// concurrent authoritative effects readable without creating a second,
+// normal-action-size copy of an EC texture at the character's feet.
+function isSharedHeadMarkerEffect(effect) {
+  return Boolean(effect?.playerId) && (effect.type?.startsWith("gain-") || effect.type === "fighter-energy-charge");
+}
+
+function sharedHeadMarkerEffects(playerId) {
+  return state.magicEffects.filter((entry) => entry.playerId === playerId && isSharedHeadMarkerEffect(entry));
+}
+
+function sharedHeadMarkerCount(effect) {
+  return effect?.type === "fighter-energy-charge"
+    ? 1
+    : Math.max(1, Math.floor(Number(effect?.markerCount) || 1));
+}
+
+function sharedHeadMarkerPlacement(effect, player) {
+  const peerEffects = sharedHeadMarkerEffects(effect.playerId);
+  const effectIndex = peerEffects.indexOf(effect);
+  const baseIndex = peerEffects.slice(0, Math.max(0, effectIndex))
+    .reduce((sum, entry) => sum + sharedHeadMarkerCount(entry), 0);
+  const total = peerEffects.reduce((sum, entry) => sum + sharedHeadMarkerCount(entry), 0);
+  return {
+    baseIndex,
+    total: Math.max(1, total),
+    startRow: gainMarkerStartRow(player, state.data)
+  };
+}
+
 function gainMarkerStartRow(player, data) {
   if (!player) return 0;
   const allyRows = data?.phase === "playing" && player.attackerAlly ? 1 : 0;
@@ -15853,11 +15956,8 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
   if (!prepared) return;
   const player = gainEffectPlayer(effect);
   if (!player || !player.alive || player.ejected || player.inVent) return;
-  const markerCount = Math.max(1, Math.floor(Number(effect.markerCount) || 1));
-  const peerEffects = state.magicEffects.filter((entry) => entry.type.startsWith("gain-") && entry.playerId === effect.playerId);
-  const baseIndex = peerEffects.slice(0, Math.max(0, peerEffects.indexOf(effect)))
-    .reduce((sum, entry) => sum + Math.max(1, Math.floor(Number(entry.markerCount) || 1)), 0);
-  const expandedTotal = peerEffects.reduce((sum, entry) => sum + Math.max(1, Math.floor(Number(entry.markerCount) || 1)), 0);
+  const markerCount = sharedHeadMarkerCount(effect);
+  const { baseIndex, total: expandedTotal, startRow } = sharedHeadMarkerPlacement(effect, player);
   const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind] || OBJECT_EFFECT_PRESENTATIONS.mana;
   const fade = objectEffectFade(progress);
   const reveal = objectEffectEase(progress / 0.2);
@@ -15865,7 +15965,7 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
   const explanation = GAIN_MARKER_EXPLANATIONS[effect.effectKind] || ["獲得効果", "即時効果を獲得しました。"];
   for (let markerIndex = 0; markerIndex < markerCount; markerIndex += 1) {
     const expandedIndex = baseIndex + markerIndex;
-    const marker = headMarkerSlot(expandedIndex, expandedTotal, gainMarkerStartRow(player, state.data));
+    const marker = headMarkerSlot(expandedIndex, expandedTotal, startRow);
     const bob = Math.sin(now / 170 + expandedIndex * 1.7) * 0.8;
     ctx.save();
     ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
@@ -15883,6 +15983,44 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
     drawAteComplementaryVfx(ctx, profile.motion, size, size, now / 1000, progress, fade * 0.42);
     ctx.restore();
   }
+}
+
+function drawFighterEnergyChargeMarker(effect, progress, now) {
+  const prepared = transparentSpriteSource(state.textures.fighterEnergyChargeEffect, "fighter-energy-charge-marker", 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "fighter-energy-charge-marker", 1, 1, 0, 0) : null;
+  const player = gainEffectPlayer(effect);
+  if (!sprite || !player || !player.alive || player.ejected || player.inVent) return;
+  const { baseIndex, total, startRow } = sharedHeadMarkerPlacement(effect, player);
+  const marker = headMarkerSlot(baseIndex, total, startRow);
+  const time = Math.floor((now / 1000) * 60) / 60;
+  const reveal = objectEffectEase(progress / 0.18);
+  const fade = objectEffectFade(progress);
+  const size = HEAD_MARKER_LAYOUT.markerSize * (0.8 + reveal * 0.2);
+  const bob = Math.sin(time * 3.2 + baseIndex * 1.19) * 0.9;
+  ctx.save();
+  ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
+  registerMarkerHitTarget(
+    `fighter-ec:${effect.id || effect.createdAt || effect.at}:${player.id}`,
+    0,
+    0,
+    size * 0.62,
+    "EC獲得",
+    "ファイターのECが1増加しました。頭上markerは現在のキャラクター位置に追従します。"
+  );
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = fade;
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode: "flow-up",
+    time,
+    progress,
+    phase: 0.61 + baseIndex * 0.19,
+    intensity: 0.9,
+    baseAlpha: 0.16,
+    opacityBoost: 3
+  });
+  // E is sparse upward motes, distinct from the EC texture silhouette.
+  drawAteComplementaryVfx(ctx, "flow-up", size, size, time, progress, fade * 0.42);
+  ctx.restore();
 }
 
 function objectEffectEase(value) {
@@ -18498,7 +18636,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ability-renki-batch-regression-repairs-v517";
+const version = "fighter-ec-native-scroll-auto-hold-v519";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
