@@ -10,6 +10,7 @@ const MOVEMENT_SEND_INTERVAL_MS = 28;
 const UI_RENDER_INTERVAL_MS = 0;
 const IMAGE_SMOOTHING_QUALITY = "high";
 const SELECTION_ARROW_REPEAT_INTERVAL_MS = 110;
+const ABILITY_BATCH_HOLD_DELAY_MS = 420;
 const CONTINUOUS_ACTION_HOLD_DELAY_MS = 420;
 const CONTINUOUS_ACTION_REPEAT_INTERVAL_MS = 220;
 const SWITCH_DRAG_HOLD_DELAY_MS = 360;
@@ -493,6 +494,8 @@ const state = {
     submenuTimer: 0,
     suppressClick: false
   },
+  abilityBatchHold: { pointerId: null, button: null, timer: 0, held: false, holdId: "", action: null, startPromise: null },
+  abilityBatchKeyHold: { code: "", button: null, timer: 0, held: false, holdId: "", action: null, startPromise: null },
   continuousActionHold: { pointerId: null, button: null, timer: 0, fighterSlash: false },
   continuousActionKeyHold: { code: "", repeat: null, timer: 0, repeatInterval: 0, fighterSlash: false },
   continuousActionSuppressClicks: new WeakMap(),
@@ -757,7 +760,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "unified-mind-interface-repairs-shoot-transaction-v515";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ability-renki-batch-regression-repairs-v517";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -819,6 +822,19 @@ const generatedItemTextureFiles = new Map([
   ["invention-particle-cannon", { file: "alchemy-particle-cannon.webp" }]
 ]);
 
+// Keep one semantic URL per generated icon.  State polling intentionally calls
+// the render helpers often; replacing an identical CSS background on every
+// pass made some browsers briefly repaint the action-surface fallback.
+const generatedItemTexturePreloads = new Map();
+
+function preloadGeneratedItemTexture(imageUrl) {
+  if (!imageUrl || generatedItemTexturePreloads.has(imageUrl)) return;
+  const image = new Image();
+  image.decoding = "async";
+  image.src = imageUrl;
+  generatedItemTexturePreloads.set(imageUrl, image);
+}
+
 function applyGeneratedItemTexture(button, itemId) {
   const normalizedId = String(itemId || "").replace(/^(?:vending-|weapon:|invention:|heavy:)/, "");
   const texture = generatedItemTextureFiles.get(normalizedId);
@@ -829,14 +845,20 @@ function applyGeneratedItemTexture(button, itemId) {
     ? "assets/"
     : "assets/generated/";
   const imageUrl = assetUrl(`${base}${texture.file}?v=${GENERATED_ITEM_TEXTURE_CACHE_VERSION}`);
+  const position = texture.position || "center";
+  const size = texture.size || "contain";
+  const binding = `${normalizedId}|${imageUrl}|${position}|${size}`;
+  if (icon.dataset.generatedTextureBinding === binding) return true;
+  preloadGeneratedItemTexture(imageUrl);
   icon.classList.add("generated-item-texture-visible");
   icon.dataset.generatedTexture = normalizedId;
+  icon.dataset.generatedTextureBinding = binding;
   icon.style.setProperty("--generated-item-texture", `url("${imageUrl}")`);
-  icon.style.setProperty("--generated-item-position", texture.position || "center");
-  icon.style.setProperty("--generated-item-size", texture.size || "contain");
+  icon.style.setProperty("--generated-item-position", position);
+  icon.style.setProperty("--generated-item-size", size);
   icon.style.backgroundImage = `url("${imageUrl}")`;
-  icon.style.backgroundPosition = texture.position || "center";
-  icon.style.backgroundSize = texture.size || "contain";
+  icon.style.backgroundPosition = position;
+  icon.style.backgroundSize = size;
   icon.style.backgroundRepeat = "no-repeat";
   return true;
 }
@@ -3036,6 +3058,7 @@ function isContinuousGameActionButton(button) {
   if (state.screen !== "game" || state.data?.phase !== "playing") return false;
   if (switchDragDescriptorForSource(button)) return false;
   if (button.dataset.repeatableAbility === "0") return false;
+  if (isAbilityBatchButton(button)) return false;
   if (
     SPECIALIZED_HOLD_ACTION_IDS.has(button.id) ||
     NON_REPEATABLE_ACTION_HOTKEY_BUTTONS.has(button.id) ||
@@ -3047,18 +3070,17 @@ function isContinuousGameActionButton(button) {
   if ([
     "tabletEmpShortcut",
     "tabletDodgeShortcut",
-    "tabletRenkiShortcut",
     "tabletRestShortcut",
     "tabletDonateShortcut"
   ].includes(button.id)) return true;
   if (["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button.id)) {
     return false;
   }
-  return Boolean(
-    button.dataset.repeatableAbility === "1" ||
-    button.closest("#actionCommandRegistry") ||
-    button.closest("#operatorBranchList")
-  );
+  // Ordinary gameplay buttons are one-shot.  Ability batching has its own
+  // server-observed hold transaction, and selector controls own their own
+  // long-press behavior; neither may fall back to this old repeat controller.
+  if (button.dataset.repeatableAbility === "1" || button.closest("#operatorBranchList")) return false;
+  return Boolean(button.closest("#actionCommandRegistry"));
 }
 
 function isGameActionUnavailable(button) {
@@ -3379,6 +3401,208 @@ async function confirmThrowTargeting() {
   const { itemId, holdMs, chargeId, targetX, targetY } = state.throwTargeting;
   cancelThrowTargeting(true, "", { preserveCharge: true });
   return api("/api/item-throw", { itemId, holdMs, chargeId, targetX, targetY });
+}
+
+function abilityBatchSource(button) {
+  if (button?.tabletSource) return abilityBatchSource(button.tabletSource);
+  if (button === els.tabletAbilityShortcut) return els.operatorAbilityButton;
+  if (button === els.tabletRenkiShortcut) return els.renkiButton;
+  return button;
+}
+
+function isAbilityBatchButton(button) {
+  const source = abilityBatchSource(button);
+  return source === els.operatorAbilityButton || source === els.borrowedAbilityButton || source === els.renkiButton;
+}
+
+const ABILITY_BATCH_CLIENT_PATHS = new Set([
+  "/api/renki",
+  "/api/teleport",
+  "/api/gravity-time",
+  "/api/gravity-time-keeper",
+  "/api/gravity-storm",
+  "/api/quantum-control",
+  "/api/flora-heal",
+  "/api/borrowed-ability"
+]);
+
+function abilityBatchActionSupported(action) {
+  if (!action || !ABILITY_BATCH_CLIENT_PATHS.has(action.path)) return false;
+  if (action.path !== "/api/borrowed-ability") return true;
+  return ["gravity", "flora", "quantum"].includes(String(action.action?.ability || ""));
+}
+
+function abilityBatchEligible(button) {
+  const source = abilityBatchSource(button);
+  if (!isAbilityBatchButton(source) || isGameActionUnavailable(source) || source.hidden) return false;
+  const self = state.data?.self;
+  if (!self || state.screen !== "game" || state.data?.phase !== "playing") return false;
+  // A map destination is a separate targeting interaction, not a repeatable
+  // ability execution. Its existing hold/select semantics stay untouched.
+  if (source === els.operatorAbilityButton && self.special === "teleport" &&
+    ["body", "target"].includes(els.teleportModeSelect.value)) return false;
+  return abilityBatchActionSupported(abilityBatchAction(source));
+}
+
+function operatorAbilityAction() {
+  const self = state.data?.self;
+  if (!self) return null;
+  if (self.special === "fighter") return { path: "/api/limit-break", action: {} };
+  if (self.special === "teleport") {
+    const mode = els.teleportModeSelect.value;
+    const targetId = els.teleportTargetSelect.value || self.id;
+    if (["body", "target"].includes(mode)) return null;
+    if (["heart", "near"].includes(mode)) return { path: "/api/teleport", action: { targetId, mode } };
+    if (["accelerate", "decelerate"].includes(mode)) return { path: "/api/gravity-time", action: { targetId, mode } };
+    if (mode === "storm") return { path: "/api/gravity-storm", action: { targetId } };
+    if (mode === "time-keeper") return { path: "/api/gravity-time-keeper", action: {} };
+    return null;
+  }
+  if (self.special === "flora") {
+    const mode = els.teleportModeSelect.value;
+    return { path: "/api/flora-heal", action: {
+      mode: mode.startsWith("sunbeam") ? "sunbeam" : "heal",
+      targetId: mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "",
+      dx: Number(self.aimX) || 0,
+      dy: Number(self.aimY) || 1
+    } };
+  }
+  if (self.special === "quantum") return { path: "/api/quantum-control", action: { mode: selectedQuantumExecutableMode(false) } };
+  if (self.special === "alchemist") return { path: "/api/hacker-root", action: {} };
+  return null;
+}
+
+function newAbilityBatchHoldId() {
+  return globalThis.crypto?.randomUUID?.() || `ability-batch-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function borrowedAbilityAction() {
+  const self = state.data?.self;
+  const type = selectedBorrowedOperator();
+  const recipe = alchemyRecipes.find((entry) => entry.id === `borrowed-${type}`);
+  if (!self || !recipe || !alchemyRecipeAvailable(recipe)) return null;
+  const mode = state.borrowedAbilityModes[type] || els.teleportModeSelect.value;
+  if (type === "gravity" && ["body", "target"].includes(mode)) return null;
+  return { path: "/api/borrowed-ability", action: borrowedAbilityPayload(recipe, mode) };
+}
+
+function abilityBatchAction(button) {
+  const source = abilityBatchSource(button);
+  if (source === els.renkiButton) return { path: "/api/renki", action: {}, renki: true };
+  if (source === els.borrowedAbilityButton) return borrowedAbilityAction();
+  return operatorAbilityAction();
+}
+
+async function beginAbilityBatchTransaction(button, hold) {
+  const action = abilityBatchAction(button);
+  if (!action) return null;
+  hold.action = action;
+  hold.holdId = newAbilityBatchHoldId();
+  const started = await api("/api/ability-hold", {
+    phase: "start",
+    holdId: hold.holdId,
+    actionPath: action.path,
+    action: action.action
+  });
+  const holdId = started?.abilityHold?.id || hold.holdId;
+  if (!holdId) return null;
+  hold.holdId = holdId;
+  return holdId;
+}
+
+async function dispatchAbilityBatch(button, hold) {
+  const source = abilityBatchSource(button);
+  const holdId = await hold.startPromise;
+  if (!source || isGameActionUnavailable(source) || !holdId || !abilityBatchActionSupported(hold.action)) return false;
+  const payload = { ...hold.action.action, [hold.action.renki ? "renkiHoldId" : "abilityHoldId"]: holdId };
+  await api(hold.action.path, payload);
+  return true;
+}
+
+async function cancelAbilityBatchTransaction(hold) {
+  const holdId = await hold?.startPromise;
+  if (!holdId || !hold?.action?.path) return false;
+  return api("/api/ability-hold", { phase: "cancel", actionPath: hold.action.path, holdId });
+}
+
+function stopAbilityBatchHold(pointerId = null, { dispatch = false } = {}) {
+  const hold = state.abilityBatchHold;
+  if (pointerId !== null && hold.pointerId !== pointerId) return false;
+  if (hold.timer) window.clearTimeout(hold.timer);
+  const { button, held, action, startPromise } = hold;
+  const transaction = { action, startPromise };
+  hold.pointerId = null;
+  hold.button = null;
+  hold.timer = 0;
+  hold.held = false;
+  hold.holdId = "";
+  hold.action = null;
+  hold.startPromise = null;
+  if (button) state.continuousActionSuppressClicks.set(button, performance.now() + 700);
+  if (dispatch) return dispatchAbilityBatch(button, transaction);
+  if (button) void cancelAbilityBatchTransaction(transaction);
+  return Boolean(button);
+}
+
+function beginAbilityBatchHold(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const button = event.target instanceof Element ? event.target.closest("button") : null;
+  if (!abilityBatchEligible(button)) return;
+  event.preventDefault();
+  stopAbilityBatchHold();
+  const hold = state.abilityBatchHold;
+  hold.pointerId = event.pointerId;
+  hold.button = button;
+  hold.startPromise = beginAbilityBatchTransaction(button, hold);
+  try { button.setPointerCapture(event.pointerId); } catch {}
+  hold.timer = window.setTimeout(() => {
+    if (hold.pointerId !== event.pointerId || hold.button !== button) return;
+    hold.held = true;
+  }, ABILITY_BATCH_HOLD_DELAY_MS);
+}
+
+function finishAbilityBatchPointerHold(event, cancelled = false) {
+  const hold = state.abilityBatchHold;
+  if (hold.pointerId !== event.pointerId) return false;
+  const button = hold.button;
+  stopAbilityBatchHold(event.pointerId, { dispatch: !cancelled });
+  return Boolean(button);
+}
+
+function stopAbilityBatchKeyHold(code = "", { dispatch = false } = {}) {
+  const hold = state.abilityBatchKeyHold;
+  if (code && hold.code !== code) return false;
+  if (hold.timer) window.clearTimeout(hold.timer);
+  const { button, held, action, startPromise } = hold;
+  const transaction = { action, startPromise };
+  hold.code = "";
+  hold.button = null;
+  hold.timer = 0;
+  hold.held = false;
+  hold.holdId = "";
+  hold.action = null;
+  hold.startPromise = null;
+  if (dispatch) return dispatchAbilityBatch(button, transaction);
+  if (button) void cancelAbilityBatchTransaction(transaction);
+  return Boolean(button);
+}
+
+function beginAbilityBatchKeyHold(code, button) {
+  if (!code || !abilityBatchEligible(button)) return false;
+  stopAbilityBatchKeyHold();
+  const hold = state.abilityBatchKeyHold;
+  hold.code = code;
+  hold.button = button;
+  hold.startPromise = beginAbilityBatchTransaction(button, hold);
+  hold.timer = window.setTimeout(() => {
+    if (hold.code === code && hold.button === button) hold.held = true;
+  }, ABILITY_BATCH_HOLD_DELAY_MS);
+  return true;
+}
+
+function cancelActiveAbilityBatchHolds() {
+  stopAbilityBatchHold(null, { dispatch: false });
+  stopAbilityBatchKeyHold("", { dispatch: false });
 }
 
 function beginThrowTargetMovement(event) {
@@ -3721,19 +3945,18 @@ function triggerActionHotkey(event) {
     if (!event.repeat) toggleGameMuted();
     return true;
   }
+  if (isAbilityBatchButton(button)) {
+    if (!event.repeat) {
+      if (abilityBatchEligible(button)) beginAbilityBatchKeyHold(event.code, button);
+      else if (button && !button.disabled) button.click();
+    }
+    return true;
+  }
   if (isContinuousGameActionButton(button)) {
     if (!event.repeat) beginContinuousButtonKeyHold(event.code, () => els[elementKey]);
     return true;
   }
-  if (NON_REPEATABLE_ACTION_HOTKEY_BUTTONS.has(elementKey)) {
-    if (event.repeat) return true;
-  } else if (!allowContinuousActionKey(
-    event,
-    `action:${event.code}`,
-    CONTINUOUS_ACTION_REPEAT_INTERVAL_MS
-  )) {
-    return true;
-  }
+  if (event.repeat) return true;
   if (button && !button.disabled) button.click();
   return true;
 }
@@ -5157,6 +5380,7 @@ function bindEvents() {
   ensureDynamicAlchemyChoices();
   document.addEventListener("pointerdown", unlockAudio, { passive: true });
   document.addEventListener("keydown", unlockAudio);
+  document.addEventListener("pointerdown", beginAbilityBatchHold, true);
   document.addEventListener("pointerdown", beginContinuousActionHold, true);
   document.addEventListener("click", suppressContinuousActionClick, true);
   document.addEventListener("click", suppressSwitchDragClick, true);
@@ -5822,7 +6046,17 @@ function bindEvents() {
     if (contextualNavigation && (event.key === "Enter" || event.code === "Space")) {
       event.preventDefault();
       if (state.data?.phase === "playing") {
-        if (!event.repeat) beginContinuousActionKeyHold(event.code, activateKeyboardSelection);
+        if (!event.repeat) {
+          const controls = contextKeyboardElements();
+          const selected = controls.includes(document.activeElement) ? document.activeElement : state.keyboardElement;
+          if (isAbilityBatchButton(selected) && abilityBatchEligible(selected)) {
+            beginAbilityBatchKeyHold(event.code, selected);
+          } else if (selected?.dataset?.repeatableAbility === "1" || selected?.closest?.("#operatorBranchList")) {
+            activateKeyboardSelection();
+          } else {
+            beginContinuousActionKeyHold(event.code, activateKeyboardSelection);
+          }
+        }
       } else if (!event.repeat) {
         activateKeyboardSelection();
       }
@@ -5865,6 +6099,7 @@ function bindEvents() {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
     if (eventTarget?.matches?.('input, textarea, [contenteditable="true"]') ||
       document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')) return;
+    stopAbilityBatchKeyHold(event.code, { dispatch: true });
     stopContinuousActionKeyHold(event.code);
     if (releaseThrowTargetMovement(event)) return;
     if (releaseClairvoyanceMovement(event)) return;
@@ -5971,6 +6206,13 @@ function bindEvents() {
     scheduleViewportScaleRestore();
     scheduleGameplayViewportReflow();
   }, { passive: true });
+  window.addEventListener("pointerup", (event) => finishAbilityBatchPointerHold(event), true);
+  window.addEventListener("pointercancel", (event) => finishAbilityBatchPointerHold(event, true), true);
+  window.addEventListener("lostpointercapture", (event) => finishAbilityBatchPointerHold(event, true), true);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) cancelActiveAbilityBatchHolds();
+  });
+  window.addEventListener("blur", cancelActiveAbilityBatchHolds);
   window.addEventListener("orientationchange", () => {
     scheduleViewportScaleRestore(true);
     scheduleGameplayViewportReflow(true);
@@ -6490,6 +6732,7 @@ function appendTabletBranchButton(label, action, {
       if (shouldEndHold) holdEnd?.({ cancelled: true });
     };
     button.addEventListener("pointerdown", (event) => {
+      if (event.defaultPrevented && isAbilityBatchButton(button)) return;
       if (button.disabled || (event.pointerType === "mouse" && event.button !== 0)) return;
       pointerId = event.pointerId;
       startX = event.clientX;
@@ -6561,7 +6804,7 @@ function appendTabletBranchButton(label, action, {
     });
   } else if (hold === "vending") {
     bindScrollableHold({ invoke: () => source.click() });
-  } else if (hold === "repeat" || (!hold && !["branch", "target", "system"].includes(kind))) {
+  } else if (hold === "repeat") {
     bindScrollableHold({ invoke: action });
   } else {
     button.addEventListener("click", action);
@@ -6637,7 +6880,7 @@ function renderTabletBranch(data, force = false) {
       disabled: source.disabled,
       danger: source.classList.contains("danger"),
       source,
-      hold: options.hold || "",
+      hold: options.hold || (isAbilityBatchButton(source) ? "ability-batch" : ""),
       kind: options.kind || (source.classList.contains("danger") ? "danger" : "action")
     });
   };
@@ -6846,7 +7089,7 @@ function renderTabletControls(data) {
   setTabletShortcutLabel(
     els.tabletAbilityShortcut,
     conciseTabletAbilityName(data),
-    `${els.operatorAbilityButton.textContent || "現在の能力を発動"}。能力切替は専用選択欄をタップまたは長押し`
+    `${els.operatorAbilityButton.title || els.operatorAbilityButton.textContent || "現在の能力を発動"}。能力切替は専用選択欄をタップまたは長押し`
   );
   els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.hidden;
   els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden;
@@ -6877,7 +7120,7 @@ function renderTabletControls(data) {
   els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
   setTabletShortcutLabel(els.tabletJumpShortcut, "跳躍", els.jumpButton.textContent || "跳躍");
   els.tabletJumpShortcut.disabled = els.jumpButton.disabled;
-  setTabletShortcutLabel(els.tabletRenkiShortcut, "練気", els.renkiButton.textContent || "練気");
+  setTabletShortcutLabel(els.tabletRenkiShortcut, "練気", els.renkiButton.title || els.renkiButton.textContent || "練気");
   els.tabletRenkiShortcut.disabled = els.renkiButton.disabled;
   setTabletShortcutLabel(els.tabletRestShortcut, "休息", els.sleepButton.textContent || "休息");
   els.tabletRestShortcut.disabled = els.sleepButton.disabled;
@@ -8019,7 +8262,7 @@ async function performNinjutsu() {
   const ok = await api("/api/ninjutsu", { targetId: target.id });
   if (ok) {
     const assassin = state.data?.self?.special === "assassin";
-    showToast(`${target.name}への忍殺準備を開始しました。自分と対象が4秒間静止すると${assassin ? "アサシン忍殺による消滅" : "消滅"}が発動します。`);
+    showToast(`${target.name}への忍殺準備を開始しました。自分と対象が4秒間静止すると${assassin ? "アサシン忍殺による消滅" : "通常忍殺（死体あり）"}が発動します。`);
   }
 }
 
@@ -8417,7 +8660,7 @@ function detectAttackResult(previous, next) {
     lethal: "攻撃成功。対象をキルしました。",
     disappeared: next.self.special === "assassin"
       ? "アサシン忍殺による消滅が成功しました。死体・通報対象は残りません。"
-      : "忍殺成功。対象を消滅させ、死体は残りません。",
+      : "忍殺成功。対象を倒し、通報可能な死体が残りました。",
     blocked: "忍殺は防御されました。",
     body: "胴体に命中しました。もう一度攻撃すればキルできます。",
     miss: "攻撃は外れました。",
@@ -10151,6 +10394,7 @@ function createInventoryClickGate({
 }
 
 function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid) {
+  button.__inventoryDetailItem = item;
   const clickGate = createInventoryClickGate();
   let activePointerId = null;
   let activePointerType = "";
@@ -10172,7 +10416,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
       clickGate.arm();
       clearNativeSelection();
       try { button.setPointerCapture(activePointerId); } catch {}
-      showInventoryItemDetail(item, button);
+      showInventoryItemDetail(button.__inventoryDetailItem || item, button);
       if (navigator.vibrate) navigator.vibrate(18);
     },
     onClearSelection: clearNativeSelection
@@ -10230,9 +10474,8 @@ function renderItemControl(data) {
   const previousItem = els.itemSelect.value;
   const previousTarget = els.transferTargetSelect.value;
   const renderKey = JSON.stringify([
-    items.map((item) => [item.id, item.label, item.badge, item.asset, item.inventoryKind, item.output, item.detail, item.throwable, item.transferable]),
-    targets.map((target) => [target.id, target.name]),
-    self.credits
+    items.map((item) => [item.id, item.label, item.asset, item.inventoryKind, item.throwable, item.transferable]),
+    targets.map((target) => [target.id, target.name])
   ]);
   if (state.itemRenderKey !== renderKey) {
     state.itemRenderKey = renderKey;
@@ -10275,9 +10518,24 @@ function renderItemControl(data) {
       applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
     });
   }
+  [...els.itemSelect.options].forEach((option) => {
+    const item = items.find((entry) => entry.id === option.value);
+    if (item) option.textContent = `${item.label} ${item.badge || ""}`.trim();
+  });
+  [...els.transferTargetSelect.options].forEach((option) => {
+    const target = targets.find((entry) => entry.id === option.value);
+    if (target) option.textContent = playerIdentityLabel(target);
+  });
   els.itemInventoryGrid.querySelectorAll("[data-item-choice]").forEach((button) => {
     const item = items.find((entry) => entry.id === button.dataset.itemChoice);
-    if (item) applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
+    if (!item) return;
+    button.__inventoryDetailItem = item;
+    button.setAttribute("aria-label", item.label);
+    const name = button.querySelector(".item-choice-copy strong");
+    const badge = button.querySelector(".item-choice-copy small");
+    if (name && name.textContent !== item.label) name.textContent = item.label;
+    if (badge && badge.textContent !== String(item.badge || "")) badge.textContent = String(item.badge || "");
+    applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
   });
   const weaponChanged = Boolean(state.inventoryVisualWeapon && state.inventoryVisualWeapon !== self.gunnerWeapon);
   state.inventoryVisualWeapon = self.gunnerWeapon || "";
@@ -10898,7 +11156,7 @@ function objectiveText(data) {
   }
   if (self.role === "attacker") {
     if (self.aimTargetId && self.aimReadyAt > liveNow) {
-      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分か対象が動くと失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺による消滅となり、死体・通報対象を残しません" : "死体を残さず消滅させます"}。`;
+      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分か対象が動くと失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺による消滅となり、死体・通報対象を残しません" : "通常忍殺として通報可能な死体を残します"}。`;
     }
     const cd = Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
@@ -11085,7 +11343,7 @@ function updateActionButtons(data) {
   els.ninjutsuButton.classList.toggle("active", aiming);
   els.ninjutsuButton.title = self.special === "assassin"
     ? "忍殺: 自分と対象が4秒間静止するとアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。移動または対象喪失で失敗"
-    : "忍殺: 自分と対象が4秒間静止すると対象を消滅させ、死体を残さない。移動または対象喪失で失敗";
+    : "忍殺: 自分と対象が4秒間静止すると対象を倒し、通報可能な死体を残す。移動または対象喪失で失敗";
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   const rootProtectionBlocked = Boolean(self.hackerRootActive);
@@ -11235,6 +11493,9 @@ function updateActionButtons(data) {
       (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
       (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
       (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < 8);
+  els.operatorAbilityButton.title = abilityBatchActionSupported(operatorAbilityAction())
+    ? "タップは通常1回。長押しはサーバーが現在MPから2を残す量を一括消費し、通常MPコストで成立する回数を同じ対象・方式へ並列発動"
+    : "タップで現在の固有能力を1回発動";
   els.borrowedAbilityButton.hidden = !(rootToggle && self.hackerRootActive && activeBorrowedOperator);
   els.borrowedAbilityButton.textContent = activeBorrowedOperator
     ? `借用 ${specialLabels[borrowedDisplayedOperator] || borrowedDisplayedOperator} / ${borrowedDisplayedLabel} を実行`
@@ -11243,6 +11504,9 @@ function updateActionButtons(data) {
     !activeBorrowedOperator ||
     borrowedStateBlocked ||
     (borrowedDisplayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(true)) && Number(self.stamina) < 8);
+  els.borrowedAbilityButton.title = abilityBatchActionSupported(borrowedAbilityAction())
+    ? "タップは通常1回。長押しは2MPを残して選択中の借用能力を一括並列発動"
+    : "選択中の借用能力を1回発動";
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
   els.empButton.textContent = empSeconds > 0 ? `${empPhaseLabel}EMP ${empSeconds}秒` : `${empPhaseLabel}EMP`;
@@ -11257,6 +11521,7 @@ function updateActionButtons(data) {
   els.sleepButton.disabled = !(canActAlive && self.stamina < (self.maxStoredStamina || 500));
   const renkiSeconds = Math.max(0, ((self.meditatingUntil || 0) - liveNow) / 1000);
   els.renkiButton.textContent = renkiSeconds > 0 ? `精神統一 ${renkiSeconds.toFixed(1)}秒` : "練気 +1MP / 3.5秒";
+  els.renkiButton.title = "タップは通常1回（+1MP・3.5秒）。長押しは10回分の恩恵を即時取得し、35秒の精神統一クールタイム";
   els.renkiButton.disabled = !canUseAbility;
   els.dashButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked && activeStaminaFor(data) > 0);
   els.slowWalkButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked);
@@ -12137,7 +12402,7 @@ function drawModeBanner(data, w) {
     const remaining = Math.max(0, data.self.aimReadyAt - estimatedServerNow(data));
     text = remaining > 0
       ? `忍殺静止中: ${target?.name || "対象"} / 残り ${(remaining / 1000).toFixed(1)}秒`
-      : `忍殺消滅処理中: ${target?.name || "対象"}`;
+      : `${data.self.special === "assassin" ? "忍殺消滅" : "忍殺撃破"}処理中: ${target?.name || "対象"}`;
   }
   if (!text) return;
   ctx.save();
@@ -18233,7 +18498,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "unified-mind-interface-repairs-shoot-transaction-v515";
+const version = "ability-renki-batch-regression-repairs-v517";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

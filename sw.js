@@ -2,9 +2,9 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-// v510 adds threshold-only Natural Recovery, ROOT toggle repair, native flick
-// ownership, foreground reflow, reusable ground pickup and Assassin.
-const CACHE_NAME = "dva-static-v515-unified-mind-interface-repairs-shoot-transaction";
+// v517 replaces ability/Renki repeat loops with server-observed batches and
+// repairs icon identity, ordinary Ninjutsu bodies, HSG duplication and debuffs.
+const CACHE_NAME = "dva-static-v517-ability-renki-batch-regression-repairs";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

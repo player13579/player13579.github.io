@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "unified-mind-interface-repairs-shoot-transaction-v515",
+    version: "ability-renki-batch-regression-repairs-v517",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

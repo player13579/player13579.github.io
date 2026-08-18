@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "unified-mind-interface-repairs-shoot-transaction-v515",
+    version: "ability-renki-batch-regression-repairs-v517",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7645,6 +7645,11 @@ const DESIRE_BIASES = Object.freeze([
   Object.freeze({ id: "in-group-bias", label: "内集団バイアス", detail: "他者が近い間、移動速度とスタミナ回復が60%になる" })
 ]);
 const RENKI_FOCUS_DURATION_MS = 3500;
+// Ability long-holds are a separate server-observed transaction.  The client
+// may render the hold locally, but it never gets to declare its duration,
+// mana spend, or repeat count.
+const ABILITY_BATCH_HOLD_MIN_MS = 420;
+const ABILITY_BATCH_MAX_PARALLEL = 256;
 const RATIONAL_FREE_ABILITY_INTERVAL_MS = 30_000;
 const DODGE_MANA_COST = 0;
 const TELEPORT_MANA_COST = 1;
@@ -9730,6 +9735,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     mentalState: "理知",
     meditatingUntil: 0,
     renkiTargetMana: null,
+    abilityHold: null,
     rationalFreeAbilityReadyAt: 0,
     gritCharges: 0,
     reasonCharges: 0,
@@ -10201,6 +10207,7 @@ function startGame(room) {
     player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
+    player.abilityHold = null;
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
     player.reasonCharges = 0;
@@ -10545,6 +10552,7 @@ function startBattle(room) {
     player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
+    player.abilityHold = null;
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
     player.reasonCharges = 0;
@@ -10725,6 +10733,239 @@ function ensureAbilityAvailable(player) {
   if ((player.abilityDisabledUntil || 0) > now()) {
     throw new ApiError(400, `能力封印中です（残り${Math.ceil((player.abilityDisabledUntil - now()) / 1000)}秒）。`);
   }
+}
+
+const ABILITY_BATCH_ACTION_PATHS = new Set([
+  "/api/renki",
+  "/api/teleport",
+  "/api/gravity-time",
+  "/api/gravity-time-keeper",
+  "/api/gravity-storm",
+  "/api/quantum-control",
+  "/api/flora-heal",
+  "/api/borrowed-ability"
+]);
+
+function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
+  const action = rawAction && typeof rawAction === "object" ? rawAction : {};
+  const path = String(actionPath || "");
+  const mode = normalizeQuantumMode(String(action.mode || ""));
+  if (path === "/api/renki") return 0;
+  if (path === "/api/teleport") {
+    if (!['near', 'heart'].includes(String(action.mode || ""))) return null;
+    return String(action.mode || "") === "heart" ? HEART_TELEPORT_MANA_COST : TELEPORT_MANA_COST;
+  }
+  if (path === "/api/gravity-time") {
+    return ["accelerate", "decelerate"].includes(String(action.mode || "")) ? ABILITY_MANA_COST : null;
+  }
+  if (path === "/api/gravity-time-keeper") return GRAVITY_TIME_KEEPER_MANA_COST;
+  if (path === "/api/gravity-storm") return GRAVITY_STORM_MANA_COST;
+  if (path === "/api/quantum-control") {
+    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) return null;
+    return mode === "nuclear-fission" ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
+  }
+  if (path === "/api/flora-heal") return FLORA_MANA_COST;
+  if (path !== "/api/borrowed-ability") return null;
+  const ability = String(action.ability || "");
+  if (ability === "flora") return FLORA_MANA_COST;
+  if (ability === "quantum") {
+    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) return null;
+    return mode === "nuclear-fission" ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
+  }
+  if (ability !== "gravity") return null;
+  const gravityMode = String(action.mode || "");
+  if (["near", "heart"].includes(gravityMode)) {
+    return gravityMode === "heart" ? HEART_TELEPORT_MANA_COST : TELEPORT_MANA_COST;
+  }
+  if (["accelerate", "decelerate"].includes(gravityMode)) return ABILITY_MANA_COST;
+  if (gravityMode === "time-keeper") return GRAVITY_TIME_KEEPER_MANA_COST;
+  if (gravityMode === "storm") return GRAVITY_STORM_MANA_COST;
+  return null;
+}
+
+function startAbilityHold(room, player, rawActionPath, rawHoldId = "", rawAction = {}) {
+  if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在は能力長押しを開始できません。");
+  }
+  ensureAbilityAvailable(player);
+  const actionPath = String(rawActionPath || "");
+  if (!ABILITY_BATCH_ACTION_PATHS.has(actionPath)) throw new ApiError(400, "能力長押しの対象が不正です。");
+  const unitManaCost = abilityBatchUnitManaCost(actionPath, rawAction);
+  if (actionPath !== "/api/renki" && !(Number(unitManaCost) > 0)) {
+    throw new ApiError(400, "この能力はMP一括並列発動の対象ではありません。");
+  }
+  const requestedId = String(rawHoldId || "").trim();
+  if (!requestedId || requestedId.length > 160) throw new ApiError(400, "能力長押しIDが不正です。");
+  // A newly observed press atomically replaces an uncommitted stale hold.
+  // The old release/cancel ID can no longer match, which also avoids a race
+  // between the client's best-effort cancel request and the next press.
+  player.abilityHold = {
+    id: requestedId,
+    actionPath,
+    startedAt: now(),
+    committed: false,
+    committedAt: 0,
+    batch: false,
+    unitManaCost: Number(unitManaCost) || 0,
+    // Only action identity is accepted at start.  Release callers compare
+    // their canonical target/mode snapshot before execution; clients cannot
+    // swap a selected target after the server observed the hold.
+    actionSnapshot: abilityHoldActionSnapshot(rawAction)
+  };
+  touch(room);
+  return player.abilityHold;
+}
+
+function abilityHoldActionSnapshot(rawAction = {}) {
+  const action = rawAction && typeof rawAction === "object" ? rawAction : {};
+  const permitted = ["mode", "targetId", "x", "y", "dx", "dy", "ability", "conversion"];
+  const snapshot = {};
+  for (const key of permitted) {
+    if (!Object.hasOwn(action, key)) continue;
+    const value = action[key];
+    snapshot[key] = ["x", "y", "dx", "dy"].includes(key) ? Number(value) || 0 : String(value || "");
+  }
+  return JSON.stringify(snapshot);
+}
+
+function commitAbilityHold(room, player, rawHoldId, expectedActionPath, rawAction = {}) {
+  const hold = player?.abilityHold;
+  const holdId = String(rawHoldId || "").trim();
+  if (!hold || !holdId || hold.id !== holdId || hold.actionPath !== expectedActionPath) {
+    throw new ApiError(409, "能力長押し状態が一致しません。もう一度押し直してください。");
+  }
+  if (hold.actionSnapshot !== abilityHoldActionSnapshot(rawAction)) {
+    throw new ApiError(409, "能力長押しの対象または方式が開始時と一致しません。");
+  }
+  if (hold.committed) return { duplicate: true, batch: Boolean(hold.batch), hold };
+  const timestamp = now();
+  hold.committed = true;
+  hold.committedAt = timestamp;
+  hold.batch = timestamp - Number(hold.startedAt) >= ABILITY_BATCH_HOLD_MIN_MS;
+  return { duplicate: false, batch: hold.batch, hold };
+}
+
+function cancelAbilityHold(room, player, rawHoldId, rawActionPath) {
+  const hold = player?.abilityHold;
+  if (!hold || hold.committed || hold.id !== String(rawHoldId || "") || hold.actionPath !== String(rawActionPath || "")) return false;
+  player.abilityHold = null;
+  touch(room);
+  return true;
+}
+
+function quantumBatchCapacity(player, rawMode) {
+  const mode = normalizeQuantumMode(rawMode);
+  const itemIds = mode === "nuclear-transmutation"
+    ? ["lead", "mercury"]
+    : mode === "nuclear-fission"
+      ? ["uranium", "plutonium"]
+      : ["mineral-water"];
+  const itemCapacity = itemIds.reduce((sum, itemId) => sum + itemCount(player, itemId), 0);
+  const staminaCost = QUANTUM_ACTION_STAMINA_COST * (player?.desireBias === "sunk-cost" ? DESIRE_BIAS_COST_MULTIPLIER : 1);
+  const staminaCapacity = Math.floor(Math.max(0, Number(player?.stamina) || 0) / Math.max(1, staminaCost));
+  return Math.min(itemCapacity, staminaCapacity, mode === "nuclear-fission" ? 1 : Number.MAX_SAFE_INTEGER);
+}
+
+function abilityBatchActionCapacity(player, actionPath, rawAction = {}) {
+  const action = rawAction && typeof rawAction === "object" ? rawAction : {};
+  if (actionPath === "/api/quantum-control") return quantumBatchCapacity(player, action.mode);
+  if (actionPath === "/api/borrowed-ability" && String(action.ability || "") === "quantum") {
+    return quantumBatchCapacity(player, action.mode);
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function setAbilityBatchManaReserve(room, player, sourceLabel) {
+  return setMana(room, player, RATIONAL_MANA_THRESHOLD, sourceLabel, { exact: true });
+}
+
+function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
+  const body = rawBody && typeof rawBody === "object" ? rawBody : {};
+  const holdId = String(body.abilityHoldId || "");
+  if (!holdId) return { value: action(), held: false, batch: false, duplicate: false, count: 1, spentMana: 0 };
+  const committed = commitAbilityHold(room, player, holdId, actionPath, body);
+  if (committed.duplicate) {
+    return { value: undefined, held: true, batch: Boolean(committed.batch), duplicate: true, count: 0, spentMana: 0 };
+  }
+  if (!committed.batch) {
+    return { value: action(), held: true, batch: false, duplicate: false, count: 1, spentMana: 0 };
+  }
+
+  const currentMana = Math.round((Number(player.mana) || 0) * 100) / 100;
+  const spendableMana = Math.max(0, Math.round((currentMana - RATIONAL_MANA_THRESHOLD) * 100) / 100);
+  const unitManaCost = Math.max(0.01, Number(committed.hold.unitManaCost) || abilityBatchUnitManaCost(actionPath, body) || 0);
+  const parallelCount = Math.floor((spendableMana + 1e-9) / unitManaCost);
+  if (parallelCount < 1) {
+    throw new ApiError(400, `能力長押しには理知維持用2MPとは別に${unitManaCost}MP以上が必要です。`);
+  }
+  if (parallelCount > ABILITY_BATCH_MAX_PARALLEL) {
+    throw new ApiError(400, `一括並列発動は${ABILITY_BATCH_MAX_PARALLEL}回までです。MPを通常発動で調整してから再実行してください。`);
+  }
+  const capacity = abilityBatchActionCapacity(player, actionPath, body);
+  if (capacity < parallelCount) {
+    throw new ApiError(400, `並列${parallelCount}回分の所持品またはSPが不足しています（実行可能 ${Math.max(0, capacity)}回）。`);
+  }
+
+  player.abilityBatchExecution = {
+    id: committed.hold.id,
+    actionPath,
+    count: parallelCount,
+    suppressManaCost: true
+  };
+  let appliedCount = 0;
+  let value;
+  let partialError = null;
+  try {
+    for (let index = 0; index < parallelCount; index += 1) {
+      if (index > 0 && (room.phase !== "playing" || !player.alive || player.ejected || player.inVent)) break;
+      try {
+        const result = action(index, parallelCount);
+        if (result === false) break;
+        value = result;
+        appliedCount += 1;
+      } catch (error) {
+        if (appliedCount <= 0) throw error;
+        partialError = error;
+        break;
+      }
+    }
+  } finally {
+    delete player.abilityBatchExecution;
+  }
+  if (appliedCount <= 0) {
+    return { value, held: true, batch: true, duplicate: false, count: 0, requestedCount: parallelCount, spentMana: 0 };
+  }
+  setAbilityBatchManaReserve(room, player, "能力一括並列発動");
+  setImmediateFeedback(
+    player,
+    "能力一括並列発動",
+    `${appliedCount}/${parallelCount}回 / MP-${spendableMana.toFixed(2)} / 2MP維持${partialError ? " / 対象状態変化で残り終了" : ""}`
+  );
+  pushEvent(room, `${player.name} が能力を${appliedCount}回並列発動し、${spendableMana.toFixed(2)}MPを消費して2MPを維持しました。`);
+  touch(room);
+  return {
+    value,
+    held: true,
+    batch: true,
+    duplicate: false,
+    count: appliedCount,
+    requestedCount: parallelCount,
+    spentMana: spendableMana,
+    partial: Boolean(partialError)
+  };
+}
+
+function attachAbilityBatchPayload(payload, outcome) {
+  if (!outcome?.held) return payload;
+  payload.abilityBatch = {
+    batch: Boolean(outcome.batch),
+    duplicate: Boolean(outcome.duplicate),
+    count: Math.max(0, Number(outcome.count) || 0),
+    requestedCount: Math.max(0, Number(outcome.requestedCount ?? outcome.count) || 0),
+    spentMana: Math.max(0, Number(outcome.spentMana) || 0),
+    partial: Boolean(outcome.partial)
+  };
+  return payload;
 }
 
 function manaMindPoints(mana) {
@@ -11253,12 +11494,12 @@ function taskStaminaCostFor() {
   return TASK_STAMINA_REQUIREMENT;
 }
 
-function setMana(room, player, rawMana, sourceLabel = "") {
+function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
   const timestamp = now();
   const previousRaw = Math.round((Number(player.mana) || 0) * 100) / 100;
   const previous = previousRaw <= 0 ? DESIRE_RESOURCE_DEBT : previousRaw;
   const rawRequested = Math.round((Number(rawMana) || 0) * 100) / 100;
-  const requested = player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
+  const requested = !options.exact && player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
   const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
@@ -11271,6 +11512,7 @@ function setMana(room, player, rawMana, sourceLabel = "") {
 
 function spendMana(room, player, amount, label) {
   const cost = Math.max(0, Number(amount) || 0);
+  if (player?.abilityBatchExecution?.suppressManaCost) return false;
   if (hasFighterInfiniteResources(player)) return false;
   if (isHackerOperator(player)) return false;
   if ((Number(player.mana) || 0) < cost) {
@@ -11281,6 +11523,7 @@ function spendMana(room, player, amount, label) {
 
 function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
   const timestamp = now();
+  if (player?.abilityBatchExecution?.suppressManaCost) return false;
   if (isHackerOperator(player) && hackerRootEligible(player)) return false;
   if (isRational(player) && (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp) {
     player.rationalFreeAbilityReadyAt = timestamp + RATIONAL_FREE_ABILITY_INTERVAL_MS;
@@ -11299,9 +11542,39 @@ function canSpendOperatorMana(player, timestamp = now()) {
   return rationalFree || (Number(player.mana) || 0) >= ABILITY_MANA_COST;
 }
 
-function practiceRenki(room, player) {
+function practiceRenki(room, player, options = {}) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在は練気できません。");
+  }
+  if (options.holdId) {
+    const committed = commitAbilityHold(room, player, options.holdId, "/api/renki");
+    if (committed.duplicate) return { duplicate: true, batch: Boolean(committed.batch) };
+    if (committed.batch) {
+      ensureAbilityAvailable(player);
+      const timestamp = now();
+      // This is one committed operation, not ten delayed requests.  The first
+      // ordinary Renki from zero reaches STARTING_MANA; every other ordinary
+      // execution grants MANA_CONVERSION_AMOUNT.
+      const currentMana = Number(player.mana) || 0;
+      const batchMana = currentMana <= 0
+        ? STARTING_MANA + MANA_CONVERSION_AMOUNT * 9
+        : currentMana + MANA_CONVERSION_AMOUNT * 10;
+      setMana(room, player, batchMana, "練気・十連");
+      player.renkiTargetMana = batchMana;
+      player.meditatingUntil = timestamp + RENKI_FOCUS_DURATION_MS * 10;
+      player.vx = 0;
+      player.vy = 0;
+      player.movementMode = "meditating";
+      player.lastMoveAt = timestamp;
+      player.drone.active = false;
+      clearAttackState(player);
+      pushGainAte(room, player, "mana", { variant: "renki-tenfold", durationMs: 1680 });
+      pushMagicEffect(room, "action-renki", player, { radius: 150, playerId: player.id, variant: "tenfold" });
+      setImmediateFeedback(player, "練気・十連", `マナ +${Math.max(0, batchMana - currentMana)} / CT ${(RENKI_FOCUS_DURATION_MS * 10 / 1000).toFixed(1)}秒`);
+      pushEvent(room, `${player.name} が練気を十連で一括実行しました（マナ +${Math.max(0, batchMana - currentMana)} / CT ${(RENKI_FOCUS_DURATION_MS * 10 / 1000).toFixed(1)}秒）。`);
+      touch(room);
+      return { duplicate: false, batch: true, mana: batchMana };
+    }
   }
   ensureAbilityAvailable(player);
   const timestamp = now();
@@ -11318,6 +11591,7 @@ function practiceRenki(room, player) {
   pushMagicEffect(room, "action-renki", player, { radius: 120, playerId: player.id });
   pushEvent(room, `${player.name} が練気の精神統一に入りました（${(RENKI_FOCUS_DURATION_MS / 1000).toFixed(1)}秒）。`);
   touch(room);
+  return { duplicate: false, batch: false };
 }
 
 function donateCredits(room, player) {
@@ -11845,7 +12119,11 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
     const desireMultiplier = desireBiasGroupActive(room, entity) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
     const recovery = STAMINA_REGEN_PER_SECOND * elapsed * Math.max(1, multiplier) * desireMultiplier;
     const capacity = staminaCapacityFor(entity);
-    const current = Math.min(capacity, Math.max(0, Number(entity.stamina) || 0));
+    // Desire intentionally creates a -100 SP debt.  Clamping that debt to zero
+    // here made the unified Desire state and its selected cognitive bias vanish
+    // on the first idle recovery tick, before the client could observe either.
+    // Recover the debt itself; only availableStamina() clamps it for spending.
+    const current = Math.min(capacity, Number(entity.stamina) || 0);
     const restored = Math.min(recovery, capacity - current);
     entity.stamina = current + restored;
     const overflow = Math.max(0, recovery - restored);
@@ -11876,8 +12154,11 @@ function spendStamina(entity, rawAmount, room = null, sourceLabel = "スタミ�
   const baseAmount = Math.max(0, Number(rawAmount) || 0);
   const amount = entity?.desireBias === "sunk-cost" ? baseAmount * DESIRE_BIAS_COST_MULTIPLIER : baseAmount;
   const previous = Number(entity.stamina) || 0;
-  const next = previous - amount;
-  entity.stamina = Math.max(0, next);
+  const next = previous <= 0 ? previous : previous - amount;
+  // Walking or another zero-available-SP route must not erase Desire's debt.
+  // A positive balance still bottoms out at zero and syncMentalState() then
+  // performs the authoritative Desire transition when MP is also exhausted.
+  entity.stamina = previous <= 0 ? previous : Math.max(0, next);
   if (room) syncMentalState(room, entity, sourceLabel);
 }
 
@@ -16957,6 +17238,9 @@ function duplicateHackableInventory(target) {
   }
   target.inventions = [...(target.inventions || []), ...(target.inventions || [])];
   for (const itemId of Object.keys(target.itemInventory || {})) {
+    // HSG is one physical body, not a stackable Hacker duplication output.
+    // Preserve its current owner/ground identity unchanged.
+    if (itemId === "hsg") continue;
     target.itemInventory[itemId] = itemCount(target, itemId) * 2;
   }
 }
@@ -17469,7 +17753,9 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
   if (!target?.alive || target.ejected) return "miss";
   const profile = ninjutsuEliminationProfile(player);
   const disappeared = destroyPlayerUnconditionally(room, player, target, profile.reason, {
-    noBody: true,
+    // Only Assassin owns the no-corpse annihilation conversion.  Shared
+    // Ninjutsu must retain its ordinary reportable corpse outcome.
+    noBody: player?.special === "assassin",
     attackKind: profile.attackKind,
     attackLabel: profile.attackLabel,
     slashGuardPhysical: true,
@@ -20355,6 +20641,20 @@ async function handleApi(req, res) {
       break;
     }
 
+    case "/api/ability-hold": {
+      const { room, player } = requireRoomPlayer(body);
+      if (String(body.phase || "start") === "cancel") {
+        const cancelled = cancelAbilityHold(room, player, String(body.holdId || ""), String(body.actionPath || ""));
+        payload = serialize(room, player);
+        payload.abilityHoldCancelled = cancelled;
+        break;
+      }
+      const hold = startAbilityHold(room, player, String(body.actionPath || ""), String(body.holdId || ""), body.action);
+      payload = serialize(room, player);
+      payload.abilityHold = { id: hold.id, actionPath: hold.actionPath, startedAt: hold.startedAt };
+      break;
+    }
+
     case "/api/gunner-weapon": {
       const { room, player } = requireRoomPlayer(body);
       switchGunnerWeapon(room, player, String(body.weaponId || ""), Number(body.direction) || 1);
@@ -20420,8 +20720,10 @@ async function handleApi(req, res) {
 
     case "/api/renki": {
       const { room, player } = requireRoomPlayer(body);
-      practiceRenki(room, player);
+      const outcome = practiceRenki(room, player, { holdId: String(body.renkiHoldId || body.abilityHoldId || "") });
       payload = serialize(room, player);
+      payload.renkiBatch = Boolean(outcome?.batch);
+      payload.duplicate = Boolean(outcome?.duplicate);
       break;
     }
 
@@ -20434,29 +20736,39 @@ async function handleApi(req, res) {
 
     case "/api/teleport": {
       const { room, player } = requireRoomPlayer(body);
-      teleportPlayer(room, player, body.x, body.y, String(body.targetId || ""), String(body.mode || "move"));
+      const outcome = executeAbilityHoldAction(room, player, body, "/api/teleport", () => (
+        teleportPlayer(room, player, body.x, body.y, String(body.targetId || ""), String(body.mode || "move"))
+      ));
       payload = serialize(room, player);
+      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
     case "/api/gravity-time": {
       const { room, player } = requireRoomPlayer(body);
-      toggleGravityTime(room, player, String(body.mode || "accelerate"), String(body.targetId || player.id));
+      const outcome = executeAbilityHoldAction(room, player, body, "/api/gravity-time", () => (
+        toggleGravityTime(room, player, String(body.mode || "accelerate"), String(body.targetId || player.id))
+      ));
       payload = serialize(room, player);
+      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
     case "/api/gravity-time-keeper": {
       const { room, player } = requireRoomPlayer(body);
-      useTimeKeeper(room, player);
+      const outcome = executeAbilityHoldAction(room, player, body, "/api/gravity-time-keeper", () => useTimeKeeper(room, player));
       payload = serialize(room, player);
+      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
     case "/api/gravity-storm": {
       const { room, player } = requireRoomPlayer(body);
-      useGravityStorm(room, player, String(body.targetId || player.id));
+      const outcome = executeAbilityHoldAction(room, player, body, "/api/gravity-storm", () => (
+        useGravityStorm(room, player, String(body.targetId || player.id))
+      ));
       payload = serialize(room, player);
+      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
@@ -20490,9 +20802,10 @@ async function handleApi(req, res) {
 
     case "/api/quantum-control": {
       const { room, player } = requireRoomPlayer(body);
-      const actionApplied = useQuantumControl(room, player, body.mode);
+      const outcome = executeAbilityHoldAction(room, player, body, "/api/quantum-control", () => useQuantumControl(room, player, body.mode));
       payload = serialize(room, player);
-      payload.actionApplied = actionApplied;
+      payload.actionApplied = outcome.duplicate ? false : (outcome.batch ? outcome.count > 0 : outcome.value);
+      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
@@ -20526,8 +20839,11 @@ async function handleApi(req, res) {
 
     case "/api/flora-heal": {
       const { room, player } = requireRoomPlayer(body);
-      useFloraAbility(room, player, String(body.mode || "heal"), body);
+      const outcome = executeAbilityHoldAction(room, player, body, "/api/flora-heal", () => (
+        useFloraAbility(room, player, String(body.mode || "heal"), body)
+      ));
       payload = serialize(room, player);
+      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
@@ -20547,9 +20863,14 @@ async function handleApi(req, res) {
 
     case "/api/borrowed-ability": {
       const { room, player } = requireRoomPlayer(body);
-      const actionApplied = useBorrowedAbility(room, player, body.ability, body);
+      const outcome = executeAbilityHoldAction(room, player, body, "/api/borrowed-ability", () => (
+        useBorrowedAbility(room, player, body.ability, body)
+      ));
       payload = serialize(room, player);
-      if (typeof actionApplied === "boolean") payload.actionApplied = actionApplied;
+      if (outcome.duplicate) payload.actionApplied = false;
+      else if (outcome.batch) payload.actionApplied = outcome.count > 0;
+      else if (typeof outcome.value === "boolean") payload.actionApplied = outcome.value;
+      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
@@ -22257,5 +22578,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "unified-mind-interface-repairs-shoot-transaction-v515" });
+self.postMessage({ type: "ready", version: "ability-renki-batch-regression-repairs-v517" });
 })();

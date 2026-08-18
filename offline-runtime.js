@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "unified-mind-interface-repairs-shoot-transaction-v515";
+const OFFLINE_WORKER_VERSION = "ability-renki-batch-regression-repairs-v517";
 const OFFLINE_WORKER_READY_TIMEOUT_MS = 40_000;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 
