@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "quantum-held-item-auto-process-v502",
+    version: "portrait-quantum-hold-fighter-energy-v503",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -10947,6 +10947,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
 }
 
 function fighterSlashShockwaveCost(player) {
+  if (!hasOperatorAccess(player, "fighter")) return 0;
   const current = Math.max(0, Math.floor(Number(player?.fighterEnergyCharge) || 0));
   return current >= FIGHTER_GIANT_SHOCKWAVE_EC_COST
     ? FIGHTER_GIANT_SHOCKWAVE_EC_COST
@@ -10954,6 +10955,7 @@ function fighterSlashShockwaveCost(player) {
 }
 
 function consumeFighterEnergyCharge(player, requestedCost = 1, label = "衝撃波") {
+  if (!hasOperatorAccess(player, "fighter")) return 0;
   const current = Math.max(0, Math.floor(Number(player?.fighterEnergyCharge) || 0));
   const cost = Math.max(1, Math.floor(Number(requestedCost) || 1));
   if (!player || current < cost) return 0;
@@ -13401,12 +13403,16 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
     const universalReflect = hasFighterInfiniteResources(player);
     pushEvent(room, `${player.name} が斬るを構えました。物理攻撃をガードし、${perfectGuardOpened ? `短いジャストガード受付で${universalReflect ? "全攻撃" : "物理攻撃"}を反射できます` : "今回はジャストガード再受付前です"}。`);
   }
-  const requestedShockwaveCost = fighterSlashShockwaveCost(player);
+  // The sword owns only this physical slash/guard.  EC and every wave are
+  // Fighter abilities; a Fighter may use this slash as their trigger.
+  const requestedShockwaveCost = hasOperatorAccess(player, "fighter")
+    ? fighterSlashShockwaveCost(player)
+    : 0;
   const consumedShockwaveCost = player.alive
     ? consumeFighterEnergyCharge(
         player,
         requestedShockwaveCost,
-        requestedShockwaveCost === FIGHTER_GIANT_SHOCKWAVE_EC_COST ? "特大衝撃波" : "衝撃波"
+        requestedShockwaveCost === FIGHTER_GIANT_SHOCKWAVE_EC_COST ? "ファイター特大衝撃波" : "ファイター衝撃波"
       )
     : 0;
   if (consumedShockwaveCost > 0) {
@@ -13442,13 +13448,13 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
           preserveCooldown: true,
           magic: true,
           attackKind: "fighter-energy-shockwave",
-          attackLabel: giantShockwave ? "斬る特大衝撃波" : "斬る衝撃波",
+          attackLabel: giantShockwave ? "ファイター特大衝撃波" : "ファイター衝撃波",
           slashGuardPhysical: true,
           slashGuardReflectable: false,
           slashGuardPerfectEligible: false,
           targetRole: waveTarget.role
         });
-        pushEvent(room, `${player.name} の${giantShockwave ? "斬る特大衝撃波" : "斬る衝撃波"}が ${waveTarget.name} に命中しました（${outcome}）。`);
+        pushEvent(room, `${player.name} の${giantShockwave ? "ファイター特大衝撃波" : "ファイター衝撃波"}が ${waveTarget.name} に命中しました（${outcome}）。`);
       } catch (error) {
         if (!(error instanceof ApiError)) throw error;
       }
@@ -15377,7 +15383,9 @@ function itemThrowFlightDuration(distanceToLanding) {
 function queueThrownItem(room, player, itemId, item, landing, level = 0) {
   const createdAt = now();
   const durationMs = itemThrowFlightDuration(landing.distance);
-  const energyShockwave = hasOperatorAccess(player, "fighter") && consumeFighterEnergyCharge(player);
+  // This is a Fighter ability augmentation, never a property of the thrown
+  // item or of the Orichalcum Sword.
+  const energyShockwave = hasOperatorAccess(player, "fighter") && consumeFighterEnergyCharge(player, 1, "ファイター投擲衝撃波");
   room.thrownItems ||= [];
   room.thrownItems.push({
     id: uid("throw_"),
@@ -15413,7 +15421,7 @@ function queueThrownItem(room, player, itemId, item, landing, level = 0) {
     });
   }
   const label = item?.label || ITEM_DEFINITIONS[itemId]?.label || "アイテム";
-  pushEvent(room, `${player.name} が${label}を投擲しました${level ? `（エンハンス${level}）` : ""}${energyShockwave ? "。接地点へ衝撃波エネルギーを付与しました" : ""}。`);
+  pushEvent(room, `${player.name} が${label}を投擲しました${level ? `（エンハンス${level}）` : ""}${energyShockwave ? "。ファイター投擲衝撃波を付与しました" : ""}。`);
   touch(room);
 }
 
@@ -15440,13 +15448,13 @@ function releaseThrownEnergyShockwave(room, source, landing) {
         preserveCooldown: true,
         magic: true,
         attackKind: "fighter-energy-shockwave",
-        attackLabel: "投擲衝撃波",
+        attackLabel: "ファイター投擲衝撃波",
         slashGuardPhysical: true,
         slashGuardReflectable: false,
         slashGuardPerfectEligible: false,
         targetRole: target.role
       });
-      pushEvent(room, `${source.name} の投擲衝撃波が ${target.name} に命中しました（${outcome}）。`);
+      pushEvent(room, `${source.name} のファイター投擲衝撃波が ${target.name} に命中しました（${outcome}）。`);
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
     }
@@ -21235,7 +21243,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "tactics-pane-tap-expand-v501",
+  version: "portrait-quantum-hold-fighter-energy-v503",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

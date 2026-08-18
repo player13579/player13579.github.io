@@ -756,7 +756,6 @@ body.game-open #sidePanel {
 
 body.game-open #sidePanel :is(
   #operatorList,
-  #itemInventoryGrid,
   #vendingPanel,
   #alchemyChoiceGrid
 ) {
@@ -2200,6 +2199,78 @@ select:focus {
 .operator-branch-panel[hidden] {
   display: none !important;
 }
+
+/* Portrait keeps the one existing tablet in normal document flow between the
+   canvas and Applied Effects; no duplicate control surface is created. */
+body.portrait-tablet-dock .field-stage-slot {
+  grid-template-rows: auto auto auto;
+  overflow: auto;
+}
+
+body.portrait-tablet-dock .board-wrap {
+  width: 100cqw;
+}
+
+body.portrait-tablet-dock #tabletPanel {
+  position: static;
+  inset: auto;
+  display: grid;
+  grid-template-columns: minmax(126px, 0.72fr) minmax(0, 1.28fr);
+  gap: 10px;
+  width: min(100%, 620px);
+  min-height: 190px;
+  margin: 0 auto;
+  overflow: visible;
+  padding: 10px;
+  border: 1px solid rgba(125, 211, 252, 0.74);
+  border-radius: 10px;
+  background: rgba(8, 20, 31, 0.94);
+  pointer-events: auto;
+}
+
+body.portrait-tablet-dock .tablet-joystick-zone,
+body.portrait-tablet-dock .tablet-quick-actions,
+body.portrait-tablet-dock .tablet-category-grid,
+body.portrait-tablet-dock .tablet-branch-tray {
+  position: static;
+  transform: none;
+  width: auto;
+  min-width: 0;
+  max-height: none;
+  margin: 0;
+}
+
+body.portrait-tablet-dock .tablet-joystick-zone { align-self: center; }
+body.portrait-tablet-dock .tablet-quick-actions {
+  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  align-self: center;
+  gap: 7px;
+}
+body.portrait-tablet-dock .tablet-category-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+}
+body.portrait-tablet-dock .tablet-category-grid button { border-radius: 6px; }
+body.portrait-tablet-dock .tablet-branch-lines { display: none !important; }
+
+.quantum-kinetic-hold-branch {
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(88px, 1fr));
+  gap: 6px;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid #67e8f9;
+  border-radius: 8px;
+  background: rgba(7, 20, 31, 0.97);
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.55);
+  color: #e0f2fe;
+  pointer-events: none;
+}
+.quantum-kinetic-hold-branch strong { grid-column: 1 / -1; font-size: 12px; }
+.quantum-kinetic-hold-branch [data-mode] { padding: 9px; border: 1px solid rgba(125, 211, 252, 0.54); border-radius: 5px; }
+.quantum-kinetic-hold-branch [data-mode].selected { background: #0e7490; color: #fff; }
 
 .tablet-panel > header,
 .operator-branch-panel header {
@@ -5115,7 +5186,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=quantum-held-item-auto-process-v502"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=portrait-quantum-hold-fighter-energy-v503"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,

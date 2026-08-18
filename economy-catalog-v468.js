@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "quantum-held-item-auto-process-v502",
+    version: "portrait-quantum-hold-fighter-energy-v503",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

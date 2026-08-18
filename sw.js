@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v502-quantum-held-item-auto-process";
+const CACHE_NAME = "dva-static-v503-portrait-quantum-hold-fighter-energy";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -49,6 +49,7 @@ const STATIC_ASSETS = [
   "/assets/generated/item-iai-v449.png",
   "/assets/generated/fighter-energy-release-ate-v404.png",
   "/assets/generated/fighter-energy-impact-ate-v404.png",
+  "/assets/generated/fighter-shockwave-ate-v393.png",
   "/assets/generated/white-hood-kill-cutin-v404.png",
   "/assets/generated/luminous-meeting-effect-v311.png",
   "/assets/generated/sabotage-repair-map-marker.webp",

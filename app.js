@@ -535,7 +535,9 @@ const state = {
   borrowedOperatorType: "gravity",
   borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", gunner: "sniping", quantum: "nuclear-transmutation" },
   quantumAbilityMode: "nuclear-transmutation",
+  quantumKineticModes: { native: "kinetic-accelerate", borrowed: "kinetic-accelerate" },
   quantumModePlayerId: "",
+  quantumKineticHold: { pointerId: null, source: null, timer: 0, opened: false, cancelled: false, startX: 0, startY: 0, selected: "", borrowed: false },
   quantumSelectStage: "ability",
   quantumOperatorBranchStage: "ability",
   rootAbilitySelectStage: "operator",
@@ -689,7 +691,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   uranium: "通常使用は自分へ強毒。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "通常使用は自分へ強毒。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
-  "orichalcum-sword": "直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。EC50後は斬撃が消滅（死体なし）、JGは全攻撃反射。斬る／投擲の衝撃波は与ダメージ1.00・EC-1、EC100以上の斬るはEC-100で特大化。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。衝撃波はJG・反射不可",
+  "orichalcum-sword": "物理武器。直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
   hsg: "取得時に即席HSGパッシブへ変換。足場のない場所へ進む直前に自動起動し、8秒間浮揚・ACC 1.8。最後の浮揚が床のない場所で終了すると落下死。起動から20秒CT中は再起動・延長・累積・リセット・Enhance不可",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
@@ -756,7 +758,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "quantum-held-item-auto-process-v502";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "portrait-quantum-hold-fighter-energy-v503";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1379,7 +1381,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "FIGHTER GUIDE",
     name: "ソフィア",
-    text: "オリハルコン・ソードは物理攻撃をガードし、正確なJGで反射。EC25で居合、EC50で無限資源、LB被確殺解除、消滅斬り、全攻撃JG反射を永続獲得します。",
+    text: "オリハルコン・ソード自体は物理斬撃・ガード・JG反射を行う剣です。これとは別に、ファイター能力のECは25で居合、50で無限資源、LB被確殺解除、消滅斬り、全攻撃JG反射を永続獲得します。",
     sophiaGesture: "power",
     philiaGesture: "focus",
     symbols: [{ type: "sparkle", owner: "sophia" }, { type: "idea", owner: "philia" }]
@@ -3087,7 +3089,9 @@ function continuousGameActionInterval(button) {
 }
 
 function isOrichalcumSwordActionButton(button) {
-  return false;
+  if (button !== els.itemUseButton) return false;
+  const selected = String(state.selectedWeaponItemId || "");
+  return selected === "orichalcum-sword";
 }
 
 function requestFighterSlash(targetId, perfectGuardIntent = false) {
@@ -3186,6 +3190,9 @@ function beginContinuousActionHold(event) {
   // Hacker generation cards own their pointer hold for detail display. Vibe
   // Coding generation is intentionally one-shot and never enters repeat.
   if (button?.closest("#hackerAbilityGrid")) return;
+  // Kinetic control owns the pointer until release so a long hold can choose
+  // exactly one branch without firing the remembered action on pointerdown.
+  if ((button === els.operatorAbilityButton || button === els.tabletAbilityShortcut) && quantumKineticHoldEligible()) return;
   if (!isContinuousGameActionButton(button)) return;
   event.preventDefault();
   stopContinuousActionHold();
@@ -5292,6 +5299,8 @@ function bindEvents() {
   els.healButton.addEventListener("click", () => api("/api/flora-heal"));
   els.alchemyButton.addEventListener("click", () => executeHackerRecipe(els.alchemySelect.value));
   els.operatorAbilityButton.addEventListener("click", triggerOperatorAbility);
+  bindQuantumKineticHold(els.operatorAbilityButton);
+  bindQuantumKineticHold(els.tabletAbilityShortcut);
   const beginJumpPointer = (button, event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (els.jumpButton.disabled) return;
@@ -6727,8 +6736,30 @@ function renderTabletControls(data) {
   renderTabletBranch(data);
 }
 
+function portraitTabletRequired() {
+  return window.innerHeight > window.innerWidth;
+}
+
+function syncPortraitTabletDock() {
+  const panel = els.tabletPanel;
+  const fieldSlot = document.querySelector(".field-stage-slot");
+  const board = fieldSlot?.querySelector(".board-wrap");
+  const lower = els.fieldLowerRow;
+  if (!panel || !fieldSlot || !board || !lower) return;
+  const portrait = portraitTabletRequired();
+  document.body.classList.toggle("portrait-tablet-dock", portrait);
+  if (portrait) {
+    if (panel.parentElement !== fieldSlot || panel.nextElementSibling !== lower) fieldSlot.insertBefore(panel, lower);
+  } else if (panel.parentElement !== board || panel !== board.firstElementChild) {
+    board.prepend(panel);
+  }
+}
+
 function setTabletOpen(open, { persist = true, focus = true } = {}) {
-  state.tabletOpen = Boolean(open && state.screen === "game" && state.data?.phase === "playing");
+  const playable = state.screen === "game" && state.data?.phase === "playing";
+  const portrait = portraitTabletRequired();
+  syncPortraitTabletDock();
+  state.tabletOpen = Boolean(playable && (open || portrait));
   els.tabletPanel.hidden = !state.tabletOpen;
   els.tabletButton?.setAttribute("aria-expanded", String(state.tabletOpen));
   els.tabletButton?.classList.toggle("active", state.tabletOpen);
@@ -7368,6 +7399,15 @@ async function activateExpandedMapPoint(point) {
   }
   setExpandedMapOpen(false);
 }
+
+window.addEventListener("resize", () => {
+  syncPortraitTabletDock();
+  if (state.screen === "game") setTabletOpen(state.tabletOpen, { persist: false, focus: false });
+}, { passive: true });
+window.addEventListener("orientationchange", () => {
+  syncPortraitTabletDock();
+  if (state.screen === "game") setTabletOpen(state.tabletOpen, { persist: false, focus: false });
+}, { passive: true });
 
 function keyName(key) {
   const value = key.toLowerCase();
@@ -9182,9 +9222,16 @@ function hasCompatibleQuantumItem(self, rawMode) {
 function rememberQuantumExecutableMode(rawMode, borrowed = false) {
   const mode = normalizeQuantumClientMode(rawMode);
   if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) return false;
+  if (mode.startsWith("kinetic-")) state.quantumKineticModes[borrowed ? "borrowed" : "native"] = mode;
   if (borrowed) state.borrowedAbilityModes.quantum = mode;
   else state.quantumAbilityMode = mode;
   return true;
+}
+
+function selectedQuantumKineticMode(borrowed = false) {
+  const current = selectedQuantumExecutableMode(borrowed);
+  if (current.startsWith("kinetic-")) return current;
+  return normalizeQuantumClientMode(state.quantumKineticModes[borrowed ? "borrowed" : "native"] || "kinetic-accelerate");
 }
 
 function populateQuantumKineticModeSelect({ root = false } = {}) {
@@ -9219,16 +9266,13 @@ function commitNativeQuantumModeSelect() {
   const self = state.data?.self;
   if (self?.special !== "quantum" || rootAbilityModeSelectActive(self)) return false;
   const mode = els.teleportModeSelect.value;
-  if (state.quantumSelectStage === "kinetic") {
-    if (!rememberQuantumExecutableMode(mode, false)) return true;
-    populateNativeQuantumModeSelect();
-    showToast(quantumModeLabel(mode));
-    if (state.abilityAutoActivate) triggerOperatorAbility();
-    return true;
-  }
   if (mode === "quantum-kinetic") {
-    populateQuantumKineticModeSelect();
-    showToast("運動エネルギー制御: 加速か減速を選択");
+    const kineticMode = selectedQuantumKineticMode(false);
+    rememberQuantumExecutableMode(kineticMode, false);
+    state.quantumSelectStage = "ability";
+    syncAbilityModeDescription("quantum", self, kineticMode);
+    showToast(`運動エネルギー制御: ${quantumModeLabel(kineticMode)}`);
+    if (state.abilityAutoActivate) triggerOperatorAbility();
     return true;
   }
   if (rememberQuantumExecutableMode(mode, false)) {
@@ -9303,9 +9347,13 @@ function commitRootAbilityModeSelect() {
     const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
     if (!choices.some(([value]) => value === mode)) return true;
     if (type === "quantum" && mode === "quantum-kinetic") {
-      populateQuantumKineticModeSelect({ root: true });
-      showToast("運動エネルギー制御: 加速か減速を選択");
+      const kineticMode = selectedQuantumKineticMode(true);
+      rememberQuantumExecutableMode(kineticMode, true);
+      state.rootAbilitySelectStage = "selected";
+      syncAbilityModeDescription("quantum", self, kineticMode);
+      showToast(`クオンタム: ${quantumModeLabel(kineticMode)}`);
       updateActionButtons(state.data);
+      if (state.abilityAutoActivate) triggerOperatorAbility();
       return true;
     }
     state.borrowedAbilityModes[type] = mode;
@@ -9316,17 +9364,96 @@ function commitRootAbilityModeSelect() {
     updateActionButtons(state.data);
     return true;
   }
-  if (state.rootAbilitySelectStage === "quantum-kinetic") {
-    const mode = els.teleportModeSelect.value;
-    if (!QUANTUM_KINETIC_MODE_OPTIONS.some(([value]) => value === mode)) return true;
-    rememberQuantumExecutableMode(mode, true);
-    state.rootAbilitySelectStage = "selected";
-    syncAbilityModeDescription("quantum", self, mode);
-    showToast(`クオンタム: ${quantumModeLabel(mode)}`);
-    updateActionButtons(state.data);
-    return true;
-  }
   return true;
+}
+
+function quantumKineticHoldEligible() {
+  const self = state.data?.self;
+  const borrowed = Boolean(self?.special === "alchemist" && self?.hackerRootActive && selectedBorrowedOperator() === "quantum");
+  return Boolean((self?.special === "quantum" || borrowed) && els.teleportModeSelect.value === "quantum-kinetic");
+}
+
+function closeQuantumKineticHold() {
+  const hold = state.quantumKineticHold;
+  if (hold.timer) window.clearTimeout(hold.timer);
+  hold.timer = 0;
+  document.getElementById("quantumKineticHoldBranch")?.remove();
+}
+
+function beginQuantumKineticHold(event, source) {
+  if (!quantumKineticHoldEligible() || (event.pointerType === "mouse" && event.button !== 0)) return false;
+  const hold = state.quantumKineticHold;
+  closeQuantumKineticHold();
+  Object.assign(hold, { pointerId: event.pointerId, source, opened: false, cancelled: false, startX: event.clientX, startY: event.clientY, selected: "", borrowed: state.data?.self?.special === "alchemist" });
+  hold.timer = window.setTimeout(() => {
+    if (hold.pointerId !== event.pointerId || hold.cancelled) return;
+    hold.opened = true;
+    const menu = document.createElement("div");
+    menu.id = "quantumKineticHoldBranch";
+    menu.className = "quantum-kinetic-hold-branch";
+    menu.innerHTML = '<strong>運動エネルギー制御</strong><span data-mode="kinetic-accelerate">加速</span><span data-mode="kinetic-decelerate">減速</span>';
+    document.body.appendChild(menu);
+    const rect = source.getBoundingClientRect();
+    menu.style.left = `${Math.round(rect.left)}px`;
+    menu.style.top = `${Math.round(rect.bottom + 8)}px`;
+    try { source.setPointerCapture(event.pointerId); } catch {}
+  }, 420);
+  return true;
+}
+
+function updateQuantumKineticHold(event) {
+  const hold = state.quantumKineticHold;
+  if (hold.pointerId !== event.pointerId) return;
+  if (!hold.opened && Math.hypot(event.clientX - hold.startX, event.clientY - hold.startY) > 14) {
+    hold.cancelled = true;
+    closeQuantumKineticHold();
+    return;
+  }
+  if (!hold.opened) return;
+  const menu = document.getElementById("quantumKineticHoldBranch");
+  const options = [...(menu?.querySelectorAll("[data-mode]") || [])];
+  const selected = options.find((node) => {
+    const rect = node.getBoundingClientRect();
+    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  });
+  hold.selected = selected?.dataset.mode || "";
+  options.forEach((node) => node.classList.toggle("selected", node === selected));
+}
+
+function finishQuantumKineticHold(event, cancelled = false) {
+  const hold = state.quantumKineticHold;
+  if (hold.pointerId !== event.pointerId) return false;
+  const shouldCommit = hold.opened && !cancelled && !hold.cancelled && Boolean(hold.selected);
+  const mode = hold.selected;
+  const borrowed = hold.borrowed;
+  const source = hold.source;
+  closeQuantumKineticHold();
+  Object.assign(hold, { pointerId: null, source: null, opened: false, cancelled: false, selected: "", borrowed: false });
+  if (!shouldCommit) return false;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  rememberQuantumExecutableMode(mode, borrowed);
+  syncAbilityModeDescription("quantum", state.data?.self, mode);
+  updateActionButtons(state.data);
+  if (state.abilityAutoActivate) triggerOperatorAbility();
+  if (source) state.continuousActionSuppressClicks.set(source, performance.now() + 700);
+  return true;
+}
+
+function bindQuantumKineticHold(source) {
+  source?.addEventListener("pointerdown", (event) => { beginQuantumKineticHold(event, source); }, true);
+  source?.addEventListener("pointermove", updateQuantumKineticHold, true);
+  source?.addEventListener("pointerup", (event) => { finishQuantumKineticHold(event, false); }, true);
+  source?.addEventListener("pointercancel", (event) => { finishQuantumKineticHold(event, true); }, true);
+  source?.addEventListener("lostpointercapture", (event) => { finishQuantumKineticHold(event, true); }, true);
+  source?.addEventListener("click", (event) => {
+    const until = Number(state.continuousActionSuppressClicks.get(source)) || 0;
+    if (performance.now() < until) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      state.continuousActionSuppressClicks.delete(source);
+    }
+  }, true);
 }
 
 function renderTargetOptions(data) {
@@ -9334,6 +9461,7 @@ function renderTargetOptions(data) {
   if (self.special === "quantum" && state.quantumModePlayerId !== self.id) {
     state.quantumModePlayerId = self.id;
     state.quantumAbilityMode = normalizeQuantumClientMode(self.quantumMode);
+    if (state.quantumAbilityMode.startsWith("kinetic-")) state.quantumKineticModes.native = state.quantumAbilityMode;
     state.quantumSelectStage = "ability";
   }
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value);
@@ -9913,6 +10041,8 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   const clickGate = createInventoryClickGate();
   let activePointerId = null;
   let activePointerType = "";
+  let inventoryScrollOwnsGesture = false;
+  let inventoryScrollLastY = 0;
   const clearNativeSelection = () => {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
@@ -9941,11 +10071,27 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     if (event.pointerType === "mouse" && event.button !== 0) return;
     activePointerId = event.pointerId;
     activePointerType = event.pointerType || "mouse";
+    inventoryScrollOwnsGesture = false;
+    inventoryScrollLastY = event.clientY;
     clickGate.reset();
     pointerGesture.start(event.pointerId, event.clientX, event.clientY);
   });
   button.addEventListener("pointermove", (event) => {
     if (activePointerId !== event.pointerId) return;
+    const gridCanScroll = scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight + 1;
+    const verticalTravel = Math.abs(event.clientY - inventoryScrollLastY);
+    if ((inventoryScrollOwnsGesture || (gridCanScroll && verticalTravel > 9)) && state.itemHoldBranch.source !== button) {
+      inventoryScrollOwnsGesture = true;
+      clickGate.arm();
+      pointerGesture.cancel(event.pointerId);
+      try { button.setPointerCapture(event.pointerId); } catch {}
+      const delta = event.clientY - inventoryScrollLastY;
+      scrollContainer.scrollTop -= delta;
+      inventoryScrollLastY = event.clientY;
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (state.itemHoldBranch.source === button) {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -9957,6 +10103,11 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
     const result = pointerGesture.end(event.pointerId);
+    if (inventoryScrollOwnsGesture) {
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      clickGate.arm();
+    }
     if (result === "hold") {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -9964,6 +10115,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     }
     activePointerId = null;
     activePointerType = "";
+    inventoryScrollOwnsGesture = false;
   });
   const cancelPointerGesture = (event) => {
     if (activePointerId !== event.pointerId) return;
@@ -9971,6 +10123,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     if (state.itemHoldBranch.source === button) closeItemHoldBranch();
     activePointerId = null;
     activePointerType = "";
+    inventoryScrollOwnsGesture = false;
     clickGate.reset();
   };
   button.addEventListener("pointercancel", cancelPointerGesture);
@@ -15080,7 +15233,7 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
-  destructionSlash: ["常時消滅斬り", "EC50回到達後、オリハルコン・ソードの斬るで対象を死体なしで消滅させます。"],
+  destructionSlash: ["常時消滅斬り", "EC50回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -17844,7 +17997,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "quantum-held-item-auto-process-v502";
+const version = "portrait-quantum-hold-fighter-energy-v503";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -18079,7 +18232,7 @@ const version = "quantum-held-item-auto-process-v502";
   defer(fighterDestructionSlashMilestoneEffect, "assets/generated/fighter-destruction-slash-milestone-v435.png");
   defer(fighterEnergyReleaseEffect, "assets/generated/fighter-energy-release-ate-v404.png");
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
-  defer(fighterShockwaveEffect, "assets/generated/fighter-energy-release-ate-v404.png");
+  defer(fighterShockwaveEffect, "assets/generated/fighter-shockwave-ate-v393.png");
   defer(floraHealV1, "assets/generated/flora-self-heal-v336.png");
   defer(floraSunbeamV3, "assets/generated/flora-sunbeam-v3-v336.png");
   defer(tacticalSystemsAtlas, "assets/generated/tactical-systems-atlas.webp");
