@@ -759,7 +759,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-operator-hold-quantum-nested-v504";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "native-picker-local-overflow-v505";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4383,24 +4383,6 @@ function switchDragDescriptorForSource(source) {
       selected: weapon.id === state.data?.self?.gunnerWeapon,
       apply() { void api("/api/gunner-weapon", { weaponId: weapon.id }); }
     })));
-  } else if (source === els.teleportModeSelect) {
-    const self = state.data?.self;
-    if (rootAbilityModeSelectActive(self) && state.rootAbilitySelectStage === "operator") {
-      title = "ROOT借用オペと能力";
-      rootGroup = "オペ";
-      options.push(...borrowedOperatorHoldChoices(self));
-    } else if (rootAbilityModeSelectActive(self) && state.rootAbilitySelectStage === "ability") {
-      const type = selectedBorrowedOperator();
-      title = `${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力`;
-      rootGroup = "能力";
-      options.push(...(type === "quantum"
-        ? quantumTopLevelHoldChoices({ borrowed: true })
-        : borrowedOperatorHoldChoices(self).find((option) => option.key === `root-operator:${type}`)?.branches || []));
-    } else if (self?.special === "quantum" && state.quantumSelectStage === "ability") {
-      title = "クオンタム能力";
-      rootGroup = "能力";
-      options.push(...quantumTopLevelHoldChoices({ borrowed: false }));
-    }
   }
   const unique = options.filter((option, index, all) => all.findIndex((entry) => entry.key === option.key) === index);
   const hierarchical = unique.some((option) => Array.isArray(option.branches));
@@ -4808,25 +4790,8 @@ function beginNativeSelectHold(event) {
   hold.startedAt = performance.now();
   hold.startX = event.clientX;
   hold.startY = event.clientY;
-  const descriptor = switchDragDescriptorForSource(source);
-  hold.branchMode = Boolean(source === els.teleportModeSelect && descriptor?.hierarchical);
-  if (hold.branchMode) {
-    event.preventDefault();
-    hold.timer = window.setTimeout(() => {
-      if (hold.pointerId !== event.pointerId || hold.source !== source) return;
-      closeSwitchDragMenu();
-      state.switchDrag.pointerId = event.pointerId;
-      state.switchDrag.source = source;
-      state.switchDrag.startX = hold.startX;
-      state.switchDrag.startY = hold.startY;
-      openSwitchDragMenu(descriptor);
-      hold.opened = state.switchDrag.opened;
-    }, SWITCH_DRAG_HOLD_DELAY_MS);
-    try { source.setPointerCapture?.(event.pointerId); } catch {}
-    return;
-  }
-  // Ordinary selects keep the exact browser/device picker. The shared ROOT/
-  // Quontum ability select reserves long hold for its canonical branch tree.
+  // Every select-based switch uses the exact browser/device picker. Long hold
+  // is an additional input route into the same native picker, never a custom UI.
   hold.opened = openNativeSelectPicker(source, true);
 }
 
@@ -4844,19 +4809,7 @@ function finishNativeSelectHold(event, cancelled = false) {
   const source = hold.source;
   const heldLongEnough = performance.now() - hold.startedAt >= SWITCH_DRAG_HOLD_DELAY_MS;
   let opened = hold.opened;
-  if (!hold.branchMode) {
-    if (!cancelled && heldLongEnough && !opened) opened = openNativeSelectPicker(source, true);
-  }
-  if (!cancelled && hold.branchMode && !opened && heldLongEnough) {
-    const descriptor = switchDragDescriptorForSource(source);
-    if (descriptor?.hierarchical) {
-      closeSwitchDragMenu();
-      state.switchDrag.source = source;
-      openSwitchDragMenu(descriptor, { persistent: true });
-      opened = state.switchDrag.opened;
-    }
-  }
-  if (!cancelled && hold.branchMode && !opened && !heldLongEnough) opened = openNativeSelectPicker(source, true);
+  if (!cancelled && heldLongEnough && !opened) opened = openNativeSelectPicker(source, true);
   if (opened) {
     event.preventDefault();
     hold.suppressClickUntil.set(source, performance.now() + 900);
@@ -5439,7 +5392,10 @@ function bindEvents() {
       if (select === els.teleportModeSelect) {
         if (commitNativeQuantumModeSelect()) {
           if (state.data) updateActionButtons(state.data);
-          select.blur();
+          const continuePicker = select.dataset.nativePickerContinuation === "1";
+          delete select.dataset.nativePickerContinuation;
+          if (continuePicker) openNativeSelectPicker(select);
+          else select.blur();
           return;
         }
         const rootStageBeforeCommit = state.rootAbilitySelectStage;
@@ -5448,7 +5404,10 @@ function bindEvents() {
           if (state.abilityAutoActivate && rootStageBeforeCommit !== "operator" && state.rootAbilitySelectStage === "selected") {
             triggerOperatorAbility();
           }
-          select.blur();
+          const continuePicker = select.dataset.nativePickerContinuation === "1";
+          delete select.dataset.nativePickerContinuation;
+          if (continuePicker) openNativeSelectPicker(select);
+          else select.blur();
           return;
         }
         rememberSelectedOperatorMode();
@@ -9488,13 +9447,18 @@ function commitNativeQuantumModeSelect() {
   const self = state.data?.self;
   if (self?.special !== "quantum" || rootAbilityModeSelectActive(self)) return false;
   const mode = els.teleportModeSelect.value;
-  if (mode === "quantum-kinetic") {
-    const kineticMode = selectedQuantumKineticMode(false);
-    rememberQuantumExecutableMode(kineticMode, false);
+  if (state.quantumSelectStage === "kinetic") {
+    if (!rememberQuantumExecutableMode(mode, false)) return true;
     state.quantumSelectStage = "ability";
-    syncAbilityModeDescription("quantum", self, kineticMode);
-    showToast(`運動エネルギー制御: ${quantumModeLabel(kineticMode)}`);
+    populateNativeQuantumModeSelect();
+    syncAbilityModeDescription("quantum", self, mode);
+    showToast(`運動エネルギー制御: ${quantumModeLabel(mode)}`);
     if (state.abilityAutoActivate) triggerOperatorAbility();
+    return true;
+  }
+  if (mode === "quantum-kinetic") {
+    populateQuantumKineticModeSelect();
+    els.teleportModeSelect.dataset.nativePickerContinuation = "1";
     return true;
   }
   if (rememberQuantumExecutableMode(mode, false)) {
@@ -9545,7 +9509,6 @@ function populateRootAbilityModeSelect(type, { prompt = false } = {}) {
 function prepareRootAbilityModeSelectForOpen() {
   const self = state.data?.self;
   if (!rootAbilityModeSelectActive(self)) {
-    if (self?.special === "quantum" && state.quantumSelectStage !== "ability") populateNativeQuantumModeSelect();
     return false;
   }
   if (state.rootAbilitySelectStage === "selected") populateRootOperatorModeSelect(self);
@@ -9555,10 +9518,21 @@ function prepareRootAbilityModeSelectForOpen() {
 function commitRootAbilityModeSelect() {
   const self = state.data?.self;
   if (!rootAbilityModeSelectActive(self)) return false;
+  if (state.rootAbilitySelectStage === "quantum-kinetic") {
+    const mode = els.teleportModeSelect.value;
+    if (!rememberQuantumExecutableMode(mode, true)) return true;
+    state.rootAbilitySelectStage = "selected";
+    populateRootAbilityModeSelect("quantum");
+    syncAbilityModeDescription("quantum", self, mode);
+    showToast(`クオンタム: ${quantumModeLabel(mode)}`);
+    updateActionButtons(state.data);
+    return true;
+  }
   if (state.rootAbilitySelectStage === "operator") {
     const type = String(els.teleportModeSelect.value || "").replace(/^root-operator:/, "");
     if (!availableBorrowedOperatorTypes(self).includes(type)) return true;
     populateRootAbilityModeSelect(type, { prompt: true });
+    els.teleportModeSelect.dataset.nativePickerContinuation = "1";
     showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択`);
     updateActionButtons(state.data);
     return true;
@@ -9569,13 +9543,9 @@ function commitRootAbilityModeSelect() {
     const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
     if (!choices.some(([value]) => value === mode)) return true;
     if (type === "quantum" && mode === "quantum-kinetic") {
-      const kineticMode = selectedQuantumKineticMode(true);
-      rememberQuantumExecutableMode(kineticMode, true);
-      state.rootAbilitySelectStage = "selected";
-      syncAbilityModeDescription("quantum", self, kineticMode);
-      showToast(`クオンタム: ${quantumModeLabel(kineticMode)}`);
+      populateQuantumKineticModeSelect({ root: true });
+      els.teleportModeSelect.dataset.nativePickerContinuation = "1";
       updateActionButtons(state.data);
-      if (state.abilityAutoActivate) triggerOperatorAbility();
       return true;
     }
     state.borrowedAbilityModes[type] = mode;
@@ -9610,15 +9580,10 @@ function beginQuantumKineticHold(event, source) {
   hold.timer = window.setTimeout(() => {
     if (hold.pointerId !== event.pointerId || hold.cancelled) return;
     hold.opened = true;
-    const menu = document.createElement("div");
-    menu.id = "quantumKineticHoldBranch";
-    menu.className = "quantum-kinetic-hold-branch";
-    menu.innerHTML = '<strong>運動エネルギー制御</strong><span data-mode="kinetic-accelerate">加速</span><span data-mode="kinetic-decelerate">減速</span>';
-    document.body.appendChild(menu);
-    const rect = source.getBoundingClientRect();
-    menu.style.left = `${Math.round(rect.left)}px`;
-    menu.style.top = `${Math.round(rect.bottom + 8)}px`;
-    try { source.setPointerCapture(event.pointerId); } catch {}
+    populateQuantumKineticModeSelect({ root: hold.borrowed });
+    updateActionButtons(state.data);
+    state.continuousActionSuppressClicks.set(source, performance.now() + 900);
+    openNativeSelectPicker(els.teleportModeSelect, true);
   }, 420);
   return true;
 }
@@ -9631,33 +9596,18 @@ function updateQuantumKineticHold(event) {
     closeQuantumKineticHold();
     return;
   }
-  if (!hold.opened) return;
-  const menu = document.getElementById("quantumKineticHoldBranch");
-  const options = [...(menu?.querySelectorAll("[data-mode]") || [])];
-  const selected = options.find((node) => {
-    const rect = node.getBoundingClientRect();
-    return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
-  });
-  hold.selected = selected?.dataset.mode || "";
-  options.forEach((node) => node.classList.toggle("selected", node === selected));
 }
 
 function finishQuantumKineticHold(event, cancelled = false) {
   const hold = state.quantumKineticHold;
   if (hold.pointerId !== event.pointerId) return false;
-  const shouldCommit = hold.opened && !cancelled && !hold.cancelled && Boolean(hold.selected);
-  const mode = hold.selected;
-  const borrowed = hold.borrowed;
+  const nativePickerOwnedGesture = hold.opened && !hold.cancelled;
   const source = hold.source;
   closeQuantumKineticHold();
   Object.assign(hold, { pointerId: null, source: null, opened: false, cancelled: false, selected: "", borrowed: false });
-  if (!shouldCommit) return false;
+  if (!nativePickerOwnedGesture) return false;
   event.preventDefault();
   event.stopImmediatePropagation();
-  rememberQuantumExecutableMode(mode, borrowed);
-  syncAbilityModeDescription("quantum", state.data?.self, mode);
-  updateActionButtons(state.data);
-  if (state.abilityAutoActivate) triggerOperatorAbility();
   if (source) state.continuousActionSuppressClicks.set(source, performance.now() + 700);
   return true;
 }
@@ -10297,6 +10247,12 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     inventoryScrollLastY = event.clientY;
     clickGate.reset();
     pointerGesture.start(event.pointerId, event.clientX, event.clientY);
+    if (scrollContainer && (
+      scrollContainer.scrollHeight > scrollContainer.clientHeight + 1 ||
+      scrollContainer.scrollWidth > scrollContainer.clientWidth + 1
+    )) {
+      try { button.setPointerCapture(event.pointerId); } catch {}
+    }
   });
   button.addEventListener("pointermove", (event) => {
     if (activePointerId !== event.pointerId) return;
@@ -18219,7 +18175,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "root-operator-hold-quantum-nested-v504";
+const version = "native-picker-local-overflow-v505";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

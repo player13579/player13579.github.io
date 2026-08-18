@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "root-operator-hold-quantum-nested-v504",
+    version: "native-picker-local-overflow-v505",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

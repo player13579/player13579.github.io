@@ -738,13 +738,7 @@ body.game-open :is([data-right-panel-scroll], .tablet-branch-list, .hacker-abili
   -webkit-overflow-scrolling: touch;
 }
 
-/*
- * The tactical sidebar is one continuous vertical flick surface.  Nested
- * inventory, generation and vending scrollers used to trap a gesture at
- * their top/bottom edge, so momentum appeared to stop depending on where the
- * finger started.  Let the sidebar own vertical overflow and keep the inner
- * grids expanded; horizontal tablet-mode carousels remain independent.
- */
+/* The outer sidebar scrolls only when no clipped local overflow area owns the swipe. */
 body.game-open #sidePanel {
   max-height: calc(100dvh - 20px);
   overflow-y: auto;
@@ -757,20 +751,12 @@ body.game-open #sidePanel {
 body.game-open #sidePanel :is(
   #operatorList,
   #vendingPanel,
-  #alchemyChoiceGrid
+  #alchemyChoiceGrid,
+  #hackerAbilityGrid,
+  #itemInventoryGrid
 ) {
-  max-height: none;
-  overflow: visible;
-  overscroll-behavior: auto;
-  -webkit-overflow-scrolling: auto;
-  scroll-behavior: auto;
-}
-
-body.game-open #sidePanel #hackerAbilityGrid {
-  max-height: none;
-  overflow: visible;
-  overscroll-behavior: auto;
-  -webkit-overflow-scrolling: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.game-open .app-shell {
@@ -5186,7 +5172,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=root-operator-hold-quantum-nested-v504"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=native-picker-local-overflow-v505"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,
