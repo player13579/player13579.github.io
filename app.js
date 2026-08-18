@@ -764,7 +764,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "multistage-picker-enemy-bot-task-v506";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "weak-bullet-shooter-survival-v507";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -10666,7 +10666,7 @@ function renderActiveEffects(data) {
   if (self.gunnerSpecialAmmoType && Number(self.gunnerSpecialAmmoRounds) > 0) {
     const typeLabel = specialAmmoLabels[self.gunnerSpecialAmmoType] || "特殊弾";
     const detail = self.gunnerSpecialAmmoType === "weak"
-      ? "対象と射手を破壊し、死体を残す"
+      ? "命中した対象を破壊し、対象の死体を残す。射手への代償ダメージなし"
       : "幸運/直観0未満:確殺 / 0以上:6秒間35%減速";
     add("特殊弾装填", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail);
   }
@@ -18247,7 +18247,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "multistage-picker-enemy-bot-task-v506";
+const version = "weak-bullet-shooter-survival-v507";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

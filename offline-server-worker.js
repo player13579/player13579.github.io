@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "multistage-picker-enemy-bot-task-v506",
+    version: "weak-bullet-shooter-survival-v507",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -17409,7 +17409,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         radius: 145,
         playerId: shooter.id,
         targetId: targetEntry.player.id,
-        variant: "weak:mutual-destruction"
+        variant: "weak:target-destruction"
       });
       const targetDestroyed = destroyPlayerUnconditionally(
         room,
@@ -17425,16 +17425,9 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
           reflectDestroy: true
         }
       );
-      if (shooter.alive && !shooter.ejected) {
-        destroyPlayerUnconditionally(
-          room,
-          shooter,
-          shooter,
-          targetDestroyed ? "ウィーク弾の代償" : "ウィーク弾不発時の代償",
-          { noKillCutin: true }
-        );
-      }
-      pushEvent(room, `${shooter.name} のウィーク弾が命中し、射手にも破壊の代償が生じました。`);
+      pushEvent(room, targetDestroyed
+        ? `${shooter.name} のウィーク弾が命中し、${targetEntry.player.name}を破壊しました。`
+        : `${shooter.name} のウィーク弾は対象側の防御または反射で破壊に至りませんでした。`);
       finishGunnerBurstRound(room, shooter, weapon, timestamp);
       checkWin(room);
       touch(room);
@@ -21308,5 +21301,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "multistage-picker-enemy-bot-task-v506" });
+self.postMessage({ type: "ready", version: "weak-bullet-shooter-survival-v507" });
 })();

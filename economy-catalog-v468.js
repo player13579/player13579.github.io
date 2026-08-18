@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "multistage-picker-enemy-bot-task-v506",
+    version: "weak-bullet-shooter-survival-v507",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
