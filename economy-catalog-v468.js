@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "physical-hsg-contribution-ranking-v514",
+    version: "unified-mind-interface-repairs-shoot-transaction-v515",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

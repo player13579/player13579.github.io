@@ -24,8 +24,8 @@ const ITEM_THROW_TARGET_CURSOR_SPEED = 900;
 const CLAIRVOYANCE_ZOOM = 0.65;
 const MARKER_EXPLANATION_DURATION_MS = 1_450;
 const ENHANCE_HOLD_STEP_MS_CLIENT = 600;
-const ENHANCE_MAX_LEVEL_CLIENT = 4;
-const GBO_HOLD_MS_CLIENT = ENHANCE_HOLD_STEP_MS_CLIENT * (ENHANCE_MAX_LEVEL_CLIENT + 1);
+const ENHANCE_MAX_LEVEL_CLIENT = 1;
+const GBO_HOLD_MS_CLIENT = 3_000;
 
 function apiUrl(path) {
   const normalized = String(path || "").startsWith("/") ? String(path) : `/${path}`;
@@ -139,11 +139,6 @@ const els = {
   inventoryItemDetailName: $("#inventoryItemDetailName"),
   inventoryItemDetailType: $("#inventoryItemDetailType"),
   inventoryItemDetailDescription: $("#inventoryItemDetailDescription"),
-  itemHoldBranchLines: $("#itemHoldBranchLines"),
-  itemHoldBranch: $("#itemHoldBranch"),
-  itemHoldBranchTitle: $("#itemHoldBranchTitle"),
-  itemHoldBranchContinuousButton: $("#itemHoldBranchContinuousButton"),
-  itemHoldBranchDetailButton: $("#itemHoldBranchDetailButton"),
   switchDragMenu: $("#switchDragMenu"),
   switchDragTitle: $("#switchDragTitle"),
   switchDragOptions: $("#switchDragOptions"),
@@ -228,6 +223,7 @@ const els = {
   hackerCategoryLabel: $("#hackerCategoryLabel"),
   gunnerReloadButton: $("#gunnerReloadButton"),
   vendingPanel: $("#vendingPanel"),
+  vendingContinuousPurchase: $("#vendingContinuousPurchase"),
   vendingCategoryPreviousButton: $("#vendingCategoryPreviousButton"),
   vendingCategoryNextButton: $("#vendingCategoryNextButton"),
   vendingCategoryLabel: $("#vendingCategoryLabel"),
@@ -263,7 +259,7 @@ const els = {
 
 // Fixed overlays must not remain inside animated panels: even an identity
 // transform makes position:fixed use that panel as its containing block.
-for (const overlay of [els.inventoryItemDetail, els.itemHoldBranchLines, els.itemHoldBranch]) {
+for (const overlay of [els.inventoryItemDetail]) {
   if (overlay && overlay.parentElement !== document.body) document.body.append(overlay);
 }
 
@@ -427,15 +423,6 @@ const state = {
   toastTimer: null,
   inventoryItemDetailTimer: null,
   inventoryItemDetailSource: null,
-  itemHoldBranch: {
-    source: null,
-    detail: null,
-    repeat: null,
-    pointerId: null,
-    selected: "",
-    repeatTimer: 0,
-    repeatRunning: false
-  },
   switchDrag: {
     pointerId: null,
     source: null,
@@ -513,7 +500,7 @@ const state = {
   fighterSlashGuardIntent: false,
   fighterSlashPendingRequests: new Set(),
   selectedWeaponItemId: "",
-  enhanceHold: { kind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" },
+  enhanceHold: { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" },
   throwTargeting: {
     active: false,
     itemId: "",
@@ -572,11 +559,13 @@ const state = {
   gunTriggerHeld: false,
   gunTriggerPointerId: null,
   gunFireStartPromise: null,
+  gunActivationPending: false,
   renderDrone: null,
   operatorRenderKey: "",
   operatorDetailTimer: 0,
   operatorDetailSource: null,
   resultCelebrationKey: "",
+  resultRenderFingerprint: "",
   mapPointer: null,
   expandedMapTap: null,
   actionSelectionId: "",
@@ -614,6 +603,7 @@ const state = {
   activeEffectsRenderKey: "",
   inventoryVisualWeapon: "",
   vendingOpen: false,
+  vendingContinuousPurchase: false,
   vendingRenderKey: "",
   vendingCategoryId: "generate-supply",
   vendingSelectedByCategory: Object.create(null),
@@ -691,17 +681,17 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
   computer: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
-  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。ため撃ちLv1〜4は0.58/0.67/0.77/0.86（最遠0.37/0.43/0.50/0.56）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。ため撃ちLv1〜4は0.50/0.59/0.67/0.76（最遠0.14/0.17/0.19/0.22）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhanceは0.58（最遠0.37）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhanceは0.50（最遠0.14）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhanceは0.70（最遠0.55）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhanceは与ダメージ1.62・固定1MP。固有の確殺なし、理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhanceは0.19（最遠0.14）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
-  uranium: "密封容器に入った物理アイテム。通常使用は自分へ強毒。通常投擲では容器のまま接地点に残り、誰でも拾える。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
-  plutonium: "密封容器に入った物理アイテム。通常使用は自分へ強毒。通常投擲では容器のまま接地点に残り、誰でも拾える。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
+  uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
+  plutonium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "物理武器。直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
-  hsg: "Storageへ入る物理HSG。足場のない場所へ進む直前に通常8秒・ACC 1.8で自動起動。Use長押しは600msから固定1MPのEnhance、3000msから固定2MPのGBOを次回起動へ一回予約する。GBO起動は80秒・ACC 18で、その直後にHSG本体を破壊。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。最後の浮揚が床のない場所で終了すると落下死。起動中・20秒CT中は準備変更不可",
+  hsg: "Storageへ入る物理HSG。支持床上で使用すると即8秒・ACC 1.8、600〜2999ms長押しは固定1MPのEnhance、3000ms以上は固定2MPのGBOとして即80秒・ACC 18で起動しHSG 1個を破壊。床外へ進む直前の通常自動起動は全所持者が使え、理知を要しない。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。最後の浮揚が床のない場所で終了すると落下死。起動中・20秒CT中は使用不可",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -767,7 +757,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "physical-hsg-contribution-ranking-v514";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "unified-mind-interface-repairs-shoot-transaction-v515";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1370,7 +1360,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "RESOURCE GUIDE",
     name: "ソフィア",
-    text: "MPは0以下が欲望、1が気概、2以上が理知。SPは0が欲望、1～250が気概、251以上が理知です。満タンSPと余剰MPは互いへ少しずつ自動変換されます。",
+    text: "MPは0以下=0点、1=1点、2以上=2点。SPは0以下=0点、1〜250=1点、251以上=2点。合計0=欲望、1〜2=気概、3〜4=理知。HPは含めない。満タンSPと余剰MPは互いへ少しずつ自動変換されます。",
     sophiaGesture: "focus",
     philiaGesture: "interact",
     symbols: [{ type: "idea", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
@@ -1400,7 +1390,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "philia",
     role: "ITEM GUIDE",
     name: "フィリア",
-    text: "自販機はどこでも開け、分類から選びます。瓶だけは接地で壊れて回収できません。それ以外の物理アイテムは被弾地点か接地点に残り、誰でも拾えます。長押しで詳細を確認できます。",
+    text: "自販機はどこでも開け、分類から選びます。瓶は接地で壊れ、ウラン／プルトニウム容器は投擲中に空中で開くため回収できません。それ以外の物理アイテムは被弾地点か接地点に残り、誰でも拾えます。長押しで詳細を確認できます。",
     sophiaGesture: "interact",
     philiaGesture: "throw",
     symbols: [{ type: "cheer", owner: "philia" }, { type: "note", owner: "sophia" }]
@@ -2908,13 +2898,13 @@ const vendingHold = {
   button: null,
   pointerId: null,
   timer: 0,
+  repeatTimer: 0,
   suppressClickUntil: 0,
   originX: 0,
   originY: 0,
-  lastY: 0,
   moved: false,
   held: false,
-  scrollContainer: null
+  repeatRunning: false
 };
 
 function vendingProductDetail(button) {
@@ -2937,17 +2927,39 @@ async function purchaseVendingItem(button) {
   }
 }
 
-function stopVendingHold() {
+function stopVendingHold({ suppressClick = false } = {}) {
   if (vendingHold.timer) window.clearTimeout(vendingHold.timer);
+  if (vendingHold.repeatTimer) window.clearTimeout(vendingHold.repeatTimer);
+  if (suppressClick) vendingHold.suppressClickUntil = performance.now() + 1_200;
   vendingHold.timer = 0;
+  vendingHold.repeatTimer = 0;
   vendingHold.button = null;
   vendingHold.pointerId = null;
   vendingHold.originX = 0;
   vendingHold.originY = 0;
-  vendingHold.lastY = 0;
   vendingHold.moved = false;
   vendingHold.held = false;
-  vendingHold.scrollContainer = null;
+  vendingHold.repeatRunning = false;
+}
+
+function stopVendingKeyHold() {
+  const code = state.continuousActionKeyHold?.code || "";
+  if (vendingHotkeys[code] || vendingHotkeys[`Alt+${code}`]) stopContinuousActionKeyHold(code);
+}
+
+async function repeatVendingPurchase(button) {
+  if (!vendingHold.repeatRunning || vendingHold.button !== button || !state.vendingContinuousPurchase) return;
+  const purchased = await purchaseVendingItem(button);
+  if (!purchased || !vendingHold.repeatRunning || vendingHold.button !== button) {
+    stopVendingHold({ suppressClick: true });
+    return;
+  }
+  vendingHold.repeatTimer = window.setTimeout(() => void repeatVendingPurchase(button), 180);
+}
+
+function beginVendingRepeat(button) {
+  vendingHold.repeatRunning = true;
+  void repeatVendingPurchase(button);
 }
 
 function startVendingHold(event, button) {
@@ -2958,61 +2970,46 @@ function startVendingHold(event, button) {
   vendingHold.pointerId = event.pointerId;
   vendingHold.originX = event.clientX;
   vendingHold.originY = event.clientY;
-  vendingHold.lastY = event.clientY;
-  vendingHold.scrollContainer = button.closest(".vending-panel");
   vendingHold.timer = window.setTimeout(() => {
     if (vendingHold.button !== button || vendingHold.moved) return;
     vendingHold.timer = 0;
     vendingHold.held = true;
     vendingHold.suppressClickUntil = performance.now() + 1_200;
     try { button.setPointerCapture(event.pointerId); } catch {}
-    openItemHoldBranch({
-      source: button,
-      detail: vendingProductDetail(button),
-      repeat: () => purchaseVendingItem(button),
-      continuousLabel: "連続購入",
-      pointerId: event.pointerId
-    });
+    if (state.vendingContinuousPurchase) beginVendingRepeat(button);
+    else showInventoryItemDetail(vendingProductDetail(button), button);
     if (navigator.vibrate) navigator.vibrate(18);
   }, 520);
 }
 
 function moveVendingHold(event) {
   if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
-  if (vendingHold.held) {
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
-    updateItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
-    return;
-  }
-  vendingHold.lastY = event.clientY;
   if (!vendingHold.moved && Math.hypot(
     event.clientX - vendingHold.originX,
     event.clientY - vendingHold.originY
   ) > 9) {
     vendingHold.moved = true;
-    if (vendingHold.timer) window.clearTimeout(vendingHold.timer);
-    vendingHold.timer = 0;
+    stopVendingHold({ suppressClick: true });
   }
 }
 
 function finishVendingHold(event) {
   if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
   const wasHeld = vendingHold.held;
-  if (wasHeld) {
+  if (wasHeld || vendingHold.moved) {
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
-    vendingHold.suppressClickUntil = performance.now() + 1_200;
-    finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
+    stopVendingHold({ suppressClick: true });
+    return;
   }
+  vendingHold.suppressClickUntil = performance.now() + 1_200;
   stopVendingHold();
+  void purchaseVendingItem(event.currentTarget);
 }
 
 function cancelVendingHold(event) {
   if (vendingHold.pointerId !== event.pointerId) return;
-  if (vendingHold.held) vendingHold.suppressClickUntil = performance.now() + 1_200;
-  if (state.itemHoldBranch.source === vendingHold.button) closeItemHoldBranch();
-  stopVendingHold();
+  stopVendingHold({ suppressClick: true });
 }
 
 const SPECIALIZED_HOLD_ACTION_IDS = new Set([
@@ -3582,7 +3579,7 @@ function updateEnhanceReadout() {
     : gbo
       ? mana >= 2 ? "GBO / 性能×10 / -2MP / 使用後に武具破壊" : "GBO / MP不足（2MP必要） / 解放時は不成立"
       : requested > 0
-        ? mana >= 1 ? `エンハンス Lv${requested} / -1MP` : `エンハンス Lv${requested} / MP不足（1MP必要）`
+        ? mana >= 1 ? "エンハンス / -1MP" : "エンハンス / MP不足（1MP必要）"
         : "通常動作 / 0MP";
   if (hold.kind) hold.timer = requestAnimationFrame(updateEnhanceReadout);
 }
@@ -3594,10 +3591,13 @@ function beginEnhanceAction(kind, pointerId = null) {
     : kind === "fire"
       ? "fire-jutsu"
       : ["use", "throw"].includes(kind) ? String(els.itemSelect?.value || "") : "";
+  const chargeKind = kind === "use" && itemId.startsWith("weapon:") ? "shoot" : kind;
+  if (chargeKind === "shoot" && state.gunActivationPending) return false;
   const chargePromise = state.roomId && state.playerId
-    ? api("/api/enhance-charge", { active: true, kind, itemId })
+    ? api("/api/enhance-charge", { active: true, kind: chargeKind, itemId })
     : Promise.resolve(false);
-  state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0, itemId, chargeId: "", chargePromise };
+  state.enhanceHold = { kind, chargeKind, pointerId, startedAt: performance.now(), timer: 0, itemId, chargeId: "", chargePromise };
+  if (chargeKind === "shoot") state.gunActivationPending = true;
   state.movementQueue?.clear?.();
   clearMovementInput();
   // A new movement session makes any request that was already in flight before
@@ -3612,7 +3612,8 @@ function cancelEnhanceAction(kind = state.enhanceHold.kind) {
   const hold = state.enhanceHold;
   if (!hold.kind || (kind && hold.kind !== kind)) return false;
   if (hold.timer) cancelAnimationFrame(hold.timer);
-  state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
+  state.enhanceHold = { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
+  if (hold.chargeKind === "shoot") state.gunActivationPending = false;
   updateEnhanceReadout();
   // Preserve request order: if the start request is still travelling, clear it
   // only after that request settles so a cancelled charge cannot reappear.
@@ -3633,13 +3634,14 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
   if (!hold.kind || (kind && hold.kind !== kind) || (pointerId !== null && hold.pointerId !== pointerId)) return false;
   const holdMs = Math.max(0, performance.now() - hold.startedAt);
   if (hold.timer) cancelAnimationFrame(hold.timer);
-  state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
+  state.enhanceHold = { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
   updateEnhanceReadout();
   const chargeResult = await Promise.resolve(hold.chargePromise);
   const chargeId = String(chargeResult?.self?.enhanceChargeId || hold.chargeId || "");
   if (kind === "shoot") {
     const result = await beginGunFire(holdMs, chargeId);
     if (!result) await clearServerEnhanceCharge();
+    state.gunActivationPending = false;
     return result;
   }
   if (kind === "fire") return api("/api/fire-jutsu", { holdMs, chargeId });
@@ -3663,11 +3665,13 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
       const switched = await api("/api/gunner-weapon", { weaponId });
       if (!switched) {
         await clearServerEnhanceCharge();
+        state.gunActivationPending = false;
         return false;
       }
     }
     const result = await beginGunFire(holdMs, chargeId);
     if (!result) await clearServerEnhanceCharge();
+    state.gunActivationPending = false;
     return result;
   }
   if (kind === "use" && itemId.startsWith("heavy:")) {
@@ -3827,12 +3831,20 @@ function triggerVendingHotkey(event) {
   if (!button || button.hidden) return false;
   event.preventDefault();
   if (!event.repeat) {
-    beginContinuousActionKeyHold(event.code, () => {
+    if (!state.vendingContinuousPurchase) {
+      void purchaseVendingItem(button);
+      return true;
+    }
+    void purchaseVendingItem(button);
+    beginContinuousActionKeyHold(event.code, (initial) => {
+      if (initial) return true;
       const current = resolveButton();
       if (els.vendingPanel.hidden || !current || current.hidden) return false;
-      if (!current.disabled) current.click();
+      void purchaseVendingItem(current).then((purchased) => {
+        if (!purchased) stopContinuousActionKeyHold(event.code);
+      });
       return true;
-    });
+    }, 180);
   }
   return true;
 }
@@ -5201,6 +5213,10 @@ function bindEvents() {
   els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
   els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
+  els.vendingContinuousPurchase.addEventListener("change", () => {
+    state.vendingContinuousPurchase = Boolean(els.vendingContinuousPurchase.checked);
+    if (!state.vendingContinuousPurchase) stopVendingHold({ suppressClick: true });
+  });
   window.addEventListener("resize", () => scheduleGameplayViewportReflow(), { passive: true });
   bindTabletControls();
   [
@@ -5238,52 +5254,18 @@ function bindEvents() {
   window.addEventListener("blur", () => {
     closeSwitchDragMenu();
     clearNativeSelectHold();
+    stopVendingHold({ suppressClick: true });
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) return;
     closeSwitchDragMenu();
     clearNativeSelectHold();
+    stopVendingHold({ suppressClick: true });
   });
   window.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
   window.visualViewport?.addEventListener("resize", () => positionSwitchDragMenu(), { passive: true });
   window.visualViewport?.addEventListener("scroll", () => positionSwitchDragMenu(), { passive: true });
   els.operatorBranchCloseButton.addEventListener("click", () => setOperatorBranchesOpen(false));
-  els.itemHoldBranchContinuousButton.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    state.itemHoldBranch.pointerId = event.pointerId;
-    selectItemHoldBranchChoice("continuous");
-    try { els.itemHoldBranchContinuousButton.setPointerCapture(event.pointerId); } catch {}
-  });
-  const finishContinuousPurchaseBranch = (event) => {
-    if (state.itemHoldBranch.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    finishItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
-  };
-  els.itemHoldBranchContinuousButton.addEventListener("pointerup", finishContinuousPurchaseBranch);
-  els.itemHoldBranchContinuousButton.addEventListener("pointercancel", () => closeItemHoldBranch());
-  els.itemHoldBranchContinuousButton.addEventListener("lostpointercapture", (event) => {
-    if (state.itemHoldBranch.pointerId === event.pointerId) closeItemHoldBranch();
-  });
-  els.itemHoldBranchContinuousButton.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  });
-  els.itemHoldBranchDetailButton.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const { detail, source } = state.itemHoldBranch;
-    if (detail && source) showInventoryItemDetail(detail, source);
-    closeItemHoldBranch();
-  });
-  document.addEventListener("pointerdown", (event) => {
-    if (els.itemHoldBranch.hidden) return;
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest("#itemHoldBranch") || target === state.itemHoldBranch.source || target?.closest?.("button") === state.itemHoldBranch.source) return;
-    closeItemHoldBranch();
-  });
   els.keybindCloseButton.addEventListener("click", () => setKeybindOpen(false));
   els.killCameraCloseButton.addEventListener("click", () => {
     const record = state.data?.self?.killCamera;
@@ -5375,6 +5357,7 @@ function bindEvents() {
   els.taskButton.addEventListener("click", () => api("/api/task", { taskId: nearestTask()?.id || "nearest" }));
   els.ninjutsuButton.addEventListener("click", performNinjutsu);
   const bindGunTriggerButton = (button) => {
+    let suppressClickUntil = 0;
     button.addEventListener("pointerdown", (event) => {
       if ((event.pointerType === "mouse" && event.button !== 0) || button.disabled) return;
       event.preventDefault();
@@ -5382,10 +5365,14 @@ function bindEvents() {
       button.setPointerCapture?.(event.pointerId);
       beginEnhanceAction("shoot", event.pointerId);
     });
-    button.addEventListener("pointerup", releaseGunPointer);
+    button.addEventListener("pointerup", (event) => {
+      suppressClickUntil = performance.now() + 700;
+      releaseGunPointer(event);
+    });
     button.addEventListener("pointercancel", cancelGunPointer);
     button.addEventListener("lostpointercapture", cancelGunPointer);
     button.addEventListener("click", (event) => {
+      if (performance.now() < suppressClickUntil) return;
       if (event.detail === 0) void pulseGunFire();
     });
   };
@@ -7802,7 +7789,6 @@ async function returnOfflineToOperatorSelect() {
   els.operatorReselectButton.disabled = true;
   clearMovementInput();
   closeSwitchDragMenu();
-  closeItemHoldBranch();
   if (state.expandedMapOpen) setExpandedMapOpen(false);
   const result = await request("/api/operator-reselect", {
     roomId,
@@ -8033,7 +8019,7 @@ async function performNinjutsu() {
   const ok = await api("/api/ninjutsu", { targetId: target.id });
   if (ok) {
     const assassin = state.data?.self?.special === "assassin";
-    showToast(`${target.name}への忍殺準備を開始しました。自分と対象が5秒間静止すると${assassin ? "アサシン忍殺による消滅" : "消滅"}が発動します。`);
+    showToast(`${target.name}への忍殺準備を開始しました。自分と対象が4秒間静止すると${assassin ? "アサシン忍殺による消滅" : "消滅"}が発動します。`);
   }
 }
 
@@ -8059,6 +8045,7 @@ function clearLocalGunTrigger() {
   state.gunTriggerHeld = false;
   state.gunTriggerPointerId = null;
   state.gunFireStartPromise = null;
+  state.gunActivationPending = false;
   els.shootButton.classList.remove("active");
   els.tabletShootShortcut?.classList.remove("active");
   if (pointerId === null) return;
@@ -8262,6 +8249,7 @@ function resetLocalSession() {
   state.renderDrone = null;
   state.operatorRenderKey = "";
   state.resultCelebrationKey = "";
+  state.resultRenderFingerprint = "";
   els.resultConfetti.replaceChildren();
   state.mapPointer = null;
   state.actionSelectionId = "";
@@ -8274,6 +8262,8 @@ function resetLocalSession() {
   state.hackerSelectedRecipeId = "";
   state.hackerSelectedByCategory = Object.create(null);
   state.vendingOpen = false;
+  state.vendingContinuousPurchase = false;
+  els.vendingContinuousPurchase.checked = false;
   state.vendingRenderKey = "";
   state.vendingCategoryId = "generate-supply";
   state.vendingSelectedByCategory = Object.create(null);
@@ -8321,9 +8311,12 @@ function applyState(data, options = {}) {
     state.movementActive = false;
     state.movementStopPendingSeq = 0;
     stopVendingHold();
+    stopVendingKeyHold();
     cancelEnhanceAction();
     cancelThrowTargeting(true);
     state.vendingOpen = false;
+    state.vendingContinuousPurchase = false;
+    els.vendingContinuousPurchase.checked = false;
     els.vendingPanel.hidden = true;
     els.itemControl.hidden = true;
     state.vendingRenderKey = "";
@@ -9457,9 +9450,10 @@ function populateQuantumKineticModeSelect({ root = false } = {}) {
   els.quantumKineticBranchSelect.innerHTML = QUANTUM_KINETIC_MODE_OPTIONS
     .map(([value, label]) => `<option value="${value}">${label}</option>`)
     .join("");
-  // Keep the closed control neutral without adding a third, instructional
-  // option. The native picker itself must contain exactly 加速 and 減速.
-  els.quantumKineticBranchSelect.selectedIndex = -1;
+  // The native picker contains only the two executable choices. Accelerate is
+  // the canonical first/default choice; preserve an already committed choice
+  // when this branch is reopened instead of returning to a blank bar.
+  els.quantumKineticBranchSelect.value = selectedQuantumKineticMode(root);
   els.quantumKineticBranchSelect.setAttribute("aria-label", `${root ? "ROOT借用" : ""}クオンタム・運動エネルギー制御・加速または減速`);
   syncAbilityCascadeSelectVisibility();
   els.teleportModeDescription.textContent = "運動エネルギー制御を加速か減速へ分岐します。対象となる水を所持していなければ何も起きません。";
@@ -9906,26 +9900,20 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
       const activeMs = Math.max(0, Number(self.hsgUntil) - liveNow);
       const cooldownMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
       const gboActive = Number(self.timedAccelerationStacks?.hsg?.multiplier) >= 18;
-      const preparedMode = String(self.hsgPreparedMode || "");
-      const preparedLevel = Math.max(0, Number(self.hsgPreparedEnhanceLevel) || 0);
       const stateLabel = activeMs > 0
         ? `${gboActive ? "GBO作動中" : "作動中"} ${Math.ceil(activeMs / 1000)}秒`
         : cooldownMs > 0
           ? `CT ${Math.ceil(cooldownMs / 1000)}秒`
-          : preparedMode === "gbo"
-            ? "GBO予約済"
-            : preparedMode === "enhance"
-              ? `Enhance Lv${preparedLevel || 1}予約済`
-              : "待機";
+          : "待機";
       return {
         ...item,
         inventoryKind,
         output: `物理武具 / ${stateLabel}`,
         detail: activeMs > 0
-          ? `物理HSG。${gboActive ? "GBO" : "通常"}自動浮揚中のため準備変更不可（残り${(activeMs / 1000).toFixed(1)}秒）。表示中の本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
+          ? `物理HSG。${gboActive ? "GBO" : "通常／Enhance"}浮揚中（残り${(activeMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
           : cooldownMs > 0
-            ? `物理HSG。20秒CT中のため準備変更不可（残り${(cooldownMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
-            : "物理HSG。Useを600〜2999ms長押しで固定1MPのEnhance Lv1〜4、3000ms以上で固定2MPのGBOを次回自動起動へ予約。GBO起動後だけHSGを1個破壊。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能",
+            ? `物理HSG。20秒CT中（残り${(cooldownMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
+            : "物理HSG。支持床上で使用すると即8秒・ACC 1.8。Useを600〜2999ms長押しすると単一Enhance（固定1MP）で即10秒・ACC 2.0、3000ms以上で固定2MPのGBOを即起動。GBOだけHSGを1個破壊。床外へ進む時は全所持者に通常自動起動。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能",
         badge: `×${Number(item.amount) || 1} / ${stateLabel}`,
         usable: activeMs <= 0 && cooldownMs <= 0,
         throwable: true,
@@ -10094,151 +10082,6 @@ function hideInventoryItemDetail() {
   els.inventoryItemDetail.hidden = true;
 }
 
-function stopItemHoldBranchRepeat() {
-  const branch = state.itemHoldBranch;
-  if (branch.repeatTimer) window.clearTimeout(branch.repeatTimer);
-  branch.repeatTimer = 0;
-  branch.repeatRunning = false;
-}
-
-function closeItemHoldBranch() {
-  stopItemHoldBranchRepeat();
-  const branch = state.itemHoldBranch;
-  branch.source = null;
-  branch.detail = null;
-  branch.repeat = null;
-  branch.pointerId = null;
-  branch.selected = "";
-  els.itemHoldBranch.hidden = true;
-  els.itemHoldBranchLines.hidden = true;
-  els.itemHoldBranchContinuousButton.classList.remove("branch-selected");
-  els.itemHoldBranchDetailButton.classList.remove("branch-selected");
-}
-
-function drawItemHoldBranchLine() {
-  const source = state.itemHoldBranch.source;
-  if (!source?.isConnected || els.itemHoldBranch.hidden) return;
-  const sourceRect = source.getBoundingClientRect();
-  const branchRect = els.itemHoldBranch.getBoundingClientRect();
-  const sourceX = sourceRect.left + sourceRect.width / 2;
-  const sourceY = sourceRect.top;
-  const endX = branchRect.left + branchRect.width / 2;
-  const endY = branchRect.bottom;
-  const namespace = "http://www.w3.org/2000/svg";
-  els.itemHoldBranchLines.replaceChildren();
-  els.itemHoldBranchLines.setAttribute("viewBox", `0 0 ${window.innerWidth} ${window.innerHeight}`);
-  const path = document.createElementNS(namespace, "path");
-  path.setAttribute("d", `M ${sourceX} ${sourceY} L ${endX} ${endY}`);
-  path.setAttribute("class", "item-hold-branch-line");
-  const endpoint = document.createElementNS(namespace, "circle");
-  endpoint.setAttribute("cx", String(endX));
-  endpoint.setAttribute("cy", String(endY));
-  endpoint.setAttribute("r", "4");
-  endpoint.setAttribute("class", "item-hold-branch-junction");
-  els.itemHoldBranchLines.append(path, endpoint);
-}
-
-function positionItemHoldBranch() {
-  const source = state.itemHoldBranch.source;
-  if (!source?.isConnected || els.itemHoldBranch.hidden) return;
-  const viewport = window.visualViewport;
-  const leftEdge = Number(viewport?.offsetLeft) || 0;
-  const topEdge = Number(viewport?.offsetTop) || 0;
-  const rightEdge = leftEdge + (Number(viewport?.width) || window.innerWidth);
-  const sourceRect = source.getBoundingClientRect();
-  const branchRect = els.itemHoldBranch.getBoundingClientRect();
-  const margin = 10;
-  const gap = 8;
-  let left = sourceRect.left + sourceRect.width / 2 - branchRect.width / 2;
-  left = clamp(left, leftEdge + margin, rightEdge - branchRect.width - margin);
-  const top = Math.max(topEdge + margin, sourceRect.top - branchRect.height - gap);
-  els.itemHoldBranch.style.left = `${Math.round(left)}px`;
-  els.itemHoldBranch.style.top = `${Math.round(top)}px`;
-  requestAnimationFrame(drawItemHoldBranchLine);
-}
-
-function openItemHoldBranch({ source, detail, repeat, continuousLabel = "連続購入", pointerId = null }) {
-  if (!source || !detail || typeof repeat !== "function") return false;
-  hideInventoryItemDetail();
-  closeItemHoldBranch();
-  state.itemHoldBranch.source = source;
-  state.itemHoldBranch.detail = detail;
-  state.itemHoldBranch.repeat = repeat;
-  state.itemHoldBranch.pointerId = pointerId;
-  els.itemHoldBranchTitle.textContent = detail?.label || "派生操作";
-  els.itemHoldBranchContinuousButton.textContent = continuousLabel;
-  els.itemHoldBranch.hidden = false;
-  els.itemHoldBranchLines.hidden = false;
-  positionItemHoldBranch();
-  return true;
-}
-
-function itemHoldBranchChoiceAt(clientX, clientY) {
-  const target = document.elementFromPoint(clientX, clientY);
-  if (target?.closest?.("#itemHoldBranchContinuousButton")) return "continuous";
-  if (target?.closest?.("#itemHoldBranchDetailButton")) return "detail";
-  return "";
-}
-
-function startItemHoldBranchRepeat() {
-  const branch = state.itemHoldBranch;
-  if (branch.repeatRunning || typeof branch.repeat !== "function") return;
-  branch.repeatRunning = true;
-  const tick = async () => {
-    if (!branch.repeatRunning || branch.selected !== "continuous" || typeof branch.repeat !== "function") return;
-    try { await branch.repeat(); } catch {}
-    if (branch.repeatRunning && branch.selected === "continuous") {
-      branch.repeatTimer = window.setTimeout(tick, 180);
-    }
-  };
-  void tick();
-}
-
-function selectItemHoldBranchChoice(choice) {
-  const branch = state.itemHoldBranch;
-  const previousChoice = branch.selected;
-  branch.selected = choice;
-  els.itemHoldBranchContinuousButton.classList.toggle("branch-selected", choice === "continuous");
-  els.itemHoldBranchDetailButton.classList.toggle("branch-selected", choice === "detail");
-  if (choice === "continuous") {
-    if (previousChoice === "detail") hideInventoryItemDetail();
-    startItemHoldBranchRepeat();
-  } else {
-    stopItemHoldBranchRepeat();
-    if (choice === "detail" && branch.detail && branch.source) {
-      showInventoryItemDetail(branch.detail, branch.source);
-    } else if (previousChoice === "detail" && branch.pointerId !== null) {
-      hideInventoryItemDetail();
-    }
-  }
-}
-
-function updateItemHoldBranchGesture(pointerId, clientX, clientY) {
-  const branch = state.itemHoldBranch;
-  if (branch.pointerId !== pointerId || els.itemHoldBranch.hidden) return false;
-  selectItemHoldBranchChoice(itemHoldBranchChoiceAt(clientX, clientY));
-  return true;
-}
-
-function finishItemHoldBranchGesture(pointerId, clientX, clientY) {
-  const branch = state.itemHoldBranch;
-  if (branch.pointerId !== pointerId || els.itemHoldBranch.hidden) return false;
-  const choice = itemHoldBranchChoiceAt(clientX, clientY) || branch.selected;
-  const wasRepeating = branch.repeatRunning;
-  stopItemHoldBranchRepeat();
-  if (choice === "detail" && branch.detail && branch.source) {
-    showInventoryItemDetail(branch.detail, branch.source);
-  } else if (choice === "continuous" && typeof branch.repeat === "function" && !wasRepeating) {
-    void branch.repeat();
-  }
-  if (choice) closeItemHoldBranch();
-  else {
-    branch.pointerId = null;
-    selectItemHoldBranchChoice("");
-  }
-  return true;
-}
-
 function showInventoryItemDetail(item, sourceButton) {
   if (!item || !sourceButton) return;
   if (state.inventoryItemDetailTimer) window.clearTimeout(state.inventoryItemDetailTimer);
@@ -10286,9 +10129,6 @@ function positionInventoryItemDetail(sourceButton = state.inventoryItemDetailSou
 window.addEventListener("resize", () => positionInventoryItemDetail(), { passive: true });
 window.visualViewport?.addEventListener("resize", () => positionInventoryItemDetail(), { passive: true });
 window.visualViewport?.addEventListener("scroll", () => positionInventoryItemDetail(), { passive: true });
-window.addEventListener("resize", () => positionItemHoldBranch(), { passive: true });
-window.visualViewport?.addEventListener("resize", () => positionItemHoldBranch(), { passive: true });
-window.visualViewport?.addEventListener("scroll", () => positionItemHoldBranch(), { passive: true });
 
 function createInventoryClickGate({
   now = () => performance.now(),
@@ -10347,13 +10187,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   });
   button.addEventListener("pointermove", (event) => {
     if (activePointerId !== event.pointerId) return;
-    if (state.itemHoldBranch.source === button) {
-      if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
-      updateItemHoldBranchGesture(event.pointerId, event.clientX, event.clientY);
-    } else {
-      pointerGesture.move(event.pointerId, event.clientX, event.clientY);
-    }
+    pointerGesture.move(event.pointerId, event.clientX, event.clientY);
   });
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
@@ -10369,7 +10203,6 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   const cancelPointerGesture = (event) => {
     if (activePointerId !== event.pointerId) return;
     pointerGesture.cancel(event.pointerId);
-    if (state.itemHoldBranch.source === button) closeItemHoldBranch();
     activePointerId = null;
     activePointerType = "";
     clickGate.reset();
@@ -10481,7 +10314,7 @@ function renderItemControl(data) {
   const selectedUseLabel = selected?.inventoryKind === "weapon"
     ? selectedWeaponReloading ? `自動リロード ${Math.max(0, (Number(self.gunnerReloadUntil) - estimatedServerNow(data)) / 1000).toFixed(1)}秒` : "射撃"
     : selected?.id === "hsg"
-      ? selected.usable === false ? "HSG状態" : "HSG準備"
+      ? "使用"
       : selected?.sourceId === "orichalcum-sword" || selected?.id === "orichalcum-sword"
       ? "斬る"
       : selectedInstant ? "発動" : selected?.usable === false ? "使用不可" : "使用";
@@ -10632,33 +10465,14 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
     );
   }
 
-  const hsgOwned = ownsDisplayedItem(self, "hsg");
   const hsgActiveMs = Math.max(0, Number(self.hsgUntil) - liveNow);
-  const hsgCooldownMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
   const hsgGboActive = Number(self.timedAccelerationStacks?.hsg?.multiplier) >= 18;
-  if (hasDisplayedOperatorAccess(self, "gunner") || hsgOwned || hsgActiveMs > 0 || hsgCooldownMs > 0) {
-    const preparedMode = String(self.hsgPreparedMode || "");
-    const preparedLevel = Math.max(0, Number(self.hsgPreparedEnhanceLevel) || 0);
-    const value = hsgActiveMs > 0
-      ? `${hsgGboActive ? `GBO浮揚中${hsgOwned ? "・使用分1個破壊" : "・本体なし"}` : "自動浮揚中"} ${formatEffectCountdown(hsgActiveMs)}`
-      : hsgCooldownMs > 0
-        ? `${hsgOwned ? "CT" : "本体なし / CT"} ${formatEffectCountdown(hsgCooldownMs)}`
-        : !hsgOwned
-          ? "HSG未所持"
-          : Number(self.itemDisabledUntil) > liveNow
-            ? "EMPストレージ遮断"
-            : !passiveEnabled
-              ? "理知まで休止"
-              : preparedMode === "gbo"
-                ? "GBO予約済"
-                : preparedMode === "enhance"
-                  ? `Enhance Lv${preparedLevel || 1}予約済`
-                  : "自動起動待機";
+  if (hsgActiveMs > 0) {
     add(
       "HSG",
-      value,
-      hsgActiveMs > 0 ? "truth" : hsgOwned && passiveEnabled ? "rational" : "neutral",
-      "Storageの物理武具。理知中、足場から床外へ進む直前に自動起動。通常8秒・ACC 1.8・20秒CT。Use長押しで次回Enhance／GBOを予約し、GBO起動後だけ本体を破壊"
+      `${hsgGboActive ? "GBO" : "HSG"}浮揚中 ${formatEffectCountdown(hsgActiveMs)}`,
+      "truth",
+      `${hsgGboActive ? "直接GBO" : "直接使用または床外自動起動"}の時間効果。Storage cardで使用・投擲とCTを確認`
     );
   }
 
@@ -10688,7 +10502,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
 function renderActiveEffects(data) {
   const self = data.self;
   const liveNow = estimatedServerNow(data);
-  const rational = Number(self.mana) >= (Number(self.rationalManaThreshold) || 2);
+  const rational = self.mentalState === "理知";
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
   const effects = [];
   const add = (label, value, tone, detail) => effects.push({ label, value, tone, detail });
@@ -10792,7 +10606,7 @@ function renderActiveEffects(data) {
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
   timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "アイテム・装備効果停止");
-  if (self.statusImmunityActive) add("自然回復", "理知", "good", "現在MP2以上の理知中、状態異常を無効化・即時解除し、通常HPを毎秒0.05ずつ2まで回復");
+  if (self.statusImmunityActive) add("自然回復", "理知", "good", "心ポイント合計3以上の理知中、状態異常を無効化・即時解除し、通常HPを毎秒0.05ずつ2まで回復");
   if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・理知中の自然回復で解除");
   if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・理知中の自然回復で解除");
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
@@ -10825,17 +10639,51 @@ function renderActiveEffects(data) {
 let gameplayViewportReflowFrame = 0;
 let gameplayViewportSettleTimer = 0;
 let activeEffectsLayoutFrame = 0;
+let gameplayViewportReflowPasses = 0;
+let activeEffectsLayoutCallbacks = [];
+const GAMEPLAY_VIEWPORT_REFLOW_MAX_PASSES = 4;
+
+function gameplayViewportGeometryKey() {
+  const fieldSlot = document.querySelector(".field-stage-slot");
+  const board = fieldSlot?.querySelector(".board-wrap");
+  const panel = els.activeEffectsPanel;
+  const rectKey = (element) => {
+    const rect = element?.getBoundingClientRect();
+    return rect
+      ? [Math.round(rect.width * 10), Math.round(rect.height * 10), Math.round(rect.top * 10)].join(":")
+      : "0:0:0";
+  };
+  const viewport = window.visualViewport;
+  return [
+    Math.round((Number(viewport?.width) || window.innerWidth) * 10),
+    Math.round((Number(viewport?.height) || window.innerHeight) * 10),
+    rectKey(fieldSlot),
+    rectKey(board),
+    rectKey(panel),
+    fieldSlot?.style.getPropertyValue("--field-lower-height") || ""
+  ].join("|");
+}
 
 function scheduleGameplayViewportReflow(settle = false) {
-  cancelAnimationFrame(gameplayViewportReflowFrame);
+  if (settle) gameplayViewportReflowPasses = 0;
+  if (gameplayViewportReflowFrame) return;
   gameplayViewportReflowFrame = requestAnimationFrame(() => {
     gameplayViewportReflowFrame = 0;
+    const before = gameplayViewportGeometryKey();
     updateTitleCommandDepthPaths();
     syncPortraitTabletDock();
     if (state.screen === "game") {
       setTabletOpen(state.tabletOpen, { persist: false, focus: false });
       scheduleTabletBranchLayout();
-      scheduleActiveEffectsLayout();
+      scheduleActiveEffectsLayout(() => {
+        const after = gameplayViewportGeometryKey();
+        if (after !== before && gameplayViewportReflowPasses < GAMEPLAY_VIEWPORT_REFLOW_MAX_PASSES - 1) {
+          gameplayViewportReflowPasses += 1;
+          scheduleGameplayViewportReflow(false);
+        } else {
+          gameplayViewportReflowPasses = 0;
+        }
+      });
     }
   });
   if (settle) {
@@ -10847,15 +10695,21 @@ function scheduleGameplayViewportReflow(settle = false) {
   }
 }
 
-function scheduleActiveEffectsLayout() {
-  cancelAnimationFrame(activeEffectsLayoutFrame);
+function scheduleActiveEffectsLayout(afterLayout = null) {
+  if (typeof afterLayout === "function") activeEffectsLayoutCallbacks.push(afterLayout);
+  if (activeEffectsLayoutFrame) return;
   activeEffectsLayoutFrame = requestAnimationFrame(layoutActiveEffectsPanel);
 }
 
 function layoutActiveEffectsPanel() {
   activeEffectsLayoutFrame = 0;
+  const callbacks = activeEffectsLayoutCallbacks;
+  activeEffectsLayoutCallbacks = [];
   const panel = els.activeEffectsPanel;
-  if (!panel || panel.hidden) return;
+  if (!panel || panel.hidden) {
+    callbacks.forEach((callback) => callback());
+    return;
+  }
   const lowerRow = els.fieldLowerRow;
   const fieldSlot = lowerRow?.parentElement;
   const board = fieldSlot?.querySelector(".board-wrap");
@@ -10875,14 +10729,20 @@ function layoutActiveEffectsPanel() {
   const naturalHeight = Math.ceil(panel.scrollHeight + borderHeight);
   const shouldScroll = naturalHeight > availableHeight + 2;
 
-  panel.style.maxHeight = `${shouldScroll ? availableHeight : naturalHeight}px`;
-  panel.style.overflowY = shouldScroll ? "auto" : "visible";
-  panel.classList.toggle("effects-scrollable", shouldScroll);
+  const maxHeight = `${shouldScroll ? availableHeight : naturalHeight}px`;
+  const overflowY = shouldScroll ? "auto" : "visible";
+  if (panel.style.maxHeight !== maxHeight) panel.style.maxHeight = maxHeight;
+  if (panel.style.overflowY !== overflowY) panel.style.overflowY = overflowY;
+  if (panel.classList.contains("effects-scrollable") !== shouldScroll) panel.classList.toggle("effects-scrollable", shouldScroll);
 
   if (lowerRow && fieldSlot && !lowerRow.hidden) {
     const lowerHeight = Math.ceil(lowerRow.getBoundingClientRect().height);
-    fieldSlot.style.setProperty("--field-lower-height", `${lowerHeight}px`);
+    const lowerHeightValue = `${lowerHeight}px`;
+    if (fieldSlot.style.getPropertyValue("--field-lower-height") !== lowerHeightValue) {
+      fieldSlot.style.setProperty("--field-lower-height", lowerHeightValue);
+    }
   }
+  callbacks.forEach((callback) => callback());
 }
 
 function setVendingOpen(open, { focus = true } = {}) {
@@ -10898,7 +10758,7 @@ function setVendingOpen(open, { focus = true } = {}) {
   state.vendingRenderKey = "";
   if (!state.vendingOpen) {
     stopVendingHold();
-    if (state.itemHoldBranch.source?.closest?.("#vendingPanel")) closeItemHoldBranch();
+    stopVendingKeyHold();
     if (selectedScrollRegion() === els.vendingPanel) setSelectedScrollRegion(null, { focus: false });
   }
   if (data) renderVending(data);
@@ -10918,7 +10778,11 @@ function renderVending(data) {
     applyGeneratedItemTexture(button, button.dataset.vendingAsset || button.dataset.drink);
   });
   const available = Boolean(data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent);
-  if (!available) state.vendingOpen = false;
+  if (!available) {
+    state.vendingOpen = false;
+    stopVendingHold({ suppressClick: true });
+    stopVendingKeyHold();
+  }
   const visible = Boolean(available && state.vendingOpen);
   els.vendingButton.disabled = !available;
   els.vendingButton.classList.toggle("active", visible);
@@ -10992,7 +10856,7 @@ function objectiveText(data) {
   const self = data.self;
   const liveNow = estimatedServerNow(data);
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
-  const rational = Number(self.mana) >= (Number(self.rationalManaThreshold) || 2);
+  const rational = self.mentalState === "理知";
   if (data.phase === "ended") return data.finishReason || "";
   if (self.ejected) return "追放されています。観戦のみ可能です。";
   if ((self.ascensionUntil || 0) > liveNow) {
@@ -11220,8 +11084,8 @@ function updateActionButtons(data) {
   els.ninjutsuButton.disabled = !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
   els.ninjutsuButton.classList.toggle("active", aiming);
   els.ninjutsuButton.title = self.special === "assassin"
-    ? "忍殺: 自分と対象が5秒間静止するとアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。移動または対象喪失で失敗"
-    : "忍殺: 自分と対象が5秒間静止すると対象を消滅させ、死体を残さない。移動または対象喪失で失敗";
+    ? "忍殺: 自分と対象が4秒間静止するとアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。移動または対象喪失で失敗"
+    : "忍殺: 自分と対象が4秒間静止すると対象を消滅させ、死体を残さない。移動または対象喪失で失敗";
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   const rootProtectionBlocked = Boolean(self.hackerRootActive);
@@ -11256,6 +11120,13 @@ function updateActionButtons(data) {
   const firingWeapon = gunnerWeapons.find((weapon) => weapon.id === self.gunFiringWeapon) || gunnerWeapon;
   const reloadSeconds = Math.max(0, ((Number(self.gunnerReloadUntil) || 0) - liveNow) / 1000);
   const shootLabel = "射撃";
+  // The layout reset hides Gunner controls defensively.  Reapply their
+  // authoritative access visibility on every state update so a role switch,
+  // ROOT acquisition or purchased firearm cannot leave an otherwise enabled
+  // firing route invisible.
+  els.shootButton.hidden = !gunnerAccess;
+  els.weaponButton.hidden = !gunnerAccess;
+  els.gunnerReloadButton.hidden = !gunnerAccess;
   els.weaponButton.dataset.weapon = gunnerWeapon.id;
   els.weaponButton.dataset.destroyed = "false";
   const activeSpecialAmmo = self.gunnerSpecialAmmoWeapon === gunnerWeapon.id && Number(self.gunnerSpecialAmmoRounds) > 0
@@ -11507,6 +11378,48 @@ function renderFeeds(data) {
   els.chatFeed.scrollTop = els.chatFeed.scrollHeight;
 }
 
+function resultContributionDetail(entry) {
+  const roleLabel = entry.role === "attacker" ? "ATK" : "DEF";
+  const contributionParts = [
+    ["キル貢献", Number(entry.killContribution ?? entry.defenderKillContribution) || 0],
+    ["勝利", Number(entry.victoryCredit) || 0],
+    ["善のイデア", Number(entry.ideaContribution) || 0]
+  ]
+    .filter(([, points]) => points > 0)
+    .map(([label, points]) => `${label} +${points}`);
+  return [roleLabel, ...contributionParts, entry.rankTier || entry.profileRank || "bronze"].join(" / ");
+}
+
+function resultRenderFingerprint(data, results) {
+  const ideaWinnerIds = Array.isArray(data.ideaWinnerIds) && data.ideaWinnerIds.length
+    ? data.ideaWinnerIds
+    : [data.ideaWinnerId].filter(Boolean);
+  return JSON.stringify({
+    roomId: String(data.roomId || ""),
+    round: Number(data.round) || 0,
+    winner: String(data.winner || ""),
+    finishReason: String(data.finishReason || ""),
+    soloMissionId: String(data.soloMission?.id || ""),
+    selfId: String(data.selfId || ""),
+    ideaWinnerIds: ideaWinnerIds.map(String).sort(),
+    results: results.map((entry, index) => [
+      String(entry.id || ""),
+      String(entry.name || ""),
+      String(entry.role || ""),
+      String(entry.color || ""),
+      Number(entry.rank || entry.rankingPosition) || index + 1,
+      Number(entry.rankDelta ?? entry.rankMovement) || 0,
+      Boolean(entry.ideaWinner),
+      Boolean(entry.luminousSuccess),
+      Number(entry.killContribution ?? entry.defenderKillContribution) || 0,
+      Number(entry.victoryCredit) || 0,
+      Number(entry.ideaContribution) || 0,
+      String(entry.rankTier || entry.profileRank || "bronze"),
+      Number(entry.contributionScore) || 0
+    ])
+  });
+}
+
 function renderEnd(data) {
   const ended = data.phase === "ended";
   els.endOverlay.hidden = !ended;
@@ -11515,8 +11428,9 @@ function renderEnd(data) {
   if (!ended) {
     els.endTitle.textContent = "";
     els.endReason.textContent = "";
-    els.resultRanking.innerHTML = "";
+    els.resultRanking.replaceChildren();
     state.resultCelebrationKey = "";
+    state.resultRenderFingerprint = "";
     els.resultConfetti.replaceChildren();
     return;
   }
@@ -11525,6 +11439,9 @@ function renderEnd(data) {
       ? data.ideaWinnerIds
       : [data.ideaWinnerId].filter(Boolean)
   );
+  const results = data.results || [];
+  const fingerprint = resultRenderFingerprint(data, results);
+  const resultChanged = state.resultRenderFingerprint !== fingerprint;
   els.endTitle.textContent = "貢献度ランキング";
   els.endReason.textContent = data.finishReason || "";
   if (data.soloMission?.id === "cpu-gravity" && data.winner === "attackers") {
@@ -11532,41 +11449,45 @@ function renderEnd(data) {
     const hint = $("#cpuGravityHint");
     if (hint) hint.hidden = false;
   }
-  els.resultRanking.innerHTML = "";
-  const results = data.results || [];
-  if (results.length) {
-    const section = document.createElement("section");
-    section.className = "result-team result-overall";
-    section.innerHTML = `
-      <div class="result-team-title">
-        <strong>全プレイヤー</strong>
-        <span>${results.length}人 / 上位半分 +1・下位半分 -1</span>
-      </div>
-      <div class="result-team-list"></div>
-    `;
-    const list = section.querySelector(".result-team-list");
-    results.forEach((entry, index) => {
-      const row = document.createElement("div");
-      const rank = Number(entry.rank || entry.rankingPosition) || index + 1;
-      const rankDelta = Number(entry.rankDelta ?? entry.rankMovement) > 0 ? 1 : -1;
-      const ideaWinner = data.winner === "idea" && (entry.ideaWinner || ideaWinnerIds.has(entry.id));
-      row.dataset.rank = String(rank);
-      row.className = `result-row${rank === 1 ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}${ideaWinner ? " is-idea-winner" : ""}${rankDelta > 0 ? " is-rank-up" : " is-rank-down"}`;
-      const roleLabel = entry.role === "attacker" ? "ATK" : "DEF";
-      const detail = `${roleLabel} / 防衛キル +${Number(entry.defenderKillContribution) || 0} / 勝利 +${Number(entry.victoryCredit) || 0} / 善のイデア +${Number(entry.ideaContribution) || 0} / ${entry.rankTier || entry.profileRank || "bronze"}`;
-      row.innerHTML = `
-        <span class="result-rank">${rank}</span>
-        <span class="color-dot" style="background:${escapeHtml(entry.color || "#94a3b8")}"></span>
-        <span class="result-player">
-          <strong>${escapeHtml(playerIdentityLabel(entry))}</strong>
-          <small>${detail}</small>
-        </span>
-        <span class="result-rank-movement" aria-label="ランク変動 ${rankDelta > 0 ? "上昇" : "低下"}">${rankDelta > 0 ? "+1" : "-1"}</span>
-        <span class="result-score">${Number(entry.contributionScore) || 0}<small>貢献</small></span>
+  if (resultChanged) {
+    const previousScrollTop = Math.max(0, Number(els.resultRanking.scrollTop) || 0);
+    els.resultRanking.replaceChildren();
+    if (results.length) {
+      const section = document.createElement("section");
+      section.className = "result-team result-overall";
+      section.innerHTML = `
+        <div class="result-team-title">
+          <strong>全プレイヤー</strong>
+          <span>${results.length}人 / 上位半分 +1・下位半分 -1</span>
+        </div>
+        <div class="result-team-list"></div>
       `;
-      list.appendChild(row);
-    });
-    els.resultRanking.appendChild(section);
+      const list = section.querySelector(".result-team-list");
+      results.forEach((entry, index) => {
+        const row = document.createElement("div");
+        const rank = Number(entry.rank || entry.rankingPosition) || index + 1;
+        const rankDelta = Number(entry.rankDelta ?? entry.rankMovement) > 0 ? 1 : -1;
+        const ideaWinner = data.winner === "idea" && (entry.ideaWinner || ideaWinnerIds.has(entry.id));
+        row.dataset.rank = String(rank);
+        row.className = `result-row${rank === 1 ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}${ideaWinner ? " is-idea-winner" : ""}${rankDelta > 0 ? " is-rank-up" : " is-rank-down"}`;
+        const detail = resultContributionDetail(entry);
+        row.innerHTML = `
+          <span class="result-rank">${rank}</span>
+          <span class="color-dot" style="background:${escapeHtml(entry.color || "#94a3b8")}"></span>
+          <span class="result-player">
+            <strong>${escapeHtml(playerIdentityLabel(entry))}</strong>
+            <small>${detail}</small>
+          </span>
+          <span class="result-rank-movement" aria-label="ランク変動 ${rankDelta > 0 ? "上昇" : "低下"}">${rankDelta > 0 ? "+1" : "-1"}</span>
+          <span class="result-score">${Number(entry.contributionScore) || 0}<small>貢献</small></span>
+        `;
+        list.appendChild(row);
+      });
+      els.resultRanking.appendChild(section);
+    }
+    const maxScroll = Math.max(0, els.resultRanking.scrollHeight - els.resultRanking.clientHeight);
+    els.resultRanking.scrollTop = Math.min(previousScrollTop, maxScroll);
+    state.resultRenderFingerprint = fingerprint;
   }
   startResultCelebration(data, results);
 }
@@ -17946,7 +17867,7 @@ function drawHud(data, w, h) {
     : baseHealth.toFixed(1).replace(/\.0$/, "");
   const bars = [
     { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}` },
-    { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.manaState === "理知" ? "#a78bfa" : self.manaState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
+    { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.mentalState === "理知" ? "#a78bfa" : self.mentalState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
     { label: "HP", value: self.fighterInfiniteResources ? 2 : baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${healthText}/2${overheal ? `+${overheal}` : ""}` }
   ];
   if (self.special === "alchemist") {
@@ -18024,7 +17945,8 @@ function drawHud(data, w, h) {
   ctx.fillStyle = Number(self.luck || 0) >= 0 ? "#f0abfc" : "#fb7185";
   ctx.fillText(`幸運／直観 ${Number(self.luck || 0).toFixed(2)}`, 27, detailTop + 56 + resourceOffset);
   ctx.fillStyle = "#e2e8f0";
-  ctx.fillText(`SP:${self.staminaState || "気概"} / MP:${self.manaState || "気概"}`, 27, detailTop + 74 + resourceOffset);
+  const mind = self.mentalPoints || {};
+  ctx.fillText(`心状態:${self.mentalState || "気概"}（MP${Number(mind.manaPoints) || 0}+SP${Number(mind.staminaPoints) || 0}=${Number(mind.total) || 0}）`, 27, detailTop + 74 + resourceOffset);
   if (self.desireBiasLabel) {
     ctx.fillStyle = "#fb7185";
     ctx.fillText(self.desireBiasLabel, 27, detailTop + 92 + resourceOffset);
@@ -18311,7 +18233,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "physical-hsg-contribution-ranking-v514";
+const version = "unified-mind-interface-repairs-shoot-transaction-v515";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

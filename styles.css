@@ -4191,6 +4191,22 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   margin-left: auto;
 }
 
+.vending-continuous-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #d9f99d;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.vending-continuous-toggle input {
+  inline-size: 17px;
+  block-size: 17px;
+  accent-color: #22c55e;
+}
+
 .vending-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4498,6 +4514,13 @@ body .offline-team-choice button[data-offline-team] {
 .operator-visual-quantum {
   background-position: center;
   background-size: contain;
+}
+
+/* The accepted Assassin B raster intentionally has a large transparent safe
+   region. Compensate at the card surface so its alpha body matches the other
+   operators without cropping or regenerating the canonical asset. */
+.operator-visual-assassin {
+  background-size: 168%;
 }
 
 .operator-visual-fighter::before {
@@ -4980,7 +5003,8 @@ body .offline-team-choice button[data-offline-team] {
 }
 
 #quantumKineticBranchControl {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 9.5rem);
+  justify-content: start;
 }
 
 .ability-auto-activate {
@@ -5221,7 +5245,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=physical-hsg-contribution-ranking-v514"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=unified-mind-interface-repairs-shoot-transaction-v515"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,
@@ -8202,3 +8226,43 @@ body [data-scroll-region].scroll-region-selected {
     transition-duration: 1ms !important;
   }
 }
+
+/* Result rankings sit over a furnished texture.  Final cascade: this stays
+ * after every legacy/feature rule so all text has an opaque dark reading base. */
+.result-dialog .result-heading,
+.result-dialog .result-ranking,
+.result-dialog .result-team,
+.result-dialog .result-overall,
+.result-dialog .result-team-list,
+.result-dialog .result-team-title { background-color: rgba(5, 14, 22, 0.97); background-image: none; color: #f8fbff; }
+.result-dialog .result-heading,
+.result-dialog .result-team-title { border-color: rgba(125, 211, 252, 0.78); box-shadow: inset 0 -1px rgba(226, 248, 255, 0.12), 0 2px 8px rgba(0, 0, 0, 0.42); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.92); }
+.result-dialog .result-heading strong,
+.result-dialog .result-team-title { color: #f8fbff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.94); }
+.result-dialog .result-team-title span { color: #cbd5e1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.94); }
+.result-dialog .result-row { background-color: rgba(8, 21, 31, 0.97); background-image: none; border-bottom-color: rgba(148, 163, 184, 0.42); box-shadow: inset 0 1px rgba(255, 255, 255, 0.045); }
+.result-dialog .result-row.is-self { background-color: rgba(8, 50, 54, 0.97); background-image: linear-gradient(90deg, rgba(45, 212, 191, 0.18), rgba(8, 50, 54, 0.97) 56%); box-shadow: inset 3px 0 #2dd4bf, inset 0 1px rgba(255, 255, 255, 0.08); }
+.result-dialog .result-row.is-first { background-color: rgba(57, 42, 10, 0.97); background-image: linear-gradient(90deg, rgba(250, 204, 21, 0.22), rgba(57, 42, 10, 0.97) 58%); border-left-color: #facc15; }
+.result-dialog .result-row.is-luminous { background-color: rgba(54, 42, 8, 0.97); background-image: linear-gradient(90deg, rgba(250, 204, 21, 0.2), rgba(54, 42, 8, 0.97) 56%); box-shadow: inset 3px 0 #fde047, inset 0 1px rgba(255, 255, 255, 0.08); }
+.result-dialog .result-row.is-idea-winner { background-color: rgba(47, 35, 62, 0.97); background-image: linear-gradient(90deg, rgba(250, 204, 21, 0.24), rgba(139, 92, 246, 0.17) 46%, rgba(47, 35, 62, 0.97) 100%); border-left-color: #f5d76e; box-shadow: inset 0 0 20px rgba(250, 204, 21, 0.2), inset 0 1px rgba(255, 255, 255, 0.1); }
+.result-dialog .result-row.is-rank-up { background-color: rgba(8, 45, 35, 0.97); background-image: linear-gradient(90deg, rgba(16, 185, 129, 0.18), rgba(8, 45, 35, 0.97) 58%); }
+.result-dialog .result-row.is-rank-down { background-color: rgba(54, 20, 31, 0.97); background-image: linear-gradient(90deg, rgba(244, 63, 94, 0.17), rgba(54, 20, 31, 0.97) 58%); }
+.result-dialog .result-rank,
+.result-dialog .result-player strong,
+.result-dialog .result-score { color: #f8fafc; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96), 0 0 7px rgba(0, 0, 0, 0.54); }
+.result-dialog .result-player small,
+.result-dialog .result-score small { color: #dbeafe; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); }
+.result-dialog .result-row.is-idea-winner .result-player small { color: #fef3c7; }
+.result-dialog .result-rank-movement { background-color: rgba(5, 14, 22, 0.96); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.42); }
+.result-dialog .result-row.is-rank-up .result-rank-movement { color: #a7f3d0; background-color: rgba(6, 58, 43, 0.98); }
+.result-dialog .result-row.is-rank-down .result-rank-movement { color: #fecdd3; background-color: rgba(76, 18, 33, 0.98); }
+
+/* The dialog uses the overlay safe height; only the ranking locally scrolls. */
+.end-overlay { overflow: hidden; }
+.end-overlay .result-dialog { align-self: stretch; justify-self: stretch; width: 100%; height: 100%; min-height: 0; max-height: 100%; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+.end-overlay .result-ranking { min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.end-overlay #resetButton { min-height: 40px; }
+@media (min-width: 901px) { .result-dialog .result-ranking { padding: 8px; } .end-overlay .result-dialog { padding: clamp(14px, 2.4cqh, 22px); } }
+@media (max-width: 900px) { .result-dialog .result-ranking { padding: 6px; } .result-dialog .result-row { gap: 8px; } .end-overlay .result-dialog { padding: clamp(8px, 2cqh, 16px); } }
+@media (orientation: portrait) { .result-dialog .result-heading, .result-dialog .result-team-title { padding-inline: 8px; } .result-dialog .result-row { min-height: 52px; } .end-overlay .result-dialog { gap: clamp(5px, 1.4cqh, 10px); } .end-overlay #resetButton { min-height: 36px; } }
+@container (max-height: 430px) { .end-overlay .result-dialog { min-height: 0; padding: 8px 10px; } .end-overlay #resetButton { min-height: 32px; } }

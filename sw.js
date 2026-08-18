@@ -4,7 +4,7 @@
 // raster finishes decoding, so the generic teleport ring never takes over.
 // v510 adds threshold-only Natural Recovery, ROOT toggle repair, native flick
 // ownership, foreground reflow, reusable ground pickup and Assassin.
-const CACHE_NAME = "dva-static-v514-physical-hsg-contribution-ranking";
+const CACHE_NAME = "dva-static-v515-unified-mind-interface-repairs-shoot-transaction";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

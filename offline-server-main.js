@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "physical-hsg-contribution-ranking-v514",
+    version: "unified-mind-interface-repairs-shoot-transaction-v515",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7424,7 +7424,7 @@ const MIN_KILL_COOLDOWN = 5;
 const QUICK_ATTACK_DELAY_MS = 1000;
 const QUICK_FOLLOW_UP_COOLDOWN_MS = 1000;
 const QUICK_ATTACK_LETHAL_CHANCE = 0.45;
-const NINJUTSU_DURATION_MS = 5000;
+const NINJUTSU_DURATION_MS = 4000;
 const AIM_HOLD_MS = 5000;
 const AIM_TARGET_MOVE_TOLERANCE = 1;
 const ACCELERATE_SPEED_MULTIPLIER = 2.5;
@@ -7574,9 +7574,14 @@ const LIMIT_BREAK_MANA_DRAIN_PER_SECOND = 0.08;
 const FIRE_JUTSU_COST = vendingPrice("fire");
 const FIRE_JUTSU_RADIUS = 240;
 const ENHANCE_HOLD_STEP_MS = 600;
-const ENHANCE_MAX_LEVEL = 4;
+// Enhance has one authoritative performance profile.  The legacy level field
+// remains serialized as 0/1 for protocol compatibility, but no held route can
+// create a player-facing stage above the original level-one effect.
+const ENHANCE_MAX_LEVEL = 1;
 const ENHANCE_FIXED_MANA_COST = 1;
-const GBO_HOLD_MS = ENHANCE_HOLD_STEP_MS * (ENHANCE_MAX_LEVEL + 1);
+// This threshold is deliberately independent of the compatibility level
+// constant: changing serialization must never move the GBO boundary.
+const GBO_HOLD_MS = 3_000;
 const GBO_FIXED_MANA_COST = 2;
 const GBO_PERFORMANCE_MULTIPLIER = 10;
 const FIGHTER_ENHANCE_SLASH_RANGE_PER_LEVEL = 40;
@@ -7587,6 +7592,10 @@ const ITEM_THROW_SPEED = 1120;
 const ITEM_THROW_MIN_FLIGHT_MS = 240;
 const ITEM_THROW_MAX_FLIGHT_MS = 920;
 const BOTTLE_ITEM_IDS = new Set(["mercury", "lead", "mineral-water", "antidote", "molotov", "ice", "heated-water"]);
+// Sealed radioactive containers are physical while carried, but their seal
+// opens on any ordinary throw.  Like authored bottles they resolve their
+// hazard at the first impact/landing and must never become ground pickups.
+const DISPOSABLE_THROW_CONTAINER_ITEM_IDS = new Set([...BOTTLE_ITEM_IDS, "uranium", "plutonium"]);
 const BOTTLE_SHARD_BASE_RADIUS = 112;
 const BOTTLE_SHARD_HIT_CHANCE = 0.32;
 const BOTTLE_SHARD_MIN_DAMAGE = 0.18;
@@ -7786,7 +7795,7 @@ const TASK_LABELS = {
 const DEFAULT_SETTINGS = {
   mapId: "station",
   hostTeam: "random",
-  attackerCount: 1,
+  attackerCount: 2,
   taskCount: 18,
   killCooldown: 18,
   killRange: 120,
@@ -7859,7 +7868,7 @@ const OPERATORS = {
       limit: 99,
       asset: "assassin",
       description: "共有忍殺を死体の残らない消滅へ変え、移動状態を問わず足音を一切発しない。",
-      details: "忍殺の5秒静止、距離、対象喪失、防御、クールタイムの規則は共有忍殺と同じ。成功時は「アサシン忍殺による消滅」として対象を消滅させ、死体・通報対象・死体由来マーカーを残さない。歩行、ダッシュ、無音歩行のいずれでも足音イベントを発生させず、敵Botにも足音由来の観測情報を与えない。"
+      details: "忍殺の4秒静止、距離、対象喪失、防御、クールタイムの規則は共有忍殺と同じ。成功時は「アサシン忍殺による消滅」として対象を消滅させ、死体・通報対象・死体由来マーカーを残さない。歩行、ダッシュ、無音歩行のいずれでも足音イベントを発生させず、敵Botにも足音由来の観測情報を与えない。"
     },
     {
       id: "attacker-alchemist",
@@ -9661,8 +9670,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunnerSpecialAmmoBag: [],
     hsgUntil: 0,
     hsgReadyAt: 0,
-    hsgPreparedMode: "",
-    hsgPreparedEnhanceLevel: 0,
     killCamera: null,
     gunnerSnipingActive: false,
     gunnerAimTargetId: "",
@@ -9720,7 +9727,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     credits: 0,
     lastPassiveCreditAt: now(),
     mana: STARTING_MANA,
-    manaStateEnteredAt: now(),
+    mentalState: "理知",
     meditatingUntil: 0,
     renkiTargetMana: null,
     rationalFreeAbilityReadyAt: 0,
@@ -10138,8 +10145,6 @@ function startGame(room) {
     player.gunnerSpecialAmmoBag = [];
     player.hsgUntil = 0;
     player.hsgReadyAt = 0;
-    player.hsgPreparedMode = "";
-    player.hsgPreparedEnhanceLevel = 0;
     player.killCamera = null;
     player.gunnerSnipingActive = false;
     player.gunnerAimTargetId = "";
@@ -10193,7 +10198,7 @@ function startGame(room) {
     player.credits = 0;
     player.lastPassiveCreditAt = timestamp;
     player.mana = STARTING_MANA;
-    player.manaStateEnteredAt = timestamp;
+    player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
     player.rationalFreeAbilityReadyAt = 0;
@@ -10523,8 +10528,6 @@ function startBattle(room) {
     player.overhealSpeedUntil = 0;
     player.hsgUntil = 0;
     player.hsgReadyAt = 0;
-    player.hsgPreparedMode = "";
-    player.hsgPreparedEnhanceLevel = 0;
     player.killCamera = null;
     player.gunnerSnipingActive = false;
     player.gunnerAimTargetId = "";
@@ -10539,7 +10542,7 @@ function startBattle(room) {
     player.staminaManaOverflow = 0;
     player.autoManaToStaminaFeedbackAt = 0;
     player.mana = STARTING_MANA;
-    player.manaStateEnteredAt = timestamp;
+    player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
     player.rationalFreeAbilityReadyAt = 0;
@@ -10724,15 +10727,33 @@ function ensureAbilityAvailable(player) {
   }
 }
 
-function manaStateLabel(mana) {
+function manaMindPoints(mana) {
   const value = Number(mana) || 0;
-  if (value <= 0) return "欲望";
-  if (value >= RATIONAL_MANA_THRESHOLD) return "理知";
-  return "気概";
+  return value <= 0 ? 0 : value < RATIONAL_MANA_THRESHOLD ? 1 : 2;
+}
+
+function staminaMindPoints(stamina) {
+  const value = Number(stamina) || 0;
+  return value <= 0 ? 0 : value <= 250 ? 1 : 2;
+}
+
+function mentalStateForResources(mana, stamina) {
+  const points = manaMindPoints(mana) + staminaMindPoints(stamina);
+  return points <= 0 ? "欲望" : points <= 2 ? "気概" : "理知";
+}
+
+function mentalPointsFor(player) {
+  const manaPoints = manaMindPoints(player?.mana);
+  const staminaPoints = staminaMindPoints(player?.stamina);
+  return { manaPoints, staminaPoints, total: manaPoints + staminaPoints };
+}
+
+function mentalStateFor(player) {
+  return mentalStateForResources(player?.mana, player?.stamina);
 }
 
 function isRational(player) {
-  return Number(player?.mana) >= RATIONAL_MANA_THRESHOLD;
+  return mentalStateFor(player) === "理知";
 }
 
 function isHackerOperator(player) {
@@ -11158,7 +11179,7 @@ function nextDesireBias(player) {
 }
 
 function isDesireState(player) {
-  return Number(player?.mana) <= 0 || Number(player?.stamina) <= 0;
+  return mentalStateFor(player) === "欲望";
 }
 
 function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
@@ -11170,6 +11191,7 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   player.credits = DESIRE_RESOURCE_DEBT;
   player.stamina = DESIRE_RESOURCE_DEBT;
   player.staminaUpdatedAt = timestamp;
+  player.mentalState = "欲望";
   player.rationalFreeAbilityReadyAt = 0;
   player.desireIdeaForfeited = true;
   forfeitIdeaAttainment(player);
@@ -11180,21 +11202,40 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   if (room && enteredNow) {
     const bias = desireBiasDefinition(player);
     pushEvent(room, `${player.name} は欲望へ移行し、${bias?.label || "認知バイアス"}が心を支配しました。この対戦では真・美・善・善のイデアへの到達を永久に失います。`);
+    pushMagicEffect(room, "action-mana", player, { radius: 110, playerId: player.id, variant: "欲望" });
   }
   return player.desireBias;
 }
 
-function syncDesireState(room, player, sourceLabel = "") {
-  if (isDesireState(player)) {
-    if (!player.desireBias) enterDesireState(room, player, sourceLabel);
-    return true;
+function syncMentalState(room, player, sourceLabel = "", timestamp = now()) {
+  const previous = String(player?.mentalState || mentalStateFor(player));
+  const next = mentalStateFor(player);
+  if (next === "欲望") {
+    if (!player.desireBias) enterDesireState(room, player, sourceLabel || "心状態低下", timestamp);
+    player.mentalState = "欲望";
+    return "欲望";
   }
   if (player.desireBias) {
-    const previous = desireBiasDefinition(player)?.label || "認知バイアス";
     player.desireBias = "";
-    if (room) pushEvent(room, `${player.name} は欲望を脱し、${previous}から回復しました。`);
   }
-  return false;
+  player.mentalState = next;
+  if (previous === next) return next;
+  const enteredRational = previous !== "理知" && next === "理知";
+  const leftRational = previous === "理知" && next !== "理知";
+  if (enteredRational && !player.desireIdeaForfeited) {
+    player.ideaProgressStartedAt = timestamp;
+    player.ideaProgressMs = 0;
+    player.ideaProgressUpdatedAt = timestamp;
+    player.rationalFreeAbilityReadyAt = timestamp + RATIONAL_FREE_ABILITY_INTERVAL_MS;
+  } else if (leftRational) {
+    resetIdeaProgress(player);
+    player.rationalFreeAbilityReadyAt = 0;
+  }
+  if (room) {
+    pushEvent(room, `${player.name} の心状態が${next}になりました${sourceLabel ? `（${sourceLabel}）` : ""}。`);
+    pushMagicEffect(room, "action-mana", player, { radius: 110, playerId: player.id, variant: next });
+  }
+  return next;
 }
 
 function desireBiasGroupActive(room, player) {
@@ -11202,13 +11243,6 @@ function desireBiasGroupActive(room, player) {
   return [...room.players.values()].some((other) => (
     other.id !== player.id && other.alive && !other.ejected && !other.inVent && distance(player, other) <= DESIRE_BIAS_GROUP_RADIUS
   ));
-}
-
-function staminaStateLabel(stamina) {
-  const value = Number(stamina) || 0;
-  if (value <= 0) return "欲望";
-  if (value <= 250) return "気概";
-  return "理知";
 }
 
 function luckAdjustedRoll(player) {
@@ -11228,42 +11262,11 @@ function setMana(room, player, rawMana, sourceLabel = "") {
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
   const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
-  if (previous === next) {
-    player.mana = next;
-    syncDesireState(room, player, sourceLabel);
-    player.luck = luckValueFor(player);
-    if (room) maintainNaturalRecovery(room, player, timestamp);
-    return Number(player.mana);
-  }
-  const previousState = manaStateLabel(previous);
-  const nextState = manaStateLabel(next);
-  const enteredRational = previous < RATIONAL_MANA_THRESHOLD && next >= RATIONAL_MANA_THRESHOLD;
-  const leftRational = previous >= RATIONAL_MANA_THRESHOLD && next < RATIONAL_MANA_THRESHOLD;
   player.mana = next;
+  syncMentalState(room, player, sourceLabel, timestamp);
   player.luck = luckValueFor(player);
-  if (previousState !== nextState) player.manaStateEnteredAt = timestamp;
-  if (enteredRational && !player.desireIdeaForfeited) {
-    player.ideaProgressStartedAt = timestamp;
-    player.ideaProgressMs = 0;
-    player.ideaProgressUpdatedAt = timestamp;
-    player.rationalFreeAbilityReadyAt = timestamp + RATIONAL_FREE_ABILITY_INTERVAL_MS;
-  } else if (leftRational) {
-    resetIdeaProgress(player);
-    player.rationalFreeAbilityReadyAt = 0;
-  }
-  if (next === DESIRE_RESOURCE_DEBT && previous !== DESIRE_RESOURCE_DEBT) {
-    enterDesireState(room, player, sourceLabel || "マナ枯渇", timestamp);
-  } else if (room && previousState !== nextState) {
-    pushEvent(room, `${player.name} のマナ状態が${manaStateLabel(next)}になりました${sourceLabel ? `（${sourceLabel}）` : ""}。`);
-  }
-  syncDesireState(room, player, sourceLabel);
-  if (room && previousState !== nextState && nextState !== "欲望") pushMagicEffect(room, "action-mana", player, {
-    radius: 110,
-    playerId: player.id,
-    variant: manaStateLabel(next)
-  });
   if (room) maintainNaturalRecovery(room, player, timestamp);
-  return next;
+  return Number(player.mana);
 }
 
 function spendMana(room, player, amount, label) {
@@ -11279,7 +11282,7 @@ function spendMana(room, player, amount, label) {
 function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
   const timestamp = now();
   if (isHackerOperator(player) && hackerRootEligible(player)) return false;
-  if (Number(player.mana) >= RATIONAL_MANA_THRESHOLD && (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp) {
+  if (isRational(player) && (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp) {
     player.rationalFreeAbilityReadyAt = timestamp + RATIONAL_FREE_ABILITY_INTERVAL_MS;
     pushMagicEffect(room, "action-rational-free", player, { radius: 145, playerId: player.id });
     pushEvent(room, `${player.name} は理知により${label}を無料で発動しました。`);
@@ -11291,7 +11294,7 @@ function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
 
 function canSpendOperatorMana(player, timestamp = now()) {
   if (isHackerOperator(player) && hackerRootEligible(player)) return true;
-  const rationalFree = Number(player.mana) >= RATIONAL_MANA_THRESHOLD &&
+  const rationalFree = isRational(player) &&
     (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp;
   return rationalFree || (Number(player.mana) || 0) >= ABILITY_MANA_COST;
 }
@@ -11364,8 +11367,8 @@ function finishRenki(room, player, timestamp) {
   setMana(room, player, targetMana, "練気");
   if (Number(player.mana) > previousMana) pushGainAte(room, player, "mana", { variant: "renki", durationMs: 1680 });
   awardAbilityContribution(player, 0.25);
-  pushMagicEffect(room, "action-mana", player, { radius: 135, playerId: player.id, variant: manaStateLabel(player.mana) });
-  pushEvent(room, `${player.name} が精神統一を終え、${manaStateLabel(player.mana)}へ移行しました。`);
+  pushMagicEffect(room, "action-mana", player, { radius: 135, playerId: player.id, variant: "renki" });
+  pushEvent(room, `${player.name} が精神統一を完了しました。`);
   touch(room);
 }
 
@@ -11435,7 +11438,7 @@ function advanceIdeaProgress(room, player, timestamp) {
     forfeitIdeaAttainment(player);
     return;
   }
-  if (Number(player.mana) < RATIONAL_MANA_THRESHOLD) {
+  if (!isRational(player)) {
     resetIdeaProgress(player);
     return;
   }
@@ -11859,7 +11862,7 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
   }
   entity.staminaUpdatedAt = timestamp;
   if (room) {
-    syncDesireState(room, entity, "スタミナ回復");
+    syncMentalState(room, entity, "スタミナ回復", timestamp);
     maintainNaturalRecovery(room, entity, timestamp);
   }
 }
@@ -11874,12 +11877,8 @@ function spendStamina(entity, rawAmount, room = null, sourceLabel = "スタミ�
   const amount = entity?.desireBias === "sunk-cost" ? baseAmount * DESIRE_BIAS_COST_MULTIPLIER : baseAmount;
   const previous = Number(entity.stamina) || 0;
   const next = previous - amount;
-  if (room && previous > 0 && next <= 0) {
-    enterDesireState(room, entity, sourceLabel);
-    return;
-  }
   entity.stamina = Math.max(0, next);
-  if (room) syncDesireState(room, entity, sourceLabel);
+  if (room) syncMentalState(room, entity, sourceLabel);
 }
 
 function activeTimedAccelerationEffects(player, timestamp = now()) {
@@ -12195,37 +12194,24 @@ function activateHsgForUnsupportedMovement(room, player, targetX, targetY, times
     !player.alive ||
     player.ejected ||
     player.inVent ||
-    !passivesEnabled(player) ||
     !itemStorageAvailable(player, timestamp) ||
     Number(player.hsgUntil) > timestamp ||
     Number(player.hsgReadyAt) > timestamp ||
     !hasFloorSupport(room, player.x, player.y, radius) ||
     hasFloorSupport(room, targetX, targetY, radius)
   ) return false;
-  const preparedMode = String(player.hsgPreparedMode || "");
-  const enhanceLevel = Math.min(ENHANCE_MAX_LEVEL, Math.max(0, Math.floor(Number(player.hsgPreparedEnhanceLevel) || 0)));
-  const gbo = preparedMode === "gbo";
-  const durationMs = gbo
-    ? HSG_BASE_DURATION_MS * GBO_PERFORMANCE_MULTIPLIER
-    : HSG_BASE_DURATION_MS + (preparedMode === "enhance" ? enhanceLevel * HSG_ENHANCE_DURATION_MS_PER_LEVEL : 0);
-  const accelerationMultiplier = gbo
-    ? HSG_BASE_ACC_MULTIPLIER * GBO_PERFORMANCE_MULTIPLIER
-    : HSG_BASE_ACC_MULTIPLIER + (preparedMode === "enhance" ? enhanceLevel * HSG_ENHANCE_ACC_PER_LEVEL : 0);
-  clearHsgPreparedOverdrive(player);
-  addTimedAcceleration(player, "hsg", accelerationMultiplier, durationMs, timestamp);
+  addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
   player.hsgReadyAt = timestamp + HSG_ACTIVATION_COOLDOWN_MS;
-  if (gbo) consumeItem(player, "hsg");
   awardAbilityContribution(player, 0.75);
-  if (gbo) pushGboOverdriveEffect(room, player, "hsg", "automatic-activation");
   pushMagicEffect(room, "item-hsg-activate", player, {
     radius: 135,
     playerId: player.id,
-    variant: gbo ? "auto-unsupported:gbo" : preparedMode === "enhance" ? `auto-unsupported:enhance-${enhanceLevel}` : "auto-unsupported",
-    durationMs,
-    accelerationMultiplier
+    variant: "auto-unsupported",
+    durationMs: HSG_BASE_DURATION_MS,
+    accelerationMultiplier: HSG_BASE_ACC_MULTIPLIER
   });
-  setImmediateFeedback(player, gbo ? "HSG・GBO自動起動" : "HSG自動起動", `浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${gbo ? " / 使用したHSG 1個を破壊" : ""}`);
-  pushEvent(room, `${player.name} のHSGが足場のない場所への移動を検知して${gbo ? "GBOで" : ""}自動起動しました（浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${gbo ? " / 使用したHSG 1個は起動後に破壊" : ""}）。`);
+  setImmediateFeedback(player, "HSG自動起動", `浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒`);
+  pushEvent(room, `${player.name} のHSGが足場のない場所への移動を検知して自動起動しました（浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
   return true;
 }
 
@@ -12389,7 +12375,6 @@ function recordBotMatchElimination(room, target, source = null) {
   if (target.gunFiring) stopGunnerFire(room, target, { reason: "戦闘不能" });
   discardHackerRootState(target);
   clearEnhanceChargeState(target);
-  clearHsgPreparedOverdrive(target);
 }
 
 const AMBIGUOUS_KILL_CAMERA_ACTION_LABELS = new Set([
@@ -13131,6 +13116,7 @@ function tickRoom(room) {
   if (!roomTimeStopped) advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
     syncFighterInfiniteResources(player);
+    syncMentalState(room, player, "資源更新", timestamp);
     syncHackerRootState(room, player);
     advanceAccelerationTime(room, player, elapsedMs, timestamp);
     freezePlayerTimeKeeperState(player, elapsedMs, timestamp);
@@ -13616,7 +13602,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
     ? rawPower
     : { mode: Number(rawPower) > 0 ? "enhance" : "normal", enhanceLevel: Number(rawPower) || 0, multiplier: 1 };
   const gbo = power.mode === "gbo";
-  const enhanceLevel = gbo ? 0 : Math.min(ENHANCE_MAX_LEVEL, Math.max(0, Math.floor(Number(power.enhanceLevel) || 0)));
+  const enhanceLevel = gbo ? 0 : (Number(power.enhanceLevel) > 0 ? 1 : 0);
   const perfectGuardOpened = beginFighterSlashGuard(player, timestamp, perfectGuardIntent, gbo ? GBO_PERFORMANCE_MULTIPLIER : 1);
   player.slashActiveUntil += enhanceLevel * FIGHTER_ENHANCE_SLASH_GUARD_MS_PER_LEVEL;
   if (gbo) {
@@ -13679,7 +13665,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
       targetY: target.y,
       variant: outcome
     });
-    pushEvent(room, `${player.name} の${gbo ? "GBO斬り" : enhanceLevel ? `ため斬りLv${enhanceLevel}` : "斬る"}が ${target.name} に命中しました（${outcome} / 射程${slashRange}${gbo ? " / オリハルコン・ソード破壊" : ""}）。`);
+    pushEvent(room, `${player.name} の${gbo ? "GBO斬り" : enhanceLevel ? "エンハンス斬り" : "斬る"}が ${target.name} に命中しました（${outcome} / 射程${slashRange}${gbo ? " / オリハルコン・ソード破壊" : ""}）。`);
   } else {
     const universalReflect = hasFighterInfiniteResources(player);
     pushEvent(room, `${player.name} が斬るを構えました。物理攻撃をガードし、${perfectGuardOpened ? `短いジャストガード受付で${universalReflect ? "全攻撃" : "物理攻撃"}を反射できます` : "今回はジャストガード再受付前です"}。`);
@@ -14299,7 +14285,6 @@ function transferKillInventory(room, killer, target) {
     if (!amount || !ITEM_DEFINITIONS[itemId]) continue;
     addItem(killer, itemId, amount);
     delete target.itemInventory[itemId];
-    if (itemId === "hsg") clearHsgPreparedOverdrive(target);
     transferred.push(`${ITEM_DEFINITIONS[itemId].label}:${amount}`);
   }
   if (Array.isArray(target.inventions) && target.inventions.length) {
@@ -14379,7 +14364,6 @@ function removeTransferableItem(room, player, itemId, amount = 1) {
   if (INSTANT_ITEM_DEFINITIONS[itemId]) throw new ApiError(400, `${INSTANT_ITEM_DEFINITIONS[itemId].label}は即席のため譲渡できません。`);
   if (ITEM_DEFINITIONS[itemId]) {
     consumeItem(player, itemId, count);
-    if (itemId === "hsg") clearHsgPreparedOverdrive(player);
     return { id: itemId, label: ITEM_DEFINITIONS[itemId].label, amount: count, kind: "item" };
   }
   const charge = TRANSFERABLE_CHARGES[itemId];
@@ -15646,9 +15630,7 @@ function resolveHeldPowerMode(room, player, rawHoldMs, label, options = {}) {
   }
   const acceptedHoldMs = acceptedEnhanceChargeHoldMs(player, rawHoldMs);
   const gbo = Boolean(options.gboEligible) && acceptedHoldMs >= GBO_HOLD_MS;
-  const enhanceLevel = gbo
-    ? 0
-    : Math.min(ENHANCE_MAX_LEVEL, Math.floor(acceptedHoldMs / ENHANCE_HOLD_STEP_MS));
+  const enhanceLevel = gbo ? 0 : (acceptedHoldMs >= ENHANCE_HOLD_STEP_MS ? 1 : 0);
   clearEnhanceChargeState(player);
   if (gbo) {
     spendHeldPowerMana(room, player, GBO_FIXED_MANA_COST, `${label}・GBO`);
@@ -15674,24 +15656,20 @@ function pushGboOverdriveEffect(room, player, itemId, variant = "activate") {
   });
 }
 
-function clearHsgPreparedOverdrive(player) {
-  if (!player) return false;
-  const changed = Boolean(player.hsgPreparedMode || player.hsgPreparedEnhanceLevel);
-  player.hsgPreparedMode = "";
-  player.hsgPreparedEnhanceLevel = 0;
-  return changed;
-}
-
-function prepareHsgOverdrive(room, player, rawHoldMs = 0, chargeId = "") {
+function useHsgDirect(room, player, rawHoldMs = 0, chargeId = "") {
   if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はHSGを準備できません。");
+    throw new ApiError(403, "現在はHSGを使用できません。");
   }
-  ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
   if (itemCount(player, "hsg") < 1) throw new ApiError(400, "HSGを所有していません。");
   if (Number(player.hsgUntil) > now() || Number(player.hsgReadyAt) > now()) {
     clearEnhanceChargeState(player);
-    throw new ApiError(400, "HSGの作動中またはクールタイム中は準備を変更できません。");
+    throw new ApiError(400, "HSGの作動中またはクールタイム中は使用できません。");
+  }
+  const timestamp = now();
+  if (!hasFloorSupport(room, player.x, player.y, getMap(room).playerRadius)) {
+    clearEnhanceChargeState(player);
+    throw new ApiError(400, "HSGの直接使用は支持床の上でのみ行えます。");
   }
   const power = resolveHeldPowerMode(room, player, rawHoldMs, "HSG", {
     kind: "use",
@@ -15699,19 +15677,28 @@ function prepareHsgOverdrive(room, player, rawHoldMs = 0, chargeId = "") {
     chargeId,
     gboEligible: true
   });
-  if (power.mode === "normal") {
-    setImmediateFeedback(player, "HSG", "自動起動待機 / 長押しでEnhance・GBO準備");
-    touch(room);
-    return power;
+  const durationMs = power.mode === "gbo"
+    ? HSG_BASE_DURATION_MS * GBO_PERFORMANCE_MULTIPLIER
+    : HSG_BASE_DURATION_MS + power.enhanceLevel * HSG_ENHANCE_DURATION_MS_PER_LEVEL;
+  const accelerationMultiplier = power.mode === "gbo"
+    ? HSG_BASE_ACC_MULTIPLIER * GBO_PERFORMANCE_MULTIPLIER
+    : HSG_BASE_ACC_MULTIPLIER + power.enhanceLevel * HSG_ENHANCE_ACC_PER_LEVEL;
+  addTimedAcceleration(player, "hsg", accelerationMultiplier, durationMs, timestamp);
+  player.hsgReadyAt = timestamp + HSG_ACTIVATION_COOLDOWN_MS;
+  if (power.mode === "gbo") {
+    consumeItem(player, "hsg");
+    pushGboOverdriveEffect(room, player, "hsg", "direct-use");
   }
-  player.hsgPreparedMode = power.mode;
-  player.hsgPreparedEnhanceLevel = power.enhanceLevel;
-  if (power.mode === "gbo") pushGboOverdriveEffect(room, player, "hsg", "prepared");
-  const detail = power.mode === "gbo"
-    ? "次回自動起動: 80秒 / ACC 18 / 起動後HSG破壊"
-    : `次回自動起動: Enhance Lv${power.enhanceLevel} / ${HSG_BASE_DURATION_MS / 1000 + power.enhanceLevel * HSG_ENHANCE_DURATION_MS_PER_LEVEL / 1000}秒 / ACC ${(HSG_BASE_ACC_MULTIPLIER + power.enhanceLevel * HSG_ENHANCE_ACC_PER_LEVEL).toFixed(1)}`;
-  setImmediateFeedback(player, power.mode === "gbo" ? "HSG・GBO準備" : "HSG・Enhance準備", detail);
-  pushEvent(room, `${player.name} がHSGの${power.mode === "gbo" ? "GBO" : `Enhance Lv${power.enhanceLevel}`}を次回自動起動へ一回予約しました。`);
+  const modeLabel = power.mode === "gbo" ? "GBO" : power.mode === "enhance" ? "Enhance" : "通常";
+  pushMagicEffect(room, "item-hsg-activate", player, {
+    radius: 135,
+    playerId: player.id,
+    variant: `direct:${power.mode}`,
+    durationMs,
+    accelerationMultiplier
+  });
+  setImmediateFeedback(player, `HSG・${modeLabel}`, `直接起動 / 浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}`);
+  pushEvent(room, `${player.name} がHSGを${modeLabel}で直接起動しました（浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}）。`);
   touch(room);
   return power;
 }
@@ -15844,6 +15831,10 @@ function rejectAdverseStatusDuringNaturalRecovery(room, target, label = "状態�
 }
 
 function maintainNaturalRecovery(room, player, timestamp = now()) {
+  // Several instant-item and map-object routes alter SP directly.  Reconcile
+  // the single authoritative mind state here as well as in the continuous
+  // resource paths so a direct SP gain/loss cannot leave stale passives.
+  syncMentalState(room, player, "資源更新", timestamp);
   if (!hasNaturalRecovery(room, player) || !hasActiveAdverseStatus(player, timestamp)) return false;
   const cleared = clearAdverseStatuses(room, player, "自然回復", timestamp);
   if (cleared) {
@@ -16044,7 +16035,7 @@ function queueThrownItem(room, player, itemId, item, landing, rawPower = 0) {
   const power = rawPower && typeof rawPower === "object"
     ? rawPower
     : { mode: Number(rawPower) > 0 ? "enhance" : "normal", enhanceLevel: Number(rawPower) || 0 };
-  const level = power.mode === "gbo" ? 0 : Math.max(0, Math.floor(Number(power.enhanceLevel) || 0));
+  const level = power.mode === "gbo" ? 0 : (Number(power.enhanceLevel) > 0 ? 1 : 0);
   const gbo = power.mode === "gbo";
   // This is a Fighter ability augmentation, never a property of the thrown
   // item or of the Orichalcum Sword.
@@ -16088,7 +16079,7 @@ function queueThrownItem(room, player, itemId, item, landing, rawPower = 0) {
     });
   }
   const label = item?.label || ITEM_DEFINITIONS[itemId]?.label || "アイテム";
-  pushEvent(room, `${player.name} が${label}を投擲しました${gbo ? "（GBO・接触性能×10・接地時破壊）" : level ? `（エンハンス${level}）` : ""}${energyShockwave ? "。ファイター投擲衝撃波を付与しました" : ""}。`);
+  pushEvent(room, `${player.name} が${label}を投擲しました${gbo ? "（GBO・接触性能×10・接地時破壊）" : level ? "（エンハンス）" : ""}${energyShockwave ? "。ファイター投擲衝撃波を付与しました" : ""}。`);
   touch(room);
 }
 
@@ -16174,10 +16165,10 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius, o
 
 function rigidThrownItemKind(itemId, item = {}) {
   const id = String(itemId || "");
-  // Only authored bottle vessels shatter and disappear at landing. Every
-  // other physical item, including sealed Uranium/Plutonium containers and
-  // HSG, remains as the same recoverable rigid entity after an ordinary throw.
-  if (!id || id === "fire-jutsu" || BOTTLE_ITEM_IDS.has(id)) return "";
+  // Authored bottles and the two radioactive containers open/shatter at their
+  // first collision or landing. Every other physical item (HSG, sword,
+  // firearm, heavy weapon and invention) remains recoverable after normal Throw.
+  if (!id || id === "fire-jutsu" || DISPOSABLE_THROW_CONTAINER_ITEM_IDS.has(id)) return "";
   if (id === "orichalcum-sword") return "sword";
   if (id.startsWith("weapon:")) return "firearm";
   if (id.startsWith("invention:")) return "invention";
@@ -16472,7 +16463,6 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
   const landing = safeThrowPoint(room, player, targetX, targetY);
   if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   consumeItem(player, itemId);
-  if (itemId === "hsg") clearHsgPreparedOverdrive(player);
   queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, power);
 }
 
@@ -16548,13 +16538,13 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0, chargeId = "") {
     throw new ApiError(400, "この所持品は通常使用できません。");
   }
   pushMagicEffect(room, "action-item-use", player, { radius: 90, playerId: player.id, variant: itemId });
-  pushEvent(room, `${player.name} が${definition.label}を使用しました${level ? `（エンハンス${level}）` : ""}。`);
+  pushEvent(room, `${player.name} が${definition.label}を使用しました${level ? "（エンハンス）" : ""}。`);
   checkWin(room);
   touch(room);
 }
 
 function useOwnedItem(room, player, itemId, rawHoldMs = 0, chargeId = "") {
-  if (itemId === "hsg") return prepareHsgOverdrive(room, player, rawHoldMs, chargeId);
+  if (itemId === "hsg") return useHsgDirect(room, player, rawHoldMs, chargeId);
   if (ITEM_DEFINITIONS[itemId]) return useInventoryItem(room, player, itemId, rawHoldMs, chargeId);
   if (itemId === "fire-jutsu") return useFireJutsu(room, player, rawHoldMs, chargeId);
   if (itemId === "instant-warp") throw new ApiError(400, "テレポートマップスクロールは即席です。拡大マップからテレポート権利を行使してください。");
@@ -16723,7 +16713,7 @@ function useFireJutsu(room, player, rawHoldMs = 0, chargeId = "") {
 
   const fireField = addHazardField(room, player, "fire", origin.x, origin.y, radius, 1 + enhance * 0.35);
   fireField.excludeSource = true;
-  pushEvent(room, `${player.name} が火遁の術を発動し、燃焼領域を展開しました${enhance ? `（エンハンス${enhance}）` : ""}。`);
+  pushEvent(room, `${player.name} が火遁の術を発動し、燃焼領域を展開しました${enhance ? "（エンハンス）" : ""}。`);
   checkWin(room);
   touch(room);
 }
@@ -17302,7 +17292,7 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
   }
   awardAbilityContribution(player, 2);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "alchemy", maxDistance: 3200, volume: 1 });
-  pushEvent(room, `${player.name} が素敵な発明品 ${id} を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? `（エンハンスLv${power.enhanceLevel}）` : ""}。`);
+  pushEvent(room, `${player.name} が素敵な発明品 ${id} を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
   checkWin(room);
   touch(room);
 }
@@ -17358,7 +17348,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
   } else if (key === "flora") {
     useFloraAbility(room, player, String(options.mode || "heal"), options);
   } else if (key === "gunner") {
-    throw new ApiError(400, "ガンナーのエイム・特殊弾装填・HSGは自動パッシブです。GBOは所持武具のUse／Throw／Shoot長押しから全員が使用します。");
+    throw new ApiError(400, "ガンナーのエイム・特殊弾装填は自動パッシブです。HSGはStorageの物理武具として使用／投擲し、GBOは所持武具のUse／Throw／Shoot長押しから全員が使用します。");
   } else if (key === "quantum") {
     return useQuantumControl(room, player, String(options.mode || "nuclear-transmutation"));
   }
@@ -17633,7 +17623,7 @@ function killPlayer(room, killer, targetId, options = {}) {
     return "substitution";
   }
 
-  if (lockedAim && killer.special !== "fighter" && staminaStateLabel(killer.stamina) === "気概") {
+  if (lockedAim && killer.special !== "fighter" && mentalStateFor(killer) === "気概") {
     hitZone = "body";
     setImmediateFeedback(killer, "気概", "忍殺が非確殺攻撃へ変化");
   }
@@ -18117,7 +18107,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
   shooter.gunnerAmmo[weapon.id] = remainingAmmo - weapon.ammoPerShot;
-  const enhanceLevel = Math.min(ENHANCE_MAX_LEVEL, Math.max(0, Math.floor(Number(shooter.gunnerBurstEnhanceLevel) || 0)));
+  const enhanceLevel = Number(shooter.gunnerBurstEnhanceLevel) > 0 ? 1 : 0;
   const gbo = Boolean(shooter.gunnerBurstGbo && shooter.gunnerBurstGboWeapon === weapon.id);
   const effectiveWeapon = gbo
     ? { ...weapon, range: weapon.range * GBO_PERFORMANCE_MULTIPLIER, cooldownMs: Math.max(1, weapon.cooldownMs / GBO_PERFORMANCE_MULTIPLIER) }
@@ -18330,7 +18320,7 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 
   if (power.mode === "gbo") pushGboOverdriveEffect(room, shooter, `weapon:${weapon.id}`, "magazine-commit");
   setImmediateFeedback(
     shooter,
-    power.mode === "gbo" ? "GBO・1弾倉射撃" : enhanceLevel ? `ため撃ち Lv${enhanceLevel}` : "1弾倉射撃",
+    power.mode === "gbo" ? "GBO・1弾倉射撃" : enhanceLevel ? "エンハンス射撃" : "1弾倉射撃",
     `${weapon.name} / 残り${shooter.gunnerBurstRoundsRemaining}発${power.mode === "gbo" ? " / 通常ダメージ・射程・cadence×10 / 完了・中断時に武器破壊" : enhanceLevel ? ` / 与ダメージ×${(1 + enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL).toFixed(1)}` : ""}`
   );
   advanceGunnerFire(room, shooter, timestamp);
@@ -18581,7 +18571,7 @@ function useHeavyWeapon(room, player, weaponId, rawHoldMs = 0, chargeId = "") {
   }
   awardAbilityContribution(player, 1);
   pushSound(room, "heavyWeapon", player, { ownerId: player.id, sourceKind: "weapon", maxDistance: 10000, volume: 1.25, variant: weapon });
-  pushEvent(room, `${player.name} が${HEAVY_WEAPON_DEFINITIONS[weapon].label}を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? `（エンハンスLv${power.enhanceLevel}）` : ""}。`);
+  pushEvent(room, `${player.name} が${HEAVY_WEAPON_DEFINITIONS[weapon].label}を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
   checkWin(room);
   touch(room);
 }
@@ -19312,12 +19302,21 @@ function contributionRankingEntries(room) {
   const ideaWinnerIds = new Set(ideaWinnerIdsFor(room));
   const entries = [...room.players.values()]
     .map((player) => {
-      // Only kills made by a Defender are a canonical result contribution.
-      // Attackers still retain their ordinary profile KD accounting, but their
-      // kills cannot alter this contribution ranking.
-      const defenderKillContribution = player.role === "defender"
-        ? Math.max(0, Number(player.totalKills) || 0)
-        : 0;
+      const kills = Math.max(0, Number(player.totalKills) || 0);
+      const attackerQuota = Math.max(
+        1,
+        Number(room.killRateAttackerTarget) || Math.ceil(
+          [...room.players.values()].filter((entry) => entry.role === "defender").length /
+          Math.max(1, [...room.players.values()].filter((entry) => entry.role === "attacker").length)
+        )
+      );
+      // Defenders receive one contribution point per kill.  Attackers receive
+      // one point per complete defender-population quota, keeping 2v8 at four
+      // kills per point rather than awarding a smaller faction disproportionate
+      // Result movement.
+      const killContribution = player.role === "attacker"
+        ? Math.floor(kills / attackerQuota)
+        : kills;
       const victoryContribution = victoryCreditFor(room, player, ideaWinnerIds);
       const ideaContribution = ideaWinnerIds.has(player.id) ? 1 : 0;
       return {
@@ -19334,10 +19333,13 @@ function contributionRankingEntries(room) {
       luminousContribution: Number(player.luminousContribution) || 0,
       abilityContribution: Number(player.abilityContribution) || 0,
       taskContribution: Number(player.taskContribution) || 0,
-      defenderKillContribution,
+      killContribution,
+      // Compatibility for pre-v515 clients; all current Result rendering uses
+      // the role-neutral field above.
+      defenderKillContribution: killContribution,
       victoryCredit: victoryContribution,
       ideaContribution,
-      contributionScore: defenderKillContribution + victoryContribution + ideaContribution,
+      contributionScore: killContribution + victoryContribution + ideaContribution,
       luminousSuccess: Boolean(player.luminousActive),
       ideaWinner: ideaWinnerIds.has(player.id)
       };
@@ -19583,8 +19585,6 @@ function serialize(room, viewer, options = {}) {
       hsgOwned: itemCount(viewer, "hsg") > 0,
       hsgUntil: Number(viewer.hsgUntil) || 0,
       hsgReadyAt: Number(viewer.hsgReadyAt) || 0,
-      hsgPreparedMode: String(viewer.hsgPreparedMode || ""),
-      hsgPreparedEnhanceLevel: Math.max(0, Math.floor(Number(viewer.hsgPreparedEnhanceLevel) || 0)),
       hsgDurationMs: HSG_BASE_DURATION_MS,
       hsgCooldownMs: HSG_ACTIVATION_COOLDOWN_MS,
       accelerationPhasing: Number(viewer.hsgUntil) > timestamp,
@@ -19659,8 +19659,8 @@ function serialize(room, viewer, options = {}) {
       credits: viewer.credits,
       mana: Math.round((Number(viewer.mana) || 0) * 10) / 10,
       rationalManaThreshold: RATIONAL_MANA_THRESHOLD,
-      manaState: manaStateLabel(viewer.mana),
-      staminaState: staminaStateLabel(viewer.stamina),
+      mentalState: mentalStateFor(viewer),
+      mentalPoints: mentalPointsFor(viewer),
       desireBias: viewer.desireBias || "",
       desireBiasLabel: desireBiasDefinition(viewer)?.label || "",
       desireBiasDetail: desireBiasDefinition(viewer)?.detail || "",
@@ -19669,7 +19669,7 @@ function serialize(room, viewer, options = {}) {
       luck: luckValueFor(viewer),
       passivesEnabled: passivesEnabled(viewer),
       rationalFreeAbilityReadyAt: Number(viewer.rationalFreeAbilityReadyAt) || 0,
-      rationalFreeAbilityReady: Number(viewer.mana) >= RATIONAL_MANA_THRESHOLD &&
+      rationalFreeAbilityReady: isRational(viewer) &&
         (Number(viewer.rationalFreeAbilityReadyAt) || Infinity) <= timestamp,
       rationalFreeAbilityIntervalMs: RATIONAL_FREE_ABILITY_INTERVAL_MS,
       taskStaminaRequirement: taskStaminaCostFor(viewer),
@@ -20733,8 +20733,6 @@ async function handleApi(req, res) {
         entry.overhealSpeedUntil = 0;
         entry.hsgUntil = 0;
         entry.hsgReadyAt = 0;
-        entry.hsgPreparedMode = "";
-        entry.hsgPreparedEnhanceLevel = 0;
         entry.killCamera = null;
         entry.gunnerSnipingActive = false;
         entry.gunnerAimTargetId = "";
@@ -20749,7 +20747,7 @@ async function handleApi(req, res) {
         entry.credits = 0;
         entry.lastPassiveCreditAt = now();
         entry.mana = STARTING_MANA;
-        entry.manaStateEnteredAt = now();
+        entry.mentalState = "理知";
         entry.rationalFreeAbilityReadyAt = 0;
         entry.gritCharges = 0;
         entry.reasonCharges = 0;
@@ -22058,7 +22056,7 @@ function runPlayingBots(room) {
     if (!attackerUrgency.urgent && bot.alive && refillBotMana(room, bot)) continue;
 
     if (bot.role === "attacker" && bot.alive) {
-      if (bot.special === "alchemist" && Number(bot.mana) >= RATIONAL_MANA_THRESHOLD && (bot.stamina < MAX_STAMINA || bot.substitutionCharges < 1)) {
+    if (bot.special === "alchemist" && isRational(bot) && (bot.stamina < MAX_STAMINA || bot.substitutionCharges < 1)) {
         try { useAlchemy(room, bot, bot.substitutionCharges < 1 ? "substitution" : "stamina"); } catch {}
       }
       const heardWaypoint = heardMovementWaypoint(room, bot, timestamp);
@@ -22254,7 +22252,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "physical-hsg-contribution-ranking-v514",
+  version: "unified-mind-interface-repairs-shoot-transaction-v515",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
