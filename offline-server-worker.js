@@ -9820,11 +9820,10 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botRetaliationUntil: 0,
     botWitnessTargetId: "",
     botWitnessUntil: 0,
-    heardTargetId: "",
     heardSoundAt: 0,
-    heardTargetUntil: 0,
-    heardTargetX: 0,
-    heardTargetY: 0,
+    heardWaypointUntil: 0,
+    heardWaypointX: 0,
+    heardWaypointY: 0,
     lastSeenAt: now(),
     movementSession: "",
     movementSessionStartedAt: 0,
@@ -10288,11 +10287,10 @@ function startGame(room) {
     player.botWitnessUntil = 0;
     player.botWitnessEvidenceKind = "";
     player.botVisibleThrowObservations = [];
-    player.heardTargetId = "";
     player.heardSoundAt = 0;
-    player.heardTargetUntil = 0;
-    player.heardTargetX = 0;
-    player.heardTargetY = 0;
+    player.heardWaypointUntil = 0;
+    player.heardWaypointX = 0;
+    player.heardWaypointY = 0;
     player.lastMoveAt = timestamp;
   });
 
@@ -11949,7 +11947,7 @@ const TIME_KEEPER_FROZEN_DEADLINE_FIELDS = Object.freeze([
   "botClairvoyanceObservedUntil",
   "nextBotClairvoyanceAt",
   "botDeceptionUntil",
-  "heardTargetUntil"
+  "heardWaypointUntil"
 ]);
 
 const TIME_KEEPER_FROZEN_ANCHOR_FIELDS = Object.freeze([
@@ -12337,9 +12335,6 @@ function botKillDecisionEvidenceLabels(room, bot, target, timestamp = now()) {
     Number(bot.botClairvoyanceObservedUntil) > timestamp
   ) {
     labels.push("千里眼で対象を直接観測し、その観測位置を記憶");
-  }
-  if (String(bot.heardTargetId || "") === target.id && Number(bot.heardTargetUntil) > timestamp) {
-    labels.push("対象の足音を聞き、音の方向と直前位置を記憶");
   }
   return [...new Set(labels)];
 }
@@ -12789,7 +12784,7 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "botClairvoyanceObservedUntil",
   "nextBotClairvoyanceAt",
   "botDeceptionUntil",
-  "heardTargetUntil"
+  "heardWaypointUntil"
 ]);
 
 const MEETING_PAUSED_PLAYER_ANCHOR_FIELDS = Object.freeze([
@@ -20268,11 +20263,10 @@ async function handleApi(req, res) {
         entry.vy = 0;
         entry.aimX = 0;
         entry.aimY = 1;
-        entry.heardTargetId = "";
         entry.heardSoundAt = 0;
-        entry.heardTargetUntil = 0;
-        entry.heardTargetX = 0;
-        entry.heardTargetY = 0;
+        entry.heardWaypointUntil = 0;
+        entry.heardWaypointX = 0;
+        entry.heardWaypointY = 0;
         entry.nextBotDefenseDecisionAt = now() + 1800 + Math.floor(Math.random() * 1800);
         entry.botDefensePlannedAt = 0;
         entry.botDefenseKind = "";
@@ -20674,37 +20668,28 @@ function teleportBotToward(room, bot, target) {
   }
 }
 
-function heardDefenderTarget(room, bot, timestamp = now()) {
+function heardMovementWaypoint(room, bot, timestamp = now()) {
   for (let index = room.sounds.length - 1; index >= 0; index -= 1) {
     const sound = room.sounds[index];
     if (sound.at <= bot.heardSoundAt || timestamp - sound.at > BOT_HEARING_MEMORY_MS) break;
     if (!["walk", "dash"].includes(sound.type) || sound.sourceKind !== "player") continue;
     if (distance(bot, sound) > Math.max(1, Number(sound.maxDistance) || 0)) continue;
-    const owner = room.players.get(sound.ownerId);
-    if (!owner || owner.role !== "defender" || !owner.alive || owner.ejected) continue;
-    bot.heardTargetId = owner.id;
     bot.heardSoundAt = sound.at;
-    bot.heardTargetUntil = sound.at + BOT_HEARING_MEMORY_MS;
-    bot.heardTargetX = sound.x;
-    bot.heardTargetY = sound.y;
+    bot.heardWaypointUntil = sound.at + BOT_HEARING_MEMORY_MS;
+    bot.heardWaypointX = sound.x;
+    bot.heardWaypointY = sound.y;
     bot.navPath = [];
     break;
   }
 
-  if (!bot.heardTargetId || bot.heardTargetUntil <= timestamp) {
-    bot.heardTargetId = "";
-    return null;
-  }
-  const target = room.players.get(bot.heardTargetId);
-  if (!target || target.role !== "defender" || !target.alive || target.ejected) {
-    bot.heardTargetId = "";
+  if (Number(bot.heardWaypointUntil) <= timestamp) {
+    bot.heardWaypointUntil = 0;
     return null;
   }
   return {
-    ...target,
-    x: bot.heardTargetX,
-    y: bot.heardTargetY,
-    soundOwnerId: target.id
+    x: Number(bot.heardWaypointX) || 0,
+    y: Number(bot.heardWaypointY) || 0,
+    observedAt: Number(bot.heardSoundAt) || 0
   };
 }
 
@@ -20973,12 +20958,6 @@ function preferredDefenderTarget(room, bot, timestamp = now()) {
     bot.botTarget = visible.id;
     bot.botTargetUntil = timestamp + BOT_HEARING_MEMORY_MS;
     return visible;
-  }
-  const heard = heardDefenderTarget(room, bot, timestamp);
-  if (heard) {
-    bot.botTarget = heard.id;
-    bot.botTargetUntil = timestamp + 12_000;
-    return heard;
   }
   bot.botTarget = "";
   bot.botTargetUntil = 0;
@@ -21544,6 +21523,7 @@ function runPlayingBots(room) {
       if (bot.special === "alchemist" && Number(bot.mana) >= RATIONAL_MANA_THRESHOLD && (bot.stamina < MAX_STAMINA || bot.substitutionCharges < 1)) {
         try { useAlchemy(room, bot, bot.substitutionCharges < 1 ? "substitution" : "stamina"); } catch {}
       }
+      const heardWaypoint = heardMovementWaypoint(room, bot, timestamp);
       const target = preferredDefenderTarget(room, bot, timestamp);
       if (runBotAttackerDeception(room, bot, map, target, timestamp)) continue;
       if (bot.gunFiring && (!target || distance(bot, target) > gunnerWeaponFor(bot).range)) stopGunnerFire(room, bot, { reason: "対象喪失" });
@@ -21552,7 +21532,7 @@ function runPlayingBots(room) {
           rememberBotKillDecision(room, bot, target, {
             code: "observable-target-in-emp-range",
             actionLabel: "EMP",
-            reasons: ["観測または聴覚記憶上の対象がEMP有効範囲内に入り、自分のEMPが使用可能"]
+            reasons: ["直接観測または千里眼の観測記憶上の対象がEMP有効範囲内に入り、自分のEMPが使用可能"]
           }, timestamp);
           activateEmp(room, bot);
         } catch {}
@@ -21648,8 +21628,12 @@ function runPlayingBots(room) {
         moveBotToward(room, bot, target);
       } else {
         if (!attackerUrgency.urgent) useBotSabotage(room, bot, timestamp);
-        const patrol = map.stations[(Math.floor(timestamp / 2500) + Number.parseInt(bot.id.replace(/\D/g, "") || "0", 10)) % map.stations.length];
-        if (patrol) moveBotToward(room, bot, patrol);
+        if (heardWaypoint) {
+          moveBotToward(room, bot, heardWaypoint);
+        } else {
+          const patrol = map.stations[(Math.floor(timestamp / 2500) + Number.parseInt(bot.id.replace(/\D/g, "") || "0", 10)) % map.stations.length];
+          if (patrol) moveBotToward(room, bot, patrol);
+        }
       }
       continue;
     }

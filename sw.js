@@ -2,6 +2,8 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
+// v509 anonymous-audio refresh: footsteps remain positional but never expose
+// an owner identity to bot targeting or kill-camera evidence.
 const CACHE_NAME = "dva-static-v509-stamina-status-visual-poison-evidence";
 const STATIC_ASSETS = [
   "/",
