@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "portrait-quantum-hold-fighter-energy-v503",
+    version: "root-operator-hold-quantum-nested-v504",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21243,7 +21243,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "portrait-quantum-hold-fighter-energy-v503",
+  version: "root-operator-hold-quantum-nested-v504",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

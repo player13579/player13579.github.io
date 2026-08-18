@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "portrait-quantum-hold-fighter-energy-v503",
+    version: "root-operator-hold-quantum-nested-v504",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -455,6 +455,7 @@ const state = {
     startX: 0,
     startY: 0,
     opened: false,
+    branchMode: false,
     suppressClickUntil: new WeakMap()
   },
   mysteryRevealTimer: null,
@@ -758,7 +759,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "portrait-quantum-hold-fighter-energy-v503";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-operator-hold-quantum-nested-v504";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4275,10 +4276,103 @@ function cycleSelectBy(select, direction = 1) {
   return true;
 }
 
+function commitRootHoldAbility(type, rawMode) {
+  const self = state.data?.self;
+  if (!rootAbilityModeSelectActive(self) || !availableBorrowedOperatorTypes(self).includes(type)) return false;
+  const mode = type === "quantum" ? normalizeQuantumClientMode(rawMode) : rawMode;
+  const selectable = type === "quantum"
+    ? [...QUANTUM_KINETIC_MODE_OPTIONS, ...QUANTUM_ABILITY_MODE_OPTIONS.filter(([value]) => value !== "quantum-kinetic")]
+    : OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
+  if (!selectable.some(([value]) => value === mode)) return false;
+  state.borrowedOperatorType = type;
+  if (type === "quantum") rememberQuantumExecutableMode(mode, true);
+  else state.borrowedAbilityModes[type] = mode;
+  state.rootAbilitySelectStage = "selected";
+  populateRootAbilityModeSelect(type);
+  syncAbilityModeDescription(type, self, mode);
+  ensureTeleportTargetForMode(state.data);
+  updateActionButtons(state.data);
+  setActionSelection(els.teleportModeSelect);
+  if (state.abilityAutoActivate) triggerBorrowedAbility(type, mode);
+  return true;
+}
+
+function commitNativeQuantumHoldAbility(rawMode) {
+  const self = state.data?.self;
+  if (self?.special !== "quantum" || rootAbilityModeSelectActive(self)) return false;
+  const mode = normalizeQuantumClientMode(rawMode);
+  if (!rememberQuantumExecutableMode(mode, false)) return false;
+  state.quantumSelectStage = "ability";
+  populateNativeQuantumModeSelect();
+  syncAbilityModeDescription("quantum", self, mode);
+  updateActionButtons(state.data);
+  setActionSelection(els.teleportModeSelect);
+  if (state.abilityAutoActivate) triggerOperatorAbility();
+  return true;
+}
+
+function quantumKineticHoldChoices({ borrowed = false } = {}) {
+  const selected = selectedQuantumKineticMode(borrowed);
+  return QUANTUM_KINETIC_MODE_OPTIONS.map(([mode, label]) => ({
+    key: `quantum-kinetic:${mode}`,
+    group: "運動エネルギー制御",
+    label,
+    selected: selected === mode,
+    apply() {
+      if (borrowed) commitRootHoldAbility("quantum", mode);
+      else commitNativeQuantumHoldAbility(mode);
+    }
+  }));
+}
+
+function quantumTopLevelHoldChoices({ borrowed = false } = {}) {
+  const selected = selectedQuantumExecutableMode(borrowed);
+  return QUANTUM_ABILITY_MODE_OPTIONS.map(([mode, label]) => {
+    if (mode === "quantum-kinetic") {
+      return {
+        key: "quantum:quantum-kinetic",
+        group: "クオンタム",
+        label,
+        selected: selected.startsWith("kinetic-"),
+        branches: quantumKineticHoldChoices({ borrowed })
+      };
+    }
+    return {
+      key: `quantum:${mode}`,
+      group: "クオンタム",
+      label,
+      selected: selected === mode,
+      apply() {
+        if (borrowed) commitRootHoldAbility("quantum", mode);
+        else commitNativeQuantumHoldAbility(mode);
+      }
+    };
+  });
+}
+
+function borrowedOperatorHoldChoices(self = state.data?.self) {
+  return availableBorrowedOperatorTypes(self).map((type) => ({
+    key: `root-operator:${type}`,
+    group: "オペ",
+    label: HACKER_ROOT_OPERATOR_LABELS[type] || type,
+    selected: state.borrowedOperatorType === type,
+    branches: type === "quantum"
+      ? quantumTopLevelHoldChoices({ borrowed: true })
+      : (OPERATOR_ABILITY_MODE_OPTIONS[type] || []).map(([mode, label]) => ({
+        key: `${type}:${mode}`,
+        group: HACKER_ROOT_OPERATOR_LABELS[type] || type,
+        label,
+        selected: state.borrowedOperatorType === type && state.borrowedAbilityModes[type] === mode,
+        apply() { commitRootHoldAbility(type, mode); }
+      }))
+  }));
+}
+
 function switchDragDescriptorForSource(source) {
   if (!(source instanceof Element)) return null;
   const options = [];
   let title = "切り替え先";
+  let rootGroup = "切替";
   if (source === els.weaponButton) {
     title = "武器を切り替え";
     const weapons = Array.isArray(state.data?.self?.gunnerWeapons) ? state.data.self.gunnerWeapons : [];
@@ -4289,10 +4383,28 @@ function switchDragDescriptorForSource(source) {
       selected: weapon.id === state.data?.self?.gunnerWeapon,
       apply() { void api("/api/gunner-weapon", { weaponId: weapon.id }); }
     })));
+  } else if (source === els.teleportModeSelect) {
+    const self = state.data?.self;
+    if (rootAbilityModeSelectActive(self) && state.rootAbilitySelectStage === "operator") {
+      title = "ROOT借用オペと能力";
+      rootGroup = "オペ";
+      options.push(...borrowedOperatorHoldChoices(self));
+    } else if (rootAbilityModeSelectActive(self) && state.rootAbilitySelectStage === "ability") {
+      const type = selectedBorrowedOperator();
+      title = `${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力`;
+      rootGroup = "能力";
+      options.push(...(type === "quantum"
+        ? quantumTopLevelHoldChoices({ borrowed: true })
+        : borrowedOperatorHoldChoices(self).find((option) => option.key === `root-operator:${type}`)?.branches || []));
+    } else if (self?.special === "quantum" && state.quantumSelectStage === "ability") {
+      title = "クオンタム能力";
+      rootGroup = "能力";
+      options.push(...quantumTopLevelHoldChoices({ borrowed: false }));
+    }
   }
   const unique = options.filter((option, index, all) => all.findIndex((entry) => entry.key === option.key) === index);
   const hierarchical = unique.some((option) => Array.isArray(option.branches));
-  return unique.length > 1 ? { title, options: unique, hierarchical } : null;
+  return unique.length > 1 ? { title, rootGroup, options: unique, hierarchical } : null;
 }
 
 function positionSwitchDragMenu(source = state.switchDrag.source) {
@@ -4337,18 +4449,24 @@ function renderSwitchDragAbilityBranch(operatorIndex) {
   els.switchDragOptions.setAttribute("aria-label", `${operator.label}の能力`);
   gesture.branchOptions.forEach((ability, index) => {
     const button = document.createElement("button");
+    const hasBranches = Array.isArray(ability.branches) && ability.branches.length > 0;
     button.type = "button";
     button.dataset.switchDragAbilityIndex = String(index);
     button.setAttribute("role", "option");
     button.setAttribute("aria-selected", String(Boolean(ability.selected)));
     button.setAttribute("aria-label", `${ability.group}: ${ability.label}`);
-    button.className = `switch-drag-option switch-drag-ability${ability.selected ? " selected" : ""}`;
+    if (hasBranches) button.setAttribute("aria-haspopup", "listbox");
+    button.className = `switch-drag-option switch-drag-ability${hasBranches ? " switch-drag-operator" : ""}${ability.selected ? " selected" : ""}`;
     button.innerHTML = `<small>${escapeHtml(ability.group)}</small><strong>${escapeHtml(ability.label)}</strong>`;
     button.addEventListener("click", (event) => {
       event.preventDefault();
       if (!state.switchDrag.opened || !state.switchDrag.persistent) return;
       event.stopPropagation();
       const choice = state.switchDrag.branchOptions[index];
+      if (Array.isArray(choice?.branches) && choice.branches.length) {
+        renderSwitchDragNestedBranch(choice);
+        return;
+      }
       closeSwitchDragMenu();
       if (!choice) return;
       choice.apply();
@@ -4452,21 +4570,31 @@ function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
   els.switchDragOptions.replaceChildren();
   els.switchDragOptions.classList.remove("hierarchical");
   if (gesture.hierarchical) {
-    els.switchDragOptions.setAttribute("aria-label", "オペレーター");
+    const rootGroup = descriptor.rootGroup || "切替";
+    els.switchDragOptions.setAttribute("aria-label", rootGroup);
     descriptor.options.forEach((option, index) => {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.switchDragOperatorIndex = String(index);
       button.setAttribute("aria-haspopup", "listbox");
       button.setAttribute("aria-expanded", "false");
-      button.setAttribute("aria-label", `オペ: ${option.label}`);
+      button.setAttribute("aria-label", `${rootGroup}: ${option.label}`);
       button.className = `switch-drag-option switch-drag-operator${option.selected ? " selected" : ""}`;
-      button.innerHTML = `<small>オペ</small><strong>${escapeHtml(option.label)}</strong>`;
+      button.innerHTML = `<small>${escapeHtml(rootGroup)}</small><strong>${escapeHtml(option.label)}</strong>`;
       button.addEventListener("click", (event) => {
         event.preventDefault();
         if (!state.switchDrag.opened || !state.switchDrag.persistent) return;
         event.stopPropagation();
-        renderSwitchDragAbilityBranch(index);
+        const choice = state.switchDrag.options[index];
+        if (Array.isArray(choice?.branches) && choice.branches.length) {
+          renderSwitchDragAbilityBranch(index);
+          return;
+        }
+        closeSwitchDragMenu();
+        if (!choice) return;
+        choice.apply();
+        showToast(`${choice.group}: ${choice.label}`);
+        playSound("select");
       });
       els.switchDragOptions.append(button);
     });
@@ -4559,18 +4687,41 @@ function finishSwitchDragGesture(event, cancelled = false) {
     updateSwitchDragHover(event.clientX, event.clientY);
     const index = cancelled ? -1 : Number(gesture.hover?.dataset.switchDragIndex);
     const operatorIndex = cancelled ? -1 : Number(gesture.operatorHover?.dataset.switchDragOperatorIndex);
+    const abilityChoice = gesture.hierarchicalStage === "ability" ? gesture.finalChoice : null;
+    const nestedChoice = gesture.hierarchicalStage === "nested" ? gesture.finalChoice : null;
     const choice = cancelled
       ? null
       : gesture.hierarchical
-        ? gesture.hierarchicalStage === "ability" ? gesture.finalChoice : null
+        ? abilityChoice || nestedChoice
         : Number.isInteger(index) && index >= 0 ? gesture.options[index] : null;
     gesture.suppressClickUntil.set(source, performance.now() + 900);
     if (!cancelled && gesture.hierarchical && gesture.hierarchicalStage === "operator" && Number.isInteger(operatorIndex) && operatorIndex >= 0) {
+      const rootChoice = gesture.options[operatorIndex];
+      if (!Array.isArray(rootChoice?.branches) || !rootChoice.branches.length) {
+        closeSwitchDragMenu();
+        if (rootChoice) {
+          rootChoice.apply();
+          showToast(`${rootChoice.group}: ${rootChoice.label}`);
+          playSound("select");
+        }
+        return true;
+      }
       if (gesture.timer) window.clearTimeout(gesture.timer);
       gesture.timer = 0;
       gesture.pointerId = null;
       gesture.persistent = true;
       renderSwitchDragAbilityBranch(operatorIndex);
+      try {
+        if (source?.hasPointerCapture?.(event.pointerId)) source.releasePointerCapture(event.pointerId);
+      } catch {}
+      return true;
+    }
+    if (!cancelled && gesture.hierarchical && choice && Array.isArray(choice.branches) && choice.branches.length) {
+      if (gesture.timer) window.clearTimeout(gesture.timer);
+      gesture.timer = 0;
+      gesture.pointerId = null;
+      gesture.persistent = true;
+      renderSwitchDragNestedBranch(choice);
       try {
         if (source?.hasPointerCapture?.(event.pointerId)) source.releasePointerCapture(event.pointerId);
       } catch {}
@@ -4626,6 +4777,7 @@ function clearNativeSelectHold() {
   hold.startX = 0;
   hold.startY = 0;
   hold.opened = false;
+  hold.branchMode = false;
 }
 
 function openNativeSelectPicker(source, allowLegacyClick = false) {
@@ -4656,8 +4808,25 @@ function beginNativeSelectHold(event) {
   hold.startedAt = performance.now();
   hold.startX = event.clientX;
   hold.startY = event.clientY;
-  // Open the exact browser/device picker used by tap while transient user
-  // activation is still available. Long hold never builds another menu.
+  const descriptor = switchDragDescriptorForSource(source);
+  hold.branchMode = Boolean(source === els.teleportModeSelect && descriptor?.hierarchical);
+  if (hold.branchMode) {
+    event.preventDefault();
+    hold.timer = window.setTimeout(() => {
+      if (hold.pointerId !== event.pointerId || hold.source !== source) return;
+      closeSwitchDragMenu();
+      state.switchDrag.pointerId = event.pointerId;
+      state.switchDrag.source = source;
+      state.switchDrag.startX = hold.startX;
+      state.switchDrag.startY = hold.startY;
+      openSwitchDragMenu(descriptor);
+      hold.opened = state.switchDrag.opened;
+    }, SWITCH_DRAG_HOLD_DELAY_MS);
+    try { source.setPointerCapture?.(event.pointerId); } catch {}
+    return;
+  }
+  // Ordinary selects keep the exact browser/device picker. The shared ROOT/
+  // Quontum ability select reserves long hold for its canonical branch tree.
   hold.opened = openNativeSelectPicker(source, true);
 }
 
@@ -4675,7 +4844,19 @@ function finishNativeSelectHold(event, cancelled = false) {
   const source = hold.source;
   const heldLongEnough = performance.now() - hold.startedAt >= SWITCH_DRAG_HOLD_DELAY_MS;
   let opened = hold.opened;
-  if (!cancelled && heldLongEnough && !opened) opened = openNativeSelectPicker(source, true);
+  if (!hold.branchMode) {
+    if (!cancelled && heldLongEnough && !opened) opened = openNativeSelectPicker(source, true);
+  }
+  if (!cancelled && hold.branchMode && !opened && heldLongEnough) {
+    const descriptor = switchDragDescriptorForSource(source);
+    if (descriptor?.hierarchical) {
+      closeSwitchDragMenu();
+      state.switchDrag.source = source;
+      openSwitchDragMenu(descriptor, { persistent: true });
+      opened = state.switchDrag.opened;
+    }
+  }
+  if (!cancelled && hold.branchMode && !opened && !heldLongEnough) opened = openNativeSelectPicker(source, true);
   if (opened) {
     event.preventDefault();
     hold.suppressClickUntil.set(source, performance.now() + 900);
@@ -9225,6 +9406,47 @@ function rememberQuantumExecutableMode(rawMode, borrowed = false) {
   if (mode.startsWith("kinetic-")) state.quantumKineticModes[borrowed ? "borrowed" : "native"] = mode;
   if (borrowed) state.borrowedAbilityModes.quantum = mode;
   else state.quantumAbilityMode = mode;
+  return true;
+}
+
+function renderSwitchDragNestedBranch(parentChoice) {
+  const gesture = state.switchDrag;
+  if (!gesture.hierarchical || !Array.isArray(parentChoice?.branches) || !parentChoice.branches.length) return false;
+  gesture.hierarchicalStage = "nested";
+  gesture.branchOptions = parentChoice.branches;
+  clearSwitchDragHover();
+  els.switchDragTitle.textContent = `${parentChoice.label}の分岐`;
+  els.switchDragOptions.replaceChildren();
+  els.switchDragOptions.setAttribute("aria-label", `${parentChoice.label}の分岐`);
+  gesture.branchOptions.forEach((choice, index) => {
+    const button = document.createElement("button");
+    const hasBranches = Array.isArray(choice.branches) && choice.branches.length > 0;
+    button.type = "button";
+    button.dataset.switchDragAbilityIndex = String(index);
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", String(Boolean(choice.selected)));
+    button.setAttribute("aria-label", `${choice.group}: ${choice.label}`);
+    if (hasBranches) button.setAttribute("aria-haspopup", "listbox");
+    button.className = `switch-drag-option switch-drag-ability${hasBranches ? " switch-drag-operator" : ""}${choice.selected ? " selected" : ""}`;
+    button.innerHTML = `<small>${escapeHtml(choice.group)}</small><strong>${escapeHtml(choice.label)}</strong>`;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (!state.switchDrag.opened || !state.switchDrag.persistent) return;
+      event.stopPropagation();
+      const selected = state.switchDrag.branchOptions[index];
+      if (Array.isArray(selected?.branches) && selected.branches.length) {
+        renderSwitchDragNestedBranch(selected);
+        return;
+      }
+      closeSwitchDragMenu();
+      if (!selected) return;
+      selected.apply();
+      showToast(`${selected.group}: ${selected.label}`);
+      playSound("select");
+    });
+    els.switchDragOptions.append(button);
+  });
+  positionSwitchDragMenu();
   return true;
 }
 
@@ -17997,7 +18219,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "portrait-quantum-hold-fighter-energy-v503";
+const version = "root-operator-hold-quantum-nested-v504";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
