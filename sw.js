@@ -2,8 +2,8 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-// v517 replaces ability/Renki repeat loops with server-observed batches and
-// repairs icon identity, ordinary Ninjutsu bodies, HSG duplication and debuffs.
+// v519 adds automatic server-observed holds, EC500/1000 milestones, native
+// flick/result repair, kinetic UI gating, and evidence-bound enemy Bot plans.
 const CACHE_NAME = "dva-static-v519-fighter-ec-native-scroll-auto-hold";
 const STATIC_ASSETS = [
   "/",

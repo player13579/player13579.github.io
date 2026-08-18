@@ -9848,6 +9848,12 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botWitnessEvidenceKind: "",
     botVisibleThrowObservations: [],
     botKillDecision: null,
+    botCombatPlan: "",
+    botCombatPlanTargetId: "",
+    botCombatPlanUpdatedAt: 0,
+    botCombatPlanHoldId: "",
+    botCombatPlanThrowId: "",
+    botCombatPlanDeadlineAt: 0,
     nextBotClairvoyanceAt: now() + 4000 + Math.floor(Math.random() * 6000),
     botClairvoyanceUntil: 0,
     botClairvoyanceObservedUntil: 0,
@@ -10318,6 +10324,7 @@ function startGame(room) {
     player.botWitnessEvidenceKind = "";
     player.botVisibleThrowObservations = [];
     player.botKillDecision = null;
+    clearBotCombatPlan(player);
     player.nextBotClairvoyanceAt = timestamp + 4000 + Math.floor(Math.random() * 6000);
     player.botClairvoyanceUntil = 0;
     player.botClairvoyanceObservedUntil = 0;
@@ -15737,8 +15744,10 @@ function recordBotVisibleThrowMotion(room, thrower, thrown, landing, timestamp =
   if (!thrower?.alive || thrower.ejected || !thrown?.id) return 0;
   let observers = 0;
   for (const bot of room.players.values()) {
-    if (!bot.isBot || !bot.alive || bot.ejected || bot.inVent || bot.id === thrower.id) continue;
-    if (!botCanDirectlyObservePlayer(room, bot, thrower)) continue;
+    if (!bot.isBot || !bot.alive || bot.ejected || bot.inVent) continue;
+    // The thrower has direct public action evidence of its own released
+    // container; other bots still require ordinary visual contact.
+    if (bot.id !== thrower.id && !botCanDirectlyObservePlayer(room, bot, thrower)) continue;
     const observations = pruneBotVisibleThrowObservations(bot, timestamp);
     observations.push({
       visualThrowId: String(thrown.id),
@@ -21155,6 +21164,7 @@ async function handleApi(req, res) {
         entry.botWitnessEvidenceKind = "";
         entry.botVisibleThrowObservations = [];
         entry.botKillDecision = null;
+        clearBotCombatPlan(entry);
         entry.movementSession = "";
         entry.movementSessionStartedAt = 0;
         entry.lastMovementSeq = -1;
@@ -22365,6 +22375,246 @@ function runBotGroundItemPickup(room, bot) {
   }
 }
 
+// Enemy bots used to have a hard-coded EMP -> heart-transfer -> gun ->
+// ninjutsu ladder.  That made maximum-strength matches deceptively weak: a
+// Gravity bot, for example, never used the public Accelerate/Renki/Heart
+// route which the CPU training explicitly teaches.  Keep the decision layer
+// deliberately small and invoke the same authoritative action functions as a
+// human request; legality (resources, cooldowns, range, ownership, guards and
+// line of sight) therefore remains in one canonical place.
+function botOpponentTarget(room, bot, timestamp = now()) {
+  if (bot.role === "attacker") return preferredDefenderTarget(room, bot, timestamp);
+  return botKnownAttackerEvidence(room, bot, timestamp);
+}
+
+function botHasTimedAcceleration(bot, timestamp = now()) {
+  return activeTimedAccelerationEffects(bot, timestamp).some((effect) => String(effect.source) === "gravity-accelerate");
+}
+
+function clearBotCombatPlan(bot) {
+  bot.botCombatPlan = "";
+  bot.botCombatPlanTargetId = "";
+  bot.botCombatPlanUpdatedAt = 0;
+  bot.botCombatPlanHoldId = "";
+  bot.botCombatPlanThrowId = "";
+  bot.botCombatPlanDeadlineAt = 0;
+}
+
+// Plans are data, not a new fixed priority ladder.  A plan declares its setup
+// effect, only public evidence/window it may retain, payoff, and future value;
+// adding a legal tactic is a new declarative entry plus canonical callbacks.
+const BOT_COMBAT_PLAN_DEFINITIONS = Object.freeze({
+  "gravity-accelerate-renki-heart": Object.freeze({
+    setup: "self-accelerate", expectedPublicState: "visible gravity acceleration", payoff: "heart-transfer", futureValue: 960,
+    valid: (room, bot, target) => Boolean(target?.alive && !target.ejected && target.id === bot.botCombatPlanTargetId && hasOperatorAccess(bot, "gravity")),
+    step: runGravityAccelerateRenkiHeartPlan
+  }),
+  "poison-observe-rest-payoff": Object.freeze({
+    setup: "toxic throw", expectedPublicState: "directly visible toxic landing and public rest motion", payoff: "visible-rest attack", futureValue: 700,
+    valid: (room, bot, target) => Boolean(target?.alive && !target.ejected && target.id === bot.botCombatPlanTargetId && botCanDirectlyObservePlayer(room, bot, target)),
+    step: runPoisonObserveRestPayoffPlan
+  })
+});
+
+function runPoisonObserveRestPayoffPlan(room, bot, target, timestamp) {
+    // Never read poisonStatus, sleep timers, or another player's private
+    // resource state.  This plan is retained only for the public throw/ATE
+    // chain and pays off only while the bot can actually see the sleep motion.
+    const observation = pruneBotVisibleThrowObservations(bot, timestamp)
+      .find((entry) => entry.visualThrowId === String(bot.botCombatPlanThrowId || "") && entry.visiblyToxicContainer);
+    // Waiting is handled: do not rebuild candidates/rethrow until the observed
+    // public throw has landed and the public poison ATE chain reaches target.
+    if (!observation || timestamp > Number(bot.botCombatPlanDeadlineAt || 0)) {
+      clearBotCombatPlan(bot);
+      return false;
+    }
+    const victimObserved = Boolean(observation.poisonLandingObservedAt > 0 && observation.visiblePoisonVictims?.[target.id]);
+    if (!victimObserved || !["sleep", "meditating"].includes(String(target.movementMode || ""))) return true;
+    try {
+      if (bot.special === "gunner") {
+        const weapon = selectBotGunnerWeapon(bot, distance(bot, target), true);
+        const dx = target.x - bot.x;
+        const dy = target.y - bot.y;
+        const length = Math.hypot(dx, dy) || 1;
+        if (weapon && bot.gunReadyAt <= timestamp && distance(bot, target) <= weapon.range && clearShotPath(room, bot, target, dx / length, dy / length)) {
+          shootGunner(room, bot, dx, dy, "start", 0, "", true);
+          clearBotCombatPlan(bot);
+          return true;
+        }
+      }
+      if (bot.role === "attacker" && bot.killReadyAt <= timestamp && distance(bot, target) <= room.settings.killRange * 0.58) {
+        startNinjutsu(room, bot, target.id);
+        clearBotCombatPlan(bot);
+        return true;
+      }
+    } catch {
+      clearBotCombatPlan(bot);
+    }
+    return false;
+}
+
+function runGravityAccelerateRenkiHeartPlan(room, bot, target, timestamp) {
+  try {
+    if (bot.meditatingUntil > timestamp || bot.attackResolveAt > timestamp) return true;
+    if (!botHasTimedAcceleration(bot, timestamp)) {
+      if (Number(bot.mana) < ABILITY_MANA_COST) {
+        clearBotCombatPlan(bot);
+        return false;
+      }
+      toggleGravityTime(room, bot, "accelerate", bot.id);
+      bot.botCombatPlanUpdatedAt = timestamp;
+      return true;
+    }
+    if (Number(bot.mana) < HEART_TELEPORT_MANA_COST) {
+      const holdId = String(bot.botCombatPlanHoldId || `bot-plan-renki-${bot.id}`);
+      bot.botCombatPlanHoldId = holdId;
+      if (!bot.abilityHold || bot.abilityHold.id !== holdId) {
+        startAbilityHold(room, bot, "/api/renki", holdId);
+        return true;
+      }
+      if (timestamp < Number(bot.abilityHold.startedAt) + ABILITY_BATCH_HOLD_MIN_MS) return true;
+      practiceRenki(room, bot, { holdId });
+      bot.botCombatPlanUpdatedAt = timestamp;
+      return true;
+    }
+    if (bot.teleportReadyAt > timestamp) return true;
+    rememberBotKillDecision(room, bot, target, {
+      code: "planned-gravity-accelerate-renki-heart",
+      actionLabel: "心臓転移",
+      evidence: ["直接観測または許可された観測記憶上の敵対対象"],
+      reasons: ["アクセラレート後の錬気で心臓転移の必要MPを確保した"]
+    }, timestamp);
+    teleportPlayer(room, bot, undefined, undefined, target.id, "heart");
+    clearBotCombatPlan(bot);
+    return true;
+  } catch {
+    // A phase/resource/target change is not retried blindly.  Re-evaluate the
+    // complete candidate list on the next decision.
+    clearBotCombatPlan(bot);
+    return false;
+  }
+}
+
+function executeBotCombatPlan(room, bot, target, timestamp) {
+  const definition = BOT_COMBAT_PLAN_DEFINITIONS[String(bot.botCombatPlan || "")];
+  if (!definition) return false;
+  if (!definition.valid(room, bot, target, timestamp)) {
+    clearBotCombatPlan(bot);
+    return false;
+  }
+  return definition.step(room, bot, target, timestamp);
+}
+
+function botCombatCandidates(room, bot, target, timestamp) {
+  if (!target?.alive || target.ejected || !bot.alive || bot.ejected || bot.inVent) return [];
+  const targetDistance = distance(bot, target);
+  const candidates = [];
+  const add = (code, score, run) => candidates.push({ code, score, run });
+  const gravityAccess = hasOperatorAccess(bot, "gravity");
+
+  // This multi-step plan intentionally outranks immediate gunfire/ninjutsu.
+  // It is started only from a target the bot can legally know about.
+  if (gravityAccess && bot.role === "attacker" && Number(bot.mana) < HEART_TELEPORT_MANA_COST && Number(bot.mana) >= ABILITY_MANA_COST &&
+      !botHasTimedAcceleration(bot, timestamp) && Number(bot.teleportReadyAt) <= timestamp) {
+    add("gravity-accelerate-renki-heart-plan", BOT_COMBAT_PLAN_DEFINITIONS["gravity-accelerate-renki-heart"].futureValue, () => {
+      bot.botCombatPlan = "gravity-accelerate-renki-heart";
+      bot.botCombatPlanTargetId = target.id;
+      bot.botCombatPlanUpdatedAt = timestamp;
+      return executeBotCombatPlan(room, bot, target, timestamp);
+    });
+  }
+  const toxicItem = [...TOXIC_THROW_ITEM_IDS].reverse().find((itemId) => itemCount(bot, itemId) > 0);
+  const canExploitVisibleRest = bot.role === "attacker" || bot.special === "gunner";
+  if (canExploitVisibleRest && toxicItem && targetDistance <= 700 && botCanDirectlyObservePlayer(room, bot, target)) {
+    add("poison-throw-observe-rest-payoff", BOT_COMBAT_PLAN_DEFINITIONS["poison-observe-rest-payoff"].futureValue, () => {
+      // Use the normal authoritative charge path; bots never forge a hold
+      // duration or bypass inventory ownership.
+      const chargeId = setEnhanceChargeState(room, bot, true, "throw", toxicItem);
+      throwInventoryItem(room, bot, toxicItem, 0, target.x, target.y, chargeId);
+      const thrown = [...(room.thrownItems || [])].filter((entry) => entry.ownerId === bot.id && entry.itemId === toxicItem).sort((a, b) => b.createdAt - a.createdAt)[0];
+      if (!thrown) return false;
+      bot.botCombatPlan = "poison-observe-rest-payoff";
+      bot.botCombatPlanTargetId = target.id;
+      bot.botCombatPlanThrowId = thrown.id;
+      bot.botCombatPlanDeadlineAt = Number(thrown.landsAt) + BOT_VISIBLE_THROW_MEMORY_MS;
+      bot.botCombatPlanUpdatedAt = timestamp;
+      return true;
+    });
+  }
+  if (gravityAccess && bot.role === "attacker" && Number(bot.mana) >= HEART_TELEPORT_MANA_COST && Number(bot.teleportReadyAt) <= timestamp) {
+    add("gravity-heart-transfer", 900, () => teleportPlayer(room, bot, undefined, undefined, target.id, "heart"));
+  }
+  if (gravityAccess && target.role !== bot.role && canSpendOperatorMana(bot, timestamp)) {
+    add("gravity-decelerate", 690, () => toggleGravityTime(room, bot, "decelerate", target.id));
+    add("gravity-storm", 675, () => useGravityStorm(room, bot, target.id));
+  }
+  if (gravityAccess && Number(bot.mana) >= GRAVITY_TIME_KEEPER_MANA_COST) {
+    add("gravity-time-keeper", 640, () => useTimeKeeper(room, bot));
+  }
+  if (hasOperatorAccess(bot, "flora")) {
+    if ((Number(bot.bodyHits) > 0 || Number(bot.overheal) < 1) && Number(bot.floraReadyAt) <= timestamp && Number(bot.mana) >= FLORA_MANA_COST) {
+      add("flora-self-heal", 720, () => healFlora(room, bot));
+    }
+    if (target.role !== bot.role && Number(bot.floraReadyAt) <= timestamp && Number(bot.mana) >= FLORA_MANA_COST && targetDistance <= SUNBEAM_RANGE) {
+      add("flora-sunbeam", 740, () => floraSunbeam(room, bot, target.id));
+    }
+  }
+  if (hasOperatorAccess(bot, "quantum") && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && itemCount(bot, "mineral-water") > 0) {
+    add("quantum-kinetic-accelerate", 410, () => useQuantumControl(room, bot, "kinetic-accelerate"));
+  }
+  if (hasOperatorAccess(bot, "fighter") && itemCount(bot, "orichalcum-sword") > 0 && targetDistance <= room.settings.killRange) {
+    add("fighter-slash", 780, () => fighterSlash(room, bot, target.id, false));
+  }
+  if (hasOperatorAccess(bot, "fighter") && !bot.limitBreakActive && remainingHealth(bot) > 1) {
+    add("fighter-limit-break", 610, () => toggleLimitBreak(room, bot));
+  }
+  if (isHackerOperator(bot) && Number(bot.vibeCodingReadyAt) <= timestamp && targetDistance <= room.settings.killRange * 1.5) {
+    // HP deletion is a native Hacker recipe; the recipe itself verifies ROOT
+    // access and target semantics before making any change.
+    add("hacker-hp-delete", 820, () => useAlchemy(room, bot, "hack-hp-delete", target.id));
+  }
+  if (hackerRootEligible(bot) && target.role !== bot.role && canSpendOperatorMana(bot, timestamp)) {
+    add("root-borrowed-gravity-decelerate", 705, () => useBorrowedAbility(room, bot, "gravity", { mode: "decelerate", targetId: target.id }));
+  }
+  if (itemCount(bot, "hsg") > 0 && Number(bot.hsgUntil) <= timestamp && Number(bot.hsgReadyAt) <= timestamp) {
+    add("owned-hsg-use", 350, () => {
+      const chargeId = setEnhanceChargeState(room, bot, true, "use", "hsg");
+      return useHsgDirect(room, bot, 0, chargeId);
+    });
+  }
+  if (bot.role === "attacker" && targetDistance <= EMP_RANGE && Number(bot.empReadyAt) <= timestamp) {
+    add("emp", 650, () => activateEmp(room, bot));
+  }
+  if (bot.special === "gunner") {
+    const weapon = selectBotGunnerWeapon(bot, targetDistance, true);
+    if (weapon && Number(bot.gunReadyAt) <= timestamp && targetDistance <= weapon.range) {
+      const dx = target.x - bot.x;
+      const dy = target.y - bot.y;
+      const length = Math.hypot(dx, dy) || 1;
+      if (clearShotPath(room, bot, target, dx / length, dy / length)) {
+        add("gunner-shoot", 600, () => shootGunner(room, bot, dx, dy, "start", 0, "", true));
+      }
+    }
+  }
+  if (bot.role === "attacker" && targetDistance <= Math.max(72, room.settings.killRange * 0.58) && Number(bot.killReadyAt) <= timestamp && !bot.aimTargetId) {
+    add("ninjutsu", 560, () => startNinjutsu(room, bot, target.id));
+  }
+  return candidates.sort((a, b) => b.score - a.score || a.code.localeCompare(b.code));
+}
+
+function runBotCombatPlanner(room, bot, target, timestamp) {
+  if (executeBotCombatPlan(room, bot, target, timestamp)) return true;
+  for (const candidate of botCombatCandidates(room, bot, target, timestamp)) {
+    try {
+      if (candidate.run() !== false) return true;
+    } catch {
+      // Candidate legality may have changed within this tick; try the next
+      // independently legal candidate rather than idling or trusting state.
+    }
+  }
+  return false;
+}
+
 function runPlayingBots(room) {
   const timestamp = now();
   const map = getMap(room);
@@ -22396,6 +22646,15 @@ function runPlayingBots(room) {
 
     if (bot.alive) runBotClairvoyanceSearch(room, bot, timestamp);
 
+    // Maximum-strength is faction-neutral: any bot facing a living human
+    // receives the same legal-repertoire evaluator before attacker/defender
+    // movement scripts.  Defender targets still come solely from evidence.
+    const opponentTarget = botOpponentTarget(room, bot, timestamp);
+    if (maximumStrength && runBotCombatPlanner(room, bot, opponentTarget, timestamp)) continue;
+
+    // Generic one-at-a-time Renki is a fallback.  It must not pre-empt a
+    // maximum-strength setup such as Accelerate -> server-observed tenfold
+    // Renki -> Heart Transfer.
     if (!attackerUrgency.urgent && bot.alive && refillBotMana(room, bot)) continue;
 
     if (bot.role === "attacker" && bot.alive) {
@@ -22506,10 +22765,10 @@ function runPlayingBots(room) {
     if (bot.role !== "defender" || bot.ejected) continue;
 
     if (bot.alive) {
+      const nearbyAttacker = botKnownAttackerEvidence(room, bot, timestamp);
       if (bot.special === "flora" && (bot.bodyHits > 0 || bot.overheal < 1) && bot.floraReadyAt <= timestamp) {
         try { healFlora(room, bot); } catch {}
       }
-      const nearbyAttacker = botKnownAttackerEvidence(room, bot, timestamp);
       runBotDefenseDecision(room, bot, nearbyAttacker, timestamp);
     }
 
