@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "native-picker-local-overflow-v505",
+    version: "multistage-picker-enemy-bot-task-v506",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -9777,6 +9777,9 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botTargetUntil: 0,
     botTaskTargetId: "",
     botTaskPresenceSince: 0,
+    botTaskPresenceLastTickAt: 0,
+    botTaskPathFailures: 0,
+    botTaskBlockedUntilById: {},
     botDeceptionPhase: "",
     botDeceptionUntil: 0,
     botDeceptionTargetId: "",
@@ -10234,6 +10237,9 @@ function startGame(room) {
     player.nextBotActionAt = timestamp + 1000 + Math.floor(Math.random() * 2000);
     player.botTaskTargetId = "";
     player.botTaskPresenceSince = 0;
+    player.botTaskPresenceLastTickAt = 0;
+    player.botTaskPathFailures = 0;
+    player.botTaskBlockedUntilById = {};
     player.botDeceptionPhase = "";
     player.botDeceptionUntil = 0;
     player.botDeceptionTargetId = "";
@@ -11936,6 +11942,7 @@ const TIME_KEEPER_FROZEN_ANCHOR_FIELDS = Object.freeze([
   "ascensionStartedAt",
   "routeSharedSince",
   "botTaskPresenceSince",
+  "botTaskPresenceLastTickAt",
   "botDeceptionPresenceSince"
 ]);
 
@@ -12648,6 +12655,7 @@ const MEETING_PAUSED_PLAYER_ANCHOR_FIELDS = Object.freeze([
   "ascensionStartedAt",
   "routeSharedSince",
   "botTaskPresenceSince",
+  "botTaskPresenceLastTickAt",
   "botDeceptionPresenceSince"
 ]);
 
@@ -20978,6 +20986,98 @@ function runFriendlyDefenderPatrol(room, bot, map) {
   return true;
 }
 
+function clearBotTaskInteraction(bot, { clearTarget = false } = {}) {
+  if (!bot) return;
+  bot.botTaskPresenceSince = 0;
+  bot.botTaskPresenceLastTickAt = 0;
+  if (clearTarget) bot.botTaskTargetId = "";
+}
+
+function runEnemyDefenderTask(room, bot, map, timestamp = now()) {
+  if (
+    bot?.role !== "defender" ||
+    !bot.alive ||
+    bot.ejected ||
+    !botIsEnemyOfSoleHuman(room, bot)
+  ) {
+    clearBotTaskInteraction(bot, { clearTarget: true });
+    return false;
+  }
+
+  const pending = (Array.isArray(bot.taskList) ? bot.taskList : []).filter((item) => !item.done);
+  const pendingDownloads = pending.filter((item) => item.type === "download");
+  const candidates = pendingDownloads.length ? pendingDownloads : pending;
+  bot.botTaskBlockedUntilById ||= {};
+  for (const [taskId, blockedUntil] of Object.entries(bot.botTaskBlockedUntilById)) {
+    if (Number(blockedUntil) <= timestamp) delete bot.botTaskBlockedUntilById[taskId];
+  }
+
+  const entries = candidates
+    .map((task) => ({ task, station: findStation(map, task.stationId) }))
+    .filter((entry) => entry.station);
+  let taskTarget = entries.find(({ task }) => (
+    task.id === bot.botTaskTargetId &&
+    Number(bot.botTaskBlockedUntilById[task.id] || 0) <= timestamp
+  ));
+  if (!taskTarget) {
+    taskTarget = entries
+      .filter(({ task }) => Number(bot.botTaskBlockedUntilById[task.id] || 0) <= timestamp)
+      .sort((a, b) => distance(bot, a.station) - distance(bot, b.station))[0];
+    bot.botTaskTargetId = taskTarget?.task.id || "";
+    clearBotTaskInteraction(bot);
+  }
+  if (!taskTarget) {
+    clearBotTaskInteraction(bot, { clearTarget: true });
+    return false;
+  }
+
+  const { task, station } = taskTarget;
+  if (distance(bot, station) > map.taskRange) {
+    clearBotTaskInteraction(bot);
+    if (!teleportBotToward(room, bot, station)) {
+      const moved = moveBotToward(room, bot, station);
+      bot.botTaskPathFailures = moved ? 0 : (Number(bot.botTaskPathFailures) || 0) + 1;
+      if (bot.botTaskPathFailures >= 3) {
+        bot.botTaskBlockedUntilById[task.id] = timestamp + 5000;
+        bot.botTaskPathFailures = 0;
+        bot.navPath = [];
+        bot.navCalculatedAt = 0;
+        clearBotTaskInteraction(bot, { clearTarget: true });
+      }
+    }
+    return true;
+  }
+
+  bot.botTaskPathFailures = 0;
+  stopBotForInteraction(bot, timestamp);
+  const interactionWasInterrupted = (
+    bot.botTaskTargetId !== task.id ||
+    !Number(bot.botTaskPresenceSince) ||
+    timestamp - Number(bot.botTaskPresenceLastTickAt || 0) > BOT_TICK_MS * 2.5
+  );
+  bot.botTaskTargetId = task.id;
+  bot.botTaskPresenceLastTickAt = timestamp;
+  if (interactionWasInterrupted) {
+    bot.botTaskPresenceSince = timestamp;
+    return true;
+  }
+
+  const requiredPresenceMs = Math.min(900, AUTO_TASK_PRESENCE_MS / effectiveAccelerationMultiplier(room, bot, timestamp));
+  if (timestamp - Number(bot.botTaskPresenceSince) < requiredPresenceMs || Number(bot.taskAutoReadyAt) > timestamp) return true;
+  try {
+    completeTask(room, bot, task.id);
+    clearBotTaskInteraction(bot, { clearTarget: true });
+  } catch (error) {
+    bot.botTaskPresenceSince = timestamp;
+    bot.botTaskPresenceLastTickAt = timestamp;
+    if (error instanceof ApiError && error.status === 404) {
+      bot.botTaskBlockedUntilById[task.id] = timestamp + 5000;
+      clearBotTaskInteraction(bot, { clearTarget: true });
+    }
+  }
+  return true;
+}
+
 function runBotGroundItemPickup(room, bot) {
   if (!bot?.alive || bot.ejected || bot.inVent || !itemStorageAvailable(bot)) return false;
   const nearby = (room.groundItems || [])
@@ -21146,47 +21246,7 @@ function runPlayingBots(room) {
 
     if (runFriendlyDefenderPatrol(room, bot, map)) continue;
 
-    const pending = bot.taskList.filter((item) => !item.done);
-    const pendingDownloads = pending.filter((item) => item.type === "download");
-    const candidates = pendingDownloads.length ? pendingDownloads : pending;
-    let taskTarget = candidates
-      .filter((task) => task.id === bot.botTaskTargetId)
-      .map((task) => ({ task, station: findStation(map, task.stationId) }))
-      .find((entry) => entry.station);
-    if (!taskTarget) {
-      taskTarget = candidates
-        .map((task) => ({ task, station: findStation(map, task.stationId) }))
-        .filter((entry) => entry.station)
-        .sort((a, b) => distance(bot, a.station) - distance(bot, b.station))[0];
-      bot.botTaskTargetId = taskTarget?.task.id || "";
-    }
-    if (taskTarget) {
-      const { task, station } = taskTarget;
-      if (distance(bot, station) <= map.taskRange) {
-        stopBotForInteraction(bot, timestamp);
-        if (bot.botTaskTargetId !== task.id || !Number(bot.botTaskPresenceSince)) {
-          bot.botTaskTargetId = task.id;
-          bot.botTaskPresenceSince = timestamp;
-          continue;
-        }
-        const requiredPresenceMs = Math.min(900, AUTO_TASK_PRESENCE_MS / effectiveAccelerationMultiplier(room, bot, timestamp));
-        if (timestamp - Number(bot.botTaskPresenceSince) < requiredPresenceMs || Number(bot.taskAutoReadyAt) > timestamp) continue;
-        try {
-          completeTask(room, bot, task.id);
-          bot.botTaskTargetId = "";
-          bot.botTaskPresenceSince = 0;
-        } catch (error) {
-          bot.botTaskPresenceSince = timestamp;
-          if (error instanceof ApiError && error.status === 404) bot.botTaskTargetId = "";
-        }
-      } else if (!teleportBotToward(room, bot, station)) {
-        bot.botTaskPresenceSince = 0;
-        moveBotToward(room, bot, station);
-      }
-    } else {
-      bot.botTaskTargetId = "";
-      bot.botTaskPresenceSince = 0;
-    }
+    runEnemyDefenderTask(room, bot, map, timestamp);
   }
 }
 
@@ -21243,7 +21303,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "native-picker-local-overflow-v505",
+  version: "multistage-picker-enemy-bot-task-v506",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

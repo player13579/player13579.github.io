@@ -182,6 +182,11 @@ const els = {
   teleportButton: $("#teleportButton"),
   teleportControl: $("#teleportControl"),
   teleportModeSelect: $("#teleportModeSelect"),
+  abilityCascadeSelects: $("#abilityCascadeSelects"),
+  rootAbilityBranchControl: $("#rootAbilityBranchControl"),
+  rootAbilityBranchSelect: $("#rootAbilityBranchSelect"),
+  quantumKineticBranchControl: $("#quantumKineticBranchControl"),
+  quantumKineticBranchSelect: $("#quantumKineticBranchSelect"),
   abilityAutoActivateControl: $("#abilityAutoActivateControl"),
   abilityAutoActivateToggle: $("#abilityAutoActivateToggle"),
   teleportModeDescription: $("#teleportModeDescription"),
@@ -759,7 +764,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "native-picker-local-overflow-v505";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "multistage-picker-enemy-bot-task-v506";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5189,6 +5194,8 @@ function bindEvents() {
   [
     els.hackerTargetSelect,
     els.teleportModeSelect,
+    els.rootAbilityBranchSelect,
+    els.quantumKineticBranchSelect,
     els.teleportTargetSelect,
     els.empPhaseSelect,
     els.sabotageSelect,
@@ -5387,29 +5394,27 @@ function bindEvents() {
   els.dodgeButton.addEventListener("click", () => api("/api/dodge"));
   els.teleportButton.addEventListener("click", triggerTeleportAction);
   els.empButton.addEventListener("click", () => api("/api/emp", { phase: els.empPhaseSelect.value }));
-  [els.teleportModeSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
+  [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
     select.addEventListener("change", () => {
-      if (select === els.teleportModeSelect) {
-        if (commitNativeQuantumModeSelect()) {
+      if ([els.teleportModeSelect, els.quantumKineticBranchSelect].includes(select)) {
+        if (commitNativeQuantumModeSelect(select)) {
           if (state.data) updateActionButtons(state.data);
-          const continuePicker = select.dataset.nativePickerContinuation === "1";
-          delete select.dataset.nativePickerContinuation;
-          if (continuePicker) openNativeSelectPicker(select);
-          else select.blur();
+          if (state.quantumSelectStage === "ability") select.blur();
           return;
         }
+      }
+      if ([els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect].includes(select)) {
         const rootStageBeforeCommit = state.rootAbilitySelectStage;
-        if (commitRootAbilityModeSelect()) {
+        if (commitRootAbilityModeSelect(select)) {
           if (state.data) renderTargetOptions(state.data);
           if (state.abilityAutoActivate && rootStageBeforeCommit !== "operator" && state.rootAbilitySelectStage === "selected") {
             triggerOperatorAbility();
           }
-          const continuePicker = select.dataset.nativePickerContinuation === "1";
-          delete select.dataset.nativePickerContinuation;
-          if (continuePicker) openNativeSelectPicker(select);
-          else select.blur();
+          if (state.rootAbilitySelectStage === "selected") select.blur();
           return;
         }
+      }
+      if (select === els.teleportModeSelect) {
         rememberSelectedOperatorMode();
         if (state.data) renderTargetOptions(state.data);
         ensureTeleportTargetForMode(state.data);
@@ -5781,10 +5786,10 @@ function bindEvents() {
       (["KeyB", "KeyS", "KeyM", "KeyT", "KeyY"].includes(event.code) ||
         (event.shiftKey && /^Digit[1-9]$/.test(event.code)));
     const gameplayOptionFocused = state.screen === "game" && state.data?.phase === "playing" &&
-      [els.teleportModeSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect, els.alchemySelect].includes(activeElement);
+      [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect, els.alchemySelect].includes(activeElement);
     const panelActionHotkey = (activeElement === els.alchemySelect && event.code === "KeyR") ||
       (activeElement === els.sabotageSelect && event.code === "KeyL") ||
-      ([els.teleportModeSelect, els.teleportTargetSelect].includes(activeElement) && ["KeyP", "KeyO", "Digit0"].includes(event.code)) ||
+      ([els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect].includes(activeElement) && ["KeyP", "KeyO", "Digit0"].includes(event.code)) ||
       (activeElement === els.empPhaseSelect && event.code === "Semicolon");
     const contextSelectionKey = event.key.startsWith("Arrow") || event.key === "Enter" || event.code === "Space";
     if (activeIsFormControl && !lobbyScreenHotkey && !panelActionHotkey && !gameplayOptionFocused && !contextSelectionKey) return;
@@ -9415,23 +9420,46 @@ function selectedQuantumKineticMode(borrowed = false) {
   return normalizeQuantumClientMode(state.quantumKineticModes[borrowed ? "borrowed" : "native"] || "kinetic-accelerate");
 }
 
+function syncAbilityCascadeSelectVisibility() {
+  const rootVisible = Boolean(els.rootAbilityBranchControl && !els.rootAbilityBranchControl.hidden);
+  const kineticVisible = Boolean(els.quantumKineticBranchControl && !els.quantumKineticBranchControl.hidden);
+  if (els.abilityCascadeSelects) els.abilityCascadeSelects.hidden = !rootVisible && !kineticVisible;
+}
+
+function clearAbilityCascadeSelects({ root = true, kinetic = true } = {}) {
+  if (root && els.rootAbilityBranchControl) {
+    els.rootAbilityBranchControl.hidden = true;
+    els.rootAbilityBranchSelect.innerHTML = "";
+    delete els.rootAbilityBranchSelect.dataset.specialKey;
+  }
+  if (kinetic && els.quantumKineticBranchControl) {
+    els.quantumKineticBranchControl.hidden = true;
+    els.quantumKineticBranchSelect.innerHTML = "";
+    delete els.quantumKineticBranchSelect.dataset.specialKey;
+  }
+  syncAbilityCascadeSelectVisibility();
+}
+
 function populateQuantumKineticModeSelect({ root = false } = {}) {
   if (root) state.rootAbilitySelectStage = "quantum-kinetic";
   else state.quantumSelectStage = "kinetic";
-  els.teleportModeSelect.dataset.specialKey = `${root ? "root-" : ""}quantum-kinetic`;
-  els.teleportModeSelect.innerHTML = [
+  els.quantumKineticBranchControl.hidden = false;
+  els.quantumKineticBranchSelect.dataset.specialKey = `${root ? "root-" : ""}quantum-kinetic`;
+  els.quantumKineticBranchSelect.innerHTML = [
     '<option value="" selected disabled>加速か減速を選択</option>',
     ...QUANTUM_KINETIC_MODE_OPTIONS.map(([value, label]) => `<option value="${value}">${label}</option>`)
   ].join("");
-  els.teleportModeSelect.value = "";
-  els.teleportModeSelect.setAttribute("aria-label", `${root ? "ROOT借用" : ""}クオンタム・運動エネルギー制御`);
+  els.quantumKineticBranchSelect.value = "";
+  els.quantumKineticBranchSelect.setAttribute("aria-label", `${root ? "ROOT借用" : ""}クオンタム・運動エネルギー制御・加速または減速`);
+  syncAbilityCascadeSelectVisibility();
   els.teleportModeDescription.textContent = "運動エネルギー制御を加速か減速へ分岐します。対象となる水を所持していなければ何も起きません。";
   return true;
 }
 
-function populateNativeQuantumModeSelect() {
+function populateNativeQuantumModeSelect({ preserveCascade = false } = {}) {
   const selectedMode = selectedQuantumExecutableMode(false);
   state.quantumSelectStage = "ability";
+  if (!preserveCascade) clearAbilityCascadeSelects();
   const key = `quantum:${QUANTUM_ABILITY_MODE_OPTIONS.map(([value]) => value).join("|")}`;
   els.teleportModeSelect.dataset.specialKey = key;
   els.teleportModeSelect.innerHTML = QUANTUM_ABILITY_MODE_OPTIONS
@@ -9443,24 +9471,27 @@ function populateNativeQuantumModeSelect() {
   return true;
 }
 
-function commitNativeQuantumModeSelect() {
+function commitNativeQuantumModeSelect(source = els.teleportModeSelect) {
   const self = state.data?.self;
   if (self?.special !== "quantum" || rootAbilityModeSelectActive(self)) return false;
-  const mode = els.teleportModeSelect.value;
-  if (state.quantumSelectStage === "kinetic") {
+  if (source === els.quantumKineticBranchSelect) {
+    const mode = source.value;
     if (!rememberQuantumExecutableMode(mode, false)) return true;
     state.quantumSelectStage = "ability";
-    populateNativeQuantumModeSelect();
+    clearAbilityCascadeSelects({ root: false, kinetic: true });
     syncAbilityModeDescription("quantum", self, mode);
     showToast(`運動エネルギー制御: ${quantumModeLabel(mode)}`);
     if (state.abilityAutoActivate) triggerOperatorAbility();
     return true;
   }
+  if (source !== els.teleportModeSelect) return false;
+  const mode = source.value;
   if (mode === "quantum-kinetic") {
     populateQuantumKineticModeSelect();
-    els.teleportModeSelect.dataset.nativePickerContinuation = "1";
+    openNativeSelectPicker(els.quantumKineticBranchSelect, true);
     return true;
   }
+  clearAbilityCascadeSelects();
   if (rememberQuantumExecutableMode(mode, false)) {
     syncAbilityModeDescription("quantum", self, mode);
     if (state.abilityAutoActivate) triggerOperatorAbility();
@@ -9468,41 +9499,55 @@ function commitNativeQuantumModeSelect() {
   return true;
 }
 
-function populateRootOperatorModeSelect(self = state.data?.self) {
+function populateRootOperatorModeSelect(self = state.data?.self, { selectedType = "" } = {}) {
   const types = availableBorrowedOperatorTypes(self);
   if (!types.length) return false;
   state.rootAbilitySelectStage = "operator";
+  clearAbilityCascadeSelects();
   els.teleportModeSelect.dataset.specialKey = `root-operators:${types.join("|")}`;
   els.teleportModeSelect.innerHTML = [
-    '<option value="" selected disabled>オペ名を選択</option>',
+    '<option value="" disabled>オペ名を選択</option>',
     ...types.map((type) => `<option value="root-operator:${escapeHtml(type)}">${escapeHtml(HACKER_ROOT_OPERATOR_LABELS[type] || type)}</option>`)
   ].join("");
-  els.teleportModeSelect.value = "";
+  els.teleportModeSelect.value = types.includes(selectedType) ? `root-operator:${selectedType}` : "";
   els.teleportModeSelect.setAttribute("aria-label", "ROOT借用オペ名");
-  els.teleportModeDescription.textContent = "オペ名を選択すると、同じ能力方式UIがそのオペの能力一覧へ切り替わります。";
+  els.teleportModeDescription.textContent = "オペを選ぶと、その下に同時表示されるブラウザ標準の能力分岐pickerから能力を選べます。";
   return true;
 }
 
-function populateRootAbilityModeSelect(type, { prompt = false } = {}) {
+function populateRootAbilityModeSelect(type, { prompt = false, selectedMode = "" } = {}) {
   const self = state.data?.self;
   if (!availableBorrowedOperatorTypes(self).includes(type)) return false;
   const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
   if (!choices.length) return false;
   state.borrowedOperatorType = type;
-  state.rootAbilitySelectStage = prompt ? "ability" : "selected";
-  els.teleportModeSelect.dataset.specialKey = `root-abilities:${type}:${choices.map(([value]) => value).join("|")}`;
-  els.teleportModeSelect.innerHTML = [
-    ...(prompt ? ['<option value="" selected disabled>能力を選択</option>'] : []),
-    ...choices.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
-  ].join("");
   const remembered = type === "quantum"
     ? quantumTopMode(state.borrowedAbilityModes.quantum)
     : state.borrowedAbilityModes[type] || choices[0][0];
-  els.teleportModeSelect.value = prompt ? "" : choices.some(([value]) => value === remembered) ? remembered : choices[0][0];
-  els.teleportModeSelect.setAttribute("aria-label", `ROOT借用能力方式・${HACKER_ROOT_OPERATOR_LABELS[type] || type}`);
   if (prompt) {
+    state.rootAbilitySelectStage = "ability";
+    clearAbilityCascadeSelects({ root: false, kinetic: true });
+    els.rootAbilityBranchControl.hidden = false;
+    els.rootAbilityBranchSelect.dataset.specialKey = `root-abilities:${type}:${choices.map(([value]) => value).join("|")}`;
+    els.rootAbilityBranchSelect.innerHTML = [
+      '<option value="" disabled>能力を選択</option>',
+      ...choices.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+    ].join("");
+    const effectiveSelected = choices.some(([value]) => value === selectedMode) ? selectedMode : "";
+    els.rootAbilityBranchSelect.value = effectiveSelected;
+    els.rootAbilityBranchSelect.setAttribute("aria-label", `ROOT借用能力分岐・${HACKER_ROOT_OPERATOR_LABELS[type] || type}`);
+    syncAbilityCascadeSelectVisibility();
     els.teleportModeDescription.textContent = `${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択してください。`;
+    return true;
   }
+  state.rootAbilitySelectStage = "selected";
+  clearAbilityCascadeSelects();
+  els.teleportModeSelect.dataset.specialKey = `root-abilities:${type}:${choices.map(([value]) => value).join("|")}`;
+  els.teleportModeSelect.innerHTML = choices
+    .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+    .join("");
+  els.teleportModeSelect.value = choices.some(([value]) => value === remembered) ? remembered : choices[0][0];
+  els.teleportModeSelect.setAttribute("aria-label", `ROOT借用能力方式・${HACKER_ROOT_OPERATOR_LABELS[type] || type}`);
   return true;
 }
 
@@ -9515,11 +9560,11 @@ function prepareRootAbilityModeSelectForOpen() {
   return true;
 }
 
-function commitRootAbilityModeSelect() {
+function commitRootAbilityModeSelect(source = els.teleportModeSelect) {
   const self = state.data?.self;
   if (!rootAbilityModeSelectActive(self)) return false;
-  if (state.rootAbilitySelectStage === "quantum-kinetic") {
-    const mode = els.teleportModeSelect.value;
+  if (source === els.quantumKineticBranchSelect && state.rootAbilitySelectStage === "quantum-kinetic") {
+    const mode = source.value;
     if (!rememberQuantumExecutableMode(mode, true)) return true;
     state.rootAbilitySelectStage = "selected";
     populateRootAbilityModeSelect("quantum");
@@ -9528,28 +9573,29 @@ function commitRootAbilityModeSelect() {
     updateActionButtons(state.data);
     return true;
   }
-  if (state.rootAbilitySelectStage === "operator") {
-    const type = String(els.teleportModeSelect.value || "").replace(/^root-operator:/, "");
+  if (source === els.teleportModeSelect && state.rootAbilitySelectStage === "operator") {
+    const type = String(source.value || "").replace(/^root-operator:/, "");
     if (!availableBorrowedOperatorTypes(self).includes(type)) return true;
     populateRootAbilityModeSelect(type, { prompt: true });
-    els.teleportModeSelect.dataset.nativePickerContinuation = "1";
     showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択`);
     updateActionButtons(state.data);
+    openNativeSelectPicker(els.rootAbilityBranchSelect, true);
     return true;
   }
-  if (state.rootAbilitySelectStage === "ability") {
+  if (source === els.rootAbilityBranchSelect && state.rootAbilitySelectStage === "ability") {
     const type = selectedBorrowedOperator();
-    const mode = els.teleportModeSelect.value;
+    const mode = source.value;
     const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
     if (!choices.some(([value]) => value === mode)) return true;
     if (type === "quantum" && mode === "quantum-kinetic") {
       populateQuantumKineticModeSelect({ root: true });
-      els.teleportModeSelect.dataset.nativePickerContinuation = "1";
       updateActionButtons(state.data);
+      openNativeSelectPicker(els.quantumKineticBranchSelect, true);
       return true;
     }
     state.borrowedAbilityModes[type] = mode;
     state.rootAbilitySelectStage = "selected";
+    populateRootAbilityModeSelect(type);
     syncAbilityModeDescription(type, self);
     ensureTeleportTargetForMode(state.data);
     showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}: ${choices.find(([value]) => value === mode)?.[1] || mode}`);
@@ -9569,7 +9615,6 @@ function closeQuantumKineticHold() {
   const hold = state.quantumKineticHold;
   if (hold.timer) window.clearTimeout(hold.timer);
   hold.timer = 0;
-  document.getElementById("quantumKineticHoldBranch")?.remove();
 }
 
 function beginQuantumKineticHold(event, source) {
@@ -9580,10 +9625,18 @@ function beginQuantumKineticHold(event, source) {
   hold.timer = window.setTimeout(() => {
     if (hold.pointerId !== event.pointerId || hold.cancelled) return;
     hold.opened = true;
-    populateQuantumKineticModeSelect({ root: hold.borrowed });
+    if (hold.borrowed) {
+      populateRootOperatorModeSelect(state.data?.self, { selectedType: "quantum" });
+      populateRootAbilityModeSelect("quantum", { prompt: true, selectedMode: "quantum-kinetic" });
+      populateQuantumKineticModeSelect({ root: true });
+    } else {
+      populateNativeQuantumModeSelect({ preserveCascade: true });
+      els.teleportModeSelect.value = "quantum-kinetic";
+      populateQuantumKineticModeSelect();
+    }
     updateActionButtons(state.data);
     state.continuousActionSuppressClicks.set(source, performance.now() + 900);
-    openNativeSelectPicker(els.teleportModeSelect, true);
+    openNativeSelectPicker(els.quantumKineticBranchSelect, true);
   }, 420);
   return true;
 }
@@ -9661,20 +9714,39 @@ function renderTargetOptions(data) {
       const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
       if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self);
     } else if (state.rootAbilitySelectStage === "quantum-kinetic") {
-      if (els.teleportModeSelect.dataset.specialKey !== "root-quantum-kinetic") {
-        populateQuantumKineticModeSelect({ root: true });
+      const rootType = selectedBorrowedOperator();
+      const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
+      const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
+      const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
+      if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self, { selectedType: rootType });
+      if (els.rootAbilityBranchSelect.dataset.specialKey !== abilityKey) {
+        populateRootAbilityModeSelect(rootType, { prompt: true, selectedMode: "quantum-kinetic" });
       }
+      if (els.quantumKineticBranchSelect.dataset.specialKey !== "root-quantum-kinetic") populateQuantumKineticModeSelect({ root: true });
+    } else if (state.rootAbilitySelectStage === "ability") {
+      const rootType = selectedBorrowedOperator();
+      const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
+      const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
+      const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
+      if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self, { selectedType: rootType });
+      if (els.rootAbilityBranchSelect.dataset.specialKey !== abilityKey) populateRootAbilityModeSelect(rootType, { prompt: true });
     } else {
       const rootType = selectedBorrowedOperator();
       const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
       const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
       if (els.teleportModeSelect.dataset.specialKey !== abilityKey) {
-        populateRootAbilityModeSelect(rootType, { prompt: state.rootAbilitySelectStage === "ability" });
+        populateRootAbilityModeSelect(rootType);
       }
     }
   } else if (modeOwner === "quantum" && state.quantumSelectStage === "kinetic") {
-    if (els.teleportModeSelect.dataset.specialKey !== "quantum-kinetic") populateQuantumKineticModeSelect();
+    const quantumKey = `quantum:${QUANTUM_ABILITY_MODE_OPTIONS.map(([value]) => value).join("|")}`;
+    if (els.teleportModeSelect.dataset.specialKey !== quantumKey) {
+      populateNativeQuantumModeSelect({ preserveCascade: true });
+      els.teleportModeSelect.value = "quantum-kinetic";
+    }
+    if (els.quantumKineticBranchSelect.dataset.specialKey !== "quantum-kinetic") populateQuantumKineticModeSelect();
   } else if (options.length && els.teleportModeSelect.dataset.specialKey !== `${modeOwner}:${modeKey}`) {
+    clearAbilityCascadeSelects();
     const previousMode = els.teleportModeSelect.value;
     els.teleportModeSelect.dataset.specialKey = `${modeOwner}:${modeKey}`;
     els.teleportModeSelect.innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
@@ -18175,7 +18247,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "native-picker-local-overflow-v505";
+const version = "multistage-picker-enemy-bot-task-v506";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

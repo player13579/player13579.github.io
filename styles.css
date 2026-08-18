@@ -2239,25 +2239,6 @@ body.portrait-tablet-dock .tablet-category-grid {
 body.portrait-tablet-dock .tablet-category-grid button { border-radius: 6px; }
 body.portrait-tablet-dock .tablet-branch-lines { display: none !important; }
 
-.quantum-kinetic-hold-branch {
-  position: fixed;
-  z-index: 90;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(88px, 1fr));
-  gap: 6px;
-  min-width: 220px;
-  padding: 8px;
-  border: 1px solid #67e8f9;
-  border-radius: 8px;
-  background: rgba(7, 20, 31, 0.97);
-  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.55);
-  color: #e0f2fe;
-  pointer-events: none;
-}
-.quantum-kinetic-hold-branch strong { grid-column: 1 / -1; font-size: 12px; }
-.quantum-kinetic-hold-branch [data-mode] { padding: 9px; border: 1px solid rgba(125, 211, 252, 0.54); border-radius: 5px; }
-.quantum-kinetic-hold-branch [data-mode].selected { background: #0e7490; color: #fff; }
-
 .tablet-panel > header,
 .operator-branch-panel header {
   display: flex;
@@ -4934,6 +4915,23 @@ body .offline-team-choice button[data-offline-team] {
   min-width: 0;
 }
 
+.ability-cascade-selects {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 3px solid rgba(8, 145, 178, 0.48);
+}
+
+.ability-cascade-selects[hidden],
+.ability-cascade-selects > label[hidden] {
+  display: none !important;
+}
+
+.ability-cascade-selects > label {
+  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr);
+}
+
 .ability-auto-activate {
   display: inline-flex !important;
   grid-template-columns: none !important;
@@ -5172,7 +5170,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=native-picker-local-overflow-v505"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=multistage-picker-enemy-bot-task-v506"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,

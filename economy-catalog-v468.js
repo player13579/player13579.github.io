@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "native-picker-local-overflow-v505",
+    version: "multistage-picker-enemy-bot-task-v506",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
