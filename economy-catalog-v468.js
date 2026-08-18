@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "stamina-status-visual-poison-evidence-v509",
+    version: "natural-recovery-root-assassin-flick-items-v510",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

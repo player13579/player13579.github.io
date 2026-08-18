@@ -738,7 +738,7 @@ body.game-open :is([data-right-panel-scroll], .tablet-branch-list, .hacker-abili
   -webkit-overflow-scrolling: touch;
 }
 
-/* The outer sidebar scrolls only when no clipped local overflow area owns the swipe. */
+/* The outer sidebar scrolls only when no clipped local overflow area owns the native flick. */
 body.game-open #sidePanel {
   max-height: calc(100dvh - 20px);
   overflow-y: auto;
@@ -4458,6 +4458,10 @@ body .offline-team-choice button[data-offline-team] {
   background-image: url("assets/generated/operator-hacker-ate-v391.png?v=operator-ate-v391");
   animation: operator-hacker-ate-v391 1880ms steps(1, end) infinite;
 }
+.operator-visual-assassin {
+  background-image: url("assets/generated/operator-assassin-ate-v510.png?v=operator-assassin-ate-v510");
+  animation: operator-assassin-ate-v510 1640ms cubic-bezier(.2,.72,.18,1) infinite;
+}
 .operator-visual-quantum {
   background-image: url("assets/generated/operator-quantum-control-ate-v391.png?v=operator-ate-v391");
   animation: operator-quantum-ate-v391 2240ms ease-in-out infinite;
@@ -4467,6 +4471,7 @@ body .offline-team-choice button[data-offline-team] {
 .operator-visual-flora,
 .operator-visual-gunner,
 .operator-visual-hacker,
+.operator-visual-assassin,
 .operator-visual-quantum {
   background-position: center;
   background-size: contain;
@@ -4538,6 +4543,18 @@ body .offline-team-choice button[data-offline-team] {
   box-shadow: 3px 0 rgba(34, 211, 238, .22), -2px 0 rgba(244, 114, 182, .18);
   animation: operator-hacker-fragment-v391 1880ms steps(1, end) infinite;
 }
+.operator-visual-assassin::before {
+  inset: 12%;
+  background: conic-gradient(from 214deg at 50% 52%, transparent 0 30%, rgba(167, 139, 250, .48) 36%, rgba(45, 212, 191, .34) 42%, transparent 49% 100%);
+  filter: blur(4px);
+  animation: operator-assassin-vanish-e-v510 1640ms ease-in-out infinite;
+}
+.operator-visual-assassin::after {
+  inset: 9%;
+  background: linear-gradient(112deg, transparent 0 43%, rgba(226, 232, 240, .86) 46% 47%, transparent 50% 100%);
+  mix-blend-mode: screen;
+  animation: operator-assassin-silence-e-v510 1640ms cubic-bezier(.2,.72,.18,1) infinite;
+}
 
 @keyframes operator-fighter-ate-v391 { 0%, 72%, 100% { transform: translateY(-50%); } 77% { transform: translate(-1px, calc(-50% + 1px)) rotate(-.7deg); } 81% { transform: translate(1px, calc(-50% - 1px)) rotate(.7deg); } }
 @keyframes operator-fighter-e-v391 { 0%, 70%, 100% { opacity: .28; transform: scale(.88); } 78% { opacity: 1; transform: scale(1.12); } }
@@ -4557,6 +4574,9 @@ body .offline-team-choice button[data-offline-team] {
 @keyframes operator-hacker-ate-v391 { 0%, 62%, 66%, 100% { transform: translateY(-50%); filter: none; } 63% { transform: translate(2px, -50%); filter: hue-rotate(18deg); } 65% { transform: translate(-1px, -50%); filter: hue-rotate(-14deg); } }
 @keyframes operator-hacker-scan-v391 { 0% { transform: translateY(-20%); opacity: 0; } 14%, 84% { opacity: .9; } 100% { transform: translateY(75%); opacity: 0; } }
 @keyframes operator-hacker-fragment-v391 { 0%, 61%, 67%, 100% { opacity: .2; transform: translateX(0); } 63% { opacity: .9; transform: translateX(3px); } 65% { opacity: .7; transform: translateX(-2px); } }
+@keyframes operator-assassin-ate-v510 { 0%, 16%, 100% { transform: translateY(-50%); opacity: .98; } 52% { transform: translate(2px, calc(-50% - 1px)); opacity: .9; } 68% { transform: translate(-3px, -50%); opacity: .34; } 78% { transform: translate(1px, -50%); opacity: .82; } }
+@keyframes operator-assassin-vanish-e-v510 { 0%, 24%, 100% { opacity: .18; transform: rotate(-8deg) scale(.9); } 58% { opacity: .72; transform: rotate(5deg) scale(1.05); } 72% { opacity: .08; transform: rotate(13deg) scale(1.12); } }
+@keyframes operator-assassin-silence-e-v510 { 0%, 34%, 100% { opacity: 0; transform: translate(-12px, 8px); } 54% { opacity: .78; transform: translate(0, 0); } 70% { opacity: 0; transform: translate(12px, -8px); } }
 
 .vote-card[data-hotkey] {
   position: relative;
@@ -5178,7 +5198,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=stamina-status-visual-poison-evidence-v509"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=natural-recovery-root-assassin-flick-items-v510"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,
@@ -7573,6 +7593,13 @@ body #tabletPanel::after {
   touch-action: pan-y;
 }
 
+.hacker-ability-grid,
+.hacker-ability-grid .hacker-direct-action {
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
 [data-scroll-region],
 [data-right-panel-scroll],
 .vending-panel,
@@ -7587,6 +7614,13 @@ body #tabletPanel::after {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+body.game-open .hacker-ability-grid,
+body.game-open .hacker-ability-grid .hacker-direct-action {
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .item-inventory-choice[data-inventory-kind="weapon"][aria-selected="true"]::after {

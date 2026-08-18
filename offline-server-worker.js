@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "stamina-status-visual-poison-evidence-v509",
+    version: "natural-recovery-root-assassin-flick-items-v510",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7595,7 +7595,6 @@ const HAZARD_FIELD_DURATION_MS = 12_000;
 const HAZARD_TICK_MS = 1_000;
 const POISON_DAMAGE_PER_TICK = 0.2;
 const BURN_DAMAGE_PER_TICK = 0.25;
-const PERSISTENT_STATUS_NATURAL_RECOVERY_MS = 12_000;
 const FULL_STAMINA_STATUS_IMMUNITY_THRESHOLD = 500;
 const TOXIC_THROW_ITEM_IDS = new Set(["mercury", "lead", "uranium", "plutonium"]);
 const GOLD_INSTANT_CREDITS = CREDIT_ECONOMY.goldInstantReward;
@@ -7848,6 +7847,16 @@ const OPERATORS = {
       asset: "gunner",
       description: "ARと即席HSGパッシブを持ち、5種の銃器と狙撃能力を扱う。",
       details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下する。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ「特殊弾装填」は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得する。即席HSGパッシブは足場上から足場のない場所へ進む直前に自動起動し、8秒間の浮揚とACC 1.8を付与する。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・エンハンスできない。"
+    },
+    {
+      id: "attacker-assassin",
+      role: "attacker",
+      name: "アサシン",
+      special: "assassin",
+      limit: 99,
+      asset: "assassin",
+      description: "共有忍殺を死体の残らない消滅へ変え、移動状態を問わず足音を一切発しない。",
+      details: "忍殺の5秒静止、距離、対象喪失、防御、クールタイムの規則は共有忍殺と同じ。成功時は「アサシン忍殺による消滅」として対象を消滅させ、死体・通報対象・死体由来マーカーを残さない。歩行、ダッシュ、無音歩行のいずれでも足音イベントを発生させず、敵Botにも足音由来の観測情報を与えない。"
     },
     {
       id: "attacker-alchemist",
@@ -9755,6 +9764,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     particleCannonUntil: 0,
     particleCannonNextAt: 0,
     hackerRootActive: false,
+    hackerRootHealthSnapshot: null,
     exiled: false,
     routePartnerIds: [],
     routeSharedSince: 0,
@@ -10201,6 +10211,7 @@ function startGame(room) {
     player.particleCannonUntil = 0;
     player.particleCannonNextAt = 0;
     player.hackerRootActive = false;
+    player.hackerRootHealthSnapshot = null;
     player.exiled = false;
     player.routePartnerIds = [];
     player.routeSharedSince = 0;
@@ -10744,9 +10755,39 @@ function hackerRootEligible(player) {
   return Boolean(isHackerOperational(player) && player.hackerRootActive);
 }
 
+function discardHackerRootState(player) {
+  if (!player) return false;
+  const changed = Boolean(player.hackerRootActive || player.hackerRootHealthSnapshot);
+  player.hackerRootActive = false;
+  player.hackerRootHealthSnapshot = null;
+  return changed;
+}
+
 function syncHackerRootState(room, player) {
-  if (!isHackerOperational(player)) player.hackerRootActive = false;
+  if (!isHackerOperational(player)) discardHackerRootState(player);
   return hackerRootEligible(player);
+}
+
+function deactivateHackerRoot(room, player, { restoreHealth = false, announce = false } = {}) {
+  if (!player?.hackerRootActive) return false;
+  const snapshot = player.hackerRootHealthSnapshot;
+  player.hackerRootActive = false;
+  player.hackerRootHealthSnapshot = null;
+  if (restoreHealth && player.alive && !player.ejected && snapshot) {
+    player.bodyHits = Number(snapshot.bodyHits);
+    player.overheal = Number(snapshot.overheal);
+  }
+  if (announce) {
+    pushMagicEffect(room, "hacker-root", player, {
+      radius: 128,
+      playerId: player.id,
+      variant: "release"
+    });
+    setImmediateFeedback(player, "ROOT解除", `HP ${remainingHealth(player)}`);
+    pushEvent(room, `${player.name} がROOTを解除し、発動前のHP ${remainingHealth(player)}へ戻りました。`);
+    touch(room);
+  }
+  return true;
 }
 
 function activateHackerRoot(room, player) {
@@ -10758,12 +10799,15 @@ function activateHackerRoot(room, player) {
   }
   ensureAbilityAvailable(player);
   ensureConscious(player);
-  if (hackerRootEligible(player)) throw new ApiError(400, "すでにroot化しています。");
 
   const healthBefore = remainingHealth(player);
   const retainedProtections = {
     grit: Math.max(0, Math.floor(Number(player.gritCharges) || 0)),
     substitution: Math.max(0, Math.floor(Number(player.substitutionCharges) || 0))
+  };
+  player.hackerRootHealthSnapshot = {
+    bodyHits: Number(player.bodyHits),
+    overheal: Number(player.overheal)
   };
   player.overheal = 0;
   player.bodyHits = 2 - HACKER_ROOT_HEALTH;
@@ -10790,6 +10834,18 @@ function activateHackerRoot(room, player) {
   );
   touch(room);
   return { health: remainingHealth(player), retainedProtections, inheritedStartingItems };
+}
+
+function toggleHackerRoot(room, player) {
+  if (player?.hackerRootActive) {
+    if (room.phase !== "playing" || !isHackerOperator(player) || !player.alive || player.ejected) {
+      discardHackerRootState(player);
+      throw new ApiError(403, "現在はROOTを解除できません。");
+    }
+    deactivateHackerRoot(room, player, { restoreHealth: true, announce: true });
+    return { active: false, health: remainingHealth(player) };
+  }
+  return { active: true, ...activateHackerRoot(room, player) };
 }
 
 function grantHackerRootStartingItems(player) {
@@ -10866,6 +10922,7 @@ function toggleLimitBreak(room, player) {
   if (firstActivation) player.limitBreakManaCarry = 0;
   player.stamina = Math.min(staminaCapacityFor(player), previousStamina * 3);
   player.staminaUpdatedAt = timestamp;
+  maintainFullStaminaStatusImmunity(room, player, timestamp);
   const stacks = limitBreakStackCount(player);
   const multiplier = limitBreakMultiplier(player);
   const infiniteReward = hasFighterInfiniteResources(player);
@@ -11312,6 +11369,7 @@ function grantIdeaGood(room, player, timestamp) {
   player.unconsciousUntil = 0;
   player.stamina = MAX_STORED_STAMINA;
   player.staminaUpdatedAt = timestamp;
+  maintainFullStaminaStatusImmunity(room, player, timestamp);
   pushMagicEffect(room, "idea-good", player, { radius: 185, playerId: player.id });
   pushEvent(room, `${player.name} が善を獲得し、押し込み・踏ん張り・回復・加速を統合しました。`);
   return true;
@@ -11738,6 +11796,7 @@ function advanceAutomaticManaToStamina(room, player, elapsedMs, timestamp = now(
   player.stamina = stamina + restored;
   player.staminaUpdatedAt = timestamp;
   setMana(room, player, mana - restored / STAMINA_TO_MANA_COST, "MP自動SP変換");
+  maintainFullStaminaStatusImmunity(room, player, timestamp);
   if ((Number(player.autoManaToStaminaFeedbackAt) || 0) <= timestamp) {
     player.autoManaToStaminaFeedbackAt = timestamp + 1000;
     pushGainAte(room, player, "stamina", { variant: "auto-mana-to-stamina", durationMs: 1050 });
@@ -12024,9 +12083,7 @@ function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
   for (const field of ["poisonStatus", "burnStatus"]) {
     const status = player[field];
     if (!status) continue;
-    if (Number(status.appliedAt) > 0) status.appliedAt = Number(status.appliedAt) + elapsed;
     if (Number(status.nextTickAt) > timestamp) status.nextTickAt = Number(status.nextTickAt) + elapsed;
-    if (Number(status.recoversAt) > timestamp) status.recoversAt = Number(status.recoversAt) + elapsed;
   }
   for (const observation of player.botVisibleThrowObservations || []) {
     if (Number(observation.observedAt) > 0) observation.observedAt = Number(observation.observedAt) + elapsed;
@@ -12221,7 +12278,8 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
     spendStamina(mover, drainRate * dt, room, movementMode === "slow" ? "無音歩行" : "歩行");
   }
   const soundInterval = movementMode === "dash" ? 210 : 430;
-  if ((controllingDrone || player.alive) && movementMode !== "slow" && !passiveEffects.quiet && timestamp - (mover.lastSoundAt || 0) >= soundInterval) {
+  const silentAssassinStep = !controllingDrone && player.special === "assassin";
+  if ((controllingDrone || player.alive) && !silentAssassinStep && movementMode !== "slow" && !passiveEffects.quiet && timestamp - (mover.lastSoundAt || 0) >= soundInterval) {
     mover.lastSoundAt = timestamp;
     const boostedDrone = controllingDrone && movementMode === "dash";
     pushSound(room, movementMode === "dash" ? "dash" : controllingDrone ? "drone" : "walk", mover, {
@@ -12284,7 +12342,7 @@ function winningHumansInBotMatch(room, winnerRole) {
 function recordBotMatchElimination(room, target, source = null) {
   if (!target) return;
   target.botMatchEliminatedById = String(source?.id || "");
-  target.hackerRootActive = false;
+  discardHackerRootState(target);
   clearEnhanceChargeState(target);
 }
 
@@ -12833,9 +12891,7 @@ function pausePlayerBattleTime(player, pausedAt, elapsedMs) {
   for (const field of ["poisonStatus", "burnStatus"]) {
     const status = player[field];
     if (!status) continue;
-    shiftMeetingAnchor(status, "appliedAt", elapsedMs);
     shiftMeetingDeadline(status, "nextTickAt", pausedAt, elapsedMs);
-    shiftMeetingDeadline(status, "recoversAt", pausedAt, elapsedMs);
   }
   for (const observation of player.botVisibleThrowObservations || []) {
     shiftMeetingAnchor(observation, "observedAt", elapsedMs);
@@ -14307,11 +14363,14 @@ function removeTransferableItem(player, itemId, amount = 1) {
 }
 
 function receiveTransferableItem(player, item) {
-  if (ITEM_DEFINITIONS[item.id]) addItem(player, item.id, item.amount);
-  else if (TRANSFERABLE_CHARGES[item.id]) player[TRANSFERABLE_CHARGES[item.id].field] = Math.max(0, Number(player[TRANSFERABLE_CHARGES[item.id].field]) || 0) + item.amount;
-  else if (item.id.startsWith("invention:")) player.inventions.push(item.id.slice(10));
-  else if (item.id.startsWith("weapon:")) purchaseFirearm(player, item.id.slice(7));
-  else if (item.id.startsWith("heavy:")) player.heavyWeapons.push(item.id.slice(6));
+  const itemId = String(item?.id || "");
+  if (ITEM_DEFINITIONS[itemId]) addItem(player, itemId, item.amount);
+  else if (TRANSFERABLE_CHARGES[itemId]) player[TRANSFERABLE_CHARGES[itemId].field] = Math.max(0, Number(player[TRANSFERABLE_CHARGES[itemId].field]) || 0) + item.amount;
+  else if (itemId.startsWith("invention:")) player.inventions.push(itemId.slice(10));
+  else if (itemId.startsWith("weapon:")) purchaseFirearm(player, itemId.slice(7));
+  else if (itemId.startsWith("heavy:")) player.heavyWeapons.push(itemId.slice(6));
+  else throw new ApiError(400, "この接地アイテムは回収できません。");
+  return true;
 }
 
 function transferOwnedResource(room, player, targetId, itemId, rawAmount, credits = false) {
@@ -14981,6 +15040,8 @@ function useMapObject(room, player, objectId) {
     throw new ApiError(400, "このオブジェクトは接触時に自動で作動します。");
   }
 
+  maintainFullStaminaStatusImmunity(room, player, timestamp);
+
   markObjectContactUsed(player, object.id);
   player.objectCooldowns[object.id] = timestamp + Number(object.cooldownMs || 15000);
   pushMagicEffect(room, `object-${object.type}`, object, {
@@ -15041,6 +15102,8 @@ function applyMysteryDrink(room, player, timestamp = now()) {
     result = `ジャックポット +${CREDIT_ECONOMY.mysteryJackpot}C`;
   } else if (roll < 0.36) {
     player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 250);
+    player.staminaUpdatedAt = timestamp;
+    maintainFullStaminaStatusImmunity(room, player, timestamp);
     result = "エナジーサージ スタミナ+250";
   } else if (roll < 0.52) {
     player.bodyHits = 0;
@@ -15116,6 +15179,8 @@ function purchaseDrink(room, player, itemId) {
     } },
     stamina: { label: "スタミナ", cost: 6, apply: () => {
       player.stamina = Math.min(MAX_STORED_STAMINA, Math.max(0, Number(player.stamina) || 0) + 350);
+      player.staminaUpdatedAt = now();
+      maintainFullStaminaStatusImmunity(room, player, player.staminaUpdatedAt);
     } },
     hsg: { label: "HSG", cost: 8, apply: () => activateHsgInstant(player) },
     reason: { label: "押し込み", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
@@ -15359,7 +15424,7 @@ function recordBotVisiblePoisonLanding(room, thrown, landing, timestamp = now())
     observation.poisonRadius = 145 + Math.max(0, Number(thrown.level) || 0) * 42;
     observation.expiresAt = Math.max(
       Number(observation.expiresAt) || 0,
-      timestamp + HAZARD_FIELD_DURATION_MS + PERSISTENT_STATUS_NATURAL_RECOVERY_MS
+      timestamp + BOT_VISIBLE_THROW_MEMORY_MS
     );
     observers += 1;
   }
@@ -15546,33 +15611,45 @@ function clearAdverseStatuses(room, player, source = "状態異常回復", times
     player.movementMode = "idle";
   }
   if (player.drone?.movementMode === "time-stopped") player.drone.movementMode = "idle";
-  const clearedBurn = clearBurning(room, player, source);
-  const clearedPoison = clearPoison(room, player, source);
+  const naturalRecovery = source === "自然回復";
+  const clearedBurn = Boolean(player.burnStatus);
+  const clearedPoison = Boolean(player.poisonStatus);
+  if (naturalRecovery) {
+    player.burnStatus = null;
+    player.poisonStatus = null;
+  } else {
+    if (clearedBurn) clearBurning(room, player, source);
+    if (clearedPoison) clearPoison(room, player, source);
+  }
   return hadTimedStatus || clearedBurn || clearedPoison;
 }
 
 function rejectAdverseStatusAtFullStamina(room, target, label = "状態異常", timestamp = now()) {
   if (!hasFullStaminaStatusImmunity(target)) return false;
+  pushMagicEffect(room, "natural-recovery", target, {
+    radius: 112,
+    playerId: target.id,
+    variant: `blocked:${label}`,
+    durationMs: 1150
+  });
   if (Number(target.statusImmunityFeedbackAt) <= timestamp) {
     target.statusImmunityFeedbackAt = timestamp + HAZARD_TICK_MS;
-    pushGainAte(room, target, "statusRecovery", {
-      variant: "stamina-500-immunity",
-      durationMs: 1050
-    });
-    setImmediateFeedback(target, "状態異常無効", `${label} / SP 500以上`);
+    setImmediateFeedback(target, "自然回復", `${label}を無効化 / SP 500以上`);
   }
   return true;
 }
 
 function maintainFullStaminaStatusImmunity(room, player, timestamp = now()) {
   if (!hasFullStaminaStatusImmunity(player) || !hasActiveAdverseStatus(player, timestamp)) return false;
-  const cleared = clearAdverseStatuses(room, player, "SP500自然回復", timestamp);
-  if (cleared && Number(player.statusImmunityFeedbackAt) <= timestamp) {
-    player.statusImmunityFeedbackAt = timestamp + HAZARD_TICK_MS;
-    pushGainAte(room, player, "statusRecovery", {
-      variant: "stamina-500-natural-recovery",
-      durationMs: 1250
+  const cleared = clearAdverseStatuses(room, player, "自然回復", timestamp);
+  if (cleared) {
+    pushMagicEffect(room, "natural-recovery", player, {
+      radius: 122,
+      playerId: player.id,
+      variant: "cleared",
+      durationMs: 1350
     });
+    player.statusImmunityFeedbackAt = Math.max(Number(player.statusImmunityFeedbackAt) || 0, timestamp + HAZARD_TICK_MS);
     setImmediateFeedback(player, "自然回復", "SP 500到達 / 状態異常解除");
   }
   return cleared;
@@ -15616,9 +15693,7 @@ function applyPersistentStatus(room, source, target, kind, strength = 1, timesta
   target[field] = {
     sourceId,
     strength: nextStrength,
-    nextTickAt: Math.min(Number(current?.nextTickAt) || Infinity, timestamp + HAZARD_TICK_MS),
-    appliedAt: Number(current?.appliedAt) || timestamp,
-    recoversAt: Math.max(Number(current?.recoversAt) || 0, timestamp + PERSISTENT_STATUS_NATURAL_RECOVERY_MS)
+    nextTickAt: Math.min(Number(current?.nextTickAt) || Infinity, timestamp + HAZARD_TICK_MS)
   };
   if (shouldEmitActivation) {
     pushMagicEffect(room, kind === "poison" ? "status-poison" : "status-burning", target, {
@@ -15674,13 +15749,15 @@ function safeThrowPoint(room, player, targetX = Number.NaN, targetY = Number.NaN
 
 function useMineralWater(room, player, center, level = 0, thrown = false) {
   const radius = thrown ? 135 + level * 38 : 0;
+  const timestamp = now();
   const targets = thrown
     ? [...room.players.values()].filter((target) => target.alive && !target.ejected && distance(center, target) <= radius)
     : [player];
   for (const target of targets) {
     clearBurning(room, target, "ミネラルウォーター");
     target.stamina = Math.min(MAX_STORED_STAMINA, Number(target.stamina || 0) + MINERAL_WATER_STAMINA + level * 45);
-    target.staminaUpdatedAt = now();
+    target.staminaUpdatedAt = timestamp;
+    maintainFullStaminaStatusImmunity(room, target, timestamp);
   }
   if (thrown) addHazardField(room, player, "water", center.x, center.y, radius, 1 + level * 0.25, 4_500 + level * 1_000);
 }
@@ -16321,12 +16398,6 @@ function advanceHazards(room, timestamp = now()) {
     for (const [field, kind, baseDamage] of [["poisonStatus", "毒", POISON_DAMAGE_PER_TICK], ["burnStatus", "燃焼", BURN_DAMAGE_PER_TICK]]) {
       const status = target[field];
       if (!status || !target.alive || target.ejected) continue;
-      const recoversAt = Number(status.recoversAt) || (Number(status.appliedAt) || timestamp) + PERSISTENT_STATUS_NATURAL_RECOVERY_MS;
-      if (recoversAt <= timestamp) {
-        if (field === "poisonStatus") clearPoison(room, target, "自然回復");
-        else clearBurning(room, target, "自然回復");
-        continue;
-      }
       if (Number(status.nextTickAt) > timestamp) continue;
       const source = room.players.get(status.sourceId) || null;
       status.nextTickAt = timestamp + HAZARD_TICK_MS;
@@ -16519,7 +16590,7 @@ function useFloraAbility(room, player, mode, options = {}) {
 
 const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "orichalcum-sword": { label: "オリハルコン・ソード", cost: 0, apply: (_room, player) => addItem(player, "orichalcum-sword") },
-  stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
+  stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { const timestamp = now(); player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); player.staminaUpdatedAt = timestamp; maintainFullStaminaStatusImmunity(room, player, timestamp); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
   hsg: { label: "HSG", cost: 0, apply: (_room, player) => activateHsgInstant(player) },
   heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1; pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
   fire: { label: "火遁の術", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
@@ -16767,6 +16838,7 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
     player.stamina = DESIRE_RESOURCE_DEBT;
   }
   player.staminaUpdatedAt = now();
+  maintainFullStaminaStatusImmunity(room, player, player.staminaUpdatedAt);
   awardAbilityContribution(player, 0.75);
   pushMagicEffect(room, "action-vibe-coding", player, {
     radius: 145,
@@ -17101,13 +17173,29 @@ function failAimForMovement(room, player, timestamp = now()) {
   touch(room);
 }
 
+function ninjutsuEliminationProfile(player) {
+  if (player?.special === "assassin") {
+    return {
+      reason: "アサシン忍殺による消滅",
+      attackKind: "assassin-ninjutsu-annihilation",
+      attackLabel: "アサシン忍殺による消滅"
+    };
+  }
+  return {
+    reason: "忍殺",
+    attackKind: "ninjutsu",
+    attackLabel: "忍殺"
+  };
+}
+
 function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now()) {
   const target = room.players.get(targetId);
   if (!target?.alive || target.ejected) return "miss";
-  const disappeared = destroyPlayerUnconditionally(room, player, target, "忍殺", {
+  const profile = ninjutsuEliminationProfile(player);
+  const disappeared = destroyPlayerUnconditionally(room, player, target, profile.reason, {
     noBody: true,
-    attackKind: "ninjutsu",
-    attackLabel: "忍殺",
+    attackKind: profile.attackKind,
+    attackLabel: profile.attackLabel,
     slashGuardPhysical: true,
     slashGuardReflectable: true,
     reflectDestroy: true
@@ -17121,7 +17209,7 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
   player.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
   recordBotKillWitnesses(room, player, target, timestamp);
   evaluateSoloMission(room, timestamp);
-  pushDoorLog(room, `${whichRoom(getMap(room), target)} 付近で忍殺による反応消失`);
+  pushDoorLog(room, `${whichRoom(getMap(room), target)} 付近で${profile.attackLabel}による反応消失`);
   checkWin(room);
   touch(room);
   return "disappeared";
@@ -19873,7 +19961,7 @@ async function handleApi(req, res) {
 
     case "/api/hacker-root": {
       const { room, player } = requireRoomPlayer(body);
-      activateHackerRoot(room, player);
+      toggleHackerRoot(room, player);
       payload = serialize(room, player);
       break;
     }
@@ -21618,7 +21706,7 @@ function runPlayingBots(room) {
         try {
           rememberBotKillDecision(room, bot, target, {
             code: "observable-target-ninjutsu-range",
-            actionLabel: "忍殺",
+            actionLabel: ninjutsuEliminationProfile(bot).attackLabel,
             reasons: ["観測記憶上の対象が忍殺の開始距離に入り、キルクールタイムが完了"]
           }, timestamp);
           startNinjutsu(room, bot, target.id);
@@ -21735,5 +21823,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "stamina-status-visual-poison-evidence-v509" });
+self.postMessage({ type: "ready", version: "natural-recovery-root-assassin-flick-items-v510" });
 })();

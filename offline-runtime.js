@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "stamina-status-visual-poison-evidence-v509";
+const OFFLINE_WORKER_VERSION = "natural-recovery-root-assassin-flick-items-v510";
 const OFFLINE_WORKER_READY_TIMEOUT_MS = 40_000;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 

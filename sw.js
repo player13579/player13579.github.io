@@ -2,9 +2,9 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-// v509 anonymous-audio refresh: footsteps remain positional but never expose
-// an owner identity to bot targeting or kill-camera evidence.
-const CACHE_NAME = "dva-static-v509-stamina-status-visual-poison-evidence";
+// v510 adds threshold-only Natural Recovery, ROOT toggle repair, native flick
+// ownership, foreground reflow, reusable ground pickup and Assassin.
+const CACHE_NAME = "dva-static-v510-natural-recovery-root-assassin-flick-items";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -44,6 +44,8 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-quantum-control-ate-v391.png",
   "/assets/generated/operator-gunner-ate-v391.png",
   "/assets/generated/operator-hacker-ate-v391.png",
+  "/assets/generated/operator-assassin-ate-v510.png",
+  "/assets/generated/natural-recovery-ate-v510.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
   "/assets/generated/fighter-energy-charge-ate-v404.png",
   "/assets/generated/item-orichalcum-sword-v453.png",

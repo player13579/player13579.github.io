@@ -20,7 +20,6 @@ const SMARTPHONE_REPAIR_STAMINA_COST = 300;
 const MOVEMENT_IDLE_SESSION_ROTATE_MS = 1_500;
 const ITEM_THROW_BASE_DISTANCE_CLIENT = 220;
 const ITEM_THROW_MAX_CHARGE_MS_CLIENT = 3_000;
-const ITEM_THROW_TARGETING_WINDOW_MS = 12_000;
 const ITEM_THROW_TARGET_CURSOR_SPEED = 900;
 const CLAIRVOYANCE_ZOOM = 0.65;
 const MARKER_EXPLANATION_DURATION_MS = 1_450;
@@ -93,6 +92,7 @@ const els = {
   tabletJoystickKnob: $("#tabletJoystickKnob"),
   tabletQuickActions: $("#tabletQuickActions"),
   tabletNinjutsuShortcut: $("#tabletNinjutsuShortcut"),
+  tabletContextShortcut: $("#tabletContextShortcut"),
   tabletAbilityShortcut: $("#tabletAbilityShortcut"),
   tabletShootShortcut: $("#tabletShootShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
@@ -182,6 +182,7 @@ const els = {
   weaponButton: $("#weaponButton"),
   dodgeButton: $("#dodgeButton"),
   teleportButton: $("#teleportButton"),
+  borrowedAbilityButton: $("#borrowedAbilityButton"),
   teleportControl: $("#teleportControl"),
   teleportModeSelect: $("#teleportModeSelect"),
   abilityCascadeSelects: $("#abilityCascadeSelects"),
@@ -521,7 +522,6 @@ const state = {
     targetX: 0,
     targetY: 0,
     startedAt: 0,
-    expiresAt: 0,
     lastFrameAt: 0,
     frame: 0,
     directionKeys: new Set()
@@ -656,6 +656,7 @@ specialLabels.gunner = "ガンナー";
 specialLabels.flora = "フローラ";
 specialLabels.alchemist = "ハッカー";
 specialLabels.quantum = "クオンタム";
+specialLabels.assassin = "アサシン";
 
 const sabotageLabels = {
   comms: "通信妨害",
@@ -766,7 +767,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "stamina-status-visual-poison-evidence-v509";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-recovery-root-assassin-flick-items-v510";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2677,7 +2678,7 @@ const actionHotkeys = {
   Digit4: "smartphoneRepair",
   Digit6: "ninjutsuButton",
   Digit8: "dodgeButton",
-  Digit0: "teleportButton",
+  Digit0: "borrowedAbilityButton",
   KeyZ: "clairvoyance",
   KeyX: "empButton",
   KeyB: "cameraButton",
@@ -3262,7 +3263,6 @@ function emptyThrowTargetingState() {
     targetX: 0,
     targetY: 0,
     startedAt: 0,
-    expiresAt: 0,
     lastFrameAt: 0,
     frame: 0,
     directionKeys: new Set()
@@ -3324,10 +3324,6 @@ function updateThrowTargetingFrame(timestamp) {
     cancelThrowTargeting(true);
     return;
   }
-  if (timestamp >= target.expiresAt) {
-    cancelThrowTargeting(false, "投擲の接地点指定を終了しました。");
-    return;
-  }
   const elapsed = clamp(timestamp - (target.lastFrameAt || timestamp), 0, 40);
   target.lastFrameAt = timestamp;
   const direction = throwTargetDirection();
@@ -3355,14 +3351,13 @@ function beginThrowTargeting(itemId, holdMs = 0) {
     targetX: preview.x,
     targetY: preview.y,
     startedAt: timestamp,
-    expiresAt: timestamp + ITEM_THROW_TARGETING_WINDOW_MS,
     lastFrameAt: timestamp,
     frame: 0,
     directionKeys: new Set()
   };
   state.throwTargeting.frame = requestAnimationFrame(updateThrowTargetingFrame);
   updateEnhanceReadout();
-  showToast("移動キーで接地点を動かし、キーを離すと投擲します。");
+  showToast("着地点選択は時間制限なし。移動キーで接地点を動かし、キーを離すか確定操作で投擲、Escで取消します。");
   return true;
 }
 
@@ -3568,8 +3563,7 @@ function toggleClairvoyance(force = null) {
 function updateEnhanceReadout() {
   if (!els.enhanceReadout) return;
   if (state.throwTargeting.active) {
-    const remaining = Math.max(0, state.throwTargeting.expiresAt - performance.now());
-    els.enhanceReadout.textContent = `接地点指定 ${(remaining / 1000).toFixed(1)}秒 / 移動キーを離して確定`;
+    els.enhanceReadout.textContent = "接地点指定中 / 移動キーを離して確定 / Escでキャンセル";
     return;
   }
   const hold = state.enhanceHold;
@@ -4294,8 +4288,7 @@ function commitRootHoldAbility(type, rawMode) {
   state.borrowedOperatorType = type;
   if (type === "quantum") rememberQuantumExecutableMode(mode, true);
   else state.borrowedAbilityModes[type] = mode;
-  state.rootAbilitySelectStage = "selected";
-  populateRootAbilityModeSelect(type);
+  populateRootOperatorModeSelect(self);
   syncAbilityModeDescription(type, self, mode);
   ensureTeleportTargetForMode(state.data);
   updateActionButtons(state.data);
@@ -5180,6 +5173,7 @@ function bindEvents() {
   els.tabletBranchBackButton.addEventListener("click", () => setTabletBranchPath(""));
   els.tabletBranchList.addEventListener("scroll", renderTabletBranchLines, { passive: true });
   els.tabletNinjutsuShortcut.addEventListener("click", () => els.ninjutsuButton.click());
+  els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
@@ -5188,10 +5182,7 @@ function bindEvents() {
   els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
   els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
-  window.addEventListener("resize", updateTitleCommandDepthPaths, { passive: true });
-  window.visualViewport?.addEventListener("resize", updateTitleCommandDepthPaths, { passive: true });
-  window.addEventListener("resize", scheduleTabletBranchLayout, { passive: true });
-  window.addEventListener("resize", scheduleActiveEffectsLayout, { passive: true });
+  window.addEventListener("resize", () => scheduleGameplayViewportReflow(), { passive: true });
   bindTabletControls();
   [
     els.hackerTargetSelect,
@@ -5406,13 +5397,9 @@ function bindEvents() {
         }
       }
       if ([els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect].includes(select)) {
-        const rootStageBeforeCommit = state.rootAbilitySelectStage;
         if (commitRootAbilityModeSelect(select)) {
           if (state.data) renderTargetOptions(state.data);
-          if (state.abilityAutoActivate && rootStageBeforeCommit !== "operator" && state.rootAbilitySelectStage === "selected") {
-            triggerOperatorAbility();
-          }
-          if (state.rootAbilitySelectStage === "selected") select.blur();
+          if (state.rootAbilitySelectStage === "operator") select.blur();
           return;
         }
       }
@@ -5445,9 +5432,8 @@ function bindEvents() {
   els.nextCameraButton.addEventListener("click", nextCameraView);
   els.healButton.addEventListener("click", () => api("/api/flora-heal"));
   els.alchemyButton.addEventListener("click", () => executeHackerRecipe(els.alchemySelect.value));
+  els.borrowedAbilityButton.addEventListener("click", triggerSelectedBorrowedAbility);
   els.operatorAbilityButton.addEventListener("click", triggerOperatorAbility);
-  bindQuantumKineticHold(els.operatorAbilityButton);
-  bindQuantumKineticHold(els.tabletAbilityShortcut);
   const beginJumpPointer = (button, event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     if (els.jumpButton.disabled) return;
@@ -5975,9 +5961,18 @@ function bindEvents() {
     if (state.screen !== "game") return;
     if (event.cancelable) event.preventDefault();
   }, { capture: true, passive: false });
-  window.visualViewport?.addEventListener("resize", () => scheduleViewportScaleRestore(), { passive: true });
-  window.addEventListener("orientationchange", () => scheduleViewportScaleRestore(true), { passive: true });
-  window.addEventListener("pageshow", () => scheduleViewportScaleRestore(), { passive: true });
+  window.visualViewport?.addEventListener("resize", () => {
+    scheduleViewportScaleRestore();
+    scheduleGameplayViewportReflow();
+  }, { passive: true });
+  window.addEventListener("orientationchange", () => {
+    scheduleViewportScaleRestore(true);
+    scheduleGameplayViewportReflow(true);
+  }, { passive: true });
+  window.addEventListener("pageshow", () => {
+    scheduleViewportScaleRestore();
+    scheduleGameplayViewportReflow(true);
+  }, { passive: true });
   document.addEventListener("focusout", (event) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) {
       scheduleViewportScaleRestore();
@@ -5992,7 +5987,10 @@ function bindEvents() {
     }
     clearMovementInput();
     if (!document.hidden) void resyncMovementAfterFocus();
-    if (!document.hidden) scheduleViewportScaleRestore();
+    if (!document.hidden) {
+      scheduleViewportScaleRestore();
+      scheduleGameplayViewportReflow(true);
+    }
     if (document.hidden) recordUsageExit();
     else {
       recordUsageResume();
@@ -6822,7 +6820,7 @@ function conciseTabletAbilityName(data) {
   };
   if (owner === "fighter") return "リミットブレイク";
   if (owner === "gunner") return "狙撃";
-  if (owner === "alchemist") return data?.self?.hackerRootActive ? "借用能力" : "Root化";
+  if (owner === "alchemist") return data?.self?.hackerRootActive ? "ROOT解除" : "Root化";
   if (owner === "quantum") return quantumModeLabel(selectedQuantumExecutableMode(data?.self?.special === "alchemist"));
   return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
 }
@@ -6839,6 +6837,9 @@ function renderTabletControls(data) {
   setTabletShortcutLabel(els.tabletNinjutsuShortcut, "忍殺", els.ninjutsuButton.textContent || "忍殺");
   els.tabletNinjutsuShortcut.disabled = els.ninjutsuButton.disabled || els.ninjutsuButton.hidden;
   els.tabletNinjutsuShortcut.hidden = els.ninjutsuButton.hidden;
+  setTabletShortcutLabel(els.tabletContextShortcut, els.contextActionButton.textContent || "周辺アクション", els.contextActionButton.title || "周辺アクション");
+  els.tabletContextShortcut.disabled = els.contextActionButton.disabled || els.contextActionButton.hidden;
+  els.tabletContextShortcut.hidden = els.contextActionButton.hidden;
   setTabletShortcutLabel(
     els.tabletAbilityShortcut,
     conciseTabletAbilityName(data),
@@ -7262,6 +7263,15 @@ function triggerBorrowedAbility(type, requestedMode = "") {
   void api("/api/borrowed-ability", borrowedAbilityPayload(recipe, mode));
 }
 
+function triggerSelectedBorrowedAbility() {
+  const self = state.data?.self;
+  if (self?.special !== "alchemist" || !self.hackerRootActive) return false;
+  const type = selectedBorrowedOperator();
+  if (!type) return false;
+  triggerBorrowedAbility(type, state.borrowedAbilityModes[type] || "");
+  return true;
+}
+
 function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
   const self = state.data?.self;
   state.operatorBranchesOpen = Boolean(open && self && state.data?.phase === "playing");
@@ -7344,8 +7354,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     const selectQuantumBranchMode = (mode) => {
       rememberQuantumExecutableMode(mode, borrowedPreview);
       if (borrowedPreview) {
-        state.rootAbilitySelectStage = "selected";
-        populateRootAbilityModeSelect("quantum");
+        populateRootOperatorModeSelect(self);
       } else {
         populateNativeQuantumModeSelect();
       }
@@ -7400,12 +7409,7 @@ function triggerOperatorAbility() {
   } else if (self.special === "quantum") {
     void api("/api/quantum-control", { mode: selectedQuantumExecutableMode(false) });
   } else if (self.special === "alchemist") {
-    if (!self.hackerRootActive) {
-      void api("/api/hacker-root");
-      return;
-    }
-    const borrowedType = selectedBorrowedOperator();
-    if (borrowedType) triggerBorrowedAbility(borrowedType, state.borrowedAbilityModes[borrowedType] || "");
+    void api("/api/hacker-root");
   }
 }
 
@@ -7546,15 +7550,6 @@ async function activateExpandedMapPoint(point) {
   }
   setExpandedMapOpen(false);
 }
-
-window.addEventListener("resize", () => {
-  syncPortraitTabletDock();
-  if (state.screen === "game") setTabletOpen(state.tabletOpen, { persist: false, focus: false });
-}, { passive: true });
-window.addEventListener("orientationchange", () => {
-  syncPortraitTabletDock();
-  if (state.screen === "game") setTabletOpen(state.tabletOpen, { persist: false, focus: false });
-}, { passive: true });
 
 function keyName(key) {
   const value = key.toLowerCase();
@@ -8033,7 +8028,8 @@ async function performNinjutsu() {
   }
   const ok = await api("/api/ninjutsu", { targetId: target.id });
   if (ok) {
-    showToast(`${target.name}への忍殺準備を開始しました。自分と対象が5秒間静止すると消滅させます。`);
+    const assassin = state.data?.self?.special === "assassin";
+    showToast(`${target.name}への忍殺準備を開始しました。自分と対象が5秒間静止すると${assassin ? "アサシン忍殺による消滅" : "消滅"}が発動します。`);
   }
 }
 
@@ -8422,7 +8418,9 @@ function detectAttackResult(previous, next) {
   if (!previous || !next.self.lastAttackResultAt || next.self.lastAttackResultAt <= (previous.self.lastAttackResultAt || 0)) return;
   const messages = {
     lethal: "攻撃成功。対象をキルしました。",
-    disappeared: "忍殺成功。対象を消滅させ、死体は残りません。",
+    disappeared: next.self.special === "assassin"
+      ? "アサシン忍殺による消滅が成功しました。死体・通報対象は残りません。"
+      : "忍殺成功。対象を消滅させ、死体は残りません。",
     blocked: "忍殺は防御されました。",
     body: "胴体に命中しました。もう一度攻撃すればキルできます。",
     miss: "攻撃は外れました。",
@@ -9496,7 +9494,6 @@ function commitNativeQuantumModeSelect(source = els.teleportModeSelect) {
   const mode = source.value;
   if (mode === "quantum-kinetic") {
     populateQuantumKineticModeSelect();
-    openNativeSelectPicker(els.quantumKineticBranchSelect, true);
     return true;
   }
   clearAbilityCascadeSelects();
@@ -9519,7 +9516,7 @@ function populateRootOperatorModeSelect(self = state.data?.self, { selectedType 
   ].join("");
   els.teleportModeSelect.value = types.includes(selectedType) ? `root-operator:${selectedType}` : "";
   els.teleportModeSelect.setAttribute("aria-label", "ROOT借用オペ名");
-  els.teleportModeDescription.textContent = "オペを選ぶと、その下に同時表示されるブラウザ標準の能力分岐pickerから能力を選べます。";
+  els.teleportModeDescription.textContent = "オペを選ぶと能力分岐が表示されます。各段階はブラウザ標準pickerで順に選択します。";
   return true;
 }
 
@@ -9529,9 +9526,6 @@ function populateRootAbilityModeSelect(type, { prompt = false, selectedMode = ""
   const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
   if (!choices.length) return false;
   state.borrowedOperatorType = type;
-  const remembered = type === "quantum"
-    ? quantumTopMode(state.borrowedAbilityModes.quantum)
-    : state.borrowedAbilityModes[type] || choices[0][0];
   if (prompt) {
     state.rootAbilitySelectStage = "ability";
     clearAbilityCascadeSelects({ root: false, kinetic: true });
@@ -9548,15 +9542,7 @@ function populateRootAbilityModeSelect(type, { prompt = false, selectedMode = ""
     els.teleportModeDescription.textContent = `${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択してください。`;
     return true;
   }
-  state.rootAbilitySelectStage = "selected";
-  clearAbilityCascadeSelects();
-  els.teleportModeSelect.dataset.specialKey = `root-abilities:${type}:${choices.map(([value]) => value).join("|")}`;
-  els.teleportModeSelect.innerHTML = choices
-    .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
-    .join("");
-  els.teleportModeSelect.value = choices.some(([value]) => value === remembered) ? remembered : choices[0][0];
-  els.teleportModeSelect.setAttribute("aria-label", `ROOT借用能力方式・${HACKER_ROOT_OPERATOR_LABELS[type] || type}`);
-  return true;
+  return populateRootOperatorModeSelect(self);
 }
 
 function prepareRootAbilityModeSelectForOpen() {
@@ -9564,7 +9550,9 @@ function prepareRootAbilityModeSelectForOpen() {
   if (!rootAbilityModeSelectActive(self)) {
     return false;
   }
-  if (state.rootAbilitySelectStage === "selected") populateRootOperatorModeSelect(self);
+  if (state.rootAbilitySelectStage !== "operator" && state.rootAbilitySelectStage !== "ability" && state.rootAbilitySelectStage !== "quantum-kinetic") {
+    populateRootOperatorModeSelect(self);
+  }
   return true;
 }
 
@@ -9574,11 +9562,11 @@ function commitRootAbilityModeSelect(source = els.teleportModeSelect) {
   if (source === els.quantumKineticBranchSelect && state.rootAbilitySelectStage === "quantum-kinetic") {
     const mode = source.value;
     if (!rememberQuantumExecutableMode(mode, true)) return true;
-    state.rootAbilitySelectStage = "selected";
-    populateRootAbilityModeSelect("quantum");
+    populateRootOperatorModeSelect(self);
     syncAbilityModeDescription("quantum", self, mode);
     showToast(`クオンタム: ${quantumModeLabel(mode)}`);
     updateActionButtons(state.data);
+    if (state.abilityAutoActivate) triggerBorrowedAbility("quantum", mode);
     return true;
   }
   if (source === els.teleportModeSelect && state.rootAbilitySelectStage === "operator") {
@@ -9587,7 +9575,6 @@ function commitRootAbilityModeSelect(source = els.teleportModeSelect) {
     populateRootAbilityModeSelect(type, { prompt: true });
     showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択`);
     updateActionButtons(state.data);
-    openNativeSelectPicker(els.rootAbilityBranchSelect, true);
     return true;
   }
   if (source === els.rootAbilityBranchSelect && state.rootAbilitySelectStage === "ability") {
@@ -9598,16 +9585,15 @@ function commitRootAbilityModeSelect(source = els.teleportModeSelect) {
     if (type === "quantum" && mode === "quantum-kinetic") {
       populateQuantumKineticModeSelect({ root: true });
       updateActionButtons(state.data);
-      openNativeSelectPicker(els.quantumKineticBranchSelect, true);
       return true;
     }
     state.borrowedAbilityModes[type] = mode;
-    state.rootAbilitySelectStage = "selected";
-    populateRootAbilityModeSelect(type);
+    populateRootOperatorModeSelect(self);
     syncAbilityModeDescription(type, self);
     ensureTeleportTargetForMode(state.data);
     showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}: ${choices.find(([value]) => value === mode)?.[1] || mode}`);
     updateActionButtons(state.data);
+    if (state.abilityAutoActivate) triggerBorrowedAbility(type, mode);
     return true;
   }
   return true;
@@ -9744,12 +9730,7 @@ function renderTargetOptions(data) {
       if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self, { selectedType: rootType });
       if (els.rootAbilityBranchSelect.dataset.specialKey !== abilityKey) populateRootAbilityModeSelect(rootType, { prompt: true });
     } else {
-      const rootType = selectedBorrowedOperator();
-      const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
-      const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
-      if (els.teleportModeSelect.dataset.specialKey !== abilityKey) {
-        populateRootAbilityModeSelect(rootType);
-      }
+      populateRootOperatorModeSelect(self);
     }
   } else if (modeOwner === "quantum" && state.quantumSelectStage === "kinetic") {
     const quantumKey = `quantum:${QUANTUM_ABILITY_MODE_OPTIONS.map(([value]) => value).join("|")}`;
@@ -9779,16 +9760,17 @@ function renderTargetOptions(data) {
     rememberSelectedOperatorMode();
   }
 
-  if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "selected") && state.quantumSelectStage !== "kinetic") {
+  if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && state.quantumSelectStage !== "kinetic") {
     const explicitMode = modeOwner === "quantum"
       ? selectedQuantumExecutableMode(Boolean(borrowedOperator))
       : "";
     syncAbilityModeDescription(modeOwner, self, explicitMode);
   }
 
-  const currentAbilityMode = els.teleportModeSelect.value;
+  const currentAbilityMode = rootAbilitySwitchVisible && borrowedOperator
+    ? state.borrowedAbilityModes[borrowedOperator] || ""
+    : els.teleportModeSelect.value;
   const floraTargeting = modeOwner === "flora" &&
-    (!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "selected") &&
     currentAbilityMode.startsWith("sunbeam");
   const gravityTargeting = ["teleport", "gravity"].includes(modeOwner) && currentAbilityMode !== "time-keeper";
   els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && !gravityTargeting && !floraTargeting;
@@ -10298,8 +10280,6 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   const clickGate = createInventoryClickGate();
   let activePointerId = null;
   let activePointerType = "";
-  let inventoryScrollOwnsGesture = false;
-  let inventoryScrollLastY = 0;
   const clearNativeSelection = () => {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
@@ -10328,33 +10308,11 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     if (event.pointerType === "mouse" && event.button !== 0) return;
     activePointerId = event.pointerId;
     activePointerType = event.pointerType || "mouse";
-    inventoryScrollOwnsGesture = false;
-    inventoryScrollLastY = event.clientY;
     clickGate.reset();
     pointerGesture.start(event.pointerId, event.clientX, event.clientY);
-    if (scrollContainer && (
-      scrollContainer.scrollHeight > scrollContainer.clientHeight + 1 ||
-      scrollContainer.scrollWidth > scrollContainer.clientWidth + 1
-    )) {
-      try { button.setPointerCapture(event.pointerId); } catch {}
-    }
   });
   button.addEventListener("pointermove", (event) => {
     if (activePointerId !== event.pointerId) return;
-    const gridCanScroll = scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight + 1;
-    const verticalTravel = Math.abs(event.clientY - inventoryScrollLastY);
-    if ((inventoryScrollOwnsGesture || (gridCanScroll && verticalTravel > 9)) && state.itemHoldBranch.source !== button) {
-      inventoryScrollOwnsGesture = true;
-      clickGate.arm();
-      pointerGesture.cancel(event.pointerId);
-      try { button.setPointerCapture(event.pointerId); } catch {}
-      const delta = event.clientY - inventoryScrollLastY;
-      scrollContainer.scrollTop -= delta;
-      inventoryScrollLastY = event.clientY;
-      if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
     if (state.itemHoldBranch.source === button) {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -10366,11 +10324,6 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
     const result = pointerGesture.end(event.pointerId);
-    if (inventoryScrollOwnsGesture) {
-      if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
-      clickGate.arm();
-    }
     if (result === "hold") {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -10378,7 +10331,6 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     }
     activePointerId = null;
     activePointerType = "";
-    inventoryScrollOwnsGesture = false;
   });
   const cancelPointerGesture = (event) => {
     if (activePointerId !== event.pointerId) return;
@@ -10386,7 +10338,6 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     if (state.itemHoldBranch.source === button) closeItemHoldBranch();
     activePointerId = null;
     activePointerType = "";
-    inventoryScrollOwnsGesture = false;
     clickGate.reset();
   };
   button.addEventListener("pointercancel", cancelPointerGesture);
@@ -10620,7 +10571,7 @@ function collectOperatorPassiveEffects(self, liveNow) {
       self.manaGpuActive ? "truth" : "neutral",
       `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`
     );
-    add("Root化", self.hackerRootActive ? "発動中" : "Hで発動", self.hackerRootActive ? "truth" : "neutral", "能力ボタンで発動。踏ん張り・変わり身は所持を維持したままROOT中だけ無効。自己ダメージでHPを0.0001にして全オペ能力を借用");
+    add("ROOT", self.hackerRootActive ? "Hで解除" : "Hで発動", self.hackerRootActive ? "truth" : "neutral", "能力ボタンで発動／解除。発動前のHPを保存し、解除時に正確に復元。踏ん張り・変わり身は所持を維持したままROOT中だけ無効。ROOT中は全オペ能力を借用");
   }
 
   return effects;
@@ -10749,15 +10700,9 @@ function renderActiveEffects(data) {
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
   timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "アイテム・装備効果停止");
-  if (self.statusImmunityActive) add("状態異常耐性", `SP ${self.statusImmunityThreshold || 500}`, "good", "毒・燃焼・減速・痺れ・拘束・封印・EMP遮断・意識消失・時間停止を無効化");
-  if (self.poisonStatus) {
-    const remaining = Math.max(0, Number(self.poisonStatus.recoversAt) - liveNow);
-    add("中毒", `自然回復 ${(remaining / 1000).toFixed(1)}秒`, "desire", "解毒・フローラ回復・SP500到達でも解除");
-  }
-  if (self.burnStatus) {
-    const remaining = Math.max(0, Number(self.burnStatus.recoversAt) - liveNow);
-    add("燃焼", `自然回復 ${(remaining / 1000).toFixed(1)}秒`, "desire", "消火・フローラ回復・SP500到達でも解除");
-  }
+  if (self.statusImmunityActive) add("自然回復", `SP ${self.statusImmunityThreshold || 500}以上`, "good", "新規の状態異常を無効化し、既存の状態異常を即時解除");
+  if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・現在SP500以上の自然回復で解除");
+  if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・現在SP500以上の自然回復で解除");
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
   timed("休息", self.sleepingUntil, "neutral", "行動停止・SP回復×4");
@@ -10785,7 +10730,30 @@ function renderActiveEffects(data) {
   scheduleActiveEffectsLayout();
 }
 
+let gameplayViewportReflowFrame = 0;
+let gameplayViewportSettleTimer = 0;
 let activeEffectsLayoutFrame = 0;
+
+function scheduleGameplayViewportReflow(settle = false) {
+  cancelAnimationFrame(gameplayViewportReflowFrame);
+  gameplayViewportReflowFrame = requestAnimationFrame(() => {
+    gameplayViewportReflowFrame = 0;
+    updateTitleCommandDepthPaths();
+    syncPortraitTabletDock();
+    if (state.screen === "game") {
+      setTabletOpen(state.tabletOpen, { persist: false, focus: false });
+      scheduleTabletBranchLayout();
+      scheduleActiveEffectsLayout();
+    }
+  });
+  if (settle) {
+    window.clearTimeout(gameplayViewportSettleTimer);
+    gameplayViewportSettleTimer = window.setTimeout(() => {
+      gameplayViewportSettleTimer = 0;
+      scheduleGameplayViewportReflow(false);
+    }, 120);
+  }
+}
 
 function scheduleActiveEffectsLayout() {
   cancelAnimationFrame(activeEffectsLayoutFrame);
@@ -10974,12 +10942,13 @@ function objectiveText(data) {
   }
   if (self.role === "attacker") {
     if (self.aimTargetId && self.aimReadyAt > liveNow) {
-      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分か対象が動くと失敗し、成功時は死体を残さず消滅させます。`;
+      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分か対象が動くと失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺による消滅となり、死体・通報対象を残しません" : "死体を残さず消滅させます"}。`;
     }
     const cd = Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
     const sabotageSeconds = Math.max(0, Math.ceil(((self.sabotageReadyAt || 0) - liveNow) / 1000));
-    return `ディフェンダーを減らしてください。キル ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"} / サボタージュ ${sabotageSeconds ? `${sabotageSeconds}秒` : "使用可能"}`;
+    const assassinStatus = self.special === "assassin" ? "アサシン / 足音常時無音 / " : "";
+    return `${assassinStatus}ディフェンダーを減らしてください。忍殺 ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"} / サボタージュ ${sabotageSeconds ? `${sabotageSeconds}秒` : "使用可能"}`;
   }
   if (!self.alive) return "死亡中です。残ったタスクは完了扱いです。";
   if (self.chatMuted) return "復活後のため、この試合ではチャットできません。";
@@ -11158,7 +11127,9 @@ function updateActionButtons(data) {
       : "忍殺";
   els.ninjutsuButton.disabled = !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
   els.ninjutsuButton.classList.toggle("active", aiming);
-  els.ninjutsuButton.title = "忍殺: 自分と対象が5秒間静止すると対象を消滅させ、死体を残さない。移動または対象喪失で失敗";
+  els.ninjutsuButton.title = self.special === "assassin"
+    ? "忍殺: 自分と対象が5秒間静止するとアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。移動または対象喪失で失敗"
+    : "忍殺: 自分と対象が5秒間静止すると対象を消滅させ、死体を残さない。移動または対象喪失で失敗";
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   const rootProtectionBlocked = Boolean(self.hackerRootActive);
@@ -11243,12 +11214,12 @@ function updateActionButtons(data) {
     self.special === "alchemist" &&
     hasMana("alchemy") &&
     (Number(self.vibeCodingReadyAt) || 0) <= liveNow);
-  const operatorMode = els.teleportModeSelect.value;
+  const operatorMode = activeBorrowedOperator
+    ? state.borrowedAbilityModes[activeBorrowedOperator] || ""
+    : els.teleportModeSelect.value;
   const borrowedModeLabel = selectedBorrowedRecipe
-    ? activeBorrowedOperator === "gravity"
-      ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
-        : activeBorrowedOperator === "flora"
-        ? els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "能力"
+    ? activeBorrowedOperator === "gravity" || activeBorrowedOperator === "flora"
+      ? (OPERATOR_ABILITY_MODE_OPTIONS[activeBorrowedOperator] || []).find(([value]) => value === operatorMode)?.[1] || "能力"
         : activeBorrowedOperator === "gunner"
           ? self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON"
           : activeBorrowedOperator === "fighter"
@@ -11267,6 +11238,7 @@ function updateActionButtons(data) {
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : `サンビーム ${operatorCostLabel("flora")}`,
     gunner: self.gunnerSnipingActive ? "狙撃 OFF / 現在HS確殺・移動12%" : "狙撃 ON / 全射撃HS確殺・移動12%",
     quantum: quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
+    assassin: "常時無音（パッシブ）",
     alchemist: selectedBorrowedRecipe
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
       : self.hackerRootActive ? "借用能力" : "Root化"
@@ -11284,21 +11256,33 @@ function updateActionButtons(data) {
     !alchemyRecipeAvailable(selectedBorrowedRecipe, self) ||
     (!selectedBorrowedFree && !hasMana(borrowedCostKey))
   );
-  const displayedOperator = activeBorrowedOperator === "gravity"
+  const borrowedDisplayedOperator = activeBorrowedOperator === "gravity"
     ? "teleport"
-    : activeBorrowedOperator || self.special;
-  const displayedOperatorLabel = operatorLabels[displayedOperator] || "オペ能力";
-  els.operatorAbilityButton.textContent = activeBorrowedOperator
-    ? `借用 ${specialLabels[displayedOperator] || displayedOperator} / ${displayedOperatorLabel}`
-    : displayedOperatorLabel;
+    : activeBorrowedOperator;
+  const borrowedDisplayedLabel = operatorLabels[borrowedDisplayedOperator] || "借用能力";
+  const rootToggle = self.special === "alchemist";
+  const displayedOperator = rootToggle ? "alchemist" : self.special;
+  els.operatorAbilityButton.textContent = rootToggle
+    ? (self.hackerRootActive ? "ROOT解除" : "Root化")
+    : operatorLabels[displayedOperator] || "オペ能力";
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
-  els.operatorAbilityButton.dataset.repeatableAbility = displayedOperator === "gunner" || (displayedOperator === "alchemist" && !self.hackerRootActive) ? "0" : "1";
-  els.operatorAbilityButton.classList.toggle("active", displayedOperator === "gunner" && Boolean(self.gunnerSnipingActive));
-  els.operatorAbilityButton.disabled = !canUseAbility ||
-    (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
-    (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
-    (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")) && Number(self.stamina) < 8) ||
-    (activeBorrowedOperator && borrowedStateBlocked);
+  els.operatorAbilityButton.dataset.repeatableAbility = displayedOperator === "gunner" ? "0" : rootToggle ? "0" : "1";
+  els.operatorAbilityButton.classList.toggle("active", Boolean(rootToggle && self.hackerRootActive) || (displayedOperator === "gunner" && Boolean(self.gunnerSnipingActive)));
+  els.operatorAbilityButton.disabled = rootToggle && self.hackerRootActive
+    ? !(isPlaying && self.alive && !self.ejected)
+    : !canUseAbility ||
+      displayedOperator === "assassin" ||
+      (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
+      (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
+      (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < 8);
+  els.borrowedAbilityButton.hidden = !(rootToggle && self.hackerRootActive && activeBorrowedOperator);
+  els.borrowedAbilityButton.textContent = activeBorrowedOperator
+    ? `借用 ${specialLabels[borrowedDisplayedOperator] || borrowedDisplayedOperator} / ${borrowedDisplayedLabel} を実行`
+    : "選択中の借用能力を実行";
+  els.borrowedAbilityButton.disabled = !canUseAbility ||
+    !activeBorrowedOperator ||
+    borrowedStateBlocked ||
+    (borrowedDisplayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(true)) && Number(self.stamina) < 8);
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
   els.empButton.textContent = empSeconds > 0 ? `${empPhaseLabel}EMP ${empSeconds}秒` : `${empPhaseLabel}EMP`;
@@ -14352,10 +14336,9 @@ function drawThrowLandingPreview(data) {
   ctx.restore();
 
   if (targeting) {
-    const remaining = Math.max(0, state.throwTargeting.expiresAt - performance.now());
     const label = landing.valid
-      ? `接地点 ${(remaining / 1000).toFixed(1)}秒 / 離して確定`
-      : `着地不可 ${(remaining / 1000).toFixed(1)}秒`;
+      ? "接地点 / 離して確定 / Escでキャンセル"
+      : "着地不可 / 移動またはEscでキャンセル";
     ctx.save();
     ctx.font = "800 13px Segoe UI, sans-serif";
     ctx.textAlign = "center";
@@ -14518,6 +14501,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "fighter-shockwave": ["fighterShockwaveEffect", 180],
   "fighter-push-acquired": ["pushMarkerEffect", 96],
   "hacker-root": ["hackerRootMatrix", 190],
+  "natural-recovery": ["naturalRecoveryEffect", 230],
   "gravity-time-keeper": ["gravityTimeKeeperEffect", 260],
   "preparation-barrier-hit": ["preparationBarrierEffect", 220],
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
@@ -15499,8 +15483,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
   iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
-  burning: ["燃焼", "継続ダメージを受け、最後の付与から12秒で自然回復します。水・フローラ回復・SP500到達でも解除できます。"],
-  poison: ["毒", "継続ダメージを受け、最後の付与から12秒で自然回復します。解毒剤・フローラ回復・SP500到達でも解除できます。"],
+  burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・フローラ回復・現在SP500以上の自然回復で解除できます。"],
+  poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・フローラ回復・現在SP500以上の自然回復で解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
   destructionSlash: ["常時消滅斬り", "EC50回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
@@ -18267,7 +18251,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "stamina-status-visual-poison-evidence-v509";
+const version = "natural-recovery-root-assassin-flick-items-v510";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -18433,6 +18417,7 @@ const version = "stamina-status-visual-poison-evidence-v509";
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
+  const naturalRecoveryEffect = new Image();
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
     skinId,
     Object.fromEntries(["front", "left", "right", "back"].map((direction) => [direction, new Image()]))
@@ -18556,6 +18541,7 @@ const version = "stamina-status-visual-poison-evidence-v509";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
+  defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   for (const [skinId, rows] of Object.entries(playerWalkRows)) {
     ["front", "left", "right", "back"].forEach((direction) => {
       defer(rows[direction], `assets/generated/skin-${skinId}-walk-${direction}-v483.png`);
@@ -18685,6 +18671,7 @@ const version = "stamina-status-visual-poison-evidence-v509";
     smartphoneRepairIcon,
     throwLandingPreview,
     clairvoyanceThrowAte,
+    naturalRecoveryEffect,
     physicalActionMotions,
     weaponActionMotions,
     fullMapComposites,
