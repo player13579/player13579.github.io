@@ -764,7 +764,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "weak-bullet-shooter-survival-v507";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kinetic-hold-live-dual-picker-v508";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9445,11 +9445,12 @@ function populateQuantumKineticModeSelect({ root = false } = {}) {
   else state.quantumSelectStage = "kinetic";
   els.quantumKineticBranchControl.hidden = false;
   els.quantumKineticBranchSelect.dataset.specialKey = `${root ? "root-" : ""}quantum-kinetic`;
-  els.quantumKineticBranchSelect.innerHTML = [
-    '<option value="" selected disabled>加速か減速を選択</option>',
-    ...QUANTUM_KINETIC_MODE_OPTIONS.map(([value, label]) => `<option value="${value}">${label}</option>`)
-  ].join("");
-  els.quantumKineticBranchSelect.value = "";
+  els.quantumKineticBranchSelect.innerHTML = QUANTUM_KINETIC_MODE_OPTIONS
+    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+    .join("");
+  // Keep the closed control neutral without adding a third, instructional
+  // option. The native picker itself must contain exactly 加速 and 減速.
+  els.quantumKineticBranchSelect.selectedIndex = -1;
   els.quantumKineticBranchSelect.setAttribute("aria-label", `${root ? "ROOT借用" : ""}クオンタム・運動エネルギー制御・加速または減速`);
   syncAbilityCascadeSelectVisibility();
   els.teleportModeDescription.textContent = "運動エネルギー制御を加速か減速へ分岐します。対象となる水を所持していなければ何も起きません。";
@@ -9636,7 +9637,12 @@ function beginQuantumKineticHold(event, source) {
     }
     updateActionButtons(state.data);
     state.continuousActionSuppressClicks.set(source, performance.now() + 900);
-    openNativeSelectPicker(els.quantumKineticBranchSelect, true);
+    // Rendering must happen while the source button is still held. Opening a
+    // native picker from this delayed callback either loses transient user
+    // activation or defers until pointerup on mobile, which made the two
+    // controls appear sequentially. Leave both native selects visibly present
+    // and let the player tap the terminal 加速／減速 picker explicitly.
+    els.quantumKineticBranchSelect.focus({ preventScroll: true });
   }, 420);
   return true;
 }
@@ -18247,7 +18253,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "weak-bullet-shooter-survival-v507";
+const version = "kinetic-hold-live-dual-picker-v508";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
