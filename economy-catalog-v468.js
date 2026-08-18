@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "tactics-pane-tap-expand-v501",
+    version: "quantum-held-item-auto-process-v502",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

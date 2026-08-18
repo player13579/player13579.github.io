@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "tactics-pane-tap-expand-v501",
+    version: "quantum-held-item-auto-process-v502",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7828,8 +7828,8 @@ const OPERATORS = {
       special: "quantum",
       limit: 99,
       asset: "quantum",
-      description: "元素・中性子・分子運動を制御し、核変換と温度変換を行う。",
-      details: "水銀・鉛・ウラン・プルトニウムを所持して開始する。水銀か鉛を金へ核変換し、金の共通取得処理で100Cへ即時換金する。水は氷または高温水へ変換する。ウランかプルトニウムは2MPで核分裂させ、既存の核爆弾と同じ破壊効果を起こす。"
+      description: "運動エネルギー制御・核変換・核分裂を使い分け、所持素材へ自動適用する。",
+      details: "水銀・鉛・ウラン・プルトニウムを所持して開始する。運動エネルギー制御は加速か減速へ分岐し、所持している水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂は所持しているウランかプルトニウムへ2MPで作用し、既存の核爆弾と同じ破壊効果を起こす。対象素材がなければ何も起きない。"
     }
   ],
   attacker: [
@@ -9729,7 +9729,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     itemInventory: {},
     poisonStatus: null,
     burnStatus: null,
-    quantumMode: "transmute-mercury",
+    quantumMode: "nuclear-transmutation",
     gravityMode: "accelerate",
     gravityTargetId: "",
     gravityTimeMode: "",
@@ -10216,7 +10216,7 @@ function startGame(room) {
     player.itemInventory = {};
     player.poisonStatus = null;
     player.burnStatus = null;
-    player.quantumMode = "transmute-mercury";
+    player.quantumMode = "nuclear-transmutation";
     player.drone = {
       active: false,
       x: spawn.x,
@@ -10511,7 +10511,7 @@ function startBattle(room) {
     }
     player.poisonStatus = null;
     player.burnStatus = null;
-    player.quantumMode = "transmute-mercury";
+    player.quantumMode = "nuclear-transmutation";
     player.drone.active = false;
     player.drone.x = player.x;
     player.drone.y = player.y;
@@ -15844,17 +15844,46 @@ function useOwnedItem(room, player, itemId, rawHoldMs = 0) {
   throw new ApiError(400, "この所持品は専用操作から使用してください。");
 }
 
+function normalizeQuantumMode(rawMode) {
+  const mode = String(rawMode || "nuclear-transmutation");
+  return {
+    "transmute-mercury": "nuclear-transmutation",
+    "transmute-lead": "nuclear-transmutation",
+    "cool-water": "kinetic-decelerate",
+    "heat-water": "kinetic-accelerate",
+    "fission-uranium": "nuclear-fission",
+    "fission-plutonium": "nuclear-fission"
+  }[mode] || mode;
+}
+
+function firstHeldQuantumItem(player, itemIds) {
+  return itemIds.find((itemId) => itemCount(player, itemId) > 0) || "";
+}
+
 function useQuantumControl(room, player, rawMode) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "quantum") || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "クオンタムを使用できません。");
   }
-  ensureAbilityAvailable(player);
-  const mode = String(rawMode || player.quantumMode || "transmute-mercury");
+  const mode = normalizeQuantumMode(rawMode || player.quantumMode || "nuclear-transmutation");
+  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) {
+    throw new ApiError(400, "クオンタム方式が不正です。");
+  }
   player.quantumMode = mode;
+  const itemId = mode === "nuclear-transmutation"
+    ? firstHeldQuantumItem(player, ["lead", "mercury"])
+    : mode === "nuclear-fission"
+      ? firstHeldQuantumItem(player, ["uranium", "plutonium"])
+      : firstHeldQuantumItem(player, ["mineral-water"]);
+  // A Quantum activation without a compatible held item is a strict silent
+  // no-op. This check must precede availability/cost checks and every effect.
+  if (!itemId) return false;
+  ensureAbilityAvailable(player);
   if (Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `クオンタムには${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
+  if (mode === "nuclear-fission" && Number(player.mana) < QUANTUM_NUCLEAR_MANA_COST) {
+    throw new ApiError(400, `核分裂には${QUANTUM_NUCLEAR_MANA_COST}MPが必要です。`);
+  }
   spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
-  if (mode === "transmute-mercury" || mode === "transmute-lead") {
-    const itemId = mode.endsWith("mercury") ? "mercury" : "lead";
+  if (mode === "nuclear-transmutation") {
     consumeItem(player, itemId);
     const credits = acquireGoldAsCredits(room, player, `quantum-gold:${itemId}`);
     pushMagicEffect(room, "quantum-transmutation", player, {
@@ -15864,19 +15893,17 @@ function useQuantumControl(room, player, rawMode) {
       durationMs: 3600
     });
     pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}を金へ核変換し、${credits}Cへ自動換金しました。`);
-  } else if (mode === "cool-water" || mode === "heat-water") {
+  } else if (mode === "kinetic-decelerate" || mode === "kinetic-accelerate") {
     consumeItem(player, "mineral-water");
-    const output = mode === "cool-water" ? "ice" : "heated-water";
+    const output = mode === "kinetic-decelerate" ? "ice" : "heated-water";
     addItem(player, output);
-    pushMagicEffect(room, mode === "cool-water" ? "quantum-temperature-cold" : "quantum-temperature-hot", player, {
+    pushMagicEffect(room, mode === "kinetic-decelerate" ? "quantum-temperature-cold" : "quantum-temperature-hot", player, {
       radius: 135,
       playerId: player.id,
       variant: output
     });
-    pushEvent(room, `${player.name} が分子運動を${mode === "cool-water" ? "抑制して氷結水" : "増大して高温水"}を生成しました。`);
-  } else if (mode === "fission-uranium" || mode === "fission-plutonium") {
-    const itemId = mode.endsWith("uranium") ? "uranium" : "plutonium";
-    if (Number(player.mana) < QUANTUM_NUCLEAR_MANA_COST) throw new ApiError(400, `核分裂には${QUANTUM_NUCLEAR_MANA_COST}MPが必要です。`);
+    pushEvent(room, `${player.name} が運動エネルギーを${mode === "kinetic-decelerate" ? "減速させて氷結水" : "加速させて高温水"}を生成しました。`);
+  } else if (mode === "nuclear-fission") {
     consumeItem(player, itemId);
     spendMana(room, player, QUANTUM_NUCLEAR_MANA_COST, "核分裂");
     const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.exiled);
@@ -15891,11 +15918,10 @@ function useQuantumControl(room, player, rawMode) {
     checkWin(room);
     if (room.phase !== "ended" && !player.exiled) destroyPlayerUnconditionally(room, player, player, "核分裂の代償");
     pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}へ中性子を作用させ、核分裂の連鎖を開始しました。`);
-  } else {
-    throw new ApiError(400, "クオンタム方式が不正です。");
   }
   checkWin(room);
   touch(room);
+  return true;
 }
 
 function advanceHazards(room, timestamp = now()) {
@@ -16602,7 +16628,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
     }
     toggleGunnerSniping(room, player);
   } else if (key === "quantum") {
-    useQuantumControl(room, player, String(options.mode || "transmute-mercury"));
+    return useQuantumControl(room, player, String(options.mode || "nuclear-transmutation"));
   }
 }
 
@@ -18774,7 +18800,7 @@ function serialize(room, viewer, options = {}) {
       itemInventory: transferableItemsFor(viewer),
       poisonStatus: viewer.poisonStatus ? { ...viewer.poisonStatus } : null,
       burnStatus: viewer.burnStatus ? { ...viewer.burnStatus } : null,
-      quantumMode: viewer.quantumMode || "transmute-mercury",
+      quantumMode: normalizeQuantumMode(viewer.quantumMode || "nuclear-transmutation"),
       substitutionCharges: viewer.substitutionCharges,
       gritCharges: viewer.gritCharges,
       reasonCharges: viewer.reasonCharges,
@@ -19536,8 +19562,9 @@ async function handleApi(req, res) {
 
     case "/api/quantum-control": {
       const { room, player } = requireRoomPlayer(body);
-      useQuantumControl(room, player, body.mode);
+      const actionApplied = useQuantumControl(room, player, body.mode);
       payload = serialize(room, player);
+      payload.actionApplied = actionApplied;
       break;
     }
 
@@ -19592,8 +19619,9 @@ async function handleApi(req, res) {
 
     case "/api/borrowed-ability": {
       const { room, player } = requireRoomPlayer(body);
-      useBorrowedAbility(room, player, body.ability, body);
+      const actionApplied = useBorrowedAbility(room, player, body.ability, body);
       payload = serialize(room, player);
+      if (typeof actionApplied === "boolean") payload.actionApplied = actionApplied;
       break;
     }
 
@@ -19822,7 +19850,7 @@ async function handleApi(req, res) {
         entry.itemInventory = {};
         entry.poisonStatus = null;
         entry.burnStatus = null;
-        entry.quantumMode = "transmute-mercury";
+        entry.quantumMode = "nuclear-transmutation";
         entry.drone.active = false;
         entry.drone.x = entry.x;
         entry.drone.y = entry.y;

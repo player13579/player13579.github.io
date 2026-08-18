@@ -361,6 +361,15 @@ const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
   gunner: "ガンナー",
   quantum: "クオンタム"
 });
+const QUANTUM_ABILITY_MODE_OPTIONS = Object.freeze([
+  ["quantum-kinetic", "運動エネルギー制御"],
+  ["nuclear-transmutation", "核変換"],
+  ["nuclear-fission", "核分裂"]
+]);
+const QUANTUM_KINETIC_MODE_OPTIONS = Object.freeze([
+  ["kinetic-accelerate", "加速"],
+  ["kinetic-decelerate", "減速"]
+]);
 const MATCHMAKING_MAP_IDS = Object.freeze(["station", "outpost"]);
 
 function normalizeMatchmakingMapId(value) {
@@ -373,7 +382,7 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム"]]),
   gunner: Object.freeze([["sniping", "狙撃"]]),
-  quantum: Object.freeze([["transmute-mercury", "水銀→金"], ["transmute-lead", "鉛→金"], ["cool-water", "水→氷"], ["heat-water", "水→高温水"], ["fission-uranium", "ウラン核分裂"], ["fission-plutonium", "プルトニウム核分裂"]])
+  quantum: QUANTUM_ABILITY_MODE_OPTIONS
 });
 
 const state = {
@@ -524,7 +533,11 @@ const state = {
   operatorBranchesOpen: false,
   operatorBranchType: "",
   borrowedOperatorType: "gravity",
-  borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", gunner: "sniping", quantum: "transmute-mercury" },
+  borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", gunner: "sniping", quantum: "nuclear-transmutation" },
+  quantumAbilityMode: "nuclear-transmutation",
+  quantumModePlayerId: "",
+  quantumSelectStage: "ability",
+  quantumOperatorBranchStage: "ability",
   rootAbilitySelectStage: "operator",
   rootAbilitySelectWasActive: false,
   abilityAutoActivate: localStorage.getItem(storage.abilityAutoActivate) !== "0",
@@ -743,7 +756,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "tactics-pane-tap-expand-v501";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "quantum-held-item-auto-process-v502";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5236,6 +5249,11 @@ function bindEvents() {
   [els.teleportModeSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
     select.addEventListener("change", () => {
       if (select === els.teleportModeSelect) {
+        if (commitNativeQuantumModeSelect()) {
+          if (state.data) updateActionButtons(state.data);
+          select.blur();
+          return;
+        }
         const rootStageBeforeCommit = state.rootAbilitySelectStage;
         if (commitRootAbilityModeSelect()) {
           if (state.data) renderTargetOptions(state.data);
@@ -6439,6 +6457,7 @@ function renderTabletBranch(data, force = false) {
     "gravity-time": "時空制御",
     "gravity-target": "対象選択",
     "flora-target": "サンビーム対象選択",
+    "quantum-kinetic": "運動エネルギー制御",
     "hacker-resources": "対象データ操作",
     "hacker-supplies": "戦術物資",
     "hacker-weapons": "武器",
@@ -6478,6 +6497,17 @@ function renderTabletBranch(data, force = false) {
   }, {
     kind: mode === "heart" || mode === "storm" ? "danger" : "action",
     selected: els.teleportModeSelect.value === mode,
+    disabled: els.operatorAbilityButton.disabled
+  });
+  const addQuantumModeAction = (label, mode) => appendTabletBranchButton(label, () => {
+    if (!rememberQuantumExecutableMode(mode, false)) return;
+    populateNativeQuantumModeSelect();
+    updateActionButtons(state.data);
+    if (state.abilityAutoActivate) els.operatorAbilityButton.click();
+    renderTabletBranch(state.data, true);
+  }, {
+    kind: mode === "nuclear-fission" ? "danger" : "action",
+    selected: selectedQuantumExecutableMode(false) === mode,
     disabled: els.operatorAbilityButton.disabled
   });
   const addRecipe = (recipe) => appendTabletBranchButton(recipe.label, () => {
@@ -6551,14 +6581,14 @@ function renderTabletBranch(data, force = false) {
     } else if (self.special === "gunner") {
       addModeAction(self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON", "sniping");
     } else if (self.special === "quantum") {
-      [
-        ["水銀→金", "transmute-mercury"],
-        ["鉛→金", "transmute-lead"],
-        ["水→氷", "cool-water"],
-        ["水→高温水", "heat-water"],
-        ["ウラン核分裂", "fission-uranium"],
-        ["プルトニウム核分裂", "fission-plutonium"]
-      ].forEach(([label, mode]) => addModeAction(label, mode));
+      if (branchPath === "quantum-kinetic") {
+        addQuantumModeAction("加速", "kinetic-accelerate");
+        addQuantumModeAction("減速", "kinetic-decelerate");
+      } else {
+        addSubmenu("運動エネルギー制御", "quantum-kinetic");
+        addQuantumModeAction("核変換", "nuclear-transmutation");
+        addQuantumModeAction("核分裂", "nuclear-fission");
+      }
     } else {
       addSource(els.operatorAbilityButton);
     }
@@ -6627,17 +6657,17 @@ function conciseTabletAbilityName(data) {
       sunbeam: "サンビーム"
     },
     quantum: {
-      "transmute-mercury": "水銀→金",
-      "transmute-lead": "鉛→金",
-      "cool-water": "水→氷",
-      "heat-water": "水→高温水",
-      "fission-uranium": "ウラン核分裂",
-      "fission-plutonium": "プルトニウム核分裂"
+      "quantum-kinetic": "運動エネルギー制御",
+      "kinetic-accelerate": "運動エネルギー制御 / 加速",
+      "kinetic-decelerate": "運動エネルギー制御 / 減速",
+      "nuclear-transmutation": "核変換",
+      "nuclear-fission": "核分裂"
     }
   };
   if (owner === "fighter") return "リミットブレイク";
   if (owner === "gunner") return "狙撃";
   if (owner === "alchemist") return data?.self?.hackerRootActive ? "借用能力" : "Root化";
+  if (owner === "quantum") return quantumModeLabel(selectedQuantumExecutableMode(data?.self?.special === "alchemist"));
   return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
 }
 
@@ -7060,7 +7090,10 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
   state.operatorBranchType = state.operatorBranchesOpen ? operatorType : "";
   els.operatorBranchPanel.hidden = !state.operatorBranchesOpen;
   els.operatorBranchList.replaceChildren();
-  if (!state.operatorBranchesOpen) return;
+  if (!state.operatorBranchesOpen) {
+    state.quantumOperatorBranchStage = "ability";
+    return;
+  }
 
   const activeType = operatorType || self.special;
   const borrowedPreview = self.special === "alchemist" && Boolean(operatorType);
@@ -7130,13 +7163,32 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
       else triggerOperatorAbility();
     }, self.gunnerSnipingActive, "ON中は全射撃がHS確殺。移動速度は通常の12%まで低下する");
   } else if (activeType === "quantum") {
-    const quantumModes = new Set(["transmute-mercury", "transmute-lead", "cool-water", "heat-water", "fission-uranium", "fission-plutonium"]);
-    [...els.teleportModeSelect.options].filter((option) => quantumModes.has(option.value)).forEach((option) => {
-      addBranch(option.textContent, () => {
-        els.teleportModeSelect.value = option.value;
-        void api("/api/quantum-control", { mode: option.value });
-      }, option.value === els.teleportModeSelect.value, "クオンタムで選択した物質または温度状態を制御する");
-    });
+    const selectQuantumBranchMode = (mode) => {
+      rememberQuantumExecutableMode(mode, borrowedPreview);
+      if (borrowedPreview) {
+        state.rootAbilitySelectStage = "selected";
+        populateRootAbilityModeSelect("quantum");
+      } else {
+        populateNativeQuantumModeSelect();
+      }
+      updateActionButtons(state.data);
+      if (state.abilityAutoActivate) {
+        if (borrowedPreview) triggerBorrowedAbility("quantum", mode);
+        else void api("/api/quantum-control", { mode });
+      }
+      setOperatorBranchesOpen(false);
+    };
+    if (state.quantumOperatorBranchStage === "kinetic") {
+      addBranch("加速", () => selectQuantumBranchMode("kinetic-accelerate"), selectedQuantumExecutableMode(borrowedPreview) === "kinetic-accelerate", "所持している水を高温水へ変える。水がなければ何も起きない");
+      addBranch("減速", () => selectQuantumBranchMode("kinetic-decelerate"), selectedQuantumExecutableMode(borrowedPreview) === "kinetic-decelerate", "所持している水を氷へ変える。水がなければ何も起きない");
+    } else {
+      addBranch("運動エネルギー制御", () => {
+        state.quantumOperatorBranchStage = "kinetic";
+        setOperatorBranchesOpen(true, operatorType, true);
+      }, selectedQuantumExecutableMode(borrowedPreview).startsWith("kinetic-"), "選択後、加速か減速へ分岐する");
+      addBranch("核変換", () => selectQuantumBranchMode("nuclear-transmutation"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-transmutation", "所持している鉛か水銀を金へ変えて100Cへ即時換金する。対象がなければ何も起きない");
+      addBranch("核分裂", () => selectQuantumBranchMode("nuclear-fission"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fission", "所持しているウランかプルトニウムへ核分裂を適用する。対象がなければ何も起きない");
+    }
   } else if (activeType === "alchemist") {
     availableHackerRecipes(self).forEach((recipe) => {
       addBranch(recipe.label, () => {
@@ -7168,7 +7220,7 @@ function triggerOperatorAbility() {
   } else if (self.special === "gunner") {
     void api("/api/gunner-sniping");
   } else if (self.special === "quantum") {
-    void api("/api/quantum-control", { mode: els.teleportModeSelect.value || self.quantumMode });
+    void api("/api/quantum-control", { mode: selectedQuantumExecutableMode(false) });
   } else if (self.special === "alchemist") {
     if (!self.hackerRootActive) {
       void api("/api/hacker-root");
@@ -7658,7 +7710,11 @@ async function api(path, extra = {}, options = {}) {
   if (path === "/api/teleport" && requestedMode === "heart") actionKind = "heart-transfer";
   if (path === "/api/gravity-storm") actionKind = "power";
   if (path === "/api/gravity-time-keeper") actionKind = "power";
-  if (path === "/api/quantum-control" && requestedMode.startsWith("fission-")) actionKind = "power";
+  if (path === "/api/quantum-control" && requestedMode === "nuclear-fission") actionKind = "power";
+  if (result.actionApplied === false && (
+    path === "/api/quantum-control" ||
+    (path === "/api/borrowed-ability" && String(extra?.ability || "") === "quantum")
+  )) actionKind = "";
   if (actionKind) {
     const actionVariant = ["/api/shoot", "/api/gunner-weapon"].includes(path)
       ? String(
@@ -9082,6 +9138,106 @@ function rootAbilityModeSelectActive(self = state.data?.self) {
   );
 }
 
+function normalizeQuantumClientMode(rawMode) {
+  const mode = String(rawMode || "nuclear-transmutation");
+  return {
+    "transmute-mercury": "nuclear-transmutation",
+    "transmute-lead": "nuclear-transmutation",
+    "cool-water": "kinetic-decelerate",
+    "heat-water": "kinetic-accelerate",
+    "fission-uranium": "nuclear-fission",
+    "fission-plutonium": "nuclear-fission"
+  }[mode] || mode;
+}
+
+function quantumModeLabel(rawMode) {
+  return {
+    "kinetic-accelerate": "運動エネルギー制御 / 加速",
+    "kinetic-decelerate": "運動エネルギー制御 / 減速",
+    "nuclear-transmutation": "核変換",
+    "nuclear-fission": "核分裂"
+  }[normalizeQuantumClientMode(rawMode)] || "クオンタム";
+}
+
+function quantumTopMode(rawMode) {
+  return normalizeQuantumClientMode(rawMode).startsWith("kinetic-") ? "quantum-kinetic" : normalizeQuantumClientMode(rawMode);
+}
+
+function selectedQuantumExecutableMode(borrowed = false) {
+  return normalizeQuantumClientMode(borrowed
+    ? state.borrowedAbilityModes.quantum
+    : state.quantumAbilityMode || state.data?.self?.quantumMode);
+}
+
+function hasCompatibleQuantumItem(self, rawMode) {
+  const mode = normalizeQuantumClientMode(rawMode);
+  const ids = mode === "nuclear-transmutation"
+    ? ["lead", "mercury"]
+    : mode === "nuclear-fission"
+      ? ["uranium", "plutonium"]
+      : ["mineral-water"];
+  return ids.some((id) => (self?.itemInventory || []).some((item) => item.id === id && Number(item.amount) > 0));
+}
+
+function rememberQuantumExecutableMode(rawMode, borrowed = false) {
+  const mode = normalizeQuantumClientMode(rawMode);
+  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) return false;
+  if (borrowed) state.borrowedAbilityModes.quantum = mode;
+  else state.quantumAbilityMode = mode;
+  return true;
+}
+
+function populateQuantumKineticModeSelect({ root = false } = {}) {
+  if (root) state.rootAbilitySelectStage = "quantum-kinetic";
+  else state.quantumSelectStage = "kinetic";
+  els.teleportModeSelect.dataset.specialKey = `${root ? "root-" : ""}quantum-kinetic`;
+  els.teleportModeSelect.innerHTML = [
+    '<option value="" selected disabled>加速か減速を選択</option>',
+    ...QUANTUM_KINETIC_MODE_OPTIONS.map(([value, label]) => `<option value="${value}">${label}</option>`)
+  ].join("");
+  els.teleportModeSelect.value = "";
+  els.teleportModeSelect.setAttribute("aria-label", `${root ? "ROOT借用" : ""}クオンタム・運動エネルギー制御`);
+  els.teleportModeDescription.textContent = "運動エネルギー制御を加速か減速へ分岐します。対象となる水を所持していなければ何も起きません。";
+  return true;
+}
+
+function populateNativeQuantumModeSelect() {
+  const selectedMode = selectedQuantumExecutableMode(false);
+  state.quantumSelectStage = "ability";
+  const key = `quantum:${QUANTUM_ABILITY_MODE_OPTIONS.map(([value]) => value).join("|")}`;
+  els.teleportModeSelect.dataset.specialKey = key;
+  els.teleportModeSelect.innerHTML = QUANTUM_ABILITY_MODE_OPTIONS
+    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+    .join("");
+  els.teleportModeSelect.value = quantumTopMode(selectedMode);
+  els.teleportModeSelect.setAttribute("aria-label", "クオンタム能力");
+  syncAbilityModeDescription("quantum", state.data?.self, selectedMode);
+  return true;
+}
+
+function commitNativeQuantumModeSelect() {
+  const self = state.data?.self;
+  if (self?.special !== "quantum" || rootAbilityModeSelectActive(self)) return false;
+  const mode = els.teleportModeSelect.value;
+  if (state.quantumSelectStage === "kinetic") {
+    if (!rememberQuantumExecutableMode(mode, false)) return true;
+    populateNativeQuantumModeSelect();
+    showToast(quantumModeLabel(mode));
+    if (state.abilityAutoActivate) triggerOperatorAbility();
+    return true;
+  }
+  if (mode === "quantum-kinetic") {
+    populateQuantumKineticModeSelect();
+    showToast("運動エネルギー制御: 加速か減速を選択");
+    return true;
+  }
+  if (rememberQuantumExecutableMode(mode, false)) {
+    syncAbilityModeDescription("quantum", self, mode);
+    if (state.abilityAutoActivate) triggerOperatorAbility();
+  }
+  return true;
+}
+
 function populateRootOperatorModeSelect(self = state.data?.self) {
   const types = availableBorrowedOperatorTypes(self);
   if (!types.length) return false;
@@ -9109,7 +9265,9 @@ function populateRootAbilityModeSelect(type, { prompt = false } = {}) {
     ...(prompt ? ['<option value="" selected disabled>能力を選択</option>'] : []),
     ...choices.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
   ].join("");
-  const remembered = state.borrowedAbilityModes[type] || choices[0][0];
+  const remembered = type === "quantum"
+    ? quantumTopMode(state.borrowedAbilityModes.quantum)
+    : state.borrowedAbilityModes[type] || choices[0][0];
   els.teleportModeSelect.value = prompt ? "" : choices.some(([value]) => value === remembered) ? remembered : choices[0][0];
   els.teleportModeSelect.setAttribute("aria-label", `ROOT借用能力方式・${HACKER_ROOT_OPERATOR_LABELS[type] || type}`);
   if (prompt) {
@@ -9120,7 +9278,10 @@ function populateRootAbilityModeSelect(type, { prompt = false } = {}) {
 
 function prepareRootAbilityModeSelectForOpen() {
   const self = state.data?.self;
-  if (!rootAbilityModeSelectActive(self)) return false;
+  if (!rootAbilityModeSelectActive(self)) {
+    if (self?.special === "quantum" && state.quantumSelectStage !== "ability") populateNativeQuantumModeSelect();
+    return false;
+  }
   if (state.rootAbilitySelectStage === "selected") populateRootOperatorModeSelect(self);
   return true;
 }
@@ -9141,6 +9302,12 @@ function commitRootAbilityModeSelect() {
     const mode = els.teleportModeSelect.value;
     const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
     if (!choices.some(([value]) => value === mode)) return true;
+    if (type === "quantum" && mode === "quantum-kinetic") {
+      populateQuantumKineticModeSelect({ root: true });
+      showToast("運動エネルギー制御: 加速か減速を選択");
+      updateActionButtons(state.data);
+      return true;
+    }
     state.borrowedAbilityModes[type] = mode;
     state.rootAbilitySelectStage = "selected";
     syncAbilityModeDescription(type, self);
@@ -9149,11 +9316,26 @@ function commitRootAbilityModeSelect() {
     updateActionButtons(state.data);
     return true;
   }
+  if (state.rootAbilitySelectStage === "quantum-kinetic") {
+    const mode = els.teleportModeSelect.value;
+    if (!QUANTUM_KINETIC_MODE_OPTIONS.some(([value]) => value === mode)) return true;
+    rememberQuantumExecutableMode(mode, true);
+    state.rootAbilitySelectStage = "selected";
+    syncAbilityModeDescription("quantum", self, mode);
+    showToast(`クオンタム: ${quantumModeLabel(mode)}`);
+    updateActionButtons(state.data);
+    return true;
+  }
   return true;
 }
 
 function renderTargetOptions(data) {
   const self = data.self;
+  if (self.special === "quantum" && state.quantumModePlayerId !== self.id) {
+    state.quantumModePlayerId = self.id;
+    state.quantumAbilityMode = normalizeQuantumClientMode(self.quantumMode);
+    state.quantumSelectStage = "ability";
+  }
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value);
   const borrowedOperator = selectedBorrowedOperator();
   const modeOwner = borrowedOperator || self.special;
@@ -9178,6 +9360,10 @@ function renderTargetOptions(data) {
     if (state.rootAbilitySelectStage === "operator") {
       const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
       if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self);
+    } else if (state.rootAbilitySelectStage === "quantum-kinetic") {
+      if (els.teleportModeSelect.dataset.specialKey !== "root-quantum-kinetic") {
+        populateQuantumKineticModeSelect({ root: true });
+      }
     } else {
       const rootType = selectedBorrowedOperator();
       const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
@@ -9186,6 +9372,8 @@ function renderTargetOptions(data) {
         populateRootAbilityModeSelect(rootType, { prompt: state.rootAbilitySelectStage === "ability" });
       }
     }
+  } else if (modeOwner === "quantum" && state.quantumSelectStage === "kinetic") {
+    if (els.teleportModeSelect.dataset.specialKey !== "quantum-kinetic") populateQuantumKineticModeSelect();
   } else if (options.length && els.teleportModeSelect.dataset.specialKey !== `${modeOwner}:${modeKey}`) {
     const previousMode = els.teleportModeSelect.value;
     els.teleportModeSelect.dataset.specialKey = `${modeOwner}:${modeKey}`;
@@ -9193,8 +9381,11 @@ function renderTargetOptions(data) {
     const rememberedMode = borrowedOperator ? state.borrowedAbilityModes[borrowedOperator] : "";
     const defaultMode = modeOwner === "teleport" || modeOwner === "gravity" ? "accelerate" : options[0]?.[0];
     const gravityDefault = ["teleport", "gravity"].includes(modeOwner);
-    els.teleportModeSelect.value = options.some(([value]) => value === rememberedMode)
-      ? rememberedMode
+    const effectiveRememberedMode = modeOwner === "quantum"
+      ? quantumTopMode(borrowedOperator ? state.borrowedAbilityModes.quantum : state.quantumAbilityMode)
+      : rememberedMode;
+    els.teleportModeSelect.value = options.some(([value]) => value === effectiveRememberedMode)
+      ? effectiveRememberedMode
       : gravityDefault && options.some(([value]) => value === defaultMode)
         ? defaultMode
         : options.some(([value]) => value === previousMode)
@@ -9203,8 +9394,11 @@ function renderTargetOptions(data) {
     rememberSelectedOperatorMode();
   }
 
-  if (!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "selected") {
-    syncAbilityModeDescription(modeOwner, self);
+  if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "selected") && state.quantumSelectStage !== "kinetic") {
+    const explicitMode = modeOwner === "quantum"
+      ? selectedQuantumExecutableMode(Boolean(borrowedOperator))
+      : "";
+    syncAbilityModeDescription(modeOwner, self, explicitMode);
   }
 
   const currentAbilityMode = els.teleportModeSelect.value;
@@ -9264,22 +9458,21 @@ function abilityModeDescription(owner, mode, self) {
       sniping: "ON中は全銃の命中をHS確殺にする。代わりに移動速度が通常の12%まで低下する。再操作でOFF。0MP。"
     },
     quantum: {
-      "transmute-mercury": "水銀を核変換して金へ変え、自動的にクレジットへ換金する。",
-      "transmute-lead": "鉛を核変換して金へ変え、自動的にクレジットへ換金する。",
-      "cool-water": "水の原子・分子運動を抑えて氷へ変換し、攻撃力を上げる。",
-      "heat-water": "水の原子・分子運動を増やして高温化し、燃焼効果を付与する。",
-      "fission-uranium": `ウランの核分裂連鎖で全域を破壊し、死体を残す。${cost("quantumNuclear")}。`,
-      "fission-plutonium": `プルトニウムの核分裂連鎖で全域を破壊し、死体を残す。${cost("quantumNuclear")}。`
+      "quantum-kinetic": "選択後、加速か減速へ分岐する。水を所持していなければ何も起きない。",
+      "kinetic-accelerate": "所持している水の運動エネルギーを加速し、高温水へ変える。水がなければ何も起きない。",
+      "kinetic-decelerate": "所持している水の運動エネルギーを減速し、氷へ変える。水がなければ何も起きない。",
+      "nuclear-transmutation": "所持している鉛か水銀を自動選択して金へ核変換し、100Cへ即時換金する。どちらもなければ何も起きない。",
+      "nuclear-fission": `所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全域を破壊する。どちらもなければ何も起きない。${cost("quantumNuclear")}。`
     }
   };
   const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
   return ownerDescriptions?.[mode] || "選択した能力の発動条件と効果をここに表示します。";
 }
 
-function syncAbilityModeDescription(owner, self) {
+function syncAbilityModeDescription(owner, self, explicitMode = "") {
   if (!els.teleportModeDescription) return;
   const autoState = state.abilityAutoActivate ? "ON（選択時に即実行）" : "OFF（選択だけ確定）";
-  els.teleportModeDescription.textContent = `${abilityModeDescription(owner, els.teleportModeSelect.value, self)} 選択時実行: ${autoState}`;
+  els.teleportModeDescription.textContent = `${abilityModeDescription(owner, explicitMode || els.teleportModeSelect.value, self)} 選択時実行: ${autoState}`;
 }
 
 function ensureTeleportTargetForMode(data) {
@@ -10650,7 +10843,7 @@ function updateActionButtons(data) {
                 : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : `サンビーム ${operatorCostLabel("flora")}`,
     gunner: self.gunnerSnipingActive ? "狙撃 OFF / 現在HS確殺・移動12%" : "狙撃 ON / 全射撃HS確殺・移動12%",
-    quantum: els.teleportModeSelect.options[els.teleportModeSelect.selectedIndex]?.textContent || "クオンタム",
+    quantum: quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
     alchemist: selectedBorrowedRecipe
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
       : self.hackerRootActive ? "借用能力" : "Root化"
@@ -10681,7 +10874,7 @@ function updateActionButtons(data) {
   els.operatorAbilityButton.disabled = !canUseAbility ||
     (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
     (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
-    (displayedOperator === "quantum" && Number(self.stamina) < 8) ||
+    (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")) && Number(self.stamina) < 8) ||
     (activeBorrowedOperator && borrowedStateBlocked);
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
@@ -16047,9 +16240,9 @@ function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId,
     return true;
   }
   if (hasId("quantum-") || id === "/api/quantum-control") {
-    const cold = id.includes("cold") || mode.includes("cool-");
-    const hot = id.includes("hot") || mode.includes("heat-");
-    const nuclear = id.includes("nuclear") || mode.startsWith("fission-");
+    const cold = id.includes("cold") || mode === "kinetic-decelerate";
+    const hot = id.includes("hot") || mode === "kinetic-accelerate";
+    const nuclear = id.includes("nuclear") || mode === "nuclear-fission";
     const direction = cold ? -1 : 1;
     ctx.translate(facing * direction * impulse * (nuclear ? 2 : 4.5) * motionScale, (cold ? 3.5 : -3.5) * impulse * motionScale);
     ctx.rotate(facing * direction * impulse * (nuclear ? 0.02 : 0.055) * motionScale);
@@ -17651,7 +17844,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "tactics-pane-tap-expand-v501";
+const version = "quantum-held-item-auto-process-v502";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
