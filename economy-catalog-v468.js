@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "natural-recovery-root-assassin-flick-items-v510",
+    version: "natural-recovery-hp-regeneration-v511",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

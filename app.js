@@ -272,7 +272,6 @@ for (const overlay of [els.inventoryItemDetail, els.itemHoldBranchLines, els.ite
 const ctx = els.canvas.getContext("2d", { alpha: false });
 const mapCtx = els.expandedMapCanvas.getContext("2d");
 const CAMERA_ZOOM = 1.65;
-const SR_SCOPE_ZOOM = 0.92;
 const SFX_ASSETS = Object.freeze({
   click: ["ui-click.wav"],
   select: ["ui-confirm.wav"],
@@ -389,7 +388,6 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム"]]),
-  gunner: Object.freeze([["sniping", "狙撃"]]),
   quantum: QUANTUM_ABILITY_MODE_OPTIONS
 });
 
@@ -541,7 +539,7 @@ const state = {
   operatorBranchesOpen: false,
   operatorBranchType: "",
   borrowedOperatorType: "gravity",
-  borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", gunner: "sniping", quantum: "nuclear-transmutation" },
+  borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", quantum: "nuclear-transmutation" },
   quantumAbilityMode: "nuclear-transmutation",
   quantumKineticModes: { native: "kinetic-accelerate", borrowed: "kinetic-accelerate" },
   quantumModePlayerId: "",
@@ -691,11 +689,11 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
   computer: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
-  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。ため撃ちLv1〜4は0.58/0.67/0.77/0.86（最遠0.37/0.43/0.50/0.56）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。ため撃ちLv1〜4は0.50/0.59/0.67/0.76（最遠0.14/0.17/0.19/0.22）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、狙撃ON時はHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。狙撃ON時はHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。ため撃ちLv1〜4は0.58/0.67/0.77/0.86（最遠0.37/0.43/0.50/0.56）。理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。ため撃ちLv1〜4は0.50/0.59/0.67/0.76（最遠0.14/0.17/0.19/0.22）。理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。理知中に停止してエイム追尾中ならHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   uranium: "通常使用は自分へ強毒。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
@@ -767,7 +765,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-recovery-root-assassin-flick-items-v510";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-recovery-hp-regeneration-v511";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -957,7 +955,7 @@ function alchemyRecipeAvailable(recipe, self = state.data?.self) {
   if (product?.hackerAccess === "root" && !self?.hackerRootActive) return false;
   if (!recipe?.kind) return true;
   if (recipe.kind === "invention") return (self?.inventions || []).includes(recipe.inventoryId);
-  if (recipe.kind === "borrowed") return availableBorrowedOperatorTypes(self).includes(recipe.inventoryId);
+  if (recipe.kind === "borrowed") return availableBorrowedActiveOperatorTypes(self).includes(recipe.inventoryId);
   return true;
 }
 
@@ -2703,7 +2701,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/shoot": "shoot",
   "/api/gunner-weapon": "weapon-switch",
   "/api/gunner-reload": "reload",
-  "/api/gunner-sniping": "focus",
   "/api/gunner-heavy": "shoot",
   "/api/dodge": "evade",
   "/api/fighter-slash": "slash",
@@ -2796,14 +2793,13 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-clairvoyance": "focus",
   "action-drone-altitude": "interact",
   "action-shoot": "shoot",
-  "action-sniper-scope": "focus",
   "action-reload": "reload",
   "action-item-use": "interact",
   "action-item-throw": "throw",
   "action-special-ammo-load": "reload",
-  "action-sniping-headshot": "shoot",
+  "action-gunner-aim-headshot": "shoot",
   "item-hsg-activate": "power",
-  "gunner-sniping-stance": "focus",
+  "gunner-passive-aim": "focus",
   "action-weapon-switch": "weapon-switch",
   "action-reason": "attack",
   "action-push": "attack",
@@ -2874,7 +2870,7 @@ function magicCharacterActionKind(type, variant = "") {
   if (/flora/.test(type)) return "heal";
   if (/dodge|substitution|stand/.test(type)) return "evade";
   if (/limit-break|item-hsg|idea-/.test(type)) return "power";
-  if (/sniping/.test(type)) return "focus";
+  if (/gunner-aim/.test(type)) return "focus";
   if (/emp|gravity|fire|vibe|alchemy|teleport/.test(type)) return "cast";
   if (/vending|object|push/.test(type)) return "interact";
   return "";
@@ -4279,7 +4275,7 @@ function cycleSelectBy(select, direction = 1) {
 
 function commitRootHoldAbility(type, rawMode) {
   const self = state.data?.self;
-  if (!rootAbilityModeSelectActive(self) || !availableBorrowedOperatorTypes(self).includes(type)) return false;
+  if (!rootAbilityModeSelectActive(self) || !availableBorrowedActiveOperatorTypes(self).includes(type)) return false;
   const mode = type === "quantum" ? normalizeQuantumClientMode(rawMode) : rawMode;
   const selectable = type === "quantum"
     ? [...QUANTUM_KINETIC_MODE_OPTIONS, ...QUANTUM_ABILITY_MODE_OPTIONS.filter(([value]) => value !== "quantum-kinetic")]
@@ -4351,7 +4347,7 @@ function quantumTopLevelHoldChoices({ borrowed = false } = {}) {
 }
 
 function borrowedOperatorHoldChoices(self = state.data?.self) {
-  return availableBorrowedOperatorTypes(self).map((type) => ({
+  return availableBorrowedActiveOperatorTypes(self).map((type) => ({
     key: `root-operator:${type}`,
     group: "オペ",
     label: HACKER_ROOT_OPERATOR_LABELS[type] || type,
@@ -4941,10 +4937,14 @@ function availableBorrowedOperatorTypes(self = state.data?.self) {
   return reported.filter((type) => HACKER_ROOT_OPERATOR_TYPES.includes(type));
 }
 
+function availableBorrowedActiveOperatorTypes(self = state.data?.self) {
+  return availableBorrowedOperatorTypes(self).filter((type) => (OPERATOR_ABILITY_MODE_OPTIONS[type] || []).length > 0);
+}
+
 function cycleBorrowedOperator(direction = 1) {
   const self = state.data?.self;
   if (self?.special !== "alchemist") return false;
-  const types = availableBorrowedOperatorTypes(self);
+  const types = availableBorrowedActiveOperatorTypes(self);
   if (!types.length) return false;
   const currentIndex = types.indexOf(state.borrowedOperatorType);
   const startIndex = currentIndex >= 0 ? currentIndex : direction > 0 ? -1 : 0;
@@ -4962,7 +4962,7 @@ function cycleBorrowedOperator(direction = 1) {
 
 function selectBorrowedAbilityMode(type, mode) {
   const self = state.data?.self;
-  if (!availableBorrowedOperatorTypes(self).includes(type)) return false;
+  if (!availableBorrowedActiveOperatorTypes(self).includes(type)) return false;
   const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
   if (!choices.some(([value]) => value === mode)) return false;
   state.borrowedOperatorType = type;
@@ -6732,8 +6732,6 @@ function renderTabletBranch(data, force = false) {
         addModeAction("サンビーム", "sunbeam");
         if (els.teleportModeSelect.value.startsWith("sunbeam")) addSubmenu("サンビーム対象を選択", "flora-target");
       }
-    } else if (self.special === "gunner") {
-      addModeAction(self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON", "sniping");
     } else if (self.special === "quantum") {
       if (branchPath === "quantum-kinetic") {
         addQuantumModeAction("加速", "kinetic-accelerate");
@@ -6819,7 +6817,6 @@ function conciseTabletAbilityName(data) {
     }
   };
   if (owner === "fighter") return "リミットブレイク";
-  if (owner === "gunner") return "狙撃";
   if (owner === "alchemist") return data?.self?.hackerRootActive ? "ROOT解除" : "Root化";
   if (owner === "quantum") return quantumModeLabel(selectedQuantumExecutableMode(data?.self?.special === "alchemist"));
   return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
@@ -7225,7 +7222,7 @@ function borrowedAbilityPayload(recipe, requestedMode = "") {
 function selectedBorrowedOperator() {
   const self = state.data?.self;
   if (self?.special !== "alchemist") return "";
-  const owned = availableBorrowedOperatorTypes(self);
+  const owned = availableBorrowedActiveOperatorTypes(self);
   if (!owned.length) return "";
   if (!owned.includes(state.borrowedOperatorType)) state.borrowedOperatorType = owned[0];
   return state.borrowedOperatorType;
@@ -7290,7 +7287,6 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     teleport: "グラビティ能力",
     gravity: "グラビティ能力",
     flora: "フローラ能力",
-    gunner: "ガンナー能力",
     quantum: "クオンタム",
     alchemist: "バイブコーディング"
   };
@@ -7303,7 +7299,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     button.title = description || label;
     button.setAttribute("aria-label", description ? `${label}: ${description}` : label);
     button.classList.toggle("selected", selected);
-    button.dataset.repeatableAbility = activeType === "gunner" ? "0" : "1";
+    button.dataset.repeatableAbility = "1";
     button.addEventListener("click", () => {
       action();
     });
@@ -7341,15 +7337,6 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         els.teleportModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }, option.value === (borrowedPreview ? state.borrowedAbilityModes.flora : els.teleportModeSelect.value), floraDescriptions[option.value] || "");
     });
-  } else if (activeType === "gunner") {
-    addBranch(self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON", () => {
-      state.borrowedAbilityModes.gunner = "sniping";
-      if ([...els.teleportModeSelect.options].some((option) => option.value === "sniping")) {
-        els.teleportModeSelect.value = "sniping";
-      }
-      if (borrowedPreview) triggerBorrowedAbility("gunner", "sniping");
-      else triggerOperatorAbility();
-    }, self.gunnerSnipingActive, "ON中は全射撃がHS確殺。移動速度は通常の12%まで低下する");
   } else if (activeType === "quantum") {
     const selectQuantumBranchMode = (mode) => {
       rememberQuantumExecutableMode(mode, borrowedPreview);
@@ -7404,8 +7391,6 @@ function triggerOperatorAbility() {
       dx: Number(self.aimX) || 0,
       dy: Number(self.aimY) || 1
     });
-  } else if (self.special === "gunner") {
-    void api("/api/gunner-sniping");
   } else if (self.special === "quantum") {
     void api("/api/quantum-control", { mode: selectedQuantumExecutableMode(false) });
   } else if (self.special === "alchemist") {
@@ -9324,7 +9309,7 @@ function rootAbilityModeSelectActive(self = state.data?.self) {
   return Boolean(
     self?.special === "alchemist" &&
     self.hackerRootActive &&
-    availableBorrowedOperatorTypes(self).length > 0
+    availableBorrowedActiveOperatorTypes(self).length > 0
   );
 }
 
@@ -9505,7 +9490,7 @@ function commitNativeQuantumModeSelect(source = els.teleportModeSelect) {
 }
 
 function populateRootOperatorModeSelect(self = state.data?.self, { selectedType = "" } = {}) {
-  const types = availableBorrowedOperatorTypes(self);
+  const types = availableBorrowedActiveOperatorTypes(self);
   if (!types.length) return false;
   state.rootAbilitySelectStage = "operator";
   clearAbilityCascadeSelects();
@@ -9522,7 +9507,7 @@ function populateRootOperatorModeSelect(self = state.data?.self, { selectedType 
 
 function populateRootAbilityModeSelect(type, { prompt = false, selectedMode = "" } = {}) {
   const self = state.data?.self;
-  if (!availableBorrowedOperatorTypes(self).includes(type)) return false;
+  if (!availableBorrowedActiveOperatorTypes(self).includes(type)) return false;
   const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
   if (!choices.length) return false;
   state.borrowedOperatorType = type;
@@ -9571,7 +9556,7 @@ function commitRootAbilityModeSelect(source = els.teleportModeSelect) {
   }
   if (source === els.teleportModeSelect && state.rootAbilitySelectStage === "operator") {
     const type = String(source.value || "").replace(/^root-operator:/, "");
-    if (!availableBorrowedOperatorTypes(self).includes(type)) return true;
+    if (!availableBorrowedActiveOperatorTypes(self).includes(type)) return true;
     populateRootAbilityModeSelect(type, { prompt: true });
     showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}の能力を選択`);
     updateActionButtons(state.data);
@@ -9710,12 +9695,12 @@ function renderTargetOptions(data) {
   const modeKey = options.map((option) => option[0]).join("|");
   if (rootAbilitySwitchVisible) {
     if (state.rootAbilitySelectStage === "operator") {
-      const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
+      const operatorKey = `root-operators:${availableBorrowedActiveOperatorTypes(self).join("|")}`;
       if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self);
     } else if (state.rootAbilitySelectStage === "quantum-kinetic") {
       const rootType = selectedBorrowedOperator();
       const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
-      const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
+      const operatorKey = `root-operators:${availableBorrowedActiveOperatorTypes(self).join("|")}`;
       const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
       if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self, { selectedType: rootType });
       if (els.rootAbilityBranchSelect.dataset.specialKey !== abilityKey) {
@@ -9725,7 +9710,7 @@ function renderTargetOptions(data) {
     } else if (state.rootAbilitySelectStage === "ability") {
       const rootType = selectedBorrowedOperator();
       const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
-      const operatorKey = `root-operators:${availableBorrowedOperatorTypes(self).join("|")}`;
+      const operatorKey = `root-operators:${availableBorrowedActiveOperatorTypes(self).join("|")}`;
       const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
       if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self, { selectedType: rootType });
       if (els.rootAbilityBranchSelect.dataset.specialKey !== abilityKey) populateRootAbilityModeSelect(rootType, { prompt: true });
@@ -9820,9 +9805,6 @@ function abilityModeDescription(owner, mode, self) {
     flora: {
       heal: `自分のHP・SP・状態異常を即時回復し、12秒間加速する。${cost("flora")}。`,
       sunbeam: `選択対象へ光線を放ち、交差した全対象を貫通して確殺する。${cost("flora")}。`
-    },
-    gunner: {
-      sniping: "ON中は全銃の命中をHS確殺にする。代わりに移動速度が通常の12%まで低下する。再操作でOFF。0MP。"
     },
     quantum: {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。水を所持していなければ何も起きない。",
@@ -9926,7 +9908,7 @@ function collectInventoryDisplayItems(self) {
           asset: weapon.id,
           inventoryKind: "weapon",
           output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}${self.gunnerSnipingActive ? " / 現在: 確殺（狙撃ON・HS）" : ""}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}${self.gunnerSnipingActive ? " / 現在: 確殺（停止中エイム追尾・HS）" : ""}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -10527,7 +10509,7 @@ function isRepeatableDisplayedWeaponAction(weaponAction) {
   return ["sword", "firearm"].includes(weaponAction?.kind);
 }
 
-function collectOperatorPassiveEffects(self, liveNow) {
+function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
   const effects = [];
   const add = (label, value, tone, detail, layout = "inline") => effects.push({ label, value, tone, detail, layout });
   const passiveEnabled = Boolean(self.passivesEnabled);
@@ -10561,17 +10543,56 @@ function collectOperatorPassiveEffects(self, liveNow) {
     add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の停止中SP回復だけを1.75倍化");
   }
 
+  if (hasDisplayedOperatorAccess(self, "gunner")) {
+    const specialAmmoWait = Math.max(0, Number(self.gunnerSpecialAmmoReadyAt || 0) - liveNow);
+    const bufferedAmmo = self.gunnerSpecialAmmoInventory || {};
+    add(
+      "特殊弾装填パッシブ",
+      passiveEnabled
+        ? (specialAmmoWait > 0 ? `次 ${formatEffectCountdown(specialAmmoWait)}` : "待機")
+        : passiveValue,
+      passiveTone,
+      "理知中18秒ごとに、選択中の銃へウィーク弾またはショック弾を1マガジン獲得"
+    );
+    add(
+      "GBO",
+      `ウィーク ${Math.max(0, Number(bufferedAmmo.weak) || 0)} / ショック ${Math.max(0, Number(bufferedAmmo.shock) || 0)}${passiveEnabled ? "" : " / 理知まで休止"}`,
+      passiveTone,
+      "ガジェットバッファオーバーフロー。現在装填していない種類の特殊弾も破棄せず保持し、選択銃・弾倉の正規経路で再適用"
+    );
+    const aimValue = !passiveEnabled
+      ? "理知まで休止"
+      : self.gunnerSnipingActive
+        ? "停止・追尾中"
+        : self.gunnerAimStationary
+          ? "停止・対象探索中"
+          : "移動中・休止";
+    add(
+      "エイム",
+      aimValue,
+      self.gunnerSnipingActive ? "truth" : passiveTone,
+      "停止中だけ選択銃の射程内で遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。追尾中はHS確殺、移動で即解除。手動ボタン・追尾移動なし"
+    );
+  }
+
+  if (hasDisplayedOperatorAccess(self, "assassin")) {
+    add("常時無音", "常時有効", "truth", "歩行・ダッシュを含む全移動で足音イベントを発生させず、敵Botにも足音証拠を与えない");
+    add("アサシン忍殺", "消滅へ変換", "truth", "忍殺成功時はアサシン忍殺による消滅となり、死体・通報対象・死体由来markerを残さない");
+  }
+
   if (self.special === "alchemist") {
-    add("ハック", "常時稼働", "rational", "対象位置を把握。タスクは12秒ごとに自動完了");
+    const hackerOperational = phase === "playing" && self.alive && !self.ejected;
+    add("ハック", hackerOperational ? "稼働" : "戦闘中のみ", hackerOperational ? "rational" : "neutral", "生存中は対象位置を把握。防衛側ではタスクを12秒ごとに自動完了");
     const manaGpuDrain = Number(self.manaGpuDrainPerSecond || 0).toFixed(3);
     const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
       "マナGPU",
-      `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積`,
+      self.manaGpuActive
+        ? `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積・稼働`
+        : `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積・休止`,
       self.manaGpuActive ? "truth" : "neutral",
       `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`
     );
-    add("ROOT", self.hackerRootActive ? "Hで解除" : "Hで発動", self.hackerRootActive ? "truth" : "neutral", "能力ボタンで発動／解除。発動前のHPを保存し、解除時に正確に復元。踏ん張り・変わり身は所持を維持したままROOT中だけ無効。ROOT中は全オペ能力を借用");
   }
 
   return effects;
@@ -10589,7 +10610,7 @@ function renderActiveEffects(data) {
   };
 
   const immediate = self.lastImmediateFeedback;
-  if (immediate?.at && liveNow - immediate.at < 6500 && immediate.label !== "EC") {
+  if (immediate?.at && liveNow - immediate.at < 6500 && !["EC", "自然回復", "エイム"].includes(immediate.label)) {
     add(immediate.label, "完了", "instant", immediate.detail);
   }
 
@@ -10608,7 +10629,10 @@ function renderActiveEffects(data) {
       : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / MP継続消費 / 即死回避無効`;
     add("リミットブレイク", "永続", "truth", limitBreakDetail);
   }
-  effects.push(...collectOperatorPassiveEffects(self, liveNow));
+  if (self.hackerRootActive) {
+    add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。踏ん張り・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用");
+  }
+  effects.push(...collectOperatorPassiveEffects(self, liveNow, data.phase));
   if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "1回につきボディダメージ1回を吸収し、状態異常を解除");
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
@@ -10633,9 +10657,6 @@ function renderActiveEffects(data) {
       ? "命中した対象を破壊し、対象の死体を残す。射手への代償ダメージなし"
       : "幸運/直観0未満:確殺 / 0以上:6秒間35%減速";
     add("特殊弾装填", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail);
-  }
-  if (Number(self.gunnerSpecialAmmoReadyAt) > liveNow) {
-    timed("次の特殊弾装填", self.gunnerSpecialAmmoReadyAt, "rational", "18秒ごとに1マガジン");
   }
   if (self.gravityTimeMode) timed(
     self.gravityTimeMode === "accelerate"
@@ -10694,15 +10715,14 @@ function renderActiveEffects(data) {
       add("HSG", "待機", "rational", "足場のない場所へ進む直前に自動起動。最後の浮揚が床外で終了すると落下死");
     }
   }
-  if (self.gunnerSnipingActive) add("狙撃", "ON", "truth", "全射撃HS確殺 / 移動速度12%");
   timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
   timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "アイテム・装備効果停止");
-  if (self.statusImmunityActive) add("自然回復", `SP ${self.statusImmunityThreshold || 500}以上`, "good", "新規の状態異常を無効化し、既存の状態異常を即時解除");
-  if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・現在SP500以上の自然回復で解除");
-  if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・現在SP500以上の自然回復で解除");
+  if (self.statusImmunityActive) add("自然回復", "理知", "good", "現在MP2以上の理知中、状態異常を無効化・即時解除し、通常HPを毎秒0.05ずつ2まで回復");
+  if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・理知中の自然回復で解除");
+  if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・理知中の自然回復で解除");
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
   timed("休息", self.sleepingUntil, "neutral", "行動停止・SP回復×4");
@@ -11079,7 +11099,7 @@ function updateActionButtons(data) {
     els.alchemyButton.hidden = true;
     els.operatorAbilityButton.hidden = activeBorrowedOperator
       ? false
-      : !["fighter", "teleport", "flora", "gunner", "quantum", "alchemist"].includes(self.special);
+      : !["fighter", "teleport", "flora", "quantum", "alchemist"].includes(self.special);
     els.jumpButton.hidden = true;
     els.gunnerReloadButton.hidden = true;
     els.empButton.hidden = false;
@@ -11175,10 +11195,10 @@ function updateActionButtons(data) {
   const normalDamageDetail = minimumDamage < normalDamage
     ? `通常与ダメージ${normalDamage.toFixed(2)}（最遠${minimumDamage.toFixed(2)}）`
     : `通常与ダメージ${normalDamage.toFixed(2)}（距離減衰なし）`;
-  const snipingDamageDetail = self.gunnerSnipingActive
-    ? "現在: 確殺（狙撃ON・HS）"
-    : "ガンナー狙撃ON時: 確殺（HS）";
-  els.weaponButton.title = `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / ${normalDamageDetail} / ${snipingDamageDetail}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}特殊弾はこの選択武器へ適用中` : ""} / Tで切替`;
+  const aimDamageDetail = self.gunnerSnipingActive
+    ? "現在: 確殺（停止中エイム追尾・HS）"
+    : "理知中に停止してエイム追尾すると確殺（HS）";
+  els.weaponButton.title = `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / ${normalDamageDetail} / ${aimDamageDetail}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}特殊弾はこの選択武器へ適用中` : ""} / Tで切替`;
   els.weaponButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess);
   if (self.gunFiring) {
     els.shootButton.textContent = `${firingWeapon.shortName || firingWeapon.name} 1弾倉射撃中（残り${Math.max(0, Number(self.gunnerBurstRoundsRemaining) || 0)}発）`;
@@ -11220,9 +11240,7 @@ function updateActionButtons(data) {
   const borrowedModeLabel = selectedBorrowedRecipe
     ? activeBorrowedOperator === "gravity" || activeBorrowedOperator === "flora"
       ? (OPERATOR_ABILITY_MODE_OPTIONS[activeBorrowedOperator] || []).find(([value]) => value === operatorMode)?.[1] || "能力"
-        : activeBorrowedOperator === "gunner"
-          ? self.gunnerSnipingActive ? "狙撃 OFF" : "狙撃 ON"
-          : activeBorrowedOperator === "fighter"
+        : activeBorrowedOperator === "fighter"
             ? self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク"
             : "常時パッシブ"
     : "";
@@ -11236,7 +11254,6 @@ function updateActionButtons(data) {
               : operatorMode === "time-keeper" ? `時の番人 5秒 ${operatorCostLabel("timeKeeper")}`
                 : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : `サンビーム ${operatorCostLabel("flora")}`,
-    gunner: self.gunnerSnipingActive ? "狙撃 OFF / 現在HS確殺・移動12%" : "狙撃 ON / 全射撃HS確殺・移動12%",
     quantum: quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
     assassin: "常時無音（パッシブ）",
     alchemist: selectedBorrowedRecipe
@@ -11249,7 +11266,7 @@ function updateActionButtons(data) {
         ? "flora"
       : activeBorrowedOperator === "fighter"
         ? "fighterCharge"
-      : "sniping";
+      : "quantumNuclear";
   const selectedBorrowedFree = selectedBorrowedRecipe &&
     Number(borrowedFreeUses[activeBorrowedOperator]) > 0;
   const borrowedStateBlocked = Boolean(selectedBorrowedRecipe) && (
@@ -11266,8 +11283,8 @@ function updateActionButtons(data) {
     ? (self.hackerRootActive ? "ROOT解除" : "Root化")
     : operatorLabels[displayedOperator] || "オペ能力";
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
-  els.operatorAbilityButton.dataset.repeatableAbility = displayedOperator === "gunner" ? "0" : rootToggle ? "0" : "1";
-  els.operatorAbilityButton.classList.toggle("active", Boolean(rootToggle && self.hackerRootActive) || (displayedOperator === "gunner" && Boolean(self.gunnerSnipingActive)));
+  els.operatorAbilityButton.dataset.repeatableAbility = rootToggle ? "0" : "1";
+  els.operatorAbilityButton.classList.toggle("active", Boolean(rootToggle && self.hackerRootActive));
   els.operatorAbilityButton.disabled = rootToggle && self.hackerRootActive
     ? !(isPlaying && self.alive && !self.ejected)
     : !canUseAbility ||
@@ -11875,6 +11892,40 @@ function aimedTarget(data = state.data) {
   return dist(self, target) <= data.settings.killRange ? target : null;
 }
 
+function drawGunnerStationaryAim(data = state.data) {
+  if (data?.phase !== "playing" || !data.self?.gunnerSnipingActive || !data.self?.gunnerAimTargetId) return;
+  const target = data.players.find((player) => player.id === data.self.gunnerAimTargetId && player.alive && !player.ejected);
+  const self = selfPlayer();
+  if (!target || !self) return;
+  const origin = renderedPlayer(self);
+  const destination = renderedPlayer(target);
+  const frameNow = state.frameNow || performance.now();
+  const pulse = 0.72 + Math.sin(frameNow / 110) * 0.18;
+  const gradient = ctx.createLinearGradient(origin.x, origin.y, destination.x, destination.y);
+  gradient.addColorStop(0, "rgba(34,211,238,0.28)");
+  gradient.addColorStop(0.72, "rgba(125,211,252,0.78)");
+  gradient.addColorStop(1, "rgba(255,255,255,0.92)");
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 2.2;
+  ctx.setLineDash([12, 9]);
+  ctx.lineDashOffset = -(frameNow / 32);
+  ctx.beginPath();
+  ctx.moveTo(origin.x, origin.y);
+  ctx.lineTo(destination.x, destination.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = "rgba(224,242,254,0.9)";
+  ctx.beginPath();
+  ctx.arc(destination.x, destination.y, 27 + pulse * 4, -Math.PI * 0.16, Math.PI * 0.36);
+  ctx.arc(destination.x, destination.y, 27 + pulse * 4, Math.PI * 0.84, Math.PI * 1.36);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function nearestTask() {
   const data = state.data;
   const self = selfPlayer();
@@ -12026,6 +12077,7 @@ function draw() {
       drawThrowLandingPreview(data);
       drawStandaloneClairvoyanceAte(data);
       drawPlayers(data);
+      drawGunnerStationaryAim(data);
       drawKillCameraWorldMarkers(data);
       drawHitEffects();
       drawMagicEffects();
@@ -12035,7 +12087,6 @@ function draw() {
     }
   });
 
-  drawCanvasStage("scope-visibility", () => drawScopeVisibilityMask(data, camera, w, h, worldZoom));
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("repair-indicators", () => drawSabotageRepairIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("hud", () => drawHud(data, w, h));
@@ -12049,15 +12100,10 @@ function draw() {
   drawCanvasStage("marker-explanation", () => drawMarkerExplanation(w, h));
 }
 
-function sniperScopeActive(data = state.data) {
-  return false;
-}
-
 function worldZoomFor(data = state.data) {
   if (!data) return CAMERA_ZOOM;
   if (throwTargetClairvoyanceActive(data) || state.clairvoyance.active) return CLAIRVOYANCE_ZOOM;
   if (state.cameraViewIndex >= 0) return CAMERA_ZOOM;
-  if (sniperScopeActive(data)) return SR_SCOPE_ZOOM;
   return CAMERA_ZOOM;
 }
 
@@ -12070,46 +12116,6 @@ function throwTargetClairvoyanceActive(data = state.data) {
   const halfHeight = Math.max(120, els.canvas.height / CAMERA_ZOOM / 2 - 72);
   return Math.abs(state.throwTargeting.targetX - origin.x) > halfWidth ||
     Math.abs(state.throwTargeting.targetY - origin.y) > halfHeight;
-}
-
-function scopeRayEnd(data, origin, angle, maxDistance) {
-  const dx = Math.cos(angle);
-  const dy = Math.sin(angle);
-  let lastX = origin.x;
-  let lastY = origin.y;
-  for (let distance = 12; distance <= maxDistance; distance += 12) {
-    const x = origin.x + dx * distance;
-    const y = origin.y + dy * distance;
-    if (!isClientWalkable(data, x, y, 2)) break;
-    lastX = x;
-    lastY = y;
-  }
-  return { x: lastX, y: lastY };
-}
-
-function drawScopeVisibilityMask(data, camera, w, h, zoom) {
-  if (!sniperScopeActive(data)) return;
-  const self = selfPlayer();
-  if (!self) return;
-  const origin = renderedPlayer(self);
-  const weapon = (data.self.gunnerWeapons || []).find((entry) => entry.id === "sniper");
-  const maxDistance = Math.max(900, Number(weapon?.range) || 1200);
-  const rays = 240;
-  const points = [];
-  for (let index = 0; index < rays; index += 1) {
-    const angle = Math.PI * 2 * index / rays;
-    const end = scopeRayEnd(data, origin, angle, maxDistance);
-    points.push({ x: (end.x - camera.x) * zoom, y: (end.y - camera.y) * zoom });
-  }
-  ctx.save();
-  ctx.fillStyle = "rgba(2, 5, 9, 0.97)";
-  ctx.beginPath();
-  ctx.rect(0, 0, w, h);
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
-  ctx.closePath();
-  ctx.fill("evenodd");
-  ctx.restore();
 }
 
 function drawSensoryBlackout(data, w, h) {
@@ -12185,13 +12191,7 @@ function cameraFor(data, w, h, zoom = 1) {
   const clairvoyanceTarget = !throwTarget && state.clairvoyance.active
     ? { x: state.clairvoyance.x, y: state.clairvoyance.y }
     : null;
-  const scopeTarget = !throwTarget && !clairvoyanceTarget && !selectedCamera && sniperScopeActive(data) && self
-    ? {
-        x: renderedPlayer(self).x + (Number(data.self.aimX) || 0) * 470,
-        y: renderedPlayer(self).y + (Number(data.self.aimY) || 1) * 470
-      }
-    : null;
-  const target = killCameraTarget || throwTarget || clairvoyanceTarget || selectedCamera || scopeTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
+  const target = killCameraTarget || throwTarget || clairvoyanceTarget || selectedCamera || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
   const viewW = w / zoom;
   const viewH = h / zoom;
   const desiredX = clamp(target.x - viewW / 2, 0, Math.max(0, data.map.width - viewW));
@@ -12204,9 +12204,7 @@ function cameraFor(data, w, h, zoom = 1) {
       ? `clairvoyance:${zoom}`
       : selectedCamera
       ? `camera:${selectedCamera.id}`
-      : scopeTarget
-        ? `sniper:${zoom}`
-        : `player:${data.selfId}:${zoom}`;
+      : `player:${data.selfId}:${zoom}`;
   const camera = state.camera;
   if (!camera.initialized || camera.mode !== mode) {
     camera.x = desiredX;
@@ -14192,7 +14190,7 @@ function drawMagicEffects() {
     if (effect.type === "emp" || effect.type.startsWith("emp-")) drawEmpEffect(effect, progress, now);
     if (effect.type.startsWith("status-") || effect.type.startsWith("hazard-")) drawStatusAndHazardEffect(effect, progress);
     if (effect.type === "mystery-reveal") drawPhilosophyAtlasEffect(effect, 10, progress, 170);
-    if (effect.type.startsWith("action-")) drawActionEffect(effect, progress, now);
+    if (effect.type.startsWith("action-") || effect.type === "gunner-passive-aim") drawActionEffect(effect, progress, now);
     if (effect.type.startsWith("idea-")) drawIdeaEffect(effect, progress, now);
   }
 }
@@ -14508,8 +14506,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
   "action-vibe-coding": ["vibeCodingEffect", 220],
   "item-hsg-activate": ["hsgItemTexture", 240],
-  "gunner-sniping-stance": ["gunnerWeaponsAtlas", 240],
-  "action-sniping-headshot": ["gunnerWeaponsAtlas", 210],
+  "action-gunner-aim-headshot": ["gunnerWeaponsAtlas", 210],
   "gunner-rpg": ["gunnerRpgEffect", 280],
   "gunner-missile": ["gunnerMissileEffect", 250],
   "quantum-transmutation": ["quantumTransmutationEffect", 260],
@@ -14957,6 +14954,7 @@ const ACTION_EFFECT_CELLS = {
   "action-warp": 5,
   "action-drone": 6,
   "action-ninjutsu-focus": 7,
+  "gunner-passive-aim": 7,
   "action-shoot": 7,
   "action-reason": 7,
   "action-push": 7,
@@ -14985,7 +14983,7 @@ function gunnerWeaponIdFromActionVariant(variant, fallback = "") {
 }
 
 function drawGunnerActionEffect(effect, progress) {
-  const stateEffect = ["action-shoot", "action-sniper-scope"].includes(effect.type);
+  const stateEffect = effect.type === "action-shoot";
   if (!stateEffect) return false;
   const weaponId = gunnerWeaponIdFromActionVariant(effect.variant);
   if (!weaponId) return false;
@@ -14999,7 +14997,7 @@ function drawGunnerActionEffect(effect, progress) {
   if (!sprite) return false;
   const pulse = Math.sin(Math.min(1, progress) * Math.PI);
   ctx.save();
-  const firingEffect = ["action-shoot", "action-sniper-scope"].includes(effect.type);
+  const firingEffect = effect.type === "action-shoot";
   ctx.globalCompositeOperation = firingEffect ? "lighter" : "source-over";
   ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88);
   if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
@@ -15026,11 +15024,6 @@ function drawGunnerActionEffect(effect, progress) {
     ctx.rotate(Math.atan2(unitY, unitX));
     drawAnimatedTextureCentered(sprite, flashLength / 2, 0, flashLength, flashHeight + pulse * 8, {
       mode: semanticEffectMotion(effect.type, effect.variant, "beam"), progress, intensity: 0.95, baseAlpha: 0.14
-    });
-  } else if (effect.type === "action-sniper-scope") {
-    const size = 122 + pulse * 30;
-    drawAnimatedTextureBottom(sprite, effect.x, effect.y - 38, size, size, {
-      mode: "shimmer", progress, intensity: 0.82, baseAlpha: 0.18
     });
   } else {
     const size = 108 + pulse * 28;
@@ -15188,7 +15181,7 @@ function drawActionEffect(effect, progress, now) {
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
   if (["action-weapon-switch", "action-reload"].includes(effect.type)) return;
-  if (["action-shoot", "action-sniper-scope"].includes(effect.type) && drawGunnerActionEffect(effect, progress)) return;
+  if (effect.type === "action-shoot" && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-drone-altitude" && drawDroneAltitudeEffect(effect, progress)) return;
   if (effect.type === "action-heart-teleport" && drawHeartTeleportEffect(effect, progress)) return;
@@ -15483,8 +15476,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
   iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
-  burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・フローラ回復・現在SP500以上の自然回復で解除できます。"],
-  poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・フローラ回復・現在SP500以上の自然回復で解除できます。"],
+  burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・フローラ回復・理知中の自然回復で解除できます。"],
+  poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・フローラ回復・理知中の自然回復で解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
   destructionSlash: ["常時消滅斬り", "EC50回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
@@ -18251,7 +18244,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "natural-recovery-root-assassin-flick-items-v510";
+const version = "natural-recovery-hp-regeneration-v511";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
