@@ -45,7 +45,7 @@
     ["reason", "押し込み", 5, "instant-item", "reason", "reason"],
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
-    ["hsg", "HSG", 8, "instant-item", "hsg", "hsg"],
+    ["hsg", "HSG", 8, "weapon", "hsg", "hsg"],
     ["railgun", "レールガン", 13, "weapon", "vending-railgun", "railgun"],
     ["particle-cannon", "荷電粒子砲", 16, "weapon", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "weapon", "vending-excalibur", "excalibur"],
@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "natural-recovery-hp-regeneration-v511",
+    version: "physical-hsg-contribution-ranking-v514",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

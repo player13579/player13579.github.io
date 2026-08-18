@@ -4,7 +4,7 @@
 // raster finishes decoding, so the generic teleport ring never takes over.
 // v510 adds threshold-only Natural Recovery, ROOT toggle repair, native flick
 // ownership, foreground reflow, reusable ground pickup and Assassin.
-const CACHE_NAME = "dva-static-v511-natural-recovery-hp-regeneration";
+const CACHE_NAME = "dva-static-v514-physical-hsg-contribution-ranking";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -46,6 +46,7 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-hacker-ate-v391.png",
   "/assets/generated/operator-assassin-ate-v510.png",
   "/assets/generated/natural-recovery-ate-v510.png",
+  "/assets/generated/gbo-overdrive-ate-v513.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
   "/assets/generated/fighter-energy-charge-ate-v404.png",
   "/assets/generated/item-orichalcum-sword-v453.png",

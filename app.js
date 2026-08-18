@@ -25,6 +25,7 @@ const CLAIRVOYANCE_ZOOM = 0.65;
 const MARKER_EXPLANATION_DURATION_MS = 1_450;
 const ENHANCE_HOLD_STEP_MS_CLIENT = 600;
 const ENHANCE_MAX_LEVEL_CLIENT = 4;
+const GBO_HOLD_MS_CLIENT = ENHANCE_HOLD_STEP_MS_CLIENT * (ENHANCE_MAX_LEVEL_CLIENT + 1);
 
 function apiUrl(path) {
   const normalized = String(path || "").startsWith("/") ? String(path) : `/${path}`;
@@ -512,11 +513,12 @@ const state = {
   fighterSlashGuardIntent: false,
   fighterSlashPendingRequests: new Set(),
   selectedWeaponItemId: "",
-  enhanceHold: { kind: "", pointerId: null, startedAt: 0, timer: 0 },
+  enhanceHold: { kind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" },
   throwTargeting: {
     active: false,
     itemId: "",
     holdMs: 0,
+    chargeId: "",
     targetX: 0,
     targetY: 0,
     startedAt: 0,
@@ -689,17 +691,17 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
   computer: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
-  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。ため撃ちLv1〜4は0.58/0.67/0.77/0.86（最遠0.37/0.43/0.50/0.56）。理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。ため撃ちLv1〜4は0.50/0.59/0.67/0.76（最遠0.14/0.17/0.19/0.22）。理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、理知中に停止してエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。理知中に停止してエイム追尾中ならHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。ため撃ちLv1〜4は0.58/0.67/0.77/0.86（最遠0.37/0.43/0.50/0.56）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。ため撃ちLv1〜4は0.50/0.59/0.67/0.76（最遠0.14/0.17/0.19/0.22）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。ため撃ちLv1〜4は0.70/0.81/0.93/1.04（最遠0.55/0.64/0.74/0.83）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。ため撃ちLv1〜4は与ダメージ1.62/1.89/2.16/2.43。固有の確殺なし、理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。ため撃ちLv1〜4は0.19/0.22/0.26/0.29（最遠0.14/0.17/0.19/0.22）。理知中かつダッシュ以外でエイム追尾中ならHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
-  uranium: "通常使用は自分へ強毒。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
-  plutonium: "通常使用は自分へ強毒。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
+  uranium: "密封容器に入った物理アイテム。通常使用は自分へ強毒。通常投擲では容器のまま接地点に残り、誰でも拾える。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
+  plutonium: "密封容器に入った物理アイテム。通常使用は自分へ強毒。通常投擲では容器のまま接地点に残り、誰でも拾える。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "物理武器。直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
-  hsg: "取得時に即席HSGパッシブへ変換。足場のない場所へ進む直前に自動起動し、8秒間浮揚・ACC 1.8。最後の浮揚が床のない場所で終了すると落下死。起動から20秒CT中は再起動・延長・累積・リセット・Enhance不可",
+  hsg: "Storageへ入る物理HSG。足場のない場所へ進む直前に通常8秒・ACC 1.8で自動起動。Use長押しは600msから固定1MPのEnhance、3000msから固定2MPのGBOを次回起動へ一回予約する。GBO起動は80秒・ACC 18で、その直後にHSG本体を破壊。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。最後の浮揚が床のない場所で終了すると落下死。起動中・20秒CT中は準備変更不可",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -765,7 +767,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-recovery-hp-regeneration-v511";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "physical-hsg-contribution-ranking-v514";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1398,7 +1400,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "philia",
     role: "ITEM GUIDE",
     name: "フィリア",
-    text: "自販機はどこでも開け、分類から選びます。全アイテムは通常使用と投擲ができ、瓶は着地で壊れて周囲へ効果。長押しで詳細を確認できます。",
+    text: "自販機はどこでも開け、分類から選びます。瓶だけは接地で壊れて回収できません。それ以外の物理アイテムは被弾地点か接地点に残り、誰でも拾えます。長押しで詳細を確認できます。",
     sophiaGesture: "interact",
     philiaGesture: "throw",
     symbols: [{ type: "cheer", owner: "philia" }, { type: "note", owner: "sophia" }]
@@ -3256,6 +3258,7 @@ function emptyThrowTargetingState() {
     active: false,
     itemId: "",
     holdMs: 0,
+    chargeId: "",
     targetX: 0,
     targetY: 0,
     startedAt: 0,
@@ -3332,7 +3335,7 @@ function updateThrowTargetingFrame(timestamp) {
   target.frame = requestAnimationFrame(updateThrowTargetingFrame);
 }
 
-function beginThrowTargeting(itemId, holdMs = 0) {
+function beginThrowTargeting(itemId, holdMs = 0, chargeId = "") {
   const data = state.data;
   if (!data || data.phase !== "playing" || !data.self?.alive || !itemId) return false;
   if (state.throwTargeting.active) cancelThrowTargeting(true);
@@ -3344,6 +3347,7 @@ function beginThrowTargeting(itemId, holdMs = 0) {
     active: true,
     itemId,
     holdMs: Math.max(0, Number(holdMs) || 0),
+    chargeId: String(chargeId || ""),
     targetX: preview.x,
     targetY: preview.y,
     startedAt: timestamp,
@@ -3357,10 +3361,11 @@ function beginThrowTargeting(itemId, holdMs = 0) {
   return true;
 }
 
-function cancelThrowTargeting(silent = false, message = "投擲をキャンセルしました。") {
+function cancelThrowTargeting(silent = false, message = "投擲をキャンセルしました。", { preserveCharge = false } = {}) {
   if (!state.throwTargeting.active) return false;
   if (state.throwTargeting.frame) cancelAnimationFrame(state.throwTargeting.frame);
   state.throwTargeting = emptyThrowTargetingState();
+  if (!preserveCharge) void clearServerEnhanceCharge();
   syncClairvoyanceManaUsage();
   updateEnhanceReadout();
   if (!silent && message) showToast(message);
@@ -3374,9 +3379,9 @@ async function confirmThrowTargeting() {
     showToast("接地できる場所へマーカーを移動してください。");
     return false;
   }
-  const { itemId, holdMs, targetX, targetY } = state.throwTargeting;
-  cancelThrowTargeting(true);
-  return api("/api/item-throw", { itemId, holdMs, targetX, targetY });
+  const { itemId, holdMs, chargeId, targetX, targetY } = state.throwTargeting;
+  cancelThrowTargeting(true, "", { preserveCharge: true });
+  return api("/api/item-throw", { itemId, holdMs, chargeId, targetX, targetY });
 }
 
 function beginThrowTargetMovement(event) {
@@ -3556,6 +3561,11 @@ function toggleClairvoyance(force = null) {
   return true;
 }
 
+function clientGboEligibleItemId(itemId) {
+  const id = String(itemId || "");
+  return id === "hsg" || id === "orichalcum-sword" || id.startsWith("weapon:") || id.startsWith("heavy:") || id.startsWith("invention:");
+}
+
 function updateEnhanceReadout() {
   if (!els.enhanceReadout) return;
   if (state.throwTargeting.active) {
@@ -3565,20 +3575,29 @@ function updateEnhanceReadout() {
   const hold = state.enhanceHold;
   const elapsed = hold.startedAt ? Math.max(0, performance.now() - hold.startedAt) : 0;
   const requested = Math.min(ENHANCE_MAX_LEVEL_CLIENT, Math.floor(elapsed / ENHANCE_HOLD_STEP_MS_CLIENT));
-  const affordable = Math.min(requested, Math.max(0, Math.floor(Number(state.data?.self?.mana) || 0)));
-  els.enhanceReadout.textContent = hold.kind
-    ? `エンハンス ${affordable} / -${affordable}MP`
-    : "長押しでエンハンス / 0MP";
+  const mana = Math.max(0, Number(state.data?.self?.mana) || 0);
+  const gbo = Boolean(hold.kind && clientGboEligibleItemId(hold.itemId) && elapsed >= GBO_HOLD_MS_CLIENT);
+  els.enhanceReadout.textContent = !hold.kind
+    ? "長押し: 600msからエンハンス / 武具は3000msでGBO"
+    : gbo
+      ? mana >= 2 ? "GBO / 性能×10 / -2MP / 使用後に武具破壊" : "GBO / MP不足（2MP必要） / 解放時は不成立"
+      : requested > 0
+        ? mana >= 1 ? `エンハンス Lv${requested} / -1MP` : `エンハンス Lv${requested} / MP不足（1MP必要）`
+        : "通常動作 / 0MP";
   if (hold.kind) hold.timer = requestAnimationFrame(updateEnhanceReadout);
 }
 
 function beginEnhanceAction(kind, pointerId = null) {
   if (!kind || state.enhanceHold.kind) return false;
-  const itemId = ["use", "throw"].includes(kind) ? String(els.itemSelect?.value || "") : "";
+  const itemId = kind === "shoot"
+    ? `weapon:${String(state.data?.self?.gunnerWeapon || "")}`
+    : kind === "fire"
+      ? "fire-jutsu"
+      : ["use", "throw"].includes(kind) ? String(els.itemSelect?.value || "") : "";
   const chargePromise = state.roomId && state.playerId
     ? api("/api/enhance-charge", { active: true, kind, itemId })
     : Promise.resolve(false);
-  state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0, itemId, chargePromise };
+  state.enhanceHold = { kind, pointerId, startedAt: performance.now(), timer: 0, itemId, chargeId: "", chargePromise };
   state.movementQueue?.clear?.();
   clearMovementInput();
   // A new movement session makes any request that was already in flight before
@@ -3593,7 +3612,7 @@ function cancelEnhanceAction(kind = state.enhanceHold.kind) {
   const hold = state.enhanceHold;
   if (!hold.kind || (kind && hold.kind !== kind)) return false;
   if (hold.timer) cancelAnimationFrame(hold.timer);
-  state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0 };
+  state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
   updateEnhanceReadout();
   // Preserve request order: if the start request is still travelling, clear it
   // only after that request settles so a cancelled charge cannot reappear.
@@ -3614,28 +3633,29 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
   if (!hold.kind || (kind && hold.kind !== kind) || (pointerId !== null && hold.pointerId !== pointerId)) return false;
   const holdMs = Math.max(0, performance.now() - hold.startedAt);
   if (hold.timer) cancelAnimationFrame(hold.timer);
-  state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0 };
+  state.enhanceHold = { kind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
   updateEnhanceReadout();
-  await Promise.resolve(hold.chargePromise);
+  const chargeResult = await Promise.resolve(hold.chargePromise);
+  const chargeId = String(chargeResult?.self?.enhanceChargeId || hold.chargeId || "");
   if (kind === "shoot") {
-    const result = await beginGunFire(holdMs);
+    const result = await beginGunFire(holdMs, chargeId);
     if (!result) await clearServerEnhanceCharge();
     return result;
   }
-  if (kind === "fire") return api("/api/fire-jutsu", { holdMs });
+  if (kind === "fire") return api("/api/fire-jutsu", { holdMs, chargeId });
   const itemId = hold.itemId || els.itemSelect?.value || "";
   if (!itemId) {
     await clearServerEnhanceCharge();
     return false;
   }
-  if (kind === "use" && itemId === "fire-jutsu") return api("/api/fire-jutsu", { holdMs });
+  if (kind === "use" && itemId === "fire-jutsu") return api("/api/fire-jutsu", { holdMs, chargeId });
   if (kind === "throw") {
-    await clearServerEnhanceCharge();
-    return beginThrowTargeting(itemId, holdMs);
+    const finalized = await api("/api/enhance-charge", { active: false, finalize: true, holdMs, chargeId });
+    if (!finalized) return false;
+    return beginThrowTargeting(itemId, holdMs, chargeId);
   }
   if (kind === "use" && itemId.startsWith("invention:")) {
-    await clearServerEnhanceCharge();
-    return api("/api/alchemist-invention", { invention: itemId.slice(10) });
+    return api("/api/alchemist-invention", { invention: itemId.slice(10), holdMs, chargeId });
   }
   if (kind === "use" && itemId.startsWith("weapon:")) {
     const weaponId = itemId.slice(7);
@@ -3646,20 +3666,19 @@ async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = nu
         return false;
       }
     }
-    const result = await beginGunFire(holdMs);
+    const result = await beginGunFire(holdMs, chargeId);
     if (!result) await clearServerEnhanceCharge();
     return result;
   }
   if (kind === "use" && itemId.startsWith("heavy:")) {
-    await clearServerEnhanceCharge();
-    return api("/api/gunner-heavy", { weapon: itemId.slice(6) });
+    return api("/api/gunner-heavy", { weapon: itemId.slice(6), holdMs, chargeId });
   }
   if (kind === "use" && ["substitution", "stand-firm", "push"].includes(itemId)) {
     await clearServerEnhanceCharge();
     showToast("このアイテムは条件成立時に自動発動します。");
     return true;
   }
-  return api("/api/item-use", { itemId, holdMs });
+  return api("/api/item-use", { itemId, holdMs, chargeId });
 }
 
 async function finishEnhanceActionAfterTablet(kind) {
@@ -8050,12 +8069,12 @@ function clearLocalGunTrigger() {
   }
 }
 
-async function beginGunFire(holdMs = 0) {
+async function beginGunFire(holdMs = 0, chargeId = "") {
   if (state.gunTriggerHeld || state.gunFireStartPromise || els.shootButton.disabled) return false;
   state.gunTriggerHeld = true;
   els.shootButton.classList.add("active");
   const direction = gunnerDirection();
-  const request = api("/api/shoot", { action: "start", dx: direction.dx, dy: direction.dy, holdMs });
+  const request = api("/api/shoot", { action: "start", dx: direction.dx, dy: direction.dy, holdMs, chargeId });
   state.gunFireStartPromise = request;
   const result = await request;
   if (state.gunFireStartPromise === request) {
@@ -8087,7 +8106,7 @@ async function beginInventoryWeaponFire(pointerId) {
 }
 
 async function pulseGunFire() {
-  return beginGunFire(0);
+  return finishEnhanceActionAfterTablet("shoot");
 }
 
 function cardinalDirectionVector(dx, dy, fallback = { dx: 0, dy: 1 }) {
@@ -9875,19 +9894,52 @@ function renderStatus(data) {
   renderItemControl(data);
 }
 
-function collectInventoryDisplayItems(self) {
+function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.data)) {
   const chargeDescriptions = {
     "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire
   };
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
     item && (!item.kind || ["item", "charge", "instant"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0
-  ).map((item) => ({
-    ...item,
-    inventoryKind: item.kind === "instant" ? "instant" : item.kind === "charge" ? "charge" : "item",
-    output: item.kind === "instant" ? "即席" : item.kind === "charge" ? "消耗品" : "所持品",
-    detail: chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能",
-    badge: `×${Number(item.amount) || 1}`
-  }));
+  ).map((item) => {
+    const inventoryKind = item.kind === "instant" ? "instant" : item.kind === "charge" ? "charge" : "item";
+    if (item.id === "hsg") {
+      const activeMs = Math.max(0, Number(self.hsgUntil) - liveNow);
+      const cooldownMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
+      const gboActive = Number(self.timedAccelerationStacks?.hsg?.multiplier) >= 18;
+      const preparedMode = String(self.hsgPreparedMode || "");
+      const preparedLevel = Math.max(0, Number(self.hsgPreparedEnhanceLevel) || 0);
+      const stateLabel = activeMs > 0
+        ? `${gboActive ? "GBO作動中" : "作動中"} ${Math.ceil(activeMs / 1000)}秒`
+        : cooldownMs > 0
+          ? `CT ${Math.ceil(cooldownMs / 1000)}秒`
+          : preparedMode === "gbo"
+            ? "GBO予約済"
+            : preparedMode === "enhance"
+              ? `Enhance Lv${preparedLevel || 1}予約済`
+              : "待機";
+      return {
+        ...item,
+        inventoryKind,
+        output: `物理武具 / ${stateLabel}`,
+        detail: activeMs > 0
+          ? `物理HSG。${gboActive ? "GBO" : "通常"}自動浮揚中のため準備変更不可（残り${(activeMs / 1000).toFixed(1)}秒）。表示中の本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
+          : cooldownMs > 0
+            ? `物理HSG。20秒CT中のため準備変更不可（残り${(cooldownMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
+            : "物理HSG。Useを600〜2999ms長押しで固定1MPのEnhance Lv1〜4、3000ms以上で固定2MPのGBOを次回自動起動へ予約。GBO起動後だけHSGを1個破壊。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能",
+        badge: `×${Number(item.amount) || 1} / ${stateLabel}`,
+        usable: activeMs <= 0 && cooldownMs <= 0,
+        throwable: true,
+        transferable: true
+      };
+    }
+    return {
+      ...item,
+      inventoryKind,
+      output: item.kind === "instant" ? "即席" : item.kind === "charge" ? "消耗品" : "所持品",
+      detail: `${chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能"}${item.id === "orichalcum-sword" ? " / UseまたはThrowを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBOは該当数値性能を一回だけ10倍にし、その使用で剣を破壊" : ""}`,
+      badge: `×${Number(item.amount) || 1}`
+    };
+  });
   const availableGunnerWeapons = (Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [])
     .filter((weapon) => weapon.available !== false);
   // Purchased/Hacker-generated firearms are already authoritative in
@@ -9908,7 +9960,7 @@ function collectInventoryDisplayItems(self) {
           asset: weapon.id,
           inventoryKind: "weapon",
           output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}${self.gunnerSnipingActive ? " / 現在: 確殺（停止中エイム追尾・HS）" : ""}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}${self.gunnerSnipingActive ? " / 現在: 確殺（非ダッシュ・エイム追尾・HS）" : ""}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -9947,7 +9999,7 @@ function collectInventoryDisplayItems(self) {
     asset: id,
     inventoryKind: "invention",
     output: "発明武器",
-    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使用・投擲可能",
+    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使用・投擲可能"} / Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBOは該当数値性能を一回だけ10倍にして発明武器を破壊`,
     badge: `×${count}`
   }));
   const heavyNames = { rpg: "RPG", missile: "ミサイル" };
@@ -9962,7 +10014,7 @@ function collectInventoryDisplayItems(self) {
     asset: id,
     inventoryKind: "heavy",
     output: "重火器",
-    detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器",
+    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器"} / Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBOは該当数値性能を一回だけ10倍にして重火器を破壊`,
     badge: `×${count}`
   }));
   return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems];
@@ -10333,7 +10385,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
 
 function renderItemControl(data) {
   const self = data.self;
-  const items = collectInventoryDisplayItems(self);
+  const items = collectInventoryDisplayItems(self, estimatedServerNow(data));
   const targets = (data.players || []).filter((player) => player.id !== self.id && player.alive && !player.ejected);
   const visible = data.phase === "playing" && self.alive && !self.ejected && (items.length > 0 || Number(self.credits) > 0);
   els.itemControl.hidden = !visible;
@@ -10377,7 +10429,7 @@ function renderItemControl(data) {
       button.style.userSelect = "none";
       button.setAttribute("role", "option");
       button.setAttribute("aria-label", item.label);
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong>${item.inventoryKind === "special-ammo" ? `<small>${escapeHtml(item.badge)}</small>` : ""}</span>`;
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong>${item.inventoryKind === "special-ammo" || item.id === "hsg" ? `<small>${escapeHtml(item.badge)}</small>` : ""}</span>`;
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
         hideInventoryItemDetail();
@@ -10428,7 +10480,9 @@ function renderItemControl(data) {
   els.transferCreditsButton.disabled = Number(self.credits) < transferCredits || !targets.length;
   const selectedUseLabel = selected?.inventoryKind === "weapon"
     ? selectedWeaponReloading ? `自動リロード ${Math.max(0, (Number(self.gunnerReloadUntil) - estimatedServerNow(data)) / 1000).toFixed(1)}秒` : "射撃"
-    : selected?.sourceId === "orichalcum-sword" || selected?.id === "orichalcum-sword"
+    : selected?.id === "hsg"
+      ? selected.usable === false ? "HSG状態" : "HSG準備"
+      : selected?.sourceId === "orichalcum-sword" || selected?.id === "orichalcum-sword"
       ? "斬る"
       : selectedInstant ? "発動" : selected?.usable === false ? "使用不可" : "使用";
   els.itemUseButton.textContent = `${selectedUseLabel} [Shift+V]`;
@@ -10549,29 +10603,62 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
     add(
       "特殊弾装填パッシブ",
       passiveEnabled
-        ? (specialAmmoWait > 0 ? `次 ${formatEffectCountdown(specialAmmoWait)}` : "待機")
+        ? `${specialAmmoWait > 0 ? `次 ${formatEffectCountdown(specialAmmoWait)}` : "待機"} / 保持: ウィーク ${Math.max(0, Number(bufferedAmmo.weak) || 0)}・ショック ${Math.max(0, Number(bufferedAmmo.shock) || 0)}`
         : passiveValue,
       passiveTone,
-      "理知中18秒ごとに、選択中の銃へウィーク弾またはショック弾を1マガジン獲得"
+      "理知中18秒ごとに選択中の銃へウィーク弾またはショック弾を1マガジン獲得。非装填種も保持し、武器切替時に選択銃へ再適用"
     );
-    add(
-      "GBO",
-      `ウィーク ${Math.max(0, Number(bufferedAmmo.weak) || 0)} / ショック ${Math.max(0, Number(bufferedAmmo.shock) || 0)}${passiveEnabled ? "" : " / 理知まで休止"}`,
-      passiveTone,
-      "ガジェットバッファオーバーフロー。現在装填していない種類の特殊弾も破棄せず保持し、選択銃・弾倉の正規経路で再適用"
-    );
+    const aimMovementLabel = self.movementMode === "walk"
+      ? "通常歩行"
+      : self.movementMode === "slow"
+        ? "低速移動"
+        : self.movementMode === "jump" || self.movementMode === "jump-prepare"
+          ? "ジャンプ"
+          : "停止";
     const aimValue = !passiveEnabled
       ? "理知まで休止"
-      : self.gunnerSnipingActive
-        ? "停止・追尾中"
-        : self.gunnerAimStationary
-          ? "停止・対象探索中"
-          : "移動中・休止";
+      : self.movementMode === "dash"
+        ? "ダッシュ中・休止"
+        : self.gunnerSnipingActive
+          ? `${aimMovementLabel}・追尾中`
+          : self.gunnerAimAvailable
+            ? `${aimMovementLabel}・対象探索中`
+            : "現在休止";
     add(
       "エイム",
       aimValue,
       self.gunnerSnipingActive ? "truth" : passiveTone,
-      "停止中だけ選択銃の射程内で遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。追尾中はHS確殺、移動で即解除。手動ボタン・追尾移動なし"
+      "理知中はダッシュ以外の移動状態で、選択銃の射程内かつ遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。追尾中はHS確殺、正規ダッシュ時だけ即解除。手動ボタン・追尾移動なし"
+    );
+  }
+
+  const hsgOwned = ownsDisplayedItem(self, "hsg");
+  const hsgActiveMs = Math.max(0, Number(self.hsgUntil) - liveNow);
+  const hsgCooldownMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
+  const hsgGboActive = Number(self.timedAccelerationStacks?.hsg?.multiplier) >= 18;
+  if (hasDisplayedOperatorAccess(self, "gunner") || hsgOwned || hsgActiveMs > 0 || hsgCooldownMs > 0) {
+    const preparedMode = String(self.hsgPreparedMode || "");
+    const preparedLevel = Math.max(0, Number(self.hsgPreparedEnhanceLevel) || 0);
+    const value = hsgActiveMs > 0
+      ? `${hsgGboActive ? `GBO浮揚中${hsgOwned ? "・使用分1個破壊" : "・本体なし"}` : "自動浮揚中"} ${formatEffectCountdown(hsgActiveMs)}`
+      : hsgCooldownMs > 0
+        ? `${hsgOwned ? "CT" : "本体なし / CT"} ${formatEffectCountdown(hsgCooldownMs)}`
+        : !hsgOwned
+          ? "HSG未所持"
+          : Number(self.itemDisabledUntil) > liveNow
+            ? "EMPストレージ遮断"
+            : !passiveEnabled
+              ? "理知まで休止"
+              : preparedMode === "gbo"
+                ? "GBO予約済"
+                : preparedMode === "enhance"
+                  ? `Enhance Lv${preparedLevel || 1}予約済`
+                  : "自動起動待機";
+    add(
+      "HSG",
+      value,
+      hsgActiveMs > 0 ? "truth" : hsgOwned && passiveEnabled ? "rational" : "neutral",
+      "Storageの物理武具。理知中、足場から床外へ進む直前に自動起動。通常8秒・ACC 1.8・20秒CT。Use長押しで次回Enhance／GBOを予約し、GBO起動後だけ本体を破壊"
     );
   }
 
@@ -10700,21 +10787,6 @@ function renderActiveEffects(data) {
     "good",
     `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`
   );
-  if (self.hsgPassiveOwned) {
-    const activeMs = Math.max(0, Number(self.hsgUntil) - liveNow);
-    const readyMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
-    if (activeMs > 0) {
-      add("HSG", `作動 ${(activeMs / 1000).toFixed(1)}秒`, "good", `自動浮揚・ACC 1.8 / 最後の浮揚が床外で終了すると落下死 / 再起動まで ${(readyMs / 1000).toFixed(1)}秒`);
-    } else if (readyMs > 0) {
-      add("HSG", `CT ${(readyMs / 1000).toFixed(1)}秒`, "neutral", "再起動・延長・累積・リセット・Enhance不可");
-    } else if (Number(self.itemDisabledUntil) > liveNow) {
-      add("HSG", "EMP遮断中", "desire", "パッシブは保持・ストレージ復旧後に自動待機");
-    } else if (!self.passivesEnabled) {
-      add("HSG", "理知まで休止", "neutral", "足場のない場所への移動検知を休止中");
-    } else {
-      add("HSG", "待機", "rational", "足場のない場所へ進む直前に自動起動。最後の浮揚が床外で終了すると落下死");
-    }
-  }
   timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
@@ -11196,8 +11268,8 @@ function updateActionButtons(data) {
     ? `通常与ダメージ${normalDamage.toFixed(2)}（最遠${minimumDamage.toFixed(2)}）`
     : `通常与ダメージ${normalDamage.toFixed(2)}（距離減衰なし）`;
   const aimDamageDetail = self.gunnerSnipingActive
-    ? "現在: 確殺（停止中エイム追尾・HS）"
-    : "理知中に停止してエイム追尾すると確殺（HS）";
+    ? "現在: 確殺（非ダッシュ・エイム追尾・HS）"
+    : "理知中かつダッシュ以外でエイム追尾すると確殺（HS）";
   els.weaponButton.title = `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / ${normalDamageDetail} / ${aimDamageDetail}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}特殊弾はこの選択武器へ適用中` : ""} / Tで切替`;
   els.weaponButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess);
   if (self.gunFiring) {
@@ -11453,11 +11525,7 @@ function renderEnd(data) {
       ? data.ideaWinnerIds
       : [data.ideaWinnerId].filter(Boolean)
   );
-  els.endTitle.textContent = data.winner === "none"
-    ? "試合終了"
-    : data.winner === "idea"
-      ? `善のイデア ${ideaWinnerIds.size > 1 ? `${ideaWinnerIds.size}人勝利` : "特殊勝利"}`
-      : data.winner === "attackers" ? "アタッカー勝利" : "ディフェンダー勝利";
+  els.endTitle.textContent = "貢献度ランキング";
   els.endReason.textContent = data.finishReason || "";
   if (data.soloMission?.id === "cpu-gravity" && data.winner === "attackers") {
     localStorage.setItem(storage.cpuGravityHint, "1");
@@ -11466,29 +11534,26 @@ function renderEnd(data) {
   }
   els.resultRanking.innerHTML = "";
   const results = data.results || [];
-  const ideaWinnerRole = results.find((entry) => ideaWinnerIds.has(entry.id))?.role;
-  const winningRole = data.winner === "idea" ? ideaWinnerRole || "defender" : data.winner === "attackers" ? "attacker" : "defender";
-  const teamOrder = winningRole === "attacker" ? ["attacker", "defender"] : ["defender", "attacker"];
-  teamOrder.forEach((role) => {
-    const entries = results.filter((entry) => entry.role === role);
-    if (!entries.length) return;
+  if (results.length) {
     const section = document.createElement("section");
-    section.className = `result-team result-team-${role}`;
+    section.className = "result-team result-overall";
     section.innerHTML = `
       <div class="result-team-title">
-        <strong>${role === "attacker" ? "アタッカー" : "ディフェンダー"}</strong>
-        <span>${entries.length}人</span>
+        <strong>全プレイヤー</strong>
+        <span>${results.length}人 / 上位半分 +1・下位半分 -1</span>
       </div>
       <div class="result-team-list"></div>
     `;
     const list = section.querySelector(".result-team-list");
-    entries.forEach((entry, index) => {
+    results.forEach((entry, index) => {
       const row = document.createElement("div");
-      const rank = index + 1;
+      const rank = Number(entry.rank || entry.rankingPosition) || index + 1;
+      const rankDelta = Number(entry.rankDelta ?? entry.rankMovement) > 0 ? 1 : -1;
       const ideaWinner = data.winner === "idea" && (entry.ideaWinner || ideaWinnerIds.has(entry.id));
       row.dataset.rank = String(rank);
-      row.className = `result-row${rank === 1 ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}${ideaWinner ? " is-idea-winner" : ""}`;
-      const detail = `${ideaWinner ? "善のイデア勝者 / " : ""}キル ${entry.actualKills} / ${entry.rankTier || "bronze"}`;
+      row.className = `result-row${rank === 1 ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}${ideaWinner ? " is-idea-winner" : ""}${rankDelta > 0 ? " is-rank-up" : " is-rank-down"}`;
+      const roleLabel = entry.role === "attacker" ? "ATK" : "DEF";
+      const detail = `${roleLabel} / 防衛キル +${Number(entry.defenderKillContribution) || 0} / 勝利 +${Number(entry.victoryCredit) || 0} / 善のイデア +${Number(entry.ideaContribution) || 0} / ${entry.rankTier || entry.profileRank || "bronze"}`;
       row.innerHTML = `
         <span class="result-rank">${rank}</span>
         <span class="color-dot" style="background:${escapeHtml(entry.color || "#94a3b8")}"></span>
@@ -11496,12 +11561,13 @@ function renderEnd(data) {
           <strong>${escapeHtml(playerIdentityLabel(entry))}</strong>
           <small>${detail}</small>
         </span>
-        <span class="result-score">${entry.contributionScore}</span>
+        <span class="result-rank-movement" aria-label="ランク変動 ${rankDelta > 0 ? "上昇" : "低下"}">${rankDelta > 0 ? "+1" : "-1"}</span>
+        <span class="result-score">${Number(entry.contributionScore) || 0}<small>貢献</small></span>
       `;
       list.appendChild(row);
     });
     els.resultRanking.appendChild(section);
-  });
+  }
   startResultCelebration(data, results);
 }
 
@@ -11892,7 +11958,7 @@ function aimedTarget(data = state.data) {
   return dist(self, target) <= data.settings.killRange ? target : null;
 }
 
-function drawGunnerStationaryAim(data = state.data) {
+function drawGunnerAim(data = state.data) {
   if (data?.phase !== "playing" || !data.self?.gunnerSnipingActive || !data.self?.gunnerAimTargetId) return;
   const target = data.players.find((player) => player.id === data.self.gunnerAimTargetId && player.alive && !player.ejected);
   const self = selfPlayer();
@@ -12077,7 +12143,7 @@ function draw() {
       drawThrowLandingPreview(data);
       drawStandaloneClairvoyanceAte(data);
       drawPlayers(data);
-      drawGunnerStationaryAim(data);
+      drawGunnerAim(data);
       drawKillCameraWorldMarkers(data);
       drawHitEffects();
       drawMagicEffects();
@@ -14500,6 +14566,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "fighter-push-acquired": ["pushMarkerEffect", 96],
   "hacker-root": ["hackerRootMatrix", 190],
   "natural-recovery": ["naturalRecoveryEffect", 230],
+  "gbo-overdrive": ["gboOverdriveEffect", 300],
   "gravity-time-keeper": ["gravityTimeKeeperEffect", 260],
   "preparation-barrier-hit": ["preparationBarrierEffect", 220],
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
@@ -14527,7 +14594,7 @@ const GENERATED_EFFECT_TEXTURES = {
 function semanticEffectMotion(type, variant = "", fallback = "energy") {
   const token = `${String(type || "")} ${String(variant || "")}`.toLowerCase();
   if (/gravity|decelerate|accelerate/.test(token)) return "gravity";
-  if (/emp|taser|shock|vibe|hack|pair-route|smartphone|computer/.test(token)) return "glitch";
+  if (/emp|taser|shock|vibe|hack|pair-route|smartphone|computer|gbo|overdrive/.test(token)) return "glitch";
   if (/teleport|warp|substitution|transfer/.test(token)) return "teleport";
   if (/fire|burn|hot|nuclear|rpg|missile/.test(token)) return "combustion";
   if (/railgun|particle|sunbeam|excalibur|slash|shoot|beam/.test(token)) return "beam";
@@ -18244,7 +18311,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "natural-recovery-hp-regeneration-v511";
+const version = "physical-hsg-contribution-ranking-v514";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -18411,6 +18478,7 @@ const version = "natural-recovery-hp-regeneration-v511";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const naturalRecoveryEffect = new Image();
+  const gboOverdriveEffect = new Image();
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
     skinId,
     Object.fromEntries(["front", "left", "right", "back"].map((direction) => [direction, new Image()]))
@@ -18535,6 +18603,7 @@ const version = "natural-recovery-hp-regeneration-v511";
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
+  defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
   for (const [skinId, rows] of Object.entries(playerWalkRows)) {
     ["front", "left", "right", "back"].forEach((direction) => {
       defer(rows[direction], `assets/generated/skin-${skinId}-walk-${direction}-v483.png`);
@@ -18665,6 +18734,7 @@ const version = "natural-recovery-hp-regeneration-v511";
     throwLandingPreview,
     clairvoyanceThrowAte,
     naturalRecoveryEffect,
+    gboOverdriveEffect,
     physicalActionMotions,
     weaponActionMotions,
     fullMapComposites,
