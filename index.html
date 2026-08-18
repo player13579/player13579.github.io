@@ -12,15 +12,15 @@
     <link rel="icon" href="icon.png?v=hero-icon-v1" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=hero-icon-v1">
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
-    <link rel="preload" as="image" href="assets/title-hero-v466.png?v=kinetic-hold-live-dual-picker-v508" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/title-hero-v466.png?v=stamina-status-visual-poison-evidence-v509" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=kinetic-hold-live-dual-picker-v508">
+  <link rel="stylesheet" href="styles.css?v=stamina-status-visual-poison-evidence-v509">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
-      <img id="startHero" class="start-hero" src="assets/title-hero-v466.png?v=kinetic-hold-live-dual-picker-v508" alt="遠近感のあるブリーフィング室でウィンクし、手を差し向けるソフィア" fetchpriority="high">
-      <img class="title-hero-character" src="assets/title-hero-v466.png?v=kinetic-hold-live-dual-picker-v508" alt="" aria-hidden="true">
-      <img class="title-hero-atmosphere" src="assets/title-hero-v466.png?v=kinetic-hold-live-dual-picker-v508" alt="" aria-hidden="true">
+      <img id="startHero" class="start-hero" src="assets/title-hero-v466.png?v=stamina-status-visual-poison-evidence-v509" alt="遠近感のあるブリーフィング室でウィンクし、手を差し向けるソフィア" fetchpriority="high">
+      <img class="title-hero-character" src="assets/title-hero-v466.png?v=stamina-status-visual-poison-evidence-v509" alt="" aria-hidden="true">
+      <img class="title-hero-atmosphere" src="assets/title-hero-v466.png?v=stamina-status-visual-poison-evidence-v509" alt="" aria-hidden="true">
       <div class="title-hero-vfx" aria-hidden="true">
         <i class="title-hero-mote mote-a"></i>
         <i class="title-hero-mote mote-b"></i>
@@ -126,7 +126,7 @@
                 <section><h4>長押し説明</h4><p>オペレーター、所持品、自販機商品、ハッカー生成のカードは、名前を長押しすると資源消費、対象、効果、時間、条件、例外を表示します。通常表示には名前と、商品なら価格、生成ならクールタイムを表示します。</p></section>
                 <section><h4>タブレットモード</h4><p>実端末向けの標準操作で、初期状態はONです。仮想スティックの倒し量で移動速度を決め、タッチだけで全行動と長押し説明を利用できます。</p></section>
                 <section><h4>三つの移動と移動ACC</h4><p>通常歩行、SP消費の大きいダッシュ、遅い無音歩行があります。移動ACC 2は初期ONですが、実加速がACC2以上の間だけ速度をACC2へ固定します。ボタンまたはQでOFFにできます。</p></section>
-                <section><h4>スタミナ</h4><p>自然回復は完全停止中だけ毎秒19。通常上限100、購入・充填で500まで蓄積できます。タスクは200、回避は100を一括消費します。</p></section>
+                <section><h4>スタミナ</h4><p>自然回復は完全停止中だけ毎秒19。通常上限100、購入・充填で500まで蓄積できます。現在SPが500以上なら状態異常を無効化し、回復で500へ到達した時点で既存の状態異常も解除します。タスクは200、回避は100を一括消費します。</p></section>
                 <section><h4>休息</h4><p>不足量を毎秒76で回復するため所要時間は残量で変化します。休息中も視覚・聴覚は残りますが、完了まで移動とアクションが不能です。</p></section>
                 <section><h4>タスク経済</h4><p>DownloadとUploadは200SPを消費し、端末の範囲内で停止し続けると自動実行されます。キー操作は不要です。1件につき2Cを獲得し、死亡したディフェンダーの残タスクは完了扱いになります。</p></section>
                 <section><h4>ペア行動禁止</h4><p>二人以上が同じ方向・同じ経路を5秒以上進むと警告後に継続ダメージを受けます。アタッカーはダメージ対象外で、Botは他者が占有する経路を避けて経路探索します。</p></section>
@@ -146,6 +146,7 @@
                 <section><h4>ガンナー</h4><p>ARと即席HSGパッシブを持ち、HG、SMG、AR、SR、テーザーを切り替えます。射撃は1タップで現在の弾倉を空まで自動連射し、長押しはエンハンスのため撃ち、指を離すと同じ1弾倉射撃を開始します。狙撃をONにすると全射撃がHS確殺になる代わり、移動速度は通常の12%まで低下します。射撃と狙撃切替はマナを消費しません。</p></section>
                 <section><h4>SR・HSG・特殊弾装填</h4><p>SRは射程1200・通常与ダメージ1.35の低レート銃で、固有の常時確殺はありません。HSGは足場上から足場のない場所へ進む直前に自動起動し、8秒間浮揚・ACC 1.8を得ます。HSGを含む最後の浮揚が床のない場所で終了すると落下死します。起動から20秒のクールタイム中は再起動、延長、累積、リセット、エンハンスできません。全攻撃は生成遮蔽物を貫通します。理知中は18秒ごとに特殊弾を1マガジン獲得し、獲得時と武器切替時に現在の選択銃へ適用します。ウィークは命中した対象だけを破壊して対象の死体を残し、射手への代償ダメージはありません。ショックは低幸運・直観なら確殺、高ければ6秒間減速させます。</p></section>
                 <section><h4>誤射</h4><p>同陣営への攻撃は発動者だけが死亡し、対象は無傷です。EMPの誤射だけは発動者へストレージ遮断が反射し、対象には何も起きません。</p></section>
+                <section><h4>状態異常と自然回復</h4><p>毒・燃焼は最後に付与されてから12秒で自然回復します。解毒・消火・フローラ回復に加え、現在SPが500へ達した時も解除されます。SP500中は毒・燃焼・各種減速・痺れ・拘束・能力封印・EMP遮断・意識消失・時間停止を受けません。</p></section>
                 <section><h4>ファイター</h4><p>ファイター access 中のみ、12秒ごとに1MPでEC+1。通常衝撃波（剣斬りを契機にする場合を含む）と投擲エネルギー放出はEC-1、EC100以上のファイター斬撃はEC-100で特大衝撃波を放ちます。衝撃波は物理ガード可能ですがJG・反射不可。初回EC25で即席の居合+1。居合は次の成功攻撃を破壊（死体あり）へ自動強化し、失敗・回避・ガード・準備バリアでは消費しません。初回EC50でMP・SP・HP・踏ん張り∞、LB被確殺解除、消滅斬り、JG全攻撃反射を永続獲得します。剣を失ってもECと到達済み milestone は維持します。オリハルコン・ソードはECを持たない物理武器で、斬るは75SP・CTなし、700ms物理ガード、先頭140msのJGで衝撃を100%反射します。非ファイターの剣所持者は物理斬撃・物理ガード・投擲だけを使え、ECや衝撃波は得ません。EMP・毒・サンビームは通常ガード不可。剣の腹は受けた衝撃を100%反発する金属製です。開始時に1振り所持し、自販機17C、ハッカー生成0MP・CT85秒。リミットブレイクは1回ごとにHP-1、SP・加速×3を累積し、0.08MP/秒で維持します。HPを使い切ると死亡し、EC50前は確殺回避不能。会議中は維持消費と時間進行を停止し、終了後に再開します。</p></section>
                 <section><h4>グラビティ</h4><p>転移は1MP。対象付近転移は自分を対象の近くへ、対象転移は選択した対象をマップ指定地点へ移動させます。味方への対象転移・ディーセラレート誤射は発動者が即死し、味方は無傷です。心臓転移は10MPで対象を遠隔確殺し位置を公開しません。時空加減速は1MP・8秒で、移動・物理モーション・CT・行動不能・タスク速度へ適用。時の番人は50MPで5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止します。理知中の床外浮揚は0.04MP/秒です。リビテーション、ROOT借用、HSGなど発生源を問わず、最後の浮揚が床のない場所で終了すると落下死します。重力嵐は10MPで指定地点へ全域の敵を12秒吸引し、幸運に応じた継続ダメージ・減速・拘束を与えます。発動者には最後の1秒を除いてバリアが発生します。</p></section>
                 <section><h4>フローラのアロマ</h4><p>理知中は本人の停止中スタミナ回復を1.75倍にします。ほかのプレイヤーには適用されません。</p></section>
@@ -178,6 +179,7 @@
               <div class="tactics-rule-grid">
                 <section><h4>千里眼</h4><p>障害物を越えて観測焦点を動かし、遠隔地の攻撃やキルを含むマップ全域の現場を直接観測できます。秘密の陣営情報は開示しません。観測中は0.25MP/秒を消費し、画面外への投擲時にも自動発動します。</p></section>
                 <section><h4>監視カメラ</h4><p>ディフェンダーは設置カメラを切り替えて視界を取得します。カメラもEMPで機能停止するため、映像消失そのものが敵の接近情報になります。</p></section>
+                <section><h4>Botの視認証拠</h4><p>Botは通常プレイヤーと同じ視界・表示・音だけを判断に使います。投擲者の動作、毒物の軌道と着地点、毒表示中の対象、死亡瞬間を連続して実際に視認した時だけ投擲者を容疑者として結び付け、追跡・攻撃・会議・ルミナスへ利用します。内部死因、非表示の所有者・犯人ID、状態異常の付与元、秘密陣営などは証拠に使いません。Botがユーザーをキルした場合、キルカメラの「Botの判断」欄に実際に保持していた観測証拠、戦術判断、選択した手段を表示し、記録がない理由を内部情報から補完しません。</p></section>
                 <section><h4>EMP基本</h4><p>開始後15秒で初回装填、使用後CT18秒。被弾者は7秒間ストレージを遮断され、全アイテムを使用できず、踏ん張り・押し込み・変わり身・武器・パソコン効果も停止します。所持品と即席のパソコン効果は失われず解除後に復旧し、人間のオペ能力は封印しません。</p></section>
                 <section><h4>位相干渉</h4><p>900ms以内に重なった同位相EMPは共振し、中心110以内で確殺、260以内でボディダメージ。逆位相は相殺します。同地点の第三者も共振範囲へ巻き込まれます。</p></section>
                 <section><h4>サボタージュ</h4><p>アタッカーのみ表示され、開始時と発動後に45秒のクールタイム。成功で8C。遠隔修復はハッカー限定で、300SPを消費し送信完了まで4秒間行動不能。ほかのオペレーターは現地端末で修復します。</p></section>
@@ -205,7 +207,7 @@
               <header><span>七</span><div><p>STORY DIGEST</p><h3>ソフィアとフィリアの戦術案内</h3></div></header>
               <p class="tactics-lead">二人の短い身振りと、台詞の節目だけ現れる肯定的な漫符ATEを見ながら、試合の流れ、資源、戦闘、索敵、会議、勝利条件を短く一周します。画面タップ、左右キー、または左右スワイプで進められます。</p>
               <section id="tacticsNovelStage" class="tactics-novel-stage" tabindex="0" aria-label="ノベルダイジェスト" aria-describedby="tacticsNovelText">
-                <img class="tactics-novel-background" src="assets/generated/tactics-novel-briefing-room-v466.png?v=kinetic-hold-live-dual-picker-v508" alt="木と青緑の研究設備、ソファを備えた戦術ブリーフィング室">
+                <img class="tactics-novel-background" src="assets/generated/tactics-novel-briefing-room-v466.png?v=stamina-status-visual-poison-evidence-v509" alt="木と青緑の研究設備、ソファを備えた戦術ブリーフィング室">
                 <canvas id="tacticsNovelCanvas" width="1280" height="720" aria-hidden="true"></canvas>
                 <div class="tactics-novel-topline">
                   <span id="tacticsNovelChapter">01 / 12　ようこそ</span>
@@ -313,6 +315,7 @@
             <dl class="kill-camera-facts">
               <div><dt>キラー</dt><dd id="killCameraKiller"></dd></div>
               <div><dt>操作</dt><dd id="killCameraAction"></dd></div>
+              <div id="killCameraLogicRow" class="kill-camera-logic" hidden><dt>Botの判断</dt><dd id="killCameraLogic"></dd></div>
             </dl>
           </section>
           <div id="expandedMapOverlay" class="expanded-map-overlay" hidden>
@@ -695,11 +698,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <script src="economy-catalog-v468.js?v=kinetic-hold-live-dual-picker-v508"></script>
-    <script src="game-runtime.js?v=kinetic-hold-live-dual-picker-v508"></script>
-    <script src="game-engine.js?v=kinetic-hold-live-dual-picker-v508"></script>
-    <script src="offline-runtime.js?v=kinetic-hold-live-dual-picker-v508"></script>
-    <script src="config.js?v=kinetic-hold-live-dual-picker-v508"></script>
-    <script src="app.js?v=kinetic-hold-live-dual-picker-v508"></script>
+    <script src="economy-catalog-v468.js?v=stamina-status-visual-poison-evidence-v509"></script>
+    <script src="game-runtime.js?v=stamina-status-visual-poison-evidence-v509"></script>
+    <script src="game-engine.js?v=stamina-status-visual-poison-evidence-v509"></script>
+    <script src="offline-runtime.js?v=stamina-status-visual-poison-evidence-v509"></script>
+    <script src="config.js?v=stamina-status-visual-poison-evidence-v509"></script>
+    <script src="app.js?v=stamina-status-visual-poison-evidence-v509"></script>
 </body>
 </html>

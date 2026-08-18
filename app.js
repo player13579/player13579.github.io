@@ -81,6 +81,8 @@ const els = {
   killCameraTitle: $("#killCameraTitle"),
   killCameraKiller: $("#killCameraKiller"),
   killCameraAction: $("#killCameraAction"),
+  killCameraLogicRow: $("#killCameraLogicRow"),
+  killCameraLogic: $("#killCameraLogic"),
   killCameraCloseButton: $("#killCameraCloseButton"),
   actionCommandRegistry: $("#actionCommandRegistry"),
   fieldLowerRow: $("#fieldLowerRow"),
@@ -764,7 +766,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kinetic-hold-live-dual-picker-v508";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "stamina-status-visual-poison-evidence-v509";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9071,6 +9073,11 @@ function renderKillCamera(data) {
   els.killCameraTitle.textContent = `${record.victimName || "あなた"} の死亡記録`;
   els.killCameraKiller.textContent = record.killerName || "環境・ルール";
   els.killCameraAction.textContent = record.actionLabel || "死因記録エラー（未定義）";
+  const showBotDecision = Boolean(record.killerIsBot);
+  els.killCameraLogicRow.hidden = !showBotDecision;
+  els.killCameraLogic.textContent = showBotDecision
+    ? record.botDecisionLogic || "判断記録なし: 内部情報から理由を補完しません。"
+    : "";
 }
 
 function render() {
@@ -10742,8 +10749,15 @@ function renderActiveEffects(data) {
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
   timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "アイテム・装備効果停止");
-  if (self.poisonStatus) add("中毒", "継続", "desire", "解毒まで継続ダメージ");
-  if (self.burnStatus) add("燃焼", "継続", "desire", "消火まで継続ダメージ");
+  if (self.statusImmunityActive) add("状態異常耐性", `SP ${self.statusImmunityThreshold || 500}`, "good", "毒・燃焼・減速・痺れ・拘束・封印・EMP遮断・意識消失・時間停止を無効化");
+  if (self.poisonStatus) {
+    const remaining = Math.max(0, Number(self.poisonStatus.recoversAt) - liveNow);
+    add("中毒", `自然回復 ${(remaining / 1000).toFixed(1)}秒`, "desire", "解毒・フローラ回復・SP500到達でも解除");
+  }
+  if (self.burnStatus) {
+    const remaining = Math.max(0, Number(self.burnStatus.recoversAt) - liveNow);
+    add("燃焼", `自然回復 ${(remaining / 1000).toFixed(1)}秒`, "desire", "消火・フローラ回復・SP500到達でも解除");
+  }
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
   timed("休息", self.sleepingUntil, "neutral", "行動停止・SP回復×4");
@@ -15485,8 +15499,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
   push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
   iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
-  burning: ["燃焼", "継続ダメージを受けます。水やフローラ回復で解除できます。"],
-  poison: ["毒", "継続ダメージを受けます。解毒剤やフローラ回復で解除できます。"],
+  burning: ["燃焼", "継続ダメージを受け、最後の付与から12秒で自然回復します。水・フローラ回復・SP500到達でも解除できます。"],
+  poison: ["毒", "継続ダメージを受け、最後の付与から12秒で自然回復します。解毒剤・フローラ回復・SP500到達でも解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC50回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除されています。"],
   destructionSlash: ["常時消滅斬り", "EC50回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
@@ -18253,7 +18267,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "kinetic-hold-live-dual-picker-v508";
+const version = "stamina-status-visual-poison-evidence-v509";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "kinetic-hold-live-dual-picker-v508",
+    version: "stamina-status-visual-poison-evidence-v509",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

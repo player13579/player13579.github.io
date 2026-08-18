@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "kinetic-hold-live-dual-picker-v508",
+    version: "stamina-status-visual-poison-evidence-v509",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7595,6 +7595,9 @@ const HAZARD_FIELD_DURATION_MS = 12_000;
 const HAZARD_TICK_MS = 1_000;
 const POISON_DAMAGE_PER_TICK = 0.2;
 const BURN_DAMAGE_PER_TICK = 0.25;
+const PERSISTENT_STATUS_NATURAL_RECOVERY_MS = 12_000;
+const FULL_STAMINA_STATUS_IMMUNITY_THRESHOLD = 500;
+const TOXIC_THROW_ITEM_IDS = new Set(["mercury", "lead", "uranium", "plutonium"]);
 const GOLD_INSTANT_CREDITS = CREDIT_ECONOMY.goldInstantReward;
 const QUANTUM_ACTION_STAMINA_COST = 8;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
@@ -7687,6 +7690,9 @@ const BOT_STAND_FIRM_RETALIATION_MS = 30_000;
 const BOT_KILL_WITNESS_RANGE = 340;
 const BOT_ATTACKER_ISOLATION_RANGE = 430;
 const BOT_BODY_NOTICE_RANGE = 760;
+const BOT_VISIBLE_THROW_MEMORY_MS = 30_000;
+const BOT_VISIBLE_POISON_ASSOCIATION_PADDING = 56;
+const BOT_KILL_DECISION_TRACE_TTL_MS = 45_000;
 const BOT_CLAIRVOYANCE_DURATION_MS = 4000;
 const BOT_CLAIRVOYANCE_MEMORY_MS = 8000;
 const BOT_CLAIRVOYANCE_INTERVAL_MIN_MS = 18_000;
@@ -9729,6 +9735,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     itemInventory: {},
     poisonStatus: null,
     burnStatus: null,
+    statusImmunityFeedbackAt: 0,
     quantumMode: "nuclear-transmutation",
     gravityMode: "accelerate",
     gravityTargetId: "",
@@ -9800,6 +9807,9 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botRetaliationUntil: 0,
     botWitnessTargetId: "",
     botWitnessUntil: 0,
+    botWitnessEvidenceKind: "",
+    botVisibleThrowObservations: [],
+    botKillDecision: null,
     nextBotClairvoyanceAt: now() + 4000 + Math.floor(Math.random() * 6000),
     botClairvoyanceUntil: 0,
     botClairvoyanceObservedUntil: 0,
@@ -10219,6 +10229,7 @@ function startGame(room) {
     player.itemInventory = {};
     player.poisonStatus = null;
     player.burnStatus = null;
+    player.statusImmunityFeedbackAt = 0;
     player.quantumMode = "nuclear-transmutation";
     player.drone = {
       active: false,
@@ -10262,6 +10273,9 @@ function startGame(room) {
     player.botRetaliationUntil = 0;
     player.botWitnessTargetId = "";
     player.botWitnessUntil = 0;
+    player.botWitnessEvidenceKind = "";
+    player.botVisibleThrowObservations = [];
+    player.botKillDecision = null;
     player.nextBotClairvoyanceAt = timestamp + 4000 + Math.floor(Math.random() * 6000);
     player.botClairvoyanceUntil = 0;
     player.botClairvoyanceObservedUntil = 0;
@@ -10272,6 +10286,8 @@ function startGame(room) {
     player.botRetaliationUntil = 0;
     player.botWitnessTargetId = "";
     player.botWitnessUntil = 0;
+    player.botWitnessEvidenceKind = "";
+    player.botVisibleThrowObservations = [];
     player.heardTargetId = "";
     player.heardSoundAt = 0;
     player.heardTargetUntil = 0;
@@ -10517,6 +10533,7 @@ function startBattle(room) {
     }
     player.poisonStatus = null;
     player.burnStatus = null;
+    player.statusImmunityFeedbackAt = 0;
     player.quantumMode = "nuclear-transmutation";
     player.drone.active = false;
     player.drone.x = player.x;
@@ -11754,7 +11771,10 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
     }
   }
   entity.staminaUpdatedAt = timestamp;
-  if (room) syncDesireState(room, entity, "スタミナ回復");
+  if (room) {
+    syncDesireState(room, entity, "スタミナ回復");
+    maintainFullStaminaStatusImmunity(room, entity, timestamp);
+  }
 }
 
 function availableStamina(entity) {
@@ -11961,6 +11981,10 @@ function synchronizeTimeKeeperStops(room, timestamp = now()) {
   if (!activeCasters.length) return;
   for (const target of room.players.values()) {
     if (!target.alive || target.ejected) continue;
+    if (hasFullStaminaStatusImmunity(target)) {
+      target.timeStoppedUntil = 0;
+      continue;
+    }
     const controllingCaster = activeCasters
       .filter((caster) => caster.id !== target.id)
       .sort((a, b) => Number(b.timeKeeperEndsAt) - Number(a.timeKeeperEndsAt))[0];
@@ -12004,6 +12028,17 @@ function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
     if (!status) continue;
     if (Number(status.appliedAt) > 0) status.appliedAt = Number(status.appliedAt) + elapsed;
     if (Number(status.nextTickAt) > timestamp) status.nextTickAt = Number(status.nextTickAt) + elapsed;
+    if (Number(status.recoversAt) > timestamp) status.recoversAt = Number(status.recoversAt) + elapsed;
+  }
+  for (const observation of player.botVisibleThrowObservations || []) {
+    if (Number(observation.observedAt) > 0) observation.observedAt = Number(observation.observedAt) + elapsed;
+    if (Number(observation.landsAt) > timestamp) observation.landsAt = Number(observation.landsAt) + elapsed;
+    if (Number(observation.poisonLandingObservedAt) > 0) observation.poisonLandingObservedAt = Number(observation.poisonLandingObservedAt) + elapsed;
+    if (Number(observation.expiresAt) > timestamp) observation.expiresAt = Number(observation.expiresAt) + elapsed;
+    for (const victim of Object.values(observation.visiblePoisonVictims || {})) {
+      if (Number(victim.firstSeenAt) > 0) victim.firstSeenAt = Number(victim.firstSeenAt) + elapsed;
+      if (Number(victim.lastSeenAt) > 0) victim.lastSeenAt = Number(victim.lastSeenAt) + elapsed;
+    }
   }
   if (player.jumpMotion && Number(player.jumpMotion.endsAt) > timestamp) {
     player.jumpMotion.startedAt = (Number(player.jumpMotion.startedAt) || timestamp) + elapsed;
@@ -12279,6 +12314,110 @@ function requireExactKillCameraActionLabel(value, context = "death") {
   return label;
 }
 
+const BOT_WITNESS_EVIDENCE_LABELS = Object.freeze({
+  "visible-hostile-kill": "目の前で対象の敵対的なキルを視認",
+  "visual-poison-throw-death": "投擲動作・毒物の着地・毒表示中の被害者・死亡瞬間を連続して視認"
+});
+
+function botKillDecisionEvidenceLabels(room, bot, target, timestamp = now()) {
+  if (!room || !bot?.isBot || !target) return [];
+  const labels = [];
+  if (String(bot.botWitnessTargetId || "") === target.id && Number(bot.botWitnessUntil) > timestamp) {
+    const label = BOT_WITNESS_EVIDENCE_LABELS[String(bot.botWitnessEvidenceKind || "")];
+    if (label) labels.push(label);
+  }
+  if (String(bot.botRetaliationTargetId || "") === target.id && Number(bot.botRetaliationUntil) > timestamp) {
+    labels.push("対象から受けた確殺を踏ん張りで耐え、攻撃者を視認");
+  }
+  if (botCanDirectlyObservePlayer(room, bot, target)) {
+    labels.push("通常視界と遮蔽物判定を通して対象を直接視認");
+  }
+  if (
+    String(bot.botClairvoyanceTargetId || "") === target.id &&
+    Number(bot.botClairvoyanceObservedUntil) > timestamp
+  ) {
+    labels.push("千里眼で対象を直接観測し、その観測位置を記憶");
+  }
+  if (String(bot.heardTargetId || "") === target.id && Number(bot.heardTargetUntil) > timestamp) {
+    labels.push("対象の足音を聞き、音の方向と直前位置を記憶");
+  }
+  return [...new Set(labels)];
+}
+
+function rememberBotKillDecision(room, bot, target, options = {}, timestamp = now()) {
+  if (!room || !bot?.isBot || !target) return null;
+  const actionLabel = String(options.actionLabel || "攻撃手段").trim();
+  const evidence = [...new Set([
+    ...botKillDecisionEvidenceLabels(room, bot, target, timestamp),
+    ...(Array.isArray(options.evidence) ? options.evidence.map(String).filter(Boolean) : [])
+  ])];
+  const reasons = [...new Set(
+    (Array.isArray(options.reasons) ? options.reasons : [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  )];
+  const parts = [];
+  if (evidence.length) parts.push(`観測証拠: ${evidence.join("／")}`);
+  if (reasons.length) parts.push(`判断: ${reasons.join("、")}`);
+  parts.push(`選択: ${actionLabel}`);
+  const record = {
+    targetId: target.id,
+    at: timestamp,
+    code: String(options.code || "bot-combat-decision"),
+    actionLabel,
+    evidence,
+    logic: parts.join("。")
+  };
+  bot.botKillDecision = record;
+  return record;
+}
+
+function botKillCameraDecision(room, source, target, details = {}, timestamp = now()) {
+  if (!source?.isBot || !target) return null;
+  const trace = source.botKillDecision;
+  if (
+    trace &&
+    String(trace.targetId || "") === target.id &&
+    timestamp - Number(trace.at) >= 0 &&
+    timestamp - Number(trace.at) <= BOT_KILL_DECISION_TRACE_TTL_MS
+  ) {
+    return {
+      code: String(trace.code || "bot-combat-decision"),
+      logic: String(trace.logic || ""),
+      evidence: Array.isArray(trace.evidence) ? trace.evidence.map(String) : []
+    };
+  }
+  const actionKind = String(details.actionKind || "");
+  const actionLabel = String(details.actionLabel || "攻撃手段");
+  if (actionKind.startsWith("reflected-")) {
+    return {
+      code: "visible-perfect-guard-reflection",
+      logic: `観測証拠: 自分へ向けられた${actionLabel.replace(/^反射された/, "")}を視認。判断: ジャストガードが成立したため攻撃者へ反射。選択: ${actionLabel}`,
+      evidence: ["自分へ向けられた攻撃を視認"]
+    };
+  }
+  if (actionKind === "fighter-dodge-counter") {
+    return {
+      code: "visible-certain-kill-dodge-counter",
+      logic: "観測証拠: 自分へ向けられた確殺を視認。判断: 回避が成立したためファイターのキルカウンターを発動。選択: 回避キルカウンター",
+      evidence: ["自分へ向けられた確殺を視認"]
+    };
+  }
+  const evidence = botKillDecisionEvidenceLabels(room, source, target, timestamp);
+  if (evidence.length) {
+    return {
+      code: "observable-evidence-at-impact",
+      logic: `観測証拠: ${evidence.join("／")}。判断: 致死時点に保持していた観測証拠を表示。選択: ${actionLabel}`,
+      evidence
+    };
+  }
+  return {
+    code: "decision-trace-unavailable",
+    logic: `判断記録なし: ${actionLabel}に対応する人間可知の判断記録が残っていないため、内部情報から理由を補完しません。`,
+    evidence: []
+  };
+}
+
 function recordKillCamera(room, target, source = null, details = {}) {
   if (!room || !target || target.ejected) return null;
   const timestamp = Number(details.timestamp) || now();
@@ -12287,6 +12426,11 @@ function recordKillCamera(room, target, source = null, details = {}) {
   if (!actionKind) throw new Error(`Exact kill-camera action kind required for ${actionLabel}.`);
   const sourceLabel = String(details.sourceLabel || "");
   const killerName = String(details.killerName || source?.name || "環境・ルール");
+  const botDecision = botKillCameraDecision(room, source, target, {
+    ...details,
+    actionLabel,
+    actionKind
+  }, timestamp);
   const record = {
     id: uid("killcam_"),
     at: timestamp,
@@ -12306,7 +12450,10 @@ function recordKillCamera(room, target, source = null, details = {}) {
     actionKind,
     sourceLabel,
     reflected: actionKind.includes("reflected") || Boolean(details.reflected),
-    result: String(details.result || "死亡")
+    result: String(details.result || "死亡"),
+    botDecisionCode: String(botDecision?.code || ""),
+    botDecisionLogic: String(botDecision?.logic || ""),
+    botDecisionEvidence: Array.isArray(botDecision?.evidence) ? botDecision.evidence : []
   };
   target.killCamera = record;
   return record;
@@ -12693,6 +12840,17 @@ function pausePlayerBattleTime(player, pausedAt, elapsedMs) {
     if (!status) continue;
     shiftMeetingAnchor(status, "appliedAt", elapsedMs);
     shiftMeetingDeadline(status, "nextTickAt", pausedAt, elapsedMs);
+    shiftMeetingDeadline(status, "recoversAt", pausedAt, elapsedMs);
+  }
+  for (const observation of player.botVisibleThrowObservations || []) {
+    shiftMeetingAnchor(observation, "observedAt", elapsedMs);
+    shiftMeetingDeadline(observation, "landsAt", pausedAt, elapsedMs);
+    shiftMeetingAnchor(observation, "poisonLandingObservedAt", elapsedMs);
+    shiftMeetingDeadline(observation, "expiresAt", pausedAt, elapsedMs);
+    for (const victim of Object.values(observation.visiblePoisonVictims || {})) {
+      shiftMeetingAnchor(victim, "firstSeenAt", elapsedMs);
+      shiftMeetingAnchor(victim, "lastSeenAt", elapsedMs);
+    }
   }
   if (player.jumpMotion && Number(player.jumpMotion.endsAt) > pausedAt) {
     shiftMeetingAnchor(player.jumpMotion, "startedAt", elapsedMs);
@@ -13621,6 +13779,7 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
 }
 
 function gravityTimeScaleFor(room, target, timestamp = now()) {
+  if (hasFullStaminaStatusImmunity(target)) return 1;
   if (timeKeeperStops(target, timestamp)) return 0;
   const controllers = [...room.players.values()].filter((player) => (
     hasOperatorAccess(player, "gravity") && player.gravityTimeMode && player.gravityTimeTargetId === target.id &&
@@ -13642,6 +13801,7 @@ function useTimeKeeper(room, player) {
   let stoppedCount = 0;
   for (const target of room.players.values()) {
     if (target.id === player.id || !target.alive || target.ejected) continue;
+    if (rejectAdverseStatusAtFullStamina(room, target, "時の番人", startedAt)) continue;
     target.timeStoppedUntil = Math.max(Number(target.timeStoppedUntil) || 0, endsAt);
     target.vx = 0;
     target.vy = 0;
@@ -13686,6 +13846,18 @@ function toggleGravityTime(room, player, mode, targetId) {
   }
   spendOperatorMana(room, player, selectedMode === "accelerate" ? "アクセラレート" : "ディーセラレート");
   const timestamp = now();
+  if (selectedMode === "decelerate" && rejectAdverseStatusAtFullStamina(room, target, "ディーセラレート", timestamp)) {
+    pushMagicEffect(room, "gravity-decelerate", target, {
+      radius: 150,
+      playerId: player.id,
+      targetId: target.id,
+      durationMs: 900,
+      variant: "stamina-500-immune"
+    });
+    pushEvent(room, `${player.name} のディーセラレートを ${target.name} がSP500で無効化しました。`);
+    touch(room);
+    return;
+  }
   player.gravityTimeMode = selectedMode;
   player.gravityTimeTargetId = target.id;
   player.gravityTimeEndsAt = timestamp + GRAVITY_TIME_DURATION_MS;
@@ -13816,15 +13988,18 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       if (infiniteResources) syncFighterInfiniteResources(target);
       else target.bodyHits = Math.round((Number(target.bodyHits || 0) + damage) * 100) / 100;
       target.lastGravityStormDamage = damage;
-      const gravitySlowWasActive = Number(target.gravityStormSlowUntil) > timestamp;
-      target.gravityStormSlowUntil = Math.max(Number(target.gravityStormSlowUntil) || 0, timestamp + GRAVITY_STORM_SLOW_LINGER_MS);
-      target.gravityStormSlowMultiplier = gravitySlowWasActive
-        ? Math.min(Number(target.gravityStormSlowMultiplier) || 1, slowMultiplier)
-        : slowMultiplier;
+      const statusImmune = rejectAdverseStatusAtFullStamina(room, target, "グラビティストーム減速・拘束", timestamp);
+      if (!statusImmune) {
+        const gravitySlowWasActive = Number(target.gravityStormSlowUntil) > timestamp;
+        target.gravityStormSlowUntil = Math.max(Number(target.gravityStormSlowUntil) || 0, timestamp + GRAVITY_STORM_SLOW_LINGER_MS);
+        target.gravityStormSlowMultiplier = gravitySlowWasActive
+          ? Math.min(Number(target.gravityStormSlowMultiplier) || 1, slowMultiplier)
+          : slowMultiplier;
+      }
       setImmediateFeedback(
         target,
         finalSecond ? "グラビティストーム 最終1秒" : "グラビティストーム",
-        `${infiniteResources ? "HP∞でダメージ無効" : `HP-${damage.toFixed(2)}`} / 全域吸引 / 移動速度${Math.round(slowMultiplier * 100)}%`
+        `${infiniteResources ? "HP∞でダメージ無効" : `HP-${damage.toFixed(2)}`} / 全域吸引 / ${statusImmune ? "SP500で減速・拘束無効" : `移動速度${Math.round(slowMultiplier * 100)}%`}`
       );
 
       const lethalThreshold = 2;
@@ -13836,7 +14011,7 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
       }
 
       const modeRoll = Math.random();
-      if (modeRoll < 0.22) {
+      if (modeRoll < 0.22 && !statusImmune) {
         const pinMs = Math.round(GRAVITY_STORM_PIN_MIN_MS + (GRAVITY_STORM_PIN_MAX_MS - GRAVITY_STORM_PIN_MIN_MS) * severity);
         target.gravityPinnedUntil = Math.max(target.gravityPinnedUntil || 0, timestamp + pinMs);
         target.vx = 0;
@@ -14294,6 +14469,7 @@ function absorbPreparationBarrier(room, target, timestamp = now(), source = null
 
 function applyEmpDisruption(room, target, timestamp = now()) {
   if (!target?.alive || target.ejected) return 0;
+  if (rejectAdverseStatusAtFullStamina(room, target, "EMPストレージ遮断", timestamp)) return 0;
   target.itemDisabledUntil = Math.max(Number(target.itemDisabledUntil) || 0, timestamp + EMP_ITEM_LOCK_MS);
   if (target.gunFiring) stopGunnerFire(room, target, { reason: "EMPストレージ遮断", autoSwitch: false });
   target.particleCannonUntil = 0;
@@ -14367,6 +14543,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (hackerEmpOpeningProtected(room, target, timestamp)) return false;
   applyEmpDisruption(room, target, timestamp);
+  recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
   target.alive = false;
   recordKillCamera(room, target, source, {
@@ -14686,22 +14863,7 @@ function extendPlayerCooldowns(player, extensionMs, timestamp = now()) {
 }
 
 function recoverMapObjectStatuses(room, player, source) {
-  const hadStatus = Boolean(
-    player.burnStatus || player.poisonStatus || Number(player.slowedUntil) > 0 ||
-    Number(player.taserSlowedUntil) > 0 || Number(player.shockSlowedUntil) > 0 || Number(player.abilityDisabledUntil) > 0 ||
-    Number(player.itemDisabledUntil) > 0 || Number(player.gravityPinnedUntil) > 0
-  );
-  clearBurning(room, player, source);
-  clearPoison(room, player, source);
-  player.slowedUntil = 0;
-  player.taserSlowedUntil = 0;
-  player.shockSlowedUntil = 0;
-  player.gravityStormSlowUntil = 0;
-  player.gravityStormSlowMultiplier = 1;
-  player.abilityDisabledUntil = 0;
-  player.itemDisabledUntil = 0;
-  player.gravityPinnedUntil = 0;
-  return hadStatus;
+  return clearAdverseStatuses(room, player, source);
 }
 
 function healBodyHits(player, amount = 1) {
@@ -14888,31 +15050,34 @@ function applyMysteryDrink(room, player, timestamp = now()) {
   } else if (roll < 0.52) {
     player.bodyHits = 0;
     player.overheal = 1;
-    player.slowedUntil = 0;
-    player.taserSlowedUntil = 0;
-    player.shockSlowedUntil = 0;
-    player.gravityStormSlowUntil = 0;
-    player.gravityStormSlowMultiplier = 1;
-    player.abilityDisabledUntil = 0;
-    player.unconsciousUntil = 0;
+    clearAdverseStatuses(room, player, "完全活性", timestamp);
     addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
     result = "完全活性 回復・オーバーヒール・速度上昇";
   } else if (roll < 0.64) {
     setMana(room, player, Math.max(RATIONAL_MANA_THRESHOLD, Number(player.mana) || 0), "マナ奔流");
     result = "マナ奔流 理知へ移行";
   } else if (roll < 0.78) {
-    player.slowedUntil = Math.max(player.slowedUntil || 0, timestamp + 12_000);
-    result = "倦怠 移動速度低下12秒";
+    if (rejectAdverseStatusAtFullStamina(room, player, "倦怠", timestamp)) result = "倦怠をSP500で無効化";
+    else {
+      player.slowedUntil = Math.max(player.slowedUntil || 0, timestamp + 12_000);
+      result = "倦怠 移動速度低下12秒";
+    }
   } else if (roll < 0.9) {
-    player.abilityDisabledUntil = Math.max(player.abilityDisabledUntil || 0, timestamp + MYSTERY_ABILITY_LOCK_MS);
-    result = "能力封印15秒";
+    if (rejectAdverseStatusAtFullStamina(room, player, "能力封印", timestamp)) result = "能力封印をSP500で無効化";
+    else {
+      player.abilityDisabledUntil = Math.max(player.abilityDisabledUntil || 0, timestamp + MYSTERY_ABILITY_LOCK_MS);
+      result = "能力封印15秒";
+    }
   } else {
-    player.unconsciousUntil = timestamp + MYSTERY_UNCONSCIOUS_MS;
-    player.vx = 0;
-    player.vy = 0;
-    player.movementMode = "unconscious";
-    clearAttackState(player);
-    result = "意識消失8秒";
+    if (rejectAdverseStatusAtFullStamina(room, player, "意識消失", timestamp)) result = "意識消失をSP500で無効化";
+    else {
+      player.unconsciousUntil = timestamp + MYSTERY_UNCONSCIOUS_MS;
+      player.vx = 0;
+      player.vy = 0;
+      player.movementMode = "unconscious";
+      clearAttackState(player);
+      result = "意識消失8秒";
+    }
   }
   player.lastMysteryResult = result;
   player.lastMysteryResultAt = timestamp;
@@ -15139,10 +15304,136 @@ function botPushBacklashWouldBeLethal(bot, target) {
   return (Math.max(0, Number(bot.bodyHits) || 0) + removedCharges * PUSH_BACKLASH_DAMAGE_PER_CHARGE) >= 2;
 }
 
+function pruneBotVisibleThrowObservations(bot, timestamp = now()) {
+  bot.botVisibleThrowObservations = (Array.isArray(bot?.botVisibleThrowObservations)
+    ? bot.botVisibleThrowObservations
+    : []).filter((observation) => Number(observation.expiresAt) > timestamp).slice(-24);
+  return bot.botVisibleThrowObservations;
+}
+
+function playerHasVisiblePoisonPresentation(room, player, timestamp = now()) {
+  // This boolean is the same statusAte.poison/players[].poisoned presentation
+  // serialized to ordinary clients. No source identity or hidden death reason is
+  // consulted here.
+  return Boolean(player?.alive && !player.ejected && persistentStatusAteState(room, player, timestamp).poison);
+}
+
+function recordBotVisibleThrowMotion(room, thrower, thrown, landing, timestamp = now()) {
+  if (!thrower?.alive || thrower.ejected || !thrown?.id) return 0;
+  let observers = 0;
+  for (const bot of room.players.values()) {
+    if (!bot.isBot || !bot.alive || bot.ejected || bot.inVent || bot.id === thrower.id) continue;
+    if (!botCanDirectlyObservePlayer(room, bot, thrower)) continue;
+    const observations = pruneBotVisibleThrowObservations(bot, timestamp);
+    observations.push({
+      visualThrowId: String(thrown.id),
+      throwerId: String(thrower.id),
+      visibleItemId: String(thrown.itemId || ""),
+      visiblyToxicContainer: TOXIC_THROW_ITEM_IDS.has(String(thrown.itemId || "")),
+      startX: Number(thrower.x) || 0,
+      startY: Number(thrower.y) || 0,
+      targetX: Number(landing?.x) || 0,
+      targetY: Number(landing?.y) || 0,
+      observedAt: timestamp,
+      landsAt: Number(thrown.landsAt) || timestamp,
+      poisonLandingObservedAt: 0,
+      poisonX: 0,
+      poisonY: 0,
+      poisonRadius: 0,
+      visiblePoisonVictims: {},
+      expiresAt: Math.max(Number(thrown.landsAt) || timestamp, timestamp) + BOT_VISIBLE_THROW_MEMORY_MS
+    });
+    bot.botVisibleThrowObservations = observations.slice(-24);
+    observers += 1;
+  }
+  return observers;
+}
+
+function recordBotVisiblePoisonLanding(room, thrown, landing, timestamp = now()) {
+  if (!TOXIC_THROW_ITEM_IDS.has(String(thrown?.itemId || ""))) return 0;
+  let observers = 0;
+  for (const bot of room.players.values()) {
+    if (!bot.isBot || !bot.alive || bot.ejected || bot.inVent) continue;
+    const observation = pruneBotVisibleThrowObservations(bot, timestamp)
+      .find((entry) => entry.visualThrowId === String(thrown.id || ""));
+    if (!observation || !observation.visiblyToxicContainer) continue;
+    if (!botCanDirectlyObservePosition(room, bot, landing)) continue;
+    observation.poisonLandingObservedAt = timestamp;
+    observation.poisonX = Number(landing?.x) || 0;
+    observation.poisonY = Number(landing?.y) || 0;
+    observation.poisonRadius = 145 + Math.max(0, Number(thrown.level) || 0) * 42;
+    observation.expiresAt = Math.max(
+      Number(observation.expiresAt) || 0,
+      timestamp + HAZARD_FIELD_DURATION_MS + PERSISTENT_STATUS_NATURAL_RECOVERY_MS
+    );
+    observers += 1;
+  }
+  return observers;
+}
+
+function recordBotVisiblePoisonPresentations(room, timestamp = now()) {
+  let observationsAdded = 0;
+  for (const bot of room.players.values()) {
+    if (!bot.isBot || !bot.alive || bot.ejected || bot.inVent) continue;
+    const observations = pruneBotVisibleThrowObservations(bot, timestamp)
+      .filter((entry) => entry.visiblyToxicContainer && Number(entry.poisonLandingObservedAt) > 0);
+    if (!observations.length) continue;
+    for (const target of room.players.values()) {
+      if (!playerHasVisiblePoisonPresentation(room, target, timestamp)) continue;
+      if (!botCanDirectlyObservePlayer(room, bot, target)) continue;
+      for (const observation of observations) {
+        const previous = observation.visiblePoisonVictims?.[target.id] || null;
+        const visuallyEnteredObservedCloud = Math.hypot(
+          Number(target.x) - Number(observation.poisonX),
+          Number(target.y) - Number(observation.poisonY)
+        ) <= Number(observation.poisonRadius) + BOT_VISIBLE_POISON_ASSOCIATION_PADDING;
+        if (!previous && !visuallyEnteredObservedCloud) continue;
+        observation.visiblePoisonVictims ||= {};
+        observation.visiblePoisonVictims[target.id] = {
+          firstSeenAt: Number(previous?.firstSeenAt) || timestamp,
+          lastSeenAt: timestamp,
+          lastX: Number(target.x) || 0,
+          lastY: Number(target.y) || 0
+        };
+        observationsAdded += 1;
+      }
+    }
+  }
+  return observationsAdded;
+}
+
+function recordBotVisiblePoisonDeathInference(room, target, timestamp = now()) {
+  // This intentionally receives neither the authoritative damage source nor a
+  // death-cause label. A bot can infer poison only when it sees the public
+  // poison ATE on the victim at the visible death moment and has the complete
+  // earlier visual chain: thrower motion -> toxic landing -> victim in cloud.
+  if (!playerHasVisiblePoisonPresentation(room, target, timestamp)) return 0;
+  let witnesses = 0;
+  for (const bot of room.players.values()) {
+    if (!bot.isBot || !bot.alive || bot.ejected || bot.inVent || bot.id === target.id) continue;
+    if (!botCanDirectlyObservePlayer(room, bot, target)) continue;
+    const observation = pruneBotVisibleThrowObservations(bot, timestamp)
+      .filter((entry) => entry.visiblePoisonVictims?.[target.id])
+      .sort((a, b) => Number(b.poisonLandingObservedAt) - Number(a.poisonLandingObservedAt))[0];
+    if (!observation) continue;
+    const observedThrower = room.players.get(String(observation.throwerId || ""));
+    if (!observedThrower?.alive || observedThrower.ejected || observedThrower.id === bot.id) continue;
+    bot.botWitnessTargetId = observedThrower.id;
+    bot.botWitnessUntil = timestamp + BOT_STAND_FIRM_RETALIATION_MS;
+    bot.botWitnessEvidenceKind = "visual-poison-throw-death";
+    bot.navPath = [];
+    bot.nextBotActionAt = Math.min(Number(bot.nextBotActionAt) || timestamp, timestamp);
+    witnesses += 1;
+  }
+  return witnesses;
+}
+
 function botKnownAttackerEvidence(room, bot, timestamp = now()) {
-  // Clairvoyance is an observation route, not a role-reveal route. A Defender
-  // bot, like an ordinary Defender user, needs witnessed hostile action or
-  // retaliation evidence before treating an observed player as an Attacker.
+  // Clairvoyance is an observation route, not a role-reveal route. A bot, like
+  // an ordinary user, needs witnessed hostile action, a complete visual poison
+  // chain, or visible retaliation evidence before treating someone as hostile.
+  // Hidden role/faction, status source, thrown owner, corpse killer and internal
+  // death reason are forbidden inputs here.
   const witnessed = room.players.get(String(bot?.botWitnessTargetId || ""));
   if (witnessed?.alive && !witnessed.ejected && Number(bot.botWitnessUntil) > timestamp) return witnessed;
   const retaliatingAgainst = room.players.get(String(bot?.botRetaliationTargetId || ""));
@@ -15223,8 +15514,78 @@ function clearPoison(room, player, source = "解毒") {
   return true;
 }
 
+const ADVERSE_STATUS_DEADLINE_FIELDS = Object.freeze([
+  "itemDisabledUntil",
+  "slowedUntil",
+  "taserSlowedUntil",
+  "shockSlowedUntil",
+  "gravityStormSlowUntil",
+  "unconsciousUntil",
+  "gravityPinnedUntil",
+  "abilityDisabledUntil",
+  "timeStoppedUntil"
+]);
+
+function hasFullStaminaStatusImmunity(player) {
+  return Boolean(
+    player?.alive &&
+    !player.ejected &&
+    Number(player.stamina) >= FULL_STAMINA_STATUS_IMMUNITY_THRESHOLD - 0.001
+  );
+}
+
+function hasActiveAdverseStatus(player, timestamp = now()) {
+  return Boolean(
+    player?.poisonStatus ||
+    player?.burnStatus ||
+    ADVERSE_STATUS_DEADLINE_FIELDS.some((field) => Number(player?.[field]) > timestamp)
+  );
+}
+
+function clearAdverseStatuses(room, player, source = "状態異常回復", timestamp = now()) {
+  if (!player) return false;
+  const hadTimedStatus = ADVERSE_STATUS_DEADLINE_FIELDS.some((field) => Number(player[field]) > timestamp);
+  for (const field of ADVERSE_STATUS_DEADLINE_FIELDS) player[field] = 0;
+  player.gravityStormSlowMultiplier = 1;
+  if (["unconscious", "time-stopped"].includes(player.movementMode)) {
+    player.movementMode = "idle";
+  }
+  if (player.drone?.movementMode === "time-stopped") player.drone.movementMode = "idle";
+  const clearedBurn = clearBurning(room, player, source);
+  const clearedPoison = clearPoison(room, player, source);
+  return hadTimedStatus || clearedBurn || clearedPoison;
+}
+
+function rejectAdverseStatusAtFullStamina(room, target, label = "状態異常", timestamp = now()) {
+  if (!hasFullStaminaStatusImmunity(target)) return false;
+  if (Number(target.statusImmunityFeedbackAt) <= timestamp) {
+    target.statusImmunityFeedbackAt = timestamp + HAZARD_TICK_MS;
+    pushGainAte(room, target, "statusRecovery", {
+      variant: "stamina-500-immunity",
+      durationMs: 1050
+    });
+    setImmediateFeedback(target, "状態異常無効", `${label} / SP 500以上`);
+  }
+  return true;
+}
+
+function maintainFullStaminaStatusImmunity(room, player, timestamp = now()) {
+  if (!hasFullStaminaStatusImmunity(player) || !hasActiveAdverseStatus(player, timestamp)) return false;
+  const cleared = clearAdverseStatuses(room, player, "SP500自然回復", timestamp);
+  if (cleared && Number(player.statusImmunityFeedbackAt) <= timestamp) {
+    player.statusImmunityFeedbackAt = timestamp + HAZARD_TICK_MS;
+    pushGainAte(room, player, "statusRecovery", {
+      variant: "stamina-500-natural-recovery",
+      durationMs: 1250
+    });
+    setImmediateFeedback(player, "自然回復", "SP 500到達 / 状態異常解除");
+  }
+  return cleared;
+}
+
 function applyPersistentStatus(room, source, target, kind, strength = 1, timestamp = now(), options = {}) {
   if (!target?.alive || target.ejected) return false;
+  if (rejectAdverseStatusAtFullStamina(room, target, kind === "poison" ? "毒" : "燃焼", timestamp)) return false;
   if (!options.bypassSlashGuard && resolveFighterSlashGuard(room, source, target, {
     kind,
     label: kind === "poison" ? "毒" : "燃焼",
@@ -15261,7 +15622,8 @@ function applyPersistentStatus(room, source, target, kind, strength = 1, timesta
     sourceId,
     strength: nextStrength,
     nextTickAt: Math.min(Number(current?.nextTickAt) || Infinity, timestamp + HAZARD_TICK_MS),
-    appliedAt: Number(current?.appliedAt) || timestamp
+    appliedAt: Number(current?.appliedAt) || timestamp,
+    recoversAt: Math.max(Number(current?.recoversAt) || 0, timestamp + PERSISTENT_STATUS_NATURAL_RECOVERY_MS)
   };
   if (shouldEmitActivation) {
     pushMagicEffect(room, kind === "poison" ? "status-poison" : "status-burning", target, {
@@ -15395,7 +15757,7 @@ function queueThrownItem(room, player, itemId, item, landing, level = 0) {
   // item or of the Orichalcum Sword.
   const energyShockwave = hasOperatorAccess(player, "fighter") && consumeFighterEnergyCharge(player, 1, "ファイター投擲衝撃波");
   room.thrownItems ||= [];
-  room.thrownItems.push({
+  const thrown = {
     id: uid("throw_"),
     itemId,
     item,
@@ -15408,7 +15770,8 @@ function queueThrownItem(room, player, itemId, item, landing, level = 0) {
     energyShockwave,
     createdAt,
     landsAt: createdAt + durationMs
-  });
+  };
+  room.thrownItems.push(thrown);
   room.thrownItems = room.thrownItems.slice(-48);
   pushMagicEffect(room, "action-item-throw", player, {
     radius: 90,
@@ -15418,6 +15781,7 @@ function queueThrownItem(room, player, itemId, item, landing, level = 0) {
     variant: `flight:${itemId}`,
     durationMs
   });
+  recordBotVisibleThrowMotion(room, player, thrown, landing, createdAt);
   if (energyShockwave) {
     pushMagicEffect(room, "fighter-energy-release", player, {
       radius: 92,
@@ -15739,6 +16103,7 @@ function resolveThrownItemLanding(room, thrown) {
     groundItem = placeRigidGroundItem(room, thrown, landing, rigidKind, impact);
   } else if (ITEM_DEFINITIONS[thrown.itemId]) {
     resolveThrownInventoryLanding(room, source, thrown, landing);
+    recordBotVisiblePoisonLanding(room, thrown, landing, now());
   } else {
     resolveThrownOwnedLanding(room, source, thrown, landing);
   }
@@ -15823,16 +16188,19 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0) {
       uranium: 1.55,
       plutonium: 1.9
     }[itemId] + level * 0.35;
-    applyPersistentStatus(room, player, player, "poison", strength, now(), { ignorePreparationBarrier: true });
-    setImmediateFeedback(player, "有害物質曝露", `${definition.label} / 毒強度${strength.toFixed(2)}`);
+    const applied = applyPersistentStatus(room, player, player, "poison", strength, now(), { ignorePreparationBarrier: true });
+    if (applied) setImmediateFeedback(player, "有害物質曝露", `${definition.label} / 毒強度${strength.toFixed(2)}`);
   } else if (itemId === "molotov" || itemId === "heated-water") {
     const strength = 1 + level * 0.4;
-    applyPersistentStatus(room, player, player, "burn", strength, now(), { ignorePreparationBarrier: true });
-    setImmediateFeedback(player, "燃焼", `${definition.label} / 燃焼強度${strength.toFixed(2)}`);
+    const applied = applyPersistentStatus(room, player, player, "burn", strength, now(), { ignorePreparationBarrier: true });
+    if (applied) setImmediateFeedback(player, "燃焼", `${definition.label} / 燃焼強度${strength.toFixed(2)}`);
   } else if (itemId === "ice") {
     const damage = Math.min(1.75, 0.65 + level * 0.22);
     player.bodyHits = Math.round((Math.max(0, Number(player.bodyHits) || 0) + damage) * 100) / 100;
-    player.taserSlowedUntil = Math.max(Number(player.taserSlowedUntil) || 0, now() + 5_000 + level * 1_000);
+    const timestamp = now();
+    if (!rejectAdverseStatusAtFullStamina(room, player, "低温減速", timestamp)) {
+      player.taserSlowedUntil = Math.max(Number(player.taserSlowedUntil) || 0, timestamp + 5_000 + level * 1_000);
+    }
     const lethal = player.bodyHits >= 2;
     pushHitEffect(room, player, "body", lethal);
     if (lethal) destroyPlayerUnconditionally(room, player, player, "氷結水の直接使用");
@@ -15952,10 +16320,19 @@ function advanceHazards(room, timestamp = now()) {
       else applyPersistentStatus(room, source, target, field.kind, field.strength, timestamp);
     }
   }
+  recordBotVisiblePoisonPresentations(room, timestamp);
   for (const target of room.players.values()) {
+    maintainFullStaminaStatusImmunity(room, target, timestamp);
     for (const [field, kind, baseDamage] of [["poisonStatus", "毒", POISON_DAMAGE_PER_TICK], ["burnStatus", "燃焼", BURN_DAMAGE_PER_TICK]]) {
       const status = target[field];
-      if (!status || !target.alive || target.ejected || Number(status.nextTickAt) > timestamp) continue;
+      if (!status || !target.alive || target.ejected) continue;
+      const recoversAt = Number(status.recoversAt) || (Number(status.appliedAt) || timestamp) + PERSISTENT_STATUS_NATURAL_RECOVERY_MS;
+      if (recoversAt <= timestamp) {
+        if (field === "poisonStatus") clearPoison(room, target, "自然回復");
+        else clearBurning(room, target, "自然回復");
+        continue;
+      }
+      if (Number(status.nextTickAt) > timestamp) continue;
       const source = room.players.get(status.sourceId) || null;
       status.nextTickAt = timestamp + HAZARD_TICK_MS;
       const damage = baseDamage * Math.max(0.25, Number(status.strength) || 1);
@@ -15977,8 +16354,8 @@ function advanceHazards(room, timestamp = now()) {
       target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + damage) * 100) / 100;
       pushHitEffect(room, target, "body", target.bodyHits >= threshold);
       if (target.bodyHits >= threshold) {
-        target[field] = null;
-        destroyPlayerUnconditionally(room, source, target, kind);
+        const destroyed = destroyPlayerUnconditionally(room, source, target, kind);
+        if (destroyed) target[field] = null;
       } else {
         setImmediateFeedback(target, kind, `${damage.toFixed(2)}継続ダメージ`);
       }
@@ -16046,15 +16423,7 @@ function healFlora(room, player) {
   spendOperatorMana(room, player, "フローラ");
   if (player.bodyHits > 0) player.bodyHits = 0;
   else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
-  player.slowedUntil = 0;
-  player.taserSlowedUntil = 0;
-  player.shockSlowedUntil = 0;
-  player.gravityStormSlowUntil = 0;
-  player.gravityStormSlowMultiplier = 1;
-  player.abilityDisabledUntil = 0;
-  player.unconsciousUntil = 0;
-  clearBurning(room, player, "フローラ回復");
-  clearPoison(room, player, "フローラ回復");
+  clearAdverseStatuses(room, player, "フローラ回復", timestamp);
   player.stamina = Math.min(MAX_STORED_STAMINA, Math.max(0, Number(player.stamina) || 0) + MAX_STAMINA);
   addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
   player.floraReadyAt = 0;
@@ -16267,20 +16636,13 @@ function recoverHackerTargetStatus(room, player, targetId) {
   const target = hackerTarget(room, player, targetId);
   if (!target.alive || target.ejected) throw new ApiError(400, "状態異常を回復できる対象ではありません。");
   const timestamp = now();
-  const timerFields = [
-    "itemDisabledUntil", "slowedUntil", "taserSlowedUntil", "shockSlowedUntil",
-    "unconsciousUntil", "gravityPinnedUntil", "abilityDisabledUntil"
-  ];
-  const hadTimedStatus = timerFields.some((field) => Number(target[field]) > timestamp);
-  timerFields.forEach((field) => { target[field] = 0; });
-  const clearedBurn = clearBurning(room, target, "バイブコーディング");
-  const clearedPoison = clearPoison(room, target, "バイブコーディング");
+  const cleared = clearAdverseStatuses(room, target, "バイブコーディング", timestamp);
   pushMagicEffect(room, "hacker-status-recover", target, {
     radius: 145,
     playerId: player.id,
     targetId: target.id
   });
-  setImmediateFeedback(target, "状態異常回復", hadTimedStatus || clearedBurn || clearedPoison ? "解除完了" : "異常なし");
+  setImmediateFeedback(target, "状態異常回復", cleared ? "解除完了" : "異常なし");
 }
 
 function deleteHackerTargetHp(room, player, targetId) {
@@ -16480,6 +16842,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
     return false;
   }
+  recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
   target.alive = false;
   recordKillCamera(room, target, source, {
@@ -16992,7 +17355,7 @@ function killPlayer(room, killer, targetId, options = {}) {
     target.gritCharges -= 1;
     hitZone = "body";
     standFirmConverted = true;
-    if (target.isBot && target.role !== killer.role) {
+    if (target.isBot) {
       target.botRetaliationTargetId = killer.id;
       const cooldownWaitMs = Math.max(0, Number(target.killReadyAt) - timestamp);
       target.botRetaliationUntil = timestamp + Math.max(BOT_STAND_FIRM_RETALIATION_MS, cooldownWaitMs + 15_000);
@@ -17042,6 +17405,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   const killActionKind = String(options.attackKind || "").trim();
   if (!killActionKind) throw new Error("Exact lethal action kind is required before committing a kill.");
   const killActionLabel = requireExactKillCameraActionLabel(options.attackLabel, killActionKind);
+  recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, killer);
   target.alive = false;
   recordKillCamera(room, target, killer, {
@@ -17113,8 +17477,8 @@ function clearShotPath(room, shooter, target, directionX, directionY, options = 
 
 function recordBotKillWitnesses(room, killer, target, timestamp = now()) {
   for (const witness of room.players.values()) {
-    if (!witness.isBot || !botIsEnemyOfSoleHuman(room, witness) || !witness.alive || witness.ejected || witness.inVent || witness.id === target.id) continue;
-    if (witness.role !== "defender" || killer.role !== "attacker") continue;
+    if (!witness.isBot || !witness.alive || witness.ejected || witness.inVent || witness.id === target.id) continue;
+    if (witness.role !== "defender") continue;
     const separation = distance(witness, killer);
     if (separation > BOT_KILL_WITNESS_RANGE) continue;
     const dx = killer.x - witness.x;
@@ -17123,6 +17487,7 @@ function recordBotKillWitnesses(room, killer, target, timestamp = now()) {
     if (!clearShotPath(room, witness, killer, dx / length, dy / length)) continue;
     witness.botWitnessTargetId = killer.id;
     witness.botWitnessUntil = timestamp + BOT_STAND_FIRM_RETALIATION_MS;
+    witness.botWitnessEvidenceKind = "visible-hostile-kill";
     if (botCanCommitLuminous(room, witness, killer.id, timestamp)) {
       try {
         callEmergency(room, witness, killer.id, "witness");
@@ -17337,6 +17702,11 @@ function applyShockSpecialRound(room, shooter, target, timestamp = now(), option
       slashGuardPhysical: true
     });
   }
+  if (rejectAdverseStatusAtFullStamina(room, target, "ショック弾減速", timestamp)) {
+    pushEvent(room, `${target.name} はショック弾の減速をSP500で無効化しました。`);
+    touch(room);
+    return "statusImmune";
+  }
   target.shockSlowedUntil = Math.max(Number(target.shockSlowedUntil) || 0, timestamp + GUNNER_SHOCK_SLOW_MS);
   pushEvent(room, `${target.name} はショック弾で6秒間移動速度が35%低下します。`);
   touch(room);
@@ -17383,6 +17753,20 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   }
 
   if (targetEntry) {
+    if (shooter.isBot) {
+      const botShotLabel = shooter.gunnerSnipingActive
+        ? `狙撃・${weapon.name}HS`
+        : specialAmmoType === "weak"
+          ? "ウィーク弾"
+          : specialAmmoType === "shock"
+            ? "ショック弾"
+            : `${weapon.name}の銃弾`;
+      rememberBotKillDecision(room, shooter, targetEntry.player, {
+        code: "visible-target-first-in-clear-gun-line",
+        actionLabel: botShotLabel,
+        reasons: ["射線上で最初に命中する対象を直接視認し、射程・弾薬・射撃間隔の条件を満たした"]
+      }, timestamp);
+    }
     if (shooter.gunnerSnipingActive) {
       pushMagicEffect(room, "action-sniping-headshot", targetEntry.player, {
         radius: 150,
@@ -17459,9 +17843,13 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
       slashGuardPhysical: true
     });
     if (weapon.id === "taser" && !["lethal", "slashGuarded", "slashPerfectGuarded", "slashPerfectReflected"].includes(outcome) && targetEntry.player.alive) {
-      targetEntry.player.taserSlowedUntil = Math.max(targetEntry.player.taserSlowedUntil || 0, timestamp + weapon.slowMs);
-      pushMagicEffect(room, "action-taser", targetEntry.player, { radius: 95, playerId: shooter.id, targetId: targetEntry.player.id });
-      pushEvent(room, `${targetEntry.player.name} はテーザーで痺れ、6秒間移動速度が低下します。`);
+      if (rejectAdverseStatusAtFullStamina(room, targetEntry.player, "テーザー減速", timestamp)) {
+        pushEvent(room, `${targetEntry.player.name} はテーザーの減速をSP500で無効化しました。`);
+      } else {
+        targetEntry.player.taserSlowedUntil = Math.max(targetEntry.player.taserSlowedUntil || 0, timestamp + weapon.slowMs);
+        pushMagicEffect(room, "action-taser", targetEntry.player, { radius: 95, playerId: shooter.id, targetId: targetEntry.player.id });
+        pushEvent(room, `${targetEntry.player.name} はテーザーで痺れ、6秒間移動速度が低下します。`);
+      }
     }
   } else {
     touch(room);
@@ -17732,13 +18120,14 @@ function reportBody(room, player, bodyId = "") {
     .filter(({ item, dist }) => dist <= map.reportRange && (!bodyId || item.id === bodyId))
     .sort((a, b) => a.dist - b.dist)[0]?.item;
   if (!body) throw new ApiError(404, "近くに通報対象がありません。");
-  const suspectId = player.isBot && botCanCommitLuminous(room, player, body.killerId)
-    ? String(body.killerId)
+  const visibleEvidenceTarget = player.isBot ? botKnownAttackerEvidence(room, player, now()) : null;
+  const suspectId = visibleEvidenceTarget && botCanCommitLuminous(room, player, visibleEvidenceTarget.id)
+    ? String(visibleEvidenceTarget.id)
     : "";
   if (player.isBot && !suspectId) throw new ApiError(403, "ルミナスを実行しないBOTは通報しません。");
   startMeeting(room, `${player.name} が ${body.name} を通報`, player.id, {
     suspectId,
-    evidenceKind: suspectId ? "witness" : ""
+    evidenceKind: suspectId ? String(player.botWitnessEvidenceKind || "witness") : ""
   });
 }
 
@@ -18789,6 +19178,8 @@ function serialize(room, viewer, options = {}) {
       stamina: Math.round(viewer.stamina * 10) / 10,
       maxStamina: MAX_STAMINA,
       maxStoredStamina: staminaCapacityFor(viewer),
+      statusImmunityActive: hasFullStaminaStatusImmunity(viewer),
+      statusImmunityThreshold: FULL_STAMINA_STATUS_IMMUNITY_THRESHOLD,
       sleepRegenPerSecond: STAMINA_REGEN_PER_SECOND * SLEEP_REGEN_MULTIPLIER,
       abilityContribution: viewer.abilityContribution,
       taskContribution: viewer.taskContribution,
@@ -19859,6 +20250,7 @@ async function handleApi(req, res) {
         entry.itemInventory = {};
         entry.poisonStatus = null;
         entry.burnStatus = null;
+        entry.statusImmunityFeedbackAt = 0;
         entry.quantumMode = "nuclear-transmutation";
         entry.drone.active = false;
         entry.drone.x = entry.x;
@@ -19885,6 +20277,11 @@ async function handleApi(req, res) {
         entry.botDefensePlannedAt = 0;
         entry.botDefenseKind = "";
         entry.botDefenseTargetId = "";
+        entry.botWitnessTargetId = "";
+        entry.botWitnessUntil = 0;
+        entry.botWitnessEvidenceKind = "";
+        entry.botVisibleThrowObservations = [];
+        entry.botKillDecision = null;
         entry.movementSession = "";
         entry.movementSessionStartedAt = 0;
         entry.lastMovementSeq = -1;
@@ -20211,7 +20608,7 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
     return false;
   }
   const target = room.players.get(bot.botRetaliationTargetId);
-  if (!target?.alive || target.ejected || target.inVent || target.role === bot.role) {
+  if (!target?.alive || target.ejected || target.inVent) {
     bot.botRetaliationTargetId = "";
     bot.botRetaliationUntil = 0;
     return false;
@@ -20222,6 +20619,11 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
   }
   if (bot.killReadyAt > timestamp) return true;
   try {
+    rememberBotKillDecision(room, bot, target, {
+      code: "stand-firm-visible-retaliation",
+      actionLabel: "踏ん張り反撃の頭部命中（確殺）",
+      reasons: ["踏ん張りで耐えた直前の攻撃者が反撃射程内に入り、反撃クールタイムも完了"]
+    }, timestamp);
     killPlayer(room, bot, target.id, {
       hitZone: "head",
       lockedAim: true,
@@ -20530,14 +20932,19 @@ function compareAttackerDefenderPriority(room, bot, a, b, timestamp = now(), cla
     a.id.localeCompare(b.id);
 }
 
-function botCanDirectlyObservePlayer(room, bot, target) {
-  if (!target?.alive || target.ejected || target.inVent || target.id === bot?.id) return false;
+function botCanDirectlyObservePosition(room, bot, target, maximumRange = BOT_BODY_NOTICE_RANGE) {
+  if (!bot?.alive || bot.ejected || bot.inVent || !Number.isFinite(Number(target?.x)) || !Number.isFinite(Number(target?.y))) return false;
   const targetDistance = distance(bot, target);
-  if (targetDistance > BOT_BODY_NOTICE_RANGE) return false;
-  const dx = target.x - bot.x;
-  const dy = target.y - bot.y;
+  if (targetDistance > Math.max(1, Number(maximumRange) || BOT_BODY_NOTICE_RANGE)) return false;
+  const dx = Number(target.x) - Number(bot.x);
+  const dy = Number(target.y) - Number(bot.y);
   const length = Math.hypot(dx, dy) || 1;
   return clearShotPath(room, bot, target, dx / length, dy / length);
+}
+
+function botCanDirectlyObservePlayer(room, bot, target) {
+  if (!target?.alive || target.ejected || target.inVent || target.id === bot?.id) return false;
+  return botCanDirectlyObservePosition(room, bot, target);
 }
 
 function visibleDefenderCandidates(room, bot, timestamp = now()) {
@@ -20579,7 +20986,7 @@ function preferredDefenderTarget(room, bot, timestamp = now()) {
 }
 
 function defenderBotOwnsPursuitSlot(room, bot, target, timestamp = now()) {
-  if (!bot?.isBot || bot.role !== "defender" || !target || target.role === bot.role) return false;
+  if (!bot?.isBot || bot.role !== "defender" || !target) return false;
   const eligible = [...room.players.values()].filter((candidate) => {
     if (!candidate.isBot || candidate.role !== "defender" || !candidate.alive || candidate.ejected || candidate.inVent) return false;
     return botKnownAttackerEvidence(room, candidate, timestamp)?.id === target.id;
@@ -20906,6 +21313,12 @@ function runCpuGravityScript(room, bot, timestamp) {
         state.cpuRenkiCount = 0;
         return true;
       }
+      rememberBotKillDecision(room, bot, target, {
+        code: "cpu-gravity-public-training-script",
+        actionLabel: "心臓転移",
+        evidence: ["CPU訓練画面で公開された対戦対象"],
+        reasons: ["訓練課題で指定された心臓転移フェーズに到達し、必要MPを保持"]
+      }, timestamp);
       teleportPlayer(room, bot, undefined, undefined, target.id, "heart");
       if (room.phase === "playing" && !alivePlayers(room, "defender").length) checkWin(room);
       return true;
@@ -20929,6 +21342,12 @@ function runCpuStage2Script(room, bot, timestamp) {
   bot.vy = 0;
   bot.movementMode = "idle";
   try {
+    rememberBotKillDecision(room, bot, target, {
+      code: "cpu-hacker-public-training-script",
+      actionLabel: "バイブコーディング: HP削除",
+      evidence: ["CPU訓練画面で公開された対戦対象"],
+      reasons: ["訓練課題で指定されたハック行動のクールタイムとSP条件を満たした"]
+    }, timestamp);
     useAlchemy(room, bot, "hack-hp-delete", target.id);
     return true;
   } catch {
@@ -21129,7 +21548,14 @@ function runPlayingBots(room) {
       if (runBotAttackerDeception(room, bot, map, target, timestamp)) continue;
       if (bot.gunFiring && (!target || distance(bot, target) > gunnerWeaponFor(bot).range)) stopGunnerFire(room, bot, { reason: "対象喪失" });
       if (target && distance(bot, target) <= EMP_RANGE && bot.empReadyAt <= timestamp && (maximumStrength || Math.random() < 0.08)) {
-        try { activateEmp(room, bot); } catch {}
+        try {
+          rememberBotKillDecision(room, bot, target, {
+            code: "observable-target-in-emp-range",
+            actionLabel: "EMP",
+            reasons: ["観測または聴覚記憶上の対象がEMP有効範囲内に入り、自分のEMPが使用可能"]
+          }, timestamp);
+          activateEmp(room, bot);
+        } catch {}
       }
       const targetDistance = target ? distance(bot, target) : Infinity;
       const killOpportunity = botKillOpportunityProfile(room, bot, target);
@@ -21141,6 +21567,18 @@ function runPlayingBots(room) {
         (attackerUrgency.urgent || killOpportunity.hidden || killOpportunity.isolated)
       ) {
         try {
+          rememberBotKillDecision(room, bot, target, {
+            code: "observable-target-heart-teleport-opportunity",
+            actionLabel: "心臓転移",
+            reasons: [
+              attackerUrgency.urgent
+                ? "公開ATEで対象側の善への進行脅威を確認"
+                : killOpportunity.hidden
+                  ? "自分の視界内に攻撃現場を見届ける第三者を確認できない"
+                  : "自分の視界内で対象が孤立",
+              "心臓転移に必要なMPとクールタイム条件を満たした"
+            ]
+          }, timestamp);
           teleportPlayer(room, bot, undefined, undefined, target.id, "heart");
           continue;
         } catch {}
@@ -21179,6 +21617,14 @@ function runPlayingBots(room) {
         })()
       ) {
         try {
+          rememberBotKillDecision(room, bot, target, {
+            code: "observable-target-clear-gun-line",
+            actionLabel: `${botGunnerWeapon.name}射撃`,
+            reasons: [
+              "対象が選択中の銃の射程内に入り、遮蔽物のない射線を確認",
+              "弾薬と射撃クールタイムの条件を満たした"
+            ]
+          }, timestamp);
           shootGunner(room, bot, target.x - bot.x, target.y - bot.y);
         } catch {}
       } else if (bot.aimTargetId) {
@@ -21190,6 +21636,11 @@ function runPlayingBots(room) {
         !bot.aimTargetId
       ) {
         try {
+          rememberBotKillDecision(room, bot, target, {
+            code: "observable-target-ninjutsu-range",
+            actionLabel: "忍殺",
+            reasons: ["観測記憶上の対象が忍殺の開始距離に入り、キルクールタイムが完了"]
+          }, timestamp);
           startNinjutsu(room, bot, target.id);
         } catch {}
       } else if (target) {
@@ -21230,7 +21681,6 @@ function runPlayingBots(room) {
     const defenderEvidenceTarget = botKnownAttackerEvidence(room, bot, timestamp);
     if (
       defenderEvidenceTarget &&
-      defenderEvidenceTarget.role !== bot.role &&
       defenderBotOwnsPursuitSlot(room, bot, defenderEvidenceTarget, timestamp)
     ) {
       moveBotToward(room, bot, defenderEvidenceTarget);
@@ -21301,5 +21751,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "kinetic-hold-live-dual-picker-v508" });
+self.postMessage({ type: "ready", version: "stamina-status-visual-poison-evidence-v509" });
 })();

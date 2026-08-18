@@ -2,7 +2,7 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-const CACHE_NAME = "dva-static-v508-kinetic-hold-live-dual-picker";
+const CACHE_NAME = "dva-static-v509-stamina-status-visual-poison-evidence";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
