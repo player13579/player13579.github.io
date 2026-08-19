@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "quantum-fusion-dynamic-resource-markers-v522",
+    version: "root-shortcut-instant-match-emp-bot-ready-v523",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

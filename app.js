@@ -11,6 +11,7 @@ const UI_RENDER_INTERVAL_MS = 0;
 const IMAGE_SMOOTHING_QUALITY = "high";
 const SELECTION_ARROW_REPEAT_INTERVAL_MS = 110;
 const ABILITY_BATCH_HOLD_DELAY_MS = 420;
+const ROOT_SHORTCUT_HOLD_DELAY_MS = 240;
 const CONTINUOUS_ACTION_HOLD_DELAY_MS = 420;
 const CONTINUOUS_ACTION_REPEAT_INTERVAL_MS = 220;
 const SWITCH_DRAG_HOLD_DELAY_MS = 360;
@@ -179,7 +180,6 @@ const els = {
   weaponButton: $("#weaponButton"),
   dodgeButton: $("#dodgeButton"),
   teleportButton: $("#teleportButton"),
-  borrowedAbilityButton: $("#borrowedAbilityButton"),
   teleportControl: $("#teleportControl"),
   teleportModeSelect: $("#teleportModeSelect"),
   abilityCascadeSelects: $("#abilityCascadeSelects"),
@@ -507,6 +507,8 @@ const state = {
   },
   abilityBatchHold: { pointerId: null, button: null, timer: 0, held: false, holdId: "", action: null, startPromise: null },
   abilityBatchKeyHold: { code: "", button: null, timer: 0, held: false, holdId: "", action: null, startPromise: null },
+  rootShortcutHold: { pointerId: null, button: null, timer: 0 },
+  rootShortcutKeyHold: { code: "", button: null, timer: 0 },
   continuousActionHold: { pointerId: null, button: null, timer: 0, fighterSlash: false },
   continuousActionKeyHold: { code: "", repeat: null, timer: 0, repeatInterval: 0, fighterSlash: false },
   continuousActionSuppressClicks: new WeakMap(),
@@ -772,7 +774,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "quantum-fusion-dynamic-resource-markers-v522";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-shortcut-instant-match-emp-bot-ready-v523";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1783,6 +1785,10 @@ function initializeOfflineRuntime() {
     clientId,
     isDeveloper: () => localStorage.getItem(storage.developerIdentity) === "1"
   });
+  // Warm the generated-offline runtime without creating a room or switching
+  // connection mode. The 120ms decision can then move directly to operator
+  // selection instead of making the user wait for the large worker to parse.
+  void state.offlineClient.start();
 }
 
 function activateOfflineMode(reason = "") {
@@ -2703,7 +2709,6 @@ const actionHotkeys = {
   Digit4: "smartphoneRepair",
   Digit6: "ninjutsuButton",
   Digit8: "dodgeButton",
-  Digit0: "borrowedAbilityButton",
   KeyZ: "clairvoyance",
   KeyX: "empButton",
   KeyB: "cameraButton",
@@ -3440,7 +3445,7 @@ function abilityBatchSource(button) {
 
 function isAbilityBatchButton(button) {
   const source = abilityBatchSource(button);
-  return source === els.operatorAbilityButton || source === els.borrowedAbilityButton || source === els.renkiButton;
+  return source === els.operatorAbilityButton || source === els.renkiButton;
 }
 
 const ABILITY_BATCH_CLIENT_PATHS = new Set([
@@ -3517,8 +3522,100 @@ function borrowedAbilityAction() {
 function abilityBatchAction(button) {
   const source = abilityBatchSource(button);
   if (source === els.renkiButton) return { path: "/api/renki", action: {}, renki: true };
-  if (source === els.borrowedAbilityButton) return borrowedAbilityAction();
   return operatorAbilityAction();
+}
+
+function rootShortcutHoldEligible(button) {
+  const source = abilityBatchSource(button);
+  const self = state.data?.self;
+  return Boolean(
+    source === els.operatorAbilityButton &&
+    self?.special === "alchemist" &&
+    self.hackerRootActive &&
+    state.screen === "game" &&
+    state.data?.phase === "playing" &&
+    self.alive &&
+    !self.ejected &&
+    !isGameActionUnavailable(source)
+  );
+}
+
+function stopRootShortcutHold(pointerId = null, { cancelled = false, deactivate = false } = {}) {
+  const hold = state.rootShortcutHold;
+  if (pointerId !== null && hold.pointerId !== pointerId) return false;
+  if (hold.timer) window.clearTimeout(hold.timer);
+  const capturedPointerId = hold.pointerId;
+  const button = hold.button;
+  hold.pointerId = null;
+  hold.button = null;
+  hold.timer = 0;
+  if (!button) return false;
+  state.continuousActionSuppressClicks.set(button, performance.now() + 700);
+  if (capturedPointerId !== null) {
+    try {
+      if (button.hasPointerCapture?.(capturedPointerId)) button.releasePointerCapture(capturedPointerId);
+    } catch {}
+  }
+  if (deactivate) void api("/api/hacker-root");
+  else if (!cancelled) triggerSelectedBorrowedAbility();
+  return true;
+}
+
+function beginRootShortcutHold(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const button = event.target instanceof Element ? event.target.closest("button") : null;
+  if (!rootShortcutHoldEligible(button)) return;
+  const localScroll = event.pointerType !== "mouse" && isFullscreenScrollableSurface(resolveFullscreenScrollableSurface(button));
+  if (!localScroll) event.preventDefault();
+  stopRootShortcutHold(null, { cancelled: true });
+  const hold = state.rootShortcutHold;
+  hold.pointerId = event.pointerId;
+  hold.button = button;
+  state.continuousActionSuppressClicks.set(button, Number.POSITIVE_INFINITY);
+  if (!localScroll) {
+    try { button.setPointerCapture(event.pointerId); } catch {}
+  }
+  hold.timer = window.setTimeout(() => {
+    if (hold.pointerId !== event.pointerId || hold.button !== button) return;
+    stopRootShortcutHold(event.pointerId, { deactivate: true });
+  }, ROOT_SHORTCUT_HOLD_DELAY_MS);
+}
+
+function finishRootShortcutPointerHold(event, cancelled = false) {
+  if (state.rootShortcutHold.pointerId !== event.pointerId) return false;
+  return stopRootShortcutHold(event.pointerId, { cancelled });
+}
+
+function stopRootShortcutKeyHold(code = "", { cancelled = false, deactivate = false } = {}) {
+  const hold = state.rootShortcutKeyHold;
+  if (code && hold.code !== code) return false;
+  if (hold.timer) window.clearTimeout(hold.timer);
+  const button = hold.button;
+  hold.code = "";
+  hold.button = null;
+  hold.timer = 0;
+  if (!button) return false;
+  if (deactivate) void api("/api/hacker-root");
+  else if (!cancelled) triggerSelectedBorrowedAbility();
+  return true;
+}
+
+function beginRootShortcutKeyHold(code, button) {
+  if (!code || !rootShortcutHoldEligible(button)) return false;
+  stopRootShortcutKeyHold("", { cancelled: true });
+  const hold = state.rootShortcutKeyHold;
+  hold.code = code;
+  hold.button = button;
+  hold.timer = window.setTimeout(() => {
+    if (hold.code !== code || hold.button !== button) return;
+    stopRootShortcutKeyHold(code, { deactivate: true });
+  }, ROOT_SHORTCUT_HOLD_DELAY_MS);
+  return true;
+}
+
+function cancelActiveRootShortcutHolds() {
+  stopRootShortcutHold(null, { cancelled: true });
+  stopRootShortcutKeyHold("", { cancelled: true });
 }
 
 async function beginAbilityBatchTransaction(button, hold) {
@@ -4007,6 +4104,10 @@ function triggerActionHotkey(event) {
   const button = els[elementKey];
   if (elementKey === "gameMuteButton") {
     if (!event.repeat) toggleGameMuted();
+    return true;
+  }
+  if (rootShortcutHoldEligible(button)) {
+    if (!event.repeat) beginRootShortcutKeyHold(event.code, button);
     return true;
   }
   if (isAbilityBatchButton(button)) {
@@ -5444,6 +5545,7 @@ function bindEvents() {
   ensureDynamicAlchemyChoices();
   document.addEventListener("pointerdown", unlockAudio, { passive: true });
   document.addEventListener("keydown", unlockAudio);
+  document.addEventListener("pointerdown", beginRootShortcutHold, true);
   document.addEventListener("pointerdown", beginAbilityBatchHold, true);
   document.addEventListener("pointerdown", beginContinuousActionHold, true);
   document.addEventListener("click", suppressContinuousActionClick, true);
@@ -5726,7 +5828,6 @@ function bindEvents() {
   els.nextCameraButton.addEventListener("click", nextCameraView);
   els.healButton.addEventListener("click", () => api("/api/flora-heal"));
   els.alchemyButton.addEventListener("click", () => executeHackerRecipe(els.alchemySelect.value));
-  els.borrowedAbilityButton.addEventListener("click", triggerSelectedBorrowedAbility);
   els.operatorAbilityButton.addEventListener("click", triggerOperatorAbility);
   const beginJumpPointer = (button, event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -6113,7 +6214,9 @@ function bindEvents() {
         if (!event.repeat) {
           const controls = contextKeyboardElements();
           const selected = controls.includes(document.activeElement) ? document.activeElement : state.keyboardElement;
-          if (isAbilityBatchButton(selected) && abilityBatchEligible(selected)) {
+          if (rootShortcutHoldEligible(selected)) {
+            beginRootShortcutKeyHold(event.code, selected);
+          } else if (isAbilityBatchButton(selected) && abilityBatchEligible(selected)) {
             beginAbilityBatchKeyHold(event.code, selected);
           } else if (selected?.dataset?.repeatableAbility === "1" || selected?.closest?.("#operatorBranchList")) {
             activateKeyboardSelection();
@@ -6163,6 +6266,7 @@ function bindEvents() {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
     if (eventTarget?.matches?.('input, textarea, [contenteditable="true"]') ||
       document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')) return;
+    stopRootShortcutKeyHold(event.code);
     stopAbilityBatchKeyHold(event.code, { dispatch: true });
     stopContinuousActionKeyHold(event.code);
     if (releaseThrowTargetMovement(event)) return;
@@ -6187,6 +6291,7 @@ function bindEvents() {
     syncMovementInputImmediately();
   });
   window.addEventListener("blur", () => {
+    cancelActiveRootShortcutHolds();
     stopContinuousActionHold();
     stopContinuousActionKeyHold();
     cancelThrowTargeting(true);
@@ -6270,13 +6375,28 @@ function bindEvents() {
     scheduleViewportScaleRestore();
     scheduleGameplayViewportReflow();
   }, { passive: true });
-  window.addEventListener("pointerup", (event) => finishAbilityBatchPointerHold(event), true);
-  window.addEventListener("pointercancel", (event) => finishAbilityBatchPointerHold(event, true), true);
-  window.addEventListener("lostpointercapture", (event) => finishAbilityBatchPointerHold(event, true), true);
+  window.addEventListener("pointerup", (event) => {
+    finishRootShortcutPointerHold(event);
+    finishAbilityBatchPointerHold(event);
+  }, true);
+  window.addEventListener("pointercancel", (event) => {
+    finishRootShortcutPointerHold(event, true);
+    finishAbilityBatchPointerHold(event, true);
+  }, true);
+  window.addEventListener("lostpointercapture", (event) => {
+    finishRootShortcutPointerHold(event, true);
+    finishAbilityBatchPointerHold(event, true);
+  }, true);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) cancelActiveAbilityBatchHolds();
+    if (document.hidden) {
+      cancelActiveRootShortcutHolds();
+      cancelActiveAbilityBatchHolds();
+    }
   });
-  window.addEventListener("blur", cancelActiveAbilityBatchHolds);
+  window.addEventListener("blur", () => {
+    cancelActiveRootShortcutHolds();
+    cancelActiveAbilityBatchHolds();
+  });
   window.addEventListener("orientationchange", () => {
     scheduleViewportScaleRestore(true);
     scheduleGameplayViewportReflow(true);
@@ -7154,7 +7274,13 @@ function conciseTabletAbilityName(data) {
     }
   };
   if (owner === "fighter") return "リミットブレイク";
-  if (owner === "alchemist") return data?.self?.hackerRootActive ? "ROOT解除" : "Root化";
+  if (owner === "alchemist") {
+    if (!data?.self?.hackerRootActive) return "Root化";
+    const borrowed = selectedBorrowedOperator();
+    const borrowedOwner = borrowed === "gravity" ? "teleport" : borrowed;
+    if (borrowedOwner === "quantum") return quantumModeLabel(selectedQuantumExecutableMode(true));
+    return modeNames[borrowedOwner]?.[state.borrowedAbilityModes[borrowed] || mode] || specialLabels[borrowedOwner] || "借用能力";
+  }
   if (owner === "quantum") return quantumModeLabel(selectedQuantumExecutableMode(data?.self?.special === "alchemist"));
   return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
 }
@@ -7732,7 +7858,8 @@ function triggerOperatorAbility() {
   } else if (self.special === "quantum") {
     void api("/api/quantum-control", { mode: selectedQuantumExecutableMode(false) });
   } else if (self.special === "alchemist") {
-    void api("/api/hacker-root");
+    if (self.hackerRootActive) triggerSelectedBorrowedAbility();
+    else void api("/api/hacker-root");
   }
 }
 
@@ -7936,27 +8063,18 @@ function acceptMatchmakingResult(result, name, offline) {
   return true;
 }
 
-async function waitForOnlineMatch(ticket, serial, waitMs = 3600) {
-  const deadline = performance.now() + waitMs;
-  while (serial === state.matchmakingSerial && performance.now() < deadline) {
-    await delay(420);
-    const result = await request("/api/state", ticket, {
-      quiet: true,
-      forceOnline: true,
-      timeoutMs: 1800,
-      attempts: 1
-    });
-    if (result && result.phase !== "lobby") return result;
-  }
-  return null;
+function newInstantMatchmakingRequestId() {
+  return globalThis.crypto?.randomUUID?.() || `instant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-async function cancelOnlineMatchmaking(ticket) {
-  if (!ticket?.roomId || !ticket?.playerId) return null;
-  return request("/api/matchmake/cancel", ticket, {
+async function cancelInstantMatchmaking(ticket) {
+  if (!ticket?.matchmakingRequestId) return null;
+  return request("/api/matchmake/instant/cancel", {
+    matchmakingRequestId: ticket.matchmakingRequestId
+  }, {
     quiet: true,
     forceOnline: true,
-    timeoutMs: 1800,
+    timeoutMs: 900,
     attempts: 1
   });
 }
@@ -7979,30 +8097,32 @@ async function startMatchmaking() {
   state.matchmakingInFlight = true;
   state.matchmakingTicket = null;
   els.matchmakingButton.disabled = true;
-  els.matchmakingButton.textContent = "対戦相手を検索中…";
+  els.matchmakingButton.textContent = "対戦方式を即時判定中…";
   document.documentElement.dataset.connectionMode = "matching";
   try {
-    const available = state.onlineAvailable || await checkOnlineAvailability();
+    // Availability is refreshed independently in the background. The Play
+    // path never waits on a multi-second capacity probe: it either asks the
+    // server for one 120ms atomic pairing decision or falls back locally now.
+    const available = state.onlineAvailable;
     let result = null;
     if (available && serial === state.matchmakingSerial) {
-      result = await request("/api/matchmake", { name, skinId, mapId }, {
+      const matchmakingRequestId = newInstantMatchmakingRequestId();
+      const ticket = { matchmakingRequestId, mapId };
+      state.matchmakingTicket = ticket;
+      result = await request("/api/matchmake", {
+        name,
+        skinId,
+        mapId,
+        instantDecision: true,
+        matchmakingRequestId
+      }, {
         quiet: true,
         forceOnline: true,
-        timeoutMs: 2500,
+        timeoutMs: 1200,
         attempts: 1
       });
-      if (result?.matchmaking?.status === "waiting") {
-        const ticket = { roomId: result.roomId, playerId: result.playerId };
-        state.matchmakingTicket = ticket;
-        showToast("オンラインの対戦相手を検索しています。");
-        result = await waitForOnlineMatch(ticket, serial);
-        if (!result && serial === state.matchmakingSerial) {
-          const cancelled = await cancelOnlineMatchmaking(ticket);
-          result = cancelled?.phase && cancelled.phase !== "lobby" ? cancelled : null;
-        }
-        state.matchmakingTicket = null;
-      }
-      if (result && serial === state.matchmakingSerial && acceptMatchmakingResult(result, name, false)) return;
+      state.matchmakingTicket = null;
+      if (result?.matchmaking?.status === "online" && serial === state.matchmakingSerial && acceptMatchmakingResult(result, name, false)) return;
     }
     if (serial !== state.matchmakingSerial) return;
     if (!activateOfflineMode()) {
@@ -8177,7 +8297,7 @@ async function returnToTitle() {
     state.matchmakingTicket = null;
     els.matchmakingButton.disabled = false;
     els.matchmakingButton.textContent = "マッチング開始 [L]";
-    void cancelOnlineMatchmaking(ticket);
+    void cancelInstantMatchmaking(ticket);
   }
   if (state.roomId && state.playerId) {
     return leaveCurrentRoom({ destination: "title" });
@@ -8188,6 +8308,7 @@ async function returnToTitle() {
 }
 
 function releaseRejectedActionTransientInput() {
+  cancelActiveRootShortcutHolds();
   stopContinuousActionHold();
   stopContinuousActionKeyHold();
   state.continuousActionKeyAt.clear();
@@ -11258,7 +11379,7 @@ function renderActiveEffects(data) {
     const hpRate = Number(self.naturalRecoveryHpPerSecond || 0.05).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     const spRate = Number(self.naturalRecoveryStaminaPerSecond || 19).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     const mpRate = Number(self.naturalRecoveryManaPerSecond || 0.127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    add("自然回復", "理知", "good", `状態異常を無効化・即時解除。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後はSP・MPのcurrent/maxを同率で拡張`);
+    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除（EMP機器遮断は対象外）。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後はSP・MPのcurrent/maxを同率で拡張`);
   }
   if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・理知中の自然回復で解除");
   if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・理知中の自然回復で解除");
@@ -11624,7 +11745,6 @@ function updateActionButtons(data) {
   const canActAlive = isPlaying && self.alive && !self.ejected && !self.inVent && !actionBlocked;
   const canUseAbility = canActAlive && !abilityLocked;
   const abilityCosts = self.abilityCosts || {};
-  const borrowedFreeUses = self.borrowedAbilityFreeUses || {};
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value) || alchemyRecipes[0];
   const activeBorrowedOperator = selectedBorrowedOperator();
   const selectedBorrowedRecipe = alchemyRecipes.find(
@@ -11856,19 +11976,6 @@ function updateActionButtons(data) {
       ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
       : self.hackerRootActive ? "借用能力" : "Root化"
   };
-  const borrowedCostKey = activeBorrowedOperator === "gravity"
-      ? (operatorMode === "heart" ? "heartTeleport" : operatorMode === "storm" ? "gravityStorm" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")
-      : activeBorrowedOperator === "flora"
-        ? "flora"
-      : activeBorrowedOperator === "fighter"
-        ? "fighterCharge"
-      : "quantumNuclear";
-  const selectedBorrowedFree = selectedBorrowedRecipe &&
-    Number(borrowedFreeUses[activeBorrowedOperator]) > 0;
-  const borrowedStateBlocked = Boolean(selectedBorrowedRecipe) && (
-    !alchemyRecipeAvailable(selectedBorrowedRecipe, self) ||
-    (!selectedBorrowedFree && !hasMana(borrowedCostKey))
-  );
   const borrowedDisplayedOperator = activeBorrowedOperator === "gravity"
     ? "teleport"
     : activeBorrowedOperator;
@@ -11882,9 +11989,11 @@ function updateActionButtons(data) {
   const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
   const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
   els.operatorAbilityButton.textContent = rootToggle
-    ? (self.hackerRootActive ? "ROOT解除" : "Root化")
+    ? (self.hackerRootActive ? `借用 ${borrowedDisplayedLabel}` : "Root化")
     : operatorLabels[displayedOperator] || "オペ能力";
-  if (nativeQuantumEndgameLocked) {
+  if (self.hackerRootActive && borrowedQuantumEndgameLocked) {
+    els.operatorAbilityButton.textContent += `（終盤まで${quantumEndgameSecondsLeft}秒）`;
+  } else if (nativeQuantumEndgameLocked) {
     els.operatorAbilityButton.textContent += `（終盤まで${quantumEndgameSecondsLeft}秒）`;
   }
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
@@ -11898,28 +12007,17 @@ function updateActionButtons(data) {
       (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
       nativeQuantumEndgameLocked ||
       (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < 8);
-  els.operatorAbilityButton.title = nativeQuantumEndgameLocked
+  els.operatorAbilityButton.title = self.hackerRootActive && borrowedQuantumEndgameLocked
+    ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
+    : rootToggle && self.hackerRootActive
+    ? `タップで${borrowedDisplayedLabel}を実行。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
+    : rootToggle
+    ? "タップでROOT化"
+    : nativeQuantumEndgameLocked
     ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）`
     : abilityBatchActionSupported(operatorAbilityAction())
     ? "タップは通常1回。長押しはサーバーが現在MPから2を残す量を一括消費し、通常MPコストで成立する回数を同じ対象・方式へ並列発動"
     : "タップで現在の固有能力を1回発動";
-  els.borrowedAbilityButton.hidden = !(rootToggle && self.hackerRootActive && activeBorrowedOperator);
-  els.borrowedAbilityButton.textContent = activeBorrowedOperator
-    ? `借用 ${specialLabels[borrowedDisplayedOperator] || borrowedDisplayedOperator} / ${borrowedDisplayedLabel} を実行`
-    : "選択中の借用能力を実行";
-  if (borrowedQuantumEndgameLocked) {
-    els.borrowedAbilityButton.textContent += `（終盤まで${quantumEndgameSecondsLeft}秒）`;
-  }
-  els.borrowedAbilityButton.disabled = !canUseAbility ||
-    !activeBorrowedOperator ||
-    borrowedStateBlocked ||
-    borrowedQuantumEndgameLocked ||
-    (borrowedDisplayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(true)) && Number(self.stamina) < 8);
-  els.borrowedAbilityButton.title = borrowedQuantumEndgameLocked
-    ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）`
-    : abilityBatchActionSupported(borrowedAbilityAction())
-    ? "タップは通常1回。長押しは2MPを残して選択中の借用能力を一括並列発動"
-    : "選択中の借用能力を1回発動";
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
   els.empButton.textContent = empSeconds > 0 ? `${empPhaseLabel}EMP ${empSeconds}秒` : `${empPhaseLabel}EMP`;
@@ -16278,7 +16376,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
   credits: ["クレジット獲得", "クレジットが即時加算されました。獲得量は発動元の表示値です。"],
   mana: ["MP獲得", "MPが即時回復しました。獲得量は発動元の表示値です。"],
   cooldownReduction: ["待機時間短縮", "進行中の能力・行動・オブジェクトCTを発動元の表示秒数だけ短縮しました。"],
-  statusRecovery: ["状態異常回復", "燃焼・毒・通常/テーザー/ショック/重力減速・能力封印・EMP遮断・重力拘束を解除しました。"],
+  statusRecovery: ["状態異常回復", "明示的な回復で燃焼・毒・通常/テーザー/ショック/重力減速・能力封印・EMP機器遮断・重力拘束を解除しました。自然回復だけはEMP機器遮断を解除しません。"],
   acceleration: ["加速獲得", "移動・物理モーション・CT・行動不能・タスク速度を発動元の倍率・時間で加速します。"],
   luckBoost: ["幸運／直観上昇", "乱数判定とイデア到達時間に有利な補正を得ました。"],
   overheal: ["オーバーヒール", "通常HPを超える耐久+1。次のボディダメージを吸収します。"],
@@ -16292,7 +16390,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
 });
 
 const STATUS_MARKER_EXPLANATIONS = Object.freeze({
-  naturalRecovery: ["自然回復", "理知中、状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。アロマ有効中はこのマーカーの発光が強まります。"],
+  naturalRecovery: ["自然回復", "理知中、人体の状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。EMP機器遮断は対象外です。アロマ有効中はこのマーカーの発光が強まります。"],
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
@@ -19254,7 +19352,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "quantum-fusion-dynamic-resource-markers-v522";
+const version = "root-shortcut-instant-match-emp-bot-ready-v523";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

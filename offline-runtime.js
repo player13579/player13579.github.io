@@ -1,8 +1,11 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "quantum-fusion-dynamic-resource-markers-v522";
-const OFFLINE_WORKER_READY_TIMEOUT_MS = 40_000;
+const OFFLINE_WORKER_VERSION = "root-shortcut-instant-match-emp-bot-ready-v523";
+// Generated-worker startup must never turn an instant matchmaking decision
+// into a 40-second stall. Fall back to the generated main-thread bundle after
+// one bounded perceptual beat; initialization is already prewarmed on title.
+const OFFLINE_WORKER_READY_TIMEOUT_MS = 800;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 
   class OfflineApiClient {

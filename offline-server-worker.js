@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "quantum-fusion-dynamic-resource-markers-v522",
+    version: "root-shortcut-instant-match-emp-bot-ready-v523",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -8601,7 +8601,12 @@ function finalizeMapEnvironment(map) {
 }
 
 const rooms = new Map();
-const MATCHMAKING_WAIT_MS = 5000;
+// Online matchmaking is deliberately bounded to one perceptual instant.  The
+// small window only lets two requests which are already arriving together
+// observe one another; it is not a lobby or a polling delay.
+const INSTANT_MATCHMAKING_WINDOW_MS = 120;
+const MATCHMAKING_WAIT_MS = INSTANT_MATCHMAKING_WINDOW_MS;
+const instantMatchmakingRequests = new Map();
 
 const RANKS = Object.freeze([
   { id: "bronze", label: "ブロンズ", min: 0 },
@@ -9938,6 +9943,154 @@ function waitingMatchmakingRoom(identityKey, mapId) {
       return humans.length === 1 && humans[0].moderationKey !== identityKey;
     })
     .sort((left, right) => Number(left.matchmaking.createdAt) - Number(right.matchmaking.createdAt))[0] || null;
+}
+
+function instantMatchmakingRequestId(value) {
+  return String(value || "default").replace(/[^a-z0-9_-]/gi, "").slice(0, 64) || "default";
+}
+
+function instantMatchmakingKey(identityKey, requestId) {
+  return `${String(identityKey || "")}::${instantMatchmakingRequestId(requestId)}`;
+}
+
+function purgeInstantMatchmakingRequests(timestamp = now()) {
+  for (const [key, entry] of instantMatchmakingRequests) {
+    if (entry.status === "waiting" && timestamp > entry.expiresAt) {
+      clearTimeout(entry.timer);
+      instantMatchmakingRequests.delete(key);
+      entry.resolve(createInstantOfflineDecision(entry));
+      instantMatchmakingRequests.set(key, entry);
+      continue;
+    }
+    if (entry.status !== "waiting" && timestamp > entry.replayExpiresAt) {
+      instantMatchmakingRequests.delete(key);
+    }
+  }
+}
+
+function instantMatchmakingPayload(room, player, requestedName, status, decision) {
+  return {
+    ...serialize(room, player),
+    roomId: room.id,
+    playerId: player.id,
+    matchmaking: {
+      status,
+      decision,
+      instant: true,
+      windowMs: INSTANT_MATCHMAKING_WINDOW_MS
+    },
+    profile: { name: requestedName, locked: true }
+  };
+}
+
+function createInstantOfflineDecision(entry) {
+  // The generated-offline worker owns gameplay.  An unmatched server decision
+  // must not create a room, bots, or a lobby that the client will never use.
+  entry.status = "offline";
+  entry.replayExpiresAt = now() + INSTANT_MATCHMAKING_WINDOW_MS;
+  entry.payload = {
+    ok: true,
+    matchmaking: {
+      status: "offline",
+      decision: "offline-fallback",
+      instant: true,
+      windowMs: INSTANT_MATCHMAKING_WINDOW_MS
+    },
+    profile: { name: entry.name, locked: true }
+  };
+  return entry.payload;
+}
+
+// The server's single event loop makes insertion/matching atomic.  The first
+// request waits at most 120ms for an already-arriving compatible human; every
+// other outcome is a decision-only generated-offline handoff, never a
+// fabricated online lobby.  Reusing the same request id returns the same
+// promise/result.
+function requestInstantMatchmaking({ identityKey, requestId, mapId, name, skinId, profileId }) {
+  const timestamp = now();
+  purgeInstantMatchmakingRequests(timestamp);
+  const key = instantMatchmakingKey(identityKey, requestId);
+  const existing = instantMatchmakingRequests.get(key);
+  if (existing) {
+    if (existing.mapId !== normalizeMapId(mapId)) {
+      throw new ApiError(409, "同じマッチング要求IDで別のマップは選択できません。");
+    }
+    return existing.promise || Promise.resolve(existing.payload);
+  }
+
+  const requestedMapId = normalizeMapId(mapId);
+  const candidate = [...instantMatchmakingRequests.values()]
+    .filter((entry) => entry.status === "waiting" && entry.expiresAt >= timestamp)
+    .filter((entry) => entry.mapId === requestedMapId && entry.identityKey !== identityKey)
+    .sort((left, right) => left.createdAt - right.createdAt)[0];
+
+  if (candidate) {
+    clearTimeout(candidate.timer);
+    instantMatchmakingRequests.delete(candidate.key);
+    const room = createRoom(roomCode());
+    room.settings.mapId = requestedMapId;
+    const firstPlayer = createMatchedPlayer(room, candidate.name, candidate.skinId, candidate.profileId, candidate.identityKey);
+    const secondPlayer = createMatchedPlayer(room, name, skinId, profileId, identityKey);
+    room.matchmaking = { status: "matched", matchedAt: now(), instant: true };
+    addDefaultOnlineBots(room);
+    startGame(room);
+    candidate.status = "online";
+    candidate.replayExpiresAt = now() + INSTANT_MATCHMAKING_WINDOW_MS;
+    candidate.payload = instantMatchmakingPayload(room, firstPlayer, candidate.name, "online", "matched");
+    candidate.resolve(candidate.payload);
+    instantMatchmakingRequests.set(candidate.key, candidate);
+    const payload = instantMatchmakingPayload(room, secondPlayer, name, "online", "matched");
+    instantMatchmakingRequests.set(key, {
+      key,
+      identityKey,
+      mapId: requestedMapId,
+      status: "online",
+      replayExpiresAt: now() + INSTANT_MATCHMAKING_WINDOW_MS,
+      payload,
+      promise: Promise.resolve(payload)
+    });
+    return Promise.resolve(payload);
+  }
+
+  let resolve;
+  const promise = new Promise((resolvePromise) => { resolve = resolvePromise; });
+  const entry = {
+    key,
+    identityKey,
+    mapId: requestedMapId,
+    name,
+    skinId,
+    profileId,
+    status: "waiting",
+    createdAt: timestamp,
+    expiresAt: timestamp + INSTANT_MATCHMAKING_WINDOW_MS,
+    replayExpiresAt: 0,
+    resolve,
+    promise,
+    timer: null,
+    payload: null
+  };
+  entry.timer = setTimeout(() => {
+    if (instantMatchmakingRequests.get(key) !== entry || entry.status !== "waiting") return;
+    instantMatchmakingRequests.delete(key);
+    entry.resolve(createInstantOfflineDecision(entry));
+    instantMatchmakingRequests.set(key, entry);
+  }, INSTANT_MATCHMAKING_WINDOW_MS);
+  instantMatchmakingRequests.set(key, entry);
+  return promise;
+}
+
+function cancelInstantMatchmaking(identityKey, requestId) {
+  const key = instantMatchmakingKey(identityKey, requestId);
+  const entry = instantMatchmakingRequests.get(key);
+  if (!entry || entry.status !== "waiting") return { ok: true, cancelled: false };
+  clearTimeout(entry.timer);
+  instantMatchmakingRequests.delete(key);
+  entry.status = "cancelled";
+  entry.replayExpiresAt = now() + INSTANT_MATCHMAKING_WINDOW_MS;
+  entry.payload = { ok: true, cancelled: true, matchmaking: { status: "cancelled", instant: true } };
+  entry.resolve(entry.payload);
+  return { ok: true, cancelled: true };
 }
 
 function createMatchedPlayer(room, name, skinId, profileId, identityKey) {
@@ -13018,7 +13171,7 @@ function taskProgressForWin(room) {
   if (humans.length === 0) return taskProgress(room);
   const defenderHumans = humans.filter((player) => player.role === "defender");
   // Bot defenders may defeat human attackers, but cannot supply a human defender's win.
-  if (defenderHumans.length === 0) return taskProgress(room);
+  if (defenderHumans.length === 0) return { done: 0, total: 0 };
   const tasks = defenderHumans.flatMap((player) => Array.isArray(player.taskList) ? player.taskList : []);
   if (defenderHumans.some((player) => !player.alive || player.ejected)) return { done: 0, total: tasks.length };
   return { done: tasks.filter((task) => task.done).length, total: tasks.length };
@@ -14956,7 +15109,8 @@ function absorbPreparationBarrier(room, target, timestamp = now(), source = null
 
 function applyEmpDisruption(room, target, timestamp = now()) {
   if (!target?.alive || target.ejected) return 0;
-  if (rejectAdverseStatusDuringNaturalRecovery(room, target, "EMPストレージ遮断", timestamp)) return 0;
+  // EMP is an electronic equipment/inventory disruption, not a biological
+  // adverse status. Natural Recovery therefore neither rejects nor clears it.
   target.itemDisabledUntil = Math.max(Number(target.itemDisabledUntil) || 0, timestamp + EMP_ITEM_LOCK_MS);
   if (target.gunFiring) stopGunnerFire(room, target, { reason: "EMPストレージ遮断", autoSwitch: false });
   target.particleCannonUntil = 0;
@@ -16199,7 +16353,6 @@ function clearPoison(room, player, source = "解毒") {
 }
 
 const ADVERSE_STATUS_DEADLINE_FIELDS = Object.freeze([
-  "itemDisabledUntil",
   "slowedUntil",
   "taserSlowedUntil",
   "shockSlowedUntil",
@@ -16229,14 +16382,18 @@ function hasActiveAdverseStatus(player, timestamp = now()) {
 
 function clearAdverseStatuses(room, player, source = "状態異常回復", timestamp = now()) {
   if (!player) return false;
+  const naturalRecovery = source === "自然回復";
   const hadTimedStatus = ADVERSE_STATUS_DEADLINE_FIELDS.some((field) => Number(player[field]) > timestamp);
+  const hadEquipmentDisruption = Number(player.itemDisabledUntil) > timestamp;
   for (const field of ADVERSE_STATUS_DEADLINE_FIELDS) player[field] = 0;
+  // Explicit recovery actions can repair electronics; passive Natural
+  // Recovery is biological and must let the EMP equipment timer continue.
+  if (!naturalRecovery) player.itemDisabledUntil = 0;
   player.gravityStormSlowMultiplier = 1;
   if (["unconscious", "time-stopped"].includes(player.movementMode)) {
     player.movementMode = "idle";
   }
   if (player.drone?.movementMode === "time-stopped") player.drone.movementMode = "idle";
-  const naturalRecovery = source === "自然回復";
   const clearedBurn = Boolean(player.burnStatus);
   const clearedPoison = Boolean(player.poisonStatus);
   if (naturalRecovery) {
@@ -16246,7 +16403,7 @@ function clearAdverseStatuses(room, player, source = "状態異常回復", times
     if (clearedBurn) clearBurning(room, player, source);
     if (clearedPoison) clearPoison(room, player, source);
   }
-  return hadTimedStatus || clearedBurn || clearedPoison;
+  return hadTimedStatus || (!naturalRecovery && hadEquipmentDisruption) || clearedBurn || clearedPoison;
 }
 
 function rejectAdverseStatusDuringNaturalRecovery(room, target, label = "状態異常", timestamp = now()) {
@@ -20578,6 +20735,17 @@ async function handleApi(req, res) {
       const profileId = playerProfileId(req);
       const requestedName = reservePlayerName(body.name, profileId, legacyPlayerProfileId(body.clientId));
       const requestedMapId = normalizeMapId(body.mapId);
+      if (body.instantDecision === true) {
+        payload = await requestInstantMatchmaking({
+          identityKey,
+          requestId: body.matchmakingRequestId,
+          mapId: requestedMapId,
+          name: requestedName,
+          skinId: body.skinId,
+          profileId
+        });
+        break;
+      }
       if (body.offlineFallback === true) {
         const room = createRoom(roomCode());
         room.settings.mapId = requestedMapId;
@@ -20626,6 +20794,11 @@ async function handleApi(req, res) {
         matchmaking: { ...room.matchmaking },
         profile: { name: requestedName, locked: true }
       };
+      break;
+    }
+
+    case "/api/matchmake/instant/cancel": {
+      payload = cancelInstantMatchmaking(identityKey, body.matchmakingRequestId);
       break;
     }
 
@@ -21672,13 +21845,16 @@ function pushRealtimeStates() {
 }
 
 function botTick() {
+  purgeInstantMatchmakingRequests();
   for (const room of rooms.values()) {
     if (
       room.phase === "lobby" &&
       room.matchmaking?.status === "waiting" &&
-      now() > Number(room.matchmaking.expiresAt || 0) + 15_000
+      now() >= Number(room.matchmaking.expiresAt || 0)
     ) {
-      rooms.delete(room.id);
+      room.matchmaking = { status: "offline", decision: "offline-fallback", instant: true };
+      addDefaultOnlineBots(room);
+      startGame(room);
       continue;
     }
     if (now() - room.updatedAt > ROOM_TTL_MS) {
@@ -21906,6 +22082,16 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
   if (!maximumStrength || !bot.alive || bot.ejected || bot.inVent) {
     if (bot.clairvoyanceActive) setClairvoyanceActive(room, bot, false);
     clearBotClairvoyanceContact(bot);
+    return null;
+  }
+
+  const blockedUntil = actionBlockedUntil(bot);
+  if (blockedUntil > timestamp) {
+    // A maximum-strength bot still obeys the same action-unavailable window
+    // as a human. Cooldowns, Natural Recovery and plan time keep advancing,
+    // but no rejected Clairvoyance activation is attempted each bot tick.
+    if (bot.clairvoyanceActive) setClairvoyanceActive(room, bot, false);
+    bot.nextBotClairvoyanceAt = Math.max(Number(bot.nextBotClairvoyanceAt) || 0, blockedUntil);
     return null;
   }
 
@@ -23118,5 +23304,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "quantum-fusion-dynamic-resource-markers-v522" });
+self.postMessage({ type: "ready", version: "root-shortcut-instant-match-emp-bot-ready-v523" });
 })();
