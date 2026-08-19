@@ -719,9 +719,8 @@ body.start-open {
 body.game-open {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100vh;
-  height: 100dvh;
+  width: var(--dva-game-viewport-width, 100%);
+  height: var(--dva-game-viewport-height, 100vh);
   overflow: hidden;
   overscroll-behavior: none;
   /* Do not disable touch at this ancestor: Result and the other local
@@ -746,7 +745,7 @@ body.game-open :is([data-right-panel-scroll], .tablet-branch-list, .hacker-abili
 
 /* The outer sidebar scrolls only when no clipped local overflow area owns the native flick. */
 body.game-open #sidePanel {
-  max-height: calc(100dvh - 20px);
+  max-height: calc(var(--dva-game-viewport-height, 100vh) - 20px);
   overflow-y: auto;
   overscroll-behavior-y: contain;
   touch-action: pan-y;
@@ -1832,7 +1831,6 @@ select:focus {
   gap: 18px;
   width: min(1540px, 100%);
   height: 100vh;
-  height: 100svh;
   min-height: 0;
   margin: 0 auto;
   overflow: hidden;
@@ -1841,8 +1839,7 @@ select:focus {
 
 :fullscreen .app-shell {
   width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   min-height: 100%;
   max-width: none;
 }
@@ -5253,7 +5250,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=root-clairvoyance-input-combat-economy-v525"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=aroma-canvas-root-default-result-bonus-v526"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,

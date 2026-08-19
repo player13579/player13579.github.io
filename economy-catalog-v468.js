@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "root-clairvoyance-input-combat-economy-v525",
+    version: "aroma-canvas-root-default-result-bonus-v526",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

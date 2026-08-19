@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v525-root-clairvoyance-input-combat-economy";
+const CACHE_NAME = "dva-static-v526-aroma-canvas-root-default-result-bonus";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

@@ -350,7 +350,7 @@ const storage = {
   abilityAutoActivate: "dva_ability_auto_activate_v1"
 };
 storage.cpuGravityHint = "dva_cpu_gravity_hint";
-storage.offlineSession = "dva_offline_session_v525";
+storage.offlineSession = "dva_offline_session_v526";
 
 const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sniper", "taser"]);
 // Texture construction runs while the main state object is initialized, so this
@@ -779,7 +779,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-clairvoyance-input-combat-economy-v525";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "aroma-canvas-root-default-result-bonus-v526";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2108,6 +2108,7 @@ function setScreen(screen) {
   document.body.classList.toggle("tactics-open", next === "tactics");
   document.body.classList.toggle("game-open", next === "game");
   document.documentElement.classList.toggle("game-open", next === "game");
+  if (next === "game") scheduleStableGameplayViewportReflow(previous !== "game" ? 0 : 80);
   els.startScreen.hidden = next === "game";
   els.startScreen.classList.remove("title-arriving");
   if (els.titleMuteButton) els.titleMuteButton.hidden = next === "tactics";
@@ -5625,7 +5626,7 @@ function bindEvents() {
     state.vendingContinuousPurchase = Boolean(els.vendingContinuousPurchase.checked);
     if (!state.vendingContinuousPurchase) stopVendingHold({ suppressClick: true });
   });
-  window.addEventListener("resize", () => scheduleGameplayViewportReflow(), { passive: true });
+  window.addEventListener("resize", () => scheduleStableGameplayViewportReflow(80), { passive: true });
   bindTabletControls();
   [
     els.hackerTargetSelect,
@@ -6464,7 +6465,7 @@ function bindEvents() {
   }, { capture: true, passive: false });
   window.visualViewport?.addEventListener("resize", () => {
     scheduleViewportScaleRestore();
-    scheduleGameplayViewportReflow();
+    scheduleStableGameplayViewportReflow(120);
   }, { passive: true });
   window.addEventListener("pointerup", (event) => {
     finishRootShortcutPointerHold(event);
@@ -6490,11 +6491,11 @@ function bindEvents() {
   });
   window.addEventListener("orientationchange", () => {
     scheduleViewportScaleRestore(true);
-    scheduleGameplayViewportReflow(true);
+    scheduleStableGameplayViewportReflow(160);
   }, { passive: true });
   window.addEventListener("pageshow", () => {
     scheduleViewportScaleRestore();
-    scheduleGameplayViewportReflow(true);
+    scheduleStableGameplayViewportReflow(160);
     void recoverRoomInteractionAfterBackground();
   }, { passive: true });
   document.addEventListener("focusout", (event) => {
@@ -6516,7 +6517,7 @@ function bindEvents() {
     }
     if (!document.hidden) {
       scheduleViewportScaleRestore();
-      scheduleGameplayViewportReflow(true);
+      scheduleStableGameplayViewportReflow(160);
     }
     if (document.hidden) recordUsageExit();
     else {
@@ -7846,7 +7847,10 @@ function ensureDefaultBorrowedAbilitySelection(self = state.data?.self) {
   if (self?.special !== "alchemist" || !self.hackerRootActive) return { type: "", mode: "" };
   const owned = availableBorrowedActiveOperatorTypes(self);
   if (!owned.length) return { type: "", mode: "" };
-  const type = owned.includes(state.borrowedOperatorType) ? state.borrowedOperatorType : owned[0];
+  const hasRememberedType = owned.includes(state.borrowedOperatorType);
+  const type = hasRememberedType
+    ? state.borrowedOperatorType
+    : (owned.includes("gravity") ? "gravity" : owned[0]);
   const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
   if (!choices.length) return { type: "", mode: "" };
   state.borrowedOperatorType = type;
@@ -7858,7 +7862,8 @@ function ensureDefaultBorrowedAbilitySelection(self = state.data?.self) {
     return { type, mode };
   }
   const remembered = state.borrowedAbilityModes[type];
-  const mode = choices.some(([value]) => value === remembered) ? remembered : choices[0][0];
+  const defaultMode = !hasRememberedType && type === "gravity" ? "accelerate" : choices[0][0];
+  const mode = choices.some(([value]) => value === remembered) ? remembered : defaultMode;
   state.borrowedAbilityModes[type] = mode;
   return { type, mode };
 }
@@ -7952,7 +7957,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         heart: "10MP。拳を握り、対象の心臓へ干渉して遠隔確殺を試みる",
       accelerate: "1MP。8秒間×2.5。移動・行動不能時間・クールタイム・タスク・物理モーションを加速する",
       decelerate: "1MP。8秒間×0.38。移動・行動不能時間・クールタイム・タスク・物理モーションを減速する",
-      "time-keeper": "50MP。5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する",
+      "time-keeper": "1000MP。5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する",
       storm: "10MP。指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
     };
     const gravityModes = new Set(["near", "target", "heart", "accelerate", "decelerate", "time-keeper", "storm"]);
@@ -10832,7 +10837,7 @@ function abilityModeDescription(owner, mode, self) {
       heart: `拳を握って対象の心臓へ干渉し、遠隔確殺を試みる。位置は公開しない。${cost("heartTeleport", 10)}。`,
       accelerate: `対象を8秒間×2.5加速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
       decelerate: `対象を8秒間×0.38へ減速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。${cost("teleport")}。`,
-      "time-keeper": `5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する。${cost("timeKeeper", 50)}。`,
+      "time-keeper": `5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する。${cost("timeKeeper", 1000)}。`,
       storm: `指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 10)}。`
     },
     gravity: null,
@@ -11604,7 +11609,7 @@ function renderActiveEffects(data) {
     self.gravityTimeMode === "accelerate" ? "good" : "desire",
     "1MP・8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用"
   );
-  timed("時の番人", self.timeKeeperEndsAt, "truth", "50MP・5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止");
+  timed("時の番人", self.timeKeeperEndsAt, "truth", "1000MP・5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止");
   timed("時間停止", self.timeStoppedUntil, "desire", "入力・行動・クールタイム・物理モーション停止");
   if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ");
   timed("スマホ操作", self.smartphoneUntil, "neutral", "完了まで行動不能");
@@ -11684,6 +11689,78 @@ let activeEffectsLayoutFrame = 0;
 let gameplayViewportReflowPasses = 0;
 let activeEffectsLayoutCallbacks = [];
 const GAMEPLAY_VIEWPORT_REFLOW_MAX_PASSES = 4;
+const GAMEPLAY_VIEWPORT_STABLE_SAMPLE_FRAMES = 2;
+const GAMEPLAY_VIEWPORT_MIN_DIMENSION = 120;
+let gameplayViewportStabilityFrame = 0;
+let gameplayViewportStabilityTimer = 0;
+let gameplayViewportStabilityGeneration = 0;
+let gameplayViewportCandidateKey = "";
+let gameplayViewportCandidateFrames = 0;
+let gameplayViewportLastVisibleSample = null;
+
+function visibleGameplayViewportSample() {
+  if (document.hidden) return null;
+  const width = Number(window.innerWidth);
+  const height = Number(window.innerHeight);
+  const visualWidth = Number(window.visualViewport?.width ?? width);
+  const visualHeight = Number(window.visualViewport?.height ?? height);
+  if (![width, height, visualWidth, visualHeight].every(Number.isFinite)) return null;
+  if (width < GAMEPLAY_VIEWPORT_MIN_DIMENSION || height < GAMEPLAY_VIEWPORT_MIN_DIMENSION) return null;
+  if (visualWidth < GAMEPLAY_VIEWPORT_MIN_DIMENSION || visualHeight < GAMEPLAY_VIEWPORT_MIN_DIMENSION) return null;
+  return { width, height, visualWidth, visualHeight };
+}
+
+function gameplayViewportSampleKey(sample) {
+  if (!sample) return "";
+  return [sample.width, sample.height, sample.visualWidth, sample.visualHeight]
+    .map((value) => Math.round(value * 10))
+    .join(":");
+}
+
+function commitStableGameplayViewportSample(sample) {
+  if (!sample || document.hidden) return false;
+  gameplayViewportLastVisibleSample = { width: sample.width, height: sample.height };
+  const widthValue = `${Math.round(sample.width * 10) / 10}px`;
+  const heightValue = `${Math.round(sample.height * 10) / 10}px`;
+  const rootStyle = document.documentElement.style;
+  if (rootStyle.getPropertyValue("--dva-game-viewport-width") !== widthValue) {
+    rootStyle.setProperty("--dva-game-viewport-width", widthValue);
+  }
+  if (rootStyle.getPropertyValue("--dva-game-viewport-height") !== heightValue) {
+    rootStyle.setProperty("--dva-game-viewport-height", heightValue);
+  }
+  return true;
+}
+
+function scheduleStableGameplayViewportReflow(delayMs = 80) {
+  const generation = ++gameplayViewportStabilityGeneration;
+  gameplayViewportCandidateKey = "";
+  gameplayViewportCandidateFrames = 0;
+  if (gameplayViewportStabilityFrame) cancelAnimationFrame(gameplayViewportStabilityFrame);
+  gameplayViewportStabilityFrame = 0;
+  window.clearTimeout(gameplayViewportStabilityTimer);
+  gameplayViewportStabilityTimer = window.setTimeout(() => {
+    gameplayViewportStabilityTimer = 0;
+    const collect = () => {
+      gameplayViewportStabilityFrame = 0;
+      if (generation !== gameplayViewportStabilityGeneration || document.hidden) return;
+      const sample = visibleGameplayViewportSample();
+      if (!sample) return;
+      const key = gameplayViewportSampleKey(sample);
+      if (key === gameplayViewportCandidateKey) gameplayViewportCandidateFrames += 1;
+      else {
+        gameplayViewportCandidateKey = key;
+        gameplayViewportCandidateFrames = 1;
+      }
+      if (gameplayViewportCandidateFrames < GAMEPLAY_VIEWPORT_STABLE_SAMPLE_FRAMES) {
+        gameplayViewportStabilityFrame = requestAnimationFrame(collect);
+        return;
+      }
+      if (commitStableGameplayViewportSample(sample)) scheduleGameplayViewportReflow(true);
+    };
+    gameplayViewportStabilityFrame = requestAnimationFrame(collect);
+  }, Math.max(0, Number(delayMs) || 0));
+}
 
 function gameplayViewportGeometryKey() {
   const fieldSlot = document.querySelector(".field-stage-slot");
@@ -11695,10 +11772,9 @@ function gameplayViewportGeometryKey() {
       ? [Math.round(rect.width * 10), Math.round(rect.height * 10), Math.round(rect.top * 10)].join(":")
       : "0:0:0";
   };
-  const viewport = window.visualViewport;
   return [
-    Math.round((Number(viewport?.width) || window.innerWidth) * 10),
-    Math.round((Number(viewport?.height) || window.innerHeight) * 10),
+    Math.round((Number(gameplayViewportLastVisibleSample?.width) || window.innerWidth) * 10),
+    Math.round((Number(gameplayViewportLastVisibleSample?.height) || window.innerHeight) * 10),
     rectKey(fieldSlot),
     rectKey(board),
     rectKey(panel),
@@ -16096,7 +16172,6 @@ const PHILOSOPHY_EFFECT_CELLS = {
 };
 
 const ALCHEMY_EFFECT_CELLS = {
-  "action-renki": 0,
   "action-rational-free": 2,
   "action-alchemy": 3
 };
@@ -16667,7 +16742,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
 });
 
 const STATUS_MARKER_EXPLANATIONS = Object.freeze({
-  naturalRecovery: ["自然回復", "理知中、人体の状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。EMP機器異常は状態異常ではないため解除できません。アロマ有効中はこのマーカーの発光が強まります。"],
+  naturalRecovery: ["自然回復", "理知中、人体の状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。EMP機器異常は状態異常ではないため解除できません。アロマ有効中は、このマーカーに香気と葉片の補助エフェクトが加わります。"],
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
@@ -17815,14 +17890,49 @@ function persistentStatusAteState(player, data) {
   };
 }
 
+// Aroma deliberately does not alter the Natural Recovery texture's silhouette
+// glow. Its complementary, finite E-layer is drawn separately at this same
+// marker anchor so the recovery marker remains one stable shared marker.
 const NATURAL_RECOVERY_MARKER_GLOW = Object.freeze({
-  ordinary: Object.freeze({ aromaBoosted: false, intensity: 0.9, baseAlpha: 0.15, opacityBoost: 3.2 }),
-  aroma: Object.freeze({ aromaBoosted: true, intensity: 1.42, baseAlpha: 0.2, opacityBoost: 4 })
+  intensity: 0.9,
+  baseAlpha: 0.15,
+  opacityBoost: 3.2
 });
 
-function naturalRecoveryMarkerGlow(activeState) {
-  const aromaBoosted = Boolean(activeState?.naturalRecovery && activeState?.aroma);
-  return aromaBoosted ? NATURAL_RECOVERY_MARKER_GLOW.aroma : NATURAL_RECOVERY_MARKER_GLOW.ordinary;
+function naturalRecoveryMarkerGlow() {
+  return NATURAL_RECOVERY_MARKER_GLOW;
+}
+
+function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState) {
+  if (!activeState?.naturalRecovery || !activeState?.aroma) return false;
+  // Five short-lived scent-leaf motes are intentionally complementary to the
+  // recovery raster rather than another marker texture or a full-size ATE.
+  const particleCount = 5;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let index = 0; index < particleCount; index += 1) {
+    const cycle = ((time * (0.32 + index * 0.018) + index * 0.211) % 1 + 1) % 1;
+    const life = Math.sin(cycle * Math.PI);
+    const drift = Math.sin(time * 2.2 + index * 1.73) * (2.5 + index * 0.42);
+    const x = markerX + drift + (index - (particleCount - 1) / 2) * 2.2;
+    const y = markerY + 11 - cycle * (18 + (index % 2) * 4);
+    const size = 1.7 + life * 1.35;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.52 + time * 0.45 + index * 0.77);
+    ctx.globalAlpha = life * (0.28 + (index % 2) * 0.07);
+    ctx.fillStyle = index % 2 ? "#bbf7d0" : "#d8b4fe";
+    ctx.shadowColor = index % 2 ? "#4ade80" : "#c084fc";
+    ctx.shadowBlur = 4 + life * 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.quadraticCurveTo(size * 0.82, -size * 0.08, 0, size);
+    ctx.quadraticCurveTo(-size * 0.58, -size * 0.08, 0, -size);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  return true;
 }
 
 function drawPersistentStatusAteLayers(player, data) {
@@ -17878,6 +17988,9 @@ function drawPersistentStatusAteLayers(player, data) {
       baseAlpha: naturalRecoveryGlow?.baseAlpha ?? 0.15,
       opacityBoost: naturalRecoveryGlow?.opacityBoost ?? 3.2
     });
+    if (category === "naturalRecovery") {
+      drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState);
+    }
     ctx.restore();
   }
 }
@@ -19652,7 +19765,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "root-clairvoyance-input-combat-economy-v525";
+const version = "aroma-canvas-root-default-result-bonus-v526";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

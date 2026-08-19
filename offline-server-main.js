@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "root-clairvoyance-input-combat-economy-v525",
+    version: "aroma-canvas-root-default-result-bonus-v526",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7593,7 +7593,7 @@ const ITEM_THROW_BASE_DISTANCE = 220;
 const ITEM_THROW_SPEED = 1120;
 const ITEM_THROW_MIN_FLIGHT_MS = 240;
 const ITEM_THROW_MAX_FLIGHT_MS = 920;
-const BOTTLE_ITEM_IDS = new Set(["mercury", "lead", "mineral-water", "antidote", "molotov", "ice", "heated-water"]);
+const BOTTLE_ITEM_IDS = new Set(["mercury", "lead", "mineral-water", "seawater", "antidote", "molotov", "ice", "heated-water"]);
 // Sealed radioactive containers are physical while carried, but their seal
 // opens on any ordinary throw.  Like authored bottles they resolve their
 // hazard at the first impact/landing and must never become ground pickups.
@@ -7708,7 +7708,10 @@ const GRAVITY_TIME_DURATION_MS = 8_000;
 const GRAVITY_TIME_SCALE_FAST = ACCELERATE_SPEED_MULTIPLIER;
 const GRAVITY_TIME_SCALE_SLOW = 0.38;
 const GRAVITY_TIME_KEEPER_DURATION_MS = 5_000;
-const GRAVITY_TIME_KEEPER_MANA_COST = 50;
+// Time Keeper is an exceptional, single-cast world control.  Keep the price
+// server-owned so neither the native nor ROOT client route can substitute the
+// displayed 1000 MP cost with a request payload.
+const GRAVITY_TIME_KEEPER_MANA_COST = 1_000;
 const BOT_HEARING_MEMORY_MS = 5000;
 const BOT_VISIBLE_ATTACK_MEMORY_MS = 7000;
 const BOT_ATTACK_BODY_CHAIN_DISTANCE = 440;
@@ -7872,8 +7875,8 @@ const OPERATORS = {
       special: "gunner",
       limit: 99,
       asset: "gunner",
-      description: "ARとエイム・特殊弾装填パッシブ、物理HSGを持ち、5種の銃器を扱う。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。理知中かつダッシュ以外の移動状態ではパッシブ『エイム』が選択銃の射程内で遮蔽物越しでない最寄りの生存者を自動追尾し、追尾中の全射撃をHS確殺にする。正規movementModeがダッシュになると即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得し、非装填分も正規バッファへ保持して武器切替時に再適用する。開始装備の物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOはガンナー固有パッシブではなく、全員が所持武具へ使える共通長押しactionである。"
+      description: "ARとエイム・特殊弾装填パッシブを持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。理知中かつダッシュ以外の移動状態ではパッシブ『エイム』が選択銃の射程内で遮蔽物越しでない最寄りの生存者を自動追尾し、追尾中の全射撃をHS確殺にする。正規movementModeがダッシュになると即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得し、非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -10548,6 +10551,8 @@ function startGame(room) {
   room.operatorTurnIndex = 0;
   room.winner = null;
   room.rankUpdated = false;
+  room.resultTopContributionBonusAwarded = false;
+  room.resultTopContributionBonusPlayerId = "";
   room.finishReason = "";
   setIdeaWinnerIds(room, []);
   room.pendingIdeaVictoryAt = 0;
@@ -10764,7 +10769,10 @@ function startBattle(room) {
     if (player.special === "fighter" && itemCount(player, "orichalcum-sword") <= 0) {
       addItem(player, "orichalcum-sword");
     }
-    if (player.special === "gunner" && itemCount(player, "hsg") <= 0) {
+    // HSG is one common physical starting gear item for every participant.
+    // This is deliberately after Quantum's authored starting inventory so all
+    // operators, bots and generated/offline rooms receive exactly one body.
+    if (itemCount(player, "hsg") <= 0) {
       addItem(player, "hsg");
     }
     player.poisonStatus = null;
@@ -10930,7 +10938,6 @@ const ABILITY_BATCH_ACTION_PATHS = new Set([
   "/api/renki",
   "/api/teleport",
   "/api/gravity-time",
-  "/api/gravity-time-keeper",
   "/api/gravity-storm",
   "/api/quantum-control",
   "/api/flora-heal",
@@ -10949,7 +10956,6 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
   if (path === "/api/gravity-time") {
     return ["accelerate", "decelerate"].includes(String(action.mode || "")) ? ABILITY_MANA_COST : null;
   }
-  if (path === "/api/gravity-time-keeper") return GRAVITY_TIME_KEEPER_MANA_COST;
   if (path === "/api/gravity-storm") return GRAVITY_STORM_MANA_COST;
   if (path === "/api/quantum-control") {
     if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return null;
@@ -10969,7 +10975,9 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
     return gravityMode === "heart" ? HEART_TELEPORT_MANA_COST : TELEPORT_MANA_COST;
   }
   if (["accelerate", "decelerate"].includes(gravityMode)) return ABILITY_MANA_COST;
-  if (gravityMode === "time-keeper") return GRAVITY_TIME_KEEPER_MANA_COST;
+  // Time Keeper deliberately has no ability-batch unit: a hold may never
+  // fan a room-wide stop out into multiple casts.
+  if (gravityMode === "time-keeper") return null;
   if (gravityMode === "storm") return GRAVITY_STORM_MANA_COST;
   return null;
 }
@@ -11163,6 +11171,14 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
     spentMana: spendableMana,
     partial: Boolean(partialError)
   };
+}
+
+function executeSingleTimeKeeperAction(room, player, rawBody, action) {
+  const body = rawBody && typeof rawBody === "object" ? rawBody : {};
+  if (String(body.abilityHoldId || body.renkiHoldId || "").trim()) {
+    throw new ApiError(400, "時の番人は長押し一括並列発動できません。タップで1回だけ発動します。");
+  }
+  return action();
 }
 
 function attachAbilityBatchPayload(payload, outcome) {
@@ -11371,10 +11387,6 @@ function grantHackerRootStartingItems(player) {
   if (itemCount(player, "orichalcum-sword") < 1) {
     addItem(player, "orichalcum-sword");
     inherited.push(ITEM_DEFINITIONS["orichalcum-sword"].label);
-  }
-  if (itemCount(player, "hsg") < 1) {
-    addItem(player, "hsg");
-    inherited.push("HSG");
   }
   for (const [itemId, required] of Object.entries(QUANTUM_STARTING_ITEMS)) {
     const missing = Math.max(0, Number(required) - itemCount(player, itemId));
@@ -12597,10 +12609,6 @@ function synchronizeTimeKeeperStops(room, timestamp = now()) {
   if (!activeCasters.length) return;
   for (const target of room.players.values()) {
     if (!target.alive || target.ejected) continue;
-    if (hasNaturalRecovery(room, target)) {
-      target.timeStoppedUntil = 0;
-      continue;
-    }
     const controllingCaster = activeCasters
       .filter((caster) => caster.id !== target.id)
       .sort((a, b) => Number(b.timeKeeperEndsAt) - Number(a.timeKeeperEndsAt))[0];
@@ -13192,6 +13200,7 @@ function finish(room, winner, reason, cause = {}) {
   if (!botMatchHumanOwnsVictory(room, winner, cause)) return false;
   room.phase = "ended";
   room.winner = winner;
+  awardResultTopContributionBonus(room);
   if (room.soloMission?.id === "cpu-gravity" && winner === "attackers") {
     room.soloMission.hintUnlocked = true;
   }
@@ -13227,6 +13236,7 @@ function forceEnd(room, player) {
   if (room.hostId !== player.id) throw new ApiError(403, "ホストだけが強制終了できます。");
   room.phase = "ended";
   room.winner = "none";
+  awardResultTopContributionBonus(room);
   room.finishReason = `${player.name} が試合を強制終了しました。`;
   room.meeting = null;
   room.sabotage = null;
@@ -14438,14 +14448,16 @@ function useTimeKeeper(room, player) {
     throw new ApiError(403, "現在は時の番人を使用できません。");
   }
   ensureAbilityAvailable(player);
-  spendOperatorMana(room, player, "時の番人", GRAVITY_TIME_KEEPER_MANA_COST);
   const startedAt = now();
+  if (Number(player.timeKeeperEndsAt) > startedAt) {
+    throw new ApiError(409, "時の番人はすでに発動中です。終了後にもう一度使用してください。");
+  }
+  spendOperatorMana(room, player, "時の番人", GRAVITY_TIME_KEEPER_MANA_COST);
   const endsAt = startedAt + GRAVITY_TIME_KEEPER_DURATION_MS;
   player.timeKeeperEndsAt = Math.max(Number(player.timeKeeperEndsAt) || 0, endsAt);
   let stoppedCount = 0;
   for (const target of room.players.values()) {
     if (target.id === player.id || !target.alive || target.ejected) continue;
-    if (rejectAdverseStatusDuringNaturalRecovery(room, target, "時の番人", startedAt)) continue;
     target.timeStoppedUntil = Math.max(Number(target.timeStoppedUntil) || 0, endsAt);
     target.vx = 0;
     target.vy = 0;
@@ -20075,6 +20087,18 @@ function victoryCreditFor(room, player, ideaWinnerIds = new Set(ideaWinnerIdsFor
   return room.winner === "idea" && ideaWinnerIds.has(player.id) ? 1 : 0;
 }
 
+// The final Result leader is selected once from the pre-bonus, deterministic
+// ranking.  Persisting only the recipient id keeps every later serialization
+// and ranking recomputation stable without re-awarding or making the bonus
+// depend on which viewer requests the result.
+function awardResultTopContributionBonus(room) {
+  if (room.resultTopContributionBonusAwarded) return false;
+  const leader = contributionRankingEntries(room)[0];
+  room.resultTopContributionBonusAwarded = true;
+  room.resultTopContributionBonusPlayerId = leader?.id || "";
+  return Boolean(leader);
+}
+
 function contributionRankingEntries(room) {
   const ideaWinnerIds = new Set(ideaWinnerIdsFor(room));
   const entries = [...room.players.values()]
@@ -20096,6 +20120,9 @@ function contributionRankingEntries(room) {
         : kills;
       const victoryContribution = victoryCreditFor(room, player, ideaWinnerIds);
       const ideaContribution = ideaWinnerIds.has(player.id) ? 1 : 0;
+      const resultTopContributionBonus = room.resultTopContributionBonusPlayerId === player.id
+        ? 2
+        : 0;
       return {
       id: player.id,
       name: player.name,
@@ -20116,7 +20143,8 @@ function contributionRankingEntries(room) {
       defenderKillContribution: killContribution,
       victoryCredit: victoryContribution,
       ideaContribution,
-      contributionScore: killContribution + victoryContribution + ideaContribution,
+      resultTopContributionBonus,
+      contributionScore: killContribution + victoryContribution + ideaContribution + resultTopContributionBonus,
       luminousSuccess: Boolean(player.luminousActive),
       ideaWinner: ideaWinnerIds.has(player.id)
       };
@@ -21278,9 +21306,8 @@ async function handleApi(req, res) {
 
     case "/api/gravity-time-keeper": {
       const { room, player } = requireRoomPlayer(body);
-      const outcome = executeAbilityHoldAction(room, player, body, "/api/gravity-time-keeper", () => useTimeKeeper(room, player));
+      executeSingleTimeKeeperAction(room, player, body, () => useTimeKeeper(room, player));
       payload = serialize(room, player);
-      attachAbilityBatchPayload(payload, outcome);
       break;
     }
 
@@ -21392,9 +21419,12 @@ async function handleApi(req, res) {
 
     case "/api/borrowed-ability": {
       const { room, player } = requireRoomPlayer(body);
-      const outcome = executeAbilityHoldAction(room, player, body, "/api/borrowed-ability", () => (
-        useBorrowedAbility(room, player, body.ability, body)
-      ));
+      const timeKeeper = String(body.ability || "") === "gravity" && String(body.mode || "") === "time-keeper";
+      const outcome = timeKeeper
+        ? { value: executeSingleTimeKeeperAction(room, player, body, () => useBorrowedAbility(room, player, body.ability, body)), held: false, batch: false, duplicate: false, count: 1, spentMana: 0 }
+        : executeAbilityHoldAction(room, player, body, "/api/borrowed-ability", () => (
+          useBorrowedAbility(room, player, body.ability, body)
+        ));
       payload = serialize(room, player);
       if (outcome.duplicate) payload.actionApplied = false;
       else if (outcome.batch) payload.actionApplied = outcome.count > 0;
