@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "aroma-canvas-root-default-result-bonus-v526",
+    version: "kill-chain-invisible-global-scroll-hsg-points-v527",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7422,6 +7422,8 @@ function renderCapacityStatus() {
 }
 
 const MIN_KILL_COOLDOWN = 5;
+const KILL_CHAIN_REDUCTION_PER_KILL = 0.10;
+const KILL_CHAIN_MIN_MULTIPLIER = 0.25;
 const QUICK_ATTACK_DELAY_MS = 1000;
 const QUICK_FOLLOW_UP_COOLDOWN_MS = 1000;
 const QUICK_ATTACK_LETHAL_CHANCE = 0.45;
@@ -7525,6 +7527,7 @@ const EMP_INITIAL_LOCK_MS = 15_000;
 const HACKER_EMP_OPENING_PROTECTION_MS = 30_000;
 const HSG_BASE_DURATION_MS = 8_000;
 const HSG_BASE_ACC_MULTIPLIER = 1.8;
+const HSG_BASE_MANA_COST = 1;
 const HSG_ENHANCE_DURATION_MS_PER_LEVEL = 2_000;
 const HSG_ENHANCE_ACC_PER_LEVEL = 0.2;
 const HSG_ACTIVATION_COOLDOWN_MS = 20_000;
@@ -7666,6 +7669,11 @@ const DRONE_MANA_COST = 0;
 const EMP_MANA_COST = 0;
 const GUNNER_MANA_COST = 0;
 const FLORA_MANA_COST = ABILITY_MANA_COST;
+// Keep the offensive and concealment Flora modes independent from the
+// inexpensive restorative mode.  These values are never supplied by a client.
+const FLORA_SUNBEAM_MANA_COST = 10;
+const FLORA_INVISIBLE_MANA_COST = 10;
+const FLORA_INVISIBLE_DURATION_MS = 10_000;
 const ALCHEMY_MANA_COST = ABILITY_MANA_COST;
 const SABOTAGE_MANA_COST = 0;
 const STAND_FIRM_COST = vendingPrice("grit");
@@ -7853,8 +7861,8 @@ const OPERATORS = {
       special: "flora",
       limit: 99,
       asset: "flora",
-      description: "回復とサンビームを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "回復は自分へHP・スタミナ・状態解除・加速を付与する。サンビームは選択対象へ黄色系の強い光を放ち、壁に遮られるまでの交差対象へ通常時は確率キル、収束時は確殺する。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
+      description: "回復・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
+      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは10MPで選択対象方向へ黄色系の強い光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -8907,6 +8915,12 @@ function updatePlayerProfiles(room) {
     // alone decides the resulting +1/-1 movement.
     if (contribution?.rankMovement > 0) profile.points = Math.min(24, (Number(profile.points) || 0) + 1);
     else if (current.id !== "bronze") profile.points = Math.max(0, (Number(profile.points) || 0) - 1);
+    // Result first place is an account-point reward, never a contribution
+    // component.  The recipient was frozen from the pre-bonus Result ranking
+    // before this one-shot profile finalization.
+    if (room.resultFirstPlacePointsPlayerId === player.id) {
+      profile.points = Math.min(24, (Number(profile.points) || 0) + 2);
+    }
     profile.rank = rankForPoints(profile.points).id;
     profile.updatedAt = now();
   }
@@ -9657,6 +9671,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     taskPresenceTaskId: "",
     taskPresenceSince: 0,
     killsThisRound: 0,
+    killChainCount: 0,
     totalKills: 0,
     luminousUsed: false,
     luminousActive: false,
@@ -9742,6 +9757,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gravityPinnedUntil: 0,
     abilityDisabledUntil: 0,
     overhealSpeedUntil: 0,
+    floraInvisibleUntil: 0,
     floraMode: "heal",
     lastMysteryResult: "",
     lastMysteryResultAt: 0,
@@ -10304,6 +10320,7 @@ function startGame(room) {
     player.taskPresenceTaskId = "";
     player.taskPresenceSince = 0;
     player.killsThisRound = 0;
+    player.killChainCount = 0;
     player.totalKills = 0;
     player.luminousUsed = false;
     player.luminousActive = false;
@@ -10374,6 +10391,7 @@ function startGame(room) {
     player.gravityPinnedUntil = 0;
     player.abilityDisabledUntil = 0;
     player.overhealSpeedUntil = 0;
+    player.floraInvisibleUntil = 0;
     player.floraMode = "heal";
     player.lastMysteryResult = "";
     player.lastMysteryResultAt = 0;
@@ -10551,8 +10569,8 @@ function startGame(room) {
   room.operatorTurnIndex = 0;
   room.winner = null;
   room.rankUpdated = false;
-  room.resultTopContributionBonusAwarded = false;
-  room.resultTopContributionBonusPlayerId = "";
+  room.resultFirstPlacePointsAwarded = false;
+  room.resultFirstPlacePointsPlayerId = "";
   room.finishReason = "";
   setIdeaWinnerIds(room, []);
   room.pendingIdeaVictoryAt = 0;
@@ -10672,7 +10690,8 @@ function startBattle(room) {
     player.taskPresenceTaskId = "";
     player.taskPresenceSince = 0;
     player.killsThisRound = 0;
-    player.killReadyAt = canUseKill(player) ? timestamp + room.settings.killCooldown * 1000 : 0;
+    player.killChainCount = 0;
+    player.killReadyAt = canUseKill(player) ? timestamp + killCooldownDurationMs(room, player) : 0;
     clearAttackState(player);
     player.lastAttackResult = "";
     player.lastAttackResultAt = 0;
@@ -10726,6 +10745,7 @@ function startBattle(room) {
     player.gravityPinnedUntil = 0;
     player.abilityDisabledUntil = 0;
     player.overhealSpeedUntil = 0;
+    player.floraInvisibleUntil = 0;
     player.hsgUntil = 0;
     player.hsgReadyAt = 0;
     player.killCamera = null;
@@ -10961,10 +10981,22 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
     if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return null;
     return ["nuclear-fission", "nuclear-fusion"].includes(mode) ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
   }
-  if (path === "/api/flora-heal") return FLORA_MANA_COST;
+  if (path === "/api/flora-heal") {
+    return String(action.mode || "heal") === "sunbeam"
+      ? FLORA_SUNBEAM_MANA_COST
+      : String(action.mode || "heal") === "invisible"
+        ? FLORA_INVISIBLE_MANA_COST
+        : FLORA_MANA_COST;
+  }
   if (path !== "/api/borrowed-ability") return null;
   const ability = String(action.ability || "");
-  if (ability === "flora") return FLORA_MANA_COST;
+  if (ability === "flora") {
+    return String(action.mode || "heal") === "sunbeam"
+      ? FLORA_SUNBEAM_MANA_COST
+      : String(action.mode || "heal") === "invisible"
+        ? FLORA_INVISIBLE_MANA_COST
+        : FLORA_MANA_COST;
+  }
   if (ability === "quantum") {
     if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return null;
     return ["nuclear-fission", "nuclear-fusion"].includes(mode) ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
@@ -11090,6 +11122,8 @@ function abilityBatchActionCapacity(player, actionPath, rawAction = {}) {
   if (actionPath === "/api/borrowed-ability" && String(action.ability || "") === "quantum") {
     return quantumBatchCapacity(player, action.mode);
   }
+  if ((actionPath === "/api/flora-heal" || actionPath === "/api/borrowed-ability") &&
+    String(action.mode || "") === "invisible") return 1;
   return Number.MAX_SAFE_INTEGER;
 }
 
@@ -12562,6 +12596,7 @@ const TIME_KEEPER_FROZEN_DEADLINE_FIELDS = Object.freeze([
   "slowedUntil",
   "gravityStormSlowUntil",
   "overhealSpeedUntil",
+  "floraInvisibleUntil",
   "airborneUntil",
   "objectLuckUntil",
   "gravityTimeEndsAt",
@@ -12737,8 +12772,10 @@ function activateHsgForUnsupportedMovement(room, player, targetX, targetY, times
     Number(player.hsgUntil) > timestamp ||
     Number(player.hsgReadyAt) > timestamp ||
     !hasFloorSupport(room, player.x, player.y, radius) ||
-    hasFloorSupport(room, targetX, targetY, radius)
+    hasFloorSupport(room, targetX, targetY, radius) ||
+    (!hasFighterInfiniteResources(player) && (Number(player.mana) || 0) < HSG_BASE_MANA_COST)
   ) return false;
+  spendHeldPowerMana(room, player, HSG_BASE_MANA_COST, "HSG自動起動");
   addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
   player.hsgReadyAt = timestamp + HSG_ACTIVATION_COOLDOWN_MS;
   awardAbilityContribution(player, 0.75);
@@ -12749,8 +12786,8 @@ function activateHsgForUnsupportedMovement(room, player, targetX, targetY, times
     durationMs: HSG_BASE_DURATION_MS,
     accelerationMultiplier: HSG_BASE_ACC_MULTIPLIER
   });
-  setImmediateFeedback(player, "HSG自動起動", `浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒`);
-  pushEvent(room, `${player.name} のHSGが足場のない場所への移動を検知して自動起動しました（浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
+  setImmediateFeedback(player, "HSG自動起動", `MP ${HSG_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒`);
+  pushEvent(room, `${player.name} のHSGが足場のない場所への移動を検知して自動起動しました（MP ${HSG_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
   return true;
 }
 
@@ -13199,8 +13236,9 @@ function alivePlayers(room, role) {
 function finish(room, winner, reason, cause = {}) {
   if (!botMatchHumanOwnsVictory(room, winner, cause)) return false;
   room.phase = "ended";
+  for (const player of room.players.values()) clearFloraInvisible(room, player, "試合終了で解除");
   room.winner = winner;
-  awardResultTopContributionBonus(room);
+  awardResultFirstPlacePoints(room);
   if (room.soloMission?.id === "cpu-gravity" && winner === "attackers") {
     room.soloMission.hintUnlocked = true;
   }
@@ -13235,8 +13273,9 @@ function finish(room, winner, reason, cause = {}) {
 function forceEnd(room, player) {
   if (room.hostId !== player.id) throw new ApiError(403, "ホストだけが強制終了できます。");
   room.phase = "ended";
+  for (const entry of room.players.values()) clearFloraInvisible(room, entry, "試合終了で解除");
   room.winner = "none";
-  awardResultTopContributionBonus(room);
+  awardResultFirstPlacePoints(room);
   room.finishReason = `${player.name} が試合を強制終了しました。`;
   room.meeting = null;
   room.sabotage = null;
@@ -13398,6 +13437,7 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "gravityPinnedUntil",
   "abilityDisabledUntil",
   "overhealSpeedUntil",
+  "floraInvisibleUntil",
   "airborneUntil",
   "meditatingUntil",
   "ascensionUntil",
@@ -13540,6 +13580,7 @@ function startMeeting(room, reason, reporterId, options = {}) {
     battlePauseUpdatedAt: timestamp
   };
   for (const player of room.players.values()) {
+    clearFloraInvisible(room, player, "会議開始で解除");
     player.inVent = false;
     player.ventId = "";
     player.drone.active = false;
@@ -13657,6 +13698,7 @@ function tickRoom(room) {
   advanceThrownItems(room, timestamp, elapsedMs);
   if (!roomTimeStopped) advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
+    if (!floraInvisibleActive(player, timestamp)) clearFloraInvisible(room, player, "透明化終了");
     syncFighterInfiniteResources(player);
     syncMentalState(room, player, "資源更新", timestamp);
     syncHackerRootState(room, player);
@@ -14775,6 +14817,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
     return false;
   }
   recordBotMatchElimination(room, target, source);
+  clearFloraInvisible(room, target, "EMP確殺で解除");
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
@@ -14842,7 +14885,22 @@ function recordCanonicalKill(room, source, target) {
   if (room.canonicalKillVictimIds.has(victim.id)) return false;
   room.canonicalKillVictimIds.add(victim.id);
   killer.totalKills = Math.max(0, Number(killer.totalKills) || 0) + 1;
+  killer.killChainCount = Math.max(0, Math.floor(Number(killer.killChainCount) || 0)) + 1;
+  pushGainAte(room, killer, "cooldownReduction", {
+    variant: "kill-chain",
+    durationMs: 1_500
+  });
   return true;
+}
+
+function killChainCooldownMultiplier(player) {
+  const count = Math.max(0, Math.floor(Number(player?.killChainCount) || 0));
+  return Math.max(KILL_CHAIN_MIN_MULTIPLIER, 1 - count * KILL_CHAIN_REDUCTION_PER_KILL);
+}
+
+function killCooldownDurationMs(room, player) {
+  const baseSeconds = Math.max(MIN_KILL_COOLDOWN, Number(room?.settings?.killCooldown) || MIN_KILL_COOLDOWN);
+  return Math.round(baseSeconds * 1000 * killChainCooldownMultiplier(player));
 }
 
 function transferKillInventory(room, killer, target) {
@@ -15150,6 +15208,7 @@ function botCanAttackTarget(room, bot, target, timestamp = now()) {
     target?.alive &&
     !target.ejected &&
     !target.inVent &&
+    !floraInvisibleActive(target, timestamp) &&
     target.id !== bot.id &&
     target.role !== bot.role &&
     !botTargetHasActiveBarrier(room, target, timestamp)
@@ -15259,6 +15318,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   applyEmpDisruption(room, target, timestamp);
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
+  clearFloraInvisible(room, target, "EMP確殺で解除");
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
@@ -16337,6 +16397,9 @@ function useHsgDirect(room, player, rawHoldMs = 0, chargeId = "") {
     chargeId,
     gboEligible: true
   });
+  if (power.mode === "normal") {
+    spendHeldPowerMana(room, player, HSG_BASE_MANA_COST, "HSG・通常");
+  }
   const durationMs = power.mode === "gbo"
     ? HSG_BASE_DURATION_MS * GBO_PERFORMANCE_MULTIPLIER
     : HSG_BASE_DURATION_MS + power.enhanceLevel * HSG_ENHANCE_DURATION_MS_PER_LEVEL;
@@ -16357,8 +16420,9 @@ function useHsgDirect(room, player, rawHoldMs = 0, chargeId = "") {
     durationMs,
     accelerationMultiplier
   });
-  setImmediateFeedback(player, `HSG・${modeLabel}`, `直接起動 / 浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}`);
-  pushEvent(room, `${player.name} がHSGを${modeLabel}で直接起動しました（浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}）。`);
+  const manaCost = power.mode === "gbo" ? GBO_FIXED_MANA_COST : power.mode === "enhance" ? ENHANCE_FIXED_MANA_COST : HSG_BASE_MANA_COST;
+  setImmediateFeedback(player, `HSG・${modeLabel}`, `MP ${manaCost} / 直接起動 / 浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}`);
+  pushEvent(room, `${player.name} がHSGを${modeLabel}で直接起動しました（MP ${manaCost} / 浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}）。`);
   touch(room);
   return power;
 }
@@ -17502,13 +17566,14 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
     throw new ApiError(403, "現在はサンビームを使用できません。");
   }
   ensureAbilityAvailable(player);
-  spendOperatorMana(room, player, "サンビーム");
+  spendOperatorMana(room, player, "サンビーム", FLORA_SUNBEAM_MANA_COST);
   recordBotVisibleHumanAttackStart(room, player, "flora-sunbeam");
   const trackedCandidate = room.players.get(String(targetId || ""));
   const tracked = trackedCandidate &&
     trackedCandidate.id !== player.id &&
     trackedCandidate.alive &&
-    !trackedCandidate.ejected
+    !trackedCandidate.ejected &&
+    !floraInvisibleActive(trackedCandidate)
       ? trackedCandidate
       : null;
   let dx = Number(direction.dx);
@@ -17572,16 +17637,82 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
   touch(room);
 }
 
+function floraInvisibleActive(player, timestamp = now()) {
+  return Boolean(
+    player?.alive &&
+    !player.ejected &&
+    Number(player.floraInvisibleUntil) > timestamp
+  );
+}
+
+function clearFloraInvisible(room, player, reason = "") {
+  if (!player || !Number(player.floraInvisibleUntil)) return false;
+  player.floraInvisibleUntil = 0;
+  if (reason) setImmediateFeedback(player, "インビジブル", reason);
+  return true;
+}
+
+// Concealment must remove existing AI contacts as well as reject future target
+// acquisition.  Otherwise a bot could retain a remembered coordinate and
+// continue an ordinary-sight kill route after the body has disappeared.
+function clearBotsTrackingFloraInvisible(room, player) {
+  for (const bot of room.players.values()) {
+    if (!bot.isBot || bot.id === player.id) continue;
+    if (bot.botTarget?.id === player.id) {
+      bot.botTarget = null;
+      bot.botTargetUntil = 0;
+    }
+    if (String(bot.botCombatPlanTargetId || "") === player.id) {
+      bot.botCombatPlan = "";
+      bot.botCombatPlanTargetId = "";
+      bot.botCombatPlanUpdatedAt = 0;
+    }
+    if (String(bot.botRetaliationTargetId || "") === player.id) {
+      bot.botRetaliationTargetId = "";
+      bot.botRetaliationUntil = 0;
+    }
+    if (String(bot.botWitnessTargetId || "") === player.id) {
+      bot.botWitnessTargetId = "";
+      bot.botWitnessUntil = 0;
+      bot.botWitnessEvidenceKind = "";
+    }
+    if (String(bot.botClairvoyanceTargetId || "") === player.id) clearBotClairvoyanceContact(bot);
+    bot.navPath = [];
+  }
+}
+
+function useFloraInvisible(room, player) {
+  if (room.phase !== "playing" || !hasOperatorAccess(player, "flora") || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在はインビジブルを使用できません。");
+  }
+  ensureAbilityAvailable(player);
+  const timestamp = now();
+  if (floraInvisibleActive(player, timestamp)) throw new ApiError(400, "インビジブルは既に発動中です。");
+  spendOperatorMana(room, player, "インビジブル", FLORA_INVISIBLE_MANA_COST);
+  player.floraInvisibleUntil = timestamp + FLORA_INVISIBLE_DURATION_MS;
+  player.floraMode = "invisible";
+  clearBotsTrackingFloraInvisible(room, player);
+  setImmediateFeedback(player, "インビジブル", "10秒間透明化 / 敵Botの直接視認対象外");
+  pushMagicEffect(room, "flora-invisible", player, {
+    radius: 120,
+    playerId: player.id,
+    durationMs: 1_600
+  });
+  pushEvent(room, `${player.name} がインビジブルを発動しました。`);
+  touch(room);
+}
+
 function useFloraAbility(room, player, mode, options = {}) {
-  const selected = mode === "sunbeam" ? "sunbeam" : "heal";
+  const selected = ["sunbeam", "invisible"].includes(mode) ? mode : "heal";
   player.floraMode = selected;
   if (selected === "sunbeam") {
     floraSunbeam(room, player, String(options.targetId || ""), {
       dx: options.dx,
       dy: options.dy
     });
-  }
-  else healFlora(room, player);
+  } else if (selected === "invisible") {
+    useFloraInvisible(room, player);
+  } else healFlora(room, player);
 }
 
 const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
@@ -17913,6 +18044,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   }
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
+  clearFloraInvisible(room, target, "戦闘不能で解除");
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
@@ -18188,7 +18320,7 @@ function aimedTargetMoved(player, target) {
 function failAimForMovement(room, player, timestamp = now()) {
   clearAimState(player);
   if (room.phase === "playing" && player.alive && !player.ejected) {
-    player.killReadyAt = Math.max(player.killReadyAt, timestamp + room.settings.killCooldown * 1000);
+    player.killReadyAt = Math.max(player.killReadyAt, timestamp + killCooldownDurationMs(room, player));
   }
   setAttackResult(player, "moved", timestamp);
   touch(room);
@@ -18229,7 +18361,7 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
     return "blocked";
   }
   player.killsThisRound += 1;
-  player.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+  player.killReadyAt = timestamp + killCooldownDurationMs(room, player);
   recordBotKillWitnesses(room, player, target, timestamp);
   evaluateSoloMission(room, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} 付近で${profile.attackLabel}による反応消失`);
@@ -18272,7 +18404,7 @@ function resolveReadyAim(room, player, timestamp = now()) {
   } catch {
     clearAimState(player);
     if (room.phase === "playing" && player.alive && !player.ejected) {
-      player.killReadyAt = Math.max(player.killReadyAt, timestamp + room.settings.killCooldown * 1000);
+      player.killReadyAt = Math.max(player.killReadyAt, timestamp + killCooldownDurationMs(room, player));
     }
     setAttackResult(player, "miss", timestamp);
   }
@@ -18311,7 +18443,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   if (!ranged && !lockedAim && !ignoreRange && distance(killer, target) > room.settings.killRange) throw new ApiError(400, "対象が遠すぎます。");
   if (!ignoreFriendlyFire && killer.role === target.role && ["defender", "attacker"].includes(killer.role)) {
     if (!ranged && !ignoreCooldown && !preserveCooldown) {
-      killer.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+      killer.killReadyAt = timestamp + killCooldownDurationMs(room, killer);
     }
     applyDefenderFriendlyFirePenalty(room, killer, target, timestamp);
     checkWin(room);
@@ -18350,7 +18482,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   )) {
     if (!ranged && !ignoreCooldown && !preserveCooldown) {
       killer.killsThisRound += 1;
-      killer.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+      killer.killReadyAt = timestamp + killCooldownDurationMs(room, killer);
     }
     checkWin(room);
     touch(room);
@@ -18366,7 +18498,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   }
 
   if (!options.destroy && triggerSubstitution(room, target, options.magic ? "magic" : ranged ? "ranged" : "attack", timestamp)) {
-    if (!ranged && !ignoreCooldown && !preserveCooldown) killer.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+    if (!ranged && !ignoreCooldown && !preserveCooldown) killer.killReadyAt = timestamp + killCooldownDurationMs(room, killer);
     return "substitution";
   }
 
@@ -18421,7 +18553,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       recordCanonicalKill(room, target, killer);
       target.killsThisRound += 1;
       awardAbilityContribution(target, 1);
-      target.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+      target.killReadyAt = timestamp + killCooldownDurationMs(room, target);
       pushHitEffect(room, killer, "body", true);
       room.bodies.push({
         id: uid("body_"),
@@ -18450,7 +18582,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       return "fighterCountered";
     }
     if (!ranged && !ignoreCooldown && !preserveCooldown) {
-      killer.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
+      killer.killReadyAt = timestamp + killCooldownDurationMs(room, killer);
     }
     pushEvent(room, `${target.name} が ${killer.name} の攻撃を回避しました。`);
     touch(room);
@@ -18513,6 +18645,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   const killActionLabel = requireExactKillCameraActionLabel(options.attackLabel, killActionKind);
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, killer);
+  clearFloraInvisible(room, target, "戦闘不能で解除");
   target.alive = false;
   recordKillCamera(room, target, killer, {
     timestamp,
@@ -18557,8 +18690,7 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   if (!ranged && !ignoreCooldown && !preserveCooldown) {
     killer.killsThisRound += 1;
-    const nextCooldown = Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown);
-    killer.killReadyAt = timestamp + nextCooldown * 1000;
+    killer.killReadyAt = timestamp + killCooldownDurationMs(room, killer);
   }
   pushDoorLog(room, `${whichRoom(map, attackOrigin)} 付近で反応消失`);
   pushEvent(room, options.noBody
@@ -20087,15 +20219,14 @@ function victoryCreditFor(room, player, ideaWinnerIds = new Set(ideaWinnerIdsFor
   return room.winner === "idea" && ideaWinnerIds.has(player.id) ? 1 : 0;
 }
 
-// The final Result leader is selected once from the pre-bonus, deterministic
-// ranking.  Persisting only the recipient id keeps every later serialization
-// and ranking recomputation stable without re-awarding or making the bonus
-// depend on which viewer requests the result.
-function awardResultTopContributionBonus(room) {
-  if (room.resultTopContributionBonusAwarded) return false;
+// The final Result leader is selected once from the pre-reward, deterministic
+// contribution ranking.  It is an account-points reward only: contribution
+// values, Result ranks, and their displayed breakdown remain untouched.
+function awardResultFirstPlacePoints(room) {
+  if (room.resultFirstPlacePointsAwarded) return false;
   const leader = contributionRankingEntries(room)[0];
-  room.resultTopContributionBonusAwarded = true;
-  room.resultTopContributionBonusPlayerId = leader?.id || "";
+  room.resultFirstPlacePointsAwarded = true;
+  room.resultFirstPlacePointsPlayerId = leader?.id || "";
   return Boolean(leader);
 }
 
@@ -20120,9 +20251,6 @@ function contributionRankingEntries(room) {
         : kills;
       const victoryContribution = victoryCreditFor(room, player, ideaWinnerIds);
       const ideaContribution = ideaWinnerIds.has(player.id) ? 1 : 0;
-      const resultTopContributionBonus = room.resultTopContributionBonusPlayerId === player.id
-        ? 2
-        : 0;
       return {
       id: player.id,
       name: player.name,
@@ -20143,8 +20271,7 @@ function contributionRankingEntries(room) {
       defenderKillContribution: killContribution,
       victoryCredit: victoryContribution,
       ideaContribution,
-      resultTopContributionBonus,
-      contributionScore: killContribution + victoryContribution + ideaContribution + resultTopContributionBonus,
+      contributionScore: killContribution + victoryContribution + ideaContribution,
       luminousSuccess: Boolean(player.luminousActive),
       ideaWinner: ideaWinnerIds.has(player.id)
       };
@@ -20182,7 +20309,8 @@ function resultRanking(room) {
       ...entry,
       rankTier: profile?.rank || "bronze",
       profileRank: profile?.rank || "bronze",
-      profilePoints: Math.max(0, Number(profile?.points) || 0)
+      profilePoints: Math.max(0, Number(profile?.points) || 0),
+      firstPlacePointsBonus: room.resultFirstPlacePointsPlayerId === entry.id ? 2 : 0
     };
   });
 }
@@ -20203,7 +20331,8 @@ function serialize(room, viewer, options = {}) {
     const attackerAlly = viewer.role === "attacker" && player.role === "attacker" && player.id !== viewer.id;
     const roleVisible = player.id === viewer.id || attackerAlly || revealRoles || room.phase === "lobby" || room.phase === "selecting";
     const aromaSource = floraAromaSource(room, player);
-    return {
+    const concealedFromViewer = room.phase === "playing" && player.id !== viewer.id && floraInvisibleActive(player, timestamp);
+    const serializedPlayer = {
       id: player.id,
       name: player.name,
       kd: profileFor(player) ? `${Number(profileFor(player).kills) || 0}/${Number(profileFor(player).deaths) || 0}` : "0/0",
@@ -20280,6 +20409,28 @@ function serialize(room, viewer, options = {}) {
       inVent: player.id === viewer.id ? player.inVent : player.inVent && viewer.role === "attacker",
       ventId: player.id === viewer.id || viewer.role === "attacker" ? player.ventId : ""
     };
+    if (concealedFromViewer) {
+      // Do not serialize a current body coordinate or a motion-derived proxy
+      // to a non-owner.  The marker only tells the client to discard any stale
+      // render cache; it cannot be used to reconstruct the field position.
+      serializedPlayer.invisible = true;
+      delete serializedPlayer.x;
+      delete serializedPlayer.y;
+      delete serializedPlayer.moveX;
+      delete serializedPlayer.moveY;
+      delete serializedPlayer.moving;
+      delete serializedPlayer.movementMode;
+      delete serializedPlayer.relocationRevision;
+      delete serializedPlayer.aimX;
+      delete serializedPlayer.aimY;
+      delete serializedPlayer.jumpPreparingAt;
+      delete serializedPlayer.jumpPrepareDx;
+      delete serializedPlayer.jumpPrepareDy;
+      delete serializedPlayer.jumpMotion;
+    } else {
+      serializedPlayer.invisible = false;
+    }
+    return serializedPlayer;
   });
 
   return {
@@ -20351,6 +20502,9 @@ function serialize(room, viewer, options = {}) {
       taskPresenceSince: Number(viewer.taskPresenceSince) || 0,
       taskPresenceDurationMs: AUTO_TASK_PRESENCE_MS / effectiveAccelerationMultiplier(room, viewer, timestamp),
       killReadyAt: viewer.killReadyAt,
+      killChainCount: Math.max(0, Math.floor(Number(viewer.killChainCount) || 0)),
+      killChainCooldownMultiplier: killChainCooldownMultiplier(viewer),
+      killChainCooldownMs: killCooldownDurationMs(room, viewer),
       attackTargetId: viewer.attackTargetId,
       attackResolveAt: viewer.attackResolveAt,
       aimTargetId: viewer.aimTargetId,
@@ -20398,6 +20552,7 @@ function serialize(room, viewer, options = {}) {
       hsgReadyAt: Number(viewer.hsgReadyAt) || 0,
       hsgDurationMs: HSG_BASE_DURATION_MS,
       hsgCooldownMs: HSG_ACTIVATION_COOLDOWN_MS,
+      hsgManaCost: HSG_BASE_MANA_COST,
       accelerationPhasing: Number(viewer.hsgUntil) > timestamp,
       gunnerSnipingActive: Boolean(viewer.gunnerSnipingActive),
       gunnerAimTargetId: String(viewer.gunnerAimTargetId || ""),
@@ -20428,6 +20583,9 @@ function serialize(room, viewer, options = {}) {
       slashPerfectRearmMs: FIGHTER_SLASH_PERFECT_REARM_MS,
       teleportReadyAt: viewer.teleportReadyAt,
       floraReadyAt: viewer.floraReadyAt,
+      floraInvisibleActive: floraInvisibleActive(viewer, timestamp),
+      floraInvisibleUntil: Number(viewer.floraInvisibleUntil) || 0,
+      floraInvisibleDurationMs: FLORA_INVISIBLE_DURATION_MS,
       limitBreakActive: viewer.limitBreakActive,
       limitBreakEndsAt: Number(viewer.limitBreakEndsAt) || 0,
       limitBreakDurationMs: 0,
@@ -20513,6 +20671,8 @@ function serialize(room, viewer, options = {}) {
         emp: EMP_MANA_COST,
         shoot: GUNNER_MANA_COST,
         flora: FLORA_MANA_COST,
+        floraSunbeam: FLORA_SUNBEAM_MANA_COST,
+        floraInvisible: FLORA_INVISIBLE_MANA_COST,
         alchemy: ALCHEMY_MANA_COST,
         fighterCharge: FIGHTER_ENERGY_CHARGE_MANA_COST,
         quantumNuclear: QUANTUM_NUCLEAR_MANA_COST,
@@ -21566,6 +21726,7 @@ async function handleApi(req, res) {
         entry.lastLuminousResult = "";
         entry.lastLuminousResultAt = 0;
         entry.killReadyAt = 0;
+        entry.killChainCount = 0;
         clearAttackState(entry);
         entry.lastAttackResult = "";
         entry.lastAttackResultAt = 0;
@@ -21612,6 +21773,7 @@ async function handleApi(req, res) {
         entry.unconsciousUntil = 0;
         entry.abilityDisabledUntil = 0;
         entry.overhealSpeedUntil = 0;
+        entry.floraInvisibleUntil = 0;
         entry.hsgUntil = 0;
         entry.hsgReadyAt = 0;
         entry.killCamera = null;
@@ -22362,7 +22524,7 @@ function botCanDirectlyObservePosition(room, bot, target, maximumRange = BOT_BOD
 }
 
 function botCanDirectlyObservePlayer(room, bot, target) {
-  if (!target?.alive || target.ejected || target.inVent || target.id === bot?.id) return false;
+  if (!target?.alive || target.ejected || target.inVent || floraInvisibleActive(target) || target.id === bot?.id) return false;
   return botCanDirectlyObservePosition(room, bot, target);
 }
 
@@ -23110,8 +23272,11 @@ function botCombatCandidates(room, bot, target, timestamp) {
     if ((Number(bot.bodyHits) > 0 || Number(bot.overheal) < 1) && Number(bot.floraReadyAt) <= timestamp && Number(bot.mana) >= FLORA_MANA_COST) {
       add("flora-self-heal", 720, () => healFlora(room, bot));
     }
-    if (target.role !== bot.role && Number(bot.floraReadyAt) <= timestamp && Number(bot.mana) >= FLORA_MANA_COST && targetDistance <= SUNBEAM_RANGE) {
+    if (target.role !== bot.role && Number(bot.floraReadyAt) <= timestamp && Number(bot.mana) >= FLORA_SUNBEAM_MANA_COST && targetDistance <= SUNBEAM_RANGE) {
       add("flora-sunbeam", 740, () => floraSunbeam(room, bot, target.id));
+    }
+    if (target.role !== bot.role && !floraInvisibleActive(bot, timestamp) && Number(bot.mana) >= FLORA_INVISIBLE_MANA_COST && targetDistance <= BOT_BODY_NOTICE_RANGE) {
+      add("flora-invisible", 700, () => useFloraInvisible(room, bot));
     }
   }
   if (hasOperatorAccess(bot, "quantum") && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && itemCount(bot, "mineral-water") > 0) {
@@ -23131,7 +23296,12 @@ function botCombatCandidates(room, bot, target, timestamp) {
   if (hackerRootEligible(bot) && target.role !== bot.role && canSpendOperatorMana(bot, timestamp)) {
     add("root-borrowed-gravity-decelerate", 705, () => useBorrowedAbility(room, bot, "gravity", { mode: "decelerate", targetId: target.id }));
   }
-  if (itemCount(bot, "hsg") > 0 && Number(bot.hsgUntil) <= timestamp && Number(bot.hsgReadyAt) <= timestamp) {
+  if (
+    itemCount(bot, "hsg") > 0 &&
+    Number(bot.hsgUntil) <= timestamp &&
+    Number(bot.hsgReadyAt) <= timestamp &&
+    (hasFighterInfiniteResources(bot) || (Number(bot.mana) || 0) >= HSG_BASE_MANA_COST)
+  ) {
     add("owned-hsg-use", 350, () => {
       const chargeId = setEnhanceChargeState(room, bot, true, "use", "hsg");
       return useHsgDirect(room, bot, 0, chargeId);

@@ -4674,6 +4674,19 @@ body .offline-team-choice button[data-offline-team] {
   padding: 12px 2px 2px;
 }
 
+/* Operator descriptions belong to the selection field, below the canvas. */
+.field-lower-row > .operator-detail-field {
+  grid-column: 1 / -1;
+  width: min(100%, 980px);
+  max-height: min(180px, 24dvh);
+  min-height: 0;
+  margin-top: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
 .operator-detail-head {
   display: flex;
   align-items: center;
@@ -5250,7 +5263,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=aroma-canvas-root-default-result-bonus-v526"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=kill-chain-invisible-global-scroll-hsg-points-v527"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,

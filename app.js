@@ -350,7 +350,7 @@ const storage = {
   abilityAutoActivate: "dva_ability_auto_activate_v1"
 };
 storage.cpuGravityHint = "dva_cpu_gravity_hint";
-storage.offlineSession = "dva_offline_session_v526";
+storage.offlineSession = "dva_offline_session_v527";
 
 const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sniper", "taser"]);
 // Texture construction runs while the main state object is initialized, so this
@@ -387,7 +387,7 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   fighter: Object.freeze([["limit-break", "リミットブレイク"]]),
   teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
-  flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム"]]),
+  flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム"], ["invisible", "インビジブル"]]),
   quantum: QUANTUM_ABILITY_MODE_OPTIONS
 });
 
@@ -713,7 +713,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "物理武器。直接斬撃は確殺（死体あり）。斬る: 75SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
-  hsg: "Storageへ入る物理HSG。支持床上で使用すると即8秒・ACC 1.8、600〜2999ms長押しは固定1MPのEnhance、3000ms以上は固定2MPのGBOとして即80秒・ACC 18で起動しHSG 1個を破壊。床外へ進む直前の通常自動起動は全所持者が使え、理知を要しない。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。最後の浮揚が床のない場所で終了すると落下死。起動中・20秒CT中は使用不可",
+  hsg: "Storageへ入る物理HSG。通常使用と床外へ進む直前の自動起動は1MPで即8秒・ACC 1.8。600〜2999ms長押しは総コスト固定1MPのEnhance、3000ms以上は総コスト固定2MPのGBOとして即80秒・ACC 18で起動しHSG 1個を破壊。全所持者が使え、理知を要しない。MP不足時は発動せず、通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。最後の浮揚が床のない場所で終了すると落下死。起動中・20秒CT中は使用不可",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -779,7 +779,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "aroma-canvas-root-default-result-bonus-v526";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kill-chain-invisible-global-scroll-hsg-points-v527";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1045,7 +1045,8 @@ function hackerTargets(data = state.data) {
   if (!data?.self) return [];
   return data.players.filter((player) =>
     player.alive &&
-    !player.ejected
+    !player.ejected &&
+    !player.invisible
   );
 }
 
@@ -1933,7 +1934,60 @@ function scheduleViewportScaleRestore(force = false) {
   }, force ? 0 : 80);
 }
 
-const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-region], #sidePanel, .tablet-branch-list, .operator-branch-list, .hacker-ability-grid, .active-effects-panel, .active-effects-list, .item-inventory-grid, .vending-panel, .operator-list, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .solo-mission-grid, .keybind-list, .result-ranking";
+const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-region], #sidePanel, .tablet-branch-list, .operator-branch-list, .hacker-ability-grid, .active-effects-panel, .active-effects-list, .item-inventory-grid, .vending-panel, .operator-list, .operator-detail, .field-feed-list, .alchemy-choice-grid, .tactics-content, .tactics-chapters, .solo-training, .solo-mission-grid, .keybind-list, .result-ranking";
+const scrollSurfaceRevisions = new WeakMap();
+const scrollRestoreExpected = new WeakMap();
+
+document.addEventListener("scroll", (event) => {
+  const surface = event.target;
+  if (!(surface instanceof Element) || !surface.matches(FULLSCREEN_SCROLL_SELECTOR)) return;
+  const expected = scrollRestoreExpected.get(surface);
+  if (expected && Math.abs(surface.scrollTop - expected.top) <= 1 && Math.abs(surface.scrollLeft - expected.left) <= 1) {
+    scrollRestoreExpected.delete(surface);
+    return;
+  }
+  scrollRestoreExpected.delete(surface);
+  scrollSurfaceRevisions.set(surface, (scrollSurfaceRevisions.get(surface) || 0) + 1);
+}, true);
+
+function capturePollScrollPositions() {
+  return [...document.querySelectorAll(FULLSCREEN_SCROLL_SELECTOR)]
+    .filter((surface) => surface instanceof Element && !surface.hidden && surface.getClientRects().length > 0)
+    .map((surface) => {
+      const maxTop = Math.max(0, surface.scrollHeight - surface.clientHeight);
+      const maxLeft = Math.max(0, surface.scrollWidth - surface.clientWidth);
+      return {
+        surface,
+        top: Math.max(0, Number(surface.scrollTop) || 0),
+        left: Math.max(0, Number(surface.scrollLeft) || 0),
+        wasScrollableY: maxTop > 1,
+        wasScrollableX: maxLeft > 1,
+        atEndY: maxTop > 1 && surface.scrollTop >= maxTop - 1,
+        atEndX: maxLeft > 1 && surface.scrollLeft >= maxLeft - 1,
+        revision: scrollSurfaceRevisions.get(surface) || 0
+      };
+    });
+}
+
+function restorePollScrollPositions(snapshot, { defer = true } = {}) {
+  const restore = () => {
+    for (const entry of snapshot || []) {
+      const { surface } = entry;
+      if (!(surface instanceof Element) || !surface.isConnected) continue;
+      if ((scrollSurfaceRevisions.get(surface) || 0) !== entry.revision) continue;
+      const maxTop = Math.max(0, surface.scrollHeight - surface.clientHeight);
+      const maxLeft = Math.max(0, surface.scrollWidth - surface.clientWidth);
+      const top = Math.min(entry.atEndY && entry.wasScrollableY ? maxTop : entry.top, maxTop);
+      const left = Math.min(entry.atEndX && entry.wasScrollableX ? maxLeft : entry.left, maxLeft);
+      scrollRestoreExpected.set(surface, { top, left });
+      if (Math.abs(surface.scrollTop - top) > 0.5) surface.scrollTop = top;
+      if (Math.abs(surface.scrollLeft - left) > 0.5) surface.scrollLeft = left;
+    }
+  };
+  restore();
+  if (!defer) return;
+  requestAnimationFrame(() => requestAnimationFrame(restore));
+}
 
 function isFullscreenScrollableSurface(surface) {
   if (!(surface instanceof Element) || surface.scrollHeight <= surface.clientHeight + 1) return false;
@@ -2874,6 +2928,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "substitution": "evade",
   "flora": "heal",
   "flora-sunbeam": "cast",
+  "flora-invisible": "cast",
   "limit-break": "power",
   "emp": "cast",
   "emp-charge": "cast",
@@ -3509,8 +3564,8 @@ function operatorAbilityAction() {
   if (self.special === "flora") {
     const mode = els.teleportModeSelect.value;
     return { path: "/api/flora-heal", action: {
-      mode: mode.startsWith("sunbeam") ? "sunbeam" : "heal",
-      targetId: mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "",
+      mode: ["sunbeam", "invisible"].includes(mode) ? mode : "heal",
+      targetId: mode === "sunbeam" ? (els.teleportTargetSelect.value || "") : "",
       dx: Number(self.aimX) || 0,
       dy: Number(self.aimY) || 1
     } };
@@ -5757,51 +5812,95 @@ function bindEvents() {
   bindCategoryStep(els.vendingCategoryPreviousButton, () => selectVendingCategory("", -1));
   bindCategoryStep(els.vendingCategoryNextButton, () => selectVendingCategory("", 1));
   const bindCategoryStripFlick = (strip, changeCategory, {
+    // The label/control remains the semantic category owner, while `surface`
+    // deliberately makes the same horizontal flick available from anywhere in
+    // that category UI.  This avoids a tiny, hard-to-hit-only gesture target.
+    surface = strip,
     threshold = 10,
-    axisRatio = 1.2
+    axisRatio = 1.2,
+    onTravel = null
   } = {}) => {
-    if (!strip) return;
+    const gestureSurface = surface || strip;
+    if (!strip || !gestureSurface) return;
     const clickGate = createInventoryClickGate();
     let pointerId = null;
     let startX = 0;
     let startY = 0;
-    const reset = () => { pointerId = null; };
+    let travelled = false;
+    let changedCategory = false;
+    const reset = () => {
+      pointerId = null;
+      travelled = false;
+      changedCategory = false;
+    };
     const cancel = (event) => {
       if (event && pointerId !== event.pointerId) return;
       reset();
       clickGate.reset();
     };
-    strip.addEventListener("pointerdown", (event) => {
+    const classify = (event) => {
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      const distance = Math.hypot(dx, dy);
+      return {
+        dx,
+        dy,
+        distance,
+        horizontal: distance > threshold && Math.abs(dx) > Math.abs(dy) * axisRatio,
+        vertical: distance > threshold && Math.abs(dy) > Math.abs(dx) * axisRatio
+      };
+    };
+    const noteTravel = (event) => {
+      if (pointerId !== event.pointerId || travelled) return null;
+      const gesture = classify(event);
+      if (gesture.distance <= threshold) return gesture;
+      // A drag/flick must never fall through to the tapped card/button below.
+      // Native vertical scrolling keeps ownership of vertical gestures.
+      travelled = true;
+      clickGate.arm();
+      onTravel?.(event, gesture);
+      return gesture;
+    };
+    const finish = (event) => {
+      if (pointerId !== event.pointerId) return;
+      const gesture = noteTravel(event) || classify(event);
+      if (gesture.distance > threshold) {
+        const horizontal = gesture.horizontal && !changedCategory;
+        const dx = gesture.dx;
+        if (horizontal) {
+          if (event.cancelable) event.preventDefault();
+          changedCategory = true;
+          // Retain the gate immediately before the step: synthesized click is
+          // suppressed even on platforms that emit it after a prevented up.
+          clickGate.arm();
+          if (horizontal) changeCategory(dx < 0 ? 1 : -1);
+        }
+        // Do not stop propagation here: card-specific hold handlers must see
+        // the release and clear their timer/capture after a panel-wide flick.
+      }
+      reset();
+    };
+    gestureSurface.addEventListener("pointerdown", (event) => {
       if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
       pointerId = event.pointerId;
       startX = event.clientX;
       startY = event.clientY;
+      travelled = false;
+      changedCategory = false;
       clickGate.reset();
-    });
-    strip.addEventListener("pointerup", (event) => {
-      if (pointerId !== event.pointerId) return;
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      const distance = Math.hypot(dx, dy);
-      const horizontal = distance > threshold && Math.abs(dx) > Math.abs(dy) * axisRatio;
-      const vertical = distance > threshold && Math.abs(dy) > Math.abs(dx) * axisRatio;
-      if (distance > threshold) {
-        // Any travel is never a tap. Vertical travel remains native-scroll owned;
-        // ambiguous diagonals intentionally perform no action.
-        if (event.cancelable && !vertical) event.preventDefault();
-        event.stopPropagation();
-        clickGate.arm();
-        if (horizontal) changeCategory(dx < 0 ? 1 : -1);
-      }
-      reset();
-    });
-    strip.addEventListener("pointercancel", cancel);
-    strip.addEventListener("lostpointercapture", cancel);
+    }, true);
+    gestureSurface.addEventListener("pointermove", noteTravel, true);
+    // Capture on window lets a flick finish correctly even if it leaves the
+    // panel before release.  It deliberately does not block the target's own
+    // pointerup cleanup (Vending repeat/detail and Hacker card long hold).
+    window.addEventListener("pointerup", finish, true);
+    window.addEventListener("pointercancel", cancel, true);
+    gestureSurface.addEventListener("lostpointercapture", cancel, true);
     window.addEventListener("blur", () => cancel());
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) cancel();
     });
-    strip.addEventListener("click", (event) => {
+    gestureSurface.addEventListener("click", (event) => {
       if (!clickGate.consume()) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -5809,11 +5908,20 @@ function bindEvents() {
   };
   bindCategoryStripFlick(
     els.hackerCategoryLabel.parentElement,
-    (direction) => selectHackerCategory("", direction, { wrap: false })
+    (direction) => selectHackerCategory("", direction, { wrap: false }),
+    { surface: els.hackerAbilityDock }
   );
   bindCategoryStripFlick(
     els.vendingCategoryLabel.parentElement,
-    (direction) => selectVendingCategory("", direction, { wrap: false })
+    (direction) => selectVendingCategory("", direction, { wrap: false }),
+    {
+      surface: els.vendingPanel,
+      // The card receives pointerdown before it can start its 520ms detail or
+      // repeat-purchase hold.  Any panel drag cancels that pending action.
+      onTravel: (event) => {
+        if (vendingHold.pointerId === event.pointerId) stopVendingHold({ suppressClick: true });
+      }
+    }
   );
   els.hackerAbilityGrid.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-hacker-recipe]");
@@ -7280,7 +7388,8 @@ function renderTabletBranch(data, force = false) {
       } else {
         addModeAction("回復・オーバーヒール", "heal");
         addModeAction("サンビーム", "sunbeam");
-        if (els.teleportModeSelect.value.startsWith("sunbeam")) addSubmenu("サンビーム対象を選択", "flora-target");
+        addModeAction("インビジブル", "invisible");
+        if (els.teleportModeSelect.value === "sunbeam") addSubmenu("サンビーム対象を選択", "flora-target");
       }
     } else if (self.special === "quantum") {
       if (tabletQuantumKineticTerminalActive(self)) {
@@ -7360,7 +7469,8 @@ function conciseTabletAbilityName(data) {
     },
     flora: {
       heal: "回復",
-      sunbeam: "サンビーム"
+      sunbeam: "サンビーム",
+      invisible: "インビジブル"
     },
     quantum: {
       "quantum-kinetic": "運動エネルギー制御",
@@ -7834,9 +7944,9 @@ function borrowedAbilityPayload(recipe, requestedMode = "") {
   const combatTarget = recipe.inventoryId === "fighter" ? nearestTarget()?.id || "" : "";
   return {
     ability: recipe.inventoryId,
-    mode: recipe.inventoryId === "flora" ? (mode.startsWith("sunbeam") ? "sunbeam" : "heal") : mode,
+    mode: recipe.inventoryId === "flora" ? (["sunbeam", "invisible"].includes(mode) ? mode : "heal") : mode,
     targetId: combatTarget || (recipe.inventoryId === "flora"
-      ? (mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "")
+      ? (mode === "sunbeam" ? (els.teleportTargetSelect.value || "") : "")
       : (els.teleportTargetSelect.value || state.data?.self?.id || "")),
     dx: Number(state.data?.self?.aimX) || 0,
     dy: Number(state.data?.self?.aimY) || 1
@@ -7970,10 +8080,11 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     });
   } else if (activeType === "flora") {
     const floraDescriptions = {
-      heal: "周囲のHP・SP・状態異常を回復し、加速を付与する",
-      sunbeam: "選択対象へ光線を放ち、交差した全対象を貫通して確殺する"
+      heal: "1MP。自分のHP・SP・状態異常を回復し、加速を付与する",
+      sunbeam: "10MP。選択対象方向へ光線を放ち、交差した全対象を貫通して確殺する",
+      invisible: "10MP。10秒間透明になり、敵Botの直接視認・追跡対象から外れる"
     };
-    const floraModes = new Set(["heal", "sunbeam"]);
+    const floraModes = new Set(["heal", "sunbeam", "invisible"]);
     [...els.teleportModeSelect.options].filter((option) => floraModes.has(option.value)).forEach((option) => {
       addBranch(option.textContent, () => {
         state.borrowedAbilityModes.flora = option.value;
@@ -8031,8 +8142,8 @@ function triggerOperatorAbility() {
   } else if (self.special === "flora") {
     const mode = els.teleportModeSelect.value;
     void api("/api/flora-heal", {
-      mode: mode.startsWith("sunbeam") ? "sunbeam" : "heal",
-      targetId: mode.startsWith("sunbeam") ? (els.teleportTargetSelect.value || "") : "",
+      mode: ["sunbeam", "invisible"].includes(mode) ? mode : "heal",
+      targetId: mode === "sunbeam" ? (els.teleportTargetSelect.value || "") : "",
       dx: Number(self.aimX) || 0,
       dy: Number(self.aimY) || 1
     });
@@ -9629,12 +9740,28 @@ function worldSoundListener(data) {
   return self ? renderedPlayer(self) : null;
 }
 
+function discardConcealedPlayerRenderState(playerId) {
+  if (!playerId) return;
+  state.motion.delete(playerId);
+  state.facing.delete(playerId);
+  state.walkAnimations.delete(playerId);
+  state.physicalMotionPhases.forEach((_value, key) => {
+    if (String(key).startsWith(`${playerId}:`)) state.physicalMotionPhases.delete(key);
+  });
+  state.characterActions.delete(playerId);
+  state.renderPlayers.delete(playerId);
+}
+
 function updateMotion(nextData) {
   const timestamp = performance.now();
   const previous = new Map((state.data?.players || []).map((player) => [player.id, player]));
   const seen = new Set();
   for (const player of nextData.players || []) {
     seen.add(player.id);
+    if (player.invisible && player.id !== nextData.selfId) {
+      discardConcealedPlayerRenderState(player.id);
+      continue;
+    }
     const last = previous.get(player.id);
     const current = state.motion.get(player.id) || { dx: 0, dy: 1, moving: false, changedAt: timestamp };
     if (!last) {
@@ -9704,6 +9831,10 @@ function syncRenderPlayers(nextData) {
   const seen = new Set();
   for (const player of nextData.players || []) {
     seen.add(player.id);
+    if (player.invisible && player.id !== nextData.selfId) {
+      discardConcealedPlayerRenderState(player.id);
+      continue;
+    }
     const current = state.renderPlayers.get(player.id);
     if (!current) {
       const jumpMotion = player.jumpMotion;
@@ -10037,6 +10168,7 @@ function renderKillCamera(data) {
 }
 
 function render() {
+  const pollScrollPositions = capturePollScrollPositions();
   const data = state.data;
   const tacticsScrollActive = state.screen === "tactics" &&
     (isTacticsScrollRegion(state.activeScrollRegion) || isTacticsScrollRegion(state.expandedScrollRegion));
@@ -10079,13 +10211,17 @@ function render() {
   if (els.tabletButton.disabled && state.tabletOpen) {
     setTabletOpen(false, { persist: false, focus: false });
   }
-  els.fieldLowerRow.hidden = !data || !["playing", "meeting"].includes(data.phase);
+  els.fieldLowerRow.hidden = !data || ![
+    "playing",
+    "meeting"
+  ].includes(data.phase) && !(data.phase === "selecting" && !els.operatorDetail.hidden);
 
   if (!data) {
     els.endOverlay.hidden = true;
     els.killCameraOverlay.hidden = true;
     if (state.expandedMapOpen) setExpandedMapOpen(false);
     syncKeyboardContext();
+    restorePollScrollPositions(pollScrollPositions);
     return;
   }
 
@@ -10096,6 +10232,7 @@ function render() {
   renderMeeting(data);
   renderFeeds(data);
   syncKeyboardContext();
+  restorePollScrollPositions(pollScrollPositions);
 }
 
 function formatBattleTime(data) {
@@ -10171,6 +10308,19 @@ function renderOperatorSelect(data) {
   });
 }
 
+function syncOperatorDetailFieldLayout() {
+  if (state.data?.phase !== "selecting") return;
+  const fieldSlot = els.fieldLowerRow?.parentElement;
+  if (!fieldSlot) return;
+  const detailHeight = els.operatorDetail?.hidden
+    ? 0
+    : Math.ceil(els.fieldLowerRow.getBoundingClientRect().height);
+  const nextValue = `${detailHeight}px`;
+  if (fieldSlot.style.getPropertyValue("--field-lower-height") !== nextValue) {
+    fieldSlot.style.setProperty("--field-lower-height", nextValue);
+  }
+}
+
 function hideOperatorDetail() {
   if (state.operatorDetailTimer) window.clearTimeout(state.operatorDetailTimer);
   state.operatorDetailTimer = 0;
@@ -10178,6 +10328,11 @@ function hideOperatorDetail() {
   state.operatorDetailSource = null;
   els.operatorList?.querySelectorAll(".operator-card.detail-active").forEach((card) => card.classList.remove("detail-active"));
   els.operatorDetail.hidden = true;
+  if (state.data?.phase === "selecting") {
+    els.fieldLowerRow.hidden = true;
+    syncOperatorDetailFieldLayout();
+    scheduleGameplayViewportReflow();
+  }
 }
 
 function showOperatorDetail(operator, sourceButton) {
@@ -10192,6 +10347,12 @@ function showOperatorDetail(operator, sourceButton) {
     <p>${escapeHtml(operator.details || operator.description)}</p>
   `;
   els.operatorDetail.hidden = false;
+  els.fieldLowerRow.hidden = false;
+  requestAnimationFrame(() => {
+    syncOperatorDetailFieldLayout();
+    scheduleGameplayViewportReflow(true);
+  });
+  scheduleGameplayViewportReflow(true);
   state.operatorDetailTimer = window.setTimeout(hideOperatorDetail, 12_000);
 }
 
@@ -10795,7 +10956,7 @@ function renderTargetOptions(data) {
     ? state.borrowedAbilityModes[borrowedOperator] || ""
     : els.teleportModeSelect.value;
   const floraTargeting = modeOwner === "flora" &&
-    currentAbilityMode.startsWith("sunbeam");
+    currentAbilityMode === "sunbeam";
   const gravityTargeting = ["teleport", "gravity"].includes(modeOwner) && currentAbilityMode !== "time-keeper";
   els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && !gravityTargeting && !floraTargeting;
   els.teleportTargetSelect.setAttribute("aria-label", floraTargeting ? "サンビーム対象" : "能力対象");
@@ -10804,7 +10965,7 @@ function renderTargetOptions(data) {
   const hackerTargeting = self.special === "alchemist" && els.alchemySelect.value.startsWith("hack-");
   const targets = data.players.filter((player) => includeDead
     ? !player.alive && !player.ejected
-    : player.alive && !player.ejected && !player.inVent && (!(hackerTargeting || floraTargeting) || player.id !== self.id));
+    : player.alive && !player.ejected && !player.inVent && !player.invisible && (!(hackerTargeting || floraTargeting) || player.id !== self.id));
   const previous = els.teleportTargetSelect.value || self.id;
   const key = `${includeDead ? "dead" : floraTargeting ? "flora" : hackerTargeting ? "hacker" : "living"}:` +
     targets.map((player) => `${player.id}:${player.name}`).join("|");
@@ -10843,7 +11004,8 @@ function abilityModeDescription(owner, mode, self) {
     gravity: null,
     flora: {
       heal: `自分のHP・SP・状態異常を即時回復し、12秒間加速する。${cost("flora")}。`,
-      sunbeam: `選択対象へ光線を放ち、交差した全対象を貫通して確殺する。${cost("flora")}。`
+      sunbeam: `選択対象方向へ光線を放ち、交差した全対象を貫通して確殺する。${cost("floraSunbeam", 10)}。壁は貫通しない。`,
+      invisible: `10秒間透明になり、敵Botの直接視認・追跡対象から外れる。自分には半透明で表示する。${cost("floraInvisible", 10)}。`
     },
     quantum: {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。水を所持していなければ何も起きない。",
@@ -10940,9 +11102,9 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
           ? `物理HSG。${gboActive ? "GBO" : "通常／Enhance"}浮揚中（残り${(activeMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
           : cooldownMs > 0
             ? `物理HSG。20秒CT中（残り${(cooldownMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
-            : "物理HSG。支持床上で使用すると即8秒・ACC 1.8。Useを600〜2999ms長押しすると単一Enhance（固定1MP）で即10秒・ACC 2.0、3000ms以上で固定2MPのGBOを即起動。GBOだけHSGを1個破壊。床外へ進む時は全所持者に通常自動起動。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能",
+            : "物理HSG。通常使用と床外自動起動は1MPで即8秒・ACC 1.8。Useを600〜2999ms長押しすると総コスト固定1MPの単一Enhanceで即10秒・ACC 2.0、3000ms以上で総コスト固定2MPのGBOを即起動。MP不足時は発動せず、GBOだけHSGを1個破壊。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能",
         badge: `×${Number(item.amount) || 1} / ${stateLabel}`,
-        usable: activeMs <= 0 && cooldownMs <= 0,
+        usable: activeMs <= 0 && cooldownMs <= 0 && (Boolean(self.fighterInfiniteResources) || Number(self.mana) >= Math.max(1, Number(self.hsgManaCost) || 1)),
         throwable: true,
         transferable: true
       };
@@ -11576,6 +11738,14 @@ function renderActiveEffects(data) {
     add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。踏ん張り・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用");
   }
   effects.push(...collectOperatorPassiveEffects(self, liveNow, data.phase));
+  if (Number(self.killChainCount) > 0) {
+    add(
+      "キルチェイン",
+      `×${Math.max(0, Number(self.killChainCount) || 0)} / 次回キルCT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒`,
+      "truth",
+      `合法な異陣営キルごとに基本キルCTを10%ずつ短縮。現在${Math.round(Math.max(0.25, Number(self.killChainCooldownMultiplier) || 1) * 100)}%（最短25%）。銃の発射間隔・リロード・能力CTは対象外`
+    );
+  }
   if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "1回につきボディダメージ1回を吸収し、状態異常を解除");
   if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
@@ -11660,6 +11830,7 @@ function renderActiveEffects(data) {
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
   timed("休息", self.sleepingUntil, "neutral", "行動停止・SP回復×4");
   timed("精神統一", self.meditatingUntil, "rational", "開始時にMPを獲得。タップ+10MP/35秒、420ms以上の長押し+100MP/350秒");
+  timed("インビジブル", self.floraInvisibleUntil, "good", "10秒間透明化。敵Botの直接視認・追跡対象外。自分のキャラクターは半透明表示");
   if (self.computerActive) add("パソコン効果", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "即席適用・全生存者を表示" : "即席効果を保持・EMP解除後に復帰");
 
   const panelHidden = !["playing", "meeting"].includes(data.phase);
@@ -12022,7 +12193,9 @@ function objectiveText(data) {
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
     const sabotageSeconds = Math.max(0, Math.ceil(((self.sabotageReadyAt || 0) - liveNow) / 1000));
     const assassinStatus = self.special === "assassin" ? "アサシン / 足音常時無音 / " : "";
-    return `${assassinStatus}ディフェンダーを減らしてください。忍殺 ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"} / サボタージュ ${sabotageSeconds ? `${sabotageSeconds}秒` : "使用可能"}`;
+    const chain = Math.max(0, Number(self.killChainCount) || 0);
+    const chainStatus = chain > 0 ? ` / キルチェイン ${chain}（次CT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒）` : "";
+    return `${assassinStatus}ディフェンダーを減らしてください。忍殺 ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"} / サボタージュ ${sabotageSeconds ? `${sabotageSeconds}秒` : "使用可能"}${chainStatus}`;
   }
   if (!self.alive) return "死亡中です。残ったタスクは完了扱いです。";
   if (self.chatMuted) return "復活後のため、この試合ではチャットできません。";
@@ -12197,9 +12370,12 @@ function updateActionButtons(data) {
       : "忍殺";
   els.ninjutsuButton.disabled = !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
   els.ninjutsuButton.classList.toggle("active", aiming);
-  els.ninjutsuButton.title = self.special === "assassin"
+  const killChainSuffix = Number(self.killChainCount) > 0
+    ? ` キルチェイン${Number(self.killChainCount)}、次回キルCT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒。`
+    : " キル成立ごとに次回キルCTを10%短縮（最短25%）。";
+  els.ninjutsuButton.title = (self.special === "assassin"
     ? "忍殺: 自分と対象が4秒間静止するとアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。移動または対象喪失で失敗"
-    : "忍殺: 自分と対象が4秒間静止すると対象を倒し、通報可能な死体を残す。移動または対象喪失で失敗";
+    : "忍殺: 自分と対象が4秒間静止すると対象を倒し、通報可能な死体を残す。移動または対象喪失で失敗") + killChainSuffix;
   els.fireJutsuButton.textContent = `火遁の術 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   const rootProtectionBlocked = Boolean(self.hackerRootActive);
@@ -12294,6 +12470,11 @@ function updateActionButtons(data) {
   const operatorMode = activeBorrowedOperator
     ? state.borrowedAbilityModes[activeBorrowedOperator] || ""
     : els.teleportModeSelect.value;
+  const floraCostKey = operatorMode === "sunbeam"
+    ? "floraSunbeam"
+    : operatorMode === "invisible"
+      ? "floraInvisible"
+      : "flora";
   const operatorLabels = {
     fighter: self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク",
     teleport: operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
@@ -12303,7 +12484,11 @@ function updateActionButtons(data) {
             : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
               : operatorMode === "time-keeper" ? `時の番人 5秒 ${operatorCostLabel("timeKeeper")}`
                 : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
-    flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : `サンビーム ${operatorCostLabel("flora")}`,
+    flora: operatorMode === "heal"
+      ? `回復 ${operatorCostLabel("flora")}`
+      : operatorMode === "sunbeam"
+        ? `サンビーム ${operatorCostLabel("floraSunbeam")}`
+        : `インビジブル 10秒 ${operatorCostLabel("floraInvisible")}`,
     quantum: quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
     assassin: "常時無音（パッシブ）",
     alchemist: "Root化"
@@ -12320,6 +12505,12 @@ function updateActionButtons(data) {
   const nuclearModeLocked = (mode) => ["nuclear-fission", "nuclear-fusion"].includes(mode) && !data.quantumEndgameAvailable;
   const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
   const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
+  const nativeFloraUnavailable = displayedOperator === "flora" && (
+    !hasMana(floraCostKey) || (operatorMode === "invisible" && self.floraInvisibleActive)
+  );
+  const borrowedFloraUnavailable = borrowedDisplayedOperator === "flora" && (
+    !hasMana(floraCostKey) || (operatorMode === "invisible" && self.floraInvisibleActive)
+  );
   els.operatorAbilityButton.textContent = rootToggle
     ? (self.hackerRootActive ? borrowedDisplayedLabel : "Root化")
     : operatorLabels[displayedOperator] || "オペ能力";
@@ -12332,9 +12523,10 @@ function updateActionButtons(data) {
   els.operatorAbilityButton.dataset.repeatableAbility = rootToggle ? "0" : "1";
   els.operatorAbilityButton.classList.toggle("active", Boolean(rootToggle && self.hackerRootActive));
   els.operatorAbilityButton.disabled = rootToggle && self.hackerRootActive
-    ? !(isPlaying && self.alive && !self.ejected)
+    ? !(isPlaying && self.alive && !self.ejected) || borrowedFloraUnavailable
     : !canUseAbility ||
       displayedOperator === "assassin" ||
+      nativeFloraUnavailable ||
       (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
       (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
       nativeQuantumEndgameLocked ||
@@ -12495,7 +12687,10 @@ function resultContributionDetail(entry) {
   ]
     .filter(([, points]) => points > 0)
     .map(([label, points]) => `${label} +${points}`);
-  return [roleLabel, ...contributionParts, entry.rankTier || entry.profileRank || "bronze"].join(" / ");
+  const pointsParts = Number(entry.firstPlacePointsBonus) > 0
+    ? [`一位ポイント +${Number(entry.firstPlacePointsBonus)}`]
+    : [];
+  return [roleLabel, ...contributionParts, ...pointsParts, entry.rankTier || entry.profileRank || "bronze"].join(" / ");
 }
 
 function resultRenderFingerprint(data, results) {
@@ -12522,6 +12717,8 @@ function resultRenderFingerprint(data, results) {
       Number(entry.killContribution ?? entry.defenderKillContribution) || 0,
       Number(entry.victoryCredit) || 0,
       Number(entry.ideaContribution) || 0,
+      Number(entry.firstPlacePointsBonus) || 0,
+      Number(entry.profilePoints) || 0,
       String(entry.rankTier || entry.profileRank || "bronze"),
       Number(entry.contributionScore) || 0
     ])
@@ -12972,6 +13169,7 @@ function isDefenderHunter(player) {
 
 function canSelectCombatTarget(viewer, candidate) {
   if (!viewer || !candidate || viewer.id === candidate.id) return false;
+  if (candidate.invisible) return false;
   return true;
 }
 
@@ -12997,7 +13195,7 @@ function aimedTarget(data = state.data) {
 
 function drawGunnerAim(data = state.data) {
   if (data?.phase !== "playing" || !data.self?.gunnerSnipingActive || !data.self?.gunnerAimTargetId) return;
-  const target = data.players.find((player) => player.id === data.self.gunnerAimTargetId && player.alive && !player.ejected);
+  const target = data.players.find((player) => player.id === data.self.gunnerAimTargetId && player.alive && !player.ejected && !player.invisible);
   const self = selfPlayer();
   if (!target || !self) return;
   const origin = renderedPlayer(self);
@@ -15303,6 +15501,7 @@ function drawMagicEffects() {
     if (effect.type === "flora-sunbeam") {
       if (!drawFloraGeneratedEffect(effect, progress, true)) drawDirectedEnergyEffect(effect, progress, now);
     }
+    if (effect.type === "flora-invisible") drawFloraInvisibleGeneratedEffect(effect, progress);
     if (effect.type === "alchemy-railgun" || effect.type === "alchemy-particle-beam") drawDirectedEnergyEffect(effect, progress, now);
     if (effect.type.startsWith("gravity-storm-")) drawGravityStormImpactEffect(effect, progress);
     if (effect.type === "emp" || effect.type.startsWith("emp-")) drawEmpEffect(effect, progress, now);
@@ -17324,7 +17523,7 @@ function drawPlayers(data) {
     .filter((player) => (!selectedCamera || dist(player, selectedCamera) <= selectedCamera.range) && worldPointVisible(player.x, player.y, 240))
     .sort((a, b) => Number(a.alive) - Number(b.alive));
   ordered.forEach((player) => {
-    if (player.inVent) return;
+    if (player.inVent || (player.invisible && player.id !== data.selfId)) return;
     drawHuman(player, data);
   });
 }
@@ -17638,6 +17837,7 @@ function drawHuman(player, data) {
   const characterAction = currentCharacterAction(player);
   if (ghost) ctx.globalAlpha = 0.45;
   if (player.ejected) ctx.globalAlpha = 0.22;
+  if (self && data.self.floraInvisibleActive && player.alive && !player.ejected) ctx.globalAlpha *= 0.32;
 
   if (self) {
     if (data.self.dodgeActiveUntil > estimatedServerNow(data)) {
@@ -17931,6 +18131,29 @@ function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeStat
     ctx.fill();
     ctx.restore();
   }
+  ctx.restore();
+  return true;
+}
+
+function drawFloraInvisibleGeneratedEffect(effect, progress) {
+  const key = "flora-invisible-ate-v527";
+  const prepared = transparentSpriteSource(state.textures.floraInvisibleV527, key, 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, key, 1, 1, 0, 0) : null;
+  if (!sprite) return false;
+  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+  const size = 176 + pulse * 34;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88);
+  ctx.translate(effect.x, effect.y - 24 - progress * 16);
+  ctx.rotate(Math.sin(progress * Math.PI * 2) * 0.035);
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode: "shimmer",
+    progress,
+    intensity: 0.94,
+    baseAlpha: 0.18,
+    opacityBoost: 2.2
+  });
   ctx.restore();
   return true;
 }
@@ -19765,7 +19988,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "aroma-canvas-root-default-result-bonus-v526";
+const version = "kill-chain-invisible-global-scroll-hsg-points-v527";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -19875,6 +20098,7 @@ const version = "aroma-canvas-root-default-result-bonus-v526";
   const pushMarkerEffect = instantPushTexture;
   const floraHealV1 = new Image();
   const floraSunbeamV3 = new Image();
+  const floraInvisibleV527 = new Image();
   const tacticalSystemsAtlas = new Image();
   const gravityStorm = new Image();
   const gravityStormSafeEye = new Image();
@@ -20007,6 +20231,7 @@ const version = "aroma-canvas-root-default-result-bonus-v526";
   defer(fighterShockwaveEffect, "assets/generated/fighter-shockwave-ate-v393.png");
   defer(floraHealV1, "assets/generated/flora-self-heal-v336.png");
   defer(floraSunbeamV3, "assets/generated/flora-sunbeam-v3-v336.png");
+  defer(floraInvisibleV527, "assets/generated/flora-invisible-ate-v527.png");
   defer(tacticalSystemsAtlas, "assets/generated/tactical-systems-atlas.webp");
   defer(gravityStorm, "assets/generated/gravity-storm.webp");
   defer(gravityStormSafeEye, "assets/generated/gravity-storm-safe-eye-v320.png");
@@ -20138,6 +20363,7 @@ const version = "aroma-canvas-root-default-result-bonus-v526";
     pushMarkerEffect,
     floraHealV1,
     floraSunbeamV3,
+    floraInvisibleV527,
     tacticalSystemsAtlas,
     gravityStorm,
     gravityStormSafeEye,

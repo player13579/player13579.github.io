@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v526-aroma-canvas-root-default-result-bonus";
+const CACHE_NAME = "dva-static-v527-kill-chain-invisible-global-scroll-hsg-points";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -103,6 +103,7 @@ const STATIC_ASSETS = [
   "/assets/generated/limit-break-release-v309.png",
   "/assets/generated/flora-self-heal-v336.png",
   "/assets/generated/flora-sunbeam-v3-v336.png",
+  "/assets/generated/flora-invisible-ate-v527.png",
   "/assets/generated/action-vibe-coding-v311.png",
   "/assets/generated/item-hsg-v486.png",
   "/assets/generated/gunner-rpg-v311.png",

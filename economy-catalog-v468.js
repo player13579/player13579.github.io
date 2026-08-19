@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "aroma-canvas-root-default-result-bonus-v526",
+    version: "kill-chain-invisible-global-scroll-hsg-points-v527",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
