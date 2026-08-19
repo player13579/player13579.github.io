@@ -7312,6 +7312,7 @@ const LABORATORY_MAP = Object.freeze({
   // credit for every shared product, so price changes cannot drift from CT.
   const rows = [
     ["mineral-water", "ミネラルウォーター", 1, "generate-supply", "mineral-water", "mineral-water"],
+    ["seawater", "海水", 2, "generate-supply", "seawater", "seawater"],
     ["antidote", "解毒剤", 2, "generate-supply", "antidote", "antidote"],
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
     ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
@@ -7382,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "rejected-action-input-cross-route-v521",
+    version: "quantum-fusion-dynamic-resource-markers-v522",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7613,6 +7614,7 @@ const TOXIC_THROW_ITEM_IDS = new Set(["mercury", "lead", "uranium", "plutonium"]
 const GOLD_INSTANT_CREDITS = CREDIT_ECONOMY.goldInstantReward;
 const QUANTUM_ACTION_STAMINA_COST = 8;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
+const QUANTUM_ENDGAME_DELAY_MS = 300_000;
 const MINERAL_WATER_STAMINA = 100;
 const MOLOTOV_COST = vendingPrice("molotov");
 const MINERAL_WATER_COST = vendingPrice("mineral-water");
@@ -7622,9 +7624,9 @@ const MYSTERY_COST = vendingPrice("mystery");
 const MYSTERY_ABILITY_LOCK_MS = 15_000;
 const MYSTERY_UNCONSCIOUS_MS = 8_000;
 const DESIRE_RESOURCE_DEBT = -100;
-const RATIONAL_MANA_THRESHOLD = 2;
-const STARTING_MANA = RATIONAL_MANA_THRESHOLD;
-const NATURAL_RECOVERY_MANA_CAP = RATIONAL_MANA_THRESHOLD;
+const DEFAULT_MAX_MANA = 2;
+const ABILITY_HOLD_MANA_RESERVE = 2;
+const STARTING_MANA = DEFAULT_MAX_MANA;
 const NATURAL_RECOVERY_MANA_PER_SECOND = 0.127;
 const DONATION_CREDIT_COST = CREDIT_ECONOMY.donationCost;
 const DONATION_LUCK_GAIN = 0.05;
@@ -7849,7 +7851,7 @@ const OPERATORS = {
       limit: 99,
       asset: "flora",
       description: "回復とサンビームを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "回復は自分へHP・スタミナ・状態解除・加速を付与する。サンビームは選択対象へ黄色系の強い貫通光を放ち、通常時は交差した複数対象へ確率キル、収束時は交差した全対象を確殺する。理知中はアロマにより自分のスタミナ回復を速める。"
+      details: "回復は自分へHP・スタミナ・状態解除・加速を付与する。サンビームは選択対象へ黄色系の強い光を放ち、壁に遮られるまでの交差対象へ通常時は確率キル、収束時は確殺する。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -7903,6 +7905,7 @@ const ITEM_DEFINITIONS = Object.freeze({
   lead: Object.freeze({ id: "lead", label: "鉛瓶", asset: "quantum-lead", throwable: true }),
   uranium: Object.freeze({ id: "uranium", label: "ウラン容器", asset: "quantum-uranium", throwable: true }),
   plutonium: Object.freeze({ id: "plutonium", label: "プルトニウム容器", asset: "quantum-plutonium", throwable: true }),
+  seawater: Object.freeze({ id: "seawater", label: "海水", asset: "seawater", throwable: true, usable: true }),
   "mineral-water": Object.freeze({ id: "mineral-water", label: "ミネラルウォーター", asset: "mineral-water", throwable: true }),
   antidote: Object.freeze({ id: "antidote", label: "解毒剤", asset: "antidote", throwable: true }),
   molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true }),
@@ -7930,7 +7933,7 @@ const INSTANT_ITEM_DEFINITIONS = Object.freeze({
   stamina: Object.freeze({ id: "stamina", label: "スタミナ", automatic: true })
 });
 
-const QUANTUM_STARTING_ITEMS = Object.freeze({ mercury: 1, lead: 1, uranium: 1, plutonium: 1 });
+const QUANTUM_STARTING_ITEMS = Object.freeze({ mercury: 1, lead: 1, uranium: 1, plutonium: 1, seawater: 1 });
 
 function createItemInventory(seed = {}) {
   const inventory = {};
@@ -9342,6 +9345,7 @@ function createRoom(id) {
     sounds: [],
     meeting: null,
     battleStartedAt: 0,
+    quantumEndgameAt: 0,
     preparationEndsAt: 0,
     operatorSelectEndsAt: 0,
     operatorTurnOrder: [],
@@ -9751,6 +9755,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     credits: 0,
     lastPassiveCreditAt: now(),
     mana: STARTING_MANA,
+    maxMana: DEFAULT_MAX_MANA,
     mentalState: "理知",
     meditatingUntil: 0,
     renkiTargetMana: null,
@@ -9779,6 +9784,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     objectLuckUntil: 0,
     donationLuckBonus: 0,
     stamina: MAX_STORED_STAMINA,
+    maxStoredStamina: MAX_STORED_STAMINA,
     staminaUpdatedAt: now(),
     speedMultiplier: 1,
     dodgeDurationBonusMs: 0,
@@ -10229,6 +10235,7 @@ function startGame(room) {
     player.credits = 0;
     player.lastPassiveCreditAt = timestamp;
     player.mana = STARTING_MANA;
+    player.maxMana = DEFAULT_MAX_MANA;
     player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
@@ -10285,6 +10292,7 @@ function startGame(room) {
     player.objectLuckUntil = 0;
     player.donationLuckBonus = 0;
     player.stamina = MAX_STORED_STAMINA;
+    player.maxStoredStamina = MAX_STORED_STAMINA;
     player.staminaUpdatedAt = timestamp;
     player.speedMultiplier = 1;
     player.dodgeDurationBonusMs = 0;
@@ -10376,6 +10384,7 @@ function startGame(room) {
   room.sounds = [];
   room.meeting = null;
   room.battleStartedAt = 0;
+  room.quantumEndgameAt = 0;
   room.preparationEndsAt = 0;
   room.operatorSelectEndsAt = 0;
   room.operatorTurnOrder = [
@@ -10573,6 +10582,8 @@ function startBattle(room) {
     player.overheal = 0;
     player.stamina = MAX_STORED_STAMINA;
     player.mana = STARTING_MANA;
+    player.maxStoredStamina = MAX_STORED_STAMINA;
+    player.maxMana = DEFAULT_MAX_MANA;
     player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
@@ -10622,6 +10633,7 @@ function startBattle(room) {
   room.phase = "playing";
   room.round = 1;
   room.battleStartedAt = timestamp;
+  room.quantumEndgameAt = timestamp + QUANTUM_ENDGAME_DELAY_MS;
   room.preparationEndsAt = timestamp + PREPARATION_PHASE_MS;
   room.resolvePoint = createResolvePoint(room);
   room.operatorSelectEndsAt = 0;
@@ -10677,6 +10689,7 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
       cpu.operatorReady = true;
       cpu.special = mission.metric === "cpu2" ? "alchemist" : "teleport";
       cpu.mana = STARTING_MANA;
+      cpu.maxMana = DEFAULT_MAX_MANA;
       cpu.rationalFreeAbilityReadyAt = Infinity;
       room.soloMission.cpuBotId = cpu.id;
     }
@@ -10684,6 +10697,7 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
   room.soloMission.startedAt = room.battleStartedAt || now();
   if (mission.metric === "task") {
     player.stamina = MAX_STORED_STAMINA;
+    player.maxStoredStamina = MAX_STORED_STAMINA;
     player.staminaUpdatedAt = now();
   }
   if (mission.metric === "intel") player.sabotageReadyAt = 0;
@@ -10784,16 +10798,16 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
   if (path === "/api/gravity-time-keeper") return GRAVITY_TIME_KEEPER_MANA_COST;
   if (path === "/api/gravity-storm") return GRAVITY_STORM_MANA_COST;
   if (path === "/api/quantum-control") {
-    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) return null;
-    return mode === "nuclear-fission" ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
+    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return null;
+    return ["nuclear-fission", "nuclear-fusion"].includes(mode) ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
   }
   if (path === "/api/flora-heal") return FLORA_MANA_COST;
   if (path !== "/api/borrowed-ability") return null;
   const ability = String(action.ability || "");
   if (ability === "flora") return FLORA_MANA_COST;
   if (ability === "quantum") {
-    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) return null;
-    return mode === "nuclear-fission" ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
+    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return null;
+    return ["nuclear-fission", "nuclear-fusion"].includes(mode) ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
   }
   if (ability !== "gravity") return null;
   const gravityMode = String(action.mode || "");
@@ -10899,11 +10913,13 @@ function quantumBatchCapacity(player, rawMode) {
     ? ["lead", "mercury"]
     : mode === "nuclear-fission"
       ? ["uranium", "plutonium"]
+      : mode === "nuclear-fusion"
+        ? ["seawater"]
       : ["mineral-water"];
   const itemCapacity = itemIds.reduce((sum, itemId) => sum + itemCount(player, itemId), 0);
   const staminaCost = QUANTUM_ACTION_STAMINA_COST * (player?.desireBias === "sunk-cost" ? DESIRE_BIAS_COST_MULTIPLIER : 1);
   const staminaCapacity = Math.floor(Math.max(0, Number(player?.stamina) || 0) / Math.max(1, staminaCost));
-  return Math.min(itemCapacity, staminaCapacity, mode === "nuclear-fission" ? 1 : Number.MAX_SAFE_INTEGER);
+  return Math.min(itemCapacity, staminaCapacity, ["nuclear-fission", "nuclear-fusion"].includes(mode) ? 1 : Number.MAX_SAFE_INTEGER);
 }
 
 function abilityBatchActionCapacity(player, actionPath, rawAction = {}) {
@@ -10916,7 +10932,7 @@ function abilityBatchActionCapacity(player, actionPath, rawAction = {}) {
 }
 
 function setAbilityBatchManaReserve(room, player, sourceLabel) {
-  return setMana(room, player, RATIONAL_MANA_THRESHOLD, sourceLabel, { exact: true });
+  return setMana(room, player, ABILITY_HOLD_MANA_RESERVE, sourceLabel, { exact: true });
 }
 
 function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
@@ -10932,7 +10948,7 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
   }
 
   const currentMana = Math.round((Number(player.mana) || 0) * 100) / 100;
-  const spendableMana = Math.max(0, Math.round((currentMana - RATIONAL_MANA_THRESHOLD) * 100) / 100);
+  const spendableMana = Math.max(0, Math.round((currentMana - ABILITY_HOLD_MANA_RESERVE) * 100) / 100);
   const unitManaCost = Math.max(0.01, Number(committed.hold.unitManaCost) || abilityBatchUnitManaCost(actionPath, body) || 0);
   const parallelCount = Math.floor((spendableMana + 1e-9) / unitManaCost);
   if (parallelCount < 1) {
@@ -11008,29 +11024,47 @@ function attachAbilityBatchPayload(payload, outcome) {
   return payload;
 }
 
-function manaMindPoints(mana) {
-  const value = Number(mana) || 0;
-  return value <= 0 ? 0 : value < RATIONAL_MANA_THRESHOLD ? 1 : 2;
+function resourceRatioMindPoints(value, maximum) {
+  const current = Number(value) || 0;
+  const cap = Math.max(Number(maximum) || 0, Number.EPSILON);
+  if (current <= 0) return 0;
+  return current / cap <= 0.5 ? 1 : 2;
 }
 
-function staminaMindPoints(stamina) {
-  const value = Number(stamina) || 0;
-  return value <= 0 ? 0 : value <= 250 ? 1 : 2;
+function manaMindPoints(mana, maxMana = DEFAULT_MAX_MANA) {
+  return resourceRatioMindPoints(mana, maxMana);
 }
 
-function mentalStateForResources(mana, stamina) {
-  const points = manaMindPoints(mana) + staminaMindPoints(stamina);
+function staminaMindPoints(stamina, maxStamina = MAX_STORED_STAMINA) {
+  return resourceRatioMindPoints(stamina, maxStamina);
+}
+
+function mentalStateForResources(mana, stamina, maxMana = DEFAULT_MAX_MANA, maxStamina = MAX_STORED_STAMINA) {
+  const points = manaMindPoints(mana, maxMana) + staminaMindPoints(stamina, maxStamina);
   return points <= 0 ? "欲望" : points <= 2 ? "気概" : "理知";
 }
 
 function mentalPointsFor(player) {
-  const manaPoints = manaMindPoints(player?.mana);
-  const staminaPoints = staminaMindPoints(player?.stamina);
-  return { manaPoints, staminaPoints, total: manaPoints + staminaPoints };
+  const maxMana = manaCapacityFor(player);
+  const maxStamina = staminaCapacityFor(player);
+  const manaPoints = manaMindPoints(player?.mana, maxMana);
+  const staminaPoints = staminaMindPoints(player?.stamina, maxStamina);
+  return {
+    manaPoints,
+    staminaPoints,
+    total: manaPoints + staminaPoints,
+    manaRatio: Math.max(0, Number(player?.mana) || 0) / maxMana,
+    staminaRatio: Math.max(0, Number(player?.stamina) || 0) / maxStamina
+  };
 }
 
 function mentalStateFor(player) {
-  return mentalStateForResources(player?.mana, player?.stamina);
+  return mentalStateForResources(
+    player?.mana,
+    player?.stamina,
+    manaCapacityFor(player),
+    staminaCapacityFor(player)
+  );
 }
 
 function isRational(player) {
@@ -11071,7 +11105,7 @@ function hasFighterInfiniteResources(player) {
 
 function syncFighterInfiniteResources(player) {
   if (!hasFighterInfiniteResources(player)) return false;
-  player.mana = Math.max(RATIONAL_MANA_THRESHOLD, Number(player.mana) || 0);
+  player.mana = Math.max(DEFAULT_MAX_MANA, Number(player.mana) || 0);
   player.stamina = staminaCapacityFor(player);
   player.bodyHits = 0;
   return true;
@@ -11251,6 +11285,7 @@ function toggleLimitBreak(room, player) {
   player.limitBreakEndsAt = 0;
   if (firstActivation) player.limitBreakManaCarry = 0;
   player.stamina = Math.min(staminaCapacityFor(player), previousStamina * 3);
+  expandStaminaCapacityFor(player, player.stamina);
   player.staminaUpdatedAt = timestamp;
   maintainNaturalRecovery(room, player, timestamp);
   const stacks = limitBreakStackCount(player);
@@ -11272,7 +11307,7 @@ function stopLimitBreak(room, player, reason = "") {
   player.limitBreakEndsAt = 0;
   player.limitBreakManaCarry = 0;
   const transformedStamina = Math.max(0, Number(player.stamina) || 0) / Math.max(1, multiplier);
-  player.stamina = Math.min(MAX_STORED_STAMINA, transformedStamina);
+  player.stamina = Math.min(staminaCapacityFor(player), transformedStamina);
   player.limitBreakBaseStamina = 0;
   player.limitBreakStacks = 0;
   if (reason) pushMagicEffect(room, "limit-break", player, { radius: 110, playerId: player.id, variant: "release" });
@@ -11489,6 +11524,8 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
 }
 
 function syncMentalState(room, player, sourceLabel = "", timestamp = now()) {
+  expandManaCapacityFor(player, player?.mana);
+  expandStaminaCapacityFor(player, player?.stamina);
   const previous = String(player?.mentalState || mentalStateFor(player));
   const next = mentalStateFor(player);
   if (next === "欲望") {
@@ -11543,6 +11580,7 @@ function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
   const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
+  expandManaCapacityFor(player, next);
   player.mana = next;
   syncMentalState(room, player, sourceLabel, timestamp);
   player.luck = luckValueFor(player);
@@ -11717,9 +11755,7 @@ function grantIdeaGood(room, player, timestamp) {
   player.gravityStormSlowMultiplier = 1;
   player.abilityDisabledUntil = 0;
   player.unconsciousUntil = 0;
-  player.stamina = MAX_STORED_STAMINA;
-  player.staminaUpdatedAt = timestamp;
-  maintainNaturalRecovery(room, player, timestamp);
+  setStamina(room, player, staminaCapacityFor(player), "善", timestamp);
   pushMagicEffect(room, "idea-good", player, { radius: 185, playerId: player.id });
   pushEvent(room, `${player.name} が善を獲得し、押し込み・踏ん張り・回復・加速を統合しました。`);
   return true;
@@ -12125,11 +12161,57 @@ function advancePairRouteRule(room, timestamp) {
   checkWin(room);
 }
 
-function staminaCapacityFor(entity) {
-  return MAX_STORED_STAMINA * Math.max(1, limitBreakMultiplier(entity));
+function manaCapacityFor(entity) {
+  return Math.max(DEFAULT_MAX_MANA, Number(entity?.maxMana) || 0);
 }
 
-function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, room = null) {
+function serializeResourceValue(value) {
+  return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+function expandManaCapacityFor(entity, requestedMana) {
+  if (!entity) return DEFAULT_MAX_MANA;
+  const requested = Math.max(0, Number(requestedMana) || 0);
+  entity.maxMana = Math.max(manaCapacityFor(entity), requested);
+  return entity.maxMana;
+}
+
+function baseStaminaCapacityFor(entity) {
+  return Math.max(MAX_STORED_STAMINA, Number(entity?.maxStoredStamina) || 0);
+}
+
+function staminaCapacityFor(entity) {
+  const limitBreakCapacity = MAX_STORED_STAMINA * Math.max(1, limitBreakMultiplier(entity));
+  return Math.max(baseStaminaCapacityFor(entity), limitBreakCapacity);
+}
+
+function expandStaminaCapacityFor(entity, requestedStamina) {
+  if (!entity) return MAX_STORED_STAMINA;
+  const requested = Math.max(0, Number(requestedStamina) || 0);
+  entity.maxStoredStamina = Math.max(baseStaminaCapacityFor(entity), requested);
+  return staminaCapacityFor(entity);
+}
+
+function setStamina(room, entity, requestedStamina, sourceLabel = "スタミナ変動", timestamp = now()) {
+  const requested = Number(requestedStamina) || 0;
+  expandStaminaCapacityFor(entity, requested);
+  entity.stamina = Number(requested.toFixed(6));
+  entity.staminaUpdatedAt = timestamp;
+  if (room) {
+    syncMentalState(room, entity, sourceLabel, timestamp);
+    maintainNaturalRecovery(room, entity, timestamp);
+  }
+  return entity.stamina;
+}
+
+function grantStamina(room, entity, amount, sourceLabel = "スタミナ獲得", timestamp = now(), options = {}) {
+  const current = options.floorAtZero
+    ? Math.max(0, Number(entity?.stamina) || 0)
+    : Number(entity?.stamina) || 0;
+  return setStamina(room, entity, current + Math.max(0, Number(amount) || 0), sourceLabel, timestamp);
+}
+
+function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, room = null, expandCapacity = false) {
   const last = entity.staminaUpdatedAt || timestamp;
   const elapsed = Math.min(0.5, Math.max(0, (timestamp - last) / 1000));
   if (allowRegen) {
@@ -12140,8 +12222,10 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
     // here made the unified Desire state and its selected cognitive bias vanish
     // on the first idle recovery tick, before the client could observe either.
     // Recover the debt itself; only availableStamina() clamps it for spending.
-    const current = Math.min(capacity, Number(entity.stamina) || 0);
-    entity.stamina = current + Math.min(recovery, capacity - current);
+    const current = Number(entity.stamina) || 0;
+    const next = current + (expandCapacity ? recovery : Math.min(recovery, Math.max(0, capacity - current)));
+    if (expandCapacity) expandStaminaCapacityFor(entity, next);
+    entity.stamina = Number(next.toFixed(6));
   }
   entity.staminaUpdatedAt = timestamp;
   if (room) {
@@ -13478,7 +13562,8 @@ function tickRoom(room) {
       timestamp,
       stopped || naturalRecoveryActive,
       (player.resting ? SLEEP_REGEN_MULTIPLIER : 1) * (naturalRecoveryActive ? floraAromaMultiplier(room, player) : 1),
-      room
+      room,
+      naturalRecoveryActive
     );
     advanceNaturalRecoveryMana(room, player, elapsedMs);
     advanceNaturalRecoveryHealth(room, player, elapsedMs);
@@ -15314,9 +15399,7 @@ function useMapObject(room, player, objectId) {
 
   if (object.effectKind === "stamina") {
     replenishStamina(player, timestamp, true);
-    if (player.stamina >= MAX_STORED_STAMINA - 0.01) throw new ApiError(400, `スタミナは最大 ${MAX_STORED_STAMINA} です。`);
-    player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + Math.max(1, Number(object.effectAmount) || 0));
-    player.staminaUpdatedAt = timestamp;
+    grantStamina(room, player, Math.max(1, Number(object.effectAmount) || 0), object.label, timestamp);
   } else if (object.effectKind === "credits") {
     player.credits = Math.max(0, Number(player.credits) || 0) + Math.max(1, Number(object.effectAmount) || 1);
   } else if (object.effectKind === "cooldownReduction") {
@@ -15357,15 +15440,12 @@ function useMapObject(room, player, objectId) {
   } else if (object.effectKind === "healthyMeal") {
     healBodyHits(player, 1);
     replenishStamina(player, timestamp, true);
-    player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 120);
-    player.staminaUpdatedAt = timestamp;
+    grantStamina(room, player, 120, object.label, timestamp);
     setMana(room, player, (Number(player.mana) || 0) + 1, object.label);
     setImmediateFeedback(player, object.label, "HP +1・スタミナ +120・マナ +1");
   } else if (object.effectKind === "mineralWater") {
     replenishStamina(player, timestamp, true);
-    if (player.stamina >= MAX_STORED_STAMINA - 0.01) throw new ApiError(400, "スタミナは最大です。");
-    player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + Math.max(1, Number(object.effectAmount) || 100));
-    player.staminaUpdatedAt = timestamp;
+    grantStamina(room, player, Math.max(1, Number(object.effectAmount) || 100), object.label, timestamp);
   } else if (object.effectKind === "fullRecovery") {
     const needsTreatment = player.bodyHits > 0 || Number(player.overheal) <= 0;
     if (!needsTreatment) throw new ApiError(400, "現在は十分に回復しています。");
@@ -15373,8 +15453,7 @@ function useMapObject(room, player, objectId) {
     player.overheal = Math.max(1, Number(player.overheal) || 0);
   } else if (object.effectKind === "decoy") {
     replenishStamina(player, timestamp, true);
-    player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + Math.max(1, Number(object.effectAmount) || MAX_STAMINA));
-    player.staminaUpdatedAt = timestamp;
+    grantStamina(room, player, Math.max(1, Number(object.effectAmount) || MAX_STAMINA), object.label, timestamp);
     pushSound(room, "dash", object, {
       ownerId: player.id,
       sourceKind: "player",
@@ -15427,8 +15506,8 @@ function autoUseNearbyMapObject(room, player, timestamp = now()) {
       object.effectKind === "overheal" || object.effectKind === "relaxation" || object.effectKind === "healthyMeal" ||
       (object.effectKind === "footBath" && (hasStatus || hasCooldown || Number(player.bodyHits) > 0)) ||
       (object.effectKind === "herbalRecovery" && Number(player.bodyHits) > 0) ||
-      (object.effectKind === "mineralWater" && Number(player.stamina) < MAX_STORED_STAMINA - 0.01) ||
-      (object.effectKind === "stamina" && Number(player.stamina) < MAX_STORED_STAMINA - 0.01) ||
+      object.effectKind === "mineralWater" ||
+      object.effectKind === "stamina" ||
       (object.effectKind === "heal" && Number(player.bodyHits) > 0) ||
       (object.effectKind === "fullRecovery" && (
         Number(player.bodyHits) > 0 || Number(player.overheal) <= 0
@@ -15451,9 +15530,7 @@ function applyMysteryDrink(room, player, timestamp = now()) {
     grantCredits(room, player, CREDIT_ECONOMY.mysteryJackpot, "mystery");
     result = `ジャックポット +${CREDIT_ECONOMY.mysteryJackpot}C`;
   } else if (roll < 0.36) {
-    player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 250);
-    player.staminaUpdatedAt = timestamp;
-    maintainNaturalRecovery(room, player, timestamp);
+    grantStamina(room, player, 250, "ミステリー", timestamp);
     result = "エナジーサージ スタミナ+250";
   } else if (roll < 0.52) {
     player.bodyHits = 0;
@@ -15462,7 +15539,7 @@ function applyMysteryDrink(room, player, timestamp = now()) {
     addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
     result = "完全活性 回復・オーバーヒール・速度上昇";
   } else if (roll < 0.64) {
-    setMana(room, player, Math.max(RATIONAL_MANA_THRESHOLD, Number(player.mana) || 0), "マナ奔流");
+    setMana(room, player, Math.max(manaCapacityFor(player), Number(player.mana) || 0), "マナ奔流");
     result = "マナ奔流 理知へ移行";
   } else if (roll < 0.78) {
     if (rejectAdverseStatusDuringNaturalRecovery(room, player, "倦怠", timestamp)) result = "倦怠を理知の自然回復で無効化";
@@ -15500,6 +15577,7 @@ function purchaseDrink(room, player, itemId) {
   ensureItemStorageAvailable(player);
   const items = {
     "mineral-water": { label: "ミネラルウォーター", cost: MINERAL_WATER_COST, apply: () => { addItem(player, "mineral-water"); } },
+    seawater: { label: "海水", cost: 2, apply: () => { addItem(player, "seawater"); } },
     antidote: { label: "解毒剤", cost: ANTIDOTE_COST, apply: () => { addItem(player, "antidote"); } },
     molotov: { label: "火炎瓶", cost: MOLOTOV_COST, apply: () => { addItem(player, "molotov"); } },
     // Quantum Control deliberately turns these low-price feedstocks into a
@@ -15528,9 +15606,7 @@ function purchaseDrink(room, player, itemId) {
       setMana(room, player, (Number(player.mana) || 0) + 1, "マナポーション");
     } },
     stamina: { label: "スタミナ", cost: 6, apply: () => {
-      player.stamina = Math.min(MAX_STORED_STAMINA, Math.max(0, Number(player.stamina) || 0) + 350);
-      player.staminaUpdatedAt = now();
-      maintainNaturalRecovery(room, player, player.staminaUpdatedAt);
+      grantStamina(room, player, 350, "スタミナ", now(), { floorAtZero: true });
     } },
     hsg: { label: "HSG", cost: 8, apply: () => acquirePhysicalHsg(player) },
     reason: { label: "押し込み", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
@@ -16224,11 +16300,12 @@ function advanceNaturalRecoveryMana(room, player, elapsedMs) {
   if (!hasNaturalRecovery(room, player)) return false;
   if (player.hackerRootActive || hasFighterInfiniteResources(player)) return false;
   const before = Math.max(0, Number(player.mana) || 0);
-  if (before >= NATURAL_RECOVERY_MANA_CAP) return false;
   const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
   const recovered = NATURAL_RECOVERY_MANA_PER_SECOND * floraAromaMultiplier(room, player) * elapsedSeconds;
   if (recovered <= 0) return false;
-  player.mana = Number(Math.min(NATURAL_RECOVERY_MANA_CAP, before + recovered).toFixed(6));
+  player.mana = Number((before + recovered).toFixed(6));
+  expandManaCapacityFor(player, player.mana);
+  syncMentalState(room, player, "自然回復", now());
   player.luck = luckValueFor(player);
   return player.mana > before;
 }
@@ -16333,9 +16410,7 @@ function useMineralWater(room, player, center, level = 0, thrown = false) {
     : [player];
   for (const target of targets) {
     clearBurning(room, target, "ミネラルウォーター");
-    target.stamina = Math.min(MAX_STORED_STAMINA, Number(target.stamina || 0) + MINERAL_WATER_STAMINA + level * 45);
-    target.staminaUpdatedAt = timestamp;
-    maintainNaturalRecovery(room, target, timestamp);
+    grantStamina(room, target, MINERAL_WATER_STAMINA + level * 45, "ミネラルウォーター", timestamp);
   }
   if (thrown) addHazardField(room, player, "water", center.x, center.y, radius, 1 + level * 0.25, 4_500 + level * 1_000);
 }
@@ -16735,6 +16810,8 @@ function resolveThrownInventoryLanding(room, source, thrown, landing) {
     addHazardField(room, source, "fire", landing.x, landing.y, radius, 1 + level * 0.4);
   } else if (itemId === "mineral-water") {
     useMineralWater(room, source, landing, level, true);
+  } else if (itemId === "seawater") {
+    addHazardField(room, source, "water", landing.x, landing.y, radius, 1 + level * 0.2);
   } else if (itemId === "antidote") {
     useAntidote(room, source, landing, level, true);
   } else if (itemId === "ice") {
@@ -16891,6 +16968,9 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0, chargeId = "") {
   consumeItem(player, itemId);
   if (itemId === "mineral-water") {
     useMineralWater(room, player, player, level, false);
+  } else if (itemId === "seawater") {
+    clearBurning(room, player, "海水");
+    setImmediateFeedback(player, "海水", "燃焼解除");
   } else if (itemId === "antidote") {
     useAntidote(room, player, player, level, false);
   } else if (["mercury", "lead", "uranium", "plutonium"].includes(itemId)) {
@@ -16949,7 +17029,8 @@ function normalizeQuantumMode(rawMode) {
     "cool-water": "kinetic-decelerate",
     "heat-water": "kinetic-accelerate",
     "fission-uranium": "nuclear-fission",
-    "fission-plutonium": "nuclear-fission"
+    "fission-plutonium": "nuclear-fission",
+    "fusion-seawater": "nuclear-fusion"
   }[mode] || mode;
 }
 
@@ -16957,12 +17038,43 @@ function firstHeldQuantumItem(player, itemIds) {
   return itemIds.find((itemId) => itemCount(player, itemId) > 0) || "";
 }
 
+function quantumEndgameAvailable(room, timestamp = now()) {
+  const unlockAt = Number(room?.quantumEndgameAt) || 0;
+  return Boolean(room?.phase === "playing" && unlockAt > 0 && Number(timestamp) >= unlockAt);
+}
+
+function executeQuantumGlobalNuclearEffect(room, player, mode, itemId) {
+  const fusion = mode === "nuclear-fusion";
+  const label = fusion ? "核融合" : "核分裂";
+  const attackLabel = fusion ? "核融合連鎖" : "核分裂連鎖";
+  consumeItem(player, itemId);
+  spendMana(room, player, QUANTUM_NUCLEAR_MANA_COST, label);
+  const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.exiled);
+  for (const target of targets) destroyPlayerUnconditionally(room, player, target, attackLabel, {
+    attackKind: mode,
+    attackLabel,
+    slashGuardPhysical: false,
+    slashGuardReflectable: false,
+    reflectDestroy: true
+  });
+  pushMagicEffect(room, fusion ? "quantum-nuclear-fusion" : "quantum-nuclear", player, {
+    radius: Math.max(getMap(room).width, getMap(room).height),
+    playerId: player.id,
+    variant: itemId
+  });
+  checkWin(room);
+  if (room.phase !== "ended" && !player.exiled) destroyPlayerUnconditionally(room, player, player, `${label}の代償`);
+  pushEvent(room, fusion
+    ? `${player.name} が重水素を含む${ITEM_DEFINITIONS[itemId].label}で核融合連鎖を開始しました。`
+    : `${player.name} が${ITEM_DEFINITIONS[itemId].label}へ中性子を作用させ、核分裂の連鎖を開始しました。`);
+}
+
 function useQuantumControl(room, player, rawMode) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "quantum") || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "クオンタムを使用できません。");
   }
   const mode = normalizeQuantumMode(rawMode || player.quantumMode || "nuclear-transmutation");
-  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) {
+  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) {
     throw new ApiError(400, "クオンタム方式が不正です。");
   }
   player.quantumMode = mode;
@@ -16970,14 +17082,21 @@ function useQuantumControl(room, player, rawMode) {
     ? firstHeldQuantumItem(player, ["lead", "mercury"])
     : mode === "nuclear-fission"
       ? firstHeldQuantumItem(player, ["uranium", "plutonium"])
+      : mode === "nuclear-fusion"
+        ? firstHeldQuantumItem(player, ["seawater"])
       : firstHeldQuantumItem(player, ["mineral-water"]);
   // A Quantum activation without a compatible held item is a strict silent
   // no-op. This check must precede availability/cost checks and every effect.
   if (!itemId) return false;
+  const nuclearMode = mode === "nuclear-fission" || mode === "nuclear-fusion";
+  if (nuclearMode && !quantumEndgameAvailable(room, now())) {
+    const secondsLeft = Math.max(1, Math.ceil((Number(room.quantumEndgameAt) - now()) / 1000));
+    throw new ApiError(400, `${mode === "nuclear-fusion" ? "核融合" : "核分裂"}は終盤まで使用できません（残り${secondsLeft}秒）。`);
+  }
   ensureAbilityAvailable(player);
   if (Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `クオンタムには${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
-  if (mode === "nuclear-fission" && Number(player.mana) < QUANTUM_NUCLEAR_MANA_COST) {
-    throw new ApiError(400, `核分裂には${QUANTUM_NUCLEAR_MANA_COST}MPが必要です。`);
+  if (nuclearMode && Number(player.mana) < QUANTUM_NUCLEAR_MANA_COST) {
+    throw new ApiError(400, `${mode === "nuclear-fusion" ? "核融合" : "核分裂"}には${QUANTUM_NUCLEAR_MANA_COST}MPが必要です。`);
   }
   spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
   if (mode === "nuclear-transmutation") {
@@ -17000,21 +17119,8 @@ function useQuantumControl(room, player, rawMode) {
       variant: output
     });
     pushEvent(room, `${player.name} が運動エネルギーを${mode === "kinetic-decelerate" ? "減速させて氷結水" : "加速させて高温水"}を生成しました。`);
-  } else if (mode === "nuclear-fission") {
-    consumeItem(player, itemId);
-    spendMana(room, player, QUANTUM_NUCLEAR_MANA_COST, "核分裂");
-    const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.exiled);
-    for (const target of targets) destroyPlayerUnconditionally(room, player, target, "核分裂連鎖", {
-      attackKind: "nuclear-fission",
-      attackLabel: "核分裂連鎖",
-      slashGuardPhysical: false,
-      slashGuardReflectable: false,
-      reflectDestroy: true
-    });
-    pushMagicEffect(room, "quantum-nuclear", player, { radius: Math.max(getMap(room).width, getMap(room).height), playerId: player.id, variant: itemId });
-    checkWin(room);
-    if (room.phase !== "ended" && !player.exiled) destroyPlayerUnconditionally(room, player, player, "核分裂の代償");
-    pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}へ中性子を作用させ、核分裂の連鎖を開始しました。`);
+  } else if (nuclearMode) {
+    executeQuantumGlobalNuclearEffect(room, player, mode, itemId);
   }
   checkWin(room);
   touch(room);
@@ -17136,7 +17242,7 @@ function healFlora(room, player) {
   if (player.bodyHits > 0) player.bodyHits = 0;
   else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
   clearAdverseStatuses(room, player, "フローラ回復", timestamp);
-  player.stamina = Math.min(MAX_STORED_STAMINA, Math.max(0, Number(player.stamina) || 0) + MAX_STAMINA);
+  grantStamina(room, player, MAX_STAMINA, "フローラ回復", timestamp, { floorAtZero: true });
   addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
   player.floraReadyAt = 0;
   setImmediateFeedback(player, "フローラ回復", `自分 / HP回復 / SP+${MAX_STAMINA} / 状態解除 / 加速`);
@@ -17238,7 +17344,7 @@ function useFloraAbility(room, player, mode, options = {}) {
 
 const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "orichalcum-sword": { label: "オリハルコン・ソード", cost: 0, apply: (_room, player) => addItem(player, "orichalcum-sword") },
-  stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { const timestamp = now(); player.stamina = Math.min(MAX_STORED_STAMINA, player.stamina + 350); player.staminaUpdatedAt = timestamp; maintainNaturalRecovery(room, player, timestamp); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
+  stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { const timestamp = now(); grantStamina(room, player, 350, "バイブコーディング", timestamp, { floorAtZero: true }); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
   hsg: { label: "HSG", cost: 0, apply: (_room, player) => acquirePhysicalHsg(player) },
   heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1; pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
   fire: { label: "火遁の術", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
@@ -17251,6 +17357,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   uranium: { label: "ウラン容器", cost: 0, apply: (_room, player) => addItem(player, "uranium") },
   plutonium: { label: "プルトニウム容器", cost: 0, apply: (_room, player) => addItem(player, "plutonium") },
   "mineral-water": { label: "ミネラルウォーター", cost: 0, apply: (_room, player) => addItem(player, "mineral-water") },
+  seawater: { label: "海水", cost: 0, apply: (_room, player) => addItem(player, "seawater") },
   antidote: { label: "解毒剤", cost: 0, apply: (_room, player) => addItem(player, "antidote") },
   molotov: { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
   iai: { label: "居合", cost: 1, apply: (room, player) => grantIaiCharge(room, player, false, "hacker") },
@@ -19726,7 +19833,8 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     alive: player.alive,
     ejected: player.ejected,
     inVent: player.inVent,
-    stamina: player.stamina
+    stamina: serializeResourceValue(player.stamina),
+    maxStoredStamina: serializeResourceValue(staminaCapacityFor(player))
   };
 }
 
@@ -19921,6 +20029,11 @@ function serialize(room, viewer, options = {}) {
     phase: room.phase,
     round: room.round,
     battleStartedAt: room.battleStartedAt,
+    quantumEndgameAt: Number(room.quantumEndgameAt) || 0,
+    quantumEndgameAvailable: quantumEndgameAvailable(room, timestamp),
+    quantumEndgameSecondsLeft: quantumEndgameAvailable(room, timestamp)
+      ? 0
+      : Math.max(0, Math.ceil(((Number(room.quantumEndgameAt) || timestamp) - timestamp) / 1000)),
     preparationEndsAt: Number(room.preparationEndsAt) || 0,
     preparationActive: preparationBarrierActive(room, timestamp),
     hostId: room.hostId,
@@ -20095,8 +20208,8 @@ function serialize(room, viewer, options = {}) {
       overheal: viewer.overheal,
       killCamera: viewer.killCamera ? { ...viewer.killCamera } : null,
       credits: viewer.credits,
-      mana: Math.round((Number(viewer.mana) || 0) * 10) / 10,
-      rationalManaThreshold: RATIONAL_MANA_THRESHOLD,
+      mana: serializeResourceValue(viewer.mana),
+      maxMana: serializeResourceValue(manaCapacityFor(viewer)),
       mentalState: mentalStateFor(viewer),
       mentalPoints: mentalPointsFor(viewer),
       desireBias: viewer.desireBias || "",
@@ -20145,14 +20258,14 @@ function serialize(room, viewer, options = {}) {
         quantumNuclear: QUANTUM_NUCLEAR_MANA_COST,
         sabotage: SABOTAGE_MANA_COST
       },
-      stamina: Math.round(viewer.stamina * 10) / 10,
+      stamina: serializeResourceValue(viewer.stamina),
       maxStamina: MAX_STAMINA,
-      maxStoredStamina: staminaCapacityFor(viewer),
+      maxStoredStamina: serializeResourceValue(staminaCapacityFor(viewer)),
       statusImmunityActive: hasNaturalRecovery(room, viewer),
       naturalRecoveryHpPerSecond: NATURAL_RECOVERY_HP_PER_SECOND * floraAromaMultiplier(room, viewer),
       naturalRecoveryStaminaPerSecond: STAMINA_REGEN_PER_SECOND * floraAromaMultiplier(room, viewer),
       naturalRecoveryManaPerSecond: NATURAL_RECOVERY_MANA_PER_SECOND * floraAromaMultiplier(room, viewer),
-      naturalRecoveryManaCap: NATURAL_RECOVERY_MANA_CAP,
+      naturalRecoveryManaCap: serializeResourceValue(manaCapacityFor(viewer)),
       sleepRegenPerSecond: STAMINA_REGEN_PER_SECOND * SLEEP_REGEN_MULTIPLIER,
       abilityContribution: viewer.abilityContribution,
       taskContribution: viewer.taskContribution,
@@ -21130,6 +21243,7 @@ async function handleApi(req, res) {
       room.sounds = [];
       room.meeting = null;
       room.battleStartedAt = 0;
+      room.quantumEndgameAt = 0;
       room.preparationEndsAt = 0;
       room.operatorSelectEndsAt = 0;
       room.operatorTurnOrder = [];
@@ -21229,6 +21343,7 @@ async function handleApi(req, res) {
         entry.credits = 0;
         entry.lastPassiveCreditAt = now();
         entry.mana = STARTING_MANA;
+        entry.maxMana = DEFAULT_MAX_MANA;
         entry.mentalState = "理知";
         entry.rationalFreeAbilityReadyAt = 0;
         entry.gritCharges = 0;
@@ -21252,6 +21367,7 @@ async function handleApi(req, res) {
         entry.objectLuckUntil = 0;
         entry.donationLuckBonus = 0;
         entry.stamina = MAX_STAMINA;
+        entry.maxStoredStamina = MAX_STORED_STAMINA;
         entry.staminaUpdatedAt = now();
         entry.speedMultiplier = 1;
         entry.dodgeDurationBonusMs = 0;
@@ -23002,5 +23118,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "rejected-action-input-cross-route-v521" });
+self.postMessage({ type: "ready", version: "quantum-fusion-dynamic-resource-markers-v522" });
 })();

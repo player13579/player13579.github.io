@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v521-rejected-action-input-cross-route";
+const CACHE_NAME = "dva-static-v522-quantum-fusion-dynamic-resource-markers";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -47,7 +47,6 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-hacker-ate-v391.png",
   "/assets/generated/operator-assassin-ate-v510.png",
   "/assets/generated/natural-recovery-ate-v510.png",
-  "/assets/generated/flora-aroma-natural-recovery-ate-v520.png",
   "/assets/generated/gbo-overdrive-ate-v513.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
   "/assets/generated/fighter-energy-charge-ate-v404.png",
@@ -111,6 +110,7 @@ const STATIC_ASSETS = [
   "/assets/generated/gunner-rpg.webp",
   "/assets/generated/gunner-missile.webp",
   "/assets/generated/effect-quantum-nuclear-v311.png",
+  "/assets/generated/quantum-nuclear-fusion-ate-v522.png",
   "/assets/generated/jump-action-effect-v311.png",
   "/assets/generated/emp-resonance-v398.png",
   "/assets/generated/emp-cancel-v311.png",
@@ -251,6 +251,7 @@ const STATIC_ASSETS = [
   "/assets/generated/item-uranium.webp",
   "/assets/generated/item-plutonium.webp",
   "/assets/generated/item-mineral-water.webp",
+  "/assets/generated/item-seawater-v522.png",
   "/assets/generated/item-antidote.webp",
   "/assets/generated/item-heal.webp",
   "/assets/generated/item-stamina-cell.webp",

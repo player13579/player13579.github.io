@@ -369,7 +369,8 @@ const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
 const QUANTUM_ABILITY_MODE_OPTIONS = Object.freeze([
   ["quantum-kinetic", "運動エネルギー制御"],
   ["nuclear-transmutation", "核変換"],
-  ["nuclear-fission", "核分裂"]
+  ["nuclear-fission", "核分裂"],
+  ["nuclear-fusion", "核融合"]
 ]);
 const QUANTUM_KINETIC_MODE_OPTIONS = Object.freeze([
   ["kinetic-accelerate", "加速"],
@@ -484,6 +485,9 @@ const state = {
   dismissedKillCameraId: "",
   hitEffects: [],
   magicEffects: [],
+  headMarkerSlots: new Map(),
+  headMarkerPresentationCache: new Map(),
+  headMarkerPresentationFrame: -1,
   worldSoundEffects: [],
   expandedMapOpen: false,
   tabletOpen: false,
@@ -673,6 +677,7 @@ const utilityLabels = {
 
 const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "mineral-water": "通常使用: 自分の燃焼解除・SP+100。投擲: 着地点半径135の全員へ同効果。瓶片は確率ダメージ",
+  seawater: "重水素を含む海水。通常使用は自分の燃焼解除、投擲は着地点へ消火水域を作る。クオンタムは終盤に2MPで核融合し、核分裂同様に全人間へ影響する",
   antidote: "通常使用: 自分の毒解除。投擲: 着地点半径120の全員へ同効果。瓶片は確率ダメージ",
   molotov: "通常使用は自分を燃焼。投擲は着地点周囲を継続燃焼し、瓶片が確率ダメージ。Enhanceは強度・範囲のみ強化",
   evade: "回避受付+0.25秒（累積上限+1.50秒）。回避自体は100SPを消費",
@@ -767,7 +772,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "rejected-action-input-cross-route-v521";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "quantum-fusion-dynamic-resource-markers-v522";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -779,6 +784,7 @@ const generatedItemTextureFiles = new Map([
   ["quantum-uranium", { file: "item-uranium.webp" }],
   ["plutonium", { file: "item-plutonium.webp" }],
   ["quantum-plutonium", { file: "item-plutonium.webp" }],
+  ["seawater", { file: "item-seawater-v522.png" }],
   ["mineral-water", { file: "item-mineral-water.webp" }],
   ["antidote", { file: "item-antidote.webp" }],
   ["molotov", { file: "item-molotov.webp" }],
@@ -1389,7 +1395,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "RESOURCE GUIDE",
     name: "ソフィア",
-    text: "MPは0以下=0点、1=1点、2以上=2点。SPは0以下=0点、1〜250=1点、251以上=2点。合計0=欲望、1〜2=気概、3〜4=理知。HPは含めません。SPとMPは相互変換せず、理知の自然回復中にそれぞれ独立してじわじわ回復します。",
+    text: "SPとMPは各自の現在上限に対する割合で、0%=0点、0%超〜50%=1点、50%超=2点。合計0=欲望、1〜2=気概、3〜4=理知です。HPは含めません。SPとMPの獲得が上限を超えるとcurrent/maxが一緒に拡張され、消費しても上限は縮みません。理知の自然回復は不足分を回復した後もcurrent/maxをじわじわ拡張します。",
     sophiaGesture: "focus",
     philiaGesture: "interact",
     symbols: [{ type: "idea", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
@@ -2859,6 +2865,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "quantum-temperature-cold": "cast",
   "quantum-temperature-hot": "power",
   "quantum-nuclear": "power",
+  "quantum-nuclear-fusion": "power",
   "alchemy-human-transmutation": "cast",
   "alchemy-excalibur": "slash",
   "alchemy-railgun": "shoot",
@@ -6988,7 +6995,7 @@ function renderTabletBranch(data, force = false) {
     // accelerate/decelerate controls over nuclear selections.
     setTabletBranchPath("", { focus: false });
   }, {
-    kind: mode === "nuclear-fission" ? "danger" : "action",
+    kind: ["nuclear-fission", "nuclear-fusion"].includes(mode) ? "danger" : "action",
     selected: selectedQuantumExecutableMode(false) === mode,
     disabled: els.operatorAbilityButton.disabled
   });
@@ -7068,6 +7075,7 @@ function renderTabletBranch(data, force = false) {
         addSubmenu("運動エネルギー制御", "quantum-kinetic");
         addQuantumModeAction("核変換", "nuclear-transmutation");
         addQuantumModeAction("核分裂", "nuclear-fission");
+        addQuantumModeAction("核融合", "nuclear-fusion");
       }
     } else {
       addSource(els.operatorAbilityButton);
@@ -7141,7 +7149,8 @@ function conciseTabletAbilityName(data) {
       "kinetic-accelerate": "運動エネルギー制御 / 加速",
       "kinetic-decelerate": "運動エネルギー制御 / 減速",
       "nuclear-transmutation": "核変換",
-      "nuclear-fission": "核分裂"
+      "nuclear-fission": "核分裂",
+      "nuclear-fusion": "核融合"
     }
   };
   if (owner === "fighter") return "リミットブレイク";
@@ -7689,7 +7698,8 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         setOperatorBranchesOpen(true, operatorType, true);
       }, selectedQuantumExecutableMode(borrowedPreview).startsWith("kinetic-"), "選択後、加速か減速へ分岐する");
       addBranch("核変換", () => selectQuantumBranchMode("nuclear-transmutation"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-transmutation", "所持している鉛か水銀を金へ変えて100Cへ即時換金する。対象がなければ何も起きない");
-      addBranch("核分裂", () => selectQuantumBranchMode("nuclear-fission"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fission", "所持しているウランかプルトニウムへ核分裂を適用する。対象がなければ何も起きない");
+      addBranch("核分裂", () => selectQuantumBranchMode("nuclear-fission"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fission", "終盤に所持ウランかプルトニウムへ核分裂を適用し、全人間へ影響する。対象がなければ何も起きない");
+      addBranch("核融合", () => selectQuantumBranchMode("nuclear-fusion"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fusion", "終盤に重水素を含む所持海水で核融合し、全人間へ影響する。海水がなければ何も起きない");
     }
   } else if (activeType === "alchemist") {
     availableHackerRecipes(self).forEach((recipe) => {
@@ -8297,7 +8307,7 @@ async function api(path, extra = {}, options = {}) {
   if (path === "/api/teleport" && requestedMode === "heart") actionKind = "heart-transfer";
   if (path === "/api/gravity-storm") actionKind = "power";
   if (path === "/api/gravity-time-keeper") actionKind = "power";
-  if (path === "/api/quantum-control" && requestedMode === "nuclear-fission") actionKind = "power";
+  if (path === "/api/quantum-control" && ["nuclear-fission", "nuclear-fusion"].includes(requestedMode)) actionKind = "power";
   if (result.actionApplied === false && (
     path === "/api/quantum-control" ||
     (path === "/api/borrowed-ability" && String(extra?.ability || "") === "quantum")
@@ -9043,6 +9053,9 @@ function detectHitEffects(previous, next) {
 function detectMagicEffects(previous, next) {
   if (!["playing", "meeting"].includes(next?.phase)) {
     state.magicEffects = [];
+    state.headMarkerSlots.clear();
+    state.headMarkerPresentationCache.clear();
+    state.headMarkerPresentationFrame = -1;
     return;
   }
   if (!previous || previous.roomId !== next.roomId) return;
@@ -9054,11 +9067,48 @@ function detectMagicEffects(previous, next) {
     const duration = Math.max(magicEffectDuration(effect.type), Number(effect.durationMs) || 0);
     // Network delay must not consume a visual effect before the client can draw it.
     const startedAt = receivedAt;
-    state.magicEffects.push({
+    const localEffect = {
       ...effect,
       startedAt,
       duration
-    });
+    };
+    const nonCreditSemantic = nonCreditHeadMarkerSemanticKey(localEffect);
+    if (nonCreditSemantic) {
+      const existing = state.magicEffects.find((entry) => (
+        entry.playerId === localEffect.playerId &&
+        nonCreditHeadMarkerSemanticKey(entry) === nonCreditSemantic &&
+        (Number(entry._headMarkerExpiresAt) || (Number(entry.startedAt) + Number(entry.duration))) > receivedAt
+      ));
+      if (existing) {
+        const extensionUntil = Math.max(
+          Number(existing._headMarkerExpiresAt) || (Number(existing.startedAt) + Number(existing.duration)),
+          receivedAt + duration
+        );
+        existing._headMarkerInstanceKey = existing._headMarkerInstanceKey || existing.id;
+        existing._headMarkerExpiresAt = extensionUntil;
+        existing._headMarkerAggregateCount = Math.max(1, Number(existing._headMarkerAggregateCount) || Number(existing.markerCount) || 1) +
+          Math.max(1, Number(localEffect.markerCount) || 1);
+        existing._headMarkerLastAt = receivedAt;
+        existing.duration = Math.max(1, extensionUntil - Number(existing.startedAt));
+        existing.variant = localEffect.variant;
+        state.headMarkerPresentationFrame = -1;
+        state.headMarkerPresentationCache.clear();
+        continue;
+      }
+      const queuedDistinctCount = state.magicEffects.filter((entry) => (
+        entry.playerId === localEffect.playerId &&
+        nonCreditHeadMarkerSemanticKey(entry) &&
+        (Number(entry._headMarkerExpiresAt) || (Number(entry.startedAt) + Number(entry.duration))) > receivedAt
+      )).length;
+      localEffect._headMarkerInstanceKey = localEffect.id;
+      localEffect._headMarkerAggregateCount = Math.max(1, Number(localEffect.markerCount) || 1);
+      localEffect._headMarkerLastAt = receivedAt;
+      localEffect._headMarkerExpiresAt = receivedAt + duration + queuedDistinctCount * NON_CREDIT_HEAD_MARKER_DWELL_MS;
+      localEffect.duration = localEffect._headMarkerExpiresAt - receivedAt;
+    }
+    state.magicEffects.push(localEffect);
+    state.headMarkerPresentationFrame = -1;
+    state.headMarkerPresentationCache.clear();
     if (effect.type.startsWith("object-") && effect.playerId === next.selfId) {
       const objectType = effect.type.slice("object-".length);
       const object = (next.map?.objects || []).find((entry) => (
@@ -9858,7 +9908,8 @@ function normalizeQuantumClientMode(rawMode) {
     "cool-water": "kinetic-decelerate",
     "heat-water": "kinetic-accelerate",
     "fission-uranium": "nuclear-fission",
-    "fission-plutonium": "nuclear-fission"
+    "fission-plutonium": "nuclear-fission",
+    "fusion-seawater": "nuclear-fusion"
   }[mode] || mode;
 }
 
@@ -9867,7 +9918,8 @@ function quantumModeLabel(rawMode) {
     "kinetic-accelerate": "運動エネルギー制御 / 加速",
     "kinetic-decelerate": "運動エネルギー制御 / 減速",
     "nuclear-transmutation": "核変換",
-    "nuclear-fission": "核分裂"
+    "nuclear-fission": "核分裂",
+    "nuclear-fusion": "核融合"
   }[normalizeQuantumClientMode(rawMode)] || "クオンタム";
 }
 
@@ -9887,13 +9939,15 @@ function hasCompatibleQuantumItem(self, rawMode) {
     ? ["lead", "mercury"]
     : mode === "nuclear-fission"
       ? ["uranium", "plutonium"]
+      : mode === "nuclear-fusion"
+        ? ["seawater"]
       : ["mineral-water"];
   return ids.some((id) => (self?.itemInventory || []).some((item) => item.id === id && Number(item.amount) > 0));
 }
 
 function rememberQuantumExecutableMode(rawMode, borrowed = false) {
   const mode = normalizeQuantumClientMode(rawMode);
-  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission"].includes(mode)) return false;
+  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return false;
   if (mode.startsWith("kinetic-")) state.quantumKineticModes[borrowed ? "borrowed" : "native"] = mode;
   if (borrowed) state.borrowedAbilityModes.quantum = mode;
   else state.quantumAbilityMode = mode;
@@ -10402,7 +10456,8 @@ function abilityModeDescription(owner, mode, self) {
       "kinetic-accelerate": "所持している水の運動エネルギーを加速し、高温水へ変える。水がなければ何も起きない。",
       "kinetic-decelerate": "所持している水の運動エネルギーを減速し、氷へ変える。水がなければ何も起きない。",
       "nuclear-transmutation": "所持している鉛か水銀を自動選択して金へ核変換し、100Cへ即時換金する。どちらもなければ何も起きない。",
-      "nuclear-fission": `所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全域を破壊する。どちらもなければ何も起きない。${cost("quantumNuclear")}。`
+      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ影響する。どちらもなければ何も起きない。${cost("quantumNuclear")}。`,
+      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合連鎖で核分裂同様に全人間へ影響する。海水がなければ何も起きない。${cost("quantumNuclear")}。`
     }
   };
   const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
@@ -11203,7 +11258,7 @@ function renderActiveEffects(data) {
     const hpRate = Number(self.naturalRecoveryHpPerSecond || 0.05).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     const spRate = Number(self.naturalRecoveryStaminaPerSecond || 19).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     const mpRate = Number(self.naturalRecoveryManaPerSecond || 0.127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    add("自然回復", "理知", "good", `状態異常を無効化・即時解除。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復（MPは${Number(self.naturalRecoveryManaCap || 2)}まで）`);
+    add("自然回復", "理知", "good", `状態異常を無効化・即時解除。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後はSP・MPのcurrent/maxを同率で拡張`);
   }
   if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・理知中の自然回復で解除");
   if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・理知中の自然回復で解除");
@@ -11820,9 +11875,18 @@ function updateActionButtons(data) {
   const borrowedDisplayedLabel = operatorLabels[borrowedDisplayedOperator] || "借用能力";
   const rootToggle = self.special === "alchemist";
   const displayedOperator = rootToggle ? "alchemist" : self.special;
+  const quantumEndgameSecondsLeft = Math.max(0, Number(data.quantumEndgameSecondsLeft) || 0);
+  const nativeQuantumMode = selectedQuantumExecutableMode(false);
+  const borrowedQuantumMode = selectedQuantumExecutableMode(true);
+  const nuclearModeLocked = (mode) => ["nuclear-fission", "nuclear-fusion"].includes(mode) && !data.quantumEndgameAvailable;
+  const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
+  const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
   els.operatorAbilityButton.textContent = rootToggle
     ? (self.hackerRootActive ? "ROOT解除" : "Root化")
     : operatorLabels[displayedOperator] || "オペ能力";
+  if (nativeQuantumEndgameLocked) {
+    els.operatorAbilityButton.textContent += `（終盤まで${quantumEndgameSecondsLeft}秒）`;
+  }
   els.operatorAbilityButton.dataset.operator = displayedOperator || "none";
   els.operatorAbilityButton.dataset.repeatableAbility = rootToggle ? "0" : "1";
   els.operatorAbilityButton.classList.toggle("active", Boolean(rootToggle && self.hackerRootActive));
@@ -11832,19 +11896,28 @@ function updateActionButtons(data) {
       displayedOperator === "assassin" ||
       (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
       (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
+      nativeQuantumEndgameLocked ||
       (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < 8);
-  els.operatorAbilityButton.title = abilityBatchActionSupported(operatorAbilityAction())
+  els.operatorAbilityButton.title = nativeQuantumEndgameLocked
+    ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）`
+    : abilityBatchActionSupported(operatorAbilityAction())
     ? "タップは通常1回。長押しはサーバーが現在MPから2を残す量を一括消費し、通常MPコストで成立する回数を同じ対象・方式へ並列発動"
     : "タップで現在の固有能力を1回発動";
   els.borrowedAbilityButton.hidden = !(rootToggle && self.hackerRootActive && activeBorrowedOperator);
   els.borrowedAbilityButton.textContent = activeBorrowedOperator
     ? `借用 ${specialLabels[borrowedDisplayedOperator] || borrowedDisplayedOperator} / ${borrowedDisplayedLabel} を実行`
     : "選択中の借用能力を実行";
+  if (borrowedQuantumEndgameLocked) {
+    els.borrowedAbilityButton.textContent += `（終盤まで${quantumEndgameSecondsLeft}秒）`;
+  }
   els.borrowedAbilityButton.disabled = !canUseAbility ||
     !activeBorrowedOperator ||
     borrowedStateBlocked ||
+    borrowedQuantumEndgameLocked ||
     (borrowedDisplayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(true)) && Number(self.stamina) < 8);
-  els.borrowedAbilityButton.title = abilityBatchActionSupported(borrowedAbilityAction())
+  els.borrowedAbilityButton.title = borrowedQuantumEndgameLocked
+    ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）`
+    : abilityBatchActionSupported(borrowedAbilityAction())
     ? "タップは通常1回。長押しは2MPを残して選択中の借用能力を一括並列発動"
     : "選択中の借用能力を1回発動";
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
@@ -12346,6 +12419,9 @@ function applyMovementAck(result) {
   const player = data.players.find((entry) => entry.id === data.selfId);
   if (!player) return;
   data.self.stamina = result.stamina;
+  if (Number.isFinite(Number(result.maxStoredStamina))) {
+    data.self.maxStoredStamina = Math.max(Number(result.maxStoredStamina), Number(result.stamina) || 0);
+  }
   data.self.slowedUntil = result.slowedUntil;
   data.self.taserSlowedUntil = result.taserSlowedUntil;
   data.self.shockSlowedUntil = result.shockSlowedUntil;
@@ -14742,6 +14818,17 @@ function drawMagicEffects() {
   const now = state.frameNow || performance.now();
   state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect));
+  for (const player of state.data?.players || []) {
+    const previousSlot = state.headMarkerSlots.get(player.id) || null;
+    const presentation = selectHeadMarkerPresentation(
+      player,
+      state.data,
+      headMarkerEffectsForPlayer(player, state.data),
+      now,
+      previousSlot
+    );
+    rememberHeadMarkerPresentation(player.id, presentation, now);
+  }
   for (const effect of state.magicEffects) {
     const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
     if (effect.type.startsWith("gain-")) {
@@ -15111,6 +15198,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "quantum-temperature-hot": ["quantumHotEffect", 240],
   "quantum-ice-impact": ["quantumColdEffect", 280],
   "quantum-nuclear": ["quantumNuclearEffect", 760],
+  "quantum-nuclear-fusion": ["quantumNuclearFusion", 760],
   "hazard-antidote": ["hazardWaterEffect", 250],
   "bottle-shards": ["bottleShardEffect", 220],
   "action-jump": ["jumpActionEffect", 320],
@@ -15199,7 +15287,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   }
   const pulse = Math.sin(Math.min(1, progress) * Math.PI);
   const radiusSize = Number(effect.radius) > 0 ? Number(effect.radius) * 1.9 : defaultSize;
-  const size = Math.min(effect.type === "quantum-nuclear" ? 1500 : 520, Math.max(defaultSize, radiusSize)) *
+  const size = Math.min(["quantum-nuclear", "quantum-nuclear-fusion"].includes(effect.type) ? 1500 : 520, Math.max(defaultSize, radiusSize)) *
     (0.82 + pulse * 0.28 + progress * 0.14);
   const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
@@ -16030,6 +16118,144 @@ const HEAD_MARKER_LAYOUT = Object.freeze({
   markerSize: 26
 });
 
+const NON_CREDIT_HEAD_MARKER_DWELL_MS = 900;
+
+function isCreditHeadMarkerEffect(effect) {
+  const type = String(effect?.type || "");
+  const effectKind = String(effect?.effectKind || "");
+  return type === "gain-credits" || (type.startsWith("gain-") && effectKind === "credits");
+}
+
+function nonCreditHeadMarkerSemanticKey(effect) {
+  if (!effect || isCreditHeadMarkerEffect(effect)) return "";
+  const playerId = String(effect.playerId || "");
+  if (!playerId) return "";
+  const type = String(effect.type || "");
+  if (type === "fighter-energy-charge") return "gain:fighter-energy-charge";
+  if (type.startsWith("gain-")) {
+    const effectKind = String(effect.effectKind || type.slice("gain-".length) || "gain");
+    return `gain:${effectKind}`;
+  }
+  if (type === "persistent-status" || effect.persistent) {
+    const category = String(effect.category || effect.effectKind || type || "status");
+    return `persistent:${category}`;
+  }
+  if (type === "attacker-ally-marker") return "persistent:attacker-ally";
+  return "";
+}
+
+function coalesceNonCreditHeadMarkerEffects(effects, now) {
+  const timestamp = Number(now) || 0;
+  const candidates = [];
+  const bySemantic = new Map();
+  for (const effect of Array.isArray(effects) ? effects : []) {
+    const semanticKey = nonCreditHeadMarkerSemanticKey(effect);
+    if (!semanticKey || effect?.active === false) continue;
+    const persistent = Boolean(effect?.persistent || effect?.type === "persistent-status" || effect?.type === "attacker-ally-marker");
+    const startedAt = Number.isFinite(Number(effect?.startedAt))
+      ? Number(effect.startedAt)
+      : Number.isFinite(Number(effect?.at)) ? Number(effect.at) : timestamp;
+    const rawDuration = Math.max(1, Number(effect?.duration) || Number(effect?.durationMs) || 1200);
+    const expiresAt = persistent
+      ? Number.POSITIVE_INFINITY
+      : Math.max(
+          startedAt + rawDuration,
+          Number(effect?._headMarkerExpiresAt) || Number(effect?.expiresAt) || 0
+        );
+    if (!persistent && expiresAt <= timestamp) continue;
+    const aggregateCount = Math.max(
+      1,
+      Math.floor(Number(effect?._headMarkerAggregateCount) || Number(effect?.markerCount) || 1)
+    );
+    const instanceKey = String(effect?._headMarkerInstanceKey || effect?.id || `${semanticKey}:${startedAt}`);
+    const lastAt = Math.max(startedAt, Number(effect?._headMarkerLastAt) || Number(effect?.at) || startedAt);
+    const groupKey = `${String(effect?.playerId || "")}:${semanticKey}`;
+    const existing = bySemantic.get(groupKey);
+    if (existing) {
+      existing.expiresAt = Math.max(existing.expiresAt, expiresAt);
+      existing.aggregateCount += aggregateCount;
+      existing.lastAt = Math.max(existing.lastAt, lastAt);
+      existing.sourceEffect = {
+        ...existing.sourceEffect,
+        ...effect,
+        id: existing.instanceKey,
+        startedAt: existing.startedAt,
+        duration: Math.max(1, existing.expiresAt - existing.startedAt),
+        _headMarkerInstanceKey: existing.instanceKey,
+        _headMarkerExpiresAt: existing.expiresAt,
+        _headMarkerAggregateCount: existing.aggregateCount,
+        _headMarkerLastAt: existing.lastAt
+      };
+      continue;
+    }
+    const candidate = {
+      semanticKey,
+      instanceKey,
+      startedAt,
+      expiresAt,
+      aggregateCount,
+      lastAt,
+      persistent,
+      type: String(effect?.type || ""),
+      category: String(effect?.category || effect?.effectKind || ""),
+      sourceEffect: {
+        ...effect,
+        id: instanceKey,
+        startedAt,
+        duration: persistent ? rawDuration : Math.max(1, expiresAt - startedAt),
+        _headMarkerInstanceKey: instanceKey,
+        _headMarkerExpiresAt: expiresAt,
+        _headMarkerAggregateCount: aggregateCount,
+        _headMarkerLastAt: lastAt
+      }
+    };
+    bySemantic.set(groupKey, candidate);
+    candidates.push(candidate);
+  }
+  return candidates;
+}
+
+function selectHeadMarkerPresentation(player, data, effects, now, previousSlot) {
+  const timestamp = Number(now) || 0;
+  const playerId = String(player?.id || "");
+  if (!playerId || !["playing", "meeting"].includes(String(data?.phase || ""))) {
+    return { nonCredit: null, queued: [], credits: [] };
+  }
+  const relevant = (Array.isArray(effects) ? effects : []).filter((effect) => String(effect?.playerId || "") === playerId);
+  const credits = relevant.filter((effect) => {
+    if (!isCreditHeadMarkerEffect(effect)) return false;
+    const startedAt = Number.isFinite(Number(effect?.startedAt))
+      ? Number(effect.startedAt)
+      : Number.isFinite(Number(effect?.at)) ? Number(effect.at) : timestamp;
+    const duration = Math.max(1, Number(effect?.duration) || Number(effect?.durationMs) || 1200);
+    return startedAt + duration > timestamp;
+  });
+  const candidates = coalesceNonCreditHeadMarkerEffects(relevant, timestamp);
+  const transient = candidates
+    .filter((candidate) => !candidate.persistent && candidate.expiresAt > timestamp)
+    .sort((left, right) => right.lastAt - left.lastAt || left.startedAt - right.startedAt || left.semanticKey.localeCompare(right.semanticKey));
+  const persistent = candidates
+    .filter((candidate) => candidate.persistent)
+    .sort((left, right) => left.semanticKey.localeCompare(right.semanticKey));
+  const pool = transient.length ? transient : persistent;
+  if (!pool.length) return { nonCredit: null, queued: [], credits };
+
+  let selected = pool[0];
+  const previousIndex = pool.findIndex((candidate) => (
+    candidate.instanceKey === previousSlot?.instanceKey || candidate.semanticKey === previousSlot?.semanticKey
+  ));
+  if (previousIndex >= 0) {
+    const selectedAt = Number(previousSlot?.selectedAt) || 0;
+    const keepPrevious = pool.length === 1 || !selectedAt || timestamp - selectedAt < 900;
+    selected = keepPrevious ? pool[previousIndex] : pool[(previousIndex + 1) % pool.length];
+  }
+  return {
+    nonCredit: selected,
+    queued: pool.filter((candidate) => candidate.semanticKey !== selected.semanticKey),
+    credits
+  };
+}
+
 function headMarkerSlot(index, total, startRow = 0) {
   const safeIndex = Math.max(0, Number(index) || 0);
   const safeTotal = Math.max(1, Number(total) || 1);
@@ -16066,8 +16292,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
 });
 
 const STATUS_MARKER_EXPLANATIONS = Object.freeze({
-  naturalRecovery: ["自然回復", "理知中、状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。"],
-  aroma: ["アロマ", "フローラ本人の理知自然回復中、HP・SP・MPの漸進回復速度が1.75倍です。"],
+  naturalRecovery: ["自然回復", "理知中、状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。アロマ有効中はこのマーカーの発光が強まります。"],
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
@@ -16191,35 +16416,103 @@ function isSharedHeadMarkerEffect(effect) {
   return Boolean(effect?.playerId) && (effect.type?.startsWith("gain-") || effect.type === "fighter-energy-charge");
 }
 
-function sharedHeadMarkerEffects(playerId) {
-  return state.magicEffects.filter((entry) => entry.playerId === playerId && isSharedHeadMarkerEffect(entry));
-}
-
 function sharedHeadMarkerCount(effect) {
-  return effect?.type === "fighter-energy-charge"
-    ? 1
-    : Math.max(1, Math.floor(Number(effect?.markerCount) || 1));
+  if (!isCreditHeadMarkerEffect(effect)) return 1;
+  return Math.max(1, Math.floor(Number(effect?.markerCount) || 1));
 }
 
-function sharedHeadMarkerPlacement(effect, player) {
-  const peerEffects = sharedHeadMarkerEffects(effect.playerId);
-  const effectIndex = peerEffects.indexOf(effect);
-  const baseIndex = peerEffects.slice(0, Math.max(0, effectIndex))
+function persistentHeadMarkerEffects(player, data) {
+  if (!player?.id || !player.alive || player.ejected) return [];
+  const effects = [];
+  if (data?.phase === "playing" && player.attackerAlly) {
+    effects.push({
+      id: `ally:${player.id}`,
+      type: "attacker-ally-marker",
+      category: "attackerAlly",
+      playerId: player.id,
+      persistent: true,
+      active: true,
+      at: 0
+    });
+  }
+  const activeState = persistentStatusAteState(player, data);
+  for (const category of Object.keys(PERSISTENT_STATUS_ATE_PROFILES)) {
+    if (!activeState[category]) continue;
+    effects.push({
+      id: `status:${player.id}:${category}`,
+      type: "persistent-status",
+      category,
+      playerId: player.id,
+      persistent: true,
+      active: true,
+      at: 0
+    });
+  }
+  return effects;
+}
+
+function headMarkerEffectsForPlayer(player, data) {
+  return [
+    ...state.magicEffects.filter((effect) => effect.playerId === player?.id && isSharedHeadMarkerEffect(effect)),
+    ...persistentHeadMarkerEffects(player, data)
+  ];
+}
+
+function rememberHeadMarkerPresentation(playerId, presentation, now) {
+  const previous = state.headMarkerSlots.get(playerId) || null;
+  if (!presentation.nonCredit) {
+    state.headMarkerSlots.delete(playerId);
+  } else {
+    const sameInstance = previous?.instanceKey === presentation.nonCredit.instanceKey;
+    state.headMarkerSlots.set(playerId, {
+      ...presentation.nonCredit,
+      selectedAt: sameInstance ? previous.selectedAt : now
+    });
+  }
+  state.headMarkerPresentationCache.set(playerId, presentation);
+  return presentation;
+}
+
+function headMarkerPresentationForPlayer(player, data, now) {
+  const frame = Number(state.frameNow || now) || 0;
+  if (state.headMarkerPresentationFrame !== frame) {
+    state.headMarkerPresentationFrame = frame;
+    state.headMarkerPresentationCache.clear();
+  }
+  const cached = state.headMarkerPresentationCache.get(player?.id);
+  if (cached) return cached;
+  const previousSlot = state.headMarkerSlots.get(player?.id) || null;
+  const presentation = selectHeadMarkerPresentation(
+    player,
+    data,
+    headMarkerEffectsForPlayer(player, data),
+    now,
+    previousSlot
+  );
+  return rememberHeadMarkerPresentation(player.id, presentation, now);
+}
+
+function creditHeadMarkerPlacement(effect, presentation) {
+  const creditEffects = presentation?.credits || [];
+  const effectIndex = creditEffects.indexOf(effect);
+  const baseIndex = creditEffects.slice(0, Math.max(0, effectIndex))
     .reduce((sum, entry) => sum + sharedHeadMarkerCount(entry), 0);
-  const total = peerEffects.reduce((sum, entry) => sum + sharedHeadMarkerCount(entry), 0);
+  const total = creditEffects.reduce((sum, entry) => sum + sharedHeadMarkerCount(entry), 0);
   return {
     baseIndex,
     total: Math.max(1, total),
-    startRow: gainMarkerStartRow(player, state.data)
+    startRow: presentation?.nonCredit ? 1 : 0
   };
 }
 
-function gainMarkerStartRow(player, data) {
-  if (!player) return 0;
-  const allyRows = data?.phase === "playing" && player.attackerAlly ? 1 : 0;
-  const statusCount = Object.entries(PERSISTENT_STATUS_ATE_PROFILES)
-    .filter(([category]) => persistentStatusAteState(player, data)[category]).length;
-  return allyRows + headMarkerRowCount(statusCount);
+function headMarkerLifetimeProgress(effect, now) {
+  const startedAt = Number(effect?.startedAt) || now;
+  const expiresAt = Number(effect?._headMarkerExpiresAt) || (startedAt + Math.max(1, Number(effect?.duration) || 1200));
+  const elapsed = Math.max(0, now - startedAt);
+  const remaining = Math.max(0, expiresAt - now);
+  if (elapsed < 180) return 0.2 * (elapsed / 180);
+  if (remaining < 360) return 0.7 + 0.3 * (1 - remaining / 360);
+  return 0.45;
 }
 
 function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) {
@@ -16229,20 +16522,38 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
   if (!prepared) return;
   const player = gainEffectPlayer(effect);
   if (!player || !player.alive || player.ejected || player.inVent) return;
-  const markerCount = sharedHeadMarkerCount(effect);
-  const { baseIndex, total: expandedTotal, startRow } = sharedHeadMarkerPlacement(effect, player);
+  const presentation = headMarkerPresentationForPlayer(player, state.data, now);
+  const creditMarker = isCreditHeadMarkerEffect(effect);
+  if (!creditMarker && presentation.nonCredit?.instanceKey !== String(effect._headMarkerInstanceKey || effect.id)) return;
+  if (creditMarker && !presentation.credits.includes(effect)) return;
+  const markerCount = creditMarker ? sharedHeadMarkerCount(effect) : 1;
+  const placement = creditMarker
+    ? creditHeadMarkerPlacement(effect, presentation)
+    : { baseIndex: 0, total: 1, startRow: 0 };
+  const { baseIndex, total: expandedTotal, startRow } = placement;
   const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind] || OBJECT_EFFECT_PRESENTATIONS.mana;
-  const fade = objectEffectFade(progress);
-  const reveal = objectEffectEase(progress / 0.2);
+  const markerProgress = creditMarker ? progress : headMarkerLifetimeProgress(effect, now);
+  const fade = objectEffectFade(markerProgress);
+  const reveal = objectEffectEase(markerProgress / 0.2);
   const size = HEAD_MARKER_LAYOUT.markerSize * (0.76 + reveal * 0.24);
   const explanation = GAIN_MARKER_EXPLANATIONS[effect.effectKind] || ["獲得効果", "即時効果を獲得しました。"];
+  const aggregateCount = creditMarker
+    ? markerCount
+    : Math.max(1, Number(effect._headMarkerAggregateCount) || presentation.nonCredit?.aggregateCount || 1);
   for (let markerIndex = 0; markerIndex < markerCount; markerIndex += 1) {
     const expandedIndex = baseIndex + markerIndex;
     const marker = headMarkerSlot(expandedIndex, expandedTotal, startRow);
     const bob = Math.sin(now / 170 + expandedIndex * 1.7) * 0.8;
     ctx.save();
     ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
-    registerMarkerHitTarget(`gain:${effect.id || effect.createdAt || effect.effectKind}:${player.id}:${markerIndex}`, 0, 0, size * 0.62, explanation[0], explanation[1]);
+    registerMarkerHitTarget(
+      `gain:${effect._headMarkerInstanceKey || effect.id || effect.createdAt || effect.effectKind}:${player.id}:${markerIndex}`,
+      0,
+      0,
+      size * 0.62,
+      `${explanation[0]}${!creditMarker && aggregateCount > 1 ? ` ×${aggregateCount}` : ""}`,
+      explanation[1]
+    );
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = fade;
     drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
@@ -16263,21 +16574,24 @@ function drawFighterEnergyChargeMarker(effect, progress, now) {
   const sprite = prepared ? normalizedSpriteFrame(prepared, "fighter-energy-charge-marker", 1, 1, 0, 0) : null;
   const player = gainEffectPlayer(effect);
   if (!sprite || !player || !player.alive || player.ejected || player.inVent) return;
-  const { baseIndex, total, startRow } = sharedHeadMarkerPlacement(effect, player);
+  const presentation = headMarkerPresentationForPlayer(player, state.data, now);
+  if (presentation.nonCredit?.instanceKey !== String(effect._headMarkerInstanceKey || effect.id)) return;
+  const { baseIndex, total, startRow } = { baseIndex: 0, total: 1, startRow: 0 };
   const marker = headMarkerSlot(baseIndex, total, startRow);
   const time = Math.floor((now / 1000) * 60) / 60;
-  const reveal = objectEffectEase(progress / 0.18);
-  const fade = objectEffectFade(progress);
+  const markerProgress = headMarkerLifetimeProgress(effect, now);
+  const reveal = objectEffectEase(markerProgress / 0.18);
+  const fade = objectEffectFade(markerProgress);
   const size = HEAD_MARKER_LAYOUT.markerSize * (0.8 + reveal * 0.2);
   const bob = Math.sin(time * 3.2 + baseIndex * 1.19) * 0.9;
   ctx.save();
   ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
   registerMarkerHitTarget(
-    `fighter-ec:${effect.id || effect.createdAt || effect.at}:${player.id}`,
+    `fighter-ec:${effect._headMarkerInstanceKey || effect.id || effect.createdAt || effect.at}:${player.id}`,
     0,
     0,
     size * 0.62,
-    "EC獲得",
+    `EC獲得${Math.max(1, Number(effect._headMarkerAggregateCount) || presentation.nonCredit.aggregateCount || 1) > 1 ? ` ×${Math.max(1, Number(effect._headMarkerAggregateCount) || presentation.nonCredit.aggregateCount || 1)}` : ""}`,
     "ファイターのECが1増加しました。頭上markerは現在のキャラクター位置に追従します。"
   );
   ctx.globalCompositeOperation = "lighter";
@@ -17053,6 +17367,9 @@ function drawHackerRootState(player) {
 
 function drawAttackerAllyMarker(player) {
   if (state.data?.phase !== "playing" || !player.attackerAlly || !player.alive || player.ejected) return;
+  const now = state.frameNow || performance.now();
+  const presentation = headMarkerPresentationForPlayer(player, state.data, now);
+  if (presentation.nonCredit?.type !== "attacker-ally-marker") return;
   const prepared = transparentSpriteSource(state.textures.attackerAllyMarker, "attacker-ally-marker", 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "attacker-ally-marker", 1, 1, 0, 0) : null;
   if (!sprite) return;
@@ -17079,7 +17396,6 @@ function drawAttackerAllyMarker(player) {
 
 const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   naturalRecovery: Object.freeze({ texture: "naturalRecoveryEffect", mode: "ripple", size: 31, alpha: 0.94, phase: 0.04 }),
-  aroma: Object.freeze({ texture: "floraAromaNaturalRecovery", mode: "flow-up", size: 31, alpha: 0.94, phase: 0.14 }),
   acceleration: Object.freeze({ texture: "accelerationPhaseEffect", mode: "flow-up", size: 32, alpha: 0.94, phase: 0.08 }),
   levitation: Object.freeze({ texture: "statusLevitationEffect", mode: "ripple", size: 30, alpha: 0.88, phase: 0.27 }),
   hpReduction: Object.freeze({ texture: "statusHpReductionEffect", mode: "data-down", size: 30, alpha: 0.88, phase: 0.46 }),
@@ -17112,37 +17428,60 @@ function persistentStatusAteState(player, data) {
   };
 }
 
+const NATURAL_RECOVERY_MARKER_GLOW = Object.freeze({
+  ordinary: Object.freeze({ aromaBoosted: false, intensity: 0.9, baseAlpha: 0.15, opacityBoost: 3.2 }),
+  aroma: Object.freeze({ aromaBoosted: true, intensity: 1.42, baseAlpha: 0.2, opacityBoost: 4 })
+});
+
+function naturalRecoveryMarkerGlow(activeState) {
+  const aromaBoosted = Boolean(activeState?.naturalRecovery && activeState?.aroma);
+  return aromaBoosted ? NATURAL_RECOVERY_MARKER_GLOW.aroma : NATURAL_RECOVERY_MARKER_GLOW.ordinary;
+}
+
 function drawPersistentStatusAteLayers(player, data) {
   if (!player.alive || player.ejected) return;
   const activeState = persistentStatusAteState(player, data);
   const time = Math.floor(((state.frameNow || performance.now()) / 1000) * 60) / 60;
-  const activeProfiles = Object.entries(PERSISTENT_STATUS_ATE_PROFILES)
-    .filter(([category]) => activeState[category]);
-  const startRow = data.phase === "playing" && player.attackerAlly ? 1 : 0;
-  for (let index = 0; index < activeProfiles.length; index += 1) {
-    const [category, profile] = activeProfiles[index];
-    const source = state.textures[profile.texture];
-    const prepared = transparentSpriteSource(source, `persistent-status-${category}`, 18);
-    const sprite = prepared ? normalizedSpriteFrame(prepared, `persistent-status-${category}`, 1, 1, 0, 0) : null;
-    if (!sprite) continue;
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha *= profile.alpha;
-    const marker = headMarkerSlot(index, activeProfiles.length, startRow);
-    const markerX = marker.x;
-    const markerY = marker.y + Math.sin(time * 2.4 + profile.phase * Math.PI * 2) * 1.1;
-    const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
-    registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
-    drawAnimatedTextureCentered(sprite, markerX, markerY, profile.size, profile.size, {
-      mode: profile.mode,
-      time,
-      phase: profile.phase,
-      intensity: 0.9,
-      baseAlpha: 0.15,
-      opacityBoost: 3.2
-    });
-    ctx.restore();
-  }
+  const now = state.frameNow || performance.now();
+  const previousSlot = state.headMarkerSlots.get(player.id) || null;
+  const presentation = selectHeadMarkerPresentation(
+    player,
+    data,
+    headMarkerEffectsForPlayer(player, data),
+    now,
+    previousSlot
+  );
+  rememberHeadMarkerPresentation(player.id, presentation, now);
+  const category = presentation.nonCredit?.type === "persistent-status"
+    ? presentation.nonCredit.category
+    : "";
+  if (!category || !activeState[category]) return;
+  const profile = PERSISTENT_STATUS_ATE_PROFILES[category];
+  if (!profile) return;
+  const naturalRecoveryGlow = category === "naturalRecovery"
+    ? naturalRecoveryMarkerGlow(activeState)
+    : null;
+  const source = state.textures[profile.texture];
+  const prepared = transparentSpriteSource(source, `persistent-status-${category}`, 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, `persistent-status-${category}`, 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= profile.alpha;
+  const marker = headMarkerSlot(0, 1, 0);
+  const markerX = marker.x;
+  const markerY = marker.y + Math.sin(time * 2.4 + profile.phase * Math.PI * 2) * 1.1;
+  const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
+  registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
+  drawAnimatedTextureCentered(sprite, markerX, markerY, profile.size, profile.size, {
+    mode: profile.mode,
+    time,
+    phase: profile.phase,
+    intensity: naturalRecoveryGlow?.intensity ?? 0.9,
+    baseAlpha: naturalRecoveryGlow?.baseAlpha ?? 0.15,
+    opacityBoost: naturalRecoveryGlow?.opacityBoost ?? 3.2
+  });
+  ctx.restore();
 }
 
 function drawPlayerSprite(player, data, ghost, characterAction = null) {
@@ -17312,7 +17651,7 @@ function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId,
   if (hasId("quantum-") || id === "/api/quantum-control") {
     const cold = id.includes("cold") || mode === "kinetic-decelerate";
     const hot = id.includes("hot") || mode === "kinetic-accelerate";
-    const nuclear = id.includes("nuclear") || mode === "nuclear-fission";
+    const nuclear = id.includes("nuclear") || ["nuclear-fission", "nuclear-fusion"].includes(mode);
     const direction = cold ? -1 : 1;
     ctx.translate(facing * direction * impulse * (nuclear ? 2 : 4.5) * motionScale, (cold ? 3.5 : -3.5) * impulse * motionScale);
     ctx.rotate(facing * direction * impulse * (nuclear ? 0.02 : 0.055) * motionScale);
@@ -18536,7 +18875,7 @@ function drawHud(data, w, h) {
     ? Math.max(0, (Number(self.vibeCodingReadyAt) || 0) - timestamp)
     : 0;
   const maxStamina = Math.max(100, Number(self.maxStoredStamina) || 500);
-  const manaGaugeMax = Math.max(2, Math.ceil(Math.max(0, mana) / 2) * 2);
+  const manaGaugeMax = Math.max(2, Number(self.maxMana) || 2);
   const accelerationMultiplier = Math.max(1, Number(self.accelerationMultiplier) || 1);
   const movementAccEnabled = self.movementAccEnabled !== false;
   const movementAccThreshold = Math.max(1, Number(self.movementAccThreshold) || 2);
@@ -18548,8 +18887,8 @@ function drawHud(data, w, h) {
     ? baseHealth.toFixed(4)
     : baseHealth.toFixed(1).replace(/\.0$/, "");
   const bars = [
-    { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}` },
-    { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.mentalState === "理知" ? "#a78bfa" : self.mentalState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}` },
+    { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}/${Math.round(maxStamina)}` },
+    { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.mentalState === "理知" ? "#a78bfa" : self.mentalState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}/${Math.round(manaGaugeMax * 100) / 100}` },
     { label: "HP", value: self.fighterInfiniteResources ? 2 : baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${healthText}/2${overheal ? `+${overheal}` : ""}` }
   ];
   if (self.special === "alchemist") {
@@ -18628,7 +18967,7 @@ function drawHud(data, w, h) {
   ctx.fillText(`幸運／直観 ${Number(self.luck || 0).toFixed(2)}`, 27, detailTop + 56 + resourceOffset);
   ctx.fillStyle = "#e2e8f0";
   const mind = self.mentalPoints || {};
-  ctx.fillText(`心状態:${self.mentalState || "気概"}（MP${Number(mind.manaPoints) || 0}+SP${Number(mind.staminaPoints) || 0}=${Number(mind.total) || 0}）`, 27, detailTop + 74 + resourceOffset);
+  ctx.fillText(`心状態:${self.mentalState || "気概"}（MP${Number(mind.manaPoints) || 0}+SP${Number(mind.staminaPoints) || 0}=${Number(mind.total) || 0} / 上限比）`, 27, detailTop + 74 + resourceOffset);
   if (self.desireBiasLabel) {
     ctx.fillStyle = "#fb7185";
     ctx.fillText(self.desireBiasLabel, 27, detailTop + 92 + resourceOffset);
@@ -18915,7 +19254,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "rejected-action-input-cross-route-v521";
+const version = "quantum-fusion-dynamic-resource-markers-v522";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -19056,6 +19395,7 @@ const version = "rejected-action-input-cross-route-v521";
   const quantumColdEffect = new Image();
   const quantumHotEffect = new Image();
   const quantumNuclearEffect = new Image();
+  const quantumNuclearFusion = new Image();
   const hazardPoisonEffect = new Image();
   const hazardWaterEffect = new Image();
   const bottleShardEffect = new Image();
@@ -19082,7 +19422,6 @@ const version = "rejected-action-input-cross-route-v521";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const naturalRecoveryEffect = new Image();
-  const floraAromaNaturalRecovery = new Image();
   const gboOverdriveEffect = new Image();
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
     skinId,
@@ -19091,6 +19430,7 @@ const version = "rejected-action-input-cross-route-v521";
   const itemTextures = Object.fromEntries([
     "gold", "mercury", "lead", "uranium", "plutonium", "mineral-water", "antidote", "molotov", "ice", "heated-water"
   ].map((id) => [id, image(id === "gold" ? "assets/generated/item-gold-ingot-v436.png" : `assets/generated/item-${id}.webp`)]));
+  itemTextures.seawater = image("assets/generated/item-seawater-v522.png");
   const groundFirearmIcons = image("assets/generated/gunner-weapon-icons-v422.webp");
   const groundItemTextures = {
     taser: image("assets/generated/gunner-taser.webp"),
@@ -19184,6 +19524,7 @@ const version = "rejected-action-input-cross-route-v521";
   defer(quantumColdEffect, "assets/generated/effect-quantum-cold.webp");
   defer(quantumHotEffect, "assets/generated/effect-quantum-hot.webp");
   defer(quantumNuclearEffect, "assets/generated/effect-quantum-nuclear-v311.png");
+  defer(quantumNuclearFusion, "assets/generated/quantum-nuclear-fusion-ate-v522.png");
   defer(hazardPoisonEffect, "assets/generated/effect-hazard-poison.webp");
   defer(hazardWaterEffect, "assets/generated/effect-hazard-water.webp");
   defer(bottleShardEffect, "assets/generated/effect-bottle-shards.webp");
@@ -19208,7 +19549,6 @@ const version = "rejected-action-input-cross-route-v521";
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
-  defer(floraAromaNaturalRecovery, "assets/generated/flora-aroma-natural-recovery-ate-v520.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
   for (const [skinId, rows] of Object.entries(playerWalkRows)) {
     ["front", "left", "right", "back"].forEach((direction) => {
@@ -19314,6 +19654,7 @@ const version = "rejected-action-input-cross-route-v521";
     quantumColdEffect,
     quantumHotEffect,
     quantumNuclearEffect,
+    quantumNuclearFusion,
     hazardFireEffect: fireJutsuFieldEffect,
     hazardPoisonEffect,
     hazardWaterEffect,
@@ -19340,7 +19681,6 @@ const version = "rejected-action-input-cross-route-v521";
     throwLandingPreview,
     clairvoyanceThrowAte,
     naturalRecoveryEffect,
-    floraAromaNaturalRecovery,
     gboOverdriveEffect,
     physicalActionMotions,
     weaponActionMotions,

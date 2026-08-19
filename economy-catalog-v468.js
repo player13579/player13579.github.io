@@ -32,6 +32,7 @@
   // credit for every shared product, so price changes cannot drift from CT.
   const rows = [
     ["mineral-water", "ミネラルウォーター", 1, "generate-supply", "mineral-water", "mineral-water"],
+    ["seawater", "海水", 2, "generate-supply", "seawater", "seawater"],
     ["antidote", "解毒剤", 2, "generate-supply", "antidote", "antidote"],
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
     ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
@@ -102,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "rejected-action-input-cross-route-v521",
+    version: "quantum-fusion-dynamic-resource-markers-v522",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
