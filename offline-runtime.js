@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "emp-anomaly-distinct-markers-hacker-task-flick-v524";
+const OFFLINE_WORKER_VERSION = "root-clairvoyance-input-combat-economy-v525";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.

@@ -9,7 +9,7 @@
   const creditIncome = Object.freeze({
     passiveIntervalMs: 10_000,
     passiveReward: 1,
-    taskReward: 2,
+    taskReward: 20,
     sabotageReward: 2,
     cacheReward: 3,
     quantumMercuryReward: 100,
@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "emp-anomaly-distinct-markers-hacker-task-flick-v524",
+    version: "root-clairvoyance-input-combat-economy-v525",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

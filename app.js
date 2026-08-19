@@ -350,7 +350,7 @@ const storage = {
   abilityAutoActivate: "dva_ability_auto_activate_v1"
 };
 storage.cpuGravityHint = "dva_cpu_gravity_hint";
-storage.offlineSession = "dva_offline_session_v524";
+storage.offlineSession = "dva_offline_session_v525";
 
 const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sniper", "taser"]);
 // Texture construction runs while the main state object is initialized, so this
@@ -542,6 +542,8 @@ const state = {
     requestPending: false,
     requestSerial: 0
   },
+  clairvoyanceTeleportTap: null,
+  clairvoyanceTeleportRequestSerial: 0,
   markerHitTargets: [],
   markerExplanation: null,
   operatorBranchesOpen: false,
@@ -777,7 +779,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-anomaly-distinct-markers-hacker-task-flick-v524";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-clairvoyance-input-combat-economy-v525";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -941,13 +943,16 @@ function availableVendingCategories() {
   );
 }
 
-function selectVendingCategory(categoryId, direction = 0) {
+function selectVendingCategory(categoryId, direction = 0, { wrap = true } = {}) {
   const categories = availableVendingCategories();
   if (!categories.length) return false;
   const currentIndex = Math.max(0, categories.findIndex((category) => category.id === state.vendingCategoryId));
+  const nextIndex = currentIndex + direction;
   const category = categoryId
     ? categories.find((candidate) => candidate.id === categoryId)
-    : categories[(currentIndex + direction + categories.length) % categories.length];
+    : wrap
+      ? categories[(nextIndex + categories.length) % categories.length]
+      : categories[nextIndex];
   if (!category) return false;
   const focused = document.activeElement?.closest?.("[data-drink]");
   if (focused?.dataset.drink) {
@@ -1137,16 +1142,19 @@ function navigateHackerAction(key) {
   return next ? selectHackerAction(next.dataset.hackerRecipe, true) : false;
 }
 
-function selectHackerCategory(categoryId, direction = 0) {
+function selectHackerCategory(categoryId, direction = 0, { wrap = true } = {}) {
   const recipes = availableHackerRecipes();
   const categories = hackerRecipeCategories.filter((category) =>
     recipes.some((recipe) => hackerRecipeCategory(recipe) === category.id)
   );
   if (!categories.length) return false;
   const currentIndex = Math.max(0, categories.findIndex((category) => category.id === state.hackerCategoryId));
+  const nextIndex = currentIndex + direction;
   const category = categoryId
     ? categories.find((candidate) => candidate.id === categoryId)
-    : categories[(currentIndex + direction + categories.length) % categories.length];
+    : wrap
+      ? categories[(nextIndex + categories.length) % categories.length]
+      : categories[nextIndex];
   if (!category) return false;
   state.hackerCategoryId = category.id;
   state.hackerSelectedRecipeId = state.hackerSelectedByCategory[category.id] || "";
@@ -3835,7 +3843,9 @@ function updateClairvoyanceFrame(timestamp) {
   view.lastFrameAt = timestamp;
   const direction = clairvoyanceDirection();
   if (direction.dx || direction.dy) {
-    const acceleration = clamp(Number(data.self.accelerationMultiplier) || 1, 0.25, 16);
+    const acceleration = state.clairvoyance.active
+      ? 2
+      : clamp(Number(data.self.accelerationMultiplier) || 1, 0.25, 16);
     const distance = 540 * acceleration * elapsed / 1000;
     view.x = clamp(view.x + direction.dx * distance, 0, data.map.width);
     view.y = clamp(view.y + direction.dy * distance, 0, data.map.height);
@@ -3853,6 +3863,8 @@ function setLocalClairvoyanceActive(shouldEnable, data = state.data) {
   rotateMovementSession();
   sendMovement(true);
   if (!shouldEnable) {
+    state.clairvoyanceTeleportTap = null;
+    state.clairvoyanceTeleportRequestSerial += 1;
     state.clairvoyance = {
       active: false,
       x: 0,
@@ -4157,7 +4169,7 @@ function resetJumpPreparationLocal() {
 function updateJumpPreparationUi() {
   if (!state.jumpPreparing || !state.jumpKeyDownAt) return;
   const preparedMs = Math.max(0, performance.now() - state.jumpKeyDownAt);
-  const distance = 120 + preparedMs * 0.9;
+  const distance = 120 + preparedMs * 2.7;
   const stamina = 24 + distance * 0.14;
   const pulse = (preparedMs % 700) / 700;
   [els.jumpButton, els.tabletJumpShortcut].forEach((button) => {
@@ -5710,19 +5722,30 @@ function bindEvents() {
   const bindCategoryStep = (button, changeCategory) => {
     let repeatTimer = 0;
     let repeatInterval = 0;
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
     const stop = () => {
       window.clearTimeout(repeatTimer);
       window.clearInterval(repeatInterval);
       repeatTimer = 0;
       repeatInterval = 0;
+      pointerId = null;
     };
     button.addEventListener("click", changeCategory);
     button.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       stop();
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
       repeatTimer = window.setTimeout(() => {
         repeatInterval = window.setInterval(changeCategory, 150);
       }, 420);
+    });
+    button.addEventListener("pointermove", (event) => {
+      if (pointerId !== event.pointerId) return;
+      if (Math.hypot(event.clientX - startX, event.clientY - startY) > 9) stop();
     });
     button.addEventListener("pointerup", stop);
     button.addEventListener("pointercancel", stop);
@@ -5732,6 +5755,65 @@ function bindEvents() {
   bindCategoryStep(els.hackerCategoryNextButton, () => selectHackerCategory("", 1));
   bindCategoryStep(els.vendingCategoryPreviousButton, () => selectVendingCategory("", -1));
   bindCategoryStep(els.vendingCategoryNextButton, () => selectVendingCategory("", 1));
+  const bindCategoryStripFlick = (strip, changeCategory, {
+    threshold = 10,
+    axisRatio = 1.2
+  } = {}) => {
+    if (!strip) return;
+    const clickGate = createInventoryClickGate();
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    const reset = () => { pointerId = null; };
+    const cancel = (event) => {
+      if (event && pointerId !== event.pointerId) return;
+      reset();
+      clickGate.reset();
+    };
+    strip.addEventListener("pointerdown", (event) => {
+      if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      clickGate.reset();
+    });
+    strip.addEventListener("pointerup", (event) => {
+      if (pointerId !== event.pointerId) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      const distance = Math.hypot(dx, dy);
+      const horizontal = distance > threshold && Math.abs(dx) > Math.abs(dy) * axisRatio;
+      const vertical = distance > threshold && Math.abs(dy) > Math.abs(dx) * axisRatio;
+      if (distance > threshold) {
+        // Any travel is never a tap. Vertical travel remains native-scroll owned;
+        // ambiguous diagonals intentionally perform no action.
+        if (event.cancelable && !vertical) event.preventDefault();
+        event.stopPropagation();
+        clickGate.arm();
+        if (horizontal) changeCategory(dx < 0 ? 1 : -1);
+      }
+      reset();
+    });
+    strip.addEventListener("pointercancel", cancel);
+    strip.addEventListener("lostpointercapture", cancel);
+    window.addEventListener("blur", () => cancel());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) cancel();
+    });
+    strip.addEventListener("click", (event) => {
+      if (!clickGate.consume()) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+  };
+  bindCategoryStripFlick(
+    els.hackerCategoryLabel.parentElement,
+    (direction) => selectHackerCategory("", direction, { wrap: false })
+  );
+  bindCategoryStripFlick(
+    els.vendingCategoryLabel.parentElement,
+    (direction) => selectVendingCategory("", direction, { wrap: false })
+  );
   els.hackerAbilityGrid.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-hacker-recipe]");
     if (!button || button.dataset.actionDisabled === "1") return;
@@ -6453,6 +6535,10 @@ function bindEvents() {
     if (!state.expandedMapTap) state.mapPointer = null;
   });
   els.canvas.addEventListener("pointerdown", attackFromCanvas);
+  els.canvas.addEventListener("pointermove", moveClairvoyanceTeleportTap);
+  els.canvas.addEventListener("pointerup", (event) => void finishClairvoyanceTeleportTap(event));
+  els.canvas.addEventListener("pointercancel", (event) => void finishClairvoyanceTeleportTap(event, true));
+  els.canvas.addEventListener("lostpointercapture", (event) => void finishClairvoyanceTeleportTap(event, true));
 }
 
 function clearPointerInput() {
@@ -7259,6 +7345,9 @@ function conciseTabletAbilityName(data) {
   const owner = els.operatorAbilityButton.dataset.operator || data?.self?.special || "none";
   const mode = els.teleportModeSelect.value;
   const modeNames = {
+    fighter: {
+      "limit-break": "リミットブレイク"
+    },
     teleport: {
       near: "転移・対象付近",
       target: "対象転移",
@@ -7513,6 +7602,69 @@ function canvasPointerPosition(event) {
   };
 }
 
+function clairvoyanceTeleportContext(data = state.data) {
+  const self = data?.self;
+  if (!state.clairvoyance.active || !self || data?.phase !== "playing" || !self.alive || self.ejected || self.inVent) return null;
+  // Presentation only: the endpoint independently selects and validates the
+  // Gravity/Scroll route from authoritative state.
+  if (!hasDisplayedOperatorAccess(self, "gravity") && Number(self.warpCharges) <= 0) return null;
+  return { self };
+}
+
+function clairvoyanceCanvasWorldPoint(event) {
+  const data = state.data;
+  const point = canvasPointerPosition(event);
+  const viewport = state.drawViewport;
+  if (!data || !point || !viewport) return null;
+  const zoom = worldZoomFor(data);
+  const x = viewport.left + point.x / zoom;
+  const y = viewport.top + point.y / zoom;
+  return { x, y, valid: isClientWalkable(data, x, y, data.map.playerRadius) };
+}
+
+function beginClairvoyanceTeleportTap(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return false;
+  if (!clairvoyanceTeleportContext() || pointerHitsMinimap(event)) return false;
+  state.clairvoyanceTeleportTap = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false
+  };
+  try { els.canvas.setPointerCapture(event.pointerId); } catch {}
+  return true;
+}
+
+function moveClairvoyanceTeleportTap(event) {
+  const tap = state.clairvoyanceTeleportTap;
+  if (!tap || tap.pointerId !== event.pointerId || tap.moved) return;
+  tap.moved = Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) > 10;
+}
+
+async function finishClairvoyanceTeleportTap(event, cancelled = false) {
+  const tap = state.clairvoyanceTeleportTap;
+  if (!tap || tap.pointerId !== event.pointerId) return false;
+  state.clairvoyanceTeleportTap = null;
+  if (cancelled || tap.moved || !clairvoyanceTeleportContext()) return false;
+  const point = clairvoyanceCanvasWorldPoint(event);
+  if (!point?.valid) {
+    showToast("通行可能な場所を指定してください。");
+    return false;
+  }
+  const roomId = state.roomId;
+  const playerId = state.playerId;
+  const requestSerial = ++state.clairvoyanceTeleportRequestSerial;
+  const ok = await api("/api/clairvoyance-teleport", { x: point.x, y: point.y });
+  if (!ok || requestSerial !== state.clairvoyanceTeleportRequestSerial || state.roomId !== roomId || state.playerId !== playerId) return false;
+  // Close only after this same-session response confirms canonical closure.
+  if (state.clairvoyance.active && !ok.self?.clairvoyanceActive) {
+    setLocalClairvoyanceActive(false, ok);
+    state.clairvoyance.serverDesired = false;
+    state.clairvoyance.requestPending = false;
+  }
+  return true;
+}
+
 function pointerHitsMinimap(event) {
   const point = canvasPointerPosition(event);
   if (!point) return false;
@@ -7690,13 +7842,29 @@ function borrowedAbilityPayload(recipe, requestedMode = "") {
   };
 }
 
-function selectedBorrowedOperator() {
-  const self = state.data?.self;
-  if (self?.special !== "alchemist") return "";
+function ensureDefaultBorrowedAbilitySelection(self = state.data?.self) {
+  if (self?.special !== "alchemist" || !self.hackerRootActive) return { type: "", mode: "" };
   const owned = availableBorrowedActiveOperatorTypes(self);
-  if (!owned.length) return "";
-  if (!owned.includes(state.borrowedOperatorType)) state.borrowedOperatorType = owned[0];
-  return state.borrowedOperatorType;
+  if (!owned.length) return { type: "", mode: "" };
+  const type = owned.includes(state.borrowedOperatorType) ? state.borrowedOperatorType : owned[0];
+  const choices = OPERATOR_ABILITY_MODE_OPTIONS[type] || [];
+  if (!choices.length) return { type: "", mode: "" };
+  state.borrowedOperatorType = type;
+  if (type === "quantum") {
+    const executableModes = ["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"];
+    const remembered = normalizeQuantumClientMode(state.borrowedAbilityModes.quantum);
+    const mode = executableModes.includes(remembered) ? remembered : "kinetic-accelerate";
+    rememberQuantumExecutableMode(mode, true);
+    return { type, mode };
+  }
+  const remembered = state.borrowedAbilityModes[type];
+  const mode = choices.some(([value]) => value === remembered) ? remembered : choices[0][0];
+  state.borrowedAbilityModes[type] = mode;
+  return { type, mode };
+}
+
+function selectedBorrowedOperator() {
+  return ensureDefaultBorrowedAbilitySelection().type;
 }
 
 function rememberSelectedOperatorMode() {
@@ -8579,6 +8747,10 @@ async function performNinjutsu() {
 
 async function attackFromCanvas(event) {
   if (!state.data || event.button !== 0) return;
+  if (beginClairvoyanceTeleportTap(event)) {
+    event.preventDefault();
+    return;
+  }
   if (showMarkerExplanationFromPointer(event)) {
     event.preventDefault();
     return;
@@ -9498,6 +9670,30 @@ function isStaleSelfMovementState(player, nextData) {
     Number(player.movementClock) < state.lastMoveAppliedClock;
 }
 
+function relocationRevisionFor(player) {
+  return Math.max(0, Number(player?.relocationRevision) || 0);
+}
+
+function snapRenderedRelocation(current, player, nextData, timestamp) {
+  current.x = player.x;
+  current.y = player.y;
+  current.targetX = player.x;
+  current.targetY = player.y;
+  current.velocityX = 0;
+  current.velocityY = 0;
+  current.predictionLeadMultiplier = Math.max(0.01, Number(player.speedMultiplier) || 1);
+  current.predictionLeadUntil = 0;
+  current.jumpHeight = 0;
+  current.jumpMotionStartedAt = 0;
+  current.jumpMotionCompletedAt = 0;
+  current.updatedAt = timestamp;
+  // A camera following the local body must never ease from the old world
+  // position after a confirmed teleport. The next frame re-anchors it from
+  // the newly snapped rendered position.
+  if (player.id === nextData.selfId) state.camera.initialized = false;
+  state.motion.set(player.id, { dx: 0, dy: 1, moving: false, changedAt: timestamp });
+}
+
 function syncRenderPlayers(nextData) {
   const timestamp = performance.now();
   const seen = new Set();
@@ -9520,6 +9716,7 @@ function syncRenderPlayers(nextData) {
         moveX: player.moveX || 0,
         moveY: player.moveY || 0,
         moving: Boolean(player.moving),
+        relocationRevision: relocationRevisionFor(player),
         speedMultiplier: Math.max(0.01, Number(player.speedMultiplier) || 1),
         predictionLeadMultiplier: Math.max(0.01, Number(player.speedMultiplier) || 1),
         predictionLeadUntil: 0,
@@ -9536,6 +9733,8 @@ function syncRenderPlayers(nextData) {
     const jump = Math.hypot(player.x - current.x, player.y - current.y);
     const jumpActive = player.jumpMotion && Number(player.jumpMotion.endsAt) > estimatedServerNow(nextData);
     const staleSelfMovement = isStaleSelfMovementState(player, nextData);
+    const relocationRevision = relocationRevisionFor(player);
+    const relocated = relocationRevision !== relocationRevisionFor(current);
     const isLocallyPredictedSelf = player.id === nextData.selfId && (
       localMovementPredictionPending() || staleSelfMovement
     );
@@ -9547,7 +9746,13 @@ function syncRenderPlayers(nextData) {
       player.inVent ||
       (jump > 360 && !jumpActive && !isLocallyPredictedSelf);
 
-    if (jumpActive && current.jumpMotionStartedAt !== Number(player.jumpMotion.startedAt)) {
+    // A relocation revision is issued only by the successful authoritative
+    // teleport primitive. It intentionally bypasses local prediction/stale
+    // movement suppression: distance alone cannot distinguish a legitimate
+    // short teleport from a delayed ordinary movement snapshot.
+    if (relocated) snapRenderedRelocation(current, player, nextData, timestamp);
+
+    if (!relocated && jumpActive && current.jumpMotionStartedAt !== Number(player.jumpMotion.startedAt)) {
       current.x = Number(player.jumpMotion.fromX);
       current.y = Number(player.jumpMotion.fromY);
       current.velocityX = 0;
@@ -9577,7 +9782,7 @@ function syncRenderPlayers(nextData) {
       current.targetX = player.x;
       current.targetY = player.y;
     }
-    if (shouldSnap) {
+    if (shouldSnap && !relocated) {
       current.x = player.x;
       current.y = player.y;
       current.velocityX = 0;
@@ -9591,6 +9796,7 @@ function syncRenderPlayers(nextData) {
     current.moveX = player.moveX || 0;
     current.moveY = player.moveY || 0;
     current.moving = Boolean(player.moving);
+    current.relocationRevision = relocationRevision;
     current.updatedAt = timestamp;
   }
 
@@ -10020,7 +10226,7 @@ function bindOperatorDetailHold(button, operator) {
   button.addEventListener("pointerup", (event) => {
     if (pointerId !== event.pointerId) return;
     const result = gesture.end(pointerId);
-    if (result === "hold") {
+    if (result !== "tap") {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
       clickGate.arm();
@@ -11009,7 +11215,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
     const result = pointerGesture.end(event.pointerId);
-    if (result === "hold") {
+    if (result !== "tap") {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
       clickGate.arm();
@@ -11809,9 +12015,6 @@ function updateActionButtons(data) {
   const abilityCosts = self.abilityCosts || {};
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value) || alchemyRecipes[0];
   const activeBorrowedOperator = selectedBorrowedOperator();
-  const selectedBorrowedRecipe = alchemyRecipes.find(
-    (recipe) => recipe.id === `borrowed-${activeBorrowedOperator}`
-  );
   const hasMana = (key) => {
     if (self.hackerManaFree || self.rationalFreeAbilityReady) return true;
     const cost = Number(abilityCosts[key]) || 0;
@@ -12015,13 +12218,6 @@ function updateActionButtons(data) {
   const operatorMode = activeBorrowedOperator
     ? state.borrowedAbilityModes[activeBorrowedOperator] || ""
     : els.teleportModeSelect.value;
-  const borrowedModeLabel = selectedBorrowedRecipe
-    ? activeBorrowedOperator === "gravity" || activeBorrowedOperator === "flora"
-      ? (OPERATOR_ABILITY_MODE_OPTIONS[activeBorrowedOperator] || []).find(([value]) => value === operatorMode)?.[1] || "能力"
-        : activeBorrowedOperator === "fighter"
-            ? self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク"
-            : "常時パッシブ"
-    : "";
   const operatorLabels = {
     fighter: self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク",
     teleport: operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
@@ -12034,14 +12230,12 @@ function updateActionButtons(data) {
     flora: operatorMode === "heal" ? `回復 ${operatorCostLabel("flora")}` : `サンビーム ${operatorCostLabel("flora")}`,
     quantum: quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
     assassin: "常時無音（パッシブ）",
-    alchemist: selectedBorrowedRecipe
-      ? `${selectedBorrowedRecipe.label} / ${borrowedModeLabel}`
-      : self.hackerRootActive ? "借用能力" : "Root化"
+    alchemist: "Root化"
   };
   const borrowedDisplayedOperator = activeBorrowedOperator === "gravity"
     ? "teleport"
     : activeBorrowedOperator;
-  const borrowedDisplayedLabel = operatorLabels[borrowedDisplayedOperator] || "借用能力";
+  const borrowedDisplayedLabel = operatorLabels[borrowedDisplayedOperator] || "能力を選択";
   const rootToggle = self.special === "alchemist";
   const displayedOperator = rootToggle ? "alchemist" : self.special;
   const quantumEndgameSecondsLeft = Math.max(0, Number(data.quantumEndgameSecondsLeft) || 0);
@@ -12051,7 +12245,7 @@ function updateActionButtons(data) {
   const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
   const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
   els.operatorAbilityButton.textContent = rootToggle
-    ? (self.hackerRootActive ? `借用 ${borrowedDisplayedLabel}` : "Root化")
+    ? (self.hackerRootActive ? borrowedDisplayedLabel : "Root化")
     : operatorLabels[displayedOperator] || "オペ能力";
   if (self.hackerRootActive && borrowedQuantumEndgameLocked) {
     els.operatorAbilityButton.textContent += `（終盤まで${quantumEndgameSecondsLeft}秒）`;
@@ -15052,7 +15246,7 @@ function drawJumpPreparationEffect(data) {
   const sprite = prepared ? normalizedSpriteFrame(prepared, "jump-action-effect", 1, 1, 0, 0) : null;
   if (!sprite) return;
   const elapsed = Math.max(0, performance.now() - state.jumpKeyDownAt);
-  const distance = 120 + elapsed * 0.9;
+  const distance = 120 + elapsed * 2.7;
   const visualLength = Math.min(560, 120 + Math.sqrt(distance) * 16);
   const direction = state.jumpPrepareDirection;
   ctx.save();
@@ -19458,7 +19652,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-anomaly-distinct-markers-hacker-task-flick-v524";
+const version = "root-clairvoyance-input-combat-economy-v525";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

@@ -7289,7 +7289,7 @@ const LABORATORY_MAP = Object.freeze({
   const creditIncome = Object.freeze({
     passiveIntervalMs: 10_000,
     passiveReward: 1,
-    taskReward: 2,
+    taskReward: 20,
     sabotageReward: 2,
     cacheReward: 3,
     quantumMercuryReward: 100,
@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "emp-anomaly-distinct-markers-hacker-task-flick-v524",
+    version: "root-clairvoyance-input-combat-economy-v525",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7505,7 +7505,7 @@ const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
 // field recovery as viable fuel.
 const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.25;
 const JUMP_BASE_DISTANCE = 120;
-const JUMP_DISTANCE_PER_PREPARE_MS = 0.9;
+const JUMP_DISTANCE_PER_PREPARE_MS = 2.7;
 const JUMP_BASE_COST = 24;
 const JUMP_DISTANCE_COST = 0.14;
 const DRONE_SPEED_MULTIPLIER = 3.4;
@@ -10784,6 +10784,7 @@ function startBattle(room) {
     player.lastMoveAt = timestamp;
   }
   room.phase = "playing";
+  room.canonicalKillVictimIds = new Set();
   room.round = 1;
   room.battleStartedAt = timestamp;
   room.quantumEndgameAt = timestamp + QUANTUM_ENDGAME_DELAY_MS;
@@ -12465,6 +12466,11 @@ function accelerationTimerMultiplier(player, extraMultipliers = [], timestamp = 
 }
 
 function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
+  if (timeKeeperStops(player, timestamp)) return 0;
+  // Clairvoyance owns remote-view traversal. While it is active, its ACC 2
+  // replaces every ordinary acceleration/slow source without mutating any of
+  // those source states, so ending Clairvoyance restores them intact.
+  if (player?.clairvoyanceActive) return FIXED_MOVEMENT_ACC;
   const passive = activeMapObjectEffects(room, player);
   const gravityScale = gravityTimeScaleFor(room, player, timestamp);
   const accelerations = passive.speedBoost ? [MAP_OBJECT_SPEED_MULTIPLIER] : [];
@@ -12686,6 +12692,7 @@ function activeMapObjectEffects(room, player) {
 
 function effectiveMovementMultiplier(room, player, timestamp = now()) {
   if (timeKeeperStops(player, timestamp)) return 0;
+  if (player?.clairvoyanceActive) return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * FIXED_MOVEMENT_ACC;
   const electricSlowMultiplier = Number(player.taserSlowedUntil) > timestamp || Number(player.shockSlowedUntil) > timestamp
     ? TASER_MOVEMENT_MULTIPLIER
     : 1;
@@ -14301,10 +14308,18 @@ function resolveExpandedMapTeleportDestination(room, rawX, rawY) {
 function moveByExpandedMapTeleport(target, destination, timestamp = now()) {
   const origin = { x: target.x, y: target.y };
   clearStoredMovementInput(target, timestamp);
+  clearJumpPreparation(target);
+  target.jumpMotion = null;
+  target.airborneUntil = 0;
+  target.movementMode = "idle";
   target.x = destination.x;
   target.y = destination.y;
   target.vx = 0;
   target.vy = 0;
+  // This is an authoritative discontinuity, not ordinary movement.  Keep a
+  // monotonic, per-player marker so clients can invalidate interpolation even
+  // when the destination happens to be within their usual snap distance.
+  target.relocationRevision = Math.max(0, Number(target.relocationRevision) || 0) + 1;
   target.lastMoveAt = timestamp;
   target.navPath = [];
   if (Math.hypot(target.x - destination.x, target.y - destination.y) > 0.001) {
@@ -14767,7 +14782,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   target.drone.active = false;
   clearAttackState(target);
   transferKillCredits(room, source, target);
-  source.totalKills += 1;
+  recordCanonicalKill(room, source, target);
   awardAbilityContribution(source, 1);
   pushHitEffect(room, target, "body", true);
   room.bodies.push({
@@ -14796,6 +14811,26 @@ function transferKillCredits(room, killer, target) {
   grantCredits(room, killer, amount, "kill-transfer");
   pushEvent(room, `${killer.name} が ${target.name} の保有クレジット ${amount}Cを獲得しました。`);
   return amount;
+}
+
+// Result and profile scoring consume totalKills, so every credited elimination
+// passes through this one authoritative, idempotent ledger. A body is only a
+// presentation detail: annihilations, reflections and EMP deaths share the
+// same cross-faction record, while environmental/no-source deaths do not.
+function recordCanonicalKill(room, source, target) {
+  const killer = room?.players?.get(String(source?.id || ""));
+  const victim = room?.players?.get(String(target?.id || ""));
+  if (
+    !killer || !victim || killer.id === victim.id ||
+    !["attacker", "defender"].includes(killer.role) ||
+    !["attacker", "defender"].includes(victim.role) ||
+    killer.role === victim.role
+  ) return false;
+  if (!room.canonicalKillVictimIds) room.canonicalKillVictimIds = new Set();
+  if (room.canonicalKillVictimIds.has(victim.id)) return false;
+  room.canonicalKillVictimIds.add(victim.id);
+  killer.totalKills = Math.max(0, Number(killer.totalKills) || 0) + 1;
+  return true;
 }
 
 function transferKillInventory(room, killer, target) {
@@ -15084,6 +15119,31 @@ function activeGravityStormBarrier(room, target, timestamp = now()) {
   )) || null;
 }
 
+// This is deliberately a bot *planning* boundary, rather than another
+// damage-resolution exception.  A barrier has always absorbed an already
+// committed hit, but hostile bots must not spend a shot, ability, throw or
+// kill attempt on a target they can see is currently protected.  Keeping this
+// predicate next to the two authoritative barrier definitions gives every
+// target selector the same expiry/re-evaluation semantics.
+function botTargetHasActiveBarrier(room, target, timestamp = now()) {
+  return Boolean(
+    preparationBarrierProtects(room, target, timestamp) ||
+    activeGravityStormBarrier(room, target, timestamp)
+  );
+}
+
+function botCanAttackTarget(room, bot, target, timestamp = now()) {
+  return Boolean(
+    bot?.isBot &&
+    target?.alive &&
+    !target.ejected &&
+    !target.inVent &&
+    target.id !== bot.id &&
+    target.role !== bot.role &&
+    !botTargetHasActiveBarrier(room, target, timestamp)
+  );
+}
+
 function absorbPreparationBarrier(room, target, timestamp = now(), source = null) {
   const gravityBarrier = activeGravityStormBarrier(room, target, timestamp);
   if (gravityBarrier) {
@@ -15207,7 +15267,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   completeTasksAfterDeath(room, target);
   if (source && source.id !== target.id) {
     transferKillCredits(room, source, target);
-    source.totalKills += 1;
+    recordCanonicalKill(room, source, target);
     awardAbilityContribution(source, 1);
   }
   pushHitEffect(room, target, "body", true);
@@ -16140,9 +16200,9 @@ function botKnownAttackerEvidence(room, bot, timestamp = now()) {
   // Hidden role/faction, status source, thrown owner, corpse killer and internal
   // death reason are forbidden inputs here.
   const witnessed = room.players.get(String(bot?.botWitnessTargetId || ""));
-  if (witnessed?.alive && !witnessed.ejected && Number(bot.botWitnessUntil) > timestamp) return witnessed;
+  if (botCanAttackTarget(room, bot, witnessed, timestamp) && Number(bot.botWitnessUntil) > timestamp) return witnessed;
   const retaliatingAgainst = room.players.get(String(bot?.botRetaliationTargetId || ""));
-  if (retaliatingAgainst?.alive && !retaliatingAgainst.ejected && Number(bot.botRetaliationUntil) > timestamp) {
+  if (botCanAttackTarget(room, bot, retaliatingAgainst, timestamp) && Number(bot.botRetaliationUntil) > timestamp) {
     return retaliatingAgainst;
   }
   return null;
@@ -17387,6 +17447,20 @@ function useTeleportMapScroll(room, player, rawX, rawY) {
   touch(room);
 }
 
+// Clairvoyance is a view/input state, never a client-authoritative movement
+// permission. A committed tap reuses the normal Gravity or Scroll action
+// routes and clears Clairvoyance only after that route has moved the player.
+function teleportFromClairvoyance(room, player, rawX, rawY) {
+  if (!player.clairvoyanceActive) throw new ApiError(403, "千里眼中のみ地点転移できます。");
+  if (hasOperatorAccess(player, "gravity")) {
+    teleportPlayer(room, player, rawX, rawY, "", "body");
+  } else {
+    useTeleportMapScroll(room, player, rawX, rawY);
+  }
+  setClairvoyanceActive(room, player, false);
+  touch(room);
+}
+
 function healFlora(room, player) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "flora")) {
     throw new ApiError(403, "フローラだけが回復できます。");
@@ -17657,6 +17731,7 @@ function humanTransmutation(room, player, targetId) {
   if (!target || target.alive || target.ejected) throw new ApiError(404, "人体生成できる死者がいません。");
   const spawn = getMap(room).spawns[Math.floor(Math.random() * getMap(room).spawns.length)];
   target.alive = true;
+  room.canonicalKillVictimIds?.delete(target.id);
   target.botMatchEliminatedById = "";
   target.chatMuted = true;
   target.bodyHits = 0;
@@ -17847,7 +17922,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   if (source && source.id !== target.id) {
     transferKillCredits(room, source, target);
     transferKillInventory(room, source, target);
-    source.totalKills += 1;
+    recordCanonicalKill(room, source, target);
   }
   consumeIaiChargeForSuccessfulAttack(room, source, target, reason, options);
   pushHitEffect(room, target, "head", true);
@@ -18331,7 +18406,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       clearAttackState(killer);
       completeTasksAfterDeath(room, killer);
       transferKillCredits(room, target, killer);
-      target.totalKills += 1;
+      recordCanonicalKill(room, target, killer);
       target.killsThisRound += 1;
       awardAbilityContribution(target, 1);
       target.killReadyAt = timestamp + Math.max(MIN_KILL_COOLDOWN, room.settings.killCooldown) * 1000;
@@ -18448,7 +18523,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   completeTasksAfterDeath(room, target);
   transferKillCredits(room, killer, target);
   transferKillInventory(room, killer, target);
-  killer.totalKills += 1;
+  recordCanonicalKill(room, killer, target);
   evaluateSoloMission(room, timestamp);
   if (hasOperatorAccess(killer, "gunner")) awardAbilityContribution(killer, 0.5);
   if (!options.noBody) {
@@ -20125,6 +20200,7 @@ function serialize(room, viewer, options = {}) {
       moveY: player.vy,
       moving: Math.hypot(player.vx, player.vy) > 0.01,
       movementMode: player.movementMode,
+      relocationRevision: Math.max(0, Number(player.relocationRevision) || 0),
       movementSession: player.id === viewer.id ? String(player.movementSession || "") : "",
       movementSeq: player.id === viewer.id && Number.isSafeInteger(player.lastMovementSeq) ? player.lastMovementSeq : 0,
       movementClock: player.id === viewer.id && Number.isFinite(player.lastMovementClock) ? player.lastMovementClock : 0,
@@ -21225,6 +21301,13 @@ async function handleApi(req, res) {
       break;
     }
 
+    case "/api/clairvoyance-teleport": {
+      const { room, player } = requireRoomPlayer(body);
+      teleportFromClairvoyance(room, player, body.x, body.y);
+      payload = serialize(room, player);
+      break;
+    }
+
     case "/api/purchase": {
       const { room, player } = requireRoomPlayer(body);
       purchaseDrink(room, player, String(body.itemId || ""));
@@ -21911,7 +21994,7 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
     return false;
   }
   const target = room.players.get(bot.botRetaliationTargetId);
-  if (!target?.alive || target.ejected || target.inVent) {
+  if (!botCanAttackTarget(room, bot, target, timestamp)) {
     bot.botRetaliationTargetId = "";
     bot.botRetaliationUntil = 0;
     return false;
@@ -22048,7 +22131,7 @@ function clearBotClairvoyanceContact(bot) {
 function botClairvoyanceContact(room, bot, timestamp = now()) {
   const hadTarget = Boolean(bot?.botClairvoyanceTargetId);
   const target = room.players.get(String(bot?.botClairvoyanceTargetId || ""));
-  if (!target?.alive || target.ejected) {
+  if (!botCanAttackTarget(room, bot, target, timestamp)) {
     clearBotClairvoyanceContact(bot);
     if (hadTarget && bot?.role === "attacker") {
       const scheduled = Number(bot.nextBotClairvoyanceAt) || Infinity;
@@ -22110,11 +22193,7 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
     return null;
   }
   const observableCandidates = [...room.players.values()].filter((target) => (
-    target.id !== bot.id &&
-    (bot.role !== "attacker" || target.role !== bot.role) &&
-    target.alive &&
-    !target.ejected &&
-    !target.inVent
+    botCanAttackTarget(room, bot, target, timestamp)
   ));
   if (!observableCandidates.length) {
     bot.nextBotClairvoyanceAt = timestamp + 3000;
@@ -22190,7 +22269,7 @@ function defenderIdeaVisibleThreatStage(defender) {
 }
 
 function botKillOpportunityProfile(room, bot, target) {
-  if (!target?.alive || target.ejected || target.inVent || target.role !== "defender") {
+  if (!botCanAttackTarget(room, bot, target) || target.role !== "defender") {
     return { witnesses: [], thirdParties: [], witnessCount: Infinity, thirdPartyCount: Infinity, isolated: false, hidden: false };
   }
   const thirdParties = [...room.players.values()].filter((candidate) => (
@@ -22258,7 +22337,9 @@ function botCanDirectlyObservePlayer(room, bot, target) {
 }
 
 function visibleDefenderCandidates(room, bot, timestamp = now()) {
-  return alivePlayers(room, "defender").filter((target) => botCanDirectlyObservePlayer(room, bot, target)).sort((a, b) => {
+  return alivePlayers(room, "defender").filter((target) => (
+    botCanAttackTarget(room, bot, target, timestamp) && botCanDirectlyObservePlayer(room, bot, target)
+  )).sort((a, b) => {
     const claimsA = activeBotClaimCount(room, bot, a.id, "botTarget", "botTargetUntil", timestamp);
     const claimsB = activeBotClaimCount(room, bot, b.id, "botTarget", "botTargetUntil", timestamp);
     return compareAttackerDefenderPriority(room, bot, a, b, timestamp, claimsA, claimsB);
@@ -22271,9 +22352,9 @@ function visibleDefenderTarget(room, bot, timestamp = now()) {
 
 function preferredDefenderTarget(room, bot, timestamp = now()) {
   const pendingTarget = room.players.get(String(bot.attackTargetId || ""));
-  if (pendingTarget?.alive && !pendingTarget.ejected && pendingTarget.role === "defender") return pendingTarget;
+  if (pendingTarget?.role === "defender" && botCanAttackTarget(room, bot, pendingTarget, timestamp)) return pendingTarget;
   const scouted = botClairvoyanceContact(room, bot, timestamp);
-  if (scouted?.role === "defender") {
+  if (scouted?.role === "defender" && botCanAttackTarget(room, bot, scouted, timestamp)) {
     bot.botTarget = scouted.id;
     bot.botTargetUntil = Math.max(timestamp + 2000, Number(bot.botClairvoyanceObservedUntil) || 0);
     return scouted;
@@ -22314,7 +22395,7 @@ function clearBotAttackerDeception(bot) {
 }
 
 function botHasImmediateLethalOpportunity(room, bot, target, timestamp = now()) {
-  if (!target?.alive || target.ejected || target.role !== "defender") return false;
+  if (!botCanAttackTarget(room, bot, target, timestamp) || target.role !== "defender") return false;
   const targetDistance = distance(bot, target);
   if (bot.attackResolveAt > timestamp) return true;
   if (bot.killReadyAt <= timestamp && targetDistance <= Math.max(72, room.settings.killRange * 0.58)) return true;
@@ -22611,7 +22692,7 @@ function runCpuGravityScript(room, bot, timestamp) {
     }
     if (state.cpuPhase === "heart") {
       const target = [...room.players.values()].find((candidate) => candidate.role === "defender" && candidate.alive && !candidate.ejected);
-      if (!target) return true;
+      if (!botCanAttackTarget(room, bot, target, timestamp)) return true;
       if ((Number(bot.mana) || 0) < HEART_TELEPORT_MANA_COST) {
         state.cpuPhase = "accelerate-1";
         state.cpuRenkiCount = 0;
@@ -22640,7 +22721,7 @@ function runCpuStage2Script(room, bot, timestamp) {
   const target = [...room.players.values()]
     .filter((candidate) => candidate.role === "defender" && candidate.alive && !candidate.ejected)
     .sort((a, b) => distance(bot, a) - distance(bot, b))[0];
-  if (!target) return true;
+  if (!botCanAttackTarget(room, bot, target, timestamp)) return true;
   if ((Number(bot.vibeCodingReadyAt) || 0) > timestamp || availableStamina(bot) < 6) return false;
   bot.vx = 0;
   bot.vy = 0;
@@ -22842,12 +22923,12 @@ function clearBotCombatPlan(bot) {
 const BOT_COMBAT_PLAN_DEFINITIONS = Object.freeze({
   "gravity-accelerate-renki-heart": Object.freeze({
     setup: "self-accelerate", expectedPublicState: "visible gravity acceleration", payoff: "heart-transfer", futureValue: 960,
-    valid: (room, bot, target) => Boolean(target?.alive && !target.ejected && target.id === bot.botCombatPlanTargetId && hasOperatorAccess(bot, "gravity")),
+    valid: (room, bot, target, timestamp) => Boolean(botCanAttackTarget(room, bot, target, timestamp) && target.id === bot.botCombatPlanTargetId && hasOperatorAccess(bot, "gravity")),
     step: runGravityAccelerateRenkiHeartPlan
   }),
   "poison-observe-rest-payoff": Object.freeze({
     setup: "toxic throw", expectedPublicState: "directly visible toxic landing and public rest motion", payoff: "visible-rest attack", futureValue: 700,
-    valid: (room, bot, target) => Boolean(target?.alive && !target.ejected && target.id === bot.botCombatPlanTargetId && botCanDirectlyObservePlayer(room, bot, target)),
+    valid: (room, bot, target, timestamp) => Boolean(botCanAttackTarget(room, bot, target, timestamp) && target.id === bot.botCombatPlanTargetId && botCanDirectlyObservePlayer(room, bot, target)),
     step: runPoisonObserveRestPayoffPlan
   })
 });
@@ -22942,7 +23023,7 @@ function executeBotCombatPlan(room, bot, target, timestamp) {
 }
 
 function botCombatCandidates(room, bot, target, timestamp) {
-  if (!target?.alive || target.ejected || !bot.alive || bot.ejected || bot.inVent) return [];
+  if (!botCanAttackTarget(room, bot, target, timestamp) || !bot.alive || bot.ejected || bot.inVent) return [];
   const targetDistance = distance(bot, target);
   const candidates = [];
   const evidenceBoost = bot.role === "defender" &&
@@ -23298,7 +23379,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "emp-anomaly-distinct-markers-hacker-task-flick-v524",
+  version: "root-clairvoyance-input-combat-economy-v525",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

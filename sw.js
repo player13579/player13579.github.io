@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v524-emp-anomaly-distinct-markers-hacker-task-flick";
+const CACHE_NAME = "dva-static-v525-root-clairvoyance-input-combat-economy";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
