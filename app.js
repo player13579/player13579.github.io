@@ -416,6 +416,12 @@ const state = {
   focusResyncing: false,
   focusResyncPromise: null,
   pollInFlight: false,
+  // Every async room response is tied to this client-side ownership generation.
+  // A visibility restore can replace an expired generated-offline room while an
+  // older poll is still in flight; that older response must never clear or
+  // overwrite the replacement session.
+  roomSessionGeneration: 1,
+  backgroundResume: { serial: 0, inFlight: false, queued: false },
   realtime: null,
   movementQueue: null,
   frameDriver: null,
@@ -760,7 +766,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "fighter-ec-native-scroll-auto-hold-v519";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-recovery-marker-wall-bot-renki-resume-v520";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1382,7 +1388,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "RESOURCE GUIDE",
     name: "ソフィア",
-    text: "MPは0以下=0点、1=1点、2以上=2点。SPは0以下=0点、1〜250=1点、251以上=2点。合計0=欲望、1〜2=気概、3〜4=理知。HPは含めない。満タンSPと余剰MPは互いへ少しずつ自動変換されます。",
+    text: "MPは0以下=0点、1=1点、2以上=2点。SPは0以下=0点、1〜250=1点、251以上=2点。合計0=欲望、1〜2=気概、3〜4=理知。HPは含めません。SPとMPは相互変換せず、理知の自然回復中にそれぞれ独立してじわじわ回復します。",
     sophiaGesture: "focus",
     philiaGesture: "interact",
     symbols: [{ type: "idea", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
@@ -6233,6 +6239,7 @@ function bindEvents() {
   window.addEventListener("pageshow", () => {
     scheduleViewportScaleRestore();
     scheduleGameplayViewportReflow(true);
+    void resumeRoomAfterBackground();
   }, { passive: true });
   document.addEventListener("focusout", (event) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) {
@@ -6245,9 +6252,13 @@ function bindEvents() {
       stopContinuousActionHold();
       stopContinuousActionKeyHold();
       state.continuousActionKeyAt.clear();
+      cancelTransientGameInputForBackground();
     }
     clearMovementInput();
-    if (!document.hidden) void resyncMovementAfterFocus();
+    if (!document.hidden) {
+      void resumeRoomAfterBackground();
+      void resyncMovementAfterFocus();
+    }
     if (!document.hidden) {
       scheduleViewportScaleRestore();
       scheduleGameplayViewportReflow(true);
@@ -7854,10 +7865,7 @@ function acceptMatchmakingResult(result, name, offline) {
   if (offline) activateOfflineMode();
   else deactivateOfflineMode();
   lockPlayerName(result.profile?.name || responsePlayerName(result, name));
-  state.roomId = result.roomId;
-  state.playerId = result.playerId;
-  localStorage.setItem(storage.room, state.roomId);
-  localStorage.setItem(storage.player, state.playerId);
+  setCurrentRoomSession(result.roomId, result.playerId);
   applyState(result);
   recordUsageCheckpoint(offline ? "matchmaking_offline" : "matchmaking_online");
   showToast(offline
@@ -7985,10 +7993,7 @@ async function startSoloMission(missionId) {
   if (!result) return;
   lockPlayerName(result.profile?.name || responsePlayerName(result, name));
   resetLocalSession();
-  state.roomId = result.roomId;
-  state.playerId = result.playerId;
-  localStorage.setItem(storage.room, state.roomId);
-  localStorage.setItem(storage.player, state.playerId);
+  setCurrentRoomSession(result.roomId, result.playerId);
   applyState(result);
   enterFullscreen();
   switchScreenWithEffect("game");
@@ -8001,13 +8006,14 @@ async function pollState() {
   if (state.pollInFlight) return;
   const roomId = state.roomId;
   const playerId = state.playerId;
+  const generation = state.roomSessionGeneration;
   state.pollInFlight = true;
   try {
     const result = await request("/api/state", {
       roomId,
       playerId
-    }, { quiet: true, resetOnNotFound: true });
-    if (result && state.roomId === roomId && state.playerId === playerId) applyState(result);
+    }, { quiet: true });
+    if (result && isCurrentRoomSession(roomId, playerId, generation)) applyState(result);
   } finally {
     state.pollInFlight = false;
   }
@@ -8462,7 +8468,117 @@ function delay(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+function isCurrentRoomSession(roomId, playerId, generation = state.roomSessionGeneration) {
+  return generation === state.roomSessionGeneration &&
+    state.roomId === roomId && state.playerId === playerId;
+}
+
+function setCurrentRoomSession(roomId, playerId) {
+  const nextRoomId = String(roomId || "");
+  const nextPlayerId = String(playerId || "");
+  if (state.roomId !== nextRoomId || state.playerId !== nextPlayerId) state.roomSessionGeneration += 1;
+  state.roomId = nextRoomId;
+  state.playerId = nextPlayerId;
+  if (nextRoomId && nextPlayerId) {
+    localStorage.setItem(storage.room, nextRoomId);
+    localStorage.setItem(storage.player, nextPlayerId);
+  }
+}
+
+function cancelTransientGameInputForBackground() {
+  clearMovementInput();
+  cancelActiveAbilityBatchHolds();
+  stopContinuousActionHold();
+  stopContinuousActionKeyHold();
+  clearNativeSelectHold();
+  cancelEnhanceAction();
+  cancelThrowTargeting(true);
+  clearLocalGunTrigger();
+}
+
+function returnExpiredOnlineRoomToMatchmaking(generation, roomId, playerId) {
+  if (!isCurrentRoomSession(roomId, playerId, generation)) return false;
+  resetLocalSession();
+  deactivateOfflineMode();
+  setScreen("game");
+  showToast("以前の対戦は終了しました。マッチングを開始してください。");
+  return true;
+}
+
+async function rebuildExpiredOfflineRoom(generation, roomId, playerId) {
+  if (!isCurrentRoomSession(roomId, playerId, generation)) return false;
+  const name = els.nameInput.value.trim() || localStorage.getItem(storage.name) || "プレイヤー";
+  const skinId = normalizeSkinId(localStorage.getItem(storage.skin) || els.skinSelect.value);
+  const mapId = normalizeMatchmakingMapId(localStorage.getItem(storage.map) || els.mapSelect.value);
+  cancelTransientGameInputForBackground();
+  resetLocalSession();
+  if (!activateOfflineMode()) {
+    setScreen("game");
+    showToast("オフライン対戦を復帰できませんでした。マッチングを開始してください。");
+    return false;
+  }
+  const replacementGeneration = state.roomSessionGeneration;
+  const result = await request("/api/matchmake", { name, skinId, mapId, offlineFallback: true }, {
+    quiet: true,
+    forceOffline: true
+  });
+  if (!result || replacementGeneration !== state.roomSessionGeneration || !state.offlineMode) return false;
+  lockPlayerName(result.profile?.name || responsePlayerName(result, name));
+  setCurrentRoomSession(result.roomId, result.playerId);
+  applyState(result, { authoritative: true });
+  setScreen("game");
+  showToast("オフライン対戦を復帰しました。オペレーターを選択してください。");
+  return true;
+}
+
+async function resumeRoomAfterBackground() {
+  if (document.hidden || !state.roomId || !state.playerId) return false;
+  if (state.backgroundResume.inFlight) {
+    state.backgroundResume.queued = true;
+    return false;
+  }
+  state.backgroundResume.inFlight = true;
+  const serial = ++state.backgroundResume.serial;
+  const roomId = state.roomId;
+  const playerId = state.playerId;
+  const generation = state.roomSessionGeneration;
+  const offline = state.offlineMode;
+  try {
+    // A suspended dedicated worker can be discarded by the browser. Starting
+    // it is idempotent and preserves a healthy worker; a missing generated
+    // room is rebuilt below rather than leaking its raw server error.
+    if (offline) await state.offlineClient?.start?.();
+    const result = await request("/api/state", { roomId, playerId }, {
+      quiet: true,
+      forceOffline: offline,
+      forceOnline: !offline,
+      timeoutMs: 3_500,
+      attempts: 1
+    });
+    if (serial !== state.backgroundResume.serial || !isCurrentRoomSession(roomId, playerId, generation)) return false;
+    if (result) {
+      state.lastMovementServerNow = 0;
+      state.lastStateServerNow = 0;
+      applyState(result, { authoritative: true });
+      if (!offline) ensureRealtimeConnection();
+      return true;
+    }
+    return offline
+      ? rebuildExpiredOfflineRoom(generation, roomId, playerId)
+      : returnExpiredOnlineRoomToMatchmaking(generation, roomId, playerId);
+  } finally {
+    if (serial === state.backgroundResume.serial) {
+      state.backgroundResume.inFlight = false;
+      if (state.backgroundResume.queued && !document.hidden) {
+        state.backgroundResume.queued = false;
+        queueMicrotask(() => void resumeRoomAfterBackground());
+      }
+    }
+  }
+}
+
 function resetLocalSession() {
+  state.roomSessionGeneration += 1;
   state.realtime?.disconnect();
   state.movementQueue?.clear();
   state.data = null;
@@ -10752,9 +10868,9 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
 
   if (hasDisplayedOperatorAccess(self, "flora")) {
     const aromaValue = self.aromaActive
-      ? `SP回復 ×${Number(self.aromaRegenMultiplier || 1.6).toFixed(2)}`
+      ? `自然回復 HP・SP・MP ×${Number(self.aromaRegenMultiplier || 1.75).toFixed(2)}`
       : passiveValue;
-    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の停止中SP回復だけを1.75倍化");
+    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の理知自然回復だけを強化。HP・SP・MPの漸進回復速度を1.75倍化");
   }
 
   if (hasDisplayedOperatorAccess(self, "gunner")) {
@@ -10933,7 +11049,12 @@ function renderActiveEffects(data) {
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
   timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "アイテム・装備効果停止");
-  if (self.statusImmunityActive) add("自然回復", "理知", "good", "心ポイント合計3以上の理知中、状態異常を無効化・即時解除し、通常HPを毎秒0.05ずつ2まで回復");
+  if (self.statusImmunityActive) {
+    const hpRate = Number(self.naturalRecoveryHpPerSecond || 0.05).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    const spRate = Number(self.naturalRecoveryStaminaPerSecond || 19).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+    const mpRate = Number(self.naturalRecoveryManaPerSecond || 0.127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    add("自然回復", "理知", "good", `状態異常を無効化・即時解除。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復（MPは${Number(self.naturalRecoveryManaCap || 2)}まで）`);
+  }
   if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・理知中の自然回復で解除");
   if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・理知中の自然回復で解除");
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
@@ -11589,8 +11710,8 @@ function updateActionButtons(data) {
   els.sleepButton.textContent = sleepSeconds > 0 ? `休息 ${sleepSeconds}秒` : `休息 約${sleepEstimate.toFixed(1)}秒`;
   els.sleepButton.disabled = !(canActAlive && self.stamina < (self.maxStoredStamina || 500));
   const renkiSeconds = Math.max(0, ((self.meditatingUntil || 0) - liveNow) / 1000);
-  els.renkiButton.textContent = renkiSeconds > 0 ? `精神統一 ${renkiSeconds.toFixed(1)}秒` : "練気 +1MP / 3.5秒";
-  els.renkiButton.title = "タップは通常1回（+1MP・3.5秒）。長押しは10回分の恩恵を即時取得し、35秒の精神統一クールタイム";
+  els.renkiButton.textContent = renkiSeconds > 0 ? `精神統一 ${renkiSeconds.toFixed(1)}秒` : "練気 +10MP / 35秒";
+  els.renkiButton.title = "タップは+10MP・35秒。長押しは+100MP・350秒。どちらも一回だけ自動確定し、反復しません。";
   els.renkiButton.disabled = !canUseAbility;
   els.dashButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked && activeStaminaFor(data) > 0);
   els.slowWalkButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked);
@@ -15795,6 +15916,8 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
 });
 
 const STATUS_MARKER_EXPLANATIONS = Object.freeze({
+  naturalRecovery: ["自然回復", "理知中、状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。"],
+  aroma: ["アロマ", "フローラ本人の理知自然回復中、HP・SP・MPの漸進回復速度が1.75倍です。"],
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
@@ -16805,6 +16928,8 @@ function drawAttackerAllyMarker(player) {
 }
 
 const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
+  naturalRecovery: Object.freeze({ texture: "naturalRecoveryEffect", mode: "ripple", size: 31, alpha: 0.94, phase: 0.04 }),
+  aroma: Object.freeze({ texture: "floraAromaNaturalRecovery", mode: "flow-up", size: 31, alpha: 0.94, phase: 0.14 }),
   acceleration: Object.freeze({ texture: "accelerationPhaseEffect", mode: "flow-up", size: 32, alpha: 0.94, phase: 0.08 }),
   levitation: Object.freeze({ texture: "statusLevitationEffect", mode: "ripple", size: 30, alpha: 0.88, phase: 0.27 }),
   hpReduction: Object.freeze({ texture: "statusHpReductionEffect", mode: "data-down", size: 30, alpha: 0.88, phase: 0.46 }),
@@ -16823,9 +16948,13 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
 function persistentStatusAteState(player, data) {
   const selfState = player.id === data.selfId ? data.self?.statusAte : null;
   const visibleState = player.statusAte || selfState || {};
-  if (player.id !== data.selfId) return visibleState;
+  const naturalRecovery = Boolean(visibleState.naturalRecovery || (player.id === data.selfId && data.self?.statusImmunityActive));
+  const aroma = Boolean(player.aromaActive || (player.id === data.selfId && data.self?.aromaActive));
+  if (player.id !== data.selfId) return { ...visibleState, naturalRecovery, aroma };
   return {
     ...visibleState,
+    naturalRecovery,
+    aroma,
     manaGpu: Boolean(data.self?.manaGpuActive),
     iai: (Number(data.self?.iaiCharges) || 0) > 0,
     infiniteResources: Boolean(data.self?.fighterInfiniteResources),
@@ -18636,7 +18765,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "fighter-ec-native-scroll-auto-hold-v519";
+const version = "natural-recovery-marker-wall-bot-renki-resume-v520";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -18803,6 +18932,7 @@ const version = "fighter-ec-native-scroll-auto-hold-v519";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const naturalRecoveryEffect = new Image();
+  const floraAromaNaturalRecovery = new Image();
   const gboOverdriveEffect = new Image();
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
     skinId,
@@ -18928,6 +19058,7 @@ const version = "fighter-ec-native-scroll-auto-hold-v519";
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
+  defer(floraAromaNaturalRecovery, "assets/generated/flora-aroma-natural-recovery-ate-v520.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
   for (const [skinId, rows] of Object.entries(playerWalkRows)) {
     ["front", "left", "right", "back"].forEach((direction) => {
@@ -19059,6 +19190,7 @@ const version = "fighter-ec-native-scroll-auto-hold-v519";
     throwLandingPreview,
     clairvoyanceThrowAte,
     naturalRecoveryEffect,
+    floraAromaNaturalRecovery,
     gboOverdriveEffect,
     physicalActionMotions,
     weaponActionMotions,

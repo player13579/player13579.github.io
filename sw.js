@@ -2,9 +2,10 @@
 // Previous contract: dva-static-v173-gameplay-polish.
 // v468 hotfix keeps Heart Transfer on its dedicated fist-glow route while the
 // raster finishes decoding, so the generic teleport ring never takes over.
-// v519 adds automatic server-observed holds, EC500/1000 milestones, native
-// flick/result repair, kinetic UI gating, and evidence-bound enemy Bot plans.
-const CACHE_NAME = "dva-static-v519-fighter-ec-native-scroll-auto-hold";
+// v520 adds independent Natural Recovery resources and its persistent marker,
+// fixed Renki rewards, background resume repair, wall-default vector attacks,
+// and evidence-bound enemy Bot corpse investigation.
+const CACHE_NAME = "dva-static-v520-natural-recovery-marker-wall-bot-renki-resume";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -46,6 +47,7 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-hacker-ate-v391.png",
   "/assets/generated/operator-assassin-ate-v510.png",
   "/assets/generated/natural-recovery-ate-v510.png",
+  "/assets/generated/flora-aroma-natural-recovery-ate-v520.png",
   "/assets/generated/gbo-overdrive-ate-v513.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
   "/assets/generated/fighter-energy-charge-ate-v404.png",

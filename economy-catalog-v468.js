@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "fighter-ec-native-scroll-auto-hold-v519",
+    version: "natural-recovery-marker-wall-bot-renki-resume-v520",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

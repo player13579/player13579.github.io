@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "fighter-ec-native-scroll-auto-hold-v519",
+    version: "natural-recovery-marker-wall-bot-renki-resume-v520",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7499,8 +7499,9 @@ const WALK_DRAIN_PER_SECOND = 9;
 const SLOW_WALK_DRAIN_PER_SECOND = 1.2;
 const STAMINA_REGEN_PER_SECOND = 19;
 const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
-// Full-SP overflow restores about 0.127 MP/s. Clairvoyance must still have a
-// meaningful net cost while leaving Renki and field recovery as viable fuel.
+// Natural Recovery restores 0.127 MP/s toward the protected two-MP reserve.
+// Clairvoyance must still have a meaningful net cost while leaving Renki and
+// field recovery as viable fuel.
 const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.25;
 const JUMP_BASE_DISTANCE = 120;
 const JUMP_DISTANCE_PER_PREPARE_MS = 0.9;
@@ -7623,11 +7624,8 @@ const MYSTERY_UNCONSCIOUS_MS = 8_000;
 const DESIRE_RESOURCE_DEBT = -100;
 const RATIONAL_MANA_THRESHOLD = 2;
 const STARTING_MANA = RATIONAL_MANA_THRESHOLD;
-const MANA_CONVERSION_AMOUNT = 1;
-const STAMINA_TO_MANA_COST = 150;
-const AUTO_MANA_TO_STAMINA_RESERVE = RATIONAL_MANA_THRESHOLD;
-const AUTO_MANA_TO_STAMINA_THRESHOLD = 250;
-const AUTO_MANA_TO_STAMINA_RATE_PER_SECOND = 30;
+const NATURAL_RECOVERY_MANA_CAP = RATIONAL_MANA_THRESHOLD;
+const NATURAL_RECOVERY_MANA_PER_SECOND = 0.127;
 const DONATION_CREDIT_COST = CREDIT_ECONOMY.donationCost;
 const DONATION_LUCK_GAIN = 0.05;
 const DONATION_LUCK_MIN_BONUS = -0.7;
@@ -7644,7 +7642,15 @@ const DESIRE_BIASES = Object.freeze([
   Object.freeze({ id: "sunk-cost", label: "サンクコスト効果", detail: "マナとスタミナの消費量が1.5倍になる" }),
   Object.freeze({ id: "in-group-bias", label: "内集団バイアス", detail: "他者が近い間、移動速度とスタミナ回復が60%になる" })
 ]);
-const RENKI_FOCUS_DURATION_MS = 3500;
+// Renki is a single authoritative recovery transaction.  A tap represents ten
+// former one-MP repetitions; the qualified long hold represents ten such taps.
+// These values are fixed server-side; the client never declares a reward,
+// duration, or repeat count.
+const RENKI_TAP_MANA_GAIN = 10;
+const RENKI_TAP_FOCUS_DURATION_MS = 35_000;
+const RENKI_HOLD_TAP_EQUIVALENT = 10;
+const RENKI_HOLD_MANA_GAIN = RENKI_TAP_MANA_GAIN * RENKI_HOLD_TAP_EQUIVALENT;
+const RENKI_HOLD_FOCUS_DURATION_MS = RENKI_TAP_FOCUS_DURATION_MS * RENKI_HOLD_TAP_EQUIVALENT;
 // Ability long-holds are a separate server-observed transaction.  The client
 // may render the hold locally, but it never gets to declare its duration,
 // mana spend, or repeat count.
@@ -7702,6 +7708,8 @@ const GRAVITY_TIME_SCALE_SLOW = 0.38;
 const GRAVITY_TIME_KEEPER_DURATION_MS = 5_000;
 const GRAVITY_TIME_KEEPER_MANA_COST = 50;
 const BOT_HEARING_MEMORY_MS = 5000;
+const BOT_VISIBLE_ATTACK_MEMORY_MS = 7000;
+const BOT_ATTACK_BODY_CHAIN_DISTANCE = 440;
 const BOT_STAND_FIRM_RETALIATION_MS = 30_000;
 const BOT_KILL_WITNESS_RANGE = 340;
 const BOT_ATTACKER_ISOLATION_RANGE = 430;
@@ -7900,6 +7908,17 @@ const ITEM_DEFINITIONS = Object.freeze({
   molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true }),
   ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true }),
   "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true })
+});
+
+// Keep every server-side travelling attack in one auditable registry. New
+// vector routes must join this list and use resolveVectorAttackPath; direct,
+// omnipresent and area-only effects intentionally do not belong here.
+const VECTOR_ATTACK_WALL_OCCLUSION_ROUTES = Object.freeze({
+  gunner: Object.freeze(["bullet", "gbo-bullet", "weak-bullet", "shock-bullet"]),
+  flora: Object.freeze(["sunbeam"]),
+  invention: Object.freeze(["excalibur", "railgun", "particle-cannon"]),
+  fighter: Object.freeze(["fighter-energy-shockwave"]),
+  thrown: Object.freeze(["thrown-sword-blade", "thrown-item-flight"])
 });
 
 const INSTANT_ITEM_DEFINITIONS = Object.freeze({
@@ -9761,8 +9780,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     donationLuckBonus: 0,
     stamina: MAX_STORED_STAMINA,
     staminaUpdatedAt: now(),
-    staminaManaOverflow: 0,
-    autoManaToStaminaFeedbackAt: 0,
     speedMultiplier: 1,
     dodgeDurationBonusMs: 0,
     warpCharges: 0,
@@ -9846,6 +9863,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botWitnessTargetId: "",
     botWitnessUntil: 0,
     botWitnessEvidenceKind: "",
+    botVisibleAttackMemories: [],
     botVisibleThrowObservations: [],
     botKillDecision: null,
     botCombatPlan: "",
@@ -9864,6 +9882,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     botRetaliationUntil: 0,
     botWitnessTargetId: "",
     botWitnessUntil: 0,
+    botVisibleAttackMemories: [],
     heardSoundAt: 0,
     heardWaypointUntil: 0,
     heardWaypointX: 0,
@@ -10267,8 +10286,6 @@ function startGame(room) {
     player.donationLuckBonus = 0;
     player.stamina = MAX_STORED_STAMINA;
     player.staminaUpdatedAt = timestamp;
-    player.staminaManaOverflow = 0;
-    player.autoManaToStaminaFeedbackAt = 0;
     player.speedMultiplier = 1;
     player.dodgeDurationBonusMs = 0;
     player.warpCharges = 0;
@@ -10322,6 +10339,7 @@ function startGame(room) {
     player.botWitnessTargetId = "";
     player.botWitnessUntil = 0;
     player.botWitnessEvidenceKind = "";
+    player.botVisibleAttackMemories = [];
     player.botVisibleThrowObservations = [];
     player.botKillDecision = null;
     clearBotCombatPlan(player);
@@ -10336,6 +10354,7 @@ function startGame(room) {
     player.botWitnessTargetId = "";
     player.botWitnessUntil = 0;
     player.botWitnessEvidenceKind = "";
+    player.botVisibleAttackMemories = [];
     player.botVisibleThrowObservations = [];
     player.heardSoundAt = 0;
     player.heardWaypointUntil = 0;
@@ -10553,8 +10572,6 @@ function startBattle(room) {
     player.bodyHits = 0;
     player.overheal = 0;
     player.stamina = MAX_STORED_STAMINA;
-    player.staminaManaOverflow = 0;
-    player.autoManaToStaminaFeedbackAt = 0;
     player.mana = STARTING_MANA;
     player.mentalState = "理知";
     player.meditatingUntil = 0;
@@ -10667,7 +10684,6 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
   room.soloMission.startedAt = room.battleStartedAt || now();
   if (mission.metric === "task") {
     player.stamina = MAX_STORED_STAMINA;
-    player.staminaManaOverflow = 0;
     player.staminaUpdatedAt = now();
   }
   if (mission.metric === "intel") player.sabotageReadyAt = 0;
@@ -11576,16 +11592,13 @@ function practiceRenki(room, player, options = {}) {
     if (committed.batch) {
       ensureAbilityAvailable(player);
       const timestamp = now();
-      // This is one committed operation, not ten delayed requests.  The first
-      // ordinary Renki from zero reaches STARTING_MANA; every other ordinary
-      // execution grants MANA_CONVERSION_AMOUNT.
+      // This is one committed operation, never a client-declared repetition
+      // count.  The server-owned Renki constants define the whole reward.
       const currentMana = Number(player.mana) || 0;
-      const batchMana = currentMana <= 0
-        ? STARTING_MANA + MANA_CONVERSION_AMOUNT * 9
-        : currentMana + MANA_CONVERSION_AMOUNT * 10;
+      const batchMana = currentMana + RENKI_HOLD_MANA_GAIN;
       setMana(room, player, batchMana, "練気・十連");
       player.renkiTargetMana = batchMana;
-      player.meditatingUntil = timestamp + RENKI_FOCUS_DURATION_MS * 10;
+      player.meditatingUntil = timestamp + RENKI_HOLD_FOCUS_DURATION_MS;
       player.vx = 0;
       player.vy = 0;
       player.movementMode = "meditating";
@@ -11594,26 +11607,32 @@ function practiceRenki(room, player, options = {}) {
       clearAttackState(player);
       pushGainAte(room, player, "mana", { variant: "renki-tenfold", durationMs: 1680 });
       pushMagicEffect(room, "action-renki", player, { radius: 150, playerId: player.id, variant: "tenfold" });
-      setImmediateFeedback(player, "練気・十連", `マナ +${Math.max(0, batchMana - currentMana)} / CT ${(RENKI_FOCUS_DURATION_MS * 10 / 1000).toFixed(1)}秒`);
-      pushEvent(room, `${player.name} が練気を十連で一括実行しました（マナ +${Math.max(0, batchMana - currentMana)} / CT ${(RENKI_FOCUS_DURATION_MS * 10 / 1000).toFixed(1)}秒）。`);
+      setImmediateFeedback(player, "練気・十連", `マナ +${RENKI_HOLD_MANA_GAIN} / CT ${(RENKI_HOLD_FOCUS_DURATION_MS / 1000).toFixed(1)}秒`);
+      pushEvent(room, `${player.name} が練気を十連で一括実行しました（マナ +${RENKI_HOLD_MANA_GAIN} / CT ${(RENKI_HOLD_FOCUS_DURATION_MS / 1000).toFixed(1)}秒）。`);
       touch(room);
       return { duplicate: false, batch: true, mana: batchMana };
     }
   }
   ensureAbilityAvailable(player);
   const timestamp = now();
-  player.renkiTargetMana = Number(player.mana) <= 0
-    ? STARTING_MANA
-    : Number(player.mana) + MANA_CONVERSION_AMOUNT;
-  player.meditatingUntil = timestamp + RENKI_FOCUS_DURATION_MS;
+  const currentMana = Number(player.mana) || 0;
+  const tapMana = currentMana + RENKI_TAP_MANA_GAIN;
+  // Award at commit, rather than slowly at meditation completion.  The target
+  // remains the committed amount solely so finishRenki can release movement
+  // without issuing a second resource gain.
+  setMana(room, player, tapMana, "練気");
+  player.renkiTargetMana = tapMana;
+  player.meditatingUntil = timestamp + RENKI_TAP_FOCUS_DURATION_MS;
   player.vx = 0;
   player.vy = 0;
   player.movementMode = "meditating";
   player.lastMoveAt = timestamp;
   player.drone.active = false;
   clearAttackState(player);
+  pushGainAte(room, player, "mana", { variant: "renki", durationMs: 1680 });
   pushMagicEffect(room, "action-renki", player, { radius: 120, playerId: player.id });
-  pushEvent(room, `${player.name} が練気の精神統一に入りました（${(RENKI_FOCUS_DURATION_MS / 1000).toFixed(1)}秒）。`);
+  setImmediateFeedback(player, "練気", `マナ +${RENKI_TAP_MANA_GAIN} / CT ${(RENKI_TAP_FOCUS_DURATION_MS / 1000).toFixed(1)}秒`);
+  pushEvent(room, `${player.name} が練気の精神統一に入りました（マナ +${RENKI_TAP_MANA_GAIN} / CT ${(RENKI_TAP_FOCUS_DURATION_MS / 1000).toFixed(1)}秒）。`);
   touch(room);
   return { duplicate: false, batch: false };
 }
@@ -12110,33 +12129,7 @@ function staminaCapacityFor(entity) {
   return MAX_STORED_STAMINA * Math.max(1, limitBreakMultiplier(entity));
 }
 
-function advanceAutomaticManaToStamina(room, player, elapsedMs, timestamp = now()) {
-  if (room.phase !== "playing" || !player?.alive || player.ejected || isDesireState(player)) return false;
-  const mana = Number(player.mana) || 0;
-  const stamina = Math.max(0, Number(player.stamina) || 0);
-  const targetStamina = Math.min(AUTO_MANA_TO_STAMINA_THRESHOLD, staminaCapacityFor(player));
-  if (mana <= AUTO_MANA_TO_STAMINA_RESERVE || stamina >= targetStamina) return false;
-  const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
-  const availableFromMana = (mana - AUTO_MANA_TO_STAMINA_RESERVE) * STAMINA_TO_MANA_COST;
-  const restored = Math.min(
-    AUTO_MANA_TO_STAMINA_RATE_PER_SECOND * elapsedSeconds,
-    targetStamina - stamina,
-    availableFromMana
-  );
-  if (restored <= 0.0001) return false;
-  player.stamina = stamina + restored;
-  player.staminaUpdatedAt = timestamp;
-  setMana(room, player, mana - restored / STAMINA_TO_MANA_COST, "MP自動SP変換");
-  maintainNaturalRecovery(room, player, timestamp);
-  if ((Number(player.autoManaToStaminaFeedbackAt) || 0) <= timestamp) {
-    player.autoManaToStaminaFeedbackAt = timestamp + 1000;
-    pushGainAte(room, player, "stamina", { variant: "auto-mana-to-stamina", durationMs: 1050 });
-    setImmediateFeedback(player, "自動資源変換", "余剰MP → SP");
-  }
-  return true;
-}
-
-function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, room = null, convertOverflow = true) {
+function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, room = null) {
   const last = entity.staminaUpdatedAt || timestamp;
   const elapsed = Math.min(0.5, Math.max(0, (timestamp - last) / 1000));
   if (allowRegen) {
@@ -12148,19 +12141,7 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
     // on the first idle recovery tick, before the client could observe either.
     // Recover the debt itself; only availableStamina() clamps it for spending.
     const current = Math.min(capacity, Number(entity.stamina) || 0);
-    const restored = Math.min(recovery, capacity - current);
-    entity.stamina = current + restored;
-    const overflow = Math.max(0, recovery - restored);
-    if (room && convertOverflow && overflow > 0) {
-      entity.staminaManaOverflow = Math.max(0, Number(entity.staminaManaOverflow) || 0) + overflow;
-      const conversionUnit = STAMINA_TO_MANA_COST / 10;
-      const conversionSteps = Math.floor(entity.staminaManaOverflow / conversionUnit);
-      if (conversionSteps > 0) {
-        entity.staminaManaOverflow -= conversionSteps * conversionUnit;
-        setMana(room, entity, Number(entity.mana) + conversionSteps / 10, "スタミナ自動変換");
-        pushGainAte(room, entity, "mana", { variant: "stamina-overflow", durationMs: 1320 });
-      }
-    }
+    entity.stamina = current + Math.min(recovery, capacity - current);
   }
   entity.staminaUpdatedAt = timestamp;
   if (room) {
@@ -12290,6 +12271,7 @@ function persistentStatusAteState(room, player, timestamp = now()) {
     timestamp
   ) > 1.001;
   return {
+    naturalRecovery: hasNaturalRecovery(room, player),
     acceleration,
     clairvoyance: Boolean(player.clairvoyanceActive),
     levitation: Boolean(player.levitationEngaged || Number(player.hsgUntil) > timestamp),
@@ -12708,7 +12690,8 @@ function requireExactKillCameraActionLabel(value, context = "death") {
 
 const BOT_WITNESS_EVIDENCE_LABELS = Object.freeze({
   "visible-hostile-kill": "目の前で対象の敵対的なキルを視認",
-  "visual-poison-throw-death": "投擲動作・毒物の着地・毒表示中の被害者・死亡瞬間を連続して視認"
+  "visual-poison-throw-death": "投擲動作・毒物の着地・毒表示中の被害者・死亡瞬間を連続して視認",
+  "visible-attack-motion-body-chain": "直接見た攻撃動作と近傍で直接発見した死体の時空間連鎖"
 });
 
 function botKillDecisionEvidenceLabels(room, bot, target, timestamp = now()) {
@@ -13489,19 +13472,18 @@ function tickRoom(room) {
       }
     }
     const stopped = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01;
-    advanceAutomaticManaToStamina(room, player, elapsedMs, timestamp);
+    const naturalRecoveryActive = hasNaturalRecovery(room, player);
     replenishStamina(
       player,
       timestamp,
-      stopped,
-      (player.resting ? SLEEP_REGEN_MULTIPLIER : 1) * floraAromaMultiplier(room, player),
-      room,
-      !player.resting
+      stopped || naturalRecoveryActive,
+      (player.resting ? SLEEP_REGEN_MULTIPLIER : 1) * (naturalRecoveryActive ? floraAromaMultiplier(room, player) : 1),
+      room
     );
+    advanceNaturalRecoveryMana(room, player, elapsedMs);
     advanceNaturalRecoveryHealth(room, player, elapsedMs);
     if (player.resting && Number(player.stamina) >= staminaCapacityFor(player) - 0.01) {
       player.stamina = staminaCapacityFor(player);
-      player.staminaManaOverflow = 0;
       player.resting = false;
       player.sleepingUntil = 0;
       player.movementMode = "idle";
@@ -13899,6 +13881,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
   ensureConscious(player);
+  recordBotVisibleHumanAttackStart(room, player, "fighter-slash");
   const timestamp = now();
   const cost = FIGHTER_SLASH_STAMINA_COST;
   if (Number(player.stamina) < cost) throw new ApiError(400, `斬るにはスタミナ ${cost} が必要です。`);
@@ -13996,8 +13979,9 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
       x: player.x + slashAimX * FIGHTER_SHOCKWAVE_ORIGIN_OFFSET,
       y: player.y + slashAimY * FIGHTER_SHOCKWAVE_ORIGIN_OFFSET
     };
-    const targetX = swordOrigin.x + slashAimX * shockwaveRange;
-    const targetY = swordOrigin.y + slashAimY * shockwaveRange;
+    const shockwavePath = resolveVectorAttackPath(room, swordOrigin, slashAimX, slashAimY, shockwaveRange, { collisionRadius: 2 });
+    const targetX = shockwavePath.x;
+    const targetY = shockwavePath.y;
     pushMagicEffect(room, "fighter-shockwave", swordOrigin, {
       radius: shockwaveWidth,
       playerId: player.id,
@@ -14113,6 +14097,7 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   if (mode === "heart") {
     if (target.id === player.id) throw new ApiError(400, "自分の心臓は対象にできません。");
     spendMana(room, player, HEART_TELEPORT_MANA_COST, "心臓転移");
+    recordBotVisibleHumanAttackStart(room, player, "heart-transfer", timestamp);
     // The fist glow belongs to the caster and is private so this remote action
     // never discloses the caster's position to the target or other players.
     pushMagicEffect(room, "action-heart-teleport", player, {
@@ -14292,6 +14277,7 @@ function useGravityStorm(room, player, targetId = "") {
     throw new ApiError(404, "グラビティストームの対象がいません。");
   }
   const startedAt = now();
+  recordBotVisibleHumanAttackStart(room, player, "gravity-storm", startedAt);
   const endsAt = startedAt + GRAVITY_STORM_DURATION_MS;
   const zone = {
     id: uid("gravity_"), ownerId: player.id,
@@ -15183,6 +15169,7 @@ function activateEmp(room, player, rawPhase = "positive") {
     throw new ApiError(400, `EMP再充填中です（残り${Math.ceil((player.empReadyAt - timestamp) / 1000)}秒）。`);
   }
   const phase = rawPhase === "negative" ? "negative" : "positive";
+  recordBotVisibleHumanAttackStart(room, player, "emp", timestamp);
   player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS);
   room.activeEmps ||= [];
   room.activeEmps = room.activeEmps.filter((pulse) => pulse.resolvesAt > timestamp);
@@ -15852,10 +15839,74 @@ function recordBotVisiblePoisonDeathInference(room, target, timestamp = now()) {
   return witnesses;
 }
 
+function pruneBotVisibleAttackMemories(bot, timestamp = now()) {
+  const memories = Array.isArray(bot?.botVisibleAttackMemories) ? bot.botVisibleAttackMemories : [];
+  const retained = memories.filter((entry) => (
+    entry &&
+    String(entry.actorId || "") &&
+    Number(entry.expiresAt) > timestamp &&
+    Number.isFinite(Number(entry.x)) &&
+    Number.isFinite(Number(entry.y))
+  ));
+  if (bot) bot.botVisibleAttackMemories = retained.slice(-12);
+  return retained;
+}
+
+function recordBotVisibleHumanAttackStart(room, actor, kind, timestamp = now()) {
+  // This is deliberately a motion memory, not an attacker-role conclusion.
+  // The actor's role, kill attribution and private status never participate.
+  if (!room || !actor || actor.isBot || !actor.alive || actor.ejected || actor.inVent) return 0;
+  let observed = 0;
+  for (const bot of room.players.values()) {
+    if (!bot?.isBot || bot.role !== "defender" || !botIsEnemyOfSoleHuman(room, bot)) continue;
+    if (!botCanDirectlyObservePlayer(room, bot, actor)) continue;
+    const memories = pruneBotVisibleAttackMemories(bot, timestamp)
+      .filter((entry) => String(entry.actorId || "") !== actor.id);
+    memories.push({
+      actorId: actor.id,
+      x: Number(actor.x) || 0,
+      y: Number(actor.y) || 0,
+      observedAt: timestamp,
+      expiresAt: timestamp + BOT_VISIBLE_ATTACK_MEMORY_MS,
+      kind: String(kind || "attack")
+    });
+    bot.botVisibleAttackMemories = memories.slice(-12);
+    observed += 1;
+  }
+  return observed;
+}
+
+function promoteBotVisibleAttackBodyChain(room, bot, body, timestamp = now()) {
+  if (!room || !bot?.isBot || bot.role !== "defender" || !body) return null;
+  if (!botIsEnemyOfSoleHuman(room, bot) || !botCanDirectlyObservePosition(room, bot, body)) return null;
+  const memories = pruneBotVisibleAttackMemories(bot, timestamp);
+  const match = memories
+    .map((memory) => ({ memory, actor: room.players.get(String(memory.actorId || "")) }))
+    .filter(({ memory, actor }) => (
+      actor?.alive &&
+      !actor.ejected &&
+      !actor.inVent &&
+      actor.id !== bot.id &&
+      String(body.playerId || "") !== actor.id &&
+      Number(body.at) >= Number(memory.observedAt) &&
+      Number(body.at) <= Number(memory.expiresAt) &&
+      Math.hypot(Number(body.x) - Number(memory.x), Number(body.y) - Number(memory.y)) <= BOT_ATTACK_BODY_CHAIN_DISTANCE
+    ))
+    .sort((a, b) => Number(b.memory.observedAt) - Number(a.memory.observedAt))[0];
+  if (!match) return null;
+  // A legal suspect is promoted only after the bot itself saw both endpoints
+  // of the chain. This is still evidence, never a hidden-role confirmation.
+  bot.botWitnessTargetId = match.actor.id;
+  bot.botWitnessUntil = Math.min(Number(match.memory.expiresAt), timestamp + BOT_VISIBLE_ATTACK_MEMORY_MS);
+  bot.botWitnessEvidenceKind = "visible-attack-motion-body-chain";
+  bot.navPath = [];
+  bot.nextBotActionAt = Math.min(Number(bot.nextBotActionAt) || timestamp, timestamp);
+  return match.actor;
+}
+
 function botKnownAttackerEvidence(room, bot, timestamp = now()) {
-  // Clairvoyance is an observation route, not a role-reveal route. A bot, like
-  // an ordinary user, needs witnessed hostile action, a complete visual poison
-  // chain, or visible retaliation evidence before treating someone as hostile.
+  // Observation evidence is not a role-reveal route. Attack motion alone is
+  // insufficient: it must be joined by a matching, directly discovered body.
   // Hidden role/faction, status source, thrown owner, corpse killer and internal
   // death reason are forbidden inputs here.
   const witnessed = room.players.get(String(bot?.botWitnessTargetId || ""));
@@ -16163,10 +16214,23 @@ function advanceNaturalRecoveryHealth(room, player, elapsedMs) {
   const before = Math.max(0, Number(player.bodyHits) || 0);
   if (before <= 0) return false;
   const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
-  const recovered = Math.min(before, NATURAL_RECOVERY_HP_PER_SECOND * elapsedSeconds);
+  const recovered = Math.min(before, NATURAL_RECOVERY_HP_PER_SECOND * floraAromaMultiplier(room, player) * elapsedSeconds);
   if (recovered <= 0) return false;
   player.bodyHits = Number(Math.max(0, before - recovered).toFixed(6));
   return player.bodyHits < before;
+}
+
+function advanceNaturalRecoveryMana(room, player, elapsedMs) {
+  if (!hasNaturalRecovery(room, player)) return false;
+  if (player.hackerRootActive || hasFighterInfiniteResources(player)) return false;
+  const before = Math.max(0, Number(player.mana) || 0);
+  if (before >= NATURAL_RECOVERY_MANA_CAP) return false;
+  const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
+  const recovered = NATURAL_RECOVERY_MANA_PER_SECOND * floraAromaMultiplier(room, player) * elapsedSeconds;
+  if (recovered <= 0) return false;
+  player.mana = Number(Math.min(NATURAL_RECOVERY_MANA_CAP, before + recovered).toFixed(6));
+  player.luck = luckValueFor(player);
+  return player.mana > before;
 }
 
 function applyPersistentStatus(room, source, target, kind, strength = 1, timestamp = now(), options = {}) {
@@ -16338,7 +16402,15 @@ function itemThrowFlightDuration(distanceToLanding) {
 
 function queueThrownItem(room, player, itemId, item, landing, rawPower = 0) {
   const createdAt = now();
-  const durationMs = itemThrowFlightDuration(landing.distance);
+  recordBotVisibleHumanAttackStart(room, player, "item-throw", createdAt);
+  const requestedDx = Number(landing?.x) - Number(player.x);
+  const requestedDy = Number(landing?.y) - Number(player.y);
+  const requestedDistance = Math.hypot(requestedDx, requestedDy);
+  const throwPath = requestedDistance > 0.01
+    ? resolveVectorAttackPath(room, player, requestedDx, requestedDy, requestedDistance, { collisionRadius: 2 })
+    : { x: player.x, y: player.y, distance: 0, blocked: false };
+  const resolvedLanding = { x: throwPath.x, y: throwPath.y, distance: throwPath.distance };
+  const durationMs = itemThrowFlightDuration(resolvedLanding.distance);
   const power = rawPower && typeof rawPower === "object"
     ? rawPower
     : { mode: Number(rawPower) > 0 ? "enhance" : "normal", enhanceLevel: Number(rawPower) || 0 };
@@ -16355,8 +16427,8 @@ function queueThrownItem(room, player, itemId, item, landing, rawPower = 0) {
     ownerId: player.id,
     x: Math.round(player.x),
     y: Math.round(player.y),
-    targetX: Math.round(landing.x),
-    targetY: Math.round(landing.y),
+    targetX: Math.round(resolvedLanding.x),
+    targetY: Math.round(resolvedLanding.y),
     level,
     gbo,
     energyShockwave,
@@ -16368,19 +16440,19 @@ function queueThrownItem(room, player, itemId, item, landing, rawPower = 0) {
   pushMagicEffect(room, "action-item-throw", player, {
     radius: 90,
     playerId: player.id,
-    targetX: landing.x,
-    targetY: landing.y,
+    targetX: resolvedLanding.x,
+    targetY: resolvedLanding.y,
     variant: `flight:${itemId}`,
     durationMs
   });
-  recordBotVisibleThrowMotion(room, player, thrown, landing, createdAt);
+  recordBotVisibleThrowMotion(room, player, thrown, resolvedLanding, createdAt);
   if (gbo) pushGboOverdriveEffect(room, player, itemId, "throw");
   if (energyShockwave) {
     pushMagicEffect(room, "fighter-energy-release", player, {
       radius: 92,
       playerId: player.id,
-      targetX: landing.x,
-      targetY: landing.y,
+      targetX: resolvedLanding.x,
+      targetY: resolvedLanding.y,
       variant: `throw:remaining-ec-${player.fighterEnergyCharge}`,
       durationMs
     });
@@ -16694,9 +16766,13 @@ function resolveThrownItemLanding(room, thrown) {
     name: "投擲者",
     role: ""
   };
-  const intendedLanding = { x: Number(thrown.targetX) || 0, y: Number(thrown.targetY) || 0 };
+  const requestedLanding = { x: Number(thrown.targetX) || 0, y: Number(thrown.targetY) || 0 };
+  const requestedDx = requestedLanding.x - (Number(thrown.x) || 0);
+  const requestedDy = requestedLanding.y - (Number(thrown.y) || 0);
+  const intendedPath = resolveVectorAttackPath(room, thrown, requestedDx, requestedDy, Math.hypot(requestedDx, requestedDy), { collisionRadius: 2 });
+  const intendedLanding = { x: intendedPath.x, y: intendedPath.y };
   const rigidKind = rigidThrownItemKind(thrown.itemId, thrown.item);
-  const collision = rigidKind ? rigidThrownCollision(room, thrown) : null;
+  const collision = rigidKind ? rigidThrownCollision(room, { ...thrown, targetX: intendedLanding.x, targetY: intendedLanding.y }) : null;
   const landing = collision
     ? { x: Number(collision.x) || intendedLanding.x, y: Number(collision.y) || intendedLanding.y }
     : intendedLanding;
@@ -17079,6 +17155,7 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
   }
   ensureAbilityAvailable(player);
   spendOperatorMana(room, player, "サンビーム");
+  recordBotVisibleHumanAttackStart(room, player, "flora-sunbeam");
   const trackedCandidate = room.players.get(String(targetId || ""));
   const tracked = trackedCandidate &&
     trackedCandidate.id !== player.id &&
@@ -17099,6 +17176,7 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
   const length = Math.hypot(dx, dy) || 1;
   dx /= length;
   dy /= length;
+  const sunbeamPath = resolveVectorAttackPath(room, player, dx, dy, SUNBEAM_RANGE, { collisionRadius: 2 });
   const variantIndex = Math.abs(Math.floor((player.x + player.y) / 180)) % 3;
   const opticalVariant = ["refraction", "scattering", "diffraction"][variantIndex];
   const candidates = [...room.players.values()]
@@ -17108,7 +17186,7 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
       const ry = target.y - player.y;
       return { target, along: rx * dx + ry * dy, perpendicular: Math.abs(rx * dy - ry * dx) };
     })
-    .filter((entry) => entry.along > 0 && entry.along <= SUNBEAM_RANGE && entry.perpendicular <= SUNBEAM_WIDTH)
+    .filter((entry) => entry.along > 0 && entry.along <= sunbeamPath.distance + 0.5 && entry.perpendicular <= SUNBEAM_WIDTH)
     .sort((a, b) => a.along - b.along);
   // One canonical Sunbeam combines target-directed convergence with full-ray
   // piercing. Every valid body intersecting the ray receives its own
@@ -17131,7 +17209,7 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
     });
     hits += 1;
   }
-  const end = { x: player.x + dx * SUNBEAM_RANGE, y: player.y + dy * SUNBEAM_RANGE };
+  const end = { x: sunbeamPath.x, y: sunbeamPath.y };
   pushMagicEffect(room, "flora-sunbeam", player, {
     radius: SUNBEAM_WIDTH * 2,
     targetX: end.x,
@@ -17395,6 +17473,7 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   if (catalogProduct?.hackerAccess === "root" && !hackerRootEligible(player)) {
     throw new ApiError(403, `${catalogProduct.label}はroot化中だけ生成できます。`);
   }
+  if (conversion === "hack-hp-delete") recordBotVisibleHumanAttackStart(room, player, "hacker-hp-delete", timestamp);
   recipe.apply(room, player, targetId);
   player.vibeCodingCooldownMs = vibeCodingCooldownMsFor(conversion);
   const shortenedCooldownMs = Math.min(
@@ -17525,8 +17604,8 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
 }
 
 function inventionLineTargets(room, player, range, width, enemyOnly = false) {
-  const dx = Number(player.aimX) || 0;
-  const dy = Number(player.aimY) || 1;
+  const path = resolveVectorAttackPath(room, player, player.aimX, player.aimY, range, { collisionRadius: 2 });
+  const { dx, dy } = path;
   return [...room.players.values()]
     .filter((target) => target.id !== player.id && target.alive && !target.ejected && (!enemyOnly || target.role === attackTargetRole(player)))
     .map((target) => {
@@ -17534,7 +17613,8 @@ function inventionLineTargets(room, player, range, width, enemyOnly = false) {
       const ry = target.y - player.y;
       return { target, along: rx * dx + ry * dy, perpendicular: Math.abs(rx * dy - ry * dx) };
     })
-    .filter((entry) => entry.along > 0 && entry.along <= range && entry.perpendicular <= width)
+    .filter((entry) => entry.along > 0 && entry.along <= path.distance + 0.5 && entry.perpendicular <= width)
+    .map((entry) => ({ ...entry, path }))
     .sort((a, b) => a.along - b.along);
 }
 
@@ -17580,14 +17660,16 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
       destroyPlayerUnconditionally(room, player, player, "エクスカリバーの代償");
     }
   } else if (id === "railgun") {
-    for (const { target } of inventionLineTargets(room, player, 5000 * performanceMultiplier, 38 * performanceMultiplier, false)) destroyPlayerUnconditionally(room, player, target, "レールガン", {
+    const railgunRange = 5000 * performanceMultiplier;
+    const railgunPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, railgunRange, { collisionRadius: 2 });
+    for (const { target } of inventionLineTargets(room, player, railgunRange, 38 * performanceMultiplier, false)) destroyPlayerUnconditionally(room, player, target, "レールガン", {
       attackKind: "railgun",
       attackLabel: "レールガン弾",
       slashGuardPhysical: true,
       slashGuardReflectable: true,
       reflectDestroy: true
     });
-    pushMagicEffect(room, "alchemy-railgun", player, { radius: 100 * Math.sqrt(performanceMultiplier), targetX: player.x + player.aimX * 5000 * performanceMultiplier, targetY: player.y + player.aimY * 5000 * performanceMultiplier, playerId: player.id, variant: power.mode });
+    pushMagicEffect(room, "alchemy-railgun", player, { radius: 100 * Math.sqrt(performanceMultiplier), targetX: railgunPath.x, targetY: railgunPath.y, playerId: player.id, variant: power.mode });
   } else if (id === "particle-cannon") {
     player.particleCannonUntil = now() + 6_000 * performanceMultiplier;
     player.particleCannonNextAt = 0;
@@ -17616,7 +17698,9 @@ function advanceParticleCannon(room, player, timestamp) {
   if ((Number(player.particleCannonNextAt) || 0) > timestamp) return;
   const performanceMultiplier = Math.max(1, Number(player.particleCannonPerformanceMultiplier) || 1);
   player.particleCannonNextAt = timestamp + 300 / performanceMultiplier;
-  const targets = inventionLineTargets(room, player, 1250 * performanceMultiplier, 70 * performanceMultiplier, true);
+  const particleRange = 1250 * performanceMultiplier;
+  const particlePath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, particleRange, { collisionRadius: 2 });
+  const targets = inventionLineTargets(room, player, particleRange, 70 * performanceMultiplier, true);
   for (const { target } of targets) {
     destroyPlayerUnconditionally(room, player, target, "荷電粒子砲", {
       attackKind: "particle-cannon",
@@ -17627,7 +17711,7 @@ function advanceParticleCannon(room, player, timestamp) {
     });
   }
   pushMagicEffect(room, "alchemy-particle-beam", player, {
-    radius: 140 * Math.sqrt(performanceMultiplier), targetX: player.x + player.aimX * 1250 * performanceMultiplier, targetY: player.y + player.aimY * 1250 * performanceMultiplier, playerId: player.id, variant: performanceMultiplier > 1 ? "gbo-tenfold" : "continuous"
+    radius: 140 * Math.sqrt(performanceMultiplier), targetX: particlePath.x, targetY: particlePath.y, playerId: player.id, variant: performanceMultiplier > 1 ? "gbo-tenfold" : "continuous"
   });
 }
 
@@ -17726,6 +17810,7 @@ function validateAttackStart(room, killer, targetId, options = {}) {
 
 function startNinjutsu(room, player, targetId) {
   const { target, timestamp } = validateAttackStart(room, player, targetId);
+  recordBotVisibleHumanAttackStart(room, player, "ninjutsu", timestamp);
   player.aimTargetId = target.id;
   player.aimStartedAt = timestamp;
   player.aimReadyAt = timestamp + NINJUTSU_DURATION_MS;
@@ -18136,6 +18221,8 @@ function killPlayer(room, killer, targetId, options = {}) {
 
 function clearShotPath(room, shooter, target, directionX, directionY, options = {}) {
   const along = (target.x - shooter.x) * directionX + (target.y - shooter.y) * directionY;
+  const path = resolveVectorAttackPath(room, shooter, directionX, directionY, along, { collisionRadius: 2 });
+  if (path.distance + 0.5 < along) return false;
   const steps = Math.max(1, Math.ceil(along / 18));
   for (let step = 1; step < steps; step += 1) {
     const distanceAlong = along * step / steps;
@@ -18145,6 +18232,51 @@ function clearShotPath(room, shooter, target, directionX, directionY, options = 
     if (!options.ignoreCover && (room.alchemyObjects || []).some((object) => object.type === "cover" && (!object.endsAt || object.endsAt > now()) && Math.hypot(x - object.x, y - object.y) <= object.radius)) return false;
   }
   return true;
+}
+
+// All attacks that physically travel along a ray use this authoritative map
+// resolver. Generated cover is deliberately not modeled here: its existing
+// Gunner-only ignore-cover rule is separate from immutable map-wall occlusion.
+function resolveVectorAttackPath(room, origin, rawDx, rawDy, rawRange, options = {}) {
+  const start = {
+    x: Number(origin?.x) || 0,
+    y: Number(origin?.y) || 0
+  };
+  const { dx, dy } = finiteDirection(rawDx, rawDy, 0, 1);
+  const range = Math.max(0, Number(rawRange) || 0);
+  const collisionRadius = Math.max(0, Number(options.collisionRadius) || 2);
+  const sampleStep = Math.max(4, Math.min(18, Number(options.sampleStep) || 8));
+  let clearDistance = 0;
+  let blocked = false;
+  for (let sampledDistance = Math.min(sampleStep, range); sampledDistance <= range + 0.001; sampledDistance += sampleStep) {
+    const distanceAlong = Math.min(range, sampledDistance);
+    if (isWalkable(room, start.x + dx * distanceAlong, start.y + dy * distanceAlong, collisionRadius)) {
+      clearDistance = distanceAlong;
+      if (distanceAlong >= range) break;
+      continue;
+    }
+    blocked = true;
+    let low = clearDistance;
+    let high = distanceAlong;
+    for (let iteration = 0; iteration < 7; iteration += 1) {
+      const middle = (low + high) / 2;
+      if (isWalkable(room, start.x + dx * middle, start.y + dy * middle, collisionRadius)) low = middle;
+      else high = middle;
+    }
+    clearDistance = Math.max(0, low - 0.5);
+    break;
+  }
+  if (!blocked && clearDistance < range) clearDistance = range;
+  return {
+    x: start.x + dx * clearDistance,
+    y: start.y + dy * clearDistance,
+    start,
+    dx,
+    dy,
+    range,
+    distance: clearDistance,
+    blocked
+  };
 }
 
 function recordBotKillWitnesses(room, killer, target, timestamp = now()) {
@@ -18169,17 +18301,8 @@ function recordBotKillWitnesses(room, killer, target, timestamp = now()) {
 }
 
 function shotEndPoint(room, shooter, directionX, directionY, maxRange) {
-  let distanceAlong = maxRange;
-  for (let sample = 18; sample <= maxRange; sample += 18) {
-    if (!isWalkable(room, shooter.x + directionX * sample, shooter.y + directionY * sample, 2)) {
-      distanceAlong = Math.max(24, sample - 18);
-      break;
-    }
-  }
-  return {
-    x: shooter.x + directionX * distanceAlong,
-    y: shooter.y + directionY * distanceAlong
-  };
+  const path = resolveVectorAttackPath(room, shooter, directionX, directionY, maxRange, { collisionRadius: 2 });
+  return { x: path.x, y: path.y };
 }
 
 function destroyGboFirearmAccess(room, player, weaponId, reason = "GBO使用完了") {
@@ -18285,6 +18408,7 @@ function gunnerDamageAtDistance(weapon, distanceToTarget) {
 }
 
 function findGunnerTarget(room, shooter, weapon, dx, dy, options = {}) {
+  const path = resolveVectorAttackPath(room, shooter, dx, dy, weapon.range, { collisionRadius: 2 });
   return [...room.players.values()]
     .filter((player) => player.id !== shooter.id && player.alive && !player.ejected)
     .map((player) => {
@@ -18294,7 +18418,7 @@ function findGunnerTarget(room, shooter, weapon, dx, dy, options = {}) {
       const perpendicular = Math.abs(relativeX * dy - relativeY * dx);
       return { player, along, perpendicular };
     })
-    .filter((entry) => entry.along > 8 && entry.along <= weapon.range && entry.perpendicular <= weapon.lineWidth)
+    .filter((entry) => entry.along > 8 && entry.along <= path.distance + 0.5 && entry.perpendicular <= weapon.lineWidth)
     .filter((entry) => clearShotPath(room, shooter, entry.player, dx, dy, { ignoreCover: Boolean(options.ignoreCover) }))
     .sort((a, b) => a.along - b.along)[0] || null;
 }
@@ -18419,6 +18543,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
   shooter.gunnerAmmo[weapon.id] = remainingAmmo - weapon.ammoPerShot;
+  recordBotVisibleHumanAttackStart(room, shooter, `gunner-${weapon.id}`, timestamp);
   const enhanceLevel = Number(shooter.gunnerBurstEnhanceLevel) > 0 ? 1 : 0;
   const gbo = Boolean(shooter.gunnerBurstGbo && shooter.gunnerBurstGboWeapon === weapon.id);
   const effectiveWeapon = gbo
@@ -19222,23 +19347,24 @@ function useLuminous(room, player, targetId) {
   player.lastLuminousResultAt = timestamp;
 
   if (target.role === "attacker") {
-    recordBotMatchElimination(room, target, player);
-    target.alive = false;
-    target.ejected = true;
-    target.killCamera = null;
-    target.inVent = false;
-    target.ventId = "";
-    target.bodyHits = 0;
-    target.drone.active = false;
-    clearAttackState(target);
-    removeDefeatedPlayerFromMeeting(room.meeting, target.id);
-
-    player.luminousActive = true;
-    player.totalKills += 1;
-    player.killsThisRound += 1;
-    player.luminousContribution = 0;
-    player.lastLuminousResult = "success";
-    pushEvent(room, `${player.name} のルミナスが ${target.name} に的中。キルとして記録され、高速化を獲得しました。`);
+    const annihilated = destroyPlayerUnconditionally(room, player, target, "ルミナス", {
+      noBody: true,
+      attackKind: "luminous-annihilation",
+      attackLabel: "ルミナス",
+      slashGuardPhysical: false,
+      slashGuardReflectable: false,
+      bypassSlashGuard: true,
+      ignorePreparationBarrier: true
+    });
+    if (annihilated) {
+      target.ejected = true;
+      removeDefeatedPlayerFromMeeting(room.meeting, target.id);
+      player.luminousActive = true;
+      player.killsThisRound += 1;
+      player.luminousContribution = 0;
+      player.lastLuminousResult = "success";
+      pushEvent(room, `${player.name} のルミナスが ${target.name} を消滅させ、キルとして記録しました。`);
+    }
   } else {
     recordBotMatchElimination(room, player, player);
     player.alive = false;
@@ -20023,6 +20149,10 @@ function serialize(room, viewer, options = {}) {
       maxStamina: MAX_STAMINA,
       maxStoredStamina: staminaCapacityFor(viewer),
       statusImmunityActive: hasNaturalRecovery(room, viewer),
+      naturalRecoveryHpPerSecond: NATURAL_RECOVERY_HP_PER_SECOND * floraAromaMultiplier(room, viewer),
+      naturalRecoveryStaminaPerSecond: STAMINA_REGEN_PER_SECOND * floraAromaMultiplier(room, viewer),
+      naturalRecoveryManaPerSecond: NATURAL_RECOVERY_MANA_PER_SECOND * floraAromaMultiplier(room, viewer),
+      naturalRecoveryManaCap: NATURAL_RECOVERY_MANA_CAP,
       sleepRegenPerSecond: STAMINA_REGEN_PER_SECOND * SLEEP_REGEN_MULTIPLIER,
       abilityContribution: viewer.abilityContribution,
       taskContribution: viewer.taskContribution,
@@ -20145,7 +20275,7 @@ function serialize(room, viewer, options = {}) {
         progress: soloMissionProgress(room, timestamp),
         hintUnlocked: Boolean(room.soloMission.hintUnlocked),
         hint: room.soloMission.hintUnlocked
-          ? "CPUは自分へアクセラレート→練気4回→再度アクセラレート→練気4回→心臓転移を繰り返します。練気中の行動不能時間か、心臓転移に必要な10MPを確保する前を狙って妨害してください。"
+          ? "CPUは自分へアクセラレート→練気1回（+10MP）→心臓転移を繰り返します。35秒の精神統一中か、心臓転移に必要な10MPを確保する前を狙って妨害してください。"
           : ""
       };
     })(),
@@ -21123,8 +21253,6 @@ async function handleApi(req, res) {
         entry.donationLuckBonus = 0;
         entry.stamina = MAX_STAMINA;
         entry.staminaUpdatedAt = now();
-        entry.autoManaToStaminaFeedbackAt = 0;
-        entry.staminaManaOverflow = 0;
         entry.speedMultiplier = 1;
         entry.dodgeDurationBonusMs = 0;
         entry.warpCharges = 0;
@@ -21162,6 +21290,7 @@ async function handleApi(req, res) {
         entry.botWitnessTargetId = "";
         entry.botWitnessUntil = 0;
         entry.botWitnessEvidenceKind = "";
+        entry.botVisibleAttackMemories = [];
         entry.botVisibleThrowObservations = [];
         entry.botKillDecision = null;
         clearBotCombatPlan(entry);
@@ -21528,6 +21657,12 @@ function runBotBodyReport(room, bot) {
   const body = [...(room.bodies || [])].sort((a, b) => distance(bot, a) - distance(bot, b))[0];
   if (!body) return false;
   const bodyDistance = distance(bot, body);
+  if (bodyDistance <= BOT_BODY_NOTICE_RANGE && botCanDirectlyObservePosition(room, bot, body)) {
+    const suspect = promoteBotVisibleAttackBodyChain(room, bot, body, now());
+    // Keep the body unreported for this tick so the newly evidence-backed
+    // suspect can enter the normal maximum-strength payoff planner.
+    if (suspect) return false;
+  }
   if (bodyDistance > reportRange) {
     if (bodyDistance > BOT_BODY_NOTICE_RANGE) return false;
     const dx = body.x - bot.x;
@@ -22161,15 +22296,15 @@ function runCpuGravityScript(room, bot, timestamp) {
     if (state.cpuPhase === "accelerate-1" || state.cpuPhase === "accelerate-2") {
       toggleGravityTime(room, bot, "accelerate", bot.id);
       state.cpuRenkiCount = 0;
-      state.cpuPhase = state.cpuPhase === "accelerate-1" ? "renki-1" : "renki-2";
+      state.cpuPhase = "renki-1";
       return true;
     }
     if (state.cpuPhase === "renki-1" || state.cpuPhase === "renki-2") {
-      if (state.cpuRenkiCount < 4) {
+      if (state.cpuRenkiCount < 1) {
         practiceRenki(room, bot);
         state.cpuRenkiCount += 1;
       } else {
-        state.cpuPhase = state.cpuPhase === "renki-1" ? "accelerate-2" : "heart";
+        state.cpuPhase = "heart";
       }
       return true;
     }
@@ -22509,7 +22644,15 @@ function botCombatCandidates(room, bot, target, timestamp) {
   if (!target?.alive || target.ejected || !bot.alive || bot.ejected || bot.inVent) return [];
   const targetDistance = distance(bot, target);
   const candidates = [];
-  const add = (code, score, run) => candidates.push({ code, score, run });
+  const evidenceBoost = bot.role === "defender" &&
+    String(bot.botWitnessTargetId || "") === target.id &&
+    Number(bot.botWitnessUntil) > timestamp &&
+    String(bot.botWitnessEvidenceKind || "") === "visible-attack-motion-body-chain"
+      ? 2_000
+      : 0;
+  // Once the legal visual attack->body chain exists, every owned payoff keeps
+  // its own resource/range/LOS/ownership guard but shares one target priority.
+  const add = (code, score, run) => candidates.push({ code, score: score + evidenceBoost, run });
   const gravityAccess = hasOperatorAccess(bot, "gravity");
 
   // This multi-step plan intentionally outranks immediate gunfire/ninjutsu.
@@ -22854,7 +22997,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "fighter-ec-native-scroll-auto-hold-v519",
+  version: "natural-recovery-marker-wall-bot-renki-resume-v520",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
