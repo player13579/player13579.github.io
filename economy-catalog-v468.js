@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "root-shortcut-instant-match-emp-bot-ready-v523",
+    version: "emp-anomaly-distinct-markers-hacker-task-flick-v524",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

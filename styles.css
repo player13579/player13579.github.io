@@ -5123,7 +5123,9 @@ body .offline-team-choice button[data-offline-team] {
   max-height: 310px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scroll-behavior: smooth;
+  /* Native finger momentum owns this surface. Smooth programmatic scrolling
+     makes a clipped Hacker/Alchemy list feel like pointer-drag scrolling. */
+  scroll-behavior: auto;
 }
 
 .alchemy-choice {
@@ -5251,7 +5253,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=root-shortcut-instant-match-emp-bot-ready-v523"); }
+.alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=emp-anomaly-distinct-markers-hacker-task-flick-v524"); }
 .alchemy-choice[data-alchemy-choice="grit"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="grit"] .alchemy-choice-icon { background-image: url("assets/generated/status-stand-firm.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="reason"] .alchemy-choice-icon,
@@ -7687,6 +7689,7 @@ body.game-open :is(
   .active-effects-panel,
   .active-effects-list,
   .field-feed-list,
+  .alchemy-choice-grid,
   .keybind-list,
   .tactics-content,
   .tactics-chapters
@@ -8190,6 +8193,18 @@ body #statusPanel .hacker-ability-grid {
   max-height: min(37vh, 342px);
   overflow-y: auto;
   scroll-snap-type: none;
+}
+
+/* The compact right-panel Hacker catalog is vertical. The generic tablet
+   Hacker catalog above remains horizontal; this later, more-specific rule
+   gives both the clipped grid and its child buttons the same vertical native
+   flick axis so touch-action intersection cannot collapse to `none`. */
+body.game-open #statusPanel .hacker-ability-grid,
+body.game-open #statusPanel .hacker-ability-grid .hacker-direct-action {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: auto;
 }
 
 body .side-panel.scroll-region-expanded-host {

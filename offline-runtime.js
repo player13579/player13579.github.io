@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "root-shortcut-instant-match-emp-bot-ready-v523";
+const OFFLINE_WORKER_VERSION = "emp-anomaly-distinct-markers-hacker-task-flick-v524";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.
@@ -103,11 +103,12 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
       this.settleReady(ready);
     }
 
-    async request(path, body = {}) {
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+    async request(path, body = {}, options = {}) {
+      const attempts = Number.isFinite(options.attempts) ? Math.max(1, Number(options.attempts)) : 2;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
         const ready = await this.start();
         if (ready) {
-          const result = await this.requestOnce(path, body);
+          const result = await this.requestOnce(path, body, options);
           if (result) return result;
         }
         this.stop();
@@ -115,7 +116,10 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
       return null;
     }
 
-    requestOnce(path, body = {}) {
+    requestOnce(path, body = {}, options = {}) {
+      const timeoutMs = Number.isFinite(options.timeoutMs)
+        ? Math.max(50, Number(options.timeoutMs))
+        : OFFLINE_REQUEST_TIMEOUT_MS;
       const requestBody = {
         ...body,
         clientId: body.clientId || this.options.clientId?.() || "offline-device",
@@ -130,7 +134,7 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
             clearTimeout(timer);
             resolve(value || null);
           };
-          const timer = setTimeout(() => finish(null), OFFLINE_REQUEST_TIMEOUT_MS);
+          const timer = setTimeout(() => finish(null), timeoutMs);
           Promise.resolve(this.mainThreadApi.request(path, requestBody)).then(finish, () => finish(null));
         });
       }
@@ -140,7 +144,7 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
         const timer = setTimeout(() => {
           this.pending.delete(id);
           resolve(null);
-        }, OFFLINE_REQUEST_TIMEOUT_MS);
+        }, timeoutMs);
         this.pending.set(id, { resolve, timer });
         this.worker.postMessage({
           type: "request",

@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "root-shortcut-instant-match-emp-bot-ready-v523",
+    version: "emp-anomaly-distinct-markers-hacker-task-flick-v524",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7440,7 +7440,7 @@ const PAIR_ROUTE_DAMAGE_INTERVAL_MS = 3_000;
 const TASK_STAMINA_REQUIREMENT = 200;
 const AUTO_TASK_INTERVAL_MS = 2_500;
 const AUTO_TASK_PRESENCE_MS = 1800;
-const HACKER_AUTO_TASK_INTERVAL_MS = 12_000;
+const HACKER_AUTO_TASK_INTERVAL_MS = 60_000;
 const PREPARATION_PHASE_MS = 5_000;
 const GUNNER_RELOAD_MS = 2_200;
 const GUNNER_IDLE_AUTO_RELOAD_DELAY_MS = 2_600;
@@ -14698,7 +14698,7 @@ function itemStorageAvailable(player, timestamp = now()) {
 
 function ensureItemStorageAvailable(player, timestamp = now()) {
   if (itemStorageAvailable(player, timestamp)) return;
-  throw new ApiError(400, `EMPでストレージ遮断中です（残り${Math.ceil((player.itemDisabledUntil - timestamp) / 1000)}秒）。`);
+  throw new ApiError(400, `EMP機器異常中です（残り${Math.ceil((player.itemDisabledUntil - timestamp) / 1000)}秒）。`);
 }
 
 function triggerSubstitution(room, player, reason, timestamp = now()) {
@@ -15109,10 +15109,10 @@ function absorbPreparationBarrier(room, target, timestamp = now(), source = null
 
 function applyEmpDisruption(room, target, timestamp = now()) {
   if (!target?.alive || target.ejected) return 0;
-  // EMP is an electronic equipment/inventory disruption, not a biological
-  // adverse status. Natural Recovery therefore neither rejects nor clears it.
+  // EMP is an equipment anomaly, never a status abnormality or debuff. No
+  // status-recovery route may reject, shorten, clear, or repair this timer.
   target.itemDisabledUntil = Math.max(Number(target.itemDisabledUntil) || 0, timestamp + EMP_ITEM_LOCK_MS);
-  if (target.gunFiring) stopGunnerFire(room, target, { reason: "EMPストレージ遮断", autoSwitch: false });
+  if (target.gunFiring) stopGunnerFire(room, target, { reason: "EMP機器異常", autoSwitch: false });
   target.particleCannonUntil = 0;
   target.particleCannonNextAt = 0;
   target.particleCannonPerformanceMultiplier = 1;
@@ -15122,7 +15122,7 @@ function applyEmpDisruption(room, target, timestamp = now()) {
     durationMs: EMP_ITEM_LOCK_MS,
     variant: "storage"
   });
-  setImmediateFeedback(target, "EMPストレージ遮断", `${Math.ceil(EMP_ITEM_LOCK_MS / 1000)}秒間、全アイテム使用・効果停止`);
+  setImmediateFeedback(target, "EMP機器異常", `${Math.ceil(EMP_ITEM_LOCK_MS / 1000)}秒間、全アイテム使用・効果停止`);
   return 1;
 }
 
@@ -16384,11 +16384,10 @@ function clearAdverseStatuses(room, player, source = "状態異常回復", times
   if (!player) return false;
   const naturalRecovery = source === "自然回復";
   const hadTimedStatus = ADVERSE_STATUS_DEADLINE_FIELDS.some((field) => Number(player[field]) > timestamp);
-  const hadEquipmentDisruption = Number(player.itemDisabledUntil) > timestamp;
   for (const field of ADVERSE_STATUS_DEADLINE_FIELDS) player[field] = 0;
-  // Explicit recovery actions can repair electronics; passive Natural
-  // Recovery is biological and must let the EMP equipment timer continue.
-  if (!naturalRecovery) player.itemDisabledUntil = 0;
+  // EMP is an equipment anomaly, never a status abnormality.  This generic
+  // status-recovery helper must not repair, shorten, or otherwise touch its
+  // authoritative equipment-lock timer, regardless of recovery source.
   player.gravityStormSlowMultiplier = 1;
   if (["unconscious", "time-stopped"].includes(player.movementMode)) {
     player.movementMode = "idle";
@@ -16403,7 +16402,7 @@ function clearAdverseStatuses(room, player, source = "状態異常回復", times
     if (clearedBurn) clearBurning(room, player, source);
     if (clearedPoison) clearPoison(room, player, source);
   }
-  return hadTimedStatus || (!naturalRecovery && hadEquipmentDisruption) || clearedBurn || clearedPoison;
+  return hadTimedStatus || clearedBurn || clearedPoison;
 }
 
 function rejectAdverseStatusDuringNaturalRecovery(room, target, label = "状態異常", timestamp = now()) {
@@ -23304,5 +23303,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "root-shortcut-instant-match-emp-bot-ready-v523" });
+self.postMessage({ type: "ready", version: "emp-anomaly-distinct-markers-hacker-task-flick-v524" });
 })();

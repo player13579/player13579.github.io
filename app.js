@@ -350,6 +350,7 @@ const storage = {
   abilityAutoActivate: "dva_ability_auto_activate_v1"
 };
 storage.cpuGravityHint = "dva_cpu_gravity_hint";
+storage.offlineSession = "dva_offline_session_v524";
 
 const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sniper", "taser"]);
 // Texture construction runs while the main state object is initialized, so this
@@ -416,6 +417,8 @@ const state = {
   movementStopPendingSeq: 0,
   focusResyncing: false,
   focusResyncPromise: null,
+  focusResyncSerial: 0,
+  foregroundRecovery: { inFlight: false, queued: false },
   pollInFlight: false,
   // Every async room response is tied to this client-side ownership generation.
   // A visibility restore can replace an expired generated-offline room while an
@@ -543,7 +546,7 @@ const state = {
   markerExplanation: null,
   operatorBranchesOpen: false,
   operatorBranchType: "",
-  borrowedOperatorType: "gravity",
+  borrowedOperatorType: "",
   borrowedAbilityModes: { fighter: "limit-break", gravity: "accelerate", flora: "heal", quantum: "nuclear-transmutation" },
   quantumAbilityMode: "nuclear-transmutation",
   quantumKineticModes: { native: "kinetic-accelerate", borrowed: "kinetic-accelerate" },
@@ -602,7 +605,7 @@ const state = {
   analyticsExitReported: false,
   analyticsFlushInFlight: false,
   offlineClient: null,
-  offlineMode: false,
+  offlineMode: localStorage.getItem(storage.offlineSession) === "1",
   onlineAvailable: false,
   onlineAvailabilityChecked: false,
   onlineAvailabilityCheckInFlight: false,
@@ -774,7 +777,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "root-shortcut-instant-match-emp-bot-ready-v523";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-anomaly-distinct-markers-hacker-task-flick-v524";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1614,6 +1617,7 @@ function init() {
   requestStartupFullscreen();
   initializeTacticsPanel();
   initializeOfflineRuntime();
+  if (state.offlineMode) activateOfflineMode();
   initializeRealtimeTransport();
   registerServiceWorker();
   if (location.protocol === "file:") {
@@ -1795,6 +1799,7 @@ function activateOfflineMode(reason = "") {
   if (!state.offlineClient) return false;
   state.offlineClient.start();
   state.offlineMode = true;
+  localStorage.setItem(storage.offlineSession, "1");
   state.realtime?.disconnect();
   document.documentElement.dataset.connectionMode = "offline";
   if (reason) showToast(reason);
@@ -1803,6 +1808,7 @@ function activateOfflineMode(reason = "") {
 
 function deactivateOfflineMode() {
   state.offlineMode = false;
+  localStorage.removeItem(storage.offlineSession);
   document.documentElement.dataset.connectionMode = "online";
 }
 
@@ -5567,7 +5573,7 @@ function bindEvents() {
   els.titlePlayButton.addEventListener("click", () => {
     if (els.titlePlayButton.disabled) return;
     loadGameplayTextures();
-    state.offlineMode = false;
+    deactivateOfflineMode();
     state.realtime?.disconnect();
     document.documentElement.dataset.connectionMode = "matching";
     recordUsageCheckpoint("matchmaking_open");
@@ -5623,6 +5629,9 @@ function bindEvents() {
   els.teleportModeSelect.addEventListener("pointerdown", () => {
     prepareRootAbilityModeSelectForOpen();
   }, true);
+  els.teleportModeSelect.addEventListener("focus", () => {
+    prepareRootAbilityModeSelectForOpen();
+  });
   document.addEventListener("pointerdown", (event) => {
     const gesture = state.switchDrag;
     if (!gesture.opened || !gesture.persistent) return;
@@ -6299,10 +6308,10 @@ function bindEvents() {
     state.continuousActionKeyAt.clear();
     clearMovementInput();
   });
-  window.addEventListener("focus", () => void resyncMovementAfterFocus());
+  window.addEventListener("focus", () => void recoverRoomInteractionAfterBackground());
   window.addEventListener("online", () => void flushUsageAnalytics());
   window.addEventListener("pagehide", () => {
-    clearMovementInput();
+    cancelTransientGameInputForBackground();
     recordUsageExit();
   });
   window.addEventListener("pointerout", (event) => {
@@ -6404,7 +6413,7 @@ function bindEvents() {
   window.addEventListener("pageshow", () => {
     scheduleViewportScaleRestore();
     scheduleGameplayViewportReflow(true);
-    void resumeRoomAfterBackground();
+    void recoverRoomInteractionAfterBackground();
   }, { passive: true });
   document.addEventListener("focusout", (event) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) {
@@ -6421,8 +6430,7 @@ function bindEvents() {
     }
     clearMovementInput();
     if (!document.hidden) {
-      void resumeRoomAfterBackground();
-      void resyncMovementAfterFocus();
+      void recoverRoomInteractionAfterBackground();
     }
     if (!document.hidden) {
       scheduleViewportScaleRestore();
@@ -8683,7 +8691,10 @@ function gunnerDirection() {
 async function request(path, body = {}, options = {}) {
   const useOffline = options.forceOffline || (state.offlineMode && !options.forceOnline);
   if (useOffline) {
-    const result = await state.offlineClient?.request(path, { ...body, clientId: clientId() });
+    const result = await state.offlineClient?.request(path, { ...body, clientId: clientId() }, {
+      timeoutMs: options.timeoutMs,
+      attempts: options.attempts
+    });
     if (!result?.ok) {
       if (!options.quiet) showToast(result?.error || "オフライン処理に失敗しました。");
       return null;
@@ -8766,15 +8777,32 @@ function setCurrentRoomSession(roomId, playerId) {
   }
 }
 
+function invalidateFocusResync() {
+  state.focusResyncSerial += 1;
+  state.focusResyncing = false;
+  state.focusResyncPromise = null;
+}
+
 function cancelTransientGameInputForBackground() {
+  invalidateFocusResync();
   clearMovementInput();
+  cancelActiveRootShortcutHolds();
   cancelActiveAbilityBatchHolds();
   stopContinuousActionHold();
   stopContinuousActionKeyHold();
+  state.continuousActionKeyAt.clear();
+  closeSwitchDragMenu();
   clearNativeSelectHold();
   cancelEnhanceAction();
   cancelThrowTargeting(true);
   clearLocalGunTrigger();
+  if (state.clairvoyance.active) setLocalClairvoyanceActive(false, state.data);
+  state.clairvoyance.serverDesired = false;
+  state.clairvoyance.requestPending = false;
+  state.clairvoyance.requestSerial = (Number(state.clairvoyance.requestSerial) || 0) + 1;
+  state.tabletResumeAfterMap = false;
+  if (state.expandedMapOpen || state.teleportTargeting || state.instantWarpTargeting) setExpandedMapOpen(false);
+  if (state.operatorBranchesOpen) setOperatorBranchesOpen(false);
 }
 
 function returnExpiredOnlineRoomToMatchmaking(generation, roomId, playerId) {
@@ -8858,7 +8886,37 @@ async function resumeRoomAfterBackground() {
   }
 }
 
+async function recoverRoomInteractionAfterBackground() {
+  if (document.hidden || !state.roomId || !state.playerId) return false;
+  if (state.foregroundRecovery.inFlight) {
+    state.foregroundRecovery.queued = true;
+    return false;
+  }
+  state.foregroundRecovery.inFlight = true;
+  try {
+    // Room ownership must settle before movement creates a new session.  The
+    // former parallel calls could resync an expired room and keep every input
+    // behind focusResyncing for the offline request's full retry window.
+    const resumed = await resumeRoomAfterBackground();
+    if (!resumed || document.hidden || !state.roomId || !state.playerId) return false;
+    syncClairvoyanceManaUsage();
+    if (state.data?.phase !== "playing") return true;
+    await resyncMovementAfterFocus();
+    // A bounded resync failure must not freeze otherwise legal actions. State
+    // polling remains authoritative and the next focus can retry with a new
+    // movement-session serial.
+    return Boolean(state.data && !document.hidden);
+  } finally {
+    state.foregroundRecovery.inFlight = false;
+    if (state.foregroundRecovery.queued && !document.hidden) {
+      state.foregroundRecovery.queued = false;
+      queueMicrotask(() => void recoverRoomInteractionAfterBackground());
+    }
+  }
+}
+
 function resetLocalSession() {
+  invalidateFocusResync();
   state.roomSessionGeneration += 1;
   state.realtime?.disconnect();
   state.movementQueue?.clear();
@@ -8941,6 +8999,7 @@ function resetLocalSession() {
   clearMovementInput();
   localStorage.removeItem(storage.room);
   localStorage.removeItem(storage.player);
+  localStorage.removeItem(storage.offlineSession);
   render();
 }
 
@@ -9216,15 +9275,10 @@ function detectMagicEffects(previous, next) {
         state.headMarkerPresentationCache.clear();
         continue;
       }
-      const queuedDistinctCount = state.magicEffects.filter((entry) => (
-        entry.playerId === localEffect.playerId &&
-        nonCreditHeadMarkerSemanticKey(entry) &&
-        (Number(entry._headMarkerExpiresAt) || (Number(entry.startedAt) + Number(entry.duration))) > receivedAt
-      )).length;
       localEffect._headMarkerInstanceKey = localEffect.id;
       localEffect._headMarkerAggregateCount = Math.max(1, Number(localEffect.markerCount) || 1);
       localEffect._headMarkerLastAt = receivedAt;
-      localEffect._headMarkerExpiresAt = receivedAt + duration + queuedDistinctCount * NON_CREDIT_HEAD_MARKER_DWELL_MS;
+      localEffect._headMarkerExpiresAt = receivedAt + duration;
       localEffect.duration = localEffect._headMarkerExpiresAt - receivedAt;
     }
     state.magicEffects.push(localEffect);
@@ -10234,11 +10288,13 @@ function commitNativeQuantumModeSelect(source = els.teleportModeSelect) {
   return true;
 }
 
-function populateRootOperatorModeSelect(self = state.data?.self, { selectedType = "" } = {}) {
+function populateRootOperatorModeSelect(self = state.data?.self, { selectedType = "", preserveCascade = false } = {}) {
   const types = availableBorrowedActiveOperatorTypes(self);
   if (!types.length) return false;
-  state.rootAbilitySelectStage = "operator";
-  clearAbilityCascadeSelects();
+  if (!preserveCascade) {
+    state.rootAbilitySelectStage = "operator";
+    clearAbilityCascadeSelects();
+  }
   els.teleportModeSelect.dataset.specialKey = `root-operators:${types.join("|")}`;
   els.teleportModeSelect.innerHTML = [
     '<option value="" disabled>オペ名を選択</option>',
@@ -10257,6 +10313,10 @@ function populateRootAbilityModeSelect(type, { prompt = false, selectedMode = ""
   if (!choices.length) return false;
   state.borrowedOperatorType = type;
   if (prompt) {
+    // Keep the first-stage selector synchronized without resetting the visible
+    // second-stage branch. A poll between the two native picker stages used to
+    // rebuild this selector and collapse every branch back to Gravity.
+    populateRootOperatorModeSelect(self, { selectedType: type, preserveCascade: true });
     state.rootAbilitySelectStage = "ability";
     clearAbilityCascadeSelects({ root: false, kinetic: true });
     els.rootAbilityBranchControl.hidden = false;
@@ -10277,13 +10337,11 @@ function populateRootAbilityModeSelect(type, { prompt = false, selectedMode = ""
 
 function prepareRootAbilityModeSelectForOpen() {
   const self = state.data?.self;
-  if (!rootAbilityModeSelectActive(self)) {
-    return false;
-  }
-  if (state.rootAbilitySelectStage !== "operator" && state.rootAbilitySelectStage !== "ability" && state.rootAbilitySelectStage !== "quantum-kinetic") {
-    populateRootOperatorModeSelect(self);
-  }
-  return true;
+  if (!rootAbilityModeSelectActive(self)) return false;
+  // Reopening ROOT selection always starts at the complete operator list.
+  // Keeping the previous ability stage left the initial Gravity branch visible
+  // and made every other borrowed operator appear unavailable.
+  return populateRootOperatorModeSelect(self);
 }
 
 function commitRootAbilityModeSelect(source = els.teleportModeSelect) {
@@ -10468,7 +10526,9 @@ function renderTargetOptions(data) {
       const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
       const operatorKey = `root-operators:${availableBorrowedActiveOperatorTypes(self).join("|")}`;
       const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
-      if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self, { selectedType: rootType });
+      if (els.teleportModeSelect.dataset.specialKey !== operatorKey) {
+        populateRootOperatorModeSelect(self, { selectedType: rootType, preserveCascade: true });
+      }
       if (els.rootAbilityBranchSelect.dataset.specialKey !== abilityKey) {
         populateRootAbilityModeSelect(rootType, { prompt: true, selectedMode: "quantum-kinetic" });
       }
@@ -10478,7 +10538,9 @@ function renderTargetOptions(data) {
       const rootChoices = OPERATOR_ABILITY_MODE_OPTIONS[rootType] || [];
       const operatorKey = `root-operators:${availableBorrowedActiveOperatorTypes(self).join("|")}`;
       const abilityKey = `root-abilities:${rootType}:${rootChoices.map(([value]) => value).join("|")}`;
-      if (els.teleportModeSelect.dataset.specialKey !== operatorKey) populateRootOperatorModeSelect(self, { selectedType: rootType });
+      if (els.teleportModeSelect.dataset.specialKey !== operatorKey) {
+        populateRootOperatorModeSelect(self, { selectedType: rootType, preserveCascade: true });
+      }
       if (els.rootAbilityBranchSelect.dataset.specialKey !== abilityKey) populateRootAbilityModeSelect(rootType, { prompt: true });
     } else {
       populateRootOperatorModeSelect(self);
@@ -11252,7 +11314,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
 
   if (self.special === "alchemist") {
     const hackerOperational = phase === "playing" && self.alive && !self.ejected;
-    add("ハック", hackerOperational ? "稼働" : "戦闘中のみ", hackerOperational ? "rational" : "neutral", "生存中は対象位置を把握。防衛側ではタスクを12秒ごとに自動完了");
+    add("ハック", hackerOperational ? "稼働" : "戦闘中のみ", hackerOperational ? "rational" : "neutral", "生存中は対象位置を把握。防衛側ではタスクを60秒ごとに自動完了");
     const manaGpuDrain = Number(self.manaGpuDrainPerSecond || 0).toFixed(3);
     const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
@@ -11374,12 +11436,12 @@ function renderActiveEffects(data) {
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
-  timed("EMPストレージ遮断", self.itemDisabledUntil, "desire", "アイテム・装備効果停止");
+  timed("EMP機器異常", self.itemDisabledUntil, "desire", "アイテム・装備効果停止（状態異常回復の対象外）");
   if (self.statusImmunityActive) {
     const hpRate = Number(self.naturalRecoveryHpPerSecond || 0.05).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     const spRate = Number(self.naturalRecoveryStaminaPerSecond || 19).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     const mpRate = Number(self.naturalRecoveryManaPerSecond || 0.127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除（EMP機器遮断は対象外）。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後はSP・MPのcurrent/maxを同率で拡張`);
+    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は状態異常ではないため回復対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後はSP・MPのcurrent/maxを同率で拡張`);
   }
   if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・理知中の自然回復で解除");
   if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・理知中の自然回復で解除");
@@ -12449,10 +12511,12 @@ function anchorLocalJumpRender(sourceData = state.data) {
 }
 
 function resyncMovementAfterFocus() {
-  if (document.hidden || !document.hasFocus() || !state.roomId || !state.playerId) return Promise.resolve(false);
+  if (document.hidden || !state.roomId || !state.playerId || state.data?.phase !== "playing") return Promise.resolve(false);
   if (state.focusResyncPromise) return state.focusResyncPromise;
   const roomId = state.roomId;
   const playerId = state.playerId;
+  const generation = state.roomSessionGeneration;
+  const serial = ++state.focusResyncSerial;
   clearMovementInput();
   rotateMovementSession();
   state.focusResyncing = true;
@@ -12463,9 +12527,11 @@ function resyncMovementAfterFocus() {
     movementSessionStartedAt: state.movementSessionStartedAt
   }, {
     quiet: true,
-    resetOnNotFound: false
+    resetOnNotFound: false,
+    timeoutMs: 1_500,
+    attempts: 1
   }).then((result) => {
-    if (!result || state.roomId !== roomId || state.playerId !== playerId) return false;
+    if (!result || serial !== state.focusResyncSerial || !isCurrentRoomSession(roomId, playerId, generation)) return false;
     // Focus recovery is an authoritative session boundary. It must not be
     // rejected because an acknowledgement from the previous session carried a
     // slightly newer timestamp.
@@ -12485,7 +12551,8 @@ function resyncMovementAfterFocus() {
       anchorLocalJumpRender();
     }
     return true;
-  }).finally(() => {
+  }).catch(() => false).finally(() => {
+    if (serial !== state.focusResyncSerial) return;
     state.focusResyncing = false;
     state.focusResyncPromise = null;
   });
@@ -12603,7 +12670,7 @@ function isSlowWalking() {
 }
 
 function getDirection() {
-  if (state.enhanceHold.kind || state.throwTargeting.active || state.clairvoyance.active || state.jumpPreparing || state.focusResyncing || document.hidden || !document.hasFocus() || isActionBlocked()) return { dx: 0, dy: 0 };
+  if (state.enhanceHold.kind || state.throwTargeting.active || state.clairvoyance.active || state.jumpPreparing || state.focusResyncing || document.hidden || isActionBlocked()) return { dx: 0, dy: 0 };
   const stickLength = Math.hypot(state.tabletStick.dx, state.tabletStick.dy);
   if (state.tabletOpen && stickLength > 0.01) {
     return { dx: state.tabletStick.dx, dy: state.tabletStick.dy };
@@ -16216,8 +16283,6 @@ const HEAD_MARKER_LAYOUT = Object.freeze({
   markerSize: 26
 });
 
-const NON_CREDIT_HEAD_MARKER_DWELL_MS = 900;
-
 function isCreditHeadMarkerEffect(effect) {
   const type = String(effect?.type || "");
   const effectKind = String(effect?.effectKind || "");
@@ -16317,7 +16382,7 @@ function selectHeadMarkerPresentation(player, data, effects, now, previousSlot) 
   const timestamp = Number(now) || 0;
   const playerId = String(player?.id || "");
   if (!playerId || !["playing", "meeting"].includes(String(data?.phase || ""))) {
-    return { nonCredit: null, queued: [], credits: [] };
+    return { nonCredit: null, nonCredits: [], queued: [], credits: [] };
   }
   const relevant = (Array.isArray(effects) ? effects : []).filter((effect) => String(effect?.playerId || "") === playerId);
   const credits = relevant.filter((effect) => {
@@ -16335,22 +16400,40 @@ function selectHeadMarkerPresentation(player, data, effects, now, previousSlot) 
   const persistent = candidates
     .filter((candidate) => candidate.persistent)
     .sort((left, right) => left.semanticKey.localeCompare(right.semanticKey));
-  const pool = transient.length ? transient : persistent;
-  if (!pool.length) return { nonCredit: null, queued: [], credits };
-
-  let selected = pool[0];
-  const previousIndex = pool.findIndex((candidate) => (
-    candidate.instanceKey === previousSlot?.instanceKey || candidate.semanticKey === previousSlot?.semanticKey
-  ));
-  if (previousIndex >= 0) {
-    const selectedAt = Number(previousSlot?.selectedAt) || 0;
-    const keepPrevious = pool.length === 1 || !selectedAt || timestamp - selectedAt < 900;
-    selected = keepPrevious ? pool[previousIndex] : pool[(previousIndex + 1) % pool.length];
-  }
+  // Distinct semantics may share the overhead layout. Same-semantic events
+  // were already coalesced above, so every entry is a stable visual instance.
+  const nonCredits = [...transient, ...persistent];
+  const selected = nonCredits[0] || null;
   return {
     nonCredit: selected,
-    queued: pool.filter((candidate) => candidate.semanticKey !== selected.semanticKey),
+    nonCredits,
+    queued: [],
     credits
+  };
+}
+
+function nonCreditHeadMarkerCandidateForEffect(effect, presentation) {
+  const candidates = Array.isArray(presentation?.nonCredits)
+    ? presentation.nonCredits
+    : presentation?.nonCredit ? [presentation.nonCredit] : [];
+  const instanceKey = String(effect?._headMarkerInstanceKey || effect?.id || "");
+  const semanticKey = nonCreditHeadMarkerSemanticKey(effect);
+  return candidates.find((candidate) => instanceKey && candidate.instanceKey === instanceKey) ||
+    candidates.find((candidate) => semanticKey && candidate.semanticKey === semanticKey) ||
+    null;
+}
+
+function nonCreditHeadMarkerPlacement(effect, presentation) {
+  const candidates = Array.isArray(presentation?.nonCredits)
+    ? presentation.nonCredits
+    : presentation?.nonCredit ? [presentation.nonCredit] : [];
+  const candidate = nonCreditHeadMarkerCandidateForEffect(effect, presentation);
+  const baseIndex = Math.max(0, candidates.indexOf(candidate));
+  return {
+    candidate,
+    baseIndex,
+    total: Math.max(1, candidates.length),
+    startRow: 0
   };
 }
 
@@ -16376,7 +16459,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
   credits: ["クレジット獲得", "クレジットが即時加算されました。獲得量は発動元の表示値です。"],
   mana: ["MP獲得", "MPが即時回復しました。獲得量は発動元の表示値です。"],
   cooldownReduction: ["待機時間短縮", "進行中の能力・行動・オブジェクトCTを発動元の表示秒数だけ短縮しました。"],
-  statusRecovery: ["状態異常回復", "明示的な回復で燃焼・毒・通常/テーザー/ショック/重力減速・能力封印・EMP機器遮断・重力拘束を解除しました。自然回復だけはEMP機器遮断を解除しません。"],
+  statusRecovery: ["状態異常回復", "燃焼・毒・通常/テーザー/ショック/重力減速・能力封印・重力拘束を解除します。EMP機器異常は状態異常ではないため、この回復では解除できません。"],
   acceleration: ["加速獲得", "移動・物理モーション・CT・行動不能・タスク速度を発動元の倍率・時間で加速します。"],
   luckBoost: ["幸運／直観上昇", "乱数判定とイデア到達時間に有利な補正を得ました。"],
   overheal: ["オーバーヒール", "通常HPを超える耐久+1。次のボディダメージを吸収します。"],
@@ -16390,7 +16473,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
 });
 
 const STATUS_MARKER_EXPLANATIONS = Object.freeze({
-  naturalRecovery: ["自然回復", "理知中、人体の状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。EMP機器遮断は対象外です。アロマ有効中はこのマーカーの発光が強まります。"],
+  naturalRecovery: ["自然回復", "理知中、人体の状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。EMP機器異常は状態異常ではないため解除できません。アロマ有効中はこのマーカーの発光が強まります。"],
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
@@ -16558,12 +16641,13 @@ function headMarkerEffectsForPlayer(player, data) {
 
 function rememberHeadMarkerPresentation(playerId, presentation, now) {
   const previous = state.headMarkerSlots.get(playerId) || null;
-  if (!presentation.nonCredit) {
+  const primary = presentation.nonCredits?.[0] || presentation.nonCredit || null;
+  if (!primary) {
     state.headMarkerSlots.delete(playerId);
   } else {
-    const sameInstance = previous?.instanceKey === presentation.nonCredit.instanceKey;
+    const sameInstance = previous?.instanceKey === primary.instanceKey;
     state.headMarkerSlots.set(playerId, {
-      ...presentation.nonCredit,
+      ...primary,
       selectedAt: sameInstance ? previous.selectedAt : now
     });
   }
@@ -16599,7 +16683,7 @@ function creditHeadMarkerPlacement(effect, presentation) {
   return {
     baseIndex,
     total: Math.max(1, total),
-    startRow: presentation?.nonCredit ? 1 : 0
+    startRow: headMarkerRowCount(presentation?.nonCredits?.length || (presentation?.nonCredit ? 1 : 0))
   };
 }
 
@@ -16622,12 +16706,13 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
   if (!player || !player.alive || player.ejected || player.inVent) return;
   const presentation = headMarkerPresentationForPlayer(player, state.data, now);
   const creditMarker = isCreditHeadMarkerEffect(effect);
-  if (!creditMarker && presentation.nonCredit?.instanceKey !== String(effect._headMarkerInstanceKey || effect.id)) return;
+  const nonCreditPlacement = creditMarker ? null : nonCreditHeadMarkerPlacement(effect, presentation);
+  if (!creditMarker && !nonCreditPlacement?.candidate) return;
   if (creditMarker && !presentation.credits.includes(effect)) return;
   const markerCount = creditMarker ? sharedHeadMarkerCount(effect) : 1;
   const placement = creditMarker
     ? creditHeadMarkerPlacement(effect, presentation)
-    : { baseIndex: 0, total: 1, startRow: 0 };
+    : nonCreditPlacement;
   const { baseIndex, total: expandedTotal, startRow } = placement;
   const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind] || OBJECT_EFFECT_PRESENTATIONS.mana;
   const markerProgress = creditMarker ? progress : headMarkerLifetimeProgress(effect, now);
@@ -16637,7 +16722,7 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
   const explanation = GAIN_MARKER_EXPLANATIONS[effect.effectKind] || ["獲得効果", "即時効果を獲得しました。"];
   const aggregateCount = creditMarker
     ? markerCount
-    : Math.max(1, Number(effect._headMarkerAggregateCount) || presentation.nonCredit?.aggregateCount || 1);
+    : Math.max(1, Number(effect._headMarkerAggregateCount) || nonCreditPlacement.candidate.aggregateCount || 1);
   for (let markerIndex = 0; markerIndex < markerCount; markerIndex += 1) {
     const expandedIndex = baseIndex + markerIndex;
     const marker = headMarkerSlot(expandedIndex, expandedTotal, startRow);
@@ -16673,8 +16758,9 @@ function drawFighterEnergyChargeMarker(effect, progress, now) {
   const player = gainEffectPlayer(effect);
   if (!sprite || !player || !player.alive || player.ejected || player.inVent) return;
   const presentation = headMarkerPresentationForPlayer(player, state.data, now);
-  if (presentation.nonCredit?.instanceKey !== String(effect._headMarkerInstanceKey || effect.id)) return;
-  const { baseIndex, total, startRow } = { baseIndex: 0, total: 1, startRow: 0 };
+  const placement = nonCreditHeadMarkerPlacement(effect, presentation);
+  if (!placement.candidate) return;
+  const { baseIndex, total, startRow } = placement;
   const marker = headMarkerSlot(baseIndex, total, startRow);
   const time = Math.floor((now / 1000) * 60) / 60;
   const markerProgress = headMarkerLifetimeProgress(effect, now);
@@ -16689,7 +16775,7 @@ function drawFighterEnergyChargeMarker(effect, progress, now) {
     0,
     0,
     size * 0.62,
-    `EC獲得${Math.max(1, Number(effect._headMarkerAggregateCount) || presentation.nonCredit.aggregateCount || 1) > 1 ? ` ×${Math.max(1, Number(effect._headMarkerAggregateCount) || presentation.nonCredit.aggregateCount || 1)}` : ""}`,
+    `EC獲得${Math.max(1, Number(effect._headMarkerAggregateCount) || placement.candidate.aggregateCount || 1) > 1 ? ` ×${Math.max(1, Number(effect._headMarkerAggregateCount) || placement.candidate.aggregateCount || 1)}` : ""}`,
     "ファイターのECが1増加しました。頭上markerは現在のキャラクター位置に追従します。"
   );
   ctx.globalCompositeOperation = "lighter";
@@ -17467,22 +17553,31 @@ function drawAttackerAllyMarker(player) {
   if (state.data?.phase !== "playing" || !player.attackerAlly || !player.alive || player.ejected) return;
   const now = state.frameNow || performance.now();
   const presentation = headMarkerPresentationForPlayer(player, state.data, now);
-  if (presentation.nonCredit?.type !== "attacker-ally-marker") return;
+  const markerEffect = {
+    id: `ally:${player.id}`,
+    type: "attacker-ally-marker",
+    category: "attackerAlly",
+    playerId: player.id,
+    persistent: true
+  };
+  const placement = nonCreditHeadMarkerPlacement(markerEffect, presentation);
+  if (!placement.candidate) return;
   const prepared = transparentSpriteSource(state.textures.attackerAllyMarker, "attacker-ally-marker", 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "attacker-ally-marker", 1, 1, 0, 0) : null;
   if (!sprite) return;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha *= 0.88;
+  const marker = headMarkerSlot(placement.baseIndex, placement.total, placement.startRow);
   registerMarkerHitTarget(
     `ally:${player.id}`,
-    0,
-    HEAD_MARKER_LAYOUT.firstRowY,
+    marker.x,
+    marker.y,
     18,
     "アタッカー味方",
     "自分と同じアタッカー陣営のプレイヤーです。"
   );
-  drawAnimatedTextureCentered(sprite, 0, HEAD_MARKER_LAYOUT.firstRowY, 28, 28, {
+  drawAnimatedTextureCentered(sprite, marker.x, marker.y, 28, 28, {
     mode: "energy",
     time: (state.frameNow || performance.now()) / 1000,
     intensity: 0.82,
@@ -17550,36 +17645,47 @@ function drawPersistentStatusAteLayers(player, data) {
     previousSlot
   );
   rememberHeadMarkerPresentation(player.id, presentation, now);
-  const category = presentation.nonCredit?.type === "persistent-status"
-    ? presentation.nonCredit.category
-    : "";
-  if (!category || !activeState[category]) return;
-  const profile = PERSISTENT_STATUS_ATE_PROFILES[category];
-  if (!profile) return;
-  const naturalRecoveryGlow = category === "naturalRecovery"
-    ? naturalRecoveryMarkerGlow(activeState)
-    : null;
-  const source = state.textures[profile.texture];
-  const prepared = transparentSpriteSource(source, `persistent-status-${category}`, 18);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, `persistent-status-${category}`, 1, 1, 0, 0) : null;
-  if (!sprite) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha *= profile.alpha;
-  const marker = headMarkerSlot(0, 1, 0);
-  const markerX = marker.x;
-  const markerY = marker.y + Math.sin(time * 2.4 + profile.phase * Math.PI * 2) * 1.1;
-  const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
-  registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
-  drawAnimatedTextureCentered(sprite, markerX, markerY, profile.size, profile.size, {
-    mode: profile.mode,
-    time,
-    phase: profile.phase,
-    intensity: naturalRecoveryGlow?.intensity ?? 0.9,
-    baseAlpha: naturalRecoveryGlow?.baseAlpha ?? 0.15,
-    opacityBoost: naturalRecoveryGlow?.opacityBoost ?? 3.2
-  });
-  ctx.restore();
+  const candidates = (presentation.nonCredits || []).filter((candidate) => (
+    candidate.type === "persistent-status" && activeState[candidate.category]
+  ));
+  for (const candidate of candidates) {
+    const category = candidate.category;
+    const profile = PERSISTENT_STATUS_ATE_PROFILES[category];
+    if (!profile) continue;
+    const naturalRecoveryGlow = category === "naturalRecovery"
+      ? naturalRecoveryMarkerGlow(activeState)
+      : null;
+    const source = state.textures[profile.texture];
+    const prepared = transparentSpriteSource(source, `persistent-status-${category}`, 18);
+    const sprite = prepared ? normalizedSpriteFrame(prepared, `persistent-status-${category}`, 1, 1, 0, 0) : null;
+    if (!sprite) continue;
+    const markerEffect = candidate.sourceEffect || {
+      id: candidate.instanceKey,
+      type: "persistent-status",
+      category,
+      playerId: player.id,
+      persistent: true
+    };
+    const placement = nonCreditHeadMarkerPlacement(markerEffect, presentation);
+    if (!placement.candidate) continue;
+    const marker = headMarkerSlot(placement.baseIndex, placement.total, placement.startRow);
+    const markerX = marker.x;
+    const markerY = marker.y + Math.sin(time * 2.4 + profile.phase * Math.PI * 2) * 1.1;
+    const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha *= profile.alpha;
+    registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
+    drawAnimatedTextureCentered(sprite, markerX, markerY, profile.size, profile.size, {
+      mode: profile.mode,
+      time,
+      phase: profile.phase,
+      intensity: naturalRecoveryGlow?.intensity ?? 0.9,
+      baseAlpha: naturalRecoveryGlow?.baseAlpha ?? 0.15,
+      opacityBoost: naturalRecoveryGlow?.opacityBoost ?? 3.2
+    });
+    ctx.restore();
+  }
 }
 
 function drawPlayerSprite(player, data, ghost, characterAction = null) {
@@ -19352,7 +19458,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "root-shortcut-instant-match-emp-bot-ready-v523";
+const version = "emp-anomaly-distinct-markers-hacker-task-flick-v524";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
