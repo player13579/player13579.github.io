@@ -422,6 +422,7 @@ const state = {
   // overwrite the replacement session.
   roomSessionGeneration: 1,
   backgroundResume: { serial: 0, inFlight: false, queued: false },
+  rejectedActionRecovery: { inFlight: false, queued: false },
   realtime: null,
   movementQueue: null,
   frameDriver: null,
@@ -766,7 +767,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "natural-recovery-marker-wall-bot-renki-resume-v520";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "rejected-action-input-cross-route-v521";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2956,6 +2957,8 @@ async function purchaseVendingItem(button) {
 }
 
 function stopVendingHold({ suppressClick = false } = {}) {
+  const button = vendingHold.button;
+  const pointerId = vendingHold.pointerId;
   if (vendingHold.timer) window.clearTimeout(vendingHold.timer);
   if (vendingHold.repeatTimer) window.clearTimeout(vendingHold.repeatTimer);
   if (suppressClick) vendingHold.suppressClickUntil = performance.now() + 1_200;
@@ -2968,6 +2971,11 @@ function stopVendingHold({ suppressClick = false } = {}) {
   vendingHold.moved = false;
   vendingHold.held = false;
   vendingHold.repeatRunning = false;
+  if (button && pointerId !== null) {
+    try {
+      if (button.hasPointerCapture?.(pointerId)) button.releasePointerCapture(pointerId);
+    } catch {}
+  }
 }
 
 function stopVendingKeyHold() {
@@ -3206,12 +3214,19 @@ function stopContinuousActionHold(pointerId = null) {
   const hold = state.continuousActionHold;
   if (pointerId !== null && hold.pointerId !== pointerId) return false;
   const releaseFighterSlash = hold.fighterSlash;
+  const capturedPointerId = hold.pointerId;
+  const capturedButton = hold.button;
   if (hold.button) state.continuousActionSuppressClicks.set(hold.button, performance.now() + 600);
   if (hold.timer) window.clearTimeout(hold.timer);
   hold.timer = 0;
   hold.pointerId = null;
   hold.button = null;
   hold.fighterSlash = false;
+  if (capturedButton && capturedPointerId !== null) {
+    try {
+      if (capturedButton.hasPointerCapture?.(capturedPointerId)) capturedButton.releasePointerCapture(capturedPointerId);
+    } catch {}
+  }
   if (releaseFighterSlash) queueFighterSlashGuardRelease();
   return true;
 }
@@ -3386,11 +3401,11 @@ function beginThrowTargeting(itemId, holdMs = 0, chargeId = "") {
   return true;
 }
 
-function cancelThrowTargeting(silent = false, message = "投擲をキャンセルしました。", { preserveCharge = false } = {}) {
+function cancelThrowTargeting(silent = false, message = "投擲をキャンセルしました。", { preserveCharge = false, recoverOnFailure = true } = {}) {
   if (!state.throwTargeting.active) return false;
   if (state.throwTargeting.frame) cancelAnimationFrame(state.throwTargeting.frame);
   state.throwTargeting = emptyThrowTargetingState();
-  if (!preserveCharge) void clearServerEnhanceCharge();
+  if (!preserveCharge) void clearServerEnhanceCharge({ recoverOnFailure });
   syncClairvoyanceManaUsage();
   updateEnhanceReadout();
   if (!silent && message) showToast(message);
@@ -3535,10 +3550,11 @@ async function cancelAbilityBatchTransaction(hold) {
   return api("/api/ability-hold", { phase: "cancel", actionPath: hold.action.path, holdId });
 }
 
-function stopAbilityBatchHold(pointerId = null, { dispatch = false, autoCommit = false } = {}) {
+function stopAbilityBatchHold(pointerId = null, { dispatch = false, autoCommit = false, notifyServer = true } = {}) {
   const hold = state.abilityBatchHold;
   if (pointerId !== null && hold.pointerId !== pointerId) return false;
   if (hold.timer) window.clearTimeout(hold.timer);
+  const capturedPointerId = hold.pointerId;
   const { button, held, action, startPromise } = hold;
   const transaction = { action, startPromise };
   hold.pointerId = null;
@@ -3549,8 +3565,13 @@ function stopAbilityBatchHold(pointerId = null, { dispatch = false, autoCommit =
   hold.action = null;
   hold.startPromise = null;
   if (button) state.continuousActionSuppressClicks.set(button, performance.now() + 700);
+  if (button && capturedPointerId !== null) {
+    try {
+      if (button.hasPointerCapture?.(capturedPointerId)) button.releasePointerCapture(capturedPointerId);
+    } catch {}
+  }
   if (dispatch) return dispatchAbilityBatch(button, transaction, { autoCommit });
-  if (button) void cancelAbilityBatchTransaction(transaction);
+  if (button && notifyServer) void cancelAbilityBatchTransaction(transaction);
   return Boolean(button);
 }
 
@@ -3586,7 +3607,7 @@ function finishAbilityBatchPointerHold(event, cancelled = false) {
   return Boolean(button);
 }
 
-function stopAbilityBatchKeyHold(code = "", { dispatch = false, autoCommit = false } = {}) {
+function stopAbilityBatchKeyHold(code = "", { dispatch = false, autoCommit = false, notifyServer = true } = {}) {
   const hold = state.abilityBatchKeyHold;
   if (code && hold.code !== code) return false;
   if (hold.timer) window.clearTimeout(hold.timer);
@@ -3600,7 +3621,7 @@ function stopAbilityBatchKeyHold(code = "", { dispatch = false, autoCommit = fal
   hold.action = null;
   hold.startPromise = null;
   if (dispatch) return dispatchAbilityBatch(button, transaction, { autoCommit });
-  if (button) void cancelAbilityBatchTransaction(transaction);
+  if (button && notifyServer) void cancelAbilityBatchTransaction(transaction);
   return Boolean(button);
 }
 
@@ -3619,9 +3640,9 @@ function beginAbilityBatchKeyHold(code, button) {
   return true;
 }
 
-function cancelActiveAbilityBatchHolds() {
-  stopAbilityBatchHold(null, { dispatch: false });
-  stopAbilityBatchKeyHold("", { dispatch: false });
+function cancelActiveAbilityBatchHolds({ notifyServer = true } = {}) {
+  stopAbilityBatchHold(null, { dispatch: false, notifyServer });
+  stopAbilityBatchKeyHold("", { dispatch: false, notifyServer });
 }
 
 function beginThrowTargetMovement(event) {
@@ -3851,25 +3872,42 @@ function beginEnhanceAction(kind, pointerId = null) {
   return true;
 }
 
-function cancelEnhanceAction(kind = state.enhanceHold.kind) {
+function cancelEnhanceAction(kind = state.enhanceHold.kind, { recoverOnFailure = true } = {}) {
   const hold = state.enhanceHold;
   if (!hold.kind || (kind && hold.kind !== kind)) return false;
   if (hold.timer) cancelAnimationFrame(hold.timer);
   state.enhanceHold = { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
   if (hold.chargeKind === "shoot") state.gunActivationPending = false;
+  if (hold.pointerId !== null) {
+    for (const button of [els.shootButton, els.tabletShootShortcut, els.fireJutsuButton, els.itemUseButton, els.itemThrowButton]) {
+      try {
+        if (button?.hasPointerCapture?.(hold.pointerId)) button.releasePointerCapture(hold.pointerId);
+      } catch {}
+    }
+  }
   updateEnhanceReadout();
   // Preserve request order: if the start request is still travelling, clear it
   // only after that request settles so a cancelled charge cannot reappear.
   void Promise.resolve(hold.chargePromise).then(() => {
-    if (state.roomId && state.playerId) return api("/api/enhance-charge", { active: false });
-    return false;
+    if (!state.roomId || !state.playerId) return false;
+    if (recoverOnFailure) return api("/api/enhance-charge", { active: false });
+    return request("/api/enhance-charge", {
+      roomId: state.roomId,
+      playerId: state.playerId,
+      active: false
+    }, { quiet: true, attempts: 1 });
   });
   return true;
 }
 
-async function clearServerEnhanceCharge() {
+async function clearServerEnhanceCharge({ recoverOnFailure = true } = {}) {
   if (!state.roomId || !state.playerId) return false;
-  return api("/api/enhance-charge", { active: false });
+  if (recoverOnFailure) return api("/api/enhance-charge", { active: false });
+  return request("/api/enhance-charge", {
+    roomId: state.roomId,
+    playerId: state.playerId,
+    active: false
+  }, { quiet: true, attempts: 1 });
 }
 
 async function finishEnhanceAction(kind = state.enhanceHold.kind, pointerId = null) {
@@ -6595,12 +6633,18 @@ function setTabletStickMode(mode, strength = 0) {
 }
 
 function resetTabletStick() {
+  const pointerId = state.tabletStick.pointerId;
   state.tabletStick.pointerId = null;
   state.tabletStick.dx = 0;
   state.tabletStick.dy = 0;
   setTabletStickMode("idle", 0);
   els.tabletJoystick.classList.remove("active");
   els.tabletJoystickKnob.style.transform = "translate(-50%, -50%)";
+  if (pointerId !== null) {
+    try {
+      if (els.tabletJoystick.hasPointerCapture?.(pointerId)) els.tabletJoystick.releasePointerCapture(pointerId);
+    } catch {}
+  }
 }
 
 function setTabletBranchGroup(group, { focus = true } = {}) {
@@ -6747,11 +6791,18 @@ function appendTabletBranchButton(label, action, {
       if (interval > 0) repeatTimer = window.setTimeout(repeat, interval);
     };
     const cancelForScroll = () => {
+      if (pointerId === null && !holdTimer && !repeatTimer) return;
       const shouldEndHold = repeating;
+      const capturedPointerId = pointerId;
       moved = true;
       clearTimers();
       pointerId = null;
       repeating = false;
+      if (capturedPointerId !== null) {
+        try {
+          if (button.hasPointerCapture?.(capturedPointerId)) button.releasePointerCapture(capturedPointerId);
+        } catch {}
+      }
       pointerCancel?.();
       if (shouldEndHold) holdEnd?.({ cancelled: true });
     };
@@ -6801,6 +6852,7 @@ function appendTabletBranchButton(label, action, {
       if (event.detail > 0 && performance.now() < suppressPointerClickUntil) return;
       if (event.detail === 0) tapInvoke();
     });
+    button.cancelScrollableHold = cancelForScroll;
   };
 
   if (hold === "shoot") {
@@ -8125,6 +8177,101 @@ async function returnToTitle() {
   return true;
 }
 
+function releaseRejectedActionTransientInput() {
+  stopContinuousActionHold();
+  stopContinuousActionKeyHold();
+  state.continuousActionKeyAt.clear();
+  state.continuousActionSuppressClicks = new WeakMap();
+  cancelActiveAbilityBatchHolds({ notifyServer: false });
+  stopVendingHold({ suppressClick: true });
+  els.tabletBranchList?.querySelectorAll("button").forEach((button) => button.cancelScrollableHold?.());
+  closeSwitchDragMenu();
+  clearNativeSelectHold();
+  closeQuantumKineticHold();
+  Object.assign(state.quantumKineticHold, {
+    pointerId: null,
+    source: null,
+    opened: false,
+    cancelled: false,
+    selected: "",
+    borrowed: false
+  });
+  const tabletPointerId = state.tabletGesture.pointerId;
+  const tabletSource = state.tabletGesture.sourceButton;
+  window.clearTimeout(state.tabletGesture.submenuTimer);
+  state.tabletGesture.submenuTimer = 0;
+  state.tabletGesture.hoverButton?.classList.remove("gesture-hover");
+  state.tabletGesture.hoverButton = null;
+  state.tabletGesture.pointerId = null;
+  state.tabletGesture.sourceButton = null;
+  state.tabletGesture.suppressClick = false;
+  tabletSource?.classList.remove("gesture-source");
+  els.tabletPanel?.classList.remove("gesture-active");
+  if (tabletSource && tabletPointerId !== null) {
+    try {
+      if (tabletSource.hasPointerCapture?.(tabletPointerId)) tabletSource.releasePointerCapture(tabletPointerId);
+    } catch {}
+  }
+  state.blankPaneTap = null;
+  clearLocalGunTrigger();
+  if (state.enhanceHold.kind) cancelEnhanceAction(state.enhanceHold.kind, { recoverOnFailure: false });
+  if (state.throwTargeting.active) cancelThrowTargeting(true, "", { recoverOnFailure: false });
+  const jumpPointerId = state.jumpPointerId;
+  state.jumpPointerId = null;
+  if (jumpPointerId !== null) {
+    for (const button of [els.jumpButton, els.tabletJumpShortcut]) {
+      try {
+        if (button?.hasPointerCapture?.(jumpPointerId)) button.releasePointerCapture(jumpPointerId);
+      } catch {}
+    }
+  }
+  if (state.jumpPreparing) {
+    resetJumpPreparationLocal();
+    if (state.roomId && state.playerId) {
+      void request("/api/jump/cancel", {
+        roomId: state.roomId,
+        playerId: state.playerId
+      }, { quiet: true, attempts: 1 });
+    }
+  }
+  clearMovementInput();
+}
+
+async function resyncAfterRejectedAction() {
+  const recovery = state.rejectedActionRecovery;
+  if (!state.roomId || !state.playerId) return false;
+  if (recovery.inFlight) {
+    recovery.queued = true;
+    return false;
+  }
+  recovery.inFlight = true;
+  try {
+    do {
+      recovery.queued = false;
+      const roomId = state.roomId;
+      const playerId = state.playerId;
+      const generation = state.roomSessionGeneration;
+      const result = await request("/api/state", { roomId, playerId }, {
+        quiet: true,
+        attempts: 1,
+        timeoutMs: 3_000,
+        resetOnNotFound: false
+      });
+      if (result && isCurrentRoomSession(roomId, playerId, generation)) {
+        applyState(result, { authoritative: true });
+      }
+    } while (recovery.queued && state.roomId && state.playerId);
+    return true;
+  } finally {
+    recovery.inFlight = false;
+  }
+}
+
+function recoverAfterRejectedAction() {
+  releaseRejectedActionTransientInput();
+  void resyncAfterRejectedAction();
+}
+
 async function api(path, extra = {}, options = {}) {
   if (!state.roomId || !state.playerId) {
     showToast("先にマッチングを開始してください。");
@@ -8135,7 +8282,10 @@ async function api(path, extra = {}, options = {}) {
     playerId: state.playerId,
     ...extra
   });
-  if (!result) return false;
+  if (!result) {
+    recoverAfterRejectedAction();
+    return false;
+  }
   if (result.moderated) {
     const message = result.error || "禁止コメントを検出したため退出しました。";
     resetLocalSession();
@@ -11060,7 +11210,7 @@ function renderActiveEffects(data) {
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
   timed("休息", self.sleepingUntil, "neutral", "行動停止・SP回復×4");
-  timed("精神統一", self.meditatingUntil, "rational", "完了時MP+1");
+  timed("精神統一", self.meditatingUntil, "rational", "開始時にMPを獲得。タップ+10MP/35秒、420ms以上の長押し+100MP/350秒");
   if (self.computerActive) add("パソコン効果", self.computerEffective ? "稼働" : "遮断中", self.computerEffective ? "rational" : "desire", self.computerEffective ? "即席適用・全生存者を表示" : "即席効果を保持・EMP解除後に復帰");
 
   const panelHidden = !["playing", "meeting"].includes(data.phase);
@@ -11711,7 +11861,7 @@ function updateActionButtons(data) {
   els.sleepButton.disabled = !(canActAlive && self.stamina < (self.maxStoredStamina || 500));
   const renkiSeconds = Math.max(0, ((self.meditatingUntil || 0) - liveNow) / 1000);
   els.renkiButton.textContent = renkiSeconds > 0 ? `精神統一 ${renkiSeconds.toFixed(1)}秒` : "練気 +10MP / 35秒";
-  els.renkiButton.title = "タップは+10MP・35秒。長押しは+100MP・350秒。どちらも一回だけ自動確定し、反復しません。";
+  els.renkiButton.title = "タップは+10MP・35秒。420ms以上の長押しは+100MP・350秒。どちらも一回だけ自動確定し、反復しません。";
   els.renkiButton.disabled = !canUseAbility;
   els.dashButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked && activeStaminaFor(data) > 0);
   els.slowWalkButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked);
@@ -18765,7 +18915,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "natural-recovery-marker-wall-bot-renki-resume-v520";
+const version = "rejected-action-input-cross-route-v521";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

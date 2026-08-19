@@ -7382,7 +7382,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "natural-recovery-marker-wall-bot-renki-resume-v520",
+    version: "rejected-action-input-cross-route-v521",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -22997,7 +22997,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "natural-recovery-marker-wall-bot-renki-resume-v520",
+  version: "rejected-action-input-cross-route-v521",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

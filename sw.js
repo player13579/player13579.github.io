@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v520-natural-recovery-marker-wall-bot-renki-resume";
+const CACHE_NAME = "dva-static-v521-rejected-action-input-cross-route";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

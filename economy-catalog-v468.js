@@ -102,7 +102,7 @@
   };
 
   return Object.freeze({
-    version: "natural-recovery-marker-wall-bot-renki-resume-v520",
+    version: "rejected-action-input-cross-route-v521",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
