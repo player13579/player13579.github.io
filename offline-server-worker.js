@@ -7321,9 +7321,9 @@ const LABORATORY_MAP = Object.freeze({
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
     ["fire", "火遁スクロール", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
-    ["grit", "踏ん張り", 5, "instant-item", "grit", "grit"],
+    ["grit", "バリア", 5, "instant-item", "grit", "grit"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
-    ["reason", "押し込み", 5, "instant-item", "reason", "reason"],
+    ["reason", "バスト", 5, "instant-item", "reason", "reason"],
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
     ["hsg", "HSG", 8, "weapon", "hsg", "hsg"],
@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545",
+    version: "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7584,7 +7584,8 @@ const FIGHTER_GIANT_SHOCKWAVE_DURATION_MS = 1_150;
 const HACKER_MANA_GPU_DRAIN_PER_SECOND = 0.025;
 const HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA = 20_000;
 const EXILE_COST = vendingPrice("exile");
-const EMP_INTERACTION_WINDOW_MS = 900;
+const EMP_PULSE_ATE_DURATION_MS = 1_200;
+const EMP_INTERACTION_WINDOW_MS = EMP_PULSE_ATE_DURATION_MS;
 const EMP_INTERACTION_RANGE = EMP_RANGE * 2;
 const EMP_RESONANCE_LETHAL_RANGE = 110;
 const EMP_RESONANCE_BODY_RANGE = EMP_RANGE;
@@ -7703,6 +7704,7 @@ const FLORA_INVISIBLE_DURATION_MS = 10_000;
 const ALCHEMY_MANA_COST = ABILITY_MANA_COST;
 const SABOTAGE_MANA_COST = 0;
 const STAND_FIRM_COST = vendingPrice("grit");
+const STAND_FIRM_BARRIER_DURATION_MS = 1_500;
 const HEAL_COST = vendingPrice("heal");
 const PUSH_COST = vendingPrice("reason");
 const PUSH_BACKLASH_DAMAGE_PER_CHARGE = 0.5;
@@ -7868,7 +7870,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合は押し込みの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7930,7 +7932,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTは自販機価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化は踏ん張り・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化し、自身へダメージを与えてHPを0.0001にした後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、タスクを時間経過で自動完了する。手動タスクも可能で、自身のスマホはハッキングされない。"
+      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTは自販機価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化はバリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化し、自身へダメージを与えてHPを0.0001にした後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、タスクを時間経過で自動完了する。手動タスクも可能で、自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -7963,8 +7965,8 @@ const VECTOR_ATTACK_WALL_OCCLUSION_ROUTES = Object.freeze({
 });
 
 const INSTANT_ITEM_DEFINITIONS = Object.freeze({
-  grit: Object.freeze({ id: "grit", label: "踏ん張り", field: "gritCharges", automatic: true }),
-  reason: Object.freeze({ id: "reason", label: "押し込み", field: "reasonCharges", automatic: true }),
+  grit: Object.freeze({ id: "grit", label: "バリア", field: "gritCharges", automatic: true }),
+  reason: Object.freeze({ id: "reason", label: "バスト", field: "reasonCharges", automatic: true }),
   iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: true }),
   gold: Object.freeze({ id: "gold", label: "金", automatic: true }),
   hack: Object.freeze({ id: "hack", label: "ハック", field: "hackActive", automatic: true }),
@@ -9471,7 +9473,7 @@ function createResolvePoint(room) {
     id: uid("resolve_"),
     type: "resolvePoint",
     label: "意志の焦点",
-    effectLabel: reward === "grit" ? "踏ん張り+1" : "押し込み+1",
+    effectLabel: reward === "grit" ? "バリア+1" : "バスト+1",
     effectKind: "resolve",
     reward,
     x: Math.round(best.x),
@@ -9805,6 +9807,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     abilityHold: null,
     rationalFreeAbilityReadyAt: 0,
     gritCharges: 0,
+    standFirmBarrierUntil: 0,
     reasonCharges: 0,
     iaiCharges: 0,
     ideaProgressStartedAt: 0,
@@ -10419,6 +10422,7 @@ function startGame(room) {
     player.abilityHold = null;
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
+    player.standFirmBarrierUntil = 0;
     player.reasonCharges = 0;
     player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
@@ -10760,6 +10764,7 @@ function startBattle(room) {
     player.abilityHold = null;
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
+    player.standFirmBarrierUntil = 0;
     player.reasonCharges = 0;
     player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
@@ -11372,7 +11377,7 @@ function activateHackerRoot(room, player) {
   player.hackerRootActive = true;
   const inheritedStartingItems = grantHackerRootStartingItems(player);
   const retainedLabels = [
-    retainedProtections.grit ? `踏ん張り${retainedProtections.grit}` : "",
+    retainedProtections.grit ? `バリア${retainedProtections.grit}` : "",
     retainedProtections.substitution ? `変わり身${retainedProtections.substitution}` : ""
   ].filter(Boolean);
   pushHitEffect(room, player, "body", false);
@@ -11481,7 +11486,7 @@ function toggleLimitBreak(room, player) {
   const stacks = limitBreakStackCount(player);
   const multiplier = limitBreakMultiplier(player);
   const infiniteReward = hasFighterInfiniteResources(player);
-  const costDetail = infiniteReward ? "HP消費なし / MP・SP・HP・踏ん張り∞" : "HP-1";
+  const costDetail = infiniteReward ? "HP消費なし / MP・SP・HP・バリア∞" : "HP-1";
   const vulnerabilityDetail = infiniteReward ? "被確殺デメリット解除" : "即死回避無効";
   pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: `active-stack-${stacks}` });
   setImmediateFeedback(player, "リミットブレイク", `${costDetail} / 永続 / SP・加速×${multiplier} / ${vulnerabilityDetail}`);
@@ -11565,7 +11570,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
       playerId: player.id,
       variant: String(next)
     });
-    reward += " / MP・SP・HP・踏ん張り∞";
+    reward += " / MP・SP・HP・バリア∞";
   }
   if (reachedApexMilestone) reward += " / リミットブレイク被確殺デメリット解除 / 斬る・常時消滅（死体なし） / ジャストガード・全攻撃反射";
   const milestoneMotion = reachedIaiMilestone || reachedInfiniteMilestone || reachedApexMilestone;
@@ -11575,7 +11580,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:ec-${next}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
   });
   setImmediateFeedback(player, "EC", reward);
-  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC500回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。EC100初回到達報酬によりMP・SP・HP・踏ん張りが無限になりました" : ""}${reachedApexMilestone ? "。EC1000初回到達報酬によりリミットブレイク被確殺デメリット解除、斬る常時消滅、ジャストガード全攻撃反射を獲得しました" : ""}。`);
+  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC500回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。EC100初回到達報酬によりMP・SP・HP・バリアが無限になりました" : ""}${reachedApexMilestone ? "。EC1000初回到達報酬によりリミットブレイク被確殺デメリット解除、斬る常時消滅、ジャストガード全攻撃反射を獲得しました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -11926,12 +11931,12 @@ function grantIdeaAspect(room, player, aspect) {
   if (aspect === "truth") {
     grantPushCharge(room, player, false, "idea-truth");
     pushMagicEffect(room, "idea-truth", player, { radius: 135, playerId: player.id });
-    pushEvent(room, `${player.name} が真を獲得し、押し込みを得ました。`);
+    pushEvent(room, `${player.name} が真を獲得し、バストを得ました。`);
     return true;
   }
   grantStandFirmCharge(room, player, false, "idea-beauty");
   pushMagicEffect(room, "idea-beauty", player, { radius: 145, playerId: player.id });
-  pushEvent(room, `${player.name} が美を獲得し、踏ん張りを得ました。`);
+  pushEvent(room, `${player.name} が美を獲得し、バリアを得ました。`);
   return true;
 }
 
@@ -11951,7 +11956,7 @@ function grantIdeaGood(room, player, timestamp) {
   player.unconsciousUntil = 0;
   setStamina(room, player, staminaCapacityFor(player), "善", timestamp);
   pushMagicEffect(room, "idea-good", player, { radius: 185, playerId: player.id });
-  pushEvent(room, `${player.name} が善を獲得し、押し込み・踏ん張り・回復・加速を統合しました。`);
+    pushEvent(room, `${player.name} が善を獲得し、バスト・バリア・回復・加速を統合しました。`);
   return true;
 }
 
@@ -12980,7 +12985,7 @@ function botKillDecisionEvidenceLabels(room, bot, target, timestamp = now()) {
     if (label) labels.push(label);
   }
   if (String(bot.botRetaliationTargetId || "") === target.id && Number(bot.botRetaliationUntil) > timestamp) {
-    labels.push("対象から受けた確殺を踏ん張りで耐え、攻撃者を視認");
+    labels.push("対象から受けた確殺をバリアで耐え、攻撃者を視認");
   }
   if (botCanDirectlyObservePlayer(room, bot, target)) {
     labels.push("通常視界と遮蔽物判定を通して対象を直接視認");
@@ -14155,7 +14160,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
   const timestamp = now();
   const cost = FIGHTER_SLASH_STAMINA_COST;
   if (Number(player.stamina) < cost) throw new ApiError(400, `斬るにはスタミナ ${cost} が必要です。`);
-  spendStamina(player, cost, room, "踏ん張り");
+  spendStamina(player, cost, room, "バリア");
   const power = rawPower && typeof rawPower === "object"
     ? rawPower
     : { mode: Number(rawPower) > 0 ? "enhance" : "normal", enhanceLevel: Number(rawPower) || 0, multiplier: 1 };
@@ -15177,11 +15182,21 @@ function reconcileBarrierExpiry(room, timestamp = now()) {
       changed = true;
     }
   }
+  for (const player of room.players?.values?.() || []) {
+    if (Number(player.standFirmBarrierUntil) > 0 && Number(player.standFirmBarrierUntil) <= timestamp) {
+      player.standFirmBarrierUntil = 0;
+      changed = true;
+    }
+  }
   return changed;
 }
 
 function preparationBarrierProtects(room, target, timestamp = now()) {
   return Boolean(target?.alive && !target.ejected && preparationBarrierActive(room, timestamp));
+}
+
+function standFirmBarrierProtects(target, timestamp = now()) {
+  return Boolean(target?.alive && !target.ejected && Number(target.standFirmBarrierUntil) > timestamp);
 }
 
 function activeGravityStormBarrier(room, target, timestamp = now()) {
@@ -15206,7 +15221,8 @@ function activeGravityStormBarrier(room, target, timestamp = now()) {
 function botTargetHasActiveBarrier(room, target, timestamp = now()) {
   return Boolean(
     preparationBarrierProtects(room, target, timestamp) ||
-    activeGravityStormBarrier(room, target, timestamp)
+    activeGravityStormBarrier(room, target, timestamp) ||
+    standFirmBarrierProtects(target, timestamp)
   );
 }
 
@@ -15233,6 +15249,17 @@ function absorbPreparationBarrier(room, target, timestamp = now(), source = null
       variant: "caster-barrier"
     });
     setImmediateFeedback(target, "グラビティストーム・バリア", "攻撃を無効化");
+    return true;
+  }
+  if (standFirmBarrierProtects(target, timestamp)) {
+    pushMagicEffect(room, "preparation-barrier-hit", target, {
+      radius: 110,
+      playerId: target.id,
+      targetId: source?.id || "",
+      durationMs: 650,
+      variant: "stand-firm-barrier"
+    });
+    setImmediateFeedback(target, "バリア", "攻撃を無効化");
     return true;
   }
   if (!preparationBarrierProtects(room, target, timestamp)) return false;
@@ -15390,7 +15417,7 @@ function applyEmpBodyDamage(room, source, target, timestamp) {
   if (hasFighterInfiniteResources(target)) {
     syncFighterInfiniteResources(target);
     pushHitEffect(room, target, "body", false);
-    setImmediateFeedback(target, "到達報酬", "MP・SP・HP・踏ん張り∞ / EMPダメージ無効");
+    setImmediateFeedback(target, "到達報酬", "MP・SP・HP・バリア∞ / EMPダメージ無効");
     return "infiniteResources";
   }
   if (target.overheal > 0) {
@@ -15555,7 +15582,12 @@ function activateEmp(room, player, rawPhase = "positive") {
     resolveEmpInteraction(room, interaction, pulse, timestamp);
   } else {
     room.activeEmps.push(pulse);
-    pushMagicEffect(room, "emp-charge", pulse, { radius: EMP_RANGE, playerId: player.id, variant: phase });
+    pushMagicEffect(room, "emp-charge", pulse, {
+      radius: EMP_RANGE,
+      playerId: player.id,
+      variant: phase,
+      durationMs: EMP_PULSE_ATE_DURATION_MS
+    });
     pushEvent(room, `${player.name} が${phase === "positive" ? "正相" : "逆相"}EMPを起動しました。`);
     touch(room);
   }
@@ -15884,7 +15916,7 @@ function purchaseDrink(room, player, itemId, options = {}) {
       if (player.substitutionCharges >= 2) throw new ApiError(400, "変わり身は最大2回分まで所持できます。");
       player.substitutionCharges += 1;
     } },
-    grit: { label: "踏ん張り", cost: STAND_FIRM_COST, apply: () => grantStandFirmCharge(room, player, true, "vending") },
+    grit: { label: "バリア", cost: STAND_FIRM_COST, apply: () => grantStandFirmCharge(room, player, true, "vending") },
     heal: { label: "回復", cost: HEAL_COST, apply: () => {
       if (player.bodyHits > 0) player.bodyHits = 0;
       else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
@@ -15896,7 +15928,7 @@ function purchaseDrink(room, player, itemId, options = {}) {
       grantStamina(room, player, 350, "スタミナ", now(), { floorAtZero: true });
     } },
     hsg: { label: "HSG", cost: 8, apply: () => acquirePhysicalHsg(player) },
-    reason: { label: "押し込み", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
+    reason: { label: "バスト", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
     railgun: { label: "素敵な発明品・レールガン", cost: 150, apply: () => { player.inventions.push("railgun"); } },
     "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 190, apply: () => { player.inventions.push("particle-cannon"); } },
     excalibur: { label: "素敵な発明品・エクスカリバー", cost: 230, apply: () => { player.inventions.push("excalibur"); } },
@@ -16012,7 +16044,7 @@ function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired"
 
 function grantStandFirmCharge(room, player, enforceLimit = true, source = "acquired") {
   if (enforceLimit && player.gritCharges >= 3) {
-    throw new ApiError(400, "踏ん張りは最大3回分まで所持できます。");
+    throw new ApiError(400, "バリアは最大3回分まで所持できます。");
   }
   player.gritCharges += 1;
   pushInstantItemAcquisitionAte(room, player, "grit", source);
@@ -16020,9 +16052,9 @@ function grantStandFirmCharge(room, player, enforceLimit = true, source = "acqui
 
 function grantPushCharge(room, player, enforceLimit = true, source = "acquired") {
   if (enforceLimit && player.reasonCharges >= 3) {
-    throw new ApiError(400, "押し込みは最大3回分まで所持できます。");
+    throw new ApiError(400, "バストは最大3回分まで所持できます。");
   }
-  // 押し込みと踏ん張りは独立した自動消費効果として同時に所持できる。
+  // バストとバリアは独立した自動消費効果として同時に所持できる。
   player.reasonCharges += 1;
   pushInstantItemAcquisitionAte(room, player, "reason", source);
 }
@@ -16048,25 +16080,25 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
   if (player.overheal > 0) {
     player.overheal -= 1;
     pushHitEffect(room, player, "body", false);
-    setImmediateFeedback(player, "押し込み反動", `踏ん張り${chargeCount}解除 / ${damage.toFixed(1)}ダメージをオーバーヒールで吸収`);
-    pushEvent(room, `${player.name} の押し込み反動 ${damage.toFixed(1)}ダメージはオーバーヒールに吸収されました。`);
+    setImmediateFeedback(player, "バスト反動", `バリア${chargeCount}解除 / ${damage.toFixed(1)}ダメージをオーバーヒールで吸収`);
+    pushEvent(room, `${player.name} のバスト反動 ${damage.toFixed(1)}ダメージはオーバーヒールに吸収されました。`);
     return false;
   }
   player.bodyHits = Math.round((Math.max(0, Number(player.bodyHits) || 0) + damage) * 100) / 100;
   const lethal = player.bodyHits >= 2;
   pushHitEffect(room, player, "body", lethal);
-  setImmediateFeedback(player, "押し込み反動", `踏ん張り${chargeCount}解除 / HP-${damage.toFixed(1)}`);
+  setImmediateFeedback(player, "バスト反動", `バリア${chargeCount}解除 / HP-${damage.toFixed(1)}`);
   if (!lethal) {
-    pushEvent(room, `${player.name} は押し込みの反動で ${damage.toFixed(1)}ダメージを受けました。`);
+    pushEvent(room, `${player.name} はバストの反動で ${damage.toFixed(1)}ダメージを受けました。`);
     return false;
   }
   recordBotMatchElimination(room, player, player);
   player.alive = false;
   recordKillCamera(room, player, player, {
     timestamp,
-    actionLabel: "押し込み反動",
+    actionLabel: "バスト反動",
     actionKind: "push-backlash",
-    sourceLabel: `踏ん張り${chargeCount}回分解除・反動${damage.toFixed(1)}`
+    sourceLabel: `バリア${chargeCount}回分解除・反動${damage.toFixed(1)}`
   });
   player.bodyHits = 0;
   player.overheal = 0;
@@ -16081,7 +16113,7 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
     id: uid("body_"),
     playerId: player.id,
     killerId: "push-backlash",
-    killerName: "押し込み反動",
+    killerName: "バスト反動",
     killerIsBot: true,
     killerSkinId: "operator",
     name: player.name,
@@ -16090,8 +16122,8 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
     at: timestamp,
     pushBacklash: true
   });
-  pushDoorLog(room, `${whichRoom(getMap(room), player)} で押し込み反動による戦闘不能`);
-  pushEvent(room, `${player.name} は押し込みの反動で戦闘不能になりました。`);
+  pushDoorLog(room, `${whichRoom(getMap(room), player)} でバスト反動による戦闘不能`);
+  pushEvent(room, `${player.name} はバストの反動で戦闘不能になりました。`);
   return true;
 }
 
@@ -17747,8 +17779,8 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   fire: { label: "火遁スクロール", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
   substitution: { label: "変わり身の術", cost: 1, apply: (room, player) => { player.substitutionCharges += 1; pushInstantItemAcquisitionAte(room, player, "substitution", "hacker"); } },
   warp: { label: "テレポートマップスクロール", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
-  grit: { label: "踏ん張り", cost: 1, apply: (room, player) => grantStandFirmCharge(room, player, false, "hacker") },
-  reason: { label: "押し込み", cost: 1, apply: (room, player) => grantPushCharge(room, player, false, "hacker") },
+  grit: { label: "バリア", cost: 1, apply: (room, player) => grantStandFirmCharge(room, player, false, "hacker") },
+  reason: { label: "バスト", cost: 1, apply: (room, player) => grantPushCharge(room, player, false, "hacker") },
   mercury: { label: "水銀瓶", cost: 0, apply: (_room, player) => addItem(player, "mercury") },
   lead: { label: "鉛瓶", cost: 0, apply: (_room, player) => addItem(player, "lead") },
   uranium: { label: "ウラン容器", cost: 0, apply: (_room, player) => addItem(player, "uranium") },
@@ -18521,7 +18553,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   if (hasFighterInfiniteResources(target)) {
     syncFighterInfiniteResources(target);
     pushHitEffect(room, target, "body", false);
-    pushEvent(room, `${target.name} は無限HPと無限踏ん張りで攻撃を防ぎました。`);
+    pushEvent(room, `${target.name} は無限HPと無限バリアで攻撃を防ぎました。`);
     touch(room);
     return "infiniteResources";
   }
@@ -18547,7 +18579,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       variant: String(removedCharges)
     });
     const backlashDamage = removedCharges * PUSH_BACKLASH_DAMAGE_PER_CHARGE;
-    pushEvent(room, `${killer.name} の押し込みが ${target.name} の踏ん張り${removedCharges}回分を無効化しました。反動 ${backlashDamage.toFixed(1)}ダメージ。`);
+    pushEvent(room, `${killer.name} のバストが ${target.name} のバリア${removedCharges}回分を無効化しました。反動 ${backlashDamage.toFixed(1)}ダメージ。`);
     if (applyPushBacklash(room, killer, removedCharges, timestamp)) {
       checkWin(room);
       touch(room);
@@ -18617,6 +18649,7 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   if (hitZone === "head" && !hackerRootEligible(target) && !hasLimitBreakDeathVulnerability(target) && itemStorageAvailable(target, timestamp) && passivesEnabled(target) && (hasFighterInfiniteResources(target) || target.gritCharges > 0)) {
     if (!hasFighterInfiniteResources(target)) target.gritCharges -= 1;
+    target.standFirmBarrierUntil = timestamp + STAND_FIRM_BARRIER_DURATION_MS;
     hitZone = "body";
     standFirmConverted = true;
     if (target.isBot) {
@@ -18627,7 +18660,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       target.nextBotActionAt = Math.min(Number(target.nextBotActionAt) || timestamp, timestamp);
     }
     pushMagicEffect(room, "action-stand", target, { radius: 120, playerId: target.id });
-    pushEvent(room, `${target.name} の踏ん張りが確殺をボディダメージへ変換しました。`);
+    pushEvent(room, `${target.name} のバリアが確殺をボディダメージへ変換し、${STAND_FIRM_BARRIER_DURATION_MS / 1000}秒の防護を展開しました。`);
   }
 
   if (hitZone === "body" && target.overheal > 0) {
@@ -19016,7 +19049,7 @@ function applyShockSpecialRound(room, shooter, target, timestamp = now(), option
   if (absorbPreparationBarrier(room, target, timestamp, shooter)) return "preparationBarrier";
   if (hasFighterInfiniteResources(target)) {
     syncFighterInfiniteResources(target);
-    pushEvent(room, `${target.name} は無限HPと無限踏ん張りでショック弾を防ぎました。`);
+    pushEvent(room, `${target.name} は無限HPと無限バリアでショック弾を防ぎました。`);
     touch(room);
     return "infiniteResources";
   }
@@ -20373,7 +20406,8 @@ function serialize(room, viewer, options = {}) {
       operatorReady: roleVisible ? player.operatorReady : false,
       alive: player.alive,
       ejected: player.ejected,
-      preparationBarrierActive: preparationBarrierProtects(room, player, timestamp),
+      preparationBarrierActive: preparationBarrierProtects(room, player, timestamp) || standFirmBarrierProtects(player, timestamp),
+      standFirmBarrierActive: standFirmBarrierProtects(player, timestamp),
       chatMuted: player.id === viewer.id ? player.chatMuted : false,
       x: Math.round(player.x),
       y: Math.round(player.y),
@@ -20518,7 +20552,9 @@ function serialize(room, viewer, options = {}) {
       operatorReady: viewer.operatorReady,
       alive: viewer.alive,
       ejected: viewer.ejected,
-      preparationBarrierActive: preparationBarrierProtects(room, viewer, timestamp),
+      preparationBarrierActive: preparationBarrierProtects(room, viewer, timestamp) || standFirmBarrierProtects(viewer, timestamp),
+      standFirmBarrierActive: standFirmBarrierProtects(viewer, timestamp),
+      standFirmBarrierUntil: Number(viewer.standFirmBarrierUntil) || 0,
       chatMuted: viewer.chatMuted,
       tasks: viewer.taskList,
       taskAutoReadyAt: Number(viewer.taskAutoReadyAt) || 0,
@@ -22030,6 +22066,7 @@ async function handleApi(req, res) {
         entry.mentalState = "理知";
         entry.rationalFreeAbilityReadyAt = 0;
         entry.gritCharges = 0;
+        entry.standFirmBarrierUntil = 0;
         entry.reasonCharges = 0;
         entry.iaiCharges = 0;
         entry.ideaProgressStartedAt = 0;
@@ -22440,8 +22477,8 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
   try {
     rememberBotKillDecision(room, bot, target, {
       code: "stand-firm-visible-retaliation",
-      actionLabel: "踏ん張り反撃の頭部命中（確殺）",
-      reasons: ["踏ん張りで耐えた直前の攻撃者が反撃射程内に入り、反撃クールタイムも完了"]
+      actionLabel: "バリア反撃の頭部命中（確殺）",
+      reasons: ["バリアで耐えた直前の攻撃者が反撃射程内に入り、反撃クールタイムも完了"]
     }, timestamp);
     killPlayer(room, bot, target.id, {
       hitZone: "head",
@@ -22450,7 +22487,7 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
       targetRole: target.role,
       ignorePush: true,
       attackKind: "stand-firm-retaliation",
-      attackLabel: "踏ん張り反撃の頭部命中（確殺）"
+      attackLabel: "バリア反撃の頭部命中（確殺）"
     });
     bot.botRetaliationTargetId = "";
     bot.botRetaliationUntil = 0;
@@ -23746,6 +23783,18 @@ function runPlayingBots(room) {
       bot.role === "defender" &&
       botIsEnemyOfSoleHuman(room, bot) &&
       !opponentTarget;
+    // A Defender who shares the human's faction has no task route by
+    // contract.  Its patrol/support loop is therefore its non-combat
+    // objective, not idle time in which optional Renki may repeatedly start
+    // a 35-second stationary focus.  Once its MP falls below an ability
+    // target, the old generic fallback won every later tick and left the
+    // allied Defender standing permanently (or until a coincidental enemy
+    // appeared).  Preserve Renki for actual combat/setup decisions, but keep
+    // the no-task patrol route moving while it has no public hostile evidence.
+    const friendlyDefenderPatrolPending =
+      bot.role === "defender" &&
+      botSharesTeamWithHuman(room, bot) &&
+      !opponentTarget;
     // A Bot facing a living human must keep searching, patrolling, pursuing a
     // public waypoint, or entering its faction objective even when a barrier
     // temporarily removes that human from the legal attack-target set.  The
@@ -23760,6 +23809,7 @@ function runPlayingBots(room) {
       !maximumStrength &&
       !opponentTarget &&
       !enemyDefenderObjectivePending &&
+      !friendlyDefenderPatrolPending &&
       refillBotMana(room, bot)
     ) continue;
 

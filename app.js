@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545";
+const DVA_CLIENT_RELEASE = "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -722,7 +722,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
   grit: "1回分を獲得。次の確殺をボディダメージ化。理知中のみ発動",
   heal: "負傷時はHPを2まで全回復。無傷時はオーバーヒール+1",
-  reason: "1回分を獲得。次の攻撃対象の踏ん張りを全削除し、削除1回につき自分へ0.5ダメージ。理知中のみ発動",
+  reason: "1回分を獲得。次の攻撃対象のバリアを全削除し、削除1回につき自分へ0.5ダメージ。理知中のみ発動",
   mana: "MP+1",
   stamina: "取得時に即席でSP+350。物理所持品には残らない",
   railgun: "使用: 使い切り。全遮蔽物を貫通する直線射撃で、命中時は確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
@@ -806,7 +806,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1457,7 +1457,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "FIGHTER GUIDE",
     name: "ソフィア",
-    text: "オリハルコン・ソード自体は物理斬撃・ガード・JG反射を行う剣です。これとは別に、ファイター能力のECは初回100でMP・SP・HP・踏ん張り無限、初回500で居合、初回1000でLB被確殺解除・消滅斬り・全攻撃JG反射を永続獲得します。EC100以上の斬るではEC100を使い特大衝撃波も起こせます。",
+    text: "オリハルコン・ソード自体は物理斬撃・ガード・JG反射を行う剣です。これとは別に、ファイター能力のECは初回100でMP・SP・HP・バリア無限、初回500で居合、初回1000でLB被確殺解除・消滅斬り・全攻撃JG反射を永続獲得します。EC100以上の斬るではEC100を使い特大衝撃波も起こせます。",
     sophiaGesture: "power",
     philiaGesture: "focus",
     symbols: [{ type: "sparkle", owner: "sophia" }, { type: "idea", owner: "philia" }]
@@ -5870,9 +5870,19 @@ function bindEvents() {
     };
     const cancel = (event) => {
       if (event && pointerId !== event.pointerId) return;
+      // A browser may cancel a gesture after it has travelled (for example
+      // while retargeting a native control).  Keep that transaction's click
+      // suppressed: cancellation is never permission to run the card/action
+      // that the horizontal or vertical gesture already replaced.
+      const suppressClick = travelled;
       reset();
-      clickGate.reset();
-      actionGate?.reset();
+      if (suppressClick) {
+        clickGate.arm();
+        actionGate?.arm();
+      } else {
+        clickGate.reset();
+        actionGate?.reset();
+      }
     };
     const classify = (event) => {
       const dx = event.clientX - startX;
@@ -5899,6 +5909,19 @@ function bindEvents() {
       // move boundary instead of waiting until pointerup. Vertical scrolling
       // stays native and ambiguous diagonal travel commits neither action.
       if (gesture.horizontal && event.cancelable) event.preventDefault();
+      if (gesture.horizontal) {
+        // Commit at the first decisive move.  Some native target controls
+        // retarget or cancel the later pointerup; waiting for that final event
+        // was why a valid Hacker target-operation flick could visibly travel
+        // without changing its genre.  `changedCategory` makes this exactly
+        // one adjacent step for the complete pointer transaction.
+        if (!changedCategory) {
+          changedCategory = true;
+          clickGate.arm();
+          actionGate?.arm();
+          changeCategory(gesture.dx < 0 ? 1 : -1);
+        }
+      }
       onTravel?.(event, gesture);
       return gesture;
     };
@@ -5913,8 +5936,8 @@ function bindEvents() {
           changedCategory = true;
           // Retain the gate immediately before the step: synthesized click is
           // suppressed even on platforms that emit it after a prevented up.
-          clickGate.arm();
           actionGate?.arm();
+          clickGate.arm();
           if (horizontal) changeCategory(dx < 0 ? 1 : -1);
         }
         // Do not stop propagation here: card-specific hold handlers must see
@@ -11852,14 +11875,14 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
     add("キルカウンター", passiveValue, passiveTone, "確殺を回避した時だけ攻撃者を即時確殺");
     const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
     const infinite = self.fighterInfiniteResources
-      ? " / MP・SP・HP・踏ん張り∞"
+      ? " / MP・SP・HP・バリア∞"
       : "";
     const energyPeak = Math.max(Number(self.fighterEnergyPeak) || 0, Number(self.fighterEnergyCharge) || 0);
     add(
       "EC",
       passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 次${formatEffectCountdown(energyWait)}${infinite}` : passiveValue,
       passiveTone,
-      "12秒ごとに1MPでEC+1。通常衝撃波はEC-1。初回100:MP・SP・HP・踏ん張り∞。初回500:居合+1。初回1000:LB被確殺解除、消滅斬り（死体なし）、JG全反射。EC100以上の斬る:EC-100で特大衝撃波",
+      "12秒ごとに1MPでEC+1。通常衝撃波はEC-1。初回100:MP・SP・HP・バリア∞。初回500:居合+1。初回1000:LB被確殺解除、消滅斬り（死体なし）、JG全反射。EC100以上の斬る:EC-100で特大衝撃波",
       "stacked"
     );
   }
@@ -11967,16 +11990,16 @@ function renderActiveEffects(data) {
   }
 
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
-  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "押し込み+1・踏ん張り+1・HP/状態回復・加速・タスクSP軽減");
+  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "バスト+1・バリア+1・HP/状態回復・加速・タスクSP軽減");
   if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "加速×1.65。移動・物理モーション・CT・行動不能・タスク速度へ適用");
   if (self.limitBreakActive) {
     const limitBreakDetail = self.fighterInfiniteResources
-      ? `HP消費なし / MP・SP・HP・踏ん張り∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
+      ? `HP消費なし / MP・SP・HP・バリア∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
       : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / MP継続消費 / 即死回避無効`;
     add("リミットブレイク", "永続", "truth", limitBreakDetail);
   }
   if (self.hackerRootActive) {
-    add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。踏ん張り・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用");
+    add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。バリア・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用");
   }
   effects.push(...collectOperatorPassiveEffects(self, liveNow, data.phase));
   if (Number(self.killChainCount) > 0) {
@@ -11988,9 +12011,9 @@ function renderActiveEffects(data) {
     );
   }
   if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "1回につきボディダメージ1回を吸収し、状態異常を解除");
-  if ((self.standFirmCharges || 0) > 0) add("踏ん張り", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化");
+  if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化し、発動後もしばらく防護");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
-  if ((self.pushCharges || 0) > 0) add("押し込み", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "踏ん張り全消去。1回につき反動0.5");
+  if ((self.pushCharges || 0) > 0) add("バスト", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "バリア全消去。1回につき反動0.5");
   if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持");
   if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `テレポート可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にテレポート権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
@@ -12664,8 +12687,8 @@ function updateActionButtons(data) {
       : itemBlocked
         ? "EMP遮断"
         : "自動";
-  els.gritStatusButton.textContent = `踏ん張り ${self.fighterInfiniteResources ? "∞" : `×${standFirmCharges}`}（${standFirmMode}）${philosophy ? ` / ${philosophy}` : ""}`;
-  els.reasonButton.textContent = `押し込み ×${pushCharges}（${itemBlocked ? "EMP遮断" : "自動"}）`;
+  els.gritStatusButton.textContent = `バリア ${self.fighterInfiniteResources ? "∞" : `×${standFirmCharges}`}（${standFirmMode}）${philosophy ? ` / ${philosophy}` : ""}`;
+  els.reasonButton.textContent = `バスト ×${pushCharges}（${itemBlocked ? "EMP遮断" : "自動"}）`;
   els.reasonButton.disabled = true;
   const gunnerWeapons = Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [];
   const gunnerWeapon = gunnerWeapons.find((weapon) => weapon.id === self.gunnerWeapon) || gunnerWeapons[0] || {
@@ -17363,14 +17386,14 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
-  resistanceBreak: ["確殺耐性無効", "リミットブレイク中は踏ん張り・変わり身による確殺回避が無効です。EC1000到達後は解除されます。"],
-  standFirm: ["踏ん張り", "次に受ける確殺を一度だけ防ぎます。"],
-  push: ["押し込み", "対象の踏ん張りを無効化します。無効化数に応じ反動を受けます。"],
+  resistanceBreak: ["確殺耐性無効", "リミットブレイク中はバリア・変わり身による確殺回避が無効です。EC1000到達後は解除されます。"],
+  standFirm: ["バリア", "次に受ける確殺を一度だけ防ぎ、発動後もしばらく防護します。"],
+  push: ["バスト", "対象のバリアを無効化します。無効化数に応じ反動を受けます。"],
   iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
   burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・フローラ回復・理知中の自然回復で解除できます。"],
   poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・フローラ回復・理知中の自然回復で解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
-  infiniteResources: ["無限資源", "EC100回到達報酬によりMP・SP・HP・踏ん張りが無限になっています。"],
+  infiniteResources: ["無限資源", "EC100回到達報酬によりMP・SP・HP・バリアが無限になっています。"],
   destructionSlash: ["常時消滅斬り", "EC1000回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
@@ -20356,7 +20379,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545";
+const version = "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

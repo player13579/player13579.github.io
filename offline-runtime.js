@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545";
+const OFFLINE_WORKER_VERSION = "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.

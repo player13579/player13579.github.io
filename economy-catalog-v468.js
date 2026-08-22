@@ -41,9 +41,9 @@
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
     ["fire", "火遁スクロール", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
-    ["grit", "踏ん張り", 5, "instant-item", "grit", "grit"],
+    ["grit", "バリア", 5, "instant-item", "grit", "grit"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
-    ["reason", "押し込み", 5, "instant-item", "reason", "reason"],
+    ["reason", "バスト", 5, "instant-item", "reason", "reason"],
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
     ["hsg", "HSG", 8, "weapon", "hsg", "hsg"],
@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545",
+    version: "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
