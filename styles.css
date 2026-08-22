@@ -2689,13 +2689,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.45);
 }
 
-#droneButton[data-destroyed="true"] {
-  border-color: #7f1d1d;
-  background-color: #2a1719;
-  color: #fca5a5;
-  text-decoration: line-through;
-}
-
 .field-action-bar .weapon-button {
   padding-left: 38px;
 }
@@ -2825,19 +2818,21 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   position: absolute;
   top: 50%;
   left: 50%;
+  translate: -50% -50%;
   z-index: 16;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(620px, calc(100% - 28px));
   height: min(430px, calc(100% - 28px));
   min-height: 0;
+  min-width: 0;
+  max-width: calc(100% - 28px);
   overflow: hidden;
   border: 1px solid #7dd3fc;
   border-radius: 8px;
   background: rgba(13, 22, 28, 0.97);
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.52);
   padding: 12px;
-  transform: translate(-50%, -50%);
 }
 
 .field-feed-header {
@@ -2866,21 +2861,35 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .field-feed-overlay .feed {
   height: auto;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px 6px 4px 2px;
 }
 
 .field-feed-overlay .chat-form {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 10px;
 }
 
 .field-feed-overlay #chatInput {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   pointer-events: auto;
   touch-action: manipulation;
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
+}
+
+.field-feed-overlay .chat-form > button {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .switch-drag-menu {
@@ -3889,7 +3898,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .result-row {
   display: grid;
-  grid-template-columns: 32px 16px minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-height: 56px;
@@ -3922,17 +3931,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   font-weight: 800;
 }
 
-.result-rank {
-  color: #dbeafe;
-  font-size: 18px;
-  font-weight: 900;
-  text-align: center;
-}
-
-.result-row[data-rank="1"] .result-rank { color: #fde68a; }
-.result-row[data-rank="2"] .result-rank { color: #e2e8f0; }
-.result-row[data-rank="3"] .result-rank { color: #fdba74; }
-
 .result-player {
   display: grid;
   gap: 3px;
@@ -3948,18 +3946,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .result-player small {
   color: var(--muted);
-}
-
-.result-score {
-  color: #f8fafc;
-  font-size: 24px;
-  font-weight: 900;
-}
-
-.result-score small {
-  margin-left: 2px;
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .mobile-pad {
@@ -4194,6 +4180,20 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   margin-left: auto;
 }
 
+/* Category paging begins on any visible card, not only the small heading.
+   Retain local vertical native scrolling while reserving horizontal travel for
+   the panel-level category owner. */
+.vending-panel,
+.vending-panel *,
+.vending-panel .vending-grid,
+.vending-panel .vending-grid > *,
+.hacker-ability-dock,
+.hacker-ability-dock *,
+.hacker-ability-dock .hacker-ability-grid,
+.hacker-ability-dock .hacker-ability-grid > * {
+  touch-action: pan-y;
+}
+
 .vending-continuous-toggle {
   display: inline-flex;
   align-items: center;
@@ -4261,7 +4261,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .vending-item-with-icon[data-vending-asset="stamina"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-stamina-v311.png"); }
 .vending-item-with-icon[data-vending-asset="heal"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-heal-v311.png"); }
-.vending-item-with-icon[data-vending-asset="fire"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-fire-v311.png"); }
+.vending-item-with-icon[data-vending-asset="fire"] .vending-alchemy-icon { background-image: url("assets/generated/item-fire-scroll-v540.png?v=fire-scroll-v540"); }
 .vending-item-with-icon[data-vending-asset="substitution"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-substitution-v311.png"); }
 .vending-item-with-icon[data-vending-asset="warp"] .vending-alchemy-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png"); }
 .vending-item-with-icon[data-vending-asset="grit"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-grit-v311.png"); }
@@ -4281,8 +4281,8 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .invention-excalibur-icon { background-image: url("assets/generated/alchemy-excalibur.webp?v=asset-isolated-v122"); }
 .exile-icon { background-image: url("assets/generated/exile-clone.webp?v=hacker-assets-v130"); }
 
-.vending-computer-icon {
-  background-image: url("assets/generated/item-computer-v404.png?v=energy-rest-killcutin-v406");
+.vending-hack-icon {
+  background-image: url("assets/generated/operator-hacker-ate-v391.png?v=operator-ate-v391");
 }
 
 .vending-gun-icon {
@@ -4481,24 +4481,34 @@ body .offline-team-choice button[data-offline-team] {
   animation: operator-hacker-ate-v391 1880ms steps(1, end) infinite;
 }
 
-.result-rank-movement {
-  min-width: 32px;
+.result-points {
+  display: grid;
+  min-width: 58px;
   border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 3px 6px;
-  font-size: 12px;
-  font-weight: 900;
+  border-radius: 10px;
+  padding: 4px 7px;
   text-align: center;
+  line-height: 1.05;
 }
 
-.result-row.is-rank-up .result-rank-movement {
-  color: #6ee7b7;
+.result-points strong {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.result-points small {
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.result-row.has-points .result-points {
+  color: #a7f3d0;
   background: rgba(16, 185, 129, 0.14);
 }
 
-.result-row.is-rank-down .result-rank-movement {
-  color: #fda4af;
-  background: rgba(244, 63, 94, 0.12);
+.result-point-mvp {
+  color: #a7f3d0 !important;
 }
 .operator-visual-assassin {
   background-image: url("assets/generated/operator-assassin-ate-v510.png?v=operator-assassin-ate-v510");
@@ -5260,7 +5270,8 @@ body .offline-team-choice button[data-offline-team] {
 }
 .alchemy-choice[data-alchemy-choice="stamina"] .alchemy-choice-icon { background-image: url("assets/generated/item-stamina-cell.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="heal"] .alchemy-choice-icon { background-image: url("assets/generated/item-heal.webp?v=rational-icons-v270"); }
-.alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-jutsu.webp?v=rational-icons-v270"); }
+.alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon,
+.alchemy-choice[data-alchemy-asset="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-scroll-v540.png?v=fire-scroll-v540"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=kill-chain-invisible-global-scroll-hsg-points-v527"); }
@@ -5275,7 +5286,7 @@ body .offline-team-choice button[data-offline-team] {
   [data-alchemy-asset="particle-cannon"],
   [data-alchemy-asset="excalibur"],
   [data-alchemy-asset="exile"],
-  [data-alchemy-asset="computer"],
+  [data-alchemy-asset="hack"],
   [data-alchemy-asset="handgun"],
   [data-alchemy-asset="smg"],
   [data-alchemy-asset="assault"],
@@ -5294,7 +5305,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-asset="particle-cannon"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-particle-cannon.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-asset="excalibur"] .alchemy-choice-icon { background-image: url("assets/generated/alchemy-excalibur.webp?v=asset-isolated-v122"); }
 .alchemy-choice[data-alchemy-asset="exile"] .alchemy-choice-icon { background-image: url("assets/generated/exile-clone.webp?v=hacker-assets-v130"); }
-.alchemy-choice[data-alchemy-asset="computer"] .alchemy-choice-icon { background-image: url("assets/generated/item-computer-v404.png?v=energy-rest-killcutin-v406"); }
+.alchemy-choice[data-alchemy-asset="hack"] .alchemy-choice-icon { background-image: url("assets/generated/operator-hacker-ate-v391.png?v=operator-ate-v391"); }
 .alchemy-choice:is([data-alchemy-asset="handgun"], [data-alchemy-asset="smg"], [data-alchemy-asset="assault"], [data-alchemy-asset="sniper"]) .alchemy-choice-icon {
   background-image: url("assets/generated/gunner-weapon-icons-v422.webp?v=weapon-icons-v422");
   background-size: 400% 100%;
@@ -5324,7 +5335,7 @@ body .offline-team-choice button[data-offline-team] {
   [data-alchemy-asset="railgun"],
   [data-alchemy-asset="particle-cannon"],
   [data-alchemy-asset="exile"],
-  [data-alchemy-asset="computer"],
+  [data-alchemy-asset="hack"],
   [data-alchemy-asset="taser"]
 ) .alchemy-choice-icon {
   background-color: #255f72;
@@ -6220,6 +6231,10 @@ body.tablet-mode-active .hacker-direct-action {
 }
 
 .feed-line {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding-bottom: 6px;
   color: var(--muted);
@@ -6614,6 +6629,7 @@ body.tablet-mode-active .hacker-direct-action {
 
   .field-feed-overlay {
     width: calc(100% - 12px);
+    max-width: calc(100% - 12px);
     height: calc(100% - 12px);
     padding: 9px;
   }
@@ -7801,6 +7817,22 @@ body #operatorDetail {
   color: #1f343b;
   background-color: #f8faf9;
   background-image: none !important;
+  border-color: #315866;
+  text-shadow: none;
+}
+
+/* The explanation is player-facing specification text, not decorative chrome.
+   Keep every text tier above WCAG-like body contrast on its light fallback. */
+body #operatorDetail .operator-detail-head strong {
+  color: #123744;
+}
+
+body #operatorDetail .operator-detail p {
+  color: #183b49;
+}
+
+body #operatorDetail .operator-detail-kicker {
+  color: #0b6577;
 }
 
 body #statusPanel {
@@ -8305,17 +8337,11 @@ body [data-scroll-region].scroll-region-selected {
 .result-dialog .result-row.is-first { background-color: rgba(57, 42, 10, 0.97); background-image: linear-gradient(90deg, rgba(250, 204, 21, 0.22), rgba(57, 42, 10, 0.97) 58%); border-left-color: #facc15; }
 .result-dialog .result-row.is-luminous { background-color: rgba(54, 42, 8, 0.97); background-image: linear-gradient(90deg, rgba(250, 204, 21, 0.2), rgba(54, 42, 8, 0.97) 56%); box-shadow: inset 3px 0 #fde047, inset 0 1px rgba(255, 255, 255, 0.08); }
 .result-dialog .result-row.is-idea-winner { background-color: rgba(47, 35, 62, 0.97); background-image: linear-gradient(90deg, rgba(250, 204, 21, 0.24), rgba(139, 92, 246, 0.17) 46%, rgba(47, 35, 62, 0.97) 100%); border-left-color: #f5d76e; box-shadow: inset 0 0 20px rgba(250, 204, 21, 0.2), inset 0 1px rgba(255, 255, 255, 0.1); }
-.result-dialog .result-row.is-rank-up { background-color: rgba(8, 45, 35, 0.97); background-image: linear-gradient(90deg, rgba(16, 185, 129, 0.18), rgba(8, 45, 35, 0.97) 58%); }
-.result-dialog .result-row.is-rank-down { background-color: rgba(54, 20, 31, 0.97); background-image: linear-gradient(90deg, rgba(244, 63, 94, 0.17), rgba(54, 20, 31, 0.97) 58%); }
-.result-dialog .result-rank,
-.result-dialog .result-player strong,
-.result-dialog .result-score { color: #f8fafc; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96), 0 0 7px rgba(0, 0, 0, 0.54); }
-.result-dialog .result-player small,
-.result-dialog .result-score small { color: #dbeafe; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); }
+.result-dialog .result-player strong { color: #f8fafc; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96), 0 0 7px rgba(0, 0, 0, 0.54); }
+.result-dialog .result-player small { color: #dbeafe; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); }
 .result-dialog .result-row.is-idea-winner .result-player small { color: #fef3c7; }
-.result-dialog .result-rank-movement { background-color: rgba(5, 14, 22, 0.96); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.42); }
-.result-dialog .result-row.is-rank-up .result-rank-movement { color: #a7f3d0; background-color: rgba(6, 58, 43, 0.98); }
-.result-dialog .result-row.is-rank-down .result-rank-movement { color: #fecdd3; background-color: rgba(76, 18, 33, 0.98); }
+.result-dialog .result-points { background-color: rgba(5, 14, 22, 0.96); color: #dbeafe; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.42); }
+.result-dialog .result-row.has-points .result-points { color: #a7f3d0; background-color: rgba(6, 58, 43, 0.98); }
 
 /* The dialog uses the overlay safe height; only the ranking locally scrolls.
  * `place-items:center` is useful for small overlays but lets this result

@@ -8,6 +8,7 @@
   function start(onFrame) {
     let active = true;
     let lastTimestamp = 0;
+    let lastRenderedAt = 0;
     let smoothedDelta = TARGET_FRAME_MS;
     let sampleStartedAt = 0;
     let sampleFrames = 0;
@@ -19,6 +20,12 @@
 
     const frame = (timestamp) => {
       if (!active) return;
+      const verificationFrameInterval = Math.max(0, Number(document.documentElement.dataset.verificationFrameInterval) || 0);
+      if (verificationFrameInterval > 0 && lastRenderedAt && timestamp - lastRenderedAt < verificationFrameInterval) {
+        requestAnimationFrame(frame);
+        return;
+      }
+      lastRenderedAt = timestamp;
       let rawDelta = lastTimestamp ? timestamp - lastTimestamp : TARGET_FRAME_MS;
       lastTimestamp = timestamp;
       if (!Number.isFinite(rawDelta) || rawDelta > 250) {

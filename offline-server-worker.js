@@ -7319,7 +7319,7 @@ const LABORATORY_MAP = Object.freeze({
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
     ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
-    ["fire", "火遁の術", 8, "instant-item", "fire", "fire"],
+    ["fire", "火遁スクロール", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
     ["grit", "踏ん張り", 5, "instant-item", "grit", "grit"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
@@ -7331,7 +7331,7 @@ const LABORATORY_MAP = Object.freeze({
     ["particle-cannon", "荷電粒子砲", 16, "weapon", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "weapon", "vending-excalibur", "excalibur"],
     ["exile", "亡命", 22, "instant-item", "vending-exile", "exile"],
-    ["computer", "パソコン", 10, "instant-item", "vending-computer", "computer"],
+    ["hack", "ハック", 10, "instant-item", "vending-hack", "hack"],
     ["handgun", "ハンドガン", 3, "weapon", "vending-handgun", "handgun"],
     ["smg", "サブマシンガン", 5, "weapon", "vending-smg", "smg"],
     ["assault", "アサルトライフル", 7, "weapon", "vending-assault", "assault"],
@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "kill-chain-invisible-global-scroll-hsg-points-v527",
+    version: "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7400,6 +7400,9 @@ const LABORATORY_MAP = Object.freeze({
 });
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
+const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.version || "");
+const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
+const ONLINE_RELEASE_ENFORCED = process.env.DVA_ENFORCE_ONLINE_RELEASE === "true";
 
 function vendingProductOrThrow(itemId) {
   const product = DVA_ECONOMY.product(itemId);
@@ -7417,8 +7420,24 @@ function renderCapacityStatus() {
   return {
     available: true,
     renderCapacity: "available",
-    source: "reachable-matchmaking-service"
+    source: "reachable-matchmaking-service",
+    requiredClientRelease: ONLINE_CLIENT_RELEASE
   };
+}
+
+function isLocalApiRequest(req) {
+  const host = String(req?.headers?.host || "").split(":")[0].toLowerCase();
+  return ["localhost", "127.0.0.1", "::1"].includes(host);
+}
+
+function requireCompatibleOnlineClient(req, suppliedRelease = "") {
+  if (!ONLINE_RELEASE_ENFORCED || isLocalApiRequest(req)) return true;
+  const clientRelease = String(suppliedRelease || req?.headers?.[ONLINE_CLIENT_RELEASE_HEADER] || "");
+  if (clientRelease === ONLINE_CLIENT_RELEASE) return true;
+  const error = new ApiError(426, "オンライン対戦を更新しています。ページを再読み込みしてください。");
+  error.requiredClientRelease = ONLINE_CLIENT_RELEASE;
+  error.clientRelease = clientRelease || null;
+  throw error;
 }
 
 const MIN_KILL_COOLDOWN = 5;
@@ -7439,7 +7458,7 @@ const AUTO_REPORT_POST_KILL_GRACE_MS = 4_000;
 const PAIR_ROUTE_RADIUS = 82;
 const PAIR_ROUTE_GRACE_MS = 5_000;
 const PAIR_ROUTE_DAMAGE_INTERVAL_MS = 3_000;
-const TASK_STAMINA_REQUIREMENT = 200;
+const TASK_STAMINA_REQUIREMENT = 400;
 const AUTO_TASK_INTERVAL_MS = 2_500;
 const AUTO_TASK_PRESENCE_MS = 1800;
 const HACKER_AUTO_TASK_INTERVAL_MS = 60_000;
@@ -7447,9 +7466,10 @@ const PREPARATION_PHASE_MS = 5_000;
 const GUNNER_RELOAD_MS = 2_200;
 const GUNNER_IDLE_AUTO_RELOAD_DELAY_MS = 2_600;
 const GUNNER_SPECIAL_AMMO_INTERVAL_MS = 18_000;
-const GUNNER_SPECIAL_AMMO_TYPES = Object.freeze(["weak", "shock"]);
+const GUNNER_SPECIAL_AMMO_TYPES = Object.freeze(["weak", "penetrate", "shock"]);
 const GUNNER_SPECIAL_AMMO_LABELS = Object.freeze({
   weak: "ウィーク",
+  penetrate: "ペネトレイト",
   shock: "ショック"
 });
 const GUNNER_SHOCK_SLOW_MS = 6_000;
@@ -7490,16 +7510,17 @@ const FLORA_SPEED_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.72;
 const FLORA_SPEED_DURATION_MS = 12_000;
 const MAX_STAMINA = 100;
 const MAX_STORED_STAMINA = 500;
-const REMOTE_REPAIR_STAMINA_COST = 300;
+const DODGE_STAMINA_COST = 200;
+const REMOTE_REPAIR_STAMINA_COST = 600;
 const SLEEP_REGEN_MULTIPLIER = 4;
 const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
 const FIXED_MOVEMENT_ACC = 2;
 const NORMAL_MOVEMENT_ACC = 1;
 const MOVEMENT_ACC_ACTIVATION_THRESHOLD = 2;
 const DASH_MULTIPLIER = 1.75;
-const DASH_DRAIN_PER_SECOND = 42;
-const WALK_DRAIN_PER_SECOND = 9;
-const SLOW_WALK_DRAIN_PER_SECOND = 1.2;
+const DASH_DRAIN_PER_SECOND = 84;
+const WALK_DRAIN_PER_SECOND = 18;
+const SLOW_WALK_DRAIN_PER_SECOND = 2.4;
 const STAMINA_REGEN_PER_SECOND = 19;
 const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
 // Natural Recovery restores 0.127 MP/s toward the protected two-MP reserve.
@@ -7508,10 +7529,8 @@ const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
 const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.25;
 const JUMP_BASE_DISTANCE = 120;
 const JUMP_DISTANCE_PER_PREPARE_MS = 2.7;
-const JUMP_BASE_COST = 24;
-const JUMP_DISTANCE_COST = 0.14;
-const DRONE_SPEED_MULTIPLIER = 3.4;
-const DRONE_ALTITUDE_MAX = 2;
+const JUMP_BASE_COST = 48;
+const JUMP_DISTANCE_COST = 0.28;
 const TASK_CREDIT_REWARD = CREDIT_ECONOMY.taskReward;
 const SABOTAGE_CREDIT_REWARD = CREDIT_ECONOMY.sabotageReward;
 const PASSIVE_CREDIT_INTERVAL_MS = CREDIT_ECONOMY.passiveIntervalMs;
@@ -7542,14 +7561,15 @@ const HEAVY_WEAPON_DEFINITIONS = Object.freeze({
 });
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ROOT_HEALTH = 0.0001;
-const HACKER_ACTION_STAMINA_COST = 5;
-const FIGHTER_SLASH_STAMINA_COST = 75;
+const HACKER_ACTION_STAMINA_COST = 10;
+const FIGHTER_SLASH_STAMINA_COST = 150;
 const FIGHTER_SLASH_GUARD_DURATION_MS = 700;
 const FIGHTER_SLASH_PERFECT_GUARD_MS = 140;
 const FIGHTER_SLASH_PERFECT_REARM_MS = 1_100;
 const FIGHTER_ENERGY_CHARGE_MANA_COST = 1;
 const FIGHTER_IAI_REWARD_THRESHOLD = 500;
-const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 1000;
+const FIGHTER_INFINITE_RESOURCE_THRESHOLD = 100;
+const FIGHTER_APEX_PERK_THRESHOLD = 1000;
 const FIGHTER_ENERGY_PASSIVE_INTERVAL_MS = 12_000;
 const IAI_VENDING_COST = vendingPrice("iai");
 const ORICHALCUM_SWORD_VENDING_COST = vendingPrice("orichalcum-sword");
@@ -7564,7 +7584,6 @@ const FIGHTER_GIANT_SHOCKWAVE_DURATION_MS = 1_150;
 const HACKER_MANA_GPU_DRAIN_PER_SECOND = 0.025;
 const HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA = 20_000;
 const EXILE_COST = vendingPrice("exile");
-const TASK_CONTRIBUTION = 0;
 const EMP_INTERACTION_WINDOW_MS = 900;
 const EMP_INTERACTION_RANGE = EMP_RANGE * 2;
 const EMP_RESONANCE_LETHAL_RANGE = 110;
@@ -7615,7 +7634,14 @@ const BURN_DAMAGE_PER_TICK = 0.25;
 const NATURAL_RECOVERY_HP_PER_SECOND = 0.05;
 const TOXIC_THROW_ITEM_IDS = new Set(["mercury", "lead", "uranium", "plutonium"]);
 const GOLD_INSTANT_CREDITS = CREDIT_ECONOMY.goldInstantReward;
-const QUANTUM_ACTION_STAMINA_COST = 8;
+// Credit ATE multiplicity is a presentation unit, not the raw balance delta.
+// One canonical task reward is one visible unit; Gold is exactly five current
+// task-reward units while its authoritative 100C payout remains unchanged.
+const QUANTUM_ACTION_STAMINA_COST = 16;
+// A committed firearm magazine is one action, not one cost per projectile.
+// It is an authored v528 balance value, deliberately outside the doubled
+// legacy action-cost inventory.
+const GUNNER_BURST_STAMINA_COST = 50;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
 const QUANTUM_ENDGAME_DELAY_MS = 300_000;
 const MINERAL_WATER_STAMINA = 100;
@@ -7628,6 +7654,7 @@ const MYSTERY_ABILITY_LOCK_MS = 15_000;
 const MYSTERY_UNCONSCIOUS_MS = 8_000;
 const DESIRE_RESOURCE_DEBT = -100;
 const DEFAULT_MAX_MANA = 2;
+const REST_COMPLETION_MANA_FLOOR = 2;
 const ABILITY_HOLD_MANA_RESERVE = 2;
 const STARTING_MANA = DEFAULT_MAX_MANA;
 const NATURAL_RECOVERY_MANA_PER_SECOND = 0.127;
@@ -7665,7 +7692,6 @@ const RATIONAL_FREE_ABILITY_INTERVAL_MS = 30_000;
 const DODGE_MANA_COST = 0;
 const TELEPORT_MANA_COST = 1;
 const HEART_TELEPORT_MANA_COST = 10;
-const DRONE_MANA_COST = 0;
 const EMP_MANA_COST = 0;
 const GUNNER_MANA_COST = 0;
 const FLORA_MANA_COST = ABILITY_MANA_COST;
@@ -7842,7 +7868,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC500へ到達すると即席の居合を1回獲得する。居合は押し込みの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・踏ん張りが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合は押し込みの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7862,7 +7888,7 @@ const OPERATORS = {
       limit: 99,
       asset: "flora",
       description: "回復・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは10MPで選択対象方向へ黄色系の強い光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
+      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは試合経過時間による発動制限がなく、10MPで選択対象方向へ黄色系の強い光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -7872,7 +7898,7 @@ const OPERATORS = {
       limit: 99,
       asset: "quantum",
       description: "運動エネルギー制御・核変換・核分裂を使い分け、所持素材へ自動適用する。",
-      details: "水銀・鉛・ウラン・プルトニウムを所持して開始する。運動エネルギー制御は加速か減速へ分岐し、所持している水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂は所持しているウランかプルトニウムへ2MPで作用し、既存の核爆弾と同じ破壊効果を起こす。対象素材がなければ何も起きない。"
+      details: "水銀・鉛・ウラン・プルトニウム・海水を所持して開始する。運動エネルギー制御は加速か減速へ分岐し、所持しているミネラルウォーターまたは海水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂は所持しているウランかプルトニウムへ2MPで作用し、既存の核爆弾と同じ破壊効果を起こす。対象素材がなければ何も起きない。"
     }
   ],
   attacker: [
@@ -7884,7 +7910,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARとエイム・特殊弾装填パッシブを持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。理知中かつダッシュ以外の移動状態ではパッシブ『エイム』が選択銃の射程内で遮蔽物越しでない最寄りの生存者を自動追尾し、追尾中の全射撃をHS確殺にする。正規movementModeがダッシュになると即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、選択中の銃へウィークまたはショックを1マガジン獲得し、非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。理知中かつダッシュ以外の移動状態ではパッシブ『エイム』が選択銃の射程内で遮蔽物越しでない最寄りの生存者を自動追尾し、追尾中の全射撃をHS確殺にする。正規movementModeがダッシュになると即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、選択中の銃へウィーク・ペネトレイト・ショックのいずれか1マガジンを獲得し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -7931,6 +7957,7 @@ const VECTOR_ATTACK_WALL_OCCLUSION_ROUTES = Object.freeze({
   gunner: Object.freeze(["bullet", "gbo-bullet", "weak-bullet", "shock-bullet"]),
   flora: Object.freeze(["sunbeam"]),
   invention: Object.freeze(["excalibur", "railgun", "particle-cannon"]),
+  heavy: Object.freeze(["rpg", "missile"]),
   fighter: Object.freeze(["fighter-energy-shockwave"]),
   thrown: Object.freeze(["thrown-sword-blade", "thrown-item-flight"])
 });
@@ -7940,7 +7967,7 @@ const INSTANT_ITEM_DEFINITIONS = Object.freeze({
   reason: Object.freeze({ id: "reason", label: "押し込み", field: "reasonCharges", automatic: true }),
   iai: Object.freeze({ id: "iai", label: "居合", field: "iaiCharges", asset: "iai", automatic: true }),
   gold: Object.freeze({ id: "gold", label: "金", automatic: true }),
-  computer: Object.freeze({ id: "computer", label: "パソコン", field: "computerActive", automatic: true }),
+  hack: Object.freeze({ id: "hack", label: "ハック", field: "hackActive", automatic: true }),
   stamina: Object.freeze({ id: "stamina", label: "スタミナ", automatic: true })
 });
 
@@ -8884,7 +8911,7 @@ async function hydratePlayerProfiles() {
 }
 
 function updatePlayerProfiles(room) {
-  if (room.rankUpdated) return;
+  if (room.resultProfileApplied) return;
   const players = [...room.players.values()];
   const attackers = players.filter((player) => player.role === "attacker");
   const attackerTarget = Math.max(
@@ -8893,9 +8920,7 @@ function updatePlayerProfiles(room) {
       players.filter((player) => player.role === "defender").length / Math.max(1, attackers.length)
     )
   );
-  const contributionById = new Map(
-    contributionRankingEntries(room).map((entry) => [entry.id, entry])
-  );
+  const resultById = new Map(resultBoardEntries(room).map((entry) => [entry.id, entry]));
   for (const player of players) {
     // Bot rooms are casual for ordinary users, but the reserved developer
     // profile remains rank/KD-visible for debugging and balance checks.
@@ -8903,28 +8928,20 @@ function updatePlayerProfiles(room) {
     const profile = profileFor(player);
     if (!profile) continue;
     const kills = Number(player.totalKills) || 0;
-    const contribution = contributionById.get(player.id);
+    const result = resultById.get(player.id);
     profile.games = (Number(profile.games) || 0) + 1;
     profile.kills = (Number(profile.kills) || 0) + kills;
     profile.killPoints = (Number(profile.killPoints) || 0) + normalizedRoundKillPoints(player.role, kills, attackerTarget);
     profile.killRate = profileKillRate(profile);
     profile.deaths = (Number(profile.deaths) || 0) + (player.alive ? 0 : 1);
-    const current = rankForPoints(profile.points);
-    // Match outcome never grants a direct profile movement.  Its single victory
-    // credit is part of the authoritative contribution ranking, and placement
-    // alone decides the resulting +1/-1 movement.
-    if (contribution?.rankMovement > 0) profile.points = Math.min(24, (Number(profile.points) || 0) + 1);
-    else if (current.id !== "bronze") profile.points = Math.max(0, (Number(profile.points) || 0) - 1);
-    // Result first place is an account-point reward, never a contribution
-    // component.  The recipient was frozen from the pre-bonus Result ranking
-    // before this one-shot profile finalization.
-    if (room.resultFirstPlacePointsPlayerId === player.id) {
-      profile.points = Math.min(24, (Number(profile.points) || 0) + 2);
-    }
+    // The terminal owner commits the immutable Result board before this
+    // profile transaction. Reuse its signed total unchanged and exactly once.
+    const resultPoints = Number(result?.points) || 0;
+    profile.points = Math.min(24, Math.max(0, (Number(profile.points) || 0) + resultPoints));
     profile.rank = rankForPoints(profile.points).id;
     profile.updatedAt = now();
   }
-  room.rankUpdated = true;
+  room.resultProfileApplied = true;
   savePlayerProfiles();
 }
 
@@ -9376,6 +9393,7 @@ function createRoom(id) {
     finishReason: "",
     ideaWinnerId: "",
     ideaWinnerIds: [],
+    ideaVictoryArrivalAt: 0,
     pendingIdeaVictoryAt: 0,
     sabotage: null,
     activeEmps: [],
@@ -9393,7 +9411,11 @@ function createRoom(id) {
     matchmaking: null,
     soloMission: null,
     casual: false,
-    rankUpdated: false
+    resultProfileApplied: false,
+    // The terminal Result board is committed once and remains the only source
+    // for the signed player points and the one MVP flag.
+    resultBoardCommitted: false,
+    resultBoardByPlayerId: {}
   };
   rooms.set(id, room);
   return room;
@@ -9573,10 +9595,11 @@ function pushGainAte(room, player, effectKind, options = {}) {
 function grantCredits(room, player, rawAmount, source = "") {
   const amount = Math.max(0, Math.floor(Number(rawAmount) || 0));
   if (!amount) return 0;
+  const markerCount = Math.max(1, Math.floor(amount / 10));
   player.credits = (Number(player.credits) || 0) + amount;
   pushGainAte(room, player, "credits", {
     variant: source || `credits:${amount}`,
-    markerCount: amount
+    markerCount
   });
   return amount;
 }
@@ -9675,9 +9698,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     totalKills: 0,
     luminousUsed: false,
     luminousActive: false,
-    luminousContribution: 0,
-    abilityContribution: 0,
-    taskContribution: 0,
     lastLuminousResult: "",
     lastLuminousResultAt: 0,
     killReadyAt: 0,
@@ -9716,7 +9736,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunnerSpecialAmmoType: "",
     gunnerSpecialAmmoWeapon: "",
     gunnerSpecialAmmoRounds: 0,
-    gunnerSpecialAmmoInventory: { weak: 0, shock: 0 },
+    gunnerSpecialAmmoInventory: { weak: 0, penetrate: 0, shock: 0 },
     gunnerSpecialAmmoReadyAt: 0,
     gunnerSpecialAmmoBag: [],
     hsgUntil: 0,
@@ -9735,7 +9755,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     slashGuardInputReleased: true,
     slashDetachedGuardUntil: 0,
     teleportReadyAt: 0,
-    floraReadyAt: 0,
     limitBreakActive: false,
     limitBreakEndsAt: 0,
     limitBreakManaCarry: 0,
@@ -9834,7 +9853,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     manaGpuDrainCarry: 0,
     manaGpuCooldownCreditMs: 0,
     inventions: [],
-    computerActive: false,
+    hackActive: false,
     particleCannonUntil: 0,
     particleCannonNextAt: 0,
     particleCannonPerformanceMultiplier: 1,
@@ -9850,17 +9869,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     smartphoneEvidenceKind: "",
     smartphoneSuspectId: "",
     luck: 0,
-    drone: {
-      active: false,
-      x: spawn.x,
-      y: spawn.y,
-      vx: 0,
-      vy: 0,
-      readyAt: 0,
-      altitude: DRONE_ALTITUDE_MAX,
-      destroyed: false,
-      movementMode: "idle"
-    },
     emergenciesLeft: room.settings.emergencyLimit,
     inVent: false,
     ventId: "",
@@ -10145,7 +10153,6 @@ function leaveRoom(room, player) {
     player.clairvoyanceManaCarry = 0;
     player.inVent = false;
     player.ventId = "";
-    player.drone.active = false;
     player.nextBotActionAt = timestamp + 300;
     player.nextBotClairvoyanceAt = timestamp + 4000 + Math.floor(Math.random() * 6000);
     player.botClairvoyanceUntil = 0;
@@ -10324,9 +10331,6 @@ function startGame(room) {
     player.totalKills = 0;
     player.luminousUsed = false;
     player.luminousActive = false;
-    player.luminousContribution = 0;
-    player.abilityContribution = 0;
-    player.taskContribution = 0;
     player.lastLuminousResult = "";
     player.lastLuminousResultAt = 0;
     player.killReadyAt = 0;
@@ -10350,7 +10354,7 @@ function startGame(room) {
     player.gunnerSpecialAmmoType = "";
     player.gunnerSpecialAmmoWeapon = "";
     player.gunnerSpecialAmmoRounds = 0;
-    player.gunnerSpecialAmmoInventory = { weak: 0, shock: 0 };
+    player.gunnerSpecialAmmoInventory = { weak: 0, penetrate: 0, shock: 0 };
     player.gunnerSpecialAmmoReadyAt = 0;
     player.gunnerSpecialAmmoBag = [];
     player.hsgUntil = 0;
@@ -10369,7 +10373,6 @@ function startGame(room) {
     player.slashDetachedGuardUntil = 0;
     player.slashGuardInputReleased = true;
     player.teleportReadyAt = 0;
-    player.floraReadyAt = 0;
     player.limitBreakActive = false;
     player.limitBreakEndsAt = 0;
     player.limitBreakManaCarry = 0;
@@ -10444,7 +10447,7 @@ function startGame(room) {
     player.manaGpuDrainCarry = 0;
     player.manaGpuCooldownCreditMs = 0;
     player.inventions = [];
-    player.computerActive = false;
+    player.hackActive = false;
     player.particleCannonUntil = 0;
     player.particleCannonNextAt = 0;
     player.particleCannonPerformanceMultiplier = 1;
@@ -10478,17 +10481,6 @@ function startGame(room) {
     player.burnStatus = null;
     player.statusImmunityFeedbackAt = 0;
     player.quantumMode = "nuclear-transmutation";
-    player.drone = {
-      active: false,
-      x: spawn.x,
-      y: spawn.y,
-      vx: 0,
-      vy: 0,
-      readyAt: 0,
-      altitude: DRONE_ALTITUDE_MAX,
-      destroyed: false,
-      movementMode: "idle"
-    };
     player.emergenciesLeft = room.settings.emergencyLimit;
     player.inVent = false;
     player.ventId = "";
@@ -10568,12 +10560,13 @@ function startGame(room) {
   ].filter(Boolean);
   room.operatorTurnIndex = 0;
   room.winner = null;
-  room.rankUpdated = false;
-  room.resultFirstPlacePointsAwarded = false;
-  room.resultFirstPlacePointsPlayerId = "";
+      room.resultProfileApplied = false;
+      room.resultBoardCommitted = false;
+      room.resultBoardByPlayerId = {};
   room.finishReason = "";
   setIdeaWinnerIds(room, []);
   room.pendingIdeaVictoryAt = 0;
+  room.ideaVictoryArrivalAt = 0;
   room.sabotage = null;
   room.activeEmps = [];
   room.doorState = {};
@@ -10720,7 +10713,6 @@ function startBattle(room) {
     player.slashDetachedGuardUntil = 0;
     player.slashGuardInputReleased = true;
     player.teleportReadyAt = 0;
-    player.floraReadyAt = 0;
     player.limitBreakActive = false;
     player.limitBreakEndsAt = 0;
     player.limitBreakManaCarry = 0;
@@ -10799,15 +10791,6 @@ function startBattle(room) {
     player.burnStatus = null;
     player.statusImmunityFeedbackAt = 0;
     player.quantumMode = "nuclear-transmutation";
-    player.drone.active = false;
-    player.drone.x = player.x;
-    player.drone.y = player.y;
-    player.drone.vx = 0;
-    player.drone.vy = 0;
-    player.drone.readyAt = 0;
-    player.drone.altitude = DRONE_ALTITUDE_MAX;
-    player.drone.destroyed = false;
-    player.drone.movementMode = "idle";
     player.emergenciesLeft = room.settings.emergencyLimit;
     player.lastMoveAt = timestamp;
   }
@@ -10903,11 +10886,6 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
 }
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function awardAbilityContribution(player, amount) {
-  // Ability use is intentionally excluded from result scoring.
-  player.abilityContribution = 0;
 }
 
 function actionBlockedUntil(player) {
@@ -11109,7 +11087,7 @@ function quantumBatchCapacity(player, rawMode) {
       ? ["uranium", "plutonium"]
       : mode === "nuclear-fusion"
         ? ["seawater"]
-      : ["mineral-water"];
+      : ["mineral-water", "seawater"];
   const itemCapacity = itemIds.reduce((sum, itemId) => sum + itemCount(player, itemId), 0);
   const staminaCost = QUANTUM_ACTION_STAMINA_COST * (player?.desireBias === "sunk-cost" ? DESIRE_BIAS_COST_MULTIPLIER : 1);
   const staminaCapacity = Math.floor(Math.max(0, Number(player?.stamina) || 0) / Math.max(1, staminaCost));
@@ -11307,16 +11285,28 @@ function hasFighterInfiniteResources(player) {
   );
 }
 
+// EC1000 retains only the non-resource apex package.  Keep it separate from
+// the EC100 permanent MP/SP/HP/Stand Firm entitlement.
+function hasFighterApexPerks(player) {
+  return Boolean(
+    player?.alive &&
+    !player.ejected &&
+    hasOperatorAccess(player, "fighter") &&
+    fighterEnergyPeak(player) >= FIGHTER_APEX_PERK_THRESHOLD
+  );
+}
+
 function syncFighterInfiniteResources(player) {
   if (!hasFighterInfiniteResources(player)) return false;
   player.mana = Math.max(DEFAULT_MAX_MANA, Number(player.mana) || 0);
   player.stamina = staminaCapacityFor(player);
   player.bodyHits = 0;
+  player.gritCharges = Math.max(1, Number(player.gritCharges) || 0);
   return true;
 }
 
 function hasLimitBreakDeathVulnerability(player) {
-  return Boolean(player?.limitBreakActive && !hasFighterInfiniteResources(player));
+  return Boolean(player?.limitBreakActive && !hasFighterApexPerks(player));
 }
 
 function hackerRootEligible(player) {
@@ -11560,6 +11550,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
   const nextPeak = Math.max(previousPeak, next);
   const reachedIaiMilestone = previousPeak < FIGHTER_IAI_REWARD_THRESHOLD && nextPeak >= FIGHTER_IAI_REWARD_THRESHOLD;
   const reachedInfiniteMilestone = previousPeak < FIGHTER_INFINITE_RESOURCE_THRESHOLD && nextPeak >= FIGHTER_INFINITE_RESOURCE_THRESHOLD;
+  const reachedApexMilestone = previousPeak < FIGHTER_APEX_PERK_THRESHOLD && nextPeak >= FIGHTER_APEX_PERK_THRESHOLD;
   player.fighterEnergyCharge = next;
   player.fighterEnergyPeak = nextPeak;
   let reward = `EC ${next}`;
@@ -11574,16 +11565,17 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
       playerId: player.id,
       variant: String(next)
     });
-    reward += " / MP・SP・HP・踏ん張り∞ / リミットブレイク被確殺デメリット解除 / 斬る・常時消滅（死体なし） / ジャストガード・全攻撃反射";
+    reward += " / MP・SP・HP・踏ん張り∞";
   }
-  const milestoneMotion = reachedIaiMilestone || reachedInfiniteMilestone;
+  if (reachedApexMilestone) reward += " / リミットブレイク被確殺デメリット解除 / 斬る・常時消滅（死体なし） / ジャストガード・全攻撃反射";
+  const milestoneMotion = reachedIaiMilestone || reachedInfiniteMilestone || reachedApexMilestone;
   pushMagicEffect(room, "fighter-energy-charge", player, {
     radius: 112,
     playerId: player.id,
     variant: `${next}:ec-${next}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
   });
   setImmediateFeedback(player, "EC", reward);
-  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC500回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。EC1000回到達報酬によりMP・SP・HP・踏ん張りが無限になり、リミットブレイクの被確殺デメリットが解除され、斬るが死体を残さない常時消滅、ジャストガードが全攻撃反射へ強化されました" : ""}。`);
+  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC500回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。EC100初回到達報酬によりMP・SP・HP・踏ん張りが無限になりました" : ""}${reachedApexMilestone ? "。EC1000初回到達報酬によりリミットブレイク被確殺デメリット解除、斬る常時消滅、ジャストガード全攻撃反射を獲得しました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -11713,7 +11705,10 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   forfeitIdeaAttainment(player);
   if (room && ideaWinnerIdsFor(room).includes(player.id)) {
     const remainingWinnerIds = setIdeaWinnerIds(room, ideaWinnerIdsFor(room).filter((id) => id !== player.id));
-    if (!remainingWinnerIds.length) room.pendingIdeaVictoryAt = 0;
+    if (!remainingWinnerIds.length) {
+      room.pendingIdeaVictoryAt = 0;
+      room.ideaVictoryArrivalAt = 0;
+    }
   }
   if (room && enteredNow) {
     const bias = desireBiasDefinition(player);
@@ -11813,11 +11808,13 @@ function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
   return true;
 }
 
-function canSpendOperatorMana(player, timestamp = now()) {
+function canSpendOperatorMana(player, timestamp = now(), amount = ABILITY_MANA_COST) {
+  const cost = Math.max(0, Number(amount) || 0);
+  if (hasFighterInfiniteResources(player)) return true;
   if (isHackerOperator(player) && hackerRootEligible(player)) return true;
   const rationalFree = isRational(player) &&
     (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp;
-  return rationalFree || (Number(player.mana) || 0) >= ABILITY_MANA_COST;
+  return rationalFree || (Number(player.mana) || 0) >= cost;
 }
 
 function practiceRenki(room, player, options = {}) {
@@ -11841,7 +11838,6 @@ function practiceRenki(room, player, options = {}) {
       player.vy = 0;
       player.movementMode = "meditating";
       player.lastMoveAt = timestamp;
-      player.drone.active = false;
       clearAttackState(player);
       pushGainAte(room, player, "mana", { variant: "renki-tenfold", durationMs: 1680 });
       pushMagicEffect(room, "action-renki", player, { radius: 150, playerId: player.id, variant: "tenfold" });
@@ -11865,7 +11861,6 @@ function practiceRenki(room, player, options = {}) {
   player.vy = 0;
   player.movementMode = "meditating";
   player.lastMoveAt = timestamp;
-  player.drone.active = false;
   clearAttackState(player);
   pushGainAte(room, player, "mana", { variant: "renki", durationMs: 1680 });
   pushMagicEffect(room, "action-renki", player, { radius: 120, playerId: player.id });
@@ -11921,7 +11916,6 @@ function finishRenki(room, player, timestamp) {
   const previousMana = Number(player.mana) || 0;
   setMana(room, player, targetMana, "練気");
   if (Number(player.mana) > previousMana) pushGainAte(room, player, "mana", { variant: "renki", durationMs: 1680 });
-  awardAbilityContribution(player, 0.25);
   pushMagicEffect(room, "action-mana", player, { radius: 135, playerId: player.id, variant: "renki" });
   pushEvent(room, `${player.name} が精神統一を完了しました。`);
   touch(room);
@@ -11964,6 +11958,13 @@ function grantIdeaGood(room, player, timestamp) {
 function beginIdeaAscension(room, player, timestamp) {
   if (player.desireIdeaForfeited) return false;
   if (room.phase !== "playing" || ideaWinnerIdsFor(room).includes(player.id)) return false;
+  // Preserve genuine simultaneous arrivals, but never collect a player whose
+  // canonical arrival belongs to a later tick while the first ascension
+  // animation is still playing.  The old max() deadline made a one-second
+  // Luck lead indistinguishable from a tie.
+  const firstArrivalAt = Number(room.ideaVictoryArrivalAt) || 0;
+  if (firstArrivalAt > 0 && timestamp !== firstArrivalAt) return false;
+  if (!firstArrivalAt) room.ideaVictoryArrivalAt = timestamp;
   player.ideaStage = 4;
   player.ascensionStartedAt = timestamp;
   player.ascensionUntil = timestamp + IDEA_ASCENSION_ANIMATION_MS;
@@ -11971,10 +11972,9 @@ function beginIdeaAscension(room, player, timestamp) {
   player.vy = 0;
   player.inVent = false;
   player.ventId = "";
-  player.drone.active = false;
   clearAttackState(player);
   const winnerIds = setIdeaWinnerIds(room, [...ideaWinnerIdsFor(room), player.id]);
-  room.pendingIdeaVictoryAt = Math.max(Number(room.pendingIdeaVictoryAt) || 0, player.ascensionUntil);
+  room.pendingIdeaVictoryAt = Number(room.ideaVictoryArrivalAt) + IDEA_ASCENSION_ANIMATION_MS;
   pushMagicEffect(room, "idea-ascension", player, { radius: 260, playerId: player.id });
   pushEvent(room, `${player.name} が善のイデアへ到達しました。光る翼とともに昇天を開始します（現在の到達者${winnerIds.length}人）。`);
   touch(room);
@@ -12521,8 +12521,7 @@ function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
   const gravityScale = gravityTimeScaleFor(room, player, timestamp);
   const accelerations = passive.speedBoost ? [MAP_OBJECT_SPEED_MULTIPLIER] : [];
   const accelerated = accelerationTimerMultiplier(player, accelerations, timestamp);
-  const base = gravityScale < 1 ? gravityScale : accelerated;
-  return base * (player.desireBias === "cognitive-dissonance" ? DESIRE_BIAS_TIME_MULTIPLIER : 1);
+  return gravityScale < 1 ? gravityScale : accelerated;
 }
 
 function movementAccState(room, player, timestamp = now()) {
@@ -12701,7 +12700,6 @@ function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
     player.jumpMotion.startedAt = (Number(player.jumpMotion.startedAt) || timestamp) + elapsed;
     player.jumpMotion.endsAt = Number(player.jumpMotion.endsAt) + elapsed;
   }
-  if (player.drone && Number(player.drone.readyAt) > timestamp) player.drone.readyAt = Number(player.drone.readyAt) + elapsed;
 }
 
 function advanceAccelerationTime(room, player, elapsedMs, timestamp = now()) {
@@ -12743,12 +12741,17 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
     ? clampNumber(player.gravityStormSlowMultiplier, GRAVITY_STORM_SLOW_MULTIPLIER_MIN, 1, 1)
     : 1;
   const groupMultiplier = desireBiasGroupActive(room, player) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
-  const activeHsgEffects = activeTimedAccelerationEffects(player, timestamp)
-    .filter((effect) => effect.source === "hsg");
-  const hsgMultiplier = activeHsgEffects.length
-    ? activeHsgEffects.reduce((sum, effect) => sum + (Number(effect.multiplier) || 1), 0)
+  // Cognitive dissonance is a legal post-ACC movement modifier.  It must not
+  // alter the source threshold that arms ACC Fixed (for example HSG Enhance
+  // at ACC 2); otherwise a slow would incorrectly disable the fixed state.
+  const desireTimeMultiplier = player?.desireBias === "cognitive-dissonance"
+    ? DESIRE_BIAS_TIME_MULTIPLIER
     : 1;
-  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * movementAccState(room, player, timestamp).selected * hsgMultiplier * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier;
+  // ACC Fixed owns the final authoritative movement acceleration.  Older
+  // code multiplied an HSG source a second time after movementAccState(), so
+  // the armed value could exceed ACC2 and OFF could still be accelerated.
+  const fixed = movementAccState(room, player, timestamp).selected;
+  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * fixed * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier * desireTimeMultiplier;
 }
 
 function floraAromaSource(room, player) {
@@ -12778,7 +12781,6 @@ function activateHsgForUnsupportedMovement(room, player, targetX, targetY, times
   spendHeldPowerMana(room, player, HSG_BASE_MANA_COST, "HSG自動起動");
   addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
   player.hsgReadyAt = timestamp + HSG_ACTIVATION_COOLDOWN_MS;
-  awardAbilityContribution(player, 0.75);
   pushMagicEffect(room, "item-hsg-activate", player, {
     radius: 135,
     playerId: player.id,
@@ -12810,9 +12812,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   }
   const dt = forcedDt ?? Math.min(0.08, Math.max(0.008, (timestamp - player.lastMoveAt) / 1000));
   player.lastMoveAt = timestamp;
-  const controllingDrone = Boolean(player.role === "attacker" && player.alive && player.drone?.active);
-  const mover = controllingDrone ? player.drone : player;
-  if (controllingDrone) player.drone.altitude = DRONE_ALTITUDE_MAX;
+  const mover = player;
 
   let dx = clampNumber(rawDx, -1, 1, 0);
   let dy = clampNumber(rawDy, -1, 1, 0);
@@ -12825,49 +12825,39 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
     mover.vx = 0;
     mover.vy = 0;
     mover.movementMode = "idle";
-    if (!controllingDrone) replenishStamina(mover, timestamp, true, 1, room);
+    replenishStamina(mover, timestamp, true, 1, room);
     return;
   }
-  const canDash = Boolean(wantsDash && (controllingDrone || availableStamina(mover) > 0.5));
+  const canDash = Boolean(wantsDash && availableStamina(mover) > 0.5);
   const movementMode = canDash ? "dash" : wantsSlow ? "slow" : "walk";
   mover.vx = dx;
   mover.vy = dy;
   mover.movementMode = movementMode;
-  if (!controllingDrone) {
-    if (movementMode === "dash") clearGunnerAim(player);
-    if (!player.gunnerSnipingActive) {
-      player.aimX = dx;
-      player.aimY = dy;
-    }
-  } else {
-    player.vx = 0;
-    player.vy = 0;
+  if (movementMode === "dash") clearGunnerAim(player);
+  if (!player.gunnerSnipingActive) {
+    player.aimX = dx;
+    player.aimY = dy;
   }
 
   const map = getMap(room);
-  if (canDash && !controllingDrone) {
+  if (canDash) {
     spendStamina(mover, DASH_DRAIN_PER_SECOND * dt, room, "ダッシュ");
     mover.lastDashAt = timestamp;
   }
   const boost = canDash ? DASH_MULTIPLIER : wantsSlow ? SLOW_WALK_MULTIPLIER : 1;
   const slowedMultiplier = 1;
-  const passiveEffects = !controllingDrone && player.alive
+  const passiveEffects = player.alive
     ? activeMapObjectEffects(room, player)
     : { speedBoost: false, quiet: false };
-  const baseSpeed = controllingDrone
-    ? map.speed * DRONE_SPEED_MULTIPLIER
-    : (player.alive ? map.speed * effectiveMovementMultiplier(room, player) : map.ghostSpeed);
+  const baseSpeed = player.alive ? map.speed * effectiveMovementMultiplier(room, player) : map.ghostSpeed;
   const speed = baseSpeed * boost * slowedMultiplier;
-  const radius = controllingDrone ? 8 : (player.alive ? map.playerRadius : 8);
+  const radius = player.alive ? map.playerRadius : 8;
   const beforeX = mover.x;
   const beforeY = mover.y;
   const nx = mover.x + dx * speed * dt;
   const ny = mover.y + dy * speed * dt;
-  if (!controllingDrone && player.alive) activateHsgForUnsupportedMovement(room, player, nx, ny, timestamp);
-  if (controllingDrone) {
-    mover.x = clampNumber(nx, radius, map.width - radius, mover.x);
-    mover.y = clampNumber(ny, radius, map.height - radius, mover.y);
-  } else if (!player.alive || player.hsgUntil > timestamp || canLevitate(player)) {
+  if (player.alive) activateHsgForUnsupportedMovement(room, player, nx, ny, timestamp);
+  if (!player.alive || player.hsgUntil > timestamp || canLevitate(player)) {
     mover.x = clampNumber(nx, radius, map.width - radius, mover.x);
     mover.y = clampNumber(ny, radius, map.height - radius, mover.y);
   } else if (isWalkable(room, nx, ny, radius)) {
@@ -12879,20 +12869,19 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
     mover.y = ny;
   }
   if (beforeX === mover.x && beforeY === mover.y) return;
-  if (!controllingDrone && player.alive && movementMode !== "dash") {
+  if (player.alive && movementMode !== "dash") {
     const drainRate = movementMode === "slow" ? SLOW_WALK_DRAIN_PER_SECOND : WALK_DRAIN_PER_SECOND;
     spendStamina(mover, drainRate * dt, room, movementMode === "slow" ? "無音歩行" : "歩行");
   }
   const soundInterval = movementMode === "dash" ? 210 : 430;
-  const silentAssassinStep = !controllingDrone && player.special === "assassin";
-  if ((controllingDrone || player.alive) && !silentAssassinStep && movementMode !== "slow" && !passiveEffects.quiet && timestamp - (mover.lastSoundAt || 0) >= soundInterval) {
+  const silentAssassinStep = player.special === "assassin";
+  if (player.alive && !silentAssassinStep && movementMode !== "slow" && !passiveEffects.quiet && timestamp - (mover.lastSoundAt || 0) >= soundInterval) {
     mover.lastSoundAt = timestamp;
-    const boostedDrone = controllingDrone && movementMode === "dash";
-    pushSound(room, movementMode === "dash" ? "dash" : controllingDrone ? "drone" : "walk", mover, {
+    pushSound(room, movementMode === "dash" ? "dash" : "walk", mover, {
       ownerId: player.id,
-      sourceKind: controllingDrone ? "drone" : "player",
-      maxDistance: boostedDrone ? 2100 : movementMode === "dash" ? 1600 : controllingDrone ? 850 : 650,
-      volume: boostedDrone ? 1.2 : movementMode === "dash" ? 1 : controllingDrone ? 0.42 : 0.34
+      sourceKind: "player",
+      maxDistance: movementMode === "dash" ? 1600 : 650,
+      volume: movementMode === "dash" ? 1 : 0.34
     });
   }
 }
@@ -13238,7 +13227,7 @@ function finish(room, winner, reason, cause = {}) {
   room.phase = "ended";
   for (const player of room.players.values()) clearFloraInvisible(room, player, "試合終了で解除");
   room.winner = winner;
-  awardResultFirstPlacePoints(room);
+  commitResultBoard(room);
   if (room.soloMission?.id === "cpu-gravity" && winner === "attackers") {
     room.soloMission.hintUnlocked = true;
   }
@@ -13247,6 +13236,7 @@ function finish(room, winner, reason, cause = {}) {
   room.meeting = null;
   room.sabotage = null;
   room.pendingIdeaVictoryAt = 0;
+  room.ideaVictoryArrivalAt = 0;
   room.players.forEach((player) => {
     player.inVent = false;
     player.ventId = "";
@@ -13254,7 +13244,6 @@ function finish(room, winner, reason, cause = {}) {
     player.slashActiveUntil = 0;
     player.slashPerfectUntil = 0;
     player.slashGuardInputReleased = true;
-    player.drone.active = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
     clearAttackState(player);
@@ -13275,12 +13264,15 @@ function forceEnd(room, player) {
   room.phase = "ended";
   for (const entry of room.players.values()) clearFloraInvisible(room, entry, "試合終了で解除");
   room.winner = "none";
-  awardResultFirstPlacePoints(room);
+  // A forced end has neither a winner nor a loser. Clear any Idea winner
+  // before deterministic MVP selection and the immutable rank-point seal.
+  setIdeaWinnerIds(room, []);
+  commitResultBoard(room);
   room.finishReason = `${player.name} が試合を強制終了しました。`;
   room.meeting = null;
   room.sabotage = null;
-  setIdeaWinnerIds(room, []);
   room.pendingIdeaVictoryAt = 0;
+  room.ideaVictoryArrivalAt = 0;
   room.players.forEach((entry) => {
     entry.inVent = false;
     entry.ventId = "";
@@ -13288,11 +13280,11 @@ function forceEnd(room, player) {
     entry.slashActiveUntil = 0;
     entry.slashPerfectUntil = 0;
     entry.slashGuardInputReleased = true;
-    entry.drone.active = false;
     entry.clairvoyanceActive = false;
     entry.clairvoyanceManaCarry = 0;
     clearAttackState(entry);
   });
+  updatePlayerProfiles(room);
   pushEvent(room, room.finishReason);
   touch(room);
 }
@@ -13520,7 +13512,6 @@ function pausePlayerBattleTime(player, pausedAt, elapsedMs) {
     shiftMeetingAnchor(player.jumpMotion, "startedAt", elapsedMs);
     player.jumpMotion.endsAt = Number(player.jumpMotion.endsAt) + elapsedMs;
   }
-  if (player.drone) shiftMeetingDeadline(player.drone, "readyAt", pausedAt, elapsedMs);
 }
 
 function pauseBattleTimeForMeeting(room, timestamp = now()) {
@@ -13583,7 +13574,6 @@ function startMeeting(room, reason, reporterId, options = {}) {
     clearFloraInvisible(room, player, "会議開始で解除");
     player.inVent = false;
     player.ventId = "";
-    player.drone.active = false;
     player.vx = 0;
     player.vy = 0;
     if (player.gunFiring) stopGunnerFire(room, player, { reason: "会議開始" });
@@ -13681,6 +13671,7 @@ function tickRoom(room) {
   const timestamp = now();
   const elapsedMs = Math.min(250, Math.max(0, timestamp - (Number(room.lastTickAt) || timestamp)));
   room.lastTickAt = timestamp;
+  reconcileBarrierExpiry(room, timestamp);
   if (room.phase === "meeting") {
     pauseBattleTimeForMeeting(room, timestamp);
     for (const player of room.players.values()) {
@@ -13708,11 +13699,6 @@ function tickRoom(room) {
       player.vx = 0;
       player.vy = 0;
       player.movementMode = "time-stopped";
-      if (player.drone) {
-        player.drone.vx = 0;
-        player.drone.vy = 0;
-        player.drone.movementMode = "time-stopped";
-      }
       continue;
     }
     advanceFighterEnergyPassive(room, player, timestamp);
@@ -13779,14 +13765,7 @@ function tickRoom(room) {
     );
     advanceNaturalRecoveryMana(room, player, elapsedMs);
     advanceNaturalRecoveryHealth(room, player, elapsedMs);
-    if (player.resting && Number(player.stamina) >= staminaCapacityFor(player) - 0.01) {
-      player.stamina = staminaCapacityFor(player);
-      player.resting = false;
-      player.sleepingUntil = 0;
-      player.movementMode = "idle";
-      pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id, variant: "complete" });
-      pushEvent(room, `${player.name} の休息が完了し、スタミナが上限まで回復しました。`);
-    }
+    completeRestAtFullStamina(room, player, timestamp);
     advanceIdeaProgress(room, player, timestamp);
     const hackerBot = player.isBot && isHackerOperator(player);
     if (!hackerBot && !autoCompleteHackerTask(room, player, timestamp)) {
@@ -13802,11 +13781,6 @@ function tickRoom(room) {
       }
     } else {
       player.lastPassiveCreditAt = timestamp;
-    }
-    if (player.drone?.active && timestamp - player.lastMoveAt > idleThreshold) {
-      player.drone.vx = 0;
-      player.drone.vy = 0;
-      player.drone.movementMode = "idle";
     }
   }
   if (runAutomaticHumanBodyReports(room, timestamp)) return;
@@ -13838,6 +13812,7 @@ function tickRoom(room) {
         .filter(Boolean);
       if (!ideaWinners.length) {
         room.pendingIdeaVictoryAt = 0;
+        room.ideaVictoryArrivalAt = 0;
         setIdeaWinnerIds(room, []);
         return;
       }
@@ -13914,7 +13889,6 @@ function completeTask(room, player, taskId) {
   spendStamina(player, staminaCost, room, "斬る");
   player.staminaUpdatedAt = timestamp;
   task.done = true;
-  player.taskContribution += TASK_CONTRIBUTION;
   player.taskPresenceTaskId = "";
   player.taskPresenceSince = 0;
   player.taskAutoReadyAt = timestamp + AUTO_TASK_INTERVAL_MS;
@@ -14005,7 +13979,6 @@ function autoCompleteHackerTask(room, player, timestamp = now()) {
     return false;
   }
   task.done = true;
-  player.taskContribution += TASK_CONTRIBUTION;
   grantCredits(room, player, TASK_CREDIT_REWARD, "hacker-task");
   player.hackerTaskReadyAt = player.taskList.some((candidate) => !candidate.done)
     ? timestamp + HACKER_AUTO_TASK_INTERVAL_MS
@@ -14042,10 +14015,10 @@ function activateDodge(room, player) {
   const timestamp = now();
   if (player.dodgeActiveUntil > timestamp) throw new ApiError(400, "回避は発動中です。");
   replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01);
-  if (player.stamina < MAX_STAMINA - 0.01) {
-    throw new ApiError(400, `回避にはスタミナ ${MAX_STAMINA} が必要です。`);
+  if (player.stamina < DODGE_STAMINA_COST - 0.01) {
+    throw new ApiError(400, `回避にはスタミナ ${DODGE_STAMINA_COST} が必要です。`);
   }
-  spendStamina(player, MAX_STAMINA, room, "回避");
+  spendStamina(player, DODGE_STAMINA_COST, room, "回避");
   player.dodgeActiveUntil = timestamp + DODGE_DURATION_MS + player.dodgeDurationBonusMs;
   player.dodgeReadyAt = 0;
   pushMagicEffect(room, "action-dodge", player, { radius: 115, playerId: player.id });
@@ -14131,7 +14104,7 @@ function resolveFighterSlashGuard(room, source, target, attack = {}, timestamp =
   if ((Number(target.slashActiveUntil) || 0) <= timestamp) return "";
   const physical = Boolean(attack.physical);
   const perfect = attack.perfectGuardEligible !== false && (Number(target.slashPerfectUntil) || 0) > timestamp;
-  const universalPerfect = perfect && hasFighterInfiniteResources(target);
+  const universalPerfect = perfect && hasFighterApexPerks(target);
   if (!physical && !universalPerfect) return "";
 
   if (perfect) target.slashPerfectUntil = 0;
@@ -14212,7 +14185,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
   const struckIds = new Set();
   if (target && distance(player, target) <= slashRange) {
     struckIds.add(target.id);
-    const destructionSlash = hasFighterInfiniteResources(player);
+    const destructionSlash = hasFighterApexPerks(player);
     const destructionGuardOutcome = destructionSlash
       ? resolveFighterSlashGuard(room, player, target, {
           kind: "slash",
@@ -14252,7 +14225,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
     });
     pushEvent(room, `${player.name} の${gbo ? "GBO斬り" : enhanceLevel ? "エンハンス斬り" : "斬る"}が ${target.name} に命中しました（${outcome} / 射程${slashRange}${gbo ? " / オリハルコン・ソード破壊" : ""}）。`);
   } else {
-    const universalReflect = hasFighterInfiniteResources(player);
+    const universalReflect = hasFighterApexPerks(player);
     pushEvent(room, `${player.name} が斬るを構えました。物理攻撃をガードし、${perfectGuardOpened ? `短いジャストガード受付で${universalReflect ? "全攻撃" : "物理攻撃"}を反射できます` : "今回はジャストガード再受付前です"}。`);
   }
   // The sword owns only this physical slash/guard.  EC and every wave are
@@ -14337,11 +14310,38 @@ function startRest(room, player) {
   player.vy = 0;
   player.movementMode = "sleep";
   player.lastMoveAt = timestamp;
-  player.drone.active = false;
   clearAttackState(player);
   pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id });
   pushEvent(room, `${player.name} が休息に入りました。スタミナが上限へ達するまで行動できません。`);
   touch(room);
+}
+
+function completeRestAtFullStamina(room, player, timestamp = now()) {
+  if (
+    room?.phase !== "playing" ||
+    !player?.resting ||
+    !player.alive ||
+    player.ejected ||
+    player.inVent
+  ) return { completed: false, manaRestored: false };
+  const capacity = staminaCapacityFor(player);
+  if (Number(player.stamina) < capacity - 0.01) {
+    return { completed: false, manaRestored: false };
+  }
+  setStamina(room, player, capacity, "休息完了", timestamp);
+  const manaRestored = Number(player.mana) < REST_COMPLETION_MANA_FLOOR;
+  if (manaRestored) {
+    setMana(room, player, REST_COMPLETION_MANA_FLOOR, "休息完了", { exact: true });
+  }
+  player.resting = false;
+  player.sleepingUntil = 0;
+  player.movementMode = "idle";
+  pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id, variant: "complete" });
+  pushEvent(
+    room,
+    `${player.name} の休息が完了し、スタミナが上限まで回復しました${manaRestored ? "。マナは2へ回復しました" : ""}。`
+  );
+  return { completed: true, manaRestored };
 }
 
 function resolveExpandedMapTeleportDestination(room, rawX, rawY) {
@@ -14461,7 +14461,6 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   spendOperatorMana(room, player, teleportLabel);
   const origin = moveByExpandedMapTeleport(movingTarget, destination, timestamp);
   player.teleportReadyAt = 0;
-  awardAbilityContribution(player, 0.5);
   pushMagicEffect(room, "action-teleport", origin, { radius: 135, playerId: player.id, targetX: destination.x, targetY: destination.y });
   pushMagicEffect(room, "action-teleport", movingTarget, { radius: 135, playerId: movingTarget.id, variant: "arrival" });
   pushEvent(room, mode === "near"
@@ -14504,11 +14503,6 @@ function useTimeKeeper(room, player) {
     target.vx = 0;
     target.vy = 0;
     target.movementMode = "time-stopped";
-    if (target.drone) {
-      target.drone.vx = 0;
-      target.drone.vy = 0;
-      target.drone.movementMode = "time-stopped";
-    }
     stoppedCount += 1;
   }
   pushMagicEffect(room, "gravity-time-keeper", player, {
@@ -14517,7 +14511,6 @@ function useTimeKeeper(room, player) {
     durationMs: GRAVITY_TIME_KEEPER_DURATION_MS,
     variant: "total-stop"
   });
-  awardAbilityContribution(player, 1);
   pushEvent(room, `${player.name} が時の番人を発動し、術者以外の全てを${GRAVITY_TIME_KEEPER_DURATION_MS / 1000}秒間停止しました（${stoppedCount}人 / マナ${GRAVITY_TIME_KEEPER_MANA_COST}）。`);
   touch(room);
 }
@@ -14604,7 +14597,6 @@ function useGravityStorm(room, player, targetId = "") {
   room.gravityZones.push(zone);
   pushMagicEffect(room, "gravity-storm", zone, { radius: zone.radius, playerId: player.id, variant: "debris-dent" });
   pushSound(room, "gravityStorm", zone, { ownerId: player.id, sourceKind: "magic", maxDistance: 2600, volume: 1 });
-  awardAbilityContribution(player, 1);
   pushEvent(room, `${player.name} が ${target.name} の位置へグラビティストームを展開しました。全域の敵を吸引し、最後の1秒だけ発動者のバリアが消失します。`);
   touch(room);
 }
@@ -14628,6 +14620,7 @@ function displaceByGravity(room, target, rawDx, rawDy, amount) {
 }
 
 function advanceGravitySystems(room, timestamp, elapsedMs) {
+  reconcileBarrierExpiry(room, timestamp);
   for (const controller of room.players.values()) {
     if (!controller.gravityTimeMode) continue;
     const target = room.players.get(controller.gravityTimeTargetId);
@@ -14732,18 +14725,6 @@ function advanceGravitySystems(room, timestamp, elapsedMs) {
   }
 }
 
-function destroyDrone(player, timestamp) {
-  if (!player.drone) return false;
-  const wasActive = player.drone.active;
-  player.drone.active = false;
-  player.drone.vx = 0;
-  player.drone.vy = 0;
-  player.drone.movementMode = "idle";
-  player.drone.readyAt = 0;
-  player.drone.destroyed = true;
-  return wasActive;
-}
-
 function substitutionDestination(room, player, origin) {
   const map = getMap(room);
   const areas = [...map.rooms, ...map.corridors].filter((area) => area.w > 120 && area.h > 120);
@@ -14809,7 +14790,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
     destroy: true,
     reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "lethal", timestamp)
   }, timestamp)) return false;
-  if (hasFighterInfiniteResources(target)) {
+  if (hasFighterApexPerks(target)) {
     applyEmpDisruption(room, target, timestamp);
     syncFighterInfiniteResources(target);
     pushHitEffect(room, target, "body", false);
@@ -14834,11 +14815,9 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   target.limitBreakStacks = 0;
   target.inVent = false;
   target.ventId = "";
-  target.drone.active = false;
   clearAttackState(target);
   transferKillCredits(room, source, target);
   recordCanonicalKill(room, source, target);
-  awardAbilityContribution(source, 1);
   pushHitEffect(room, target, "body", true);
   room.bodies.push({
     id: uid("body_"),
@@ -15128,7 +15107,6 @@ function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, optio
   killer.limitBreakStacks = 0;
   killer.inVent = false;
   killer.ventId = "";
-  killer.drone.active = false;
   clearAttackState(killer);
   completeTasksAfterDeath(room, killer);
   pushHitEffect(room, killer, "body", true);
@@ -15176,6 +15154,32 @@ function preparationBarrierActive(room, timestamp = now()) {
   return room?.phase === "playing" && Number(room.preparationEndsAt) > timestamp;
 }
 
+// Keep the serialized barrier lifecycle authoritative as well as its boolean
+// predicate.  Leaving an expired timestamp in the room made an old shield
+// state available to consumers which did not independently compare it with
+// server time.  In particular, an explicit zero is significant for a Gravity
+// Storm: it means "released", not "use the legacy inferred release time".
+function reconcileBarrierExpiry(room, timestamp = now()) {
+  if (!room) return false;
+  let changed = false;
+  if (Number(room.preparationEndsAt) > 0 && Number(room.preparationEndsAt) <= timestamp) {
+    room.preparationEndsAt = 0;
+    changed = true;
+  }
+  for (const zone of room.gravityZones || []) {
+    const endsAt = Number(zone?.endsAt) || 0;
+    const hasExplicitBarrierUntil = Object.prototype.hasOwnProperty.call(zone || {}, "barrierUntil");
+    const barrierUntil = hasExplicitBarrierUntil
+      ? Number(zone.barrierUntil) || 0
+      : endsAt - GRAVITY_STORM_BARRIER_RELEASE_MS;
+    if (barrierUntil > 0 && barrierUntil <= timestamp) {
+      zone.barrierUntil = 0;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function preparationBarrierProtects(room, target, timestamp = now()) {
   return Boolean(target?.alive && !target.ejected && preparationBarrierActive(room, timestamp));
 }
@@ -15185,7 +15189,11 @@ function activeGravityStormBarrier(room, target, timestamp = now()) {
   return (room?.gravityZones || []).find((zone) => (
     String(zone.ownerId || "") === String(target.id || "") &&
     Number(zone.endsAt) > timestamp &&
-    timestamp < Number(zone.barrierUntil || (Number(zone.endsAt) - GRAVITY_STORM_BARRIER_RELEASE_MS))
+    timestamp < (
+      Object.prototype.hasOwnProperty.call(zone, "barrierUntil")
+        ? Number(zone.barrierUntil) || 0
+        : Number(zone.endsAt) - GRAVITY_STORM_BARRIER_RELEASE_MS
+    )
   )) || null;
 }
 
@@ -15334,13 +15342,11 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   target.limitBreakStacks = 0;
   target.inVent = false;
   target.ventId = "";
-  target.drone.active = false;
   clearAttackState(target);
   completeTasksAfterDeath(room, target);
   if (source && source.id !== target.id) {
     transferKillCredits(room, source, target);
     recordCanonicalKill(room, source, target);
-    awardAbilityContribution(source, 1);
   }
   pushHitEffect(room, target, "body", true);
   room.bodies.push({
@@ -15404,7 +15410,6 @@ function resolveStandardEmp(room, pulse, timestamp) {
   const player = room.players.get(pulse.playerId);
   if (!player) return;
   let cameras = 0;
-  let drones = 0;
   let itemLocks = 0;
   let friendlyReflections = 0;
   const map = getMap(room);
@@ -15433,15 +15438,6 @@ function resolveStandardEmp(room, pulse, timestamp) {
         itemLocks += applyEmpDisruption(room, target, timestamp);
       }
     }
-    if (target.drone?.active && distance(pulse, target.drone) <= EMP_RANGE) {
-      const friendlyDrone = target.id !== player.id && target.role === player.role && ["defender", "attacker"].includes(player.role);
-      if (friendlyDrone) {
-        itemLocks += applyEmpDisruption(room, player, timestamp);
-        friendlyReflections += 1;
-      } else if (destroyDrone(target, timestamp)) {
-        drones += 1;
-      }
-    }
   }
   pushSound(room, "emp", pulse, {
     ownerId: player.id,
@@ -15450,7 +15446,7 @@ function resolveStandardEmp(room, pulse, timestamp) {
     volume: 1
   });
   pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase });
-  pushEvent(room, `${pulse.phase === "positive" ? "正相" : "逆相"}EMP発生: カメラ${cameras}台 / ドローン${drones}機 / ストレージ遮断${itemLocks}人 / 味方反射${friendlyReflections}件`);
+  pushEvent(room, `${pulse.phase === "positive" ? "正相" : "逆相"}EMP発生: カメラ${cameras}台 / ストレージ遮断${itemLocks}人 / 味方反射${friendlyReflections}件`);
   checkWin(room);
   touch(room);
 }
@@ -15855,7 +15851,12 @@ function applyMysteryDrink(room, player, timestamp = now()) {
   return result;
 }
 
-function purchaseDrink(room, player, itemId) {
+function restoreTransactionalPlayerSnapshot(player, snapshot) {
+  for (const key of Object.keys(player)) delete player[key];
+  Object.assign(player, snapshot);
+}
+
+function purchaseDrink(room, player, itemId, options = {}) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在は自販機を利用できません。");
   }
@@ -15878,7 +15879,7 @@ function purchaseDrink(room, player, itemId) {
     speed: { label: "アクセラレート飲料", cost: 55, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.15) * 100) / 100; } },
     warp: { label: "テレポートマップスクロール", cost: 35, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
     mystery: { label: "ミステリー", cost: MYSTERY_COST, apply: () => applyMysteryDrink(room, player) },
-    fire: { label: "火遁の術", cost: FIRE_JUTSU_COST, apply: () => { player.fireJutsuCharges = Math.min(2, player.fireJutsuCharges + 1); } },
+    fire: { label: "火遁スクロール", cost: FIRE_JUTSU_COST, apply: () => { player.fireJutsuCharges = Math.min(2, player.fireJutsuCharges + 1); } },
     substitution: { label: "変わり身の術", cost: SUBSTITUTION_COST, apply: () => {
       if (player.substitutionCharges >= 2) throw new ApiError(400, "変わり身は最大2回分まで所持できます。");
       player.substitutionCharges += 1;
@@ -15899,7 +15900,7 @@ function purchaseDrink(room, player, itemId) {
     railgun: { label: "素敵な発明品・レールガン", cost: 150, apply: () => { player.inventions.push("railgun"); } },
     "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 190, apply: () => { player.inventions.push("particle-cannon"); } },
     excalibur: { label: "素敵な発明品・エクスカリバー", cost: 230, apply: () => { player.inventions.push("excalibur"); } },
-    computer: { label: "パソコン", cost: 125, apply: () => activateComputerInstant(player) },
+    hack: { label: "ハック", cost: 125, apply: () => activateHackInstant(player) },
     handgun: { label: "ハンドガン", cost: 40, apply: () => purchaseFirearm(player, "handgun") },
     smg: { label: "サブマシンガン", cost: 65, apply: () => purchaseFirearm(player, "smg") },
     assault: { label: "アサルトライフル", cost: 85, apply: () => purchaseFirearm(player, "assault") },
@@ -15918,18 +15919,46 @@ function purchaseDrink(room, player, itemId) {
   item.label = product.label;
   item.cost = product.price;
   if (item.role && player.role !== item.role) throw new ApiError(403, "この商品はアタッカー専用です。");
-  if (player.credits < item.cost) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
-  const outcome = item.apply();
+  const bulk = Boolean(options.bulk);
+  const creditSnapshot = Math.max(0, Math.floor(Number(player.credits) || 0));
+  if (creditSnapshot < item.cost) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
+  const quantity = bulk ? Math.floor(creditSnapshot / item.cost) : 1;
+  if (quantity < 1) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
+  const playerSnapshot = bulk ? structuredClone(player) : null;
+  let outcome;
+  try {
+    for (let index = 0; index < quantity; index += 1) outcome = item.apply();
+  } catch (error) {
+    if (playerSnapshot) restoreTransactionalPlayerSnapshot(player, playerSnapshot);
+    throw error;
+  }
   if (!["grit", "reason", "iai"].includes(itemId)) {
     pushInstantItemAcquisitionAte(room, player, itemId, "vending");
   }
-  player.credits -= item.cost;
+  player.credits = creditSnapshot - item.cost * quantity;
   pushMagicEffect(room, itemId === "mystery" ? "mystery-reveal" : "action-vending", player, {
     radius: itemId === "mystery" ? 145 : 90,
     playerId: player.id
   });
-  pushEvent(room, `${player.name} が自販機で${item.label}を購入しました。${outcome ? `結果: ${outcome}` : ""}`);
+  pushEvent(room, `${player.name} が自販機で${item.label}${bulk ? `を${quantity}個一括購入` : "を購入"}しました。${outcome ? `結果: ${outcome}` : ""}`);
   touch(room);
+  return { quantity, spent: item.cost * quantity, remainingCredits: player.credits };
+}
+
+function purchaseDrinkBulk(room, player, itemId, transactionId = "") {
+  const timestamp = now();
+  const id = String(transactionId || "").trim().slice(0, 96);
+  const recent = Array.isArray(player.vendingBulkTransactions) ? player.vendingBulkTransactions : [];
+  const fallbackDuplicate = !id && String(player.lastVendingBulkItemId || "") === String(itemId || "") &&
+    timestamp - (Number(player.lastVendingBulkAt) || 0) < 800;
+  if ((id && recent.some((entry) => entry.id === id)) || fallbackDuplicate) {
+    throw new ApiError(409, "この一括購入は既に処理済みです。");
+  }
+  const result = purchaseDrink(room, player, itemId, { bulk: true });
+  player.vendingBulkTransactions = [...recent.filter((entry) => timestamp - Number(entry.at || 0) < 120_000), ...(id ? [{ id, at: timestamp }] : [])].slice(-32);
+  player.lastVendingBulkItemId = String(itemId || "");
+  player.lastVendingBulkAt = timestamp;
+  return result;
 }
 
 function purchaseFirearm(player, weaponId) {
@@ -15943,9 +15972,9 @@ function purchaseFirearm(player, weaponId) {
   player.gunnerWeapon = weaponId;
 }
 
-function activateComputerInstant(player) {
-  if (player.computerActive) throw new ApiError(400, "パソコン効果は適用済みです。");
-  player.computerActive = true;
+function activateHackInstant(player) {
+  if (player.hackActive) throw new ApiError(400, "ハックは適用済みです。");
+  player.hackActive = true;
 }
 
 function acquirePhysicalHsg(player) {
@@ -15971,7 +16000,7 @@ function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired"
     grit: "instant-stand-firm-acquired",
     reason: "instant-push-acquired",
     iai: "instant-iai-acquired",
-    computer: "instant-computer-acquired"
+    hack: "instant-hack-acquired"
   }[itemId];
   if (!effectType) return;
   pushMagicEffect(room, effectType, player, {
@@ -16046,7 +16075,6 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
   player.limitBreakStacks = 0;
   player.inVent = false;
   player.ventId = "";
-  if (player.drone) player.drone.active = false;
   clearAttackState(player);
   completeTasksAfterDeath(room, player);
   room.bodies.push({
@@ -16528,7 +16556,6 @@ function clearAdverseStatuses(room, player, source = "状態異常回復", times
   if (["unconscious", "time-stopped"].includes(player.movementMode)) {
     player.movementMode = "idle";
   }
-  if (player.drone?.movementMode === "time-stopped") player.drone.movementMode = "idle";
   const clearedBurn = Boolean(player.burnStatus);
   const clearedPoison = Boolean(player.poisonStatus);
   if (naturalRecovery) {
@@ -17376,7 +17403,7 @@ function useQuantumControl(room, player, rawMode) {
       ? firstHeldQuantumItem(player, ["uranium", "plutonium"])
       : mode === "nuclear-fusion"
         ? firstHeldQuantumItem(player, ["seawater"])
-      : firstHeldQuantumItem(player, ["mineral-water"]);
+      : firstHeldQuantumItem(player, ["mineral-water", "seawater"]);
   // A Quantum activation without a compatible held item is a strict silent
   // no-op. This check must precede availability/cost checks and every effect.
   if (!itemId) return false;
@@ -17402,7 +17429,7 @@ function useQuantumControl(room, player, rawMode) {
     });
     pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}を金へ核変換し、${credits}Cへ自動換金しました。`);
   } else if (mode === "kinetic-decelerate" || mode === "kinetic-accelerate") {
-    consumeItem(player, "mineral-water");
+    consumeItem(player, itemId);
     const output = mode === "kinetic-decelerate" ? "ice" : "heated-water";
     addItem(player, output);
     pushMagicEffect(room, mode === "kinetic-decelerate" ? "quantum-temperature-cold" : "quantum-temperature-hot", player, {
@@ -17410,7 +17437,7 @@ function useQuantumControl(room, player, rawMode) {
       playerId: player.id,
       variant: output
     });
-    pushEvent(room, `${player.name} が運動エネルギーを${mode === "kinetic-decelerate" ? "減速させて氷結水" : "加速させて高温水"}を生成しました。`);
+    pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}の運動エネルギーを${mode === "kinetic-decelerate" ? "減速させて氷結水" : "加速させて高温水"}を生成しました。`);
   } else if (nuclearMode) {
     executeQuantumGlobalNuclearEffect(room, player, mode, itemId);
   }
@@ -17470,12 +17497,12 @@ function advanceHazards(room, timestamp = now()) {
 
 function useFireJutsu(room, player, rawHoldMs = 0, chargeId = "") {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は火遁の術を使用できません。");
+    throw new ApiError(403, "現在は火遁スクロールを使用できません。");
   }
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
-  if (player.fireJutsuCharges <= 0) throw new ApiError(400, "火遁の術を所持していません。");
-  const enhance = resolveEnhance(room, player, rawHoldMs, "火遁の術", {
+  if (player.fireJutsuCharges <= 0) throw new ApiError(400, "火遁スクロールを所持していません。");
+  const enhance = resolveEnhance(room, player, rawHoldMs, "火遁スクロール", {
     kind: String(player.enhanceChargeKind || "fire"),
     itemId: "fire-jutsu",
     chargeId,
@@ -17494,7 +17521,7 @@ function useFireJutsu(room, player, rawHoldMs = 0, chargeId = "") {
 
   const fireField = addHazardField(room, player, "fire", origin.x, origin.y, radius, 1 + enhance * 0.35);
   fireField.excludeSource = true;
-  pushEvent(room, `${player.name} が火遁の術を発動し、燃焼領域を展開しました${enhance ? "（エンハンス）" : ""}。`);
+  pushEvent(room, `${player.name} が火遁スクロールを使用し、燃焼領域を展開しました${enhance ? "（エンハンス）" : ""}。`);
   checkWin(room);
   touch(room);
 }
@@ -17550,9 +17577,7 @@ function healFlora(room, player) {
   clearAdverseStatuses(room, player, "フローラ回復", timestamp);
   grantStamina(room, player, MAX_STAMINA, "フローラ回復", timestamp, { floorAtZero: true });
   addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
-  player.floraReadyAt = 0;
   setImmediateFeedback(player, "フローラ回復", `自分 / HP回復 / SP+${MAX_STAMINA} / 状態解除 / 加速`);
-  awardAbilityContribution(player, 1);
   pushMagicEffect(room, "flora", player, { radius: FLORA_SELF_EFFECT_RADIUS, playerId: player.id });
   pushGainAte(room, player, "heal", { variant: "flora" });
   pushGainAte(room, player, "stamina", { variant: "flora", durationMs: 1620 });
@@ -17631,7 +17656,6 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
     variant: `${opticalVariant}:piercing`
   });
   pushSound(room, "sunbeam", player, { ownerId: player.id, sourceKind: "magic", maxDistance: 2100, volume: 0.9 });
-  awardAbilityContribution(player, hits ? 1 : 0.25);
   pushEvent(room, `${player.name} がサンビームを発動しました（${opticalVariant}・判定${hits}人）。`);
   checkWin(room);
   touch(room);
@@ -17720,7 +17744,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { const timestamp = now(); grantStamina(room, player, 350, "バイブコーディング", timestamp, { floorAtZero: true }); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
   hsg: { label: "HSG", cost: 0, apply: (_room, player) => acquirePhysicalHsg(player) },
   heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1; pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
-  fire: { label: "火遁の術", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
+  fire: { label: "火遁スクロール", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
   substitution: { label: "変わり身の術", cost: 1, apply: (room, player) => { player.substitutionCharges += 1; pushInstantItemAcquisitionAte(room, player, "substitution", "hacker"); } },
   warp: { label: "テレポートマップスクロール", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
   grit: { label: "踏ん張り", cost: 1, apply: (room, player) => grantStandFirmCharge(room, player, false, "hacker") },
@@ -17742,7 +17766,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "vending-particle-cannon": { label: "荷電粒子砲", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("particle-cannon")) player.inventions.push("particle-cannon"); } },
   "vending-excalibur": { label: "エクスカリバー", cost: 0, apply: (_room, player) => { if (!player.inventions.includes("excalibur")) player.inventions.push("excalibur"); } },
   "vending-exile": { label: "亡命", cost: 0, apply: (_room, player) => { player.exiled = true; } },
-  "vending-computer": { label: "パソコン", cost: 0, apply: (_room, player) => activateComputerInstant(player) },
+  "vending-hack": { label: "ハック", cost: 0, apply: (_room, player) => activateHackInstant(player) },
   "vending-handgun": { label: "ハンドガン", cost: 0, apply: (_room, player) => purchaseFirearm(player, "handgun") },
   "vending-smg": { label: "サブマシンガン", cost: 0, apply: (_room, player) => purchaseFirearm(player, "smg") },
   "vending-assault": { label: "アサルトライフル", cost: 0, apply: (_room, player) => purchaseFirearm(player, "assault") },
@@ -17827,6 +17851,14 @@ function duplicateHackableInventory(target) {
     if (itemId === "hsg") continue;
     target.itemInventory[itemId] = itemCount(target, itemId) * 2;
   }
+}
+
+function hasHackableInventory(target, duplicate = false) {
+  if (["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges", "iaiCharges"]
+    .some((field) => Math.max(0, Number(target?.[field]) || 0) > 0)) return true;
+  if ((target?.inventions || []).length > 0) return true;
+  return Object.keys(target?.itemInventory || {}).some((itemId) =>
+    (!duplicate || itemId !== "hsg") && itemCount(target, itemId) > 0);
 }
 
 function recoverHackerTargetStatus(room, player, targetId) {
@@ -17972,7 +18004,6 @@ function useAlchemy(room, player, rawConversion, targetId = "") {
   }
   player.staminaUpdatedAt = now();
   maintainNaturalRecovery(room, player, player.staminaUpdatedAt);
-  awardAbilityContribution(player, 0.75);
   pushMagicEffect(room, "action-vibe-coding", player, {
     radius: 145,
     playerId: player.id,
@@ -18060,7 +18091,6 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   target.substitutionCharges = 0;
   target.inVent = false;
   target.ventId = "";
-  target.drone.active = false;
   clearAttackState(target);
   completeTasksAfterDeath(room, target);
   if (source && source.id !== target.id) {
@@ -18120,9 +18150,9 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
     : 1 + power.enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL;
   player.inventions.splice(index, 1);
   if (power.mode === "gbo") pushGboOverdriveEffect(room, player, `invention:${id}`, "invention-use");
-  if (id === "computer") {
+  if (id === "hack") {
     room.utilityViews.set(player.id, {
-      type: "computer", title: "Smartphone Geolocation",
+      type: "hack", title: "ハック",
       lines: [...room.players.values()]
         .filter((target) => target.alive && !target.ejected && target.special !== "alchemist")
         .map((target) => `${target.name}: ${whichRoom(getMap(room), target)} (${Math.round(target.x)}, ${Math.round(target.y)})`)
@@ -18164,7 +18194,6 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
       variant: power.mode === "gbo" ? "gbo-tenfold" : "continuous"
     });
   }
-  awardAbilityContribution(player, 2);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "alchemy", maxDistance: 3200, volume: 1 });
   pushEvent(room, `${player.name} が素敵な発明品 ${id} を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
   checkWin(room);
@@ -18511,7 +18540,6 @@ function killPlayer(room, killer, targetId, options = {}) {
     killer.reasonCharges -= 1;
     const removedCharges = Number(target.gritCharges) || 0;
     target.gritCharges = 0;
-    awardAbilityContribution(killer, 0.5);
     pushMagicEffect(room, "action-push", target, {
       radius: 125,
       playerId: killer.id,
@@ -18546,13 +18574,11 @@ function killPlayer(room, killer, targetId, options = {}) {
       killer.limitBreakStacks = 0;
       killer.inVent = false;
       killer.ventId = "";
-      killer.drone.active = false;
       clearAttackState(killer);
       completeTasksAfterDeath(room, killer);
       transferKillCredits(room, target, killer);
       recordCanonicalKill(room, target, killer);
       target.killsThisRound += 1;
-      awardAbilityContribution(target, 1);
       target.killReadyAt = timestamp + killCooldownDurationMs(room, target);
       pushHitEffect(room, killer, "body", true);
       room.bodies.push({
@@ -18589,8 +18615,8 @@ function killPlayer(room, killer, targetId, options = {}) {
     return "dodged";
   }
 
-  if (hitZone === "head" && !hackerRootEligible(target) && !hasLimitBreakDeathVulnerability(target) && itemStorageAvailable(target, timestamp) && passivesEnabled(target) && target.gritCharges > 0) {
-    target.gritCharges -= 1;
+  if (hitZone === "head" && !hackerRootEligible(target) && !hasLimitBreakDeathVulnerability(target) && itemStorageAvailable(target, timestamp) && passivesEnabled(target) && (hasFighterInfiniteResources(target) || target.gritCharges > 0)) {
+    if (!hasFighterInfiniteResources(target)) target.gritCharges -= 1;
     hitZone = "body";
     standFirmConverted = true;
     if (target.isBot) {
@@ -18610,7 +18636,6 @@ function killPlayer(room, killer, targetId, options = {}) {
     else if (!ignoreCooldown && !preserveCooldown) killer.killReadyAt = timestamp + QUICK_FOLLOW_UP_COOLDOWN_MS;
     pushHitEffect(room, target, "body", false);
     pushEvent(room, `${target.name} のオーバーヒールがボディ攻撃を吸収しました。`);
-    if (hasOperatorAccess(killer, "gunner")) awardAbilityContribution(killer, 0.5);
     touch(room);
     return "overheal";
   }
@@ -18634,7 +18659,6 @@ function killPlayer(room, killer, targetId, options = {}) {
       else if (!ignoreCooldown && !preserveCooldown) killer.killReadyAt = timestamp + QUICK_FOLLOW_UP_COOLDOWN_MS;
       pushHitEffect(room, target, "body", false);
       pushEvent(room, `${target.name} が${bodyDamage.toFixed(2)}ダメージを受けました（残りHP ${(2 - nextDamage).toFixed(2)}）。`);
-      if (hasOperatorAccess(killer, "gunner")) awardAbilityContribution(killer, Math.min(0.2, bodyDamage / 3));
       touch(room);
       return "body";
     }
@@ -18670,7 +18694,6 @@ function killPlayer(room, killer, targetId, options = {}) {
   transferKillInventory(room, killer, target);
   recordCanonicalKill(room, killer, target);
   evaluateSoloMission(room, timestamp);
-  if (hasOperatorAccess(killer, "gunner")) awardAbilityContribution(killer, 0.5);
   if (!options.noBody) {
     room.bodies.push({
       id: uid("body_"),
@@ -18890,7 +18913,11 @@ function gunnerDamageAtDistance(weapon, distanceToTarget) {
 }
 
 function findGunnerTarget(room, shooter, weapon, dx, dy, options = {}) {
-  const path = resolveVectorAttackPath(room, shooter, dx, dy, weapon.range, { collisionRadius: 2 });
+  // Penetrate is the one named special-round exception to normal wall path
+  // clipping.  General firearms and generated-cover rules remain unchanged.
+  const path = options.penetrate
+    ? { distance: weapon.range, x: shooter.x + dx * weapon.range, y: shooter.y + dy * weapon.range }
+    : resolveVectorAttackPath(room, shooter, dx, dy, weapon.range, { collisionRadius: 2 });
   return [...room.players.values()]
     .filter((player) => player.id !== shooter.id && player.alive && !player.ejected)
     .map((player) => {
@@ -18911,7 +18938,7 @@ function gunnerSpecialAmmoLabel(type) {
 
 function ensureGunnerSpecialAmmoInventory(player) {
   if (!player.gunnerSpecialAmmoInventory || typeof player.gunnerSpecialAmmoInventory !== "object") {
-    player.gunnerSpecialAmmoInventory = { weak: 0, shock: 0 };
+    player.gunnerSpecialAmmoInventory = { weak: 0, penetrate: 0, shock: 0 };
     const legacyType = String(player.gunnerSpecialAmmoType || "");
     if (GUNNER_SPECIAL_AMMO_TYPES.includes(legacyType)) {
       player.gunnerSpecialAmmoInventory[legacyType] = Math.max(0, Math.floor(Number(player.gunnerSpecialAmmoRounds) || 0));
@@ -19043,7 +19070,10 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   });
 
   const { dx, dy } = finiteDirection(shooter.aimX, shooter.aimY, 0, 1);
-  const targetEntry = findGunnerTarget(room, shooter, effectiveWeapon, dx, dy, { ignoreCover: true });
+  const targetEntry = findGunnerTarget(room, shooter, effectiveWeapon, dx, dy, {
+    ignoreCover: true,
+    penetrate: specialAmmoType === "penetrate"
+  });
   const endPoint = targetEntry
     ? { x: shooter.x + dx * targetEntry.along, y: shooter.y + dy * targetEntry.along }
     : shotEndPoint(room, shooter, dx, dy, effectiveWeapon.range);
@@ -19071,6 +19101,8 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         ? `エイム・${weapon.name}HS`
         : specialAmmoType === "weak"
           ? "ウィーク弾"
+          : specialAmmoType === "penetrate"
+            ? "ペネトレイト弾"
           : specialAmmoType === "shock"
             ? "ショック弾"
             : `${gbo ? "GBO・" : ""}${weapon.name}の銃弾`;
@@ -19151,8 +19183,8 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
       damage,
       allowAnyKiller: true,
       targetRole: targetEntry.player.role,
-      attackKind: gbo ? "gbo-bullet" : "bullet",
-      attackLabel: `${gbo ? "GBO・" : ""}${weapon.name}の銃弾`,
+      attackKind: specialAmmoType === "penetrate" ? "penetrate-bullet" : gbo ? "gbo-bullet" : "bullet",
+      attackLabel: specialAmmoType === "penetrate" ? "ペネトレイト弾" : `${gbo ? "GBO・" : ""}${weapon.name}の銃弾`,
       slashGuardPhysical: true
     });
     if (weapon.id === "taser" && !["lethal", "slashGuarded", "slashPerfectGuarded", "slashPerfectReflected"].includes(outcome) && targetEntry.player.alive) {
@@ -19210,6 +19242,9 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 
     startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空のため");
     return;
   }
+  if (availableStamina(shooter) < GUNNER_BURST_STAMINA_COST) {
+    throw new ApiError(400, `1弾倉射撃にはスタミナ ${GUNNER_BURST_STAMINA_COST} が必要です。`);
+  }
   const power = resolveHeldPowerMode(room, shooter, rawHoldMs, `${weapon.name}ため撃ち`, {
     kind: "shoot",
     itemId: `weapon:${weapon.id}`,
@@ -19228,6 +19263,10 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 
   dy /= length;
   shooter.aimX = dx;
   shooter.aimY = dy;
+  // Charge once only after all ordinary action validation has succeeded and
+  // before the first projectile can leave the magazine.  Later rounds,
+  // release and duplicate start requests own no additional SP transaction.
+  spendStamina(shooter, GUNNER_BURST_STAMINA_COST, room, "1弾倉射撃");
   shooter.gunFiring = true;
   shooter.gunFiringWeapon = weapon.id;
   shooter.gunFiringSince = timestamp;
@@ -19410,7 +19449,6 @@ function advanceGunnerAimPassive(room, player, timestamp = now()) {
     player?.alive &&
     !player.ejected &&
     !player.inVent &&
-    !player.drone?.active &&
     hasOperatorAccess(player, "gunner") &&
     passivesEnabled(player) &&
     gunnerAimMovementAllowed(player)
@@ -19463,9 +19501,18 @@ function useHeavyWeapon(room, player, weaponId, rawHoldMs = 0, chargeId = "") {
     : 1 + power.enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL;
   player.heavyWeapons.splice(index, 1);
   if (power.mode === "gbo") pushGboOverdriveEffect(room, player, `heavy:${weapon}`, "heavy-use");
-  const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected);
+  const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.inVent);
   if (weapon === "rpg") {
-    for (const target of targets.filter((candidate) => distance(player, candidate) <= 300 * performanceMultiplier)) {
+    const rpgRange = 300 * performanceMultiplier;
+    const rpgPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, rpgRange, { collisionRadius: 2 });
+    for (const target of targets.filter((candidate) => {
+      if (player.isBot && !botCanAttackTarget(room, player, candidate, now())) return false;
+      const candidateDistance = distance(player, candidate);
+      if (candidateDistance > rpgRange) return false;
+      const dx = (candidate.x - player.x) / Math.max(candidateDistance, 1);
+      const dy = (candidate.y - player.y) / Math.max(candidateDistance, 1);
+      return clearShotPath(room, player, candidate, dx, dy);
+    })) {
       try {
         killPlayer(room, player, target.id, {
           ranged: true, hitZone: "body", damage: 1 * performanceMultiplier, ignoreRange: true,
@@ -19474,9 +19521,19 @@ function useHeavyWeapon(room, player, weaponId, rawHoldMs = 0, chargeId = "") {
         });
       } catch {}
     }
-    pushMagicEffect(room, "gunner-rpg", player, { radius: 300 * performanceMultiplier, playerId: player.id, variant: power.mode });
+    pushMagicEffect(room, "gunner-rpg", player, { radius: rpgRange, playerId: player.id, targetX: rpgPath.x, targetY: rpgPath.y, variant: power.mode });
   } else if (weapon === "missile") {
-    const target = targets.sort((a, b) => distance(player, a) - distance(player, b))[0];
+    const target = player.isBot
+      ? botMissileTarget(room, player, now())
+      : targets
+        .filter((candidate) => {
+          if (candidate.role === player.role) return false;
+          const candidateDistance = distance(player, candidate);
+          const dx = (candidate.x - player.x) / Math.max(candidateDistance, 1);
+          const dy = (candidate.y - player.y) / Math.max(candidateDistance, 1);
+          return clearShotPath(room, player, candidate, dx, dy);
+        })
+        .sort((a, b) => distance(player, a) - distance(player, b) || a.id.localeCompare(b.id))[0];
     if (target) {
       try {
         killPlayer(room, player, target.id, {
@@ -19488,7 +19545,6 @@ function useHeavyWeapon(room, player, weaponId, rawHoldMs = 0, chargeId = "") {
       pushMagicEffect(room, "gunner-missile", player, { radius: 150 * performanceMultiplier, playerId: player.id, targetId: target.id, targetX: target.x, targetY: target.y, variant: power.mode });
     }
   }
-  awardAbilityContribution(player, 1);
   pushSound(room, "heavyWeapon", player, { ownerId: player.id, sourceKind: "weapon", maxDistance: 10000, volume: 1.25, variant: weapon });
   pushEvent(room, `${player.name} が${HEAVY_WEAPON_DEFINITIONS[weapon].label}を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
   checkWin(room);
@@ -19843,7 +19899,6 @@ function useLuminous(room, player, targetId) {
       removeDefeatedPlayerFromMeeting(room.meeting, target.id);
       player.luminousActive = true;
       player.killsThisRound += 1;
-      player.luminousContribution = 0;
       player.lastLuminousResult = "success";
       pushEvent(room, `${player.name} のルミナスが ${target.name} を消滅させ、キルとして記録しました。`);
     }
@@ -19859,7 +19914,6 @@ function useLuminous(room, player, targetId) {
     player.inVent = false;
     player.ventId = "";
     player.bodyHits = 0;
-    player.drone.active = false;
     clearAttackState(player);
     completeTasksAfterDeath(room, player);
     removeDefeatedPlayerFromMeeting(room.meeting, player.id);
@@ -20213,112 +20267,82 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
   };
 }
 
-function victoryCreditFor(room, player, ideaWinnerIds = new Set(ideaWinnerIdsFor(room))) {
-  if (room.winner === "defenders") return player.role === "defender" ? 1 : 0;
-  if (room.winner === "attackers") return player.role === "attacker" ? 1 : 0;
-  return room.winner === "idea" && ideaWinnerIds.has(player.id) ? 1 : 0;
+// The pre-MVP Result total has only two inputs: qualifying kills and the
+// ordinary match outcome. An Idea winner/loser still won/lost.
+function calculateResultPoints(room, player) {
+  const players = [...room.players.values()];
+  const attackers = players.filter((entry) => entry.role === "attacker");
+  const defenders = players.filter((entry) => entry.role === "defender");
+  const attackerQuota = Math.max(1, Math.ceil(defenders.length / Math.max(1, attackers.length)));
+  const kills = Math.max(0, Number(player.totalKills) || 0);
+  const killPoints = player.role === "attacker" ? Math.floor(kills / attackerQuota) : kills;
+  const decidedOutcome = room.winner === "defenders" || room.winner === "attackers" || room.winner === "idea";
+  const won = room.winner === "idea"
+    ? ideaWinnerIdsFor(room).includes(player.id)
+    : room.winner === "defenders"
+      ? player.role === "defender"
+      : room.winner === "attackers" && player.role === "attacker";
+  const outcomePoints = decidedOutcome ? (won ? 1 : -1) : 0;
+  return killPoints + outcomePoints;
 }
 
-// The final Result leader is selected once from the pre-reward, deterministic
-// contribution ranking.  It is an account-points reward only: contribution
-// values, Result ranks, and their displayed breakdown remain untouched.
-function awardResultFirstPlacePoints(room) {
-  if (room.resultFirstPlacePointsAwarded) return false;
-  const leader = contributionRankingEntries(room)[0];
-  room.resultFirstPlacePointsAwarded = true;
-  room.resultFirstPlacePointsPlayerId = leader?.id || "";
-  return Boolean(leader);
+// Commit a self-contained board exactly once.  All later Result serialization
+// and profile updates read this immutable transaction instead of recalculating.
+function commitResultBoard(room) {
+  if (room.resultBoardCommitted) return false;
+  const ordered = [...room.players.values()]
+    .map((player) => ({ player, points: calculateResultPoints(room, player) }))
+    .sort((left, right) => (
+      right.points - left.points ||
+      left.player.name.localeCompare(right.player.name, "ja") ||
+      left.player.id.localeCompare(right.player.id)
+    ));
+  const mvpPlayerId = ordered[0]?.player.id || "";
+  room.resultBoardByPlayerId = Object.fromEntries(ordered.map(({ player, points }) => [player.id, {
+    points: points + (player.id === mvpPlayerId ? 1 : 0),
+    mvp: player.id === mvpPlayerId
+  }]));
+  room.resultBoardCommitted = true;
+  return true;
 }
 
-function contributionRankingEntries(room) {
-  const ideaWinnerIds = new Set(ideaWinnerIdsFor(room));
+function resultBoardEntries(room) {
+  if (!room.resultBoardCommitted) return [];
   const entries = [...room.players.values()]
     .map((player) => {
-      const kills = Math.max(0, Number(player.totalKills) || 0);
-      const attackerQuota = Math.max(
-        1,
-        Number(room.killRateAttackerTarget) || Math.ceil(
-          [...room.players.values()].filter((entry) => entry.role === "defender").length /
-          Math.max(1, [...room.players.values()].filter((entry) => entry.role === "attacker").length)
-        )
-      );
-      // Defenders receive one contribution point per kill.  Attackers receive
-      // one point per complete defender-population quota, keeping 2v8 at four
-      // kills per point rather than awarding a smaller faction disproportionate
-      // Result movement.
-      const killContribution = player.role === "attacker"
-        ? Math.floor(kills / attackerQuota)
-        : kills;
-      const victoryContribution = victoryCreditFor(room, player, ideaWinnerIds);
-      const ideaContribution = ideaWinnerIds.has(player.id) ? 1 : 0;
+      const board = room.resultBoardByPlayerId?.[player.id];
+      if (!board) return null;
       return {
-      id: player.id,
-      name: player.name,
-      isBot: player.isBot,
-      color: player.color,
-      skinId: player.skinId || (player.isBot ? "operator" : "hood"),
-      role: player.role,
-      operatorId: player.operatorId,
-      rank: profileFor(player)?.rank || "bronze",
-      kd: profileFor(player) ? `${Number(profileFor(player).kills) || 0}/${Number(profileFor(player).deaths) || 0}` : "0/0",
-      actualKills: Number(player.totalKills) || 0,
-      luminousContribution: Number(player.luminousContribution) || 0,
-      abilityContribution: Number(player.abilityContribution) || 0,
-      taskContribution: Number(player.taskContribution) || 0,
-      killContribution,
-      // Compatibility for pre-v515 clients; all current Result rendering uses
-      // the role-neutral field above.
-      defenderKillContribution: killContribution,
-      victoryCredit: victoryContribution,
-      ideaContribution,
-      contributionScore: killContribution + victoryContribution + ideaContribution,
-      luminousSuccess: Boolean(player.luminousActive),
-      ideaWinner: ideaWinnerIds.has(player.id)
+        id: player.id,
+        name: player.name,
+        isBot: player.isBot,
+        color: player.color,
+        skinId: player.skinId || (player.isBot ? "operator" : "hood"),
+        role: player.role,
+        operatorId: player.operatorId,
+        mvp: Boolean(board.mvp),
+        points: Number(board.points) || 0
       };
     })
+    .filter(Boolean)
     .sort((a, b) => (
-      b.contributionScore - a.contributionScore ||
-      a.name.localeCompare(b.name, "ja")
+      b.points - a.points ||
+      a.name.localeCompare(b.name, "ja") ||
+      a.id.localeCompare(b.id)
     ));
 
-  let rank = 0;
-  let previousScore = null;
-  const upperPlacementInclusive = Math.ceil(entries.length / 2);
-  return entries.map((entry, index) => {
-    if (entry.contributionScore !== previousScore) rank = index + 1;
-    previousScore = entry.contributionScore;
-    // Competition ranks keep equal contribution together.  A tie that touches
-    // the midpoint is resolved as the upper group, so equal scores are never
-    // split into opposite profile movements.
-    const rankMovement = rank <= upperPlacementInclusive ? 1 : -1;
-    return {
-      ...entry,
-      rank,
-      rankingPosition: rank,
-      rankingPopulation: entries.length,
-      rankMovement,
-      rankDelta: rankMovement
-    };
-  });
+  return entries;
 }
 
-function resultRanking(room) {
-  return contributionRankingEntries(room).map((entry) => {
-    const profile = profileFor(room.players.get(entry.id));
-    return {
-      ...entry,
-      rankTier: profile?.rank || "bronze",
-      profileRank: profile?.rank || "bronze",
-      profilePoints: Math.max(0, Number(profile?.points) || 0),
-      firstPlacePointsBonus: room.resultFirstPlacePointsPlayerId === entry.id ? 2 : 0
-    };
-  });
+function resultBoard(room) {
+  return resultBoardEntries(room);
 }
 
 function serialize(room, viewer, options = {}) {
   if (!options.skipTick) tickRoom(room);
   const map = getMap(room);
   const timestamp = now();
+  reconcileBarrierExpiry(room, timestamp);
   const activeDoorIds = new Set(activeDoors(room).map((door) => door.id));
   const revealRoles = room.phase === "ended";
   const meetingVotes = room.meeting
@@ -20515,7 +20539,6 @@ function serialize(room, viewer, options = {}) {
       lastAttackResultAt: viewer.lastAttackResultAt,
       luminousUsed: viewer.luminousUsed,
       luminousActive: viewer.luminousActive,
-      luminousContribution: viewer.luminousContribution,
       totalKills: viewer.totalKills,
       lastLuminousResult: viewer.lastLuminousResult,
       lastLuminousResultAt: viewer.lastLuminousResultAt,
@@ -20561,7 +20584,6 @@ function serialize(room, viewer, options = {}) {
         viewer.alive &&
         !viewer.ejected &&
         !viewer.inVent &&
-        !viewer.drone?.active &&
         hasOperatorAccess(viewer, "gunner") &&
         passivesEnabled(viewer) &&
         gunnerAimMovementAllowed(viewer)
@@ -20582,7 +20604,6 @@ function serialize(room, viewer, options = {}) {
       slashPerfectGuardMs: FIGHTER_SLASH_PERFECT_GUARD_MS,
       slashPerfectRearmMs: FIGHTER_SLASH_PERFECT_REARM_MS,
       teleportReadyAt: viewer.teleportReadyAt,
-      floraReadyAt: viewer.floraReadyAt,
       floraInvisibleActive: floraInvisibleActive(viewer, timestamp),
       floraInvisibleUntil: Number(viewer.floraInvisibleUntil) || 0,
       floraInvisibleDurationMs: FLORA_INVISIBLE_DURATION_MS,
@@ -20596,7 +20617,7 @@ function serialize(room, viewer, options = {}) {
       fighterEnergyChargeReadyAt: Number(viewer.fighterEnergyChargeReadyAt) || 0,
       fighterEnergyChargeIntervalMs: FIGHTER_ENERGY_PASSIVE_INTERVAL_MS,
       fighterInfiniteResources: hasFighterInfiniteResources(viewer),
-      fighterDestructionSlash: hasFighterInfiniteResources(viewer),
+      fighterDestructionSlash: hasFighterApexPerks(viewer),
       empReadyAt: viewer.empReadyAt,
       empCooldownMs: room.soloMission?.id === "emp" ? 3000 : EMP_COOLDOWN_MS,
       slowedUntil: viewer.slowedUntil,
@@ -20642,6 +20663,8 @@ function serialize(room, viewer, options = {}) {
         (Number(viewer.rationalFreeAbilityReadyAt) || Infinity) <= timestamp,
       rationalFreeAbilityIntervalMs: RATIONAL_FREE_ABILITY_INTERVAL_MS,
       taskStaminaRequirement: taskStaminaCostFor(viewer),
+      dodgeStaminaCost: DODGE_STAMINA_COST,
+      gunnerBurstStaminaCost: GUNNER_BURST_STAMINA_COST,
       fighterSlashStaminaCost: FIGHTER_SLASH_STAMINA_COST,
       ideaStage: Number(viewer.ideaStage) || 0,
       ideaFirstAspect: viewer.ideaFirstAspect || "",
@@ -20687,8 +20710,7 @@ function serialize(room, viewer, options = {}) {
       naturalRecoveryManaPerSecond: NATURAL_RECOVERY_MANA_PER_SECOND * floraAromaMultiplier(room, viewer),
       naturalRecoveryManaCap: serializeResourceValue(manaCapacityFor(viewer)),
       sleepRegenPerSecond: STAMINA_REGEN_PER_SECOND * SLEEP_REGEN_MULTIPLIER,
-      abilityContribution: viewer.abilityContribution,
-      taskContribution: viewer.taskContribution,
+      restCompletionManaFloor: REST_COMPLETION_MANA_FLOOR,
       speedMultiplier: effectiveMovementMultiplier(room, viewer),
       accelerationMultiplier: effectiveAccelerationMultiplier(room, viewer, timestamp),
       movementAcc: movementAccState(room, viewer, timestamp).selected,
@@ -20738,8 +20760,8 @@ function serialize(room, viewer, options = {}) {
         return product?.hackerAccess !== "root" || hackerRootEligible(viewer);
       }) : [],
       inventions: [...(viewer.inventions || [])],
-      computerActive: Boolean(viewer.computerActive),
-      computerEffective: Boolean(viewer.computerActive && itemStorageAvailable(viewer, timestamp)),
+      hackActive: Boolean(viewer.hackActive),
+      hackEffective: Boolean(viewer.hackActive && itemStorageAvailable(viewer, timestamp)),
       exiled: Boolean(viewer.exiled),
       hackTracking: room.phase === "playing" && isHackerOperator(viewer) && viewer.alive && !viewer.ejected,
       hackerRootActive: hackerRootEligible(viewer),
@@ -20817,7 +20839,7 @@ function serialize(room, viewer, options = {}) {
     ideaWinnerIds: ideaWinnerIdsFor(room),
     pendingIdeaVictoryAt: room.pendingIdeaVictoryAt,
     finishReason: room.finishReason,
-    results: room.phase === "ended" ? resultRanking(room) : [],
+    results: room.phase === "ended" ? resultBoard(room) : [],
     availableMaps: Object.values(MAPS).map((item) => ({ id: item.id, label: item.label }))
   };
 }
@@ -20871,6 +20893,213 @@ function requireLegacyRoomTestFixture(req, body) {
   throw new ApiError(410, "部屋作成・部屋設定機能は廃止されました。マッチングを使用してください。");
 }
 
+// Deliberately local-only regression states used by the hidden real-screen
+// recurrence audit.  They reuse normal authoritative primitives and return
+// ordinary serialization, but cannot be reached by the public client.
+function applyRealScreenRegressionFixture(room, player, rawKind) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(400, "実画面回帰fixtureはプレイ中の生存プレイヤーだけに使用できます。");
+  }
+  const kind = String(rawKind || "");
+  if (kind === "desire-precondition") {
+    setMana(room, player, 0, "実画面Desire fixture", { exact: true });
+    setStamina(room, player, 0.25, "実画面Desire fixture");
+    const base = Math.max(1, Number(player.lastMovementClock) || 1);
+    processMovementInput(room, player, { dx: 1, dy: 0, movementSession: `fixture-desire-${player.id}`, movementSessionStartedAt: now(), movementSeq: 0, movementClock: base });
+    processMovementInput(room, player, { dx: 1, dy: 0, movementSession: `fixture-desire-${player.id}`, movementSessionStartedAt: now(), movementSeq: 1, movementClock: base + 1_000 });
+    processMovementInput(room, player, { dx: 0, dy: 0, movementSession: `fixture-desire-${player.id}`, movementSessionStartedAt: now(), movementSeq: 2, movementClock: base + 1_001 });
+  } else if (kind === "hsg-ground-pickup") {
+    if (itemCount(player, "hsg") < 1) addItem(player, "hsg", 1);
+    consumeItem(player, "hsg", 1);
+    const groundItem = placeRigidGroundItem(room, {
+      itemId: "hsg", item: { id: "hsg", label: ITEM_DEFINITIONS.hsg.label, amount: 1 },
+      ownerId: player.id, x: player.x, y: player.y, targetX: player.x, targetY: player.y
+    }, { x: player.x, y: player.y }, "hsg");
+    // A deterministic hidden-screen fixture must survive the same first bot
+    // tick that delivers it to the client. Normal ground items never carry
+    // this local-developer-only reservation and retain ordinary bot pickup.
+    groundItem.fixtureReservedOwnerId = player.id;
+  } else if (kind === "marker-coalesce") {
+    pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-1", durationMs: 1_500 });
+    pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-2", durationMs: 1_500 });
+    pushMagicEffect(room, "action-dodge", player, { radius: 115, playerId: player.id, variant: "fixture-positive-control", durationMs: 900 });
+  } else if (kind === "credit-ate-task") {
+    player.credits = 0;
+    grantCredits(room, player, TASK_CREDIT_REWARD, "fixture-credit-task");
+  } else if (kind === "credit-ate-gold") {
+    player.credits = 0;
+    acquireGoldAsCredits(room, player, "fixture-credit-gold");
+  } else if (kind === "hacker-flick-tap") {
+    const timestamp = now();
+    player.role = "attacker";
+    player.operatorId = "attacker-alchemist";
+    player.special = "alchemist";
+    player.operatorReady = true;
+    player.alive = true;
+    player.ejected = false;
+    player.inVent = false;
+    player.credits = 12;
+    player.mana = manaCapacityFor(player);
+    player.vibeCodingReadyAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    // Hold the ordinary combat actors outside their decision windows long
+    // enough for a bounded hidden-screen pointer transaction. The gesture and
+    // its Hacker action route remain the production UI and API paths.
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+      entry.emergenciesLeft = 0;
+    }
+  } else if (kind === "enemy-bot-combat") {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    const hunter = bots[0];
+    if (!hunter) throw new ApiError(400, "敵Bot戦闘実画面fixtureにBotがいません。");
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > map.playerRadius * 4 && Number(rect.h) > map.playerRadius * 4)
+      .sort((a, b) => Math.max(Number(b.w), Number(b.h)) - Math.max(Number(a.w), Number(a.h)))[0];
+    if (!arena) throw new ApiError(400, "敵Bot戦闘実画面fixtureに通行可能領域がありません。");
+    const margin = Math.max(map.playerRadius + 14, 40);
+    const alongX = Number(arena.w) >= Number(arena.h);
+    const available = Math.max(1, (alongX ? Number(arena.w) : Number(arena.h)) - margin * 2);
+    const separation = Math.min(360, Math.max(room.settings.killRange + 90, available * 0.55));
+    const first = margin;
+    const second = Math.min(margin + separation, margin + available);
+    const fixed = alongX ? Number(arena.y) + Number(arena.h) / 2 : Number(arena.x) + Number(arena.w) / 2;
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "defender-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      x: alongX ? Number(arena.x) + second : fixed,
+      y: alongX ? fixed : Number(arena.y) + second,
+      health: 2, killReadyAt: 0
+    });
+    for (const bot of bots) {
+      if (bot !== hunter) {
+        bot.ejected = true;
+        bot.alive = false;
+        continue;
+      }
+      Object.assign(bot, {
+        role: "attacker", special: "fighter", operatorId: "attacker-fighter", operatorReady: true,
+        alive: true, ejected: false, inVent: false,
+        x: alongX ? Number(arena.x) + first : fixed,
+        y: alongX ? fixed : Number(arena.y) + first,
+        mana: 0, maxMana: Math.max(20, Number(bot.maxMana) || 0),
+        stamina: Math.max(MAX_STAMINA, Number(bot.stamina) || 0),
+        nextBotActionAt: 0, killReadyAt: 0, meditatingUntil: 0,
+        actionTargetId: "", attackTargetId: "", aimTargetId: "", botCombatPlan: null,
+        navPath: [], navTargetId: "", fighterEnergy: 0
+      });
+    }
+    // Exercise the same first-screen lifecycle reported by the user: the
+    // opening shield is present briefly, expires through the ordinary tick,
+    // and the hostile Bot must then continue from pursuit into a real kill.
+    room.preparationEndsAt = timestamp + 1_500;
+    room.meeting = null;
+    room.sabotage = null;
+    room.bodies = [];
+    room.finishReason = "";
+    pushEvent(room, `実画面検証: ${hunter.name} が既知の敵へ接敵し、キルまで継続します。`);
+  } else if (kind === "meeting-chat-layout") {
+    const timestamp = now();
+    startMeeting(room, "実画面検証: チャット安全幅", player.id);
+    room.meeting.discussionEndsAt = timestamp + 120_000;
+    room.meeting.endsAt = timestamp + 180_000;
+    room.chat.push({
+      id: uid("c_"),
+      at: timestamp,
+      playerId: player.id,
+      name: player.name,
+      killRate: 0,
+      message: "W".repeat(180),
+      muted: false
+    });
+    room.chat = room.chat.slice(-60);
+  } else if (kind === "result-points-clean-rebuild" || kind === "result-points-mvp-tie" || kind === "result-points-idea-outcome") {
+    const entries = [...room.players.values()];
+    const runnerUp = entries.find((entry) => entry.id !== player.id) || null;
+    if (!runnerUp) throw new ApiError(400, "Result実画面fixtureに比較対象がいません。");
+    for (const entry of entries) {
+      entry.role = "attacker";
+      entry.totalKills = 0;
+      entry.alive = true;
+      entry.ejected = false;
+    }
+    if (kind === "result-points-idea-outcome") {
+      player.role = "defender";
+      runnerUp.role = "attacker";
+      setIdeaWinnerIds(room, [player.id]);
+      room.winner = "idea";
+    } else {
+      player.role = "defender";
+      player.totalKills = 1;
+      runnerUp.role = "defender";
+      if (kind === "result-points-mvp-tie") runnerUp.totalKills = 1;
+      // Keep both winning and losing factions visible.
+      entries
+        .filter((entry) => entry.id !== player.id && entry.id !== runnerUp.id)
+        .slice(0, 2)
+        .forEach((entry) => { entry.role = "defender"; });
+      setIdeaWinnerIds(room, []);
+      room.winner = "defenders";
+    }
+    room.phase = "ended";
+    room.finishReason = kind === "result-points-mvp-tie"
+      ? "実画面検証: 同点でもMVPは決定的な一人だけ"
+      : kind === "result-points-idea-outcome"
+        ? "実画面検証: 善のイデアは通常の勝敗点だけ"
+        : "実画面検証: リザルト数値は新規ランクポイント経路だけ";
+    room.resultBoardCommitted = false;
+    room.resultBoardByPlayerId = {};
+    commitResultBoard(room);
+  } else if (kind === "enemy-defender-task") {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    if (!bots.length) throw new ApiError(400, "敵防衛Bot実画面fixtureにBotがいません。");
+    player.role = "attacker";
+    room.preparationEndsAt = timestamp + 30_000;
+    room.bodies = [];
+    room.sabotage = null;
+    room.groundItems = [];
+    for (const bot of bots) {
+      bot.role = "defender";
+      bot.alive = true;
+      bot.ejected = false;
+      bot.inVent = false;
+      bot.operatorReady = true;
+      bot.nextBotActionAt = 0;
+      bot.taskAutoReadyAt = 0;
+      bot.mana = manaCapacityFor(bot);
+      if (!(Array.isArray(bot.taskList) && bot.taskList.some((task) => !task.done))) {
+        bot.taskList = assignTasks(map, room.settings.taskCount);
+      }
+      clearBotTaskInteraction(bot, { clearTarget: true });
+    }
+    const primary = bots.find((bot) => bot.taskList.some((task) => !task.done));
+    const task = primary?.taskList.find((entry) => !entry.done && entry.type === "download") ||
+      primary?.taskList.find((entry) => !entry.done);
+    const station = task ? findStation(map, task.stationId) : null;
+    if (!primary || !task || !station) throw new ApiError(400, "敵防衛Bot実画面fixtureの未完了タスクを準備できません。");
+    primary.x = station.x;
+    primary.y = station.y;
+    primary.vx = 0;
+    primary.vy = 0;
+    primary.movementMode = "idle";
+    primary.botTaskTargetId = task.id;
+    primary.botTaskPresenceSince = timestamp - 1_000;
+    primary.botTaskPresenceLastTickAt = timestamp;
+  } else {
+    throw new ApiError(400, "実画面回帰fixtureの種類が不正です。");
+  }
+  touch(room);
+  return serialize(room, player);
+}
+
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
@@ -20899,6 +21128,7 @@ async function parseBody(req) {
 async function handleApi(req, res) {
   const body = req.method === "GET" ? Object.fromEntries(new URL(req.url, `http://${req.headers.host}`).searchParams) : await parseBody(req);
   const pathname = new URL(req.url, `http://${req.headers.host}`).pathname;
+  requireCompatibleOnlineClient(req);
   const identityKey = moderationKey(req, body.clientId);
   if (moderationRecord(identityKey).banned) {
     throw new ApiError(403, "この端末からの参加は永久停止されています。");
@@ -21141,6 +21371,13 @@ async function handleApi(req, res) {
       if (room.hostId !== player.id || room.phase !== "lobby") throw new ApiError(400, "テスト用Botを追加できません。");
       addPlayer(room, `Bot ${room.players.size + 1}`, true);
       payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/regression-real-screen-fixture": {
+      requireLegacyRoomTestFixture(req, body);
+      const { room, player } = requireRoomPlayer(body);
+      payload = applyRealScreenRegressionFixture(room, player, body.kind);
       break;
     }
 
@@ -21497,7 +21734,8 @@ async function handleApi(req, res) {
 
     case "/api/purchase": {
       const { room, player } = requireRoomPlayer(body);
-      purchaseDrink(room, player, String(body.itemId || ""));
+      if (body.bulk === true) purchaseDrinkBulk(room, player, String(body.itemId || ""), String(body.transactionId || body.purchaseId || ""));
+      else purchaseDrink(room, player, String(body.itemId || ""));
       payload = serialize(room, player);
       break;
     }
@@ -21697,6 +21935,7 @@ async function handleApi(req, res) {
       room.finishReason = "";
       setIdeaWinnerIds(room, []);
       room.pendingIdeaVictoryAt = 0;
+      room.ideaVictoryArrivalAt = 0;
       room.sabotage = null;
       room.activeEmps = [];
       room.doorState = {};
@@ -21721,8 +21960,6 @@ async function handleApi(req, res) {
         entry.totalKills = 0;
         entry.luminousUsed = false;
         entry.luminousActive = false;
-        entry.luminousContribution = 0;
-        entry.abilityContribution = 0;
         entry.lastLuminousResult = "";
         entry.lastLuminousResultAt = 0;
         entry.killReadyAt = 0;
@@ -21753,7 +21990,6 @@ async function handleApi(req, res) {
         entry.slashDetachedGuardUntil = 0;
         entry.slashGuardInputReleased = true;
         entry.teleportReadyAt = 0;
-        entry.floraReadyAt = 0;
         entry.limitBreakActive = false;
         entry.limitBreakEndsAt = 0;
         entry.limitBreakStacks = 0;
@@ -21826,15 +22062,6 @@ async function handleApi(req, res) {
         entry.burnStatus = null;
         entry.statusImmunityFeedbackAt = 0;
         entry.quantumMode = "nuclear-transmutation";
-        entry.drone.active = false;
-        entry.drone.x = entry.x;
-        entry.drone.y = entry.y;
-        entry.drone.vx = 0;
-        entry.drone.vy = 0;
-        entry.drone.readyAt = 0;
-        entry.drone.altitude = DRONE_ALTITUDE_MAX;
-        entry.drone.destroyed = false;
-        entry.drone.movementMode = "idle";
         entry.emergenciesLeft = room.settings.emergencyLimit;
         entry.inVent = false;
         entry.ventId = "";
@@ -21894,8 +22121,11 @@ function allowedCorsOrigin(origin) {
   try {
     const url = new URL(origin);
     const host = url.hostname.toLowerCase();
+    const local = ["localhost", "127.0.0.1", "::1"].includes(host);
+    if (local && ["http:", "https:"].includes(url.protocol)) return origin;
     if (url.protocol !== "https:") return "";
     if (
+      host === "player13579.github.io" ||
       host === "plicy.net" ||
       host === "html5.plicy.net" ||
       host === "game.plicy.net" ||
@@ -21989,7 +22219,7 @@ const server = http.createServer(async (req, res) => {
       res.setHeader("access-control-allow-origin", corsOrigin);
       res.setHeader("vary", "Origin");
       res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
-      res.setHeader("access-control-allow-headers", "Content-Type");
+      res.setHeader("access-control-allow-headers", "Content-Type, X-DVA-Client-Release");
     }
     if (req.method === "OPTIONS") {
       res.writeHead(corsOrigin ? 204 : 403);
@@ -21997,7 +22227,13 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (new URL(req.url, `http://${req.headers.host}`).pathname === "/health") {
-      sendJson(res, 200, { ok: true, service: "defenders-vs-attackers", apiVersion: 2, soloTraining: true });
+      sendJson(res, 200, {
+        ok: true,
+        service: "defenders-vs-attackers",
+        apiVersion: 2,
+        soloTraining: true,
+        requiredClientRelease: ONLINE_CLIENT_RELEASE
+      });
       return;
     }
     if (req.url.startsWith("/api/")) {
@@ -22008,7 +22244,11 @@ const server = http.createServer(async (req, res) => {
   } catch (error) {
     const status = error instanceof ApiError ? error.status : 500;
     if (!(error instanceof ApiError)) console.error(error);
-    sendJson(res, status, { ok: false, error: error.message || "Server error" });
+    sendJson(res, status, {
+      ok: false,
+      error: error.message || "Server error",
+      ...(error?.requiredClientRelease ? { requiredClientRelease: error.requiredClientRelease } : {})
+    });
   }
 });
 
@@ -22034,6 +22274,7 @@ server.on("upgrade", (req, socket, head) => {
       socket.destroy();
       return;
     }
+    requireCompatibleOnlineClient(req, url.searchParams.get("clientRelease"));
     const room = getRoom(url.searchParams.get("roomId"));
     const player = room?.players.get(String(url.searchParams.get("playerId") || ""));
     if (!room || !player) {
@@ -23071,6 +23312,7 @@ function runBotGroundItemPickup(room, bot) {
   if (!bot?.alive || bot.ejected || bot.inVent || !itemStorageAvailable(bot)) return false;
   const nearby = (room.groundItems || [])
     .map((groundItem) => ({ groundItem, distance: distance(bot, groundItem) }))
+    .filter(({ groundItem }) => !groundItem.fixtureReservedOwnerId)
     .filter(({ groundItem, distance: itemDistance }) => itemDistance <= Number(groundItem.pickupRange || GROUND_ITEM_PICKUP_RANGE))
     .sort((a, b) => a.distance - b.distance)[0]?.groundItem;
   if (!nearby) return false;
@@ -23214,9 +23456,46 @@ function executeBotCombatPlan(room, bot, target, timestamp) {
   return definition.step(room, bot, target, timestamp);
 }
 
+function botRailgunLineHasAlly(room, bot, target) {
+  const dx = Number(target?.x) - Number(bot?.x);
+  const dy = Number(target?.y) - Number(bot?.y);
+  const length = Math.hypot(dx, dy) || 1;
+  const aimX = dx / length;
+  const aimY = dy / length;
+  const path = resolveVectorAttackPath(room, bot, aimX, aimY, 5000, { collisionRadius: 2 });
+  return [...room.players.values()].some((candidate) => {
+    if (candidate.id === bot.id || candidate.id === target?.id || !candidate.alive || candidate.ejected || candidate.role !== bot.role) return false;
+    const relativeX = Number(candidate.x) - Number(bot.x);
+    const relativeY = Number(candidate.y) - Number(bot.y);
+    const along = relativeX * path.dx + relativeY * path.dy;
+    const perpendicular = Math.abs(relativeX * path.dy - relativeY * path.dx);
+    return along > 0 && along <= path.distance + 0.5 && perpendicular <= 38;
+  });
+}
+
+function botMissileTarget(room, bot, timestamp = now()) {
+  return [...room.players.values()]
+    .filter((candidate) => botCanAttackTarget(room, bot, candidate, timestamp))
+    .filter((candidate) => {
+      const candidateDistance = distance(bot, candidate);
+      const dx = (candidate.x - bot.x) / Math.max(candidateDistance, 1);
+      const dy = (candidate.y - bot.y) / Math.max(candidateDistance, 1);
+      return clearShotPath(room, bot, candidate, dx, dy);
+    })
+    .sort((a, b) => distance(bot, a) - distance(bot, b) || a.id.localeCompare(b.id))[0] || null;
+}
+
 function botCombatCandidates(room, bot, target, timestamp) {
-  if (!botCanAttackTarget(room, bot, target, timestamp) || !bot.alive || bot.ejected || bot.inVent) return [];
+  if (!botCanAttackTarget(room, bot, target, timestamp) ||
+    !bot.alive || bot.ejected || bot.inVent ||
+    actionBlockedUntil(bot) > timestamp ||
+    Number(bot.abilityDisabledUntil) > timestamp
+  ) return [];
   const targetDistance = distance(bot, target);
+  const targetDx = (target.x - bot.x) / Math.max(targetDistance, 1);
+  const targetDy = (target.y - bot.y) / Math.max(targetDistance, 1);
+  const clearTargetPath = clearShotPath(room, bot, target, targetDx, targetDy);
+  const storageAvailable = itemStorageAvailable(bot, timestamp);
   const candidates = [];
   const evidenceBoost = bot.role === "defender" &&
     String(bot.botWitnessTargetId || "") === target.id &&
@@ -23227,11 +23506,14 @@ function botCombatCandidates(room, bot, target, timestamp) {
   // Once the legal visual attack->body chain exists, every owned payoff keeps
   // its own resource/range/LOS/ownership guard but shares one target priority.
   const add = (code, score, run) => candidates.push({ code, score: score + evidenceBoost, run });
-  const gravityAccess = hasOperatorAccess(bot, "gravity");
+  const nativeGravity = bot.special === "teleport";
+  const nativeFlora = bot.special === "flora";
+  const nativeQuantum = bot.special === "quantum";
+  const nativeFighter = bot.special === "fighter";
 
   // This multi-step plan intentionally outranks immediate gunfire/ninjutsu.
   // It is started only from a target the bot can legally know about.
-  if (gravityAccess && bot.role === "attacker" && Number(bot.mana) < HEART_TELEPORT_MANA_COST && Number(bot.mana) >= ABILITY_MANA_COST &&
+  if (nativeGravity && bot.role === "attacker" && Number(bot.mana) < HEART_TELEPORT_MANA_COST && canSpendOperatorMana(bot, timestamp, ABILITY_MANA_COST) &&
       !botHasTimedAcceleration(bot, timestamp) && Number(bot.teleportReadyAt) <= timestamp) {
     add("gravity-accelerate-renki-heart-plan", BOT_COMBAT_PLAN_DEFINITIONS["gravity-accelerate-renki-heart"].futureValue, () => {
       bot.botCombatPlan = "gravity-accelerate-renki-heart";
@@ -23242,7 +23524,7 @@ function botCombatCandidates(room, bot, target, timestamp) {
   }
   const toxicItem = [...TOXIC_THROW_ITEM_IDS].reverse().find((itemId) => itemCount(bot, itemId) > 0);
   const canExploitVisibleRest = bot.role === "attacker" || bot.special === "gunner";
-  if (canExploitVisibleRest && toxicItem && targetDistance <= 700 && botCanDirectlyObservePlayer(room, bot, target)) {
+  if (storageAvailable && canExploitVisibleRest && toxicItem && targetDistance <= 700 && clearTargetPath && botCanDirectlyObservePlayer(room, bot, target)) {
     add("poison-throw-observe-rest-payoff", BOT_COMBAT_PLAN_DEFINITIONS["poison-observe-rest-payoff"].futureValue, () => {
       // Use the normal authoritative charge path; bots never forge a hold
       // duration or bypass inventory ownership.
@@ -23258,45 +23540,93 @@ function botCombatCandidates(room, bot, target, timestamp) {
       return true;
     });
   }
-  if (gravityAccess && bot.role === "attacker" && Number(bot.mana) >= HEART_TELEPORT_MANA_COST && Number(bot.teleportReadyAt) <= timestamp) {
+  if (nativeGravity && bot.role === "attacker" && canSpendOperatorMana(bot, timestamp, HEART_TELEPORT_MANA_COST) && Number(bot.teleportReadyAt) <= timestamp) {
     add("gravity-heart-transfer", 900, () => teleportPlayer(room, bot, undefined, undefined, target.id, "heart"));
   }
-  if (gravityAccess && target.role !== bot.role && canSpendOperatorMana(bot, timestamp)) {
+  if (nativeGravity && target.role !== bot.role && canSpendOperatorMana(bot, timestamp, ABILITY_MANA_COST)) {
     add("gravity-decelerate", 690, () => toggleGravityTime(room, bot, "decelerate", target.id));
+  }
+  if (nativeGravity && target.role !== bot.role && canSpendOperatorMana(bot, timestamp, GRAVITY_STORM_MANA_COST)) {
     add("gravity-storm", 675, () => useGravityStorm(room, bot, target.id));
   }
-  if (gravityAccess && Number(bot.mana) >= GRAVITY_TIME_KEEPER_MANA_COST) {
+  if (nativeGravity && Number(bot.timeKeeperEndsAt) <= timestamp && canSpendOperatorMana(bot, timestamp, GRAVITY_TIME_KEEPER_MANA_COST)) {
     add("gravity-time-keeper", 640, () => useTimeKeeper(room, bot));
   }
-  if (hasOperatorAccess(bot, "flora")) {
-    if ((Number(bot.bodyHits) > 0 || Number(bot.overheal) < 1) && Number(bot.floraReadyAt) <= timestamp && Number(bot.mana) >= FLORA_MANA_COST) {
+  if (nativeFlora) {
+    if ((Number(bot.bodyHits) > 0 || Number(bot.overheal) < 1) && canSpendOperatorMana(bot, timestamp, FLORA_MANA_COST)) {
       add("flora-self-heal", 720, () => healFlora(room, bot));
     }
-    if (target.role !== bot.role && Number(bot.floraReadyAt) <= timestamp && Number(bot.mana) >= FLORA_SUNBEAM_MANA_COST && targetDistance <= SUNBEAM_RANGE) {
+    if (target.role !== bot.role && canSpendOperatorMana(bot, timestamp, FLORA_SUNBEAM_MANA_COST) && targetDistance <= SUNBEAM_RANGE && clearTargetPath) {
       add("flora-sunbeam", 740, () => floraSunbeam(room, bot, target.id));
     }
-    if (target.role !== bot.role && !floraInvisibleActive(bot, timestamp) && Number(bot.mana) >= FLORA_INVISIBLE_MANA_COST && targetDistance <= BOT_BODY_NOTICE_RANGE) {
+    if (target.role !== bot.role && !floraInvisibleActive(bot, timestamp) && canSpendOperatorMana(bot, timestamp, FLORA_INVISIBLE_MANA_COST) && targetDistance <= BOT_BODY_NOTICE_RANGE) {
       add("flora-invisible", 700, () => useFloraInvisible(room, bot));
     }
   }
-  if (hasOperatorAccess(bot, "quantum") && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && itemCount(bot, "mineral-water") > 0) {
-    add("quantum-kinetic-accelerate", 410, () => useQuantumControl(room, bot, "kinetic-accelerate"));
+  if (nativeQuantum && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST) {
+    if (itemCount(bot, "mineral-water") > 0) {
+      add("quantum-kinetic-accelerate", 410, () => useQuantumControl(room, bot, "kinetic-accelerate"));
+      add("quantum-kinetic-decelerate", 405, () => useQuantumControl(room, bot, "kinetic-decelerate"));
+    }
+    if (itemCount(bot, "lead") || itemCount(bot, "mercury")) add("quantum-nuclear-transmutation", 520, () => useQuantumControl(room, bot, "nuclear-transmutation"));
   }
-  if (hasOperatorAccess(bot, "fighter") && itemCount(bot, "orichalcum-sword") > 0 && targetDistance <= room.settings.killRange) {
+  if (nativeQuantum && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && Number(bot.mana) >= QUANTUM_NUCLEAR_MANA_COST && quantumEndgameAvailable(room, timestamp)) {
+    if (itemCount(bot, "uranium") || itemCount(bot, "plutonium")) add("quantum-nuclear-fission", 860, () => useQuantumControl(room, bot, "nuclear-fission"));
+    if (itemCount(bot, "seawater")) add("quantum-nuclear-fusion", 875, () => useQuantumControl(room, bot, "nuclear-fusion"));
+  }
+  if (nativeFighter && storageAvailable && itemCount(bot, "orichalcum-sword") > 0 && Number(bot.stamina) >= FIGHTER_SLASH_STAMINA_COST && targetDistance <= room.settings.killRange && clearTargetPath) {
     add("fighter-slash", 780, () => fighterSlash(room, bot, target.id, false));
   }
-  if (hasOperatorAccess(bot, "fighter") && !bot.limitBreakActive && remainingHealth(bot) > 1) {
+  if (nativeFighter && !bot.limitBreakActive && remainingHealth(bot) > 1) {
     add("fighter-limit-break", 610, () => toggleLimitBreak(room, bot));
   }
-  if (isHackerOperator(bot) && Number(bot.vibeCodingReadyAt) <= timestamp && targetDistance <= room.settings.killRange * 1.5) {
-    // HP deletion is a native Hacker recipe; the recipe itself verifies ROOT
-    // access and target semantics before making any change.
-    add("hacker-hp-delete", 820, () => useAlchemy(room, bot, "hack-hp-delete", target.id));
+  if (isHackerOperator(bot) && Number(bot.vibeCodingReadyAt) <= timestamp) {
+    const deadAlly = [...room.players.values()].find((candidate) =>
+      candidate.id !== bot.id && candidate.role === bot.role && !candidate.alive && !candidate.ejected);
+    if (deadAlly && !bot.alchemyReviveUsed) add("hacker-revive-ally", 900, () => useAlchemy(room, bot, "revive", deadAlly.id));
+    if (Number(bot.bodyHits) > 0) add("hacker-hp-duplicate", 735, () => useAlchemy(room, bot, "hack-hp-duplicate", bot.id));
+    if (Number(bot.mana) < manaCapacityFor(bot)) add("hacker-mana-duplicate", 700, () => useAlchemy(room, bot, "hack-mana-duplicate", bot.id));
+    if (hasHackableInventory(bot, true)) add("hacker-items-duplicate", 620, () => useAlchemy(room, bot, "hack-items-duplicate", bot.id));
+    if (bot.poisonStatus || bot.burnStatus || bot.shockSlowedUntil > timestamp) add("hacker-status-recover", 710, () => useAlchemy(room, bot, "hack-status-recover", bot.id));
+    if (targetDistance <= room.settings.killRange * 1.5) {
+      // HP deletion is a native Hacker recipe; the recipe itself verifies ROOT
+      // access and target semantics before making any change.
+      add("hacker-hp-delete", 820, () => useAlchemy(room, bot, "hack-hp-delete", target.id));
+      // Enemy Inventory and MP are private. A human may attempt these recipes
+      // without knowing whether they will find anything, so candidate scoring
+      // must not branch on the target's concealed server fields.
+      add("hacker-items-delete", 790, () => useAlchemy(room, bot, "hack-items-delete", target.id));
+      add("hacker-mana-delete", 775, () => useAlchemy(room, bot, "hack-mana-delete", target.id));
+    }
   }
-  if (hackerRootEligible(bot) && target.role !== bot.role && canSpendOperatorMana(bot, timestamp)) {
+  if (hackerRootEligible(bot) && target.role !== bot.role) {
+    if (bot.role === "attacker" && Number(bot.teleportReadyAt) <= timestamp) add("root-borrowed-gravity-heart-transfer", 905, () => useBorrowedAbility(room, bot, "gravity", { mode: "heart", targetId: target.id }));
     add("root-borrowed-gravity-decelerate", 705, () => useBorrowedAbility(room, bot, "gravity", { mode: "decelerate", targetId: target.id }));
+    if ((Number(bot.bodyHits) > 0 || Number(bot.overheal) < 1)) add("root-borrowed-flora-heal", 715, () => useBorrowedAbility(room, bot, "flora", { mode: "heal" }));
+    if (targetDistance <= SUNBEAM_RANGE && clearTargetPath) add("root-borrowed-flora-sunbeam", 745, () => useBorrowedAbility(room, bot, "flora", { mode: "sunbeam", targetId: target.id }));
+    if (!floraInvisibleActive(bot, timestamp) && targetDistance <= BOT_BODY_NOTICE_RANGE) add("root-borrowed-flora-invisible", 700, () => useBorrowedAbility(room, bot, "flora", { mode: "invisible" }));
+    add("root-borrowed-gravity-storm", 680, () => useBorrowedAbility(room, bot, "gravity", { mode: "storm", targetId: target.id }));
+    if (Number(bot.timeKeeperEndsAt) <= timestamp) add("root-borrowed-gravity-time-keeper", 645, () => useBorrowedAbility(room, bot, "gravity", { mode: "time-keeper" }));
+    if (storageAvailable && itemCount(bot, "orichalcum-sword") > 0 && Number(bot.stamina) >= FIGHTER_SLASH_STAMINA_COST && targetDistance <= room.settings.killRange && clearTargetPath) add("root-borrowed-fighter-slash", 785, () => fighterSlash(room, bot, target.id, false));
+    if (!bot.limitBreakActive && remainingHealth(bot) > 1) add("root-borrowed-fighter-limit-break", 615, () => useBorrowedAbility(room, bot, "fighter"));
+    if (itemCount(bot, "mineral-water") > 0 && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST) {
+      add("root-borrowed-quantum-accelerate", 420, () => useBorrowedAbility(room, bot, "quantum", { mode: "kinetic-accelerate" }));
+      add("root-borrowed-quantum-decelerate", 415, () => useBorrowedAbility(room, bot, "quantum", { mode: "kinetic-decelerate" }));
+    }
+    if (Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && (itemCount(bot, "lead") || itemCount(bot, "mercury"))) add("root-borrowed-quantum-transmutation", 525, () => useBorrowedAbility(room, bot, "quantum", { mode: "nuclear-transmutation" }));
+    if (Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && Number(bot.mana) >= QUANTUM_NUCLEAR_MANA_COST && quantumEndgameAvailable(room, timestamp)) {
+      if (itemCount(bot, "uranium") || itemCount(bot, "plutonium")) add("root-borrowed-quantum-fission", 865, () => useBorrowedAbility(room, bot, "quantum", { mode: "nuclear-fission" }));
+      if (itemCount(bot, "seawater")) add("root-borrowed-quantum-fusion", 880, () => useBorrowedAbility(room, bot, "quantum", { mode: "nuclear-fusion" }));
+    }
   }
+  if (storageAvailable && (bot.heavyWeapons || []).includes("rpg") && targetDistance <= 300 && clearTargetPath) add("heavy-rpg", 790, () => { const chargeId = setEnhanceChargeState(room, bot, true, "use", "heavy:rpg"); return useHeavyWeapon(room, bot, "rpg", 0, chargeId); });
+  const nearestHeavyTarget = botMissileTarget(room, bot, timestamp);
+  if (storageAvailable && (bot.heavyWeapons || []).includes("missile") && nearestHeavyTarget?.id === target.id) add("heavy-missile", 800, () => { const chargeId = setEnhanceChargeState(room, bot, true, "use", "heavy:missile"); return useHeavyWeapon(room, bot, "missile", 0, chargeId); });
+  const aimAtTarget = () => { const dx = target.x - bot.x, dy = target.y - bot.y, length = Math.hypot(dx, dy) || 1; bot.aimX = dx / length; bot.aimY = dy / length; };
+  if (storageAvailable && clearTargetPath) for (const invention of ["excalibur", "railgun", "particle-cannon"]) if ((bot.inventions || []).includes(invention) && (invention !== "railgun" || !botRailgunLineHasAlly(room, bot, target))) add(`invention-${invention}`, invention === "particle-cannon" ? 830 : 810, () => { aimAtTarget(); const chargeId = setEnhanceChargeState(room, bot, true, "use", `invention:${invention}`); return useAlchemistInvention(room, bot, invention, 0, chargeId); });
+  if (storageAvailable && clearTargetPath) for (const itemId of ["orichalcum-sword", "molotov", "heated-water", "ice"]) if (itemCount(bot, itemId) > 0 && targetDistance <= 700) add(`throw-${itemId}`, itemId === "molotov" ? 760 : 650, () => { const chargeId = setEnhanceChargeState(room, bot, true, "throw", itemId); return throwInventoryItem(room, bot, itemId, 0, target.x, target.y, chargeId); });
   if (
+    storageAvailable &&
     itemCount(bot, "hsg") > 0 &&
     Number(bot.hsgUntil) <= timestamp &&
     Number(bot.hsgReadyAt) <= timestamp &&
@@ -23310,7 +23640,7 @@ function botCombatCandidates(room, bot, target, timestamp) {
   if (bot.role === "attacker" && targetDistance <= EMP_RANGE && Number(bot.empReadyAt) <= timestamp) {
     add("emp", 650, () => activateEmp(room, bot));
   }
-  if (bot.special === "gunner") {
+  if (storageAvailable && bot.special === "gunner") {
     const weapon = selectBotGunnerWeapon(bot, targetDistance, true);
     if (weapon && Number(bot.gunReadyAt) <= timestamp && targetDistance <= weapon.range) {
       const dx = target.x - bot.x;
@@ -23321,7 +23651,7 @@ function botCombatCandidates(room, bot, target, timestamp) {
       }
     }
   }
-  if (bot.role === "attacker" && targetDistance <= Math.max(72, room.settings.killRange * 0.58) && Number(bot.killReadyAt) <= timestamp && !bot.aimTargetId) {
+  if (bot.role === "attacker" && targetDistance <= room.settings.killRange && Number(bot.killReadyAt) <= timestamp && !bot.aimTargetId) {
     add("ninjutsu", 560, () => startNinjutsu(room, bot, target.id));
   }
   return candidates.sort((a, b) => b.score - a.score || a.code.localeCompare(b.code));
@@ -23331,7 +23661,27 @@ function runBotCombatPlanner(room, bot, target, timestamp) {
   if (executeBotCombatPlan(room, bot, target, timestamp)) return true;
   for (const candidate of botCombatCandidates(room, bot, target, timestamp)) {
     try {
-      if (candidate.run() !== false) return true;
+      if (candidate.run() !== false) {
+        // A setup/utility action (for example Limit Break) is a valid
+        // maximum-strength choice, but it is not a reason to abandon a known
+        // reachable hostile.  Previously its successful return consumed every
+        // bot tick, so an enemy Bot could repeatedly stand in place until the
+        // target vanished.  Preserve deliberate stationary commitments (aim,
+        // firing, a resolving attack, meditation, or an explicit multi-step
+        // plan); every other completed action immediately hands the same
+        // public/evidence-backed target to canonical navigation.
+        const resolving = Boolean(
+          bot.aimTargetId ||
+          bot.gunFiring ||
+          Number(bot.attackResolveAt) > timestamp ||
+          Number(bot.meditatingUntil) > timestamp ||
+          bot.botCombatPlan
+        );
+        if (!resolving && botCanAttackTarget(room, bot, target, timestamp)) {
+          moveBotToward(room, bot, target);
+        }
+        return true;
+      }
     } catch {
       // Candidate legality may have changed within this tick; try the next
       // independently legal candidate rather than idling or trusting state.
@@ -23380,7 +23730,38 @@ function runPlayingBots(room) {
     // Generic one-at-a-time Renki is a fallback.  It must not pre-empt a
     // maximum-strength setup such as Accelerate -> server-observed tenfold
     // Renki -> Heart Transfer.
-    if (!attackerUrgency.urgent && bot.alive && refillBotMana(room, bot)) continue;
+    // A known hostile is a higher-priority combat fact than discretionary
+    // Renki.  The old unconditional refill branch re-entered meditation every
+    // tick before the Attacker pursuit branch, continually extending the
+    // action block and leaving the Bot motionless even though its target was
+    // still directly observable.  Retain mana recovery while searching, but
+    // never let it pre-empt an evidence-backed chase.
+    // An enemy Defender without public combat evidence has a real objective
+    // route.  Do not repeatedly start optional Renki at spawn and starve that
+    // route forever; its later canonical task/sabotage planner owns movement
+    // and may still choose a stationary interaction once it reaches a legal
+    // station.  Attackers and evidence-backed combat keep the existing
+    // recovery-before-search behaviour.
+    const enemyDefenderObjectivePending =
+      bot.role === "defender" &&
+      botIsEnemyOfSoleHuman(room, bot) &&
+      !opponentTarget;
+    // A Bot facing a living human must keep searching, patrolling, pursuing a
+    // public waypoint, or entering its faction objective even when a barrier
+    // temporarily removes that human from the legal attack-target set.  The
+    // old `!opponentTarget` guard treated the opening shield as "nothing to
+    // do", started the 35-second Renki focus at spawn, and left the Bot
+    // motionless long after the 1.5/5-second barrier had released.  Explicit
+    // combat plans may still choose Renki as a deliberate setup; only this
+    // discretionary fallback yields while a human opponent exists.
+    if (
+      !attackerUrgency.urgent &&
+      bot.alive &&
+      !maximumStrength &&
+      !opponentTarget &&
+      !enemyDefenderObjectivePending &&
+      refillBotMana(room, bot)
+    ) continue;
 
     if (bot.role === "attacker" && bot.alive) {
     if (bot.special === "alchemist" && isRational(bot) && (bot.stamina < MAX_STAMINA || bot.substitutionCharges < 1)) {
@@ -23491,7 +23872,7 @@ function runPlayingBots(room) {
 
     if (bot.alive) {
       const nearbyAttacker = botKnownAttackerEvidence(room, bot, timestamp);
-      if (bot.special === "flora" && (bot.bodyHits > 0 || bot.overheal < 1) && bot.floraReadyAt <= timestamp) {
+      if (bot.special === "flora" && (bot.bodyHits > 0 || bot.overheal < 1)) {
         try { healFlora(room, bot); } catch {}
       }
       runBotDefenseDecision(room, bot, nearbyAttacker, timestamp);

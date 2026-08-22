@@ -11,6 +11,7 @@
     url.searchParams.set("roomId", session.roomId);
     url.searchParams.set("playerId", session.playerId);
     url.searchParams.set("clientId", session.clientId || "");
+    url.searchParams.set("clientRelease", session.clientRelease || "");
     if (session.performanceMode) url.searchParams.set("performanceMode", session.performanceMode);
     return url.toString();
   }
@@ -29,7 +30,7 @@
 
     connect(session) {
       if (!session?.roomId || !session?.playerId) return;
-      const key = `${session.apiBase || ""}|${session.roomId}|${session.playerId}|${session.performanceMode || ""}`;
+      const key = `${session.apiBase || ""}|${session.roomId}|${session.playerId}|${session.clientRelease || ""}|${session.performanceMode || ""}`;
       if (key === this.sessionKey && this.socket && this.socket.readyState <= WebSocket.OPEN) return;
       this.disconnect(false);
       this.session = { ...session };

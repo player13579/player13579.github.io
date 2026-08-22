@@ -39,7 +39,7 @@
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
     ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
-    ["fire", "火遁の術", 8, "instant-item", "fire", "fire"],
+    ["fire", "火遁スクロール", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
     ["grit", "踏ん張り", 5, "instant-item", "grit", "grit"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
@@ -51,7 +51,7 @@
     ["particle-cannon", "荷電粒子砲", 16, "weapon", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "weapon", "vending-excalibur", "excalibur"],
     ["exile", "亡命", 22, "instant-item", "vending-exile", "exile"],
-    ["computer", "パソコン", 10, "instant-item", "vending-computer", "computer"],
+    ["hack", "ハック", 10, "instant-item", "vending-hack", "hack"],
     ["handgun", "ハンドガン", 3, "weapon", "vending-handgun", "handgun"],
     ["smg", "サブマシンガン", 5, "weapon", "vending-smg", "smg"],
     ["assault", "アサルトライフル", 7, "weapon", "vending-assault", "assault"],
@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "kill-chain-invisible-global-scroll-hsg-points-v527",
+    version: "sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result-v545",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

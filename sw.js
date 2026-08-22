@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v527-kill-chain-invisible-global-scroll-hsg-points";
+const CACHE_NAME = "dva-static-v545-sunbeam-unlimited-credit-ec-task-weapon-acc-kinetic-result";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -32,6 +32,7 @@ const STATIC_ASSETS = [
   "/assets/generated/gunner-weapon-icons-v422.png",
   "/assets/generated/gunner-weapon-icons-v422.webp",
   "/assets/generated/gunner-special-ammo-weak-v455.png",
+  "/assets/generated/gunner-special-ammo-penetrate-v455.png",
   "/assets/generated/gunner-special-ammo-shock-v455.png",
   "/assets/generated/ui-panel-surface.webp",
   "/assets/generated/ui-control-surface.webp",
@@ -274,7 +275,6 @@ const STATIC_ASSETS = [
   "/assets/generated/hack-mana-duplicate.webp",
   "/assets/generated/alchemy-railgun-field-effect.webp",
   "/assets/generated/alchemy-particle-cannon-field-effect.webp",
-  "/assets/generated/item-computer-v404.png",
   "/assets/generated/human-transmutation-sd-silhouette-v407.png",
   "/assets/generated/gunner-weapons-atlas.webp",
   "/assets/generated/gunner-taser.webp",
@@ -289,7 +289,7 @@ const STATIC_ASSETS = [
   "/assets/generated/effect-quantum-hot.webp",
   "/assets/generated/exile-clone.webp",
   "/assets/generated/gravity-storm.webp",
-  "/assets/generated/item-fire-jutsu.webp",
+  "/assets/generated/item-fire-scroll-v540.png",
   "/assets/generated/skin-blue-dress-back.webp",
   "/assets/generated/skin-blue-dress-front.webp",
   "/assets/generated/skin-blue-dress-kill-cutin.webp",
