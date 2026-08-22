@@ -3898,7 +3898,9 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .result-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* dot, identity/breakdown, compact signed total.  Two columns made the
+   * third child implicitly start a full-width second row (the reported bar). */
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-height: 56px;
@@ -4482,8 +4484,11 @@ body .offline-team-choice button[data-offline-team] {
 }
 
 .result-points {
-  display: grid;
-  min-width: 58px;
+  display: inline-grid;
+  width: max-content;
+  min-width: 0;
+  justify-self: end;
+  flex: none;
   border: 1px solid currentColor;
   border-radius: 10px;
   padding: 4px 7px;
@@ -4509,6 +4514,10 @@ body .offline-team-choice button[data-offline-team] {
 
 .result-point-mvp {
   color: #a7f3d0 !important;
+}
+
+.result-point-breakdown {
+  color: #dbeafe;
 }
 .operator-visual-assassin {
   background-image: url("assets/generated/operator-assassin-ate-v510.png?v=operator-assassin-ate-v510");
@@ -8340,7 +8349,7 @@ body [data-scroll-region].scroll-region-selected {
 .result-dialog .result-player strong { color: #f8fafc; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96), 0 0 7px rgba(0, 0, 0, 0.54); }
 .result-dialog .result-player small { color: #dbeafe; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); }
 .result-dialog .result-row.is-idea-winner .result-player small { color: #fef3c7; }
-.result-dialog .result-points { background-color: rgba(5, 14, 22, 0.96); color: #dbeafe; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.42); }
+.result-dialog .result-points { display: inline-grid; width: max-content; min-width: 0; justify-self: end; flex: none; background-color: rgba(5, 14, 22, 0.96); color: #dbeafe; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.96); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.42); }
 .result-dialog .result-row.has-points .result-points { color: #a7f3d0; background-color: rgba(6, 58, 43, 0.98); }
 
 /* The dialog uses the overlay safe height; only the ranking locally scrolls.

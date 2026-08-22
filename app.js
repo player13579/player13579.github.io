@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547";
+const DVA_CLIENT_RELEASE = "emp-activation-hacker-full-surface-unreached-closure-v548";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -806,7 +806,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-activation-hacker-full-surface-unreached-closure-v548";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5853,20 +5853,31 @@ function bindEvents() {
     threshold = 10,
     axisRatio = 1.2,
     onTravel = null,
-    actionGate = null
+    actionGate = null,
+    // Some compact panels are deliberately `display: contents` in one
+    // layout.  Their header/cards still bubble through the semantic owner,
+    // but the unoccupied padding belongs to the containing panel instead.
+    // Register that container too, while accepting only its visual safe
+    // rectangle, so a Hacker flick is not narrower than the other catalog
+    // controls in the same right-panel surface.
+    registeredSurface = null,
+    isRegisteredSafeStart = null
   } = {}) => {
     const gestureSurface = surface || strip;
     if (!strip || !gestureSurface) return;
+    const registeredGestureSurface = registeredSurface || gestureSurface;
     const clickGate = createInventoryClickGate();
     let pointerId = null;
     let startX = 0;
     let startY = 0;
     let travelled = false;
     let changedCategory = false;
+    let axisOwner = "";
     const reset = () => {
       pointerId = null;
       travelled = false;
       changedCategory = false;
+      axisOwner = "";
     };
     const cancel = (event) => {
       if (event && pointerId !== event.pointerId) return;
@@ -5897,19 +5908,26 @@ function bindEvents() {
       };
     };
     const noteTravel = (event) => {
-      if (pointerId !== event.pointerId || travelled) return null;
+      if (pointerId !== event.pointerId) return null;
       const gesture = classify(event);
       if (gesture.distance <= threshold) return gesture;
       // A drag/flick must never fall through to the tapped card/button below.
-      // Native vertical scrolling keeps ownership of vertical gestures.
-      travelled = true;
-      clickGate.arm();
-      actionGate?.arm();
+      // Do not permanently classify the first over-threshold sample when it
+      // is still diagonal. Touch hardware commonly reports that ambiguous
+      // sample before the user's horizontal intent becomes decisive.
+      if (!travelled) {
+        travelled = true;
+        clickGate.arm();
+        actionGate?.arm();
+        onTravel?.(event, gesture);
+      }
+      if (!axisOwner && gesture.vertical) axisOwner = "vertical";
+      if (!axisOwner && gesture.horizontal) axisOwner = "horizontal";
       // Once horizontal ownership is certain, cancel native activation at the
       // move boundary instead of waiting until pointerup. Vertical scrolling
       // stays native and ambiguous diagonal travel commits neither action.
-      if (gesture.horizontal && event.cancelable) event.preventDefault();
-      if (gesture.horizontal) {
+      if (axisOwner === "horizontal" && event.cancelable) event.preventDefault();
+      if (axisOwner === "horizontal") {
         // Commit at the first decisive move.  Some native target controls
         // retarget or cancel the later pointerup; waiting for that final event
         // was why a valid Hacker target-operation flick could visibly travel
@@ -5922,14 +5940,13 @@ function bindEvents() {
           changeCategory(gesture.dx < 0 ? 1 : -1);
         }
       }
-      onTravel?.(event, gesture);
       return gesture;
     };
     const finish = (event) => {
       if (pointerId !== event.pointerId) return;
       const gesture = noteTravel(event) || classify(event);
       if (gesture.distance > threshold) {
-        const horizontal = gesture.horizontal && !changedCategory;
+        const horizontal = axisOwner !== "vertical" && gesture.horizontal && !changedCategory;
         const dx = gesture.dx;
         if (horizontal) {
           if (event.cancelable) event.preventDefault();
@@ -5945,16 +5962,32 @@ function bindEvents() {
       }
       reset();
     };
-    gestureSurface.addEventListener("pointerdown", (event) => {
+    const startsInGestureSurface = (event) => {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      if (path.includes(gestureSurface) || gestureSurface.contains(event.target)) return true;
+      return Boolean(isRegisteredSafeStart?.(event));
+    };
+    const begin = (event) => {
       if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+      if (pointerId !== null || !startsInGestureSurface(event)) return;
       pointerId = event.pointerId;
       startX = event.clientX;
       startY = event.clientY;
       travelled = false;
       changedCategory = false;
+      axisOwner = "";
       clickGate.reset();
       actionGate?.reset();
-    }, true);
+    };
+    // The semantic dock owns all of its header, target select and cards. In
+    // the compact `display: contents` layout its parent additionally owns
+    // only the dock's visible blank/padding rectangle. This makes every
+    // registered target-operation surface a valid horizontal start without
+    // stealing adjacent status controls.
+    gestureSurface.addEventListener("pointerdown", begin, true);
+    if (registeredGestureSurface !== gestureSurface) {
+      registeredGestureSurface.addEventListener("pointerdown", begin, true);
+    }
     // The registered panel may contain a native select or an action button
     // which becomes the pointer's event target.  Listening only on the panel
     // loses the directional sample when that target retargets/captures the
@@ -5990,6 +6023,18 @@ function bindEvents() {
     {
       surface: els.hackerAbilityDock,
       actionGate: hackerCategoryActionGate,
+      registeredSurface: els.hackerAbilityDock.parentElement,
+      isRegisteredSafeStart: (event) => {
+        const safeSurface = els.hackerAbilityDock;
+        const container = safeSurface.parentElement;
+        if (!container?.contains(event.target)) return false;
+        const rect = safeSurface.getBoundingClientRect();
+        // A small tolerance includes the dock's rendered padding/border but
+        // not unrelated role/status content in the same parent panel.
+        const inset = 6;
+        return event.clientX >= rect.left - inset && event.clientX <= rect.right + inset &&
+          event.clientY >= rect.top - inset && event.clientY <= rect.bottom + inset;
+      },
       // A deliberately slow physical swipe can cross the long-hold timeout
       // before its first move sample arrives. Once travel is observed, close
       // any detail opened by that same Hacker-card transaction.
@@ -7641,7 +7686,11 @@ function renderTabletControls(data) {
   els.tabletShootShortcut.hidden = els.shootButton.hidden;
   els.tabletShootShortcut.classList.toggle("active", els.shootButton.classList.contains("active"));
   setTabletShortcutLabel(els.tabletEmpShortcut, "EMP", els.empButton.textContent || "EMP");
-  els.tabletEmpShortcut.disabled = els.empButton.hidden;
+  // The tablet shortcut delegates to the canonical EMP button.  It must carry
+  // the exact same disabled state: previously a cooling-down or ability-locked
+  // EMP looked tappable on tablet, but its delegated .click() was a silent
+  // no-op because the source button was disabled.
+  els.tabletEmpShortcut.disabled = els.empButton.disabled || els.empButton.hidden;
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
@@ -12980,6 +13029,22 @@ function boardMvpLabel(entry) {
   return entry?.mvp === true ? "MVP" : "";
 }
 
+// The server seals this ledger with the total. Rendering named facts is not a
+// client-side score calculation: malformed facts are simply omitted.
+function resultPointBreakdown(entry) {
+  if (!Array.isArray(entry?.pointBreakdown)) return [];
+  return entry.pointBreakdown
+    .filter((fact) => typeof fact?.reason === "string" && fact.reason && Number.isFinite(Number(fact.points)) && Number(fact.points) !== 0)
+    .map((fact) => ({ reason: fact.reason, points: Number(fact.points) }));
+}
+
+function resultPointBreakdownText(entry) {
+  const facts = resultPointBreakdown(entry);
+  return facts.length
+    ? facts.map((fact) => `${fact.reason} ${fact.points > 0 ? "+" : ""}${fact.points}`).join(" · ")
+    : "変動なし";
+}
+
 function resultBoardFingerprint(data, results) {
   const ideaWinnerIds = Array.isArray(data.ideaWinnerIds) && data.ideaWinnerIds.length
     ? data.ideaWinnerIds
@@ -13000,6 +13065,7 @@ function resultBoardFingerprint(data, results) {
       index,
       resultPointTotal(entry),
       entry.mvp === true,
+      resultPointBreakdown(entry).map((fact) => [fact.reason, fact.points]),
       Boolean(entry.ideaWinner),
       Boolean(entry.luminousSuccess)
     ])
@@ -13059,6 +13125,7 @@ function renderEnd(data) {
         const row = document.createElement("div");
         const points = resultPointTotal(entry);
         const mvpLabel = boardMvpLabel(entry);
+        const breakdown = resultPointBreakdownText(entry);
         const isMvp = mvpLabel === "MVP";
         const ideaWinner = data.winner === "idea" && (entry.ideaWinner || ideaWinnerIds.has(entry.id));
         row.className = `result-row${isMvp ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}${ideaWinner ? " is-idea-winner" : ""}${points !== 0 ? " has-points" : ""}`;
@@ -13067,6 +13134,7 @@ function renderEnd(data) {
           <span class="result-player">
             <strong>${escapeHtml(String(entry.name || ""))}</strong>
             ${mvpLabel ? `<small class="result-point-mvp">${mvpLabel}</small>` : ""}
+            <small class="result-point-breakdown">${escapeHtml(breakdown)}</small>
           </span>
           <span class="result-points" aria-label="ランクポイント ${points > 0 ? "+" : ""}${points}"><strong>${points > 0 ? "+" : ""}${points}</strong><small>ランクP</small></span>
         `;
@@ -20379,7 +20447,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547";
+const version = "emp-activation-hacker-full-surface-unreached-closure-v548";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

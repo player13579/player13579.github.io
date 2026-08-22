@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547",
+    version: "emp-activation-hacker-full-surface-unreached-closure-v548",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

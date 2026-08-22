@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust-v547",
+    version: "emp-activation-hacker-full-surface-unreached-closure-v548",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -20300,9 +20300,10 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
   };
 }
 
-// The pre-MVP Result total has only two inputs: qualifying kills and the
-// ordinary match outcome. An Idea winner/loser still won/lost.
-function calculateResultPoints(room, player) {
+// Result owns one numeric domain only: rank points.  Commit its named facts
+// together with the total so the client never has to infer, recalculate, or
+// relabel a score from gameplay state. An Idea winner/loser still won/lost.
+function calculateResultPointBreakdown(room, player) {
   const players = [...room.players.values()];
   const attackers = players.filter((entry) => entry.role === "attacker");
   const defenders = players.filter((entry) => entry.role === "defender");
@@ -20316,7 +20317,24 @@ function calculateResultPoints(room, player) {
       ? player.role === "defender"
       : room.winner === "attackers" && player.role === "attacker";
   const outcomePoints = decidedOutcome ? (won ? 1 : -1) : 0;
-  return killPoints + outcomePoints;
+  const facts = [];
+  if (killPoints > 0) {
+    facts.push(Object.freeze({
+      // Keep the Result's visible numerals in the one rank-point domain. The
+      // quota remains authoritative here but is not exposed as a second count.
+      reason: player.role === "attacker" ? "攻撃キル換算" : "防衛キル",
+      points: killPoints
+    }));
+  }
+  if (outcomePoints !== 0) {
+    facts.push(Object.freeze({ reason: outcomePoints > 0 ? "勝利" : "敗北", points: outcomePoints }));
+  }
+  return Object.freeze(facts);
+}
+
+function calculateResultPoints(room, player) {
+  return calculateResultPointBreakdown(room, player)
+    .reduce((total, fact) => total + fact.points, 0);
 }
 
 // Commit a self-contained board exactly once.  All later Result serialization
@@ -20324,17 +20342,31 @@ function calculateResultPoints(room, player) {
 function commitResultBoard(room) {
   if (room.resultBoardCommitted) return false;
   const ordered = [...room.players.values()]
-    .map((player) => ({ player, points: calculateResultPoints(room, player) }))
+    .map((player) => {
+      const pointBreakdown = calculateResultPointBreakdown(room, player);
+      return {
+        player,
+        pointBreakdown,
+        points: pointBreakdown.reduce((total, fact) => total + fact.points, 0)
+      };
+    })
     .sort((left, right) => (
       right.points - left.points ||
       left.player.name.localeCompare(right.player.name, "ja") ||
       left.player.id.localeCompare(right.player.id)
     ));
   const mvpPlayerId = ordered[0]?.player.id || "";
-  room.resultBoardByPlayerId = Object.fromEntries(ordered.map(({ player, points }) => [player.id, {
-    points: points + (player.id === mvpPlayerId ? 1 : 0),
-    mvp: player.id === mvpPlayerId
-  }]));
+  room.resultBoardByPlayerId = Object.fromEntries(ordered.map(({ player, points, pointBreakdown }) => {
+    const mvp = player.id === mvpPlayerId;
+    const committedBreakdown = mvp
+      ? Object.freeze([...pointBreakdown, Object.freeze({ reason: "MVP", points: 1 })])
+      : pointBreakdown;
+    return [player.id, Object.freeze({
+      points: points + (mvp ? 1 : 0),
+      mvp,
+      pointBreakdown: committedBreakdown
+    })];
+  }));
   room.resultBoardCommitted = true;
   return true;
 }
@@ -20354,7 +20386,12 @@ function resultBoardEntries(room) {
         role: player.role,
         operatorId: player.operatorId,
         mvp: Boolean(board.mvp),
-        points: Number(board.points) || 0
+        points: Number(board.points) || 0,
+        // This is the sealed, named rank-point ledger for the row. Do not
+        // expose contribution, placement, or client-derived score aliases.
+        pointBreakdown: Array.isArray(board.pointBreakdown)
+          ? board.pointBreakdown.map((fact) => ({ reason: String(fact.reason || ""), points: Number(fact.points) || 0 }))
+          : []
       };
     })
     .filter(Boolean)

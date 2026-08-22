@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v547-emp-resonance-friendly-defender-bot-hacker-flick-barrier-bust";
+const CACHE_NAME = "dva-static-v548-emp-activation-hacker-full-surface-unreached-closure";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
