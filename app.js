@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "pages-first-sabotage-proximity-bot-barrier-v551";
+const DVA_CLIENT_RELEASE = "pages-first-sabotage-proximity-bot-barrier-v552";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -815,7 +815,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pages-first-sabotage-proximity-bot-barrier-v551";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pages-first-sabotage-proximity-bot-barrier-v552";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9633,6 +9633,20 @@ function applyState(data, options = {}) {
     if ((data.magicEffects || []).some((effect) => effect.type === "action-repair" && effect.variant === "proximity")) {
       root.setAttribute("data-v550-proximity-repair-observed", "true");
     }
+    const visibleSunbeamCount = (data.magicEffects || []).filter((effect) => effect.type === "flora-sunbeam").length;
+    if (visibleSunbeamCount > Number(root.getAttribute("data-v550-sunbeam-count") || 0)) {
+      root.setAttribute("data-v550-sunbeam-count", String(visibleSunbeamCount));
+    }
+    const visibleCreditMarkerCount = Math.max(0, ...(data.magicEffects || [])
+      .filter((effect) => effect.type === "gain-credits")
+      .map((effect) => Number(effect.markerCount) || 0));
+    if (visibleCreditMarkerCount > Number(root.getAttribute("data-v550-credit-marker-count") || 0)) {
+      root.setAttribute("data-v550-credit-marker-count", String(visibleCreditMarkerCount));
+    }
+    if (VERIFY_REAL_SCREEN_FIXTURE_KIND.startsWith("enemy-bot-repertoire-")) {
+      const repertoireEvent = (data.events || []).findLast((event) => /RPG|レールガン|核変換|ROOT|借用|heavy-rpg|invention-railgun|quantum-nuclear|root-borrowed/.test(String(event?.text || "")));
+      if (repertoireEvent) root.setAttribute("data-v550-bot-repertoire-event", String(repertoireEvent.text || ""));
+    }
     if (Number(self.fighterEnergyPeak) === 99) root.setAttribute("data-v550-fighter-ec99-observed", "true");
     if (self.fighterInfiniteResources) root.setAttribute("data-v550-fighter-ec100-observed", "true");
     if (self.movementAccActive && Number(self.movementAcc) >= 2) root.setAttribute("data-v550-movement-acc2-observed", "true");
@@ -12673,10 +12687,12 @@ function updateActionButtons(data) {
   const dodgeStaminaCost = Number(self.dodgeStaminaCost) || 200;
   const cameraIndices = availableCameraIndices(data);
   const aiming = Boolean(aimed && self.aimTargetId);
-  const contextSource = !groundItem && utilityStation ? els.utilityButton : null;
   const dodgeAccess = self.role === "defender" || fighterAccess;
 
   const humanDefenderTask = self.role === "defender" && self.isBot !== true && Boolean(task);
+  const contextSource = !groundItem
+    ? (humanDefenderTask ? els.taskButton : utilityStation ? els.utilityButton : null)
+    : null;
   const taskMotionBlocked = self.special !== "alchemist" && Math.hypot(Number(self.vx) || 0, Number(self.vy) || 0) > 0.01;
   els.taskButton.hidden = !humanDefenderTask;
   els.taskButton.textContent = task ? `タスク: ${task.label}` : "タスク";
@@ -20499,7 +20515,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "pages-first-sabotage-proximity-bot-barrier-v551";
+const version = "pages-first-sabotage-proximity-bot-barrier-v552";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21446,5 +21462,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=pages-first-sabotage-proximity-bot-barrier-v551", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=pages-first-sabotage-proximity-bot-barrier-v552", document.baseURI)).catch(() => {});
 }

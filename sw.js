@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v551-pages-first-sabotage-proximity-bot-barrier";
+const CACHE_NAME = "dva-static-v552-pages-first-sabotage-proximity-bot-barrier";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

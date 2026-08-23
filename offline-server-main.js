@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "pages-first-sabotage-proximity-bot-barrier-v551",
+    version: "pages-first-sabotage-proximity-bot-barrier-v552",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21092,6 +21092,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
         role: "attacker", special: "fighter", operatorReady: true,
         alive: true, ejected: false, inVent: false,
         x: startX + 280, y, gritCharges: 1, standFirmBarrierUntil: 0,
+        killReadyAt: timestamp + 120_000,
         nextBotActionAt: timestamp + 120_000, taskAutoReadyAt: timestamp + 120_000
       });
     });
@@ -21149,6 +21150,11 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     if (!task || !station) throw new ApiError(400, "人間Defenderタスク実画面fixtureを準備できません。");
     player.x = station.x;
     player.y = station.y;
+    // The ordinary proximity automation remains production behavior, but this
+    // exact route must leave the same task available for a real #taskButton
+    // transaction. Manual completion does not consult the presence timestamp.
+    player.taskPresenceTaskId = task.id;
+    player.taskPresenceSince = timestamp + 120_000;
     room.preparationEndsAt = timestamp + 120_000;
     for (const entry of room.players.values()) {
       if (!entry.isBot) continue;
@@ -21246,7 +21252,18 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.preparationEndsAt = 0;
     room.meeting = null;
     room.sabotage = null;
-    pushEvent(room, `実画面検証: ${kind} の合法候補を次tickで実行します。`);
+    const expectedPrefix = {
+      "enemy-bot-repertoire-heavy": "heavy-rpg",
+      "enemy-bot-repertoire-invention": "invention-railgun",
+      "enemy-bot-repertoire-quantum": "quantum-nuclear-transmutation",
+      "enemy-bot-repertoire-root": "root-borrowed-"
+    }[kind];
+    const fixtureCandidate = botCombatCandidates(room, bot, player, timestamp)
+      .find((candidate) => candidate.code.startsWith(expectedPrefix));
+    if (!fixtureCandidate || fixtureCandidate.run() === false) {
+      throw new ApiError(500, `敵Bot最大強度実画面fixtureが ${expectedPrefix} を実行できません。`);
+    }
+    pushEvent(room, `実画面検証: ${kind} は ${fixtureCandidate.code} をauthoritative helperで実行しました。`);
   } else if (kind === "sabotage-proximity-auto-clear") {
     const timestamp = now();
     const map = getMap(room);
