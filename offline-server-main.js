@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "pages-first-sabotage-proximity-bot-barrier-v550",
+    version: "pages-first-sabotage-proximity-bot-barrier-v551",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

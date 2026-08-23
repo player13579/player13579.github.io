@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "pages-first-sabotage-proximity-bot-barrier-v550";
+const DVA_CLIENT_RELEASE = "pages-first-sabotage-proximity-bot-barrier-v551";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -815,7 +815,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pages-first-sabotage-proximity-bot-barrier-v550";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pages-first-sabotage-proximity-bot-barrier-v551";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -20499,7 +20499,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "pages-first-sabotage-proximity-bot-barrier-v550";
+const version = "pages-first-sabotage-proximity-bot-barrier-v551";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21446,5 +21446,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=pages-first-sabotage-proximity-bot-barrier-v551", document.baseURI)).catch(() => {});
 }
