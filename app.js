@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-activation-hacker-full-surface-unreached-closure-v548";
+const DVA_CLIENT_RELEASE = "pages-first-sabotage-proximity-bot-barrier-v550";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -10,10 +10,11 @@ const IS_VERIFICATION_MODE = URL_PARAMETERS.has("verify");
 const VERIFY_REAL_SCREEN_FIXTURE_KIND = IS_VERIFICATION_MODE
   ? String(URL_PARAMETERS.get("realScreenFixture") || "")
   : "";
+const IS_TRUSTED_REAL_SCREEN_FIXTURE_HOST = /^(?:localhost|127(?:\.\d{1,3}){3}|player13579\.github\.io)$/i.test(location.hostname);
 const VERIFY_REAL_SCREEN_AUTO_START = Boolean(
   VERIFY_REAL_SCREEN_FIXTURE_KIND &&
   URL_PARAMETERS.get("autoStart") === "1" &&
-  /^(?:localhost|127(?:\.\d{1,3}){3})$/i.test(location.hostname)
+  IS_TRUSTED_REAL_SCREEN_FIXTURE_HOST
 );
 if (VERIFY_REAL_SCREEN_FIXTURE_KIND) {
   document.documentElement.setAttribute("data-real-screen-fixture", VERIFY_REAL_SCREEN_FIXTURE_KIND);
@@ -806,7 +807,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-activation-hacker-full-surface-unreached-closure-v548";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pages-first-sabotage-proximity-bot-barrier-v550";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1828,7 +1829,7 @@ function initializeOfflineRuntime() {
   state.offlineClient = new DVAOffline.OfflineApiClient({
     clientId,
     isDeveloper: () => localStorage.getItem(storage.developerIdentity) === "1" || Boolean(
-      VERIFY_REAL_SCREEN_FIXTURE_KIND && /^(?:localhost|127(?:\.\d{1,3}){3})$/i.test(location.hostname)
+      VERIFY_REAL_SCREEN_FIXTURE_KIND && IS_TRUSTED_REAL_SCREEN_FIXTURE_HOST
     )
   });
   // Warm the generated-offline runtime without creating a room or switching
@@ -8662,6 +8663,11 @@ async function runVerificationRealScreenAutoStart() {
   if (!VERIFY_REAL_SCREEN_AUTO_START || !state.offlineClient) return;
   document.documentElement.setAttribute("data-v533-auto-start-status", "starting");
   try {
+    // Pages is the canonical verification origin, so sequential exact-route
+    // fixtures share its localStorage. Never let a previous fixture's room
+    // identity short-circuit or contaminate the next deterministic run.
+    if (state.roomId || state.playerId) resetLocalSession();
+    await state.offlineClient.start();
     if (!els.nameInput.value.trim()) els.nameInput.value = "V533 Verify";
     const name = els.nameInput.value.trim();
     const skinId = normalizeSkinId(els.skinSelect.value);
@@ -8672,8 +8678,8 @@ async function runVerificationRealScreenAutoStart() {
       skinId,
       mapId,
       offlineFallback: true
-    }, { forceOnline: true, attempts: 1, timeoutMs: 3_000 });
-    if (!acceptMatchmakingResult(result, name, false)) {
+    }, { forceOffline: true, attempts: 2, timeoutMs: 12_000 });
+    if (!acceptMatchmakingResult(result, name, true)) {
       throw new Error("verification matchmaking failed");
     }
     const self = state.data?.self;
@@ -9584,6 +9590,34 @@ function applyState(data, options = {}) {
       "data-v533-preparation-barrier-released",
       state.verificationPreparationBarrierReleased ? "true" : "false"
     );
+    const self = data.self || {};
+    const root = document.documentElement;
+    root.setAttribute("data-v550-fixture", VERIFY_REAL_SCREEN_FIXTURE_KIND || "manual");
+    root.setAttribute("data-v550-self-role", String(self.role || ""));
+    root.setAttribute("data-v550-self-special", String(self.special || ""));
+    root.setAttribute("data-v550-self-mana", String(self.mana ?? ""));
+    root.setAttribute("data-v550-self-stamina", String(self.stamina ?? ""));
+    root.setAttribute("data-v550-self-credits", String(self.credits ?? ""));
+    root.setAttribute("data-v550-self-body-hits", String(self.bodyHits ?? ""));
+    root.setAttribute("data-v550-self-grit", String(self.gritCharges ?? ""));
+    root.setAttribute("data-v550-fighter-energy", String(self.fighterEnergyCharge ?? ""));
+    root.setAttribute("data-v550-fighter-peak", String(self.fighterEnergyPeak ?? ""));
+    root.setAttribute("data-v550-fighter-infinite", self.fighterInfiniteResources ? "true" : "false");
+    root.setAttribute("data-v550-movement-acc", String(self.movementAcc ?? ""));
+    root.setAttribute("data-v550-movement-acc-enabled", self.movementAccEnabled === false ? "false" : "true");
+    root.setAttribute("data-v550-movement-acc-active", self.movementAccActive ? "true" : "false");
+    root.setAttribute("data-v550-root-active", self.hackerRootActive ? "true" : "false");
+    root.setAttribute("data-v550-task-done-count", String((self.tasks || []).filter((task) => task.done).length));
+    root.setAttribute("data-v550-sabotage-type", String(data.sabotage?.type || ""));
+    root.setAttribute("data-v550-last-event", String((data.events || []).at(-1)?.text || ""));
+    root.setAttribute("data-v550-magic-types", (data.magicEffects || []).slice(-12).map((effect) => effect.type).join(","));
+    if (data.sabotage?.type) root.setAttribute("data-v550-sabotage-observed", String(data.sabotage.type));
+    if ((data.magicEffects || []).some((effect) => effect.type === "action-repair" && effect.variant === "proximity")) {
+      root.setAttribute("data-v550-proximity-repair-observed", "true");
+    }
+    if (Number(self.fighterEnergyPeak) === 99) root.setAttribute("data-v550-fighter-ec99-observed", "true");
+    if (self.fighterInfiniteResources) root.setAttribute("data-v550-fighter-ec100-observed", "true");
+    if (self.movementAccActive && Number(self.movementAcc) >= 2) root.setAttribute("data-v550-movement-acc2-observed", "true");
   }
   if (VERIFY_REAL_SCREEN_FIXTURE_KIND === "enemy-bot-combat" && state.verificationEnemyBotBaseline) {
     const bot = (Array.isArray(data.players) ? data.players : [])
@@ -20447,7 +20481,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-activation-hacker-full-surface-unreached-closure-v548";
+const version = "pages-first-sabotage-proximity-bot-barrier-v550";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);

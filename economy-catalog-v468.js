@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "emp-activation-hacker-full-surface-unreached-closure-v548",
+    version: "pages-first-sabotage-proximity-bot-barrier-v550",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

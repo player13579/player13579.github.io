@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "emp-activation-hacker-full-surface-unreached-closure-v548";
+const OFFLINE_WORKER_VERSION = "pages-first-sabotage-proximity-bot-barrier-v550";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.

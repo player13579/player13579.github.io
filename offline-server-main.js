@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "emp-activation-hacker-full-surface-unreached-closure-v548",
+    version: "pages-first-sabotage-proximity-bot-barrier-v550",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -11303,7 +11303,7 @@ function hasFighterApexPerks(player) {
 
 function syncFighterInfiniteResources(player) {
   if (!hasFighterInfiniteResources(player)) return false;
-  player.mana = Math.max(DEFAULT_MAX_MANA, Number(player.mana) || 0);
+  player.mana = Math.max(manaCapacityFor(player), Number(player.mana) || 0);
   player.stamina = staminaCapacityFor(player);
   player.bodyHits = 0;
   player.gritCharges = Math.max(1, Number(player.gritCharges) || 0);
@@ -13672,6 +13672,48 @@ function clearSabotage(room, text = "サボタージュを修理しました。"
   touch(room);
 }
 
+// Physical repair points are contact triggers.  Reaching a valid point is the
+// whole physical interaction; do not require a second client click that can be
+// lost between movement snapshots.  Critical sabotages retain their two
+// independently tracked points, while every other sabotage clears at its one
+// matching point.
+function autoClearSabotageAtValidProximity(room, timestamp = now()) {
+  if (room.phase !== "playing" || !room.sabotage) return false;
+  const type = room.sabotage.type;
+  const critical = type === "reactor" || type === "oxygen";
+  const repairedPoints = room.sabotage.repairedPoints || (room.sabotage.repairedPoints = {});
+  let changed = false;
+
+  for (const player of room.players.values()) {
+    if (!room.sabotage) break;
+    if (!player.alive || player.ejected || player.inVent || actionBlockedUntil(player) > timestamp) continue;
+    const near = nearestStation(
+      room,
+      player,
+      (station) => station.type === "repair" && station.repair === type && !repairedPoints[station.id],
+      getMap(room).taskRange
+    );
+    if (!near) continue;
+
+    pushMagicEffect(room, "action-repair", player, { radius: 110, playerId: player.id, variant: "proximity" });
+    if (!critical) {
+      clearSabotage(room, `${player.name} が ${sabotageLabel(type)} に到達し自動修復しました。`);
+      return true;
+    }
+
+    repairedPoints[near.station.id] = player.id;
+    changed = true;
+    pushEvent(room, `${player.name} が ${near.station.label || "修復ポイント"} に到達し自動起動しました。`);
+    if (Object.keys(repairedPoints).length >= 2) {
+      clearSabotage(room, `${sabotageLabel(type)} の全修復ポイントが自動起動され、修理しました。`);
+      return true;
+    }
+  }
+
+  if (changed) touch(room);
+  return changed;
+}
+
 function tickRoom(room) {
   const timestamp = now();
   const elapsedMs = Math.min(250, Math.max(0, timestamp - (Number(room.lastTickAt) || timestamp)));
@@ -13788,6 +13830,7 @@ function tickRoom(room) {
       player.lastPassiveCreditAt = timestamp;
     }
   }
+  autoClearSabotageAtValidProximity(room, timestamp);
   if (runAutomaticHumanBodyReports(room, timestamp)) return;
   if (!roomTimeStopped) {
     advancePairRouteRule(room, timestamp);
@@ -21026,6 +21069,213 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       entry.taskAutoReadyAt = timestamp + 120_000;
       entry.emergenciesLeft = 0;
     }
+  } else if (kind === "sunbeam-activation") {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    const target = bots[0];
+    if (!target) throw new ApiError(400, "サンビーム実画面fixtureに対象Botがいません。");
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 520 && Number(rect.h) > map.playerRadius * 3)
+      .sort((a, b) => Number(b.w) - Number(a.w))[0];
+    if (!arena) throw new ApiError(400, "サンビーム実画面fixtureに直線通路がありません。");
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    const startX = Number(arena.x) + Math.max(45, map.playerRadius + 10);
+    Object.assign(player, {
+      role: "defender", special: "flora", operatorId: "defender-flora", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX, y, aimX: 1, aimY: 0,
+      mana: 20, maxMana: Math.max(20, Number(player.maxMana) || 0), floraMode: "sunbeam"
+    });
+    bots.forEach((bot, index) => {
+      if (index > 0) { bot.alive = false; bot.ejected = true; return; }
+      Object.assign(bot, {
+        role: "attacker", special: "fighter", operatorReady: true,
+        alive: true, ejected: false, inVent: false,
+        x: startX + 280, y, gritCharges: 1, standFirmBarrierUntil: 0,
+        nextBotActionAt: timestamp + 120_000, taskAutoReadyAt: timestamp + 120_000
+      });
+    });
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    pushEvent(room, "実画面検証: フローラは20MPでサンビームを2回連続発動できます。");
+  } else if (kind === "movement-acc") {
+    const timestamp = now();
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      movementAccEnabled: true,
+      speedMultiplier: 1,
+      timedAccelerationEffects: [{ source: "hsg-enhance", multiplier: 2, endsAt: timestamp + 4_000 }]
+    });
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+    }
+    pushEvent(room, "実画面検証: HSG EnhanceによりACC2固定が有効、4秒後の次tickでACC1へ戻ります。");
+  } else if (kind === "non-hsg-selection-hsg" || kind === "non-hsg-selection-grant") {
+    const timestamp = now();
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      purchasedWeapons: [], unavailableGunnerWeapons: [...GUNNER_WEAPON_ORDER],
+      gunnerWeapon: DEFAULT_GUNNER_WEAPON, gunnerAmmo: createGunnerAmmo(),
+      itemInventory: { hsg: 1 }
+    });
+    if (kind === "non-hsg-selection-grant") purchaseFirearm(player, "assault");
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+    }
+    pushEvent(room, kind === "non-hsg-selection-grant"
+      ? "実画面検証: HSGにアサルトライフルを追加し、暗黙選択を非HSG武器へ移します。"
+      : "実画面検証: HSGだけを所持し、暗黙選択はHSGです。");
+  } else if (kind === "human-defender-task") {
+    const timestamp = now();
+    const map = getMap(room);
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, vx: 0, vy: 0,
+      stamina: TASK_STAMINA_REQUIREMENT, staminaUpdatedAt: timestamp,
+      taskAutoReadyAt: 0
+    });
+    player.taskList = assignTasks(map, room.settings.taskCount);
+    const task = player.taskList.find((entry) => !entry.done && entry.type !== "upload") || player.taskList.find((entry) => !entry.done);
+    const station = task ? findStation(map, task.stationId) : null;
+    if (!task || !station) throw new ApiError(400, "人間Defenderタスク実画面fixtureを準備できません。");
+    player.x = station.x;
+    player.y = station.y;
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+    }
+    pushEvent(room, `実画面検証: 停止中の人間Defenderが ${task.label} を手動実行します。`);
+  } else if (kind === "fighter-ec100") {
+    const timestamp = now();
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      fighterEnergyCharge: 99, fighterEnergyPeak: 99, fighterEnergyChargeReadyAt: timestamp + 800,
+      mana: 20, maxMana: Math.max(20, Number(player.maxMana) || 0),
+      stamina: MAX_STORED_STAMINA, bodyHits: 0, gritCharges: 0
+    });
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+    }
+    pushEvent(room, "実画面検証: EC99から次tickでEC100へ到達し、無限MP/SP/HP/バリアを同期します。");
+  } else if (kind === "root-borrowed-input") {
+    const timestamp = now();
+    const map = getMap(room);
+    const target = [...room.players.values()].find((entry) => entry.isBot);
+    if (!target) throw new ApiError(400, "ROOT借用入力実画面fixtureに対象Botがいません。");
+    const spawn = map.spawns[0];
+    Object.assign(player, {
+      role: "attacker", special: "alchemist", operatorId: "attacker-alchemist", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      x: spawn.x, y: spawn.y, aimX: 1, aimY: 0,
+      mana: 20, maxMana: Math.max(20, Number(player.maxMana) || 0),
+      hackerRootActive: true,
+      hackerRootHealthSnapshot: { bodyHits: 0, overheal: 0 },
+      bodyHits: 2 - HACKER_ROOT_HEALTH, overheal: 0
+    });
+    Object.assign(target, {
+      role: "defender", special: "fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      x: spawn.x + 140, y: spawn.y, gritCharges: 1,
+      nextBotActionAt: timestamp + 120_000, taskAutoReadyAt: timestamp + 120_000
+    });
+    for (const entry of room.players.values()) {
+      if (!entry.isBot || entry === target) continue;
+      entry.alive = false;
+      entry.ejected = true;
+    }
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    pushEvent(room, "実画面検証: ROOT借用能力はpointer・keyboard・tabletで同じowner/modeへ委譲します。");
+  } else if (kind.startsWith("enemy-bot-repertoire-")) {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    const bot = bots[0];
+    if (!bot) throw new ApiError(400, "敵Bot最大強度実画面fixtureにBotがいません。");
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 520 && Number(rect.h) > map.playerRadius * 3)
+      .sort((a, b) => Number(b.w) - Number(a.w))[0];
+    if (!arena) throw new ApiError(400, "敵Bot最大強度実画面fixtureに直線通路がありません。");
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    const x = Number(arena.x) + Math.max(45, map.playerRadius + 10);
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: x + 240, y,
+      gritCharges: 1, mana: 20, stamina: MAX_STAMINA
+    });
+    Object.assign(bot, {
+      role: "attacker", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x, y, aimX: 1, aimY: 0,
+      mana: 20, maxMana: 20, stamina: MAX_STAMINA,
+      nextBotActionAt: 0, killReadyAt: 0, gunReadyAt: 0,
+      heavyWeapons: [], inventions: [], itemInventory: {}, purchasedWeapons: []
+    });
+    if (kind === "enemy-bot-repertoire-heavy") bot.heavyWeapons = ["rpg"];
+    else if (kind === "enemy-bot-repertoire-invention") bot.inventions = ["railgun"];
+    else if (kind === "enemy-bot-repertoire-quantum") {
+      bot.special = "quantum";
+      bot.operatorId = "operator-quantum-control";
+      bot.itemInventory = { lead: 1 };
+      bot.credits = 0;
+    } else if (kind === "enemy-bot-repertoire-root") {
+      bot.special = "alchemist";
+      bot.operatorId = "attacker-alchemist";
+      bot.hackerRootActive = true;
+      bot.hackerRootHealthSnapshot = { bodyHits: 0, overheal: 0 };
+      bot.bodyHits = 2 - HACKER_ROOT_HEALTH;
+    } else {
+      throw new ApiError(400, "敵Bot最大強度実画面fixtureの種類が不正です。");
+    }
+    bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    pushEvent(room, `実画面検証: ${kind} の合法候補を次tickで実行します。`);
+  } else if (kind === "sabotage-proximity-auto-clear") {
+    const timestamp = now();
+    const map = getMap(room);
+    const station = map.stations.find((entry) => entry.type === "repair" && entry.repair === "comms") ||
+      map.stations.find((entry) => entry.type === "repair" && !["reactor", "oxygen", "lights"].includes(entry.repair));
+    if (!station) throw new ApiError(400, "近接サボ解除実画面fixtureに単一点修復端末がありません。");
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: station.x, y: station.y, vx: 0, vy: 0,
+      // Keep the first serialized frame authoritative and still sabotaged. The
+      // next eligible tick proves that proximity—not a repair-button click—owns
+      // the commit and also covers blocked -> retry cleanup.
+      smartphoneUntil: timestamp + 5_000
+    });
+    room.sabotage = {
+      type: station.repair,
+      sourceId: [...room.players.values()].find((entry) => entry.role === "attacker")?.id || "fixture",
+      startedAt: timestamp,
+      endsAt: timestamp + 120_000,
+      repairedPoints: {}
+    };
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+      entry.smartphoneUntil = timestamp + 120_000;
+    }
+    pushEvent(room, `実画面検証: ${station.label || station.repair} への接近だけでサボタージュを解除します。`);
   } else if (kind === "enemy-bot-combat") {
     const timestamp = now();
     const map = getMap(room);
