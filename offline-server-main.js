@@ -21314,6 +21314,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
         mana: 0, maxMana: Math.max(20, Number(bot.maxMana) || 0),
         stamina: Math.max(MAX_STAMINA, Number(bot.stamina) || 0),
         nextBotActionAt: 0, killReadyAt: 0, meditatingUntil: 0,
+        sabotageReadyAt: timestamp + 120_000, nextBotSabotageAt: timestamp + 120_000,
         actionTargetId: "", attackTargetId: "", aimTargetId: "", botCombatPlan: null,
         navPath: [], navTargetId: "", fighterEnergy: 0
       });
