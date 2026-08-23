@@ -367,6 +367,14 @@ const storage = {
 };
 storage.cpuGravityHint = "dva_cpu_gravity_hint";
 storage.offlineSession = "dva_offline_session_v528";
+if (VERIFY_REAL_SCREEN_AUTO_START) {
+  // A Pages verification origin is reused across exact routes. Discard only
+  // the previous match identity before state is constructed so its poll cannot
+  // race the next fixture's deterministic offline session.
+  localStorage.removeItem(storage.room);
+  localStorage.removeItem(storage.player);
+  localStorage.removeItem(storage.offlineSession);
+}
 
 const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sniper", "taser"]);
 // Texture construction runs while the main state object is initialized, so this
@@ -1816,6 +1824,10 @@ async function excludeOwnAnalytics() {
 }
 
 function clientId() {
+  if (VERIFY_REAL_SCREEN_AUTO_START) {
+    const runId = String(URL_PARAMETERS.get("verify") || Date.now()).replace(/[^a-z0-9_-]+/gi, "-").slice(0, 80);
+    return `verify-${VERIFY_REAL_SCREEN_FIXTURE_KIND}-${runId}`;
+  }
   let value = localStorage.getItem(storage.clientId);
   if (!value) {
     value = globalThis.crypto?.randomUUID?.() || `device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -8678,9 +8690,15 @@ async function runVerificationRealScreenAutoStart() {
       skinId,
       mapId,
       offlineFallback: true
-    }, { forceOffline: true, attempts: 2, timeoutMs: 12_000 });
+    }, { forceOffline: true, attempts: 3, timeoutMs: 30_000 });
     if (!acceptMatchmakingResult(result, name, true)) {
-      throw new Error("verification matchmaking failed");
+      throw new Error(`verification matchmaking failed: ${JSON.stringify({
+        received: Boolean(result),
+        phase: String(result?.phase || ""),
+        matchmaking: String(result?.matchmaking?.status || ""),
+        hasRoom: Boolean(result?.roomId),
+        hasPlayer: Boolean(result?.playerId)
+      })}`);
     }
     const self = state.data?.self;
     if (state.data?.phase === "selecting" && self && !self.operatorReady) {
