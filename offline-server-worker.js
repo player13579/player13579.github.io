@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ordinary-pages-bot-observer-v556",
+    version: "electric-long-range-settlement-v557",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7694,7 +7694,6 @@ const QUANTUM_ACTION_STAMINA_COST = 16;
 const GUNNER_BURST_STAMINA_COST = 50;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
 const QUANTUM_ELECTRIC_MANA_COST = 1;
-const QUANTUM_ELECTRIC_RANGE = 650;
 const QUANTUM_ELECTRIC_DAMAGE = 0.35;
 const QUANTUM_ELECTRIC_SLOW_MS = 3_000;
 const QUANTUM_ELECTRIC_SLOW_MULTIPLIER = 0.65;
@@ -7954,7 +7953,7 @@ const OPERATORS = {
       limit: 99,
       asset: "quantum",
       description: "運動エネルギー制御・エレクトリック・核変換・核分裂を使い分ける。",
-      details: "エレクトリックは16SPと1MPを使い、650以内・見通し上の最近接敵へ、空気の局所絶縁破壊から一条の電子輸送路を形成して0.35ダメージと3秒35%減速を与える。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。運動エネルギー制御は所持しているミネラルウォーターまたは海水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂・核融合は終盤に所持核素材へ2MPで作用する。対象がなければ何も起きない。"
+      details: "エレクトリックは16SPと1MPを使い、見通し上の最近接敵へ距離を問わず、空気の局所絶縁破壊から一条の電子輸送路を形成して0.35ダメージと3秒35%減速を与える。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。運動エネルギー制御は所持しているミネラルウォーターまたは海水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂・核融合は終盤に所持核素材へ2MPで作用する。対象がなければ何も起きない。"
     }
   ],
   attacker: [
@@ -11905,6 +11904,24 @@ function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
   }
   spendMana(room, player, Math.max(0, Number(amount) || 0), label);
   return true;
+}
+
+// Electric is a single settled Quantum transaction. Unlike ordinary operator
+// abilities, its declared 1 MP cost is never waived by ROOT, Rational,
+// infinite-resource, or ability-batch free-cast owners.
+function canSpendQuantumElectricResources(player) {
+  return Number(player?.stamina) >= QUANTUM_ACTION_STAMINA_COST &&
+    Number(player?.mana) >= QUANTUM_ELECTRIC_MANA_COST;
+}
+
+function spendQuantumElectricResources(room, player) {
+  if (!canSpendQuantumElectricResources(player)) {
+    throw new ApiError(400, `エレクトリックには${QUANTUM_ACTION_STAMINA_COST}SPと${QUANTUM_ELECTRIC_MANA_COST}MPが必要です。`);
+  }
+  player.stamina = Math.max(0, Number(player.stamina) - QUANTUM_ACTION_STAMINA_COST);
+  player.staminaUpdatedAt = now();
+  syncMentalState(room, player, "エレクトリック");
+  setMana(room, player, Number(player.mana) - QUANTUM_ELECTRIC_MANA_COST, "エレクトリック", { exact: true });
 }
 
 function canSpendOperatorMana(player, timestamp = now(), amount = ABILITY_MANA_COST) {
@@ -17713,8 +17730,7 @@ function findQuantumElectricTarget(room, player, timestamp = now()) {
       !floraInvisibleActive(target, timestamp)
     )
     .map((target) => ({ target, separation: distance(player, target) }))
-    .filter(({ target, separation }) => {
-      if (separation > QUANTUM_ELECTRIC_RANGE) return false;
+    .filter(({ target }) => {
       const { dx, dy } = finiteDirection(target.x - player.x, target.y - player.y, 0, 1);
       return clearShotPath(room, player, target, dx, dy);
     })
@@ -17799,18 +17815,18 @@ function useQuantumControl(room, player, rawMode) {
     throw new ApiError(400, `${mode === "nuclear-fusion" ? "核融合" : "核分裂"}は終盤まで使用できません（残り${secondsLeft}秒）。`);
   }
   ensureAbilityAvailable(player);
-  if (Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `クオンタムには${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
-  if (mode === "electric-discharge" && !canSpendOperatorMana(player, timestamp, QUANTUM_ELECTRIC_MANA_COST)) {
-    throw new ApiError(400, `エレクトリックには${QUANTUM_ELECTRIC_MANA_COST}MPが必要です。`);
+  if (mode === "electric-discharge" && !canSpendQuantumElectricResources(player)) {
+    throw new ApiError(400, `エレクトリックには${QUANTUM_ACTION_STAMINA_COST}SPと${QUANTUM_ELECTRIC_MANA_COST}MPが必要です。`);
   }
+  if (mode !== "electric-discharge" && Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `クオンタムには${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
   if (nuclearMode && Number(player.mana) < QUANTUM_NUCLEAR_MANA_COST) {
     throw new ApiError(400, `${mode === "nuclear-fusion" ? "核融合" : "核分裂"}には${QUANTUM_NUCLEAR_MANA_COST}MPが必要です。`);
   }
-  spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
   if (mode === "electric-discharge") {
-    spendOperatorMana(room, player, "エレクトリック", QUANTUM_ELECTRIC_MANA_COST);
+    spendQuantumElectricResources(room, player);
     resolveQuantumElectricDischarge(room, player, electricTarget, timestamp);
   } else if (mode === "nuclear-transmutation") {
+    spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
     consumeItem(player, itemId);
     const credits = acquireGoldAsCredits(room, player, `quantum-gold:${itemId}`);
     pushMagicEffect(room, "quantum-transmutation", player, {
@@ -17821,6 +17837,7 @@ function useQuantumControl(room, player, rawMode) {
     });
     pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}を金へ核変換し、${credits}Cへ自動換金しました。`);
   } else if (mode === "kinetic-decelerate" || mode === "kinetic-accelerate") {
+    spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
     consumeItem(player, itemId);
     const output = mode === "kinetic-decelerate" ? "ice" : "heated-water";
     addItem(player, output);
@@ -17831,6 +17848,7 @@ function useQuantumControl(room, player, rawMode) {
     });
     pushEvent(room, `${player.name} が${ITEM_DEFINITIONS[itemId].label}の運動エネルギーを${mode === "kinetic-decelerate" ? "減速させて氷結水" : "加速させて高温水"}を生成しました。`);
   } else if (nuclearMode) {
+    spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
     executeQuantumGlobalNuclearEffect(room, player, mode, itemId);
   }
   checkWin(room);
@@ -21118,7 +21136,6 @@ function serialize(room, viewer, options = {}) {
       burnStatus: viewer.burnStatus ? { ...viewer.burnStatus } : null,
       quantumMode: normalizeQuantumMode(viewer.quantumMode || "nuclear-transmutation"),
       quantumActionStaminaCost: QUANTUM_ACTION_STAMINA_COST,
-      quantumElectricRange: QUANTUM_ELECTRIC_RANGE,
       quantumElectricDamage: QUANTUM_ELECTRIC_DAMAGE,
       quantumElectricSlowMs: QUANTUM_ELECTRIC_SLOW_MS,
       quantumElectricSlowMultiplier: QUANTUM_ELECTRIC_SLOW_MULTIPLIER,
@@ -21599,6 +21616,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     if (!arena) throw new ApiError(400, "Quantum Electric実画面fixtureに見通し通路がありません。");
     const y = Number(arena.y) + Number(arena.h) / 2;
     const startX = Number(arena.x) + Math.max(50, map.playerRadius + 12);
+    const targetX = Number(arena.x) + Number(arena.w) - Math.max(50, map.playerRadius + 12);
     const rootBorrowed = kind === "quantum-electric-root";
     Object.assign(player, {
       role: rootBorrowed ? "attacker" : "defender",
@@ -21621,7 +21639,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     Object.assign(target, {
       isBot: false,
       role: rootBorrowed ? "defender" : "attacker", special: "fighter", operatorId: rootBorrowed ? "defender-fighter" : "attacker-fighter", operatorReady: true,
-      alive: true, ejected: false, inVent: false, x: startX + 360, y, vx: 0, vy: 0,
+      alive: true, ejected: false, inVent: false, x: targetX, y, vx: 0, vy: 0,
       bodyHits: 0, overheal: 0, gritCharges: 0, mana: -100, stamina: 0,
       shockSlowedUntil: 0, itemDisabledUntil: 0, abilityDisabledUntil: 0,
       sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0,
@@ -21632,7 +21650,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.preparationEndsAt = 0;
     room.meeting = null;
     room.sabotage = null;
-    pushEvent(room, `実画面検証: ${rootBorrowed ? "ROOT借用" : "通常"}エレクトリックは16SP${rootBorrowed ? "" : "+1MP"}で、見通し上の最近接敵へ絶縁破壊→電子輸送を一度だけ実行します。`);
+    pushEvent(room, `実画面検証: ${rootBorrowed ? "ROOT借用" : "通常"}エレクトリックは16SP+1MPで、見通し上の最近接敵へ距離を問わず絶縁破壊→電子輸送を一度だけ実行します。`);
   } else if (["gunner-luck-headshot-aim", "gunner-luck-headshot-hip"].includes(kind)) {
     const timestamp = now();
     const map = getMap(room);
@@ -24010,6 +24028,12 @@ function clearBotTaskInteraction(bot, { clearTarget = false } = {}) {
   if (clearTarget) bot.botTaskTargetId = "";
 }
 
+function botScheduledReturnWindowMs(room) {
+  const activeBotCount = [...(room?.players?.values?.() || [])]
+    .filter((player) => player.isBot && !player.ejected && !player.inVent).length;
+  return Math.max(BOT_TICK_MS * 2.5, (activeBotCount + 1.5) * BOT_TICK_MS);
+}
+
 function runEnemyDefenderTask(room, bot, map, timestamp = now()) {
   if (
     bot?.role !== "defender" ||
@@ -24070,7 +24094,7 @@ function runEnemyDefenderTask(room, bot, map, timestamp = now()) {
   const interactionWasInterrupted = (
     bot.botTaskTargetId !== task.id ||
     !Number(bot.botTaskPresenceSince) ||
-    timestamp - Number(bot.botTaskPresenceLastTickAt || 0) > BOT_TICK_MS * 2.5
+    timestamp - Number(bot.botTaskPresenceLastTickAt || 0) > botScheduledReturnWindowMs(room)
   );
   bot.botTaskTargetId = task.id;
   bot.botTaskPresenceLastTickAt = timestamp;
@@ -24351,7 +24375,7 @@ function botCombatCandidates(room, bot, target, timestamp) {
     }
   }
   if (nativeQuantum && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST) {
-    if (canSpendOperatorMana(bot, timestamp, QUANTUM_ELECTRIC_MANA_COST) && findQuantumElectricTarget(room, bot, timestamp)) {
+    if (canSpendQuantumElectricResources(bot) && findQuantumElectricTarget(room, bot, timestamp)) {
       add("quantum-electric-discharge", 430, () => useQuantumControl(room, bot, "electric-discharge"));
     }
     if (itemCount(bot, "mineral-water") > 0) {
@@ -24390,7 +24414,7 @@ function botCombatCandidates(room, bot, target, timestamp) {
     }
   }
   if (hackerRootEligible(bot) && target.role !== bot.role) {
-    if (Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && findQuantumElectricTarget(room, bot, timestamp)) {
+    if (canSpendQuantumElectricResources(bot) && findQuantumElectricTarget(room, bot, timestamp)) {
       add("root-borrowed-quantum-electric", 435, () => useBorrowedAbility(room, bot, "quantum", { mode: "electric-discharge" }));
     }
     if (bot.role === "attacker" && Number(bot.teleportReadyAt) <= timestamp) add("root-borrowed-gravity-heart-transfer", 905, () => useBorrowedAbility(room, bot, "gravity", { mode: "heart", targetId: target.id }));
@@ -24483,11 +24507,35 @@ function runBotCombatPlanner(room, bot, target, timestamp) {
   return false;
 }
 
+function nextDuePlayingBot(room, timestamp = now()) {
+  return [...room.players.values()]
+    .filter((bot) => (
+      bot.isBot &&
+      !bot.ejected &&
+      !bot.inVent &&
+      !timeKeeperStops(bot, timestamp) &&
+      timestamp >= Number(bot.nextBotActionAt || 0)
+    ))
+    .sort((left, right) => (
+      Number(left.nextBotActionAt || 0) - Number(right.nextBotActionAt || 0) ||
+      String(left.id || "").localeCompare(String(right.id || ""))
+    ))[0] || null;
+}
+
 function runPlayingBots(room) {
   const timestamp = now();
   const map = getMap(room);
+  // A normal generated-offline match can contain seven maximum-strength Bots.
+  // Running every due full-repertoire planner synchronously in the same 250ms
+  // callback starves `/api/state`: the client then keeps rendering the opening
+  // barrier timestamp and unchanged spawn positions even though wall time has
+  // advanced. Process exactly one oldest-due Bot per authoritative tick. Bots
+  // left due retain their original deadline, so the next tick selects them in
+  // stable deadline/id order and no participant can be starved.
+  const scheduledBot = nextDuePlayingBot(room, timestamp);
+  if (!scheduledBot) return;
   for (const bot of room.players.values()) {
-    if (!bot.isBot || bot.ejected || bot.inVent || timeKeeperStops(bot, timestamp) || timestamp < bot.nextBotActionAt) continue;
+    if (bot !== scheduledBot) continue;
     bot.nextBotActionAt = timestamp + BOT_TICK_MS - 5;
     const maximumStrength = botHasHumanOpponent(room, bot);
     const attackerUrgency = attackerBotKillUrgencyState(room, bot, timestamp);
@@ -24771,5 +24819,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ordinary-pages-bot-observer-v556a" });
+self.postMessage({ type: "ready", version: "electric-long-range-settlement-v557" });
 })();

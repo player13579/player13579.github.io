@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "shop-all-abilities-no-jump-electric-v555",
+    version: "electric-long-range-settlement-v557",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

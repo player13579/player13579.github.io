@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ordinary-pages-bot-observer-v556";
+const DVA_CLIENT_RELEASE = "electric-long-range-settlement-v557";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -32,6 +32,8 @@ const CONTINUOUS_ACTION_HOLD_DELAY_MS = 420;
 const CONTINUOUS_ACTION_REPEAT_INTERVAL_MS = 220;
 const SWITCH_DRAG_HOLD_DELAY_MS = 360;
 const SWITCH_DRAG_MOVE_CANCEL_PX = 14;
+const RIGHT_UI_VERTICAL_FLICK_THRESHOLD_PX = 28;
+const RIGHT_UI_VERTICAL_FLICK_DOMINANCE = 1.25;
 const FIGHTER_SLASH_REPEAT_INTERVAL_MS = 620;
 const TABLET_SCROLL_GESTURE_THRESHOLD_PX = 12;
 const SMARTPHONE_REPAIR_STAMINA_COST = 300;
@@ -630,7 +632,7 @@ const state = {
   hackerCooldownWakeAt: 0,
   activeScrollRegion: null,
   expandedScrollRegion: null,
-  blankPaneTap: null,
+  paneExpansionGesture: null,
   keyboardContext: "",
   keyboardElement: null,
   debugForceEndEnabled: localStorage.getItem(storage.debugForceEnd) === "1",
@@ -819,7 +821,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ordinary-pages-bot-observer-v556";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-long-range-settlement-v557";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2058,8 +2060,14 @@ const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-regi
 const scrollSurfaceRevisions = new WeakMap();
 const scrollRestoreExpected = new WeakMap();
 
+function isGameplayRightUiSurface(surface) {
+  return state.screen === "game" &&
+    surface instanceof Element &&
+    Boolean(els.sidePanel && (surface === els.sidePanel || els.sidePanel.contains(surface)));
+}
+
 function resetScrollSurfaceForSemanticContext(surface) {
-  if (!(surface instanceof Element)) return;
+  if (!(surface instanceof Element) || isGameplayRightUiSurface(surface)) return;
   const revision = (scrollSurfaceRevisions.get(surface) || 0) + 1;
   scrollSurfaceRevisions.set(surface, revision);
   const reset = () => {
@@ -2073,7 +2081,7 @@ function resetScrollSurfaceForSemanticContext(surface) {
 
 document.addEventListener("scroll", (event) => {
   const surface = event.target;
-  if (!(surface instanceof Element) || !surface.matches(FULLSCREEN_SCROLL_SELECTOR)) return;
+  if (!(surface instanceof Element) || !surface.matches(FULLSCREEN_SCROLL_SELECTOR) || isGameplayRightUiSurface(surface)) return;
   const expected = scrollRestoreExpected.get(surface);
   if (expected && Math.abs(surface.scrollTop - expected.top) <= 1 && Math.abs(surface.scrollLeft - expected.left) <= 1) {
     scrollRestoreExpected.delete(surface);
@@ -2084,8 +2092,14 @@ document.addEventListener("scroll", (event) => {
 }, true);
 
 function capturePollScrollPositions() {
-  return [...document.querySelectorAll(FULLSCREEN_SCROLL_SELECTOR)]
-    .filter((surface) => surface instanceof Element && !surface.hidden && surface.getClientRects().length > 0)
+  const surfaces = [...document.querySelectorAll(FULLSCREEN_SCROLL_SELECTOR)];
+  for (const surface of surfaces) {
+    if (!isGameplayRightUiSurface(surface)) continue;
+    if (surface.scrollTop) surface.scrollTop = 0;
+    if (surface.scrollLeft) surface.scrollLeft = 0;
+  }
+  return surfaces
+    .filter((surface) => surface instanceof Element && !isGameplayRightUiSurface(surface) && !surface.hidden && surface.getClientRects().length > 0)
     .map((surface) => {
       const maxTop = Math.max(0, surface.scrollHeight - surface.clientHeight);
       const maxLeft = Math.max(0, surface.scrollWidth - surface.clientWidth);
@@ -2137,7 +2151,7 @@ function resolveFullscreenScrollableSurface(target) {
   let candidate = target.closest(FULLSCREEN_SCROLL_SELECTOR);
   while (candidate) {
     const mapped = candidate.matches("[data-scroll-region]") ? scrollRegionTarget(candidate) : candidate;
-    if (mapped instanceof Element && !visited.has(mapped)) {
+    if (mapped instanceof Element && !isGameplayRightUiSurface(mapped) && !visited.has(mapped)) {
       visited.add(mapped);
       fallback ||= mapped;
       if (isFullscreenScrollableSurface(mapped)) return mapped;
@@ -4530,7 +4544,9 @@ function setSelectedScrollRegion(region, { focus = true } = {}) {
   region.setAttribute("aria-current", "true");
   if (focus) region.focus?.({ preventScroll: true });
   const target = scrollRegionTarget(region);
-  target?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  if (!isGameplayRightUiSurface(target)) {
+    target?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }
   return true;
 }
 
@@ -4545,16 +4561,10 @@ function toggleExpandedScrollRegion(region) {
   return state.expandedScrollRegion === region;
 }
 
-function isBlankPaneTapTarget(event, region) {
+function isPaneExpansionGestureTarget(event, region) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target || !region?.contains(target)) return false;
   if (target.closest("button, input, select, textarea, a, label, [role='button'], [role='option'], [contenteditable='true'], [data-hacker-recipe], [data-item-choice]")) return false;
-  const scrollTarget = scrollRegionTarget(region);
-  const rect = scrollTarget?.getBoundingClientRect?.();
-  if (rect && (
-    (scrollTarget.scrollHeight > scrollTarget.clientHeight && event.clientX >= rect.right - 18) ||
-    (scrollTarget.scrollWidth > scrollTarget.clientWidth && event.clientY >= rect.bottom - 18)
-  )) return false;
   return true;
 }
 
@@ -4586,7 +4596,9 @@ function selectItemChoice(itemId, focus = true) {
   if (isDisplayedWeaponItemId(button.dataset.itemChoice)) state.selectedWeaponItemId = button.dataset.itemChoice;
   els.itemSelect.dispatchEvent(new Event("change", { bubbles: true }));
   if (focus) button.focus({ preventScroll: true });
-  button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  if (!isGameplayRightUiSurface(button)) {
+    button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }
   return true;
 }
 
@@ -4609,7 +4621,9 @@ function navigateSelectedScrollRegion(key) {
       if (next?.dataset.itemChoice) moved = selectItemChoice(next.dataset.itemChoice, true);
       else if (next) {
         next.focus({ preventScroll: true });
-        next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        if (!isGameplayRightUiSurface(next)) {
+          next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        }
         if (region === els.vendingPanel && shopButtonId(next)) {
           state.vendingSelectedByCategory[state.vendingCategoryId] = shopButtonId(next);
         }
@@ -4617,7 +4631,7 @@ function navigateSelectedScrollRegion(key) {
       }
     }
   }
-  if (vertical && target) {
+  if (vertical && target && !isGameplayRightUiSurface(target)) {
     const amount = Math.max(48, Math.round((target.clientHeight || 120) * 0.34)) * direction;
     target.scrollBy({ top: amount, behavior: "smooth" });
   }
@@ -4646,7 +4660,9 @@ function navigateGameplayChoices(key) {
   if (next.dataset.hackerRecipe) selectHackerAction(next.dataset.hackerRecipe, true);
   else if (next.dataset.alchemyChoice) selectAlchemyRecipe(next.dataset.alchemyChoice, true);
   else next.focus({ preventScroll: true });
-  next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  if (!isGameplayRightUiSurface(next)) {
+    next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }
   return true;
 }
 
@@ -4802,7 +4818,9 @@ function setKeyboardSelection(element, scroll = true) {
   state.keyboardElement = element;
   element.classList.add("keyboard-selected");
   element.focus({ preventScroll: true });
-  if (scroll) element.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  if (scroll && !isGameplayRightUiSurface(element)) {
+    element.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }
   return true;
 }
 
@@ -6353,30 +6371,60 @@ function bindEvents() {
     if (!(element instanceof Element)) return;
     const scrollRegion = element.closest("[data-scroll-region]");
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
-    state.blankPaneTap = (
-      event.isPrimary &&
+    const rightPaneFlick = state.screen === "game" &&
       scrollRegion &&
       isExpandableScrollRegion(scrollRegion) &&
-      isBlankPaneTapTarget(event, scrollRegion)
+      isPaneExpansionGestureTarget(event, scrollRegion);
+    const tacticsPaneTap = isTacticsScrollRegion(scrollRegion) &&
+      isPaneExpansionGestureTarget(event, scrollRegion);
+    state.paneExpansionGesture = (
+      event.isPrimary &&
+      (rightPaneFlick || tacticsPaneTap)
     ) ? {
       pointerId: event.pointerId,
       region: scrollRegion,
       x: event.clientX,
-      y: event.clientY
+      y: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      kind: rightPaneFlick ? "right-flick" : "tactics-tap"
     } : null;
   });
   document.addEventListener("pointermove", (event) => {
-    const tap = state.blankPaneTap;
-    if (!tap || tap.pointerId !== event.pointerId) return;
-    if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 9) state.blankPaneTap = null;
+    const gesture = state.paneExpansionGesture;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    gesture.lastX = event.clientX;
+    gesture.lastY = event.clientY;
   }, { passive: true });
   document.addEventListener("pointerup", (event) => {
-    const tap = state.blankPaneTap;
-    state.blankPaneTap = null;
-    if (!tap || tap.pointerId !== event.pointerId || !isBlankPaneTapTarget(event, tap.region)) return;
-    toggleExpandedScrollRegion(tap.region);
+    const gesture = state.paneExpansionGesture;
+    state.paneExpansionGesture = null;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (gesture.kind === "tactics-tap") {
+      if (Math.hypot(dx, dy) <= 9 && isPaneExpansionGestureTarget(event, gesture.region)) {
+        toggleExpandedScrollRegion(gesture.region);
+      }
+      return;
+    }
+    const verticalFlick = Math.abs(dy) >= RIGHT_UI_VERTICAL_FLICK_THRESHOLD_PX &&
+      Math.abs(dy) >= Math.abs(dx) * RIGHT_UI_VERTICAL_FLICK_DOMINANCE;
+    if (!verticalFlick) return;
+    if (dy < 0) {
+      setSelectedScrollRegion(gesture.region, { focus: false });
+      syncExpandedScrollRegion(gesture.region);
+    } else {
+      syncExpandedScrollRegion(null);
+    }
   });
-  document.addEventListener("pointercancel", () => { state.blankPaneTap = null; });
+  const cancelPaneExpansionGesture = (event) => {
+    if (!event || state.paneExpansionGesture?.pointerId === event.pointerId) {
+      state.paneExpansionGesture = null;
+    }
+  };
+  document.addEventListener("pointercancel", cancelPaneExpansionGesture);
+  document.addEventListener("lostpointercapture", cancelPaneExpansionGesture, true);
   const suppressIosGameCallout = (event) => {
     if (state.screen !== "game") return;
     const target = event.target instanceof Element ? event.target : null;
@@ -8340,7 +8388,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         state.quantumOperatorBranchStage = "kinetic";
         setOperatorBranchesOpen(true, operatorType, true);
       }, selectedQuantumExecutableMode(borrowedPreview).startsWith("kinetic-"), "選択後、加速か減速へ分岐する");
-      addBranch("エレクトリック", () => selectQuantumBranchMode("electric-discharge"), selectedQuantumExecutableMode(borrowedPreview) === "electric-discharge", "空気を局所絶縁破壊し、650以内・見通し上の最近接敵へ一条の電子輸送路を形成する");
+      addBranch("エレクトリック", () => selectQuantumBranchMode("electric-discharge"), selectedQuantumExecutableMode(borrowedPreview) === "electric-discharge", "空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する");
       addBranch("核変換", () => selectQuantumBranchMode("nuclear-transmutation"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-transmutation", "所持している鉛か水銀を金へ変えて100Cへ即時換金する。対象がなければ何も起きない");
       addBranch("核分裂", () => selectQuantumBranchMode("nuclear-fission"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fission", "終盤に所持ウランかプルトニウムへ核分裂を適用し、全人間へ影響する。対象がなければ何も起きない");
       addBranch("核融合", () => selectQuantumBranchMode("nuclear-fusion"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fusion", "終盤に重水素を含む所持海水で核融合し、全人間へ影響する。海水がなければ何も起きない");
@@ -8920,7 +8968,7 @@ function releaseRejectedActionTransientInput() {
       if (tabletSource.hasPointerCapture?.(tabletPointerId)) tabletSource.releasePointerCapture(tabletPointerId);
     } catch {}
   }
-  state.blankPaneTap = null;
+  state.paneExpansionGesture = null;
   clearLocalGunTrigger();
   if (state.enhanceHold.kind) cancelEnhanceAction(state.enhanceHold.kind, { recoverOnFailure: false });
   if (state.throwTargeting.active) cancelThrowTargeting(true, "", { recoverOnFailure: false });
@@ -11449,7 +11497,7 @@ function abilityModeDescription(owner, mode, self) {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。ミネラルウォーターまたは海水を所持していなければ何も起きない。",
       "kinetic-accelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを加速し、高温水へ変える。対象がなければ何も起きない。",
       "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを減速し、氷へ変える。対象がなければ何も起きない。",
-      "electric-discharge": `量子制御で空気を局所絶縁破壊し、650以内・見通し上の最近接敵へ一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / ${cost("quantumElectric")}。`,
+      "electric-discharge": `量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / ${cost("quantumElectric")}。`,
       "nuclear-transmutation": "所持している鉛か水銀を自動選択して金へ核変換し、100Cへ即時換金する。どちらもなければ何も起きない。",
       "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ影響する。どちらもなければ何も起きない。${cost("quantumNuclear")}。`,
       "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合連鎖で核分裂同様に全人間へ影響する。海水がなければ何も起きない。${cost("quantumNuclear")}。`
@@ -20639,7 +20687,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ordinary-pages-bot-observer-v556";
+const version = "electric-long-range-settlement-v557";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21586,5 +21634,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ordinary-pages-bot-observer-v556", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=electric-long-range-settlement-v557", document.baseURI)).catch(() => {});
 }

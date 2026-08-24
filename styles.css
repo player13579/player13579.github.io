@@ -8448,6 +8448,53 @@ body .vending-panel {
   overflow-y: auto;
 }
 
+/* v556: the gameplay right UI is a fixed multi-window surface. Upward and
+ * downward vertical flicks own expansion/restoration in app.js; neither the
+ * outer rail nor its current child windows own native vertical scrolling. */
+body.game-open #sidePanel {
+  overflow: clip !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  -webkit-overflow-scrolling: auto !important;
+  scrollbar-width: none;
+}
+
+body.game-open #sidePanel :is(
+  [data-scroll-region],
+  [data-right-panel-scroll],
+  .hacker-ability-grid,
+  .active-effects-panel,
+  .active-effects-list,
+  .item-inventory-grid,
+  .vending-panel,
+  .operator-list,
+  .operator-detail,
+  .alchemy-choice-grid
+) {
+  max-height: none !important;
+  overflow-y: visible !important;
+  overscroll-behavior-y: none !important;
+  touch-action: none !important;
+  -webkit-overflow-scrolling: auto !important;
+  scroll-behavior: auto !important;
+  scrollbar-width: none;
+}
+
+body.game-open #sidePanel :is(
+  [data-scroll-region],
+  [data-right-panel-scroll],
+  .hacker-ability-grid,
+  .active-effects-panel,
+  .active-effects-list,
+  .item-inventory-grid,
+  .vending-panel,
+  .operator-list,
+  .operator-detail,
+  .alchemy-choice-grid
+)::-webkit-scrollbar {
+  display: none;
+}
+
 body .vending-grid {
   grid-template-columns: repeat(auto-fit, minmax(146px, 1fr));
 }
