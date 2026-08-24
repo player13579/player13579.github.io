@@ -6,6 +6,7 @@
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
 const CACHE_NAME = "dva-static-v554-mana-conversion-luck-headshot-quantum-electric";
+const RUNTIME_RECOVERY_REVISION = "v554-hidden-worker-main-promotion-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

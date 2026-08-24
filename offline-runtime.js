@@ -23,6 +23,13 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
     }
 
     start() {
+      if (!this.mainThreadApi && globalThis.DVAOfflineMainThread) {
+        this.mainThreadApi = globalThis.DVAOfflineMainThread;
+        this.failPending();
+        this.worker?.terminate();
+        this.worker = null;
+        this.settleReady(true);
+      }
       if (this.mainThreadApi) return Promise.resolve(true);
       if (this.worker) return this.readyPromise || Promise.resolve(true);
       const generation = ++this.workerGeneration;
@@ -110,6 +117,17 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
         if (ready) {
           const result = await this.requestOnce(path, body, options);
           if (result) return result;
+        }
+        // A hidden/background browser can discard a ready Worker between its
+        // handshake and the first request. Promote the generated main-thread
+        // server inside this same request instead of starting another Worker
+        // generation and losing the fallback to the generation race.
+        const fallbackReady = await this.startMainThreadFallback();
+        if (fallbackReady) {
+          this.worker?.terminate();
+          this.worker = null;
+          const fallbackResult = await this.requestOnce(path, body, options);
+          if (fallbackResult) return fallbackResult;
         }
         this.stop();
       }

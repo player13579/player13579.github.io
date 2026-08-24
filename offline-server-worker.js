@@ -24687,5 +24687,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "mana-conversion-luck-headshot-v554" });
+self.postMessage({ type: "ready", version: "mana-conversion-luck-headshot-quantum-electric-v554" });
 })();

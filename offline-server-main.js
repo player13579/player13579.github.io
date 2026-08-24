@@ -24682,7 +24682,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "mana-conversion-luck-headshot-v554",
+  version: "mana-conversion-luck-headshot-quantum-electric-v554",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
