@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-long-range-settlement-v559",
+    version: "electric-long-range-settlement-v560",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -17824,6 +17824,8 @@ function useQuantumControl(room, player, rawMode) {
   }
   if (mode === "electric-discharge") {
     spendQuantumElectricResources(room, player);
+    player.quantumElectricLastManaSpent = QUANTUM_ELECTRIC_MANA_COST;
+    player.quantumElectricLastStaminaSpent = QUANTUM_ACTION_STAMINA_COST;
     resolveQuantumElectricDischarge(room, player, electricTarget, timestamp);
   } else if (mode === "nuclear-transmutation") {
     spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
@@ -21142,6 +21144,8 @@ function serialize(room, viewer, options = {}) {
       quantumElectricLastTargetId: String(viewer.quantumElectricLastTargetId || ""),
       quantumElectricLastOutcome: String(viewer.quantumElectricLastOutcome || ""),
       quantumElectricLastDamage: Math.max(0, Number(viewer.quantumElectricLastDamage) || 0),
+      quantumElectricLastManaSpent: Math.max(0, Number(viewer.quantumElectricLastManaSpent) || 0),
+      quantumElectricLastStaminaSpent: Math.max(0, Number(viewer.quantumElectricLastStaminaSpent) || 0),
       quantumElectricLastAt: Number(viewer.quantumElectricLastAt) || 0,
       substitutionCharges: viewer.substitutionCharges,
       gritCharges: viewer.gritCharges,
@@ -24820,5 +24824,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "electric-long-range-settlement-v559" });
+self.postMessage({ type: "ready", version: "electric-long-range-settlement-v560" });
 })();

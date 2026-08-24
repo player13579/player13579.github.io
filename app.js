@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "electric-long-range-settlement-v559";
+const DVA_CLIENT_RELEASE = "electric-long-range-settlement-v560";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -633,6 +633,7 @@ const state = {
   activeScrollRegion: null,
   expandedScrollRegion: null,
   paneExpansionGesture: null,
+  paneExpansionClickSuppression: null,
   keyboardContext: "",
   keyboardElement: null,
   debugForceEndEnabled: localStorage.getItem(storage.debugForceEnd) === "1",
@@ -821,7 +822,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-long-range-settlement-v559";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-long-range-settlement-v560";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4561,11 +4562,24 @@ function toggleExpandedScrollRegion(region) {
   return state.expandedScrollRegion === region;
 }
 
-function isPaneExpansionGestureTarget(event, region) {
+function isPaneExpansionGestureTarget(event, region, { allowInteractive = false } = {}) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target || !region?.contains(target)) return false;
-  if (target.closest("button, input, select, textarea, a, label, [role='button'], [role='option'], [contenteditable='true'], [data-hacker-recipe], [data-item-choice]")) return false;
+  const interactive = target.closest("button, input, select, textarea, a, label, [role='button'], [role='option'], [contenteditable='true'], [data-hacker-recipe], [data-item-choice]");
+  if (!allowInteractive && interactive) return false;
+  // Native form editors must retain their platform pointer behavior. Buttons
+  // and cards are safe because an accepted vertical flick suppresses exactly
+  // the synthetic click that follows its pointerup.
+  if (allowInteractive && target.closest("input, select, textarea, option, [contenteditable='true']")) return false;
   return true;
+}
+
+function armPaneExpansionClickSuppression(region) {
+  const suppression = { region };
+  state.paneExpansionClickSuppression = suppression;
+  window.setTimeout(() => {
+    if (state.paneExpansionClickSuppression === suppression) state.paneExpansionClickSuppression = null;
+  }, 0);
 }
 
 function cycleSelectedScrollRegion(direction = 1) {
@@ -6374,7 +6388,7 @@ function bindEvents() {
     const rightPaneFlick = state.screen === "game" &&
       scrollRegion &&
       isExpandableScrollRegion(scrollRegion) &&
-      isPaneExpansionGestureTarget(event, scrollRegion);
+      isPaneExpansionGestureTarget(event, scrollRegion, { allowInteractive: true });
     const tacticsPaneTap = isTacticsScrollRegion(scrollRegion) &&
       isPaneExpansionGestureTarget(event, scrollRegion);
     state.paneExpansionGesture = (
@@ -6411,6 +6425,7 @@ function bindEvents() {
     const verticalFlick = Math.abs(dy) >= RIGHT_UI_VERTICAL_FLICK_THRESHOLD_PX &&
       Math.abs(dy) >= Math.abs(dx) * RIGHT_UI_VERTICAL_FLICK_DOMINANCE;
     if (!verticalFlick) return;
+    armPaneExpansionClickSuppression(gesture.region);
     if (dy < 0) {
       setSelectedScrollRegion(gesture.region, { focus: false });
       syncExpandedScrollRegion(gesture.region);
@@ -6425,6 +6440,14 @@ function bindEvents() {
   };
   document.addEventListener("pointercancel", cancelPaneExpansionGesture);
   document.addEventListener("lostpointercapture", cancelPaneExpansionGesture, true);
+  document.addEventListener("click", (event) => {
+    const suppression = state.paneExpansionClickSuppression;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!suppression || !target || !suppression.region?.contains(target)) return;
+    state.paneExpansionClickSuppression = null;
+    if (event.cancelable) event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
   const suppressIosGameCallout = (event) => {
     if (state.screen !== "game") return;
     const target = event.target instanceof Element ? event.target : null;
@@ -8969,6 +8992,7 @@ function releaseRejectedActionTransientInput() {
     } catch {}
   }
   state.paneExpansionGesture = null;
+  state.paneExpansionClickSuppression = null;
   clearLocalGunTrigger();
   if (state.enhanceHold.kind) cancelEnhanceAction(state.enhanceHold.kind, { recoverOnFailure: false });
   if (state.throwTargeting.active) cancelThrowTargeting(true, "", { recoverOnFailure: false });
@@ -9793,6 +9817,8 @@ function applyState(data, options = {}) {
     root.setAttribute("data-v554-quantum-electric-last-target", String(self.quantumElectricLastTargetId || ""));
     root.setAttribute("data-v554-quantum-electric-last-outcome", String(self.quantumElectricLastOutcome || ""));
     root.setAttribute("data-v554-quantum-electric-last-damage", String(self.quantumElectricLastDamage ?? ""));
+    root.setAttribute("data-v560-quantum-electric-last-mana-spent", String(self.quantumElectricLastManaSpent ?? ""));
+    root.setAttribute("data-v560-quantum-electric-last-stamina-spent", String(self.quantumElectricLastStaminaSpent ?? ""));
     const electricEffect = (data.magicEffects || []).findLast((effect) => effect.type === "quantum-electric-discharge");
     if (electricEffect) {
       root.setAttribute("data-v554-quantum-electric-effect-observed", "true");
@@ -11497,7 +11523,7 @@ function abilityModeDescription(owner, mode, self) {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。ミネラルウォーターまたは海水を所持していなければ何も起きない。",
       "kinetic-accelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを加速し、高温水へ変える。対象がなければ何も起きない。",
       "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを減速し、氷へ変える。対象がなければ何も起きない。",
-      "electric-discharge": `量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / ${cost("quantumElectric")}。`,
+      "electric-discharge": "量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / 1MP（無料化対象外）。",
       "nuclear-transmutation": "所持している鉛か水銀を自動選択して金へ核変換し、100Cへ即時換金する。どちらもなければ何も起きない。",
       "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ影響する。どちらもなければ何も起きない。${cost("quantumNuclear")}。`,
       "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合連鎖で核分裂同様に全人間へ影響する。海水がなければ何も起きない。${cost("quantumNuclear")}。`
@@ -12220,7 +12246,7 @@ function renderActiveEffects(data) {
   }
 
   if (self.rationalFreeAbilityReady) {
-    add("固有能力無料化", "準備完了", "rational", "次の固有能力はMP消費なし");
+    add("固有能力無料化", "準備完了", "rational", "次の対象固有能力はMP消費なし（エレクトリックは固定1MP）");
   } else if (rational) {
     timed("固有能力無料化", self.rationalFreeAbilityReadyAt, "rational", "理知維持で準備");
   }
@@ -13129,7 +13155,7 @@ function updateActionButtons(data) {
         ? `サンビーム ${operatorCostLabel("floraSunbeam")}`
         : `インビジブル 10秒 ${operatorCostLabel("floraInvisible")}`,
     quantum: selectedQuantumExecutableMode(activeBorrowedOperator === "quantum") === "electric-discharge"
-      ? `${quantumModeLabel("electric-discharge")} ${operatorCostLabel("quantumElectric")} / -16SP`
+      ? `${quantumModeLabel("electric-discharge")} -1MP / -16SP`
       : quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
     assassin: "常時無音（パッシブ）",
     alchemist: "Root化"
@@ -13146,8 +13172,9 @@ function updateActionButtons(data) {
   const nuclearModeLocked = (mode) => ["nuclear-fission", "nuclear-fusion"].includes(mode) && !data.quantumEndgameAvailable;
   const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
   const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
-  const nativeQuantumManaUnavailable = displayedOperator === "quantum" && nativeQuantumMode === "electric-discharge" && !hasMana("quantumElectric");
-  const borrowedQuantumManaUnavailable = borrowedDisplayedOperator === "quantum" && borrowedQuantumMode === "electric-discharge" && !hasMana("quantumElectric");
+  const strictElectricManaUnavailable = (Number(self.mana) || 0) < Number(abilityCosts.quantumElectric ?? 1);
+  const nativeQuantumManaUnavailable = displayedOperator === "quantum" && nativeQuantumMode === "electric-discharge" && strictElectricManaUnavailable;
+  const borrowedQuantumManaUnavailable = borrowedDisplayedOperator === "quantum" && borrowedQuantumMode === "electric-discharge" && strictElectricManaUnavailable;
   const nativeFloraUnavailable = displayedOperator === "flora" && (
     !hasMana(floraCostKey) || (operatorMode === "invisible" && self.floraInvisibleActive)
   );
@@ -20687,7 +20714,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "electric-long-range-settlement-v559";
+const version = "electric-long-range-settlement-v560";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21634,5 +21661,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=electric-long-range-settlement-v559", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=electric-long-range-settlement-v560", document.baseURI)).catch(() => {});
 }
