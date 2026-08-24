@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-exact-settlement-continuous-bot-waypoints-v564",
+    version: "bot-action-independent-motion-v570",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -12438,6 +12438,12 @@ function advanceBotNavigationMotion(room, bot, elapsedMs, timestamp = now()) {
     clearBotNavigationIntent(bot);
     return false;
   }
+  // State serialization and unrelated action responses may revisit tickRoom
+  // at the exact same authoritative clock value.  They are observers, not a
+  // second movement clock: forcing a minimum 8ms step here made every Slash
+  // response nudge all Bots with a live route and appear as action-linked
+  // warping on the client.  Preserve the route for the next real elapsed tick.
+  if (Number(elapsedMs) <= 0) return false;
   const map = getMap(room);
   const arrivalRadius = Math.max(10, Math.min(30, Number(map.playerRadius) || 18));
   if (distance(bot, intent) <= arrivalRadius) {
@@ -12461,7 +12467,7 @@ function advanceBotNavigationMotion(room, bot, elapsedMs, timestamp = now()) {
   }
   const beforeX = bot.x;
   const beforeY = bot.y;
-  moveToward(room, bot, intent, Math.max(0.008, Math.min(0.12, Number(elapsedMs || 0) / 1000)), intent.sprint);
+  moveToward(room, bot, intent, Math.min(0.12, Number(elapsedMs) / 1000), intent.sprint);
   const moved = Math.hypot(bot.x - beforeX, bot.y - beforeY);
   if (moved < 0.05) {
     bot.navStuckTicks = (Number(bot.navStuckTicks) || 0) + 1;
@@ -24956,7 +24962,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "electric-exact-settlement-continuous-bot-waypoints-v564",
+  version: "bot-action-independent-motion-v570",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

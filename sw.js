@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v564-electric-exact-settlement-continuous-bot-waypoints";
-const RUNTIME_RECOVERY_REVISION = "v564-electric-exact-settlement-continuous-bot-waypoints-1";
+const CACHE_NAME = "dva-static-v570-bot-action-independent-motion";
+const RUNTIME_RECOVERY_REVISION = "v570-bot-action-independent-motion-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

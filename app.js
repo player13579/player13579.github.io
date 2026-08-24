@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "electric-exact-settlement-continuous-bot-waypoints-v564";
+const DVA_CLIENT_RELEASE = "bot-action-independent-motion-v570";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -815,7 +815,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-exact-settlement-continuous-bot-waypoints-v564";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "bot-action-independent-motion-v570";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3391,11 +3391,48 @@ function isOrichalcumSwordActionButton(button) {
   return selected === "orichalcum-sword";
 }
 
+function ordinaryVerificationBotPosition(data = state.data, preferredId = "") {
+  if (!IS_VERIFICATION_MODE || !VERIFY_REAL_SCREEN_AUTO_START || VERIFY_REAL_SCREEN_FIXTURE_KIND) return null;
+  const bot = (Array.isArray(data?.players) ? data.players : [])
+    .find((entry) => entry?.isBot && (!preferredId || entry.id === preferredId));
+  if (!bot) return null;
+  const rendered = state.renderPlayers.get(bot.id);
+  return {
+    id: String(bot.id || ""),
+    x: Number(bot.x),
+    y: Number(bot.y),
+    renderX: Number(rendered?.x),
+    renderY: Number(rendered?.y),
+    serverNow: Number(data?.serverNow) || 0
+  };
+}
+
+function verificationPositionText(sample) {
+  if (!sample) return "";
+  return [sample.id, sample.x, sample.y, sample.renderX, sample.renderY, sample.serverNow].join("|");
+}
+
 function requestFighterSlash(targetId, perfectGuardIntent = false) {
+  const verificationBefore = ordinaryVerificationBotPosition();
+  if (verificationBefore) {
+    document.documentElement.setAttribute("data-v570-slash-bot-before", verificationPositionText(verificationBefore));
+  }
   const request = api("/api/fighter-slash", { targetId, perfectGuardIntent: Boolean(perfectGuardIntent) });
   state.fighterSlashPendingRequests.add(request);
   request.then(
-    () => state.fighterSlashPendingRequests.delete(request),
+    (result) => {
+      state.fighterSlashPendingRequests.delete(request);
+      const verificationAfter = ordinaryVerificationBotPosition(result, verificationBefore?.id || "");
+      if (!verificationBefore || !verificationAfter) return;
+      const delta = Math.hypot(
+        verificationAfter.x - verificationBefore.x,
+        verificationAfter.y - verificationBefore.y
+      );
+      const root = document.documentElement;
+      root.setAttribute("data-v570-slash-bot-after", verificationPositionText(verificationAfter));
+      root.setAttribute("data-v570-slash-bot-authoritative-delta", String(delta));
+      root.setAttribute("data-v570-slash-bot-server-elapsed", String(verificationAfter.serverNow - verificationBefore.serverNow));
+    },
     () => state.fighterSlashPendingRequests.delete(request)
   );
   return request;
@@ -9712,6 +9749,8 @@ function applyState(data, options = {}) {
       root.setAttribute("data-v556-ordinary-preparation-ends-at", String(data.preparationEndsAt || 0));
       root.setAttribute("data-v556-ordinary-bot-count", String(visibleBots.length));
       root.setAttribute("data-v556-ordinary-bot-moving-now", String(visibleBots.filter((entry) => entry.moving).length));
+      const v570Bot = ordinaryVerificationBotPosition(data);
+      if (v570Bot) root.setAttribute("data-v570-ordinary-bot-position", verificationPositionText(v570Bot));
       if (!state.verificationOrdinaryBotBaselines) {
         state.verificationOrdinaryBotBaselines = new Map(visibleBots.map((entry) => [entry.id, {
           x: Number(entry.x),
@@ -20774,7 +20813,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "electric-exact-settlement-continuous-bot-waypoints-v564";
+const version = "bot-action-independent-motion-v570";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21721,5 +21760,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=electric-exact-settlement-continuous-bot-waypoints-v564", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=bot-action-independent-motion-v570", document.baseURI)).catch(() => {});
 }
