@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "bot-action-independent-motion-v570",
+    version: "bot-manual-state-continuity-v572",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -24967,5 +24967,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "bot-action-independent-motion-v570" });
+self.postMessage({ type: "ready", version: "bot-manual-state-continuity-v572" });
 })();

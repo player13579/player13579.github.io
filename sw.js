@@ -5,8 +5,9 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v570-bot-action-independent-motion";
-const RUNTIME_RECOVERY_REVISION = "v570-bot-action-independent-motion-1";
+const RUNTIME_RELEASE = "bot-manual-state-continuity-v572";
+const CACHE_NAME = "dva-static-v572-bot-manual-state-continuity";
+const RUNTIME_RECOVERY_REVISION = "v572-bot-manual-state-continuity-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -352,7 +353,12 @@ const STATIC_ASSETS = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => Promise.all(
-      STATIC_ASSETS.map(async (asset) => {
+      STATIC_ASSETS.flatMap((asset) => {
+        if (asset === "/" || asset === "/index.html") return [asset];
+        const versioned = new URL(asset, self.location.origin);
+        versioned.searchParams.set("v", RUNTIME_RELEASE);
+        return [asset, `${versioned.pathname}${versioned.search}`];
+      }).map(async (asset) => {
         try {
           const response = await fetch(asset, { cache: "reload" });
           if (response.ok) await cache.put(asset, response);
@@ -386,10 +392,20 @@ self.addEventListener("fetch", (event) => {
         await cache.put(event.request, response.clone());
         return response;
       }
-      return (await cache.match(event.request, { ignoreSearch: true })) || response;
+      const exact = await cache.match(event.request);
+      if (exact) return exact;
+      if (event.request.mode === "navigate") {
+        return (await cache.match("/index.html")) || (await cache.match("/")) || response;
+      }
+      return response;
     }).catch(async () => {
       const cache = await caches.open(CACHE_NAME);
-      return cache.match(event.request, { ignoreSearch: true });
+      const exact = await cache.match(event.request);
+      if (exact) return exact;
+      if (event.request.mode === "navigate") {
+        return (await cache.match("/index.html")) || cache.match("/");
+      }
+      return Response.error();
     })
   );
 });

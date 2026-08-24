@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "bot-action-independent-motion-v570";
+const DVA_CLIENT_RELEASE = "bot-manual-state-continuity-v572";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -445,6 +445,7 @@ const state = {
   focusResyncSerial: 0,
   foregroundRecovery: { inFlight: false, queued: false },
   pollInFlight: false,
+  pollInFlightGeneration: 0,
   // Every async room response is tied to this client-side ownership generation.
   // A visibility restore can replace an expired generated-offline room while an
   // older poll is still in flight; that older response must never clear or
@@ -457,6 +458,7 @@ const state = {
   frameDriver: null,
   lastStateServerNow: 0,
   lastStateReceivedAt: 0,
+  verificationManualBotContinuity: null,
   toastTimer: null,
   inventoryItemDetailTimer: null,
   inventoryItemDetailSource: null,
@@ -815,7 +817,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "bot-action-independent-motion-v570";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "bot-manual-state-continuity-v572";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1914,7 +1916,7 @@ function initializeOfflineRuntime() {
 
 function activateOfflineMode(reason = "") {
   if (!state.offlineClient) return false;
-  state.offlineClient.start();
+  void state.offlineClient.start();
   state.offlineMode = true;
   localStorage.setItem(storage.offlineSession, "1");
   state.realtime?.disconnect();
@@ -1927,6 +1929,13 @@ function deactivateOfflineMode() {
   state.offlineMode = false;
   localStorage.removeItem(storage.offlineSession);
   document.documentElement.dataset.connectionMode = "online";
+}
+
+function offlineRuntimeOwner() {
+  if (!state.offlineClient) return "unavailable";
+  if (state.offlineClient.mainThreadApi) return "generated-main";
+  if (state.offlineClient.worker) return "generated-worker";
+  return "starting";
 }
 
 function applyOnlineAvailabilityUi() {
@@ -1976,7 +1985,9 @@ function initializeRealtimeTransport() {
   if (!globalThis.DVARuntime) return;
   state.realtime = new DVARuntime.RealtimeClient({
     onState(data) {
-      if (data?.roomId === state.roomId && data?.selfId === state.playerId) applyState(data);
+      if (data?.roomId === state.roomId && data?.selfId === state.playerId) {
+        applyState(data, { source: "realtime" });
+      }
     },
     onMovement: applyMovementAck
   });
@@ -3392,7 +3403,7 @@ function isOrichalcumSwordActionButton(button) {
 }
 
 function ordinaryVerificationBotPosition(data = state.data, preferredId = "") {
-  if (!IS_VERIFICATION_MODE || !VERIFY_REAL_SCREEN_AUTO_START || VERIFY_REAL_SCREEN_FIXTURE_KIND) return null;
+  if (!IS_VERIFICATION_MODE || VERIFY_REAL_SCREEN_FIXTURE_KIND) return null;
   const bot = (Array.isArray(data?.players) ? data.players : [])
     .find((entry) => entry?.isBot && (!preferredId || entry.id === preferredId));
   if (!bot) return null;
@@ -3410,6 +3421,85 @@ function ordinaryVerificationBotPosition(data = state.data, preferredId = "") {
 function verificationPositionText(sample) {
   if (!sample) return "";
   return [sample.id, sample.x, sample.y, sample.renderX, sample.renderY, sample.serverNow].join("|");
+}
+
+function updateManualVerificationBotContinuity(data, source = "state") {
+  if (!IS_VERIFICATION_MODE || VERIFY_REAL_SCREEN_AUTO_START || VERIFY_REAL_SCREEN_FIXTURE_KIND || data?.phase !== "playing") return;
+  const bots = (Array.isArray(data.players) ? data.players : [])
+    .filter((entry) => entry?.isBot && Number.isFinite(Number(entry.x)) && Number.isFinite(Number(entry.y)));
+  if (!bots.length) return;
+  const sessionKey = `${data.roomId}:${data.selfId}`;
+  let continuity = state.verificationManualBotContinuity;
+  if (!continuity || continuity.sessionKey !== sessionKey) {
+    const bot = bots[0];
+    const rendered = state.renderPlayers.get(bot.id);
+    continuity = {
+      sessionKey,
+      botId: bot.id,
+      stateSamples: 0,
+      stateChanges: 0,
+      renderSamples: 0,
+      renderChanges: 0,
+      actionSeen: false,
+      lastAuthX: Number(bot.x),
+      lastAuthY: Number(bot.y),
+      lastRenderX: Number(rendered?.x ?? bot.x),
+      lastRenderY: Number(rendered?.y ?? bot.y),
+      maxAuthoritativeStep: 0,
+      maxRenderStep: 0,
+      lastPublishAt: 0,
+      lastSource: String(source || "state")
+    };
+    state.verificationManualBotContinuity = continuity;
+  }
+  const bot = bots.find((entry) => entry.id === continuity.botId) || bots[0];
+  if (bot.id !== continuity.botId) {
+    continuity.botId = bot.id;
+    continuity.lastAuthX = Number(bot.x);
+    continuity.lastAuthY = Number(bot.y);
+    const replacementRendered = state.renderPlayers.get(bot.id);
+    continuity.lastRenderX = Number(replacementRendered?.x ?? bot.x);
+    continuity.lastRenderY = Number(replacementRendered?.y ?? bot.y);
+  }
+  const authoritativeStep = Math.hypot(Number(bot.x) - continuity.lastAuthX, Number(bot.y) - continuity.lastAuthY);
+  continuity.stateSamples += 1;
+  if (authoritativeStep > 0.5) continuity.stateChanges += 1;
+  continuity.maxAuthoritativeStep = Math.max(continuity.maxAuthoritativeStep, authoritativeStep);
+  continuity.lastAuthX = Number(bot.x);
+  continuity.lastAuthY = Number(bot.y);
+  continuity.lastSource = String(source || "state");
+}
+
+function publishManualVerificationBotContinuity(timestamp = performance.now()) {
+  const continuity = state.verificationManualBotContinuity;
+  if (!continuity || !state.data || timestamp - continuity.lastPublishAt < 200) return;
+  const bot = state.data.players?.find((entry) => entry.id === continuity.botId);
+  const rendered = state.renderPlayers.get(continuity.botId);
+  if (!bot || !rendered) return;
+  const renderStep = Math.hypot(Number(rendered.x) - continuity.lastRenderX, Number(rendered.y) - continuity.lastRenderY);
+  continuity.renderSamples += 1;
+  if (renderStep > 0.5) continuity.renderChanges += 1;
+  continuity.maxRenderStep = Math.max(continuity.maxRenderStep, renderStep);
+  continuity.lastRenderX = Number(rendered.x);
+  continuity.lastRenderY = Number(rendered.y);
+  continuity.lastPublishAt = timestamp;
+  const root = document.documentElement;
+  root.setAttribute("data-v572-manual-transport-owner", state.offlineMode ? offlineRuntimeOwner() : "online");
+  root.setAttribute("data-v572-manual-last-state-source", continuity.lastSource);
+  root.setAttribute("data-v572-manual-state-samples", String(continuity.stateSamples));
+  root.setAttribute("data-v572-manual-state-change-samples", String(continuity.stateChanges));
+  root.setAttribute("data-v572-manual-render-samples", String(continuity.renderSamples));
+  root.setAttribute("data-v572-manual-render-change-samples", String(continuity.renderChanges));
+  root.setAttribute("data-v572-manual-authoritative-position", `${continuity.botId}|${Number(bot.x)}|${Number(bot.y)}`);
+  root.setAttribute("data-v572-manual-render-position", `${continuity.botId}|${Number(rendered.x)}|${Number(rendered.y)}`);
+  root.setAttribute("data-v572-manual-authoritative-render-gap", String(Math.hypot(Number(bot.x) - Number(rendered.x), Number(bot.y) - Number(rendered.y))));
+  root.setAttribute("data-v572-manual-max-authoritative-step", String(continuity.maxAuthoritativeStep));
+  root.setAttribute("data-v572-manual-max-render-step", String(continuity.maxRenderStep));
+  root.setAttribute("data-v572-manual-state-age-ms", String(Math.max(0, timestamp - state.lastStateReceivedAt)));
+  root.setAttribute("data-v572-manual-human-action-seen", continuity.actionSeen ? "true" : "false");
+  if (!continuity.actionSeen && continuity.stateChanges >= 3 && continuity.renderChanges >= 3) {
+    root.setAttribute("data-v572-manual-pre-action-continuity", "true");
+  }
 }
 
 function requestFighterSlash(targetId, perfectGuardIntent = false) {
@@ -8731,6 +8821,14 @@ async function startMatchmaking() {
       showToast("オフライン対戦を準備できませんでした。");
       return;
     }
+    // The ordinary Play -> matchmaking route must cross the same explicit
+    // runtime-readiness boundary as every deterministic verification route.
+    // Starting the room while a Worker owner is still unresolved can leave a
+    // previous poll holding the only state-delivery slot until a later action.
+    if (!(await state.offlineClient.start()) || serial !== state.matchmakingSerial) {
+      showToast("オフライン対戦を準備できませんでした。");
+      return;
+    }
     result = await request("/api/matchmake", { name, skinId, mapId, offlineFallback: true }, { forceOffline: true });
     if (serial !== state.matchmakingSerial) return;
     acceptMatchmakingResult(result, name, true);
@@ -8786,20 +8884,33 @@ async function startSoloMission(missionId) {
 
 async function pollState() {
   if (!state.roomId || !state.playerId) return;
-  if (state.realtime?.isHealthy()) return;
-  if (state.pollInFlight) return;
+  // Socket readiness alone is not state freshness. A connected channel can
+  // continue receiving non-state traffic while the last accepted room state
+  // is stale; in that case HTTP polling is the independent watchdog.
+  const acceptedStateFresh = state.lastStateReceivedAt > 0 &&
+    performance.now() - state.lastStateReceivedAt <= 700;
+  if (state.realtime?.isHealthy() && acceptedStateFresh) return;
   const roomId = state.roomId;
   const playerId = state.playerId;
   const generation = state.roomSessionGeneration;
+  if (state.pollInFlight && state.pollInFlightGeneration === generation) return;
   state.pollInFlight = true;
+  state.pollInFlightGeneration = generation;
   try {
     const result = await request("/api/state", {
       roomId,
       playerId
     }, { quiet: true });
-    if (result && isCurrentRoomSession(roomId, playerId, generation)) applyState(result);
+    if (result && isCurrentRoomSession(roomId, playerId, generation)) {
+      applyState(result, {
+        source: state.offlineMode ? `poll:${offlineRuntimeOwner()}` : "poll:online-watchdog"
+      });
+    }
   } finally {
-    state.pollInFlight = false;
+    if (state.pollInFlightGeneration === generation) {
+      state.pollInFlight = false;
+      state.pollInFlightGeneration = 0;
+    }
   }
 }
 
@@ -9049,6 +9160,10 @@ async function api(path, extra = {}, options = {}) {
     showToast("先にマッチングを開始してください。");
     return false;
   }
+  if (IS_VERIFICATION_MODE && !VERIFY_REAL_SCREEN_AUTO_START && !VERIFY_REAL_SCREEN_FIXTURE_KIND && state.data?.phase === "playing") {
+    if (state.verificationManualBotContinuity) state.verificationManualBotContinuity.actionSeen = true;
+    document.documentElement.setAttribute("data-v572-manual-first-human-action", String(path || ""));
+  }
   const result = await request(path, {
     roomId: state.roomId,
     playerId: state.playerId,
@@ -9104,7 +9219,10 @@ async function api(path, extra = {}, options = {}) {
           : "";
     triggerCharacterAction(state.playerId, actionKind, undefined, undefined, "", actionVariant, path);
   }
-  applyState(result, { authoritative: Boolean(options.authoritative) });
+  applyState(result, {
+    authoritative: Boolean(options.authoritative),
+    source: `action:${path}`
+  });
   return result;
 }
 
@@ -9561,6 +9679,8 @@ async function recoverRoomInteractionAfterBackground() {
 function resetLocalSession() {
   invalidateFocusResync();
   state.roomSessionGeneration += 1;
+  state.pollInFlight = false;
+  state.pollInFlightGeneration = 0;
   state.realtime?.disconnect();
   state.movementQueue?.clear();
   state.data = null;
@@ -9568,6 +9688,7 @@ function resetLocalSession() {
   state.playerId = "";
   state.lastStateServerNow = 0;
   state.lastStateReceivedAt = 0;
+  state.verificationManualBotContinuity = null;
   state.lastMoveAppliedClock = 0;
   state.lastMovementServerNow = 0;
   state.lastMovementSentSignature = "";
@@ -9728,6 +9849,7 @@ function applyState(data, options = {}) {
     state.lastStateReceivedAt = performance.now();
   }
   state.data = data;
+  updateManualVerificationBotContinuity(data, options.source || "state");
   if (IS_VERIFICATION_MODE) {
     const barrierActive = data.phase === "playing" && Number(data.preparationEndsAt) > Number(data.serverNow || Date.now());
     document.documentElement.setAttribute("data-v533-preparation-barrier-active", barrierActive ? "true" : "false");
@@ -10429,7 +10551,6 @@ function syncRenderPlayers(nextData) {
       continue;
     }
 
-    const relocationDistance = Math.hypot(player.x - current.x, player.y - current.y);
     const staleSelfMovement = isStaleSelfMovementState(player, nextData);
     const relocationRevision = relocationRevisionFor(player);
     const relocated = relocationRevision !== relocationRevisionFor(current);
@@ -10441,8 +10562,7 @@ function syncRenderPlayers(nextData) {
       current.phase !== nextData.phase ||
       current.alive !== player.alive ||
       current.ejected !== player.ejected ||
-      player.inVent ||
-      (relocationDistance > 360 && !isLocallyPredictedSelf);
+      player.inVent;
 
     // A relocation revision is issued only by the successful authoritative
     // teleport primitive. It intentionally bypasses local prediction/stale
@@ -10579,11 +10699,10 @@ function advanceRenderPlayers(data) {
     }
     const dx = predictedX - current.x;
     const dy = predictedY - current.y;
-    if (Math.hypot(dx, dy) > 360) {
-      current.x = predictedX;
-      current.y = predictedY;
-      continue;
-    }
+    // Distance is not relocation authority. A delayed snapshot may be far
+    // from the last rendered point, especially for Bots, but snapping it here
+    // makes the next human action appear to teleport every remote actor. Only
+    // an explicit relocation revision or lifecycle boundary may hard-snap.
     const smoothing = moving ? 0.065 : 0.085;
     const smoothedX = smoothDamp(current.x, predictedX, current.velocityX || 0, smoothing, dt / 1000);
     const smoothedY = smoothDamp(current.y, predictedY, current.velocityY || 0, smoothing, dt / 1000);
@@ -13913,6 +14032,7 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
   }
   try {
     if (state.screen === "game") draw();
+    publishManualVerificationBotContinuity(state.frameNow);
     const drawMode = state.data ? state.data.phase : "idle";
     if (document.body.dataset.drawMode !== drawMode) document.body.dataset.drawMode = drawMode;
     if (document.body.dataset.drawError) delete document.body.dataset.drawError;
@@ -20813,7 +20933,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "bot-action-independent-motion-v570";
+const version = "bot-manual-state-continuity-v572";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21760,5 +21880,10 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=bot-action-independent-motion-v570", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=bot-manual-state-continuity-v572", document.baseURI)).then((registration) => {
+    // Ask for the current release immediately. Exact-query cache keys in the
+    // worker keep a previous controller from supplying a mixed runtime while
+    // the update is being installed.
+    return registration.update();
+  }).catch(() => {});
 }

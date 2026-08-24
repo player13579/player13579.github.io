@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "bot-action-independent-motion-v570";
+const OFFLINE_WORKER_VERSION = "bot-manual-state-continuity-v572";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.
@@ -19,13 +19,18 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
       this.readyPromise = null;
       this.readyResolve = null;
       this.readyTimer = null;
-      this.mainThreadApi = globalThis.DVAOfflineMainThread || null;
+      this.mainThreadApi = null;
       this.mainThreadPromise = null;
     }
 
+    compatibleMainThreadApi(api = globalThis.DVAOfflineMainThread) {
+      return api && String(api.version || "") === OFFLINE_WORKER_VERSION ? api : null;
+    }
+
     start() {
-      if (!this.mainThreadApi && globalThis.DVAOfflineMainThread) {
-        this.mainThreadApi = globalThis.DVAOfflineMainThread;
+      const compatibleGlobalApi = this.compatibleMainThreadApi();
+      if (!this.mainThreadApi && compatibleGlobalApi) {
+        this.mainThreadApi = compatibleGlobalApi;
         this.failPending();
         this.worker?.terminate();
         this.worker = null;
@@ -51,6 +56,10 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
       this.worker.addEventListener("message", (event) => {
         const message = event.data || {};
         if (message.type === "ready") {
+          if (String(message.version || "") !== OFFLINE_WORKER_VERSION) {
+            this.handleWorkerFailure(generation);
+            return;
+          }
           this.settleReady(true);
           return;
         }
@@ -68,13 +77,16 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 
     startMainThreadFallback() {
       if (this.mainThreadApi) return Promise.resolve(true);
-      if (globalThis.DVAOfflineMainThread) {
-        this.mainThreadApi = globalThis.DVAOfflineMainThread;
+      const compatibleGlobalApi = this.compatibleMainThreadApi();
+      if (compatibleGlobalApi) {
+        this.mainThreadApi = compatibleGlobalApi;
         return Promise.resolve(true);
       }
       if (this.mainThreadPromise) return this.mainThreadPromise;
       this.mainThreadPromise = new Promise((resolve) => {
-        const existing = document.querySelector("script[data-dva-offline-main]");
+        const staleScript = document.querySelector("script[data-dva-offline-main]");
+        if (staleScript && staleScript.dataset.dvaOfflineMain !== OFFLINE_WORKER_VERSION) staleScript.remove();
+        const existing = document.querySelector(`script[data-dva-offline-main="${OFFLINE_WORKER_VERSION}"]`);
         const script = existing || document.createElement("script");
         let settled = false;
         const finish = (value) => {
@@ -82,7 +94,7 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
           // after an earlier readiness boundary. Adopt that late owner even
           // when this particular waiter has already settled, so the next
           // request cannot start another discarded Worker generation.
-          const loadedApi = globalThis.DVAOfflineMainThread || null;
+          const loadedApi = this.compatibleMainThreadApi();
           if (loadedApi) {
             this.mainThreadApi = loadedApi;
             this.failPending();
