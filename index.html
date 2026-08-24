@@ -479,6 +479,10 @@
                 <button id="vendingCategoryNextButton" class="hacker-category-step" type="button" aria-label="次の分類">›</button>
               </div>
             </div>
+            <div class="shop-jump-controls" role="group" aria-label="ショップのジャンルとページへ直接ジャンプ">
+              <label>ジャンル<select id="vendingCategoryJumpSelect" aria-label="ショップのジャンルへ直接ジャンプ"></select></label>
+              <label>ページ<select id="vendingPageJumpSelect" aria-label="ショップの特定ページへ直接ジャンプ"></select></label>
+            </div>
             <div class="vending-grid">
               <button class="vending-item-with-icon" data-drink="mineral-water" data-vending-hotkey="1" data-vending-asset="mineral-water"><span class="vending-item-icon" aria-hidden="true"></span><span>ミネラルウォーター</span></button>
               <button class="vending-item-with-icon" data-drink="seawater" data-vending-asset="seawater"><span class="vending-item-icon" aria-hidden="true"></span><span>海水</span></button>
@@ -590,10 +594,6 @@
                 <label id="quantumKineticBranchControl" hidden>
                   <select id="quantumKineticBranchSelect" aria-label="運動エネルギー制御・加速または減速"></select>
                 </label>
-              </div>
-              <div class="shop-jump-controls" role="group" aria-label="ショップのジャンルとページへ直接ジャンプ">
-                <label>ジャンル<select id="vendingCategoryJumpSelect" aria-label="ショップのジャンルへ直接ジャンプ"></select></label>
-                <label>ページ<select id="vendingPageJumpSelect" aria-label="ショップの特定ページへ直接ジャンプ"></select></label>
               </div>
               <label id="abilityAutoActivateControl" class="ability-auto-activate" title="ONなら能力選択時に即実行。OFFなら選択だけ確定">
                 <input id="abilityAutoActivateToggle" type="checkbox" checked aria-label="能力選択時に自動実行">
