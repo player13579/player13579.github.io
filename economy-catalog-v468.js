@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "electric-directed-reveal-bot-motion-v562",
+    version: "electric-directed-reveal-exact-settlement-bot-motion-v563",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-directed-reveal-bot-motion-v562",
+    version: "electric-directed-reveal-exact-settlement-bot-motion-v563",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -9827,6 +9827,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     slowedUntil: 0,
     taserSlowedUntil: 0,
     shockSlowedUntil: 0,
+    quantumElectricSlowUntil: 0,
     gravityStormSlowUntil: 0,
     gravityStormSlowMultiplier: 1,
     lastGravityStormDamage: 0,
@@ -10462,6 +10463,7 @@ function startGame(room) {
     player.slowedUntil = 0;
     player.taserSlowedUntil = 0;
     player.shockSlowedUntil = 0;
+    player.quantumElectricSlowUntil = 0;
     player.gravityStormSlowUntil = 0;
     player.gravityStormSlowMultiplier = 1;
     player.lastGravityStormDamage = 0;
@@ -10812,6 +10814,7 @@ function startBattle(room) {
     player.slowedUntil = 0;
     player.taserSlowedUntil = 0;
     player.shockSlowedUntil = 0;
+    player.quantumElectricSlowUntil = 0;
     player.gravityStormSlowUntil = 0;
     player.gravityStormSlowMultiplier = 1;
     player.lastGravityStormDamage = 0;
@@ -12929,7 +12932,9 @@ function activeMapObjectEffects(room, player) {
 function effectiveMovementMultiplier(room, player, timestamp = now()) {
   if (timeKeeperStops(player, timestamp)) return 0;
   if (player?.clairvoyanceActive) return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * FIXED_MOVEMENT_ACC;
-  const electricSlowMultiplier = Number(player.taserSlowedUntil) > timestamp || Number(player.shockSlowedUntil) > timestamp
+  const electricSlowMultiplier = Number(player.taserSlowedUntil) > timestamp ||
+    Number(player.shockSlowedUntil) > timestamp ||
+    Number(player.quantumElectricSlowUntil) > timestamp
     ? TASER_MOVEMENT_MULTIPLIER
     : 1;
   const gravityStormMultiplier = Number(player.gravityStormSlowUntil) > timestamp
@@ -13619,6 +13624,7 @@ const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "slowedUntil",
   "taserSlowedUntil",
   "shockSlowedUntil",
+  "quantumElectricSlowUntil",
   "gravityStormSlowUntil",
   "sleepingUntil",
   "unconsciousUntil",
@@ -16515,6 +16521,29 @@ function applyPushBacklash(room, player, removedCharges, timestamp = now()) {
   return true;
 }
 
+function resolveBustForNormalBodyAttack(room, killer, target, options = {}, timestamp = now()) {
+  if (
+    options.ignorePush ||
+    bustExcludedByLethalAttack("body", options) ||
+    !itemStorageAvailable(killer, timestamp) ||
+    !passivesEnabled(killer) ||
+    (Number(killer.reasonCharges) || 0) <= 0 ||
+    (Number(target.gritCharges) || 0) <= 0
+  ) return "";
+  killer.reasonCharges -= 1;
+  const removedCharges = Number(target.gritCharges) || 0;
+  target.gritCharges = 0;
+  pushMagicEffect(room, "action-push", target, {
+    radius: 125,
+    playerId: killer.id,
+    targetId: target.id,
+    variant: String(removedCharges)
+  });
+  const backlashDamage = removedCharges * PUSH_BACKLASH_DAMAGE_PER_CHARGE;
+  pushEvent(room, `${killer.name} のバストが ${target.name} のバリア${removedCharges}回分を無効化しました。反動 ${backlashDamage.toFixed(1)}ダメージ。`);
+  return applyPushBacklash(room, killer, removedCharges, timestamp) ? "pushBacklash" : "bust";
+}
+
 function botPushBacklashWouldBeLethal(bot, target) {
   if (!bot?.isBot || !bot.alive || bot.ejected || Number(bot.overheal) > 0 || !itemStorageAvailable(bot)) return false;
   if (!passivesEnabled(bot) || (Number(bot.reasonCharges) || 0) <= 0) return false;
@@ -17828,33 +17857,47 @@ function findQuantumElectricTarget(room, player, timestamp = now()) {
     .sort((left, right) => left.separation - right.separation || String(left.target.id).localeCompare(String(right.target.id)))[0]?.target || null;
 }
 
+function quantumElectricSettlementBlockReason(room, target, timestamp = now()) {
+  if (!target?.alive || target.ejected || target.exiled || target.inVent) return "invalidTarget";
+  const detachedGboGuard = Number(target.slashDetachedGuardUntil) > timestamp;
+  const universalPerfectGuard =
+    (hasOrichalcumSword(target) || detachedGboGuard) &&
+    Number(target.slashActiveUntil) > timestamp &&
+    Number(target.slashPerfectUntil) > timestamp &&
+    hasFighterApexPerks(target);
+  if (universalPerfectGuard) return "slashPerfectGuarded";
+  if (preparationBarrierProtects(room, target, timestamp)) return "preparationBarrier";
+  if (hasFighterInfiniteResources(target)) return "infiniteResources";
+  if (
+    !hackerRootEligible(target) &&
+    !hasLimitBreakDeathVulnerability(target) &&
+    Number(target.substitutionCharges) > 0 &&
+    passivesEnabled(target) &&
+    itemStorageAvailable(target, timestamp)
+  ) return "substitution";
+  if (Number(target.dodgeActiveUntil) > timestamp) return "dodged";
+  if (Number(target.overheal) > 0) return "overheal";
+  const nextBodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + QUANTUM_ELECTRIC_DAMAGE) * 100) / 100;
+  if (nextBodyHits >= 2) return "nonlethalLimit";
+  return "";
+}
+
 function resolveQuantumElectricDischarge(room, player, target, timestamp = now()) {
   const targetBodyHitsBefore = Math.max(0, Number(target.bodyHits) || 0);
-  const outcome = killPlayer(room, player, target.id, {
-    ranged: true,
-    hitZone: "body",
-    damage: QUANTUM_ELECTRIC_DAMAGE,
-    allowAnyKiller: true,
-    ignoreRange: true,
-    ignoreCooldown: true,
-    preserveCooldown: true,
-    targetRole: target.role,
-    magic: true,
+  const nextBodyHits = Math.round((targetBodyHitsBefore + QUANTUM_ELECTRIC_DAMAGE) * 100) / 100;
+  if (nextBodyHits >= 2) throw new Error("Quantum Electric exact settlement crossed the nonlethal boundary after preflight.");
+  target.bodyHits = nextBodyHits;
+  pushHitEffect(room, target, "body", false);
+  pushEvent(room, `${target.name} が${QUANTUM_ELECTRIC_DAMAGE.toFixed(2)}ダメージを受けました（残りHP ${(2 - nextBodyHits).toFixed(2)}）。`);
+  resolveBustForNormalBodyAttack(room, player, target, {
     attackKind: "quantum-electric-discharge",
     attackLabel: "クオンタム・エレクトリック",
-    slashGuardPhysical: false,
-    slashGuardReflectable: true
-  });
-  let slowApplied = false;
-  if (outcome === "body" && target.alive && !target.ejected) {
-    if (rejectAdverseStatusDuringNaturalRecovery(room, target, "エレクトリック減速", timestamp)) {
-      pushEvent(room, `${target.name} はエレクトリックの減速を理知の自然回復で無効化しました。`);
-    } else {
-      target.shockSlowedUntil = Math.max(Number(target.shockSlowedUntil) || 0, timestamp + QUANTUM_ELECTRIC_SLOW_MS);
-      slowApplied = true;
-      pushEvent(room, `${target.name} は電子輸送の衝撃で3秒間移動速度が35%低下します。`);
-    }
-  }
+    slashGuardPhysical: false
+  }, timestamp);
+  target.quantumElectricSlowUntil = Math.max(Number(target.quantumElectricSlowUntil) || 0, timestamp + QUANTUM_ELECTRIC_SLOW_MS);
+  const slowApplied = true;
+  const outcome = "body";
+  pushEvent(room, `${target.name} は電子輸送の衝撃で3秒間移動速度が35%低下します。`);
   pushMagicEffect(room, "quantum-electric-discharge", player, {
     radius: 108,
     targetX: target.x,
@@ -17866,9 +17909,7 @@ function resolveQuantumElectricDischarge(room, player, target, timestamp = now()
   });
   player.quantumElectricLastTargetId = target.id;
   player.quantumElectricLastOutcome = outcome;
-  player.quantumElectricLastDamage = outcome === "body"
-    ? Math.max(0, Math.round((Math.max(0, Number(target.bodyHits) || 0) - targetBodyHitsBefore) * 100) / 100)
-    : 0;
+  player.quantumElectricLastDamage = Math.max(0, Math.round((Math.max(0, Number(target.bodyHits) || 0) - targetBodyHitsBefore) * 100) / 100);
   player.quantumElectricLastAt = timestamp;
   setImmediateFeedback(player, "エレクトリック", `${target.name} / 絶縁破壊→電子輸送 / ${outcome}`);
   pushEvent(room, `${player.name} が空気を局所絶縁破壊し、${target.name} へ一条の電子輸送路を形成しました。`);
@@ -17887,6 +17928,7 @@ function useQuantumControl(room, player, rawMode) {
   const timestamp = now();
   const electricTarget = mode === "electric-discharge" ? findQuantumElectricTarget(room, player, timestamp) : null;
   if (mode === "electric-discharge" && !electricTarget) return false;
+  if (mode === "electric-discharge" && quantumElectricSettlementBlockReason(room, electricTarget, timestamp)) return false;
   const itemId = mode === "electric-discharge"
     ? ""
     : mode === "nuclear-transmutation"
@@ -19090,23 +19132,10 @@ function killPlayer(room, killer, targetId, options = {}) {
     setImmediateFeedback(killer, "気概", "忍殺が非確殺攻撃へ変化");
   }
 
-  if (!ignorePush && !bustExcludedByLethalAttack(hitZone, options) && itemStorageAvailable(killer, timestamp) && passivesEnabled(killer) && (Number(killer.reasonCharges) || 0) > 0 && (Number(target.gritCharges) || 0) > 0) {
-    killer.reasonCharges -= 1;
-    const removedCharges = Number(target.gritCharges) || 0;
-    target.gritCharges = 0;
-    pushMagicEffect(room, "action-push", target, {
-      radius: 125,
-      playerId: killer.id,
-      targetId: target.id,
-      variant: String(removedCharges)
-    });
-    const backlashDamage = removedCharges * PUSH_BACKLASH_DAMAGE_PER_CHARGE;
-    pushEvent(room, `${killer.name} のバストが ${target.name} のバリア${removedCharges}回分を無効化しました。反動 ${backlashDamage.toFixed(1)}ダメージ。`);
-    if (applyPushBacklash(room, killer, removedCharges, timestamp)) {
-      checkWin(room);
-      touch(room);
-      return "pushBacklash";
-    }
+  if (hitZone === "body" && resolveBustForNormalBodyAttack(room, killer, target, { ...options, ignorePush }, timestamp) === "pushBacklash") {
+    checkWin(room);
+    touch(room);
+    return "pushBacklash";
   }
 
   if (!ignoreDodge && target.dodgeActiveUntil > timestamp) {
@@ -20715,6 +20744,7 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     slowedUntil: player.slowedUntil,
     taserSlowedUntil: player.taserSlowedUntil,
     shockSlowedUntil: player.shockSlowedUntil,
+    quantumElectricSlowUntil: player.quantumElectricSlowUntil,
     gravityStormSlowUntil: player.gravityStormSlowUntil,
     gravityStormSlowMultiplier: player.gravityStormSlowMultiplier,
     lastGravityStormDamage: player.lastGravityStormDamage,
@@ -20896,6 +20926,7 @@ function serialize(room, viewer, options = {}) {
       slowedUntil: player.slowedUntil,
       taserSlowedUntil: player.taserSlowedUntil,
       shockSlowedUntil: player.shockSlowedUntil,
+      quantumElectricSlowUntil: player.quantumElectricSlowUntil,
       gravityStormSlowUntil: player.gravityStormSlowUntil,
       gravityStormSlowMultiplier: player.gravityStormSlowMultiplier,
       speedMultiplier: effectiveMovementMultiplier(room, player),
@@ -21121,6 +21152,7 @@ function serialize(room, viewer, options = {}) {
       slowedUntil: viewer.slowedUntil,
       taserSlowedUntil: viewer.taserSlowedUntil,
       shockSlowedUntil: viewer.shockSlowedUntil,
+      quantumElectricSlowUntil: viewer.quantumElectricSlowUntil,
       gravityStormSlowUntil: viewer.gravityStormSlowUntil,
       gravityStormSlowMultiplier: viewer.gravityStormSlowMultiplier,
       lastGravityStormDamage: viewer.lastGravityStormDamage,
@@ -21480,7 +21512,8 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     Object.assign(player, {
       role: "defender", special: "flora", operatorId: "defender-flora", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: startX, y, aimX: 1, aimY: 0,
-      mana: 20, maxMana: Math.max(20, Number(player.maxMana) || 0), floraMode: "sunbeam"
+      mana: 20, maxMana: Math.max(20, Number(player.maxMana) || 0), floraMode: "sunbeam",
+      rationalFreeAbilityReadyAt: timestamp + 120_000
     });
     bots.forEach((bot, index) => {
       if (index > 0) { bot.alive = false; bot.ejected = true; return; }
@@ -21689,7 +21722,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       role: "attacker", special: "fighter", operatorId: "attacker-fighter", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: startX + 360, y, vx: 0, vy: 0,
       bodyHits: 0, overheal: 0, gritCharges: 0, mana: -100, stamina: 0,
-      shockSlowedUntil: 0, itemDisabledUntil: 0, abilityDisabledUntil: 0,
+      shockSlowedUntil: 0, quantumElectricSlowUntil: 0, itemDisabledUntil: 0, abilityDisabledUntil: 0,
       sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0,
       nextBotActionAt: timestamp + 120_000,
       taskAutoReadyAt: timestamp + 120_000, smartphoneUntil: timestamp + 120_000
@@ -21737,7 +21770,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       role: rootBorrowed ? "defender" : "attacker", special: "fighter", operatorId: rootBorrowed ? "defender-fighter" : "attacker-fighter", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: targetX, y, vx: 0, vy: 0,
       bodyHits: 0, overheal: 0, gritCharges: 0, mana: -100, stamina: 0,
-      shockSlowedUntil: 0, itemDisabledUntil: 0, abilityDisabledUntil: 0,
+      shockSlowedUntil: 0, quantumElectricSlowUntil: 0, itemDisabledUntil: 0, abilityDisabledUntil: 0,
       sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0,
       nextBotActionAt: timestamp + 120_000,
       taskAutoReadyAt: timestamp + 120_000, smartphoneUntil: timestamp + 120_000
@@ -22874,6 +22907,7 @@ async function handleApi(req, res) {
         entry.slowedUntil = 0;
         entry.taserSlowedUntil = 0;
         entry.shockSlowedUntil = 0;
+        entry.quantumElectricSlowUntil = 0;
         entry.sleepingUntil = 0;
         entry.resting = false;
         entry.meditatingUntil = 0;
@@ -24907,7 +24941,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "electric-directed-reveal-bot-motion-v562",
+  version: "electric-directed-reveal-exact-settlement-bot-motion-v563",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

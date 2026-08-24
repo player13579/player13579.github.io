@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "electric-directed-reveal-bot-motion-v562";
+const DVA_CLIENT_RELEASE = "electric-directed-reveal-exact-settlement-bot-motion-v563";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -815,7 +815,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-directed-reveal-bot-motion-v562";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-directed-reveal-exact-settlement-bot-motion-v563";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -12343,6 +12343,7 @@ function renderActiveEffects(data) {
   timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
   timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
   timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
+  timed("電子輸送減速", self.quantumElectricSlowUntil, "desire", "Electric固有の移動速度35%低下・3秒");
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
   timed("EMP機器異常", self.itemDisabledUntil, "desire", "アイテム・装備効果停止（状態異常回復の対象外）");
   if (self.statusImmunityActive) {
@@ -12769,6 +12770,9 @@ function objectiveText(data) {
   }
   if ((self.shockSlowedUntil || 0) > liveNow) {
     return `ショック減速 / 移動速度35%低下 / 残り${((self.shockSlowedUntil - liveNow) / 1000).toFixed(1)}秒`;
+  }
+  if ((self.quantumElectricSlowUntil || 0) > liveNow) {
+    return `電子輸送減速 / 移動速度35%低下 / 残り${((self.quantumElectricSlowUntil - liveNow) / 1000).toFixed(1)}秒`;
   }
   if ((self.abilityDisabledUntil || 0) > liveNow) {
     return `能力封印中 / 残り${((self.abilityDisabledUntil - liveNow) / 1000).toFixed(1)}秒`;
@@ -13654,6 +13658,7 @@ function applyMovementAck(result) {
   data.self.slowedUntil = result.slowedUntil;
   data.self.taserSlowedUntil = result.taserSlowedUntil;
   data.self.shockSlowedUntil = result.shockSlowedUntil;
+  data.self.quantumElectricSlowUntil = result.quantumElectricSlowUntil;
   data.self.gravityStormSlowUntil = result.gravityStormSlowUntil;
   data.self.gravityStormSlowMultiplier = result.gravityStormSlowMultiplier;
   data.self.lastGravityStormDamage = result.lastGravityStormDamage;
@@ -13701,6 +13706,7 @@ function applyMovementAck(result) {
   player.slowedUntil = result.slowedUntil;
   player.taserSlowedUntil = result.taserSlowedUntil;
   player.shockSlowedUntil = result.shockSlowedUntil;
+  player.quantumElectricSlowUntil = result.quantumElectricSlowUntil;
   player.gravityStormSlowUntil = result.gravityStormSlowUntil;
   player.gravityStormSlowMultiplier = result.gravityStormSlowMultiplier;
   player.lastGravityStormDamage = result.lastGravityStormDamage;
@@ -20768,7 +20774,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "electric-directed-reveal-bot-motion-v562";
+const version = "electric-directed-reveal-exact-settlement-bot-motion-v563";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21715,5 +21721,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=electric-directed-reveal-bot-motion-v562", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=electric-directed-reveal-exact-settlement-bot-motion-v563", document.baseURI)).catch(() => {});
 }
