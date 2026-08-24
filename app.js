@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "shop-all-abilities-no-jump-electric-v555";
+const DVA_CLIENT_RELEASE = "ordinary-pages-bot-observer-v556";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -12,7 +12,6 @@ const VERIFY_REAL_SCREEN_FIXTURE_KIND = IS_VERIFICATION_MODE
   : "";
 const IS_TRUSTED_REAL_SCREEN_FIXTURE_HOST = /^(?:localhost|127(?:\.\d{1,3}){3}|player13579\.github\.io)$/i.test(location.hostname);
 const VERIFY_REAL_SCREEN_AUTO_START = Boolean(
-  VERIFY_REAL_SCREEN_FIXTURE_KIND &&
   URL_PARAMETERS.get("autoStart") === "1" &&
   IS_TRUSTED_REAL_SCREEN_FIXTURE_HOST
 );
@@ -503,6 +502,8 @@ const state = {
   lastRoomChatRoomId: "",
   chatNotificationTimer: null,
   verificationEnemyBotBaseline: null,
+  verificationOrdinaryBotBaselines: null,
+  verificationOrdinaryBotReleaseObserved: false,
   verificationPreparationBarrierSeen: false,
   verificationPreparationBarrierReleased: false,
   matchmakingInFlight: false,
@@ -818,7 +819,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shop-all-abilities-no-jump-electric-v555";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ordinary-pages-bot-observer-v556";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1891,7 +1892,7 @@ async function excludeOwnAnalytics() {
 function clientId() {
   if (VERIFY_REAL_SCREEN_AUTO_START) {
     const runId = String(URL_PARAMETERS.get("verify") || Date.now()).replace(/[^a-z0-9_-]+/gi, "-").slice(0, 80);
-    return `verify-${VERIFY_REAL_SCREEN_FIXTURE_KIND}-${runId}`;
+    return `verify-${VERIFY_REAL_SCREEN_FIXTURE_KIND || "ordinary"}-${runId}`;
   }
   let value = localStorage.getItem(storage.clientId);
   if (!value) {
@@ -8736,7 +8737,7 @@ async function runVerificationRealScreenAutoStart() {
     if (!(await state.offlineClient.startMainThreadFallback())) {
       throw new Error("verification generated-offline main owner failed to start");
     }
-    if (!els.nameInput.value.trim()) els.nameInput.value = "V533 Verify";
+    if (!els.nameInput.value.trim()) els.nameInput.value = "V556 Verify";
     const name = els.nameInput.value.trim();
     const skinId = normalizeSkinId(els.skinSelect.value);
     const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
@@ -9662,6 +9663,37 @@ function applyState(data, options = {}) {
     );
     const self = data.self || {};
     const root = document.documentElement;
+    if (VERIFY_REAL_SCREEN_AUTO_START && !VERIFY_REAL_SCREEN_FIXTURE_KIND && data.phase === "playing") {
+      const visibleBots = (Array.isArray(data.players) ? data.players : [])
+        .filter((entry) => entry?.isBot && Number.isFinite(Number(entry.x)) && Number.isFinite(Number(entry.y)));
+      root.setAttribute("data-v556-ordinary-match", "true");
+      root.setAttribute("data-v556-ordinary-server-now", String(data.serverNow || ""));
+      root.setAttribute("data-v556-ordinary-preparation-ends-at", String(data.preparationEndsAt || 0));
+      root.setAttribute("data-v556-ordinary-bot-count", String(visibleBots.length));
+      root.setAttribute("data-v556-ordinary-bot-moving-now", String(visibleBots.filter((entry) => entry.moving).length));
+      if (!state.verificationOrdinaryBotBaselines) {
+        state.verificationOrdinaryBotBaselines = new Map(visibleBots.map((entry) => [entry.id, {
+          x: Number(entry.x),
+          y: Number(entry.y)
+        }]));
+        root.setAttribute("data-v556-ordinary-bot-moved", "false");
+      }
+      const movedBot = visibleBots.find((entry) => {
+        const baseline = state.verificationOrdinaryBotBaselines.get(entry.id);
+        return baseline && Math.hypot(Number(entry.x) - baseline.x, Number(entry.y) - baseline.y) > 1;
+      });
+      if (movedBot) {
+        root.setAttribute("data-v556-ordinary-bot-moved", "true");
+        root.setAttribute("data-v556-ordinary-bot-moved-id", String(movedBot.id));
+      }
+      if (state.verificationPreparationBarrierReleased) {
+        state.verificationOrdinaryBotReleaseObserved = true;
+        root.setAttribute("data-v556-ordinary-post-release-poll", "true");
+      }
+      if (state.verificationOrdinaryBotReleaseObserved && movedBot) {
+        root.setAttribute("data-v556-ordinary-lifecycle", "barrier-released-bot-moved-next-poll");
+      }
+    }
     root.setAttribute("data-v550-fixture", VERIFY_REAL_SCREEN_FIXTURE_KIND || "manual");
     root.setAttribute("data-v550-self-role", String(self.role || ""));
     root.setAttribute("data-v550-self-special", String(self.special || ""));
@@ -20607,7 +20639,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "shop-all-abilities-no-jump-electric-v555";
+const version = "ordinary-pages-bot-observer-v556";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21554,5 +21586,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=shop-all-abilities-no-jump-electric-v555", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=ordinary-pages-bot-observer-v556", document.baseURI)).catch(() => {});
 }
