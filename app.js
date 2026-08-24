@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "electric-direction-auto-mana-bot-v561";
+const DVA_CLIENT_RELEASE = "electric-directed-reveal-bot-motion-v562";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -815,7 +815,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-direction-auto-mana-bot-v561";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-directed-reveal-bot-motion-v562";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -16605,18 +16605,58 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
   if (!sprite) return false;
 
   const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  const transform = quantumElectricTextureTransform(effect, 138 + pulse * 34);
+  const thickness = 138 + pulse * 34;
+  const transform = quantumElectricTextureTransform(effect, thickness);
   if (!transform) return false;
+
+  // The raster's authored channel is diagonal. The generic beam ATE sweeps
+  // horizontal bands across image-space, so an affine-aligned raster could
+  // still appear to travel sideways. Reveal the accepted texture in the
+  // authoritative source->target direction, like Sunbeam, and keep the
+  // leading dielectric corona in the same world-space frame.
+  const reveal = objectEffectEase(clamp(progress / 0.24, 0, 1));
+  const dx = transform.targetX - transform.sourceX;
+  const dy = transform.targetY - transform.sourceY;
+  const nx = -dy / transform.length;
+  const ny = dx / transform.length;
+  const frontX = transform.sourceX + dx * reveal;
+  const frontY = transform.sourceY + dy * reveal;
+  const halfWidth = thickness * 0.72;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
+  ctx.beginPath();
+  ctx.moveTo(transform.sourceX + nx * halfWidth, transform.sourceY + ny * halfWidth);
+  ctx.lineTo(frontX + nx * halfWidth, frontY + ny * halfWidth);
+  ctx.lineTo(frontX - nx * halfWidth, frontY - ny * halfWidth);
+  ctx.lineTo(transform.sourceX - nx * halfWidth, transform.sourceY - ny * halfWidth);
+  ctx.closePath();
+  ctx.clip();
   ctx.transform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
-  drawAnimatedTextureCentered(sprite, 0, 0, 1, 1, {
-    mode: "beam",
-    progress,
-    intensity: 0.98,
-    baseAlpha: 0.16
-  });
+  ctx.filter = "brightness(1.14) contrast(1.1) saturate(1.12)";
+  applyAteGlowContext(ctx, "beam", (state.frameNow || performance.now()) / 1000, progress, 0.98);
+  ctx.drawImage(sprite, -0.5, -0.5, 1, 1);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0, 1 - progress) * 0.82;
+  ctx.translate(transform.sourceX, transform.sourceY);
+  ctx.rotate(Math.atan2(dy, dx));
+  applyAteGlowContext(ctx, "beam", (state.frameNow || performance.now()) / 1000, progress + 0.37, 0.72);
+  const coronaLength = Math.min(46, Math.max(22, transform.length * 0.06));
+  for (let branch = -1; branch <= 1; branch += 2) {
+    const branchPhase = progress * 34 + branch * 1.7;
+    const branchY = branch * (10 + Math.sin(branchPhase) * 5);
+    ctx.strokeStyle = branch > 0 ? "rgba(103,232,249,0.78)" : "rgba(196,181,253,0.7)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(reveal * transform.length - coronaLength * 0.5, branchY * 0.25);
+    ctx.lineTo(reveal * transform.length - coronaLength * 0.18, branchY);
+    ctx.lineTo(reveal * transform.length + coronaLength * 0.12, branchY * 0.38);
+    ctx.lineTo(reveal * transform.length + coronaLength * 0.46, branchY * 0.72);
+    ctx.stroke();
+  }
   ctx.restore();
 
   if (IS_VERIFICATION_MODE) {
@@ -16635,7 +16675,8 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
       (renderedLength * transform.length);
     const root = document.documentElement;
     root.setAttribute("data-v554-quantum-electric-rendered", "true");
-    root.setAttribute("data-v561-quantum-electric-renderer", "source-target-affine");
+    root.setAttribute("data-v561-quantum-electric-renderer", "source-target-reveal");
+    root.setAttribute("data-v562-quantum-electric-reveal", reveal.toFixed(6));
     root.setAttribute("data-v561-quantum-electric-axis-dot", alignment.toFixed(6));
     root.setAttribute("data-v561-quantum-electric-source-error", Math.hypot(mappedSource.x - transform.sourceX, mappedSource.y - transform.sourceY).toFixed(6));
     root.setAttribute("data-v561-quantum-electric-target-error", Math.hypot(mappedTarget.x - transform.targetX, mappedTarget.y - transform.targetY).toFixed(6));
@@ -20727,7 +20768,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "electric-direction-auto-mana-bot-v561";
+const version = "electric-directed-reveal-bot-motion-v562";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21674,5 +21715,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=electric-direction-auto-mana-bot-v561", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=electric-directed-reveal-bot-motion-v562", document.baseURI)).catch(() => {});
 }

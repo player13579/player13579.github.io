@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "electric-direction-auto-mana-bot-v561",
+    version: "electric-directed-reveal-bot-motion-v562",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

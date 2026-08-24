@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-direction-auto-mana-bot-v561",
+    version: "electric-directed-reveal-bot-motion-v562",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -9957,6 +9957,11 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     navTargetX: 0,
     navTargetY: 0,
     navCalculatedAt: 0,
+    // Planning is intentionally amortised across Bots, but physical movement
+    // is not.  Keep the last legal waypoint as an authoritative intent so a
+    // seven-Bot match does not turn one 80ms movement step per Bot into a
+    // 560ms start/stop pulse.
+    botNavigationIntent: null,
     nextBotSabotageAt: now() + 12_000 + Math.floor(Math.random() * 6000),
     nextBotVentAt: 0,
     nextBotDefenseDecisionAt: now() + 1800 + Math.floor(Math.random() * 1800),
@@ -10580,6 +10585,7 @@ function startGame(room) {
     player.navTargetX = 0;
     player.navTargetY = 0;
     player.navCalculatedAt = 0;
+    player.botNavigationIntent = null;
     player.nextBotSabotageAt = timestamp + 10_000 + Math.floor(Math.random() * 8000);
     player.nextBotVentAt = 0;
     player.nextBotDefenseDecisionAt = timestamp + 1800 + Math.floor(Math.random() * 1800);
@@ -12390,6 +12396,73 @@ function planBotPath(room, bot, target) {
   return points;
 }
 
+function clearBotNavigationIntent(bot) {
+  if (!bot) return;
+  bot.botNavigationIntent = null;
+}
+
+function botNavigationIntentLifetime(room) {
+  const activeBotCount = [...(room?.players?.values?.() || [])]
+    .filter((player) => player.isBot && !player.ejected && !player.inVent).length;
+  // The single expensive planner may need a full round to revisit a Bot.  The
+  // intent remains valid across that round, but can never survive a lifecycle
+  // change indefinitely.
+  return Math.max(420, (activeBotCount + 2) * BOT_TICK_MS);
+}
+
+function setBotNavigationIntent(room, bot, waypoint, sprint, timestamp = now()) {
+  if (!bot?.isBot || !waypoint || !Number.isFinite(Number(waypoint.x)) || !Number.isFinite(Number(waypoint.y))) return;
+  bot.botNavigationIntent = {
+    x: Number(waypoint.x),
+    y: Number(waypoint.y),
+    sprint: Boolean(sprint),
+    expiresAt: timestamp + botNavigationIntentLifetime(room)
+  };
+}
+
+function advanceBotNavigationMotion(room, bot, elapsedMs, timestamp = now()) {
+  const intent = bot?.botNavigationIntent;
+  if (!intent) return false;
+  if (
+    !bot.isBot ||
+    !bot.alive ||
+    bot.ejected ||
+    bot.inVent ||
+    actionBlockedUntil(bot) > timestamp ||
+    botNavigationMustRemainStationary(bot, timestamp) ||
+    Number(intent.expiresAt) <= timestamp
+  ) {
+    clearBotNavigationIntent(bot);
+    return false;
+  }
+  const map = getMap(room);
+  const arrivalRadius = Math.max(10, Math.min(30, Number(map.playerRadius) || 18));
+  if (distance(bot, intent) <= arrivalRadius) {
+    clearBotNavigationIntent(bot);
+    return false;
+  }
+  const beforeX = bot.x;
+  const beforeY = bot.y;
+  moveToward(room, bot, intent, Math.max(0.008, Math.min(0.12, Number(elapsedMs || 0) / 1000)), intent.sprint);
+  const moved = Math.hypot(bot.x - beforeX, bot.y - beforeY);
+  if (moved < 0.05) {
+    bot.navStuckTicks = (Number(bot.navStuckTicks) || 0) + 1;
+    if (bot.navStuckTicks >= 3) {
+      clearBotNavigationIntent(bot);
+      bot.navPath = [];
+      bot.navCalculatedAt = 0;
+      bot.navStuckTicks = 0;
+    }
+    return false;
+  }
+  bot.navStuckTicks = 0;
+  // A legal route remains alive across planner turns.  Planner cadence is an
+  // implementation-budget concern, not an input-expiry signal; lifecycle,
+  // stationary action, arrival, or an explicit replanning owner clear it.
+  intent.expiresAt = timestamp + botNavigationIntentLifetime(room);
+  return true;
+}
+
 function moveBotToward(room, bot, target) {
   if (!target) return false;
   const map = getMap(room);
@@ -12407,6 +12480,7 @@ function moveBotToward(room, bot, target) {
   if (routeConflict) bot.navForcePathUntil = Math.max(bot.navForcePathUntil || 0, timestamp + 1200);
   if (timestamp >= (bot.navForcePathUntil || 0) && clearWalkLine(room, bot, target, radius)) {
     bot.navPath = [];
+    setBotNavigationIntent(room, bot, target, sprint, timestamp);
     const beforeX = bot.x;
     const beforeY = bot.y;
     moveToward(room, bot, target, undefined, sprint);
@@ -12430,7 +12504,11 @@ function moveBotToward(room, bot, target) {
 
   while (bot.navPath.length && distance(bot, bot.navPath[0]) < 32) bot.navPath.shift();
   const waypoint = bot.navPath[0];
-  if (!waypoint) return false;
+  if (!waypoint) {
+    clearBotNavigationIntent(bot);
+    return false;
+  }
+  setBotNavigationIntent(room, bot, waypoint, sprint, timestamp);
   const beforeX = bot.x;
   const beforeY = bot.y;
   moveToward(room, bot, waypoint, undefined, sprint);
@@ -12914,6 +12992,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   if (room.phase !== "playing" || player.ejected || player.inVent) return;
   const timestamp = now();
   if (actionBlockedUntil(player) > timestamp) {
+    if (player.isBot) clearBotNavigationIntent(player);
     player.vx = 0;
     player.vy = 0;
     player.movementMode = player.ascensionUntil > timestamp
@@ -13885,6 +13964,14 @@ function tickRoom(room) {
       } else if (Number(player.stamina) < staminaCapacityFor(player) - 0.01) {
         player.sleepingUntil = Math.max(Number(player.sleepingUntil) || 0, timestamp + 250);
       }
+    }
+    // `runPlayingBots` deliberately schedules only one expensive repertoire
+    // evaluation per callback.  Its last selected legal waypoint is instead
+    // integrated here for every Bot.  This is the authoritative equivalent of
+    // held movement input: it keeps a route continuous between planner turns
+    // without running seven full planners or trusting the client.
+    if (player.isBot && room.phase === "playing") {
+      advanceBotNavigationMotion(room, player, elapsedMs, timestamp);
     }
     const idleThreshold = player.isBot ? BOT_TICK_MS + 150 : 120;
     const blockedUntil = actionBlockedUntil(player);
@@ -21865,6 +21952,9 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       bot.nextBotActionAt = 0;
       bot.taskAutoReadyAt = 0;
       bot.mana = manaCapacityFor(bot);
+      // Forced verification placement must not retain a previously planned
+      // waypoint now that Bot navigation intent persists between planner turns.
+      clearBotNavigationIntent(bot);
       if (!(Array.isArray(bot.taskList) && bot.taskList.some((task) => !task.done))) {
         bot.taskList = assignTasks(map, room.settings.taskCount);
       }
@@ -23961,6 +24051,7 @@ function runCpuStage2Script(room, bot, timestamp) {
 }
 
 function stopBotForInteraction(bot, timestamp = now()) {
+  clearBotNavigationIntent(bot);
   bot.vx = 0;
   bot.vy = 0;
   bot.movementMode = "idle";
@@ -24489,6 +24580,7 @@ function botNavigationMustRemainStationary(bot, timestamp = now()) {
 
 function runScheduledBotNavigation(room, bot, target, timestamp = now()) {
   if (!botCanAttackTarget(room, bot, target, timestamp)) {
+    clearBotNavigationIntent(bot);
     return { ownsTick: false, moved: false, stationary: false };
   }
   if (botNavigationMustRemainStationary(bot, timestamp)) {
@@ -24815,7 +24907,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "electric-direction-auto-mana-bot-v561",
+  version: "electric-directed-reveal-bot-motion-v562",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
