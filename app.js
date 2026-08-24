@@ -9720,6 +9720,8 @@ function applyState(data, options = {}) {
     }
     root.setAttribute("data-v555-shop-credits", String(self.credits ?? ""));
     root.setAttribute("data-v555-shop-entitlements", [...(self.shopAbilityEntitlements || [])].sort().join(","));
+    root.setAttribute("data-v555-shop-last-purchase", String(self.lastShopPurchaseAbilityId || ""));
+    root.setAttribute("data-v555-shop-last-spent", String(self.lastShopPurchaseSpent ?? ""));
     root.setAttribute("data-v555-shop-category", String(state.vendingCategoryId || ""));
     root.setAttribute("data-v555-shop-page", String(state.vendingPageByCategory[state.vendingCategoryId] || 0));
     const visibleSunbeamCount = (data.magicEffects || []).filter((effect) => effect.type === "flora-sunbeam").length;

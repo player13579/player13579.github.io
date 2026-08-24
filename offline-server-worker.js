@@ -9868,6 +9868,9 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     manaConversionTransactionIds: [],
     shopAbilityEntitlements: [],
     shopAbilityPurchaseTransactions: [],
+    lastShopPurchaseAbilityId: "",
+    lastShopPurchaseSpent: 0,
+    lastShopPurchaseAt: 0,
     iaiCharges: 0,
     ideaProgressStartedAt: 0,
     ideaProgressMs: 0,
@@ -16039,6 +16042,9 @@ function purchaseShopAbility(room, player, abilityId, transactionId = "") {
     ...recent.filter((entry) => timestamp - Number(entry.at || 0) < 120_000),
     ...(id ? [{ id, abilityId: product.id, spent: product.price, at: timestamp }] : [])
   ].slice(-48);
+  player.lastShopPurchaseAbilityId = product.id;
+  player.lastShopPurchaseSpent = product.price;
+  player.lastShopPurchaseAt = timestamp;
   pushMagicEffect(room, "action-vending", player, {
     radius: 96,
     playerId: player.id,
@@ -21025,6 +21031,9 @@ function serialize(room, viewer, options = {}) {
       killCamera: viewer.killCamera ? { ...viewer.killCamera } : null,
       credits: viewer.credits,
       shopAbilityEntitlements: [...(viewer.shopAbilityEntitlements || [])],
+      lastShopPurchaseAbilityId: String(viewer.lastShopPurchaseAbilityId || ""),
+      lastShopPurchaseSpent: Math.max(0, Math.floor(Number(viewer.lastShopPurchaseSpent) || 0)),
+      lastShopPurchaseAt: Number(viewer.lastShopPurchaseAt) || 0,
       mana: serializeResourceValue(viewer.mana),
       maxMana: serializeResourceValue(manaCapacityFor(viewer)),
       mentalState: mentalStateFor(viewer),
@@ -21555,17 +21564,22 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       alive: true, ejected: false, inVent: false, x: startX, y, vx: 0, vy: 0,
       movementMode: "idle", aimX: 1, aimY: 0,
       credits: 40, shopAbilityEntitlements: [], shopAbilityPurchaseTransactions: [],
+      lastShopPurchaseAbilityId: "", lastShopPurchaseSpent: 0, lastShopPurchaseAt: 0,
       mana: 6, maxMana: Math.max(6, Number(player.maxMana) || 0),
       stamina: 500, maxStoredStamina: Math.max(500, Number(player.maxStoredStamina) || 0),
       rationalFreeAbilityReadyAt: timestamp + 120_000,
       sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0, smartphoneUntil: 0,
-      gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0, abilityDisabledUntil: 0
+      gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0,
+      abilityDisabledUntil: 0, itemDisabledUntil: 0
     });
     Object.assign(target, {
+      isBot: false,
       role: "attacker", special: "fighter", operatorId: "attacker-fighter", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: startX + 360, y, vx: 0, vy: 0,
       bodyHits: 0, overheal: 0, gritCharges: 0, mana: -100, stamina: 0,
-      shockSlowedUntil: 0, nextBotActionAt: timestamp + 120_000,
+      shockSlowedUntil: 0, itemDisabledUntil: 0, abilityDisabledUntil: 0,
+      sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0,
+      nextBotActionAt: timestamp + 120_000,
       taskAutoReadyAt: timestamp + 120_000, smartphoneUntil: timestamp + 120_000
     });
     bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
@@ -21596,7 +21610,8 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       stamina: 500, maxStoredStamina: Math.max(500, Number(player.maxStoredStamina) || 0),
       quantumMode: "electric-discharge", rationalFreeAbilityReadyAt: timestamp + 120_000,
       sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0, smartphoneUntil: 0,
-      gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0, abilityDisabledUntil: 0
+      gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0,
+      abilityDisabledUntil: 0, itemDisabledUntil: 0
     });
     if (rootBorrowed) {
       player.hackerRootActive = true;
@@ -21604,10 +21619,13 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       player.bodyHits = 2 - HACKER_ROOT_HEALTH;
     }
     Object.assign(target, {
+      isBot: false,
       role: rootBorrowed ? "defender" : "attacker", special: "fighter", operatorId: rootBorrowed ? "defender-fighter" : "attacker-fighter", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: startX + 360, y, vx: 0, vy: 0,
       bodyHits: 0, overheal: 0, gritCharges: 0, mana: -100, stamina: 0,
-      shockSlowedUntil: 0, nextBotActionAt: timestamp + 120_000,
+      shockSlowedUntil: 0, itemDisabledUntil: 0, abilityDisabledUntil: 0,
+      sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0,
+      nextBotActionAt: timestamp + 120_000,
       taskAutoReadyAt: timestamp + 120_000, smartphoneUntil: timestamp + 120_000
     });
     bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
