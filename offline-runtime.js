@@ -6,6 +6,7 @@ const OFFLINE_WORKER_VERSION = "shop-all-abilities-no-jump-electric-v555";
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.
 const OFFLINE_WORKER_READY_TIMEOUT_MS = 800;
+const OFFLINE_MAIN_READY_TIMEOUT_MS = 30_000;
 const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
 
   class OfflineApiClient {
@@ -77,13 +78,24 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
         const script = existing || document.createElement("script");
         let settled = false;
         const finish = (value) => {
+          // A hidden Pages tab can finish parsing the generated main bundle
+          // after an earlier readiness boundary. Adopt that late owner even
+          // when this particular waiter has already settled, so the next
+          // request cannot start another discarded Worker generation.
+          const loadedApi = globalThis.DVAOfflineMainThread || null;
+          if (loadedApi) {
+            this.mainThreadApi = loadedApi;
+            this.failPending();
+            this.worker?.terminate();
+            this.worker = null;
+            this.settleReady(true);
+          }
           if (settled) return;
           settled = true;
           clearTimeout(timer);
-          this.mainThreadApi = globalThis.DVAOfflineMainThread || null;
           resolve(Boolean(value && this.mainThreadApi));
         };
-        const timer = setTimeout(() => finish(false), OFFLINE_WORKER_READY_TIMEOUT_MS);
+        const timer = setTimeout(() => finish(false), OFFLINE_MAIN_READY_TIMEOUT_MS);
         script.addEventListener("load", () => finish(true), { once: true });
         script.addEventListener("error", () => finish(false), { once: true });
         if (!existing) {

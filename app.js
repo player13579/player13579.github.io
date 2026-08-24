@@ -8730,6 +8730,12 @@ async function runVerificationRealScreenAutoStart() {
     // identity short-circuit or contaminate the next deterministic run.
     if (state.roomId || state.playerId) resetLocalSession();
     await state.offlineClient.start();
+    // Hidden GitHub Pages is the canonical verification surface. Its Worker
+    // can be lifecycle-discarded after a valid ready signal, so establish the
+    // already-generated main-thread owner before the first fixture request.
+    if (!(await state.offlineClient.startMainThreadFallback())) {
+      throw new Error("verification generated-offline main owner failed to start");
+    }
     if (!els.nameInput.value.trim()) els.nameInput.value = "V533 Verify";
     const name = els.nameInput.value.trim();
     const skinId = normalizeSkinId(els.skinSelect.value);
