@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-long-range-settlement-v557",
+    version: "electric-long-range-settlement-v558",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -24819,5 +24819,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "electric-long-range-settlement-v557" });
+self.postMessage({ type: "ready", version: "electric-long-range-settlement-v558" });
 })();
