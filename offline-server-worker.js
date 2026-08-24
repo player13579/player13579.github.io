@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-directed-reveal-exact-settlement-bot-motion-v563",
+    version: "electric-exact-settlement-continuous-bot-waypoints-v564",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -12441,8 +12441,23 @@ function advanceBotNavigationMotion(room, bot, elapsedMs, timestamp = now()) {
   const map = getMap(room);
   const arrivalRadius = Math.max(10, Math.min(30, Number(map.playerRadius) || 18));
   if (distance(bot, intent) <= arrivalRadius) {
-    clearBotNavigationIntent(bot);
-    return false;
+    // Path planning is intentionally sparse, but waypoint ownership is not.
+    // Reaching the current A* point must advance to the already-authoritative
+    // next point in this same cheap tick.  Clearing only the intent here left
+    // the remaining navPath untouched and made the Bot wait for its next
+    // ~560ms full-planner turn, reproducing the visible action-pulse freeze at
+    // every compressed path corner.
+    while (Array.isArray(bot.navPath) && bot.navPath.length && distance(bot, bot.navPath[0]) <= arrivalRadius) {
+      bot.navPath.shift();
+    }
+    const nextWaypoint = Array.isArray(bot.navPath) ? bot.navPath[0] : null;
+    if (!nextWaypoint) {
+      clearBotNavigationIntent(bot);
+      return false;
+    }
+    intent.x = Number(nextWaypoint.x);
+    intent.y = Number(nextWaypoint.y);
+    intent.expiresAt = timestamp + botNavigationIntentLifetime(room);
   }
   const beforeX = bot.x;
   const beforeY = bot.y;
@@ -24946,5 +24961,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "electric-directed-reveal-exact-settlement-bot-motion-v563" });
+self.postMessage({ type: "ready", version: "electric-exact-settlement-continuous-bot-waypoints-v564" });
 })();
