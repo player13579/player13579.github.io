@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "mana-conversion-luck-headshot-v554",
+    version: "mana-conversion-luck-headshot-quantum-electric-v554",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7647,6 +7647,11 @@ const QUANTUM_ACTION_STAMINA_COST = 16;
 // legacy action-cost inventory.
 const GUNNER_BURST_STAMINA_COST = 50;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
+const QUANTUM_ELECTRIC_MANA_COST = 1;
+const QUANTUM_ELECTRIC_RANGE = 650;
+const QUANTUM_ELECTRIC_DAMAGE = 0.35;
+const QUANTUM_ELECTRIC_SLOW_MS = 3_000;
+const QUANTUM_ELECTRIC_SLOW_MULTIPLIER = 0.65;
 const QUANTUM_ENDGAME_DELAY_MS = 300_000;
 const MINERAL_WATER_STAMINA = 100;
 const MOLOTOV_COST = vendingPrice("molotov");
@@ -7902,8 +7907,8 @@ const OPERATORS = {
       special: "quantum",
       limit: 99,
       asset: "quantum",
-      description: "運動エネルギー制御・核変換・核分裂を使い分け、所持素材へ自動適用する。",
-      details: "水銀・鉛・ウラン・プルトニウム・海水を所持して開始する。運動エネルギー制御は加速か減速へ分岐し、所持しているミネラルウォーターまたは海水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂は所持しているウランかプルトニウムへ2MPで作用し、既存の核爆弾と同じ破壊効果を起こす。対象素材がなければ何も起きない。"
+      description: "運動エネルギー制御・エレクトリック・核変換・核分裂を使い分ける。",
+      details: "エレクトリックは16SPと1MPを使い、650以内・見通し上の最近接敵へ、空気の局所絶縁破壊から一条の電子輸送路を形成して0.35ダメージと3秒35%減速を与える。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。運動エネルギー制御は所持しているミネラルウォーターまたは海水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂・核融合は終盤に所持核素材へ2MPで作用する。対象がなければ何も起きない。"
     }
   ],
   attacker: [
@@ -9852,6 +9857,10 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     burnStatus: null,
     statusImmunityFeedbackAt: 0,
     quantumMode: "nuclear-transmutation",
+    quantumElectricLastTargetId: "",
+    quantumElectricLastOutcome: "",
+    quantumElectricLastDamage: 0,
+    quantumElectricLastAt: 0,
     gravityMode: "accelerate",
     gravityTargetId: "",
     gravityTimeMode: "",
@@ -10502,6 +10511,10 @@ function startGame(room) {
     player.burnStatus = null;
     player.statusImmunityFeedbackAt = 0;
     player.quantumMode = "nuclear-transmutation";
+    player.quantumElectricLastTargetId = "";
+    player.quantumElectricLastOutcome = "";
+    player.quantumElectricLastDamage = 0;
+    player.quantumElectricLastAt = 0;
     player.emergenciesLeft = room.settings.emergencyLimit;
     player.inVent = false;
     player.ventId = "";
@@ -10820,6 +10833,10 @@ function startBattle(room) {
     player.burnStatus = null;
     player.statusImmunityFeedbackAt = 0;
     player.quantumMode = "nuclear-transmutation";
+    player.quantumElectricLastTargetId = "";
+    player.quantumElectricLastOutcome = "";
+    player.quantumElectricLastDamage = 0;
+    player.quantumElectricLastAt = 0;
     player.emergenciesLeft = room.settings.emergencyLimit;
     player.lastMoveAt = timestamp;
   }
@@ -10985,7 +11002,8 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
   }
   if (path === "/api/gravity-storm") return GRAVITY_STORM_MANA_COST;
   if (path === "/api/quantum-control") {
-    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return null;
+    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion", "electric-discharge"].includes(mode)) return null;
+    if (mode === "electric-discharge") return QUANTUM_ELECTRIC_MANA_COST;
     return ["nuclear-fission", "nuclear-fusion"].includes(mode) ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
   }
   if (path === "/api/flora-heal") {
@@ -11005,7 +11023,8 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
         : FLORA_MANA_COST;
   }
   if (ability === "quantum") {
-    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return null;
+    if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion", "electric-discharge"].includes(mode)) return null;
+    if (mode === "electric-discharge") return QUANTUM_ELECTRIC_MANA_COST;
     return ["nuclear-fission", "nuclear-fusion"].includes(mode) ? QUANTUM_NUCLEAR_MANA_COST : ABILITY_MANA_COST;
   }
   if (ability !== "gravity") return null;
@@ -11110,14 +11129,18 @@ async function awaitAbilityHoldAutoCommitThreshold(player, rawBody, expectedActi
 
 function quantumBatchCapacity(player, rawMode) {
   const mode = normalizeQuantumMode(rawMode);
-  const itemIds = mode === "nuclear-transmutation"
+  const itemIds = mode === "electric-discharge"
+    ? []
+    : mode === "nuclear-transmutation"
     ? ["lead", "mercury"]
     : mode === "nuclear-fission"
       ? ["uranium", "plutonium"]
       : mode === "nuclear-fusion"
         ? ["seawater"]
       : ["mineral-water", "seawater"];
-  const itemCapacity = itemIds.reduce((sum, itemId) => sum + itemCount(player, itemId), 0);
+  const itemCapacity = mode === "electric-discharge"
+    ? Number.MAX_SAFE_INTEGER
+    : itemIds.reduce((sum, itemId) => sum + itemCount(player, itemId), 0);
   const staminaCost = QUANTUM_ACTION_STAMINA_COST * (player?.desireBias === "sunk-cost" ? DESIRE_BIAS_COST_MULTIPLIER : 1);
   const staminaCapacity = Math.floor(Math.max(0, Number(player?.stamina) || 0) / Math.max(1, staminaCost));
   return Math.min(itemCapacity, staminaCapacity, ["nuclear-fission", "nuclear-fusion"].includes(mode) ? 1 : Number.MAX_SAFE_INTEGER);
@@ -17547,16 +17570,90 @@ function executeQuantumGlobalNuclearEffect(room, player, mode, itemId) {
     : `${player.name} が${ITEM_DEFINITIONS[itemId].label}へ中性子を作用させ、核分裂の連鎖を開始しました。`);
 }
 
+function findQuantumElectricTarget(room, player, timestamp = now()) {
+  return [...room.players.values()]
+    .filter((target) =>
+      target.id !== player.id &&
+      target.alive &&
+      !target.ejected &&
+      !target.exiled &&
+      !target.inVent &&
+      target.role !== player.role &&
+      ["defender", "attacker"].includes(target.role) &&
+      !floraInvisibleActive(target, timestamp)
+    )
+    .map((target) => ({ target, separation: distance(player, target) }))
+    .filter(({ target, separation }) => {
+      if (separation > QUANTUM_ELECTRIC_RANGE) return false;
+      const { dx, dy } = finiteDirection(target.x - player.x, target.y - player.y, 0, 1);
+      return clearShotPath(room, player, target, dx, dy);
+    })
+    .sort((left, right) => left.separation - right.separation || String(left.target.id).localeCompare(String(right.target.id)))[0]?.target || null;
+}
+
+function resolveQuantumElectricDischarge(room, player, target, timestamp = now()) {
+  const targetBodyHitsBefore = Math.max(0, Number(target.bodyHits) || 0);
+  const outcome = killPlayer(room, player, target.id, {
+    ranged: true,
+    hitZone: "body",
+    damage: QUANTUM_ELECTRIC_DAMAGE,
+    allowAnyKiller: true,
+    ignoreRange: true,
+    ignoreCooldown: true,
+    preserveCooldown: true,
+    targetRole: target.role,
+    magic: true,
+    attackKind: "quantum-electric-discharge",
+    attackLabel: "クオンタム・エレクトリック",
+    slashGuardPhysical: false,
+    slashGuardReflectable: true
+  });
+  let slowApplied = false;
+  if (outcome === "body" && target.alive && !target.ejected) {
+    if (rejectAdverseStatusDuringNaturalRecovery(room, target, "エレクトリック減速", timestamp)) {
+      pushEvent(room, `${target.name} はエレクトリックの減速を理知の自然回復で無効化しました。`);
+    } else {
+      target.shockSlowedUntil = Math.max(Number(target.shockSlowedUntil) || 0, timestamp + QUANTUM_ELECTRIC_SLOW_MS);
+      slowApplied = true;
+      pushEvent(room, `${target.name} は電子輸送の衝撃で3秒間移動速度が35%低下します。`);
+    }
+  }
+  pushMagicEffect(room, "quantum-electric-discharge", player, {
+    radius: 108,
+    targetX: target.x,
+    targetY: target.y,
+    playerId: player.id,
+    targetId: target.id,
+    variant: slowApplied ? "dielectric-breakdown:slow" : `dielectric-breakdown:${outcome}`,
+    durationMs: 1050
+  });
+  player.quantumElectricLastTargetId = target.id;
+  player.quantumElectricLastOutcome = outcome;
+  player.quantumElectricLastDamage = outcome === "body"
+    ? Math.max(0, Math.round((Math.max(0, Number(target.bodyHits) || 0) - targetBodyHitsBefore) * 100) / 100)
+    : 0;
+  player.quantumElectricLastAt = timestamp;
+  setImmediateFeedback(player, "エレクトリック", `${target.name} / 絶縁破壊→電子輸送 / ${outcome}`);
+  pushEvent(room, `${player.name} が空気を局所絶縁破壊し、${target.name} へ一条の電子輸送路を形成しました。`);
+  touch(room);
+  return outcome;
+}
+
 function useQuantumControl(room, player, rawMode) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "quantum") || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "クオンタムを使用できません。");
   }
   const mode = normalizeQuantumMode(rawMode || player.quantumMode || "nuclear-transmutation");
-  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) {
+  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion", "electric-discharge"].includes(mode)) {
     throw new ApiError(400, "クオンタム方式が不正です。");
   }
   player.quantumMode = mode;
-  const itemId = mode === "nuclear-transmutation"
+  const timestamp = now();
+  const electricTarget = mode === "electric-discharge" ? findQuantumElectricTarget(room, player, timestamp) : null;
+  if (mode === "electric-discharge" && !electricTarget) return false;
+  const itemId = mode === "electric-discharge"
+    ? ""
+    : mode === "nuclear-transmutation"
     ? firstHeldQuantumItem(player, ["lead", "mercury"])
     : mode === "nuclear-fission"
       ? firstHeldQuantumItem(player, ["uranium", "plutonium"])
@@ -17565,7 +17662,7 @@ function useQuantumControl(room, player, rawMode) {
       : firstHeldQuantumItem(player, ["mineral-water", "seawater"]);
   // A Quantum activation without a compatible held item is a strict silent
   // no-op. This check must precede availability/cost checks and every effect.
-  if (!itemId) return false;
+  if (mode !== "electric-discharge" && !itemId) return false;
   const nuclearMode = mode === "nuclear-fission" || mode === "nuclear-fusion";
   if (nuclearMode && !quantumEndgameAvailable(room, now())) {
     const secondsLeft = Math.max(1, Math.ceil((Number(room.quantumEndgameAt) - now()) / 1000));
@@ -17573,11 +17670,17 @@ function useQuantumControl(room, player, rawMode) {
   }
   ensureAbilityAvailable(player);
   if (Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `クオンタムには${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
+  if (mode === "electric-discharge" && !canSpendOperatorMana(player, timestamp, QUANTUM_ELECTRIC_MANA_COST)) {
+    throw new ApiError(400, `エレクトリックには${QUANTUM_ELECTRIC_MANA_COST}MPが必要です。`);
+  }
   if (nuclearMode && Number(player.mana) < QUANTUM_NUCLEAR_MANA_COST) {
     throw new ApiError(400, `${mode === "nuclear-fusion" ? "核融合" : "核分裂"}には${QUANTUM_NUCLEAR_MANA_COST}MPが必要です。`);
   }
   spendStamina(player, QUANTUM_ACTION_STAMINA_COST, room, "クオンタム");
-  if (mode === "nuclear-transmutation") {
+  if (mode === "electric-discharge") {
+    spendOperatorMana(room, player, "エレクトリック", QUANTUM_ELECTRIC_MANA_COST);
+    resolveQuantumElectricDischarge(room, player, electricTarget, timestamp);
+  } else if (mode === "nuclear-transmutation") {
     consumeItem(player, itemId);
     const credits = acquireGoldAsCredits(room, player, `quantum-gold:${itemId}`);
     pushMagicEffect(room, "quantum-transmutation", player, {
@@ -20945,6 +21048,7 @@ function serialize(room, viewer, options = {}) {
         alchemy: ALCHEMY_MANA_COST,
         fighterCharge: FIGHTER_ENERGY_CHARGE_MANA_COST,
         quantumNuclear: QUANTUM_NUCLEAR_MANA_COST,
+        quantumElectric: QUANTUM_ELECTRIC_MANA_COST,
         sabotage: SABOTAGE_MANA_COST
       },
       stamina: serializeResourceValue(viewer.stamina),
@@ -20975,6 +21079,15 @@ function serialize(room, viewer, options = {}) {
       poisonStatus: viewer.poisonStatus ? { ...viewer.poisonStatus } : null,
       burnStatus: viewer.burnStatus ? { ...viewer.burnStatus } : null,
       quantumMode: normalizeQuantumMode(viewer.quantumMode || "nuclear-transmutation"),
+      quantumActionStaminaCost: QUANTUM_ACTION_STAMINA_COST,
+      quantumElectricRange: QUANTUM_ELECTRIC_RANGE,
+      quantumElectricDamage: QUANTUM_ELECTRIC_DAMAGE,
+      quantumElectricSlowMs: QUANTUM_ELECTRIC_SLOW_MS,
+      quantumElectricSlowMultiplier: QUANTUM_ELECTRIC_SLOW_MULTIPLIER,
+      quantumElectricLastTargetId: String(viewer.quantumElectricLastTargetId || ""),
+      quantumElectricLastOutcome: String(viewer.quantumElectricLastOutcome || ""),
+      quantumElectricLastDamage: Math.max(0, Number(viewer.quantumElectricLastDamage) || 0),
+      quantumElectricLastAt: Number(viewer.quantumElectricLastAt) || 0,
       substitutionCharges: viewer.substitutionCharges,
       gritCharges: viewer.gritCharges,
       reasonCharges: viewer.reasonCharges,
@@ -21395,6 +21508,40 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       throw new ApiError(500, `敵Bot最大強度実画面fixtureが ${expectedPrefix} を実行できません。`);
     }
     pushEvent(room, `実画面検証: ${kind} は ${fixtureCandidate.code} をauthoritative helperで実行しました。`);
+  } else if (kind === "quantum-electric-discharge") {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    const target = bots[0];
+    if (!target) throw new ApiError(400, "Quantum Electric実画面fixtureに対象Botがいません。");
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 760 && Number(rect.h) > map.playerRadius * 3)
+      .sort((left, right) => Number(right.w) - Number(left.w))[0];
+    if (!arena) throw new ApiError(400, "Quantum Electric実画面fixtureに見通し通路がありません。");
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    const startX = Number(arena.x) + Math.max(50, map.playerRadius + 12);
+    Object.assign(player, {
+      role: "defender", special: "quantum", operatorId: "operator-quantum-control", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX, y, vx: 0, vy: 0,
+      movementMode: "idle", aimX: 1, aimY: 0,
+      mana: 6, maxMana: Math.max(6, Number(player.maxMana) || 0),
+      stamina: 500, maxStoredStamina: Math.max(500, Number(player.maxStoredStamina) || 0),
+      quantumMode: "electric-discharge", rationalFreeAbilityReadyAt: timestamp + 120_000,
+      sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0, smartphoneUntil: 0,
+      gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0, abilityDisabledUntil: 0
+    });
+    Object.assign(target, {
+      role: "attacker", special: "fighter", operatorId: "attacker-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX + 360, y, vx: 0, vy: 0,
+      bodyHits: 0, overheal: 0, gritCharges: 0, mana: -100, stamina: 0,
+      shockSlowedUntil: 0, nextBotActionAt: timestamp + 120_000,
+      taskAutoReadyAt: timestamp + 120_000, smartphoneUntil: timestamp + 120_000
+    });
+    bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    pushEvent(room, "実画面検証: エレクトリックは16SP+1MPで、見通し上の最近接敵へ絶縁破壊→電子輸送を一度だけ実行します。");
   } else if (["gunner-luck-headshot-aim", "gunner-luck-headshot-hip"].includes(kind)) {
     const timestamp = now();
     const map = getMap(room);
@@ -22616,6 +22763,10 @@ async function handleApi(req, res) {
         entry.burnStatus = null;
         entry.statusImmunityFeedbackAt = 0;
         entry.quantumMode = "nuclear-transmutation";
+        entry.quantumElectricLastTargetId = "";
+        entry.quantumElectricLastOutcome = "";
+        entry.quantumElectricLastDamage = 0;
+        entry.quantumElectricLastAt = 0;
         entry.emergenciesLeft = room.settings.emergencyLimit;
         entry.inVent = false;
         entry.ventId = "";
@@ -24117,6 +24268,9 @@ function botCombatCandidates(room, bot, target, timestamp) {
     }
   }
   if (nativeQuantum && Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST) {
+    if (canSpendOperatorMana(bot, timestamp, QUANTUM_ELECTRIC_MANA_COST) && findQuantumElectricTarget(room, bot, timestamp)) {
+      add("quantum-electric-discharge", 430, () => useQuantumControl(room, bot, "electric-discharge"));
+    }
     if (itemCount(bot, "mineral-water") > 0) {
       add("quantum-kinetic-accelerate", 410, () => useQuantumControl(room, bot, "kinetic-accelerate"));
       add("quantum-kinetic-decelerate", 405, () => useQuantumControl(room, bot, "kinetic-decelerate"));
@@ -24153,6 +24307,9 @@ function botCombatCandidates(room, bot, target, timestamp) {
     }
   }
   if (hackerRootEligible(bot) && target.role !== bot.role) {
+    if (Number(bot.stamina) >= QUANTUM_ACTION_STAMINA_COST && findQuantumElectricTarget(room, bot, timestamp)) {
+      add("root-borrowed-quantum-electric", 435, () => useBorrowedAbility(room, bot, "quantum", { mode: "electric-discharge" }));
+    }
     if (bot.role === "attacker" && Number(bot.teleportReadyAt) <= timestamp) add("root-borrowed-gravity-heart-transfer", 905, () => useBorrowedAbility(room, bot, "gravity", { mode: "heart", targetId: target.id }));
     add("root-borrowed-gravity-decelerate", 705, () => useBorrowedAbility(room, bot, "gravity", { mode: "decelerate", targetId: target.id }));
     if ((Number(bot.bodyHits) > 0 || Number(bot.overheal) < 1)) add("root-borrowed-flora-heal", 715, () => useBorrowedAbility(room, bot, "flora", { mode: "heal" }));

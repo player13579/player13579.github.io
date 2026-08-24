@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "mana-conversion-luck-headshot-v554";
+const DVA_CLIENT_RELEASE = "mana-conversion-luck-headshot-quantum-electric-v554";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -397,6 +397,7 @@ const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
 });
 const QUANTUM_ABILITY_MODE_OPTIONS = Object.freeze([
   ["quantum-kinetic", "運動エネルギー制御"],
+  ["electric-discharge", "エレクトリック"],
   ["nuclear-transmutation", "核変換"],
   ["nuclear-fission", "核分裂"],
   ["nuclear-fusion", "核融合"]
@@ -823,7 +824,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mana-conversion-luck-headshot-v554";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mana-conversion-luck-headshot-quantum-electric-v554";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4219,6 +4220,12 @@ function triggerActionHotkey(event) {
   if (!elementKey) return false;
   if (!["mapActionButton", "gameMuteButton"].includes(elementKey) && state.data?.phase !== "playing") return false;
   event.preventDefault();
+  if (elementKey === "manaConversionButton") {
+    event.stopImmediatePropagation();
+    const button = els.manaConversionButton;
+    if (!event.repeat && button && !button.disabled && !button.hidden) button.click();
+    return true;
+  }
   if (elementKey === "clairvoyance") {
     if (!event.repeat) toggleClairvoyance();
     return true;
@@ -9684,6 +9691,17 @@ function applyState(data, options = {}) {
     if ((data.magicEffects || []).some((effect) => effect.type === "action-gunner-headshot")) {
       root.setAttribute("data-v554-gunner-headshot-ate-observed", "true");
     }
+    root.setAttribute("data-v554-quantum-mode", String(self.quantumMode || ""));
+    root.setAttribute("data-v554-quantum-electric-self-mana", String(self.mana ?? ""));
+    root.setAttribute("data-v554-quantum-electric-self-stamina", String(self.stamina ?? ""));
+    root.setAttribute("data-v554-quantum-electric-last-target", String(self.quantumElectricLastTargetId || ""));
+    root.setAttribute("data-v554-quantum-electric-last-outcome", String(self.quantumElectricLastOutcome || ""));
+    root.setAttribute("data-v554-quantum-electric-last-damage", String(self.quantumElectricLastDamage ?? ""));
+    const electricEffect = (data.magicEffects || []).findLast((effect) => effect.type === "quantum-electric-discharge");
+    if (electricEffect) {
+      root.setAttribute("data-v554-quantum-electric-effect-observed", "true");
+      root.setAttribute("data-v554-quantum-electric-target", String(electricEffect.targetId || ""));
+    }
     const visibleSunbeamCount = (data.magicEffects || []).filter((effect) => effect.type === "flora-sunbeam").length;
     if (visibleSunbeamCount > Number(root.getAttribute("data-v550-sunbeam-count") || 0)) {
       root.setAttribute("data-v550-sunbeam-count", String(visibleSunbeamCount));
@@ -10841,6 +10859,7 @@ function quantumModeLabel(rawMode) {
   return {
     "kinetic-accelerate": "運動エネルギー制御 / 加速",
     "kinetic-decelerate": "運動エネルギー制御 / 減速",
+    "electric-discharge": "エレクトリック",
     "nuclear-transmutation": "核変換",
     "nuclear-fission": "核分裂",
     "nuclear-fusion": "核融合"
@@ -10859,6 +10878,7 @@ function selectedQuantumExecutableMode(borrowed = false) {
 
 function hasCompatibleQuantumItem(self, rawMode) {
   const mode = normalizeQuantumClientMode(rawMode);
+  if (mode === "electric-discharge") return true;
   const ids = mode === "nuclear-transmutation"
     ? ["lead", "mercury"]
     : mode === "nuclear-fission"
@@ -10871,7 +10891,7 @@ function hasCompatibleQuantumItem(self, rawMode) {
 
 function rememberQuantumExecutableMode(rawMode, borrowed = false) {
   const mode = normalizeQuantumClientMode(rawMode);
-  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"].includes(mode)) return false;
+  if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion", "electric-discharge"].includes(mode)) return false;
   if (mode.startsWith("kinetic-")) state.quantumKineticModes[borrowed ? "borrowed" : "native"] = mode;
   if (borrowed) state.borrowedAbilityModes.quantum = mode;
   else state.quantumAbilityMode = mode;
@@ -11426,6 +11446,7 @@ function abilityModeDescription(owner, mode, self) {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。ミネラルウォーターまたは海水を所持していなければ何も起きない。",
       "kinetic-accelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを加速し、高温水へ変える。対象がなければ何も起きない。",
       "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを減速し、氷へ変える。対象がなければ何も起きない。",
+      "electric-discharge": `量子制御で空気を局所絶縁破壊し、650以内・見通し上の最近接敵へ一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / ${cost("quantumElectric")}。`,
       "nuclear-transmutation": "所持している鉛か水銀を自動選択して金へ核変換し、100Cへ即時換金する。どちらもなければ何も起きない。",
       "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ影響する。どちらもなければ何も起きない。${cost("quantumNuclear")}。`,
       "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合連鎖で核分裂同様に全人間へ影響する。海水がなければ何も起きない。${cost("quantumNuclear")}。`
@@ -12812,7 +12833,7 @@ function updateActionButtons(data) {
 
   const humanDefenderTask = self.role === "defender" && self.isBot !== true && Boolean(task);
   const contextSource = !groundItem
-    ? (humanDefenderTask ? els.taskButton : utilityStation ? els.utilityButton : null)
+    ? (utilityStation ? els.utilityButton : null)
     : null;
   const taskMotionBlocked = self.special !== "alchemist" && Math.hypot(Number(self.vx) || 0, Number(self.vy) || 0) > 0.01;
   els.taskButton.hidden = !humanDefenderTask;
@@ -13015,7 +13036,9 @@ function updateActionButtons(data) {
       : operatorMode === "sunbeam"
         ? `サンビーム ${operatorCostLabel("floraSunbeam")}`
         : `インビジブル 10秒 ${operatorCostLabel("floraInvisible")}`,
-    quantum: quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
+    quantum: selectedQuantumExecutableMode(activeBorrowedOperator === "quantum") === "electric-discharge"
+      ? `${quantumModeLabel("electric-discharge")} ${operatorCostLabel("quantumElectric")} / -16SP`
+      : quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
     assassin: "常時無音（パッシブ）",
     alchemist: "Root化"
   };
@@ -13031,6 +13054,8 @@ function updateActionButtons(data) {
   const nuclearModeLocked = (mode) => ["nuclear-fission", "nuclear-fusion"].includes(mode) && !data.quantumEndgameAvailable;
   const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
   const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
+  const nativeQuantumManaUnavailable = displayedOperator === "quantum" && nativeQuantumMode === "electric-discharge" && !hasMana("quantumElectric");
+  const borrowedQuantumManaUnavailable = borrowedDisplayedOperator === "quantum" && borrowedQuantumMode === "electric-discharge" && !hasMana("quantumElectric");
   const nativeFloraUnavailable = displayedOperator === "flora" && (
     !hasMana(floraCostKey) || (operatorMode === "invisible" && self.floraInvisibleActive)
   );
@@ -13049,14 +13074,16 @@ function updateActionButtons(data) {
   els.operatorAbilityButton.dataset.repeatableAbility = rootToggle ? "0" : "1";
   els.operatorAbilityButton.classList.toggle("active", Boolean(rootToggle && self.hackerRootActive));
   els.operatorAbilityButton.disabled = rootToggle && self.hackerRootActive
-    ? !(isPlaying && self.alive && !self.ejected) || borrowedFloraUnavailable
+    ? !(isPlaying && self.alive && !self.ejected) || borrowedFloraUnavailable || borrowedQuantumManaUnavailable ||
+      (borrowedDisplayedOperator === "quantum" && hasCompatibleQuantumItem(self, borrowedQuantumMode) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16))
     : !canUseAbility ||
       displayedOperator === "assassin" ||
       nativeFloraUnavailable ||
+      nativeQuantumManaUnavailable ||
       (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
       (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
       nativeQuantumEndgameLocked ||
-      (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < 8);
+      (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16));
   els.operatorAbilityButton.title = self.hackerRootActive && borrowedQuantumEndgameLocked
     ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
     : rootToggle && self.hackerRootActive
@@ -16493,6 +16520,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "quantum-ice-impact": ["quantumColdEffect", 280],
   "quantum-nuclear": ["quantumNuclearEffect", 760],
   "quantum-nuclear-fusion": ["quantumNuclearFusion", 760],
+  "quantum-electric-discharge": ["quantumElectricDischarge", 340],
   "hazard-antidote": ["hazardWaterEffect", 250],
   "bottle-shards": ["bottleShardEffect", 220],
   "action-jump": ["jumpActionEffect", 320],
@@ -16540,6 +16568,9 @@ function drawGoldTransmutationStages(goldSprite, progress) {
 }
 
 function drawGeneratedStandaloneEffect(effect, progress) {
+  if (effect?.type === "quantum-electric-discharge" && IS_VERIFICATION_MODE) {
+    document.documentElement.setAttribute("data-v554-quantum-electric-rendered", "true");
+  }
   if (effect?.type === "fighter-energy-charge") {
     recordVerificationMarkerRender(effect, "ordinary-ec", state.frameNow || performance.now());
   } else if (effect?.type === "action-dodge" && effect?.variant === "fixture-positive-control") {
@@ -16590,7 +16621,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     (0.82 + pulse * 0.28 + progress * 0.14);
   const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
-  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave", "fighter-energy-release"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
+  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave", "fighter-energy-release", "quantum-electric-discharge"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
   const goldTransmutation = effect.type === "quantum-transmutation";
   const renderHeight = goldTransmutation
     ? Math.max(72, size * 0.28)
@@ -16603,7 +16634,11 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
   ctx.translate(directed ? (effect.x + targetX) / 2 : effect.x, directed ? (effect.y + targetY) / 2 : effect.y);
   if (directed) {
-    const sourceAxisOffset = effect.type === "alchemy-excalibur" ? Math.PI / 4 : 0;
+    const sourceAxisOffset = effect.type === "alchemy-excalibur"
+      ? Math.PI / 4
+      : effect.type === "quantum-electric-discharge"
+        ? -Math.PI / 4
+        : 0;
     ctx.rotate(Math.atan2(targetY - effect.y, targetX - effect.x) - sourceAxisOffset);
   }
   drawAnimatedTextureBottom(
@@ -20635,7 +20670,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mana-conversion-luck-headshot-v554";
+const version = "mana-conversion-luck-headshot-quantum-electric-v554";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -20772,6 +20807,7 @@ const version = "mana-conversion-luck-headshot-v554";
   const quantumHotEffect = new Image();
   const quantumNuclearEffect = new Image();
   const quantumNuclearFusion = new Image();
+  const quantumElectricDischarge = new Image();
   const hazardPoisonEffect = new Image();
   const hazardWaterEffect = new Image();
   const bottleShardEffect = new Image();
@@ -20902,6 +20938,7 @@ const version = "mana-conversion-luck-headshot-v554";
   defer(quantumHotEffect, "assets/generated/effect-quantum-hot.webp");
   defer(quantumNuclearEffect, "assets/generated/effect-quantum-nuclear-v311.png");
   defer(quantumNuclearFusion, "assets/generated/quantum-nuclear-fusion-ate-v522.png");
+  defer(quantumElectricDischarge, "assets/generated/quantum-electric-discharge-v554.png");
   defer(hazardPoisonEffect, "assets/generated/effect-hazard-poison.webp");
   defer(hazardWaterEffect, "assets/generated/effect-hazard-water.webp");
   defer(bottleShardEffect, "assets/generated/effect-bottle-shards.webp");
@@ -21031,6 +21068,7 @@ const version = "mana-conversion-luck-headshot-v554";
     quantumHotEffect,
     quantumNuclearEffect,
     quantumNuclearFusion,
+    quantumElectricDischarge,
     hazardFireEffect: fireJutsuFieldEffect,
     hazardPoisonEffect,
     hazardWaterEffect,
@@ -21582,5 +21620,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=mana-conversion-luck-headshot-v554", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=mana-conversion-luck-headshot-quantum-electric-v554", document.baseURI)).catch(() => {});
 }

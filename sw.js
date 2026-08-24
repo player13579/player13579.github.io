@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v554-mana-conversion-luck-headshot";
+const CACHE_NAME = "dva-static-v554-mana-conversion-luck-headshot-quantum-electric";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

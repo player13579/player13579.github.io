@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "mana-conversion-luck-headshot-v554",
+    version: "mana-conversion-luck-headshot-quantum-electric-v554",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
