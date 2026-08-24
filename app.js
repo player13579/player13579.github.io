@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "mana-conversion-luck-headshot-quantum-electric-v554";
+const DVA_CLIENT_RELEASE = "shop-all-abilities-no-jump-electric-v555";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -120,7 +120,6 @@ const els = {
   tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
   tabletVendingShortcut: $("#tabletVendingShortcut"),
   tabletDodgeShortcut: $("#tabletDodgeShortcut"),
-  tabletJumpShortcut: $("#tabletJumpShortcut"),
   tabletRenkiShortcut: $("#tabletRenkiShortcut"),
   tabletRestShortcut: $("#tabletRestShortcut"),
   tabletDonateShortcut: $("#tabletDonateShortcut"),
@@ -233,7 +232,6 @@ const els = {
   gritStatusButton: $("#gritStatusButton"),
   reasonButton: $("#reasonButton"),
   operatorAbilityButton: $("#operatorAbilityButton"),
-  jumpButton: $("#jumpButton"),
   operatorBranchTitle: $("#operatorBranchTitle"),
   contextActionButton: $("#contextActionButton"),
   hackerAbilityDock: $("#hackerAbilityDock"),
@@ -248,6 +246,8 @@ const els = {
   vendingCategoryPreviousButton: $("#vendingCategoryPreviousButton"),
   vendingCategoryNextButton: $("#vendingCategoryNextButton"),
   vendingCategoryLabel: $("#vendingCategoryLabel"),
+  vendingCategoryJumpSelect: $("#vendingCategoryJumpSelect"),
+  vendingPageJumpSelect: $("#vendingPageJumpSelect"),
   magicInventory: $("#magicInventory"),
   sabotageControl: $("#sabotageControl"),
   sabotageSelect: $("#sabotageSelect"),
@@ -384,7 +384,7 @@ const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sn
 // asset-key list must exist before createTextures() is called.
 const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
-  "power", "heart-transfer", "focus", "rest", "interact", "jump", "throw"
+  "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
@@ -601,19 +601,13 @@ const state = {
   keybindOpen: false,
   teleportTargeting: false,
   teleportBorrowed: false,
+  teleportShopAbilityId: "",
   teleportTargetId: "",
   teleportTargetMode: "body",
   instantWarpTargeting: false,
   cameraViewIndex: -1,
   dashHeld: false,
   slowWalkHeld: false,
-  jumpKeyDownAt: 0,
-  jumpPreparing: false,
-  jumpPreparePromise: null,
-  jumpPrepareDirection: { dx: 0, dy: 1 },
-  jumpPointerId: null,
-  jumpPointerDownAt: 0,
-  jumpSuppressClickUntil: 0,
   gunTriggerHeld: false,
   gunTriggerPointerId: null,
   gunFireStartPromise: null,
@@ -664,6 +658,7 @@ const state = {
   vendingRenderKey: "",
   vendingCategoryId: "generate-supply",
   vendingSelectedByCategory: Object.create(null),
+  vendingPageByCategory: Object.create(null),
   itemRenderKey: "",
   utilityRenderKey: "",
   lastCanvasStageError: "",
@@ -774,7 +769,7 @@ const alchemyRecipes = [
     id: product.hackerRecipeId,
     productId: product.id,
     label: product.label,
-    output: VENDING_PRODUCT_DESCRIPTIONS[product.id] || "自販機と同期した共有商品を生成します。",
+    output: VENDING_PRODUCT_DESCRIPTIONS[product.id] || "ショップと同期した共有商品を生成します。",
     asset: product.asset,
     hackerAccess: product.hackerAccess
   })),
@@ -823,7 +818,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mana-conversion-luck-headshot-quantum-electric-v554";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shop-all-abilities-no-jump-electric-v555";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -940,6 +935,11 @@ const hackerRecipeCategories = [
   ...DVA_ECONOMY.categories.map(({ id, label }) => ({ id, label })),
   { id: "hack", label: "対象操作" }
 ];
+const shopCategories = [
+  ...DVA_ECONOMY.categories.map(({ id, label }) => ({ id, label })),
+  ...DVA_ECONOMY.abilityGenres.map(({ id, label, operator }) => ({ id, label, operator }))
+];
+const SHOP_PAGE_SIZE = 8;
 
 function hackerRecipeCategory(recipe) {
   if (recipe?.kind === "invention") return "weapon";
@@ -952,15 +952,33 @@ function vendingProductCategory(itemId) {
 }
 
 function vendingProductButtons() {
-  return [...els.vendingPanel.querySelectorAll("[data-drink]")];
+  return [...els.vendingPanel.querySelectorAll("[data-drink], [data-shop-ability]")];
+}
+
+function shopButtonId(button) {
+  return String(button?.dataset?.shopAbility || button?.dataset?.drink || "");
+}
+
+function shopButtonCategory(button) {
+  const ability = DVA_ECONOMY.abilityProduct(button?.dataset?.shopAbility);
+  return ability?.genreId || vendingProductCategory(button?.dataset?.drink);
+}
+
+function shopButtonCatalogEntry(button) {
+  const ability = DVA_ECONOMY.abilityProduct(button?.dataset?.shopAbility);
+  if (ability) return { ...ability, kind: "ability" };
+  const product = DVA_ECONOMY.product(button?.dataset?.drink);
+  return product ? { ...product, kind: "item" } : null;
 }
 
 function ensureDynamicVendingChoices() {
   const grid = els.vendingPanel.querySelector(".vending-grid");
   if (!grid) return;
   const catalogIds = new Set(DVA_ECONOMY.products.map((product) => product.id));
+  const abilityIds = new Set(DVA_ECONOMY.abilityProducts.map((product) => product.id));
   for (const button of vendingProductButtons()) {
-    if (!catalogIds.has(button.dataset.drink)) button.remove();
+    if (button.dataset.drink && !catalogIds.has(button.dataset.drink)) button.remove();
+    if (button.dataset.shopAbility && !abilityIds.has(button.dataset.shopAbility)) button.remove();
   }
   for (const product of DVA_ECONOMY.products) {
     let button = grid.querySelector(`[data-drink="${CSS.escape(product.id)}"]`);
@@ -979,13 +997,49 @@ function ensureDynamicVendingChoices() {
     button.setAttribute("aria-label", `${product.label} ${product.price}C`);
     applyGeneratedItemTexture(button, product.asset || product.id);
   }
+  for (const ability of DVA_ECONOMY.abilityProducts) {
+    let button = grid.querySelector(`[data-shop-ability="${CSS.escape(ability.id)}"]`);
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "vending-item-with-icon shop-ability-card";
+      button.innerHTML = '<span class="vending-item-icon shop-ability-icon" aria-hidden="true"></span><span></span>';
+      grid.append(button);
+    }
+    button.dataset.shopAbility = ability.id;
+    button.dataset.shopOperator = ability.operator;
+    button.dataset.vendingCategory = ability.genreId;
+    button.querySelector(":scope > span:last-child").textContent = ability.label;
+    button.setAttribute("aria-label", `${ability.label} ${ability.price}C`);
+  }
 }
 
 function availableVendingCategories() {
   const buttons = vendingProductButtons();
-  return hackerRecipeCategories.filter((category) =>
-    buttons.some((button) => DVA_ECONOMY.product(button.dataset.drink)?.vendingAvailable && vendingProductCategory(button.dataset.drink) === category.id)
+  return shopCategories.filter((category) =>
+    buttons.some((button) => {
+      const entry = shopButtonCatalogEntry(button);
+      return entry && (entry.kind === "ability" || entry.vendingAvailable) && shopButtonCategory(button) === category.id;
+    })
   );
+}
+
+function selectVendingPage(rawPage, { focus = true } = {}) {
+  const categoryButtons = vendingProductButtons().filter((button) => {
+    const entry = shopButtonCatalogEntry(button);
+    return entry && (entry.kind === "ability" || entry.vendingAvailable) && shopButtonCategory(button) === state.vendingCategoryId;
+  });
+  const pageCount = Math.max(1, Math.ceil(categoryButtons.length / SHOP_PAGE_SIZE));
+  const page = Math.max(0, Math.min(pageCount - 1, Math.floor(Number(rawPage) || 0)));
+  state.vendingPageByCategory[state.vendingCategoryId] = page;
+  state.vendingRenderKey = "";
+  renderVending(state.data);
+  if (focus) {
+    const first = vendingProductButtons().find((button) => !button.hidden);
+    first?.focus({ preventScroll: true });
+    first?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }
+  return true;
 }
 
 function selectVendingCategory(categoryId, direction = 0, { wrap = true } = {}) {
@@ -999,17 +1053,18 @@ function selectVendingCategory(categoryId, direction = 0, { wrap = true } = {}) 
       ? categories[(nextIndex + categories.length) % categories.length]
       : categories[nextIndex];
   if (!category) return false;
-  const focused = document.activeElement?.closest?.("[data-drink]");
-  if (focused?.dataset.drink) {
-    state.vendingSelectedByCategory[state.vendingCategoryId] = focused.dataset.drink;
+  const focused = document.activeElement?.closest?.("[data-drink], [data-shop-ability]");
+  if (shopButtonId(focused)) {
+    state.vendingSelectedByCategory[state.vendingCategoryId] = shopButtonId(focused);
   }
   state.vendingCategoryId = category.id;
+  state.vendingPageByCategory[category.id] ??= 0;
   state.vendingRenderKey = "";
   renderVending(state.data);
   const preferredId = state.vendingSelectedByCategory[category.id];
-  const next = els.vendingPanel.querySelector(
-    preferredId ? `[data-drink="${CSS.escape(preferredId)}"]` : "[data-drink]:not([hidden])"
-  );
+  const next = preferredId
+    ? vendingProductButtons().find((button) => shopButtonId(button) === preferredId && !button.hidden)
+    : vendingProductButtons().find((button) => !button.hidden);
   if (next && !next.hidden) {
     next.focus({ preventScroll: true });
     next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
@@ -1020,7 +1075,9 @@ function selectVendingCategory(categoryId, direction = 0, { wrap = true } = {}) 
 function isHackerPlayer(player) {
   return Boolean(player && (
     player.special === "alchemist" ||
-    player.operatorId === "attacker-alchemist"
+    player.operatorId === "attacker-alchemist" ||
+    player.hackerVibeCodingAccess ||
+    player.hackerRootAccess
   ));
 }
 
@@ -1444,7 +1501,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "philia",
     role: "MOVEMENT GUIDE",
     name: "フィリア",
-    text: "SPは満タン開始。歩行でも減り、ダッシュはより多く消費します。停止してからタスク、距離を決めて跳躍、と切り替えましょう。",
+    text: "SPは満タン開始。歩行でも減り、ダッシュはより多く消費します。停止してからタスクへ取りかかりましょう。",
     sophiaGesture: "rest",
     philiaGesture: "focus",
     symbols: [{ type: "idea", owner: "philia" }, { type: "note", owner: "sophia" }]
@@ -1480,11 +1537,11 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     symbols: [{ type: "sparkle", owner: "sophia" }, { type: "idea", owner: "philia" }]
   },
   {
-    title: "アイテムと自販機",
+    title: "アイテムとショップ",
     speaker: "philia",
     role: "ITEM GUIDE",
     name: "フィリア",
-    text: "自販機はどこでも開け、分類から選びます。瓶は接地で壊れ、ウラン／プルトニウム容器は投擲中に空中で開くため回収できません。それ以外の物理アイテムは被弾地点か接地点に残り、誰でも拾えます。長押しで詳細を確認できます。",
+    text: "ショップはどこでも開け、商品とオペレーター別能力を分類・ページから選びます。瓶は接地で壊れ、ウラン／プルトニウム容器は投擲中に空中で開くため回収できません。それ以外の物理アイテムは被弾地点か接地点に残り、誰でも拾えます。長押しで詳細を確認できます。",
     sophiaGesture: "interact",
     philiaGesture: "throw",
     symbols: [{ type: "cheer", owner: "philia" }, { type: "note", owner: "sophia" }]
@@ -2860,7 +2917,6 @@ const actionHotkeys = {
   KeyN: "nextCameraButton",
   KeyV: "vendingButton",
   KeyH: "operatorAbilityButton",
-  KeyJ: "jumpButton",
   KeyK: "sleepButton",
   KeyC: "renkiButton",
   KeyL: "sabotageButton",
@@ -2908,7 +2964,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/transfer": "interact",
   "/api/emp": "cast",
   "/api/mana-conversion": "cast",
-  "/api/jump": "jump"
 });
 
 const CHARACTER_ACTION_DURATION = Object.freeze({
@@ -2941,7 +2996,6 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   focus: 8,
   rest: 9,
   interact: 10,
-  jump: 11,
   // Throw release has dedicated timing and body mechanics while retaining the empty-hand attack cells.
   throw: 0
 });
@@ -2988,7 +3042,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-vending": "interact",
   "action-mana": "focus",
   "action-alchemy": "cast",
-  "action-jump": "jump",
   "action-fighter-dodge-counter": "slash",
   "transfer-out": "interact",
   "transfer-in": "interact",
@@ -3094,19 +3147,71 @@ const vendingHold = {
 };
 
 function vendingProductDetail(button) {
+  const ability = DVA_ECONOMY.abilityProduct(button?.dataset?.shopAbility);
+  if (ability) {
+    const behavior = ability.behavior === "passive"
+      ? "購入後、この対戦中は条件成立時に自動適用されます。"
+      : ability.behavior === "panel"
+        ? "購入後、この対戦中は対応する操作パネルを解放します。"
+        : "購入後、このカードから既存の資源・対象・クールタイム規則で発動できます。";
+    return {
+      label: ability.label,
+      output: `${DVA_ECONOMY.abilityGenres.find((genre) => genre.id === ability.genreId)?.label || ability.operator}能力`,
+      badge: `${ability.price}C`,
+      detail: `${behavior} 購入時には発動せず、オペレーターidentityも変更しません。`
+    };
+  }
   const id = String(button?.dataset?.drink || "");
   return {
-    label: VENDING_PRODUCT_LABELS[id] || id || "自販機商品",
-    output: "自販機商品",
+    label: VENDING_PRODUCT_LABELS[id] || id || "ショップ商品",
+    output: "ショップ商品",
     badge: "",
     detail: VENDING_PRODUCT_DESCRIPTIONS[id] || "購入後に所持品から使用できます。"
   };
 }
 
+function newShopPurchaseTransactionId() {
+  return globalThis.crypto?.randomUUID?.() || `shop-purchase-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function shopAbilityOwned(abilityId, self = state.data?.self) {
+  return Boolean((self?.shopAbilityEntitlements || []).includes(String(abilityId || "")));
+}
+
+async function executePurchasedShopAbility(ability) {
+  if (!ability || !shopAbilityOwned(ability.id)) return false;
+  if (ability.behavior === "passive") {
+    showToast(`${ability.label}は購入済みで、自動適用されています。`);
+    return true;
+  }
+  if (ability.behavior === "panel") {
+    showToast(`${ability.label}は購入済みです。ハッカー生成パネルから使用できます。`);
+    renderHackerAbilityDock(state.data);
+    return true;
+  }
+  if (ability.behavior === "active-target-map") return beginShopGravityTargeting(ability.id);
+  const self = state.data?.self;
+  const target = nearestTarget();
+  return api("/api/shop/ability", {
+    abilityId: ability.id,
+    targetId: els.teleportTargetSelect.value || target?.id || self?.id || "",
+    dx: Number(self?.aimX) || 0,
+    dy: Number(self?.aimY) || 1
+  });
+}
+
 async function purchaseVendingItem(button, { bulk = false } = {}) {
-  if (!button || button.disabled || button.hidden || button.dataset.purchaseDisabled === "1" || button.dataset.purchasePending === "1") return false;
+  if (!button || button.disabled || button.dataset.purchaseDisabled === "1" || button.dataset.purchasePending === "1") return false;
   button.dataset.purchasePending = "1";
   try {
+    const ability = DVA_ECONOMY.abilityProduct(button.dataset.shopAbility);
+    if (ability) {
+      if (shopAbilityOwned(ability.id)) return executePurchasedShopAbility(ability);
+      return api("/api/shop/purchase", {
+        abilityId: ability.id,
+        transactionId: newShopPurchaseTransactionId()
+      });
+    }
     // Bulk purchase is a single authoritative transaction.  Repeating normal
     // purchases locally races credit changes and can buy a partial, accidental
     // sequence when a long press is released or a panel is rebuilt.
@@ -3154,7 +3259,7 @@ function startVendingHold(event, button) {
     vendingHold.held = true;
     vendingHold.suppressClickUntil = performance.now() + 1_200;
     try { button.setPointerCapture(event.pointerId); } catch {}
-    if (state.vendingBulkPurchase) {
+    if (state.vendingBulkPurchase && !button.dataset.shopAbility) {
       // Exactly one request owns the whole all-credit purchase.  The server
       // computes the purchasable count from its current authoritative credits.
       void purchaseVendingItem(button, { bulk: true });
@@ -3198,8 +3303,6 @@ function cancelVendingHold(event) {
 const SPECIALIZED_HOLD_ACTION_IDS = new Set([
   "shootButton",
   "tabletShootShortcut",
-  "jumpButton",
-  "tabletJumpShortcut",
   "dashButton",
   "slowWalkButton",
   "fireJutsuButton",
@@ -3223,7 +3326,7 @@ function isContinuousGameActionButton(button) {
   if (
     SPECIALIZED_HOLD_ACTION_IDS.has(button.id) ||
     NON_REPEATABLE_ACTION_HOTKEY_BUTTONS.has(button.id) ||
-    button.matches("[data-drink]")
+    button.matches("[data-drink], [data-shop-ability]")
   ) return false;
   if (button.id === "tabletAbilityShortcut") {
     return button.dataset.repeatableAbility === "1";
@@ -4234,13 +4337,6 @@ function triggerActionHotkey(event) {
     if (!event.repeat) void triggerSmartphoneRepair();
     return true;
   }
-  if (elementKey === "jumpButton") {
-    if (!event.repeat) {
-      state.jumpKeyDownAt = performance.now();
-      void beginJumpPreparation();
-    }
-    return true;
-  }
   const enhanceKind = enhanceActionForElement(elementKey);
   if (enhanceKind) {
     if (!event.repeat) beginEnhanceAction(enhanceKind);
@@ -4278,82 +4374,6 @@ function triggerItemHotkey(event) {
   event.preventDefault();
   if (!event.repeat) beginEnhanceAction(kind);
   return true;
-}
-
-function resetJumpPreparationLocal() {
-  state.jumpPreparing = false;
-  state.jumpPreparePromise = null;
-  state.jumpKeyDownAt = 0;
-  state.jumpPointerDownAt = 0;
-  [els.jumpButton, els.tabletJumpShortcut].forEach((button) => {
-    button?.classList.remove("charging");
-    button?.style.removeProperty("--jump-charge");
-  });
-  els.jumpButton.textContent = "跳躍";
-  setTabletShortcutLabel(els.tabletJumpShortcut, "跳躍");
-}
-
-function updateJumpPreparationUi() {
-  if (!state.jumpPreparing || !state.jumpKeyDownAt) return;
-  const preparedMs = Math.max(0, performance.now() - state.jumpKeyDownAt);
-  const distance = 120 + preparedMs * 2.7;
-  const stamina = 24 + distance * 0.14;
-  const pulse = (preparedMs % 700) / 700;
-  [els.jumpButton, els.tabletJumpShortcut].forEach((button) => {
-    button?.style.setProperty("--jump-charge", pulse.toFixed(3));
-  });
-  const jumpDetail = `跳躍 ${Math.round(distance)}m / ${Math.ceil(stamina)}SP`;
-  els.jumpButton.textContent = jumpDetail;
-  setTabletShortcutLabel(els.tabletJumpShortcut, "跳躍", jumpDetail);
-}
-
-async function beginJumpPreparation() {
-  if (state.jumpPreparing) return state.jumpPreparePromise;
-  const direction = getDirection();
-  clearMovementInput();
-  state.jumpPreparing = true;
-  state.jumpKeyDownAt ||= performance.now();
-  const aimX = Number(state.data?.self?.aimX);
-  const aimY = Number(state.data?.self?.aimY);
-  state.jumpPrepareDirection = direction.dx || direction.dy
-    ? direction
-    : {
-        dx: Number.isFinite(aimX) ? aimX : 0,
-        dy: Number.isFinite(aimY) ? aimY : 1
-      };
-  els.jumpButton.classList.add("charging");
-  els.tabletJumpShortcut?.classList.add("charging");
-  state.jumpPreparePromise = api("/api/jump/prepare", state.jumpPrepareDirection).then((result) => {
-    if (!result) resetJumpPreparationLocal();
-    return result;
-  });
-  return state.jumpPreparePromise;
-}
-
-async function cancelJumpPreparation() {
-  if (!state.jumpPreparing) return;
-  resetJumpPreparationLocal();
-  await api("/api/jump/cancel").catch(() => false);
-}
-
-async function sendJump() {
-  if (!state.jumpPreparing) await beginJumpPreparation();
-  const prepared = await state.jumpPreparePromise;
-  if (!prepared) return false;
-  const direction = state.jumpPrepareDirection;
-  rotateMovementSession();
-  try {
-    const jumped = await api("/api/jump", {
-      dx: direction.dx,
-      dy: direction.dy,
-      movementSession: state.movementSession,
-      movementSessionStartedAt: state.movementSessionStartedAt
-    }, { authoritative: true });
-    if (jumped) anchorLocalJumpRender(jumped);
-    return Boolean(jumped);
-  } finally {
-    resetJumpPreparationLocal();
-  }
 }
 
 function triggerVendingHotkey(event) {
@@ -4589,8 +4609,8 @@ function navigateSelectedScrollRegion(key) {
       else if (next) {
         next.focus({ preventScroll: true });
         next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-        if (region === els.vendingPanel && next.dataset.drink) {
-          state.vendingSelectedByCategory[state.vendingCategoryId] = next.dataset.drink;
+        if (region === els.vendingPanel && shopButtonId(next)) {
+          state.vendingSelectedByCategory[state.vendingCategoryId] = shopButtonId(next);
         }
         moved = true;
       }
@@ -5874,6 +5894,12 @@ function bindEvents() {
   bindCategoryStep(els.hackerCategoryNextButton, () => selectHackerCategory("", 1));
   bindCategoryStep(els.vendingCategoryPreviousButton, () => selectVendingCategory("", -1));
   bindCategoryStep(els.vendingCategoryNextButton, () => selectVendingCategory("", 1));
+  els.vendingCategoryJumpSelect.addEventListener("change", () => {
+    selectVendingCategory(els.vendingCategoryJumpSelect.value, 0, { wrap: false });
+  });
+  els.vendingPageJumpSelect.addEventListener("change", () => {
+    selectVendingPage(Number(els.vendingPageJumpSelect.value) || 0);
+  });
   // Keep action suppression outside the current card subtree. Category
   // changes may rebuild that subtree before a browser emits its synthetic
   // click, so an ancestor-only click listener cannot own the whole gesture.
@@ -6200,39 +6226,6 @@ function bindEvents() {
   els.healButton.addEventListener("click", () => api("/api/flora-heal"));
   els.alchemyButton.addEventListener("click", () => executeHackerRecipe(els.alchemySelect.value));
   els.operatorAbilityButton.addEventListener("click", triggerOperatorAbility);
-  const beginJumpPointer = (button, event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    if (els.jumpButton.disabled) return;
-    event.preventDefault();
-    state.jumpPointerId = event.pointerId;
-    state.jumpPointerDownAt = performance.now();
-    state.jumpSuppressClickUntil = performance.now() + 700;
-    button.setPointerCapture?.(event.pointerId);
-    void beginJumpPreparation();
-  };
-  const endJumpPointer = (event) => {
-    if (state.jumpPointerId === null || event.pointerId !== state.jumpPointerId) return;
-    event.preventDefault();
-    state.jumpPointerId = null;
-    void sendJump();
-  };
-  const cancelJumpPointer = (event) => {
-    if (state.jumpPointerId === null || event.pointerId !== state.jumpPointerId) return;
-    state.jumpPointerId = null;
-    void cancelJumpPreparation();
-  };
-  const bindJumpPointerButton = (button) => {
-    button.addEventListener("pointerdown", (event) => beginJumpPointer(button, event));
-    button.addEventListener("pointerup", endJumpPointer);
-    button.addEventListener("pointercancel", cancelJumpPointer);
-    button.addEventListener("lostpointercapture", cancelJumpPointer);
-    button.addEventListener("click", (event) => {
-      if (event.detail > 0 && performance.now() < state.jumpSuppressClickUntil) return;
-      void sendJump();
-    });
-  };
-  bindJumpPointerButton(els.jumpButton);
-  bindJumpPointerButton(els.tabletJumpShortcut);
   els.contextActionButton.addEventListener("click", () => {
     if (els.contextActionButton.dataset.context === "ground-item") {
       const groundItemId = String(els.contextActionButton.dataset.groundItemId || "");
@@ -6332,7 +6325,7 @@ function bindEvents() {
   els.emergencyButton.addEventListener("click", () => api("/api/emergency"));
   els.sabotageButton.addEventListener("click", () => api("/api/sabotage", { type: els.sabotageSelect.value }));
   els.utilityButton.addEventListener("click", () => api("/api/utility", { type: els.utilitySelect.value }));
-  document.querySelectorAll("[data-drink]").forEach((button) => {
+  vendingProductButtons().forEach((button) => {
     button.addEventListener("click", (event) => {
       if (vendingCategoryActionGate.consume() || performance.now() < vendingHold.suppressClickUntil) {
         event.preventDefault();
@@ -6656,10 +6649,6 @@ function bindEvents() {
       state.arrowRepeatKey = "";
       state.arrowRepeatAt = 0;
     }
-    if (event.code === "KeyJ" && state.jumpKeyDownAt > 0) {
-      event.preventDefault();
-      void sendJump();
-    }
     if (event.code === "KeyV") void finishEnhanceAction("use");
     if (event.code === "KeyG") void finishEnhanceAction("throw");
     if (event.key === "Shift") state.keys.delete("dash");
@@ -6873,7 +6862,6 @@ function clearMovementInput() {
   els.dashButton.classList.remove("active");
   els.slowWalkButton.classList.remove("active");
   if (state.gunTriggerHeld) void endGunFire();
-  if (state.jumpPreparing) void cancelJumpPreparation();
   if (shouldSendStop) sendMovement(true);
   state.lastMovementSentSignature = "";
 }
@@ -7591,6 +7579,7 @@ function renderTabletBranch(data, force = false) {
         addQuantumModeAction("減速", "kinetic-decelerate");
       } else {
         addQuantumKineticParent();
+        addQuantumModeAction("エレクトリック", "electric-discharge");
         addQuantumModeAction("核変換", "nuclear-transmutation");
         addQuantumModeAction("核分裂", "nuclear-fission");
         addQuantumModeAction("核融合", "nuclear-fusion");
@@ -7624,14 +7613,21 @@ function renderTabletBranch(data, force = false) {
         "vending-inventions": ["railgun", "particle-cannon", "excalibur", "exile", "hack", "handgun", "smg", "assault", "sniper", "taser", "rpg", "missile"],
         "vending-materials": ["mercury", "lead", "uranium", "plutonium"]
       };
+      const shopCategory = branchPath.startsWith("shop-category:")
+        ? branchPath.slice("shop-category:".length)
+        : "";
       if (!branchPath) {
         addSubmenu("回復・支援", "vending-support");
         addSubmenu("戦術用品", "vending-tactical");
         addSubmenu("特殊装備", "vending-inventions");
         addSubmenu("元素素材", "vending-materials");
+        DVA_ECONOMY.abilityGenres.forEach((genre) => addSubmenu(genre.label, `shop-category:${genre.id}`));
       }
-      els.vendingPanel.querySelectorAll("[data-drink]").forEach((source) => {
-        if (!branchPath || !vendingGroups[branchPath]?.includes(source.dataset.drink)) return;
+      vendingProductButtons().forEach((source) => {
+        const ability = DVA_ECONOMY.abilityProduct(source.dataset.shopAbility);
+        const inLegacyGroup = source.dataset.drink && vendingGroups[branchPath]?.includes(source.dataset.drink);
+        const inShopGenre = ability && ability.genreId === shopCategory;
+        if (!branchPath || (!inLegacyGroup && !inShopGenre)) return;
         appendTabletBranchButton(source.textContent.trim(), () => source.click(), {
           disabled: source.disabled,
           source,
@@ -7670,6 +7666,7 @@ function conciseTabletAbilityName(data) {
       "quantum-kinetic": "運動エネルギー制御",
       "kinetic-accelerate": "運動エネルギー制御 / 加速",
       "kinetic-decelerate": "運動エネルギー制御 / 減速",
+      "electric-discharge": "エレクトリック",
       "nuclear-transmutation": "核変換",
       "nuclear-fission": "核分裂",
       "nuclear-fusion": "核融合"
@@ -7740,15 +7737,13 @@ function renderTabletControls(data) {
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
   els.tabletClairvoyanceShortcut.setAttribute("aria-pressed", String(state.clairvoyance.active));
-  setTabletShortcutLabel(els.tabletVendingShortcut, "自販機", state.vendingOpen ? "自販機を閉じる" : "自販機を開く");
+  setTabletShortcutLabel(els.tabletVendingShortcut, "ショップ", state.vendingOpen ? "ショップを閉じる" : "ショップを開く");
   els.tabletVendingShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected || data.self.inVent;
   els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
   els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
   setTabletShortcutLabel(els.tabletDodgeShortcut, "回避", els.dodgeButton.textContent || "回避");
   els.tabletDodgeShortcut.disabled = els.dodgeButton.disabled || els.dodgeButton.hidden;
   els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
-  setTabletShortcutLabel(els.tabletJumpShortcut, "跳躍", els.jumpButton.textContent || "跳躍");
-  els.tabletJumpShortcut.disabled = els.jumpButton.disabled;
   setTabletShortcutLabel(els.tabletRenkiShortcut, "練気", els.renkiButton.title || els.renkiButton.textContent || "練気");
   els.tabletRenkiShortcut.disabled = els.renkiButton.disabled;
   setTabletShortcutLabel(els.tabletRestShortcut, "休息", els.sleepButton.title || els.sleepButton.textContent || "休息");
@@ -7820,6 +7815,7 @@ function setExpandedMapOpen(open) {
   if (!state.expandedMapOpen) {
     state.teleportTargeting = false;
     state.teleportBorrowed = false;
+    state.teleportShopAbilityId = "";
     state.teleportTargetId = "";
     state.teleportTargetMode = "body";
     state.instantWarpTargeting = false;
@@ -8055,6 +8051,7 @@ function beginInstantWarpTargeting() {
   state.instantWarpTargeting = true;
   state.teleportTargeting = false;
   state.teleportBorrowed = false;
+  state.teleportShopAbilityId = "";
   setExpandedMapOpen(true);
   initializeMapKeyboardPointer();
   return true;
@@ -8130,6 +8127,7 @@ function beginTeleportTargeting(mode = "body") {
   state.teleportTargetMode = mode;
   state.teleportTargeting = true;
   state.teleportBorrowed = false;
+  state.teleportShopAbilityId = "";
   setExpandedMapOpen(true);
   initializeMapKeyboardPointer();
 }
@@ -8142,6 +8140,7 @@ function beginBorrowedGravityTargeting(mode = "body") {
   state.teleportTargetMode = mode;
   state.teleportTargeting = true;
   state.teleportBorrowed = true;
+  state.teleportShopAbilityId = "";
   setExpandedMapOpen(true);
   initializeMapKeyboardPointer();
 }
@@ -8172,7 +8171,7 @@ function ensureDefaultBorrowedAbilitySelection(self = state.data?.self) {
   if (!choices.length) return { type: "", mode: "" };
   state.borrowedOperatorType = type;
   if (type === "quantum") {
-    const executableModes = ["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"];
+    const executableModes = ["kinetic-accelerate", "kinetic-decelerate", "electric-discharge", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion"];
     const remembered = normalizeQuantumClientMode(state.borrowedAbilityModes.quantum);
     const mode = executableModes.includes(remembered) ? remembered : "kinetic-accelerate";
     rememberQuantumExecutableMode(mode, true);
@@ -8183,6 +8182,24 @@ function ensureDefaultBorrowedAbilitySelection(self = state.data?.self) {
   const mode = choices.some(([value]) => value === remembered) ? remembered : defaultMode;
   state.borrowedAbilityModes[type] = mode;
   return { type, mode };
+}
+
+function beginShopGravityTargeting(abilityId) {
+  const data = state.data;
+  const ability = DVA_ECONOMY.abilityProduct(abilityId);
+  if (
+    !data || data.phase !== "playing" || !data.self?.alive || data.self.ejected || data.self.inVent ||
+    !ability || ability.operator !== "gravity" || ability.behavior !== "active-target-map" ||
+    !shopAbilityOwned(ability.id)
+  ) return false;
+  state.teleportTargetId = els.teleportTargetSelect.value || nearestTarget()?.id || data.self.id;
+  state.teleportTargetMode = ability.mode;
+  state.teleportTargeting = true;
+  state.teleportBorrowed = false;
+  state.teleportShopAbilityId = ability.id;
+  setExpandedMapOpen(true);
+  initializeMapKeyboardPointer();
+  return true;
 }
 
 function selectedBorrowedOperator() {
@@ -8322,6 +8339,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
         state.quantumOperatorBranchStage = "kinetic";
         setOperatorBranchesOpen(true, operatorType, true);
       }, selectedQuantumExecutableMode(borrowedPreview).startsWith("kinetic-"), "選択後、加速か減速へ分岐する");
+      addBranch("エレクトリック", () => selectQuantumBranchMode("electric-discharge"), selectedQuantumExecutableMode(borrowedPreview) === "electric-discharge", "空気を局所絶縁破壊し、650以内・見通し上の最近接敵へ一条の電子輸送路を形成する");
       addBranch("核変換", () => selectQuantumBranchMode("nuclear-transmutation"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-transmutation", "所持している鉛か水銀を金へ変えて100Cへ即時換金する。対象がなければ何も起きない");
       addBranch("核分裂", () => selectQuantumBranchMode("nuclear-fission"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fission", "終盤に所持ウランかプルトニウムへ核分裂を適用し、全人間へ影響する。対象がなければ何も起きない");
       addBranch("核融合", () => selectQuantumBranchMode("nuclear-fusion"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fusion", "終盤に重水素を含む所持海水で核融合し、全人間へ影響する。海水がなければ何も起きない");
@@ -8474,6 +8492,8 @@ async function activateExpandedMapPoint(point) {
   }
   const endpoint = state.instantWarpTargeting
     ? "/api/instant-warp"
+    : state.teleportShopAbilityId
+      ? "/api/shop/ability"
     : state.teleportBorrowed
       ? "/api/borrowed-ability"
       : "/api/teleport";
@@ -8487,7 +8507,8 @@ async function activateExpandedMapPoint(point) {
     y: point.y,
     targetId: state.teleportTargeting ? state.teleportTargetId : "",
     mode: state.teleportTargeting ? state.teleportTargetMode : "body",
-    ability: state.teleportBorrowed ? "gravity" : undefined
+    ability: state.teleportBorrowed ? "gravity" : undefined,
+    abilityId: state.teleportShopAbilityId || undefined
   });
   if (!ok) return;
   if (
@@ -8896,24 +8917,6 @@ function releaseRejectedActionTransientInput() {
   clearLocalGunTrigger();
   if (state.enhanceHold.kind) cancelEnhanceAction(state.enhanceHold.kind, { recoverOnFailure: false });
   if (state.throwTargeting.active) cancelThrowTargeting(true, "", { recoverOnFailure: false });
-  const jumpPointerId = state.jumpPointerId;
-  state.jumpPointerId = null;
-  if (jumpPointerId !== null) {
-    for (const button of [els.jumpButton, els.tabletJumpShortcut]) {
-      try {
-        if (button?.hasPointerCapture?.(jumpPointerId)) button.releasePointerCapture(jumpPointerId);
-      } catch {}
-    }
-  }
-  if (state.jumpPreparing) {
-    resetJumpPreparationLocal();
-    if (state.roomId && state.playerId) {
-      void request("/api/jump/cancel", {
-        roomId: state.roomId,
-        playerId: state.playerId
-      }, { quiet: true, attempts: 1 });
-    }
-  }
   clearMovementInput();
 }
 
@@ -9514,6 +9517,7 @@ function resetLocalSession() {
   state.teleportBorrowed = false;
   state.teleportTargetId = "";
   state.teleportTargetMode = "body";
+  state.teleportShopAbilityId = "";
   state.instantWarpTargeting = false;
   state.cameraViewIndex = -1;
   state.operatorRenderKey = "";
@@ -9539,6 +9543,7 @@ function resetLocalSession() {
   state.vendingRenderKey = "";
   state.vendingCategoryId = "generate-supply";
   state.vendingSelectedByCategory = Object.create(null);
+  state.vendingPageByCategory = Object.create(null);
   state.utilityRenderKey = "";
   state.lastCanvasStageError = "";
   state.lastCanvasItemError = "";
@@ -9599,9 +9604,15 @@ function applyState(data, options = {}) {
   }
   if (state.data?.roomId && state.data.roomId !== data.roomId) setExpandedMapOpen(false);
   const borrowedGravityTargetingValid = state.teleportBorrowed && hasDisplayedOperatorAccess(data.self, "gravity");
-  if (state.teleportTargeting && (data.phase !== "playing" || (data.self.special !== "teleport" && !borrowedGravityTargetingValid) || !data.self.alive)) {
+  const shopGravityTargetingValid = Boolean(
+    state.teleportShopAbilityId &&
+    DVA_ECONOMY.abilityProduct(state.teleportShopAbilityId)?.behavior === "active-target-map" &&
+    (data.self.shopAbilityEntitlements || []).includes(state.teleportShopAbilityId)
+  );
+  if (state.teleportTargeting && (data.phase !== "playing" || (data.self.special !== "teleport" && !borrowedGravityTargetingValid && !shopGravityTargetingValid) || !data.self.alive)) {
     state.teleportTargeting = false;
     state.teleportBorrowed = false;
+    state.teleportShopAbilityId = "";
     state.teleportTargetId = "";
     state.teleportTargetMode = "body";
     state.mapPointer = null;
@@ -9701,6 +9712,10 @@ function applyState(data, options = {}) {
       root.setAttribute("data-v554-quantum-electric-effect-observed", "true");
       root.setAttribute("data-v554-quantum-electric-target", String(electricEffect.targetId || ""));
     }
+    root.setAttribute("data-v555-shop-credits", String(self.credits ?? ""));
+    root.setAttribute("data-v555-shop-entitlements", [...(self.shopAbilityEntitlements || [])].sort().join(","));
+    root.setAttribute("data-v555-shop-category", String(state.vendingCategoryId || ""));
+    root.setAttribute("data-v555-shop-page", String(state.vendingPageByCategory[state.vendingCategoryId] || 0));
     const visibleSunbeamCount = (data.magicEffects || []).filter((effect) => effect.type === "flora-sunbeam").length;
     if (visibleSunbeamCount > Number(root.getAttribute("data-v550-sunbeam-count") || 0)) {
       root.setAttribute("data-v550-sunbeam-count", String(visibleSunbeamCount));
@@ -10097,7 +10112,6 @@ function detectWorldSounds(previous, next) {
       dash: "worldDash",
       walk: "worldStep",
       fireJutsu: "fireJutsu",
-      jump: "worldDash",
       "fighter-iaido": "fighterCounter",
       fighterSlash: "fighterCounter",
       substitution: "substitution",
@@ -10220,9 +10234,6 @@ function snapRenderedRelocation(current, player, nextData, timestamp) {
   current.velocityY = 0;
   current.predictionLeadMultiplier = Math.max(0.01, Number(player.speedMultiplier) || 1);
   current.predictionLeadUntil = 0;
-  current.jumpHeight = 0;
-  current.jumpMotionStartedAt = 0;
-  current.jumpMotionCompletedAt = 0;
   current.updatedAt = timestamp;
   // A camera following the local body must never ease from the old world
   // position after a confirmed teleport. The next frame re-anchors it from
@@ -10242,11 +10253,9 @@ function syncRenderPlayers(nextData) {
     }
     const current = state.renderPlayers.get(player.id);
     if (!current) {
-      const jumpMotion = player.jumpMotion;
-      const jumpActive = jumpMotion && Number(jumpMotion.endsAt) > estimatedServerNow(nextData);
       state.renderPlayers.set(player.id, {
-        x: jumpActive ? Number(jumpMotion.fromX) : player.x,
-        y: jumpActive ? Number(jumpMotion.fromY) : player.y,
+        x: player.x,
+        y: player.y,
         targetX: player.x,
         targetY: player.y,
         roomId: nextData.roomId,
@@ -10263,16 +10272,12 @@ function syncRenderPlayers(nextData) {
         predictionLeadUntil: 0,
         velocityX: 0,
         velocityY: 0,
-        jumpHeight: 0,
-        jumpMotionStartedAt: jumpActive ? Number(jumpMotion.startedAt) : 0,
-        jumpMotionCompletedAt: 0,
         updatedAt: timestamp
       });
       continue;
     }
 
-    const jump = Math.hypot(player.x - current.x, player.y - current.y);
-    const jumpActive = player.jumpMotion && Number(player.jumpMotion.endsAt) > estimatedServerNow(nextData);
+    const relocationDistance = Math.hypot(player.x - current.x, player.y - current.y);
     const staleSelfMovement = isStaleSelfMovementState(player, nextData);
     const relocationRevision = relocationRevisionFor(player);
     const relocated = relocationRevision !== relocationRevisionFor(current);
@@ -10285,22 +10290,13 @@ function syncRenderPlayers(nextData) {
       current.alive !== player.alive ||
       current.ejected !== player.ejected ||
       player.inVent ||
-      (jump > 360 && !jumpActive && !isLocallyPredictedSelf);
+      (relocationDistance > 360 && !isLocallyPredictedSelf);
 
     // A relocation revision is issued only by the successful authoritative
     // teleport primitive. It intentionally bypasses local prediction/stale
     // movement suppression: distance alone cannot distinguish a legitimate
     // short teleport from a delayed ordinary movement snapshot.
     if (relocated) snapRenderedRelocation(current, player, nextData, timestamp);
-
-    if (!relocated && jumpActive && current.jumpMotionStartedAt !== Number(player.jumpMotion.startedAt)) {
-      current.x = Number(player.jumpMotion.fromX);
-      current.y = Number(player.jumpMotion.fromY);
-      current.velocityX = 0;
-      current.velocityY = 0;
-      current.jumpMotionStartedAt = Number(player.jumpMotion.startedAt);
-      current.jumpMotionCompletedAt = 0;
-    }
 
     const nextSpeedMultiplier = Math.max(0.01, Number(player.speedMultiplier) || 1);
     const previousSpeedMultiplier = Math.max(0.01, Number(current.speedMultiplier) || nextSpeedMultiplier);
@@ -10316,10 +10312,7 @@ function syncRenderPlayers(nextData) {
     current.speedMultiplier = nextSpeedMultiplier;
     // Movement acknowledgements are newer than some full-state frames. Keep a
     // stale frame from pulling the locally predicted player backward.
-    if (jumpActive) {
-      current.targetX = Number(player.jumpMotion.toX);
-      current.targetY = Number(player.jumpMotion.toY);
-    } else if (!isLocallyPredictedSelf) {
+    if (!isLocallyPredictedSelf) {
       current.targetX = player.x;
       current.targetY = player.y;
     }
@@ -10373,35 +10366,6 @@ function advanceRenderPlayers(data) {
       ? data.map.speed * predictionLeadMultiplier * modeMultiplier
       : speed;
     const radius = player.alive ? data.map.playerRadius : 8;
-
-    const jumpMotion = player.jumpMotion;
-    const serverNow = estimatedServerNow(data);
-    if (jumpMotion && Number(jumpMotion.endsAt) > serverNow) {
-      const duration = Math.max(1, Number(jumpMotion.endsAt) - Number(jumpMotion.startedAt));
-      const progress = clamp((serverNow - Number(jumpMotion.startedAt)) / duration, 0, 1);
-      const eased = progress * progress * (3 - 2 * progress);
-      current.x = Number(jumpMotion.fromX) + (Number(jumpMotion.toX) - Number(jumpMotion.fromX)) * eased;
-      current.y = Number(jumpMotion.fromY) + (Number(jumpMotion.toY) - Number(jumpMotion.fromY)) * eased;
-      current.jumpHeight = Math.sin(Math.PI * progress) * Math.min(190, 34 + Math.sqrt(Math.max(0, Number(jumpMotion.distance) || 0)) * 3.2);
-      current.velocityX = 0;
-      current.velocityY = 0;
-      continue;
-    }
-    if (
-      jumpMotion &&
-      Number(jumpMotion.startedAt) > 0 &&
-      Number(current.jumpMotionCompletedAt) !== Number(jumpMotion.startedAt)
-    ) {
-      current.x = Number(jumpMotion.toX);
-      current.y = Number(jumpMotion.toY);
-      current.targetX = Number(jumpMotion.toX);
-      current.targetY = Number(jumpMotion.toY);
-      current.velocityX = 0;
-      current.velocityY = 0;
-      current.jumpMotionCompletedAt = Number(jumpMotion.startedAt);
-    }
-    current.jumpHeight = 0;
-    current.jumpMotionStartedAt = 0;
 
     if (isSelf && moving) {
       const advanced = DVARuntime.advanceCollisionAwarePosition({
@@ -10526,7 +10490,7 @@ function isClientMovementAllowed(data, player, x, y, radius) {
 function renderedPlayer(player) {
   const current = state.renderPlayers.get(player.id);
   if (!current) return player;
-  return { ...player, x: current.x, y: current.y, jumpHeight: current.jumpHeight || 0 };
+  return { ...player, x: current.x, y: current.y };
 }
 
 function activeKillCameraRecord(data = state.data) {
@@ -12099,9 +12063,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       ? "通常歩行"
       : self.movementMode === "slow"
         ? "低速移動"
-        : self.movementMode === "jump" || self.movementMode === "jump-prepare"
-          ? "ジャンプ"
-          : "停止";
+        : "停止";
     const aimValue = !passiveEnabled
       ? "理知まで休止"
       : self.movementMode === "dash"
@@ -12528,7 +12490,7 @@ function setVendingOpen(open, { focus = true } = {}) {
   else els.vendingPanel.hidden = true;
   els.vendingButton.classList.toggle("active", state.vendingOpen);
   els.vendingButton.setAttribute("aria-expanded", String(state.vendingOpen));
-  setTabletShortcutLabel(els.tabletVendingShortcut, "自販機", state.vendingOpen ? "自販機を閉じる" : "自販機を開く");
+  setTabletShortcutLabel(els.tabletVendingShortcut, "ショップ", state.vendingOpen ? "ショップを閉じる" : "ショップを開く");
   els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
   els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
   if (state.vendingOpen) {
@@ -12537,6 +12499,7 @@ function setVendingOpen(open, { focus = true } = {}) {
 }
 
 function renderVending(data) {
+  ensureDynamicVendingChoices();
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
     applyGeneratedItemTexture(button, button.dataset.vendingAsset || button.dataset.drink);
   });
@@ -12560,23 +12523,72 @@ function renderVending(data) {
   }
   const buttons = vendingProductButtons();
   const categories = availableVendingCategories();
-  const category = categories.find((entry) => entry.id === state.vendingCategoryId) || categories[0] || hackerRecipeCategories[0];
+  const category = categories.find((entry) => entry.id === state.vendingCategoryId) || categories[0] || shopCategories[0];
   state.vendingCategoryId = category.id;
-  const categoryButtons = buttons.filter((button) => DVA_ECONOMY.product(button.dataset.drink)?.vendingAvailable && vendingProductCategory(button.dataset.drink) === category.id);
-  els.vendingCategoryLabel.textContent = `${category.label} ${categoryButtons.length}`;
+  const categoryButtons = buttons.filter((button) => {
+    const entry = shopButtonCatalogEntry(button);
+    return entry && (entry.kind === "ability" || entry.vendingAvailable) && shopButtonCategory(button) === category.id;
+  });
+  const pageCount = Math.max(1, Math.ceil(categoryButtons.length / SHOP_PAGE_SIZE));
+  const page = Math.max(0, Math.min(pageCount - 1, Number(state.vendingPageByCategory[category.id]) || 0));
+  state.vendingPageByCategory[category.id] = page;
+  const pageStart = page * SHOP_PAGE_SIZE;
+  const pageButtons = new Set(categoryButtons.slice(pageStart, pageStart + SHOP_PAGE_SIZE));
+  els.vendingCategoryLabel.textContent = `${category.label} ${page + 1}/${pageCount}`;
+
+  const categoryOptionsKey = categories.map(({ id, label }) => `${id}:${label}`).join("|");
+  if (els.vendingCategoryJumpSelect.dataset.optionsKey !== categoryOptionsKey) {
+    els.vendingCategoryJumpSelect.replaceChildren(...categories.map(({ id, label }) => {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      return option;
+    }));
+    els.vendingCategoryJumpSelect.dataset.optionsKey = categoryOptionsKey;
+  }
+  els.vendingCategoryJumpSelect.value = category.id;
+  if (els.vendingPageJumpSelect.options.length !== pageCount) {
+    els.vendingPageJumpSelect.replaceChildren(...Array.from({ length: pageCount }, (_, index) => {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = `${index + 1} / ${pageCount}`;
+      return option;
+    }));
+  }
+  els.vendingPageJumpSelect.value = String(page);
+  els.vendingPageJumpSelect.disabled = pageCount <= 1;
+  if (IS_VERIFICATION_MODE) {
+    document.documentElement.setAttribute("data-v555-shop-category", category.id);
+    document.documentElement.setAttribute("data-v555-shop-page", String(page));
+    document.documentElement.setAttribute("data-v555-shop-visible-cards", String(pageButtons.size));
+  }
+
   buttons.forEach((button) => {
-    const product = DVA_ECONOMY.product(button.dataset.drink);
-    button.hidden = !product?.vendingAvailable || product.category !== category.id;
+    const entry = shopButtonCatalogEntry(button);
+    const ability = entry?.kind === "ability" ? entry : null;
+    const product = entry?.kind === "item" ? entry : null;
+    button.hidden = !pageButtons.has(button);
     const copy = button.querySelector("span:last-child");
-    const id = button.dataset.drink;
-    const label = VENDING_PRODUCT_LABELS[id] || id;
-    const price = Number.isFinite(VENDING_PRODUCT_COSTS[id]) ? `${VENDING_PRODUCT_COSTS[id]}C` : "";
-    const visibleName = `${label}${price ? ` ${price}` : ""}`;
+    const id = shopButtonId(button);
+    const label = ability?.label || product?.label || VENDING_PRODUCT_LABELS[id] || id;
+    const numericPrice = Number(ability?.price ?? (Number.isFinite(VENDING_PRODUCT_COSTS[id]) ? VENDING_PRODUCT_COSTS[id] : NaN));
+    const price = Number.isFinite(numericPrice) ? `${numericPrice}C` : "";
+    const owned = Boolean(ability && shopAbilityOwned(ability.id, data.self));
+    const ownership = owned
+      ? ability.behavior === "passive"
+        ? "購入済み・自動"
+        : ability.behavior === "panel"
+          ? "購入済み・操作解放"
+          : "購入済み・発動"
+      : "";
+    const visibleName = `${label}${price ? ` ${price}` : ""}${ownership ? ` ${ownership}` : ""}`;
     if (copy && copy.textContent.trim() !== visibleName) {
       copy.classList.add("item-name-line");
-      copy.innerHTML = `<span class="item-name-label">${escapeHtml(label)}</span>${price ? `<small class="item-name-meta">${escapeHtml(price)}</small>` : ""}`;
+      copy.innerHTML = `<span class="item-name-label">${escapeHtml(label)}</span>${price || ownership ? `<small class="item-name-meta">${escapeHtml([price, ownership].filter(Boolean).join(" / "))}</small>` : ""}`;
     }
     button.setAttribute("aria-label", visibleName);
+    button.setAttribute("aria-pressed", ability ? String(owned) : "false");
+    button.classList.toggle("shop-ability-owned", owned);
     button.removeAttribute("title");
   });
   const mysteryVisible = data.self.lastMysteryResult && estimatedServerNow(data) - (data.self.lastMysteryResultAt || 0) < 20_000;
@@ -12592,7 +12604,9 @@ function renderVending(data) {
     data.self.pushCharges || 0,
     mysteryVisible ? data.self.lastMysteryResult : "",
     Boolean(data.self.hackActive),
-    category.id
+    [...(data.self.shopAbilityEntitlements || [])].sort(),
+    category.id,
+    page
   ]);
   if (state.vendingRenderKey === renderKey) {
     scheduleActiveEffectsLayout();
@@ -12600,9 +12614,12 @@ function renderVending(data) {
   }
   state.vendingRenderKey = renderKey;
   buttons.forEach((button) => {
+    const ability = DVA_ECONOMY.abilityProduct(button.dataset.shopAbility);
     const staminaFull = false;
     const alreadyHasHack = button.dataset.drink === "hack" && data.self.hackActive;
-    const unavailable = staminaFull || alreadyHasHack || data.self.credits < VENDING_PRODUCT_COSTS[button.dataset.drink];
+    const owned = Boolean(ability && shopAbilityOwned(ability.id, data.self));
+    const cost = ability?.price ?? VENDING_PRODUCT_COSTS[button.dataset.drink];
+    const unavailable = staminaFull || alreadyHasHack || (!owned && data.self.credits < cost);
     button.disabled = false;
     button.dataset.purchaseDisabled = unavailable ? "1" : "0";
     button.setAttribute("aria-disabled", String(unavailable));
@@ -12610,7 +12627,7 @@ function renderVending(data) {
   });
   if (els.magicInventory.hidden) els.magicInventory.hidden = false;
   const carriedItems = (data.self.itemInventory || []).map((item) => `${item.label} ${item.amount}`).join(" / ");
-  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}火遁スクロール ${data.self.fireJutsuCharges || 0} / 変わり身 ${data.self.substitutionCharges || 0} / 銃器 ${(data.self.purchasedWeapons || []).length}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
+  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}火遁スクロール ${data.self.fireJutsuCharges || 0} / 変わり身 ${data.self.substitutionCharges || 0} / 銃器 ${(data.self.purchasedWeapons || []).length} / 購入能力 ${(data.self.shopAbilityEntitlements || []).length}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
   if (els.magicInventory.textContent !== inventoryText) els.magicInventory.textContent = inventoryText;
   scheduleActiveEffectsLayout();
 }
@@ -12863,7 +12880,6 @@ function updateActionButtons(data) {
     els.operatorAbilityButton.hidden = activeBorrowedOperator
       ? false
       : !["fighter", "teleport", "flora", "quantum", "alchemist"].includes(self.special);
-    els.jumpButton.hidden = true;
     els.gunnerReloadButton.hidden = true;
     els.empButton.hidden = false;
     els.cameraButton.hidden = self.role !== "defender";
@@ -12874,10 +12890,6 @@ function updateActionButtons(data) {
     els.gritStatusButton.hidden = true;
     els.reasonButton.hidden = true;
   }
-  els.jumpButton.hidden = true;
-  els.jumpButton.disabled = !canActAlive || Number(self.stamina) < 41;
-  els.jumpButton.dataset.hotkey = "J";
-  els.jumpButton.title = "Jを長押しして跳躍距離を延ばす";
   els.contextActionButton.hidden = !(groundItem || contextSource);
   if (groundItem) {
     els.contextActionButton.dataset.sourceId = "";
@@ -13520,23 +13532,6 @@ function rotateMovementSession() {
   }
 }
 
-function anchorLocalJumpRender(sourceData = state.data) {
-  const data = sourceData;
-  const self = data?.players?.find((player) => player.id === data.selfId);
-  const jump = self?.jumpMotion;
-  const rendered = self ? state.renderPlayers.get(self.id) : null;
-  if (!rendered || !jump || !Number.isFinite(Number(jump.toX)) || !Number.isFinite(Number(jump.toY))) return;
-  const active = Number(jump.endsAt) > estimatedServerNow(data);
-  rendered.x = active ? Number(jump.fromX) : Number(jump.toX);
-  rendered.y = active ? Number(jump.fromY) : Number(jump.toY);
-  rendered.targetX = Number(jump.toX);
-  rendered.targetY = Number(jump.toY);
-  rendered.velocityX = 0;
-  rendered.velocityY = 0;
-  rendered.jumpMotionStartedAt = Number(jump.startedAt) || 0;
-  rendered.jumpMotionCompletedAt = active ? 0 : Number(jump.startedAt) || 0;
-}
-
 function resyncMovementAfterFocus() {
   if (document.hidden || !state.roomId || !state.playerId || state.data?.phase !== "playing") return Promise.resolve(false);
   if (state.focusResyncPromise) return state.focusResyncPromise;
@@ -13567,15 +13562,13 @@ function resyncMovementAfterFocus() {
     applyState(result, { authoritative: true });
     const authoritative = result.players?.find((player) => player.id === result.selfId);
     const rendered = authoritative ? state.renderPlayers.get(authoritative.id) : null;
-    if (rendered && !(authoritative.jumpMotion && Number(authoritative.jumpMotion.endsAt) > estimatedServerNow(result))) {
+    if (rendered) {
       rendered.x = Number(authoritative.x);
       rendered.y = Number(authoritative.y);
       rendered.targetX = Number(authoritative.x);
       rendered.targetY = Number(authoritative.y);
       rendered.velocityX = 0;
       rendered.velocityY = 0;
-    } else {
-      anchorLocalJumpRender();
     }
     return true;
   }).catch(() => false).finally(() => {
@@ -13697,7 +13690,7 @@ function isSlowWalking() {
 }
 
 function getDirection() {
-  if (state.enhanceHold.kind || state.throwTargeting.active || state.clairvoyance.active || state.jumpPreparing || state.focusResyncing || document.hidden || isActionBlocked()) return { dx: 0, dy: 0 };
+  if (state.enhanceHold.kind || state.throwTargeting.active || state.clairvoyance.active || state.focusResyncing || document.hidden || isActionBlocked()) return { dx: 0, dy: 0 };
   const stickLength = Math.hypot(state.tabletStick.dx, state.tabletStick.dy);
   if (state.tabletOpen && stickLength > 0.01) {
     return { dx: state.tabletStick.dx, dy: state.tabletStick.dy };
@@ -13829,7 +13822,6 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
     state.lastMovementPumpAt = state.frameNow;
     sendMovement();
   }
-  updateJumpPreparationUi();
   try {
     if (state.screen === "game") draw();
     const drawMode = state.data ? state.data.phase : "idle";
@@ -13917,7 +13909,6 @@ function draw() {
       drawFacilityEffects(data);
       drawBodies(data);
       drawWorldSoundEffects();
-      drawJumpPreparationEffect(data);
       drawThrowLandingPreview(data);
       drawStandaloneClairvoyanceAte(data);
       drawPlayers(data);
@@ -16175,32 +16166,6 @@ function drawMagicEffects() {
   }
 }
 
-function drawJumpPreparationEffect(data) {
-  if (!state.jumpPreparing || data.phase !== "playing" || !data.self.alive) return;
-  const self = data.players.find((player) => player.id === data.selfId);
-  const position = self ? renderedPlayer(self) : null;
-  if (!position) return;
-  const prepared = transparentSpriteSource(state.textures.jumpActionEffect, "jump-action-effect", 16);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, "jump-action-effect", 1, 1, 0, 0) : null;
-  if (!sprite) return;
-  const elapsed = Math.max(0, performance.now() - state.jumpKeyDownAt);
-  const distance = 120 + elapsed * 2.7;
-  const visualLength = Math.min(560, 120 + Math.sqrt(distance) * 16);
-  const direction = state.jumpPrepareDirection;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.46 + Math.min(0.36, elapsed / 4200);
-  ctx.translate(position.x, position.y + 3);
-  ctx.rotate(Math.atan2(direction.dy, direction.dx));
-  drawAnimatedTextureCentered(sprite, visualLength * 0.34, 0, visualLength, 150, {
-    mode: "beam",
-    time: (state.frameNow || performance.now()) / 1000,
-    intensity: 0.9,
-    baseAlpha: 0.16
-  });
-  ctx.restore();
-}
-
 function clientEnhanceLevel(elapsedMs, self = state.data?.self) {
   const requested = Math.min(
     ENHANCE_MAX_LEVEL_CLIENT,
@@ -16500,7 +16465,6 @@ const GENERATED_EFFECT_TEXTURES = {
   "quantum-electric-discharge": ["quantumElectricDischarge", 340],
   "hazard-antidote": ["hazardWaterEffect", 250],
   "bottle-shards": ["bottleShardEffect", 220],
-  "action-jump": ["jumpActionEffect", 320],
   "action-push": ["pushStandFirmBreak", 230],
   "resolve-focus": ["resolvePoint", 190],
   "hacker-status-recover": ["floraHealV1", 210],
@@ -16519,7 +16483,7 @@ function semanticEffectMotion(type, variant = "", fallback = "energy") {
   if (/grit|stand|shield|overheal|beauty/.test(token)) return "shield";
   if (/mana|water|antidote|heal|flora|recovery|cold|ice/.test(token)) return "ripple";
   if (/credits|luck|mystery|transmutation|invention/.test(token)) return "orbit";
-  if (/jump|hover|limit-break|speed|acceleration|power/.test(token)) return "flow-up";
+  if (/hover|limit-break|speed|acceleration|power/.test(token)) return "flow-up";
   if (/aim|weak|scope|reason|truth/.test(token)) return "shimmer";
   if (/push|impact|storm|violation/.test(token)) return "impact";
   return fallback;
@@ -16598,7 +16562,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     (0.82 + pulse * 0.28 + progress * 0.14);
   const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
-  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave", "fighter-energy-release", "quantum-electric-discharge"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
+  const directed = ["gunner-missile", "alchemy-excalibur", "fighter-shockwave", "fighter-energy-release", "quantum-electric-discharge"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
   const goldTransmutation = effect.type === "quantum-transmutation";
   const renderHeight = goldTransmutation
     ? Math.max(72, size * 0.28)
@@ -16961,7 +16925,6 @@ const ACTION_EFFECT_CELLS = {
   "action-mana": 11,
   "action-alchemy": 11,
   "action-rational-free": 11,
-  "action-jump": 5,
   "fighter-slash": 7,
   "fighter-slash-parry": 7,
   "fighter-iaido": 7
@@ -17906,7 +17869,7 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
     const marker = headMarkerSlot(expandedIndex, expandedTotal, startRow);
     const bob = Math.sin(now / 170 + expandedIndex * 1.7) * 0.8;
     ctx.save();
-    ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
+    ctx.translate(player.x + marker.x, player.y + marker.y + bob);
     registerMarkerHitTarget(
       `gain:${effect._headMarkerInstanceKey || effect.id || effect.createdAt || effect.effectKind}:${player.id}:${markerIndex}`,
       0,
@@ -17947,7 +17910,7 @@ function drawFighterEnergyChargeMarker(effect, progress, now) {
   const size = HEAD_MARKER_LAYOUT.markerSize * (0.8 + reveal * 0.2);
   const bob = Math.sin(time * 3.2 + baseIndex * 1.19) * 0.9;
   ctx.save();
-  ctx.translate(player.x + marker.x, player.y - (Number(player.jumpHeight) || 0) + marker.y + bob);
+  ctx.translate(player.x + marker.x, player.y + marker.y + bob);
   registerMarkerHitTarget(
     `fighter-ec:${effect._headMarkerInstanceKey || effect.id || effect.createdAt || effect.at}:${player.id}`,
     0,
@@ -18443,13 +18406,6 @@ function displayedEnhanceCharge(player, data = state.data) {
 
 function currentCharacterAction(player) {
   const timestamp = state.frameNow || performance.now();
-  const jumpMotion = player.jumpMotion;
-  if (jumpMotion && Number(jumpMotion.endsAt) > estimatedServerNow(state.data)) {
-    const duration = Math.max(1, Number(jumpMotion.endsAt) - Number(jumpMotion.startedAt));
-    const progress = clamp((estimatedServerNow(state.data) - Number(jumpMotion.startedAt)) / duration, 0, 1);
-    return { kind: "jump", progress };
-  }
-  if (player.movementMode === "jump-prepare") return { kind: "jump", progress: 0 };
   if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600, "action-rest"), motionId: "action-rest" };
   if (player.id === state.data?.selfId && state.throwTargeting.active) {
     // Hold the authored wind-up pose while the landing point is being placed.
@@ -18491,7 +18447,7 @@ function drawHuman(player, data) {
     : 0;
   const ascensionRise = ascensionProgress * ascensionProgress * 155;
   ctx.save();
-  ctx.translate(player.x, player.y - ascensionRise - (Number(player.jumpHeight) || 0));
+  ctx.translate(player.x, player.y - ascensionRise);
   const characterAction = currentCharacterAction(player);
   if (ghost) ctx.globalAlpha = 0.45;
   if (player.ejected) ctx.globalAlpha = 0.22;
@@ -18933,7 +18889,6 @@ function physicalActionFramePosition(kind, progress, motionId = kind) {
     const smooth = value * value * (3 - 2 * value);
     return smooth * 2;
   }
-  if (kind === "jump") return Math.min(2, objectEffectEase(value / 0.64) * 2);
   if (kind === "reload") return (0.5 - Math.cos(value * Math.PI) * 0.5) * 2;
   if (kind === "focus" || kind === "rest") return Math.min(2, value * 1.72 + Math.sin(value * Math.PI) * 0.28);
   return objectEffectEase(value) * 2;
@@ -19109,9 +19064,6 @@ function applyPhysicalActionTransform(kind, progress, flip, motionId = kind, spa
   } else if (kind === "reload") {
     ctx.translate(0, Math.sin(progress * Math.PI * 2) * 1.5 * motionScale);
     ctx.rotate(facing * Math.sin(progress * Math.PI * 2) * 0.012 * motionScale);
-  } else if (kind === "jump") {
-    ctx.translate(facing * progress * 5 * motionScale, -Math.sin(progress * Math.PI) * 24 * motionScale);
-    ctx.scale(1 - impulse * 0.035 * motionScale, 1 + impulse * 0.055 * motionScale);
   }
   const uniqueWave = Math.sin(clamp(progress, 0, 1) * Math.PI * signature.frequency) * impulse;
   ctx.translate(
@@ -20647,7 +20599,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mana-conversion-luck-headshot-quantum-electric-v554";
+const version = "shop-all-abilities-no-jump-electric-v555";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -20801,7 +20753,6 @@ const version = "mana-conversion-luck-headshot-quantum-electric-v554";
   const itemHeal = new Image();
   const alchemyRailgunFieldEffect = new Image();
   const alchemyParticleCannonFieldEffect = new Image();
-  const jumpActionEffect = new Image();
   const pushStandFirmBreak = new Image();
   const transferOutEffect = new Image();
   const transferInEffect = new Image();
@@ -20930,7 +20881,6 @@ const version = "mana-conversion-luck-headshot-quantum-electric-v554";
   defer(itemHeal, "assets/generated/item-heal.webp");
   defer(alchemyRailgunFieldEffect, "assets/generated/alchemy-railgun-field-effect.webp");
   defer(alchemyParticleCannonFieldEffect, "assets/generated/alchemy-particle-cannon-field-effect.webp");
-  defer(jumpActionEffect, "assets/generated/jump-action-effect-v311.png");
   defer(pushStandFirmBreak, "assets/generated/push-stand-firm-break-v311.png");
   defer(transferOutEffect, "assets/generated/effect-transfer-out.webp");
   defer(transferInEffect, "assets/generated/effect-transfer-in.webp");
@@ -21062,7 +21012,6 @@ const version = "mana-conversion-luck-headshot-quantum-electric-v554";
     groundItemTextures,
     alchemyRailgunFieldEffect,
     alchemyParticleCannonFieldEffect,
-    jumpActionEffect,
     pushStandFirmBreak,
     transferOutEffect,
     transferInEffect,
@@ -21597,5 +21546,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=mana-conversion-luck-headshot-quantum-electric-v554", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=shop-all-abilities-no-jump-electric-v555", document.baseURI)).catch(() => {});
 }

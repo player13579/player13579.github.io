@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v554-mana-conversion-luck-headshot-quantum-electric";
-const RUNTIME_RECOVERY_REVISION = "v554-hidden-worker-main-promotion-1";
+const CACHE_NAME = "dva-static-v555-shop-all-abilities-no-jump-electric";
+const RUNTIME_RECOVERY_REVISION = "v555-shop-all-abilities-no-jump-electric-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -115,7 +115,6 @@ const STATIC_ASSETS = [
   "/assets/generated/effect-quantum-nuclear-v311.png",
   "/assets/generated/quantum-nuclear-fusion-ate-v522.png",
   "/assets/generated/quantum-electric-discharge-v554.png",
-  "/assets/generated/jump-action-effect-v311.png",
   "/assets/generated/emp-resonance-v398.png",
   "/assets/generated/emp-cancel-v311.png",
   "/assets/generated/heart-transfer-fist-glow-ate-v468.png",
@@ -176,7 +175,6 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-blue-dress-heal-v483.png",
   "/assets/generated/physical-motion-blue-dress-heart-transfer-v483.png",
   "/assets/generated/physical-motion-blue-dress-interact-v483.png",
-  "/assets/generated/physical-motion-blue-dress-jump-v483.png",
   "/assets/generated/physical-motion-blue-dress-power-v483.png",
   "/assets/generated/physical-motion-blue-dress-reload-v483.png",
   "/assets/generated/physical-motion-blue-dress-rest-v483.png",
@@ -190,7 +188,6 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-white-hood-heal-v483.png",
   "/assets/generated/physical-motion-white-hood-heart-transfer-v483.png",
   "/assets/generated/physical-motion-white-hood-interact-v483.png",
-  "/assets/generated/physical-motion-white-hood-jump-v483.png",
   "/assets/generated/physical-motion-white-hood-power-v483.png",
   "/assets/generated/physical-motion-white-hood-reload-v483.png",
   "/assets/generated/physical-motion-white-hood-rest-v483.png",
@@ -203,7 +200,6 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-male-bot-focus-v465.png",
   "/assets/generated/physical-motion-male-bot-heal-v465.png",
   "/assets/generated/physical-motion-male-bot-interact-v465.png",
-  "/assets/generated/physical-motion-male-bot-jump-v465.png",
   "/assets/generated/physical-motion-male-bot-power-v465.png",
   "/assets/generated/physical-motion-male-bot-heart-transfer-v468.png",
   "/assets/generated/physical-motion-male-bot-reload-v465.png",

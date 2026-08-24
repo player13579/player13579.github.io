@@ -7307,6 +7307,51 @@ const LABORATORY_MAP = Object.freeze({
     Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
   ]);
 
+  // Shop ability entitlements are deliberately separate from physical and
+  // instant-item products. Buying one unlocks that exact ability for the
+  // current match; it never executes during the credit transaction and never
+  // changes the player's selected operator identity.
+  const abilityGenres = Object.freeze([
+    Object.freeze({ id: "operator-fighter", label: "ファイター", operator: "fighter" }),
+    Object.freeze({ id: "operator-gravity", label: "グラビティ", operator: "gravity" }),
+    Object.freeze({ id: "operator-flora", label: "フローラ", operator: "flora" }),
+    Object.freeze({ id: "operator-gunner", label: "ガンナー", operator: "gunner" }),
+    Object.freeze({ id: "operator-quantum", label: "クオンタム", operator: "quantum" }),
+    Object.freeze({ id: "operator-assassin", label: "アサシン", operator: "assassin" }),
+    Object.freeze({ id: "operator-hacker", label: "ハッカー", operator: "hacker" })
+  ]);
+
+  const abilityRows = [
+    ["fighter-limit-break", "リミットブレイク", 18, "operator-fighter", "fighter", "limit-break", "active", "/api/limit-break"],
+    ["gravity-near", "転移・対象付近", 6, "operator-gravity", "gravity", "near", "active", "/api/teleport"],
+    ["gravity-target", "対象転移", 8, "operator-gravity", "gravity", "target", "active-target-map", "/api/teleport"],
+    ["gravity-heart", "心臓転移", 22, "operator-gravity", "gravity", "heart", "active", "/api/teleport"],
+    ["gravity-accelerate", "アクセラレート", 8, "operator-gravity", "gravity", "accelerate", "active", "/api/gravity-time"],
+    ["gravity-decelerate", "ディーセラレート", 8, "operator-gravity", "gravity", "decelerate", "active", "/api/gravity-time"],
+    ["gravity-time-keeper", "時の番人", 14, "operator-gravity", "gravity", "time-keeper", "active", "/api/gravity-time-keeper"],
+    ["gravity-storm", "グラビティストーム", 20, "operator-gravity", "gravity", "storm", "active", "/api/gravity-storm"],
+    ["flora-heal", "回復", 7, "operator-flora", "flora", "heal", "active", "/api/flora-heal"],
+    ["flora-sunbeam", "サンビーム", 20, "operator-flora", "flora", "sunbeam", "active", "/api/flora-heal"],
+    ["flora-invisible", "インビジブル", 16, "operator-flora", "flora", "invisible", "active", "/api/flora-heal"],
+    ["gunner-aim", "エイム", 12, "operator-gunner", "gunner", "aim", "passive", "advanceGunnerAimPassive"],
+    ["gunner-special-ammo", "特殊弾装填", 14, "operator-gunner", "gunner", "special-ammo", "passive", "advanceGunnerSpecialAmmo"],
+    ["quantum-kinetic-accelerate", "運動エネルギー制御・加速", 8, "operator-quantum", "quantum", "kinetic-accelerate", "active", "/api/quantum-control"],
+    ["quantum-kinetic-decelerate", "運動エネルギー制御・減速", 8, "operator-quantum", "quantum", "kinetic-decelerate", "active", "/api/quantum-control"],
+    ["quantum-electric", "エレクトリック", 12, "operator-quantum", "quantum", "electric-discharge", "active", "/api/quantum-control"],
+    ["quantum-transmutation", "核変換", 12, "operator-quantum", "quantum", "nuclear-transmutation", "active", "/api/quantum-control"],
+    ["quantum-fission", "核分裂", 24, "operator-quantum", "quantum", "nuclear-fission", "active", "/api/quantum-control"],
+    ["quantum-fusion", "核融合", 24, "operator-quantum", "quantum", "nuclear-fusion", "active", "/api/quantum-control"],
+    ["assassin-annihilation", "消滅忍殺", 20, "operator-assassin", "assassin", "annihilation", "passive", "resolveAttack"],
+    ["assassin-silent-steps", "常時無音", 12, "operator-assassin", "assassin", "silent-steps", "passive", "emitMovementNoise"],
+    ["hacker-vibe-coding", "バイブコーディング", 22, "operator-hacker", "hacker", "vibe-coding", "panel", "/api/alchemy"],
+    ["hacker-root", "ROOT", 25, "operator-hacker", "hacker", "root", "active", "/api/hacker-root"]
+  ];
+
+  const abilityProducts = Object.freeze(abilityRows.map(([id, label, price, genreId, operator, mode, behavior, actionOwner]) =>
+    Object.freeze({ id, label, price, genreId, operator, mode, behavior, actionOwner })
+  ));
+  const abilityProductById = new Map(abilityProducts.map((entry) => [entry.id, entry]));
+
   // One credit is the price of the least expensive product. Every other price
   // is a relative gameplay-value unit. Hacker CT uses the same five seconds per
   // credit for every shared product, so price changes cannot drift from CT.
@@ -7374,6 +7419,7 @@ const LABORATORY_MAP = Object.freeze({
 
   const product = (itemId) => productById.get(String(itemId || "")) || null;
   const productForRecipe = (recipeId) => productByRecipeId.get(String(recipeId || "")) || null;
+  const abilityProduct = (abilityId) => abilityProductById.get(String(abilityId || "")) || null;
   const categoryForProduct = (itemId) => product(itemId)?.category || "generate-supply";
   const cooldownForRecipe = (recipeId) => {
     const entry = productForRecipe(recipeId);
@@ -7383,10 +7429,12 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "mana-conversion-luck-headshot-quantum-electric-v554",
+    version: "shop-all-abilities-no-jump-electric-v555",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
+    abilityGenres,
+    abilityProducts,
     products,
     vendingProducts,
     ordinaryHackerProducts,
@@ -7394,12 +7442,14 @@ const LABORATORY_MAP = Object.freeze({
     productLabels,
     product,
     productForRecipe,
+    abilityProduct,
     categoryForProduct,
     cooldownForRecipe
   });
 });
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
+const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.version || "");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const ONLINE_RELEASE_ENFORCED = process.env.DVA_ENFORCE_ONLINE_RELEASE === "true";
@@ -7530,10 +7580,6 @@ const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
 // Clairvoyance must still have a meaningful net cost while leaving Renki and
 // field recovery as viable fuel.
 const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.25;
-const JUMP_BASE_DISTANCE = 120;
-const JUMP_DISTANCE_PER_PREPARE_MS = 2.7;
-const JUMP_BASE_COST = 48;
-const JUMP_DISTANCE_COST = 0.28;
 const TASK_CREDIT_REWARD = CREDIT_ECONOMY.taskReward;
 const SABOTAGE_CREDIT_REWARD = CREDIT_ECONOMY.sabotageReward;
 const PASSIVE_CREDIT_INTERVAL_MS = CREDIT_ECONOMY.passiveIntervalMs;
@@ -7940,7 +7986,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTは自販機価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化はバリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化し、自身へダメージを与えてHPを0.0001にした後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、タスクを時間経過で自動完了する。手動タスクも可能で、自身のスマホはハッキングされない。"
+      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTはショップ価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化はバリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化し、自身へダメージを与えてHPを0.0001にした後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、通常Human Taskとは別の時間経過passiveでタスクを自動完了する。自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -9798,10 +9844,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     movementMode: "idle",
     movementAccEnabled: true,
     airborneUntil: 0,
-    jumpPreparingAt: 0,
-    jumpPrepareDx: 0,
-    jumpPrepareDy: 1,
-    jumpMotion: null,
     falling: false,
     levitationEngaged: false,
     levitationManaCarry: 0,
@@ -9824,6 +9866,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     reasonCharges: 0,
     manaConversionMode: "reason",
     manaConversionTransactionIds: [],
+    shopAbilityEntitlements: [],
+    shopAbilityPurchaseTransactions: [],
     iaiCharges: 0,
     ideaProgressStartedAt: 0,
     ideaProgressMs: 0,
@@ -11312,7 +11356,7 @@ function isHackerOperator(player) {
 }
 
 function isHackerOperational(player) {
-  return Boolean(isHackerOperator(player) && player.alive && !player.ejected);
+  return Boolean((hasHackerVibeCodingAccess(player) || hasHackerRootAccess(player)) && player.alive && !player.ejected);
 }
 
 function remainingHealth(player) {
@@ -11401,7 +11445,7 @@ function deactivateHackerRoot(room, player, { restoreHealth = false, announce = 
 }
 
 function activateHackerRoot(room, player) {
-  if (room.phase !== "playing" || !isHackerOperator(player)) {
+  if (room.phase !== "playing" || !hasHackerRootAccess(player)) {
     throw new ApiError(403, "ハッカーのバトル中だけroot化できます。");
   }
   if (!player.alive || player.ejected || player.inVent) {
@@ -11448,7 +11492,7 @@ function activateHackerRoot(room, player) {
 
 function toggleHackerRoot(room, player) {
   if (player?.hackerRootActive) {
-    if (room.phase !== "playing" || !isHackerOperator(player) || !player.alive || player.ejected) {
+    if (room.phase !== "playing" || !hasHackerRootAccess(player) || !player.alive || player.ejected) {
       discardHackerRootState(player);
       throw new ApiError(403, "現在はROOTを解除できません。");
     }
@@ -11560,7 +11604,7 @@ function stopLimitBreak(room, player, reason = "") {
 function advanceLimitBreak(room, player, elapsedMs) {
   if (!player.limitBreakActive) return false;
   if (room.phase === "meeting") return false;
-  if (room.phase !== "playing" || !player.alive || player.ejected || !hasOperatorAccess(player, "fighter")) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || (!hasOperatorAccess(player, "fighter") && !hasShopLimitBreakLifecycle(player))) {
     return stopLimitBreak(room, player);
   }
   if (hasFighterInfiniteResources(player)) {
@@ -12748,10 +12792,6 @@ function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
       if (Number(victim.lastSeenAt) > 0) victim.lastSeenAt = Number(victim.lastSeenAt) + elapsed;
     }
   }
-  if (player.jumpMotion && Number(player.jumpMotion.endsAt) > timestamp) {
-    player.jumpMotion.startedAt = (Number(player.jumpMotion.startedAt) || timestamp) + elapsed;
-    player.jumpMotion.endsAt = Number(player.jumpMotion.endsAt) + elapsed;
-  }
 }
 
 function advanceAccelerationTime(room, player, elapsedMs, timestamp = now()) {
@@ -12926,7 +12966,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
     spendStamina(mover, drainRate * dt, room, movementMode === "slow" ? "無音歩行" : "歩行");
   }
   const soundInterval = movementMode === "dash" ? 210 : 430;
-  const silentAssassinStep = player.special === "assassin";
+  const silentAssassinStep = hasAssassinSilentStepsAccess(player);
   if (player.alive && !silentAssassinStep && movementMode !== "slow" && !passiveEffects.quiet && timestamp - (mover.lastSoundAt || 0) >= soundInterval) {
     mover.lastSoundAt = timestamp;
     pushSound(room, movementMode === "dash" ? "dash" : "walk", mover, {
@@ -13560,10 +13600,6 @@ function pausePlayerBattleTime(player, pausedAt, elapsedMs) {
       shiftMeetingAnchor(victim, "lastSeenAt", elapsedMs);
     }
   }
-  if (player.jumpMotion && Number(player.jumpMotion.endsAt) > pausedAt) {
-    shiftMeetingAnchor(player.jumpMotion, "startedAt", elapsedMs);
-    player.jumpMotion.endsAt = Number(player.jumpMotion.endsAt) + elapsedMs;
-  }
 }
 
 function pauseBattleTimeForMeeting(room, timestamp = now()) {
@@ -13641,9 +13677,6 @@ function startMeeting(room, reason, reporterId, options = {}) {
     player.slashActiveUntil = 0;
     player.slashPerfectUntil = 0;
     player.slashGuardInputReleased = true;
-    player.jumpPreparingAt = 0;
-    player.jumpPrepareDx = 0;
-    player.jumpPrepareDy = 1;
     clearAttackState(player);
   }
   pushEvent(room, `会議開始: ${reason}`);
@@ -14011,7 +14044,7 @@ function autoCompleteNearbyTask(room, player) {
     (
       Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) > 0.01 ||
       Math.hypot(Number(player.lastMovementDx) || 0, Number(player.lastMovementDy) || 0) > 0.01 ||
-      ["walk", "slow", "dash", "jump", "jump-prepare"].includes(String(player.movementMode || ""))
+      ["walk", "slow", "dash"].includes(String(player.movementMode || ""))
     )
   ) {
     player.taskPresenceTaskId = "";
@@ -14455,8 +14488,6 @@ function resolveExpandedMapTeleportDestination(room, rawX, rawY) {
 function moveByExpandedMapTeleport(target, destination, timestamp = now()) {
   const origin = { x: target.x, y: target.y };
   clearStoredMovementInput(target, timestamp);
-  clearJumpPreparation(target);
-  target.jumpMotion = null;
   target.airborneUntil = 0;
   target.movementMode = "idle";
   target.x = destination.x;
@@ -14572,7 +14603,7 @@ function gravityTimeScaleFor(room, target, timestamp = now()) {
   if (hasNaturalRecovery(room, target)) return 1;
   if (timeKeeperStops(target, timestamp)) return 0;
   const controllers = [...room.players.values()].filter((player) => (
-    hasOperatorAccess(player, "gravity") && player.gravityTimeMode && player.gravityTimeTargetId === target.id &&
+    (hasOperatorAccess(player, "gravity") || hasShopGravityTimeLifecycle(player)) && player.gravityTimeMode && player.gravityTimeTargetId === target.id &&
     Number(player.gravityTimeEndsAt) > timestamp && player.alive && !player.ejected
   ));
   if (controllers.some((player) => player.gravityTimeMode === "decelerate")) return GRAVITY_TIME_SCALE_SLOW;
@@ -15978,9 +16009,102 @@ function restoreTransactionalPlayerSnapshot(player, snapshot) {
   Object.assign(player, snapshot);
 }
 
+function purchaseShopAbility(room, player, abilityId, transactionId = "") {
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在はショップを利用できません。");
+  }
+  ensureConscious(player);
+  ensureItemStorageAvailable(player);
+  const product = shopAbilityProduct(abilityId);
+  if (!product) throw new ApiError(404, "その能力はショップでは販売していません。");
+  const id = String(transactionId || "").trim().slice(0, 96);
+  const timestamp = now();
+  const recent = Array.isArray(player.shopAbilityPurchaseTransactions) ? player.shopAbilityPurchaseTransactions : [];
+  const previous = id ? recent.find((entry) => entry.id === id) : null;
+  if (previous) {
+    return {
+      duplicate: true,
+      transactionId: id,
+      abilityId: previous.abilityId,
+      spent: previous.spent,
+      remainingCredits: player.credits
+    };
+  }
+  if (ownsShopAbility(player, product.id)) throw new ApiError(409, `${product.label}は購入済みです。`);
+  const credits = Math.max(0, Math.floor(Number(player.credits) || 0));
+  if (credits < product.price) throw new ApiError(400, `通貨が不足しています（必要 ${product.price}C）。`);
+  player.shopAbilityEntitlements = [...new Set([...(player.shopAbilityEntitlements || []), product.id])];
+  player.credits = credits - product.price;
+  player.shopAbilityPurchaseTransactions = [
+    ...recent.filter((entry) => timestamp - Number(entry.at || 0) < 120_000),
+    ...(id ? [{ id, abilityId: product.id, spent: product.price, at: timestamp }] : [])
+  ].slice(-48);
+  pushMagicEffect(room, "action-vending", player, {
+    radius: 96,
+    playerId: player.id,
+    variant: `shop-ability:${product.operator}:${product.mode}`
+  });
+  pushEvent(room, `${player.name} がショップで${product.label}を購入し、この対戦中の能力として解放しました。`);
+  touch(room);
+  return {
+    duplicate: false,
+    transactionId: id || null,
+    abilityId: product.id,
+    spent: product.price,
+    remainingCredits: player.credits
+  };
+}
+
+function nearestShopAbilityTarget(room, player) {
+  return [...room.players.values()]
+    .filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.exiled)
+    .sort((left, right) => (
+      Number(right.role !== player.role) - Number(left.role !== player.role) ||
+      distance(player, left) - distance(player, right) ||
+      String(left.id).localeCompare(String(right.id))
+    ))[0] || null;
+}
+
+function useShopAbility(room, player, abilityId, options = {}) {
+  const product = shopAbilityProduct(abilityId);
+  if (!product || !ownsShopAbility(player, product.id)) throw new ApiError(403, "その能力をショップで購入していません。");
+  if (!["active", "active-target-map"].includes(product.behavior)) {
+    throw new ApiError(400, `${product.label}は購入後に自動適用される能力です。`);
+  }
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在は購入能力を使用できません。");
+  }
+  const fallbackTarget = nearestShopAbilityTarget(room, player);
+  const targetId = String(options.targetId || fallbackTarget?.id || player.id);
+  player.shopAbilityExecutionOperator = product.operator;
+  try {
+    if (product.operator === "fighter") return toggleLimitBreak(room, player);
+    if (product.operator === "gravity") {
+      if (["near", "target", "heart"].includes(product.mode)) {
+        return teleportPlayer(room, player, options.x, options.y, targetId, product.mode);
+      }
+      if (["accelerate", "decelerate"].includes(product.mode)) return toggleGravityTime(room, player, product.mode, targetId);
+      if (product.mode === "storm") return useGravityStorm(room, player, targetId);
+      if (product.mode === "time-keeper") return useTimeKeeper(room, player);
+    }
+    if (product.operator === "flora") {
+      return useFloraAbility(room, player, product.mode, {
+        targetId,
+        dx: Number(options.dx) || Number(player.aimX) || 0,
+        dy: Number(options.dy) || Number(player.aimY) || 1
+      });
+    }
+    if (product.operator === "quantum") return useQuantumControl(room, player, product.mode);
+    if (product.operator === "hacker" && product.mode === "root") return toggleHackerRoot(room, player);
+    throw new ApiError(400, "購入能力の実行ownerが不正です。");
+  } finally {
+    delete player.shopAbilityExecutionOperator;
+  }
+}
+
 function purchaseDrink(room, player, itemId, options = {}) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は自販機を利用できません。");
+    throw new ApiError(403, "現在はショップを利用できません。");
   }
   ensureConscious(player);
   ensureItemStorageAvailable(player);
@@ -16037,7 +16161,7 @@ function purchaseDrink(room, player, itemId, options = {}) {
   };
   const product = DVA_ECONOMY.product(itemId);
   const item = items[itemId];
-  if (!product || !item || !product.vendingAvailable) throw new ApiError(404, "その商品は自販機では販売していません。");
+  if (!product || !item || !product.vendingAvailable) throw new ApiError(404, "その商品はショップでは販売していません。");
   item.label = product.label;
   item.cost = product.price;
   if (item.role && player.role !== item.role) throw new ApiError(403, "この商品はアタッカー専用です。");
@@ -16062,7 +16186,7 @@ function purchaseDrink(room, player, itemId, options = {}) {
     radius: itemId === "mystery" ? 145 : 90,
     playerId: player.id
   });
-  pushEvent(room, `${player.name} が自販機で${item.label}${bulk ? `を${quantity}個一括購入` : "を購入"}しました。${outcome ? `結果: ${outcome}` : ""}`);
+  pushEvent(room, `${player.name} がショップで${item.label}${bulk ? `を${quantity}個一括購入` : "を購入"}しました。${outcome ? `結果: ${outcome}` : ""}`);
   touch(room);
   return { quantity, spent: item.cost * quantity, remainingCredits: player.credits };
 }
@@ -17647,7 +17771,6 @@ function useQuantumControl(room, player, rawMode) {
   if (!["kinetic-accelerate", "kinetic-decelerate", "nuclear-transmutation", "nuclear-fission", "nuclear-fusion", "electric-discharge"].includes(mode)) {
     throw new ApiError(400, "クオンタム方式が不正です。");
   }
-  player.quantumMode = mode;
   const timestamp = now();
   const electricTarget = mode === "electric-discharge" ? findQuantumElectricTarget(room, player, timestamp) : null;
   if (mode === "electric-discharge" && !electricTarget) return false;
@@ -17663,6 +17786,7 @@ function useQuantumControl(room, player, rawMode) {
   // A Quantum activation without a compatible held item is a strict silent
   // no-op. This check must precede availability/cost checks and every effect.
   if (mode !== "electric-discharge" && !itemId) return false;
+  player.quantumMode = mode;
   const nuclearMode = mode === "nuclear-fission" || mode === "nuclear-fusion";
   if (nuclearMode && !quantumEndgameAvailable(room, now())) {
     const secondsLeft = Math.max(1, Math.ceil((Number(room.quantumEndgameAt) - now()) / 1000));
@@ -18155,11 +18279,62 @@ function advanceAlchemyObjects(room, timestamp) {
   room.alchemyObjects ||= [];
 }
 
+function shopAbilityProduct(abilityId) {
+  return DVA_ECONOMY.abilityProduct(String(abilityId || ""));
+}
+
+function ownsShopAbility(player, abilityId) {
+  return Boolean(Array.isArray(player?.shopAbilityEntitlements) && player.shopAbilityEntitlements.includes(String(abilityId || "")));
+}
+
+function ownsShopAbilityMode(player, operator, mode) {
+  return SHOP_ABILITY_PRODUCTS.some((product) => (
+    product.operator === operator &&
+    product.mode === mode &&
+    ownsShopAbility(player, product.id)
+  ));
+}
+
+function hasShopLimitBreakLifecycle(player) {
+  return Boolean(player?.limitBreakActive && ownsShopAbility(player, "fighter-limit-break"));
+}
+
+function hasShopGravityTimeLifecycle(player) {
+  return Boolean(
+    player?.gravityTimeMode &&
+    ownsShopAbilityMode(player, "gravity", player.gravityTimeMode)
+  );
+}
+
+function hasGunnerAimAccess(player) {
+  return hasOperatorAccess(player, "gunner") || ownsShopAbility(player, "gunner-aim");
+}
+
+function hasGunnerSpecialAmmoAccess(player) {
+  return hasOperatorAccess(player, "gunner") || ownsShopAbility(player, "gunner-special-ammo");
+}
+
+function hasAssassinAnnihilationAccess(player) {
+  return player?.special === "assassin" || ownsShopAbility(player, "assassin-annihilation");
+}
+
+function hasAssassinSilentStepsAccess(player) {
+  return player?.special === "assassin" || ownsShopAbility(player, "assassin-silent-steps");
+}
+
+function hasHackerVibeCodingAccess(player) {
+  return isHackerOperator(player) || ownsShopAbility(player, "hacker-vibe-coding");
+}
+
+function hasHackerRootAccess(player) {
+  return isHackerOperator(player) || ownsShopAbility(player, "hacker-root");
+}
+
 function hasOperatorAccess(player, type) {
   const nativeSpecial = type === "gravity" ? "teleport" : type;
   return player.special === nativeSpecial || (
     HACKER_ROOT_OPERATOR_TYPES.includes(type) && hackerRootEligible(player)
-  );
+  ) || player.shopAbilityExecutionOperator === type;
 }
 
 function humanTransmutation(room, player, targetId) {
@@ -18207,7 +18382,7 @@ function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
   if (room.phase === "meeting") return false;
   if (
     room.phase !== "playing" ||
-    !isHackerOperator(player) ||
+    !hasHackerVibeCodingAccess(player) ||
     !player.alive ||
     player.ejected ||
     (Number(player.mana) || 0) <= 0
@@ -18230,7 +18405,7 @@ function advanceHackerManaGpu(room, player, elapsedMs, timestamp = now()) {
 }
 
 function useAlchemy(room, player, rawConversion, targetId = "") {
-  if (room.phase !== "playing" || !isHackerOperator(player)) {
+  if (room.phase !== "playing" || !hasHackerVibeCodingAccess(player)) {
     throw new ApiError(403, "ハッカーではありません。");
   }
   if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は生成できません。");
@@ -18555,7 +18730,7 @@ function attackTargetFor(room, killer, targetId) {
 function canUseKill(player) {
   if (player.role === "attacker") return true;
   if (player.isBot) return false;
-  return hasOperatorAccess(player, "fighter");
+  return hasOperatorAccess(player, "fighter") || ownsShopAbility(player, "assassin-annihilation");
 }
 
 function attackTargetRole(player) {
@@ -18618,7 +18793,7 @@ function failAimForMovement(room, player, timestamp = now()) {
 }
 
 function ninjutsuEliminationProfile(player) {
-  if (player?.special === "assassin") {
+  if (hasAssassinAnnihilationAccess(player)) {
     return {
       reason: "アサシン忍殺による消滅",
       attackKind: "assassin-ninjutsu-annihilation",
@@ -18639,7 +18814,7 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
   const disappeared = destroyPlayerUnconditionally(room, player, target, profile.reason, {
     // Only Assassin owns the no-corpse annihilation conversion.  Shared
     // Ninjutsu must retain its ordinary reportable corpse outcome.
-    noBody: player?.special === "assassin",
+    noBody: hasAssassinAnnihilationAccess(player),
     attackKind: profile.attackKind,
     attackLabel: profile.attackLabel,
     slashGuardPhysical: true,
@@ -19660,7 +19835,7 @@ function advanceGunnerSpecialAmmoPassive(room, player, timestamp = now()) {
     player.alive &&
     !player.ejected &&
     !player.inVent &&
-    hasOperatorAccess(player, "gunner") &&
+    hasGunnerSpecialAmmoAccess(player) &&
     passivesEnabled(player);
   if (!eligible) {
     player.gunnerSpecialAmmoReadyAt = 0;
@@ -19750,8 +19925,7 @@ function advanceGunnerAimPassive(room, player, timestamp = now()) {
     player?.alive &&
     !player.ejected &&
     !player.inVent &&
-    !player.drone?.active &&
-    hasOperatorAccess(player, "gunner") &&
+    hasGunnerAimAccess(player) &&
     passivesEnabled(player) &&
     gunnerAimMovementAllowed(player)
   );
@@ -20357,12 +20531,6 @@ function processMovementInput(room, player, body) {
   return serializeMovement(room, player, movementSeq, movementClock);
 }
 
-function clearJumpPreparation(player) {
-  player.jumpPreparingAt = 0;
-  player.jumpPrepareDx = 0;
-  player.jumpPrepareDy = 1;
-}
-
 function finiteDirection(rawDx, rawDy, fallbackDx = 0, fallbackDy = 1) {
   const suppliedDx = Number(rawDx);
   const suppliedDy = Number(rawDy);
@@ -20377,134 +20545,6 @@ function hasFloorSupport(room, x, y, radius = 0) {
   const map = getMap(room);
   if (x < radius || y < radius || x > map.width - radius || y > map.height - radius) return false;
   return map.walkable.some((rect) => rectContains(rect, x, y, radius));
-}
-
-function jumpRayBoundaryDistance(map, origin, direction, radius) {
-  const limits = [];
-  if (direction.x > 0.0001) limits.push((map.width - radius - origin.x) / direction.x);
-  else if (direction.x < -0.0001) limits.push((radius - origin.x) / direction.x);
-  if (direction.y > 0.0001) limits.push((map.height - radius - origin.y) / direction.y);
-  else if (direction.y < -0.0001) limits.push((radius - origin.y) / direction.y);
-  return Math.max(0, Math.min(...limits.filter((value) => Number.isFinite(value) && value >= 0)));
-}
-
-function resolveJumpDestination(room, player, direction, requestedDistance) {
-  const map = getMap(room);
-  const radius = map.playerRadius;
-  const boundaryDistance = jumpRayBoundaryDistance(map, player, direction, radius);
-  const requested = Math.min(Math.max(0, requestedDistance), boundaryDistance);
-  const step = Math.max(10, radius * 0.35);
-  const pointAt = (distanceAlongRay) => ({
-    x: player.x + direction.x * distanceAlongRay,
-    y: player.y + direction.y * distanceAlongRay
-  });
-
-  let firstGapDistance = 0;
-  const gapProbeDistance = Math.min(boundaryDistance, requested + Math.max(radius * 1.25, step * 2));
-  for (let scan = step; scan <= gapProbeDistance + 0.001; scan += step) {
-    const point = pointAt(Math.min(scan, gapProbeDistance));
-    if (!hasFloorSupport(room, point.x, point.y, radius)) {
-      firstGapDistance = scan;
-      break;
-    }
-  }
-
-  if (firstGapDistance > 0) {
-    for (let scan = firstGapDistance + step; scan <= boundaryDistance + 0.001; scan += step) {
-      const distanceAlongRay = Math.min(scan, boundaryDistance);
-      const point = pointAt(distanceAlongRay);
-      if (hasFloorSupport(room, point.x, point.y, radius) && isWalkable(room, point.x, point.y, radius)) {
-        return { destination: point, distance: distanceAlongRay, crossedGap: true };
-      }
-    }
-    return null;
-  }
-
-  for (let distanceAlongRay = requested; distanceAlongRay >= Math.max(step, radius * 0.6); distanceAlongRay -= step) {
-    const point = pointAt(distanceAlongRay);
-    if (isWalkable(room, point.x, point.y, radius)) {
-      return { destination: point, distance: distanceAlongRay, crossedGap: false };
-    }
-  }
-  return null;
-}
-
-function beginJumpPreparation(room, player, rawDx, rawDy) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "跳躍できません。");
-  }
-  ensureConscious(player);
-  const direction = finiteDirection(rawDx, rawDy, player.aimX, player.aimY);
-  player.jumpPreparingAt = now();
-  player.jumpPrepareDx = direction.dx;
-  player.jumpPrepareDy = direction.dy;
-  player.vx = 0;
-  player.vy = 0;
-  player.movementMode = "jump-prepare";
-  clearStoredMovementInput(player);
-  touch(room);
-}
-
-function jumpPlayer(room, player, rawDx, rawDy) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "跳躍できません。");
-  }
-  ensureConscious(player);
-  const timestamp = now();
-  const preparedAt = Number(player.jumpPreparingAt) || timestamp;
-  const holdMs = Math.max(0, timestamp - preparedAt);
-  const preparedDx = Number(player.jumpPrepareDx);
-  const preparedDy = Number(player.jumpPrepareDy);
-  const directionSource = Number.isFinite(preparedDx) && Number.isFinite(preparedDy) && (preparedDx || preparedDy)
-    ? { dx: preparedDx, dy: preparedDy }
-    : { dx: rawDx, dy: rawDy };
-  const finite = finiteDirection(directionSource.dx, directionSource.dy, player.aimX, player.aimY);
-  const direction = { x: finite.dx, y: finite.dy };
-  const requested = JUMP_BASE_DISTANCE + holdMs * JUMP_DISTANCE_PER_PREPARE_MS;
-  const resolved = resolveJumpDestination(room, player, direction, requested);
-  if (!resolved) {
-    clearJumpPreparation(player);
-    player.movementMode = "idle";
-    throw new ApiError(400, "跳躍先に足場がありません。");
-  }
-  const destination = resolved.destination;
-  const distanceToJump = resolved.distance;
-  const cost = JUMP_BASE_COST + distanceToJump * JUMP_DISTANCE_COST;
-  if (Number(player.stamina) < cost) {
-    clearJumpPreparation(player);
-    player.movementMode = "idle";
-    throw new ApiError(400, `跳躍にはスタミナ ${Math.ceil(cost)} が必要です。`);
-  }
-  spendStamina(player, cost, room, "跳躍");
-  const origin = { x: player.x, y: player.y };
-  const baseMotionDuration = Math.max(320, Math.min(1800, 260 + distanceToJump * 0.72));
-  const motionDuration = Math.max(120, baseMotionDuration / Math.max(0.1, effectiveAccelerationMultiplier(room, player, timestamp)));
-  player.x = destination.x;
-  player.y = destination.y;
-  player.vx = direction.x;
-  player.vy = direction.y;
-  player.airborneUntil = timestamp + motionDuration;
-  player.movementMode = "jump";
-  player.jumpMotion = {
-    startedAt: timestamp,
-    endsAt: timestamp + motionDuration,
-    fromX: origin.x,
-    fromY: origin.y,
-    toX: destination.x,
-    toY: destination.y,
-    distance: distanceToJump,
-    crossedGap: resolved.crossedGap
-  };
-  clearJumpPreparation(player);
-  pushMagicEffect(room, "action-jump", { ...player, x: origin.x, y: origin.y }, {
-    radius: Math.max(120, distanceToJump * 0.8),
-    playerId: player.id,
-    targetX: destination.x,
-    targetY: destination.y,
-    variant: String(Math.round(distanceToJump))
-  });
-  pushSound(room, "jump", player, { ownerId: player.id, sourceKind: "player", maxDistance: 900, volume: 0.55 });
-  touch(room);
 }
 
 function adoptMovementSession(player, body) {
@@ -20736,10 +20776,6 @@ function serialize(room, viewer, options = {}) {
       enhanceChargeItemId: String(player.enhanceChargeItemId || ""),
       aimX: Number.isFinite(Number(player.aimX)) ? Number(player.aimX) : 0,
       aimY: Number.isFinite(Number(player.aimY)) ? Number(player.aimY) : 1,
-      jumpPreparingAt: Number(player.jumpPreparingAt) || 0,
-      jumpPrepareDx: Number.isFinite(Number(player.jumpPrepareDx)) ? Number(player.jumpPrepareDx) : 0,
-      jumpPrepareDy: Number.isFinite(Number(player.jumpPrepareDy)) ? Number(player.jumpPrepareDy) : 1,
-      jumpMotion: player.jumpMotion ? { ...player.jumpMotion } : null,
       slowedUntil: player.slowedUntil,
       taserSlowedUntil: player.taserSlowedUntil,
       shockSlowedUntil: player.shockSlowedUntil,
@@ -20787,10 +20823,6 @@ function serialize(room, viewer, options = {}) {
       delete serializedPlayer.relocationRevision;
       delete serializedPlayer.aimX;
       delete serializedPlayer.aimY;
-      delete serializedPlayer.jumpPreparingAt;
-      delete serializedPlayer.jumpPrepareDx;
-      delete serializedPlayer.jumpPrepareDy;
-      delete serializedPlayer.jumpMotion;
     } else {
       serializedPlayer.invisible = false;
     }
@@ -20933,7 +20965,7 @@ function serialize(room, viewer, options = {}) {
         viewer.alive &&
         !viewer.ejected &&
         !viewer.inVent &&
-        hasOperatorAccess(viewer, "gunner") &&
+        hasGunnerAimAccess(viewer) &&
         passivesEnabled(viewer) &&
         gunnerAimMovementAllowed(viewer)
       ),
@@ -20988,14 +21020,11 @@ function serialize(room, viewer, options = {}) {
       lastMysteryResultAt: viewer.lastMysteryResultAt,
       lastImmediateFeedback: viewer.lastImmediateFeedback || null,
       movementMode: viewer.movementMode,
-      jumpPreparingAt: Number(viewer.jumpPreparingAt) || 0,
-      jumpPrepareDx: Number.isFinite(Number(viewer.jumpPrepareDx)) ? Number(viewer.jumpPrepareDx) : 0,
-      jumpPrepareDy: Number.isFinite(Number(viewer.jumpPrepareDy)) ? Number(viewer.jumpPrepareDy) : 1,
-      jumpMotion: viewer.jumpMotion ? { ...viewer.jumpMotion } : null,
       bodyHits: viewer.bodyHits,
       overheal: viewer.overheal,
       killCamera: viewer.killCamera ? { ...viewer.killCamera } : null,
       credits: viewer.credits,
+      shopAbilityEntitlements: [...(viewer.shopAbilityEntitlements || [])],
       mana: serializeResourceValue(viewer.mana),
       maxMana: serializeResourceValue(manaCapacityFor(viewer)),
       mentalState: mentalStateFor(viewer),
@@ -21111,11 +21140,13 @@ function serialize(room, viewer, options = {}) {
       alchemyReviveUsed: Boolean(viewer.alchemyReviveUsed),
       vibeCodingReadyAt: Number(viewer.vibeCodingReadyAt) || 0,
       vibeCodingCooldownMs: Number(viewer.vibeCodingCooldownMs) || 0,
-      manaGpuActive: room.phase === "playing" && isHackerOperator(viewer) && viewer.alive && !viewer.ejected && Number(viewer.mana) > 0,
+      hackerVibeCodingAccess: hasHackerVibeCodingAccess(viewer),
+      hackerRootAccess: hasHackerRootAccess(viewer),
+      manaGpuActive: room.phase === "playing" && hasHackerVibeCodingAccess(viewer) && viewer.alive && !viewer.ejected && Number(viewer.mana) > 0,
       manaGpuDrainPerSecond: HACKER_MANA_GPU_DRAIN_PER_SECOND,
       manaGpuCooldownReductionMsPerMana: HACKER_MANA_GPU_COOLDOWN_REDUCTION_MS_PER_MANA,
       manaGpuCooldownCreditMs: Math.max(0, Number(viewer.manaGpuCooldownCreditMs) || 0),
-      alchemyRecipeIds: isHackerOperator(viewer) ? Object.keys(ALCHEMY_RECIPES).filter((recipeId) => {
+      alchemyRecipeIds: hasHackerVibeCodingAccess(viewer) ? Object.keys(ALCHEMY_RECIPES).filter((recipeId) => {
         const product = DVA_ECONOMY.productForRecipe(recipeId);
         return product?.hackerAccess !== "root" || hackerRootEligible(viewer);
       }) : [],
@@ -21123,7 +21154,7 @@ function serialize(room, viewer, options = {}) {
       hackActive: Boolean(viewer.hackActive),
       hackEffective: Boolean(viewer.hackActive && itemStorageAvailable(viewer, timestamp)),
       exiled: Boolean(viewer.exiled),
-      hackTracking: room.phase === "playing" && isHackerOperator(viewer) && viewer.alive && !viewer.ejected,
+      hackTracking: room.phase === "playing" && hasHackerVibeCodingAccess(viewer) && viewer.alive && !viewer.ejected,
       hackerRootActive: hackerRootEligible(viewer),
       hackerRootOperators: hackerRootEligible(viewer) ? [...HACKER_ROOT_OPERATOR_TYPES] : [],
       particleCannonUntil: Number(viewer.particleCannonUntil) || 0,
@@ -21507,25 +21538,26 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       throw new ApiError(500, `敵Bot最大強度実画面fixtureが ${expectedPrefix} を実行できません。`);
     }
     pushEvent(room, `実画面検証: ${kind} は ${fixtureCandidate.code} をauthoritative helperで実行しました。`);
-  } else if (kind === "quantum-electric-discharge") {
+  } else if (kind === "shop-all-abilities") {
     const timestamp = now();
     const map = getMap(room);
     const bots = [...room.players.values()].filter((entry) => entry.isBot);
     const target = bots[0];
-    if (!target) throw new ApiError(400, "Quantum Electric実画面fixtureに対象Botがいません。");
+    if (!target) throw new ApiError(400, "ショップ能力実画面fixtureに対象Botがいません。");
     const arena = [...map.walkable]
       .filter((rect) => Number(rect.w) > 760 && Number(rect.h) > map.playerRadius * 3)
       .sort((left, right) => Number(right.w) - Number(left.w))[0];
-    if (!arena) throw new ApiError(400, "Quantum Electric実画面fixtureに見通し通路がありません。");
+    if (!arena) throw new ApiError(400, "ショップ能力実画面fixtureに見通し通路がありません。");
     const y = Number(arena.y) + Number(arena.h) / 2;
     const startX = Number(arena.x) + Math.max(50, map.playerRadius + 12);
     Object.assign(player, {
-      role: "defender", special: "quantum", operatorId: "operator-quantum-control", operatorReady: true,
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: startX, y, vx: 0, vy: 0,
       movementMode: "idle", aimX: 1, aimY: 0,
+      credits: 40, shopAbilityEntitlements: [], shopAbilityPurchaseTransactions: [],
       mana: 6, maxMana: Math.max(6, Number(player.maxMana) || 0),
       stamina: 500, maxStoredStamina: Math.max(500, Number(player.maxStoredStamina) || 0),
-      quantumMode: "electric-discharge", rationalFreeAbilityReadyAt: timestamp + 120_000,
+      rationalFreeAbilityReadyAt: timestamp + 120_000,
       sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0, smartphoneUntil: 0,
       gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0, abilityDisabledUntil: 0
     });
@@ -21540,7 +21572,49 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.preparationEndsAt = 0;
     room.meeting = null;
     room.sabotage = null;
-    pushEvent(room, "実画面検証: エレクトリックは16SP+1MPで、見通し上の最近接敵へ絶縁破壊→電子輸送を一度だけ実行します。");
+    pushEvent(room, "実画面検証: ショップのクオンタム頁へ直接移動し、エレクトリックを12Cで購入後、同じカードから既存ownerへ発動します。");
+  } else if (["quantum-electric-discharge", "quantum-electric-root"].includes(kind)) {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    const target = bots[0];
+    if (!target) throw new ApiError(400, "Quantum Electric実画面fixtureに対象Botがいません。");
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 760 && Number(rect.h) > map.playerRadius * 3)
+      .sort((left, right) => Number(right.w) - Number(left.w))[0];
+    if (!arena) throw new ApiError(400, "Quantum Electric実画面fixtureに見通し通路がありません。");
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    const startX = Number(arena.x) + Math.max(50, map.playerRadius + 12);
+    const rootBorrowed = kind === "quantum-electric-root";
+    Object.assign(player, {
+      role: rootBorrowed ? "attacker" : "defender",
+      special: rootBorrowed ? "alchemist" : "quantum",
+      operatorId: rootBorrowed ? "attacker-alchemist" : "operator-quantum-control", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX, y, vx: 0, vy: 0,
+      movementMode: "idle", aimX: 1, aimY: 0,
+      mana: 6, maxMana: Math.max(6, Number(player.maxMana) || 0),
+      stamina: 500, maxStoredStamina: Math.max(500, Number(player.maxStoredStamina) || 0),
+      quantumMode: "electric-discharge", rationalFreeAbilityReadyAt: timestamp + 120_000,
+      sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0, smartphoneUntil: 0,
+      gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0, abilityDisabledUntil: 0
+    });
+    if (rootBorrowed) {
+      player.hackerRootActive = true;
+      player.hackerRootHealthSnapshot = { bodyHits: 0, overheal: 0 };
+      player.bodyHits = 2 - HACKER_ROOT_HEALTH;
+    }
+    Object.assign(target, {
+      role: rootBorrowed ? "defender" : "attacker", special: "fighter", operatorId: rootBorrowed ? "defender-fighter" : "attacker-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX + 360, y, vx: 0, vy: 0,
+      bodyHits: 0, overheal: 0, gritCharges: 0, mana: -100, stamina: 0,
+      shockSlowedUntil: 0, nextBotActionAt: timestamp + 120_000,
+      taskAutoReadyAt: timestamp + 120_000, smartphoneUntil: timestamp + 120_000
+    });
+    bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    pushEvent(room, `実画面検証: ${rootBorrowed ? "ROOT借用" : "通常"}エレクトリックは16SP${rootBorrowed ? "" : "+1MP"}で、見通し上の最近接敵へ絶縁破壊→電子輸送を一度だけ実行します。`);
   } else if (["gunner-luck-headshot-aim", "gunner-luck-headshot-hip"].includes(kind)) {
     const timestamp = now();
     const map = getMap(room);
@@ -22213,30 +22287,6 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/jump/prepare": {
-      const { room, player } = requireRoomPlayer(body);
-      beginJumpPreparation(room, player, body.dx, body.dy);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/jump/cancel": {
-      const { room, player } = requireRoomPlayer(body);
-      clearJumpPreparation(player);
-      player.movementMode = "idle";
-      touch(room);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/jump": {
-      const { room, player } = requireRoomPlayer(body);
-      jumpPlayer(room, player, body.dx, body.dy);
-      adoptMovementSession(player, body);
-      payload = serialize(room, player);
-      break;
-    }
-
     case "/api/clairvoyance": {
       const { room, player } = requireRoomPlayer(body);
       setClairvoyanceActive(room, player, body.active);
@@ -22436,6 +22486,22 @@ async function handleApi(req, res) {
       if (body.bulk === true) purchaseDrinkBulk(room, player, String(body.itemId || ""), String(body.transactionId || body.purchaseId || ""));
       else purchaseDrink(room, player, String(body.itemId || ""));
       payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/shop/purchase": {
+      const { room, player } = requireRoomPlayer(body);
+      const result = purchaseShopAbility(room, player, String(body.abilityId || ""), String(body.transactionId || body.purchaseId || ""));
+      payload = serialize(room, player);
+      payload.shopPurchase = result;
+      break;
+    }
+
+    case "/api/shop/ability": {
+      const { room, player } = requireRoomPlayer(body);
+      const result = useShopAbility(room, player, String(body.abilityId || ""), body);
+      payload = serialize(room, player);
+      payload.shopAbilityResult = result ?? true;
       break;
     }
 
@@ -24682,7 +24748,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "mana-conversion-luck-headshot-quantum-electric-v554",
+  version: "shop-all-abilities-no-jump-electric-v555",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

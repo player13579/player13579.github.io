@@ -27,6 +27,51 @@
     Object.freeze({ id: "generate-tech", label: "生成・技術", defaultCooldownPerCredit: COOLDOWN_MS_PER_CREDIT })
   ]);
 
+  // Shop ability entitlements are deliberately separate from physical and
+  // instant-item products. Buying one unlocks that exact ability for the
+  // current match; it never executes during the credit transaction and never
+  // changes the player's selected operator identity.
+  const abilityGenres = Object.freeze([
+    Object.freeze({ id: "operator-fighter", label: "ファイター", operator: "fighter" }),
+    Object.freeze({ id: "operator-gravity", label: "グラビティ", operator: "gravity" }),
+    Object.freeze({ id: "operator-flora", label: "フローラ", operator: "flora" }),
+    Object.freeze({ id: "operator-gunner", label: "ガンナー", operator: "gunner" }),
+    Object.freeze({ id: "operator-quantum", label: "クオンタム", operator: "quantum" }),
+    Object.freeze({ id: "operator-assassin", label: "アサシン", operator: "assassin" }),
+    Object.freeze({ id: "operator-hacker", label: "ハッカー", operator: "hacker" })
+  ]);
+
+  const abilityRows = [
+    ["fighter-limit-break", "リミットブレイク", 18, "operator-fighter", "fighter", "limit-break", "active", "/api/limit-break"],
+    ["gravity-near", "転移・対象付近", 6, "operator-gravity", "gravity", "near", "active", "/api/teleport"],
+    ["gravity-target", "対象転移", 8, "operator-gravity", "gravity", "target", "active-target-map", "/api/teleport"],
+    ["gravity-heart", "心臓転移", 22, "operator-gravity", "gravity", "heart", "active", "/api/teleport"],
+    ["gravity-accelerate", "アクセラレート", 8, "operator-gravity", "gravity", "accelerate", "active", "/api/gravity-time"],
+    ["gravity-decelerate", "ディーセラレート", 8, "operator-gravity", "gravity", "decelerate", "active", "/api/gravity-time"],
+    ["gravity-time-keeper", "時の番人", 14, "operator-gravity", "gravity", "time-keeper", "active", "/api/gravity-time-keeper"],
+    ["gravity-storm", "グラビティストーム", 20, "operator-gravity", "gravity", "storm", "active", "/api/gravity-storm"],
+    ["flora-heal", "回復", 7, "operator-flora", "flora", "heal", "active", "/api/flora-heal"],
+    ["flora-sunbeam", "サンビーム", 20, "operator-flora", "flora", "sunbeam", "active", "/api/flora-heal"],
+    ["flora-invisible", "インビジブル", 16, "operator-flora", "flora", "invisible", "active", "/api/flora-heal"],
+    ["gunner-aim", "エイム", 12, "operator-gunner", "gunner", "aim", "passive", "advanceGunnerAimPassive"],
+    ["gunner-special-ammo", "特殊弾装填", 14, "operator-gunner", "gunner", "special-ammo", "passive", "advanceGunnerSpecialAmmo"],
+    ["quantum-kinetic-accelerate", "運動エネルギー制御・加速", 8, "operator-quantum", "quantum", "kinetic-accelerate", "active", "/api/quantum-control"],
+    ["quantum-kinetic-decelerate", "運動エネルギー制御・減速", 8, "operator-quantum", "quantum", "kinetic-decelerate", "active", "/api/quantum-control"],
+    ["quantum-electric", "エレクトリック", 12, "operator-quantum", "quantum", "electric-discharge", "active", "/api/quantum-control"],
+    ["quantum-transmutation", "核変換", 12, "operator-quantum", "quantum", "nuclear-transmutation", "active", "/api/quantum-control"],
+    ["quantum-fission", "核分裂", 24, "operator-quantum", "quantum", "nuclear-fission", "active", "/api/quantum-control"],
+    ["quantum-fusion", "核融合", 24, "operator-quantum", "quantum", "nuclear-fusion", "active", "/api/quantum-control"],
+    ["assassin-annihilation", "消滅忍殺", 20, "operator-assassin", "assassin", "annihilation", "passive", "resolveAttack"],
+    ["assassin-silent-steps", "常時無音", 12, "operator-assassin", "assassin", "silent-steps", "passive", "emitMovementNoise"],
+    ["hacker-vibe-coding", "バイブコーディング", 22, "operator-hacker", "hacker", "vibe-coding", "panel", "/api/alchemy"],
+    ["hacker-root", "ROOT", 25, "operator-hacker", "hacker", "root", "active", "/api/hacker-root"]
+  ];
+
+  const abilityProducts = Object.freeze(abilityRows.map(([id, label, price, genreId, operator, mode, behavior, actionOwner]) =>
+    Object.freeze({ id, label, price, genreId, operator, mode, behavior, actionOwner })
+  ));
+  const abilityProductById = new Map(abilityProducts.map((entry) => [entry.id, entry]));
+
   // One credit is the price of the least expensive product. Every other price
   // is a relative gameplay-value unit. Hacker CT uses the same five seconds per
   // credit for every shared product, so price changes cannot drift from CT.
@@ -94,6 +139,7 @@
 
   const product = (itemId) => productById.get(String(itemId || "")) || null;
   const productForRecipe = (recipeId) => productByRecipeId.get(String(recipeId || "")) || null;
+  const abilityProduct = (abilityId) => abilityProductById.get(String(abilityId || "")) || null;
   const categoryForProduct = (itemId) => product(itemId)?.category || "generate-supply";
   const cooldownForRecipe = (recipeId) => {
     const entry = productForRecipe(recipeId);
@@ -103,10 +149,12 @@
   };
 
   return Object.freeze({
-    version: "mana-conversion-luck-headshot-quantum-electric-v554",
+    version: "shop-all-abilities-no-jump-electric-v555",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
+    abilityGenres,
+    abilityProducts,
     products,
     vendingProducts,
     ordinaryHackerProducts,
@@ -114,6 +162,7 @@
     productLabels,
     product,
     productForRecipe,
+    abilityProduct,
     categoryForProduct,
     cooldownForRecipe
   });
