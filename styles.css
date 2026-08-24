@@ -8472,7 +8472,9 @@ body.game-open #sidePanel :is(
   .alchemy-choice-grid
 ) {
   max-height: none !important;
-  overflow-y: visible !important;
+  /* A visible Y axis computes back to auto when a legacy hidden X axis
+   * remains. Own both axes so no right-UI descendant regains scrolling. */
+  overflow: visible !important;
   overscroll-behavior-y: none !important;
   touch-action: none !important;
   -webkit-overflow-scrolling: auto !important;

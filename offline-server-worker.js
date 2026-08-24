@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-long-range-settlement-v558",
+    version: "electric-long-range-settlement-v559",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21624,13 +21624,14 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       operatorId: rootBorrowed ? "attacker-alchemist" : "operator-quantum-control", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: startX, y, vx: 0, vy: 0,
       movementMode: "idle", aimX: 1, aimY: 0,
-      mana: 6, maxMana: Math.max(6, Number(player.maxMana) || 0),
-      stamina: 500, maxStoredStamina: Math.max(500, Number(player.maxStoredStamina) || 0),
+      mana: 6, maxMana: Math.max(12, Number(player.maxMana) || 0),
+      stamina: 500, maxStoredStamina: Math.max(1000, Number(player.maxStoredStamina) || 0),
       quantumMode: "electric-discharge", rationalFreeAbilityReadyAt: timestamp + 120_000,
       sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0, smartphoneUntil: 0,
       gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0,
       abilityDisabledUntil: 0, itemDisabledUntil: 0
     });
+    syncMentalState(room, player, "実画面検証", timestamp);
     if (rootBorrowed) {
       player.hackerRootActive = true;
       player.hackerRootHealthSnapshot = { bodyHits: 0, overheal: 0 };
@@ -24819,5 +24820,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "electric-long-range-settlement-v558" });
+self.postMessage({ type: "ready", version: "electric-long-range-settlement-v559" });
 })();

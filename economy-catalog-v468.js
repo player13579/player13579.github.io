@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "electric-long-range-settlement-v558",
+    version: "electric-long-range-settlement-v559",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
