@@ -5,7 +5,7 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const CACHE_NAME = "dva-static-v552-pages-first-sabotage-proximity-bot-barrier";
+const CACHE_NAME = "dva-static-v554-mana-conversion-luck-headshot";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -113,6 +113,7 @@ const STATIC_ASSETS = [
   "/assets/generated/gunner-missile.webp",
   "/assets/generated/effect-quantum-nuclear-v311.png",
   "/assets/generated/quantum-nuclear-fusion-ate-v522.png",
+  "/assets/generated/quantum-electric-discharge-v554.png",
   "/assets/generated/jump-action-effect-v311.png",
   "/assets/generated/emp-resonance-v398.png",
   "/assets/generated/emp-cancel-v311.png",

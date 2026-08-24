@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "pages-first-sabotage-proximity-bot-barrier-v552";
+const DVA_CLIENT_RELEASE = "mana-conversion-luck-headshot-v554";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -116,6 +116,7 @@ const els = {
   tabletAbilityShortcut: $("#tabletAbilityShortcut"),
   tabletShootShortcut: $("#tabletShootShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
+  tabletManaConversionShortcut: $("#tabletManaConversionShortcut"),
   tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
   tabletVendingShortcut: $("#tabletVendingShortcut"),
   tabletDodgeShortcut: $("#tabletDodgeShortcut"),
@@ -189,6 +190,9 @@ const els = {
   specialName: $("#specialName"),
   movementAccControl: $("#movementAccControl"),
   movementAccToggleButton: $("#movementAccToggleButton"),
+  manaConversionControl: $("#manaConversionControl"),
+  manaConversionModeSelect: $("#manaConversionModeSelect"),
+  manaConversionButton: $("#manaConversionButton"),
   objectiveText: $("#objectiveText"),
   sabotageAlert: $("#sabotageAlert"),
   taskButton: $("#taskButton"),
@@ -451,6 +455,10 @@ const state = {
   roomSessionGeneration: 1,
   backgroundResume: { serial: 0, inFlight: false, queued: false },
   rejectedActionRecovery: { inFlight: false, queued: false },
+  manaConversionInFlight: false,
+  manaConversionModeInFlight: false,
+  pendingManaConversionMode: "",
+  pendingManaConversionTransactionId: "",
   realtime: null,
   movementQueue: null,
   frameDriver: null,
@@ -739,11 +747,11 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
   hack: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
-  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhanceは0.58（最遠0.37）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhanceは0.50（最遠0.14）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhanceは0.70（最遠0.55）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhanceは与ダメージ1.62・固定1MP。固有の確殺なし、理知中かつダッシュ以外でエイム追尾中ならHS確殺。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhanceは0.19（最遠0.14）・固定1MP。理知中かつダッシュ以外でエイム追尾中ならHS確殺。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhanceは0.58（最遠0.37）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhanceは0.50（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhanceは0.70（最遠0.55）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhanceは与ダメージ1.62・固定1MP。固有の確殺なし。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhanceは0.19（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
@@ -815,7 +823,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pages-first-sabotage-proximity-bot-barrier-v552";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mana-conversion-luck-headshot-v554";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2846,6 +2854,7 @@ const actionHotkeys = {
   Digit8: "dodgeButton",
   KeyZ: "clairvoyance",
   KeyX: "empButton",
+  KeyF: "manaConversionButton",
   KeyB: "cameraButton",
   KeyN: "nextCameraButton",
   KeyV: "vendingButton",
@@ -2897,6 +2906,7 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/utility": "interact",
   "/api/transfer": "interact",
   "/api/emp": "cast",
+  "/api/mana-conversion": "cast",
   "/api/jump": "jump"
 });
 
@@ -2964,6 +2974,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-item-throw": "throw",
   "action-special-ammo-load": "reload",
   "action-gunner-aim-headshot": "shoot",
+  "action-gunner-headshot": "shoot",
   "item-hsg-activate": "power",
   "gunner-passive-aim": "focus",
   "action-weapon-switch": "weapon-switch",
@@ -5712,6 +5723,7 @@ function bindEvents() {
   els.tabletNinjutsuShortcut.addEventListener("click", () => els.ninjutsuButton.click());
   els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
+  els.tabletManaConversionShortcut.addEventListener("click", () => els.manaConversionButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
@@ -5786,6 +5798,8 @@ function bindEvents() {
     if (event.target === els.keybindOverlay) setKeybindOpen(false);
   });
   els.movementAccToggleButton.addEventListener("click", () => void toggleMovementAcc());
+  els.manaConversionModeSelect.addEventListener("change", () => void selectManaConversionMode());
+  els.manaConversionButton.addEventListener("click", () => void convertManaToSelectedProtection());
   document.addEventListener("fullscreenchange", syncFullscreenButton);
   els.titleHomeButton.addEventListener("click", () => void returnToTitle());
   els.tacticsBackButton.addEventListener("click", () => {
@@ -7707,6 +7721,15 @@ function renderTabletControls(data) {
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
+  setTabletShortcutLabel(
+    els.tabletManaConversionShortcut,
+    els.manaConversionButton.textContent || "バスト変換",
+    els.manaConversionButton.title || "1MPを選択中のバスト／バリアへ変換"
+  );
+  els.tabletManaConversionShortcut.disabled = els.manaConversionButton.disabled || els.manaConversionButton.hidden;
+  els.tabletManaConversionShortcut.hidden = els.manaConversionControl.hidden;
+  els.tabletManaConversionShortcut.dataset.actionDisabled = els.manaConversionButton.disabled ? "1" : "0";
+  els.tabletManaConversionShortcut.classList.toggle("action-disabled", els.manaConversionButton.disabled);
   setTabletShortcutLabel(els.tabletClairvoyanceShortcut, "千里眼", state.clairvoyance.active ? "千里眼を解除" : "千里眼を発動");
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
@@ -9288,7 +9311,13 @@ function isCurrentRoomSession(roomId, playerId, generation = state.roomSessionGe
 function setCurrentRoomSession(roomId, playerId) {
   const nextRoomId = String(roomId || "");
   const nextPlayerId = String(playerId || "");
-  if (state.roomId !== nextRoomId || state.playerId !== nextPlayerId) state.roomSessionGeneration += 1;
+  if (state.roomId !== nextRoomId || state.playerId !== nextPlayerId) {
+    state.roomSessionGeneration += 1;
+    state.pendingManaConversionTransactionId = "";
+    state.pendingManaConversionMode = "";
+    state.manaConversionInFlight = false;
+    state.manaConversionModeInFlight = false;
+  }
   state.roomId = nextRoomId;
   state.playerId = nextPlayerId;
   if (nextRoomId && nextPlayerId) {
@@ -9631,7 +9660,29 @@ function applyState(data, options = {}) {
     root.setAttribute("data-v550-magic-types", (data.magicEffects || []).slice(-12).map((effect) => effect.type).join(","));
     if (data.sabotage?.type) root.setAttribute("data-v550-sabotage-observed", String(data.sabotage.type));
     if ((data.magicEffects || []).some((effect) => effect.type === "action-repair" && effect.variant === "proximity")) {
-      root.setAttribute("data-v550-proximity-repair-observed", "true");
+    root.setAttribute("data-v550-proximity-repair-observed", "true");
+    }
+    root.setAttribute("data-v553-mana-conversion-mode", String(self.manaConversionMode || "reason"));
+    root.setAttribute("data-v553-self-mana", String(self.mana ?? ""));
+    root.setAttribute("data-v553-self-grit", String(self.gritCharges ?? ""));
+    root.setAttribute("data-v553-self-reason", String(self.reasonCharges ?? ""));
+    const manaConversionEffects = (data.magicEffects || []).filter((effect) => (
+      effect.variant === "mana-conversion" && ["instant-stand-firm-acquired", "instant-push-acquired"].includes(effect.type)
+    ));
+    for (const effect of manaConversionEffects) {
+      if (effect.type === "instant-stand-firm-acquired") root.setAttribute("data-v553-barrier-ate-observed", "true");
+      if (effect.type === "instant-push-acquired") root.setAttribute("data-v553-bust-ate-observed", "true");
+    }
+    root.setAttribute("data-v554-gunner-aim-active", self.gunnerSnipingActive ? "true" : "false");
+    root.setAttribute("data-v554-gunner-luck", String(self.luck ?? ""));
+    root.setAttribute("data-v554-gunner-current-hs-chance", String(self.gunnerCurrentHeadshotChance ?? ""));
+    root.setAttribute("data-v554-gunner-last-hit-zone", String(self.gunnerLastHitZone || ""));
+    if (self.gunnerBodyHitObserved) root.setAttribute("data-v554-gunner-body-observed", "true");
+    if (self.gunnerHeadshotObserved) root.setAttribute("data-v554-gunner-head-observed", "true");
+    if (self.gunnerLastHitZone === "body") root.setAttribute("data-v554-gunner-body-observed", "true");
+    if (self.gunnerLastHitZone === "head") root.setAttribute("data-v554-gunner-head-observed", "true");
+    if ((data.magicEffects || []).some((effect) => effect.type === "action-gunner-headshot")) {
+      root.setAttribute("data-v554-gunner-headshot-ate-observed", "true");
     }
     const visibleSunbeamCount = (data.magicEffects || []).filter((effect) => effect.type === "flora-sunbeam").length;
     if (visibleSunbeamCount > Number(root.getAttribute("data-v550-sunbeam-count") || 0)) {
@@ -11501,7 +11552,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
           asset: weapon.id,
           inventoryKind: "weapon",
           output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"}${self.gunnerSnipingActive ? " / 現在: 確殺（非ダッシュ・エイム追尾・HS）" : ""}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.65 : 0.18)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}・幸運補正済み）${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -12044,7 +12095,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       "エイム",
       aimValue,
       self.gunnerSnipingActive ? "truth" : passiveTone,
-      "理知中はダッシュ以外の移動状態で、選択銃の射程内かつ遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。追尾中はHS確殺、正規ダッシュ時だけ即解除。手動ボタン・追尾移動なし"
+      `理知中はダッシュ以外の移動状態で、選択銃の射程内かつ遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。幸運補正後のHSは腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.18) * 100)}%、エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.65) * 100)}%。正規ダッシュ時だけ即解除。手動ボタン・追尾移動なし`
     );
   }
 
@@ -12652,6 +12703,75 @@ async function toggleMovementAcc() {
   return api("/api/movement-acc", { enabled: !enabled });
 }
 
+function normalizeManaConversionMode(value) {
+  return value === "grit" ? "grit" : "reason";
+}
+
+function manaConversionLabel(mode) {
+  return normalizeManaConversionMode(mode) === "grit" ? "バリア" : "バスト";
+}
+
+function syncManaConversionControl(data = state.data) {
+  const self = data?.self;
+  if (!self || !els.manaConversionControl) return;
+  const isPlaying = data.phase === "playing";
+  const liveNow = estimatedServerNow(data);
+  const actionBlocked = isActionBlocked(data);
+  const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
+  const canAct = isPlaying && self.alive && !self.ejected && !self.inVent && !actionBlocked && !itemBlocked;
+  const authoritativeMode = normalizeManaConversionMode(self.manaConversionMode);
+  const mode = normalizeManaConversionMode(state.pendingManaConversionMode || authoritativeMode);
+  const label = manaConversionLabel(mode);
+  const charges = mode === "grit"
+    ? Math.max(0, Number(self.gritCharges) || 0)
+    : Math.max(0, Number(self.reasonCharges) || 0);
+  const hasMana = Boolean(self.fighterInfiniteResources) || (Number(self.mana) || 0) >= 1;
+  els.manaConversionControl.hidden = !isPlaying;
+  els.manaConversionControl.dataset.mode = mode;
+  els.manaConversionModeSelect.value = mode;
+  els.manaConversionModeSelect.disabled = !canAct || state.manaConversionModeInFlight || state.manaConversionInFlight;
+  els.manaConversionButton.textContent = `${label}変換`;
+  els.manaConversionButton.title = `1MPを${label}1回分へ変換 [F] / 所持 ${charges}/3`;
+  els.manaConversionButton.setAttribute("aria-label", `1MPを${label}1回分へ変換`);
+  els.manaConversionButton.disabled = !canAct || !hasMana || charges >= 3 || state.manaConversionModeInFlight || state.manaConversionInFlight;
+}
+
+async function selectManaConversionMode() {
+  if (state.manaConversionModeInFlight || state.manaConversionInFlight) return false;
+  const mode = normalizeManaConversionMode(els.manaConversionModeSelect.value);
+  if (mode === normalizeManaConversionMode(state.data?.self?.manaConversionMode)) {
+    syncManaConversionControl();
+    return true;
+  }
+  state.pendingManaConversionMode = mode;
+  state.manaConversionModeInFlight = true;
+  syncManaConversionControl();
+  const result = await api("/api/mana-conversion-mode", { mode });
+  state.manaConversionModeInFlight = false;
+  state.pendingManaConversionMode = "";
+  syncManaConversionControl();
+  return result;
+}
+
+function newManaConversionTransactionId() {
+  return globalThis.crypto?.randomUUID?.() || `mana-conversion-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function convertManaToSelectedProtection() {
+  if (state.manaConversionInFlight || state.manaConversionModeInFlight || els.manaConversionButton.disabled) return false;
+  const transactionId = state.pendingManaConversionTransactionId || newManaConversionTransactionId();
+  state.pendingManaConversionTransactionId = transactionId;
+  state.manaConversionInFlight = true;
+  syncManaConversionControl();
+  const result = await api("/api/mana-conversion", { transactionId });
+  state.manaConversionInFlight = false;
+  if (result?.manaConversionTransactionId === transactionId) {
+    state.pendingManaConversionTransactionId = "";
+  }
+  syncManaConversionControl();
+  return result;
+}
+
 function updateActionButtons(data) {
   const self = data.self;
   const fighterAccess = hasDisplayedOperatorAccess(self, "fighter");
@@ -12684,6 +12804,7 @@ function updateActionButtons(data) {
   const groundItem = nearestGroundItem(data);
   const liveNow = estimatedServerNow(data);
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
+  syncManaConversionControl(data);
   const dodgeStaminaCost = Number(self.dodgeStaminaCost) || 200;
   const cameraIndices = availableCameraIndices(data);
   const aiming = Boolean(aimed && self.aimTargetId);
@@ -12835,9 +12956,7 @@ function updateActionButtons(data) {
   const normalDamageDetail = minimumDamage < normalDamage
     ? `通常与ダメージ${normalDamage.toFixed(2)}（最遠${minimumDamage.toFixed(2)}）`
     : `通常与ダメージ${normalDamage.toFixed(2)}（距離減衰なし）`;
-  const aimDamageDetail = self.gunnerSnipingActive
-    ? "現在: 確殺（非ダッシュ・エイム追尾・HS）"
-    : "理知中かつダッシュ以外でエイム追尾すると確殺（HS）";
+  const aimDamageDetail = `現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.65 : 0.18)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}） / 幸運補正後: 腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.18) * 100)}%・エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.65) * 100)}%`;
   els.weaponButton.title = `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / ${normalDamageDetail} / ${aimDamageDetail}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}特殊弾はこの選択武器へ適用中` : ""} / Tで切替`;
   els.weaponButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess);
   if (self.gunFiring) {
@@ -16365,6 +16484,7 @@ const GENERATED_EFFECT_TEXTURES = {
   "action-vibe-coding": ["vibeCodingEffect", 220],
   "item-hsg-activate": ["hsgItemTexture", 240],
   "action-gunner-aim-headshot": ["gunnerWeaponsAtlas", 210],
+  "action-gunner-headshot": ["gunnerWeaponsAtlas", 210],
   "gunner-rpg": ["gunnerRpgEffect", 280],
   "gunner-missile": ["gunnerMissileEffect", 250],
   "quantum-transmutation": ["quantumTransmutationEffect", 260],
@@ -20515,7 +20635,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "pages-first-sabotage-proximity-bot-barrier-v552";
+const version = "mana-conversion-luck-headshot-v554";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21462,5 +21582,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=pages-first-sabotage-proximity-bot-barrier-v552", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=mana-conversion-luck-headshot-v554", document.baseURI)).catch(() => {});
 }

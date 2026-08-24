@@ -103,7 +103,7 @@
   };
 
   return Object.freeze({
-    version: "pages-first-sabotage-proximity-bot-barrier-v552",
+    version: "mana-conversion-luck-headshot-v554",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

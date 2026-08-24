@@ -7383,7 +7383,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "pages-first-sabotage-proximity-bot-barrier-v552",
+    version: "mana-conversion-luck-headshot-v554",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7474,6 +7474,9 @@ const GUNNER_SPECIAL_AMMO_LABELS = Object.freeze({
 });
 const GUNNER_SHOCK_SLOW_MS = 6_000;
 const GUNNER_SHOCK_LOW_LUCK_THRESHOLD = 0;
+const GUNNER_HIP_HEADSHOT_BASE_CHANCE = 0.18;
+const GUNNER_AIM_HEADSHOT_BASE_CHANCE = 0.65;
+const GUNNER_HEADSHOT_LUCK_INFLUENCE = 0.16;
 const DEFAULT_GUNNER_WEAPON = "assault";
 const GUNNER_WEAPON_ORDER = ["handgun", "smg", "assault", "sniper", "taser"];
 const GUNNER_WEAPONS = Object.freeze({
@@ -7912,7 +7915,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARとエイム・特殊弾装填パッシブを持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。理知中かつダッシュ以外の移動状態ではパッシブ『エイム』が選択銃の射程内で遮蔽物越しでない最寄りの生存者を自動追尾し、追尾中の全射撃をHS確殺にする。正規movementModeがダッシュになると即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、選択中の銃へウィーク・ペネトレイト・ショックのいずれか1マガジンを獲得し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（2〜34%）、理知中かつダッシュ以外で最寄りの可視対象を追尾するパッシブ『エイム』中は高確率（49〜81%）になるが確定ではない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、選択中の銃へウィーク・ペネトレイト・ショックのいずれか1マガジンを獲得し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -9745,6 +9748,11 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     hsgReadyAt: 0,
     killCamera: null,
     gunnerSnipingActive: false,
+    gunnerLastHitZone: "",
+    gunnerLastHeadshotChance: 0,
+    gunnerBodyHitObserved: false,
+    gunnerHeadshotObserved: false,
+    gunnerHeadshotVerificationRolls: [],
     gunnerAimTargetId: "",
     timedAccelerationEffects: [],
     heavyWeapons: [],
@@ -9809,6 +9817,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gritCharges: 0,
     standFirmBarrierUntil: 0,
     reasonCharges: 0,
+    manaConversionMode: "reason",
+    manaConversionTransactionIds: [],
     iaiCharges: 0,
     ideaProgressStartedAt: 0,
     ideaProgressMs: 0,
@@ -10364,6 +10374,11 @@ function startGame(room) {
     player.hsgReadyAt = 0;
     player.killCamera = null;
     player.gunnerSnipingActive = false;
+    player.gunnerLastHitZone = "";
+    player.gunnerLastHeadshotChance = 0;
+    player.gunnerBodyHitObserved = false;
+    player.gunnerHeadshotObserved = false;
+    player.gunnerHeadshotVerificationRolls = [];
     player.gunnerAimTargetId = "";
     player.timedAccelerationEffects = [];
     player.heavyWeapons = [];
@@ -10424,6 +10439,8 @@ function startGame(room) {
     player.gritCharges = 0;
     player.standFirmBarrierUntil = 0;
     player.reasonCharges = 0;
+    player.manaConversionMode = "reason";
+    player.manaConversionTransactionIds = [];
     player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
     player.ideaProgressMs = 0;
@@ -10746,6 +10763,11 @@ function startBattle(room) {
     player.hsgReadyAt = 0;
     player.killCamera = null;
     player.gunnerSnipingActive = false;
+    player.gunnerLastHitZone = "";
+    player.gunnerLastHeadshotChance = 0;
+    player.gunnerBodyHitObserved = false;
+    player.gunnerHeadshotObserved = false;
+    player.gunnerHeadshotVerificationRolls = [];
     player.gunnerAimTargetId = "";
     player.timedAccelerationEffects = [];
     player.particleCannonPerformanceMultiplier = 1;
@@ -10766,6 +10788,8 @@ function startBattle(room) {
     player.gritCharges = 0;
     player.standFirmBarrierUntil = 0;
     player.reasonCharges = 0;
+    player.manaConversionMode = "reason";
+    player.manaConversionTransactionIds = [];
     player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
     player.ideaProgressMs = 0;
@@ -16102,6 +16126,66 @@ function grantPushCharge(room, player, enforceLimit = true, source = "acquired")
   pushInstantItemAcquisitionAte(room, player, "reason", source);
 }
 
+function normalizeManaConversionMode(value) {
+  return value === "grit" ? "grit" : "reason";
+}
+
+function ensureManaConversionEligible(room, player, timestamp = now()) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在はマナをバスト／バリアへ変換できません。");
+  }
+  ensureConscious(player);
+  ensureItemStorageAvailable(player, timestamp);
+}
+
+function setManaConversionMode(room, player, rawMode) {
+  ensureManaConversionEligible(room, player);
+  const mode = String(rawMode || "");
+  if (!["reason", "grit"].includes(mode)) {
+    throw new ApiError(400, "変換先はバストまたはバリアを選択してください。");
+  }
+  player.manaConversionMode = mode;
+  touch(room);
+  return mode;
+}
+
+function convertManaToProtection(room, player, rawTransactionId) {
+  const transactionId = String(rawTransactionId || "").trim().slice(0, 96);
+  if (!transactionId) throw new ApiError(400, "変換transaction IDが必要です。");
+  player.manaConversionTransactionIds = Array.isArray(player.manaConversionTransactionIds)
+    ? player.manaConversionTransactionIds
+    : [];
+  if (player.manaConversionTransactionIds.includes(transactionId)) {
+    return { applied: false, duplicate: true, transactionId, mode: normalizeManaConversionMode(player.manaConversionMode) };
+  }
+
+  const timestamp = now();
+  ensureManaConversionEligible(room, player, timestamp);
+  const mode = normalizeManaConversionMode(player.manaConversionMode);
+  const chargeField = mode === "grit" ? "gritCharges" : "reasonCharges";
+  const label = mode === "grit" ? "バリア" : "バスト";
+  if (Math.max(0, Number(player[chargeField]) || 0) >= 3) {
+    throw new ApiError(400, `${label}は最大3回分まで所持できます。`);
+  }
+  const infiniteResources = hasFighterInfiniteResources(player);
+  if (!infiniteResources && (Number(player.mana) || 0) < 1) {
+    throw new ApiError(400, `${label}への変換にはマナ 1 が必要です。`);
+  }
+
+  if (!infiniteResources) {
+    setMana(room, player, (Number(player.mana) || 0) - 1, `${label}変換`, { exact: true });
+  } else {
+    syncFighterInfiniteResources(player);
+  }
+  if (mode === "grit") grantStandFirmCharge(room, player, true, "mana-conversion");
+  else grantPushCharge(room, player, true, "mana-conversion");
+  player.manaConversionTransactionIds.push(transactionId);
+  setImmediateFeedback(player, `${label}変換`, `${infiniteResources ? "MP∞" : "MP-1"} / ${label}+1`);
+  pushEvent(room, `${player.name} が${infiniteResources ? "無限MP" : "1MP"}を${label}1回分へ変換しました。`);
+  touch(room);
+  return { applied: true, duplicate: false, transactionId, mode };
+}
+
 function grantIaiCharge(room, player, enforceLimit = true, source = "acquired") {
   if (enforceLimit && Math.max(0, Number(player.iaiCharges) || 0) >= 3) {
     throw new ApiError(400, "居合は最大3回分まで所持できます。");
@@ -18988,6 +19072,30 @@ function gunnerDamageAtDistance(weapon, distanceToTarget) {
   return Math.round(weapon.damage * multiplier * 100) / 100;
 }
 
+function gunnerHeadshotChance(shooter, aimed = Boolean(shooter?.gunnerSnipingActive)) {
+  const base = aimed ? GUNNER_AIM_HEADSHOT_BASE_CHANCE : GUNNER_HIP_HEADSHOT_BASE_CHANCE;
+  return Math.round(clampNumber(
+    base + luckValueFor(shooter) * GUNNER_HEADSHOT_LUCK_INFLUENCE,
+    0.01,
+    0.95,
+    base
+  ) * 10_000) / 10_000;
+}
+
+function resolveGunnerHeadshot(shooter, aimed = Boolean(shooter?.gunnerSnipingActive), explicitRoll) {
+  const fixtureRolls = Array.isArray(shooter?.gunnerHeadshotVerificationRolls)
+    ? shooter.gunnerHeadshotVerificationRolls
+    : [];
+  const rawRoll = Number.isFinite(Number(explicitRoll))
+    ? Number(explicitRoll)
+    : fixtureRolls.length
+      ? Number(fixtureRolls.shift())
+      : Math.random();
+  const roll = clampNumber(rawRoll, 0, 0.999999, 0.999999);
+  const chance = gunnerHeadshotChance(shooter, aimed);
+  return { headshot: roll < chance, hitZone: roll < chance ? "head" : "body", chance, roll };
+}
+
 function findGunnerTarget(room, shooter, weapon, dx, dy, options = {}) {
   // Penetrate is the one named special-round exception to normal wall path
   // clipping.  General firearms and generated-cover rules remain unchanged.
@@ -19172,42 +19280,31 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   }
 
   if (targetEntry) {
+    const aimed = Boolean(shooter.gunnerSnipingActive);
+    const headshotResolution = ["weak", "shock"].includes(specialAmmoType)
+      ? null
+      : resolveGunnerHeadshot(shooter, aimed);
+    if (headshotResolution) {
+      shooter.gunnerLastHitZone = headshotResolution.hitZone;
+      shooter.gunnerLastHeadshotChance = headshotResolution.chance;
+      if (headshotResolution.headshot) shooter.gunnerHeadshotObserved = true;
+      else shooter.gunnerBodyHitObserved = true;
+    }
     if (shooter.isBot) {
-      const botShotLabel = shooter.gunnerSnipingActive
-        ? `エイム・${weapon.name}HS`
-        : specialAmmoType === "weak"
+      const botShotLabel = specialAmmoType === "weak"
           ? "ウィーク弾"
-          : specialAmmoType === "penetrate"
-            ? "ペネトレイト弾"
           : specialAmmoType === "shock"
             ? "ショック弾"
-            : `${gbo ? "GBO・" : ""}${weapon.name}の銃弾`;
+            : headshotResolution?.headshot
+              ? `${aimed ? "エイム" : "腰撃ち"}・${specialAmmoType === "penetrate" ? "ペネトレイト弾" : `${gbo ? "GBO・" : ""}${weapon.name}`}HS`
+              : `${aimed ? "エイム" : "腰撃ち"}・${specialAmmoType === "penetrate" ? "ペネトレイト弾" : `${gbo ? "GBO・" : ""}${weapon.name}の銃弾`}`;
       rememberBotKillDecision(room, shooter, targetEntry.player, {
         code: "visible-target-first-in-clear-gun-line",
         actionLabel: botShotLabel,
-        reasons: ["射線上で最初に命中する対象を直接視認し、射程・弾薬・射撃間隔の条件を満たした"]
+        reasons: [headshotResolution
+          ? `射線上で最初に命中する対象を直接視認し、射程・弾薬・射撃間隔を満たして幸運補正込み${Math.round(headshotResolution.chance * 100)}%の${aimed ? "エイム" : "腰撃ち"}HS抽選を一度だけ解決した`
+          : "射線上で最初に命中する対象を直接視認し、特殊弾固有の射程・弾薬・射撃間隔を満たした"]
       }, timestamp);
-    }
-    if (shooter.gunnerSnipingActive) {
-      pushMagicEffect(room, "action-gunner-aim-headshot", targetEntry.player, {
-        radius: 150,
-        playerId: shooter.id,
-        targetId: targetEntry.player.id,
-        variant: weapon.id
-      });
-      const outcome = killPlayer(room, shooter, targetEntry.player.id, {
-        ranged: true,
-        hitZone: "head",
-        allowAnyKiller: true,
-        targetRole: targetEntry.player.role,
-        attackKind: "gunner-stationary-aim-headshot",
-        attackLabel: `エイム・${weapon.name}HS`,
-        slashGuardPhysical: true
-      });
-      finishGunnerBurstRound(room, shooter, weapon, timestamp);
-      checkWin(room);
-      touch(room);
-      return true;
     }
     if (specialAmmoType === "weak") {
       pushMagicEffect(room, "action-special-ammo-impact", targetEntry.player, {
@@ -19245,6 +19342,31 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
         playerId: shooter.id,
         targetId: targetEntry.player.id,
         variant: `shock:${outcome}`
+      });
+      finishGunnerBurstRound(room, shooter, weapon, timestamp);
+      checkWin(room);
+      touch(room);
+      return true;
+    }
+    if (headshotResolution?.headshot) {
+      const modeLabel = aimed ? "エイム" : "腰撃ち";
+      const ammunitionLabel = specialAmmoType === "penetrate" ? "ペネトレイト弾" : `${gbo ? "GBO・" : ""}${weapon.name}`;
+      pushMagicEffect(room, "action-gunner-headshot", targetEntry.player, {
+        radius: 150,
+        playerId: shooter.id,
+        targetId: targetEntry.player.id,
+        variant: `${aimed ? "aim" : "hip"}:${weapon.id}`
+      });
+      killPlayer(room, shooter, targetEntry.player.id, {
+        ranged: true,
+        hitZone: "head",
+        allowAnyKiller: true,
+        targetRole: targetEntry.player.role,
+        attackKind: specialAmmoType === "penetrate"
+          ? `penetrate-${aimed ? "aim" : "hip"}-headshot`
+          : `gunner-${aimed ? "aim" : "hip"}-headshot`,
+        attackLabel: `${modeLabel}・${ammunitionLabel}HS`,
+        slashGuardPhysical: true
       });
       finishGunnerBurstRound(room, shooter, weapon, timestamp);
       checkWin(room);
@@ -19525,6 +19647,7 @@ function advanceGunnerAimPassive(room, player, timestamp = now()) {
     player?.alive &&
     !player.ejected &&
     !player.inVent &&
+    !player.drone?.active &&
     hasOperatorAccess(player, "gunner") &&
     passivesEnabled(player) &&
     gunnerAimMovementAllowed(player)
@@ -20694,6 +20817,13 @@ function serialize(room, viewer, options = {}) {
       hsgManaCost: HSG_BASE_MANA_COST,
       accelerationPhasing: Number(viewer.hsgUntil) > timestamp,
       gunnerSnipingActive: Boolean(viewer.gunnerSnipingActive),
+      gunnerHipHeadshotChance: gunnerHeadshotChance(viewer, false),
+      gunnerAimHeadshotChance: gunnerHeadshotChance(viewer, true),
+      gunnerCurrentHeadshotChance: gunnerHeadshotChance(viewer, Boolean(viewer.gunnerSnipingActive)),
+      gunnerLastHitZone: String(viewer.gunnerLastHitZone || ""),
+      gunnerLastHeadshotChance: Math.max(0, Number(viewer.gunnerLastHeadshotChance) || 0),
+      gunnerBodyHitObserved: Boolean(viewer.gunnerBodyHitObserved),
+      gunnerHeadshotObserved: Boolean(viewer.gunnerHeadshotObserved),
       gunnerAimTargetId: String(viewer.gunnerAimTargetId || ""),
       gunnerAimAvailable: Boolean(
         room.phase === "playing" &&
@@ -20848,6 +20978,7 @@ function serialize(room, viewer, options = {}) {
       substitutionCharges: viewer.substitutionCharges,
       gritCharges: viewer.gritCharges,
       reasonCharges: viewer.reasonCharges,
+      manaConversionMode: normalizeManaConversionMode(viewer.manaConversionMode),
       iaiCharges: Math.max(0, Math.floor(Number(viewer.iaiCharges) || 0)),
       standFirmCharges: viewer.gritCharges,
       pushCharges: viewer.reasonCharges,
@@ -21264,6 +21395,68 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       throw new ApiError(500, `敵Bot最大強度実画面fixtureが ${expectedPrefix} を実行できません。`);
     }
     pushEvent(room, `実画面検証: ${kind} は ${fixtureCandidate.code} をauthoritative helperで実行しました。`);
+  } else if (["gunner-luck-headshot-aim", "gunner-luck-headshot-hip"].includes(kind)) {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    const target = bots[0];
+    if (!target) throw new ApiError(400, "Gunner HS確率実画面fixtureに対象Botがいません。");
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 620 && Number(rect.h) > map.playerRadius * 3)
+      .sort((a, b) => Number(b.w) - Number(a.w))[0];
+    if (!arena) throw new ApiError(400, "Gunner HS確率実画面fixtureに直線通路がありません。");
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    const startX = Number(arena.x) + Math.max(50, map.playerRadius + 12);
+    const aimed = kind.endsWith("-aim");
+    Object.assign(player, {
+      role: "attacker", special: "gunner", operatorId: "attacker-gunner", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX, y, vx: 0, vy: 0,
+      movementMode: "idle", aimX: 1, aimY: 0,
+      mana: aimed ? 20 : -100, maxMana: Math.max(20, Number(player.maxMana) || 0),
+      stamina: 500, maxStoredStamina: Math.max(500, Number(player.maxStoredStamina) || 0),
+      gunnerWeapon: "assault", gunnerAmmo: createGunnerAmmo(),
+      gunnerReloadUntil: 0, gunReadyAt: 0, gunFiring: false,
+      gunnerSpecialAmmoType: "", gunnerSpecialAmmoWeapon: "", gunnerSpecialAmmoRounds: 0,
+      gunnerSpecialAmmoInventory: { weak: 0, penetrate: 0, shock: 0 },
+      gunnerSnipingActive: false, gunnerAimTargetId: "",
+      gunnerLastHitZone: "", gunnerLastHeadshotChance: 0,
+      gunnerBodyHitObserved: false, gunnerHeadshotObserved: false,
+      gunnerHeadshotVerificationRolls: [0.999999, 0]
+    });
+    Object.assign(target, {
+      role: "defender", special: "fighter", operatorId: "defender-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      x: startX + 260, y, vx: 0, vy: 0, bodyHits: 0, overheal: 0, gritCharges: 0,
+      nextBotActionAt: timestamp + 120_000, taskAutoReadyAt: timestamp + 120_000,
+      killReadyAt: timestamp + 120_000, smartphoneUntil: timestamp + 120_000
+    });
+    bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    if (aimed) advanceGunnerAimPassive(room, player, timestamp);
+    pushEvent(room, `実画面検証: ${aimed ? "エイム" : "腰撃ち"}は幸運補正込み確率でbody→HSを一度ずつ解決します。`);
+  } else if (kind === "mana-conversion") {
+    const timestamp = now();
+    Object.assign(player, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      mana: 6, maxMana: Math.max(6, Number(player.maxMana) || 0),
+      gritCharges: 0, reasonCharges: 0,
+      manaConversionMode: "reason", manaConversionTransactionIds: [],
+      itemDisabledUntil: 0, sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0,
+      smartphoneUntil: 0, gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0
+    });
+    room.preparationEndsAt = timestamp + 120_000;
+    room.meeting = null;
+    room.sabotage = null;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+      entry.smartphoneUntil = timestamp + 120_000;
+    }
+    pushEvent(room, "実画面検証: 6MPをバスト／バリアへ切り替えて変換できます。");
   } else if (kind === "sabotage-proximity-auto-clear") {
     const timestamp = now();
     const map = getMap(room);
@@ -21846,6 +22039,25 @@ async function handleApi(req, res) {
       const { room, player } = requireRoomPlayer(body);
       setMovementAccEnabled(room, player, body.enabled);
       payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/mana-conversion-mode": {
+      const { room, player } = requireRoomPlayer(body);
+      setManaConversionMode(room, player, body.mode);
+      payload = serialize(room, player);
+      break;
+    }
+
+    case "/api/mana-conversion": {
+      const { room, player } = requireRoomPlayer(body);
+      const outcome = convertManaToProtection(room, player, body.transactionId);
+      payload = {
+        ...serialize(room, player),
+        manaConversionApplied: outcome.applied,
+        manaConversionDuplicate: outcome.duplicate,
+        manaConversionTransactionId: outcome.transactionId
+      };
       break;
     }
 
@@ -23174,17 +23386,17 @@ function botHasImmediateLethalOpportunity(room, bot, target, timestamp = now()) 
   const targetDistance = distance(bot, target);
   if (bot.attackResolveAt > timestamp) return true;
   if (bot.killReadyAt <= timestamp && targetDistance <= Math.max(72, room.settings.killRange * 0.58)) return true;
-  if (bot.special !== "gunner" || !bot.gunnerSnipingActive || bot.gunnerReloadUntil > timestamp || bot.gunReadyAt > timestamp) return false;
-  const loadedWeapon = Object.values(GUNNER_WEAPONS)
-    .filter((weapon) => gunnerWeaponAvailable(bot, weapon.id))
-    .filter((weapon) => (Number(bot.gunnerAmmo?.[weapon.id]) || 0) >= weapon.ammoPerShot)
-    .filter((weapon) => targetDistance <= weapon.range)
-    .sort((a, b) => a.cooldownMs - b.cooldownMs || b.range - a.range)[0];
-  if (!loadedWeapon) return false;
+  if (bot.special !== "gunner" || bot.gunnerReloadUntil > timestamp || bot.gunReadyAt > timestamp) return false;
+  const loadedWeapon = gunnerWeaponFor(bot);
+  if (!gunnerWeaponAvailable(bot, loadedWeapon.id) ||
+      (Number(bot.gunnerAmmo?.[loadedWeapon.id]) || 0) < loadedWeapon.ammoPerShot ||
+      targetDistance > loadedWeapon.range) return false;
   const dx = target.x - bot.x;
   const dy = target.y - bot.y;
   const length = Math.hypot(dx, dy) || 1;
-  return clearShotPath(room, bot, target, dx / length, dy / length);
+  if (!clearShotPath(room, bot, target, dx / length, dy / length)) return false;
+  const deterministicBodyDamage = gunnerDamageAtDistance(loadedWeapon, targetDistance);
+  return Math.max(0, Number(target.bodyHits) || 0) + deterministicBodyDamage >= 2;
 }
 
 function attackerFakeTaskStation(room, bot, map, actualTarget, timestamp = now()) {
@@ -23428,12 +23640,11 @@ function selectBotGunnerWeapon(bot, targetDistance, maximumStrength = false) {
     ? usable.sort((a, b) => {
       const weaponA = GUNNER_WEAPONS[a];
       const weaponB = GUNNER_WEAPONS[b];
-      const scoreA = bot.gunnerSnipingActive
-        ? 1_000_000 / Math.max(1, weaponA.cooldownMs)
-        : weaponA.damage * Math.max(weaponA.minDamageRatio, 1 - targetDistance / Math.max(1, weaponA.range) * (1 - weaponA.minDamageRatio)) * 1000 / weaponA.cooldownMs;
-      const scoreB = bot.gunnerSnipingActive
-        ? 1_000_000 / Math.max(1, weaponB.cooldownMs)
-        : weaponB.damage * Math.max(weaponB.minDamageRatio, 1 - targetDistance / Math.max(1, weaponB.range) * (1 - weaponB.minDamageRatio)) * 1000 / weaponB.cooldownMs;
+      const headshotChance = gunnerHeadshotChance(bot, bot.gunnerSnipingActive);
+      const bodyDamageA = gunnerDamageAtDistance(weaponA, targetDistance);
+      const bodyDamageB = gunnerDamageAtDistance(weaponB, targetDistance);
+      const scoreA = (headshotChance * 2 + (1 - headshotChance) * bodyDamageA) * 1000 / Math.max(1, weaponA.cooldownMs);
+      const scoreB = (headshotChance * 2 + (1 - headshotChance) * bodyDamageB) * 1000 / Math.max(1, weaponB.cooldownMs);
       return scoreB - scoreA || GUNNER_WEAPON_ORDER.indexOf(a) - GUNNER_WEAPON_ORDER.indexOf(b);
     })[0]
     : usable[0];
@@ -24315,7 +24526,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "root-clairvoyance-input-combat-economy-v525",
+  version: "mana-conversion-luck-headshot-v554",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
