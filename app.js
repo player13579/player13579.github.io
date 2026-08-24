@@ -2851,6 +2851,7 @@ const actionHotkeys = {
   Digit3: "emergencyButton",
   Digit4: "smartphoneRepair",
   Digit6: "ninjutsuButton",
+  Digit7: "shootButton",
   Digit8: "dodgeButton",
   KeyZ: "clairvoyance",
   KeyX: "empButton",
