@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "electric-long-range-settlement-v560",
+    version: "electric-direction-auto-mana-bot-v561",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -9863,8 +9863,7 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gritCharges: 0,
     standFirmBarrierUntil: 0,
     reasonCharges: 0,
-    manaConversionMode: "reason",
-    manaConversionTransactionIds: [],
+    manaAutoProtectionNext: "reason",
     shopAbilityEntitlements: [],
     shopAbilityPurchaseTransactions: [],
     lastShopPurchaseAbilityId: "",
@@ -10494,8 +10493,7 @@ function startGame(room) {
     player.gritCharges = 0;
     player.standFirmBarrierUntil = 0;
     player.reasonCharges = 0;
-    player.manaConversionMode = "reason";
-    player.manaConversionTransactionIds = [];
+    player.manaAutoProtectionNext = "reason";
     player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
     player.ideaProgressMs = 0;
@@ -10847,8 +10845,7 @@ function startBattle(room) {
     player.gritCharges = 0;
     player.standFirmBarrierUntil = 0;
     player.reasonCharges = 0;
-    player.manaConversionMode = "reason";
-    player.manaConversionTransactionIds = [];
+    player.manaAutoProtectionNext = "reason";
     player.iaiCharges = 0;
     player.ideaProgressStartedAt = 0;
     player.ideaProgressMs = 0;
@@ -11872,7 +11869,15 @@ function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
   const requested = !options.exact && player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
-  const next = requested <= 0 ? DESIRE_RESOURCE_DEBT : requested;
+  const preGainMaxMana = manaCapacityFor(player);
+  const automaticProtection = applyAutomaticSurplusManaProtection(
+    room,
+    player,
+    previousRaw,
+    requested,
+    preGainMaxMana
+  );
+  const next = automaticProtection.mana <= 0 ? DESIRE_RESOURCE_DEBT : automaticProtection.mana;
   expandManaCapacityFor(player, next);
   player.mana = next;
   syncMentalState(room, player, sourceLabel, timestamp);
@@ -14151,6 +14156,13 @@ function fighterKillCounterTriggerIsCertainKill(hitZone, options = {}) {
   return hitZone === "head" || Boolean(options.destroy);
 }
 
+function bustExcludedByLethalAttack(hitZone, options = {}) {
+  if (fighterKillCounterTriggerIsCertainKill(hitZone, options)) return true;
+  if (Boolean(options.certainKill) || Boolean(options.noBody) || Boolean(options.annihilate) || Boolean(options.disappear)) return true;
+  const attackKind = String(options.attackKind || "").toLowerCase();
+  return /(?:certain|certain-kill|headshot|destroy|destruct|annihilat|disappear|消滅|破壊|確殺)/.test(attackKind);
+}
+
 function hasOrichalcumSword(player) {
   return itemCount(player, "orichalcum-sword") > 0;
 }
@@ -16296,64 +16308,56 @@ function grantPushCharge(room, player, enforceLimit = true, source = "acquired")
   pushInstantItemAcquisitionAte(room, player, "reason", source);
 }
 
-function normalizeManaConversionMode(value) {
-  return value === "grit" ? "grit" : "reason";
+function automaticProtectionDestination(player) {
+  const preferred = player?.manaAutoProtectionNext === "grit" ? "grit" : "reason";
+  const alternate = preferred === "reason" ? "grit" : "reason";
+  const fieldFor = (mode) => mode === "grit" ? "gritCharges" : "reasonCharges";
+  if (Math.max(0, Math.floor(Number(player?.[fieldFor(preferred)]) || 0)) < 3) return preferred;
+  if (Math.max(0, Math.floor(Number(player?.[fieldFor(alternate)]) || 0)) < 3) return alternate;
+  return "";
 }
 
-function ensureManaConversionEligible(room, player, timestamp = now()) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はマナをバスト／バリアへ変換できません。");
-  }
-  ensureConscious(player);
-  ensureItemStorageAvailable(player, timestamp);
-}
+// Excess MP is never a player-callable conversion transaction.  At the one
+// authoritative resource settlement where a gain crosses the pre-gain cap,
+// each whole MP is spent immediately on the next available automatic defense.
+// This deliberately has no item-storage, consciousness, EMP, UI or request-ID
+// dependency: it is resource accounting, not an item action.
+function applyAutomaticSurplusManaProtection(room, player, previousMana, requestedMana, preGainMaxMana) {
+  let mana = Math.round((Number(requestedMana) || 0) * 100) / 100;
+  if (
+    !room ||
+    room.phase !== "playing" ||
+    !player?.alive ||
+    player.ejected ||
+    mana <= Math.round((Number(previousMana) || 0) * 100) / 100 ||
+    mana <= preGainMaxMana
+  ) return { mana, converted: 0, reason: 0, grit: 0 };
 
-function setManaConversionMode(room, player, rawMode) {
-  ensureManaConversionEligible(room, player);
-  const mode = String(rawMode || "");
-  if (!["reason", "grit"].includes(mode)) {
-    throw new ApiError(400, "変換先はバストまたはバリアを選択してください。");
+  let wholeSurplus = Math.floor(mana - preGainMaxMana + 1e-9);
+  let converted = 0;
+  let reason = 0;
+  let grit = 0;
+  while (wholeSurplus > 0) {
+    const destination = automaticProtectionDestination(player);
+    if (!destination) break;
+    if (destination === "reason") {
+      grantPushCharge(room, player, true, "auto-surplus-mana");
+      reason += 1;
+    } else {
+      grantStandFirmCharge(room, player, true, "auto-surplus-mana");
+      grit += 1;
+    }
+    player.manaAutoProtectionNext = destination === "reason" ? "grit" : "reason";
+    mana = Math.round((mana - 1) * 100) / 100;
+    wholeSurplus -= 1;
+    converted += 1;
   }
-  player.manaConversionMode = mode;
-  touch(room);
-  return mode;
-}
-
-function convertManaToProtection(room, player, rawTransactionId) {
-  const transactionId = String(rawTransactionId || "").trim().slice(0, 96);
-  if (!transactionId) throw new ApiError(400, "変換transaction IDが必要です。");
-  player.manaConversionTransactionIds = Array.isArray(player.manaConversionTransactionIds)
-    ? player.manaConversionTransactionIds
-    : [];
-  if (player.manaConversionTransactionIds.includes(transactionId)) {
-    return { applied: false, duplicate: true, transactionId, mode: normalizeManaConversionMode(player.manaConversionMode) };
+  if (converted) {
+    const detail = [reason ? `バスト+${reason}` : "", grit ? `バリア+${grit}` : ""].filter(Boolean).join("・");
+    setImmediateFeedback(player, "余剰マナ自動変換", `MP-${converted} / ${detail}`);
+    pushEvent(room, `${player.name} の余剰マナ ${converted}MP を${detail}へ自動変換しました。`);
   }
-
-  const timestamp = now();
-  ensureManaConversionEligible(room, player, timestamp);
-  const mode = normalizeManaConversionMode(player.manaConversionMode);
-  const chargeField = mode === "grit" ? "gritCharges" : "reasonCharges";
-  const label = mode === "grit" ? "バリア" : "バスト";
-  if (Math.max(0, Number(player[chargeField]) || 0) >= 3) {
-    throw new ApiError(400, `${label}は最大3回分まで所持できます。`);
-  }
-  const infiniteResources = hasFighterInfiniteResources(player);
-  if (!infiniteResources && (Number(player.mana) || 0) < 1) {
-    throw new ApiError(400, `${label}への変換にはマナ 1 が必要です。`);
-  }
-
-  if (!infiniteResources) {
-    setMana(room, player, (Number(player.mana) || 0) - 1, `${label}変換`, { exact: true });
-  } else {
-    syncFighterInfiniteResources(player);
-  }
-  if (mode === "grit") grantStandFirmCharge(room, player, true, "mana-conversion");
-  else grantPushCharge(room, player, true, "mana-conversion");
-  player.manaConversionTransactionIds.push(transactionId);
-  setImmediateFeedback(player, `${label}変換`, `${infiniteResources ? "MP∞" : "MP-1"} / ${label}+1`);
-  pushEvent(room, `${player.name} が${infiniteResources ? "無限MP" : "1MP"}を${label}1回分へ変換しました。`);
-  touch(room);
-  return { applied: true, duplicate: false, transactionId, mode };
+  return { mana, converted, reason, grit };
 }
 
 function grantIaiCharge(room, player, enforceLimit = true, source = "acquired") {
@@ -18999,7 +19003,7 @@ function killPlayer(room, killer, targetId, options = {}) {
     setImmediateFeedback(killer, "気概", "忍殺が非確殺攻撃へ変化");
   }
 
-  if (!ignorePush && itemStorageAvailable(killer, timestamp) && passivesEnabled(killer) && (Number(killer.reasonCharges) || 0) > 0 && (Number(target.gritCharges) || 0) > 0) {
+  if (!ignorePush && !bustExcludedByLethalAttack(hitZone, options) && itemStorageAvailable(killer, timestamp) && passivesEnabled(killer) && (Number(killer.reasonCharges) || 0) > 0 && (Number(target.gritCharges) || 0) > 0) {
     killer.reasonCharges -= 1;
     const removedCharges = Number(target.gritCharges) || 0;
     target.gritCharges = 0;
@@ -21150,7 +21154,7 @@ function serialize(room, viewer, options = {}) {
       substitutionCharges: viewer.substitutionCharges,
       gritCharges: viewer.gritCharges,
       reasonCharges: viewer.reasonCharges,
-      manaConversionMode: normalizeManaConversionMode(viewer.manaConversionMode),
+      manaAutoProtectionNext: viewer.manaAutoProtectionNext === "grit" ? "grit" : "reason",
       iaiCharges: Math.max(0, Math.floor(Number(viewer.iaiCharges) || 0)),
       standFirmCharges: viewer.gritCharges,
       pushCharges: viewer.reasonCharges,
@@ -21697,27 +21701,6 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.sabotage = null;
     if (aimed) advanceGunnerAimPassive(room, player, timestamp);
     pushEvent(room, `実画面検証: ${aimed ? "エイム" : "腰撃ち"}は幸運補正込み確率でbody→HSを一度ずつ解決します。`);
-  } else if (kind === "mana-conversion") {
-    const timestamp = now();
-    Object.assign(player, {
-      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
-      alive: true, ejected: false, inVent: false,
-      mana: 6, maxMana: Math.max(6, Number(player.maxMana) || 0),
-      gritCharges: 0, reasonCharges: 0,
-      manaConversionMode: "reason", manaConversionTransactionIds: [],
-      itemDisabledUntil: 0, sleepingUntil: 0, unconsciousUntil: 0, meditatingUntil: 0,
-      smartphoneUntil: 0, gravityPinnedUntil: 0, ascensionUntil: 0, timeStoppedUntil: 0
-    });
-    room.preparationEndsAt = timestamp + 120_000;
-    room.meeting = null;
-    room.sabotage = null;
-    for (const entry of room.players.values()) {
-      if (!entry.isBot) continue;
-      entry.nextBotActionAt = timestamp + 120_000;
-      entry.taskAutoReadyAt = timestamp + 120_000;
-      entry.smartphoneUntil = timestamp + 120_000;
-    }
-    pushEvent(room, "実画面検証: 6MPをバスト／バリアへ切り替えて変換できます。");
   } else if (kind === "sabotage-proximity-auto-clear") {
     const timestamp = now();
     const map = getMap(room);
@@ -21747,6 +21730,18 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       entry.smartphoneUntil = timestamp + 120_000;
     }
     pushEvent(room, `実画面検証: ${station.label || station.repair} への接近だけでサボタージュを解除します。`);
+  } else if (kind === "automatic-surplus-mana") {
+    Object.assign(player, {
+      alive: true, ejected: false, inVent: false,
+      mana: 10, maxMana: 10,
+      reasonCharges: 0, gritCharges: 0,
+      manaAutoProtectionNext: "reason"
+    });
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    setMana(room, player, 14, "実画面余剰マナ自動変換fixture");
+    pushEvent(room, "実画面検証: 上限10MPに対する一度の+4MP余剰を、バスト→バリア交互の2回分ずつへ自動変換しました。");
   } else if (kind === "enemy-bot-combat") {
     const timestamp = now();
     const map = getMap(room);
@@ -22303,25 +22298,6 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/mana-conversion-mode": {
-      const { room, player } = requireRoomPlayer(body);
-      setManaConversionMode(room, player, body.mode);
-      payload = serialize(room, player);
-      break;
-    }
-
-    case "/api/mana-conversion": {
-      const { room, player } = requireRoomPlayer(body);
-      const outcome = convertManaToProtection(room, player, body.transactionId);
-      payload = {
-        ...serialize(room, player),
-        manaConversionApplied: outcome.applied,
-        manaConversionDuplicate: outcome.duplicate,
-        manaConversionTransactionId: outcome.transactionId
-      };
-      break;
-    }
-
     case "/api/movement/resync": {
       const { room, player } = requireRoomPlayer(body);
       payload = resyncMovementSession(room, player, body);
@@ -22838,6 +22814,7 @@ async function handleApi(req, res) {
         entry.gritCharges = 0;
         entry.standFirmBarrierUntil = 0;
         entry.reasonCharges = 0;
+        entry.manaAutoProtectionNext = "reason";
         entry.iaiCharges = 0;
         entry.ideaProgressStartedAt = 0;
         entry.ideaProgressMs = 0;
@@ -24484,24 +24461,9 @@ function runBotCombatPlanner(room, bot, target, timestamp) {
   for (const candidate of botCombatCandidates(room, bot, target, timestamp)) {
     try {
       if (candidate.run() !== false) {
-        // A setup/utility action (for example Limit Break) is a valid
-        // maximum-strength choice, but it is not a reason to abandon a known
-        // reachable hostile.  Previously its successful return consumed every
-        // bot tick, so an enemy Bot could repeatedly stand in place until the
-        // target vanished.  Preserve deliberate stationary commitments (aim,
-        // firing, a resolving attack, meditation, or an explicit multi-step
-        // plan); every other completed action immediately hands the same
-        // public/evidence-backed target to canonical navigation.
-        const resolving = Boolean(
-          bot.aimTargetId ||
-          bot.gunFiring ||
-          Number(bot.attackResolveAt) > timestamp ||
-          Number(bot.meditatingUntil) > timestamp ||
-          bot.botCombatPlan
-        );
-        if (!resolving && botCanAttackTarget(room, bot, target, timestamp)) {
-          moveBotToward(room, bot, target);
-        }
+        // Navigation is intentionally owned once per scheduled Bot tick by
+        // runPlayingBots below.  Do not move here: a successful action used to
+        // consume the tick, and adding movement here made plans double-step.
         return true;
       }
     } catch {
@@ -24510,6 +24472,31 @@ function runBotCombatPlanner(room, bot, target, timestamp) {
     }
   }
   return false;
+}
+
+function botNavigationMustRemainStationary(bot, timestamp = now()) {
+  // These are physical/lifecycle commitments, not generic planner state.
+  // In particular, a poison observation/wait plan is allowed to keep walking
+  // toward the already public target; `botCombatPlan` alone is never a freeze.
+  return Boolean(
+    !bot ||
+    actionBlockedUntil(bot) > timestamp ||
+    bot.aimTargetId ||
+    bot.gunFiring ||
+    Number(bot.attackResolveAt) > timestamp
+  );
+}
+
+function runScheduledBotNavigation(room, bot, target, timestamp = now()) {
+  if (!botCanAttackTarget(room, bot, target, timestamp)) {
+    return { ownsTick: false, moved: false, stationary: false };
+  }
+  if (botNavigationMustRemainStationary(bot, timestamp)) {
+    return { ownsTick: true, moved: false, stationary: true };
+  }
+  // The target comes only from preferredDefenderTarget or public Defender
+  // evidence via botOpponentTarget; this owner introduces no private knowledge.
+  return { ownsTick: true, moved: moveBotToward(room, bot, target), stationary: false };
 }
 
 function nextDuePlayingBot(room, timestamp = now()) {
@@ -24571,7 +24558,16 @@ function runPlayingBots(room) {
     // receives the same legal-repertoire evaluator before attacker/defender
     // movement scripts.  Defender targets still come solely from evidence.
     const opponentTarget = botOpponentTarget(room, bot, timestamp);
-    if (maximumStrength && runBotCombatPlanner(room, bot, opponentTarget, timestamp)) continue;
+    if (maximumStrength) {
+      const plannerHandled = runBotCombatPlanner(room, bot, opponentTarget, timestamp);
+      // A scheduled Bot gets one canonical navigation owner whether the
+      // planner selected an ability, is waiting on a non-stationary plan, or
+      // found no action at all.  This makes motion continuous rather than an
+      // incidental side effect of action selection and prevents the later
+      // faction branches from moving the same Bot twice.
+      const navigation = runScheduledBotNavigation(room, bot, opponentTarget, timestamp);
+      if (plannerHandled || navigation.ownsTick) continue;
+    }
 
     // Generic one-at-a-time Renki is a fallback.  It must not pre-empt a
     // maximum-strength setup such as Accelerate -> server-observed tenfold
@@ -24824,5 +24820,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "electric-long-range-settlement-v560" });
+self.postMessage({ type: "ready", version: "electric-direction-auto-mana-bot-v561" });
 })();

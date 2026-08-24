@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "electric-long-range-settlement-v560",
+    version: "electric-direction-auto-mana-bot-v561",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

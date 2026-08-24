@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "electric-long-range-settlement-v560";
+const DVA_CLIENT_RELEASE = "electric-direction-auto-mana-bot-v561";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -117,7 +117,6 @@ const els = {
   tabletAbilityShortcut: $("#tabletAbilityShortcut"),
   tabletShootShortcut: $("#tabletShootShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
-  tabletManaConversionShortcut: $("#tabletManaConversionShortcut"),
   tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
   tabletVendingShortcut: $("#tabletVendingShortcut"),
   tabletDodgeShortcut: $("#tabletDodgeShortcut"),
@@ -190,9 +189,6 @@ const els = {
   specialName: $("#specialName"),
   movementAccControl: $("#movementAccControl"),
   movementAccToggleButton: $("#movementAccToggleButton"),
-  manaConversionControl: $("#manaConversionControl"),
-  manaConversionModeSelect: $("#manaConversionModeSelect"),
-  manaConversionButton: $("#manaConversionButton"),
   objectiveText: $("#objectiveText"),
   sabotageAlert: $("#sabotageAlert"),
   ninjutsuButton: $("#ninjutsuButton"),
@@ -456,10 +452,6 @@ const state = {
   roomSessionGeneration: 1,
   backgroundResume: { serial: 0, inFlight: false, queued: false },
   rejectedActionRecovery: { inFlight: false, queued: false },
-  manaConversionInFlight: false,
-  manaConversionModeInFlight: false,
-  pendingManaConversionMode: "",
-  pendingManaConversionTransactionId: "",
   realtime: null,
   movementQueue: null,
   frameDriver: null,
@@ -504,6 +496,7 @@ const state = {
   lastRoomChatRoomId: "",
   chatNotificationTimer: null,
   verificationEnemyBotBaseline: null,
+  verificationEnemyBotContinuity: null,
   verificationOrdinaryBotBaselines: null,
   verificationOrdinaryBotReleaseObserved: false,
   verificationPreparationBarrierSeen: false,
@@ -822,7 +815,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-long-range-settlement-v560";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "electric-direction-auto-mana-bot-v561";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2928,7 +2921,6 @@ const actionHotkeys = {
   Digit8: "dodgeButton",
   KeyZ: "clairvoyance",
   KeyX: "empButton",
-  KeyF: "manaConversionButton",
   KeyB: "cameraButton",
   KeyN: "nextCameraButton",
   KeyV: "vendingButton",
@@ -2979,7 +2971,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/utility": "interact",
   "/api/transfer": "interact",
   "/api/emp": "cast",
-  "/api/mana-conversion": "cast",
 });
 
 const CHARACTER_ACTION_DURATION = Object.freeze({
@@ -4339,12 +4330,6 @@ function triggerActionHotkey(event) {
   if (!elementKey) return false;
   if (!["mapActionButton", "gameMuteButton"].includes(elementKey) && state.data?.phase !== "playing") return false;
   event.preventDefault();
-  if (elementKey === "manaConversionButton") {
-    event.stopImmediatePropagation();
-    const button = els.manaConversionButton;
-    if (!event.repeat && button && !button.disabled && !button.hidden) button.click();
-    return true;
-  }
   if (elementKey === "clairvoyance") {
     if (!event.repeat) toggleClairvoyance();
     return true;
@@ -5783,7 +5768,6 @@ function bindEvents() {
   els.tabletNinjutsuShortcut.addEventListener("click", () => els.ninjutsuButton.click());
   els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
-  els.tabletManaConversionShortcut.addEventListener("click", () => els.manaConversionButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
@@ -5858,8 +5842,6 @@ function bindEvents() {
     if (event.target === els.keybindOverlay) setKeybindOpen(false);
   });
   els.movementAccToggleButton.addEventListener("click", () => void toggleMovementAcc());
-  els.manaConversionModeSelect.addEventListener("change", () => void selectManaConversionMode());
-  els.manaConversionButton.addEventListener("click", () => void convertManaToSelectedProtection());
   document.addEventListener("fullscreenchange", syncFullscreenButton);
   els.titleHomeButton.addEventListener("click", () => void returnToTitle());
   els.tacticsBackButton.addEventListener("click", () => {
@@ -7796,15 +7778,6 @@ function renderTabletControls(data) {
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
-  setTabletShortcutLabel(
-    els.tabletManaConversionShortcut,
-    els.manaConversionButton.textContent || "バスト変換",
-    els.manaConversionButton.title || "1MPを選択中のバスト／バリアへ変換"
-  );
-  els.tabletManaConversionShortcut.disabled = els.manaConversionButton.disabled || els.manaConversionButton.hidden;
-  els.tabletManaConversionShortcut.hidden = els.manaConversionControl.hidden;
-  els.tabletManaConversionShortcut.dataset.actionDisabled = els.manaConversionButton.disabled ? "1" : "0";
-  els.tabletManaConversionShortcut.classList.toggle("action-disabled", els.manaConversionButton.disabled);
   setTabletShortcutLabel(els.tabletClairvoyanceShortcut, "千里眼", state.clairvoyance.active ? "千里眼を解除" : "千里眼を発動");
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
@@ -9401,10 +9374,6 @@ function setCurrentRoomSession(roomId, playerId) {
   const nextPlayerId = String(playerId || "");
   if (state.roomId !== nextRoomId || state.playerId !== nextPlayerId) {
     state.roomSessionGeneration += 1;
-    state.pendingManaConversionTransactionId = "";
-    state.pendingManaConversionMode = "";
-    state.manaConversionInFlight = false;
-    state.manaConversionModeInFlight = false;
   }
   state.roomId = nextRoomId;
   state.playerId = nextPlayerId;
@@ -9789,16 +9758,27 @@ function applyState(data, options = {}) {
     if ((data.magicEffects || []).some((effect) => effect.type === "action-repair" && effect.variant === "proximity")) {
     root.setAttribute("data-v550-proximity-repair-observed", "true");
     }
-    root.setAttribute("data-v553-mana-conversion-mode", String(self.manaConversionMode || "reason"));
-    root.setAttribute("data-v553-self-mana", String(self.mana ?? ""));
-    root.setAttribute("data-v553-self-grit", String(self.gritCharges ?? ""));
-    root.setAttribute("data-v553-self-reason", String(self.reasonCharges ?? ""));
-    const manaConversionEffects = (data.magicEffects || []).filter((effect) => (
-      effect.variant === "mana-conversion" && ["instant-stand-firm-acquired", "instant-push-acquired"].includes(effect.type)
+    root.setAttribute("data-v561-auto-mana-next-protection", String(self.manaAutoProtectionNext || "reason"));
+    root.setAttribute("data-v561-auto-mana-self-mana", String(self.mana ?? ""));
+    root.setAttribute("data-v561-auto-mana-self-grit", String(self.gritCharges ?? ""));
+    root.setAttribute("data-v561-auto-mana-self-reason", String(self.reasonCharges ?? ""));
+    const automaticManaProtectionEffects = (data.magicEffects || []).filter((effect) => (
+      effect.variant === "auto-surplus-mana" && ["instant-stand-firm-acquired", "instant-push-acquired"].includes(effect.type)
     ));
-    for (const effect of manaConversionEffects) {
-      if (effect.type === "instant-stand-firm-acquired") root.setAttribute("data-v553-barrier-ate-observed", "true");
-      if (effect.type === "instant-push-acquired") root.setAttribute("data-v553-bust-ate-observed", "true");
+    for (const effect of automaticManaProtectionEffects) {
+      if (effect.type === "instant-stand-firm-acquired") root.setAttribute("data-v561-auto-mana-barrier-ate-observed", "true");
+      if (effect.type === "instant-push-acquired") root.setAttribute("data-v561-auto-mana-bust-ate-observed", "true");
+    }
+    if (
+      VERIFY_REAL_SCREEN_FIXTURE_KIND === "automatic-surplus-mana" &&
+      Number(self.mana) === 10 &&
+      Number(self.reasonCharges) === 2 &&
+      Number(self.gritCharges) === 2 &&
+      self.manaAutoProtectionNext === "reason" &&
+      root.getAttribute("data-v561-auto-mana-bust-ate-observed") === "true" &&
+      root.getAttribute("data-v561-auto-mana-barrier-ate-observed") === "true"
+    ) {
+      root.setAttribute("data-v561-auto-mana-fixture-complete", "true");
     }
     root.setAttribute("data-v554-gunner-aim-active", self.gunnerSnipingActive ? "true" : "false");
     root.setAttribute("data-v554-gunner-luck", String(self.luck ?? ""));
@@ -9858,6 +9838,21 @@ function applyState(data, options = {}) {
     const killed = data.self?.alive === false || data.self?.ejected === true;
     if (moved) document.documentElement.setAttribute("data-v533-enemy-bot-moved", "true");
     if (killed) document.documentElement.setAttribute("data-v533-enemy-bot-killed", "true");
+    if (bot && state.verificationEnemyBotContinuity?.id === bot.id) {
+      const continuity = state.verificationEnemyBotContinuity;
+      const delta = Math.hypot(Number(bot.x) - continuity.x, Number(bot.y) - continuity.y);
+      continuity.pollSamples += 1;
+      if (delta > 0.5) continuity.positionChangeSamples += 1;
+      continuity.x = Number(bot.x);
+      continuity.y = Number(bot.y);
+      const root = document.documentElement;
+      root.setAttribute("data-v561-enemy-bot-poll-samples", String(continuity.pollSamples));
+      root.setAttribute("data-v561-enemy-bot-position-change-samples", String(continuity.positionChangeSamples));
+      root.setAttribute("data-v561-enemy-bot-current-movement", String(bot.movementMode || ""));
+      if (continuity.positionChangeSamples >= 3) {
+        root.setAttribute("data-v561-enemy-bot-continuous-movement", "true");
+      }
+    }
   }
   if (VERIFY_REAL_SCREEN_FIXTURE_KIND === "enemy-defender-task") {
     const taskEvent = (Array.isArray(data.events) ? data.events : [])
@@ -9889,8 +9884,12 @@ function applyState(data, options = {}) {
             state.verificationEnemyBotBaseline = bot
               ? { id: bot.id, x: Number(bot.x), y: Number(bot.y) }
               : null;
+            state.verificationEnemyBotContinuity = bot
+              ? { id: bot.id, x: Number(bot.x), y: Number(bot.y), pollSamples: 0, positionChangeSamples: 0 }
+              : null;
             document.documentElement.setAttribute("data-v533-enemy-bot-moved", "false");
             document.documentElement.setAttribute("data-v533-enemy-bot-killed", "false");
+            document.documentElement.setAttribute("data-v561-enemy-bot-continuous-movement", "false");
           }
           applyState(result, { authoritative: true });
         }
@@ -12854,75 +12853,6 @@ async function toggleMovementAcc() {
   return api("/api/movement-acc", { enabled: !enabled });
 }
 
-function normalizeManaConversionMode(value) {
-  return value === "grit" ? "grit" : "reason";
-}
-
-function manaConversionLabel(mode) {
-  return normalizeManaConversionMode(mode) === "grit" ? "バリア" : "バスト";
-}
-
-function syncManaConversionControl(data = state.data) {
-  const self = data?.self;
-  if (!self || !els.manaConversionControl) return;
-  const isPlaying = data.phase === "playing";
-  const liveNow = estimatedServerNow(data);
-  const actionBlocked = isActionBlocked(data);
-  const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
-  const canAct = isPlaying && self.alive && !self.ejected && !self.inVent && !actionBlocked && !itemBlocked;
-  const authoritativeMode = normalizeManaConversionMode(self.manaConversionMode);
-  const mode = normalizeManaConversionMode(state.pendingManaConversionMode || authoritativeMode);
-  const label = manaConversionLabel(mode);
-  const charges = mode === "grit"
-    ? Math.max(0, Number(self.gritCharges) || 0)
-    : Math.max(0, Number(self.reasonCharges) || 0);
-  const hasMana = Boolean(self.fighterInfiniteResources) || (Number(self.mana) || 0) >= 1;
-  els.manaConversionControl.hidden = !isPlaying;
-  els.manaConversionControl.dataset.mode = mode;
-  els.manaConversionModeSelect.value = mode;
-  els.manaConversionModeSelect.disabled = !canAct || state.manaConversionModeInFlight || state.manaConversionInFlight;
-  els.manaConversionButton.textContent = `${label}変換`;
-  els.manaConversionButton.title = `1MPを${label}1回分へ変換 [F] / 所持 ${charges}/3`;
-  els.manaConversionButton.setAttribute("aria-label", `1MPを${label}1回分へ変換`);
-  els.manaConversionButton.disabled = !canAct || !hasMana || charges >= 3 || state.manaConversionModeInFlight || state.manaConversionInFlight;
-}
-
-async function selectManaConversionMode() {
-  if (state.manaConversionModeInFlight || state.manaConversionInFlight) return false;
-  const mode = normalizeManaConversionMode(els.manaConversionModeSelect.value);
-  if (mode === normalizeManaConversionMode(state.data?.self?.manaConversionMode)) {
-    syncManaConversionControl();
-    return true;
-  }
-  state.pendingManaConversionMode = mode;
-  state.manaConversionModeInFlight = true;
-  syncManaConversionControl();
-  const result = await api("/api/mana-conversion-mode", { mode });
-  state.manaConversionModeInFlight = false;
-  state.pendingManaConversionMode = "";
-  syncManaConversionControl();
-  return result;
-}
-
-function newManaConversionTransactionId() {
-  return globalThis.crypto?.randomUUID?.() || `mana-conversion-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-async function convertManaToSelectedProtection() {
-  if (state.manaConversionInFlight || state.manaConversionModeInFlight || els.manaConversionButton.disabled) return false;
-  const transactionId = state.pendingManaConversionTransactionId || newManaConversionTransactionId();
-  state.pendingManaConversionTransactionId = transactionId;
-  state.manaConversionInFlight = true;
-  syncManaConversionControl();
-  const result = await api("/api/mana-conversion", { transactionId });
-  state.manaConversionInFlight = false;
-  if (result?.manaConversionTransactionId === transactionId) {
-    state.pendingManaConversionTransactionId = "";
-  }
-  syncManaConversionControl();
-  return result;
-}
-
 function updateActionButtons(data) {
   const self = data.self;
   const fighterAccess = hasDisplayedOperatorAccess(self, "fighter");
@@ -12954,7 +12884,6 @@ function updateActionButtons(data) {
   const groundItem = nearestGroundItem(data);
   const liveNow = estimatedServerNow(data);
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
-  syncManaConversionControl(data);
   const dodgeStaminaCost = Number(self.dodgeStaminaCost) || 200;
   const cameraIndices = availableCameraIndices(data);
   const aiming = Boolean(aimed && self.aimTargetId);
@@ -16256,6 +16185,12 @@ function drawMagicEffects() {
     ));
     if (concurrentGainMarker) continue;
     if (drawGunnerSpecialAmmoEffect(effect, progress)) continue;
+    if (effect.type === "quantum-electric-discharge") {
+      if (!drawQuantumElectricDirectedEffect(effect, progress)) {
+        drawDirectedEnergyEffect(effect, progress, now);
+      }
+      continue;
+    }
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
     if (drawTacticalSystemsEffect(effect, progress)) continue;
@@ -16623,10 +16558,92 @@ function drawGoldTransmutationStages(goldSprite, progress) {
   );
 }
 
-function drawGeneratedStandaloneEffect(effect, progress) {
-  if (effect?.type === "quantum-electric-discharge" && IS_VERIFICATION_MODE) {
-    document.documentElement.setAttribute("data-v554-quantum-electric-rendered", "true");
+// The accepted Electric raster is authored on a diagonal. Stretching its
+// square canvas to a horizontal beam and then applying one fixed 45-degree
+// correction changes the authored axis whenever the beam aspect ratio changes.
+// Like Sunbeam, map the raster's actual source/target anchors directly onto the
+// authoritative world-space source/target segment instead.
+const QUANTUM_ELECTRIC_TEXTURE_ANCHORS = Object.freeze({
+  source: Object.freeze({ x: -0.429, y: 0.36 }),
+  target: Object.freeze({ x: 0.408, y: -0.353 })
+});
+
+function quantumElectricTextureTransform(effect, thickness) {
+  const sourceX = Number(effect?.x) || 0;
+  const sourceY = Number(effect?.y) || 0;
+  const targetX = Number.isFinite(effect?.targetX) ? Number(effect.targetX) : sourceX;
+  const targetY = Number.isFinite(effect?.targetY) ? Number(effect.targetY) : sourceY;
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const length = Math.hypot(dx, dy);
+  if (!(length > 0.001)) return null;
+
+  const source = QUANTUM_ELECTRIC_TEXTURE_ANCHORS.source;
+  const target = QUANTUM_ELECTRIC_TEXTURE_ANCHORS.target;
+  const axisX = target.x - source.x;
+  const axisY = target.y - source.y;
+  const normalX = -axisY;
+  const normalY = axisX;
+  const axisMagnitudeSquared = axisX * axisX + axisY * axisY;
+  const perpendicularX = -dy / length * thickness;
+  const perpendicularY = dx / length * thickness;
+  const a = (dx * axisX + perpendicularX * normalX) / axisMagnitudeSquared;
+  const c = (dx * axisY + perpendicularX * normalY) / axisMagnitudeSquared;
+  const b = (dy * axisX + perpendicularY * normalX) / axisMagnitudeSquared;
+  const d = (dy * axisY + perpendicularY * normalY) / axisMagnitudeSquared;
+  const e = sourceX - a * source.x - c * source.y;
+  const f = sourceY - b * source.x - d * source.y;
+  return { a, b, c, d, e, f, sourceX, sourceY, targetX, targetY, length };
+}
+
+function drawQuantumElectricDirectedEffect(effect, progress) {
+  const definition = GENERATED_EFFECT_TEXTURES["quantum-electric-discharge"];
+  if (!definition) return false;
+  const [textureKey] = definition;
+  const prepared = transparentSpriteSource(state.textures[textureKey], textureKey, 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
+  if (!sprite) return false;
+
+  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+  const transform = quantumElectricTextureTransform(effect, 138 + pulse * 34);
+  if (!transform) return false;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
+  ctx.transform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
+  drawAnimatedTextureCentered(sprite, 0, 0, 1, 1, {
+    mode: "beam",
+    progress,
+    intensity: 0.98,
+    baseAlpha: 0.16
+  });
+  ctx.restore();
+
+  if (IS_VERIFICATION_MODE) {
+    const source = QUANTUM_ELECTRIC_TEXTURE_ANCHORS.source;
+    const target = QUANTUM_ELECTRIC_TEXTURE_ANCHORS.target;
+    const mapAnchor = (anchor) => ({
+      x: transform.a * anchor.x + transform.c * anchor.y + transform.e,
+      y: transform.b * anchor.x + transform.d * anchor.y + transform.f
+    });
+    const mappedSource = mapAnchor(source);
+    const mappedTarget = mapAnchor(target);
+    const renderedDx = mappedTarget.x - mappedSource.x;
+    const renderedDy = mappedTarget.y - mappedSource.y;
+    const renderedLength = Math.max(0.001, Math.hypot(renderedDx, renderedDy));
+    const alignment = (renderedDx * (transform.targetX - transform.sourceX) + renderedDy * (transform.targetY - transform.sourceY)) /
+      (renderedLength * transform.length);
+    const root = document.documentElement;
+    root.setAttribute("data-v554-quantum-electric-rendered", "true");
+    root.setAttribute("data-v561-quantum-electric-renderer", "source-target-affine");
+    root.setAttribute("data-v561-quantum-electric-axis-dot", alignment.toFixed(6));
+    root.setAttribute("data-v561-quantum-electric-source-error", Math.hypot(mappedSource.x - transform.sourceX, mappedSource.y - transform.sourceY).toFixed(6));
+    root.setAttribute("data-v561-quantum-electric-target-error", Math.hypot(mappedTarget.x - transform.targetX, mappedTarget.y - transform.targetY).toFixed(6));
   }
+  return true;
+}
+
+function drawGeneratedStandaloneEffect(effect, progress) {
   if (effect?.type === "fighter-energy-charge") {
     recordVerificationMarkerRender(effect, "ordinary-ec", state.frameNow || performance.now());
   } else if (effect?.type === "action-dodge" && effect?.variant === "fixture-positive-control") {
@@ -16677,7 +16694,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     (0.82 + pulse * 0.28 + progress * 0.14);
   const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
   const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
-  const directed = ["gunner-missile", "alchemy-excalibur", "fighter-shockwave", "fighter-energy-release", "quantum-electric-discharge"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
+  const directed = ["gunner-missile", "alchemy-excalibur", "fighter-shockwave", "fighter-energy-release"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
   const goldTransmutation = effect.type === "quantum-transmutation";
   const renderHeight = goldTransmutation
     ? Math.max(72, size * 0.28)
@@ -16690,11 +16707,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
   ctx.translate(directed ? (effect.x + targetX) / 2 : effect.x, directed ? (effect.y + targetY) / 2 : effect.y);
   if (directed) {
-    const sourceAxisOffset = effect.type === "alchemy-excalibur"
-      ? Math.PI / 4
-      : effect.type === "quantum-electric-discharge"
-        ? -Math.PI / 4
-        : 0;
+    const sourceAxisOffset = effect.type === "alchemy-excalibur" ? Math.PI / 4 : 0;
     ctx.rotate(Math.atan2(targetY - effect.y, targetX - effect.x) - sourceAxisOffset);
   }
   drawAnimatedTextureBottom(
@@ -20714,7 +20727,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "electric-long-range-settlement-v560";
+const version = "electric-direction-auto-mana-bot-v561";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21661,5 +21674,5 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=electric-long-range-settlement-v560", document.baseURI)).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=electric-direction-auto-mana-bot-v561", document.baseURI)).catch(() => {});
 }
