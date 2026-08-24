@@ -195,7 +195,6 @@ const els = {
   manaConversionButton: $("#manaConversionButton"),
   objectiveText: $("#objectiveText"),
   sabotageAlert: $("#sabotageAlert"),
-  taskButton: $("#taskButton"),
   ninjutsuButton: $("#ninjutsuButton"),
   shootButton: $("#shootButton"),
   weaponButton: $("#weaponButton"),
@@ -6116,7 +6115,6 @@ function bindEvents() {
   });
   els.mapActionButton.addEventListener("click", () => toggleExpandedMapFromAction());
   els.mapCloseButton.addEventListener("click", () => setExpandedMapOpen(false));
-  els.taskButton.addEventListener("click", () => api("/api/task", { taskId: nearestTask()?.id || "nearest" }));
   els.ninjutsuButton.addEventListener("click", performNinjutsu);
   const bindGunTriggerButton = (button) => {
     let suppressClickUntil = 0;
@@ -12820,7 +12818,6 @@ function updateActionButtons(data) {
       : `-${abilityCosts[key] ?? 1}MP`;
   const target = nearestTarget();
   const aimed = aimedTarget(data);
-  const task = nearestTask();
   const utilityStation = nearestStation((station) => station.type === "utility");
   const groundItem = nearestGroundItem(data);
   const liveNow = estimatedServerNow(data);
@@ -12831,14 +12828,9 @@ function updateActionButtons(data) {
   const aiming = Boolean(aimed && self.aimTargetId);
   const dodgeAccess = self.role === "defender" || fighterAccess;
 
-  const humanDefenderTask = self.role === "defender" && self.isBot !== true && Boolean(task);
   const contextSource = !groundItem
     ? (utilityStation ? els.utilityButton : null)
     : null;
-  const taskMotionBlocked = self.special !== "alchemist" && Math.hypot(Number(self.vx) || 0, Number(self.vy) || 0) > 0.01;
-  els.taskButton.hidden = !humanDefenderTask;
-  els.taskButton.textContent = task ? `タスク: ${task.label}` : "タスク";
-  els.taskButton.disabled = !(humanDefenderTask && canActAlive && !taskMotionBlocked && Number(self.stamina) >= Number(self.taskStaminaRequirement || 400) && (Number(self.taskAutoReadyAt) || 0) <= liveNow);
   const actionLayoutKey = JSON.stringify([
     self.role,
     self.special,
@@ -12851,7 +12843,6 @@ function updateActionButtons(data) {
     hasDisplayedOperatorAccess(self, "flora"),
     hasDisplayedOperatorAccess(self, "gunner"),
     hasDisplayedOperatorAccess(self, "quantum"),
-    task?.id || "",
     activeBorrowedOperator,
     els.teleportModeSelect.value,
     els.teleportTargetSelect.value
@@ -13792,21 +13783,6 @@ function drawGunnerAim(data = state.data) {
   ctx.arc(destination.x, destination.y, 27 + pulse * 4, Math.PI * 0.84, Math.PI * 1.36);
   ctx.stroke();
   ctx.restore();
-}
-
-function nearestTask() {
-  const data = state.data;
-  const self = selfPlayer();
-  if (!data || !self) return null;
-  return (data.self.tasks || [])
-    .filter((task) => !task.done)
-    .map((task) => {
-      const station = data.map.stations.find((item) => item.id === task.stationId);
-      return station ? { ...task, station, dist: dist(self, station) } : null;
-    })
-    .filter(Boolean)
-    .filter((task) => task.dist <= data.map.taskRange)
-    .sort((a, b) => a.dist - b.dist)[0] || null;
 }
 
 function nearestStation(predicate) {

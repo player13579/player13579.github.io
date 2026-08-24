@@ -21394,18 +21394,17 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     if (!task || !station) throw new ApiError(400, "人間Defenderタスク実画面fixtureを準備できません。");
     player.x = station.x;
     player.y = station.y;
-    // The ordinary proximity automation remains production behavior, but this
-    // exact route must leave the same task available for a real #taskButton
-    // transaction. Manual completion does not consult the presence timestamp.
+    // The public Human Defender route is proximity-only: the first tick owns
+    // presence acquisition and a later tick owns authoritative completion.
     player.taskPresenceTaskId = task.id;
-    player.taskPresenceSince = timestamp + 120_000;
+    player.taskPresenceSince = timestamp;
     room.preparationEndsAt = timestamp + 120_000;
     for (const entry of room.players.values()) {
       if (!entry.isBot) continue;
       entry.nextBotActionAt = timestamp + 120_000;
       entry.taskAutoReadyAt = timestamp + 120_000;
     }
-    pushEvent(room, `実画面検証: 停止中の人間Defenderが ${task.label} を手動実行します。`);
+    pushEvent(room, `実画面検証: 停止中の人間Defenderが ${task.label} に接近し、滞在後に自動完了します。`);
   } else if (kind === "fighter-ec100") {
     const timestamp = now();
     Object.assign(player, {
