@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "kill-loot-transfer-v582";
+const DVA_CLIENT_RELEASE = "universal-healing-hsg-fall-live-v583";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -411,7 +411,7 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   fighter: Object.freeze([["limit-break", "リミットブレイク"]]),
   teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
-  flora: Object.freeze([["heal", "回復"], ["sunbeam", "サンビーム"], ["invisible", "インビジブル"]]),
+  flora: Object.freeze([["heal", "ヒール"], ["sunbeam", "サンビーム"], ["invisible", "インビジブル"]]),
   quantum: QUANTUM_ABILITY_MODE_OPTIONS
 });
 
@@ -658,6 +658,7 @@ const state = {
   vendingSelectedByCategory: Object.create(null),
   vendingPageByCategory: Object.create(null),
   itemRenderKey: "",
+  hsgLiveTicker: 0,
   utilityRenderKey: "",
   lastCanvasStageError: "",
   lastCanvasItemError: "",
@@ -754,7 +755,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "hacker-root": "自身の生体状態をHP 0.0001へ固定し、確殺無効効果を一時遮断して他オペ能力を借用する",
   substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
   grit: "1回分を獲得。次の確殺をボディダメージ化。理知中のみ発動",
-  heal: "負傷時はHPを2まで全回復。無傷時はオーバーヒール+1",
+  heal: "HP+1。現在上限を超える分は失わず、current/maxを同率で拡張",
   reason: "1回分を獲得。次の攻撃対象のバリアを全削除し、削除1回につき自分へ0.5ダメージ。理知中のみ発動",
   mana: "MP+1",
   stamina: "取得時に即席でSP+350。物理所持品には残らない",
@@ -839,7 +840,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kill-loot-transfer-v582";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "universal-healing-hsg-fall-live-v583";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1532,7 +1533,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "RESOURCE GUIDE",
     name: "ソフィア",
-    text: "SPとMPは各自の現在上限に対する割合で、0%=0点、0%超〜50%=1点、50%超=2点。合計0=欲望、1〜2=気概、3〜4=理知です。HPは含めません。SPとMPの獲得が上限を超えるとcurrent/maxが一緒に拡張され、消費しても上限は縮みません。理知の自然回復は不足分を回復した後もcurrent/maxをじわじわ拡張します。",
+    text: "SPとMPは各自の現在上限に対する割合で、0%=0点、0%超〜50%=1点、50%超=2点。合計0=欲望、1〜2=気概、3〜4=理知です。HPは含めません。HP・SP・MPの回復は不足分を満たし、余剰分でcurrent/maxを一緒に拡張します。消費やダメージで上限は縮みません。",
     sophiaGesture: "focus",
     philiaGesture: "interact",
     symbols: [{ type: "idea", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
@@ -1572,7 +1573,7 @@ const TACTICS_NOVEL_SCENES = Object.freeze([
     speaker: "sophia",
     role: "OPERATOR GUIDE",
     name: "ソフィア",
-    text: "ガンナーは銃と特殊弾、グラビティは時空と全域重力嵐、フローラは自己回復と光、ハッカーは生成、クオンタムは物質変換を担当します。",
+    text: "ガンナーは銃と特殊弾、グラビティは時空と全域重力嵐、フローラはヒールと光、ハッカーは生成、クオンタムは物質変換を担当します。",
     sophiaGesture: "interact",
     philiaGesture: "cast",
     symbols: [{ type: "note", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
@@ -7728,7 +7729,7 @@ function renderTabletBranch(data, force = false) {
           }, { kind: "target", selected: option.value === els.teleportTargetSelect.value });
         });
       } else {
-        addModeAction("回復・オーバーヒール", "heal");
+        addModeAction("ヒール", "heal");
         addModeAction("サンビーム", "sunbeam");
         addModeAction("インビジブル", "invisible");
         if (els.teleportModeSelect.value === "sunbeam") addSubmenu("サンビーム対象を選択", "flora-target");
@@ -7818,7 +7819,7 @@ function conciseTabletAbilityName(data) {
       storm: "グラビティストーム"
     },
     flora: {
-      heal: "回復",
+      heal: "ヒール",
       sunbeam: "サンビーム",
       invisible: "インビジブル"
     },
@@ -9832,6 +9833,7 @@ function applyState(data, options = {}) {
     state.lastStateReceivedAt = performance.now();
   }
   state.data = data;
+  syncHsgLiveCountdownTicker(data);
   updateManualVerificationBotContinuity(data, options.source || "state");
   if (IS_VERIFICATION_MODE) {
     const barrierActive = data.phase === "playing" && Number(data.preparationEndsAt) > Number(data.serverNow || Date.now());
@@ -11764,7 +11766,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
         inventoryKind,
         output: `物理武具 / ${stateLabel}`,
         detail: activeMs > 0
-          ? `物理HSG。${gboActive ? "GBO" : "通常／Enhance"}浮揚中（残り${(activeMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
+          ? `物理HSG。${gboActive ? "GBO" : "通常／Enhance"}浮揚中（残り${(activeMs / 1000).toFixed(1)}秒）。期限終了時に床がなければ落下死。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
           : cooldownMs > 0
             ? `物理HSG。20秒CT中（残り${(cooldownMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
             : "物理HSG。通常使用と床外自動起動は1MPで即8秒・ACC 1.8。Useを600〜2999ms長押しすると総コスト固定1MPの単一Enhanceで即10秒・ACC 2.0、3000ms以上で総コスト固定2MPのGBOを即起動。MP不足時は発動せず、GBOだけHSGを1個破壊。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能",
@@ -12222,6 +12224,48 @@ function formatEffectCountdown(milliseconds) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function hsgCountdownState(self, liveNow = estimatedServerNow(state.data)) {
+  const activeMs = Math.max(0, Number(self?.hsgUntil) - liveNow);
+  const cooldownMs = Math.max(0, Number(self?.hsgReadyAt) - liveNow);
+  return { activeMs, cooldownMs, running: activeMs > 0 || cooldownMs > 0 };
+}
+
+function refreshHsgLiveCountdown(data = state.data) {
+  const self = data?.self;
+  if (!self || data?.phase !== "playing") return false;
+  const liveNow = estimatedServerNow(data);
+  const countdown = hsgCountdownState(self, liveNow);
+  // These two UI owners derive their wording solely from serverNow plus the
+  // authoritative deadlines. Rendering them from the estimated clock makes
+  // a received HSG state visibly progress if the next poll is delayed; no
+  // client-owned gameplay deadline is introduced.
+  renderItemControl(data);
+  renderActiveEffects(data);
+  if (IS_VERIFICATION_MODE) {
+    const root = document.documentElement;
+    root.setAttribute("data-v583-hsg-live-countdown-ms", String(Math.ceil(countdown.activeMs)));
+    root.setAttribute("data-v583-hsg-live-countdown-running", countdown.running ? "true" : "false");
+    root.setAttribute("data-v583-hsg-live-countdown-source", "serverNow+hsgUntil");
+  }
+  return countdown.running;
+}
+
+function syncHsgLiveCountdownTicker(data = state.data) {
+  const running = refreshHsgLiveCountdown(data);
+  if (running && !state.hsgLiveTicker) {
+    // Bounded display ticker: it neither issues requests nor mutates game
+    // state, and it tears down as soon as active/CT time has elapsed.
+    state.hsgLiveTicker = window.setInterval(() => {
+      if (refreshHsgLiveCountdown(state.data)) return;
+      window.clearInterval(state.hsgLiveTicker);
+      state.hsgLiveTicker = 0;
+    }, 125);
+  } else if (!running && state.hsgLiveTicker) {
+    window.clearInterval(state.hsgLiveTicker);
+    state.hsgLiveTicker = 0;
+  }
+}
+
 function hasDisplayedOperatorAccess(self, type) {
   if (!self) return false;
   const nativeSpecial = type === "gravity" ? "teleport" : type;
@@ -12354,7 +12398,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       "HSG",
       `${hsgGboActive ? "GBO" : "HSG"}浮揚中 ${formatEffectCountdown(hsgActiveMs)}`,
       "truth",
-      `${hsgGboActive ? "直接GBO" : "直接使用または床外自動起動"}の時間効果。Storage cardで使用・投擲とCTを確認`
+      `${hsgGboActive ? "直接GBO" : "直接使用または床外自動起動"}の時間効果。期限終了時に床がなければ落下死。Storage cardで使用・投擲とCTを確認`
     );
   }
 
@@ -12424,7 +12468,7 @@ function renderActiveEffects(data) {
       `合法な異陣営キルごとに基本キルCTを10%ずつ短縮。現在${Math.round(Math.max(0.25, Number(self.killChainCooldownMultiplier) || 1) * 100)}%（最短25%）。銃の発射間隔・リロード・能力CTは対象外`
     );
   }
-  if ((self.overheal || 0) > 0) add("オーバーヒール", `×${self.overheal}`, "good", "1回につきボディダメージ1回を吸収し、状態異常を解除");
+  if ((self.overheal || 0) > 0) add("拡張HP", `${Number(self.health || 0).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}/${Number(self.maxHealth || 2).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`, "good", "上限2を超えた現在HP。ダメージ後も獲得済みの最大HPは維持");
   if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化し、発動後もしばらく防護");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
   if ((self.pushCharges || 0) > 0) add("バスト", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "バリア全消去。1回につき反動0.5");
@@ -12503,10 +12547,10 @@ function renderActiveEffects(data) {
     const hpRate = Number(self.naturalRecoveryHpPerSecond || 0.05).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     const spRate = Number(self.naturalRecoveryStaminaPerSecond || 19).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     const mpRate = Number(self.naturalRecoveryManaPerSecond || 0.127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は状態異常ではないため回復対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後はSP・MPのcurrent/maxを同率で拡張`);
+    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は状態異常ではないため回復対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後もcurrent/maxを同率で拡張`);
   }
-  if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・フローラ回復・理知中の自然回復で解除");
-  if (self.burnStatus) add("燃焼", "継続中", "desire", "水・フローラ回復・理知中の自然回復で解除");
+  if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・ヒール・理知中の自然回復で解除");
+  if (self.burnStatus) add("燃焼", "継続中", "desire", "水・ヒール・理知中の自然回復で解除");
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
   timed("休息", self.sleepingUntil, "neutral", `行動停止・SP回復×4。SP全快時、MPが${Number(self.restCompletionManaFloor) || 2}未満なら${Number(self.restCompletionManaFloor) || 2}へ回復`);
@@ -13248,7 +13292,7 @@ function updateActionButtons(data) {
   els.teleportButton.disabled = !(canUseAbility && self.special === "teleport" &&
     hasMana(teleportMode === "heart" ? "heartTeleport" : "teleport") &&
     (teleportMode !== "heart" || !teleportTargetIsSelf));
-  els.healButton.textContent = `${self.overheal > 0 ? "オーバーヒール済み" : self.bodyHits > 0 ? "回復" : "オーバーヒール"} ${operatorCostLabel("flora")}`;
+  els.healButton.textContent = `ヒール ${operatorCostLabel("flora")}`;
   els.healButton.disabled = !(canUseAbility && self.special === "flora" && hasMana("flora"));
   els.alchemyButton.textContent = `バイブコーディング: ${selectedAlchemy.label} ${operatorCostLabel("alchemy")}`;
   els.alchemyButton.disabled = !(canUseAbility &&
@@ -13273,7 +13317,7 @@ function updateActionButtons(data) {
               : operatorMode === "time-keeper" ? `時の番人 5秒 ${operatorCostLabel("timeKeeper")}`
                 : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
     flora: operatorMode === "heal"
-      ? `回復 ${operatorCostLabel("flora")}`
+      ? `ヒール ${operatorCostLabel("flora")}`
       : operatorMode === "sunbeam"
         ? `サンビーム ${operatorCostLabel("floraSunbeam")}`
         : `インビジブル 10秒 ${operatorCostLabel("floraInvisible")}`,
@@ -18004,13 +18048,13 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
   statusRecovery: ["状態異常回復", "燃焼・毒・通常/テーザー/ショック/重力減速・能力封印・重力拘束を解除します。EMP機器異常は状態異常ではないため、この回復では解除できません。"],
   acceleration: ["加速獲得", "移動・物理モーション・CT・行動不能・タスク速度を発動元の倍率・時間で加速します。"],
   luckBoost: ["幸運／直観上昇", "乱数判定とイデア到達時間に有利な補正を得ました。"],
-  overheal: ["オーバーヒール", "通常HPを超える耐久+1。次のボディダメージを吸収します。"],
+  overheal: ["HP上限拡張", "現在HPと個人上限を同率で拡張し、拡張分もボディダメージを吸収します。"],
   relaxation: ["リラックス", "12秒間、加速×1.35を得ました。移動・物理モーション・CT・行動不能・タスク速度へ適用します。"],
   herbalRecovery: ["植物療法", "HP+1。"],
   healthyMeal: ["健康的な食事", "HP+1・SP+120・MP+1。"],
   mineralWater: ["ミネラルウォーター", "燃焼解除・SP+100。"],
   heal: ["HP回復", "発動元の表示量だけHPを回復しました。"],
-  fullRecovery: ["全回復", "HPを2まで全回復し、オーバーヒールを最低1にしました。"],
+  fullRecovery: ["全回復", "HPを回復し、余剰分はcurrent/maxを同率で拡張しました。"],
   decoy: ["デコイ作動", "SP+100と偽足音を発生させました。"]
 });
 
@@ -18023,8 +18067,8 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   standFirm: ["バリア", "次に受ける確殺を一度だけ防ぎ、発動後もしばらく防護します。"],
   push: ["バスト", "対象のバリアを無効化します。無効化数に応じ反動を受けます。"],
   iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
-  burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・フローラ回復・理知中の自然回復で解除できます。"],
-  poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・フローラ回復・理知中の自然回復で解除できます。"],
+  burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・ヒール・理知中の自然回復で解除できます。"],
+  poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・ヒール・理知中の自然回復で解除できます。"],
   manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC100回到達報酬によりMP・SP・HP・バリアが無限になっています。"],
   destructionSlash: ["常時消滅斬り", "EC1000回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
@@ -20663,8 +20707,13 @@ function drawHud(data, w, h) {
   const timestamp = estimatedServerNow(data);
   const stamina = Number(self.stamina) || 0;
   const mana = Number(self.mana) || 0;
-  const baseHealth = self.alive ? Math.max(0, 2 - (Number(self.bodyHits) || 0)) : 0;
-  const overheal = self.alive ? Math.max(0, Number(self.overheal) || 0) : 0;
+  const serializedHealth = Number(self.health);
+  const health = self.alive
+    ? Math.max(0, Number.isFinite(serializedHealth)
+      ? serializedHealth
+      : Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0))
+    : 0;
+  const maxHealth = Math.max(2, Number(self.maxHealth) || 2, health);
   const cooldownRemaining = Math.max(0, (Number(self.killReadyAt) || 0) - timestamp);
   const empCooldownRemaining = Math.max(0, (Number(self.empReadyAt) || 0) - timestamp);
   const vibeCodingCooldownRemaining = self.special === "alchemist"
@@ -20679,13 +20728,16 @@ function drawHud(data, w, h) {
   const movementAccActive = self.movementAccActive === true || (
     self.movementAccActive == null && movementAccEnabled && accelerationMultiplier + 1e-6 >= movementAccThreshold && Number(self.movementAcc) > 1.5
   );
-  const healthText = baseHealth > 0 && baseHealth < 0.001
-    ? baseHealth.toFixed(4)
-    : baseHealth.toFixed(1).replace(/\.0$/, "");
+  const formatHealth = (value) => value > 0 && value < 0.001
+    ? value.toFixed(4)
+    : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  const healthText = formatHealth(health);
+  const maxHealthText = formatHealth(maxHealth);
+  const healthRatio = maxHealth > 0 ? health / maxHealth : 0;
   const bars = [
     { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}/${Math.round(maxStamina)}` },
     { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.mentalState === "理知" ? "#a78bfa" : self.mentalState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}/${Math.round(manaGaugeMax * 100) / 100}` },
-    { label: "HP", value: self.fighterInfiniteResources ? 2 : baseHealth, max: 2, color: baseHealth >= 1.5 ? "#22c55e" : baseHealth >= 0.65 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${healthText}/2${overheal ? `+${overheal}` : ""}` }
+    { label: "HP", value: self.fighterInfiniteResources ? maxHealth : health, max: maxHealth, color: healthRatio >= 0.75 ? "#22c55e" : healthRatio >= 0.325 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${healthText}/${maxHealthText}` }
   ];
   if (IS_VERIFICATION_MODE) {
     const hudProbe = JSON.stringify({
@@ -20696,6 +20748,9 @@ function drawHud(data, w, h) {
     if (document.documentElement.getAttribute("data-v528-hud-contract") !== hudProbe) {
       document.documentElement.setAttribute("data-v528-hud-contract", hudProbe);
     }
+    document.documentElement.setAttribute("data-v583-healing-health", healthText);
+    document.documentElement.setAttribute("data-v583-healing-max", maxHealthText);
+    document.documentElement.setAttribute("data-v583-healing-expanded", maxHealth > 2 && Math.abs(health - maxHealth) < 0.000001 ? "true" : "false");
   }
   const width = Math.min(260, Math.max(224, w * 0.27));
   const barWidth = width - 116;
@@ -21043,7 +21098,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "kill-loot-transfer-v582";
+const version = "universal-healing-hsg-fall-live-v583";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21999,7 +22054,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=kill-loot-transfer-v582", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=universal-healing-hsg-fall-live-v583", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

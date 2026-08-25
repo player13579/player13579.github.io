@@ -50,7 +50,7 @@
     ["gravity-decelerate", "ディーセラレート", 8, "operator-gravity", "gravity", "decelerate", "active", "/api/gravity-time"],
     ["gravity-time-keeper", "時の番人", 14, "operator-gravity", "gravity", "time-keeper", "active", "/api/gravity-time-keeper"],
     ["gravity-storm", "グラビティストーム", 20, "operator-gravity", "gravity", "storm", "active", "/api/gravity-storm"],
-    ["flora-heal", "回復", 7, "operator-flora", "flora", "heal", "active", "/api/flora-heal"],
+    ["flora-heal", "ヒール", 7, "operator-flora", "flora", "heal", "active", "/api/flora-heal"],
     ["flora-sunbeam", "サンビーム", 20, "operator-flora", "flora", "sunbeam", "active", "/api/flora-heal"],
     ["flora-invisible", "インビジブル", 16, "operator-flora", "flora", "invisible", "active", "/api/flora-heal"],
     ["gunner-aim", "エイム", 12, "operator-gunner", "gunner", "aim", "passive", "advanceGunnerAimPassive"],
@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "kill-loot-transfer-v582",
+    version: "universal-healing-hsg-fall-live-v583",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

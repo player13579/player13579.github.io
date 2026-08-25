@@ -7330,7 +7330,7 @@ const LABORATORY_MAP = Object.freeze({
     ["gravity-decelerate", "ディーセラレート", 8, "operator-gravity", "gravity", "decelerate", "active", "/api/gravity-time"],
     ["gravity-time-keeper", "時の番人", 14, "operator-gravity", "gravity", "time-keeper", "active", "/api/gravity-time-keeper"],
     ["gravity-storm", "グラビティストーム", 20, "operator-gravity", "gravity", "storm", "active", "/api/gravity-storm"],
-    ["flora-heal", "回復", 7, "operator-flora", "flora", "heal", "active", "/api/flora-heal"],
+    ["flora-heal", "ヒール", 7, "operator-flora", "flora", "heal", "active", "/api/flora-heal"],
     ["flora-sunbeam", "サンビーム", 20, "operator-flora", "flora", "sunbeam", "active", "/api/flora-heal"],
     ["flora-invisible", "インビジブル", 16, "operator-flora", "flora", "invisible", "active", "/api/flora-heal"],
     ["gunner-aim", "エイム", 12, "operator-gunner", "gunner", "aim", "passive", "advanceGunnerAimPassive"],
@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "kill-loot-transfer-v582",
+    version: "universal-healing-hsg-fall-live-v583",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7952,8 +7952,8 @@ const OPERATORS = {
       special: "flora",
       limit: 99,
       asset: "flora",
-      description: "回復・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは10MPで屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
+      description: "ヒール・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
+      details: "ヒールは1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは10MPで屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -8639,7 +8639,7 @@ function normalizeMapObjectBenefits(map) {
       object.effectLabel = `スタミナ +${Math.max(1, Number(object.effectAmount) || 100)}`;
     }
     if (object.effectKind === "fullRecovery") {
-      object.effectLabel = "HP全回復・オーバーヒール";
+      object.effectLabel = "HP回復・上限拡張";
     }
   }
 }
@@ -9865,6 +9865,10 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     clairvoyanceManaCarry: 0,
     bodyHits: 0,
     overheal: 0,
+    // HP is represented by the original two body layers plus current
+    // overheal.  Keep the personal ceiling separately so recovery-earned
+    // capacity survives later damage and battle-state serialization.
+    maxHealth: 2,
     credits: 0,
     lastPassiveCreditAt: now(),
     mana: STARTING_MANA,
@@ -10506,6 +10510,7 @@ function startGame(room) {
     player.clairvoyanceManaCarry = 0;
     player.bodyHits = 0;
     player.overheal = 0;
+    player.maxHealth = 2;
     player.credits = 0;
     player.lastPassiveCreditAt = timestamp;
     player.mana = STARTING_MANA;
@@ -10860,6 +10865,7 @@ function startBattle(room) {
     player.movementMode = "idle";
     player.bodyHits = 0;
     player.overheal = 0;
+    player.maxHealth = 2;
     player.stamina = MAX_STORED_STAMINA;
     player.mana = STARTING_MANA;
     player.maxStoredStamina = MAX_STORED_STAMINA;
@@ -11388,6 +11394,35 @@ function isHackerOperational(player) {
 function remainingHealth(player) {
   return Math.max(0, 2 - Math.max(0, Number(player?.bodyHits) || 0)) +
     Math.max(0, Number(player?.overheal) || 0);
+}
+
+function healthCapacityFor(player) {
+  // Adopt legacy/current overhealth safely the first time an older room is
+  // serialized; no authoritative current value may ever exceed its ceiling.
+  return Math.max(2, Number(player?.maxHealth) || 0, remainingHealth(player));
+}
+
+// The sole positive-HP recovery owner.  It deliberately does not clamp at
+// the historical two-body-layer display threshold: any recovery that would
+// pass the current personal ceiling raises that ceiling atomically.  Damage
+// continues to consume current overheal/body layers only, leaving maxHealth
+// as the player's earned capacity record.
+function recoverHealth(player, amount = 1) {
+  if (!player) return { recovered: 0, health: 0, maxHealth: 2 };
+  const recovery = Math.max(0, Number(amount) || 0);
+  const before = remainingHealth(player);
+  if (recovery <= 0) return { recovered: 0, health: before, maxHealth: healthCapacityFor(player) };
+  // Preserve the two existing damage layers: recovery first repairs a body
+  // hit, then carries any undiscarded remainder into current overheal.  A
+  // normalized single scalar would accidentally erase already-held overheal
+  // whenever a player was damaged while shielded.
+  const bodyHits = Math.max(0, Number(player.bodyHits) || 0);
+  const bodyRecovered = Math.min(bodyHits, recovery);
+  player.bodyHits = Number((bodyHits - bodyRecovered).toFixed(6));
+  player.overheal = Number((Math.max(0, Number(player.overheal) || 0) + recovery - bodyRecovered).toFixed(6));
+  const health = Number((before + recovery).toFixed(6));
+  player.maxHealth = Math.max(healthCapacityFor(player), health);
+  return { recovered: recovery, health, maxHealth: player.maxHealth };
 }
 
 function fighterEnergyPeak(player) {
@@ -12088,8 +12123,7 @@ function grantIdeaGood(room, player, timestamp) {
   player.goodActive = true;
   grantPushCharge(room, player, false, "idea-good");
   grantStandFirmCharge(room, player, false, "idea-good");
-  player.bodyHits = 0;
-  player.overheal = Math.max(1, Number(player.overheal) || 0);
+  recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1));
   player.slowedUntil = 0;
   player.taserSlowedUntil = 0;
   player.shockSlowedUntil = 0;
@@ -12314,16 +12348,23 @@ function canLevitate(player, timestamp = now()) {
 function synchronizeSharedLevitationExpiry(room, player, timestamp = now()) {
   if (!player) return false;
   const active = activeLevitationSources(player, timestamp).length > 0;
-  const wasActive = Boolean(player.sharedLevitationActive);
   player.sharedLevitationActive = active;
-  if (active || !wasActive) return false;
+  // `sharedLevitationActive` is presentation/reconciliation state, never the
+  // authority for survival. A missed state update used to make an already
+  // false flag indistinguishable from an HSG expiry, leaving an off-floor
+  // player alive. Re-evaluate actual timed sources on every tick: HSG is
+  // active strictly before its deadline, while Gravity remains independent.
+  if (active) return false;
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) return false;
   const radius = getMap(room).playerRadius || 36;
   if (isFloorArea(room, player.x, player.y, radius)) return false;
   const destroyed = destroyPlayerUnconditionally(room, null, player, "共有浮揚終了後の足場外落下", {
     noKillCutin: true,
     attackKind: "unsupported-fall-after-levitation",
-    attackLabel: "共有浮揚終了後の足場外落下"
+    attackLabel: "共有浮揚終了後の足場外落下",
+    bypassSlashGuard: true,
+    ignorePreparationBarrier: true,
+    ignoreFriendlyFire: true
   });
   if (destroyed) {
     checkWin(room);
@@ -16067,9 +16108,7 @@ function recoverMapObjectStatuses(room, player, source) {
 }
 
 function healBodyHits(player, amount = 1) {
-  const before = Math.max(0, Number(player.bodyHits) || 0);
-  player.bodyHits = Math.max(0, before - Math.max(1, Number(amount) || 1));
-  return player.bodyHits < before;
+  return recoverHealth(player, Math.max(1, Number(amount) || 1)).recovered > 0;
 }
 
 function useMapObject(room, player, objectId) {
@@ -16130,7 +16169,7 @@ function useMapObject(room, player, objectId) {
     player.objectLuckUntil = Math.max(Number(player.objectLuckUntil) || 0, timestamp + Math.max(1000, Number(object.effectDurationMs) || 20000));
     player.luck = luckValueFor(player);
   } else if (object.effectKind === "overheal") {
-    player.overheal = Math.min(3, Math.max(0, Number(player.overheal) || 0) + Math.max(1, Number(object.effectAmount) || 1));
+    recoverHealth(player, Math.max(1, Number(object.effectAmount) || 1));
   } else if (object.effectKind === "footBath") {
     healBodyHits(player, 1);
     recoverMapObjectStatuses(room, player, object.label);
@@ -16158,10 +16197,7 @@ function useMapObject(room, player, objectId) {
     replenishStamina(player, timestamp, true);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || 100), object.label, timestamp);
   } else if (object.effectKind === "fullRecovery") {
-    const needsTreatment = player.bodyHits > 0 || Number(player.overheal) <= 0;
-    if (!needsTreatment) throw new ApiError(400, "現在は十分に回復しています。");
-    player.bodyHits = 0;
-    player.overheal = Math.max(1, Number(player.overheal) || 0);
+    recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1));
   } else if (object.effectKind === "decoy") {
     replenishStamina(player, timestamp, true);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || MAX_STAMINA), object.label, timestamp);
@@ -16172,7 +16208,6 @@ function useMapObject(room, player, objectId) {
       volume: 1.05
     });
   } else if (object.effectKind === "heal") {
-    if (player.bodyHits <= 0) throw new ApiError(400, "回復が必要なダメージはありません。");
     healBodyHits(player, object.effectAmount);
   } else if (object.effectKind === "mana") {
     setMana(room, player, (Number(player.mana) || 0) + Math.max(1, Number(object.effectAmount) || 1), object.label);
@@ -16202,10 +16237,6 @@ function useMapObject(room, player, objectId) {
 
 function autoUseNearbyMapObject(room, player, timestamp = now()) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent || actionBlockedUntil(player) > timestamp) return false;
-  const hasStatus = Boolean(player.burnStatus || player.poisonStatus || Number(player.slowedUntil) > timestamp ||
-    Number(player.taserSlowedUntil) > timestamp || Number(player.shockSlowedUntil) > timestamp || Number(player.abilityDisabledUntil) > timestamp ||
-    Number(player.itemDisabledUntil) > timestamp || Number(player.gravityPinnedUntil) > timestamp);
-  const hasCooldown = Object.entries(player).some(([key, value]) => key.endsWith("ReadyAt") && Number(value) > timestamp);
   const nearbyEntries = nearbyMapObjects(room, player);
   const usedDuringContact = pruneObjectContactUses(player, nearbyEntries);
   for (const { object } of nearbyEntries) {
@@ -16215,14 +16246,12 @@ function autoUseNearbyMapObject(room, player, timestamp = now()) {
     const useful = object.type === "resolvePoint" || object.effectKind === "mana" || object.effectKind === "decoy" ||
       object.effectKind === "credits" || object.effectKind === "acceleration" || object.effectKind === "luckBoost" ||
       object.effectKind === "overheal" || object.effectKind === "relaxation" || object.effectKind === "healthyMeal" ||
-      (object.effectKind === "footBath" && (hasStatus || hasCooldown || Number(player.bodyHits) > 0)) ||
-      (object.effectKind === "herbalRecovery" && Number(player.bodyHits) > 0) ||
+      object.effectKind === "footBath" ||
+      object.effectKind === "herbalRecovery" ||
       object.effectKind === "mineralWater" ||
       object.effectKind === "stamina" ||
-      (object.effectKind === "heal" && Number(player.bodyHits) > 0) ||
-      (object.effectKind === "fullRecovery" && (
-        Number(player.bodyHits) > 0 || Number(player.overheal) <= 0
-      ));
+      object.effectKind === "heal" ||
+      object.effectKind === "fullRecovery";
     if (!useful) continue;
     try {
       useMapObject(room, player, object.id);
@@ -16244,11 +16273,10 @@ function applyMysteryDrink(room, player, timestamp = now()) {
     grantStamina(room, player, 250, "ミステリー", timestamp);
     result = "エナジーサージ スタミナ+250";
   } else if (roll < 0.52) {
-    player.bodyHits = 0;
-    player.overheal = 1;
+    recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1));
     clearAdverseStatuses(room, player, "完全活性", timestamp);
     addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
-    result = "完全活性 回復・オーバーヒール・速度上昇";
+    result = "完全活性 HP回復・上限拡張・速度上昇";
   } else if (roll < 0.64) {
     setMana(room, player, Math.max(manaCapacityFor(player), Number(player.mana) || 0), "マナ奔流");
     result = "マナ奔流 理知へ移行";
@@ -16411,8 +16439,7 @@ function purchaseDrink(room, player, itemId, options = {}) {
     } },
     grit: { label: "バリア", cost: STAND_FIRM_COST, apply: () => grantStandFirmCharge(room, player, true, "vending") },
     heal: { label: "回復", cost: HEAL_COST, apply: () => {
-      if (player.bodyHits > 0) player.bodyHits = 0;
-      else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
+      recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0)));
     } },
     mana: { label: "マナポーション +1MP", cost: MANA_POTION_COST, apply: () => {
       setMana(room, player, (Number(player.mana) || 0) + 1, "マナポーション");
@@ -17206,13 +17233,10 @@ function maintainNaturalRecovery(room, player, timestamp = now()) {
 function advanceNaturalRecoveryHealth(room, player, elapsedMs) {
   if (!hasNaturalRecovery(room, player)) return false;
   if (player.hackerRootActive || hasFighterInfiniteResources(player)) return false;
-  const before = Math.max(0, Number(player.bodyHits) || 0);
-  if (before <= 0) return false;
   const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
-  const recovered = Math.min(before, NATURAL_RECOVERY_HP_PER_SECOND * floraAromaMultiplier(room, player) * elapsedSeconds);
+  const recovered = NATURAL_RECOVERY_HP_PER_SECOND * floraAromaMultiplier(room, player) * elapsedSeconds;
   if (recovered <= 0) return false;
-  player.bodyHits = Number(Math.max(0, before - recovered).toFixed(6));
-  return player.bodyHits < before;
+  return recoverHealth(player, recovered).recovered > 0;
 }
 
 function advanceNaturalRecoveryMana(room, player, elapsedMs) {
@@ -18262,23 +18286,22 @@ function teleportFromClairvoyance(room, player, rawX, rawY) {
 
 function healFlora(room, player) {
   if (room.phase !== "playing" || !hasOperatorAccess(player, "flora")) {
-    throw new ApiError(403, "フローラだけが回復できます。");
+    throw new ApiError(403, "フローラだけがヒールを使用できます。");
   }
-  if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は回復できません。");
+  if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在はヒールを使用できません。");
   ensureAbilityAvailable(player);
   const timestamp = now();
-  spendOperatorMana(room, player, "フローラ");
-  if (player.bodyHits > 0) player.bodyHits = 0;
-  else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1;
-  clearAdverseStatuses(room, player, "フローラ回復", timestamp);
-  grantStamina(room, player, MAX_STAMINA, "フローラ回復", timestamp, { floorAtZero: true });
+  spendOperatorMana(room, player, "ヒール");
+  recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0)));
+  clearAdverseStatuses(room, player, "ヒール", timestamp);
+  grantStamina(room, player, MAX_STAMINA, "ヒール", timestamp, { floorAtZero: true });
   addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
-  setImmediateFeedback(player, "フローラ回復", `自分 / HP回復 / SP+${MAX_STAMINA} / 状態解除 / 加速`);
+  setImmediateFeedback(player, "ヒール", `自分 / HP回復 / SP+${MAX_STAMINA} / 状態解除 / 加速`);
   pushMagicEffect(room, "flora", player, { radius: FLORA_SELF_EFFECT_RADIUS, playerId: player.id });
   pushGainAte(room, player, "heal", { variant: "flora" });
   pushGainAte(room, player, "stamina", { variant: "flora", durationMs: 1620 });
   pushGainAte(room, player, "statusRecovery", { variant: "flora", durationMs: 1740 });
-  pushEvent(room, `${player.name} がフローラを発動し、自分へ回復・スタミナ・状態解除・加速を付与しました。`);
+  pushEvent(room, `${player.name} がヒールを発動し、自分へ回復・スタミナ・状態解除・加速を付与しました。`);
   touch(room);
 }
 
@@ -18439,7 +18462,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "orichalcum-sword": { label: "オリハルコン・ソード", cost: 0, apply: (_room, player) => addItem(player, "orichalcum-sword") },
   stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { const timestamp = now(); grantStamina(room, player, 350, "バイブコーディング", timestamp, { floorAtZero: true }); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
   hsg: { label: "HSG", cost: 0, apply: (_room, player) => acquirePhysicalHsg(player) },
-  heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1; pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
+  heal: { label: "回復", cost: 1, apply: (room, player) => { recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0))); pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
   fire: { label: "ファイア", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
   substitution: { label: "変わり身の術", cost: 1, apply: (room, player) => { player.substitutionCharges += 1; pushInstantItemAcquisitionAte(room, player, "substitution", "hacker"); } },
   warp: { label: "テレポートマップスクロール", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
@@ -18478,7 +18501,12 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "hack-items-delete": { label: "アイテム削除", cost: 2, apply: (room, player, targetId) => clearHackableInventory(hackerTarget(room, player, targetId)) },
   "hack-items-duplicate": { label: "アイテム増殖", cost: 2, apply: (room, player, targetId) => duplicateHackableInventory(hackerTarget(room, player, targetId)) },
   "hack-hp-delete": { label: "HP削除", cost: 2, apply: (room, player, targetId) => deleteHackerTargetHp(room, player, targetId) },
-  "hack-hp-duplicate": { label: "HP増殖", cost: 2, apply: (room, player, targetId) => { const target = hackerTarget(room, player, targetId); target.bodyHits = 0; target.overheal = Math.max(1, target.overheal); } },
+  "hack-hp-duplicate": { label: "HP増殖", cost: 2, apply: (room, player, targetId) => {
+    const target = hackerTarget(room, player, targetId);
+    const bodyDamage = Math.max(0, Number(target.bodyHits) || 0);
+    const extraNeeded = Math.max(0, 1 - Math.max(0, Number(target.overheal) || 0));
+    recoverHealth(target, Math.max(1, bodyDamage + extraNeeded));
+  } },
   "hack-mana-delete": { label: "マナ削除", cost: 2, apply: (room, player, targetId) => setMana(room, hackerTarget(room, player, targetId), 0, "バイブコーディング") },
   "hack-mana-duplicate": { label: "マナ増殖", cost: 2, apply: (room, player, targetId) => { const target = hackerTarget(room, player, targetId); setMana(room, target, Math.max(2, Number(target.mana) || 0) * 2, "バイブコーディング"); } },
   "hack-status-recover": { label: "状態異常回復", cost: 0, apply: (room, player, targetId) => recoverHackerTargetStatus(room, player, targetId) },
@@ -21100,6 +21128,7 @@ function serialize(room, viewer, options = {}) {
       ascensionUntil: Number(player.ascensionUntil) || 0,
       bodyHits: player.id === viewer.id ? player.bodyHits : 0,
       overheal: player.id === viewer.id ? player.overheal : 0,
+      maxHealth: player.id === viewer.id ? serializeResourceValue(healthCapacityFor(player)) : 2,
       inVent: player.id === viewer.id ? player.inVent : player.inVent && viewer.role === "attacker",
       ventId: player.id === viewer.id || viewer.role === "attacker" ? player.ventId : ""
     };
@@ -21320,6 +21349,8 @@ function serialize(room, viewer, options = {}) {
       movementMode: viewer.movementMode,
       bodyHits: viewer.bodyHits,
       overheal: viewer.overheal,
+      health: serializeResourceValue(remainingHealth(viewer)),
+      maxHealth: serializeResourceValue(healthCapacityFor(viewer)),
       killCamera: viewer.killCamera ? { ...viewer.killCamera } : null,
       credits: viewer.credits,
       shopAbilityEntitlements: [...(viewer.shopAbilityEntitlements || [])],
@@ -21601,6 +21632,55 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     processMovementInput(room, player, { dx: 1, dy: 0, movementSession: `fixture-desire-${player.id}`, movementSessionStartedAt: now(), movementSeq: 0, movementClock: base });
     processMovementInput(room, player, { dx: 1, dy: 0, movementSession: `fixture-desire-${player.id}`, movementSessionStartedAt: now(), movementSeq: 1, movementClock: base + 1_000 });
     processMovementInput(room, player, { dx: 0, dy: 0, movementSession: `fixture-desire-${player.id}`, movementSessionStartedAt: now(), movementSeq: 2, movementClock: base + 1_001 });
+  } else if (kind === "universal-healing") {
+    // Start just below the base ceiling.  The ordinary tick first repairs the
+    // visible damage and then, without any synthetic action, demonstrates the
+    // same Natural Recovery transaction extending current/max HP together.
+    Object.assign(player, {
+      bodyHits: 0.05,
+      overheal: 0,
+      maxHealth: 2,
+      mana: 2,
+      maxMana: Math.max(2, Number(player.maxMana) || 0),
+      stamina: MAX_STORED_STAMINA,
+      maxStoredStamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
+      staminaUpdatedAt: now(),
+      mentalState: "理知",
+      hackerRootActive: false
+    });
+  } else if (kind === "hsg-fall-live") {
+    // Prepare a normal eight-second HSG source over an unsupported in-map
+    // coordinate. The ordinary room tick owns both countdown expiry and the
+    // subsequent unsupported-fall death; the fixture performs no terminal
+    // action and never bypasses the shared levitation owner.
+    const timestamp = now();
+    const map = getMap(room);
+    const radius = Number(map.playerRadius) || 36;
+    const step = Math.max(32, radius);
+    let unsupported = null;
+    for (let y = radius; y <= Number(map.height) - radius && !unsupported; y += step) {
+      for (let x = radius; x <= Number(map.width) - radius; x += step) {
+        if (!isFloorArea(room, x, y, radius)) {
+          unsupported = { x, y };
+          break;
+        }
+      }
+    }
+    if (!unsupported) throw new ApiError(400, "HSG落下実画面fixtureに床外地点がありません。");
+    if (itemCount(player, "hsg") < 1) addItem(player, "hsg", 1);
+    Object.assign(player, {
+      x: unsupported.x,
+      y: unsupported.y,
+      alive: true,
+      ejected: false,
+      inVent: false,
+      hsgUntil: 0,
+      hsgReadyAt: timestamp + HSG_ACTIVATION_COOLDOWN_MS,
+      sharedLevitationActive: true,
+      levitationEngaged: false
+    });
+    addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
+    setImmediateFeedback(player, "HSG実画面検証", "浮揚 8秒 / 期限終了時に床がなければ落下死");
   } else if (kind === "hsg-ground-pickup") {
     if (itemCount(player, "hsg") < 1) addItem(player, "hsg", 1);
     consumeItem(player, "hsg", 1);
@@ -23114,6 +23194,7 @@ async function handleApi(req, res) {
         entry.movementAccEnabled = true;
         entry.bodyHits = 0;
         entry.overheal = 0;
+        entry.maxHealth = 2;
         entry.credits = 0;
         entry.lastPassiveCreditAt = now();
         entry.mana = STARTING_MANA;
@@ -25156,5 +25237,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "kill-loot-transfer-v582" });
+self.postMessage({ type: "ready", version: "universal-healing-hsg-fall-live-v583" });
 })();
