@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "shop-activation-solo-bot-results-v581",
+    version: "kill-loot-transfer-v582",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -15187,8 +15187,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   target.inVent = false;
   target.ventId = "";
   clearAttackState(target);
-  transferKillCredits(room, source, target);
-  recordCanonicalKill(room, source, target);
+  settleCreditedKillLoot(room, source, target);
   pushHitEffect(room, target, "body", true);
   room.bodies.push({
     id: uid("body_"),
@@ -15254,16 +15253,12 @@ function killCooldownDurationMs(room, player) {
 }
 
 function transferKillInventory(room, killer, target) {
-  if (!killer || !target || killer.id === target.id || killer.role !== "attacker") return [];
+  if (!killer || !target || killer.id === target.id) return [];
   const transferred = [];
-  const stackFields = ["warpCharges", "fireJutsuCharges", "substitutionCharges", "gritCharges", "reasonCharges", "iaiCharges", "truthCharges", "beautyCharges"];
-  for (const field of stackFields) {
-    const amount = Math.max(0, Math.floor(Number(target[field]) || 0));
-    if (!amount) continue;
-    killer[field] = Math.max(0, Number(killer[field]) || 0) + amount;
-    target[field] = 0;
-    transferred.push(`${field}:${amount}`);
-  }
+  // Operator charges are player-bound effects, not transferable inventory.
+  // Physical inventory, inventions, heavy weapons and firearms already have
+  // shared ownership semantics and can be looted by any credited opposing
+  // killer (human or Bot).
   for (const [itemId, amountValue] of Object.entries(target.itemInventory || {})) {
     const amount = Math.max(0, Math.floor(Number(amountValue) || 0));
     if (!amount || !ITEM_DEFINITIONS[itemId]) continue;
@@ -15272,7 +15267,7 @@ function transferKillInventory(room, killer, target) {
     transferred.push(`${ITEM_DEFINITIONS[itemId].label}:${amount}`);
   }
   if (Array.isArray(target.inventions) && target.inventions.length) {
-    killer.inventions = [...new Set([...(killer.inventions || []), ...target.inventions])];
+    killer.inventions = [...(killer.inventions || []), ...target.inventions];
     transferred.push(`発明品:${target.inventions.length}`);
     target.inventions = [];
   }
@@ -15281,19 +15276,56 @@ function transferKillInventory(room, killer, target) {
     transferred.push(`重火器:${target.heavyWeapons.length}`);
     target.heavyWeapons = [];
   }
-  if (Array.isArray(target.purchasedWeapons) && target.purchasedWeapons.length) {
-    killer.purchasedWeapons = [...new Set([...(killer.purchasedWeapons || []), ...target.purchasedWeapons])];
-    for (const weaponId of target.purchasedWeapons) {
-      killer.gunnerAmmo[weaponId] = Math.max(
-        Number(killer.gunnerAmmo?.[weaponId]) || 0,
-        Number(target.gunnerAmmo?.[weaponId]) || 0
-      );
+  // Match the manual transfer owner exactly: an operator-native Gunner weapon
+  // is transferable too.  Removing it means marking it unavailable, while
+  // receiving it means an explicit purchased owner (even for non-Gunner roles).
+  const firearms = GUNNER_WEAPON_ORDER.filter((weaponId) => gunnerWeaponAvailable(target, weaponId));
+  if (firearms.length) {
+    killer.purchasedWeapons ||= [];
+    killer.unavailableGunnerWeapons ||= [];
+    target.purchasedWeapons ||= [];
+    target.unavailableGunnerWeapons ||= [];
+    killer.gunnerAmmo ||= createGunnerAmmo();
+    target.gunnerAmmo ||= createGunnerAmmo();
+    for (const weaponId of firearms) {
+      const weapon = GUNNER_WEAPONS[weaponId];
+      if (!killer.purchasedWeapons.includes(weaponId)) killer.purchasedWeapons.push(weaponId);
+      killer.unavailableGunnerWeapons = killer.unavailableGunnerWeapons.filter((id) => id !== weaponId);
+      target.purchasedWeapons = target.purchasedWeapons.filter((id) => id !== weaponId);
+      if (!target.unavailableGunnerWeapons.includes(weaponId)) target.unavailableGunnerWeapons.push(weaponId);
+      const sourceAmmo = Math.min(weapon.maxAmmo, Math.max(0, Math.floor(Number(target.gunnerAmmo[weaponId]) || 0)));
+      const existingAmmo = Math.min(weapon.maxAmmo, Math.max(0, Math.floor(Number(killer.gunnerAmmo[weaponId]) || 0)));
+      killer.gunnerAmmo[weaponId] = Math.min(weapon.maxAmmo, existingAmmo + sourceAmmo);
+      target.gunnerAmmo[weaponId] = 0;
     }
-    transferred.push(`銃器:${target.purchasedWeapons.length}`);
-    target.purchasedWeapons = [];
+    transferred.push(`銃器:${firearms.length}`);
   }
   if (transferred.length) pushEvent(room, `${killer.name} が ${target.name} の所持品をすべて獲得しました。`);
   return transferred;
+}
+
+// One credited enemy elimination owns both scoring and loot.  Every lethal
+// route calls this after it has committed the death; recordCanonicalKill is
+// the idempotent gate, so duplicate callbacks, self kills, environmental
+// deaths and same-faction penalties cannot transfer assets twice.
+function settleCreditedKillLoot(room, source, target) {
+  if (!recordCanonicalKill(room, source, target)) return null;
+  const credits = transferKillCredits(room, source, target);
+  const inventory = transferKillInventory(room, source, target);
+  if (credits > 0 || inventory.length) {
+    const summary = [credits > 0 ? `${credits}C` : "", ...inventory].filter(Boolean).join(" / ");
+    pushMagicEffect(room, "transfer-in", source, {
+      radius: 150,
+      playerId: source.id,
+      targetId: target.id,
+      targetX: target.x,
+      targetY: target.y,
+      variant: "kill-loot",
+      durationMs: 1100
+    });
+    setImmediateFeedback(source, "戦利品", summary);
+  }
+  return { credits, inventory };
 }
 
 // Instant-item acquisition consumes the item into a player-bound effect or
@@ -15738,8 +15770,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   clearAttackState(target);
   completeTasksAfterDeath(room, target);
   if (source && source.id !== target.id) {
-    transferKillCredits(room, source, target);
-    recordCanonicalKill(room, source, target);
+    settleCreditedKillLoot(room, source, target);
   }
   pushHitEffect(room, target, "body", true);
   room.bodies.push({
@@ -18810,9 +18841,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   clearAttackState(target);
   completeTasksAfterDeath(room, target);
   if (source && source.id !== target.id) {
-    transferKillCredits(room, source, target);
-    transferKillInventory(room, source, target);
-    recordCanonicalKill(room, source, target);
+    settleCreditedKillLoot(room, source, target);
   }
   consumeIaiChargeForSuccessfulAttack(room, source, target, reason, options);
   pushHitEffect(room, target, "head", true);
@@ -19279,8 +19308,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       killer.ventId = "";
       clearAttackState(killer);
       completeTasksAfterDeath(room, killer);
-      transferKillCredits(room, target, killer);
-      recordCanonicalKill(room, target, killer);
+      settleCreditedKillLoot(room, target, killer);
       target.killsThisRound += 1;
       target.killReadyAt = timestamp + killCooldownDurationMs(room, target);
       pushHitEffect(room, killer, "body", true);
@@ -19394,9 +19422,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   clearAttackState(target);
   pushHitEffect(room, target, hitZone, true);
   completeTasksAfterDeath(room, target);
-  transferKillCredits(room, killer, target);
-  transferKillInventory(room, killer, target);
-  recordCanonicalKill(room, killer, target);
+  settleCreditedKillLoot(room, killer, target);
   evaluateSoloMission(room, timestamp);
   if (!options.noBody) {
     room.bodies.push({
@@ -21596,6 +21622,42 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
   } else if (kind === "credit-ate-gold") {
     player.credits = 0;
     acquireGoldAsCredits(room, player, "fixture-credit-gold");
+  } else if (kind === "kill-loot") {
+    const timestamp = now();
+    const map = getMap(room);
+    const target = [...room.players.values()].find((entry) => entry.isBot);
+    if (!target) throw new ApiError(400, "戦利品実画面fixtureに対象Botがいません。");
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 320 && Number(rect.h) > map.playerRadius * 3)
+      .sort((a, b) => Number(b.w) - Number(a.w))[0];
+    if (!arena) throw new ApiError(400, "戦利品実画面fixtureに斬撃経路がありません。");
+    const x = Number(arena.x) + Math.max(55, map.playerRadius + 16);
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    Object.assign(player, {
+      role: "attacker", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x, y, aimX: 1, aimY: 0,
+      credits: 0, stamina: MAX_STORED_STAMINA, itemInventory: { "orichalcum-sword": 1, hsg: 1 },
+      inventions: [], heavyWeapons: [], purchasedWeapons: [], unavailableGunnerWeapons: [...GUNNER_WEAPON_ORDER],
+      killReadyAt: 0, slashActiveUntil: 0, slashPerfectGuardReadyAt: 0
+    });
+    Object.assign(target, {
+      role: "defender", special: "quantum", operatorId: "operator-quantum-control", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: x + Math.min(100, room.settings.killRange - 10), y,
+      credits: 37, itemInventory: { mercury: 2, hsg: 1 }, inventions: ["railgun"],
+      heavyWeapons: ["rpg"], purchasedWeapons: ["assault"], unavailableGunnerWeapons: ["handgun", "smg", "sniper", "taser"],
+      gunnerAmmo: { ...createGunnerAmmo(), assault: 9 }, gritCharges: 0, overheal: 0,
+      dodgeActiveUntil: 0, standFirmBarrierUntil: 0,
+      nextBotActionAt: timestamp + 120_000, taskAutoReadyAt: timestamp + 120_000
+    });
+    for (const entry of room.players.values()) {
+      if (!entry.isBot || entry === target) continue;
+      entry.alive = false;
+      entry.ejected = true;
+    }
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+    pushEvent(room, "実画面検証: 斬る成功時に対象Botの37Cと全譲渡可能所持品を一度だけ戦利品として獲得します。");
   } else if (kind === "hacker-flick-tap") {
     const timestamp = now();
     player.role = "attacker";
@@ -25094,5 +25156,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "shop-activation-solo-bot-results-v581" });
+self.postMessage({ type: "ready", version: "kill-loot-transfer-v582" });
 })();

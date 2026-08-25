@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "shop-activation-solo-bot-results-v581";
+const DVA_CLIENT_RELEASE = "kill-loot-transfer-v582";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -839,7 +839,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shop-activation-solo-bot-results-v581";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kill-loot-transfer-v582";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -10007,6 +10007,18 @@ function applyState(data, options = {}) {
         state.verificationEnemyDefenderTaskEventId = taskEvent.id;
         showToast(`実画面検証: ${taskEvent.text}`);
       }
+    }
+  }
+  if (VERIFY_REAL_SCREEN_FIXTURE_KIND === "kill-loot") {
+    const lootEvent = (Array.isArray(data.events) ? data.events : [])
+      .findLast((event) => /所持品をすべて獲得しました。/.test(String(event?.text || "")));
+    const mercury = (Array.isArray(data.self?.itemInventory) ? data.self.itemInventory : [])
+      .find((item) => item.id === "mercury");
+    const root = document.documentElement;
+    root.setAttribute("data-v582-kill-loot-credits", String(Number(data.self?.credits) || 0));
+    root.setAttribute("data-v582-kill-loot-mercury", String(Number(mercury?.amount) || 0));
+    if (lootEvent && Number(data.self?.credits) >= 37 && Number(mercury?.amount) >= 2) {
+      root.setAttribute("data-v582-kill-loot-complete", "true");
     }
   }
   if (VERIFY_REAL_SCREEN_FIXTURE_KIND && data.phase === "playing" && data.self?.alive) {
@@ -21031,7 +21043,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "shop-activation-solo-bot-results-v581";
+const version = "kill-loot-transfer-v582";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21987,7 +21999,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=shop-activation-solo-bot-results-v581", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=kill-loot-transfer-v582", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

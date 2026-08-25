@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "shop-activation-solo-bot-results-v581",
+    version: "kill-loot-transfer-v582",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
