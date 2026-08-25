@@ -5,9 +5,9 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "title-portrait-balance-contrast-v579";
-const CACHE_NAME = "dva-static-v579-title-portrait-balance-contrast";
-const RUNTIME_RECOVERY_REVISION = "v579-title-portrait-balance-contrast-1";
+const RUNTIME_RELEASE = "shop-activation-solo-bot-results-v581";
+const CACHE_NAME = "dva-static-v581-shop-activation-solo-bot-results";
+const RUNTIME_RECOVERY_REVISION = "v581-shop-activation-solo-bot-results-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -51,6 +51,7 @@ const STATIC_ASSETS = [
   "/assets/generated/operator-assassin-ate-v510.png",
   "/assets/generated/natural-recovery-ate-v510.png",
   "/assets/generated/gbo-overdrive-ate-v513.png",
+  "/assets/generated/shop-activation-ate-v581.png",
   "/assets/generated/status-preparation-barrier-ate-v392.png",
   "/assets/generated/fighter-energy-charge-ate-v404.png",
   "/assets/generated/item-orichalcum-sword-v453.png",

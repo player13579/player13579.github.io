@@ -3898,9 +3898,9 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .result-row {
   display: grid;
-  /* dot, identity/breakdown, compact signed total.  Two columns made the
-   * third child implicitly start a full-width second row (the reported bar). */
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  /* identity/breakdown and compact signed total.  Explicit columns keep the
+   * total from auto-placing as a full-width second row. */
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-height: 56px;
@@ -4913,14 +4913,6 @@ body .offline-team-choice button[data-offline-team] {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.color-dot {
-  width: 13px;
-  height: 13px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
 }
 
 .role-block {

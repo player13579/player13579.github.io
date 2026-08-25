@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "title-portrait-balance-contrast-v579";
+const DVA_CLIENT_RELEASE = "shop-activation-solo-bot-results-v581";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -651,6 +651,7 @@ const state = {
   activeEffectsRenderKey: "",
   inventoryVisualWeapon: "",
   vendingOpen: false,
+  shopActivationSerial: 0,
   vendingBulkPurchase: false,
   vendingRenderKey: "",
   vendingCategoryId: "generate-supply",
@@ -838,7 +839,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "title-portrait-balance-contrast-v579";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shop-activation-solo-bot-results-v581";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3009,6 +3010,7 @@ const CHARACTER_ACTION_DURATION = Object.freeze({
   focus: 1100,
   rest: 1300,
   interact: 620,
+  shop: 920,
   throw: 720
 });
 
@@ -3025,6 +3027,7 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   focus: 8,
   rest: 9,
   interact: 10,
+  shop: 10,
   // Throw release has dedicated timing and body mechanics while retaining the empty-hand attack cells.
   throw: 0
 });
@@ -3069,6 +3072,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-smartphone": "interact",
   "action-smartphone-repair": "interact",
   "action-vending": "interact",
+  "action-shop-open": "shop",
   "action-mana": "focus",
   "action-alchemy": "cast",
   "action-fighter-dodge-counter": "slash",
@@ -11652,7 +11656,7 @@ function abilityModeDescription(owner, mode, self) {
     gravity: null,
     flora: {
       heal: `生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して12秒間加速する。${cost("flora")}。`,
-      sunbeam: `試合経過時間による発動制限なし。屈折・回折による経路制御で選択対象方向へ通常発動し、交差した全対象を貫通して確殺する。${cost("floraSunbeam", 10)}。壁は貫通しない。`,
+      sunbeam: `屈折・回折による経路制御で選択対象方向へ発動し、交差した全対象を貫通して確殺する。${cost("floraSunbeam", 10)}。壁は貫通しない。`,
       invisible: `光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる。自分には半透明で表示する。${cost("floraInvisible", 10)}。`
     },
     quantum: {
@@ -12721,8 +12725,44 @@ function layoutActiveEffectsPanel() {
   callbacks.forEach((callback) => callback());
 }
 
+function triggerShopActivationPresentation(data) {
+  const playerId = String(data?.selfId || data?.self?.id || state.playerId || "");
+  if (!playerId) return false;
+  const player = (data?.players || []).find((entry) => entry.id === playerId) || data?.self;
+  if (!player) return false;
+  const startedAt = state.frameNow || performance.now();
+  const id = `local-shop-open-${playerId}-${++state.shopActivationSerial}`;
+  state.magicEffects.push({
+    id,
+    type: "action-shop-open",
+    playerId,
+    x: Number(player.x) || 0,
+    y: Number(player.y) || 0,
+    radius: 112,
+    startedAt,
+    duration: CHARACTER_ACTION_DURATION.shop,
+    localPresentation: true
+  });
+  triggerCharacterAction(
+    playerId,
+    "shop",
+    CHARACTER_ACTION_DURATION.shop,
+    startedAt,
+    id,
+    "open",
+    "action-shop-open"
+  );
+  document.body.dataset.shopActivationAte = "active";
+  document.body.dataset.shopActivationMotion = "shop";
+  window.setTimeout(() => {
+    if (document.body.dataset.shopActivationAte === "active") document.body.dataset.shopActivationAte = "settled";
+  }, CHARACTER_ACTION_DURATION.shop);
+  return true;
+}
+
 function setVendingOpen(open, { focus = true } = {}) {
   const data = state.data;
+  const wasOpen = state.vendingOpen;
   const available = Boolean(
     state.screen === "game" &&
     data?.phase === "playing" &&
@@ -12745,6 +12785,7 @@ function setVendingOpen(open, { focus = true } = {}) {
   els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
   els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
   if (state.vendingOpen) {
+    if (!wasOpen) triggerShopActivationPresentation(data);
     requestAnimationFrame(() => setSelectedScrollRegion(els.vendingPanel, { focus }));
   }
 }
@@ -13533,7 +13574,6 @@ function renderEnd(data) {
         const ideaWinner = data.winner === "idea" && (entry.ideaWinner || ideaWinnerIds.has(entry.id));
         row.className = `result-row${isMvp ? " is-first" : ""}${entry.id === data.selfId ? " is-self" : ""}${entry.luminousSuccess ? " is-luminous" : ""}${ideaWinner ? " is-idea-winner" : ""}${points !== 0 ? " has-points" : ""}`;
         row.innerHTML = `
-          <span class="color-dot" style="background:${escapeHtml(entry.color || "#94a3b8")}"></span>
           <span class="result-player">
             <strong>${escapeHtml(String(entry.name || ""))}</strong>
             ${mvpLabel ? `<small class="result-point-mvp">${mvpLabel}</small>` : ""}
@@ -17426,11 +17466,48 @@ function drawHeartTeleportEffect(effect, progress) {
   return true;
 }
 
+function drawShopActivationEffect(effect, progress, now) {
+  const prepared = transparentSpriteSource(state.textures.shopActivationEffect, "shop-activation-ate-v581", 12);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "shop-activation-ate-v581", 1, 1, 0, 0) : null;
+  if (!sprite) return false;
+  const opening = objectEffectEase(clamp(progress / 0.34, 0, 1));
+  const settle = objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
+  const pulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
+  const width = 196 * (0.38 + opening * 0.62 - settle * 0.06);
+  const height = 128 * (0.82 + opening * 0.18);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0.08, 1 - settle * 0.88);
+  drawAnimatedTextureCentered(sprite, effect.x, effect.y - 30 - opening * 4, width, height, {
+    mode: "shimmer",
+    time: now / 1000,
+    progress,
+    phase: 0.18,
+    intensity: 0.94,
+    baseAlpha: 0.16,
+    opacityBoost: 1.34
+  });
+  ctx.strokeStyle = `rgba(104, 255, 239, ${0.5 * pulse * (1 - settle)})`;
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = "round";
+  const eLayerTravel = 18 + opening * 42;
+  ctx.beginPath();
+  ctx.moveTo(effect.x - 7, effect.y - 29);
+  ctx.lineTo(effect.x - eLayerTravel, effect.y - 29);
+  ctx.moveTo(effect.x + 7, effect.y - 29);
+  ctx.lineTo(effect.x + eLayerTravel, effect.y - 29);
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
+
 function drawActionEffect(effect, progress, now) {
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
   if (["action-weapon-switch", "action-reload"].includes(effect.type)) return;
+  if (effect.type === "action-shop-open" && drawShopActivationEffect(effect, progress, now)) return;
   if (effect.type === "action-shoot" && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-heart-teleport" && drawHeartTeleportEffect(effect, progress)) return;
@@ -18792,6 +18869,7 @@ function drawHuman(player, data) {
     drawLuminousFeathers(player);
     drawAttackerAllyMarker(player);
     drawPersistentStatusAteLayers(player, data);
+    drawSoloHumanDeathBotAcceleration(player, data);
     ctx.restore();
     return;
   }
@@ -18849,8 +18927,35 @@ function drawHuman(player, data) {
   drawLuminousFeathers(player);
   drawAttackerAllyMarker(player);
   drawPersistentStatusAteLayers(player, data);
+  drawSoloHumanDeathBotAcceleration(player, data);
   ctx.restore();
 
+}
+
+function drawSoloHumanDeathBotAcceleration(player, data) {
+  if (
+    !player?.isBot ||
+    !player.alive ||
+    player.ejected ||
+    !data?.soloHumanDeathBotTimeScaleActive ||
+    Number(data.soloHumanDeathBotTimeScale) !== 10
+  ) return;
+  const prepared = transparentSpriteSource(state.textures.accelerationPhaseEffect, "status-marker-acceleration-v376-bot-tenfold", 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "status-marker-acceleration-v376-bot-tenfold", 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  const time = (state.frameNow || performance.now()) / 1000;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= 0.78 + Math.sin(time * 8.4) * 0.08;
+  drawAnimatedTextureCentered(sprite, 0, -9, 108, 116, {
+    mode: "flow-up",
+    time: time * 2.5,
+    phase: (player.id?.length || 0) * 0.19,
+    intensity: 1,
+    baseAlpha: 0.16,
+    opacityBoost: 2.8
+  });
+  ctx.restore();
 }
 
 function drawPreparationBarrierAte(player) {
@@ -19214,6 +19319,19 @@ function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId,
   const ease = objectEffectEase(clamp(progress, 0, 1));
   const hasId = (...tokens) => tokens.some((token) => id === token || id.includes(token));
 
+  if (kind === "shop" || hasId("action-shop-open")) {
+    const approach = objectEffectEase(clamp(progress / 0.3, 0, 1));
+    const press = Math.sin(clamp((progress - 0.22) / 0.46, 0, 1) * Math.PI);
+    const recover = objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
+    ctx.translate(
+      facing * (approach * 3.5 + press * 4.5 - recover * 4) * motionScale,
+      (-approach * 2.2 + recover * 1.8) * motionScale
+    );
+    ctx.rotate(facing * (approach * 0.035 + press * 0.045 - recover * 0.055) * motionScale);
+    ctx.scale(1 - press * 0.018 * motionScale, 1 + press * 0.028 * motionScale);
+    return true;
+  }
+
   if (hasId("alchemy-railgun")) {
     const brace = objectEffectEase(clamp(progress / 0.32, 0, 1));
     const recoil = Math.sin(clamp((progress - 0.26) / 0.42, 0, 1) * Math.PI);
@@ -19403,7 +19521,8 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   const sourceVersion = atlasId === "male-bot"
     ? (action.kind === "heart-transfer" ? "v468" : "v465")
     : "v483";
-  const sourceKey = `physical-motion-${atlasId}-${action.kind}-${sourceVersion}`;
+  const sourceKind = action.kind === "shop" ? "interact" : action.kind;
+  const sourceKey = `physical-motion-${atlasId}-${sourceKind}-${sourceVersion}`;
   const prepared = motionImage ? transparentSpriteSource(motionImage, sourceKey, 20) : null;
   const sprite = prepared
     ? normalizedSpriteFrame(prepared, sourceKey, 3, 1, 0, frame)
@@ -20912,7 +21031,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "title-portrait-balance-contrast-v579";
+const version = "shop-activation-solo-bot-results-v581";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21076,6 +21195,7 @@ const version = "title-portrait-balance-contrast-v579";
   const clairvoyanceThrowAte = new Image();
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
+  const shopActivationEffect = new Image();
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
     skinId,
     Object.fromEntries(["front", "left", "right", "back"].map((direction) => [direction, new Image()]))
@@ -21097,7 +21217,10 @@ const version = "title-portrait-balance-contrast-v579";
   const physicalActionMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map((skinId) => [
       skinId,
-      Object.fromEntries(PHYSICAL_ACTION_MOTION_KINDS.map((kind) => [kind, new Image()]))
+      Object.assign(
+        Object.fromEntries(PHYSICAL_ACTION_MOTION_KINDS.map((kind) => [kind, new Image()])),
+        { shop: new Image() }
+      )
     ])
   );
   const weaponActionMotions = Object.fromEntries(
@@ -21204,16 +21327,20 @@ const version = "title-portrait-balance-contrast-v579";
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
+  defer(shopActivationEffect, "assets/generated/shop-activation-ate-v581.png");
   for (const [skinId, rows] of Object.entries(playerWalkRows)) {
     ["front", "left", "right", "back"].forEach((direction) => {
       defer(rows[direction], `assets/generated/skin-${skinId}-walk-${direction}-v483.png`);
     });
   }
   for (const [skinId, motions] of Object.entries(physicalActionMotions)) {
-    for (const [kind, entry] of Object.entries(motions)) {
+    for (const kind of PHYSICAL_ACTION_MOTION_KINDS) {
+      const entry = motions[kind];
       const version = skinId === "male-bot" ? (kind === "heart-transfer" ? "v468" : "v465") : "v483";
       defer(entry, `assets/generated/physical-motion-${skinId}-${kind}-${version}.png`);
     }
+    const shopSourceVersion = skinId === "male-bot" ? "v465" : "v483";
+    defer(motions.shop, `assets/generated/physical-motion-${skinId}-interact-${shopSourceVersion}.png`);
   }
   for (const [skinId, weapons] of Object.entries(weaponActionMotions)) {
     for (const [weaponId, actions] of Object.entries(weapons)) {
@@ -21335,6 +21462,7 @@ const version = "title-portrait-balance-contrast-v579";
     clairvoyanceThrowAte,
     naturalRecoveryEffect,
     gboOverdriveEffect,
+    shopActivationEffect,
     physicalActionMotions,
     weaponActionMotions,
     fullMapComposites,
@@ -21859,7 +21987,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=title-portrait-balance-contrast-v579", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=shop-activation-solo-bot-results-v581", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

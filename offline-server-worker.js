@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "title-portrait-balance-contrast-v579",
+    version: "shop-activation-solo-bot-results-v581",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7859,6 +7859,14 @@ const DEVELOPER_PROFILE_IDS = new Set([
   ...String(process.env.DEVELOPER_PROFILE_IDS || "").split(",").map((value) => value.trim()).filter(Boolean)
 ]);
 const BOT_TICK_MS = 80;
+// Generated-offline solo matches deliberately remain authoritative after the
+// sole human is eliminated. In that terminal spectator interval, Bots use a
+// separate operational clock; the world clock and human-owned timers do not.
+const SOLO_HUMAN_DEATH_BOT_TIME_SCALE = 10;
+// The ordinary one-owner pass remains mandatory for every room. Acceleration
+// may add these slots across *all* rooms, never one unbounded burst per room.
+const BOT_ACCELERATED_PLANNER_EXTRA_SLOTS_PER_TICK = SOLO_HUMAN_DEATH_BOT_TIME_SCALE - 1;
+let botAcceleratedPlannerRoomCursor = 0;
 const NAV_CELL_SIZE = 48;
 const BOT_PATH_REFRESH_MS = 420;
 const REALTIME_STATE_INTERVAL_MS = 100;
@@ -7945,7 +7953,7 @@ const OPERATORS = {
       limit: 99,
       asset: "flora",
       description: "回復・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは試合経過時間による発動制限がなく、10MPで屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
+      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは10MPで屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -9467,6 +9475,9 @@ function createRoom(id) {
     doorLog: [],
     matchmaking: null,
     soloMission: null,
+    soloHumanDeathBotTimeScale: 1,
+    soloHumanDeathBotTimeScaleActive: false,
+    soloHumanDeathBotTimeScaleActivatedAt: 0,
     casual: false,
     resultProfileApplied: false,
     // The terminal Result board is committed once and remains the only source
@@ -10368,6 +10379,11 @@ function startGame(room) {
 
   const map = getMap(room);
   const timestamp = now();
+  // A new round owns a fresh Bot operational clock, even if the offline room
+  // was reused by the operator-selection flow.
+  room.soloHumanDeathBotTimeScale = 1;
+  room.soloHumanDeathBotTimeScaleActive = false;
+  room.soloHumanDeathBotTimeScaleActivatedAt = 0;
   const attackerCount = Math.max(1, Math.min(players.length - 1, Math.floor(room.settings.attackerCount)));
   room.killRateAttackerTarget = Math.max(1, Math.ceil((players.length - attackerCount) / attackerCount));
   const ordered = shuffle(players);
@@ -12469,7 +12485,15 @@ function advanceBotNavigationMotion(room, bot, elapsedMs, timestamp = now()) {
   }
   const beforeX = bot.x;
   const beforeY = bot.y;
-  moveToward(room, bot, intent, Math.min(0.12, Number(elapsedMs) / 1000), intent.sprint);
+  // Retain short collision-safe integration slices while consuming the full
+  // Bot-only operational interval. A single large move would tunnel through
+  // walls; silently clamping it would make a nominal 10x scale only 1.5x.
+  let remainingMs = Math.max(0, Number(elapsedMs) || 0) * botOperationalTimeScale(room);
+  while (remainingMs > 0) {
+    const stepMs = Math.min(120, remainingMs);
+    moveToward(room, bot, intent, stepMs / 1000, intent.sprint);
+    remainingMs -= stepMs;
+  }
   const moved = Math.hypot(bot.x - beforeX, bot.y - beforeY);
   if (moved < 0.05) {
     bot.navStuckTicks = (Number(bot.navStuckTicks) || 0) + 1;
@@ -13158,12 +13182,84 @@ function winningHumansInBotMatch(room, winnerRole) {
   return humanPlayersInBotMatch(room).filter((player) => player.role === winnerRole);
 }
 
+function generatedOfflineSoloBotTimeScaleApplies(room, human = soleHumanBotMatchPlayer(room)) {
+  return Boolean(
+    room &&
+    !room.soloMission &&
+    room.matchmaking?.status === "offline" &&
+    human &&
+    !human.isBot
+  );
+}
+
+function activateSoloHumanDeathBotTimeScale(room, target, timestamp = now()) {
+  if (!generatedOfflineSoloBotTimeScaleApplies(room, target)) return false;
+  if (room.soloHumanDeathBotTimeScaleActive) return false;
+  room.soloHumanDeathBotTimeScale = SOLO_HUMAN_DEATH_BOT_TIME_SCALE;
+  room.soloHumanDeathBotTimeScaleActive = true;
+  room.soloHumanDeathBotTimeScaleActivatedAt = timestamp;
+  pushEvent(room, "ソロプレイヤー戦闘不能: Bot行動速度を10倍へ切替。");
+  return true;
+}
+
+function botOperationalTimeScale(room) {
+  return room?.soloHumanDeathBotTimeScaleActive && room?.matchmaking?.status === "offline"
+    ? SOLO_HUMAN_DEATH_BOT_TIME_SCALE
+    : 1;
+}
+
+function botPlannerSlotsForRoom(room) {
+  return botOperationalTimeScale(room);
+}
+
+const BOT_OPERATIONAL_DEADLINE_FIELDS = Object.freeze([
+  "nextBotActionAt", "nextBotSabotageAt", "nextBotVentAt", "nextBotDefenseDecisionAt", "nextBotClairvoyanceAt",
+  "killReadyAt", "gunReadyAt", "gunnerReloadUntil", "gunnerSpecialAmmoReadyAt", "hsgReadyAt",
+  "sabotageReadyAt", "dodgeReadyAt", "teleportReadyAt", "empReadyAt", "gravityStormReadyAt",
+  "vibeCodingReadyAt", "fighterEnergyChargeReadyAt", "rationalFreeAbilityReadyAt", "particleCannonNextAt",
+  "routeDamageReadyAt", "botTargetUntil", "botDeceptionUntil", "botRetaliationUntil", "botWitnessUntil",
+  "botClairvoyanceUntil", "botClairvoyanceObservedUntil", "heardWaypointUntil"
+]);
+
+const BOT_OPERATIONAL_ANCHOR_FIELDS = Object.freeze([
+  "botTaskPresenceSince", "botTaskPresenceLastTickAt", "botDeceptionPresenceSince"
+]);
+
+function advanceBotOperationalTime(room, elapsedMs, timestamp = now()) {
+  const scale = botOperationalTimeScale(room);
+  if (scale <= 1 || elapsedMs <= 0 || room.phase !== "playing") return;
+  const bonusMs = Math.max(0, (scale - 1) * elapsedMs);
+  const advanceDeadline = (value) => {
+    const deadline = Number(value);
+    return Number.isFinite(deadline) && deadline > timestamp
+      ? Math.max(timestamp, deadline - bonusMs)
+      : value;
+  };
+  for (const bot of room.players.values()) {
+    if (!bot.isBot || !bot.alive || bot.ejected) continue;
+    for (const field of BOT_OPERATIONAL_DEADLINE_FIELDS) bot[field] = advanceDeadline(bot[field]);
+    for (const field of BOT_OPERATIONAL_ANCHOR_FIELDS) {
+      const anchor = Number(bot[field]);
+      if (Number.isFinite(anchor) && anchor > 0) bot[field] = Math.max(0, anchor - bonusMs);
+    }
+    for (const taskId of Object.keys(bot.botTaskBlockedUntilById || {})) {
+      bot.botTaskBlockedUntilById[taskId] = advanceDeadline(bot.botTaskBlockedUntilById[taskId]);
+    }
+    for (const objectId of Object.keys(bot.objectCooldowns || {})) {
+      bot.objectCooldowns[objectId] = advanceDeadline(bot.objectCooldowns[objectId]);
+    }
+  }
+}
+
 function recordBotMatchElimination(room, target, source = null) {
   if (!target) return;
   target.botMatchEliminatedById = String(source?.id || "");
   if (target.gunFiring) stopGunnerFire(room, target, { reason: "戦闘不能" });
   discardHackerRootState(target);
   clearEnhanceChargeState(target);
+  // This is the sole authoritative death funnel. The target is still a human
+  // at this point, so Bot deaths and online/mission deaths cannot arm it.
+  activateSoloHumanDeathBotTimeScale(room, target);
 }
 
 const AMBIGUOUS_KILL_CAMERA_ACTION_LABELS = new Set([
@@ -13932,6 +14028,7 @@ function tickRoom(room) {
   const elapsedMs = Math.min(250, Math.max(0, timestamp - (Number(room.lastTickAt) || timestamp)));
   room.lastTickAt = timestamp;
   reconcileBarrierExpiry(room, timestamp);
+  advanceBotOperationalTime(room, elapsedMs, timestamp);
   if (room.phase === "meeting") {
     pauseBattleTimeForMeeting(room, timestamp);
     for (const player of room.players.values()) {
@@ -21014,6 +21111,9 @@ function serialize(room, viewer, options = {}) {
       : Math.max(0, Math.ceil(((Number(room.quantumEndgameAt) || timestamp) - timestamp) / 1000)),
     preparationEndsAt: Number(room.preparationEndsAt) || 0,
     preparationActive: preparationBarrierActive(room, timestamp),
+    soloHumanDeathBotTimeScale: botOperationalTimeScale(room),
+    soloHumanDeathBotTimeScaleActive: Boolean(room.soloHumanDeathBotTimeScaleActive),
+    soloHumanDeathBotTimeScaleActivatedAt: Number(room.soloHumanDeathBotTimeScaleActivatedAt) || 0,
     hostId: room.hostId,
     settings: room.settings,
     operatorSelectSecondsLeft: room.phase === "selecting"
@@ -23296,6 +23396,7 @@ function pushRealtimeStates() {
 
 function botTick() {
   purgeInstantMatchmakingRequests();
+  const acceleratedPlayingRooms = [];
   for (const room of rooms.values()) {
     if (
       room.phase === "lobby" &&
@@ -23315,8 +23416,28 @@ function botTick() {
     if (room.phase === "meeting") {
       runMeetingBots(room);
     } else if (room.phase === "playing") {
+      // Every room keeps its legacy one-owner pass. This is the baseline that
+      // prevents a busy room from starving `/api/state` and other rooms.
       runPlayingBots(room);
+      if (botPlannerSlotsForRoom(room) > 1) acceleratedPlayingRooms.push(room);
     }
+  }
+
+  // Allocate only nine additional planner owners globally. With one active
+  // generated-offline spectator room this yields exactly ten slots (the
+  // ordinary one plus nine); with several it round-robins the bounded surplus
+  // so no room can turn a single 80ms callback into an unbounded planner loop.
+  const extraSlots = BOT_ACCELERATED_PLANNER_EXTRA_SLOTS_PER_TICK;
+  let granted = 0;
+  let attempts = 0;
+  const maxAttempts = acceleratedPlayingRooms.length * extraSlots;
+  while (granted < extraSlots && attempts < maxAttempts && acceleratedPlayingRooms.length) {
+    const room = acceleratedPlayingRooms[botAcceleratedPlannerRoomCursor % acceleratedPlayingRooms.length];
+    botAcceleratedPlannerRoomCursor = (botAcceleratedPlannerRoomCursor + 1) % acceleratedPlayingRooms.length;
+    attempts += 1;
+    if (room.phase !== "playing" || botPlannerSlotsForRoom(room) <= 1) continue;
+    runPlayingBots(room);
+    granted += 1;
   }
 }
 
@@ -24677,7 +24798,11 @@ function runPlayingBots(room) {
   if (!scheduledBot) return;
   for (const bot of room.players.values()) {
     if (bot !== scheduledBot) continue;
-    bot.nextBotActionAt = timestamp + BOT_TICK_MS - 5;
+    // Keep the planner's legal decision cadence on the same Bot-only clock as
+    // movement and Bot-owned cooldowns. The one-owner scheduler still
+    // preserves stable ordering and prevents a dead spectator room from
+    // double-settling any action.
+    bot.nextBotActionAt = timestamp + Math.max(1, Math.floor(BOT_TICK_MS / botOperationalTimeScale(room)) - 1);
     const maximumStrength = botHasHumanOpponent(room, bot);
     const attackerUrgency = attackerBotKillUrgencyState(room, bot, timestamp);
 
@@ -24969,5 +25094,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "title-portrait-balance-contrast-v579" });
+self.postMessage({ type: "ready", version: "shop-activation-solo-bot-results-v581" });
 })();

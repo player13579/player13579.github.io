@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "title-portrait-balance-contrast-v579",
+    version: "shop-activation-solo-bot-results-v581",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
