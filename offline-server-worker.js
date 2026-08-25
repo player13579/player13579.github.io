@@ -21636,6 +21636,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     // Start just below the base ceiling.  The ordinary tick first repairs the
     // visible damage and then, without any synthetic action, demonstrates the
     // same Natural Recovery transaction extending current/max HP together.
+    const timestamp = now();
     Object.assign(player, {
       bodyHits: 0.05,
       overheal: 0,
@@ -21648,6 +21649,12 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       mentalState: "理知",
       hackerRootActive: false
     });
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+    }
   } else if (kind === "hsg-fall-live") {
     // Prepare a normal eight-second HSG source over an unsupported in-map
     // coordinate. The ordinary room tick owns both countdown expiry and the
@@ -21680,6 +21687,11 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       levitationEngaged: false
     });
     addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+    }
     setImmediateFeedback(player, "HSG実画面検証", "浮揚 8秒 / 期限終了時に床がなければ落下死");
   } else if (kind === "hsg-ground-pickup") {
     if (itemCount(player, "hsg") < 1) addItem(player, "hsg", 1);
