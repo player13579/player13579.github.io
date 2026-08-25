@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "right-ui-tap-scroll-physics-fire-v575";
+const DVA_CLIENT_RELEASE = "right-ui-tap-scroll-physics-fire-hotfix-v576";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -837,7 +837,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-ui-tap-scroll-physics-fire-v575";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-ui-tap-scroll-physics-fire-hotfix-v576";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -13057,7 +13057,7 @@ function updateActionButtons(data) {
     els.empButton.hidden = false;
     els.cameraButton.hidden = self.role !== "defender";
     els.nextCameraButton.hidden = self.role !== "defender";
-    els.fireJutsuButton.hidden = true;
+    els.fireJutsuButton.hidden = !(self.fireJutsuCharges > 0);
     els.mapActionButton.hidden = false;
     els.substitutionStatusButton.hidden = true;
     els.gritStatusButton.hidden = true;
@@ -20901,7 +20901,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "right-ui-tap-scroll-physics-fire-v575";
+const version = "right-ui-tap-scroll-physics-fire-hotfix-v576";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21848,7 +21848,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=right-ui-tap-scroll-physics-fire-v575", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=right-ui-tap-scroll-physics-fire-hotfix-v576", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.
