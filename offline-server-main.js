@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "opening-barrier-headshot-balance-v578",
+    version: "title-portrait-balance-contrast-v579",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7966,8 +7966,8 @@ const OPERATORS = {
       special: "gunner",
       limit: 99,
       asset: "gunner",
-      description: "ARとエイム・特殊弾装填パッシブを持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      description: "ARとエイム・特殊弾装填を持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。特殊弾装填は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -18872,7 +18872,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
   } else if (key === "flora") {
     useFloraAbility(room, player, String(options.mode || "heal"), options);
   } else if (key === "gunner") {
-    throw new ApiError(400, "ガンナーのエイム・特殊弾装填は自動パッシブです。HSGはStorageの物理武具として使用／投擲し、GBOは所持武具のUse／Throw／Shoot長押しから全員が使用します。");
+    throw new ApiError(400, "ガンナーのエイム・特殊弾装填は理知中に自動作動します。HSGはStorageの物理武具として使用／投擲し、GBOは所持武具のUse／Throw／Shoot長押しから全員が使用します。");
   } else if (key === "quantum") {
     return useQuantumControl(room, player, String(options.mode || "nuclear-transmutation"));
   }
@@ -24964,7 +24964,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "opening-barrier-headshot-balance-v578",
+  version: "title-portrait-balance-contrast-v579",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "opening-barrier-headshot-balance-v578",
+    version: "title-portrait-balance-contrast-v579",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

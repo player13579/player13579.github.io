@@ -6583,6 +6583,28 @@ body.tablet-mode-active .hacker-direct-action {
     font-size: 14px;
   }
 
+  /* A cover-sized 16:9 image cannot retain the full right-hand character in
+     portrait.  Frame every raster layer with the same aspect-preserving crop
+     so the reaching hand and body remain visible without a doubled/warped
+     animated character.  This is portrait-only; desktop/tablet composition
+     and its depth-animation anchors stay intact. */
+  @media (orientation: portrait) {
+    .start-hero,
+    .title-hero-character,
+    .title-hero-atmosphere {
+      inset: max(env(safe-area-inset-top), 0px) 0 auto auto;
+      width: 170%;
+      height: auto;
+      max-width: none;
+      object-fit: contain;
+      object-position: right top;
+    }
+
+    .title-hero-character {
+      transform-origin: 78% 48%;
+    }
+  }
+
   .tactics-header {
     min-height: 76px;
     padding: 10px 12px;

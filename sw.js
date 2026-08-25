@@ -5,9 +5,9 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "opening-barrier-headshot-balance-v578";
-const CACHE_NAME = "dva-static-v578-opening-barrier-headshot-balance";
-const RUNTIME_RECOVERY_REVISION = "v578-opening-barrier-headshot-balance-1";
+const RUNTIME_RELEASE = "title-portrait-balance-contrast-v579";
+const CACHE_NAME = "dva-static-v579-title-portrait-balance-contrast";
+const RUNTIME_RECOVERY_REVISION = "v579-title-portrait-balance-contrast-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "opening-barrier-headshot-balance-v578";
+const DVA_CLIENT_RELEASE = "title-portrait-balance-contrast-v579";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -838,7 +838,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "opening-barrier-headshot-balance-v578";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "title-portrait-balance-contrast-v579";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -12302,7 +12302,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
     const specialAmmoWait = Math.max(0, Number(self.gunnerSpecialAmmoReadyAt || 0) - liveNow);
     const bufferedAmmo = self.gunnerSpecialAmmoInventory || {};
     add(
-      "特殊弾装填パッシブ",
+      "特殊弾装填",
       passiveEnabled
         ? `${specialAmmoWait > 0 ? `次 ${formatEffectCountdown(specialAmmoWait)}` : "待機"} / 保持: ウィーク ${Math.max(0, Number(bufferedAmmo.weak) || 0)}・ペネトレイト ${Math.max(0, Number(bufferedAmmo.penetrate) || 0)}・ショック ${Math.max(0, Number(bufferedAmmo.shock) || 0)}`
         : passiveValue,
@@ -20912,7 +20912,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "opening-barrier-headshot-balance-v578";
+const version = "title-portrait-balance-contrast-v579";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21859,7 +21859,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=opening-barrier-headshot-balance-v578", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=title-portrait-balance-contrast-v579", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.
