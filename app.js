@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "right-ui-tap-scroll-physics-fire-hotfix-v576";
+const DVA_CLIENT_RELEASE = "right-ui-tap-scroll-physics-fire-reachability-v577";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -114,6 +114,7 @@ const els = {
   tabletContextShortcut: $("#tabletContextShortcut"),
   tabletAbilityShortcut: $("#tabletAbilityShortcut"),
   tabletShootShortcut: $("#tabletShootShortcut"),
+  tabletFireShortcut: $("#tabletFireShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
   tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
   tabletVendingShortcut: $("#tabletVendingShortcut"),
@@ -837,7 +838,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-ui-tap-scroll-physics-fire-hotfix-v576";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-ui-tap-scroll-physics-fire-reachability-v577";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2950,6 +2951,7 @@ const actionHotkeys = {
   KeyL: "sabotageButton",
   KeyU: "utilityButton",
   KeyE: "contextActionButton",
+  KeyF: "fireJutsuButton",
   KeyY: "fullscreenButton",
   KeyM: "mapActionButton",
   Backslash: "gameMuteButton",
@@ -3330,6 +3332,7 @@ function cancelVendingHold(event) {
 const SPECIALIZED_HOLD_ACTION_IDS = new Set([
   "shootButton",
   "tabletShootShortcut",
+  "tabletFireShortcut",
   "dashButton",
   "slowWalkButton",
   "fireJutsuButton",
@@ -3681,6 +3684,7 @@ function allowContinuousActionKey(event, identity = event.code, repeatInterval =
 
 function enhanceActionForElement(elementKey) {
   if (elementKey === "fireJutsuButton") return "fire";
+  if (elementKey === "tabletFireShortcut") return "fire";
   if (elementKey === "itemUseButton") return "use";
   if (elementKey === "itemThrowButton") return "throw";
   return "";
@@ -4368,7 +4372,7 @@ function cancelEnhanceAction(kind = state.enhanceHold.kind, { recoverOnFailure =
   state.enhanceHold = { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
   if (hold.chargeKind === "shoot") state.gunActivationPending = false;
   if (hold.pointerId !== null) {
-    for (const button of [els.shootButton, els.tabletShootShortcut, els.fireJutsuButton, els.itemUseButton, els.itemThrowButton]) {
+    for (const button of [els.shootButton, els.tabletShootShortcut, els.fireJutsuButton, els.tabletFireShortcut, els.itemUseButton, els.itemThrowButton]) {
       try {
         if (button?.hasPointerCapture?.(hold.pointerId)) button.releasePointerCapture(hold.pointerId);
       } catch {}
@@ -6416,6 +6420,7 @@ function bindEvents() {
     });
   };
   bindEnhanceButton(els.fireJutsuButton, "fire");
+  bindEnhanceButton(els.tabletFireShortcut, "fire");
   bindEnhanceButton(els.itemUseButton, "use");
   bindEnhanceButton(els.itemThrowButton, "throw");
   window.addEventListener("pointerup", (event) => {
@@ -6801,6 +6806,7 @@ function bindEvents() {
     }
     if (event.code === "KeyV") void finishEnhanceAction("use");
     if (event.code === "KeyG") void finishEnhanceAction("throw");
+    if (event.code === "KeyF") void finishEnhanceAction("fire");
     if (event.key === "Shift") state.keys.delete("dash");
     if (event.key === "Control" || event.key === "Alt") state.keys.delete("slow");
     const key = keyName(event.key);
@@ -7865,6 +7871,11 @@ function renderTabletControls(data) {
   els.tabletShootShortcut.disabled = els.shootButton.disabled;
   els.tabletShootShortcut.hidden = els.shootButton.hidden;
   els.tabletShootShortcut.classList.toggle("active", els.shootButton.classList.contains("active"));
+  setTabletShortcutLabel(els.tabletFireShortcut, "ファイア", els.fireJutsuButton.textContent || "ファイア");
+  els.tabletFireShortcut.disabled = els.fireJutsuButton.disabled || els.fireJutsuButton.hidden;
+  els.tabletFireShortcut.hidden = els.fireJutsuButton.hidden;
+  els.tabletFireShortcut.dataset.actionDisabled = els.fireJutsuButton.disabled ? "1" : "0";
+  els.tabletFireShortcut.classList.toggle("action-disabled", els.fireJutsuButton.disabled);
   setTabletShortcutLabel(els.tabletEmpShortcut, "EMP", els.empButton.textContent || "EMP");
   // The tablet shortcut delegates to the canonical EMP button.  It must carry
   // the exact same disabled state: previously a cooling-down or ability-locked
@@ -20901,7 +20912,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "right-ui-tap-scroll-physics-fire-hotfix-v576";
+const version = "right-ui-tap-scroll-physics-fire-reachability-v577";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21848,7 +21859,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=right-ui-tap-scroll-physics-fire-hotfix-v576", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=right-ui-tap-scroll-physics-fire-reachability-v577", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

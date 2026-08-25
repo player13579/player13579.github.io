@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "right-ui-tap-scroll-physics-fire-hotfix-v576",
+    version: "right-ui-tap-scroll-physics-fire-reachability-v577",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
