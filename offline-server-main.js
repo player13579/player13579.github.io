@@ -7364,7 +7364,7 @@ const LABORATORY_MAP = Object.freeze({
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
     ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
-    ["fire", "火遁スクロール", 8, "instant-item", "fire", "fire"],
+    ["fire", "ファイア", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
     ["grit", "バリア", 5, "instant-item", "grit", "grit"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "bot-manual-state-continuity-v572",
+    version: "right-ui-tap-scroll-physics-fire-v575",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7923,7 +7923,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを1消費してSPと加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7943,7 +7943,7 @@ const OPERATORS = {
       limit: 99,
       asset: "flora",
       description: "回復・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは試合経過時間による発動制限がなく、10MPで選択対象方向へ黄色系の強い光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
+      details: "回復は1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは試合経過時間による発動制限がなく、10MPで屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -7953,7 +7953,7 @@ const OPERATORS = {
       limit: 99,
       asset: "quantum",
       description: "運動エネルギー制御・エレクトリック・核変換・核分裂を使い分ける。",
-      details: "エレクトリックは16SPと1MPを使い、見通し上の最近接敵へ距離を問わず、空気の局所絶縁破壊から一条の電子輸送路を形成して0.35ダメージと3秒35%減速を与える。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。運動エネルギー制御は所持しているミネラルウォーターまたは海水を高温水か氷へ変える。核変換は所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂・核融合は終盤に所持核素材へ2MPで作用する。対象がなければ何も起きない。"
+      details: "エレクトリックは16SPと1MPを使い、見通し上の最近接敵へ距離を問わず、空気の局所絶縁破壊から一条の電子輸送路を形成して0.35ダメージと3秒35%減速を与える。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。運動エネルギー制御は所持水の運動・熱エネルギーを増減し、高温水または氷へ相変化させる。核変換は原子核変換で所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂・核融合は終盤に所持核素材へ2MPで作用する。対象がなければ何も起きない。"
     }
   ],
   attacker: [
@@ -7965,7 +7965,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARとエイム・特殊弾装填パッシブを持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（2〜34%）、理知中かつダッシュ以外で最寄りの可視対象を追尾するパッシブ『エイム』中は高確率（49〜81%）になるが確定ではない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、選択中の銃へウィーク・ペネトレイト・ショックのいずれか1マガジンを獲得し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（2〜34%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を49〜81%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -7975,7 +7975,7 @@ const OPERATORS = {
       limit: 99,
       asset: "assassin",
       description: "共有忍殺を死体の残らない消滅へ変え、移動状態を問わず足音を一切発しない。",
-      details: "忍殺の4秒静止、距離、対象喪失、防御、クールタイムの規則は共有忍殺と同じ。成功時は「アサシン忍殺による消滅」として対象を消滅させ、死体・通報対象・死体由来マーカーを残さない。歩行、ダッシュ、無音歩行のいずれでも足音イベントを発生させず、敵Botにも足音由来の観測情報を与えない。"
+      details: "忍殺の4秒静止、距離、対象喪失、防御、クールタイムの規則は共有忍殺と同じ。成功時は対象を物質・死体とも残さない「アサシン忍殺による消滅」状態へ移し、通報対象・死体由来マーカーも残さない。歩行、ダッシュ、無音歩行のいずれでも移動による音響イベントを発生させず、敵Botにも足音由来の観測情報を与えない。"
     },
     {
       id: "attacker-alchemist",
@@ -7985,7 +7985,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングで資源、所持品、永続オブジェクト、オペ能力を生成する。共有商品はMP消費0、最終CTはショップ価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化はバリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化し、自身へダメージを与えてHPを0.0001にした後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、通常Human Taskとは別の時間経過passiveでタスクを自動完了する。自身のスマホはハッキングされない。"
+      details: "バイブコーディングは訓練世界の計算機的な資源・所持品・永続オブジェクト・オペ能力の状態を生成または変更する。共有商品はMP消費0、最終CTはショップ価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化は自身の生体状態をHP 0.0001へ固定し、バリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化した後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、通常Human Taskとは別の時間経過passiveでタスクを自動完了する。自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -16274,7 +16274,7 @@ function purchaseDrink(room, player, itemId, options = {}) {
     speed: { label: "アクセラレート飲料", cost: 55, apply: () => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.15) * 100) / 100; } },
     warp: { label: "テレポートマップスクロール", cost: 35, apply: () => { player.warpCharges = Math.min(3, player.warpCharges + 1); } },
     mystery: { label: "ミステリー", cost: MYSTERY_COST, apply: () => applyMysteryDrink(room, player) },
-    fire: { label: "火遁スクロール", cost: FIRE_JUTSU_COST, apply: () => { player.fireJutsuCharges = Math.min(2, player.fireJutsuCharges + 1); } },
+    fire: { label: "ファイア", cost: FIRE_JUTSU_COST, apply: () => { player.fireJutsuCharges = Math.min(2, player.fireJutsuCharges + 1); } },
     substitution: { label: "変わり身の術", cost: SUBSTITUTION_COST, apply: () => {
       if (player.substitutionCharges >= 2) throw new ApiError(400, "変わり身は最大2回分まで所持できます。");
       player.substitutionCharges += 1;
@@ -18063,12 +18063,12 @@ function advanceHazards(room, timestamp = now()) {
 
 function useFireJutsu(room, player, rawHoldMs = 0, chargeId = "") {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は火遁スクロールを使用できません。");
+    throw new ApiError(403, "現在はファイアを使用できません。");
   }
   ensureAbilityAvailable(player);
   ensureItemStorageAvailable(player);
-  if (player.fireJutsuCharges <= 0) throw new ApiError(400, "火遁スクロールを所持していません。");
-  const enhance = resolveEnhance(room, player, rawHoldMs, "火遁スクロール", {
+  if (player.fireJutsuCharges <= 0) throw new ApiError(400, "ファイアを所持していません。");
+  const enhance = resolveEnhance(room, player, rawHoldMs, "ファイア", {
     kind: String(player.enhanceChargeKind || "fire"),
     itemId: "fire-jutsu",
     chargeId,
@@ -18087,7 +18087,7 @@ function useFireJutsu(room, player, rawHoldMs = 0, chargeId = "") {
 
   const fireField = addHazardField(room, player, "fire", origin.x, origin.y, radius, 1 + enhance * 0.35);
   fireField.excludeSource = true;
-  pushEvent(room, `${player.name} が火遁スクロールを使用し、燃焼領域を展開しました${enhance ? "（エンハンス）" : ""}。`);
+  pushEvent(room, `${player.name} がファイアを使用し、熱放出と浮力対流による燃焼領域を展開しました${enhance ? "（エンハンス）" : ""}。`);
   checkWin(room);
   touch(room);
 }
@@ -18310,7 +18310,7 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { const timestamp = now(); grantStamina(room, player, 350, "バイブコーディング", timestamp, { floorAtZero: true }); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
   hsg: { label: "HSG", cost: 0, apply: (_room, player) => acquirePhysicalHsg(player) },
   heal: { label: "回復", cost: 1, apply: (room, player) => { if (player.bodyHits > 0) player.bodyHits = 0; else player.overheal = Math.max(0, Number(player.overheal) || 0) + 1; pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
-  fire: { label: "火遁スクロール", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
+  fire: { label: "ファイア", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
   substitution: { label: "変わり身の術", cost: 1, apply: (room, player) => { player.substitutionCharges += 1; pushInstantItemAcquisitionAte(room, player, "substitution", "hacker"); } },
   warp: { label: "テレポートマップスクロール", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
   grit: { label: "バリア", cost: 1, apply: (room, player) => grantStandFirmCharge(room, player, false, "hacker") },
@@ -24962,7 +24962,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "bot-manual-state-continuity-v572",
+  version: "right-ui-tap-scroll-physics-fire-v575",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

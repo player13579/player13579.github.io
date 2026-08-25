@@ -84,7 +84,7 @@
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
     ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
-    ["fire", "火遁スクロール", 8, "instant-item", "fire", "fire"],
+    ["fire", "ファイア", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
     ["grit", "バリア", 5, "instant-item", "grit", "grit"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "bot-manual-state-continuity-v572",
+    version: "right-ui-tap-scroll-physics-fire-v575",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

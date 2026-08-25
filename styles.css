@@ -4387,7 +4387,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .vending-item-with-icon[data-vending-asset="stamina"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-stamina-v311.png"); }
 .vending-item-with-icon[data-vending-asset="heal"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-heal-v311.png"); }
-.vending-item-with-icon[data-vending-asset="fire"] .vending-alchemy-icon { background-image: url("assets/generated/item-fire-scroll-v540.png?v=fire-scroll-v540"); }
+.vending-item-with-icon[data-vending-asset="fire"] .vending-alchemy-icon { background-image: url("assets/generated/fire-ability-v575.png?v=fire-ability-v575"); }
 .vending-item-with-icon[data-vending-asset="substitution"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-substitution-v311.png"); }
 .vending-item-with-icon[data-vending-asset="warp"] .vending-alchemy-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png"); }
 .vending-item-with-icon[data-vending-asset="grit"] .vending-alchemy-icon { background-image: url("assets/generated/alchemy-effect-grit-v311.png"); }
@@ -5404,7 +5404,7 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-choice="stamina"] .alchemy-choice-icon { background-image: url("assets/generated/item-stamina-cell.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="heal"] .alchemy-choice-icon { background-image: url("assets/generated/item-heal.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="fire"] .alchemy-choice-icon,
-.alchemy-choice[data-alchemy-asset="fire"] .alchemy-choice-icon { background-image: url("assets/generated/item-fire-scroll-v540.png?v=fire-scroll-v540"); }
+.alchemy-choice[data-alchemy-asset="fire"] .alchemy-choice-icon { background-image: url("assets/generated/fire-ability-v575.png?v=fire-ability-v575"); }
 .alchemy-choice[data-alchemy-choice="substitution"] .alchemy-choice-icon { background-image: url("assets/generated/status-substitution.webp?v=rational-icons-v270"); }
 .alchemy-choice[data-alchemy-choice="warp"] .alchemy-choice-icon,
 .alchemy-choice[data-alchemy-asset="warp"] .alchemy-choice-icon { background-image: url("assets/generated/item-teleport-map-scroll-v495.png?v=kill-chain-invisible-global-scroll-hsg-points-v527"); }
@@ -7833,11 +7833,20 @@ body.game-open :is(
   scroll-behavior: auto;
 }
 
-body.game-open .solo-mission-grid,
-body.game-open .hacker-ability-grid {
+body.game-open .solo-mission-grid {
   touch-action: pan-x;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  scroll-behavior: auto;
+}
+
+/* Hacker category changes remain a custom horizontal flick, while vertical
+ * movement belongs to the nearest native right-pane scroll owner. */
+body.game-open .hacker-ability-grid,
+body.game-open .hacker-ability-grid .hacker-direct-action {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   scroll-behavior: auto;
 }
 
@@ -8400,58 +8409,25 @@ body #statusPanel .vending-panel.scroll-region-expanded {
   overflow-y: auto;
 }
 
+/* v575: the gameplay right rail again owns native vertical scrolling. Pane
+ * expansion is a stationary noninteractive tap, so a vertical flick remains
+ * available to this rail or the nearest clipped child surface. */
+body.game-open #sidePanel {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+  scroll-behavior: auto !important;
+}
+
+body.game-open #sidePanel.scroll-region-expanded-host {
+  overflow: hidden !important;
+}
+
 body .vending-panel {
   max-height: min(54vh, 500px);
   overflow-y: auto;
-}
-
-/* v556: the gameplay right UI is a fixed multi-window surface. Upward and
- * downward vertical flicks own expansion/restoration in app.js; neither the
- * outer rail nor its current child windows own native vertical scrolling. */
-body.game-open #sidePanel {
-  overflow: clip !important;
-  overscroll-behavior: none !important;
-  touch-action: none !important;
-  -webkit-overflow-scrolling: auto !important;
-  scrollbar-width: none;
-}
-
-body.game-open #sidePanel :is(
-  [data-scroll-region],
-  [data-right-panel-scroll],
-  .hacker-ability-grid,
-  .active-effects-panel,
-  .active-effects-list,
-  .item-inventory-grid,
-  .vending-panel,
-  .operator-list,
-  .operator-detail,
-  .alchemy-choice-grid
-) {
-  max-height: none !important;
-  /* A visible Y axis computes back to auto when a legacy hidden X axis
-   * remains. Own both axes so no right-UI descendant regains scrolling. */
-  overflow: visible !important;
-  overscroll-behavior-y: none !important;
-  touch-action: none !important;
-  -webkit-overflow-scrolling: auto !important;
-  scroll-behavior: auto !important;
-  scrollbar-width: none;
-}
-
-body.game-open #sidePanel :is(
-  [data-scroll-region],
-  [data-right-panel-scroll],
-  .hacker-ability-grid,
-  .active-effects-panel,
-  .active-effects-list,
-  .item-inventory-grid,
-  .vending-panel,
-  .operator-list,
-  .operator-detail,
-  .alchemy-choice-grid
-)::-webkit-scrollbar {
-  display: none;
 }
 
 body .vending-grid {

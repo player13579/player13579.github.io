@@ -5,9 +5,9 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "bot-manual-state-continuity-v572";
-const CACHE_NAME = "dva-static-v572-bot-manual-state-continuity";
-const RUNTIME_RECOVERY_REVISION = "v572-bot-manual-state-continuity-1";
+const RUNTIME_RELEASE = "right-ui-tap-scroll-physics-fire-v575";
+const CACHE_NAME = "dva-static-v575-right-ui-tap-scroll-physics-fire";
+const RUNTIME_RECOVERY_REVISION = "v575-right-ui-tap-scroll-physics-fire-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -288,7 +288,7 @@ const STATIC_ASSETS = [
   "/assets/generated/effect-quantum-hot.webp",
   "/assets/generated/exile-clone.webp",
   "/assets/generated/gravity-storm.webp",
-  "/assets/generated/item-fire-scroll-v540.png",
+  "/assets/generated/fire-ability-v575.png",
   "/assets/generated/skin-blue-dress-back.webp",
   "/assets/generated/skin-blue-dress-front.webp",
   "/assets/generated/skin-blue-dress-kill-cutin.webp",

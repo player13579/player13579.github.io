@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "bot-manual-state-continuity-v572";
+const DVA_CLIENT_RELEASE = "right-ui-tap-scroll-physics-fire-v575";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -32,8 +32,6 @@ const CONTINUOUS_ACTION_HOLD_DELAY_MS = 420;
 const CONTINUOUS_ACTION_REPEAT_INTERVAL_MS = 220;
 const SWITCH_DRAG_HOLD_DELAY_MS = 360;
 const SWITCH_DRAG_MOVE_CANCEL_PX = 14;
-const RIGHT_UI_VERTICAL_FLICK_THRESHOLD_PX = 28;
-const RIGHT_UI_VERTICAL_FLICK_DOMINANCE = 1.25;
 const FIGHTER_SLASH_REPEAT_INTERVAL_MS = 620;
 const TABLET_SCROLL_GESTURE_THRESHOLD_PX = 12;
 const SMARTPHONE_REPAIR_STAMINA_COST = 300;
@@ -628,7 +626,6 @@ const state = {
   activeScrollRegion: null,
   expandedScrollRegion: null,
   paneExpansionGesture: null,
-  paneExpansionClickSuppression: null,
   keyboardContext: "",
   keyboardElement: null,
   debugForceEndEnabled: localStorage.getItem(storage.debugForceEnd) === "1",
@@ -729,7 +726,30 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   speed: "加速+0.15（累積）。移動・物理モーション・クールタイム・行動不能・タスク速度へ適用",
   warp: "獲得時に即席をテレポート権利1回へ変換（最大3回）。任意のタイミングで拡大マップを開き、地点を選ぶと1回消費",
   mystery: "幸運／直観補正つき抽選: 6C／SP+250／完全活性／理知化／12秒減速／15秒能力封印／8秒意識消失",
-  fire: "1回分を獲得（最大2回）。周囲を継続燃焼。Enhanceは強度・範囲のみ強化",
+  fire: "燃焼反応の熱放出と浮力対流で周囲へ継続燃焼領域を展開する1回分（最大2回）。Enhanceは強度・範囲のみ強化",
+  "fighter-limit-break": "HPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ累積する。HPを使い切ると死亡",
+  "gravity-near": "局所重力場で時空曲率を変え、選択対象の近くへ自分を全身転移する",
+  "gravity-target": "局所重力場で時空曲率を変え、選択対象をマップ指定地点へ転移する",
+  "gravity-heart": "遠隔の時空作用で対象の心臓へ干渉し、位置を公開せず確殺を試みる",
+  "gravity-accelerate": "対象の時間進行率を8秒間×2.5にし、移動・物理モーション・CT・行動不能・タスクを同率加速する",
+  "gravity-decelerate": "対象の時間進行率を8秒間×0.38にし、移動・物理モーション・CT・行動不能・タスクを同率減速する",
+  "gravity-time-keeper": "術者以外の時間発展を5秒間停止し、入力・CT・物体運動も同時に止める",
+  "gravity-storm": "指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束を与える",
+  "flora-heal": "生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して12秒間加速する",
+  "flora-sunbeam": "屈折・回折で光路を制御し、壁までの交差対象を確殺する",
+  "flora-invisible": "光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる",
+  "gunner-aim": "幾何光学の可視線と弾道方向を合わせ、理知中・非ダッシュ時に最近接可視対象へ照準を追尾する",
+  "gunner-special-ammo": "弾道・材料特性の異なる特殊弾を、理知中18秒ごとに選択中の銃へ1マガジン装填する",
+  "quantum-kinetic-accelerate": "液体の運動・熱エネルギーを増やし、所持水を高温水へ相変化させる",
+  "quantum-kinetic-decelerate": "液体の運動・熱エネルギーを減らし、所持水を氷へ相変化させる",
+  "quantum-electric": "空気を局所絶縁破壊して一条の電子輸送路を作り、見通し上の最近接敵へ作用する",
+  "quantum-transmutation": "原子核変換で所持鉛または水銀を金へ変え、100Cへ即時換金する",
+  "quantum-fission": "終盤に所持ウランまたはプルトニウムへ核分裂連鎖を起こし、全人間へ作用させる",
+  "quantum-fusion": "終盤に所持海水中の重水素へ核融合反応を起こし、全人間へ作用させる",
+  "assassin-annihilation": "成功した忍殺対象を物質・死体とも残さない消滅状態へ移す",
+  "assassin-silent-steps": "移動による音響イベントを発生させず、敵Botへ足音由来の観測情報を与えない",
+  "hacker-vibe-coding": "訓練世界の計算機的な資源・物体・能力・状態をコード操作で生成または変更する",
+  "hacker-root": "自身の生体状態をHP 0.0001へ固定し、確殺無効効果を一時遮断して他オペ能力を借用する",
   substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
   grit: "1回分を獲得。次の確殺をボディダメージ化。理知中のみ発動",
   heal: "負傷時はHPを2まで全回復。無傷時はオーバーヒール+1",
@@ -817,7 +837,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "bot-manual-state-continuity-v572";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-ui-tap-scroll-physics-fire-v575";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -840,8 +860,8 @@ const generatedItemTextureFiles = new Map([
   ["iai", { file: "instant-iai-abstract-v451.png" }],
   ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
   ["heal", { file: "alchemy-effect-heal-v311.png" }],
-  ["fire", { file: "item-fire-scroll-v540.png" }],
-  ["fire-jutsu", { file: "item-fire-scroll-v540.png" }],
+  ["fire", { file: "fire-ability-v575.png" }],
+  ["fire-jutsu", { file: "fire-ability-v575.png" }],
   ["substitution", { file: "alchemy-effect-substitution-v311.png" }],
   ["warp", { file: "item-teleport-map-scroll-v495.png" }],
   ["instant-warp", { file: "item-teleport-map-scroll-v495.png" }],
@@ -2065,14 +2085,8 @@ const FULLSCREEN_SCROLL_SELECTOR = "[data-right-panel-scroll], [data-scroll-regi
 const scrollSurfaceRevisions = new WeakMap();
 const scrollRestoreExpected = new WeakMap();
 
-function isGameplayRightUiSurface(surface) {
-  return state.screen === "game" &&
-    surface instanceof Element &&
-    Boolean(els.sidePanel && (surface === els.sidePanel || els.sidePanel.contains(surface)));
-}
-
 function resetScrollSurfaceForSemanticContext(surface) {
-  if (!(surface instanceof Element) || isGameplayRightUiSurface(surface)) return;
+  if (!(surface instanceof Element)) return;
   const revision = (scrollSurfaceRevisions.get(surface) || 0) + 1;
   scrollSurfaceRevisions.set(surface, revision);
   const reset = () => {
@@ -2086,7 +2100,7 @@ function resetScrollSurfaceForSemanticContext(surface) {
 
 document.addEventListener("scroll", (event) => {
   const surface = event.target;
-  if (!(surface instanceof Element) || !surface.matches(FULLSCREEN_SCROLL_SELECTOR) || isGameplayRightUiSurface(surface)) return;
+  if (!(surface instanceof Element) || !surface.matches(FULLSCREEN_SCROLL_SELECTOR)) return;
   const expected = scrollRestoreExpected.get(surface);
   if (expected && Math.abs(surface.scrollTop - expected.top) <= 1 && Math.abs(surface.scrollLeft - expected.left) <= 1) {
     scrollRestoreExpected.delete(surface);
@@ -2098,13 +2112,8 @@ document.addEventListener("scroll", (event) => {
 
 function capturePollScrollPositions() {
   const surfaces = [...document.querySelectorAll(FULLSCREEN_SCROLL_SELECTOR)];
-  for (const surface of surfaces) {
-    if (!isGameplayRightUiSurface(surface)) continue;
-    if (surface.scrollTop) surface.scrollTop = 0;
-    if (surface.scrollLeft) surface.scrollLeft = 0;
-  }
   return surfaces
-    .filter((surface) => surface instanceof Element && !isGameplayRightUiSurface(surface) && !surface.hidden && surface.getClientRects().length > 0)
+    .filter((surface) => surface instanceof Element && !surface.hidden && surface.getClientRects().length > 0)
     .map((surface) => {
       const maxTop = Math.max(0, surface.scrollHeight - surface.clientHeight);
       const maxLeft = Math.max(0, surface.scrollWidth - surface.clientWidth);
@@ -2156,7 +2165,7 @@ function resolveFullscreenScrollableSurface(target) {
   let candidate = target.closest(FULLSCREEN_SCROLL_SELECTOR);
   while (candidate) {
     const mapped = candidate.matches("[data-scroll-region]") ? scrollRegionTarget(candidate) : candidate;
-    if (mapped instanceof Element && !isGameplayRightUiSurface(mapped) && !visited.has(mapped)) {
+    if (mapped instanceof Element && !visited.has(mapped)) {
       visited.add(mapped);
       fallback ||= mapped;
       if (isFullscreenScrollableSurface(mapped)) return mapped;
@@ -4657,9 +4666,7 @@ function setSelectedScrollRegion(region, { focus = true } = {}) {
   region.setAttribute("aria-current", "true");
   if (focus) region.focus?.({ preventScroll: true });
   const target = scrollRegionTarget(region);
-  if (!isGameplayRightUiSurface(target)) {
-    target?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
-  }
+  target?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
   return true;
 }
 
@@ -4674,24 +4681,11 @@ function toggleExpandedScrollRegion(region) {
   return state.expandedScrollRegion === region;
 }
 
-function isPaneExpansionGestureTarget(event, region, { allowInteractive = false } = {}) {
+function isPaneExpansionGestureTarget(event, region) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target || !region?.contains(target)) return false;
   const interactive = target.closest("button, input, select, textarea, a, label, [role='button'], [role='option'], [contenteditable='true'], [data-hacker-recipe], [data-item-choice]");
-  if (!allowInteractive && interactive) return false;
-  // Native form editors must retain their platform pointer behavior. Buttons
-  // and cards are safe because an accepted vertical flick suppresses exactly
-  // the synthetic click that follows its pointerup.
-  if (allowInteractive && target.closest("input, select, textarea, option, [contenteditable='true']")) return false;
-  return true;
-}
-
-function armPaneExpansionClickSuppression(region) {
-  const suppression = { region };
-  state.paneExpansionClickSuppression = suppression;
-  window.setTimeout(() => {
-    if (state.paneExpansionClickSuppression === suppression) state.paneExpansionClickSuppression = null;
-  }, 0);
+  return !interactive;
 }
 
 function cycleSelectedScrollRegion(direction = 1) {
@@ -4722,9 +4716,7 @@ function selectItemChoice(itemId, focus = true) {
   if (isDisplayedWeaponItemId(button.dataset.itemChoice)) state.selectedWeaponItemId = button.dataset.itemChoice;
   els.itemSelect.dispatchEvent(new Event("change", { bubbles: true }));
   if (focus) button.focus({ preventScroll: true });
-  if (!isGameplayRightUiSurface(button)) {
-    button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-  }
+  button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   return true;
 }
 
@@ -4747,9 +4739,7 @@ function navigateSelectedScrollRegion(key) {
       if (next?.dataset.itemChoice) moved = selectItemChoice(next.dataset.itemChoice, true);
       else if (next) {
         next.focus({ preventScroll: true });
-        if (!isGameplayRightUiSurface(next)) {
-          next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-        }
+        next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
         if (region === els.vendingPanel && shopButtonId(next)) {
           state.vendingSelectedByCategory[state.vendingCategoryId] = shopButtonId(next);
         }
@@ -4757,7 +4747,7 @@ function navigateSelectedScrollRegion(key) {
       }
     }
   }
-  if (vertical && target && !isGameplayRightUiSurface(target)) {
+  if (vertical && target) {
     const amount = Math.max(48, Math.round((target.clientHeight || 120) * 0.34)) * direction;
     target.scrollBy({ top: amount, behavior: "smooth" });
   }
@@ -4786,9 +4776,7 @@ function navigateGameplayChoices(key) {
   if (next.dataset.hackerRecipe) selectHackerAction(next.dataset.hackerRecipe, true);
   else if (next.dataset.alchemyChoice) selectAlchemyRecipe(next.dataset.alchemyChoice, true);
   else next.focus({ preventScroll: true });
-  if (!isGameplayRightUiSurface(next)) {
-    next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-  }
+  next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   return true;
 }
 
@@ -4944,7 +4932,7 @@ function setKeyboardSelection(element, scroll = true) {
   state.keyboardElement = element;
   element.classList.add("keyboard-selected");
   element.focus({ preventScroll: true });
-  if (scroll && !isGameplayRightUiSurface(element)) {
+  if (scroll) {
     element.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }
   return true;
@@ -6494,15 +6482,15 @@ function bindEvents() {
     if (!(element instanceof Element)) return;
     const scrollRegion = element.closest("[data-scroll-region]");
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
-    const rightPaneFlick = state.screen === "game" &&
+    const rightPaneTap = state.screen === "game" &&
       scrollRegion &&
       isExpandableScrollRegion(scrollRegion) &&
-      isPaneExpansionGestureTarget(event, scrollRegion, { allowInteractive: true });
+      isPaneExpansionGestureTarget(event, scrollRegion);
     const tacticsPaneTap = isTacticsScrollRegion(scrollRegion) &&
       isPaneExpansionGestureTarget(event, scrollRegion);
     state.paneExpansionGesture = (
       event.isPrimary &&
-      (rightPaneFlick || tacticsPaneTap)
+      (rightPaneTap || tacticsPaneTap)
     ) ? {
       pointerId: event.pointerId,
       region: scrollRegion,
@@ -6510,7 +6498,7 @@ function bindEvents() {
       y: event.clientY,
       lastX: event.clientX,
       lastY: event.clientY,
-      kind: rightPaneFlick ? "right-flick" : "tactics-tap"
+      kind: rightPaneTap ? "right-tap" : "tactics-tap"
     } : null;
   });
   document.addEventListener("pointermove", (event) => {
@@ -6525,21 +6513,10 @@ function bindEvents() {
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     const dx = event.clientX - gesture.x;
     const dy = event.clientY - gesture.y;
-    if (gesture.kind === "tactics-tap") {
+    if (gesture.kind === "tactics-tap" || gesture.kind === "right-tap") {
       if (Math.hypot(dx, dy) <= 9 && isPaneExpansionGestureTarget(event, gesture.region)) {
         toggleExpandedScrollRegion(gesture.region);
       }
-      return;
-    }
-    const verticalFlick = Math.abs(dy) >= RIGHT_UI_VERTICAL_FLICK_THRESHOLD_PX &&
-      Math.abs(dy) >= Math.abs(dx) * RIGHT_UI_VERTICAL_FLICK_DOMINANCE;
-    if (!verticalFlick) return;
-    armPaneExpansionClickSuppression(gesture.region);
-    if (dy < 0) {
-      setSelectedScrollRegion(gesture.region, { focus: false });
-      syncExpandedScrollRegion(gesture.region);
-    } else {
-      syncExpandedScrollRegion(null);
     }
   });
   const cancelPaneExpansionGesture = (event) => {
@@ -6549,14 +6526,6 @@ function bindEvents() {
   };
   document.addEventListener("pointercancel", cancelPaneExpansionGesture);
   document.addEventListener("lostpointercapture", cancelPaneExpansionGesture, true);
-  document.addEventListener("click", (event) => {
-    const suppression = state.paneExpansionClickSuppression;
-    const target = event.target instanceof Element ? event.target : null;
-    if (!suppression || !target || !suppression.region?.contains(target)) return;
-    state.paneExpansionClickSuppression = null;
-    if (event.cancelable) event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
   const suppressIosGameCallout = (event) => {
     if (state.screen !== "game") return;
     const target = event.target instanceof Element ? event.target : null;
@@ -8458,13 +8427,13 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
 
     if (activeType === "teleport" || activeType === "gravity") {
       const gravityDescriptions = {
-        near: "1MP。選択した他プレイヤーの近くへ全身転移する",
-        target: "1MP。マップで指定した地点へ選択対象を転移する。味方への誤射は発動者が即死する",
-        heart: "10MP。拳を握り、対象の心臓へ干渉して遠隔確殺を試みる",
-      accelerate: "1MP。8秒間×2.5。移動・行動不能時間・クールタイム・タスク・物理モーションを加速する",
-      decelerate: "1MP。8秒間×0.38。移動・行動不能時間・クールタイム・タスク・物理モーションを減速する",
-      "time-keeper": "1000MP。5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する",
-      storm: "10MP。指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
+        near: "1MP。局所重力場で時空曲率を変え、選択対象の近くへ全身転移する",
+        target: "1MP。局所重力場で時空曲率を変え、選択対象をマップ指定地点へ転移する。味方への誤射は発動者が即死する",
+        heart: "10MP。遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる",
+      accelerate: "1MP。対象の時間進行率を8秒間×2.5にし、移動・行動不能時間・CT・タスク・物理モーションを同率加速する",
+      decelerate: "1MP。対象の時間進行率を8秒間×0.38にし、移動・行動不能時間・CT・タスク・物理モーションを同率減速する",
+      "time-keeper": "1000MP。5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する",
+      storm: "10MP。指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
     };
     const gravityModes = new Set(["near", "target", "heart", "accelerate", "decelerate", "time-keeper", "storm"]);
     [...els.teleportModeSelect.options].filter((option) => gravityModes.has(option.value)).forEach((option) => {
@@ -8476,9 +8445,9 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     });
   } else if (activeType === "flora") {
     const floraDescriptions = {
-      heal: "1MP。自分のHP・SP・状態異常を回復し、加速を付与する",
-      sunbeam: "10MP。選択対象方向へ光線を放ち、交差した全対象を貫通して確殺する",
-      invisible: "10MP。10秒間透明になり、敵Botの直接視認・追跡対象から外れる"
+      heal: "1MP。生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して加速を付与する",
+      sunbeam: "10MP。屈折・回折による経路制御で選択対象方向へ光線を放ち、交差した全対象を貫通して確殺する",
+      invisible: "10MP。光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる"
     };
     const floraModes = new Set(["heal", "sunbeam", "invisible"]);
     [...els.teleportModeSelect.options].filter((option) => floraModes.has(option.value)).forEach((option) => {
@@ -8504,17 +8473,17 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
       setOperatorBranchesOpen(false);
     };
     if (state.quantumOperatorBranchStage === "kinetic") {
-      addBranch("加速", () => selectQuantumBranchMode("kinetic-accelerate"), selectedQuantumExecutableMode(borrowedPreview) === "kinetic-accelerate", "所持している水を高温水へ変える。水がなければ何も起きない");
-      addBranch("減速", () => selectQuantumBranchMode("kinetic-decelerate"), selectedQuantumExecutableMode(borrowedPreview) === "kinetic-decelerate", "所持している水を氷へ変える。水がなければ何も起きない");
+      addBranch("加速", () => selectQuantumBranchMode("kinetic-accelerate"), selectedQuantumExecutableMode(borrowedPreview) === "kinetic-accelerate", "液体の運動・熱エネルギーを増やし、所持水を高温水へ相変化させる。水がなければ何も起きない");
+      addBranch("減速", () => selectQuantumBranchMode("kinetic-decelerate"), selectedQuantumExecutableMode(borrowedPreview) === "kinetic-decelerate", "液体の運動・熱エネルギーを減らし、所持水を氷へ相変化させる。水がなければ何も起きない");
     } else {
       addBranch("運動エネルギー制御", () => {
         state.quantumOperatorBranchStage = "kinetic";
         setOperatorBranchesOpen(true, operatorType, true);
       }, selectedQuantumExecutableMode(borrowedPreview).startsWith("kinetic-"), "選択後、加速か減速へ分岐する");
       addBranch("エレクトリック", () => selectQuantumBranchMode("electric-discharge"), selectedQuantumExecutableMode(borrowedPreview) === "electric-discharge", "空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する");
-      addBranch("核変換", () => selectQuantumBranchMode("nuclear-transmutation"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-transmutation", "所持している鉛か水銀を金へ変えて100Cへ即時換金する。対象がなければ何も起きない");
-      addBranch("核分裂", () => selectQuantumBranchMode("nuclear-fission"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fission", "終盤に所持ウランかプルトニウムへ核分裂を適用し、全人間へ影響する。対象がなければ何も起きない");
-      addBranch("核融合", () => selectQuantumBranchMode("nuclear-fusion"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fusion", "終盤に重水素を含む所持海水で核融合し、全人間へ影響する。海水がなければ何も起きない");
+      addBranch("核変換", () => selectQuantumBranchMode("nuclear-transmutation"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-transmutation", "原子核変換で所持鉛か水銀を金へ変え、100Cへ即時換金する。対象がなければ何も起きない");
+      addBranch("核分裂", () => selectQuantumBranchMode("nuclear-fission"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fission", "終盤に所持ウランかプルトニウムへ核分裂連鎖を起こし、全人間へ作用させる。対象がなければ何も起きない");
+      addBranch("核融合", () => selectQuantumBranchMode("nuclear-fusion"), selectedQuantumExecutableMode(borrowedPreview) === "nuclear-fusion", "終盤に所持海水中の重水素へ核融合反応を起こし、全人間へ作用させる。海水がなければ何も起きない");
     }
   } else if (activeType === "alchemist") {
     availableHackerRecipes(self).forEach((recipe) => {
@@ -9113,7 +9082,6 @@ function releaseRejectedActionTransientInput() {
     } catch {}
   }
   state.paneExpansionGesture = null;
-  state.paneExpansionClickSuppression = null;
   clearLocalGunTrigger();
   if (state.enhanceHold.kind) cancelEnhanceAction(state.enhanceHold.kind, { recoverOnFailure: false });
   if (state.throwTargeting.active) cancelThrowTargeting(true, "", { recoverOnFailure: false });
@@ -11659,31 +11627,31 @@ function abilityModeDescription(owner, mode, self) {
   const cost = (key, fallback = 1) => free ? "今回0MP" : `${Number(costs[key] ?? fallback)}MP`;
   const descriptions = {
     fighter: {
-      "limit-break": "HPを1消費してSPと加速を3倍ずつ累積する。HPを使い切ると死亡する。"
+      "limit-break": "HPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ累積する。HPを使い切ると死亡する。"
     },
     teleport: {
-      near: `対象の近くへ全身転移する。${cost("teleport")}。`,
-      target: `マップで指定した地点へ選択対象を転移する。味方への誤射は発動者が即死する。${cost("teleport")}。`,
-      heart: `拳を握って対象の心臓へ干渉し、遠隔確殺を試みる。位置は公開しない。${cost("heartTeleport", 10)}。`,
-      accelerate: `対象を8秒間×2.5加速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
-      decelerate: `対象を8秒間×0.38へ減速する。移動、行動不能時間、クールタイム、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。${cost("teleport")}。`,
-      "time-keeper": `5秒間、術者以外の全プレイヤー・入力・クールタイム・物体運動を完全停止する。${cost("timeKeeper", 1000)}。`,
-      storm: `指定地点へ全域の敵を12秒間吸引し、幸運に応じた継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 10)}。`
+      near: `局所重力場で時空曲率を変え、対象の近くへ全身転移する。${cost("teleport")}。`,
+      target: `局所重力場で時空曲率を変え、マップ指定地点へ選択対象を転移する。味方への誤射は発動者が即死する。${cost("teleport")}。`,
+      heart: `遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる。位置は公開しない。${cost("heartTeleport", 10)}。`,
+      accelerate: `対象の時間進行率を8秒間×2.5にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
+      decelerate: `対象の時間進行率を8秒間×0.38にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。${cost("teleport")}。`,
+      "time-keeper": `5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する。${cost("timeKeeper", 1000)}。`,
+      storm: `指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 10)}。`
     },
     gravity: null,
     flora: {
-      heal: `自分のHP・SP・状態異常を即時回復し、12秒間加速する。${cost("flora")}。`,
-      sunbeam: `試合経過時間による発動制限なし。選択対象方向へ通常発動し、交差した全対象を貫通して確殺する。${cost("floraSunbeam", 10)}。壁は貫通しない。`,
-      invisible: `10秒間透明になり、敵Botの直接視認・追跡対象から外れる。自分には半透明で表示する。${cost("floraInvisible", 10)}。`
+      heal: `生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して12秒間加速する。${cost("flora")}。`,
+      sunbeam: `試合経過時間による発動制限なし。屈折・回折による経路制御で選択対象方向へ通常発動し、交差した全対象を貫通して確殺する。${cost("floraSunbeam", 10)}。壁は貫通しない。`,
+      invisible: `光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる。自分には半透明で表示する。${cost("floraInvisible", 10)}。`
     },
     quantum: {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。ミネラルウォーターまたは海水を所持していなければ何も起きない。",
-      "kinetic-accelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを加速し、高温水へ変える。対象がなければ何も起きない。",
-      "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動エネルギーを減速し、氷へ変える。対象がなければ何も起きない。",
+      "kinetic-accelerate": "所持しているミネラルウォーターまたは海水の運動・熱エネルギーを増やし、高温水へ相変化させる。対象がなければ何も起きない。",
+      "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動・熱エネルギーを減らし、氷へ相変化させる。対象がなければ何も起きない。",
       "electric-discharge": "量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / 1MP（無料化対象外）。",
-      "nuclear-transmutation": "所持している鉛か水銀を自動選択して金へ核変換し、100Cへ即時換金する。どちらもなければ何も起きない。",
-      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ影響する。どちらもなければ何も起きない。${cost("quantumNuclear")}。`,
-      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合連鎖で核分裂同様に全人間へ影響する。海水がなければ何も起きない。${cost("quantumNuclear")}。`
+      "nuclear-transmutation": "所持している鉛か水銀を自動選択し、原子核変換で金へ変えて100Cへ即時換金する。どちらもなければ何も起きない。",
+      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ作用させる。どちらもなければ何も起きない。${cost("quantumNuclear")}。`,
+      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合反応で全人間へ作用させる。海水がなければ何も起きない。${cost("quantumNuclear")}。`
     }
   };
   const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
@@ -12899,7 +12867,7 @@ function renderVending(data) {
   });
   if (els.magicInventory.hidden) els.magicInventory.hidden = false;
   const carriedItems = (data.self.itemInventory || []).map((item) => `${item.label} ${item.amount}`).join(" / ");
-  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}火遁スクロール ${data.self.fireJutsuCharges || 0} / 変わり身 ${data.self.substitutionCharges || 0} / 銃器 ${(data.self.purchasedWeapons || []).length} / 購入能力 ${(data.self.shopAbilityEntitlements || []).length}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
+  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}ファイア ${data.self.fireJutsuCharges || 0} / 変わり身 ${data.self.substitutionCharges || 0} / 銃器 ${(data.self.purchasedWeapons || []).length} / 購入能力 ${(data.self.shopAbilityEntitlements || []).length}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
   if (els.magicInventory.textContent !== inventoryText) els.magicInventory.textContent = inventoryText;
   scheduleActiveEffectsLayout();
 }
@@ -13133,7 +13101,7 @@ function updateActionButtons(data) {
   els.ninjutsuButton.title = (self.special === "assassin"
     ? "忍殺: 自分と対象が4秒間静止するとアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。移動または対象喪失で失敗"
     : "忍殺: 自分と対象が4秒間静止すると対象を倒し、通報可能な死体を残す。移動または対象喪失で失敗") + killChainSuffix;
-  els.fireJutsuButton.textContent = `火遁スクロール 燃焼 ×${self.fireJutsuCharges || 0}`;
+  els.fireJutsuButton.textContent = `ファイア 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   const rootProtectionBlocked = Boolean(self.hackerRootActive);
   els.substitutionStatusButton.textContent = rootProtectionBlocked
@@ -20933,7 +20901,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "bot-manual-state-continuity-v572";
+const version = "right-ui-tap-scroll-physics-fire-v575";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21880,7 +21848,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=bot-manual-state-continuity-v572", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=right-ui-tap-scroll-physics-fire-v575", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.
