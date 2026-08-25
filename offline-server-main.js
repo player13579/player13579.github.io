@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "right-ui-tap-scroll-physics-fire-reachability-v577",
+    version: "opening-barrier-headshot-balance-v578",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7512,7 +7512,7 @@ const TASK_STAMINA_REQUIREMENT = 400;
 const AUTO_TASK_INTERVAL_MS = 2_500;
 const AUTO_TASK_PRESENCE_MS = 1800;
 const HACKER_AUTO_TASK_INTERVAL_MS = 60_000;
-const PREPARATION_PHASE_MS = 5_000;
+const PREPARATION_PHASE_MS = 10_000;
 const GUNNER_RELOAD_MS = 2_200;
 const GUNNER_IDLE_AUTO_RELOAD_DELAY_MS = 2_600;
 const GUNNER_SPECIAL_AMMO_INTERVAL_MS = 18_000;
@@ -7524,8 +7524,10 @@ const GUNNER_SPECIAL_AMMO_LABELS = Object.freeze({
 });
 const GUNNER_SHOCK_SLOW_MS = 6_000;
 const GUNNER_SHOCK_LOW_LUCK_THRESHOLD = 0;
-const GUNNER_HIP_HEADSHOT_BASE_CHANCE = 0.18;
-const GUNNER_AIM_HEADSHOT_BASE_CHANCE = 0.65;
+// Luck remains the sole modifier.  Keep both ordinary firing modes deliberately
+// body-hit biased: Aim improves placement, but never makes a headshot routine.
+const GUNNER_HIP_HEADSHOT_BASE_CHANCE = 0.05;
+const GUNNER_AIM_HEADSHOT_BASE_CHANCE = 0.20;
 const GUNNER_HEADSHOT_LUCK_INFLUENCE = 0.16;
 const DEFAULT_GUNNER_WEAPON = "assault";
 const GUNNER_WEAPON_ORDER = ["handgun", "smg", "assault", "sniper", "taser"];
@@ -7965,7 +7967,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARとエイム・特殊弾装填パッシブを持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（2〜34%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を49〜81%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。パッシブ『特殊弾装填』は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -24962,7 +24964,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "right-ui-tap-scroll-physics-fire-reachability-v577",
+  version: "opening-barrier-headshot-balance-v578",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

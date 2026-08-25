@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "right-ui-tap-scroll-physics-fire-reachability-v577";
+const DVA_CLIENT_RELEASE = "opening-barrier-headshot-balance-v578";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -762,11 +762,11 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
   hack: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
-  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhanceは0.58（最遠0.37）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhanceは0.50（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhanceは0.70（最遠0.55）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhanceは与ダメージ1.62・固定1MP。固有の確殺なし。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhanceは0.19（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち2〜34%、エイム中49〜81%。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhanceは0.58（最遠0.37）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhanceは0.50（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhanceは0.70（最遠0.55）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhanceは与ダメージ1.62・固定1MP。固有の確殺なし。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhanceは0.19（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
@@ -838,7 +838,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "right-ui-tap-scroll-physics-fire-reachability-v577";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "opening-barrier-headshot-balance-v578";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -11786,7 +11786,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
           asset: weapon.id,
           inventoryKind: "weapon",
           output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.65 : 0.18)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}・幸運補正済み）${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.20 : 0.05)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}・幸運補正済み）${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -12327,7 +12327,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       "エイム",
       aimValue,
       self.gunnerSnipingActive ? "truth" : passiveTone,
-      `理知中はダッシュ以外の移動状態で、選択銃の射程内かつ遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。幸運補正後のHSは腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.18) * 100)}%、エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.65) * 100)}%。正規ダッシュ時だけ即解除。手動ボタン・追尾移動なし`
+      `理知中はダッシュ以外の移動状態で、選択銃の射程内かつ遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。幸運補正後のHSは腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.05) * 100)}%、エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.20) * 100)}%。正規ダッシュ時だけ即解除。手動ボタン・追尾移動なし`
     );
   }
 
@@ -13165,7 +13165,7 @@ function updateActionButtons(data) {
   const normalDamageDetail = minimumDamage < normalDamage
     ? `通常与ダメージ${normalDamage.toFixed(2)}（最遠${minimumDamage.toFixed(2)}）`
     : `通常与ダメージ${normalDamage.toFixed(2)}（距離減衰なし）`;
-  const aimDamageDetail = `現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.65 : 0.18)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}） / 幸運補正後: 腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.18) * 100)}%・エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.65) * 100)}%`;
+  const aimDamageDetail = `現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.20 : 0.05)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}） / 幸運補正後: 腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.05) * 100)}%・エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.20) * 100)}%`;
   els.weaponButton.title = `${gunnerWeapon.name} / 射程${gunnerWeapon.range} / ${normalDamageDetail} / ${aimDamageDetail}${activeSpecialAmmo ? ` / ${activeSpecialAmmo}特殊弾はこの選択武器へ適用中` : ""} / Tで切替`;
   els.weaponButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess);
   if (self.gunFiring) {
@@ -20912,7 +20912,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "right-ui-tap-scroll-physics-fire-reachability-v577";
+const version = "opening-barrier-headshot-balance-v578";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21859,7 +21859,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=right-ui-tap-scroll-physics-fire-reachability-v577", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=opening-barrier-headshot-balance-v578", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

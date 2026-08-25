@@ -7943,12 +7943,44 @@ body #operatorDetail .operator-detail-head strong {
   color: #123744;
 }
 
-body #operatorDetail .operator-detail p {
+body #operatorDetail > p {
   color: #183b49;
 }
 
-body #operatorDetail .operator-detail-kicker {
+body #operatorDetail > .operator-detail-kicker {
   color: #0b6577;
+}
+
+/* The operator explanation is shown after a card may have changed its own
+   material for availability, selection, hover, or focus.  Keep this separate
+   reading surface opaque and give every text tier a foreground chosen for that
+   final surface, rather than inheriting a state-dependent card color. */
+body #operatorDetail {
+  --operator-detail-surface: #f8faf9;
+  --operator-detail-foreground: #183b49;
+  --operator-detail-heading: #123744;
+  --operator-detail-kicker: #0b6577;
+  color: var(--operator-detail-foreground);
+  background-color: var(--operator-detail-surface) !important;
+  background-image: none !important;
+  box-shadow: inset 0 0 0 1px rgba(49, 88, 102, 0.2);
+  text-shadow: none;
+}
+
+body #operatorDetail.operator-detail {
+  border-top-color: #52717c;
+}
+
+body #operatorDetail .operator-detail-head strong {
+  color: var(--operator-detail-heading);
+}
+
+body #operatorDetail > p {
+  color: var(--operator-detail-foreground);
+}
+
+body #operatorDetail > .operator-detail-kicker {
+  color: var(--operator-detail-kicker);
 }
 
 body #statusPanel {

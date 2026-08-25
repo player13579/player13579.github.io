@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "right-ui-tap-scroll-physics-fire-reachability-v577",
+    version: "opening-barrier-headshot-balance-v578",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
