@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "friendly-attacker-bot-fire-lane-v584";
+const DVA_CLIENT_RELEASE = "friendly-attacker-bot-cross-family-guard-v585";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -840,7 +840,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "friendly-attacker-bot-fire-lane-v584";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "friendly-attacker-bot-cross-family-guard-v585";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -10041,10 +10041,21 @@ function applyState(data, options = {}) {
       root.setAttribute("data-v584-friendly-attacker-ally-hp-delta", String((Number(proof.allyBodyHitsAfter) || 0) - (Number(proof.allyBodyHitsBefore) || 0)));
       root.setAttribute("data-v584-friendly-attacker-enemy-hp-delta", String((Number(proof.enemyBodyHitsAfter) || 0) - (Number(proof.enemyBodyHitsBefore) || 0)));
       root.setAttribute("data-v584-friendly-attacker-bot-alive", proof.botAlive ? "true" : "false");
+      root.setAttribute("data-v585-friendly-attacker-bot-complete", proof.complete ? "true" : "false");
+      root.setAttribute("data-v585-sunbeam-ally-no-commit", proof.sunbeamAllyNoCommit ? "true" : "false");
+      root.setAttribute("data-v585-sunbeam-enemy-accepted", proof.sunbeamEnemyAccepted ? "true" : "false");
+      root.setAttribute("data-v585-sword-ally-no-commit", proof.swordAllyNoCommit ? "true" : "false");
+      root.setAttribute("data-v585-sword-enemy-accepted", proof.swordEnemyAccepted ? "true" : "false");
+      root.setAttribute("data-v585-bottle-throw-ally-no-commit", proof.bottleThrowAllyNoCommit ? "true" : "false");
+      root.setAttribute("data-v585-bottle-throw-enemy-accepted", proof.bottleThrowEnemyAccepted ? "true" : "false");
+      root.setAttribute("data-v585-shard-ally-no-commit", proof.shardAllyNoCommit ? "true" : "false");
+      root.setAttribute("data-v585-shard-enemy-accepted", proof.shardEnemyAccepted ? "true" : "false");
+      root.setAttribute("data-v585-stale-status-ally-no-commit", proof.staleStatusAllyNoCommit ? "true" : "false");
+      root.setAttribute("data-v585-friendly-penalty-event", proof.friendlyPenaltyEvent ? "true" : "false");
       const completionKey = `${data.roomId}:${proof.botId}:${proof.enemyId}`;
       if (proof.complete && state.verificationFriendlyAttackerBotCompletionKey !== completionKey) {
         state.verificationFriendlyAttackerBotCompletionKey = completionKey;
-        showToast("実画面検証: 味方射線はno-commit、敵射線だけ射撃を受理");
+        showToast("実画面検証: 味方Botの銃・光線・投擲・破片・継続状態はno-commit、敵だけ受理");
       }
     }
   }
@@ -21123,7 +21134,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "friendly-attacker-bot-fire-lane-v584";
+const version = "friendly-attacker-bot-cross-family-guard-v585";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22079,7 +22090,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=friendly-attacker-bot-fire-lane-v584", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=friendly-attacker-bot-cross-family-guard-v585", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

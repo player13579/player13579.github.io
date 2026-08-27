@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "friendly-attacker-bot-fire-lane-v584",
+    version: "friendly-attacker-bot-cross-family-guard-v585",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -17388,14 +17388,16 @@ function useAntidote(room, player, center, level = 0, thrown = false) {
   if (thrown) pushMagicEffect(room, "hazard-antidote", center, { radius, playerId: player.id, variant: String(level) });
 }
 
-function applyBottleShardSplash(room, player, itemId, center, level = 0) {
+function applyBottleShardSplash(room, player, itemId, center, level = 0, options = {}) {
   if (!BOTTLE_ITEM_IDS.has(itemId)) return 0;
   const radius = BOTTLE_SHARD_BASE_RADIUS + level * 16;
   const timestamp = now();
+  const random = typeof options.random === "function" ? options.random : Math.random;
   let hits = 0;
   for (const target of room.players.values()) {
-    if (!target.alive || target.ejected || distance(center, target) > radius || Math.random() >= BOTTLE_SHARD_HIT_CHANCE) continue;
-    const damage = BOTTLE_SHARD_MIN_DAMAGE + Math.random() * (BOTTLE_SHARD_MAX_DAMAGE - BOTTLE_SHARD_MIN_DAMAGE);
+    if (!target.alive || target.ejected || distance(center, target) > radius || random() >= BOTTLE_SHARD_HIT_CHANCE) continue;
+    if (botFriendlyTransactionBlocked(player, target)) continue;
+    const damage = BOTTLE_SHARD_MIN_DAMAGE + random() * (BOTTLE_SHARD_MAX_DAMAGE - BOTTLE_SHARD_MIN_DAMAGE);
     if (resolveFighterSlashGuard(room, player, target, {
       kind: "bottle-shards",
       label: "瓶の破片",
@@ -17405,6 +17407,10 @@ function applyBottleShardSplash(room, player, itemId, center, level = 0) {
       hitZone: "body"
     }, timestamp)) continue;
     if (absorbPreparationBarrier(room, target, timestamp, player)) continue;
+    if (player && player.id !== target.id && sharesCombatFaction(player, target)) {
+      applyDefenderFriendlyFirePenalty(room, player, target, timestamp);
+      continue;
+    }
     if (hasFighterInfiniteResources(target)) {
       syncFighterInfiniteResources(target);
       pushHitEffect(room, target, "body", false);
@@ -17419,7 +17425,7 @@ function applyBottleShardSplash(room, player, itemId, center, level = 0) {
     const lethalThreshold = 2;
     const lethal = Number(target.bodyHits) >= lethalThreshold;
     pushHitEffect(room, target, "body", lethal);
-    if (lethal) destroyPlayerUnconditionally(room, null, target, "瓶の破片", { bypassSlashGuard: true });
+    if (lethal) destroyPlayerUnconditionally(room, player, target, "瓶の破片", { bypassSlashGuard: true });
   }
   pushMagicEffect(room, "bottle-shards", center, {
     radius,
@@ -17879,13 +17885,44 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
   if (!ITEM_DEFINITIONS[itemId]) throw new ApiError(400, "投擲対象が不正です。");
   if (ITEM_DEFINITIONS[itemId].throwable === false) throw new ApiError(400, `${ITEM_DEFINITIONS[itemId].label}は投擲できません。`);
   if (itemCount(player, itemId) < 1) throw new ApiError(400, `${ITEM_DEFINITIONS[itemId].label}を所持していません。`);
+  const landing = safeThrowPoint(room, player, targetX, targetY);
+  // Bottle shards are an authored area transaction. A Bot must not spend the
+  // held bottle or create its throw/effect when the current landing radius
+  // contains any same-faction body.
+  if (player.isBot && BOTTLE_ITEM_IDS.has(itemId)) {
+    const previewEnhanceLevel = acceptedEnhanceChargeHoldMs(player, rawHoldMs) >= ENHANCE_HOLD_STEP_MS ? 1 : 0;
+    const shardRadius = BOTTLE_SHARD_BASE_RADIUS + previewEnhanceLevel * 16;
+    const friendlyInShardRadius = [...room.players.values()].some((target) => (
+      target.id !== player.id &&
+      target.alive &&
+      !target.ejected &&
+      distance(landing, target) <= shardRadius &&
+      botFriendlyTransactionBlocked(player, target)
+    ));
+    if (friendlyInShardRadius) {
+      throw new ApiError(409, "味方が瓶の破片範囲内にいるためBOTは投擲を保留します。");
+    }
+  }
+  // A rigid sword resolves against the first physical body it reaches, not
+  // merely the Bot's intended enemy. Reject before any transaction ownership.
+  if (player.isBot && itemId === "orichalcum-sword") {
+    const requestedDx = landing.x - player.x;
+    const requestedDy = landing.y - player.y;
+    const intendedPath = resolveVectorAttackPath(room, player, requestedDx, requestedDy, Math.hypot(requestedDx, requestedDy), { collisionRadius: 2 });
+    const collision = rigidThrownCollision(room, {
+      ownerId: player.id, x: player.x, y: player.y,
+      targetX: intendedPath.x, targetY: intendedPath.y
+    });
+    if (botFriendlyTransactionBlocked(player, collision?.target)) {
+      throw new ApiError(409, "味方が投擲経路上にいるためBOTは投擲を保留します。");
+    }
+  }
   const power = resolveHeldPowerMode(room, player, rawHoldMs, ITEM_DEFINITIONS[itemId].label, {
     kind: "throw",
     itemId,
     chargeId,
     gboEligible: itemId === "orichalcum-sword" || itemId === "hsg"
   });
-  const landing = safeThrowPoint(room, player, targetX, targetY);
   if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   consumeItem(player, itemId);
   queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, power);
@@ -18208,6 +18245,12 @@ function advanceHazards(room, timestamp = now()) {
       if (!status || !target.alive || target.ejected) continue;
       if (Number(status.nextTickAt) > timestamp) continue;
       const source = room.players.get(status.sourceId) || null;
+      // Revalidate delayed Bot damage against the current room faction before
+      // advancing its timer or mutating the recipient.
+      if (botFriendlyTransactionBlocked(source, target)) {
+        target[field] = null;
+        continue;
+      }
       status.nextTickAt = timestamp + HAZARD_TICK_MS;
       const damage = baseDamage * Math.max(0.25, Number(status.strength) || 1);
       if (resolveFighterSlashGuard(room, source, target, {
@@ -18332,8 +18375,6 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
     throw new ApiError(403, "現在はサンビームを使用できません。");
   }
   ensureAbilityAvailable(player);
-  spendOperatorMana(room, player, "サンビーム", FLORA_SUNBEAM_MANA_COST);
-  recordBotVisibleHumanAttackStart(room, player, "flora-sunbeam");
   const trackedCandidate = room.players.get(String(targetId || ""));
   const tracked = trackedCandidate &&
     trackedCandidate.id !== player.id &&
@@ -18371,6 +18412,13 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
   // piercing. Every valid body intersecting the ray receives its own
   // independent guard, barrier, dodge, and certain-kill resolution.
   const selected = candidates;
+  // A full piercing Bot ray is one transaction: an ally in its actual
+  // wall-clipped corridor rejects it before MP, evidence or presentation.
+  if (player.isBot && selected.some((entry) => botFriendlyTransactionBlocked(player, entry.target))) {
+    throw new ApiError(409, "味方がサンビーム経路上にいるためBOTは発動を保留します。");
+  }
+  spendOperatorMana(room, player, "サンビーム", FLORA_SUNBEAM_MANA_COST);
+  recordBotVisibleHumanAttackStart(room, player, "flora-sunbeam");
   let hits = 0;
   for (const entry of selected) {
     if (!player.alive || player.ejected || !entry.target?.alive || entry.target.ejected) break;
@@ -21903,15 +21951,124 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       ammoAfterEnemy < beforeBlocked.ammo &&
       Number(enemyDefender.bodyHits) > enemyBodyHitsBefore &&
       (room.magicEffects || []).some((effect) => effect.type === "action-shoot" && effect.playerId === gunnerBot.id);
+    const gunnerAllyBodyHitsAfter = Number(player.bodyHits) || 0;
+    const gunnerEnemyBodyHitsAfter = Number(enemyDefender.bodyHits) || 0;
+    const gunnerBotAlive = Boolean(gunnerBot.alive);
     const friendlyPenaltyEvent = (room.events || []).some((event) => (
       String(event?.text || "").includes(gunnerBot.name) &&
       /同陣営|味方.*攻撃/.test(String(event?.text || ""))
     ));
+    const transactionSnapshot = () => JSON.stringify({
+      mana: Number(gunnerBot.mana) || 0,
+      inventory: { ...(gunnerBot.itemInventory || {}) },
+      thrown: (room.thrownItems || []).length,
+      effects: (room.magicEffects || []).length,
+      sounds: (room.sounds || []).length,
+      events: (room.events || []).length,
+      allyBodyHits: Number(player.bodyHits) || 0,
+      allyOverheal: Number(player.overheal) || 0
+    });
+
+    // Cross-family recurrence proof: the same allied body blocks the entire
+    // actual Sunbeam ray before MP/evidence/presentation. Moving it aside
+    // restores the ordinary enemy-only transaction.
+    Object.assign(gunnerBot, {
+      role: "attacker", special: "flora", operatorId: "operator-flora",
+      mana: FLORA_SUNBEAM_MANA_COST * 2, maxMana: FLORA_SUNBEAM_MANA_COST * 2,
+      aimX: 1, aimY: 0, itemInventory: {}, gunFiring: false
+    });
+    player.x = startX + 70; player.y = y; player.bodyHits = 0; player.overheal = 0;
+    enemyDefender.x = startX + 210; enemyDefender.y = y; enemyDefender.role = "defender";
+    enemyDefender.alive = true; enemyDefender.ejected = false; enemyDefender.bodyHits = 0; enemyDefender.overheal = 0;
+    const sunbeamBeforeBlocked = transactionSnapshot();
+    let sunbeamBlockedStatus = 0;
+    try { floraSunbeam(room, gunnerBot, enemyDefender.id); } catch (error) { sunbeamBlockedStatus = Number(error?.status) || 0; }
+    const sunbeamAfterBlocked = transactionSnapshot();
+    const sunbeamAllyNoCommit = sunbeamBlockedStatus === 409 && sunbeamAfterBlocked === sunbeamBeforeBlocked;
+    player.y = y + Math.max(110, map.playerRadius * 3);
+    const sunbeamEnemyBodyHitsBefore = Number(enemyDefender.bodyHits) || 0;
+    floraSunbeam(room, gunnerBot, enemyDefender.id);
+    const sunbeamEnemyAccepted = Number(gunnerBot.mana) === FLORA_SUNBEAM_MANA_COST &&
+      ((Number(enemyDefender.bodyHits) || 0) > sunbeamEnemyBodyHitsBefore || !enemyDefender.alive);
+
+    // A sword's physical first-body collision uses the same current-faction
+    // preflight, before inventory removal or projectile queue ownership.
+    enemyDefender.alive = true; enemyDefender.ejected = false; enemyDefender.bodyHits = 0; enemyDefender.overheal = 0;
+    Object.assign(gunnerBot, { special: "gunner", operatorId: "attacker-gunner", itemInventory: { "orichalcum-sword": 1 } });
+    player.x = startX + 70; player.y = y;
+    const swordBeforeBlocked = transactionSnapshot();
+    let swordBlockedStatus = 0;
+    const swordBlockedCharge = setEnhanceChargeState(room, gunnerBot, true, "throw", "orichalcum-sword");
+    try { throwInventoryItem(room, gunnerBot, "orichalcum-sword", 0, enemyDefender.x, enemyDefender.y, swordBlockedCharge); } catch (error) { swordBlockedStatus = Number(error?.status) || 0; }
+    const swordAfterBlocked = transactionSnapshot();
+    const swordAllyNoCommit = swordBlockedStatus === 409 &&
+      Number(gunnerBot.itemInventory?.["orichalcum-sword"]) === 1 &&
+      JSON.parse(swordAfterBlocked).thrown === JSON.parse(swordBeforeBlocked).thrown &&
+      JSON.parse(swordAfterBlocked).effects === JSON.parse(swordBeforeBlocked).effects &&
+      JSON.parse(swordAfterBlocked).events === JSON.parse(swordBeforeBlocked).events;
+    player.y = y + Math.max(110, map.playerRadius * 3);
+    const swordEnemyCharge = setEnhanceChargeState(room, gunnerBot, true, "throw", "orichalcum-sword");
+    throwInventoryItem(room, gunnerBot, "orichalcum-sword", 0, enemyDefender.x, enemyDefender.y, swordEnemyCharge);
+    const swordEnemyAccepted = Number(gunnerBot.itemInventory?.["orichalcum-sword"] || 0) === 0 && (room.thrownItems || []).length > 0;
+    room.thrownItems = [];
+
+    // Bottle throwing owns the item transaction before the later shard owner.
+    // Reject an allied landing radius before inventory/projectile/effect commit,
+    // then retain ordinary enemy-only throwing when the radius clears.
+    Object.assign(gunnerBot, { itemInventory: { molotov: 1 } });
+    player.x = enemyDefender.x; player.y = enemyDefender.y;
+    const bottleThrowBeforeBlocked = transactionSnapshot();
+    const bottleThrowBlockedCharge = setEnhanceChargeState(room, gunnerBot, true, "throw", "molotov");
+    let bottleThrowBlockedStatus = 0;
+    try { throwInventoryItem(room, gunnerBot, "molotov", 0, enemyDefender.x, enemyDefender.y, bottleThrowBlockedCharge); } catch (error) { bottleThrowBlockedStatus = Number(error?.status) || 0; }
+    const bottleThrowAfterBlocked = transactionSnapshot();
+    const bottleThrowAllyNoCommit = bottleThrowBlockedStatus === 409 && bottleThrowAfterBlocked === bottleThrowBeforeBlocked;
+    player.x = startX + 70; player.y = y + Math.max(110, map.playerRadius * 3);
+    const bottleThrowEnemyCharge = setEnhanceChargeState(room, gunnerBot, true, "throw", "molotov");
+    throwInventoryItem(room, gunnerBot, "molotov", 0, enemyDefender.x, enemyDefender.y, bottleThrowEnemyCharge);
+    const bottleThrowEnemyAccepted = Number(gunnerBot.itemInventory?.molotov || 0) === 0 && (room.thrownItems || []).length > 0;
+    room.thrownItems = [];
+
+    // Bottle shards and delayed poison use their own non-lethal mutation
+    // owners. Verify both current ally rejection and current enemy acceptance.
+    player.x = startX + 170; player.y = y; player.bodyHits = 0; player.overheal = 0;
+    enemyDefender.x = startX + 410; enemyDefender.y = y; enemyDefender.alive = true; enemyDefender.ejected = false; enemyDefender.bodyHits = 0;
+    const shardsBeforeBlocked = transactionSnapshot();
+    const shardAllyNoCommit = applyBottleShardSplash(room, gunnerBot, "molotov", { x: player.x, y: player.y }, 0, { random: () => 0 }) === 0 &&
+      Number(player.bodyHits) === 0 && Number(player.overheal) === 0 &&
+      JSON.parse(transactionSnapshot()).events === JSON.parse(shardsBeforeBlocked).events;
+    player.x = startX + 70; player.y = y + Math.max(110, map.playerRadius * 3);
+    const shardEnemyBodyHitsBefore = Number(enemyDefender.bodyHits) || 0;
+    const shardEnemyAccepted = applyBottleShardSplash(room, gunnerBot, "molotov", { x: enemyDefender.x, y: enemyDefender.y }, 0, { random: () => 0 }) > 0 &&
+      Number(enemyDefender.bodyHits) > shardEnemyBodyHitsBefore;
+
+    enemyDefender.alive = true; enemyDefender.ejected = false; enemyDefender.role = "defender"; enemyDefender.bodyHits = 0;
+    enemyDefender.mana = 0; enemyDefender.stamina = 0;
+    applyPersistentStatus(room, gunnerBot, enemyDefender, "poison", 1, timestamp);
+    const staleStatusInstalled = Boolean(enemyDefender.poisonStatus);
+    enemyDefender.role = "attacker";
+    const staleStatusBodyHitsBefore = Number(enemyDefender.bodyHits) || 0;
+    advanceHazards(room, timestamp + HAZARD_TICK_MS + 1);
+    const staleStatusAllyNoCommit = staleStatusInstalled && !enemyDefender.poisonStatus && Number(enemyDefender.bodyHits) === staleStatusBodyHitsBefore;
     player.friendlyAttackerBotFireLaneVerification = {
-      complete: allyNoCommit && enemyAccepted && !friendlyPenaltyEvent,
+      complete: allyNoCommit && enemyAccepted && !friendlyPenaltyEvent && sunbeamAllyNoCommit && sunbeamEnemyAccepted &&
+        swordAllyNoCommit && swordEnemyAccepted && bottleThrowAllyNoCommit && bottleThrowEnemyAccepted &&
+        shardAllyNoCommit && shardEnemyAccepted && staleStatusAllyNoCommit,
       allyNoCommit,
       enemyAccepted,
       friendlyPenaltyEvent,
+      sunbeamAllyNoCommit,
+      sunbeamEnemyAccepted,
+      sunbeamBlockedStatus,
+      swordAllyNoCommit,
+      swordEnemyAccepted,
+      swordBlockedStatus,
+      bottleThrowAllyNoCommit,
+      bottleThrowEnemyAccepted,
+      bottleThrowBlockedStatus,
+      shardAllyNoCommit,
+      shardEnemyAccepted,
+      staleStatusAllyNoCommit,
       firstBodyId: String(firstBody?.player?.id || ""),
       allyId: player.id,
       botId: gunnerBot.id,
@@ -21920,10 +22077,10 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       ammoAfterBlocked: afterBlocked.ammo,
       ammoAfterEnemy,
       allyBodyHitsBefore: beforeBlocked.allyBodyHits,
-      allyBodyHitsAfter: Number(player.bodyHits) || 0,
+      allyBodyHitsAfter: gunnerAllyBodyHitsAfter,
       enemyBodyHitsBefore,
-      enemyBodyHitsAfter: Number(enemyDefender.bodyHits) || 0,
-      botAlive: Boolean(gunnerBot.alive)
+      enemyBodyHitsAfter: gunnerEnemyBodyHitsAfter,
+      botAlive: gunnerBotAlive
     };
     gunnerBot.nextBotActionAt = timestamp + 120_000;
     enemyDefender.nextBotActionAt = timestamp + 120_000;
@@ -25424,7 +25581,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "friendly-attacker-bot-fire-lane-v584",
+  version: "friendly-attacker-bot-cross-family-guard-v585",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
