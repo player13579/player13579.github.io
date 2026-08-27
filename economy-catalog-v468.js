@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "universal-healing-hsg-fall-live-v583",
+    version: "friendly-attacker-bot-fire-lane-v584",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -5,9 +5,9 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "universal-healing-hsg-fall-live-v583";
-const CACHE_NAME = "dva-static-v583-universal-healing-hsg-fall-live";
-const RUNTIME_RECOVERY_REVISION = "v583-universal-healing-hsg-fall-live-1";
+const RUNTIME_RELEASE = "friendly-attacker-bot-fire-lane-v584";
+const CACHE_NAME = "dva-static-v584-friendly-attacker-bot-fire-lane";
+const RUNTIME_RECOVERY_REVISION = "v584-friendly-attacker-bot-fire-lane-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "universal-healing-hsg-fall-live-v583";
+const OFFLINE_WORKER_VERSION = "friendly-attacker-bot-fire-lane-v584";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.

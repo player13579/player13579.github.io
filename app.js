@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "universal-healing-hsg-fall-live-v583";
+const DVA_CLIENT_RELEASE = "friendly-attacker-bot-fire-lane-v584";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -840,7 +840,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "universal-healing-hsg-fall-live-v583";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "friendly-attacker-bot-fire-lane-v584";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -10021,6 +10021,31 @@ function applyState(data, options = {}) {
     root.setAttribute("data-v582-kill-loot-mercury", String(Number(mercury?.amount) || 0));
     if (lootEvent && Number(data.self?.credits) >= 37 && Number(mercury?.amount) >= 2) {
       root.setAttribute("data-v582-kill-loot-complete", "true");
+    }
+  }
+  if (VERIFY_REAL_SCREEN_FIXTURE_KIND === "friendly-attacker-bot-fire-lane") {
+    const proof = data.self?.friendlyAttackerBotFireLaneVerification;
+    if (proof) {
+      const root = document.documentElement;
+      root.setAttribute("data-v584-friendly-attacker-bot-complete", proof.complete ? "true" : "false");
+      root.setAttribute("data-v584-friendly-attacker-ally-no-commit", proof.allyNoCommit ? "true" : "false");
+      root.setAttribute("data-v584-friendly-attacker-enemy-accepted", proof.enemyAccepted ? "true" : "false");
+      root.setAttribute("data-v584-friendly-attacker-penalty-event", proof.friendlyPenaltyEvent ? "true" : "false");
+      root.setAttribute("data-v584-friendly-attacker-first-body-id", String(proof.firstBodyId || ""));
+      root.setAttribute("data-v584-friendly-attacker-ally-id", String(proof.allyId || ""));
+      root.setAttribute("data-v584-friendly-attacker-bot-id", String(proof.botId || ""));
+      root.setAttribute("data-v584-friendly-attacker-enemy-id", String(proof.enemyId || ""));
+      root.setAttribute("data-v584-friendly-attacker-ammo-before-blocked", String(proof.ammoBeforeBlocked ?? ""));
+      root.setAttribute("data-v584-friendly-attacker-ammo-after-blocked", String(proof.ammoAfterBlocked ?? ""));
+      root.setAttribute("data-v584-friendly-attacker-ammo-after-enemy", String(proof.ammoAfterEnemy ?? ""));
+      root.setAttribute("data-v584-friendly-attacker-ally-hp-delta", String((Number(proof.allyBodyHitsAfter) || 0) - (Number(proof.allyBodyHitsBefore) || 0)));
+      root.setAttribute("data-v584-friendly-attacker-enemy-hp-delta", String((Number(proof.enemyBodyHitsAfter) || 0) - (Number(proof.enemyBodyHitsBefore) || 0)));
+      root.setAttribute("data-v584-friendly-attacker-bot-alive", proof.botAlive ? "true" : "false");
+      const completionKey = `${data.roomId}:${proof.botId}:${proof.enemyId}`;
+      if (proof.complete && state.verificationFriendlyAttackerBotCompletionKey !== completionKey) {
+        state.verificationFriendlyAttackerBotCompletionKey = completionKey;
+        showToast("実画面検証: 味方射線はno-commit、敵射線だけ射撃を受理");
+      }
     }
   }
   if (VERIFY_REAL_SCREEN_FIXTURE_KIND && data.phase === "playing" && data.self?.alive) {
@@ -21098,7 +21123,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "universal-healing-hsg-fall-live-v583";
+const version = "friendly-attacker-bot-fire-lane-v584";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22054,7 +22079,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=universal-healing-hsg-fall-live-v583", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=friendly-attacker-bot-fire-lane-v584", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

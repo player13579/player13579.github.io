@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "universal-healing-hsg-fall-live-v583",
+    version: "friendly-attacker-bot-fire-lane-v584",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -15665,6 +15665,24 @@ function botTargetHasActiveBarrier(room, target, timestamp = now()) {
   );
 }
 
+function sharesCombatFaction(source, target) {
+  return Boolean(
+    source &&
+    target &&
+    source.id !== target.id &&
+    ["defender", "attacker"].includes(source.role) &&
+    source.role === target.role
+  );
+}
+
+// A Bot never owns the human-facing friendly-fire penalty transaction.  Its
+// candidate, delayed action and final settlement layers must all treat a
+// current same-faction recipient as a no-commit result.  Human inputs retain
+// the ordinary penalty contract.
+function botFriendlyTransactionBlocked(source, target) {
+  return Boolean(source?.isBot && sharesCombatFaction(source, target));
+}
+
 function botCanAttackTarget(room, bot, target, timestamp = now()) {
   return Boolean(
     bot?.isBot &&
@@ -15673,7 +15691,7 @@ function botCanAttackTarget(room, bot, target, timestamp = now()) {
     !target.inVent &&
     !floraInvisibleActive(target, timestamp) &&
     target.id !== bot.id &&
-    target.role !== bot.role &&
+    !sharesCombatFaction(bot, target) &&
     !botTargetHasActiveBarrier(room, target, timestamp)
   );
 }
@@ -15774,6 +15792,7 @@ function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now()
 
 function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP共振") {
   if (!target?.alive || target.ejected) return false;
+  if (botFriendlyTransactionBlocked(source, target)) return false;
   if (source?.role === target.role && ["defender", "attacker"].includes(source.role) && source.id !== target.id) {
     applyEmpDisruption(room, source, timestamp);
     pushEvent(room, `${source.name} の味方EMPが反射され、発動者のアイテムストレージを遮断しました。${target.name} は無傷です。`);
@@ -15834,6 +15853,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
 
 function applyEmpBodyDamage(room, source, target, timestamp) {
   if (!target?.alive || target.ejected) return "none";
+  if (botFriendlyTransactionBlocked(source, target)) return "none";
   if (source?.role === target.role && ["defender", "attacker"].includes(source.role) && source.id !== target.id) {
     applyEmpDisruption(room, source, timestamp);
     pushEvent(room, `${source.name} の味方EMPが反射され、発動者のアイテムストレージを遮断しました。${target.name} は無傷です。`);
@@ -17255,6 +17275,7 @@ function advanceNaturalRecoveryMana(room, player, elapsedMs) {
 
 function applyPersistentStatus(room, source, target, kind, strength = 1, timestamp = now(), options = {}) {
   if (!target?.alive || target.ejected) return false;
+  if (!options.ignoreFriendlyFire && botFriendlyTransactionBlocked(source, target)) return false;
   if (rejectAdverseStatusDuringNaturalRecovery(room, target, kind === "poison" ? "毒" : "燃焼", timestamp)) return false;
   if (!options.bypassSlashGuard && resolveFighterSlashGuard(room, source, target, {
     kind,
@@ -17528,6 +17549,7 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius, o
   let hitCount = 0;
   for (const target of targets) {
     if (!target.alive || target.ejected) continue;
+    if (botFriendlyTransactionBlocked(source, target)) continue;
     if (resolveFighterSlashGuard(room, source, target, {
       kind: "thrown-impact",
       label: `${label}の衝撃`,
@@ -18828,6 +18850,7 @@ function resolveIaiDestructionUpgrade(room, source, target, reason, options = {}
 
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected) return false;
+  if (!options.ignoreFriendlyFire && botFriendlyTransactionBlocked(source, target)) return false;
   const timestamp = now();
   const exactActionLabel = requireExactKillCameraActionLabel(options.attackLabel || reason, options.attackKind || "destruction");
   if (options.attackKind && !options.bypassSlashGuard) {
@@ -19242,6 +19265,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   if (!target || (!explicitTarget && target.role !== expectedTargetRole) || !target.alive || target.ejected) {
     throw new ApiError(404, "キル対象がいません。");
   }
+  if (!ignoreFriendlyFire && botFriendlyTransactionBlocked(killer, target)) return "botFriendlyFireBlocked";
   if (!ranged && !lockedAim && !ignoreRange && distance(killer, target) > room.settings.killRange) throw new ApiError(400, "対象が遠すぎます。");
   if (!ignoreFriendlyFire && killer.role === target.role && ["defender", "attacker"].includes(killer.role)) {
     if (!ranged && !ignoreCooldown && !preserveCooldown) {
@@ -19714,6 +19738,27 @@ function findGunnerTarget(room, shooter, weapon, dx, dy, options = {}) {
     .sort((a, b) => a.along - b.along)[0] || null;
 }
 
+function previewGunnerSpecialAmmoType(player, weaponId) {
+  const type = String(player?.gunnerSpecialAmmoType || "");
+  if (!GUNNER_SPECIAL_AMMO_TYPES.includes(type)) return "";
+  if (String(player?.gunnerSpecialAmmoWeapon || "") !== String(weaponId || "")) return "";
+  const inventoryRounds = Number(player?.gunnerSpecialAmmoInventory?.[type]);
+  const rounds = Number.isFinite(inventoryRounds)
+    ? inventoryRounds
+    : Number(player?.gunnerSpecialAmmoRounds) || 0;
+  return rounds > 0 ? type : "";
+}
+
+function botGunnerFriendlyLaneBlock(room, shooter, weapon, dx, dy) {
+  if (!shooter?.isBot) return null;
+  const specialAmmoType = previewGunnerSpecialAmmoType(shooter, weapon?.id);
+  const firstBody = findGunnerTarget(room, shooter, weapon, dx, dy, {
+    ignoreCover: true,
+    penetrate: specialAmmoType === "penetrate"
+  });
+  return botFriendlyTransactionBlocked(shooter, firstBody?.player) ? firstBody : null;
+}
+
 function gunnerSpecialAmmoLabel(type) {
   return GUNNER_SPECIAL_AMMO_LABELS[type] || "特殊弾";
 }
@@ -19775,6 +19820,7 @@ function consumeGunnerSpecialAmmoRound(player, weaponId) {
 
 function applyShockSpecialRound(room, shooter, target, timestamp = now(), options = {}) {
   if (!target?.alive || target.ejected) return "miss";
+  if (!options.ignoreFriendlyFire && botFriendlyTransactionBlocked(shooter, target)) return "botFriendlyFireBlocked";
   if (!options.ignoreFriendlyFire && shooter?.role === target.role && ["defender", "attacker"].includes(shooter?.role) && shooter.id !== target.id) {
     applyDefenderFriendlyFirePenalty(room, shooter, target, timestamp);
     return "friendlyFirePenalty";
@@ -19833,13 +19879,24 @@ function applyShockSpecialRound(room, shooter, target, timestamp = now(), option
 function fireGunnerRound(room, shooter, weapon, timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
-  shooter.gunnerAmmo[weapon.id] = remainingAmmo - weapon.ammoPerShot;
-  recordBotVisibleHumanAttackStart(room, shooter, `gunner-${weapon.id}`, timestamp);
   const enhanceLevel = Number(shooter.gunnerBurstEnhanceLevel) > 0 ? 1 : 0;
   const gbo = Boolean(shooter.gunnerBurstGbo && shooter.gunnerBurstGboWeapon === weapon.id);
   const effectiveWeapon = gbo
     ? { ...weapon, range: weapon.range * GBO_PERFORMANCE_MULTIPLIER, cooldownMs: Math.max(1, weapon.cooldownMs / GBO_PERFORMANCE_MULTIPLIER) }
     : weapon;
+  const { dx, dy } = finiteDirection(shooter.aimX, shooter.aimY, 0, 1);
+  const previewSpecialAmmoType = previewGunnerSpecialAmmoType(shooter, weapon.id);
+  const targetEntry = findGunnerTarget(room, shooter, effectiveWeapon, dx, dy, {
+    ignoreCover: true,
+    penetrate: previewSpecialAmmoType === "penetrate"
+  });
+  // A burst is a long-lived transaction. Revalidate the first physical body
+  // before every round so an ally entering the lane pauses the magazine with
+  // no ammo, cooldown, sound, ATE, event or friendly-fire penalty mutation.
+  if (botFriendlyTransactionBlocked(shooter, targetEntry?.player)) return "friendlyLaneBlocked";
+
+  shooter.gunnerAmmo[weapon.id] = remainingAmmo - weapon.ammoPerShot;
+  recordBotVisibleHumanAttackStart(room, shooter, `gunner-${weapon.id}`, timestamp);
   const specialAmmoType = consumeGunnerSpecialAmmoRound(shooter, weapon.id);
   shooter.gunnerLastShotAt = timestamp;
   shooter.gunReadyAt = timestamp + effectiveWeapon.cooldownMs;
@@ -19851,11 +19908,6 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
     variant: weapon.id
   });
 
-  const { dx, dy } = finiteDirection(shooter.aimX, shooter.aimY, 0, 1);
-  const targetEntry = findGunnerTarget(room, shooter, effectiveWeapon, dx, dy, {
-    ignoreCover: true,
-    penetrate: specialAmmoType === "penetrate"
-  });
   const endPoint = targetEntry
     ? { x: shooter.x + dx * targetEntry.along, y: shooter.y + dy * targetEntry.along }
     : shotEndPoint(room, shooter, dx, dy, effectiveWeapon.range);
@@ -20008,6 +20060,7 @@ function advanceGunnerFire(room, shooter, timestamp = now()) {
   }
   if ((Number(shooter.gunReadyAt) || 0) > timestamp) return;
   const fired = fireGunnerRound(room, shooter, weapon, timestamp);
+  if (fired === "friendlyLaneBlocked") return;
   if (!fired) {
     const gbo = Boolean(shooter.gunnerBurstGbo && shooter.gunnerBurstGboWeapon === weapon.id);
     stopGunnerFire(room, shooter, { reason: "弾切れ" });
@@ -20041,6 +20094,19 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 
   if (availableStamina(shooter) < GUNNER_BURST_STAMINA_COST) {
     throw new ApiError(400, `1弾倉射撃にはスタミナ ${GUNNER_BURST_STAMINA_COST} が必要です。`);
   }
+  const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
+  const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
+  let dx = shooter.gunnerSnipingActive ? fallbackDx : clampNumber(rawDx, -1, 1, fallbackDx);
+  let dy = shooter.gunnerSnipingActive ? fallbackDy : clampNumber(rawDy, -1, 1, fallbackDy);
+  const length = Math.hypot(dx, dy) || 1;
+  dx /= length;
+  dy /= length;
+  // The planner may correctly select an enemy while an allied body physically
+  // stands first in the firing lane. Reject before held-power settlement,
+  // stamina spend or burst ownership so the Bot never attacks toward its ally.
+  if (botGunnerFriendlyLaneBlock(room, shooter, weapon, dx, dy)) {
+    throw new ApiError(409, "味方が射線上にいるためBOTは射撃を保留します。");
+  }
   const power = resolveHeldPowerMode(room, shooter, rawHoldMs, `${weapon.name}ため撃ち`, {
     kind: "shoot",
     itemId: `weapon:${weapon.id}`,
@@ -20050,13 +20116,6 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 
   });
   const enhanceLevel = power.enhanceLevel;
   advanceGunnerAimPassive(room, shooter, timestamp);
-  const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
-  const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
-  let dx = shooter.gunnerSnipingActive ? fallbackDx : clampNumber(rawDx, -1, 1, fallbackDx);
-  let dy = shooter.gunnerSnipingActive ? fallbackDy : clampNumber(rawDy, -1, 1, fallbackDy);
-  const length = Math.hypot(dx, dy) || 1;
-  dx /= length;
-  dy /= length;
   shooter.aimX = dx;
   shooter.aimY = dy;
   // Charge once only after all ordinary action validation has succeeded and
@@ -21494,7 +21553,10 @@ function serialize(room, viewer, options = {}) {
       emergenciesLeft: viewer.emergenciesLeft,
       inVent: viewer.inVent,
       ventId: viewer.ventId,
-      killsThisRound: viewer.killsThisRound
+      killsThisRound: viewer.killsThisRound,
+      friendlyAttackerBotFireLaneVerification: viewer.friendlyAttackerBotFireLaneVerification
+        ? { ...viewer.friendlyAttackerBotFireLaneVerification }
+        : null
     },
     players,
     bodies: visibleBodies(room, viewer),
@@ -21750,6 +21812,124 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.meeting = null;
     room.sabotage = null;
     pushEvent(room, "実画面検証: 斬る成功時に対象Botの37Cと全譲渡可能所持品を一度だけ戦利品として獲得します。");
+  } else if (kind === "friendly-attacker-bot-fire-lane") {
+    const timestamp = now();
+    const map = getMap(room);
+    const bots = [...room.players.values()].filter((entry) => entry.isBot);
+    const gunnerBot = bots[0];
+    const enemyDefender = bots[1];
+    if (!gunnerBot || !enemyDefender) {
+      throw new ApiError(400, "味方Attacker Bot射線fixtureに必要なBotがいません。");
+    }
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 520 && Number(rect.h) > map.playerRadius * 4)
+      .sort((left, right) => Number(right.w) - Number(left.w))[0];
+    if (!arena) throw new ApiError(400, "味方Attacker Bot射線fixtureに直線経路がありません。");
+    const startX = Number(arena.x) + Math.max(55, map.playerRadius + 16);
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    const ammo = createGunnerAmmo();
+    ammo.handgun = GUNNER_WEAPONS.handgun.maxAmmo;
+    Object.assign(player, {
+      role: "attacker", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX + 70, y, bodyHits: 0, overheal: 0,
+      gritCharges: 0, standFirmBarrierUntil: 0
+    });
+    Object.assign(gunnerBot, {
+      role: "attacker", special: "gunner", operatorId: "attacker-gunner", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX, y, aimX: 1, aimY: 0,
+      stamina: MAX_STORED_STAMINA, maxStoredStamina: MAX_STORED_STAMINA,
+      gunnerWeapon: "handgun", gunnerAmmo: ammo,
+      unavailableGunnerWeapons: GUNNER_WEAPON_ORDER.filter((weaponId) => weaponId !== "handgun"),
+      purchasedWeapons: [], inventions: [], heavyWeapons: [], itemInventory: {},
+      gunnerReloadUntil: 0, gunReadyAt: 0, gunFiring: false,
+      gunnerSpecialAmmoType: "", gunnerSpecialAmmoWeapon: "", gunnerSpecialAmmoRounds: 0,
+      gunnerSpecialAmmoInventory: { weak: 0, penetrate: 0, shock: 0 },
+      mana: 0, maxMana: 2, empReadyAt: timestamp + 120_000,
+      killReadyAt: timestamp + 120_000, nextBotActionAt: timestamp + 120_000,
+      taskAutoReadyAt: timestamp + 120_000
+    });
+    Object.assign(enemyDefender, {
+      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x: startX + 210, y, bodyHits: 0, overheal: 0,
+      gritCharges: 0, standFirmBarrierUntil: 0,
+      nextBotActionAt: timestamp + 120_000, taskAutoReadyAt: timestamp + 120_000
+    });
+    for (const entry of bots.slice(2)) {
+      entry.alive = false;
+      entry.ejected = true;
+      entry.nextBotActionAt = timestamp + 120_000;
+    }
+    room.preparationEndsAt = 0;
+    room.meeting = null;
+    room.sabotage = null;
+
+    const weapon = GUNNER_WEAPONS.handgun;
+    const firstBody = findGunnerTarget(room, gunnerBot, weapon, 1, 0, { ignoreCover: true });
+    const beforeBlocked = {
+      ammo: Object.values(gunnerBot.gunnerAmmo || {}).reduce((total, value) => total + Math.max(0, Number(value) || 0), 0),
+      stamina: Number(gunnerBot.stamina) || 0,
+      gunReadyAt: Number(gunnerBot.gunReadyAt) || 0,
+      effects: room.magicEffects.length,
+      sounds: room.sounds.length,
+      events: room.events.length,
+      allyBodyHits: Number(player.bodyHits) || 0,
+      botAlive: Boolean(gunnerBot.alive)
+    };
+    const blockedHandled = runBotCombatPlanner(room, gunnerBot, enemyDefender, timestamp);
+    const afterBlocked = {
+      ammo: Object.values(gunnerBot.gunnerAmmo || {}).reduce((total, value) => total + Math.max(0, Number(value) || 0), 0),
+      stamina: Number(gunnerBot.stamina) || 0,
+      gunReadyAt: Number(gunnerBot.gunReadyAt) || 0,
+      effects: room.magicEffects.length,
+      sounds: room.sounds.length,
+      events: room.events.length,
+      allyBodyHits: Number(player.bodyHits) || 0,
+      botAlive: Boolean(gunnerBot.alive)
+    };
+    const allyNoCommit = firstBody?.player?.id === player.id &&
+      !botCanAttackTarget(room, gunnerBot, player, timestamp) &&
+      botCanAttackTarget(room, gunnerBot, enemyDefender, timestamp) &&
+      blockedHandled === false &&
+      JSON.stringify(afterBlocked) === JSON.stringify(beforeBlocked);
+
+    // Retry the identical canonical planner after the ally leaves the physical
+    // lane. The action is accepted only for the current enemy Defender.
+    player.y = y + Math.max(110, map.playerRadius * 3);
+    const enemyBodyHitsBefore = Number(enemyDefender.bodyHits) || 0;
+    const acceptedHandled = runBotCombatPlanner(room, gunnerBot, enemyDefender, timestamp);
+    const ammoAfterEnemy = Object.values(gunnerBot.gunnerAmmo || {})
+      .reduce((total, value) => total + Math.max(0, Number(value) || 0), 0);
+    const enemyAccepted = acceptedHandled === true &&
+      ammoAfterEnemy < beforeBlocked.ammo &&
+      Number(enemyDefender.bodyHits) > enemyBodyHitsBefore &&
+      (room.magicEffects || []).some((effect) => effect.type === "action-shoot" && effect.playerId === gunnerBot.id);
+    const friendlyPenaltyEvent = (room.events || []).some((event) => (
+      String(event?.text || "").includes(gunnerBot.name) &&
+      /同陣営|味方.*攻撃/.test(String(event?.text || ""))
+    ));
+    player.friendlyAttackerBotFireLaneVerification = {
+      complete: allyNoCommit && enemyAccepted && !friendlyPenaltyEvent,
+      allyNoCommit,
+      enemyAccepted,
+      friendlyPenaltyEvent,
+      firstBodyId: String(firstBody?.player?.id || ""),
+      allyId: player.id,
+      botId: gunnerBot.id,
+      enemyId: enemyDefender.id,
+      ammoBeforeBlocked: beforeBlocked.ammo,
+      ammoAfterBlocked: afterBlocked.ammo,
+      ammoAfterEnemy,
+      allyBodyHitsBefore: beforeBlocked.allyBodyHits,
+      allyBodyHitsAfter: Number(player.bodyHits) || 0,
+      enemyBodyHitsBefore,
+      enemyBodyHitsAfter: Number(enemyDefender.bodyHits) || 0,
+      botAlive: Boolean(gunnerBot.alive)
+    };
+    gunnerBot.nextBotActionAt = timestamp + 120_000;
+    enemyDefender.nextBotActionAt = timestamp + 120_000;
+    pushEvent(room, player.friendlyAttackerBotFireLaneVerification.complete
+      ? "実画面検証: 味方Attackerユーザーが射線上ではBot射撃no-commit、射線解除後は敵Defenderへの射撃だけを受理しました。"
+      : "実画面検証: 味方Attacker Bot射線検証が未完了です。");
   } else if (kind === "hacker-flick-tap") {
     const timestamp = now();
     player.role = "attacker";
@@ -25249,5 +25429,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "universal-healing-hsg-fall-live-v583" });
+self.postMessage({ type: "ready", version: "friendly-attacker-bot-fire-lane-v584" });
 })();
