@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ate-gameplay-owner-mechanism-diversity-v622",
+    version: "ate-owner-causal-motion-diversity-v623",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

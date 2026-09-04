@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ate-gameplay-owner-mechanism-diversity-v622",
+    version: "ate-owner-causal-motion-diversity-v623",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -22008,6 +22008,69 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       variant: "fixture-ate-owner-diversity-heart", durationMs: 8_000
     });
     pushEvent(room, `実画面検証: ${station.label || station.id} でFloraの自然回復・アロマ、Enhance充填、時の番人、Excalibur、心臓転移を通常rendererへ同時提示します。`);
+  } else if (kind === "ate-causal-diversity") {
+    // This is a state-only fixture. It creates no renderer primitive and uses
+    // the same serialized room collections that a live match supplies to the
+    // production canvas. Keep every long-lived route alive for one bounded
+    // eight-second inspection while bots are prevented from introducing an
+    // unrelated trajectory.
+    const timestamp = now();
+    const map = getMap(room);
+    const arena = [...map.walkable]
+      .filter((rect) => Number(rect.w) > 520 && Number(rect.h) > (Number(map.playerRadius) || 36) * 5)
+      .sort((left, right) => Number(right.w) - Number(left.w))[0];
+    const target = [...room.players.values()].find((entry) => entry.isBot && entry.id !== player.id);
+    if (!arena || !target) throw new ApiError(400, "ATE因果多様性実画面fixtureに広い通路または対象Botがありません。");
+    const radius = Number(map.playerRadius) || 36;
+    const x = Number(arena.x) + Math.max(110, radius + 54);
+    const y = Number(arena.y) + Number(arena.h) / 2;
+    const yTop = Number(arena.y) + Math.max(radius + 42, Number(arena.h) * 0.24);
+    const yBottom = Number(arena.y) + Math.min(Number(arena.h) - radius - 42, Number(arena.h) * 0.76);
+    const targetX = Math.min(Number(arena.x) + Number(arena.w) - radius - 72, x + 410);
+    const endsAt = timestamp + 8_000;
+    Object.assign(player, {
+      role: "defender", special: "gravity", operatorId: "defender-gravity", operatorReady: true,
+      alive: true, ejected: false, inVent: false, x, y, vx: 0, vy: 0, movementMode: "idle",
+      aimX: 1, aimY: 0, mana: Math.max(4, Number(player.maxMana) || 4),
+      maxMana: Math.max(4, Number(player.maxMana) || 4),
+      itemInventory: { hsg: 1 }, hsgUntil: 0, hsgReadyAt: 0,
+      stamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
+      maxStoredStamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
+      staminaUpdatedAt: timestamp
+    });
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      Object.assign(entry, {
+        alive: true, ejected: false, inVent: false,
+        x: entry.id === target.id ? targetX : x + 130,
+        y, vx: 0, vy: 0, movementMode: "idle",
+        nextBotActionAt: timestamp + 120_000,
+        taskAutoReadyAt: timestamp + 120_000,
+        timeStoppedUntil: endsAt
+      });
+    }
+    room.preparationEndsAt = timestamp + 120_000;
+    room.meeting = null;
+    room.sabotage = null;
+    room.gravityZones = [{
+      id: uid("fixture_gravity_"), ownerId: player.id, targetId: target.id,
+      x: targetX, y, radius: Math.min(260, Number(arena.h) * 0.42),
+      barrierRadius: 105, safeX: x, safeY: y, startedAt: timestamp,
+      barrierUntil: endsAt - 1_000, endsAt, lastPulseAt: timestamp + 120_000
+    }];
+    room.hazardFields = [];
+    addHazardField(room, player, "fire", x + 245, y, 118, 1, 8_000);
+    room.hitEffects = [];
+    pushHitEffect(room, player, "head", false);
+    pushHitEffect(room, target, "body", false);
+    pushMagicEffect(room, "gravity-storm", player, { radius: room.gravityZones[0].radius, playerId: player.id, targetId: target.id, targetX, targetY: y, variant: "fixture-ate-causal-gravity", durationMs: 8_000 });
+    pushMagicEffect(room, "gravity-storm-pull", target, { radius: 165, playerId: player.id, targetId: target.id, targetX, targetY: y, variant: "fixture-ate-causal-pull", durationMs: 8_000 });
+    pushMagicEffect(room, "alchemy-railgun", { id: player.id, x, y: yTop }, { radius: 220, playerId: player.id, targetId: target.id, targetX, targetY: yTop, variant: "fixture-ate-causal-railgun", durationMs: 8_000 });
+    pushMagicEffect(room, "alchemy-particle-cannon", { id: player.id, x, y }, { radius: 260, playerId: player.id, targetId: target.id, targetX, targetY: y, variant: "fixture-ate-causal-particle-cannon", durationMs: 8_000 });
+    pushMagicEffect(room, "alchemy-particle-beam", { id: player.id, x, y: yBottom }, { radius: 260, playerId: player.id, targetId: target.id, targetX, targetY: yBottom, variant: "fixture-ate-causal-particle-beam", durationMs: 8_000 });
+    pushMagicEffect(room, "action-dodge", { id: player.id, x: x + 88, y: yBottom }, { radius: 120, playerId: player.id, variant: "fixture-ate-causal-action", durationMs: 8_000 });
+    pushMagicEffect(room, "status-poison", { id: target.id, x: targetX - 84, y: yTop }, { radius: 105, playerId: target.id, variant: "fixture-ate-causal-status", durationMs: 8_000 });
+    pushEvent(room, "実画面検証: Gravity zone、head/body hit、railgun、particle cannon/beam、action/status/hazard とHSG投擲入力を通常rendererで提示します。");
   } else if (kind === "credit-ate-task") {
     player.credits = 0;
     grantCredits(room, player, TASK_CREDIT_REWARD, "fixture-credit-task");
@@ -25861,7 +25924,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "ate-gameplay-owner-mechanism-diversity-v622",
+  version: "ate-owner-causal-motion-diversity-v623",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

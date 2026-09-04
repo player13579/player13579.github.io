@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ate-gameplay-owner-mechanism-diversity-v622";
+const DVA_CLIENT_RELEASE = "ate-owner-causal-motion-diversity-v623";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -867,7 +867,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-gameplay-owner-mechanism-diversity-v622";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-owner-causal-motion-diversity-v623";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9401,6 +9401,9 @@ async function runVerificationRealScreenAutoStart() {
   if (!VERIFY_REAL_SCREEN_AUTO_START || !state.offlineClient) return;
   document.documentElement.setAttribute("data-v533-auto-start-status", "starting");
   try {
+    // Follow the same texture-load boundary as the real title/matchmaking
+    // route before a deterministic fixture can claim visual coverage.
+    loadGameplayTextures();
     // Pages is the canonical verification origin, so sequential exact-route
     // fixtures share its localStorage. Never let a previous fixture's room
     // identity short-circuit or contaminate the next deterministic run.
@@ -16307,22 +16310,39 @@ function drawGravityZones(data) {
         ctx.globalAlpha = 0.72;
         ctx.drawImage(stormTexture, -radius, -radius, radius * 2, radius * 2);
       }
-      ctx.fillStyle = "rgba(76,29,149,0.34)";
-      ctx.strokeStyle = "rgba(196,181,253,0.9)";
-      ctx.lineWidth = 8;
-      ctx.setLineDash([18, 12]);
-      ctx.lineDashOffset = -phase * 18;
+      const compression = Math.sin(phase * 0.34) * radius * 0.035;
+      const precession = Math.sin(phase * 0.19) * 0.16;
+      const fieldGradient = ctx.createRadialGradient(0, 0, radius * 0.08, 0, 0, radius);
+      fieldGradient.addColorStop(0, "rgba(233,213,255,0.3)");
+      fieldGradient.addColorStop(0.42, "rgba(139,92,246,0.19)");
+      fieldGradient.addColorStop(1, "rgba(76,29,149,0.04)");
+      ctx.fillStyle = fieldGradient;
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "rgba(196,181,253,0.9)";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, radius - compression, radius * 0.72 + compression * 0.35, precession, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.setLineDash([]);
-      for (let index = 0; index < 20; index += 1) {
-        const angle = phase * (index % 2 ? -0.7 : 0.9) + index / 12 * Math.PI * 2;
-        const orbit = radius * (0.18 + (index % 5) * 0.16);
-        ctx.fillStyle = index % 3 ? "#a78bfa" : "#e9d5ff";
-        ctx.fillRect(Math.cos(angle) * orbit - 4, Math.sin(angle) * orbit - 4, 8, 8);
-      }
+      ctx.globalAlpha *= 0.72;
+      ctx.strokeStyle = "rgba(167,139,250,0.88)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, radius * 0.67 + compression * 0.5, radius * 0.31 - compression * 0.18, -precession * 0.7, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, radius * 0.38 - compression * 0.22, radius * 0.18 + compression * 0.12, precession * 1.2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha *= 0.78;
+      ctx.strokeStyle = "rgba(233,213,255,0.9)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.91, -radius * 0.2);
+      ctx.bezierCurveTo(-radius * 0.54, -radius * 0.48 + compression, -radius * 0.3, radius * 0.18, 0, 0);
+      ctx.bezierCurveTo(radius * 0.3, -radius * 0.18, radius * 0.54, radius * 0.48 - compression, radius * 0.91, radius * 0.2);
+      ctx.moveTo(-radius * 0.91, radius * 0.2);
+      ctx.bezierCurveTo(-radius * 0.54, radius * 0.48 - compression, -radius * 0.3, -radius * 0.18, 0, 0);
+      ctx.bezierCurveTo(radius * 0.3, radius * 0.18, radius * 0.54, -radius * 0.48 + compression, radius * 0.91, -radius * 0.2);
+      ctx.stroke();
       const barrierUntil = Number(zone.barrierUntil || (Number(zone.endsAt) - 1000));
       ctx.fillStyle = "#f5f3ff";
       ctx.font = "900 11px Segoe UI, sans-serif";
@@ -16747,32 +16767,41 @@ function drawHitEffects() {
   state.hitEffects = state.hitEffects.filter((effect) => now - effect.startedAt < effect.duration);
   for (const effect of state.hitEffects) {
     const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
-    const seed = [...String(effect.id)].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 17);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < 22; index += 1) {
-      const angle = ((seed % 360) + index * 137.5) * Math.PI / 180;
-      const speed = 38 + ((seed >> (index % 12)) & 31) + index * 1.7;
-      const travel = speed * Math.sin(Math.min(1, progress) * Math.PI * 0.62);
-      const x = effect.x + Math.cos(angle) * travel;
-      const y = effect.y + Math.sin(angle) * travel + progress * progress * 34;
-      const alpha = (1 - progress) * (index % 3 === 0 ? 0.95 : 0.72);
-      const hue = (seed + index * 43 + now / 7) % 360;
-      const radius = Math.max(1.2, (effect.lethal ? 6.5 : 5) * (1 - progress * 0.65) * (0.7 + (index % 4) * 0.1));
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = `hsl(${hue} 96% 62%)`;
-      ctx.shadowColor = `hsl(${hue} 100% 72%)`;
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.ellipse(x, y, radius * 1.45, radius, angle, 0, Math.PI * 2);
-      ctx.fill();
-      if (index % 3 === 0) drawRainbowSpark(x, y, radius * 2.4, hue, angle + now / 420);
-    }
-    ctx.globalAlpha = 1 - progress;
-    ctx.strokeStyle = `hsl(${(seed + now / 5) % 360} 100% 72%)`;
-    ctx.lineWidth = 3;
+    ctx.translate(effect.x, effect.y);
+    const impulse = objectEffectEase(clamp(progress / 0.34, 0, 1));
+    const settle = objectEffectEase(clamp((progress - 0.28) / 0.72, 0, 1));
+    const radius = (effect.lethal ? 82 : 58) * (0.38 + impulse * 0.62 - settle * 0.12);
+    const verticalScale = effect.hitZone === "head" ? 0.72 : effect.lethal ? 0.58 : 0.42;
+    const coreGradient = ctx.createRadialGradient(0, 0, 2, 0, 0, radius);
+    coreGradient.addColorStop(0, effect.hitZone === "head" ? "rgba(255,248,220,0.82)" : "rgba(254,215,170,0.7)");
+    coreGradient.addColorStop(0.46, effect.lethal ? "rgba(244,63,94,0.32)" : "rgba(251,146,60,0.28)");
+    coreGradient.addColorStop(1, "rgba(239,68,68,0)");
+    ctx.globalAlpha = Math.max(0, 1 - progress);
+    ctx.fillStyle = coreGradient;
+    ctx.save();
+    ctx.scale(1, verticalScale);
     ctx.beginPath();
-    ctx.arc(effect.x, effect.y, 16 + progress * (effect.lethal ? 76 : 52), 0, Math.PI * 2);
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = effect.hitZone === "head" ? "rgba(254,240,138,0.95)" : effect.lethal ? "rgba(251,113,133,0.94)" : "rgba(253,186,116,0.9)";
+    ctx.lineWidth = effect.lethal ? 4.5 : 3;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius, radius * verticalScale, 0, 0, Math.PI * 2);
+    if (effect.hitZone === "head") {
+      const seam = radius * (0.22 + impulse * 0.34);
+      ctx.moveTo(-seam, seam * 0.54);
+      ctx.quadraticCurveTo(0, -seam * 0.8, seam, seam * 0.54);
+      ctx.moveTo(-seam, -seam * 0.54);
+      ctx.quadraticCurveTo(0, seam * 0.8, seam, -seam * 0.54);
+    } else if (effect.lethal) {
+      ctx.moveTo(-radius * 0.72, 0);
+      ctx.bezierCurveTo(-radius * 0.3, -radius * 0.3, radius * 0.3, radius * 0.3, radius * 0.72, 0);
+      ctx.moveTo(0, -radius * verticalScale * 0.82);
+      ctx.bezierCurveTo(radius * 0.24, -radius * 0.16, -radius * 0.24, radius * 0.16, 0, radius * verticalScale * 0.82);
+    }
     ctx.stroke();
     ctx.restore();
   }
@@ -17327,11 +17356,18 @@ function drawThrowLandingPreview(data) {
   const hold = state.enhanceHold;
   const targeting = state.throwTargeting.active;
   if ((!targeting && (hold.kind !== "throw" || !hold.startedAt)) || data.phase !== "playing" || !data.self?.alive) return;
+  if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-entered", "true");
   const itemId = targeting ? state.throwTargeting.itemId : els.itemSelect?.value || "";
-  if (!itemId) return;
+  if (!itemId) {
+    if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-blocked", "missing-item");
+    return;
+  }
   const elapsedMs = targeting ? state.throwTargeting.holdMs : Math.max(0, performance.now() - hold.startedAt);
   const landing = targeting ? targetedThrowLanding(data) : predictedThrowLanding(data, elapsedMs);
-  if (!landing) return;
+  if (!landing) {
+    if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-blocked", "missing-landing");
+    return;
+  }
   const prepared = transparentSpriteSource(state.textures.throwLandingPreview, "throw-landing-preview", 16);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "throw-landing-preview", 1, 1, 0, 0) : null;
   if (!sprite) return;
@@ -17355,15 +17391,23 @@ function drawThrowLandingPreview(data) {
     opacityBoost: 2.5,
     visibilityProfile: "ambient"
   });
-  for (let glint = 0; glint < 5; glint += 1) {
-    const cycle = ((now * (0.72 + glint * 0.035) + glint * 0.19) % 1 + 1) % 1;
-    const x = Math.sin(glint * 2.17) * markerSize * 0.31;
-    const y = -18 - cycle * 34;
-    const alpha = Math.sin(cycle * Math.PI) * 0.7;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = glint % 2 ? "#facc15" : "#67e8f9";
-    ctx.fillRect(x - 1.5, y - 4, 3, 8);
-  }
+  const aperture = markerSize * (0.31 + Math.sin(now * 1.8) * 0.025);
+  ctx.globalAlpha = 0.58;
+  ctx.strokeStyle = landing.valid === false ? "#fb7185" : "#a5f3fc";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, aperture, aperture * 0.44, 0, Math.PI * 0.08, Math.PI * 0.92);
+  ctx.ellipse(0, 0, aperture, aperture * 0.44, 0, Math.PI * 1.08, Math.PI * 1.92);
+  ctx.stroke();
+  ctx.globalAlpha = 0.42;
+  ctx.strokeStyle = "#fde68a";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-aperture * 0.62, -aperture * 0.25);
+  ctx.quadraticCurveTo(0, -aperture * 0.48, aperture * 0.62, -aperture * 0.25);
+  ctx.moveTo(-aperture * 0.62, aperture * 0.25);
+  ctx.quadraticCurveTo(0, aperture * 0.48, aperture * 0.62, aperture * 0.25);
+  ctx.stroke();
   ctx.restore();
 
   if (targeting) {
@@ -17387,27 +17431,39 @@ function drawThrowLandingPreview(data) {
   }
 
   const trajectoryLength = Math.hypot(markerX - landing.origin.x, markerY - landing.origin.y);
-  const particleCount = Math.max(5, Math.min(16, Math.floor(trajectoryLength / 48)));
+  const arcHeight = Math.min(118, 42 + trajectoryLength * 0.085);
+  const controlX = (landing.origin.x + markerX) / 2;
+  const controlY = (landing.origin.y + markerY) / 2 - arcHeight;
+  const flow = ((now * 0.34) % 1 + 1) % 1;
+  const bandStart = Math.max(0, flow - 0.18);
+  const bandEnd = Math.min(1, flow + 0.18);
+  const guideGradient = ctx.createLinearGradient(landing.origin.x, landing.origin.y, markerX, markerY);
+  guideGradient.addColorStop(0, "rgba(103,232,249,0.2)");
+  guideGradient.addColorStop(bandStart, "rgba(103,232,249,0.34)");
+  guideGradient.addColorStop(flow, "rgba(254,240,138,0.94)");
+  guideGradient.addColorStop(bandEnd, "rgba(103,232,249,0.34)");
+  guideGradient.addColorStop(1, "rgba(103,232,249,0.2)");
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  for (let index = 1; index <= particleCount; index += 1) {
-    const baseT = index / (particleCount + 1);
-    const flow = ((now * 0.46 + baseT) % 1 + 1) % 1;
-    const t = 0.08 + flow * 0.84;
-    const x = landing.origin.x + (markerX - landing.origin.x) * t;
-    const arcHeight = Math.sin(t * Math.PI) * Math.min(118, 42 + trajectoryLength * 0.085);
-    const y = landing.origin.y + (markerY - landing.origin.y) * t - arcHeight;
-    const alpha = Math.sin(t * Math.PI) * (0.28 + distanceRatio * 0.34);
-    const size = 2.2 + (index % 3) * 0.8;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(Math.PI / 4 + t * 0.9);
-    ctx.globalAlpha = alpha;
-    ctx.shadowColor = index % 2 ? "#facc15" : "#22d3ee";
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = index % 2 ? "#fde68a" : "#a5f3fc";
-    ctx.fillRect(-size / 2, -size / 2, size, size);
-    ctx.restore();
+  ctx.globalAlpha = 0.5 + distanceRatio * 0.28;
+  ctx.strokeStyle = guideGradient;
+  ctx.shadowColor = "#22d3ee";
+  ctx.shadowBlur = 9;
+  ctx.lineCap = "round";
+  ctx.lineWidth = 5.5;
+  ctx.beginPath();
+  ctx.moveTo(landing.origin.x, landing.origin.y - 18);
+  ctx.quadraticCurveTo(controlX, controlY, markerX, markerY);
+  ctx.stroke();
+  ctx.globalAlpha *= 0.68;
+  ctx.strokeStyle = "rgba(224,242,254,0.92)";
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(landing.origin.x, landing.origin.y - 18);
+  ctx.quadraticCurveTo(controlX, controlY, markerX, markerY);
+  ctx.stroke();
+  if (IS_VERIFICATION_MODE) {
+    document.documentElement.setAttribute("data-v623-throw-preview-rendered", "continuous-path");
   }
   ctx.restore();
 
@@ -17472,25 +17528,46 @@ function drawInventionEnergyTexture(effect, progress) {
   ctx.globalCompositeOperation = "lighter";
   if (railgun) {
     const shock = objectEffectEase(clamp(progress / 0.42, 0, 1));
-    for (let index = 0; index < 11; index += 1) {
-      const along = ((index + 0.5) / 11) * length;
-      const spread = (1 - shock) * (18 + (index % 3) * 9);
-      ctx.globalAlpha = (1 - progress) * (0.24 + (index % 4) * 0.055);
-      ctx.fillStyle = index % 3 === 0 ? "#fff4cf" : "#8be9ff";
-      ctx.fillRect(along, (index % 2 ? -1 : 1) * spread, 12 + (index % 4) * 8, 1.4 + (index % 2));
-    }
+    const railsSpread = 18 * (1 - shock) + 4;
+    const railGradient = ctx.createLinearGradient(0, 0, length, 0);
+    railGradient.addColorStop(0, "rgba(139,233,255,0.08)");
+    railGradient.addColorStop(Math.max(0, shock - 0.14), "rgba(139,233,255,0.34)");
+    railGradient.addColorStop(shock, "rgba(255,244,207,0.98)");
+    railGradient.addColorStop(Math.min(1, shock + 0.18), "rgba(139,233,255,0.38)");
+    railGradient.addColorStop(1, "rgba(139,233,255,0.08)");
+    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.86;
+    ctx.strokeStyle = railGradient;
+    ctx.lineCap = "round";
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -railsSpread);
+    ctx.lineTo(length, -railsSpread * 0.22);
+    ctx.moveTo(0, railsSpread);
+    ctx.lineTo(length, railsSpread * 0.22);
+    ctx.stroke();
+    ctx.globalAlpha *= 0.72;
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(length, 0);
+    ctx.stroke();
   } else {
-    for (let index = 0; index < 18; index += 1) {
-      const along = ((index / 18 + progress * 0.48) % 1) * length;
-      const helix = Math.sin(index * 1.73 + now * 9.2) * renderHeight * 0.26 * (1 - progress * 0.35);
-      const size = 1.4 + (index % 4) * 0.75;
-      ctx.globalAlpha = Math.max(0, 1 - progress) * (0.28 + (index % 5) * 0.06);
-      ctx.fillStyle = index % 2 ? "#e5b7ff" : "#7df4ff";
-      ctx.save();
-      ctx.translate(along, helix);
-      ctx.rotate(Math.PI / 4 + now * 0.7);
-      ctx.fillRect(-size, -size, size * 2, size * 2);
-      ctx.restore();
+    const braidedChannelEnvelope = renderHeight * 0.22 * (1 - progress * 0.35);
+    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.72;
+    ctx.lineCap = "round";
+    for (let strand = -1; strand <= 1; strand += 1) {
+      ctx.strokeStyle = strand === 0 ? "rgba(229,183,255,0.9)" : "rgba(125,244,255,0.72)";
+      ctx.lineWidth = strand === 0 ? 3.6 : 2.4;
+      ctx.beginPath();
+      for (let step = 0; step <= 24; step += 1) {
+        const ratio = step / 24;
+        const x = ratio * length;
+        const y = Math.sin(ratio * Math.PI * 4 + now * 3.4 + strand * 2.1) * braidedChannelEnvelope * (strand === 0 ? 0.32 : 1);
+        if (step === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
     }
   }
   ctx.restore();
@@ -17560,21 +17637,132 @@ const GENERATED_EFFECT_TEXTURES = {
   "transfer-in": ["transferInEffect", 210]
 };
 
-function semanticEffectMotion(type, variant = "", fallback = "energy") {
-  const token = `${String(type || "")} ${String(variant || "")}`.toLowerCase();
-  if (/gravity|decelerate|accelerate/.test(token)) return "gravity";
-  if (/emp|taser|shock|vibe|hack|pair-route|smartphone|gbo|overdrive/.test(token)) return "glitch";
-  if (/teleport|warp|substitution|transfer/.test(token)) return "teleport";
-  if (/fire|burn|hot|nuclear|rpg|missile/.test(token)) return "combustion";
-  if (/railgun|particle|sunbeam|excalibur|slash|shoot|beam/.test(token)) return "beam";
-  if (/reload|sustained-fire/.test(token)) return "recoil";
-  if (/grit|stand|shield|overheal|beauty/.test(token)) return "shield";
-  if (/mana|water|antidote|heal|flora|recovery|cold|ice/.test(token)) return "ripple";
-  if (/credits|luck|mystery|transmutation|invention/.test(token)) return "orbit";
-  if (/hover|limit-break|speed|acceleration|power/.test(token)) return "flow-up";
-  if (/aim|weak|scope|reason|truth/.test(token)) return "shimmer";
-  if (/push|impact|storm|violation/.test(token)) return "impact";
-  return fallback;
+const SEMANTIC_EFFECT_MOTION = Object.freeze({
+  fire: "combustion",
+  substitution: "teleport",
+  "limit-break": "resonance",
+  "fighter-energy-charge": "resonance",
+  "iai-destruction-attack": "beam",
+  "fighter-energy-destruction-milestone": "beam",
+  "fighter-energy-destruction-slash": "beam",
+  "fighter-energy-release": "beam",
+  "fighter-energy-impact": "impact",
+  "fighter-shockwave": "impact",
+  "hacker-root": "data-down",
+  "natural-recovery": "ripple",
+  "gbo-overdrive": "resonance",
+  "gravity-time-keeper": "gravity",
+  "preparation-barrier-hit": "shield",
+  "alchemy-human-transmutation": "orbit",
+  "alchemy-excalibur": "beam",
+  "action-vibe-coding": "data-accelerate",
+  "item-hsg-activate": "shield",
+  "action-gunner-aim-headshot": "targeting",
+  "action-gunner-headshot": "targeting",
+  "gunner-rpg": "combustion",
+  "gunner-missile": "combustion",
+  "quantum-transmutation": "orbit",
+  "quantum-temperature-cold": "ripple",
+  "quantum-temperature-hot": "combustion",
+  "quantum-ice-impact": "impact",
+  "quantum-nuclear": "combustion",
+  "quantum-nuclear-fusion": "resonance",
+  "quantum-electric-discharge": "beam",
+  "hazard-antidote": "ripple",
+  "bottle-shards": "impact",
+  "action-push": "impact",
+  "resolve-focus": "targeting",
+  "hacker-status-recover": "ripple",
+  "transfer-out": "teleport",
+  "transfer-in": "teleport",
+  "action-smartphone": "data-up",
+  "action-smartphone-repair": "data-accelerate",
+  "pair-route-violation": "impact",
+  "action-taser": "beam",
+  "gravity-accelerate": "gravity",
+  "gravity-decelerate": "gravity",
+  "gravity-storm": "gravity",
+  "alchemy-object-recharge": "resonance",
+  "alchemy-particle-cannon": "beam",
+  "action-task": "data-accelerate",
+  "action-grit": "shield",
+  "action-stand": "shield",
+  "action-dodge": "recoil",
+  "action-rest": "ripple",
+  "action-teleport": "teleport",
+  "action-heart-teleport": "teleport",
+  "action-warp": "teleport",
+  "action-ninjutsu-focus": "targeting",
+  "gunner-passive-aim": "targeting",
+  "action-shoot": "beam",
+  "action-reason": "clairvoyance",
+  "action-sabotage": "glitch",
+  "action-repair": "data-accelerate",
+  "action-vent": "data-down",
+  "action-vending": "data-up",
+  "action-renki": "resonance",
+  "action-mana": "resonance",
+  "action-alchemy": "orbit",
+  "action-rational-free": "shimmer",
+  "fighter-slash": "beam",
+  "fighter-slash-parry": "shield",
+  "fighter-iaido": "beam",
+  "action-item-throw": "recoil",
+  "action-item-pickup": "flow-up",
+  "action-item-use": "resonance",
+  "rigid-item-impact": "impact",
+  "action-weapon-switch": "recoil",
+  "action-reload": "recoil",
+  "action-fighter-dodge-counter": "recoil",
+  "idea-truth": "clairvoyance",
+  "idea-beauty": "shield",
+  "idea-good": "resonance",
+  "idea-ascension": "flow-up",
+  "mystery-reveal": "clairvoyance",
+  emp: "resonance",
+  "emp-storage-lock": "data-down",
+  "emp-charge": "resonance",
+  "emp-cancel": "glitch",
+  "emp-resonance": "resonance",
+  "status-burning": "combustion",
+  "status-poison": "orbit",
+  "status-burn-cleared": "ripple",
+  "status-poison-cleared": "ripple",
+  "hazard-fire": "combustion",
+  "hazard-poison": "orbit",
+  "hazard-water": "ripple",
+  "gravity-storm-barrier-hit": "shield",
+  "gravity-storm-blast": "impact",
+  "gravity-storm-pull": "gravity",
+  "gravity-storm-crush": "gravity",
+  "gravity-storm-heavy": "gravity",
+  flora: "flow-up",
+  "flora-sunbeam": "beam",
+  "flora-invisible": "shimmer",
+  "alchemy-railgun": "beam",
+  "alchemy-particle-beam": "beam"
+});
+
+const ATE_PHYSICAL_PARTICLE_CONTRACT = Object.freeze({
+  "bottle-shards": Object.freeze({
+    owner: "drawGeneratedStandaloneEffect",
+    representedMaterial: "broken bottle glass",
+    maxRasterOwners: 1,
+    lifecycle: "one finite server-authored impact record"
+  })
+});
+
+function semanticEffectMotion(type, variant = "") {
+  const exactKey = variant ? `${String(type || "")}:${String(variant)}` : "";
+  const mode = SEMANTIC_EFFECT_MOTION[exactKey] || SEMANTIC_EFFECT_MOTION[String(type || "")];
+  if (mode) return mode;
+  if (IS_VERIFICATION_MODE) {
+    const root = document.documentElement;
+    const current = new Set(String(root.getAttribute("data-v623-ate-unclassified") || "").split(",").filter(Boolean));
+    current.add(String(type || "unknown"));
+    root.setAttribute("data-v623-ate-unclassified", [...current].sort().join(","));
+  }
+  return null;
 }
 
 function drawGoldTransmutationStages(goldSprite, progress) {
@@ -17979,9 +18167,8 @@ function drawTacticalSystemsEffect(effect, progress) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
   ctx.translate(effect.x, effect.y);
-  ctx.rotate(index === 5 ? progress * 0.24 : 0);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
-    mode: semanticEffectMotion(effect.type, effect.variant, index === 6 ? "gravity" : "shimmer"),
+    mode: semanticEffectMotion(effect.type, effect.variant),
     progress,
     intensity: 0.9,
     baseAlpha: 0.15
@@ -18134,7 +18321,7 @@ function drawGunnerActionEffect(effect, progress) {
     ctx.translate(startX, startY);
     ctx.rotate(Math.atan2(unitY, unitX));
     drawAnimatedTextureCentered(sprite, flashLength / 2, 0, flashLength, flashHeight + pulse * 8, {
-      mode: semanticEffectMotion(effect.type, effect.variant, "beam"), progress, intensity: 0.95, baseAlpha: 0.14
+      mode: semanticEffectMotion(effect.type, effect.variant), progress, intensity: 0.95, baseAlpha: 0.14
     });
   } else {
     const size = 108 + pulse * 28;
@@ -18191,7 +18378,6 @@ function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
   ctx.translate(effect.x, effect.y);
-  ctx.rotate((index % 2 ? 1 : -1) * progress * 0.24);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
     mode: semanticEffectMotion(effect.type, effect.variant),
     progress,
@@ -18339,22 +18525,16 @@ function drawActionEffect(effect, progress, now) {
   if (!sprite) return;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  for (let layer = 0; layer < 2; layer += 1) {
-    const layerSize = size * (0.88 + layer * 0.16);
-    ctx.save();
-    ctx.translate(effect.x, effect.y);
-    ctx.rotate((index % 2 ? 1 : -1) * (progress * 0.28 + layer * 0.08));
-    ctx.globalAlpha = Math.max(0, 1 - progress * 0.92) * (0.78 - layer * 0.26);
-    drawAnimatedTextureCentered(sprite, 0, -progress * (8 + layer * 5), layerSize, layerSize, {
-      mode: semanticEffectMotion(effect.type, effect.variant, index === 3 || index === 9 ? "flow-up" : "energy"),
-      time: now / 1000,
-      progress,
-      phase: layer * 0.43,
-      intensity: 0.86,
-      baseAlpha: 0.14
-    });
-    ctx.restore();
-  }
+  ctx.translate(effect.x, effect.y);
+  ctx.globalAlpha = Math.max(0, 1 - progress * 0.92) * 0.78;
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode: semanticEffectMotion(effect.type, effect.variant),
+    time: now / 1000,
+    progress,
+    phase: index * 0.071,
+    intensity: 0.86,
+    baseAlpha: 0.14
+  });
   ctx.restore();
 }
 
@@ -18397,9 +18577,8 @@ function drawAlchemyEffect(effect, index, progress) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
   ctx.translate(effect.x, effect.y);
-  ctx.rotate((index % 2 ? 1 : -1) * progress * 0.18);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
-    mode: semanticEffectMotion(effect.type, effect.variant, index === 7 ? "combustion" : "energy"),
+    mode: semanticEffectMotion(effect.type, effect.variant),
     progress,
     phase: index * 0.17,
     intensity: 0.9,
@@ -18435,7 +18614,6 @@ function drawGravityStormImpactEffect(effect, progress) {
     const size = Math.max(170, Number(effect.radius || 140) * 2) * (0.88 + pulse * 0.24);
     ctx.save();
     ctx.translate(effect.x, effect.y);
-    ctx.rotate(-progress * 0.18);
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
     drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
@@ -18463,21 +18641,14 @@ function drawGravityStormImpactEffect(effect, progress) {
   ctx.save();
   ctx.translate(effect.x, effect.y);
   ctx.globalCompositeOperation = "lighter";
-  for (let layer = 0; layer < 2; layer += 1) {
-    const direction = effect.type === "gravity-storm-pull" ? -1 : 1;
-    ctx.save();
-    ctx.rotate(direction * (progress * 0.32 + layer * 0.11));
-    ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88) * (0.78 - layer * 0.28);
-    const layerSize = size * (0.9 + layer * 0.16);
-    drawAnimatedTextureCentered(sprite, 0, 0, layerSize, layerSize, {
-      mode: "gravity",
-      progress,
-      phase: layer * 0.47,
-      intensity: effect.type === "gravity-storm-crush" ? 1 : 0.92,
-      baseAlpha: 0.12
-    });
-    ctx.restore();
-  }
+  ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88) * 0.78;
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode: semanticEffectMotion(effect.type, effect.variant),
+    progress,
+    phase: effect.type === "gravity-storm-pull" ? 0.23 : effect.type === "gravity-storm-crush" ? 0.71 : 0.47,
+    intensity: effect.type === "gravity-storm-crush" ? 1 : 0.92,
+    baseAlpha: 0.12
+  });
   ctx.restore();
   return true;
 }
@@ -18497,20 +18668,15 @@ function drawStatusAndHazardEffect(effect, progress) {
   ctx.save();
   ctx.translate(effect.x, effect.y);
   ctx.globalCompositeOperation = effect.type.includes("water") || effect.type.includes("cleared") ? "source-over" : "lighter";
-  for (let layer = 0; layer < 2; layer += 1) {
-    const size = baseSize * (0.82 + layer * 0.17 + pulse * 0.16);
-    ctx.save();
-    ctx.rotate((layer ? -1 : 1) * progress * 0.18);
-    ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86) * (0.76 - layer * 0.28);
-    drawAnimatedTextureCentered(sprite, 0, -progress * 12, size, size, {
-      mode: semanticEffectMotion(effect.type, effect.variant, effect.type.includes("water") || effect.type.includes("cleared") ? "ripple" : "flow-up"),
-      progress,
-      phase: layer * 0.39,
-      intensity: 0.9,
-      baseAlpha: 0.14
-    });
-    ctx.restore();
-  }
+  const size = baseSize * (0.9 + pulse * 0.16);
+  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86) * 0.76;
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode: semanticEffectMotion(effect.type, effect.variant),
+    progress,
+    phase: effect.type.includes("cleared") ? 0.39 : 0.12,
+    intensity: 0.9,
+    baseAlpha: 0.14
+  });
   ctx.restore();
   return true;
 }
@@ -19160,25 +19326,6 @@ function drawObjectEffectFallback() {
   return false;
 }
 
-function drawRainbowSpark(x, y, radius, hue, rotation) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.fillStyle = `hsl(${(hue + 35) % 360} 100% 78%)`;
-  ctx.beginPath();
-  for (let point = 0; point < 8; point += 1) {
-    const angle = point * Math.PI / 4;
-    const length = point % 2 === 0 ? radius : radius * 0.22;
-    const px = Math.cos(angle) * length;
-    const py = Math.sin(angle) * length;
-    if (point === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
 function drawPlayers(data) {
   const selectedCamera = currentCamera(data);
   const ordered = [...data.players]
@@ -19542,7 +19689,11 @@ function drawSoloHumanDeathBotAcceleration(player, data) {
   ) return;
   const prepared = transparentSpriteSource(state.textures.accelerationPhaseEffect, "status-marker-acceleration-v376-bot-tenfold", 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "status-marker-acceleration-v376-bot-tenfold", 1, 1, 0, 0) : null;
-  if (!sprite) return;
+  if (!sprite) {
+    if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-blocked", "missing-texture");
+    return;
+  }
+  if (IS_VERIFICATION_MODE) document.documentElement.removeAttribute("data-v623-throw-preview-blocked");
   const time = (state.frameNow || performance.now()) / 1000;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -19778,8 +19929,7 @@ function drawFloraInvisibleGeneratedEffect(effect, progress) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88);
-  ctx.translate(effect.x, effect.y - 24 - progress * 16);
-  ctx.rotate(Math.sin(progress * Math.PI * 2) * 0.035);
+  ctx.translate(effect.x, effect.y - 24);
   drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
     mode: "shimmer",
     progress,
@@ -20824,25 +20974,25 @@ const EFFECT_TEXTURE_VISIBILITY = Object.freeze({
 });
 
 const ATE_ANIMATION_PROFILES = Object.freeze({
-  energy: Object.freeze({ family: "breathing-motes", tempo: 0.82, phaseScale: 1.0, progressScale: 0.6, overlayGain: 0.92 }),
-  beam: Object.freeze({ family: "directional-sweep", tempo: 1.28, phaseScale: 0.45, progressScale: 0.35, overlayGain: 1.08 }),
-  ripple: Object.freeze({ family: "counter-wave", tempo: 0.72, phaseScale: 1.3, progressScale: 0.8, overlayGain: 0.88 }),
-  "flow-up": Object.freeze({ family: "buoyant-plume", tempo: 0.58, phaseScale: 0.9, progressScale: 0.55, overlayGain: 0.96 }),
-  "data-down": Object.freeze({ family: "packet-descent", tempo: 1.1, phaseScale: 1.7, progressScale: 0.2, overlayGain: 1.02 }),
-  "data-up": Object.freeze({ family: "packet-ascent", tempo: 0.94, phaseScale: 1.4, progressScale: 0.26, overlayGain: 1.02 }),
-  "data-accelerate": Object.freeze({ family: "compute-ingress-egress", tempo: 1.18, phaseScale: 1.15, progressScale: 0.28, overlayGain: 1.08 }),
-  shimmer: Object.freeze({ family: "asynchronous-glint", tempo: 0.66, phaseScale: 0.7, progressScale: 0.45, overlayGain: 0.84 }),
-  orbit: Object.freeze({ family: "elliptic-orbit", tempo: 0.8, phaseScale: 1.8, progressScale: 0.75, overlayGain: 0.9 }),
-  resonance: Object.freeze({ family: "constructive-interference", tempo: 1.08, phaseScale: 0.88, progressScale: 0.54, overlayGain: 1.12 }),
-  glitch: Object.freeze({ family: "discontinuous-slice", tempo: 1.75, phaseScale: 2.3, progressScale: 0.18, overlayGain: 1.04 }),
-  teleport: Object.freeze({ family: "phase-column", tempo: 1.12, phaseScale: 1.1, progressScale: 1.2, overlayGain: 1.0 }),
-  gravity: Object.freeze({ family: "inward-compression", tempo: 0.48, phaseScale: 0.55, progressScale: 0.92, overlayGain: 0.94 }),
-  impact: Object.freeze({ family: "radial-impulse", tempo: 0.9, phaseScale: 0.8, progressScale: 1.45, overlayGain: 1.1 }),
-  recoil: Object.freeze({ family: "backward-kick", tempo: 1.3, phaseScale: 0.6, progressScale: 1.6, overlayGain: 1.06 }),
-  shield: Object.freeze({ family: "layered-guard", tempo: 0.62, phaseScale: 1.6, progressScale: 0.35, overlayGain: 0.9 }),
-  combustion: Object.freeze({ family: "turbulent-flame", tempo: 1.08, phaseScale: 1.2, progressScale: 0.7, overlayGain: 1.08 }),
-  targeting: Object.freeze({ family: "settling-landing", tempo: 0.76, phaseScale: 0.52, progressScale: 0.24, overlayGain: 0.98 }),
-  clairvoyance: Object.freeze({ family: "horizon-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
+  energy: Object.freeze({ family: "continuous-breathing-field", tempo: 0.82, phaseScale: 1.0, progressScale: 0.6, overlayGain: 0.92 }),
+  beam: Object.freeze({ family: "causal-directional-front", tempo: 1.28, phaseScale: 0.45, progressScale: 0.35, overlayGain: 1.08 }),
+  ripple: Object.freeze({ family: "continuous-counter-wave", tempo: 0.72, phaseScale: 1.3, progressScale: 0.8, overlayGain: 0.88 }),
+  "flow-up": Object.freeze({ family: "continuous-buoyant-ribbon", tempo: 0.58, phaseScale: 0.9, progressScale: 0.55, overlayGain: 0.96 }),
+  "data-down": Object.freeze({ family: "causal-descending-gate", tempo: 1.1, phaseScale: 1.7, progressScale: 0.2, overlayGain: 1.02 }),
+  "data-up": Object.freeze({ family: "causal-ascending-gate", tempo: 0.94, phaseScale: 1.4, progressScale: 0.26, overlayGain: 1.02 }),
+  "data-accelerate": Object.freeze({ family: "continuous-compute-conduit", tempo: 1.18, phaseScale: 1.15, progressScale: 0.28, overlayGain: 1.08 }),
+  shimmer: Object.freeze({ family: "continuous-aperture-sheen", tempo: 0.66, phaseScale: 0.7, progressScale: 0.45, overlayGain: 0.84 }),
+  orbit: Object.freeze({ family: "continuous-elliptic-field", tempo: 0.8, phaseScale: 1.8, progressScale: 0.75, overlayGain: 0.9 }),
+  resonance: Object.freeze({ family: "continuous-constructive-interference", tempo: 1.08, phaseScale: 0.88, progressScale: 0.54, overlayGain: 1.12 }),
+  glitch: Object.freeze({ family: "causal-quantized-field", tempo: 1.75, phaseScale: 2.3, progressScale: 0.18, overlayGain: 1.04 }),
+  teleport: Object.freeze({ family: "continuous-phase-connection", tempo: 1.12, phaseScale: 1.1, progressScale: 1.2, overlayGain: 1.0 }),
+  gravity: Object.freeze({ family: "causal-inward-compression", tempo: 0.48, phaseScale: 0.55, progressScale: 0.92, overlayGain: 0.94 }),
+  impact: Object.freeze({ family: "continuous-impulse-deformation", tempo: 0.9, phaseScale: 0.8, progressScale: 1.45, overlayGain: 1.1 }),
+  recoil: Object.freeze({ family: "causal-backward-pressure", tempo: 1.3, phaseScale: 0.6, progressScale: 1.6, overlayGain: 1.06 }),
+  shield: Object.freeze({ family: "continuous-boundary-closure", tempo: 0.62, phaseScale: 1.6, progressScale: 0.35, overlayGain: 0.9 }),
+  combustion: Object.freeze({ family: "continuous-turbulent-flame", tempo: 1.08, phaseScale: 1.2, progressScale: 0.7, overlayGain: 1.08 }),
+  targeting: Object.freeze({ family: "causal-settling-aperture", tempo: 0.76, phaseScale: 0.52, progressScale: 0.24, overlayGain: 0.98 }),
+  clairvoyance: Object.freeze({ family: "continuous-lens-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
 });
 
 // Keep the authored silhouette pixel-stable. Animation is limited to clipped
@@ -20863,7 +21013,11 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   const { width, height } = animatedTextureSize(sprite, maxWidth, maxHeight);
   if (!(width > 0 && height > 0)) return false;
   const sampledTime = Math.floor(time * 60) / 60;
-  const animationMode = normalizeAteGlowMode(mode);
+  const animationMode = mode == null || mode === "none" ? null : normalizeAteGlowMode(mode);
+  const profile = animationMode ? ATE_ANIMATION_PROFILES[animationMode] : null;
+  const profileTime = profile && !prefersReducedMotion() ? sampledTime * profile.tempo : sampledTime;
+  const profilePhase = profile ? phase * profile.phaseScale + progress * profile.progressScale : phase + progress;
+  const profileIntensity = profile ? intensity * profile.overlayGain : intensity;
   const inheritedAlpha = ctx.globalAlpha;
 
   ctx.save();
@@ -20880,17 +21034,19 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
     const inheritedFilter = ctx.filter && ctx.filter !== "none" ? `${ctx.filter} ` : "";
     ctx.filter = `${inheritedFilter}brightness(${visibility.brightness}) contrast(${visibility.contrast}) saturate(${visibility.saturation})`;
   }
-  applyAteGlowContext(
-    ctx,
-    animationMode,
-    sampledTime,
-    phase + progress,
-    intensity * (visibilityProfile === "ambient" ? 0.52 : 1)
-  );
+  if (animationMode) {
+    applyAteGlowContext(
+      ctx,
+      animationMode,
+      profileTime,
+      profilePhase,
+      profileIntensity * (visibilityProfile === "ambient" ? 0.52 : 1)
+    );
+  }
   ctx.globalAlpha = inheritedAlpha * baseTextureAlpha;
   ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-  if (visibilityProfile !== "ambient") {
-    drawAteComplementaryVfx(ctx, animationMode, width, height, sampledTime, phase + progress, intensity * 0.82);
+  if (visibilityProfile !== "ambient" && animationMode) {
+    drawAteComplementaryVfx(ctx, animationMode, width, height, profileTime, profilePhase, profileIntensity * 0.82);
   }
   ctx.restore();
   return true;
@@ -21463,7 +21619,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ate-gameplay-owner-mechanism-diversity-v622";
+const version = "ate-owner-causal-motion-diversity-v623";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22422,7 +22578,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ate-gameplay-owner-mechanism-diversity-v622", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ate-owner-causal-motion-diversity-v623", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
