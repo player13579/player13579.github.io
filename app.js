@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "keybind-title-modal-v596";
+const DVA_CLIENT_RELEASE = "keybind-modal-input-isolation-v597";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -847,7 +847,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "keybind-title-modal-v596";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "keybind-modal-input-isolation-v597";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5867,6 +5867,50 @@ function triggerScreenHotkey(event) {
   return false;
 }
 
+function handleKeybindModalKeydown(event) {
+  if (!state.keybindOpen) return false;
+  const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+  const activeElement = document.activeElement;
+  const editableTarget = eventTarget?.matches?.('input, textarea, [contenteditable="true"]')
+    ? eventTarget
+    : activeElement?.matches?.('input, textarea, [contenteditable="true"]')
+      ? activeElement
+      : null;
+  if (event.key === "Tab") {
+    event.preventDefault();
+    const controls = contextKeyboardElements();
+    if (!controls.length) return true;
+    const active = controls.includes(activeElement) ? activeElement : state.keyboardElement;
+    const currentIndex = controls.indexOf(active);
+    const nextIndex = currentIndex < 0
+      ? (event.shiftKey ? controls.length - 1 : 0)
+      : (currentIndex + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+    setKeyboardSelection(controls[nextIndex], false);
+    return true;
+  }
+  if (editableTarget) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    setKeybindOpen(false);
+    return true;
+  }
+  if (event.key === "@" || event.key === "`") {
+    event.preventDefault();
+    if (!event.repeat) setKeybindOpen(false);
+    return true;
+  }
+  if (event.code === "Backspace") return false;
+  if (
+    activeElement === els.keybindList &&
+    !event.ctrlKey && !event.altKey && !event.metaKey &&
+    (event.key.startsWith("Arrow") || ["PageUp", "PageDown", "Home", "End"].includes(event.key))
+  ) {
+    return true;
+  }
+  event.preventDefault();
+  return true;
+}
+
 function bindEvents() {
   ensureDynamicVendingChoices();
   ensureDynamicAlchemyChoices();
@@ -6601,6 +6645,7 @@ function bindEvents() {
 
   window.addEventListener("keydown", (event) => {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+    if (handleKeybindModalKeydown(event)) return;
     const editableTarget = eventTarget?.matches?.('input, textarea, [contenteditable="true"]')
       ? eventTarget
       : document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')
@@ -6671,13 +6716,6 @@ function bindEvents() {
         });
       }
       return;
-    }
-    if (state.keybindOpen) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setKeybindOpen(false);
-        return;
-      }
     }
     if (event.code === "Backspace" && state.screen !== "title" && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) {
       event.preventDefault();
@@ -6830,6 +6868,7 @@ function bindEvents() {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
     if (eventTarget?.matches?.('input, textarea, [contenteditable="true"]') ||
       document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')) return;
+    if (state.keybindOpen) return;
     stopRootShortcutKeyHold(event.code);
     stopAbilityBatchKeyHold(event.code, { dispatch: true });
     stopContinuousActionKeyHold(event.code);
@@ -7080,6 +7119,16 @@ function setKeybindOpen(open, options = {}) {
   els.keybindButton.setAttribute("aria-expanded", String(state.keybindOpen));
   if (state.keybindOpen) {
     clearMovementInput();
+    cancelActiveRootShortcutHolds();
+    cancelActiveAbilityBatchHolds();
+    stopContinuousActionHold();
+    stopContinuousActionKeyHold();
+    state.continuousActionKeyAt.clear();
+    closeSwitchDragMenu();
+    clearNativeSelectHold();
+    cancelEnhanceAction();
+    cancelThrowTargeting(true);
+    clearLocalGunTrigger();
     requestAnimationFrame(() => els.keybindList.focus({ preventScroll: true }));
   } else if (options.focus !== false) {
     els.keybindButton.focus({ preventScroll: true });
@@ -21103,7 +21152,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "keybind-title-modal-v596";
+const version = "keybind-modal-input-isolation-v597";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22059,7 +22108,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=keybind-title-modal-v596", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=keybind-modal-input-isolation-v597", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
