@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "accessible-control-dialog-ownership-v601",
+    version: "inventory-detail-session-lifecycle-v602",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
