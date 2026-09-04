@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "switch-drag-authoritative-options-v606",
+    version: "explicit-hsg-purchase-selection-v607",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -10446,6 +10446,7 @@ function startGame(room) {
     player.gunnerReloadUntil = 0;
     player.gunnerReloadWeapon = "";
     player.unavailableGunnerWeapons = [];
+    player.realScreenExplicitHsgGrantAt = 0;
     player.gunnerSpecialAmmoType = "";
     player.gunnerSpecialAmmoWeapon = "";
     player.gunnerSpecialAmmoRounds = 0;
@@ -14087,6 +14088,17 @@ function tickRoom(room) {
   advanceThrownItems(room, timestamp, elapsedMs);
   if (!roomTimeStopped) advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
+    if (
+      room.phase === "playing" &&
+      player.alive &&
+      !player.ejected &&
+      Number(player.realScreenExplicitHsgGrantAt) > 0 &&
+      Number(player.realScreenExplicitHsgGrantAt) <= timestamp
+    ) {
+      player.realScreenExplicitHsgGrantAt = 0;
+      purchaseFirearm(player, "sniper");
+      pushEvent(room, "実画面検証: 明示HSG選択後にスナイパーライフルを追加しました。");
+    }
     if (!floraInvisibleActive(player, timestamp)) clearFloraInvisible(room, player, "透明化終了");
     syncFighterInfiniteResources(player);
     syncMentalState(room, player, "資源更新", timestamp);
@@ -22159,25 +22171,30 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       entry.taskAutoReadyAt = timestamp + 120_000;
     }
     pushEvent(room, "実画面検証: HSG EnhanceによりACC2固定が有効、4秒後の次tickでACC1へ戻ります。");
-  } else if (kind === "non-hsg-selection-hsg" || kind === "non-hsg-selection-grant") {
+  } else if (["non-hsg-selection-hsg", "non-hsg-selection-grant", "non-hsg-selection-explicit-grant"].includes(kind)) {
     const timestamp = now();
     Object.assign(player, {
       role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
       alive: true, ejected: false, inVent: false,
       purchasedWeapons: [], unavailableGunnerWeapons: [...GUNNER_WEAPON_ORDER],
       gunnerWeapon: DEFAULT_GUNNER_WEAPON, gunnerAmmo: createGunnerAmmo(),
-      itemInventory: { hsg: 1 }
+      itemInventory: { hsg: 1 }, realScreenExplicitHsgGrantAt: 0
     });
-    if (kind === "non-hsg-selection-grant") purchaseFirearm(player, "assault");
+    if (kind !== "non-hsg-selection-hsg") purchaseFirearm(player, "assault");
+    if (kind === "non-hsg-selection-explicit-grant") {
+      player.realScreenExplicitHsgGrantAt = timestamp + 12_000;
+    }
     room.preparationEndsAt = timestamp + 120_000;
     for (const entry of room.players.values()) {
       if (!entry.isBot) continue;
       entry.nextBotActionAt = timestamp + 120_000;
       entry.taskAutoReadyAt = timestamp + 120_000;
     }
-    pushEvent(room, kind === "non-hsg-selection-grant"
-      ? "実画面検証: HSGにアサルトライフルを追加し、暗黙選択を非HSG武器へ移します。"
-      : "実画面検証: HSGだけを所持し、暗黙選択はHSGです。");
+    pushEvent(room, kind === "non-hsg-selection-hsg"
+      ? "実画面検証: HSGだけを所持し、暗黙選択はHSGです。"
+      : kind === "non-hsg-selection-explicit-grant"
+        ? "実画面検証: アサルトライフルからHSGを明示選択してください。12秒後にスナイパーライフルを追加します。"
+        : "実画面検証: HSGにアサルトライフルを追加し、暗黙選択を非HSG武器へ移します。");
   } else if (kind === "human-defender-task") {
     const timestamp = now();
     const map = getMap(room);
@@ -25581,7 +25598,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "switch-drag-authoritative-options-v606",
+  version: "explicit-hsg-purchase-selection-v607",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

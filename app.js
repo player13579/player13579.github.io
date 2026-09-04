@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "switch-drag-authoritative-options-v606";
+const DVA_CLIENT_RELEASE = "explicit-hsg-purchase-selection-v607";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -558,6 +558,7 @@ const state = {
   selectedWeaponItemId: "",
   explicitInventoryItemId: "",
   implicitHsgInventoryFallback: false,
+  pendingExplicitWeaponSelectionId: "",
   enhanceHold: { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" },
   throwTargeting: {
     active: false,
@@ -849,7 +850,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "switch-drag-authoritative-options-v606";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "explicit-hsg-purchase-selection-v607";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9593,6 +9594,13 @@ async function api(path, extra = {}, options = {}) {
           : "";
     triggerCharacterAction(state.playerId, actionKind, undefined, undefined, "", actionVariant, path);
   }
+  if (path === "/api/gunner-weapon") {
+    // Only an accepted, user-originated weapon switch may move the Storage
+    // selection to the new firearm. Purchases and grants also update the
+    // authoritative equipped firearm, but must preserve an explicit HSG or
+    // other still-valid item selection.
+    state.pendingExplicitWeaponSelectionId = String(result?.self?.gunnerWeapon || "");
+  }
   applyState(result, {
     authoritative: Boolean(options.authoritative),
     source: `action:${path}`
@@ -10111,6 +10119,7 @@ function resetLocalSession() {
   state.inventoryVisualWeapon = "";
   state.explicitInventoryItemId = "";
   state.implicitHsgInventoryFallback = false;
+  state.pendingExplicitWeaponSelectionId = "";
   state.selectedWeaponItemId = "";
   state.hackerTargetId = "";
   state.hackerDockRenderKey = "";
@@ -10483,6 +10492,7 @@ function applyState(data, options = {}) {
     else if (data.phase === "playing") {
       if (previousPhase !== "meeting") {
         state.explicitInventoryItemId = "";
+        state.pendingExplicitWeaponSelectionId = "";
         state.selectedWeaponItemId = "";
         state.itemRenderKey = "";
         state.inventoryVisualWeapon = "";
@@ -12694,6 +12704,7 @@ function renderItemControl(data) {
   els.itemControl.hidden = !visible;
   if (!visible) {
     state.itemRenderKey = "";
+    state.pendingExplicitWeaponSelectionId = "";
     if (state.inventoryItemDetailSource && els.itemControl.contains(state.inventoryItemDetailSource)) hideInventoryItemDetail();
     return;
   }
@@ -12760,13 +12771,24 @@ function renderItemControl(data) {
     applyGeneratedItemTexture(button, item.asset || item.sourceId || item.id);
   });
   const weaponChanged = Boolean(state.inventoryVisualWeapon && state.inventoryVisualWeapon !== self.gunnerWeapon);
+  const acceptedExplicitWeaponSelectionId = String(state.pendingExplicitWeaponSelectionId || "");
+  const acceptedExplicitWeaponItemId = acceptedExplicitWeaponSelectionId
+    ? `weapon:${acceptedExplicitWeaponSelectionId}`
+    : "";
+  const acceptedExplicitWeaponSelection = Boolean(
+    acceptedExplicitWeaponSelectionId &&
+    acceptedExplicitWeaponSelectionId === String(self.gunnerWeapon || "") &&
+    items.some((item) => item.id === acceptedExplicitWeaponItemId)
+  );
+  state.pendingExplicitWeaponSelectionId = "";
   state.inventoryVisualWeapon = self.gunnerWeapon || "";
   const equippedWeaponItemId = self.gunnerWeapon ? `weapon:${self.gunnerWeapon}` : "";
-  if (weaponChanged && items.some((item) => item.id === equippedWeaponItemId)) {
-    // Keyboard weapon switching must move the visible inventory selection with
-    // the authoritative weapon, otherwise the old firearm remains highlighted.
-    els.itemSelect.value = equippedWeaponItemId;
-    state.explicitInventoryItemId = equippedWeaponItemId;
+  if (acceptedExplicitWeaponSelection) {
+    // Keyboard/card switching must move the visible inventory selection with
+    // its accepted authoritative weapon. Passive grant/purchase/pickup changes
+    // have no pending user intent and therefore preserve explicit HSG/items.
+    els.itemSelect.value = acceptedExplicitWeaponItemId;
+    state.explicitInventoryItemId = acceptedExplicitWeaponItemId;
     state.implicitHsgInventoryFallback = false;
   }
   const fallbackItemId = defaultInventoryItemSelection(items, self, state.explicitInventoryItemId);
@@ -21502,7 +21524,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "switch-drag-authoritative-options-v606";
+const version = "explicit-hsg-purchase-selection-v607";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22461,7 +22483,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=switch-drag-authoritative-options-v606", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=explicit-hsg-purchase-selection-v607", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
