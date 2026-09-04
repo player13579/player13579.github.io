@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "inventory-detail-session-lifecycle-v602",
+    version: "kill-camera-dialog-focus-ownership-v603",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25581,7 +25581,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "inventory-detail-session-lifecycle-v602",
+  version: "kill-camera-dialog-focus-ownership-v603",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

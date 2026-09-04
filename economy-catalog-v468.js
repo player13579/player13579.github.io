@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "inventory-detail-session-lifecycle-v602",
+    version: "kill-camera-dialog-focus-ownership-v603",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

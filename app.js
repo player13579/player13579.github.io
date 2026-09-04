@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "inventory-detail-session-lifecycle-v602";
+const DVA_CLIENT_RELEASE = "kill-camera-dialog-focus-ownership-v603";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -521,6 +521,7 @@ const state = {
   lastFrameAt: 0,
   killEffects: [],
   dismissedKillCameraId: "",
+  killCameraReturnFocus: null,
   hitEffects: [],
   magicEffects: [],
   headMarkerSlots: new Map(),
@@ -848,7 +849,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "inventory-detail-session-lifecycle-v602";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kill-camera-dialog-focus-ownership-v603";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -6002,6 +6003,32 @@ function handleExpandedMapDialogKeydown(event) {
   return true;
 }
 
+function handleKillCameraDialogKeydown(event) {
+  if (els.killCameraOverlay.hidden) return false;
+  if (event.key === "Tab") {
+    event.preventDefault();
+    els.killCameraCloseButton.focus({ preventScroll: true });
+    return true;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    if (!event.repeat) {
+      const record = state.data?.self?.killCamera;
+      if (record?.id) state.dismissedKillCameraId = record.id;
+      setKillCameraOpen(false);
+    }
+    return true;
+  }
+  event.preventDefault();
+  return true;
+}
+
+function handleKillCameraOwnedPointer(event) {
+  if (els.killCameraOverlay.hidden || els.killCameraOverlay.contains(event.target)) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}
+
 function bindEvents() {
   ensureDynamicVendingChoices();
   ensureDynamicAlchemyChoices();
@@ -6125,9 +6152,11 @@ function bindEvents() {
   els.killCameraCloseButton.addEventListener("click", () => {
     const record = state.data?.self?.killCamera;
     if (record?.id) state.dismissedKillCameraId = record.id;
-    els.killCameraOverlay.hidden = true;
-    els.canvas.focus({ preventScroll: true });
+    setKillCameraOpen(false);
   });
+  for (const eventName of ["pointerdown", "pointerup", "click", "contextmenu"]) {
+    window.addEventListener(eventName, handleKillCameraOwnedPointer, true);
+  }
   els.keybindOverlay.addEventListener("click", (event) => {
     if (event.target === els.keybindOverlay) setKeybindOpen(false);
   });
@@ -6736,6 +6765,7 @@ function bindEvents() {
 
   window.addEventListener("keydown", (event) => {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+    if (handleKillCameraDialogKeydown(event)) return;
     if (handleKeybindModalKeydown(event)) return;
     if (handleFieldFeedDialogKeydown(event)) return;
     if (handleExpandedMapDialogKeydown(event)) return;
@@ -9923,6 +9953,7 @@ function resetLocalSession() {
   state.realtime?.disconnect();
   state.movementQueue?.clear();
   setExpandedMapOpen(false, { focus: false });
+  setKillCameraOpen(false, { focus: false });
   hideInventoryItemDetail();
   state.data = null;
   state.roomId = "";
@@ -10040,7 +10071,10 @@ function applyState(data, options = {}) {
     setOperatorBranchesOpen(false);
     if (["selecting", "ended"].includes(data.phase)) resetRootBorrowedAbilitySelection();
   }
-  if (state.data?.roomId && state.data.roomId !== data.roomId) setExpandedMapOpen(false);
+  if (state.data?.roomId && state.data.roomId !== data.roomId) {
+    setExpandedMapOpen(false);
+    setKillCameraOpen(false, { focus: false });
+  }
   const borrowedGravityTargetingValid = state.teleportBorrowed && hasDisplayedOperatorAccess(data.self, "gravity");
   const shopGravityTargetingValid = Boolean(
     state.teleportShopAbilityId &&
@@ -11066,10 +11100,64 @@ function activeKillCameraRecord(data = state.data) {
   return record;
 }
 
+function killCameraFocusTargetAvailable(element) {
+  return Boolean(
+    element &&
+    element !== document.body &&
+    element !== document.documentElement &&
+    element.isConnected &&
+    typeof element.focus === "function" &&
+    !element.disabled &&
+    !element.hidden &&
+    element.getAttribute?.("aria-hidden") !== "true" &&
+    !element.closest?.("[hidden]") &&
+    element.getClientRects?.().length
+  );
+}
+
+function setKillCameraOpen(open, { focus = true } = {}) {
+  const wasOpen = !els.killCameraOverlay.hidden;
+  const willOpen = Boolean(open);
+  if (!wasOpen && willOpen) {
+    const activeElement = document.activeElement;
+    state.killCameraReturnFocus = killCameraFocusTargetAvailable(activeElement) &&
+      !els.killCameraOverlay.contains(activeElement)
+      ? activeElement
+      : els.canvas;
+    if (state.keybindOpen) setKeybindOpen(false, { focus: false });
+    clearMovementInput();
+    cancelActiveRootShortcutHolds();
+    cancelActiveAbilityBatchHolds();
+    stopContinuousActionHold();
+    stopContinuousActionKeyHold();
+    state.continuousActionKeyAt.clear();
+    closeSwitchDragMenu();
+    clearNativeSelectHold();
+    cancelEnhanceAction();
+    cancelThrowTargeting(true);
+    clearLocalGunTrigger();
+  }
+  const focusReturnTarget = wasOpen && !willOpen ? state.killCameraReturnFocus : null;
+  els.killCameraOverlay.hidden = !willOpen;
+  if (!willOpen) state.killCameraReturnFocus = null;
+  if (!wasOpen && willOpen && focus) {
+    requestAnimationFrame(() => {
+      if (!els.killCameraOverlay.hidden) els.killCameraCloseButton.focus({ preventScroll: true });
+    });
+  } else if (wasOpen && !willOpen && focus) {
+    requestAnimationFrame(() => {
+      const target = killCameraFocusTargetAvailable(focusReturnTarget) ? focusReturnTarget : els.canvas;
+      target?.focus?.({ preventScroll: true });
+    });
+  }
+}
+
 function renderKillCamera(data) {
   const record = activeKillCameraRecord(data);
-  els.killCameraOverlay.hidden = !record;
-  if (!record) return;
+  if (!record) {
+    setKillCameraOpen(false, { focus: false });
+    return;
+  }
   els.killCameraTitle.textContent = `${record.victimName || "あなた"} の死亡記録`;
   els.killCameraKiller.textContent = record.killerName || "環境・ルール";
   els.killCameraAction.textContent = record.actionLabel || "死因記録エラー（未定義）";
@@ -11078,6 +11166,7 @@ function renderKillCamera(data) {
   els.killCameraLogic.textContent = showBotDecision
     ? record.botDecisionLogic || "判断記録なし: 内部情報から理由を補完しません。"
     : "";
+  setKillCameraOpen(true);
 }
 
 function accessibleGameStatusSnapshot(data) {
@@ -11237,7 +11326,7 @@ function render() {
 
   if (!data) {
     els.endOverlay.hidden = true;
-    els.killCameraOverlay.hidden = true;
+    setKillCameraOpen(false, { focus: false });
     if (state.expandedMapOpen) setExpandedMapOpen(false);
     syncKeyboardContext();
     restorePollScrollPositions(pollScrollPositions);
@@ -21305,7 +21394,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "inventory-detail-session-lifecycle-v602";
+const version = "kill-camera-dialog-focus-ownership-v603";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22264,7 +22353,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=inventory-detail-session-lifecycle-v602", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=kill-camera-dialog-focus-ownership-v603", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
