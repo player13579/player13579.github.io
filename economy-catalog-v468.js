@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ui-motion-introduction-quality-v608",
+    version: "reduced-motion-runtime-accessibility-v609",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

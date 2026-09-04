@@ -1,12 +1,30 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-motion-introduction-quality-v608";
+const DVA_CLIENT_RELEASE = "reduced-motion-runtime-accessibility-v609";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
 const PLATFORM_OVERRIDE = URL_PARAMETERS.get("platform");
 const IS_VERIFICATION_MODE = URL_PARAMETERS.has("verify");
+const VERIFY_REDUCED_MOTION = IS_VERIFICATION_MODE && URL_PARAMETERS.get("reducedMotion") === "1";
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function prefersReducedMotion() {
+  return Boolean(
+    (typeof VERIFY_REDUCED_MOTION !== "undefined" && VERIFY_REDUCED_MOTION) ||
+    window.matchMedia?.(REDUCED_MOTION_QUERY)?.matches
+  );
+}
+
+function motionSafeScrollBehavior(requested = "smooth") {
+  const behavior = prefersReducedMotion() ? "auto" : requested;
+  if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
+    document.documentElement.dataset.motionSafeScrollBehavior = behavior;
+  }
+  return behavior;
+}
+
 const VERIFY_REAL_SCREEN_FIXTURE_KIND = IS_VERIFICATION_MODE
   ? String(URL_PARAMETERS.get("realScreenFixture") || "")
   : "";
@@ -850,7 +868,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-motion-introduction-quality-v608";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "reduced-motion-runtime-accessibility-v609";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1069,7 +1087,7 @@ function selectVendingPage(rawPage, { focus = true } = {}) {
   if (focus) {
     const first = vendingProductButtons().find((button) => !button.hidden);
     first?.focus({ preventScroll: true });
-    first?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    first?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior() });
   }
   return true;
 }
@@ -1099,7 +1117,7 @@ function selectVendingCategory(categoryId, direction = 0, { wrap = true } = {}) 
     : vendingProductButtons().find((button) => !button.hidden);
   if (next && !next.hidden) {
     next.focus({ preventScroll: true });
-    next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior() });
   }
   return true;
 }
@@ -1251,7 +1269,7 @@ function selectHackerAction(recipeId, focus = true, behavior = "smooth") {
     button.classList.toggle("hacker-key-selected", active);
     button.setAttribute("aria-current", active ? "true" : "false");
   });
-  selected.scrollIntoView({ block: "nearest", inline: "nearest", behavior });
+  selected.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior(behavior) });
   if (focus) {
     if (selected.disabled) els.hackerAbilityDock.focus({ preventScroll: true });
     else selected.focus({ preventScroll: true });
@@ -2499,14 +2517,42 @@ function initializeTacticsNovel() {
   els.tacticsNovelStage.addEventListener("pointercancel", () => {
     state.tacticsNovelPointer = null;
   });
+  const motionPreference = window.matchMedia?.(REDUCED_MOTION_QUERY);
+  motionPreference?.addEventListener?.("change", () => {
+    if (motionPreference.matches) state.tacticsNovelAuto = false;
+    syncTacticsNovelAutoControl();
+    syncTacticsNovelAnimation();
+  });
+  window.addEventListener("resize", () => {
+    if (prefersReducedMotion()) syncTacticsNovelAnimation();
+  }, { passive: true });
+  const novelImages = [
+    ...Object.values(state.textures.tacticsNovelMotions || {}).flatMap((motions) => Object.values(motions)),
+    ...Object.values(state.textures.tacticsNovelMangaSymbols || {})
+  ];
+  novelImages.forEach((image) => {
+    if (!image?.complete) image?.addEventListener?.("load", () => {
+      if (prefersReducedMotion()) syncTacticsNovelAnimation();
+    }, { once: true });
+  });
+  syncTacticsNovelAutoControl();
   setTacticsNovelScene(0, { quiet: true });
 }
 
-function setTacticsNovelAuto(enabled) {
-  state.tacticsNovelAuto = Boolean(enabled);
-  state.tacticsNovelSceneChangedAt = performance.now();
+function syncTacticsNovelAutoControl() {
+  const reduced = prefersReducedMotion();
+  if (reduced) state.tacticsNovelAuto = false;
+  els.tacticsNovelAuto.disabled = reduced;
   els.tacticsNovelAuto.setAttribute("aria-pressed", String(state.tacticsNovelAuto));
-  els.tacticsNovelAuto.textContent = state.tacticsNovelAuto ? "自動 ON" : "自動 OFF";
+  els.tacticsNovelAuto.textContent = reduced
+    ? "自動 OFF（動きを減らす）"
+    : state.tacticsNovelAuto ? "自動 ON" : "自動 OFF";
+}
+
+function setTacticsNovelAuto(enabled) {
+  state.tacticsNovelAuto = Boolean(enabled) && !prefersReducedMotion();
+  state.tacticsNovelSceneChangedAt = performance.now();
+  syncTacticsNovelAutoControl();
   syncTacticsNovelAnimation();
 }
 
@@ -2538,7 +2584,21 @@ function syncTacticsNovelAnimation() {
     state.tacticsNovelFrame = 0;
     return;
   }
+  if (prefersReducedMotion()) {
+    if (state.tacticsNovelFrame) cancelAnimationFrame(state.tacticsNovelFrame);
+    state.tacticsNovelFrame = 0;
+    drawTacticsNovelFrame(performance.now());
+    if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
+      els.tacticsNovelCanvas.dataset.motionMode = "reduced-static";
+      els.tacticsNovelCanvas.dataset.frameOwner = "none";
+    }
+    return;
+  }
   if (!state.tacticsNovelFrame) state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
+  if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
+    els.tacticsNovelCanvas.dataset.motionMode = "animated";
+    els.tacticsNovelCanvas.dataset.frameOwner = state.tacticsNovelFrame ? "scheduled" : "none";
+  }
 }
 
 function tacticsNovelMotionFrame(timeSeconds) {
@@ -2684,10 +2744,11 @@ function drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entr
 function drawTacticsNovelFrame(timestamp) {
   state.tacticsNovelFrame = 0;
   if (state.screen !== "tactics" || state.tacticsChapterId !== "tactics-novel") return;
+  const reduced = prefersReducedMotion();
   const canvas = els.tacticsNovelCanvas;
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 2 || rect.height < 2) {
-    state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
+    if (!reduced) state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
     return;
   }
   const pixelRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
@@ -2701,9 +2762,9 @@ function drawTacticsNovelFrame(timestamp) {
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
   const scene = TACTICS_NOVEL_SCENES[state.tacticsNovelIndex];
-  const elapsed = Math.max(0, timestamp - state.tacticsNovelSceneChangedAt);
-  const timeSeconds = timestamp / 1000;
-  const entrance = 1 - Math.pow(1 - clamp(elapsed / 520, 0, 1), 3);
+  const elapsed = reduced ? 1_200 : Math.max(0, timestamp - state.tacticsNovelSceneChangedAt);
+  const timeSeconds = reduced ? 0 : timestamp / 1000;
+  const entrance = reduced ? 1 : 1 - Math.pow(1 - clamp(elapsed / 520, 0, 1), 3);
   drawTacticsNovelAmbientE(ctx, rect.width, rect.height, timeSeconds);
   const compact = rect.width < 620;
   const characterHeight = clamp(rect.height * (compact ? 0.56 : 0.72), 245, compact ? 360 : 520);
@@ -2715,11 +2776,11 @@ function drawTacticsNovelFrame(timestamp) {
   drawTacticsNovelCharacter(ctx, "sophia", scene.sophiaGesture, anchors.sophia.x, baseY, characterHeight, scene.speaker === "sophia", timeSeconds, entrance, elapsed);
   drawTacticsNovelCharacter(ctx, "philia", scene.philiaGesture, anchors.philia.x, baseY, characterHeight, scene.speaker === "philia", timeSeconds, entrance, elapsed);
   scene.symbols.forEach((symbol, index) => drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance, elapsed));
-  if (state.tacticsNovelAuto && elapsed >= 7_000) {
+  if (!reduced && state.tacticsNovelAuto && elapsed >= 7_000) {
     if (state.tacticsNovelIndex >= TACTICS_NOVEL_SCENES.length - 1) setTacticsNovelAuto(false);
     else setTacticsNovelScene(state.tacticsNovelIndex + 1);
   }
-  state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
+  if (!reduced) state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
 }
 
 function syncTacticsChapterFromScroll() {
@@ -4709,7 +4770,7 @@ function setSelectedScrollRegion(region, { focus = true } = {}) {
   region.setAttribute("aria-current", "true");
   if (focus) region.focus?.({ preventScroll: true });
   const target = scrollRegionTarget(region);
-  target?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  target?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior() });
   return true;
 }
 
@@ -4759,7 +4820,7 @@ function selectItemChoice(itemId, focus = true) {
   if (isDisplayedWeaponItemId(button.dataset.itemChoice)) state.selectedWeaponItemId = button.dataset.itemChoice;
   els.itemSelect.dispatchEvent(new Event("change", { bubbles: true }));
   if (focus) button.focus({ preventScroll: true });
-  button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  button.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior() });
   return true;
 }
 
@@ -4782,7 +4843,7 @@ function navigateSelectedScrollRegion(key) {
       if (next?.dataset.itemChoice) moved = selectItemChoice(next.dataset.itemChoice, true);
       else if (next) {
         next.focus({ preventScroll: true });
-        next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior() });
         if (region === els.vendingPanel && shopButtonId(next)) {
           state.vendingSelectedByCategory[state.vendingCategoryId] = shopButtonId(next);
         }
@@ -4792,7 +4853,7 @@ function navigateSelectedScrollRegion(key) {
   }
   if (vertical && target) {
     const amount = Math.max(48, Math.round((target.clientHeight || 120) * 0.34)) * direction;
-    target.scrollBy({ top: amount, behavior: "smooth" });
+    target.scrollBy({ top: amount, behavior: motionSafeScrollBehavior() });
   }
   return moved || vertical;
 }
@@ -4819,7 +4880,7 @@ function navigateGameplayChoices(key) {
   if (next.dataset.hackerRecipe) selectHackerAction(next.dataset.hackerRecipe, true);
   else if (next.dataset.alchemyChoice) selectAlchemyRecipe(next.dataset.alchemyChoice, true);
   else next.focus({ preventScroll: true });
-  next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior() });
   return true;
 }
 
@@ -4976,7 +5037,7 @@ function setKeyboardSelection(element, scroll = true) {
   element.classList.add("keyboard-selected");
   element.focus({ preventScroll: true });
   if (scroll) {
-    element.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    element.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior() });
   }
   return true;
 }
@@ -12782,7 +12843,6 @@ function renderItemControl(data) {
   );
   state.pendingExplicitWeaponSelectionId = "";
   state.inventoryVisualWeapon = self.gunnerWeapon || "";
-  const equippedWeaponItemId = self.gunnerWeapon ? `weapon:${self.gunnerWeapon}` : "";
   if (acceptedExplicitWeaponSelection) {
     // Keyboard/card switching must move the visible inventory selection with
     // its accepted authoritative weapon. Passive grant/purchase/pickup changes
@@ -21524,7 +21584,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-motion-introduction-quality-v608";
+const version = "reduced-motion-runtime-accessibility-v609";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22483,7 +22543,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-motion-introduction-quality-v608", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=reduced-motion-runtime-accessibility-v609", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
