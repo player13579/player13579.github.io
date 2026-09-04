@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "terminal-result-offline-poll-churn-v621",
+    version: "ate-gameplay-owner-mechanism-diversity-v622",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21951,6 +21951,63 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-1", durationMs: 1_500 });
     pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-2", durationMs: 1_500 });
     pushMagicEffect(room, "action-dodge", player, { radius: 115, playerId: player.id, variant: "fixture-positive-control", durationMs: 900 });
+  } else if (kind === "ate-owner-diversity") {
+    // Local-only visibility fixture: retain ordinary state serialization and
+    // the production render owners.  This deliberately creates no visual
+    // primitive of its own; the three normal magic-effect records, active
+    // Enhance state and Flora passive are the only presentation inputs.
+    const timestamp = now();
+    const map = getMap(room);
+    const station = map.stations.find((entry) => entry.type === "utility") ||
+      map.stations.find((entry) => entry.type === "task");
+    const target = [...room.players.values()].find((entry) => entry.isBot && entry.id !== player.id);
+    if (!station || !target) throw new ApiError(400, "ATE owner diversity実画面fixtureに端末または対象Botがありません。");
+    const targetX = Math.min(Number(map.width) - (Number(map.playerRadius) || 36), Number(station.x) + 124);
+    const targetY = Number(station.y);
+    Object.assign(player, {
+      role: "defender", special: "flora", operatorId: "defender-flora", operatorReady: true,
+      alive: true, ejected: false, inVent: false,
+      x: Number(station.x), y: Number(station.y), vx: 0, vy: 0, movementMode: "idle",
+      aimX: 1, aimY: 0,
+      mana: Math.max(2, Number(player.maxMana) || 2),
+      maxMana: Math.max(2, Number(player.maxMana) || 2),
+      stamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
+      maxStoredStamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
+      staminaUpdatedAt: timestamp,
+      enhanceChargeStartedAt: 0,
+      enhanceChargeKind: "",
+      enhanceChargeItemId: "",
+      enhanceChargeId: ""
+    });
+    Object.assign(target, {
+      alive: true, ejected: false, inVent: false,
+      x: targetX, y: targetY, vx: 0, vy: 0, movementMode: "idle",
+      nextBotActionAt: timestamp + 120_000,
+      taskAutoReadyAt: timestamp + 120_000,
+      timeStoppedUntil: timestamp + 8_000
+    });
+    for (const entry of room.players.values()) {
+      if (!entry.isBot || entry.id === target.id) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+      entry.timeStoppedUntil = timestamp + 8_000;
+    }
+    room.preparationEndsAt = timestamp + 120_000;
+    room.meeting = null;
+    room.sabotage = null;
+    setEnhanceChargeState(room, player, true, "use", "fixture-ate-owner-diversity");
+    pushMagicEffect(room, "gravity-time-keeper", player, {
+      radius: 180, playerId: player.id, variant: "fixture-ate-owner-diversity-time-keeper", durationMs: 8_000
+    });
+    pushMagicEffect(room, "alchemy-excalibur", player, {
+      radius: 260, playerId: player.id, targetId: target.id, targetX, targetY,
+      variant: "fixture-ate-owner-diversity-excalibur", durationMs: 8_000
+    });
+    pushMagicEffect(room, "action-heart-teleport", player, {
+      radius: 130, playerId: player.id, targetId: target.id, targetX, targetY,
+      variant: "fixture-ate-owner-diversity-heart", durationMs: 8_000
+    });
+    pushEvent(room, `実画面検証: ${station.label || station.id} でFloraの自然回復・アロマ、Enhance充填、時の番人、Excalibur、心臓転移を通常rendererへ同時提示します。`);
   } else if (kind === "credit-ate-task") {
     player.credits = 0;
     grantCredits(room, player, TASK_CREDIT_REWARD, "fixture-credit-task");
@@ -25809,5 +25866,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "terminal-result-offline-poll-churn-v621" });
+self.postMessage({ type: "ready", version: "ate-gameplay-owner-mechanism-diversity-v622" });
 })();

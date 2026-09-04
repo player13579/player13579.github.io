@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "terminal-result-offline-poll-churn-v621",
+    version: "ate-gameplay-owner-mechanism-diversity-v622",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

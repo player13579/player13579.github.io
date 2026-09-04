@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "terminal-result-offline-poll-churn-v621";
+const DVA_CLIENT_RELEASE = "ate-gameplay-owner-mechanism-diversity-v622";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -867,7 +867,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "terminal-result-offline-poll-churn-v621";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-gameplay-owner-mechanism-diversity-v622";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9359,7 +9359,7 @@ async function startSoloMission(missionId) {
 
 async function pollState() {
   if (document.hidden || !state.roomId || !state.playerId) return;
-  // The first ended payload must still be fetched and committed. Once that
+  // The first ended payload must still be fetched and committed.  Once that
   // immutable terminal snapshot belongs to this session, retrying /api/state
   // every 250ms only serializes and ticks an already-final room.
   const terminalSnapshot = state.data;
@@ -16481,13 +16481,16 @@ function drawFacilityEffects(data) {
     } else if (station.type === "utility" || station.type === "repair") {
       const active = activeTaskIds.has(station.id);
       const strength = active ? 0.92 : 0.2;
-      for (let particleIndex = 0; particleIndex < 3; particleIndex += 1) {
-        const progress = (time * (0.36 + particleIndex * 0.025) + seed + particleIndex / 3) % 1;
-        const sway = Math.sin(time * 2.4 + particleIndex * 2.1 + stationIndex) * 9;
-        const alpha = Math.sin(progress * Math.PI) * strength;
-        ctx.fillStyle = `rgba(34,211,238,${alpha})`;
-        ctx.fillRect(station.x + sway - 1.5, station.y + 17 - progress * 62, 3, 8);
-      }
+      const conduit = Math.sin(time * 2.4 + seed * 9) * 8;
+      ctx.globalAlpha = strength;
+      ctx.strokeStyle = "rgba(34,211,238,.88)";
+      ctx.lineWidth = active ? 4 : 2;
+      ctx.beginPath();
+      ctx.moveTo(station.x - 16, station.y + 21);
+      ctx.bezierCurveTo(station.x - 8 + conduit, station.y - 4, station.x + 8 - conduit, station.y - 31, station.x + 16, station.y - 48);
+      ctx.moveTo(station.x + 8, station.y + 19);
+      ctx.bezierCurveTo(station.x + 1 - conduit * .4, station.y - 7, station.x - 4 + conduit * .4, station.y - 23, station.x - 8, station.y - 42);
+      ctx.stroke();
       if (active) {
         ctx.strokeStyle = `rgba(103,232,249,${0.4 + Math.sin(time * 5 + seed) * 0.18})`;
         ctx.lineWidth = 2;
@@ -16553,33 +16556,19 @@ function drawTaskTransferStationEffect(station, active, time, phase) {
     phase,
     active ? 1.08 : 0.62
   );
-  const direction = download ? 1 : -1;
-  const travel = ((time * 0.62 + phase) % 1 + 1) % 1;
-  ctx.globalAlpha = active ? 0.24 : 0.1;
-  drawNormalizedSpriteCentered(sprite, 0, direction * (travel - 0.5) * 12, size * 1.12, size * 1.12);
   ctx.globalAlpha = active ? 0.94 : 0.38;
-  drawNormalizedSpriteCentered(sprite, 0, direction * Math.sin(time * 2.4 + phase * 4) * 3, size, size);
-
-  const particleCount = active ? 12 : 6;
-  const particleColor = download ? "rgba(103,232,249,0.92)" : "rgba(186,230,253,0.92)";
-  for (let index = 0; index < particleCount; index += 1) {
-    const cycle = ((time * (active ? 0.92 : 0.54) + phase + index / particleCount) % 1 + 1) % 1;
-    const angle = phase * Math.PI * 2 + index * 2.399963229728653;
-    const radius = size * (0.18 + cycle * 0.34);
-    const particleSize = (active ? 4.4 : 3.1) * (1 - cycle * 0.46);
-    ctx.save();
-    ctx.translate(
-      Math.cos(angle) * radius,
-      Math.sin(angle) * radius * 0.62 + direction * (cycle - 0.5) * 18
-    );
-    ctx.rotate(angle + time * direction * 1.8);
-    ctx.globalAlpha = (active ? 0.84 : 0.34) * Math.sin(Math.PI * cycle);
-    ctx.fillStyle = particleColor;
-    ctx.shadowColor = particleColor;
-    ctx.shadowBlur = active ? 9 : 5;
-    ctx.fillRect(-particleSize / 2, -particleSize / 2, particleSize, particleSize);
-    ctx.restore();
-  }
+  drawNormalizedSpriteCentered(sprite, 0, 0, size, size);
+  const direction = download ? 1 : -1;
+  const sway = Math.sin(time * 1.9 + phase * 7) * size * 0.09;
+  ctx.globalAlpha = active ? 0.74 : 0.26;
+  ctx.strokeStyle = download ? "rgba(103,232,249,.92)" : "rgba(186,230,253,.92)";
+  ctx.lineWidth = active ? 5 : 3;
+  ctx.beginPath();
+  ctx.moveTo(-size * .2, direction * size * .28);
+  ctx.bezierCurveTo(-size * .12 + sway, direction * size * .08, size * .1 - sway, -direction * size * .08, size * .2, -direction * size * .28);
+  ctx.moveTo(size * .08, direction * size * .28);
+  ctx.bezierCurveTo(size * .02 - sway * .5, direction * size * .06, -size * .07 + sway * .5, -direction * size * .09, -size * .12, -direction * size * .26);
+  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -16918,6 +16907,9 @@ function normalizeAteGlowMode(mode = "energy") {
     charge: "flow-up",
     cleanse: "ripple",
     heal: "flow-up",
+    hold: "gravity",
+    power: "resonance",
+    guard: "shield",
     bloom: "flow-up",
     dash: "beam",
     rewind: "orbit",
@@ -16957,7 +16949,9 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   const sampledPhase = reduced ? 0.62 : phase;
   const strength = clamp(rawIntensity, 0, 1.4);
   const size = Math.max(2, Math.min(width, height));
-  const alpha = clamp(strength * 0.42, 0, 0.72);
+  // At gameplay scale a one-pixel contour collapses into a flying speck.  The
+  // E layer therefore reads as a compact continuous field, not detached dust.
+  const alpha = clamp(strength * 0.54, 0, 0.8);
   const wave = (rate, offset = 0) => Math.sin(sampledTime * rate + sampledPhase * Math.PI * 2 + offset);
 
   targetContext.save();
@@ -16968,102 +16962,101 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   targetContext.globalAlpha = alpha;
   targetContext.strokeStyle = profile.core;
   targetContext.fillStyle = profile.aura;
-  targetContext.lineWidth = Math.max(1, size * 0.028);
+  targetContext.lineWidth = Math.max(2, size * 0.046);
   switch (normalizedMode) {
       case "energy": {
         const breath = 0.84 + wave(2.1) * 0.12;
-        targetContext.beginPath(); targetContext.moveTo(0, -size * 0.24 * breath); targetContext.lineTo(size * 0.18 * breath, 0); targetContext.lineTo(0, size * 0.24 * breath); targetContext.lineTo(-size * 0.18 * breath, 0); targetContext.closePath(); targetContext.fill();
+        targetContext.beginPath(); targetContext.moveTo(0, -size * 0.29 * breath); targetContext.lineTo(size * 0.22 * breath, 0); targetContext.lineTo(0, size * 0.29 * breath); targetContext.lineTo(-size * 0.22 * breath, 0); targetContext.closePath(); targetContext.fill(); targetContext.globalAlpha *= 0.7; targetContext.beginPath(); targetContext.moveTo(0, -size * 0.12); targetContext.lineTo(size * 0.1, 0); targetContext.lineTo(0, size * 0.12); targetContext.lineTo(-size * 0.1, 0); targetContext.closePath(); targetContext.stroke();
         break;
       }
       case "ripple": {
         const ring = 0.24 + (wave(1.25) + 1) * 0.045;
-        targetContext.beginPath(); targetContext.ellipse(0, 0, size * ring, size * ring * 0.46, 0, 0, Math.PI * 2); targetContext.ellipse(0, 0, size * (0.47 - ring * 0.24), size * (0.47 - ring * 0.24) * 0.46, 0, 0, Math.PI * 2); targetContext.stroke();
+        targetContext.beginPath(); targetContext.ellipse(0, 0, size * ring, size * ring * 0.46, 0, 0, Math.PI * 2); targetContext.ellipse(0, 0, size * (0.49 - ring * 0.22), size * (0.49 - ring * 0.22) * 0.46, 0, 0, Math.PI * 2); targetContext.stroke(); targetContext.globalAlpha *= 0.48; targetContext.beginPath(); targetContext.ellipse(0, 0, size * 0.14, size * 0.065, 0, 0, Math.PI * 2); targetContext.fill();
         break;
       }
       case "shimmer": {
         const aperture = size * (0.15 + (wave(1.7, 1.1) + 1) * 0.045);
-        targetContext.beginPath(); targetContext.moveTo(-aperture, 0); targetContext.quadraticCurveTo(0, -aperture * 0.26, aperture, 0); targetContext.quadraticCurveTo(0, aperture * 0.26, -aperture, 0); targetContext.closePath(); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-aperture, 0); targetContext.quadraticCurveTo(0, -aperture * 0.42, aperture, 0); targetContext.quadraticCurveTo(0, aperture * 0.42, -aperture, 0); targetContext.closePath(); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, aperture * 0.48, aperture * 0.11, 0, 0, Math.PI * 2); targetContext.fill();
         break;
       }
       case "impact": {
         const fracture = clamp(sampledPhase, 0, 1) * size * 0.38;
-        targetContext.beginPath(); targetContext.moveTo(-fracture, size * 0.12); targetContext.lineTo(-fracture * 0.18, -size * 0.05); targetContext.lineTo(fracture * 0.24, size * 0.1); targetContext.lineTo(fracture, -size * 0.16); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-fracture, size * 0.16); targetContext.lineTo(-fracture * 0.18, -size * 0.09); targetContext.lineTo(fracture * 0.25, size * 0.13); targetContext.lineTo(fracture, -size * 0.2); targetContext.stroke(); targetContext.globalAlpha *= 0.45; targetContext.beginPath(); targetContext.ellipse(0, 0, size * (0.12 + fracture / size * 0.16), size * 0.095, 0, 0, Math.PI * 2); targetContext.fill();
         break;
       }
       case "shield": {
         const closure = wave(1.05) * 0.16;
-        targetContext.beginPath(); targetContext.arc(0, 0, size * 0.31, -Math.PI * 0.78 + closure, Math.PI * 0.78 - closure); targetContext.stroke();
+        targetContext.beginPath(); targetContext.arc(0, 0, size * 0.34, -Math.PI * 0.78 + closure, Math.PI * 0.78 - closure); targetContext.arc(0, 0, size * 0.2, Math.PI * 0.78 - closure, -Math.PI * 0.78 + closure, true); targetContext.stroke();
         break;
       }
       case "targeting": {
         const lock = size * (0.28 - clamp(sampledPhase, 0, 1) * 0.12);
-        targetContext.beginPath(); targetContext.rect(-lock, -lock, lock * 0.42, size * 0.028); targetContext.rect(lock * 0.58, -lock, lock * 0.42, size * 0.028); targetContext.rect(-size * 0.014, -lock, size * 0.028, lock * 0.42); targetContext.rect(-size * 0.014, lock * 0.58, size * 0.028, lock * 0.42); targetContext.fill();
+        targetContext.beginPath(); targetContext.rect(-lock, -lock, lock * 0.48, size * 0.05); targetContext.rect(lock * 0.52, -lock, lock * 0.48, size * 0.05); targetContext.rect(-size * 0.025, -lock, size * 0.05, lock * 0.48); targetContext.rect(-size * 0.025, lock * 0.52, size * 0.05, lock * 0.48); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, size * 0.075, size * 0.075, 0, 0, Math.PI * 2); targetContext.stroke();
         break;
       }
       case "beam": {
         const shear = wave(2.8) * size * 0.045;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.44, -size * 0.09); targetContext.lineTo(width * 0.44, -size * 0.025 + shear); targetContext.lineTo(width * 0.44, size * 0.025 + shear); targetContext.lineTo(-width * 0.44, size * 0.09); targetContext.closePath(); targetContext.fill();
+        targetContext.beginPath(); targetContext.moveTo(-width * 0.46, -size * 0.12); targetContext.lineTo(width * 0.46, -size * 0.035 + shear); targetContext.lineTo(width * 0.46, size * 0.035 + shear); targetContext.lineTo(-width * 0.46, size * 0.12); targetContext.closePath(); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.moveTo(-width * 0.42, 0); targetContext.lineTo(width * 0.42, shear); targetContext.stroke();
         break;
       }
       case "recoil": {
         const recoil = (1 - Math.cos(sampledTime * 3.1 + sampledPhase)) * size * 0.07;
-        targetContext.beginPath(); targetContext.moveTo(size * 0.3, -size * 0.12); targetContext.lineTo(-size * 0.34 - recoil, 0); targetContext.lineTo(size * 0.3, size * 0.12); targetContext.closePath(); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(size * 0.34, -size * 0.16); targetContext.lineTo(-size * 0.38 - recoil, 0); targetContext.lineTo(size * 0.34, size * 0.16); targetContext.closePath(); targetContext.stroke(); targetContext.globalAlpha *= 0.45; targetContext.beginPath(); targetContext.moveTo(size * 0.12, -size * 0.07); targetContext.lineTo(-size * 0.2 - recoil * 0.5, 0); targetContext.lineTo(size * 0.12, size * 0.07); targetContext.closePath(); targetContext.fill();
         break;
       }
       case "data-down": {
         const gate = -height * 0.28 + ((sampledTime * 0.46 + sampledPhase) % 1) * height * 0.56;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.12, gate); targetContext.lineTo(width * 0.12, gate); targetContext.moveTo(0, gate - size * 0.11); targetContext.lineTo(0, gate + size * 0.11); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-width * 0.18, gate); targetContext.lineTo(width * 0.18, gate); targetContext.moveTo(0, gate - size * 0.15); targetContext.lineTo(0, gate + size * 0.15); targetContext.stroke(); targetContext.globalAlpha *= 0.38; targetContext.beginPath(); targetContext.roundRect(-width * 0.12, gate - size * 0.055, width * 0.24, size * 0.11, size * 0.035); targetContext.fill();
         break;
       }
       case "data-up": {
         const ascent = height * 0.28 - ((sampledTime * 0.39 + sampledPhase) % 1) * height * 0.56;
-        targetContext.beginPath(); targetContext.moveTo(-size * 0.09, ascent + size * 0.1); targetContext.lineTo(0, ascent - size * 0.1); targetContext.lineTo(size * 0.09, ascent + size * 0.1); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-size * 0.14, ascent + size * 0.13); targetContext.lineTo(0, ascent - size * 0.13); targetContext.lineTo(size * 0.14, ascent + size * 0.13); targetContext.stroke(); targetContext.globalAlpha *= 0.38; targetContext.beginPath(); targetContext.moveTo(-size * 0.07, ascent + size * 0.07); targetContext.lineTo(0, ascent - size * 0.07); targetContext.lineTo(size * 0.07, ascent + size * 0.07); targetContext.closePath(); targetContext.fill();
         break;
       }
       case "data-accelerate": {
         const conduit = wave(2.2) * size * 0.08;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.42, -height * 0.18); targetContext.bezierCurveTo(-width * 0.1, -height * 0.18, -width * 0.08, conduit, width * 0.42, 0); targetContext.moveTo(-width * 0.42, height * 0.18); targetContext.bezierCurveTo(-width * 0.1, height * 0.18, -width * 0.08, -conduit, width * 0.42, 0); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-width * 0.44, -height * 0.22); targetContext.bezierCurveTo(-width * 0.12, -height * 0.22, -width * 0.08, conduit, width * 0.44, 0); targetContext.moveTo(-width * 0.44, height * 0.22); targetContext.bezierCurveTo(-width * 0.12, height * 0.22, -width * 0.08, -conduit, width * 0.44, 0); targetContext.stroke(); targetContext.globalAlpha *= 0.4; targetContext.beginPath(); targetContext.moveTo(-width * 0.32, 0); targetContext.bezierCurveTo(-width * 0.08, -conduit * 0.4, width * 0.14, conduit * 0.4, width * 0.32, 0); targetContext.stroke();
         break;
       }
       case "flow-up": {
         const ribbon = wave(1.6) * width * 0.07;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.16, height * 0.28); targetContext.bezierCurveTo(-width * 0.06 + ribbon, height * 0.04, width * 0.08 - ribbon, -height * 0.08, width * 0.14, -height * 0.3); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-width * 0.2, height * 0.32); targetContext.bezierCurveTo(-width * 0.08 + ribbon, height * 0.05, width * 0.1 - ribbon, -height * 0.09, width * 0.18, -height * 0.34); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.moveTo(width * 0.02, height * 0.3); targetContext.bezierCurveTo(width * 0.13 - ribbon, height * 0.04, -width * 0.05 + ribbon, -height * 0.07, -width * 0.11, -height * 0.27); targetContext.stroke();
         break;
       }
       case "combustion": {
         const tongue = wave(4.7) * size * 0.09;
-        targetContext.beginPath(); targetContext.moveTo(-size * 0.2, size * 0.22); targetContext.quadraticCurveTo(-size * 0.08 + tongue, -size * 0.33, 0, size * 0.04); targetContext.quadraticCurveTo(size * 0.1 - tongue, -size * 0.24, size * 0.22, size * 0.22); targetContext.closePath(); targetContext.fill();
+        targetContext.beginPath(); targetContext.moveTo(-size * 0.24, size * 0.26); targetContext.quadraticCurveTo(-size * 0.09 + tongue, -size * 0.38, 0, size * 0.02); targetContext.quadraticCurveTo(size * 0.12 - tongue, -size * 0.3, size * 0.25, size * 0.26); targetContext.closePath(); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.moveTo(-size * 0.07, size * 0.2); targetContext.quadraticCurveTo(tongue * 0.34, -size * 0.2, size * 0.09, size * 0.2); targetContext.closePath(); targetContext.fill();
         break;
       }
       case "orbit": {
         const highlight = wave(1.2) * 0.08;
-        targetContext.beginPath(); targetContext.ellipse(0, 0, width * (0.27 + highlight), height * (0.2 - highlight * 0.45), 0, 0, Math.PI * 2); targetContext.stroke();
+        targetContext.beginPath(); targetContext.ellipse(0, 0, width * (0.31 + highlight), height * (0.23 - highlight * 0.45), 0, 0, Math.PI * 2); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, width * 0.16, height * 0.11, 0, 0, Math.PI * 2); targetContext.stroke();
         break;
       }
       case "gravity": {
         const pinch = 0.22 + (wave(0.72) + 1) * 0.035;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.38, -height * 0.22); targetContext.quadraticCurveTo(-width * pinch, 0, 0, 0); targetContext.quadraticCurveTo(width * pinch, 0, width * 0.38, height * 0.22); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-width * 0.42, -height * 0.25); targetContext.quadraticCurveTo(-width * pinch, 0, 0, 0); targetContext.quadraticCurveTo(width * pinch, 0, width * 0.42, height * 0.25); targetContext.moveTo(-width * 0.42, height * 0.25); targetContext.quadraticCurveTo(-width * pinch, 0, 0, 0); targetContext.quadraticCurveTo(width * pinch, 0, width * 0.42, -height * 0.25); targetContext.stroke();
         break;
       }
       case "teleport": {
         const phaseCut = wave(2.45) * size * 0.06;
-        targetContext.beginPath(); targetContext.rect(-width * 0.21, -height * 0.3, width * 0.42, size * 0.045); targetContext.rect(-width * 0.12 + phaseCut, -size * 0.022, width * 0.24, size * 0.045); targetContext.rect(-width * 0.21, height * 0.3, width * 0.42, size * 0.045); targetContext.fill();
+        targetContext.beginPath(); targetContext.rect(-width * 0.24, -height * 0.32, width * 0.48, size * 0.065); targetContext.rect(-width * 0.15 + phaseCut, -size * 0.033, width * 0.3, size * 0.065); targetContext.rect(-width * 0.24, height * 0.32, width * 0.48, size * 0.065); targetContext.fill(); targetContext.globalAlpha *= 0.38; targetContext.beginPath(); targetContext.moveTo(-width * 0.16, -height * 0.22); targetContext.lineTo(width * 0.16, height * 0.22); targetContext.stroke();
         break;
       }
       case "resonance": {
         const converge = 0.42 - (wave(1.38) + 1) * 0.09;
-        targetContext.beginPath(); targetContext.moveTo(-width * converge, -height * 0.18); targetContext.quadraticCurveTo(0, 0, width * converge, height * 0.18); targetContext.moveTo(-width * converge, height * 0.18); targetContext.quadraticCurveTo(0, 0, width * converge, -height * 0.18); targetContext.stroke();
+        targetContext.beginPath(); targetContext.moveTo(-width * converge, -height * 0.22); targetContext.quadraticCurveTo(0, 0, width * converge, height * 0.22); targetContext.moveTo(-width * converge, height * 0.22); targetContext.quadraticCurveTo(0, 0, width * converge, -height * 0.22); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, size * 0.12, size * 0.12, 0, 0, Math.PI * 2); targetContext.stroke();
         break;
       }
       case "clairvoyance": {
         const lens = wave(0.86) * height * 0.07;
-        targetContext.beginPath(); targetContext.ellipse(0, lens, width * 0.34, height * 0.11, 0, Math.PI * 0.08, Math.PI * 0.92); targetContext.stroke();
+        targetContext.beginPath(); targetContext.ellipse(0, lens, width * 0.38, height * 0.14, 0, Math.PI * 0.06, Math.PI * 0.94); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, lens * 0.5, width * 0.15, height * 0.045, 0, 0, Math.PI * 2); targetContext.stroke();
         break;
       }
       case "glitch": {
-        const state = Math.floor((sampledTime * 7 + sampledPhase * 5) % 3);
-        const offset = (state - 1) * width * 0.12;
-        targetContext.beginPath(); targetContext.rect(-width * 0.28 + offset, -height * 0.17, width * 0.34, size * 0.04); targetContext.rect(-width * 0.06 - offset, height * 0.15, width * 0.3, size * 0.04); targetContext.fill();
+        const offset = Math.sin(sampledTime * 7 + sampledPhase * 5) * width * 0.12;
+        targetContext.beginPath(); targetContext.rect(-width * 0.31 + offset, -height * 0.19, width * 0.38, size * 0.06); targetContext.rect(-width * 0.08 - offset, height * 0.17, width * 0.34, size * 0.06); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.rect(-width * 0.17 - offset * 0.4, -size * 0.03, width * 0.34, size * 0.06); targetContext.stroke();
         break;
       }
       default: break;
@@ -17757,14 +17750,21 @@ function drawGeneratedStandaloneEffect(effect, progress) {
       intensity: 0.86,
       baseAlpha: 0.12
     });
-    // Complementary E: sparse particles remain spatially fixed for the whole
-    // stop. They support the frozen-state read without redrawing the clockwork.
-    const fixedMotes = [[-0.36, -0.28], [0.31, -0.34], [-0.42, 0.08], [0.39, 0.16], [-0.2, 0.39], [0.23, 0.33]];
-    fixedMotes.forEach(([px, py], index) => {
-      ctx.globalAlpha = fade * (0.28 + (index % 3) * 0.11);
-      ctx.fillStyle = index % 2 ? "#f9d985" : "#bdf7ff";
-      ctx.fillRect(px * size - 2, py * size - 2, 4, 4);
-    });
+    // A held time field is read as a connected boundary: no detached motes
+    // imply that time itself is still travelling through the scene.
+    const timeHold = Math.sin((state.frameNow || performance.now()) / 1000 * 1.4 + progress * Math.PI) * size * 0.035;
+    ctx.globalAlpha = fade * (0.28 + arrive * 0.34);
+    ctx.strokeStyle = "rgba(189,247,255,.9)";
+    ctx.lineWidth = Math.max(3, size * 0.018);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 0.35 + timeHold, size * 0.22 - timeHold * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, size * 0.17 - timeHold * 0.36, size * 0.105 + timeHold * 0.18, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha *= 0.62;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.42, 0);
+    ctx.quadraticCurveTo(0, timeHold, size * 0.42, 0);
+    ctx.stroke();
     ctx.restore();
     return true;
   }
@@ -17807,17 +17807,21 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   if (effect.type === "alchemy-excalibur") {
     const edge = Math.sin(clamp(progress / 0.74, 0, 1) * Math.PI);
     ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < 14; index += 1) {
-      const sweep = clamp((progress - index * 0.018) / 0.58, 0, 1);
-      const angle = -0.62 + sweep * 1.24 + (index - 7) * 0.018;
-      const radius = size * (0.26 + (index % 5) * 0.035);
-      ctx.globalAlpha = edge * (1 - sweep * 0.55) * (0.18 + (index % 4) * 0.06);
-      ctx.fillStyle = index % 3 === 0 ? "#ffe6a3" : "#baf6ff";
-      ctx.save();
-      ctx.rotate(angle);
-      ctx.fillRect(radius, -1.2, 18 + (index % 4) * 7, 2.4);
-      ctx.restore();
-    }
+    const bladeWave = Math.sin(progress * Math.PI * 2) * size * 0.055;
+    ctx.globalAlpha = edge * 0.72;
+    ctx.strokeStyle = "#ffe6a3";
+    ctx.lineWidth = Math.max(4, size * 0.018);
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.44, size * 0.14);
+    ctx.quadraticCurveTo(-size * 0.1, -size * 0.23 + bladeWave, size * 0.16, -size * 0.04);
+    ctx.quadraticCurveTo(size * 0.33, size * 0.14 - bladeWave, size * 0.48, -size * 0.17);
+    ctx.stroke();
+    ctx.globalAlpha = edge * 0.36;
+    ctx.strokeStyle = "#baf6ff";
+    ctx.lineWidth = Math.max(2, size * 0.01);
+    ctx.beginPath();
+    ctx.ellipse(size * 0.08, -size * 0.045, size * 0.31, size * 0.12 + Math.abs(bladeWave) * 0.32, -0.32, 0, Math.PI * 2);
+    ctx.stroke();
   }
   if (effect.type === "quantum-transmutation") {
     const goldImage = state.textures?.itemTextures?.gold;
@@ -18244,20 +18248,22 @@ function drawHeartTeleportEffect(effect, progress) {
       mode: "energy", progress, phase: 0.41, intensity: 1, baseAlpha: 0.24, opacityBoost: 2.7
     });
   }
-  // E adds sparse detached sparks only; the raster owns the red fist glow.
-  ctx.fillStyle = "rgba(255, 192, 203, 0.86)";
-  for (let index = 0; index < 5; index += 1) {
-    const phase = (progress * 1.8 + index / 5) % 1;
-    const angle = -0.8 + index * 0.38;
-    const travel = 14 + phase * 28;
-    const moteSize = 1.8 + (1 - phase) * 2.2;
-    ctx.save();
-    ctx.translate(Math.cos(angle) * travel, Math.sin(angle) * travel * 0.52);
-    ctx.rotate(angle + Math.PI / 4);
-    ctx.globalAlpha = Math.max(0.06, (1 - phase) * (0.36 + pulse * 0.28));
-    ctx.fillRect(-moteSize / 2, -moteSize / 2, moteSize, moteSize);
-    ctx.restore();
-  }
+  // The transfer is a continuous tether from fist to the arrival phase,
+  // rather than unrelated square motes escaping its semantic owner.
+  const phaseLift = Math.sin(progress * Math.PI) * height * 0.18;
+  ctx.globalAlpha = Math.max(0.1, (1 - progress * 0.48) * (0.42 + pulse * 0.28));
+  ctx.strokeStyle = "rgba(255, 192, 203, 0.9)";
+  ctx.lineWidth = Math.max(3, width * 0.038);
+  ctx.beginPath();
+  ctx.moveTo(-width * 0.36, height * 0.12);
+  ctx.bezierCurveTo(-width * 0.12, -height * 0.34 + phaseLift, width * 0.13, height * 0.27 - phaseLift, width * 0.37, -height * 0.1);
+  ctx.stroke();
+  ctx.globalAlpha *= 0.48;
+  ctx.strokeStyle = "rgba(221,214,254,.88)";
+  ctx.lineWidth = Math.max(2, width * 0.018);
+  ctx.beginPath();
+  ctx.ellipse(width * 0.12, -height * 0.03, width * 0.19, height * 0.12 + phaseLift * 0.2, -0.28, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -19605,27 +19611,25 @@ function enhanceRimLightState(player, data) {
 
 function drawEnhanceRimLightGlints(rim) {
   if (!rim) return;
-  const anchors = [
-    [-29, -54], [25, -44], [-35, -17], [34, 3], [-22, 30], [23, 33]
-  ];
-  const visibleGlints = Math.min(6, 3 + rim.level);
+  const breathe = Math.sin(rim.time * 2.1 + rim.level * 0.37);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  for (let index = 0; index < visibleGlints; index += 1) {
-    const [baseX, baseY] = anchors[index];
-    const cycle = ((rim.time * (0.72 + index * 0.035) + index * 0.193) % 1 + 1) % 1;
-    const life = Math.sin(cycle * Math.PI);
-    const size = 2.2 + rim.level * 0.34 + life * 2.1;
-    ctx.save();
-    ctx.translate(baseX + Math.sin(rim.time * 2.1 + index) * 2.4, baseY - cycle * 9);
-    ctx.rotate(Math.PI / 4 + rim.time * 0.18 * (index % 2 ? -1 : 1));
-    ctx.globalAlpha = life * (0.38 + rim.level * 0.1);
-    ctx.fillStyle = index % 2 ? "#e0f2fe" : "#a5f3fc";
-    ctx.shadowColor = index % 2 ? "#c4b5fd" : "#22d3ee";
-    ctx.shadowBlur = 7 + rim.level * 2;
-    ctx.fillRect(-size / 2, -size / 2, size, size);
-    ctx.restore();
-  }
+  ctx.globalAlpha = 0.36 + rim.level * 0.09;
+  ctx.strokeStyle = "#a5f3fc";
+  ctx.shadowColor = "#22d3ee";
+  ctx.shadowBlur = 8 + rim.level * 2;
+  ctx.lineWidth = 2.5 + rim.level * 0.5;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 33 + breathe * 2.2, 47 - breathe * 1.2, 0, -2.45, -0.54);
+  ctx.ellipse(0, -12, 33 - breathe * 1.8, 47 + breathe, 0, 0.7, 2.62);
+  ctx.stroke();
+  ctx.globalAlpha *= 0.58;
+  ctx.strokeStyle = "#e0f2fe";
+  ctx.lineWidth = 1.7 + rim.level * 0.28;
+  ctx.beginPath();
+  ctx.arc(0, -12, 37 + breathe * 2.6, -1.9, -0.95);
+  ctx.arc(0, -12, 37 - breathe * 2.1, 1.13, 2.06);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -19739,32 +19743,27 @@ function naturalRecoveryMarkerGlow() {
 
 function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState) {
   if (!activeState?.naturalRecovery || !activeState?.aroma) return false;
-  // Five short-lived scent-leaf motes are intentionally complementary to the
-  // recovery raster rather than another marker texture or a full-size ATE.
-  const particleCount = 5;
+  const sway = Math.sin(time * 1.7) * 4.5;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  for (let index = 0; index < particleCount; index += 1) {
-    const cycle = ((time * (0.32 + index * 0.018) + index * 0.211) % 1 + 1) % 1;
-    const life = Math.sin(cycle * Math.PI);
-    const drift = Math.sin(time * 2.2 + index * 1.73) * (2.5 + index * 0.42);
-    const x = markerX + drift + (index - (particleCount - 1) / 2) * 2.2;
-    const y = markerY + 11 - cycle * (18 + (index % 2) * 4);
-    const size = 1.7 + life * 1.35;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(-0.52 + time * 0.45 + index * 0.77);
-    ctx.globalAlpha = life * (0.28 + (index % 2) * 0.07);
-    ctx.fillStyle = index % 2 ? "#bbf7d0" : "#d8b4fe";
-    ctx.shadowColor = index % 2 ? "#4ade80" : "#c084fc";
-    ctx.shadowBlur = 4 + life * 3;
-    ctx.beginPath();
-    ctx.moveTo(0, -size);
-    ctx.quadraticCurveTo(size * 0.82, -size * 0.08, 0, size);
-    ctx.quadraticCurveTo(-size * 0.58, -size * 0.08, 0, -size);
-    ctx.fill();
-    ctx.restore();
-  }
+  ctx.globalAlpha = 0.38 + Math.sin(time * 1.3) * 0.09;
+  ctx.strokeStyle = "#bbf7d0";
+  ctx.shadowColor = "#4ade80";
+  ctx.shadowBlur = 7;
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(markerX - 12, markerY + 11);
+  ctx.bezierCurveTo(markerX - 18 + sway, markerY + 1, markerX + 11 - sway, markerY - 8, markerX - 2, markerY - 29);
+  ctx.moveTo(markerX + 13, markerY + 9);
+  ctx.bezierCurveTo(markerX + 20 - sway, markerY - 3, markerX - 7 + sway, markerY - 13, markerX + 5, markerY - 33);
+  ctx.stroke();
+  ctx.globalAlpha *= 0.62;
+  ctx.strokeStyle = "#d8b4fe";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(markerX - 7, markerY + 8);
+  ctx.bezierCurveTo(markerX + 12 + sway, markerY - 5, markerX + 1, markerY - 24, markerX + 9, markerY - 36);
+  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -21464,7 +21463,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "terminal-result-offline-poll-churn-v621";
+const version = "ate-gameplay-owner-mechanism-diversity-v622";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22423,7 +22422,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=terminal-result-offline-poll-churn-v621", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ate-gameplay-owner-mechanism-diversity-v622", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
