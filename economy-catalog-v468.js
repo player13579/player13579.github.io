@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "visual-quality-additions-removed-v590",
+    version: "movement-transport-resilience-v591",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "visual-quality-additions-removed-v590";
+const DVA_CLIENT_RELEASE = "movement-transport-resilience-v591";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -23,6 +23,7 @@ if (VERIFY_REAL_SCREEN_AUTO_START) {
 }
 const IS_PLICY = PLATFORM_OVERRIDE === "plicy" || /(^|\.)plicy\.net$/i.test(location.hostname) || /(^|\.)game\.plicy\.net$/i.test(location.hostname);
 const MOVEMENT_SEND_INTERVAL_MS = 28;
+const MOVEMENT_HTTP_TIMEOUT_MS = 1_500;
 const UI_RENDER_INTERVAL_MS = 0;
 const IMAGE_SMOOTHING_QUALITY = "high";
 const SELECTION_ARROW_REPEAT_INTERVAL_MS = 110;
@@ -844,7 +845,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "visual-quality-additions-removed-v590";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "movement-transport-resilience-v591";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -14049,12 +14050,24 @@ function resyncMovementAfterFocus() {
 
 async function sendHttpMovement(payload) {
   if (state.offlineMode) return state.offlineClient?.request("/api/move", payload);
-  const response = await fetch(apiUrl("/api/move"), {
-    method: "POST",
-    headers: onlineApiHeaders({ "content-type": "application/json" }),
-    body: JSON.stringify(payload)
-  });
-  return response.json();
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), MOVEMENT_HTTP_TIMEOUT_MS);
+  try {
+    const response = await fetch(apiUrl("/api/move"), {
+      method: "POST",
+      headers: onlineApiHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`movement HTTP ${response.status}`);
+    const result = await response.json();
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+      throw new TypeError("movement response must be an object");
+    }
+    return result;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 function applyMovementAck(result) {
@@ -21041,7 +21054,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "visual-quality-additions-removed-v590";
+const version = "movement-transport-resilience-v591";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -21997,7 +22010,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=visual-quality-additions-removed-v590", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=movement-transport-resilience-v591", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

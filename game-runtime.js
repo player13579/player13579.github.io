@@ -104,8 +104,19 @@
     }
 
     sendMovement(payload) {
-      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
-      this.socket.send(JSON.stringify({ type: "move", ...payload }));
+      const socket = this.socket;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+      try {
+        socket.send(JSON.stringify({ type: "move", ...payload }));
+      } catch {
+        // A socket may close after the readyState check.  Let its current
+        // close listener own the disconnect/reconnect transition, while the
+        // caller falls back to its ordered HTTP movement queue.
+        if (this.socket === socket && !this.closedByClient) {
+          try { socket.close(); } catch {}
+        }
+        return false;
+      }
       return true;
     }
 
@@ -210,7 +221,12 @@
           this.inFlight = false;
           return;
         }
-        this.pending.unshift(payload);
+        // Movement payloads describe the complete current direction. If a
+        // newer transition (especially stop) arrived while this request was
+        // stalled, replaying the failed older direction first can create a
+        // phantom movement burst after connectivity recovers. Retry the old
+        // payload only when no newer authoritative input is waiting.
+        if (this.pending.length === 0) this.pending.unshift(payload);
         this.inFlight = false;
         if (!this.retryTimer) {
           this.retryTimer = setTimeout(() => {
