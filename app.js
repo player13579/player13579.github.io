@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "meeting-chat-input-isolation-v598";
+const DVA_CLIENT_RELEASE = "toast-live-region-accessibility-v599";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -847,7 +847,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "meeting-chat-input-isolation-v598";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "toast-live-region-accessibility-v599";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -21198,7 +21198,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "meeting-chat-input-isolation-v598";
+const version = "toast-live-region-accessibility-v599";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22144,17 +22144,20 @@ function playSound(kind, options = {}) {
 }
 
 function showToast(message) {
+  clearTimeout(state.toastTimer);
   els.toast.textContent = message;
   els.toast.hidden = false;
-  clearTimeout(state.toastTimer);
-  state.toastTimer = setTimeout(() => {
+  const timer = setTimeout(() => {
+    if (state.toastTimer !== timer) return;
     els.toast.hidden = true;
+    state.toastTimer = null;
   }, 3600);
+  state.toastTimer = timer;
 }
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=meeting-chat-input-isolation-v598", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=toast-live-region-accessibility-v599", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "meeting-chat-input-isolation-v598",
+    version: "toast-live-region-accessibility-v599",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
