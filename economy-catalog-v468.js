@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "escape-title-room-lifecycle-v593",
+    version: "runtime-cache-bounded-v594",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "escape-title-room-lifecycle-v593";
-const CACHE_NAME = "dva-static-v593-escape-title-room-lifecycle";
+const RUNTIME_RELEASE = "runtime-cache-bounded-v594";
+const CACHE_NAME = "dva-static-v594-runtime-cache-bounded";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -372,6 +372,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/assets/title-hero-v466.png"
 ]);
 const PRECACHE_CONCURRENCY = 4;
+const RUNTIME_CACHE_MAX_ENTRIES = 128;
 
 function installCacheKey(asset) {
   if (asset === "/" || asset === "/index.html") return asset;
@@ -397,6 +398,60 @@ async function cacheBootCriticalAssets(cache) {
   await Promise.all(Array.from({ length: Math.min(PRECACHE_CONCURRENCY, assets.length) }, worker));
 }
 
+function runtimeCacheKey(request) {
+  const url = new URL(typeof request === "string" ? request : request.url, self.location.origin);
+  if (url.origin !== self.location.origin) return null;
+  if (url.pathname === "/" || url.pathname === "/index.html") return url.pathname;
+  return installCacheKey(url.pathname);
+}
+
+function isBootCriticalCacheRequest(request) {
+  try {
+    return BOOT_CRITICAL_ASSETS.has(new URL(request.url, self.location.origin).pathname);
+  } catch {
+    return false;
+  }
+}
+
+async function trimRuntimeCache(cache) {
+  const keys = await cache.keys();
+  let overflow = keys.length - RUNTIME_CACHE_MAX_ENTRIES;
+  if (overflow <= 0) return;
+  for (const request of keys) {
+    if (overflow <= 0) break;
+    if (isBootCriticalCacheRequest(request)) continue;
+    if (await cache.delete(request)) overflow -= 1;
+  }
+}
+
+async function commitRuntimeResponse(request, response) {
+  const key = runtimeCacheKey(request);
+  if (!key || !response.ok) return;
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put(key, response);
+  await trimRuntimeCache(cache);
+}
+
+async function matchRuntimeResponse(request) {
+  const key = runtimeCacheKey(request);
+  if (!key) return null;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    return (await cache.match(key)) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function matchNavigationShell() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    return (await cache.match("/index.html")) || (await cache.match("/")) || null;
+  } catch {
+    return null;
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cacheBootCriticalAssets)
@@ -415,30 +470,24 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
   if (event.request.method !== "GET") return;
 
-  event.respondWith(
-    fetch(event.request).then(async (response) => {
-      const cache = await caches.open(CACHE_NAME);
-      if (response.ok) {
-        await cache.put(event.request, response.clone());
-        return response;
-      }
-      const exact = await cache.match(event.request);
-      if (exact) return exact;
-      if (event.request.mode === "navigate") {
-        return (await cache.match("/index.html")) || (await cache.match("/")) || response;
-      }
-      return response;
-    }).catch(async () => {
-      const cache = await caches.open(CACHE_NAME);
-      const exact = await cache.match(event.request);
-      if (exact) return exact;
-      if (event.request.mode === "navigate") {
-        return (await cache.match("/index.html")) || cache.match("/");
-      }
-      return Response.error();
-    })
-  );
+  const networkResponse = fetch(event.request);
+  event.waitUntil(networkResponse.then((response) => {
+    return response.ok ? commitRuntimeResponse(event.request, response.clone()) : undefined;
+  }).catch(() => {}));
+  event.respondWith(networkResponse.then(async (response) => {
+    if (response.ok) return response;
+    const exact = await matchRuntimeResponse(event.request);
+    if (exact) return exact;
+    if (event.request.mode === "navigate") return (await matchNavigationShell()) || response;
+    return response;
+  }).catch(async () => {
+    const exact = await matchRuntimeResponse(event.request);
+    if (exact) return exact;
+    if (event.request.mode === "navigate") return (await matchNavigationShell()) || Response.error();
+    return Response.error();
+  }));
 });
