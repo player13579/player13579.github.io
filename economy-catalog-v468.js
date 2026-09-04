@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "mystery-reveal-session-lifecycle-v600",
+    version: "accessible-control-dialog-ownership-v601",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

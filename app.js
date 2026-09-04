@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "mystery-reveal-session-lifecycle-v600";
+const DVA_CLIENT_RELEASE = "accessible-control-dialog-ownership-v601";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -528,6 +528,7 @@ const state = {
   headMarkerPresentationFrame: -1,
   worldSoundEffects: [],
   expandedMapOpen: false,
+  expandedMapReturnFocus: null,
   tabletOpen: false,
   tabletResumeAfterMap: false,
   tabletStick: { pointerId: null, dx: 0, dy: 0, strength: 0, mode: "idle" },
@@ -847,7 +848,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mystery-reveal-session-lifecycle-v600";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "accessible-control-dialog-ownership-v601";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5955,6 +5956,52 @@ function handleFieldFeedDialogKeydown(event) {
   return true;
 }
 
+function handleExpandedMapDialogKeydown(event) {
+  if (!state.expandedMapOpen) return false;
+  const activeElement = document.activeElement;
+  if (event.key === "Tab") {
+    event.preventDefault();
+    const controls = contextKeyboardElements();
+    if (!controls.length) return true;
+    const active = controls.includes(activeElement) ? activeElement : state.keyboardElement;
+    const currentIndex = controls.indexOf(active);
+    const nextIndex = currentIndex < 0
+      ? (event.shiftKey ? controls.length - 1 : 0)
+      : (currentIndex + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+    setKeyboardSelection(controls[nextIndex], false);
+    return true;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    if (!event.repeat) setExpandedMapOpen(false);
+    return true;
+  }
+  if (state.teleportTargeting || state.instantWarpTargeting) {
+    if (event.key.startsWith("Arrow")) {
+      event.preventDefault();
+      if (allowSelectionArrowRepeat(event)) moveExpandedMapPointer(event.key, event.shiftKey);
+      return true;
+    }
+    if (event.key === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      if (!event.repeat) void activateExpandedMapPoint(state.mapPointer);
+      return true;
+    }
+  }
+  if (event.key.startsWith("Arrow")) {
+    event.preventDefault();
+    if (allowSelectionArrowRepeat(event)) navigateKeyboardContext(event.key);
+    return true;
+  }
+  if (event.key === "Enter" || event.code === "Space") {
+    event.preventDefault();
+    if (!event.repeat) activateKeyboardSelection();
+    return true;
+  }
+  event.preventDefault();
+  return true;
+}
+
 function bindEvents() {
   ensureDynamicVendingChoices();
   ensureDynamicAlchemyChoices();
@@ -6691,6 +6738,7 @@ function bindEvents() {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
     if (handleKeybindModalKeydown(event)) return;
     if (handleFieldFeedDialogKeydown(event)) return;
+    if (handleExpandedMapDialogKeydown(event)) return;
     const editableTarget = eventTarget?.matches?.('input, textarea, [contenteditable="true"]')
       ? eventTarget
       : document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')
@@ -6913,7 +6961,7 @@ function bindEvents() {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
     if (eventTarget?.matches?.('input, textarea, [contenteditable="true"]') ||
       document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')) return;
-    if (state.keybindOpen || state.fieldFeedOpen) return;
+    if (state.keybindOpen || state.fieldFeedOpen || state.expandedMapOpen) return;
     stopRootShortcutKeyHold(event.code);
     stopAbilityBatchKeyHold(event.code, { dispatch: true });
     stopContinuousActionKeyHold(event.code);
@@ -8106,10 +8154,43 @@ function tabletModePreferenceEnabled() {
   return localStorage.getItem(storage.tabletMode) !== "0";
 }
 
-function setExpandedMapOpen(open) {
+function expandedMapFocusTargetAvailable(element) {
+  return Boolean(
+    element instanceof Element &&
+    element.isConnected &&
+    !element.disabled &&
+    !element.hidden &&
+    element.getAttribute?.("aria-hidden") !== "true" &&
+    !element.closest?.("[hidden]") &&
+    element.getClientRects?.().length
+  );
+}
+
+function setExpandedMapOpen(open, { focus = true } = {}) {
   const wasOpen = state.expandedMapOpen;
   if (open && state.fieldFeedOpen) setFieldFeedOpen(false);
-  state.expandedMapOpen = Boolean(open && state.data);
+  const willOpen = Boolean(open && state.data);
+  if (!wasOpen && willOpen && !state.expandedMapReturnFocus) {
+    const activeElement = document.activeElement;
+    state.expandedMapReturnFocus = activeElement instanceof Element && !els.expandedMapOverlay.contains(activeElement)
+      ? activeElement
+      : els.mapActionButton;
+  }
+  state.expandedMapOpen = willOpen;
+  if (!wasOpen && state.expandedMapOpen) {
+    clearMovementInput();
+    cancelActiveRootShortcutHolds();
+    cancelActiveAbilityBatchHolds();
+    stopContinuousActionHold();
+    stopContinuousActionKeyHold();
+    state.continuousActionKeyAt.clear();
+    closeSwitchDragMenu();
+    clearNativeSelectHold();
+    cancelEnhanceAction();
+    cancelThrowTargeting(true);
+    clearLocalGunTrigger();
+  }
+  const focusReturnTarget = wasOpen && !state.expandedMapOpen ? state.expandedMapReturnFocus : null;
   if (!state.expandedMapOpen) {
     state.teleportTargeting = false;
     state.teleportBorrowed = false;
@@ -8119,19 +8200,35 @@ function setExpandedMapOpen(open) {
     state.instantWarpTargeting = false;
     state.mapPointer = null;
     state.expandedMapTap = null;
+    state.expandedMapReturnFocus = null;
   }
   els.expandedMapOverlay.hidden = !state.expandedMapOpen;
   els.mapActionButton.setAttribute("aria-expanded", String(state.expandedMapOpen));
   els.mapActionButton.textContent = state.expandedMapOpen ? "マップを閉じる" : "マップを開く";
   syncExpandedMapUi();
   clearMovementInput();
-  requestAnimationFrame(() => syncKeyboardContext(true));
+  const restoreKeyboardContext = () => {
+    syncKeyboardContext(true);
+    if (!state.expandedMapOpen && focus) {
+      const target = expandedMapFocusTargetAvailable(focusReturnTarget)
+        ? focusReturnTarget
+        : expandedMapFocusTargetAvailable(els.mapActionButton)
+          ? els.mapActionButton
+          : els.canvas;
+      target?.focus?.({ preventScroll: true });
+    }
+  };
   if (wasOpen && !state.expandedMapOpen && state.tabletResumeAfterMap) {
     state.tabletResumeAfterMap = false;
     if (state.data?.phase === "playing") {
-      requestAnimationFrame(() => setTabletOpen(true, { persist: false, focus: false }));
+      requestAnimationFrame(() => {
+        setTabletOpen(true, { persist: false, focus: false });
+        requestAnimationFrame(restoreKeyboardContext);
+      });
+      return;
     }
   }
+  requestAnimationFrame(restoreKeyboardContext);
 }
 
 function minimapCanvasBounds(canvasWidth = els.canvas.width) {
@@ -8288,6 +8385,9 @@ function pointerHitsMinimap(event) {
 function openExpandedMapFromMinimap() {
   if (!state.data || state.data.phase !== "playing" || state.expandedMapOpen) return false;
   state.tabletResumeAfterMap = state.tabletOpen;
+  if (state.tabletOpen && document.activeElement instanceof Element) {
+    state.expandedMapReturnFocus = document.activeElement;
+  }
   if (state.tabletOpen) setTabletOpen(false, { persist: false, focus: false });
   toggleExpandedMapFromAction();
   return state.expandedMapOpen;
@@ -9703,7 +9803,7 @@ function cancelTransientGameInputForBackground() {
   state.clairvoyance.requestPending = false;
   state.clairvoyance.requestSerial = (Number(state.clairvoyance.requestSerial) || 0) + 1;
   state.tabletResumeAfterMap = false;
-  if (state.expandedMapOpen || state.teleportTargeting || state.instantWarpTargeting) setExpandedMapOpen(false);
+  if (state.expandedMapOpen || state.teleportTargeting || state.instantWarpTargeting) setExpandedMapOpen(false, { focus: false });
   if (state.operatorBranchesOpen) setOperatorBranchesOpen(false);
 }
 
@@ -9824,6 +9924,7 @@ function resetLocalSession() {
   state.pollInFlightGeneration = 0;
   state.realtime?.disconnect();
   state.movementQueue?.clear();
+  setExpandedMapOpen(false, { focus: false });
   state.data = null;
   state.roomId = "";
   state.playerId = "";
@@ -9852,7 +9953,6 @@ function resetLocalSession() {
   state.worldSoundEffects = [];
   state.movementActive = false;
   state.movementStopPendingSeq = 0;
-  state.expandedMapOpen = false;
   state.tabletOpen = false;
   state.tabletResumeAfterMap = false;
   state.operatorBranchesOpen = false;
@@ -9861,18 +9961,11 @@ function resetLocalSession() {
   state.gunTriggerPointerId = null;
   state.gunFireStartPromise = null;
   els.shootButton.classList.remove("active");
-  state.teleportTargeting = false;
-  state.teleportBorrowed = false;
-  state.teleportTargetId = "";
-  state.teleportTargetMode = "body";
-  state.teleportShopAbilityId = "";
-  state.instantWarpTargeting = false;
   state.cameraViewIndex = -1;
   state.operatorRenderKey = "";
   state.resultCelebrationKey = "";
   state.resultBoardFingerprint = "";
   els.resultConfetti.replaceChildren();
-  state.mapPointer = null;
   state.actionSelectionId = "";
   state.phaseUiKey = "";
   state.actionLayoutKey = "";
@@ -9899,16 +9992,12 @@ function resetLocalSession() {
   state.lastCanvasItemError = "";
   state.keyboardContext = "";
   state.keyboardElement = null;
-  els.expandedMapOverlay.hidden = true;
   els.tabletPanel.hidden = true;
   els.operatorBranchPanel.hidden = true;
   els.hackerAbilityDock.hidden = true;
   els.hackerAbilityGrid.replaceChildren();
   els.tabletButton?.setAttribute("aria-expanded", "false");
   els.fieldFeedPanel.hidden = true;
-  els.mapActionButton.setAttribute("aria-expanded", "false");
-  els.mapActionButton.textContent = "マップを開く";
-  syncExpandedMapUi();
   clearMovementInput();
   localStorage.removeItem(storage.room);
   localStorage.removeItem(storage.player);
@@ -21213,7 +21302,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mystery-reveal-session-lifecycle-v600";
+const version = "accessible-control-dialog-ownership-v601";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22172,7 +22261,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=mystery-reveal-session-lifecycle-v600", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=accessible-control-dialog-ownership-v601", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
