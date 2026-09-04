@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "rejected-visual-removal-bot-barrier-pursuit-v614",
+    version: "bot-toxic-self-safety-v615",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -17962,6 +17962,32 @@ function advanceThrownItems(room, timestamp = now(), elapsedMs = 0) {
   room.thrownItems = pending;
 }
 
+function toxicThrowHazardRadius(player, rawHoldMs = 0) {
+  const enhanced = acceptedEnhanceChargeHoldMs(player, rawHoldMs) >= ENHANCE_HOLD_STEP_MS;
+  return 145 + (enhanced ? 42 : 0);
+}
+
+function botToxicThrowLandingIsSafe(room, bot, landing, rawHoldMs = 0) {
+  if (!bot?.isBot) return true;
+  const map = getMap(room);
+  // This uses only the Bot's own body and the resolved authoritative landing
+  // point. It never infers a hidden target state. A Bot without a movement
+  // escape transaction must be outside both the toxic field and a collision
+  // margin before it may release a disposable radioactive container.
+  const safeDistance = toxicThrowHazardRadius(bot, rawHoldMs) + Math.max(24, Number(map.playerRadius || 0) * 2);
+  return distance(bot, landing) > safeDistance;
+}
+
+function holdBotOutsideOwnToxicField(bot, landing, durationMs) {
+  if (!bot?.isBot) return;
+  bot.botHazardAvoidUntil = Math.max(
+    Number(bot.botHazardAvoidUntil) || 0,
+    now() + Math.max(0, Number(durationMs) || 0) + HAZARD_FIELD_DURATION_MS
+  );
+  bot.botHazardAvoidX = Number(landing?.x) || 0;
+  bot.botHazardAvoidY = Number(landing?.y) || 0;
+}
+
 function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Number.NaN, targetY = Number.NaN, chargeId = "") {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
   ensureAbilityAvailable(player);
@@ -17987,6 +18013,14 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
       throw new ApiError(409, "味方が瓶の破片範囲内にいるためBOTは投擲を保留します。");
     }
   }
+  // Radioactive containers create a persistent poison field on landing.  The
+  // former Bot planner could select Plutonium at close range, keep chasing its
+  // target during flight, and poison-kill its own authoritative owner. Human
+  // throws retain their intentional self-risk; Bots reject before item/effect
+  // ownership when their resolved landing lacks a safe owner position.
+  if (player.isBot && TOXIC_THROW_ITEM_IDS.has(itemId) && !botToxicThrowLandingIsSafe(room, player, landing, rawHoldMs)) {
+    throw new ApiError(409, "BOTは自分が毒性着地点へ入るため放射性容器の投擲を保留します。");
+  }
   // A rigid sword resolves against the first physical body it reaches, not
   // merely the Bot's intended enemy. Reject before any transaction ownership.
   if (player.isBot && itemId === "orichalcum-sword") {
@@ -18010,6 +18044,11 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
   if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   consumeItem(player, itemId);
   queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, power);
+  if (player.isBot && TOXIC_THROW_ITEM_IDS.has(itemId)) {
+    // The accepted safe landing has no movement escape owner. Keep the Bot at
+    // its verified-safe source position until its own poison field expires.
+    holdBotOutsideOwnToxicField(player, landing, itemThrowFlightDuration(landing.distance));
+  }
 }
 
 function throwOwnedItem(room, player, itemId, rawHoldMs = 0, targetX = Number.NaN, targetY = Number.NaN, chargeId = "") {
@@ -22615,7 +22654,13 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
         nextBotActionAt: 0, killReadyAt: 0, meditatingUntil: 0,
         sabotageReadyAt: timestamp + 120_000, nextBotSabotageAt: timestamp + 120_000,
         actionTargetId: "", attackTargetId: "", aimTargetId: "", botCombatPlan: null,
-        navPath: [], navTargetId: "", fighterEnergy: 0
+        navPath: [], navTargetId: "", fighterEnergy: 0,
+        // This fixture must exercise only the prepared Fighter chase. Bot
+        // generation may previously have selected Quantum and supplied toxic
+        // inventory; retaining that hidden setup made a visual combat fixture
+        // nondeterministically test a self-poison plan instead of pursuit.
+        itemInventory: {}, heavyWeapons: [], inventions: [],
+        botHazardAvoidUntil: 0, botHazardAvoidX: 0, botHazardAvoidY: 0
       });
     }
     // Exercise the same first-screen lifecycle reported by the user: the
@@ -25238,7 +25283,9 @@ function botCombatCandidates(room, bot, target, timestamp) {
   }
   const toxicItem = [...TOXIC_THROW_ITEM_IDS].reverse().find((itemId) => itemCount(bot, itemId) > 0);
   const canExploitVisibleRest = bot.role === "attacker" || bot.special === "gunner";
-  if (storageAvailable && canExploitVisibleRest && toxicItem && targetDistance <= 700 && clearTargetPath && botCanDirectlyObservePlayer(room, bot, target)) {
+  const toxicLanding = toxicItem ? safeThrowPoint(room, bot, target.x, target.y) : null;
+  if (storageAvailable && canExploitVisibleRest && toxicItem && targetDistance <= 700 && clearTargetPath &&
+      botToxicThrowLandingIsSafe(room, bot, toxicLanding, 0) && botCanDirectlyObservePlayer(room, bot, target)) {
     add("poison-throw-observe-rest-payoff", BOT_COMBAT_PLAN_DEFINITIONS["poison-observe-rest-payoff"].futureValue, () => {
       // Use the normal authoritative charge path; bots never forge a hold
       // duration or bypass inventory ownership.
@@ -25402,6 +25449,7 @@ function botNavigationMustRemainStationary(bot, timestamp = now()) {
   return Boolean(
     !bot ||
     actionBlockedUntil(bot) > timestamp ||
+    Number(bot.botHazardAvoidUntil) > timestamp ||
     bot.aimTargetId ||
     bot.gunFiring ||
     Number(bot.attackResolveAt) > timestamp
@@ -25457,6 +25505,14 @@ function runPlayingBots(room) {
     bot.nextBotActionAt = timestamp + Math.max(1, Math.floor(BOT_TICK_MS / botOperationalTimeScale(room)) - 1);
     const maximumStrength = botHasHumanOpponent(room, bot);
     const attackerUrgency = attackerBotKillUrgencyState(room, bot, timestamp);
+
+    // A Bot that has accepted a radioactive-container throw owns no escape
+    // movement transaction; remain at the preflight-verified safe source
+    // position until the field expires rather than resuming a chase into it.
+    if (Number(bot.botHazardAvoidUntil) > timestamp) {
+      stopBotForInteraction(bot, timestamp);
+      continue;
+    }
 
     if (runCpuStage2Script(room, bot, timestamp)) continue;
     if (runCpuGravityScript(room, bot, timestamp)) continue;
@@ -25753,5 +25809,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "rejected-visual-removal-bot-barrier-pursuit-v614" });
+self.postMessage({ type: "ready", version: "bot-toxic-self-safety-v615" });
 })();

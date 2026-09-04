@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "rejected-visual-removal-bot-barrier-pursuit-v614",
+    version: "bot-toxic-self-safety-v615",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
