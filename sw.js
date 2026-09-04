@@ -5,9 +5,9 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "independent-flow-motion-v588";
-const CACHE_NAME = "dva-static-v588-independent-flow-motion";
-const RUNTIME_RECOVERY_REVISION = "v588-independent-flow-motion-1";
+const RUNTIME_RELEASE = "quality-lifecycle-accessibility-v589";
+const CACHE_NAME = "dva-static-v589-quality-lifecycle-accessibility";
+const RUNTIME_RECOVERY_REVISION = "v589-quality-lifecycle-accessibility-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -351,23 +351,55 @@ const STATIC_ASSETS = [
   "/assets/sfx/win.wav"
 ];
 
+// Installation must make the shell and generated-offline authority usable,
+// not download the complete visual/audio catalogue twice. All other listed
+// assets remain network-first and are cached once under their exact request
+// key when gameplay first needs them.
+const BOOT_CRITICAL_ASSETS = new Set([
+  "/",
+  "/index.html",
+  "/styles.css",
+  "/economy-catalog-v468.js",
+  "/app.js",
+  "/game-runtime.js",
+  "/game-engine.js",
+  "/offline-runtime.js",
+  "/offline-server-worker.js",
+  "/offline-server-main.js",
+  "/config.js",
+  "/manifest.webmanifest",
+  "/icon.png",
+  "/assets/title-hero-v466.png"
+]);
+const PRECACHE_CONCURRENCY = 4;
+
+function installCacheKey(asset) {
+  if (asset === "/" || asset === "/index.html") return asset;
+  const versioned = new URL(asset, self.location.origin);
+  versioned.searchParams.set("v", RUNTIME_RELEASE);
+  return `${versioned.pathname}${versioned.search}`;
+}
+
+async function cacheBootCriticalAssets(cache) {
+  const assets = STATIC_ASSETS.filter((asset) => BOOT_CRITICAL_ASSETS.has(asset)).map(installCacheKey);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < assets.length) {
+      const asset = assets[cursor++];
+      try {
+        const response = await fetch(asset, { cache: "reload" });
+        if (response.ok) await cache.put(asset, response);
+      } catch {
+        // A missing non-document shell asset must not strand an older worker.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PRECACHE_CONCURRENCY, assets.length) }, worker));
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => Promise.all(
-      STATIC_ASSETS.flatMap((asset) => {
-        if (asset === "/" || asset === "/index.html") return [asset];
-        const versioned = new URL(asset, self.location.origin);
-        versioned.searchParams.set("v", RUNTIME_RELEASE);
-        return [asset, `${versioned.pathname}${versioned.search}`];
-      }).map(async (asset) => {
-        try {
-          const response = await fetch(asset, { cache: "reload" });
-          if (response.ok) await cache.put(asset, response);
-        } catch {
-          // A noncritical asset must not prevent the new worker from activating.
-        }
-      })
-    ))
+    caches.open(CACHE_NAME).then(cacheBootCriticalAssets)
   );
   self.skipWaiting();
 });

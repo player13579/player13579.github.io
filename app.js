@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "independent-flow-motion-v588";
+const DVA_CLIENT_RELEASE = "quality-lifecycle-accessibility-v589";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -95,6 +95,8 @@ const els = {
   soloTrainingProgress: $("#soloTrainingProgress"),
   soloMissionGrid: $("#soloMissionGrid"),
   canvas: $("#gameCanvas"),
+  canvasStatusSummary: $("#gameCanvasStatusSummary"),
+  canvasStatusAnnouncement: $("#gameCanvasStatusAnnouncement"),
   killCameraOverlay: $("#killCameraOverlay"),
   killCameraTitle: $("#killCameraTitle"),
   killCameraKiller: $("#killCameraKiller"),
@@ -649,6 +651,8 @@ const state = {
   phaseUiKey: "",
   actionLayoutKey: "",
   activeEffectsRenderKey: "",
+  activeEffectsLayoutKey: "",
+  accessibleGameStatus: null,
   inventoryVisualWeapon: "",
   vendingOpen: false,
   shopActivationSerial: 0,
@@ -840,7 +844,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "independent-flow-motion-v588";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "quality-lifecycle-accessibility-v589";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -8851,13 +8855,22 @@ async function startSoloMission(missionId) {
     void request("/api/leave", { roomId: previousRoomId, playerId: previousPlayerId }, { quiet: true, forceOnline: true });
   }
   activateOfflineMode();
-  const result = await request("/api/solo/start", { missionId, name, skinId }, { forceOffline: true });
-  state.soloMissionStarting = false;
-  soloButtons.forEach((button) => {
-    button.disabled = false;
-    button.textContent = "開始";
-  });
-  if (!result) return;
+  let result = null;
+  try {
+    result = await request("/api/solo/start", { missionId, name, skinId }, { forceOffline: true });
+  } catch {
+    result = null;
+  } finally {
+    state.soloMissionStarting = false;
+    soloButtons.forEach((button) => {
+      button.disabled = false;
+      button.textContent = "開始";
+    });
+  }
+  if (!result) {
+    showToast("ソロ訓練を開始できませんでした。もう一度お試しください。");
+    return;
+  }
   lockPlayerName(result.profile?.name || responsePlayerName(result, name));
   resetLocalSession();
   setCurrentRoomSession(result.roomId, result.playerId);
@@ -9719,6 +9732,8 @@ function resetLocalSession() {
   state.phaseUiKey = "";
   state.actionLayoutKey = "";
   state.activeEffectsRenderKey = "";
+  state.activeEffectsLayoutKey = "";
+  state.accessibleGameStatus = null;
   state.inventoryVisualWeapon = "";
   state.explicitInventoryItemId = "";
   state.implicitHsgInventoryFallback = false;
@@ -10818,6 +10833,102 @@ function renderKillCamera(data) {
     : "";
 }
 
+function accessibleGameStatusSnapshot(data) {
+  const self = data?.self;
+  if (!self) return null;
+  const serializedHealth = Number(self.health);
+  const health = self.alive
+    ? Math.max(0, Number.isFinite(serializedHealth)
+      ? serializedHealth
+      : Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0))
+    : 0;
+  const maxHealth = Math.max(2, Number(self.maxHealth) || 2, health);
+  const stamina = Math.max(0, Number(self.stamina) || 0);
+  const mana = Math.max(0, Number(self.mana) || 0);
+  const acceleration = Math.max(1, Number(self.accelerationMultiplier) || 1);
+  const movementAccActive = self.movementAccActive === true || (
+    self.movementAccActive == null &&
+    self.movementAccEnabled !== false &&
+    acceleration + 1e-6 >= Math.max(1, Number(self.movementAccThreshold) || 2) &&
+    Number(self.movementAcc) > 1.5
+  );
+  return {
+    roomId: String(data.roomId || ""),
+    phase: String(data.phase || ""),
+    name: String(self.name || "あなた"),
+    role: playerFacingRoleLabel(self.role),
+    operator: self.special ? specialLabels[self.special] || String(self.special) : "通常",
+    alive: Boolean(self.alive && !self.ejected),
+    health,
+    maxHealth,
+    stamina,
+    mana,
+    acceleration,
+    movementAccActive,
+    credits: Math.max(0, Math.floor(Number(self.credits) || 0)),
+    mentalState: String(self.mentalState || "気概"),
+    sabotage: String(data.sabotage?.type || ""),
+    immediateAt: Number(self.lastImmediateFeedback?.at) || 0,
+    immediateLabel: String(self.lastImmediateFeedback?.label || ""),
+    immediateDetail: String(self.lastImmediateFeedback?.detail || "")
+  };
+}
+
+function formatAccessibleResource(value) {
+  return Number(value).toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+}
+
+function syncAccessibleGameStatus(data) {
+  const current = accessibleGameStatusSnapshot(data);
+  if (!current) {
+    if (els.canvasStatusSummary.textContent !== "ゲーム開始前です。") {
+      els.canvasStatusSummary.textContent = "ゲーム開始前です。";
+    }
+    state.accessibleGameStatus = null;
+    return;
+  }
+  const phaseLabel = current.phase === "playing" ? "対戦中" : current.phase === "meeting" ? "会議中" : current.phase === "ended" ? "試合終了" : "準備中";
+  const sabotageText = current.sabotage
+    ? `、妨害 ${sabotageLabels[current.sabotage] || current.sabotage} 発生中`
+    : "";
+  const summary = `${phaseLabel}。${current.name}、${current.role}、${current.operator}、${current.alive ? "生存" : "戦闘不能"}。` +
+    `HP ${formatAccessibleResource(current.health)}/${formatAccessibleResource(current.maxHealth)}、` +
+    `SP ${Math.round(current.stamina)}、MP ${formatAccessibleResource(current.mana)}、` +
+    `ACC ${current.acceleration.toFixed(2)}${current.movementAccActive ? " 移動固定有効" : ""}、` +
+    `${current.credits}クレジット、心状態 ${current.mentalState}${sabotageText}。`;
+  if (els.canvasStatusSummary.textContent !== summary) els.canvasStatusSummary.textContent = summary;
+
+  const previous = state.accessibleGameStatus;
+  let announcement = "";
+  if (!previous || previous.roomId !== current.roomId) {
+    announcement = `${phaseLabel}を開始。${current.role}、${current.operator}。`;
+  } else if (previous.phase !== current.phase) {
+    announcement = `${phaseLabel}へ移行。`;
+  } else if (previous.alive && !current.alive) {
+    announcement = "戦闘不能になりました。";
+  } else if (previous.sabotage !== current.sabotage) {
+    announcement = current.sabotage
+      ? `${sabotageLabels[current.sabotage] || current.sabotage}が発生しました。`
+      : "妨害が終了しました。";
+  } else if (current.health + 0.0001 < previous.health) {
+    announcement = `ダメージ。HP ${formatAccessibleResource(current.health)}/${formatAccessibleResource(current.maxHealth)}。`;
+  } else if (current.immediateAt > previous.immediateAt && current.immediateLabel) {
+    announcement = `${current.immediateLabel}。${current.immediateDetail}`;
+  } else if (previous.mentalState !== current.mentalState) {
+    announcement = `心状態 ${current.mentalState}。`;
+  } else if (previous.movementAccActive !== current.movementAccActive) {
+    announcement = current.movementAccActive ? "移動固定ACCが有効になりました。" : "移動固定ACCが待機に戻りました。";
+  }
+  if (announcement && els.canvasStatusAnnouncement.textContent !== announcement) {
+    els.canvasStatusAnnouncement.textContent = announcement;
+  }
+  state.accessibleGameStatus = current;
+  if (IS_VERIFICATION_MODE) {
+    document.documentElement.setAttribute("data-v589-accessible-status", summary);
+    document.documentElement.setAttribute("data-v589-accessible-announcement", announcement || "unchanged");
+  }
+}
+
 function render() {
   const pollScrollPositions = capturePollScrollPositions();
   const data = state.data;
@@ -10828,6 +10939,7 @@ function render() {
   }
   const offlineContext = state.offlineMode || (!data && !state.onlineAvailable);
   updateSensoryOverlay(data);
+  syncAccessibleGameStatus(data);
   els.soloMissionHud.hidden = !data?.soloMission;
   if (data?.soloMission) {
     els.soloMissionHudName.textContent = data.soloMission.name;
@@ -12601,21 +12713,60 @@ function renderActiveEffects(data) {
   if (els.activeEffectsPanel.hidden !== panelHidden) els.activeEffectsPanel.hidden = panelHidden;
   const visibleEffects = effects.length ? effects : [{ label: "効果なし", value: "-", tone: "neutral", detail: "現在適用されているバフ・デバフはない" }];
   const renderKey = JSON.stringify(visibleEffects);
-  if (state.activeEffectsRenderKey === renderKey) {
-    scheduleActiveEffectsLayout();
-    return;
-  }
+  if (state.activeEffectsRenderKey === renderKey) return;
   state.activeEffectsRenderKey = renderKey;
-  els.activeEffectsList.innerHTML = visibleEffects.map((effect) => `
-    <li class="effect-tone-${escapeHtml(effect.tone)}${effect.layout === "stacked" ? " effect-layout-stacked" : ""}">
-      <span class="effect-copy">
-        <strong class="effect-name">${escapeHtml(effect.label)}</strong>
-        <small class="effect-detail">${escapeHtml(effect.detail)}</small>
-      </span>
-      <strong class="effect-value">${escapeHtml(effect.value)}</strong>
-    </li>
-  `).join("");
-  scheduleActiveEffectsLayout();
+  reconcileActiveEffectRows(visibleEffects);
+  const layoutKey = JSON.stringify(visibleEffects.map((effect) => [
+    effect.label,
+    effect.tone,
+    effect.detail,
+    effect.layout || "",
+    String(effect.value || "").length
+  ]));
+  if (state.activeEffectsLayoutKey !== layoutKey) {
+    state.activeEffectsLayoutKey = layoutKey;
+    scheduleActiveEffectsLayout();
+  }
+}
+
+function reconcileActiveEffectRows(visibleEffects) {
+  const list = els.activeEffectsList;
+  const existing = new Map([...list.children].map((row) => [row.dataset.effectKey || "", row]));
+  const labelOccurrences = new Map();
+  let cursor = list.firstElementChild;
+
+  visibleEffects.forEach((effect) => {
+    const occurrence = (labelOccurrences.get(effect.label) || 0) + 1;
+    labelOccurrences.set(effect.label, occurrence);
+    const key = `${effect.label}\u001f${occurrence}`;
+    let row = existing.get(key);
+    if (!row) {
+      row = document.createElement("li");
+      row.dataset.effectKey = key;
+      const copy = document.createElement("span");
+      copy.className = "effect-copy";
+      const name = document.createElement("strong");
+      name.className = "effect-name";
+      const detail = document.createElement("small");
+      detail.className = "effect-detail";
+      const value = document.createElement("strong");
+      value.className = "effect-value";
+      copy.append(name, detail);
+      row.append(copy, value);
+    }
+    existing.delete(key);
+    const nextClass = `effect-tone-${effect.tone}${effect.layout === "stacked" ? " effect-layout-stacked" : ""}`;
+    if (row.className !== nextClass) row.className = nextClass;
+    const name = row.querySelector(".effect-name");
+    const detail = row.querySelector(".effect-detail");
+    const value = row.querySelector(".effect-value");
+    if (name.textContent !== String(effect.label || "")) name.textContent = String(effect.label || "");
+    if (detail.textContent !== String(effect.detail || "")) detail.textContent = String(effect.detail || "");
+    if (value.textContent !== String(effect.value || "")) value.textContent = String(effect.value || "");
+    if (row !== cursor) list.insertBefore(row, cursor);
+    cursor = row.nextElementSibling;
+  });
+  existing.forEach((row) => row.remove());
 }
 
 let gameplayViewportReflowFrame = 0;
@@ -21303,7 +21454,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "independent-flow-motion-v588";
+const version = "quality-lifecycle-accessibility-v589";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22259,7 +22410,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=independent-flow-motion-v588", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=quality-lifecycle-accessibility-v589", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

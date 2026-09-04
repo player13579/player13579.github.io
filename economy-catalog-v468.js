@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "independent-flow-motion-v588",
+    version: "quality-lifecycle-accessibility-v589",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

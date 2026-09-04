@@ -3185,7 +3185,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 .item-control-head > span:first-child small {
   margin-top: 4px;
   color: #cbd5e1;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .visually-hidden-select {
@@ -3287,7 +3287,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .inventory-item-detail-kicker {
   color: #67e8f9;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 900;
 }
 
@@ -3475,7 +3475,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 
 .active-effects-panel .effect-detail {
   color: #aebfc9;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.35;
 }
 
@@ -4853,7 +4853,7 @@ body .offline-team-choice button[data-offline-team] {
   display: block;
   margin-bottom: 4px;
   color: #67e8f9;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.12em;
 }
@@ -5324,7 +5324,7 @@ body .offline-team-choice button[data-offline-team] {
   border-radius: 999px;
   color: #bae6fd !important;
   background: rgba(8, 47, 73, 0.72);
-  font-size: 9px !important;
+  font-size: 10px !important;
   line-height: 1.25 !important;
   white-space: nowrap;
 }
@@ -5337,7 +5337,7 @@ body .offline-team-choice button[data-offline-team] {
 
 .alchemy-choice small {
   color: #aebfc9;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.25;
 }
 
@@ -5868,7 +5868,7 @@ body.tablet-mode-active .hacker-direct-action {
 
 .hacker-ability-dock > header small {
   color: #67e8f9;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0;
 }
@@ -6077,7 +6077,7 @@ body.tablet-mode-active .hacker-direct-action {
 
 .hacker-ability-head small {
   color: #67e8f9;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0;
 }
@@ -6219,7 +6219,7 @@ body.tablet-mode-active .hacker-direct-action {
 
 #statusPanel .hacker-direct-action small {
   color: #9fbac6;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 #statusPanel .hacker-ability-dock.page-transition .hacker-direct-action {
@@ -6797,7 +6797,7 @@ body.tablet-mode-active .hacker-direct-action {
   .active-effects-panel li {
     gap: 5px;
     padding: 5px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .expanded-map-toolbar {

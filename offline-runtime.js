@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "independent-flow-motion-v588";
+const OFFLINE_WORKER_VERSION = "quality-lifecycle-accessibility-v589";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.
@@ -46,14 +46,17 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
         this.readyResolve = resolve;
         this.readyTimer = setTimeout(() => this.handleWorkerFailure(generation), OFFLINE_WORKER_READY_TIMEOUT_MS);
       });
+      let worker;
       try {
-        this.worker = new Worker(workerUrl, { name: `${OFFLINE_WORKER_VERSION}-${generation}` });
+        worker = new Worker(workerUrl, { name: `${OFFLINE_WORKER_VERSION}-${generation}` });
+        this.worker = worker;
       } catch {
         this.worker = null;
         this.activateMainThreadFallback(generation);
         return this.readyPromise;
       }
-      this.worker.addEventListener("message", (event) => {
+      worker.addEventListener("message", (event) => {
+        if (generation !== this.workerGeneration || this.worker !== worker) return;
         const message = event.data || {};
         if (message.type === "ready") {
           if (String(message.version || "") !== OFFLINE_WORKER_VERSION) {
@@ -70,8 +73,12 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
         clearTimeout(pending.timer);
         pending.resolve(message.result || null);
       });
-      this.worker.addEventListener("error", () => this.handleWorkerFailure(generation));
-      this.worker.addEventListener("messageerror", () => this.handleWorkerFailure(generation));
+      worker.addEventListener("error", () => {
+        if (this.worker === worker) this.handleWorkerFailure(generation);
+      });
+      worker.addEventListener("messageerror", () => {
+        if (this.worker === worker) this.handleWorkerFailure(generation);
+      });
       return this.readyPromise;
     }
 
@@ -180,20 +187,40 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
           Promise.resolve(this.mainThreadApi.request(path, requestBody)).then(finish, () => finish(null));
         });
       }
-      if (!this.worker) return Promise.resolve(null);
+      const worker = this.worker;
+      const generation = this.workerGeneration;
+      if (!worker) return Promise.resolve(null);
       const id = `offline-${Date.now()}-${++this.requestId}`;
       return new Promise((resolve) => {
-        const timer = setTimeout(() => {
+        let settled = false;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
           this.pending.delete(id);
-          resolve(null);
+          clearTimeout(timer);
+          resolve(value || null);
+        };
+        const timer = setTimeout(() => {
+          finish(null);
         }, timeoutMs);
-        this.pending.set(id, { resolve, timer });
-        this.worker.postMessage({
-          type: "request",
-          id,
-          path,
-          body: requestBody
-        });
+        this.pending.set(id, { resolve: finish, timer, worker, generation });
+        try {
+          if (this.worker !== worker || this.workerGeneration !== generation) {
+            finish(null);
+            return;
+          }
+          worker.postMessage({
+            type: "request",
+            id,
+            path,
+            body: requestBody
+          });
+        } catch {
+          finish(null);
+          if (this.worker === worker && this.workerGeneration === generation) {
+            this.handleWorkerFailure(generation);
+          }
+        }
       });
     }
 

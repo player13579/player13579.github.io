@@ -26,6 +26,7 @@
       this.reconnectDelay = RECONNECT_MIN_MS;
       this.lastMessageAt = 0;
       this.closedByClient = false;
+      this.connectionGeneration = 0;
     }
 
     connect(session) {
@@ -36,20 +37,30 @@
       this.session = { ...session };
       this.sessionKey = key;
       this.closedByClient = false;
-      this.open();
+      this.open(++this.connectionGeneration);
     }
 
-    open() {
-      if (!this.session || this.closedByClient) return;
+    open(generation = this.connectionGeneration) {
+      if (!this.session || this.closedByClient || generation !== this.connectionGeneration) return;
+      const sessionKey = this.sessionKey;
+      const session = this.session;
       try {
-        const socket = new WebSocket(websocketUrl(this.session.apiBase, this.session));
+        const socket = new WebSocket(websocketUrl(session.apiBase, session));
         this.socket = socket;
+        const isCurrentSocket = () => (
+          !this.closedByClient &&
+          generation === this.connectionGeneration &&
+          sessionKey === this.sessionKey &&
+          this.socket === socket
+        );
         socket.addEventListener("open", () => {
+          if (!isCurrentSocket()) return;
           this.reconnectDelay = RECONNECT_MIN_MS;
           this.lastMessageAt = performance.now();
           this.handlers.onStatus?.("connected");
         });
         socket.addEventListener("message", (event) => {
+          if (!isCurrentSocket()) return;
           this.lastMessageAt = performance.now();
           let message;
           try {
@@ -61,23 +72,34 @@
           if (message.type === "movement" && message.data) this.handlers.onMovement?.(message.data);
         });
         socket.addEventListener("close", () => {
-          if (this.socket === socket) this.socket = null;
+          if (!isCurrentSocket()) return;
+          this.socket = null;
           this.handlers.onStatus?.("disconnected");
-          this.scheduleReconnect();
+          this.scheduleReconnect(generation, sessionKey);
         });
-        socket.addEventListener("error", () => socket.close());
+        socket.addEventListener("error", () => {
+          if (isCurrentSocket()) socket.close();
+        });
       } catch {
-        this.scheduleReconnect();
+        this.scheduleReconnect(generation, sessionKey);
       }
     }
 
-    scheduleReconnect() {
-      if (this.closedByClient || !this.session || this.reconnectTimer) return;
+    scheduleReconnect(generation = this.connectionGeneration, sessionKey = this.sessionKey) {
+      if (
+        this.closedByClient ||
+        !this.session ||
+        this.reconnectTimer ||
+        generation !== this.connectionGeneration ||
+        sessionKey !== this.sessionKey ||
+        (this.socket && this.socket.readyState <= WebSocket.OPEN)
+      ) return;
       const delay = this.reconnectDelay;
       this.reconnectDelay = Math.min(RECONNECT_MAX_MS, Math.round(this.reconnectDelay * 1.6));
       this.reconnectTimer = globalThis.setTimeout(() => {
         this.reconnectTimer = 0;
-        this.open();
+        if (generation !== this.connectionGeneration || sessionKey !== this.sessionKey) return;
+        this.open(generation);
       }, delay);
     }
 
@@ -97,6 +119,7 @@
 
     disconnect(clearSession = true) {
       this.closedByClient = clearSession;
+      this.connectionGeneration += 1;
       if (this.reconnectTimer) globalThis.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = 0;
       if (this.socket) {
