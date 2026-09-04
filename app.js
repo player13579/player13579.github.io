@@ -8122,8 +8122,9 @@ function syncPortraitTabletDock() {
 function setTabletOpen(open, { persist = true, focus = true } = {}) {
   const playable = state.screen === "game" && state.data?.phase === "playing";
   const portrait = portraitTabletRequired();
+  const expandedMapOwnsSurface = state.expandedMapOpen || state.tabletResumeAfterMap;
   syncPortraitTabletDock();
-  state.tabletOpen = Boolean(playable && (open || portrait));
+  state.tabletOpen = Boolean(playable && !expandedMapOwnsSurface && (open || portrait));
   els.tabletPanel.hidden = !state.tabletOpen;
   els.tabletButton?.setAttribute("aria-expanded", String(state.tabletOpen));
   els.tabletButton?.classList.toggle("active", state.tabletOpen);
@@ -8132,7 +8133,6 @@ function setTabletOpen(open, { persist = true, focus = true } = {}) {
   if (persist) localStorage.setItem(storage.tabletMode, state.tabletOpen ? "1" : "0");
   if (state.tabletOpen) {
     if (state.fieldFeedOpen) setFieldFeedOpen(false);
-    if (state.expandedMapOpen) setExpandedMapOpen(false);
     document.querySelectorAll(".keyboard-selected").forEach((item) => item.classList.remove("keyboard-selected"));
     if (els.tabletPanel.contains(document.activeElement)) document.activeElement.blur();
   } else if (focus) {
@@ -8170,13 +8170,16 @@ function setExpandedMapOpen(open, { focus = true } = {}) {
   const wasOpen = state.expandedMapOpen;
   if (open && state.fieldFeedOpen) setFieldFeedOpen(false);
   const willOpen = Boolean(open && state.data);
+  const suspendTabletForMap = !wasOpen && willOpen && state.tabletOpen;
   if (!wasOpen && willOpen && !state.expandedMapReturnFocus) {
     const activeElement = document.activeElement;
     state.expandedMapReturnFocus = activeElement instanceof Element && !els.expandedMapOverlay.contains(activeElement)
       ? activeElement
       : els.mapActionButton;
   }
+  if (suspendTabletForMap) state.tabletResumeAfterMap = true;
   state.expandedMapOpen = willOpen;
+  if (suspendTabletForMap) setTabletOpen(false, { persist: false, focus: false });
   if (!wasOpen && state.expandedMapOpen) {
     clearMovementInput();
     cancelActiveRootShortcutHolds();
@@ -8384,11 +8387,6 @@ function pointerHitsMinimap(event) {
 
 function openExpandedMapFromMinimap() {
   if (!state.data || state.data.phase !== "playing" || state.expandedMapOpen) return false;
-  state.tabletResumeAfterMap = state.tabletOpen;
-  if (state.tabletOpen && document.activeElement instanceof Element) {
-    state.expandedMapReturnFocus = document.activeElement;
-  }
-  if (state.tabletOpen) setTabletOpen(false, { persist: false, focus: false });
   toggleExpandedMapFromAction();
   return state.expandedMapOpen;
 }
