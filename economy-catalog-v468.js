@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "friendly-attacker-bot-cross-family-guard-v585",
+    version: "fluid-whole-surface-visual-quality-v587",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

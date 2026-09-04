@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "friendly-attacker-bot-cross-family-guard-v585",
+    version: "fluid-whole-surface-visual-quality-v587",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25581,7 +25581,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "friendly-attacker-bot-cross-family-guard-v585",
+  version: "fluid-whole-surface-visual-quality-v587",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

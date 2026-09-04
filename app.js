@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "friendly-attacker-bot-cross-family-guard-v585";
+const DVA_CLIENT_RELEASE = "fluid-whole-surface-visual-quality-v587";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -840,7 +840,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "friendly-attacker-bot-cross-family-guard-v585";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "fluid-whole-surface-visual-quality-v587";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -14242,6 +14242,7 @@ function draw() {
     }
   });
 
+  drawCanvasStage("lighting", () => drawLighting(data, w, h, camera, worldZoom));
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("repair-indicators", () => drawSabotageRepairIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("hud", () => drawHud(data, w, h));
@@ -14249,7 +14250,6 @@ function draw() {
   drawCanvasStage("minimap", () => drawMinimap(data, w, h));
   drawCanvasStage("mode-banner", () => drawModeBanner(data, w));
   if (state.expandedMapOpen) drawCanvasStage("expanded-map", () => drawExpandedMap(data));
-  drawCanvasStage("lighting", () => drawLighting(data, w, h, camera, worldZoom));
   drawCanvasStage("kill-animation", () => drawKillAnimations(data, camera, w, h, worldZoom));
   drawCanvasStage("sensory", () => drawSensoryBlackout(data, w, h));
   drawCanvasStage("marker-explanation", () => drawMarkerExplanation(w, h));
@@ -20344,6 +20344,103 @@ const ATE_ANIMATION_PROFILES = Object.freeze({
   clairvoyance: Object.freeze({ family: "horizon-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
 });
 
+const ATE_FLUID_DEFORMATION_PROFILES = Object.freeze({
+  energy: Object.freeze({ axis: "y", amplitude: 0.012, stretch: 0.012, frequency: 2.1, phaseStride: 2.4 }),
+  beam: Object.freeze({ axis: "x", amplitude: 0.009, stretch: 0.026, frequency: 3.4, phaseStride: 1.7 }),
+  ripple: Object.freeze({ axis: "y", amplitude: 0.022, stretch: 0.014, frequency: 1.7, phaseStride: 3.2 }),
+  "flow-up": Object.freeze({ axis: "y", amplitude: 0.029, stretch: 0.018, frequency: 1.35, phaseStride: 2.8 }),
+  "data-down": Object.freeze({ axis: "y", amplitude: 0.012, stretch: 0.01, frequency: 3.2, phaseStride: 4.3 }),
+  "data-up": Object.freeze({ axis: "y", amplitude: 0.014, stretch: 0.011, frequency: 2.8, phaseStride: 4.1 }),
+  "data-accelerate": Object.freeze({ axis: "x", amplitude: 0.011, stretch: 0.023, frequency: 3.8, phaseStride: 2.2 }),
+  shimmer: Object.freeze({ axis: "x", amplitude: 0.008, stretch: 0.014, frequency: 1.9, phaseStride: 3.7 }),
+  orbit: Object.freeze({ axis: "x", amplitude: 0.016, stretch: 0.012, frequency: 1.45, phaseStride: 2.6 }),
+  resonance: Object.freeze({ axis: "y", amplitude: 0.021, stretch: 0.022, frequency: 2.15, phaseStride: 3.1 }),
+  glitch: Object.freeze({ axis: "y", amplitude: 0.027, stretch: 0.008, frequency: 7.4, phaseStride: 5.2 }),
+  teleport: Object.freeze({ axis: "x", amplitude: 0.018, stretch: 0.021, frequency: 2.9, phaseStride: 2.7 }),
+  gravity: Object.freeze({ axis: "y", amplitude: 0.009, stretch: 0.03, frequency: 1.05, phaseStride: 2.1 }),
+  impact: Object.freeze({ axis: "x", amplitude: 0.013, stretch: 0.032, frequency: 2.6, phaseStride: 2.5 }),
+  recoil: Object.freeze({ axis: "x", amplitude: 0.01, stretch: 0.028, frequency: 4.1, phaseStride: 1.8 }),
+  shield: Object.freeze({ axis: "y", amplitude: 0.008, stretch: 0.018, frequency: 1.25, phaseStride: 2.2 }),
+  combustion: Object.freeze({ axis: "y", amplitude: 0.034, stretch: 0.02, frequency: 2.35, phaseStride: 3.4 }),
+  targeting: Object.freeze({ axis: "x", amplitude: 0.008, stretch: 0.016, frequency: 1.65, phaseStride: 2.9 }),
+  clairvoyance: Object.freeze({ axis: "x", amplitude: 0.012, stretch: 0.022, frequency: 1.55, phaseStride: 3.3 })
+});
+
+const REDUCED_VISUAL_MOTION_QUERY = typeof globalThis.matchMedia === "function"
+  ? globalThis.matchMedia("(prefers-reduced-motion: reduce)")
+  : null;
+
+function reducedVisualMotionRequested() {
+  return Boolean(REDUCED_VISUAL_MOTION_QUERY?.matches);
+}
+
+// Reconstruct the authored raster in locally warped strips. Source pixels stay
+// registered to their original silhouette instead of sliding as one panoramic
+// image; neighboring strips form a continuous low-amplitude velocity field.
+function drawFluidTexturePatch(targetContext, sprite, width, height, mode, clock, alpha, phaseBias = 0) {
+  const deformation = ATE_FLUID_DEFORMATION_PROFILES[mode] || ATE_FLUID_DEFORMATION_PROFILES.energy;
+  const sourceWidth = Number(sprite.width) || 0;
+  const sourceHeight = Number(sprite.height) || 0;
+  if (!(sourceWidth > 0 && sourceHeight > 0 && width > 0 && height > 0 && alpha > 0.004)) return;
+  const reducedFactor = reducedVisualMotionRequested() ? 0.08 : 1;
+  const amplitude = Math.min(width, height) * deformation.amplitude * reducedFactor;
+  const stretch = deformation.stretch * reducedFactor;
+  const sliceCount = Math.max(4, Math.min(7, Math.round((deformation.axis === "x" ? width : height) / 28)));
+
+  targetContext.globalAlpha = alpha;
+  targetContext.imageSmoothingEnabled = true;
+  targetContext.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
+
+  if (deformation.axis === "x") {
+    const sourceSliceWidth = sourceWidth / sliceCount;
+    const destinationSliceWidth = width / sliceCount;
+    for (let slice = 0; slice < sliceCount; slice += 1) {
+      const unit = (slice + 0.5) / sliceCount;
+      const localPhase = clock * deformation.frequency + unit * Math.PI * deformation.phaseStride + phaseBias;
+      const primary = Math.sin(localPhase);
+      const secondary = Math.sin(localPhase * 0.57 + unit * Math.PI * 3.1);
+      const offsetY = amplitude * (primary * 0.74 + secondary * 0.26);
+      const heightScale = 1 + secondary * stretch;
+      const drawHeight = height * heightScale;
+      targetContext.drawImage(
+        sprite,
+        sourceSliceWidth * slice,
+        0,
+        sourceSliceWidth + 0.6,
+        sourceHeight,
+        -width / 2 + destinationSliceWidth * slice - 0.35,
+        -drawHeight / 2 + offsetY,
+        destinationSliceWidth + 0.7,
+        drawHeight
+      );
+    }
+    return;
+  }
+
+  const sourceSliceHeight = sourceHeight / sliceCount;
+  const destinationSliceHeight = height / sliceCount;
+  for (let slice = 0; slice < sliceCount; slice += 1) {
+    const unit = (slice + 0.5) / sliceCount;
+    const localPhase = clock * deformation.frequency + unit * Math.PI * deformation.phaseStride + phaseBias;
+    const primary = Math.sin(localPhase);
+    const secondary = Math.sin(localPhase * 0.61 - unit * Math.PI * 3.4);
+    const offsetX = amplitude * (primary * 0.72 + secondary * 0.28);
+    const widthScale = 1 + secondary * stretch;
+    const drawWidth = width * widthScale;
+    targetContext.drawImage(
+      sprite,
+      0,
+      sourceSliceHeight * slice,
+      sourceWidth,
+      sourceSliceHeight + 0.6,
+      -drawWidth / 2 + offsetX,
+      -height / 2 + destinationSliceHeight * slice - 0.35,
+      drawWidth,
+      destinationSliceHeight + 0.7
+    );
+  }
+}
+
 // Keep the authored silhouette pixel-stable. Animation is limited to clipped
 // highlight layers inside that footprint, which avoids frame-to-frame wobble.
 function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeight, options = {}) {
@@ -20361,7 +20458,7 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   } = options;
   const { width, height } = animatedTextureSize(sprite, maxWidth, maxHeight);
   if (!(width > 0 && height > 0)) return false;
-  const sampledTime = Math.floor(time * 60) / 60;
+  const sampledTime = reducedVisualMotionRequested() ? 0 : Math.floor(time * 60) / 60;
   const animationMode = normalizeAteGlowMode(mode);
   const animationProfile = ATE_ANIMATION_PROFILES[animationMode] || ATE_ANIMATION_PROFILES.energy;
   const clock = sampledTime * animationProfile.tempo + phase * animationProfile.phaseScale + progress * animationProfile.progressScale;
@@ -20403,8 +20500,18 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
       0,
       1
     );
-    ctx.globalAlpha = inheritedAlpha * overlayAlpha;
-    ctx.drawImage(sprite, -width / 2 + sourceOffsetX, -height / 2 + sourceOffsetY, width, height);
+    const phaseBias = (sourceOffsetX / Math.max(1, width)) * Math.PI * 2.7
+      + (sourceOffsetY / Math.max(1, height)) * Math.PI * 3.1;
+    drawFluidTexturePatch(
+      ctx,
+      sprite,
+      width,
+      height,
+      animationMode,
+      clock,
+      inheritedAlpha * overlayAlpha,
+      phaseBias
+    );
     ctx.restore();
   };
 
@@ -21117,7 +21224,63 @@ function drawExpandedMap(data) {
 }
 
 function drawLighting(data, w, h, camera = cameraFor(data, w, h), zoom = 1) {
-  return;
+  if (!(w > 0 && h > 0) || !data) return;
+  const mapId = String(data.map?.id || "");
+  const laboratory = mapId === "outpost" || mapId === "laboratory";
+  const selfSource = Array.isArray(data.players)
+    ? data.players.find((player) => player.id === data.selfId)
+    : null;
+  const self = selfSource ? renderedPlayer(selfSource) : null;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  // A restrained directional wash gives map materials a shared light volume
+  // without repainting authored fixtures or moving their texture coordinates.
+  ctx.globalCompositeOperation = "screen";
+  const ambient = ctx.createLinearGradient(0, 0, w, h);
+  ambient.addColorStop(0, laboratory ? "rgba(151, 219, 255, 0.064)" : "rgba(255, 236, 186, 0.068)");
+  ambient.addColorStop(0.46, laboratory ? "rgba(91, 196, 219, 0.026)" : "rgba(103, 232, 249, 0.022)");
+  ambient.addColorStop(1, "rgba(255, 255, 255, 0)");
+  ctx.fillStyle = ambient;
+  ctx.fillRect(0, 0, w, h);
+
+  // Keep the locally controlled body readable against both bright furniture
+  // and deep corridors. This is a presentation lift, not a gameplay marker.
+  if (data.phase === "playing" && self && Number.isFinite(self.x) && Number.isFinite(self.y)) {
+    const screenX = (self.x - camera.x) * zoom;
+    const screenY = (self.y - camera.y) * zoom - 18 * zoom;
+    const radius = clamp(Math.min(w, h) * 0.21, 92, 190);
+    const focal = ctx.createRadialGradient(screenX, screenY, 4, screenX, screenY, radius);
+    focal.addColorStop(0, laboratory ? "rgba(192, 244, 255, 0.105)" : "rgba(255, 245, 212, 0.11)");
+    focal.addColorStop(0.34, laboratory ? "rgba(103, 232, 249, 0.052)" : "rgba(167, 243, 208, 0.046)");
+    focal.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = focal;
+    ctx.fillRect(
+      Math.max(0, screenX - radius),
+      Math.max(0, screenY - radius),
+      Math.min(w, radius * 2),
+      Math.min(h, radius * 2)
+    );
+  }
+
+  // Edge falloff restores foreground/background separation while all critical
+  // indicators and HUD are drawn later at full contrast.
+  ctx.globalCompositeOperation = "multiply";
+  const vignetteRadius = Math.hypot(w, h) * 0.58;
+  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.44, Math.min(w, h) * 0.24, w * 0.5, h * 0.44, vignetteRadius);
+  vignette.addColorStop(0, "rgba(255, 255, 255, 1)");
+  vignette.addColorStop(0.68, "rgba(245, 248, 247, 0.995)");
+  vignette.addColorStop(1, laboratory ? "rgba(188, 206, 218, 0.91)" : "rgba(205, 214, 205, 0.925)");
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, w, h);
+
+  const grounding = ctx.createLinearGradient(0, h * 0.52, 0, h);
+  grounding.addColorStop(0, "rgba(255, 255, 255, 1)");
+  grounding.addColorStop(1, laboratory ? "rgba(218, 226, 231, 0.955)" : "rgba(224, 227, 218, 0.965)");
+  ctx.fillStyle = grounding;
+  ctx.fillRect(0, h * 0.52, w, h * 0.48);
+  ctx.restore();
 }
 
 function roundRect(x, y, w, h, r, fill, stroke) {
@@ -21134,7 +21297,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "friendly-attacker-bot-cross-family-guard-v585";
+const version = "fluid-whole-surface-visual-quality-v587";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22090,7 +22253,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=friendly-attacker-bot-cross-family-guard-v585", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=fluid-whole-surface-visual-quality-v587", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.
