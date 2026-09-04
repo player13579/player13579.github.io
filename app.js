@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "switch-drag-listbox-keyboard-ownership-v604";
+const DVA_CLIENT_RELEASE = "switch-drag-listbox-next-tick-identity-v605";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -849,7 +849,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "switch-drag-listbox-keyboard-ownership-v604";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "switch-drag-listbox-next-tick-identity-v605";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5370,7 +5370,16 @@ function handleSwitchDragMenuKeydown(event) {
 function validateOpenSwitchDragMenu() {
   const gesture = state.switchDrag;
   if (!gesture.opened) return;
-  if (!switchDragFocusTargetAvailable(gesture.source) || !switchDragDescriptorForSource(gesture.source)) {
+  const descriptor = switchDragFocusTargetAvailable(gesture.source)
+    ? switchDragDescriptorForSource(gesture.source)
+    : null;
+  const currentOptions = Array.isArray(descriptor?.options) ? descriptor.options : [];
+  const ownedOptions = Array.isArray(gesture.options) ? gesture.options : [];
+  const sameOptionIdentity = currentOptions.length === ownedOptions.length && currentOptions.every((option, index) =>
+    String(option?.key || "") === String(ownedOptions[index]?.key || "") &&
+    Boolean(option?.selected) === Boolean(ownedOptions[index]?.selected)
+  );
+  if (!descriptor || !sameOptionIdentity) {
     closeSwitchDragMenu();
   }
 }
@@ -21492,7 +21501,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "switch-drag-listbox-keyboard-ownership-v604";
+const version = "switch-drag-listbox-next-tick-identity-v605";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22451,7 +22460,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=switch-drag-listbox-keyboard-ownership-v604", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=switch-drag-listbox-next-tick-identity-v605", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
