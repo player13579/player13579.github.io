@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "explicit-hsg-purchase-selection-v607",
+    version: "ui-motion-introduction-quality-v608",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25603,5 +25603,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "explicit-hsg-purchase-selection-v607" });
+self.postMessage({ type: "ready", version: "ui-motion-introduction-quality-v608" });
 })();

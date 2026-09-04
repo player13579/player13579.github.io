@@ -3722,14 +3722,12 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   to { opacity: 1; transform: translateY(0) scale(1); filter: saturate(1) brightness(1); }
 }
 
-.solo-mission-card img {
-  animation: texture-poster-live 8s ease-in-out infinite alternate;
-}
-
+.solo-mission-card img,
 .operator-visual,
 .vending-item-icon,
 .alchemy-choice-icon {
-  animation: texture-detail-live 4.6s ease-in-out infinite alternate;
+  /* Semantic rasters stay at their authored crop/anchor. v608 geometry owns motion. */
+  animation: none;
 }
 
 .vending-item-icon.generated-item-texture-visible,
@@ -3811,16 +3809,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
     opacity: 1;
     transform: none;
   }
-}
-
-@keyframes texture-poster-live {
-  from { transform: scale(1.002); filter: saturate(0.96) brightness(0.98); }
-  to { transform: scale(1.018); filter: saturate(1.06) brightness(1.03); }
-}
-
-@keyframes texture-detail-live {
-  from { filter: saturate(0.94) brightness(0.96); }
-  to { filter: saturate(1.08) brightness(1.08); }
 }
 
 .end-title {
@@ -4604,7 +4592,7 @@ body .offline-team-choice button[data-offline-team] {
 }
 .operator-visual-hacker {
   background-image: url("assets/generated/operator-hacker-ate-v391.png?v=operator-ate-v391");
-  animation: operator-hacker-ate-v391 1880ms steps(1, end) infinite;
+  animation: operator-hacker-ate-v391 1880ms ease-in-out infinite;
 }
 
 .result-points {
@@ -4717,7 +4705,7 @@ body .offline-team-choice button[data-offline-team] {
   inset: 4%;
   background: radial-gradient(circle at 81% 28%, rgba(251, 191, 36, .9) 0 4%, rgba(249, 115, 22, .35) 5%, transparent 18%);
   filter: blur(2px);
-  animation: operator-gunner-flash-v391 1480ms steps(1, end) infinite;
+  animation: operator-gunner-flash-v391 1480ms ease-in-out infinite;
 }
 .operator-visual-gunner::after {
   inset: 8%;
@@ -4728,12 +4716,12 @@ body .offline-team-choice button[data-offline-team] {
   inset: 9%;
   background: linear-gradient(180deg, transparent 0 35%, rgba(34, 211, 238, .7) 36% 39%, transparent 40% 100%);
   mix-blend-mode: screen;
-  animation: operator-hacker-scan-v391 1880ms steps(7, end) infinite;
+  animation: operator-hacker-scan-v391 1880ms cubic-bezier(.25,.7,.3,1) infinite;
 }
 .operator-visual-hacker::after {
   inset: 4%;
   box-shadow: 3px 0 rgba(34, 211, 238, .22), -2px 0 rgba(244, 114, 182, .18);
-  animation: operator-hacker-fragment-v391 1880ms steps(1, end) infinite;
+  animation: operator-hacker-fragment-v391 1880ms ease-in-out infinite;
 }
 .operator-visual-assassin::before {
   inset: 12%;
@@ -6970,31 +6958,29 @@ body .field-action-bar > button:nth-of-type(4n + 3):hover:not(:disabled) {
 
 body .field-action-bar > button:nth-of-type(4n):hover:not(:disabled) {
   background-size: 100% 100%, 154% 136%;
-  animation: ui-hover-action-lock 760ms steps(4, end) infinite;
+  animation: ui-hover-action-lock 760ms cubic-bezier(.2,.75,.25,1) infinite;
 }
 
 body .operator-card:hover:not(:disabled) {
-  animation: ui-hover-operator-focus 1.2s var(--ui-ease-out) infinite alternate;
+  animation: none;
+  border-color: rgba(34, 211, 238, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(165, 243, 252, 0.24), 0 12px 26px rgba(34, 211, 238, 0.16);
 }
 
 body .solo-mission-card:hover {
-  animation: ui-hover-mission-pan 1.55s ease-in-out infinite alternate;
+  animation: none;
+  border-color: rgba(45, 212, 191, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(153, 246, 228, 0.22), 0 12px 26px rgba(45, 212, 191, 0.15);
 }
 
 body .tactics-chapters button:hover:not(:disabled) {
   animation: ui-hover-index-slide 880ms var(--ui-ease-out) infinite alternate;
 }
 
-body #statusPanel .hacker-direct-action[data-hacker-category^="generate-"]:hover:not(:disabled) {
-  animation: ui-hover-hacker-generate 1.15s ease-in-out infinite alternate;
-}
-
-body #statusPanel .hacker-direct-action[data-hacker-category="hack"]:hover:not(:disabled) {
-  animation: ui-hover-hacker-hack 720ms steps(4, end) infinite;
-}
-
-body #statusPanel .hacker-direct-action[data-hacker-category="object"]:hover:not(:disabled) {
-  animation: ui-hover-hacker-object 1.05s ease-in-out infinite alternate;
+body #statusPanel .hacker-direct-action:hover:not(:disabled) {
+  animation: none;
+  border-color: rgba(125, 211, 252, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(165, 243, 252, 0.26), 0 8px 18px rgba(14, 116, 144, 0.18);
 }
 
 /* Purpose-built B-foundation materials keep each interaction family visually distinct. */
@@ -7416,42 +7402,36 @@ body .active-effects-panel li {
   background: rgba(250, 254, 255, 0.96);
 }
 
-body #statusPanel .hacker-direct-action[data-hacker-category="ability"]:hover:not(:disabled) {
-  animation: ui-hover-hacker-ability 1.4s ease-in-out infinite alternate;
-}
-
-body #statusPanel .hacker-direct-action[data-hacker-category="invention"]:hover:not(:disabled) {
-  animation: ui-hover-hacker-invention 1.8s linear infinite;
-}
-
 body .vending-panel button:hover:not(:disabled) {
-  animation: ui-hover-vending-slot 920ms var(--ui-ease-out) infinite alternate;
+  animation: none;
+  border-color: rgba(134, 239, 172, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(187, 247, 208, 0.24), 0 9px 20px rgba(34, 197, 94, 0.16);
 }
 
 @keyframes ui-hover-title-orbit {
-  0% { background-position: center, 12% 32%; box-shadow: inset 0 1px rgba(255,255,255,0.14), -7px 8px 20px rgba(13,148,136,0.17); transform: translateY(-2px) scale(1); }
-  100% { background-position: center, 88% 68%; box-shadow: inset 0 1px rgba(255,255,255,0.22), 7px 12px 28px rgba(250,204,21,0.16); transform: translateY(-4px) scale(1.018); }
+  0% { box-shadow: inset 0 1px rgba(255,255,255,0.14), -7px 8px 20px rgba(13,148,136,0.17); transform: translateY(-2px) scale(1); }
+  100% { box-shadow: inset 0 1px rgba(255,255,255,0.22), 7px 12px 28px rgba(250,204,21,0.16); transform: translateY(-4px) scale(1.018); }
 }
 
 @keyframes ui-hover-topbar-scan {
-  0% { background-position: 130% center, 10% 48%; box-shadow: inset 0 1px rgba(255,255,255,0.1), 0 4px 10px rgba(2,6,10,0.2); }
+  0% { box-shadow: inset 0 1px rgba(255,255,255,0.1), 0 4px 10px rgba(2,6,10,0.2); }
   50% { box-shadow: inset 0 1px rgba(255,255,255,0.18), 0 0 15px rgba(34,211,238,0.18); }
-  100% { background-position: -30% center, 90% 48%; box-shadow: inset 0 1px rgba(255,255,255,0.1), 0 4px 10px rgba(2,6,10,0.2); }
+  100% { box-shadow: inset 0 1px rgba(255,255,255,0.1), 0 4px 10px rgba(2,6,10,0.2); }
 }
 
 @keyframes ui-hover-action-rise {
-  from { background-position: center, 18% 72%; box-shadow: inset 0 -3px rgba(45,212,191,0.1), 0 5px 12px rgba(2,6,10,0.28); transform: translateY(-1px); }
-  to { background-position: center, 74% 24%; box-shadow: inset 0 3px rgba(165,243,252,0.16), 0 12px 23px rgba(45,212,191,0.16); transform: translateY(-4px) scale(1.012); }
+  from { box-shadow: inset 0 -3px rgba(45,212,191,0.1), 0 5px 12px rgba(2,6,10,0.28); transform: translateY(-1px); }
+  to { box-shadow: inset 0 3px rgba(165,243,252,0.16), 0 12px 23px rgba(45,212,191,0.16); transform: translateY(-4px) scale(1.012); }
 }
 
 @keyframes ui-hover-action-sweep {
-  from { background-position: center, 0% 46%; box-shadow: inset 4px 0 rgba(196,181,253,0.09), 0 6px 14px rgba(2,6,10,0.28); transform: translateX(-1px) translateY(-2px); }
-  to { background-position: center, 100% 54%; box-shadow: inset -4px 0 rgba(125,211,252,0.14), 0 9px 19px rgba(139,92,246,0.15); transform: translateX(2px) translateY(-2px); }
+  from { box-shadow: inset 4px 0 rgba(196,181,253,0.09), 0 6px 14px rgba(2,6,10,0.28); transform: translateX(-1px) translateY(-2px); }
+  to { box-shadow: inset -4px 0 rgba(125,211,252,0.14), 0 9px 19px rgba(139,92,246,0.15); transform: translateX(2px) translateY(-2px); }
 }
 
 @keyframes ui-hover-action-depth {
-  from { background-position: center, 50% 8%; box-shadow: inset 0 0 0 rgba(250,204,21,0), 0 4px 10px rgba(2,6,10,0.25); transform: scale(1); }
-  to { background-position: center, 50% 92%; box-shadow: inset 0 0 15px rgba(250,204,21,0.1), 0 10px 24px rgba(245,158,11,0.13); transform: scale(1.025); }
+  from { box-shadow: inset 0 0 0 rgba(250,204,21,0), 0 4px 10px rgba(2,6,10,0.25); transform: scale(1); }
+  to { box-shadow: inset 0 0 15px rgba(250,204,21,0.1), 0 10px 24px rgba(245,158,11,0.13); transform: scale(1.025); }
 }
 
 @keyframes ui-hover-action-lock {
@@ -7461,52 +7441,9 @@ body .vending-panel button:hover:not(:disabled) {
   75% { border-color: rgba(134,239,172,0.62); box-shadow: inset 0 -3px rgba(134,239,172,0.09); }
 }
 
-@keyframes ui-hover-operator-focus {
-  from { background-position: center, 15% 48%; box-shadow: inset 0 0 0 rgba(34,211,238,0), 0 8px 18px rgba(2,6,10,0.28); transform: translateY(-2px) perspective(500px) rotateX(0deg); }
-  to { background-position: center, 85% 52%; box-shadow: inset 0 0 18px rgba(34,211,238,0.11), 0 15px 30px rgba(34,211,238,0.15); transform: translateY(-5px) perspective(500px) rotateX(1.4deg); }
-}
-
-@keyframes ui-hover-mission-pan {
-  from { background-position: center, 8% 48%; box-shadow: 0 8px 20px rgba(2,6,10,0.3); transform: translateY(-2px); }
-  to { background-position: center, 92% 52%; box-shadow: 0 16px 34px rgba(45,212,191,0.14); transform: translateY(-5px); }
-}
-
 @keyframes ui-hover-index-slide {
   from { box-shadow: inset 3px 0 rgba(103,232,249,0.08); transform: translateX(0); }
   to { box-shadow: inset 8px 0 rgba(103,232,249,0.2); transform: translateX(5px); }
-}
-
-@keyframes ui-hover-hacker-generate {
-  from { box-shadow: inset 0 -2px rgba(45,212,191,0.08), 0 5px 12px rgba(2,6,10,0.25); }
-  to { box-shadow: inset 0 -9px rgba(45,212,191,0.18), 0 10px 24px rgba(20,184,166,0.16); filter: brightness(1.12); }
-}
-
-@keyframes ui-hover-hacker-hack {
-  0%, 100% { border-color: rgba(244,114,182,0.58); transform: translateX(0); }
-  25% { border-color: #f9a8d4; transform: translateX(2px); }
-  50% { border-color: rgba(34,211,238,0.8); transform: translateX(-1px); }
-  75% { border-color: #f0abfc; transform: translateX(1px); }
-}
-
-@keyframes ui-hover-hacker-object {
-  from { box-shadow: inset 0 0 0 rgba(251,191,36,0), 0 5px 12px rgba(2,6,10,0.25); transform: perspective(400px) rotateY(0); }
-  to { box-shadow: inset 0 0 14px rgba(251,191,36,0.14), 0 10px 24px rgba(245,158,11,0.14); transform: perspective(400px) rotateY(-2deg); }
-}
-
-@keyframes ui-hover-hacker-ability {
-  from { box-shadow: inset 4px 0 rgba(167,139,250,0.1), 0 5px 14px rgba(2,6,10,0.26); filter: hue-rotate(0deg); }
-  to { box-shadow: inset -4px 0 rgba(34,211,238,0.14), 0 12px 28px rgba(139,92,246,0.2); filter: hue-rotate(12deg) brightness(1.1); }
-}
-
-@keyframes ui-hover-hacker-invention {
-  0% { background-position: center, 0% 50%; box-shadow: inset 0 2px rgba(125,211,252,0.1); }
-  50% { background-position: center, 100% 50%; box-shadow: inset 0 -2px rgba(250,204,21,0.12), 0 0 18px rgba(56,189,248,0.15); }
-  100% { background-position: center, 0% 50%; box-shadow: inset 0 2px rgba(125,211,252,0.1); }
-}
-
-@keyframes ui-hover-vending-slot {
-  from { box-shadow: inset 0 3px rgba(134,239,172,0.08), 0 5px 12px rgba(2,6,10,0.28); transform: translateY(-1px) scale(1); }
-  to { box-shadow: inset 0 -5px rgba(250,204,21,0.12), 0 12px 24px rgba(34,197,94,0.14); transform: translateY(-3px) scale(1.018); }
 }
 
 #titleMenu {

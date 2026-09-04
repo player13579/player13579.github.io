@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "explicit-hsg-purchase-selection-v607",
+    version: "ui-motion-introduction-quality-v608",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
