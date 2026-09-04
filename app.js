@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "kill-camera-dialog-focus-ownership-v603";
+const DVA_CLIENT_RELEASE = "switch-drag-listbox-keyboard-ownership-v604";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -849,7 +849,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kill-camera-dialog-focus-ownership-v603";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "switch-drag-listbox-keyboard-ownership-v604";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5161,6 +5161,45 @@ function clearSwitchDragHover() {
   state.switchDrag.finalChoice = null;
 }
 
+function switchDragFocusTargetAvailable(element) {
+  return Boolean(
+    element &&
+    element !== document.body &&
+    element !== document.documentElement &&
+    element.isConnected &&
+    typeof element.focus === "function" &&
+    !element.disabled &&
+    !element.hidden &&
+    element.getAttribute?.("aria-hidden") !== "true" &&
+    !element.closest?.("[hidden]") &&
+    element.getClientRects?.().length
+  );
+}
+
+function switchDragMenuOptionElements() {
+  return Array.from(els.switchDragOptions?.children || []).filter((option) =>
+    switchDragFocusTargetAvailable(option)
+  );
+}
+
+function focusSwitchDragMenuOption(option) {
+  const options = switchDragMenuOptionElements();
+  if (!options.includes(option)) return false;
+  options.forEach((candidate) => {
+    candidate.tabIndex = candidate === option ? 0 : -1;
+  });
+  option.focus({ preventScroll: true });
+  return true;
+}
+
+function focusInitialSwitchDragMenuOption() {
+  const options = switchDragMenuOptionElements();
+  const selected = options.find((option) =>
+    option.getAttribute?.("aria-selected") === "true" || /(^|\s)selected(\s|$)/.test(option.className || "")
+  );
+  return focusSwitchDragMenuOption(selected || options[0]);
+}
+
 function renderSwitchDragAbilityBranch(operatorIndex) {
   const gesture = state.switchDrag;
   if (!gesture.hierarchical || !Number.isInteger(operatorIndex) || operatorIndex < 0) return false;
@@ -5247,7 +5286,7 @@ function updateSwitchDragHover(clientX, clientY) {
   if (navigator.vibrate) navigator.vibrate(8);
 }
 
-function closeSwitchDragMenu() {
+function closeSwitchDragMenu({ focusSource = false } = {}) {
   const gesture = state.switchDrag;
   const source = gesture.source;
   const pointerId = gesture.pointerId;
@@ -5274,6 +5313,65 @@ function closeSwitchDragMenu() {
     try {
       if (source.hasPointerCapture?.(pointerId)) source.releasePointerCapture(pointerId);
     } catch {}
+  }
+  if (focusSource && switchDragFocusTargetAvailable(source)) source?.focus();
+}
+
+function handleSwitchDragMenuKeydown(event) {
+  const gesture = state.switchDrag;
+  if (!gesture.opened || !gesture.persistent) return false;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (!switchDragFocusTargetAvailable(gesture.source)) {
+    closeSwitchDragMenu();
+    return true;
+  }
+  const options = switchDragMenuOptionElements();
+  if (!options.length) {
+    closeSwitchDragMenu({ focusSource: true });
+    return true;
+  }
+  const activeIndex = options.indexOf(document.activeElement);
+  const selectedIndex = options.findIndex((option) =>
+    option.getAttribute?.("aria-selected") === "true" || /(^|\s)selected(\s|$)/.test(option.className || "")
+  );
+  const currentIndex = activeIndex >= 0 ? activeIndex : Math.max(0, selectedIndex);
+  if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+    focusSwitchDragMenuOption(options[(currentIndex + 1) % options.length]);
+    return true;
+  }
+  if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+    focusSwitchDragMenuOption(options[(currentIndex - 1 + options.length) % options.length]);
+    return true;
+  }
+  if (event.key === "Home") {
+    focusSwitchDragMenuOption(options[0]);
+    return true;
+  }
+  if (event.key === "End") {
+    focusSwitchDragMenuOption(options[options.length - 1]);
+    return true;
+  }
+  if (event.key === "Enter" || event.code === "Space") {
+    if (event.repeat) return true;
+    const source = gesture.source;
+    options[currentIndex].click();
+    if (gesture.opened && gesture.persistent) focusInitialSwitchDragMenuOption();
+    else if (switchDragFocusTargetAvailable(source)) source.focus();
+    return true;
+  }
+  if (event.key === "Escape" || event.key === "Tab") {
+    closeSwitchDragMenu({ focusSource: true });
+    return true;
+  }
+  return true;
+}
+
+function validateOpenSwitchDragMenu() {
+  const gesture = state.switchDrag;
+  if (!gesture.opened) return;
+  if (!switchDragFocusTargetAvailable(gesture.source) || !switchDragDescriptorForSource(gesture.source)) {
+    closeSwitchDragMenu();
   }
 }
 
@@ -5352,6 +5450,7 @@ function openSwitchDragMenu(descriptor, { persistent = false } = {}) {
   els.switchDragMenu.hidden = false;
   els.switchDragMenu.setAttribute("aria-hidden", "false");
   positionSwitchDragMenu();
+  if (persistent) focusInitialSwitchDragMenuOption();
   if (gesture.pointerId !== null) {
     try { gesture.source.setPointerCapture?.(gesture.pointerId); } catch {}
   }
@@ -6122,11 +6221,6 @@ function bindEvents() {
     if (target && (els.switchDragMenu.contains(target) || gesture.source?.contains?.(target))) return;
     closeSwitchDragMenu();
   }, true);
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !state.switchDrag.opened) return;
-    event.preventDefault();
-    closeSwitchDragMenu();
-  }, true);
   window.addEventListener("pointermove", moveSwitchDragGesture, true);
   window.addEventListener("pointerup", (event) => finishSwitchDragGesture(event), true);
   window.addEventListener("pointercancel", (event) => finishSwitchDragGesture(event, true), true);
@@ -6765,6 +6859,7 @@ function bindEvents() {
 
   window.addEventListener("keydown", (event) => {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+    if (handleSwitchDragMenuKeydown(event)) return;
     if (handleKillCameraDialogKeydown(event)) return;
     if (handleKeybindModalKeydown(event)) return;
     if (handleFieldFeedDialogKeydown(event)) return;
@@ -9952,6 +10047,7 @@ function resetLocalSession() {
   state.pollInFlightGeneration = 0;
   state.realtime?.disconnect();
   state.movementQueue?.clear();
+  closeSwitchDragMenu();
   setExpandedMapOpen(false, { focus: false });
   setKillCameraOpen(false, { focus: false });
   hideInventoryItemDetail();
@@ -11339,6 +11435,7 @@ function render() {
   renderStatus(data);
   renderMeeting(data);
   renderFeeds(data);
+  validateOpenSwitchDragMenu();
   syncKeyboardContext();
   if (resetSidebarForPhaseContext) resetScrollSurfaceForSemanticContext(els.sidePanel);
   restorePollScrollPositions(resetSidebarForPhaseContext
@@ -11652,6 +11749,7 @@ function renderSwitchDragNestedBranch(parentChoice) {
     els.switchDragOptions.append(button);
   });
   positionSwitchDragMenu();
+  if (gesture.persistent) focusInitialSwitchDragMenuOption();
   return true;
 }
 
@@ -21394,7 +21492,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "kill-camera-dialog-focus-ownership-v603";
+const version = "switch-drag-listbox-keyboard-ownership-v604";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22353,7 +22451,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=kill-camera-dialog-focus-ownership-v603", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=switch-drag-listbox-keyboard-ownership-v604", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

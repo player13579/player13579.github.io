@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "kill-camera-dialog-focus-ownership-v603",
+    version: "switch-drag-listbox-keyboard-ownership-v604",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
