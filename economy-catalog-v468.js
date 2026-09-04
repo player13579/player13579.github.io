@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "vending-atomic-settlement-v611",
+    version: "vending-authoritative-availability-v612",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "vending-atomic-settlement-v611",
+    version: "vending-authoritative-availability-v612",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -16380,6 +16380,18 @@ function vendingPurchaseCapacity(player, itemId) {
   }
 }
 
+function vendingPurchaseCapacitiesFor(player) {
+  const capacities = {};
+  for (const product of DVA_ECONOMY.vendingProducts) {
+    const capacity = vendingPurchaseCapacity(player, product.id);
+    // Unbounded physical products deliberately stay absent. JSON cannot
+    // represent Infinity, and omission prevents the client from inventing a
+    // finite limit where the authoritative purchase owner has none.
+    if (Number.isFinite(capacity)) capacities[product.id] = Math.max(0, Math.floor(capacity));
+  }
+  return capacities;
+}
+
 function purchaseShopAbility(room, player, abilityId, transactionId = "") {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在はショップを利用できません。");
@@ -21532,6 +21544,7 @@ function serialize(room, viewer, options = {}) {
       maxHealth: serializeResourceValue(healthCapacityFor(viewer)),
       killCamera: viewer.killCamera ? { ...viewer.killCamera } : null,
       credits: viewer.credits,
+      vendingPurchaseCapacities: vendingPurchaseCapacitiesFor(viewer),
       shopAbilityEntitlements: [...(viewer.shopAbilityEntitlements || [])],
       lastShopPurchaseAbilityId: String(viewer.lastShopPurchaseAbilityId || ""),
       lastShopPurchaseSpent: Math.max(0, Math.floor(Number(viewer.lastShopPurchaseSpent) || 0)),
@@ -25689,7 +25702,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "vending-atomic-settlement-v611",
+  version: "vending-authoritative-availability-v612",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

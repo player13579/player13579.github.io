@@ -5317,6 +5317,12 @@ body .offline-team-choice button[data-offline-team] {
   white-space: nowrap;
 }
 
+.item-name-meta.purchase-state {
+  border-color: rgba(251, 191, 36, 0.76);
+  color: #fff7d6 !important;
+  background: rgba(120, 53, 15, 0.9);
+}
+
 .alchemy-choice strong {
   color: #f8fafc;
   font-size: 11px;
@@ -5338,6 +5344,11 @@ body .offline-team-choice button[data-offline-team] {
 .vending-grid button.purchase-unavailable:hover,
 .hacker-direct-action.action-unavailable:hover {
   opacity: 0.72;
+}
+
+.vending-grid button.purchase-bulk-unavailable {
+  border-color: rgba(251, 191, 36, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.24);
 }
 
 .alchemy-choice.selected {
@@ -8088,6 +8099,32 @@ body #statusPanel .hacker-ability-grid button .hacker-action-copy .item-name-met
   background: #083b55 !important;
   font-size: 10px !important;
   text-shadow: 0 1px 2px rgba(0, 12, 24, 0.92) !important;
+}
+
+body .vending-panel button .item-name-meta.purchase-state {
+  border-color: #fbbf24 !important;
+  color: #fffbea !important;
+  background: #78350f !important;
+  text-shadow: 0 1px 2px rgba(35, 14, 2, 0.96) !important;
+}
+
+body .vending-grid button.purchase-unavailable {
+  opacity: 1;
+  filter: saturate(0.68);
+  border-color: #94a3b8;
+  background-color: #eef2f4;
+}
+
+body .vending-grid button.purchase-unavailable:hover {
+  opacity: 1;
+  filter: saturate(0.68);
+  transform: none;
+  box-shadow: inset 0 0 0 1px rgba(100, 116, 139, 0.24);
+}
+
+body .vending-grid button.purchase-bulk-unavailable {
+  border-color: #f59e0b;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.34);
 }
 
 body .board-wrap {

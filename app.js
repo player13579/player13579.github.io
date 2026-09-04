@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "vending-atomic-settlement-v611";
+const DVA_CLIENT_RELEASE = "vending-authoritative-availability-v612";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -869,7 +869,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "vending-atomic-settlement-v611";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "vending-authoritative-availability-v612";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3354,7 +3354,15 @@ async function executePurchasedShopAbility(ability) {
 }
 
 async function purchaseVendingItem(button, { bulk = false } = {}) {
-  if (!button || button.disabled || button.dataset.purchaseDisabled === "1" || button.dataset.purchasePending === "1") return false;
+  if (!button || button.disabled || button.dataset.purchasePending === "1") return false;
+  if (button.dataset.purchaseDisabled === "1") {
+    showToast(button.dataset.purchaseBlockedMessage || "この商品は現在購入できません。");
+    return false;
+  }
+  if (bulk && button.dataset.bulkPurchaseDisabled === "1") {
+    showToast(button.dataset.bulkPurchaseBlockedMessage || "この商品は現在一括購入できません。通常購入は利用できます。");
+    return false;
+  }
   button.dataset.purchasePending = "1";
   try {
     const ability = DVA_ECONOMY.abilityProduct(button.dataset.shopAbility);
@@ -3421,7 +3429,9 @@ function startVendingHold(event, button) {
     vendingHold.held = true;
     vendingHold.suppressClickUntil = performance.now() + 1_200;
     try { button.setPointerCapture(event.pointerId); } catch {}
-    if (state.vendingBulkPurchase && !button.dataset.shopAbility) {
+    if (button.dataset.purchaseDisabled === "1") {
+      showInventoryItemDetail(vendingProductDetail(button), button);
+    } else if (state.vendingBulkPurchase && !button.dataset.shopAbility) {
       // Exactly one request owns the whole all-credit purchase.  The server
       // computes the purchasable count from its current authoritative credits.
       void purchaseVendingItem(button, { bulk: true });
@@ -6299,6 +6309,8 @@ function bindEvents() {
   els.vendingBulkPurchase.addEventListener("change", () => {
     state.vendingBulkPurchase = Boolean(els.vendingBulkPurchase.checked);
     if (!state.vendingBulkPurchase) stopVendingHold({ suppressClick: true });
+    state.vendingRenderKey = "";
+    if (state.data) renderVending(state.data);
   });
   window.addEventListener("resize", () => scheduleStableGameplayViewportReflow(80), { passive: true });
   bindTabletControls();
@@ -13620,6 +13632,58 @@ function setVendingOpen(open, { focus = true } = {}) {
   }
 }
 
+function vendingCardAvailability(button, data) {
+  const self = data?.self || {};
+  const ability = DVA_ECONOMY.abilityProduct(button?.dataset?.shopAbility);
+  const itemId = String(button?.dataset?.drink || "");
+  const label = ability?.label || VENDING_PRODUCT_LABELS[itemId] || itemId || "商品";
+  const cost = Number(ability?.price ?? VENDING_PRODUCT_COSTS[itemId]);
+  const credits = Math.max(0, Math.floor(Number(self.credits) || 0));
+  const owned = Boolean(ability && shopAbilityOwned(ability.id, self));
+  const capacities = self.vendingPurchaseCapacities || {};
+  const hasFiniteCapacity = !ability && Object.prototype.hasOwnProperty.call(capacities, itemId);
+  const capacity = hasFiniteCapacity
+    ? Math.max(0, Math.floor(Number(capacities[itemId]) || 0))
+    : Number.POSITIVE_INFINITY;
+  const capReached = !ability && capacity < 1;
+  const insufficientCredits = !owned && Number.isFinite(cost) && credits < cost;
+  const purchaseUnavailable = capReached || insufficientCredits;
+  const affordableQuantity = Number.isFinite(cost) && cost > 0 ? Math.floor(credits / cost) : 0;
+  const bulkUnavailable = Boolean(
+    state.vendingBulkPurchase &&
+    !ability &&
+    !purchaseUnavailable &&
+    Number.isFinite(capacity) &&
+    affordableQuantity > capacity
+  );
+  const statusLabel = capReached
+    ? "上限"
+    : insufficientCredits
+      ? "通貨不足"
+      : bulkUnavailable
+        ? "通常購入可 / 一括不可"
+        : "";
+  return {
+    ability,
+    itemId,
+    label,
+    cost,
+    owned,
+    capacity,
+    purchaseUnavailable,
+    bulkUnavailable,
+    statusLabel,
+    purchaseBlockedMessage: capReached
+      ? `${label}は購入上限に達しています。長押しで詳細を確認できます。`
+      : insufficientCredits
+        ? `${label}の購入には${cost}C必要です。長押しで詳細を確認できます。`
+        : "",
+    bulkPurchaseBlockedMessage: bulkUnavailable
+      ? `${label}は現在の全クレジット分を有効に付与できないため一括購入できません。通常購入は利用できます。`
+      : ""
+  };
+}
+
 function renderVending(data) {
   ensureDynamicVendingChoices();
   els.vendingPanel.querySelectorAll("[data-drink]").forEach((button) => {
@@ -13687,7 +13751,8 @@ function renderVending(data) {
 
   buttons.forEach((button) => {
     const entry = shopButtonCatalogEntry(button);
-    const ability = entry?.kind === "ability" ? entry : null;
+    const availabilityState = vendingCardAvailability(button, data);
+    const ability = entry?.kind === "ability" ? entry : availabilityState.ability;
     const product = entry?.kind === "item" ? entry : null;
     button.hidden = !pageButtons.has(button);
     const copy = button.querySelector("span:last-child");
@@ -13695,7 +13760,7 @@ function renderVending(data) {
     const label = ability?.label || product?.label || VENDING_PRODUCT_LABELS[id] || id;
     const numericPrice = Number(ability?.price ?? (Number.isFinite(VENDING_PRODUCT_COSTS[id]) ? VENDING_PRODUCT_COSTS[id] : NaN));
     const price = Number.isFinite(numericPrice) ? `${numericPrice}C` : "";
-    const owned = Boolean(ability && shopAbilityOwned(ability.id, data.self));
+    const owned = availabilityState.owned;
     const ownership = owned
       ? ability.behavior === "passive"
         ? "購入済み・自動"
@@ -13703,12 +13768,16 @@ function renderVending(data) {
           ? "購入済み・操作解放"
           : "購入済み・発動"
       : "";
-    const visibleName = `${label}${price ? ` ${price}` : ""}${ownership ? ` ${ownership}` : ""}`;
+    const statusLabel = availabilityState.statusLabel;
+    const visibleName = `${label}${price ? ` ${price}` : ""}${ownership ? ` ${ownership}` : ""}${statusLabel ? ` ${statusLabel}` : ""}`;
     if (copy && copy.textContent.trim() !== visibleName) {
       copy.classList.add("item-name-line");
-      copy.innerHTML = `<span class="item-name-label">${escapeHtml(label)}</span>${price || ownership ? `<small class="item-name-meta">${escapeHtml([price, ownership].filter(Boolean).join(" / "))}</small>` : ""}`;
+      copy.innerHTML = `<span class="item-name-label">${escapeHtml(label)}</span>${price || ownership ? `<small class="item-name-meta">${escapeHtml([price, ownership].filter(Boolean).join(" / "))}</small>` : ""}${statusLabel ? `<small class="item-name-meta purchase-state">${escapeHtml(statusLabel)}</small>` : ""}`;
     }
     button.setAttribute("aria-label", visibleName);
+    const accessibilityDescription = availabilityState.purchaseBlockedMessage || availabilityState.bulkPurchaseBlockedMessage;
+    if (accessibilityDescription) button.setAttribute("aria-description", accessibilityDescription);
+    else button.removeAttribute("aria-description");
     button.setAttribute("aria-pressed", ability ? String(owned) : "false");
     button.classList.toggle("shop-ability-owned", owned);
     button.removeAttribute("title");
@@ -13726,6 +13795,8 @@ function renderVending(data) {
     data.self.pushCharges || 0,
     mysteryVisible ? data.self.lastMysteryResult : "",
     Boolean(data.self.hackActive),
+    Object.entries(data.self.vendingPurchaseCapacities || {}).sort(([left], [right]) => left.localeCompare(right)),
+    Boolean(state.vendingBulkPurchase),
     [...(data.self.shopAbilityEntitlements || [])].sort(),
     category.id,
     page
@@ -13736,16 +13807,16 @@ function renderVending(data) {
   }
   state.vendingRenderKey = renderKey;
   buttons.forEach((button) => {
-    const ability = DVA_ECONOMY.abilityProduct(button.dataset.shopAbility);
-    const staminaFull = false;
-    const alreadyHasHack = button.dataset.drink === "hack" && data.self.hackActive;
-    const owned = Boolean(ability && shopAbilityOwned(ability.id, data.self));
-    const cost = ability?.price ?? VENDING_PRODUCT_COSTS[button.dataset.drink];
-    const unavailable = staminaFull || alreadyHasHack || (!owned && data.self.credits < cost);
+    const availabilityState = vendingCardAvailability(button, data);
+    const unavailable = availabilityState.purchaseUnavailable;
     button.disabled = false;
     button.dataset.purchaseDisabled = unavailable ? "1" : "0";
+    button.dataset.purchaseBlockedMessage = availabilityState.purchaseBlockedMessage;
+    button.dataset.bulkPurchaseDisabled = availabilityState.bulkUnavailable ? "1" : "0";
+    button.dataset.bulkPurchaseBlockedMessage = availabilityState.bulkPurchaseBlockedMessage;
     button.setAttribute("aria-disabled", String(unavailable));
     button.classList.toggle("purchase-unavailable", unavailable);
+    button.classList.toggle("purchase-bulk-unavailable", availabilityState.bulkUnavailable);
   });
   if (els.magicInventory.hidden) els.magicInventory.hidden = false;
   const carriedItems = (data.self.itemInventory || []).map((item) => `${item.label} ${item.amount}`).join(" / ");
@@ -21640,7 +21711,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "vending-atomic-settlement-v611";
+const version = "vending-authoritative-availability-v612";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22599,7 +22670,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=vending-atomic-settlement-v611", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=vending-authoritative-availability-v612", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
