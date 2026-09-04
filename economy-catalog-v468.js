@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ui-semantic-finite-motion-quality-v613",
+    version: "rejected-visual-removal-bot-barrier-pursuit-v614",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

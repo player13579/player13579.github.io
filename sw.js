@@ -5,17 +5,15 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "ui-semantic-finite-motion-quality-v613";
-const CACHE_NAME = "dva-static-v613-ui-semantic-finite-motion-quality";
+const RUNTIME_RELEASE = "rejected-visual-removal-bot-barrier-pursuit-v614";
+const CACHE_NAME = "dva-static-v614-rejected-visual-removal-bot-barrier-pursuit";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
   "/styles.css",
-  "/ui-motion-graphics-v608.css",
   "/economy-catalog-v468.js",
   "/app.js",
-  "/ui-motion-graphics-v608.js",
   "/game-runtime.js",
   "/game-engine.js",
   "/offline-runtime.js",
@@ -361,10 +359,8 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/",
   "/index.html",
   "/styles.css",
-  "/ui-motion-graphics-v608.css",
   "/economy-catalog-v468.js",
   "/app.js",
-  "/ui-motion-graphics-v608.js",
   "/game-runtime.js",
   "/game-engine.js",
   "/offline-runtime.js",

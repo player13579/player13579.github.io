@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-semantic-finite-motion-quality-v613",
+    version: "rejected-visual-removal-bot-barrier-pursuit-v614",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25013,6 +25013,45 @@ function botOpponentTarget(room, bot, timestamp = now()) {
   return botKnownAttackerEvidence(room, bot, timestamp);
 }
 
+// A protection barrier rejects every combat transaction, but it is not an
+// information blackout or a navigation objective.  In particular, the
+// first-screen enemy-Bot fixture used to see its directly visible Defender
+// protected for 1.5 seconds, fall through to fake-task deception, and leave
+// the same room before the barrier expired.  Keep this deliberately narrower
+// than botCanAttackTarget: it authorizes only movement toward a currently
+// visible hostile (or a Defender's already-public evidence), never a plan,
+// resource spend, damage, or target acquisition through secrecy.
+function botCanPursueBarrierProtectedTarget(room, bot, target, timestamp = now()) {
+  if (botCanAttackTarget(room, bot, target, timestamp)) return true;
+  if (
+    !bot?.isBot ||
+    !target?.alive ||
+    target.ejected ||
+    target.inVent ||
+    target.id === bot.id ||
+    sharesCombatFaction(bot, target) ||
+    !botTargetHasActiveBarrier(room, target, timestamp)
+  ) return false;
+  if (bot.role === "attacker") {
+    return target.role === "defender" && botCanDirectlyObservePlayer(room, bot, target);
+  }
+  return bot.role === "defender" &&
+    target.role === "attacker" &&
+    botKnownAttackerEvidence(room, bot, timestamp)?.id === target.id;
+}
+
+function botBarrierPursuitTarget(room, bot, timestamp = now()) {
+  if (!bot?.isBot) return null;
+  if (bot.role === "defender") {
+    const witnessed = botKnownAttackerEvidence(room, bot, timestamp);
+    return botCanPursueBarrierProtectedTarget(room, bot, witnessed, timestamp) ? witnessed : null;
+  }
+  if (bot.role !== "attacker") return null;
+  return alivePlayers(room, "defender")
+    .filter((target) => botCanPursueBarrierProtectedTarget(room, bot, target, timestamp))
+    .sort((left, right) => distance(bot, left) - distance(bot, right) || left.id.localeCompare(right.id))[0] || null;
+}
+
 function botHasTimedAcceleration(bot, timestamp = now()) {
   return activeTimedAccelerationEffects(bot, timestamp).some((effect) => String(effect.source) === "gravity-accelerate");
 }
@@ -25370,7 +25409,7 @@ function botNavigationMustRemainStationary(bot, timestamp = now()) {
 }
 
 function runScheduledBotNavigation(room, bot, target, timestamp = now()) {
-  if (!botCanAttackTarget(room, bot, target, timestamp)) {
+  if (!botCanPursueBarrierProtectedTarget(room, bot, target, timestamp)) {
     clearBotNavigationIntent(bot);
     return { ownsTick: false, moved: false, stationary: false };
   }
@@ -25453,7 +25492,14 @@ function runPlayingBots(room) {
       // incidental side effect of action selection and prevents the later
       // faction branches from moving the same Bot twice.
       const navigation = runScheduledBotNavigation(room, bot, opponentTarget, timestamp);
-      if (plannerHandled || navigation.ownsTick) continue;
+      // During a visible protection barrier, retain a navigation-only target.
+      // The planner receives only the strict legal-action target above; this
+      // fallback runs only when that target is absent, so no attack, item,
+      // cooldown or effect can be committed before barrier expiry.
+      const barrierNavigation = !navigation.ownsTick && !opponentTarget
+        ? runScheduledBotNavigation(room, bot, botBarrierPursuitTarget(room, bot, timestamp), timestamp)
+        : navigation;
+      if (plannerHandled || barrierNavigation.ownsTick) continue;
     }
 
     // Generic one-at-a-time Renki is a fallback.  It must not pre-empt a
@@ -25707,5 +25753,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ui-semantic-finite-motion-quality-v613" });
+self.postMessage({ type: "ready", version: "rejected-visual-removal-bot-barrier-pursuit-v614" });
 })();
