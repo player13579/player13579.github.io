@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "result-terminal-responsive-layout-v617",
+    version: "ate-semantic-primitive-diversity-v618",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

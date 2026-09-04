@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "result-terminal-responsive-layout-v617";
+const DVA_CLIENT_RELEASE = "ate-semantic-primitive-diversity-v618";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -869,7 +869,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "result-terminal-responsive-layout-v617";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-semantic-primitive-diversity-v618";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -16967,8 +16967,19 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   const profile = ATE_GLOW_PROFILES[normalizedMode];
   const sampledTime = Math.floor(time * 60) / 60;
   const strength = clamp(rawIntensity, 0, 1.4);
-  const count = normalizedMode === "resonance" ? 10 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 7 : 5;
-  const direction = normalizedMode === "data-down" ? 1 : -1;
+  const smallest = Math.max(2, Math.min(width, height));
+  const count = normalizedMode === "resonance" ? 8 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 6 : 4;
+  const cycleFor = (index, rate = 0.42) => ((sampledTime * (rate + index * 0.017) + phase * 7.13 + index * 1.917) % 1 + 1) % 1;
+  const alphaFor = (cycle, multiplier = 1) => clamp((0.14 + Math.sin(cycle * Math.PI) * 0.48) * strength * multiplier, 0, 0.78);
+  const shard = (x, y, shardWidth, shardHeight, rotation, alpha, color) => {
+    targetContext.save();
+    targetContext.translate(x, y);
+    targetContext.rotate(rotation);
+    targetContext.globalAlpha = alpha;
+    targetContext.fillStyle = color;
+    targetContext.fillRect(-shardWidth / 2, -shardHeight / 2, shardWidth, shardHeight);
+    targetContext.restore();
+  };
 
   targetContext.save();
   targetContext.globalCompositeOperation = "lighter";
@@ -16976,94 +16987,205 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   targetContext.shadowColor = profile.aura;
   targetContext.shadowBlur = Math.max(4, profile.blur * 0.42 * strength);
   for (let index = 0; index < count; index += 1) {
+    const cycle = cycleFor(index);
     const seed = phase * 7.13 + index * 1.917;
-    const cycle = ((sampledTime * (0.34 + index * 0.013) + seed) % 1 + 1) % 1;
-    let x = 0;
-    let y = 0;
-    let rotation = sampledTime * (0.8 + index * 0.07) + seed;
-    let shardWidth = Math.max(2, Math.min(width, height) * (0.018 + (index % 3) * 0.005));
-    let shardHeight = shardWidth * (1.6 + (index % 2) * 0.7);
-
-    if (normalizedMode === "data-accelerate") {
-      const input = index < 3;
-      const lane = input ? index : index - 3;
-      const laneCount = input ? 3 : 4;
-      const laneY = (-0.24 + lane * (0.48 / Math.max(1, laneCount - 1))) * height;
-      x = input
-        ? -width * 0.44 + cycle * width * 0.34
-        : width * 0.1 + cycle * width * 0.36;
-      y = laneY + Math.sin(sampledTime * 3.2 + seed) * height * 0.018;
-      rotation = 0;
-      shardWidth *= input ? 1.15 : 1.9;
-      shardHeight *= input ? 0.9 : 0.55;
-    } else if (["beam", "recoil", "data-down", "data-up"].includes(normalizedMode)) {
-      x = -width * 0.38 + cycle * width * 0.76;
-      y = (-0.24 + (index % 4) * 0.16) * height;
-      if (normalizedMode === "data-down" || normalizedMode === "data-up") {
-        x = (-0.3 + (index % 5) * 0.15) * width;
-        y = direction * (-height * 0.36 + cycle * height * 0.72);
-        shardWidth *= 1.35;
-        shardHeight *= 0.72;
-      } else {
-        rotation = 0;
-        shardWidth *= 2.1;
-        shardHeight *= 0.55;
+    const unit = smallest * (0.018 + (index % 3) * 0.005);
+    const color = index % 2 ? profile.core : profile.aura;
+    switch (normalizedMode) {
+      case "energy": { // radial mote breathing
+        const angle = seed + cycle * Math.PI * 2;
+        const radius = smallest * (0.1 + cycle * 0.18);
+        targetContext.globalAlpha = alphaFor(cycle, 0.72);
+        targetContext.fillStyle = color;
+        targetContext.beginPath();
+        targetContext.arc(Math.cos(angle) * radius, Math.sin(angle) * radius, unit * (0.55 + cycle * 0.45), 0, Math.PI * 2);
+        targetContext.fill();
+        break;
       }
-    } else if (["flow-up", "combustion"].includes(normalizedMode)) {
-      x = (-0.3 + (index % 5) * 0.15) * width + Math.sin(sampledTime * 2.1 + seed) * width * 0.025;
-      y = height * 0.34 - cycle * height * 0.68;
-      rotation *= 0.7;
-    } else if (["orbit", "gravity", "teleport"].includes(normalizedMode)) {
-      const angle = sampledTime * (0.9 + index * 0.04) + seed;
-      x = Math.cos(angle) * width * (0.25 + (index % 2) * 0.06);
-      y = Math.sin(angle) * height * (0.2 + (index % 3) * 0.025);
-      if (normalizedMode === "teleport") y += (cycle - 0.5) * height * 0.24;
-      rotation = angle + Math.PI / 4;
-    } else if (normalizedMode === "resonance") {
-      const side = index % 2 ? -1 : 1;
-      const convergence = Math.min(1, cycle / 0.56);
-      if (cycle < 0.56) {
-        x = side * width * (0.46 - convergence * 0.36);
-        y = Math.sin(seed * 1.9) * height * 0.28 * (1 - convergence);
-        rotation = side > 0 ? Math.PI : 0;
-      } else {
-        const release = (cycle - 0.56) / 0.44;
-        const angle = seed * 0.73 + side * release * 0.34;
-        x = Math.cos(angle) * width * (0.08 + release * 0.34);
-        y = Math.sin(angle) * height * (0.06 + release * 0.3);
-        rotation = angle + Math.PI / 4;
+      case "ripple": { // counter-propagating water rings
+        const outward = index % 2 ? cycle : 1 - cycle;
+        targetContext.globalAlpha = alphaFor(outward, 0.62);
+        targetContext.strokeStyle = color;
+        targetContext.lineWidth = Math.max(1, unit * 0.28);
+        targetContext.beginPath();
+        targetContext.ellipse(0, 0, smallest * (0.1 + outward * 0.27), smallest * (0.05 + outward * 0.12), 0, 0, Math.PI * 2);
+        targetContext.stroke();
+        break;
       }
-      shardWidth *= 0.72;
-      shardHeight *= 1.42;
-    } else if (normalizedMode === "clairvoyance") {
-      const sweep = ((sampledTime * 0.42 + index / Math.max(1, count)) % 1 + 1) % 1;
-      x = (-0.4 + sweep * 0.8) * width;
-      y = Math.sin(sweep * Math.PI * 2 + seed) * height * 0.16;
-      rotation = Math.atan2(Math.cos(sweep * Math.PI * 2 + seed) * height * 0.16, width * 0.8);
-      shardWidth *= 1.7;
-      shardHeight *= 0.56;
-    } else if (normalizedMode === "glitch") {
-      x = (-0.34 + cycle * 0.68) * width;
-      y = (-0.32 + (index % 6) * 0.13) * height;
-      rotation = 0;
-      shardWidth *= 2.4;
-      shardHeight *= 0.5;
-    } else {
-      const angle = seed + cycle * Math.PI * 2;
-      const radius = (0.12 + cycle * 0.22) * Math.min(width, height);
-      x = Math.cos(angle) * radius;
-      y = Math.sin(angle) * radius;
-      rotation = angle + Math.PI / 4;
+      case "shimmer": { // asynchronous four-point glints
+        const angle = seed * 0.73;
+        const radius = smallest * (0.12 + (index % 3) * 0.07);
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        const glint = unit * (1.1 + Math.sin(sampledTime * (1.6 + index * 0.13) + seed) * 0.55);
+        targetContext.globalAlpha = alphaFor(cycle, 0.76);
+        targetContext.strokeStyle = color;
+        targetContext.lineWidth = Math.max(1, unit * 0.24);
+        targetContext.beginPath();
+        targetContext.moveTo(x - glint, y); targetContext.lineTo(x + glint, y);
+        targetContext.moveTo(x, y - glint); targetContext.lineTo(x, y + glint);
+        targetContext.stroke();
+        break;
+      }
+      case "impact": { // finite radial fracture wedges
+        const angle = seed + cycle * Math.PI * 2;
+        const near = smallest * (0.08 + cycle * 0.08);
+        const far = near + smallest * (0.1 + cycle * 0.12);
+        targetContext.globalAlpha = alphaFor(cycle, 0.8);
+        targetContext.fillStyle = color;
+        targetContext.beginPath();
+        targetContext.moveTo(Math.cos(angle - 0.07) * near, Math.sin(angle - 0.07) * near);
+        targetContext.lineTo(Math.cos(angle) * far, Math.sin(angle) * far);
+        targetContext.lineTo(Math.cos(angle + 0.07) * near, Math.sin(angle + 0.07) * near);
+        targetContext.closePath();
+        targetContext.fill();
+        break;
+      }
+      case "shield": { // layered guard arcs, never a second shield texture
+        const guardRadius = smallest * (0.18 + (index % 3) * 0.075);
+        const start = -Math.PI * 0.74 + cycle * 0.34;
+        targetContext.globalAlpha = alphaFor(cycle, 0.66);
+        targetContext.strokeStyle = color;
+        targetContext.lineWidth = Math.max(1, unit * 0.3);
+        targetContext.beginPath();
+        targetContext.arc(0, 0, guardRadius, start, start + Math.PI * 0.78);
+        targetContext.stroke();
+        break;
+      }
+      case "targeting": { // settling crosshair ticks
+        const settle = 1 - cycle;
+        const offset = smallest * (0.13 + settle * 0.23);
+        const tick = unit * 1.7;
+        targetContext.globalAlpha = alphaFor(cycle, 0.74);
+        targetContext.fillStyle = color;
+        targetContext.fillRect(-offset - tick, -unit * 0.18, tick, unit * 0.36);
+        targetContext.fillRect(offset, -unit * 0.18, tick, unit * 0.36);
+        targetContext.fillRect(-unit * 0.18, -offset - tick, unit * 0.36, tick);
+        targetContext.fillRect(-unit * 0.18, offset, unit * 0.36, tick);
+        break;
+      }
+      case "beam": { // forward lane sweep
+        const x = -width * 0.39 + cycle * width * 0.78;
+        const y = (-0.24 + (index % 4) * 0.16) * height;
+        shard(x, y, unit * 2.3, unit * 0.55, 0, alphaFor(cycle), color);
+        break;
+      }
+      case "recoil": { // backward source kick, opposite the beam lane
+        const x = width * 0.26 - cycle * width * 0.46;
+        const y = (-0.18 + (index % 3) * 0.18) * height + Math.sin(seed + cycle * Math.PI) * unit;
+        shard(x, y, unit * 0.72, unit * 2.15, -0.58, alphaFor(cycle, 0.78), color);
+        break;
+      }
+      case "data-down": { // downward packet descent
+        const x = (-0.3 + (index % 5) * 0.15) * width;
+        const y = -height * 0.36 + cycle * height * 0.72;
+        shard(x, y, unit * 1.35, unit * 0.72, 0, alphaFor(cycle), color);
+        break;
+      }
+      case "data-up": { // upward packet ascent
+        const x = (-0.3 + (index % 5) * 0.15) * width;
+        const y = height * 0.36 - cycle * height * 0.72;
+        shard(x, y, unit * 0.72, unit * 1.35, 0, alphaFor(cycle), color);
+        break;
+      }
+      case "data-accelerate": { // split ingress and egress compute lanes
+        const input = index < 3;
+        const lane = input ? index : index - 3;
+        const laneCount = input ? 3 : 3;
+        const laneY = (-0.24 + lane * (0.48 / Math.max(1, laneCount - 1))) * height;
+        const x = input ? -width * 0.45 + cycle * width * 0.36 : width * 0.08 + cycle * width * 0.38;
+        shard(x, laneY + Math.sin(sampledTime * 3.2 + seed) * height * 0.018, input ? unit * 1.2 : unit * 2, input ? unit * 0.84 : unit * 0.5, 0, alphaFor(cycle), color);
+        break;
+      }
+      case "flow-up": { // buoyant, laterally swaying plume
+        const x = (-0.3 + (index % 5) * 0.15) * width + Math.sin(sampledTime * 2.1 + seed) * width * 0.025;
+        const y = height * 0.34 - cycle * height * 0.68;
+        shard(x, y, unit * 0.76, unit * 2.4, seed * 0.28, alphaFor(cycle), color);
+        break;
+      }
+      case "combustion": { // turbulent flame tongues
+        const x = (-0.28 + (index % 4) * 0.18) * width + Math.sin(sampledTime * 5.1 + seed) * unit * 2.1;
+        const y = height * 0.27 - cycle * height * 0.55;
+        const flame = unit * (2 + Math.sin(sampledTime * 7.3 + seed) * 0.52);
+        targetContext.globalAlpha = alphaFor(cycle, 0.84);
+        targetContext.fillStyle = color;
+        targetContext.beginPath();
+        targetContext.moveTo(x - flame * 0.62, y + flame * 0.5);
+        targetContext.quadraticCurveTo(x + Math.sin(seed + cycle * 9) * flame, y - flame * 1.35, x + flame * 0.62, y + flame * 0.5);
+        targetContext.closePath();
+        targetContext.fill();
+        break;
+      }
+      case "orbit": { // discrete elliptic satellites
+        const angle = sampledTime * (0.9 + index * 0.04) + seed;
+        targetContext.globalAlpha = alphaFor(cycle, 0.7);
+        targetContext.fillStyle = color;
+        targetContext.beginPath();
+        targetContext.arc(Math.cos(angle) * width * (0.25 + (index % 2) * 0.06), Math.sin(angle) * height * (0.2 + (index % 3) * 0.025), unit * 0.72, 0, Math.PI * 2);
+        targetContext.fill();
+        break;
+      }
+      case "gravity": { // inward compression, not an orbit
+        const collapse = 1 - cycle;
+        const angle = seed + sampledTime * 0.32;
+        const radius = smallest * (0.08 + collapse * 0.34);
+        targetContext.globalAlpha = alphaFor(cycle, 0.7);
+        targetContext.strokeStyle = color;
+        targetContext.lineWidth = Math.max(1, unit * 0.24);
+        targetContext.beginPath();
+        targetContext.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+        targetContext.lineTo(Math.cos(angle) * radius * 0.18, Math.sin(angle) * radius * 0.18);
+        targetContext.stroke();
+        break;
+      }
+      case "teleport": { // rising/disappearing phase columns
+        const x = (-0.3 + (index % 5) * 0.15) * width;
+        const y = (0.34 - cycle * 0.68) * height;
+        shard(x, y, unit * 0.58, unit * (1.9 + (index % 2)), 0, alphaFor(cycle, 0.76), color);
+        break;
+      }
+      case "resonance": { // converge, then disperse
+        const side = index % 2 ? -1 : 1;
+        let x;
+        let y;
+        let rotation;
+        if (cycle < 0.56) {
+          const convergence = cycle / 0.56;
+          x = side * width * (0.46 - convergence * 0.36);
+          y = Math.sin(seed * 1.9) * height * 0.28 * (1 - convergence);
+          rotation = side > 0 ? Math.PI : 0;
+        } else {
+          const release = (cycle - 0.56) / 0.44;
+          const angle = seed * 0.73 + side * release * 0.34;
+          x = Math.cos(angle) * width * (0.08 + release * 0.34);
+          y = Math.sin(angle) * height * (0.06 + release * 0.3);
+          rotation = angle + Math.PI / 4;
+        }
+        shard(x, y, unit * 0.72, unit * 1.42, rotation, alphaFor(cycle), color);
+        break;
+      }
+      case "clairvoyance": { // horizon scan line with a moving probe
+        const sweep = ((sampledTime * 0.42 + index / Math.max(1, count)) % 1 + 1) % 1;
+        const x = (-0.4 + sweep * 0.8) * width;
+        const y = Math.sin(sweep * Math.PI * 2 + seed) * height * 0.16;
+        targetContext.globalAlpha = alphaFor(sweep, 0.7);
+        targetContext.strokeStyle = color;
+        targetContext.lineWidth = Math.max(1, unit * 0.22);
+        targetContext.beginPath();
+        targetContext.moveTo(x - unit * 2.2, y); targetContext.lineTo(x + unit * 2.2, y);
+        targetContext.stroke();
+        break;
+      }
+      case "glitch": { // discontinuous slice jump, no continuous sweep
+        const jump = Math.floor((sampledTime * 8.5 + index * 1.7 + phase * 3) % 5);
+        const x = (-0.34 + (jump / 4) * 0.68) * width;
+        const y = (-0.32 + (index % 6) * 0.13) * height;
+        shard(x, y, unit * 2.55, unit * 0.45, 0, alphaFor(cycle, 0.7), color);
+        break;
+      }
+      default:
+        break;
     }
-
-    const life = Math.sin(cycle * Math.PI);
-    targetContext.save();
-    targetContext.translate(x, y);
-    targetContext.rotate(rotation);
-    targetContext.globalAlpha = clamp((0.16 + life * 0.5) * strength, 0, 0.82);
-    targetContext.fillStyle = index % 2 ? profile.core : profile.aura;
-    targetContext.fillRect(-shardWidth / 2, -shardHeight / 2, shardWidth, shardHeight);
-    targetContext.restore();
   }
   targetContext.restore();
 }
@@ -21728,7 +21850,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "result-terminal-responsive-layout-v617";
+const version = "ate-semantic-primitive-diversity-v618";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22687,7 +22809,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=result-terminal-responsive-layout-v617", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ate-semantic-primitive-diversity-v618", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
