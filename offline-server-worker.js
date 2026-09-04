@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "canvas-visibility-lifecycle-v610",
+    version: "vending-atomic-settlement-v611",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -16296,7 +16296,12 @@ function autoUseNearbyMapObject(room, player, timestamp = now()) {
 }
 
 function applyMysteryDrink(room, player, timestamp = now()) {
-  const roll = luckAdjustedRoll(player);
+  const verificationRolls = Array.isArray(player.mysteryVerificationRolls)
+    ? player.mysteryVerificationRolls
+    : [];
+  const roll = verificationRolls.length
+    ? clampNumber(verificationRolls.shift(), 0, 1, 0.99)
+    : luckAdjustedRoll(player);
   let result;
   if (roll < 0.18) {
     grantCredits(room, player, CREDIT_ECONOMY.mysteryJackpot, "mystery");
@@ -16343,6 +16348,36 @@ function applyMysteryDrink(room, player, timestamp = now()) {
 function restoreTransactionalPlayerSnapshot(player, snapshot) {
   for (const key of Object.keys(player)) delete player[key];
   Object.assign(player, snapshot);
+}
+
+function vendingPurchaseCapacity(player, itemId) {
+  switch (itemId) {
+    case "warp":
+      return Math.max(0, 3 - Math.max(0, Number(player.warpCharges) || 0));
+    case "fire":
+      return Math.max(0, 2 - Math.max(0, Number(player.fireJutsuCharges) || 0));
+    case "evade":
+      return Math.max(0, Math.ceil((1500 - Math.max(0, Number(player.dodgeDurationBonusMs) || 0)) / 250));
+    case "substitution":
+      return Math.max(0, 2 - Math.max(0, Number(player.substitutionCharges) || 0));
+    case "grit":
+      return Math.max(0, 3 - Math.max(0, Number(player.gritCharges) || 0));
+    case "reason":
+      return Math.max(0, 3 - Math.max(0, Number(player.reasonCharges) || 0));
+    case "iai":
+      return Math.max(0, 3 - Math.max(0, Number(player.iaiCharges) || 0));
+    case "hack":
+      return player.hackActive ? 0 : 1;
+    case "exile":
+      return player.exiled ? 0 : 1;
+    default: {
+      const weapon = GUNNER_WEAPONS[itemId];
+      if (!weapon) return Number.POSITIVE_INFINITY;
+      const owned = gunnerWeaponAvailable(player, itemId);
+      const ammunition = Math.max(0, Math.floor(Number(player.gunnerAmmo?.[itemId]) || 0));
+      return !owned || ammunition < weapon.maxAmmo ? 1 : 0;
+    }
+  }
 }
 
 function purchaseShopAbility(room, player, abilityId, transactionId = "") {
@@ -16508,18 +16543,26 @@ function purchaseDrink(room, player, itemId, options = {}) {
   if (creditSnapshot < item.cost) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
   const quantity = bulk ? Math.floor(creditSnapshot / item.cost) : 1;
   if (quantity < 1) throw new ApiError(400, `通貨が不足しています（必要 ${item.cost}C）。`);
-  const playerSnapshot = bulk ? structuredClone(player) : null;
+  const capacity = vendingPurchaseCapacity(player, itemId);
+  if (capacity < 1) throw new ApiError(409, `${item.label}は現在これ以上購入できません。`);
+  if (bulk && capacity < quantity) {
+    throw new ApiError(409, `${item.label}は一括購入で全額分を有効に付与できません。`);
+  }
+  const playerSnapshot = structuredClone(player);
   let outcome;
   try {
+    // Settle the canonical purchase cost first. Any effect that intentionally
+    // changes credits (for example a Mystery jackpot) is then an independent,
+    // preserved transaction delta rather than being overwritten at return.
+    player.credits = creditSnapshot - item.cost * quantity;
     for (let index = 0; index < quantity; index += 1) outcome = item.apply();
   } catch (error) {
-    if (playerSnapshot) restoreTransactionalPlayerSnapshot(player, playerSnapshot);
+    restoreTransactionalPlayerSnapshot(player, playerSnapshot);
     throw error;
   }
   if (!["grit", "reason", "iai"].includes(itemId)) {
     pushInstantItemAcquisitionAte(room, player, itemId, "vending");
   }
-  player.credits = creditSnapshot - item.cost * quantity;
   pushMagicEffect(room, itemId === "mystery" ? "mystery-reveal" : "action-vending", player, {
     radius: itemId === "mystery" ? 145 : 90,
     playerId: player.id
@@ -16535,11 +16578,28 @@ function purchaseDrinkBulk(room, player, itemId, transactionId = "") {
   const recent = Array.isArray(player.vendingBulkTransactions) ? player.vendingBulkTransactions : [];
   const fallbackDuplicate = !id && String(player.lastVendingBulkItemId || "") === String(itemId || "") &&
     timestamp - (Number(player.lastVendingBulkAt) || 0) < 800;
-  if ((id && recent.some((entry) => entry.id === id)) || fallbackDuplicate) {
+  const previous = id ? recent.find((entry) => entry.id === id) : null;
+  if (previous) {
+    if (String(previous.itemId || "") !== String(itemId || "")) {
+      throw new ApiError(409, "この一括購入IDは別の商品に再利用できません。");
+    }
+    return {
+      ...(previous.result || {}),
+      duplicate: true,
+      transactionId: id,
+      remainingCredits: Math.max(0, Math.floor(Number(player.credits) || 0))
+    };
+  }
+  if (fallbackDuplicate) {
     throw new ApiError(409, "この一括購入は既に処理済みです。");
   }
   const result = purchaseDrink(room, player, itemId, { bulk: true });
-  player.vendingBulkTransactions = [...recent.filter((entry) => timestamp - Number(entry.at || 0) < 120_000), ...(id ? [{ id, at: timestamp }] : [])].slice(-32);
+  player.vendingBulkTransactions = [...recent.filter((entry) => timestamp - Number(entry.at || 0) < 120_000), ...(id ? [{
+    id,
+    itemId: String(itemId || ""),
+    at: timestamp,
+    result: { quantity: result.quantity, spent: result.spent }
+  }] : [])].slice(-32);
   player.lastVendingBulkItemId = String(itemId || "");
   player.lastVendingBulkAt = timestamp;
   return result;
@@ -21476,6 +21536,15 @@ function serialize(room, viewer, options = {}) {
       lastShopPurchaseAbilityId: String(viewer.lastShopPurchaseAbilityId || ""),
       lastShopPurchaseSpent: Math.max(0, Math.floor(Number(viewer.lastShopPurchaseSpent) || 0)),
       lastShopPurchaseAt: Number(viewer.lastShopPurchaseAt) || 0,
+      vendingVerification: Array.isArray(viewer.mysteryVerificationRolls)
+        ? {
+            remainingMysteryRolls: viewer.mysteryVerificationRolls.length,
+            bulkTransactionCount: Array.isArray(viewer.vendingBulkTransactions)
+              ? viewer.vendingBulkTransactions.length
+              : 0,
+            lastBulkItemId: String(viewer.lastVendingBulkItemId || "")
+          }
+        : null,
       mana: serializeResourceValue(viewer.mana),
       maxMana: serializeResourceValue(manaCapacityFor(viewer)),
       mentalState: mentalStateFor(viewer),
@@ -22597,6 +22666,28 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.resultBoardCommitted = false;
     room.resultBoardByPlayerId = {};
     commitResultBoard(room);
+  } else if (kind === "vending-atomic-settlement") {
+    // Exercise the real Vending controls against one deterministic state:
+    // a capped Warp must reject without charging, then a two-unit Mystery
+    // bulk purchase must preserve both jackpot deltas after its 8C cost.
+    const timestamp = now();
+    Object.assign(player, {
+      credits: 8,
+      warpCharges: 3,
+      mysteryVerificationRolls: [0.01, 0.01],
+      lastMysteryResult: "",
+      lastMysteryResultAt: 0,
+      lastPassiveCreditAt: timestamp + 120_000,
+      vendingBulkTransactions: [],
+      lastVendingBulkItemId: "",
+      lastVendingBulkAt: 0
+    });
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+    }
+    setImmediateFeedback(player, "ショップ実画面検証", "Warp上限拒否後、Mysteryを一括購入");
   } else if (kind === "enemy-defender-task") {
     const timestamp = now();
     const map = getMap(room);
@@ -25603,5 +25694,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "canvas-visibility-lifecycle-v610" });
+self.postMessage({ type: "ready", version: "vending-atomic-settlement-v611" });
 })();

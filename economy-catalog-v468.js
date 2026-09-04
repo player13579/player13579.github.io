@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "canvas-visibility-lifecycle-v610",
+    version: "vending-atomic-settlement-v611",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

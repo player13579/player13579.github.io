@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "canvas-visibility-lifecycle-v610";
+const DVA_CLIENT_RELEASE = "vending-atomic-settlement-v611";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -681,6 +681,7 @@ const state = {
   vendingOpen: false,
   shopActivationSerial: 0,
   vendingBulkPurchase: false,
+  vendingBulkTransactions: Object.create(null),
   vendingRenderKey: "",
   vendingCategoryId: "generate-supply",
   vendingSelectedByCategory: Object.create(null),
@@ -868,7 +869,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "canvas-visibility-lifecycle-v610";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "vending-atomic-settlement-v611";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3309,6 +3310,23 @@ function newShopPurchaseTransactionId() {
   return globalThis.crypto?.randomUUID?.() || `shop-purchase-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function newVendingBulkTransactionId() {
+  return globalThis.crypto?.randomUUID?.() || `vending-bulk-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function pendingVendingBulkTransactionId(itemId) {
+  const id = String(itemId || "");
+  const pending = state.vendingBulkTransactions[id];
+  if (pending && Date.now() - pending.createdAt < 120_000) return pending.id;
+  const transactionId = newVendingBulkTransactionId();
+  state.vendingBulkTransactions[id] = { id: transactionId, createdAt: Date.now() };
+  return transactionId;
+}
+
+function clearPendingVendingBulkTransaction(itemId) {
+  delete state.vendingBulkTransactions[String(itemId || "")];
+}
+
 function shopAbilityOwned(abilityId, self = state.data?.self) {
   return Boolean((self?.shopAbilityEntitlements || []).includes(String(abilityId || "")));
 }
@@ -3350,7 +3368,16 @@ async function purchaseVendingItem(button, { bulk = false } = {}) {
     // Bulk purchase is a single authoritative transaction.  Repeating normal
     // purchases locally races credit changes and can buy a partial, accidental
     // sequence when a long press is released or a panel is rebuilt.
-    return await api("/api/purchase", { itemId: button.dataset.drink, ...(bulk ? { bulk: true } : {}) });
+    const itemId = button.dataset.drink;
+    const transactionId = bulk ? pendingVendingBulkTransactionId(itemId) : "";
+    const result = await api("/api/purchase", {
+      itemId,
+      ...(bulk ? { bulk: true, transactionId } : {})
+    }, bulk ? { attempts: 2 } : {});
+    // Keep the same accepted-intent ID after a lost response, so a bounded
+    // retry is a server replay rather than a second all-credit settlement.
+    if (result && bulk) clearPendingVendingBulkTransaction(itemId);
+    return result;
   } finally {
     delete button.dataset.purchasePending;
   }
@@ -9611,6 +9638,12 @@ async function api(path, extra = {}, options = {}) {
     roomId: state.roomId,
     playerId: state.playerId,
     ...extra
+  }, {
+    attempts: options.attempts,
+    timeoutMs: options.timeoutMs,
+    quiet: options.quiet,
+    resetOnNotFound: options.resetOnNotFound,
+    publicFeature: options.publicFeature
   });
   if (!result) {
     recoverAfterRejectedAction();
@@ -10195,6 +10228,7 @@ function resetLocalSession() {
   state.hackerSelectedByCategory = Object.create(null);
   state.vendingOpen = false;
   state.vendingBulkPurchase = false;
+  state.vendingBulkTransactions = Object.create(null);
   els.vendingBulkPurchase.checked = false;
   state.vendingRenderKey = "";
   state.vendingCategoryId = "generate-supply";
@@ -10246,6 +10280,7 @@ function applyState(data, options = {}) {
     cancelThrowTargeting(true);
     state.vendingOpen = false;
     state.vendingBulkPurchase = false;
+    state.vendingBulkTransactions = Object.create(null);
     els.vendingBulkPurchase.checked = false;
     els.vendingPanel.hidden = true;
     els.itemControl.hidden = true;
@@ -10352,6 +10387,20 @@ function applyState(data, options = {}) {
     root.setAttribute("data-v550-self-mana", String(self.mana ?? ""));
     root.setAttribute("data-v550-self-stamina", String(self.stamina ?? ""));
     root.setAttribute("data-v550-self-credits", String(self.credits ?? ""));
+    if (VERIFY_REAL_SCREEN_FIXTURE_KIND === "vending-atomic-settlement") {
+      root.setAttribute("data-v611-vending-credits", String(self.credits ?? ""));
+      root.setAttribute("data-v611-vending-warp-charges", String(self.warpCharges ?? ""));
+      root.setAttribute("data-v611-vending-mystery-result", String(self.lastMysteryResult || ""));
+      root.setAttribute(
+        "data-v611-vending-bulk-transaction-count",
+        String(self.vendingVerification?.bulkTransactionCount ?? 0)
+      );
+      root.setAttribute("data-v611-vending-last-bulk-item", String(self.vendingVerification?.lastBulkItemId || ""));
+      root.setAttribute(
+        "data-v611-vending-remaining-mystery-rolls",
+        String(self.vendingVerification?.remainingMysteryRolls ?? "")
+      );
+    }
     root.setAttribute("data-v550-self-body-hits", String(self.bodyHits ?? ""));
     root.setAttribute("data-v550-self-grit", String(self.gritCharges ?? ""));
     root.setAttribute("data-v550-fighter-energy", String(self.fighterEnergyCharge ?? ""));
@@ -21591,7 +21640,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "canvas-visibility-lifecycle-v610";
+const version = "vending-atomic-settlement-v611";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22550,7 +22599,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=canvas-visibility-lifecycle-v610", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=vending-atomic-settlement-v611", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
