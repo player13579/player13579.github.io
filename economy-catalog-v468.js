@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "result-semantic-settlement-v619",
+    version: "ate-perceptual-mechanism-diversity-v620",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
