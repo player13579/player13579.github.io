@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "reduced-motion-runtime-accessibility-v609";
+const DVA_CLIENT_RELEASE = "canvas-visibility-lifecycle-v610";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -868,7 +868,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "reduced-motion-runtime-accessibility-v609";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "canvas-visibility-lifecycle-v610";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1801,7 +1801,7 @@ function init() {
   }, 15_000);
   setInterval(pollState, 250);
   setInterval(() => void checkOnlineAvailability(), 60_000);
-  state.frameDriver = globalThis.DVAFrameLoop?.start(drawLoop) || null;
+  state.frameDriver = globalThis.DVAFrameLoop?.start(drawLoop, () => state.screen === "game") || null;
 }
 
 async function initializeProfileIdentity() {
@@ -2367,6 +2367,7 @@ function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   const previous = state.screen;
   state.screen = next;
+  state.frameDriver?.sync?.();
   if (previous !== next && (state.activeScrollRegion || state.expandedScrollRegion)) {
     setSelectedScrollRegion(null, { focus: false });
   }
@@ -2578,10 +2579,15 @@ function setTacticsNovelScene(requestedIndex, options = {}) {
 }
 
 function syncTacticsNovelAnimation() {
-  const active = state.screen === "tactics" && state.tacticsChapterId === "tactics-novel" && !els.tacticsNovelStage?.hidden;
+  const hidden = typeof document !== "undefined" && document.hidden;
+  const active = !hidden && state.screen === "tactics" && state.tacticsChapterId === "tactics-novel" && !els.tacticsNovelStage?.hidden;
   if (!active) {
     if (state.tacticsNovelFrame) cancelAnimationFrame(state.tacticsNovelFrame);
     state.tacticsNovelFrame = 0;
+    if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
+      els.tacticsNovelCanvas.dataset.motionMode = hidden ? "hidden-paused" : "inactive";
+      els.tacticsNovelCanvas.dataset.frameOwner = "none";
+    }
     return;
   }
   if (prefersReducedMotion()) {
@@ -2743,7 +2749,7 @@ function drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entr
 
 function drawTacticsNovelFrame(timestamp) {
   state.tacticsNovelFrame = 0;
-  if (state.screen !== "tactics" || state.tacticsChapterId !== "tactics-novel") return;
+  if ((typeof document !== "undefined" && document.hidden) || state.screen !== "tactics" || state.tacticsChapterId !== "tactics-novel") return;
   const reduced = prefersReducedMotion();
   const canvas = els.tacticsNovelCanvas;
   const rect = canvas.getBoundingClientRect();
@@ -7278,6 +7284,7 @@ function bindEvents() {
     finishAbilityBatchPointerHold(event, true);
   }, true);
   document.addEventListener("visibilitychange", () => {
+    syncTacticsNovelAnimation();
     if (document.hidden) {
       cancelActiveRootShortcutHolds();
       cancelActiveAbilityBatchHolds();
@@ -21584,7 +21591,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "reduced-motion-runtime-accessibility-v609";
+const version = "canvas-visibility-lifecycle-v610";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22543,7 +22550,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=reduced-motion-runtime-accessibility-v609", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=canvas-visibility-lifecycle-v610", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

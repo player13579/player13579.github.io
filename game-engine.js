@@ -5,8 +5,9 @@
   const MAX_FRAME_MS = 1000 / 30;
   const MAX_SIMULATION_FRAME_MS = 100;
 
-  function start(onFrame) {
+  function start(onFrame, isFrameEligible = () => true) {
     let active = true;
+    let frameId = 0;
     let lastTimestamp = 0;
     let lastRenderedAt = 0;
     let smoothedDelta = TARGET_FRAME_MS;
@@ -18,11 +19,44 @@
       smoothedDelta = TARGET_FRAME_MS;
     };
 
+    const runnable = () => active && !document.hidden && Boolean(isFrameEligible());
+    const publishFrameLifecycle = () => {
+      const root = document.documentElement;
+      if (!root?.dataset) return;
+      root.dataset.fieldFrameOwner = frameId ? "scheduled" : "none";
+      root.dataset.fieldFrameState = !active
+        ? "stopped"
+        : document.hidden
+          ? "hidden-paused"
+          : !isFrameEligible()
+            ? "screen-paused"
+            : "running";
+    };
+    const cancelScheduledFrame = () => {
+      if (!frameId) return;
+      cancelAnimationFrame(frameId);
+      frameId = 0;
+      publishFrameLifecycle();
+    };
+    const scheduleFrame = () => {
+      if (runnable() && !frameId) frameId = requestAnimationFrame(frame);
+      publishFrameLifecycle();
+    };
+    const sync = () => {
+      resetClock();
+      if (!runnable()) cancelScheduledFrame();
+      else scheduleFrame();
+      publishFrameLifecycle();
+    };
+
     const frame = (timestamp) => {
+      frameId = 0;
       if (!active) return;
+      if (!runnable()) return;
       const verificationFrameInterval = Math.max(0, Number(document.documentElement.dataset.verificationFrameInterval) || 0);
       if (verificationFrameInterval > 0 && lastRenderedAt && timestamp - lastRenderedAt < verificationFrameInterval) {
-        requestAnimationFrame(frame);
+        frameId = requestAnimationFrame(frame);
+        publishFrameLifecycle();
         return;
       }
       lastRenderedAt = timestamp;
@@ -45,19 +79,22 @@
         sampleStartedAt = timestamp;
         sampleFrames = 0;
       }
-      requestAnimationFrame(frame);
+      scheduleFrame();
     };
 
     document.documentElement.dataset.fieldEngine = "raf-smooth";
     document.documentElement.dataset.fieldRenderer = "canvas2d";
-    document.addEventListener("visibilitychange", resetClock);
-    requestAnimationFrame(frame);
+    document.addEventListener("visibilitychange", sync);
+    sync();
 
     return {
       kind: "raf-smooth",
+      sync,
       stop() {
         active = false;
-        document.removeEventListener("visibilitychange", resetClock);
+        cancelScheduledFrame();
+        publishFrameLifecycle();
+        document.removeEventListener("visibilitychange", sync);
       }
     };
   }
