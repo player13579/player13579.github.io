@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "vending-authoritative-availability-v612";
+const DVA_CLIENT_RELEASE = "ui-semantic-finite-motion-quality-v613";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -680,6 +680,7 @@ const state = {
   inventoryVisualWeapon: "",
   vendingOpen: false,
   shopActivationSerial: 0,
+  vendingMotionEvent: 0,
   vendingBulkPurchase: false,
   vendingBulkTransactions: Object.create(null),
   vendingRenderKey: "",
@@ -869,7 +870,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "vending-authoritative-availability-v612";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-semantic-finite-motion-quality-v613";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3331,6 +3332,13 @@ function shopAbilityOwned(abilityId, self = state.data?.self) {
   return Boolean((self?.shopAbilityEntitlements || []).includes(String(abilityId || "")));
 }
 
+function markVendingSemanticMotionEvent(kind) {
+  state.vendingMotionEvent += 1;
+  if (els.vendingPanel?.dataset) {
+    els.vendingPanel.dataset.uiMotionEvent = `${String(kind || "update")}:${state.vendingMotionEvent}`;
+  }
+}
+
 async function executePurchasedShopAbility(ability) {
   if (!ability || !shopAbilityOwned(ability.id)) return false;
   if (ability.behavior === "passive") {
@@ -3368,10 +3376,12 @@ async function purchaseVendingItem(button, { bulk = false } = {}) {
     const ability = DVA_ECONOMY.abilityProduct(button.dataset.shopAbility);
     if (ability) {
       if (shopAbilityOwned(ability.id)) return executePurchasedShopAbility(ability);
-      return api("/api/shop/purchase", {
+      const result = await api("/api/shop/purchase", {
         abilityId: ability.id,
         transactionId: newShopPurchaseTransactionId()
       });
+      if (result) markVendingSemanticMotionEvent("purchase-accepted");
+      return result;
     }
     // Bulk purchase is a single authoritative transaction.  Repeating normal
     // purchases locally races credit changes and can buy a partial, accidental
@@ -3385,6 +3395,7 @@ async function purchaseVendingItem(button, { bulk = false } = {}) {
     // Keep the same accepted-intent ID after a lost response, so a bounded
     // retry is a server replay rather than a second all-credit settlement.
     if (result && bulk) clearPendingVendingBulkTransaction(itemId);
+    if (result) markVendingSemanticMotionEvent(bulk ? "bulk-purchase-accepted" : "purchase-accepted");
     return result;
   } finally {
     delete button.dataset.purchasePending;
@@ -6309,6 +6320,7 @@ function bindEvents() {
   els.vendingBulkPurchase.addEventListener("change", () => {
     state.vendingBulkPurchase = Boolean(els.vendingBulkPurchase.checked);
     if (!state.vendingBulkPurchase) stopVendingHold({ suppressClick: true });
+    markVendingSemanticMotionEvent(state.vendingBulkPurchase ? "bulk-on" : "bulk-off");
     state.vendingRenderKey = "";
     if (state.data) renderVending(state.data);
   });
@@ -10239,10 +10251,16 @@ function resetLocalSession() {
   state.hackerSelectedRecipeId = "";
   state.hackerSelectedByCategory = Object.create(null);
   state.vendingOpen = false;
+  state.vendingMotionEvent = 0;
   state.vendingBulkPurchase = false;
   state.vendingBulkTransactions = Object.create(null);
   els.vendingBulkPurchase.checked = false;
   state.vendingRenderKey = "";
+  if (els.vendingPanel?.dataset) {
+    delete els.vendingPanel.dataset.uiMotionState;
+    delete els.vendingPanel.dataset.uiMotionRevision;
+    delete els.vendingPanel.dataset.uiMotionEvent;
+  }
   state.vendingCategoryId = "generate-supply";
   state.vendingSelectedByCategory = Object.create(null);
   state.vendingPageByCategory = Object.create(null);
@@ -10291,12 +10309,18 @@ function applyState(data, options = {}) {
     cancelEnhanceAction();
     cancelThrowTargeting(true);
     state.vendingOpen = false;
+    state.vendingMotionEvent = 0;
     state.vendingBulkPurchase = false;
     state.vendingBulkTransactions = Object.create(null);
     els.vendingBulkPurchase.checked = false;
     els.vendingPanel.hidden = true;
     els.itemControl.hidden = true;
     state.vendingRenderKey = "";
+    if (els.vendingPanel?.dataset) {
+      delete els.vendingPanel.dataset.uiMotionState;
+      delete els.vendingPanel.dataset.uiMotionRevision;
+      delete els.vendingPanel.dataset.uiMotionEvent;
+    }
     state.itemRenderKey = "";
     setOperatorBranchesOpen(false);
     if (["selecting", "ended"].includes(data.phase)) resetRootBorrowedAbilitySelection();
@@ -13801,6 +13825,30 @@ function renderVending(data) {
     category.id,
     page
   ]);
+  const motionStates = [...pageButtons].map((button) => {
+    const availabilityState = vendingCardAvailability(button, data);
+    const id = shopButtonId(button);
+    const stateToken = availabilityState.capacity < 1
+      ? "cap-reached"
+      : availabilityState.purchaseUnavailable
+        ? "credit-blocked"
+        : availabilityState.bulkUnavailable
+          ? "bulk-unavailable"
+          : availabilityState.owned
+            ? "owned"
+            : "available";
+    return `${id}:${stateToken}`;
+  });
+  const motionStateTokens = new Set(motionStates.map((entry) => entry.split(":")[1]));
+  const dominantMotionState = ["bulk-unavailable", "cap-reached", "credit-blocked", "owned", "available"]
+    .find((entry) => motionStateTokens.has(entry)) || "available";
+  els.vendingPanel.dataset.uiMotionState = dominantMotionState;
+  els.vendingPanel.dataset.uiMotionRevision = [
+    category.id,
+    page,
+    state.vendingBulkPurchase ? "bulk-on" : "bulk-off",
+    ...motionStates
+  ].join("|");
   if (state.vendingRenderKey === renderKey) {
     scheduleActiveEffectsLayout();
     return;
@@ -21711,7 +21759,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "vending-authoritative-availability-v612";
+const version = "ui-semantic-finite-motion-quality-v613";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22670,7 +22718,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=vending-authoritative-availability-v612", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-semantic-finite-motion-quality-v613", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

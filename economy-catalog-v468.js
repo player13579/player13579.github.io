@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "vending-authoritative-availability-v612",
+    version: "ui-semantic-finite-motion-quality-v613",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
