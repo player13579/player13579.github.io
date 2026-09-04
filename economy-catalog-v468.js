@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "keybind-modal-input-isolation-v597",
+    version: "meeting-chat-input-isolation-v598",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "keybind-modal-input-isolation-v597";
+const DVA_CLIENT_RELEASE = "meeting-chat-input-isolation-v598";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -847,7 +847,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "keybind-modal-input-isolation-v597";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "meeting-chat-input-isolation-v598";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5911,6 +5911,50 @@ function handleKeybindModalKeydown(event) {
   return true;
 }
 
+function handleFieldFeedDialogKeydown(event) {
+  if (!state.fieldFeedOpen) return false;
+  const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+  const activeElement = document.activeElement;
+  const editableTarget = eventTarget?.matches?.('input, textarea, [contenteditable="true"]')
+    ? eventTarget
+    : activeElement?.matches?.('input, textarea, [contenteditable="true"]')
+      ? activeElement
+      : null;
+  if (event.key === "Tab") {
+    event.preventDefault();
+    const controls = contextKeyboardElements();
+    if (!controls.length) return true;
+    const active = controls.includes(activeElement) ? activeElement : state.keyboardElement;
+    const currentIndex = controls.indexOf(active);
+    const nextIndex = currentIndex < 0
+      ? (event.shiftKey ? controls.length - 1 : 0)
+      : (currentIndex + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+    setKeyboardSelection(controls[nextIndex], false);
+    return true;
+  }
+  if (editableTarget) {
+    if (event.key === "Escape") event.preventDefault();
+    return true;
+  }
+  if (event.key === "Escape" || event.code === "Backspace") {
+    event.preventDefault();
+    if (!event.repeat) setKeyboardSelection(els.chatInput, false);
+    return true;
+  }
+  if (event.key.startsWith("Arrow")) {
+    event.preventDefault();
+    if (allowSelectionArrowRepeat(event)) navigateKeyboardContext(event.key);
+    return true;
+  }
+  if (event.key === "Enter" || event.code === "Space") {
+    event.preventDefault();
+    if (!event.repeat) activateKeyboardSelection();
+    return true;
+  }
+  event.preventDefault();
+  return true;
+}
+
 function bindEvents() {
   ensureDynamicVendingChoices();
   ensureDynamicAlchemyChoices();
@@ -6646,6 +6690,7 @@ function bindEvents() {
   window.addEventListener("keydown", (event) => {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
     if (handleKeybindModalKeydown(event)) return;
+    if (handleFieldFeedDialogKeydown(event)) return;
     const editableTarget = eventTarget?.matches?.('input, textarea, [contenteditable="true"]')
       ? eventTarget
       : document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')
@@ -6868,7 +6913,7 @@ function bindEvents() {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
     if (eventTarget?.matches?.('input, textarea, [contenteditable="true"]') ||
       document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')) return;
-    if (state.keybindOpen) return;
+    if (state.keybindOpen || state.fieldFeedOpen) return;
     stopRootShortcutKeyHold(event.code);
     stopAbilityBatchKeyHold(event.code, { dispatch: true });
     stopContinuousActionKeyHold(event.code);
@@ -11053,6 +11098,7 @@ function render() {
   );
   if (state.phaseUiKey !== phaseUiKey) {
     closeSwitchDragMenu();
+    if (data?.phase === "meeting") cancelTransientGameInputForBackground();
     state.phaseUiKey = phaseUiKey;
     els.joinPanel.hidden = Boolean(data);
     els.selectPanel.hidden = !data || data.phase !== "selecting";
@@ -21152,7 +21198,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "keybind-modal-input-isolation-v597";
+const version = "meeting-chat-input-isolation-v598";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22108,7 +22154,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=keybind-modal-input-isolation-v597", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=meeting-chat-input-isolation-v598", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
