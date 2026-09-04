@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "movement-transport-resilience-v591",
+    version: "background-hidden-poll-suspension-v592",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

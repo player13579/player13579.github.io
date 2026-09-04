@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "movement-transport-resilience-v591";
+const DVA_CLIENT_RELEASE = "background-hidden-poll-suspension-v592";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -845,7 +845,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "movement-transport-resilience-v591";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "background-hidden-poll-suspension-v592";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -8882,7 +8882,7 @@ async function startSoloMission(missionId) {
 }
 
 async function pollState() {
-  if (!state.roomId || !state.playerId) return;
+  if (document.hidden || !state.roomId || !state.playerId) return;
   // Socket readiness alone is not state freshness. A connected channel can
   // continue receiving non-state traffic while the last accepted room state
   // is stale; in that case HTTP polling is the independent watchdog.
@@ -21054,7 +21054,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "movement-transport-resilience-v591";
+const version = "background-hidden-poll-suspension-v592";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22010,7 +22010,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=movement-transport-resilience-v591", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=background-hidden-poll-suspension-v592", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.
