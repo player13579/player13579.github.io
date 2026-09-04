@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "fluid-whole-surface-visual-quality-v587",
+    version: "independent-flow-motion-v588",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25586,5 +25586,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "fluid-whole-surface-visual-quality-v587" });
+self.postMessage({ type: "ready", version: "independent-flow-motion-v588" });
 })();

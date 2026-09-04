@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "fluid-whole-surface-visual-quality-v587";
+const DVA_CLIENT_RELEASE = "independent-flow-motion-v588";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -840,7 +840,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "fluid-whole-surface-visual-quality-v587";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "independent-flow-motion-v588";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -14837,22 +14837,17 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
   const coherentGust = Math.sin(Math.PI * 2 * 0.075 * sampledTime + seedPhase) * 0.56
     + Math.sin(Math.PI * 2 * 0.163 * sampledTime + seedPhase * 1.7) * 0.29
     + Math.sin(Math.PI * 2 * 0.31 * sampledTime + 1.3) * 0.15;
-  const coherentOffset = projectedLeafShadowOffset(canopyHeight, coherentGust * 0.015, coherentGust * 0.007);
-
   ctx.save();
   ctx.beginPath();
   appendWorldAreaPath(room);
   ctx.clip();
   ctx.globalCompositeOperation = "multiply";
   ctx.filter = "blur(0.85px)";
-  ctx.globalAlpha = 0.2 * intensity;
-  ctx.drawImage(shadeMask, room.x + coherentOffset.x, room.y + coherentOffset.y, room.w, room.h);
-
-  const penumbraOffset = projectedLeafShadowOffset(canopyHeight, coherentGust * 0.009, coherentGust * 0.004);
-  ctx.filter = "blur(1.65px)";
-  ctx.globalAlpha = 0.09 * intensity;
-  ctx.drawImage(shadeMask, room.x + penumbraOffset.x, room.y + penumbraOffset.y, room.w, room.h);
-  ctx.filter = "blur(0.65px)";
+  ctx.globalAlpha = 0.22 * intensity;
+  // The authored canopy map is a stationary lighting key. Wind never pans or
+  // resamples this raster; all movement below is independent shadow geometry.
+  ctx.drawImage(shadeMask, room.x, room.y, room.w, room.h);
+  ctx.filter = "blur(1.1px)";
 
   const clusterColumns = 4;
   const clusterRows = 3;
@@ -14868,15 +14863,19 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
       localFlutter * 0.017,
       localFlutter * 0.009
     );
-    const centerX = room.x + room.w * (0.14 + column * 0.24 + Math.sin(spatialPhase) * 0.018);
-    const centerY = room.y + room.h * (0.18 + row * 0.31 + Math.cos(spatialPhase) * 0.022);
-    ctx.save();
+    const centerX = room.x + room.w * (0.14 + column * 0.24 + Math.sin(spatialPhase) * 0.018) + localOffset.x;
+    const centerY = room.y + room.h * (0.18 + row * 0.31 + Math.cos(spatialPhase) * 0.022) + localOffset.y;
+    const radiusX = room.w * (0.075 + row * 0.008) * (1 + localFlutter * 0.08);
+    const radiusY = room.h * (0.09 + column * 0.004) * (1 - localFlutter * 0.055);
+    const curl = Math.sin(sampledTime * 0.91 + spatialPhase) * 0.22;
+    ctx.globalAlpha = (0.024 + Math.abs(localFlutter) * 0.012) * intensity;
+    ctx.fillStyle = "rgba(24, 55, 42, 0.72)";
     ctx.beginPath();
-    ctx.ellipse(centerX, centerY, room.w * 0.19, room.h * 0.235, 0, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.globalAlpha = 0.115 * intensity;
-    ctx.drawImage(shadeMask, room.x + localOffset.x, room.y + localOffset.y, room.w, room.h);
-    ctx.restore();
+    ctx.moveTo(centerX, centerY - radiusY);
+    ctx.bezierCurveTo(centerX + radiusX * (0.72 + curl), centerY - radiusY * 0.82, centerX + radiusX * (1.12 - curl), centerY + radiusY * 0.3, centerX + radiusX * 0.28, centerY + radiusY);
+    ctx.bezierCurveTo(centerX - radiusX * 0.42, centerY + radiusY * (1.02 + curl), centerX - radiusX * (1.08 + curl), centerY + radiusY * 0.18, centerX - radiusX * 0.36, centerY - radiusY * 0.9);
+    ctx.bezierCurveTo(centerX - radiusX * 0.12, centerY - radiusY * 1.08, centerX - radiusX * 0.04, centerY - radiusY, centerX, centerY - radiusY);
+    ctx.fill();
   }
   ctx.filter = "none";
 
@@ -14931,15 +14930,14 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     128
   );
 
-  // The authored bath rim stays in the room texture. Only highlights inside a
-  // fixed ellipse move, so no frame can displace the bath silhouette.
+  // The authored bath highlight is stationary. Independent Bézier wavefronts
+  // change curvature and phase smoothly; source pixels never drift.
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(0, 8, 118, 31, 0, 0, Math.PI * 2);
   ctx.clip();
   const wavePhase = sampledTime * Math.PI * 0.58;
-  const waterDrift = Math.sin(wavePhase) * 4.2;
-  const waterSourceX = clamp(sourceWidth * 0.025 + waterDrift, 0, sourceWidth * 0.055);
+  const waterSourceX = sourceWidth * 0.025;
   ctx.globalAlpha = intensity * (0.255 + Math.sin(wavePhase) * 0.032);
   ctx.drawImage(
     sprite,
@@ -14955,7 +14953,7 @@ function drawFootBathAmbient(object, time, intensity = 1) {
   ctx.globalAlpha = intensity * (0.115 + Math.cos(wavePhase * 0.73) * 0.022);
   ctx.drawImage(
     sprite,
-    clamp(sourceWidth * 0.035 - waterDrift * 0.64, 0, sourceWidth * 0.06),
+    sourceWidth * 0.035,
     sourceHeight * 0.5,
     sourceWidth * 0.93,
     sourceHeight * 0.25,
@@ -14964,32 +14962,52 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     244,
     70
   );
+  ctx.globalCompositeOperation = "lighter";
+  ctx.filter = "none";
+  ctx.strokeStyle = "rgba(190, 246, 255, 0.82)";
+  ctx.lineCap = "round";
+  for (let wave = 0; wave < 5; wave += 1) {
+    const phase = wavePhase + wave * 1.37;
+    const y = -12 + wave * 6.5 + Math.sin(phase * 0.74) * 2.6;
+    const bend = Math.sin(phase) * 9.5;
+    ctx.globalAlpha = intensity * (0.12 + (wave % 2) * 0.035);
+    ctx.lineWidth = 1.2 + (wave % 3) * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(-104, y);
+    ctx.bezierCurveTo(-54, y - bend, 52, y + bend, 104, y);
+    ctx.stroke();
+  }
   ctx.restore();
 
-  const steamSlices = [
-    { sx: 0.12, sw: 0.2, x: -49, delay: 0.04, wind: 0.8 },
-    { sx: 0.39, sw: 0.22, x: 0, delay: 0.37, wind: 1.15 },
-    { sx: 0.66, sw: 0.2, x: 49, delay: 0.7, wind: 0.95 }
+  const steamColumns = [
+    { x: -49, delay: 0.04, wind: 0.8 },
+    { x: 0, delay: 0.37, wind: 1.15 },
+    { x: 49, delay: 0.7, wind: 0.95 }
   ];
-  for (const steam of steamSlices) {
+  ctx.filter = "blur(1.4px)";
+  ctx.strokeStyle = "rgba(231, 251, 255, 0.82)";
+  ctx.lineCap = "round";
+  for (const steam of steamColumns) {
     const phase = (sampledTime * 0.145 + steam.delay) % 1;
     const rise = 48 * (1 - Math.exp(-phase * 3.25));
     const lateralDrift = steam.wind * 8 * phase ** 1.35;
     const alpha = Math.sin(phase * Math.PI) ** 1.35 * 0.245 * intensity;
     if (alpha <= 0.005) continue;
     ctx.globalAlpha = alpha;
-    ctx.drawImage(
-      sprite,
-      sourceWidth * steam.sx,
-      sourceHeight * 0.13,
-      sourceWidth * steam.sw,
-      sourceHeight * 0.37,
-      steam.x - 29 + lateralDrift,
-      -62 - rise,
-      58 + phase * 10,
-      94 + phase * 20
+    ctx.lineWidth = 8 + phase * 5;
+    ctx.beginPath();
+    ctx.moveTo(steam.x, -46);
+    ctx.bezierCurveTo(
+      steam.x - 10 + lateralDrift * 0.24,
+      -58 - rise * 0.32,
+      steam.x + 12 + lateralDrift * 0.72,
+      -76 - rise * 0.72,
+      steam.x + lateralDrift,
+      -88 - rise
     );
+    ctx.stroke();
   }
+  ctx.filter = "none";
 
   const sparkleSlices = [
     { sx: 0.24, sy: 0.48, x: -67, y: -2, phase: 0.1 },
@@ -15547,12 +15565,8 @@ function drawGravityZones(data) {
       ctx.translate(zone.x, zone.y);
       ctx.globalCompositeOperation = "lighter";
       if (stormTexture) {
-        const spin = phase * 0.08;
-        ctx.save();
-        ctx.rotate(spin);
         ctx.globalAlpha = 0.72;
         ctx.drawImage(stormTexture, -radius, -radius, radius * 2, radius * 2);
-        ctx.restore();
       }
       ctx.fillStyle = "rgba(76,29,149,0.34)";
       ctx.strokeStyle = "rgba(196,181,253,0.9)";
@@ -15587,19 +15601,26 @@ function drawGravityZones(data) {
       const safeX = Number.isFinite(Number(zone.safeX)) ? Number(zone.safeX) : zone.x;
       const safeY = Number.isFinite(Number(zone.safeY)) ? Number(zone.safeY) : zone.y;
       if (!worldPointVisible(safeX, safeY, safeRadius + 70)) continue;
-      const safePulse = 1 + Math.sin(phase * 1.65) * 0.04;
       ctx.save();
       ctx.translate(safeX, safeY);
-      ctx.rotate(-phase * 0.04);
       ctx.globalCompositeOperation = "screen";
       ctx.globalAlpha = 0.82;
       ctx.drawImage(
         safeEyeTexture,
-        -safeRadius * safePulse,
-        -safeRadius * safePulse,
-        safeRadius * safePulse * 2,
-        safeRadius * safePulse * 2
+        -safeRadius,
+        -safeRadius,
+        safeRadius * 2,
+        safeRadius * 2
       );
+      ctx.strokeStyle = "rgba(233, 213, 255, 0.72)";
+      ctx.lineWidth = Math.max(3, safeRadius * 0.035);
+      for (let arc = 0; arc < 4; arc += 1) {
+        const start = -phase * 0.19 + arc * Math.PI / 2;
+        ctx.globalAlpha = 0.24 + arc * 0.07;
+        ctx.beginPath();
+        ctx.arc(0, 0, safeRadius * (0.72 + arc * 0.065), start, start + Math.PI * 0.62);
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -20344,26 +20365,26 @@ const ATE_ANIMATION_PROFILES = Object.freeze({
   clairvoyance: Object.freeze({ family: "horizon-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
 });
 
-const ATE_FLUID_DEFORMATION_PROFILES = Object.freeze({
-  energy: Object.freeze({ axis: "y", amplitude: 0.012, stretch: 0.012, frequency: 2.1, phaseStride: 2.4 }),
-  beam: Object.freeze({ axis: "x", amplitude: 0.009, stretch: 0.026, frequency: 3.4, phaseStride: 1.7 }),
-  ripple: Object.freeze({ axis: "y", amplitude: 0.022, stretch: 0.014, frequency: 1.7, phaseStride: 3.2 }),
-  "flow-up": Object.freeze({ axis: "y", amplitude: 0.029, stretch: 0.018, frequency: 1.35, phaseStride: 2.8 }),
-  "data-down": Object.freeze({ axis: "y", amplitude: 0.012, stretch: 0.01, frequency: 3.2, phaseStride: 4.3 }),
-  "data-up": Object.freeze({ axis: "y", amplitude: 0.014, stretch: 0.011, frequency: 2.8, phaseStride: 4.1 }),
-  "data-accelerate": Object.freeze({ axis: "x", amplitude: 0.011, stretch: 0.023, frequency: 3.8, phaseStride: 2.2 }),
-  shimmer: Object.freeze({ axis: "x", amplitude: 0.008, stretch: 0.014, frequency: 1.9, phaseStride: 3.7 }),
-  orbit: Object.freeze({ axis: "x", amplitude: 0.016, stretch: 0.012, frequency: 1.45, phaseStride: 2.6 }),
-  resonance: Object.freeze({ axis: "y", amplitude: 0.021, stretch: 0.022, frequency: 2.15, phaseStride: 3.1 }),
-  glitch: Object.freeze({ axis: "y", amplitude: 0.027, stretch: 0.008, frequency: 7.4, phaseStride: 5.2 }),
-  teleport: Object.freeze({ axis: "x", amplitude: 0.018, stretch: 0.021, frequency: 2.9, phaseStride: 2.7 }),
-  gravity: Object.freeze({ axis: "y", amplitude: 0.009, stretch: 0.03, frequency: 1.05, phaseStride: 2.1 }),
-  impact: Object.freeze({ axis: "x", amplitude: 0.013, stretch: 0.032, frequency: 2.6, phaseStride: 2.5 }),
-  recoil: Object.freeze({ axis: "x", amplitude: 0.01, stretch: 0.028, frequency: 4.1, phaseStride: 1.8 }),
-  shield: Object.freeze({ axis: "y", amplitude: 0.008, stretch: 0.018, frequency: 1.25, phaseStride: 2.2 }),
-  combustion: Object.freeze({ axis: "y", amplitude: 0.034, stretch: 0.02, frequency: 2.35, phaseStride: 3.4 }),
-  targeting: Object.freeze({ axis: "x", amplitude: 0.008, stretch: 0.016, frequency: 1.65, phaseStride: 2.9 }),
-  clairvoyance: Object.freeze({ axis: "x", amplitude: 0.012, stretch: 0.022, frequency: 1.55, phaseStride: 3.3 })
+const ATE_SMOOTH_MOTION_PROFILES = Object.freeze({
+  energy: Object.freeze({ family: "orbital-breath", tempo: 0.82, elements: 6 }),
+  beam: Object.freeze({ family: "luminous-propagation", tempo: 1.28, elements: 3 }),
+  ripple: Object.freeze({ family: "counter-wave-expansion", tempo: 0.72, elements: 4 }),
+  "flow-up": Object.freeze({ family: "buoyant-plume-growth", tempo: 0.58, elements: 5 }),
+  "data-down": Object.freeze({ family: "eased-packet-descent", tempo: 1.1, elements: 6 }),
+  "data-up": Object.freeze({ family: "eased-packet-ascent", tempo: 0.94, elements: 6 }),
+  "data-accelerate": Object.freeze({ family: "ingress-core-egress", tempo: 1.18, elements: 7 }),
+  shimmer: Object.freeze({ family: "glint-bloom-decay", tempo: 0.66, elements: 5 }),
+  orbit: Object.freeze({ family: "elliptic-depth-orbit", tempo: 0.8, elements: 6 }),
+  resonance: Object.freeze({ family: "wave-convergence-release", tempo: 1.08, elements: 6 }),
+  glitch: Object.freeze({ family: "signal-tear-recovery", tempo: 1.35, elements: 6 }),
+  teleport: Object.freeze({ family: "column-dissolve-rise", tempo: 1.12, elements: 7 }),
+  gravity: Object.freeze({ family: "spiral-inward-compression", tempo: 0.48, elements: 7 }),
+  impact: Object.freeze({ family: "impulse-expansion-decay", tempo: 0.9, elements: 4 }),
+  recoil: Object.freeze({ family: "kick-trail-settle", tempo: 1.3, elements: 5 }),
+  shield: Object.freeze({ family: "guard-segment-circulation", tempo: 0.62, elements: 5 }),
+  combustion: Object.freeze({ family: "flame-rise-curl-dissipate", tempo: 1.08, elements: 7 }),
+  targeting: Object.freeze({ family: "corner-settle-lock", tempo: 0.76, elements: 4 }),
+  clairvoyance: Object.freeze({ family: "horizon-scan-return", tempo: 0.64, elements: 5 })
 });
 
 const REDUCED_VISUAL_MOTION_QUERY = typeof globalThis.matchMedia === "function"
@@ -20374,71 +20395,227 @@ function reducedVisualMotionRequested() {
   return Boolean(REDUCED_VISUAL_MOTION_QUERY?.matches);
 }
 
-// Reconstruct the authored raster in locally warped strips. Source pixels stay
-// registered to their original silhouette instead of sliding as one panoramic
-// image; neighboring strips form a continuous low-amplitude velocity field.
-function drawFluidTexturePatch(targetContext, sprite, width, height, mode, clock, alpha, phaseBias = 0) {
-  const deformation = ATE_FLUID_DEFORMATION_PROFILES[mode] || ATE_FLUID_DEFORMATION_PROFILES.energy;
-  const sourceWidth = Number(sprite.width) || 0;
-  const sourceHeight = Number(sprite.height) || 0;
-  if (!(sourceWidth > 0 && sourceHeight > 0 && width > 0 && height > 0 && alpha > 0.004)) return;
-  const reducedFactor = reducedVisualMotionRequested() ? 0.08 : 1;
-  const amplitude = Math.min(width, height) * deformation.amplitude * reducedFactor;
-  const stretch = deformation.stretch * reducedFactor;
-  const sliceCount = Math.max(4, Math.min(7, Math.round((deformation.axis === "x" ? width : height) / 28)));
+function smoothAteCycle(value) {
+  return ((Number(value) % 1) + 1) % 1;
+}
 
+function smoothAteEase(value) {
+  const unit = clamp(Number(value) || 0, 0, 1);
+  return unit * unit * (3 - 2 * unit);
+}
+
+function drawSmoothAteDot(targetContext, x, y, radius, color, alpha) {
+  if (!(radius > 0 && alpha > 0.002)) return;
+  const gradient = targetContext.createRadialGradient(x, y, 0, x, y, radius);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(0.38, color);
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
   targetContext.globalAlpha = alpha;
-  targetContext.imageSmoothingEnabled = true;
-  targetContext.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
+  targetContext.fillStyle = gradient;
+  targetContext.beginPath();
+  targetContext.arc(x, y, radius, 0, Math.PI * 2);
+  targetContext.fill();
+}
 
-  if (deformation.axis === "x") {
-    const sourceSliceWidth = sourceWidth / sliceCount;
-    const destinationSliceWidth = width / sliceCount;
-    for (let slice = 0; slice < sliceCount; slice += 1) {
-      const unit = (slice + 0.5) / sliceCount;
-      const localPhase = clock * deformation.frequency + unit * Math.PI * deformation.phaseStride + phaseBias;
-      const primary = Math.sin(localPhase);
-      const secondary = Math.sin(localPhase * 0.57 + unit * Math.PI * 3.1);
-      const offsetY = amplitude * (primary * 0.74 + secondary * 0.26);
-      const heightScale = 1 + secondary * stretch;
-      const drawHeight = height * heightScale;
-      targetContext.drawImage(
-        sprite,
-        sourceSliceWidth * slice,
-        0,
-        sourceSliceWidth + 0.6,
-        sourceHeight,
-        -width / 2 + destinationSliceWidth * slice - 0.35,
-        -drawHeight / 2 + offsetY,
-        destinationSliceWidth + 0.7,
-        drawHeight
-      );
+// The raster is never sampled here. It remains a stationary semantic key while
+// independent geometry supplies continuous pose, trajectory and lifecycle motion.
+function drawIndependentAteMotionGeometry(targetContext, mode, width, height, time = 0, phase = 0, intensity = 1, progress = 0) {
+  if (!(width > 0 && height > 0)) return;
+  const strength = clamp(Number(intensity) || 0, 0, 1.45);
+  if (strength <= 0.002) return;
+  const normalizedMode = normalizeAteGlowMode(mode);
+  const motion = ATE_SMOOTH_MOTION_PROFILES[normalizedMode] || ATE_SMOOTH_MOTION_PROFILES.energy;
+  const glow = ATE_GLOW_PROFILES[normalizedMode] || ATE_GLOW_PROFILES.energy;
+  const clock = Number(time) * motion.tempo + Number(phase) * 0.37;
+  const unitSize = Math.min(width, height);
+  const drawRibbon = (x1, y1, cx1, cy1, cx2, cy2, x2, y2, lineWidth, alpha, color = glow.core) => {
+    targetContext.globalAlpha = clamp(alpha * strength, 0, 0.92);
+    targetContext.strokeStyle = color;
+    targetContext.lineWidth = Math.max(1, lineWidth);
+    targetContext.beginPath();
+    targetContext.moveTo(x1, y1);
+    targetContext.bezierCurveTo(cx1, cy1, cx2, cy2, x2, y2);
+    targetContext.stroke();
+  };
+
+  targetContext.save();
+  targetContext.globalCompositeOperation = "lighter";
+  targetContext.filter = "none";
+  targetContext.lineCap = "round";
+  targetContext.lineJoin = "round";
+  targetContext.shadowColor = glow.aura;
+  targetContext.shadowBlur = Math.max(4, unitSize * 0.055 * strength);
+
+  if (normalizedMode === "beam") {
+    for (let index = 0; index < 3; index += 1) {
+      const cycle = smoothAteCycle(clock * (0.54 + index * 0.035) + index / 3);
+      const eased = smoothAteEase(cycle);
+      const x = -width * 0.46 + eased * width * 0.92;
+      const y = (-0.2 + index * 0.2) * height + Math.sin(cycle * Math.PI * 2) * height * 0.025;
+      const life = Math.sin(cycle * Math.PI) ** 1.5;
+      drawRibbon(x - width * 0.16, y, x - width * 0.05, y - height * 0.035, x + width * 0.05, y + height * 0.035, x + width * 0.16, y, unitSize * 0.026, life * 0.56);
     }
-    return;
+  } else if (normalizedMode === "ripple") {
+    for (let index = 0; index < 4; index += 1) {
+      const cycle = smoothAteCycle(clock * 0.42 + index * 0.25);
+      const eased = smoothAteEase(cycle);
+      targetContext.globalAlpha = Math.sin(cycle * Math.PI) * 0.42 * strength;
+      targetContext.strokeStyle = index % 2 ? glow.core : glow.aura;
+      targetContext.lineWidth = Math.max(1, unitSize * (0.016 - index * 0.0015));
+      targetContext.beginPath();
+      targetContext.ellipse(0, height * 0.08, width * (0.12 + eased * 0.34), height * (0.045 + eased * 0.16), Math.sin(clock + index) * 0.025, 0, Math.PI * 2);
+      targetContext.stroke();
+    }
+  } else if (normalizedMode === "flow-up" || normalizedMode === "combustion") {
+    const flame = normalizedMode === "combustion";
+    for (let index = 0; index < motion.elements; index += 1) {
+      const cycle = smoothAteCycle(clock * (flame ? 0.42 : 0.25) + index / motion.elements);
+      const eased = 1 - (1 - cycle) ** 2;
+      const originX = (-0.34 + index * (0.68 / Math.max(1, motion.elements - 1))) * width;
+      const sway = Math.sin(clock * (2.1 + index * 0.08) + index * 1.7) * width * (flame ? 0.075 : 0.045);
+      const topY = height * 0.31 - eased * height * (flame ? 0.72 : 0.58);
+      const life = Math.sin(cycle * Math.PI) ** 1.3;
+      drawRibbon(originX, height * 0.32, originX - sway * 0.25, height * 0.12, originX + sway, topY + height * 0.14, originX + sway * 0.62, topY, unitSize * (flame ? 0.038 : 0.026) * (1 - cycle * 0.46), life * (flame ? 0.52 : 0.35), index % 2 ? glow.core : glow.aura);
+    }
+  } else if (["data-down", "data-up", "data-accelerate"].includes(normalizedMode)) {
+    const accelerate = normalizedMode === "data-accelerate";
+    const direction = normalizedMode === "data-down" ? 1 : -1;
+    for (let index = 0; index < motion.elements; index += 1) {
+      const cycle = smoothAteCycle(clock * (0.43 + index * 0.008) + index / motion.elements);
+      const eased = smoothAteEase(cycle);
+      let x;
+      let y;
+      if (accelerate) {
+        const inbound = index < Math.ceil(motion.elements / 2);
+        x = inbound ? -width * 0.43 + eased * width * 0.39 : width * 0.04 + eased * width * 0.39;
+        y = (-0.27 + (index % 4) * 0.18) * height * (1 - Math.sin(eased * Math.PI) * 0.72);
+      } else {
+        x = (-0.31 + (index % 5) * 0.155) * width + Math.sin(clock + index) * width * 0.012;
+        y = direction * (-height * 0.36 + eased * height * 0.72);
+      }
+      const life = Math.sin(cycle * Math.PI);
+      drawSmoothAteDot(targetContext, x, y, unitSize * (0.026 + life * 0.018), index % 2 ? glow.core : glow.aura, life * 0.58 * strength);
+    }
+  } else if (normalizedMode === "shimmer") {
+    for (let index = 0; index < motion.elements; index += 1) {
+      const cycle = smoothAteCycle(clock * 0.48 + index * 0.217);
+      const bloom = Math.sin(cycle * Math.PI) ** 3;
+      const x = Math.sin(index * 2.31) * width * 0.34;
+      const y = Math.cos(index * 1.73) * height * 0.28;
+      const radius = unitSize * (0.018 + bloom * 0.045);
+      drawRibbon(x - radius, y, x - radius * 0.25, y, x + radius * 0.25, y, x + radius, y, Math.max(1, radius * 0.24), bloom * 0.7);
+      drawRibbon(x, y - radius, x, y - radius * 0.25, x, y + radius * 0.25, x, y + radius, Math.max(1, radius * 0.24), bloom * 0.7);
+    }
+  } else if (normalizedMode === "orbit") {
+    targetContext.globalAlpha = 0.15 * strength;
+    targetContext.strokeStyle = glow.aura;
+    targetContext.lineWidth = Math.max(1, unitSize * 0.009);
+    targetContext.beginPath();
+    targetContext.ellipse(0, 0, width * 0.34, height * 0.22, Math.sin(clock * 0.3) * 0.14, 0, Math.PI * 2);
+    targetContext.stroke();
+    for (let index = 0; index < motion.elements; index += 1) {
+      const angle = clock * (0.72 + index * 0.018) + index * Math.PI * 2 / motion.elements;
+      const depth = 0.72 + Math.sin(angle) * 0.28;
+      drawSmoothAteDot(targetContext, Math.cos(angle) * width * 0.34, Math.sin(angle) * height * 0.22, unitSize * (0.025 + depth * 0.018), index % 2 ? glow.core : glow.aura, depth * 0.52 * strength);
+    }
+  } else if (normalizedMode === "resonance") {
+    const pulse = smoothAteCycle(clock * 0.48);
+    const convergence = 1 - Math.abs(pulse * 2 - 1);
+    for (const side of [-1, 1]) {
+      const startX = side * width * 0.44;
+      const endX = side * width * (0.35 - convergence * 0.28);
+      drawRibbon(startX, -height * 0.28, side * width * 0.26, -height * 0.08, side * width * 0.16, height * 0.08, endX, height * 0.28, unitSize * 0.025, (0.24 + convergence * 0.42), side > 0 ? glow.core : glow.aura);
+    }
+    drawSmoothAteDot(targetContext, 0, 0, unitSize * (0.035 + convergence * 0.075), glow.core, convergence * 0.68 * strength);
+  } else if (normalizedMode === "glitch") {
+    for (let index = 0; index < motion.elements; index += 1) {
+      const cycle = smoothAteCycle(clock * (0.75 + index * 0.025) + index * 0.19);
+      const recover = Math.sin(cycle * Math.PI);
+      const y = (-0.32 + index * 0.125) * height;
+      const tear = Math.sin(clock * 4.2 + index * 2.1) * width * 0.13 * recover;
+      drawRibbon(-width * 0.32 + tear, y, -width * 0.12, y - height * 0.012, width * 0.12, y + height * 0.012, width * 0.32 - tear * 0.35, y, unitSize * 0.014, recover * 0.44, index % 2 ? glow.core : glow.aura);
+    }
+  } else if (normalizedMode === "teleport") {
+    for (let index = 0; index < motion.elements; index += 1) {
+      const cycle = smoothAteCycle(clock * (0.34 + index * 0.006) + index / motion.elements);
+      const eased = smoothAteEase(cycle);
+      const x = (-0.34 + index * (0.68 / Math.max(1, motion.elements - 1))) * width;
+      const y = height * 0.36 - eased * height * 0.72;
+      const life = Math.sin(cycle * Math.PI);
+      drawRibbon(x, y + height * 0.18, x + Math.sin(clock + index) * width * 0.025, y + height * 0.11, x - Math.sin(clock * 0.7 + index) * width * 0.02, y + height * 0.04, x, y, unitSize * 0.018, life * 0.48);
+      drawSmoothAteDot(targetContext, x, y, unitSize * 0.022, glow.core, life * 0.5 * strength);
+    }
+  } else if (normalizedMode === "gravity") {
+    for (let index = 0; index < motion.elements; index += 1) {
+      const cycle = smoothAteCycle(clock * (0.31 + index * 0.004) + index / motion.elements);
+      const eased = smoothAteEase(cycle);
+      const angle = (1 - eased) * Math.PI * 2.4 + index * Math.PI * 2 / motion.elements;
+      const radius = unitSize * (0.42 * (1 - eased) + 0.035);
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius * 0.74;
+      const life = Math.sin(cycle * Math.PI);
+      drawSmoothAteDot(targetContext, x, y, unitSize * (0.02 + (1 - eased) * 0.018), index % 2 ? glow.core : glow.aura, life * 0.58 * strength);
+    }
+  } else if (normalizedMode === "impact") {
+    const eventProgress = clamp(Number(progress) || smoothAteCycle(clock * 0.48), 0, 1);
+    const eased = 1 - (1 - eventProgress) ** 3;
+    for (let index = 0; index < motion.elements; index += 1) {
+      const local = clamp(eased - index * 0.11, 0, 1);
+      targetContext.globalAlpha = (1 - local) * 0.62 * strength;
+      targetContext.strokeStyle = index % 2 ? glow.core : glow.aura;
+      targetContext.lineWidth = Math.max(1, unitSize * (0.032 - index * 0.004));
+      targetContext.beginPath();
+      targetContext.ellipse(0, 0, width * (0.06 + local * 0.4), height * (0.06 + local * 0.4), 0, 0, Math.PI * 2);
+      targetContext.stroke();
+    }
+  } else if (normalizedMode === "recoil") {
+    const kick = Math.sin(clamp(Number(progress) || smoothAteCycle(clock * 0.65), 0, 1) * Math.PI);
+    for (let index = 0; index < motion.elements; index += 1) {
+      const y = (-0.28 + index * 0.14) * height;
+      const length = width * (0.12 + kick * (0.18 + index * 0.012));
+      drawRibbon(width * 0.18, y, width * 0.08, y - height * 0.018, -width * 0.04, y + height * 0.018, width * 0.18 - length, y, unitSize * 0.017, kick * (0.5 - index * 0.035));
+    }
+  } else if (normalizedMode === "shield") {
+    const breathe = 0.94 + Math.sin(clock * Math.PI * 2) * 0.04;
+    for (let index = 0; index < motion.elements; index += 1) {
+      const angle = clock * 0.55 + index * Math.PI * 2 / motion.elements;
+      const radiusX = width * 0.38 * breathe;
+      const radiusY = height * 0.38 * breathe;
+      targetContext.globalAlpha = (0.2 + (index % 2) * 0.08) * strength;
+      targetContext.strokeStyle = index % 2 ? glow.core : glow.aura;
+      targetContext.lineWidth = Math.max(1, unitSize * 0.024);
+      targetContext.beginPath();
+      targetContext.ellipse(0, 0, radiusX, radiusY, 0, angle, angle + Math.PI * 0.58);
+      targetContext.stroke();
+    }
+  } else if (normalizedMode === "targeting") {
+    const settle = 1 - smoothAteEase(0.5 + Math.sin(clock * Math.PI * 2) * 0.5) * 0.18;
+    for (let index = 0; index < 4; index += 1) {
+      const angle = index * Math.PI / 2;
+      const x = Math.cos(angle) * width * 0.34 * settle;
+      const y = Math.sin(angle) * height * 0.34 * settle;
+      const tangentX = -Math.sin(angle) * unitSize * 0.08;
+      const tangentY = Math.cos(angle) * unitSize * 0.08;
+      drawRibbon(x - tangentX, y - tangentY, x - tangentX * 0.35, y - tangentY * 0.35, x + tangentX * 0.35, y + tangentY * 0.35, x + tangentX, y + tangentY, unitSize * 0.021, 0.52, index % 2 ? glow.core : glow.aura);
+    }
+  } else if (normalizedMode === "clairvoyance") {
+    const scan = 0.5 + Math.sin(clock * Math.PI * 2) * 0.5;
+    const eased = smoothAteEase(scan);
+    const y = -height * 0.28 + eased * height * 0.56;
+    drawRibbon(-width * 0.4, y, -width * 0.14, y - height * 0.05, width * 0.14, y + height * 0.05, width * 0.4, y, unitSize * 0.025, 0.62);
+    for (let index = 0; index < motion.elements; index += 1) {
+      const angle = clock * 0.45 + index * Math.PI * 2 / motion.elements;
+      drawSmoothAteDot(targetContext, Math.cos(angle) * width * 0.3, Math.sin(angle) * height * 0.16, unitSize * 0.022, index % 2 ? glow.core : glow.aura, 0.34 * strength);
+    }
+  } else {
+    const breathe = 0.72 + Math.sin(clock * Math.PI * 2) * 0.18;
+    for (let index = 0; index < motion.elements; index += 1) {
+      const angle = clock * (0.5 + index * 0.016) + index * Math.PI * 2 / motion.elements;
+      const radius = unitSize * (0.13 + index * 0.024 + breathe * 0.035);
+      drawSmoothAteDot(targetContext, Math.cos(angle) * radius, Math.sin(angle) * radius * 0.78, unitSize * (0.022 + breathe * 0.015), index % 2 ? glow.core : glow.aura, (0.3 + breathe * 0.22) * strength);
+    }
   }
-
-  const sourceSliceHeight = sourceHeight / sliceCount;
-  const destinationSliceHeight = height / sliceCount;
-  for (let slice = 0; slice < sliceCount; slice += 1) {
-    const unit = (slice + 0.5) / sliceCount;
-    const localPhase = clock * deformation.frequency + unit * Math.PI * deformation.phaseStride + phaseBias;
-    const primary = Math.sin(localPhase);
-    const secondary = Math.sin(localPhase * 0.61 - unit * Math.PI * 3.4);
-    const offsetX = amplitude * (primary * 0.72 + secondary * 0.28);
-    const widthScale = 1 + secondary * stretch;
-    const drawWidth = width * widthScale;
-    targetContext.drawImage(
-      sprite,
-      0,
-      sourceSliceHeight * slice,
-      sourceWidth,
-      sourceSliceHeight + 0.6,
-      -drawWidth / 2 + offsetX,
-      -height / 2 + destinationSliceHeight * slice - 0.35,
-      drawWidth,
-      destinationSliceHeight + 0.7
-    );
-  }
+  targetContext.restore();
 }
 
 // Keep the authored silhouette pixel-stable. Animation is limited to clipped
@@ -20487,188 +20664,17 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   );
   ctx.globalAlpha = inheritedAlpha * baseTextureAlpha;
   ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-
-  const drawClippedOverlay = (clipX, clipY, clipWidth, clipHeight, alpha, sourceOffsetX = 0, sourceOffsetY = 0, ellipse = false) => {
-    if (!(clipWidth > 0 && clipHeight > 0) || alpha <= 0.004) return;
-    ctx.save();
-    ctx.beginPath();
-    if (ellipse) ctx.ellipse(clipX + clipWidth / 2, clipY + clipHeight / 2, clipWidth / 2, clipHeight / 2, 0, 0, Math.PI * 2);
-    else ctx.rect(clipX, clipY, clipWidth, clipHeight);
-    ctx.clip();
-    const overlayAlpha = clamp(
-        Math.max(visibility.minimumAlpha * 0.72, alpha * intensity * effectiveOpacityBoost * animationProfile.overlayGain),
-      0,
-      1
-    );
-    const phaseBias = (sourceOffsetX / Math.max(1, width)) * Math.PI * 2.7
-      + (sourceOffsetY / Math.max(1, height)) * Math.PI * 3.1;
-    drawFluidTexturePatch(
+  if (visibilityProfile !== "ambient") {
+    drawIndependentAteMotionGeometry(
       ctx,
-      sprite,
+      animationMode,
       width,
       height,
-      animationMode,
-      clock,
-      inheritedAlpha * overlayAlpha,
-      phaseBias
+      sampledTime,
+      phase + progress,
+      intensity * animationProfile.overlayGain,
+      progress
     );
-    ctx.restore();
-  };
-
-  if (animationMode === "beam") {
-    const travel = ((clock * 0.72) % 1 + 1) % 1;
-    const bandWidth = width * 0.13;
-    for (let band = 0; band < 3; band += 1) {
-      const position = (travel + band / 3) % 1;
-      const x = -width * 0.42 + position * width * 0.84 - bandWidth / 2;
-      drawClippedOverlay(x, -height * 0.41, bandWidth, height * 0.82, 0.28 + band * 0.06, -position * width * 0.025, 0);
-    }
-  } else if (animationMode === "ripple") {
-    for (let band = 0; band < 4; band += 1) {
-      const y = -height * 0.34 + band * height * 0.19;
-      const drift = Math.sin(clock * 2.8 + band * 1.41) * width * 0.018;
-      drawClippedOverlay(-width * 0.41, y, width * 0.82, height * 0.12, 0.25 + Math.sin(clock * 3.1 + band) * 0.06, drift, 0, true);
-    }
-  } else if (animationMode === "flow-up") {
-    for (let plume = 0; plume < 3; plume += 1) {
-      const travel = ((clock * (0.19 + plume * 0.025) + plume * 0.31) % 1 + 1) % 1;
-      const plumeWidth = width * (0.16 + plume * 0.015);
-      const plumeHeight = height * 0.28;
-      const x = (-0.24 + plume * 0.24) * width - plumeWidth / 2;
-      const y = height * 0.24 - travel * height * 0.58 - plumeHeight / 2;
-      drawClippedOverlay(x, y, plumeWidth, plumeHeight, Math.sin(travel * Math.PI) * 0.42, 0, travel * height * 0.035, true);
-    }
-  } else if (animationMode === "data-accelerate") {
-    for (let stream = 0; stream < 6; stream += 1) {
-      const input = stream < 3;
-      const lane = input ? stream : stream - 3;
-      const travel = ((clock * (0.38 + stream * 0.012) + lane * 0.23) % 1 + 1) % 1;
-      const packetWidth = width * (input ? 0.09 : 0.13);
-      const packetHeight = height * (input ? 0.09 : 0.055);
-      const x = input
-        ? -width * 0.42 + travel * width * 0.31
-        : width * 0.11 + travel * width * 0.31;
-      const y = (-0.23 + lane * 0.23) * height - packetHeight / 2;
-      drawClippedOverlay(x - packetWidth / 2, y, packetWidth, packetHeight, Math.sin(travel * Math.PI) * 0.48, 0, 0, true);
-    }
-    const scanTravel = ((clock * 0.62) % 1 + 1) % 1;
-    const scanX = -width * 0.1 + scanTravel * width * 0.2;
-    drawClippedOverlay(scanX - width * 0.018, -height * 0.31, width * 0.036, height * 0.62, 0.42, 0, 0);
-  } else if (animationMode === "data-down" || animationMode === "data-up") {
-    const direction = animationMode === "data-down" ? 1 : -1;
-    for (let stream = 0; stream < 5; stream += 1) {
-      const travel = ((clock * (0.34 + stream * 0.016) + stream * 0.19) % 1 + 1) % 1;
-      const directedTravel = direction > 0 ? travel : 1 - travel;
-      const packetWidth = width * (0.08 + (stream % 2) * 0.025);
-      const packetHeight = height * (0.08 + (stream % 3) * 0.018);
-      const x = (-0.28 + stream * 0.14) * width - packetWidth / 2;
-      const y = -height * 0.34 + directedTravel * height * 0.68 - packetHeight / 2;
-      const alpha = Math.sin(travel * Math.PI) * (0.34 + (stream % 2) * 0.08);
-      drawClippedOverlay(x, y, packetWidth, packetHeight, alpha, Math.sin(clock * 2.2 + stream) * width * 0.008, direction * height * 0.018);
-    }
-    const scanTravel = ((clock * 0.46) % 1 + 1) % 1;
-    const scanY = -height * 0.32 + (direction > 0 ? scanTravel : 1 - scanTravel) * height * 0.64;
-    drawClippedOverlay(-width * 0.34, scanY - height * 0.025, width * 0.68, height * 0.05, 0.32, 0, direction * height * 0.012);
-  } else if (animationMode === "shimmer") {
-    const glints = [[-0.27, -0.18, 0.1], [0.23, -0.05, 1.7], [-0.08, 0.24, 3.2], [0.3, 0.25, 4.4]];
-    for (const [x, y, glintPhase] of glints) {
-      const alpha = Math.max(0, Math.sin(clock * 3.2 + glintPhase)) ** 2 * 0.56;
-      drawClippedOverlay(x * width - width * 0.055, y * height - height * 0.055, width * 0.11, height * 0.11, alpha, 0, 0, true);
-    }
-  } else if (animationMode === "orbit") {
-    for (let satellite = 0; satellite < 6; satellite += 1) {
-      const angle = clock * (0.9 + satellite * 0.035) + satellite * Math.PI / 3;
-      const x = Math.cos(angle) * width * 0.28;
-      const y = Math.sin(angle) * height * 0.2;
-      drawClippedOverlay(x - width * 0.065, y - height * 0.065, width * 0.13, height * 0.13, 0.34, -x * 0.12, -y * 0.12, true);
-    }
-  } else if (animationMode === "resonance") {
-    const synchronizedPulse = 0.32 + Math.max(0, Math.sin(clock * Math.PI * 2)) * 0.24;
-    for (const side of [-1, 1]) {
-      const centerX = side * width * 0.16;
-      drawClippedOverlay(
-        centerX - width * 0.31,
-        -height * 0.38,
-        width * 0.62,
-        height * 0.76,
-        synchronizedPulse,
-        -side * width * 0.012,
-        0,
-        true
-      );
-    }
-    const corePulse = 0.42 + Math.max(0, Math.sin(clock * Math.PI * 4 + Math.PI / 2)) * 0.34;
-    drawClippedOverlay(-width * 0.105, -height * 0.34, width * 0.21, height * 0.68, corePulse, 0, Math.sin(clock * 2.7) * height * 0.008, true);
-  } else if (animationMode === "glitch") {
-    for (let band = 0; band < 7; band += 1) {
-      const y = -height * 0.4 + band * height * 0.13;
-      const offset = Math.sin(clock * 8.7 + band * 2.17) * width * (band % 2 ? 0.055 : 0.028);
-      drawClippedOverlay(-width * 0.43, y, width * 0.86, height * 0.075, 0.24 + (band % 3) * 0.05, offset, 0);
-    }
-  } else if (animationMode === "teleport") {
-    for (let slice = 0; slice < 6; slice += 1) {
-      const x = -width * 0.42 + slice * width * 0.14;
-      const offsetY = Math.sin(clock * 4.2 + slice * 0.92) * height * 0.055;
-      drawClippedOverlay(x, -height * 0.42, width * 0.095, height * 0.84, 0.28 + slice * 0.025, 0, offsetY);
-    }
-  } else if (animationMode === "gravity") {
-    for (let ring = 0; ring < 4; ring += 1) {
-      const cycle = ((clock * 0.42 + ring * 0.23) % 1 + 1) % 1;
-      const ringWidth = width * (0.72 - cycle * 0.48);
-      const ringHeight = height * (0.72 - cycle * 0.48);
-      drawClippedOverlay(-ringWidth / 2, -ringHeight / 2, ringWidth, ringHeight, 0.22 + (1 - cycle) * 0.24, 0, 0, true);
-    }
-  } else if (animationMode === "impact") {
-    for (let band = 0; band < 4; band += 1) {
-      const cycle = clamp(progress * 1.3 - band * 0.12, 0, 1);
-      const bandWidth = width * (0.14 + cycle * 0.72);
-      const bandHeight = height * (0.12 + cycle * 0.72);
-      drawClippedOverlay(-bandWidth / 2, -bandHeight / 2, bandWidth, bandHeight, (1 - cycle) * 0.42 + 0.12, 0, 0, true);
-    }
-  } else if (animationMode === "recoil") {
-    for (let band = 0; band < 5; band += 1) {
-      const y = -height * 0.36 + band * height * 0.18;
-      const kick = Math.sin(progress * Math.PI) * width * (0.07 + band * 0.008);
-      drawClippedOverlay(-width * 0.42, y, width * 0.84, height * 0.1, 0.24 + band * 0.035, -kick, 0);
-    }
-  } else if (animationMode === "shield") {
-    for (let shell = 0; shell < 3; shell += 1) {
-      const pulse = 0.78 + Math.sin(clock * 2.4 + shell * 1.6) * 0.08;
-      const shellWidth = width * pulse * (1 - shell * 0.13);
-      const shellHeight = height * pulse * (1 - shell * 0.13);
-      drawClippedOverlay(-shellWidth / 2, -shellHeight / 2, shellWidth, shellHeight, 0.2 + shell * 0.08, 0, 0, true);
-    }
-  } else if (animationMode === "combustion") {
-    for (let plume = 0; plume < 5; plume += 1) {
-      const travel = ((clock * (0.24 + plume * 0.018) + plume * 0.19) % 1 + 1) % 1;
-      const plumeWidth = width * (0.12 + (plume % 2) * 0.035);
-      const plumeHeight = height * 0.24;
-      const x = (-0.3 + plume * 0.15) * width - plumeWidth / 2;
-      const y = height * 0.28 - travel * height * 0.63 - plumeHeight / 2;
-      drawClippedOverlay(x, y, plumeWidth, plumeHeight, Math.sin(travel * Math.PI) * 0.46, Math.sin(clock + plume) * width * 0.012, travel * height * 0.04, true);
-    }
-  } else if (animationMode === "targeting") {
-    for (let quadrant = 0; quadrant < 4; quadrant += 1) {
-      const phaseClock = clock * 2.4 + quadrant * Math.PI / 2;
-      const settle = 0.76 + Math.sin(phaseClock) * 0.08;
-      const glintWidth = width * 0.18;
-      const glintHeight = height * 0.18;
-      const x = Math.cos(quadrant * Math.PI / 2) * width * 0.26 * settle;
-      const y = Math.sin(quadrant * Math.PI / 2) * height * 0.2 * settle;
-      drawClippedOverlay(x - glintWidth / 2, y - glintHeight / 2, glintWidth, glintHeight, 0.26 + Math.max(0, Math.sin(phaseClock)) * 0.22, -x * 0.05, -y * 0.05, true);
-    }
-  } else {
-    for (let mote = 0; mote < 5; mote += 1) {
-      const angle = clock * (0.48 + mote * 0.035) + mote * Math.PI * 0.4;
-      const orbitX = Math.cos(angle) * width * (0.11 + mote * 0.018);
-      const orbitY = Math.sin(angle) * height * (0.1 + mote * 0.014);
-      const moteWidth = width * 0.13;
-      const moteHeight = height * 0.13;
-      drawClippedOverlay(orbitX - moteWidth / 2, orbitY - moteHeight / 2, moteWidth, moteHeight, 0.3 + Math.sin(clock * 2.7 + mote) * 0.08, -orbitX * 0.08, -orbitY * 0.08, true);
-    }
-  }
-  if (visibilityProfile !== "ambient") {
-    drawAteComplementaryVfx(ctx, animationMode, width, height, sampledTime, phase + progress, intensity * 0.82);
   }
   ctx.restore();
   return true;
@@ -21297,7 +21303,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "fluid-whole-surface-visual-quality-v587";
+const version = "independent-flow-motion-v588";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22253,7 +22259,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=fluid-whole-surface-visual-quality-v587", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=independent-flow-motion-v588", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.
