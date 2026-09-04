@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ate-perceptual-mechanism-diversity-v620",
+    version: "terminal-result-offline-poll-churn-v621",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25809,5 +25809,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ate-perceptual-mechanism-diversity-v620" });
+self.postMessage({ type: "ready", version: "terminal-result-offline-poll-churn-v621" });
 })();

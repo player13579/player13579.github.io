@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ate-perceptual-mechanism-diversity-v620",
+    version: "terminal-result-offline-poll-churn-v621",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
