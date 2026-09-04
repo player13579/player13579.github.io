@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "toast-live-region-accessibility-v599";
+const DVA_CLIENT_RELEASE = "mystery-reveal-session-lifecycle-v600";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -847,7 +847,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "toast-live-region-accessibility-v599";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mystery-reveal-session-lifecycle-v600";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9837,6 +9837,7 @@ function resetLocalSession() {
   state.lastRoomChatId = "";
   state.lastRoomChatRoomId = "";
   hideChatNotification();
+  clearMysteryReveal();
   state.motion.clear();
   state.facing.clear();
   state.walkAnimations.clear();
@@ -10334,6 +10335,16 @@ function detectLuminousResult(previous, next) {
   }
 }
 
+function clearMysteryReveal() {
+  const activeTimer = state.mysteryRevealTimer;
+  if (activeTimer !== null) {
+    clearTimeout(activeTimer);
+    if (state.mysteryRevealTimer === activeTimer) state.mysteryRevealTimer = null;
+  }
+  els.mysteryReveal.hidden = true;
+  els.mysteryRevealResult.textContent = "";
+}
+
 function detectMysteryResult(previous, next) {
   if (!previous || !next.self.lastMysteryResultAt || next.self.lastMysteryResultAt <= (previous.self.lastMysteryResultAt || 0)) return;
   const result = next.self.lastMysteryResult || "効果なし";
@@ -10341,9 +10352,13 @@ function detectMysteryResult(previous, next) {
   els.mysteryRevealResult.textContent = result;
   els.mysteryReveal.hidden = false;
   clearTimeout(state.mysteryRevealTimer);
-  state.mysteryRevealTimer = setTimeout(() => {
+  const mysteryRevealTimer = setTimeout(() => {
+    if (state.mysteryRevealTimer !== mysteryRevealTimer) return;
+    state.mysteryRevealTimer = null;
     els.mysteryReveal.hidden = true;
+    els.mysteryRevealResult.textContent = "";
   }, 6000);
+  state.mysteryRevealTimer = mysteryRevealTimer;
 }
 
 function isActionBlocked(data = state.data) {
@@ -21198,7 +21213,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "toast-live-region-accessibility-v599";
+const version = "mystery-reveal-session-lifecycle-v600";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22157,7 +22172,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=toast-live-region-accessibility-v599", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=mystery-reveal-session-lifecycle-v600", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

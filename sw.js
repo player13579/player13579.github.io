@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "toast-live-region-accessibility-v599";
-const CACHE_NAME = "dva-static-v599-toast-live-region-accessibility";
+const RUNTIME_RELEASE = "mystery-reveal-session-lifecycle-v600";
+const CACHE_NAME = "dva-static-v600-mystery-reveal-session-lifecycle";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

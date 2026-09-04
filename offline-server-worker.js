@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "toast-live-region-accessibility-v599",
+    version: "mystery-reveal-session-lifecycle-v600",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25586,5 +25586,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "toast-live-region-accessibility-v599" });
+self.postMessage({ type: "ready", version: "mystery-reveal-session-lifecycle-v600" });
 })();
