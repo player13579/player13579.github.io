@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "runtime-cache-bounded-v594";
+const DVA_CLIENT_RELEASE = "background-hidden-availability-v595";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -642,6 +642,7 @@ const state = {
   onlineAvailable: false,
   onlineAvailabilityChecked: false,
   onlineAvailabilityCheckInFlight: false,
+  onlineAvailabilityCheckOwner: null,
   startupFullscreenPending: false,
   tacticsChapterId: "tactics-basics",
   tacticsNovelIndex: 0,
@@ -846,7 +847,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "runtime-cache-bounded-v594";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "background-hidden-availability-v595";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1975,14 +1976,25 @@ function applyOnlineAvailabilityUi() {
 }
 
 async function checkOnlineAvailability() {
+  // A background document cannot present a fresher connection choice, so do
+  // not acquire the request/timer owner until the page can use the result.
+  // The foreground visibility owner below performs an immediate refresh.
+  if (document.hidden) return state.onlineAvailable;
   if (state.onlineAvailabilityCheckInFlight) {
     const deadline = performance.now() + 2600;
-    while (state.onlineAvailabilityCheckInFlight && performance.now() < deadline) await delay(60);
+    while (state.onlineAvailabilityCheckInFlight && !document.hidden && performance.now() < deadline) await delay(60);
     return state.onlineAvailable;
   }
   state.onlineAvailabilityCheckInFlight = true;
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 2500);
+  const owner = {
+    controller,
+    cancelledForBackground: false,
+    timeout: 0
+  };
+  state.onlineAvailabilityCheckOwner = owner;
+  owner.timeout = window.setTimeout(() => controller.abort(), 2500);
+  let nextOnlineAvailable = false;
   try {
     const response = await fetch(apiUrl("/api/online-capacity"), {
       method: "GET",
@@ -1992,7 +2004,7 @@ async function checkOnlineAvailability() {
     });
     const result = response.ok ? await response.json().catch(() => null) : null;
     const compatibleRelease = result?.requiredClientRelease === DVA_CLIENT_RELEASE;
-    state.onlineAvailable = Boolean(
+    nextOnlineAvailable = Boolean(
       response.ok &&
       result?.ok &&
       compatibleRelease &&
@@ -2000,12 +2012,24 @@ async function checkOnlineAvailability() {
       result?.available
     );
   } catch {
-    state.onlineAvailable = false;
+    nextOnlineAvailable = false;
   } finally {
-    window.clearTimeout(timeout);
-    state.onlineAvailabilityChecked = true;
-    state.onlineAvailabilityCheckInFlight = false;
-    applyOnlineAvailabilityUi();
+    if (owner.timeout) {
+      window.clearTimeout(owner.timeout);
+      owner.timeout = 0;
+    }
+    // A result which completed after the page became hidden is already stale
+    // for the next visible presentation. Leave accepted state untouched and
+    // let the visibility-resume owner obtain one current result.
+    if (state.onlineAvailabilityCheckOwner === owner) {
+      state.onlineAvailabilityCheckOwner = null;
+      state.onlineAvailabilityCheckInFlight = false;
+    }
+    if (!document.hidden && !owner.cancelledForBackground && state.onlineAvailabilityCheckOwner === null) {
+      state.onlineAvailable = nextOnlineAvailable;
+      state.onlineAvailabilityChecked = true;
+      applyOnlineAvailabilityUi();
+    }
   }
   return state.onlineAvailable;
 }
@@ -6949,6 +6973,19 @@ function bindEvents() {
   }, true);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
+      const availabilityOwner = state.onlineAvailabilityCheckOwner;
+      if (availabilityOwner) {
+        availabilityOwner.cancelledForBackground = true;
+        if (availabilityOwner.timeout) {
+          window.clearTimeout(availabilityOwner.timeout);
+          availabilityOwner.timeout = 0;
+        }
+        availabilityOwner.controller.abort();
+        if (state.onlineAvailabilityCheckOwner === availabilityOwner) {
+          state.onlineAvailabilityCheckOwner = null;
+          state.onlineAvailabilityCheckInFlight = false;
+        }
+      }
       fullscreenSwipeGuard.clear();
       stopContinuousActionHold();
       stopContinuousActionKeyHold();
@@ -6967,6 +7004,7 @@ function bindEvents() {
     else {
       recordUsageResume();
       void flushUsageAnalytics();
+      void checkOnlineAvailability();
     }
     syncBgm();
   });
@@ -21064,7 +21102,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "runtime-cache-bounded-v594";
+const version = "background-hidden-availability-v595";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22018,80 +22056,12 @@ function showToast(message) {
   }, 3600);
 }
 
-async function runV594RuntimeCacheVerification(registration) {
-  if (URL_PARAMETERS.get("verify") !== "v594-runtime-cache") return;
-  const root = document.documentElement;
-  root.setAttribute("data-v594-runtime-cache-status", "RUNNING");
-  const cacheName = "dva-static-v594-runtime-cache-bounded";
-  const probePrefix = "/assets/v594-runtime-probe-";
-  try {
-    const controllerDeadline = Date.now() + 6000;
-    while (
-      !String(navigator.serviceWorker.controller?.scriptURL || "").includes("rev=2") &&
-      Date.now() < controllerDeadline
-    ) {
-      await new Promise((resolve) => window.setTimeout(resolve, 50));
-    }
-    const controllerUrl = String(navigator.serviceWorker.controller?.scriptURL || "");
-    if (!controllerUrl.includes("rev=2")) throw new Error("current v594 revision 2 controller unavailable");
-
-    const cache = await caches.open(cacheName);
-    for (const request of await cache.keys()) {
-      if (new URL(request.url).pathname.startsWith(probePrefix)) await cache.delete(request);
-    }
-    const beforeCount = (await cache.keys()).length;
-    for (let index = 0; index < 132; index += 1) {
-      await cache.put(`${probePrefix}${index}.txt`, new Response(`probe-${index}`, { status: 200 }));
-    }
-    for (let index = 0; index < 12; index += 1) {
-      await fetch(`/manifest.webmanifest?verify=v594-query-${index}`, { cache: "reload" });
-    }
-
-    const trimDeadline = Date.now() + 3000;
-    let afterKeys = await cache.keys();
-    while (afterKeys.length > 128 && Date.now() < trimDeadline) {
-      await new Promise((resolve) => window.setTimeout(resolve, 50));
-      afterKeys = await cache.keys();
-    }
-    const manifestKeys = afterKeys.filter((request) => new URL(request.url).pathname === "/manifest.webmanifest");
-    const requiredBoot = ["/", "/index.html", "/styles.css", "/app.js", "/offline-runtime.js"];
-    const bootMissing = requiredBoot.filter((pathname) => {
-      return !afterKeys.some((request) => new URL(request.url).pathname === pathname);
-    });
-    const probeRemaining = afterKeys.filter((request) => new URL(request.url).pathname.startsWith(probePrefix)).length;
-    const queryCanonical = manifestKeys.length === 1 && !manifestKeys[0].url.includes("verify=");
-    const passed = afterKeys.length <= 128 && bootMissing.length === 0 && queryCanonical;
-
-    root.setAttribute("data-v594-runtime-cache-controller", controllerUrl);
-    root.setAttribute("data-v594-runtime-cache-before", String(beforeCount));
-    root.setAttribute("data-v594-runtime-cache-after", String(afterKeys.length));
-    root.setAttribute("data-v594-runtime-cache-probe-remaining", String(probeRemaining));
-    root.setAttribute("data-v594-runtime-cache-query-keys", String(manifestKeys.length));
-    root.setAttribute("data-v594-runtime-cache-boot-missing", bootMissing.join(","));
-    root.setAttribute("data-v594-runtime-cache-status", passed ? "PASS" : "FAIL");
-
-    for (const request of afterKeys) {
-      if (new URL(request.url).pathname.startsWith(probePrefix)) await cache.delete(request);
-    }
-    const cleaned = (await cache.keys()).filter((request) => new URL(request.url).pathname.startsWith(probePrefix)).length;
-    root.setAttribute("data-v594-runtime-cache-cleaned", String(cleaned));
-  } catch (error) {
-    root.setAttribute("data-v594-runtime-cache-error", String(error?.message || error));
-    root.setAttribute("data-v594-runtime-cache-status", "FAIL");
-  }
-}
-
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=runtime-cache-bounded-v594&rev=2", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=background-hidden-availability-v595", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
     await registration.update();
-    await runV594RuntimeCacheVerification(registration);
-  }).catch((error) => {
-    if (URL_PARAMETERS.get("verify") !== "v594-runtime-cache") return;
-    document.documentElement.setAttribute("data-v594-runtime-cache-error", String(error?.message || error));
-    document.documentElement.setAttribute("data-v594-runtime-cache-status", "FAIL");
-  });
+  }).catch(() => {});
 }

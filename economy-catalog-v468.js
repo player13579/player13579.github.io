@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "runtime-cache-bounded-v594",
+    version: "background-hidden-availability-v595",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
