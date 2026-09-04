@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "switch-drag-listbox-next-tick-identity-v605",
+    version: "switch-drag-authoritative-options-v606",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
