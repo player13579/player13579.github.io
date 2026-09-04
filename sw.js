@@ -373,6 +373,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
 ]);
 const PRECACHE_CONCURRENCY = 4;
 const RUNTIME_CACHE_MAX_ENTRIES = 128;
+let runtimeCacheMutation = Promise.resolve();
 
 function installCacheKey(asset) {
   if (asset === "/" || asset === "/index.html") return asset;
@@ -424,12 +425,16 @@ async function trimRuntimeCache(cache) {
   }
 }
 
-async function commitRuntimeResponse(request, response) {
+function commitRuntimeResponse(request, response) {
   const key = runtimeCacheKey(request);
-  if (!key || !response.ok) return;
-  const cache = await caches.open(CACHE_NAME);
-  await cache.put(key, response);
-  await trimRuntimeCache(cache);
+  if (!key || !response.ok) return Promise.resolve();
+  const operation = runtimeCacheMutation.catch(() => {}).then(async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(key, response);
+    await trimRuntimeCache(cache);
+  });
+  runtimeCacheMutation = operation;
+  return operation;
 }
 
 async function matchRuntimeResponse(request) {
