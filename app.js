@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ate-owner-causal-motion-diversity-v623";
+const DVA_CLIENT_RELEASE = "ate-composite-perceptual-diversity-v624";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -867,7 +867,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-owner-causal-motion-diversity-v623";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-composite-perceptual-diversity-v624";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -16227,6 +16227,11 @@ function drawResolvePoint(data) {
   ctx.lineWidth = near ? 6 : 3;
   ctx.beginPath();
   ctx.ellipse(point.x, point.y + 30, 48, 18, 0, 0, Math.PI * 2);
+  // The resolve point owns a slow, grounded boundary orbit.  It is attached
+  // to the authoritative use range rather than borrowing a generic sparkle.
+  const resolveOrbit = time * 0.9 + Number(point.x || 0) * 0.006;
+  ctx.arc(point.x, point.y + 30, 39 + (near ? 5 : 0), resolveOrbit, resolveOrbit + Math.PI * 0.78);
+  ctx.arc(point.x, point.y + 30, 39 + (near ? 5 : 0), resolveOrbit + Math.PI, resolveOrbit + Math.PI * 1.56);
   ctx.stroke();
   ctx.globalAlpha = 1;
   ctx.fillStyle = "rgba(8,20,28,0.94)";
@@ -16307,15 +16312,18 @@ function drawGravityZones(data) {
       ctx.translate(zone.x, zone.y);
       ctx.globalCompositeOperation = "lighter";
       if (stormTexture) {
-        ctx.globalAlpha = 0.72;
+        // The authored storm raster supplies material identity, but its dense
+        // shard detail must remain a quiet bed under the readable compression
+        // field instead of becoming the whole effect language.
+        ctx.globalAlpha = 0.26;
         ctx.drawImage(stormTexture, -radius, -radius, radius * 2, radius * 2);
       }
       const compression = Math.sin(phase * 0.34) * radius * 0.035;
       const precession = Math.sin(phase * 0.19) * 0.16;
       const fieldGradient = ctx.createRadialGradient(0, 0, radius * 0.08, 0, 0, radius);
-      fieldGradient.addColorStop(0, "rgba(233,213,255,0.3)");
-      fieldGradient.addColorStop(0.42, "rgba(139,92,246,0.19)");
-      fieldGradient.addColorStop(1, "rgba(76,29,149,0.04)");
+      fieldGradient.addColorStop(0, "rgba(233,213,255,0.17)");
+      fieldGradient.addColorStop(0.42, "rgba(139,92,246,0.12)");
+      fieldGradient.addColorStop(1, "rgba(76,29,149,0.02)");
       ctx.fillStyle = fieldGradient;
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
@@ -16363,7 +16371,7 @@ function drawGravityZones(data) {
       ctx.save();
       ctx.translate(safeX, safeY);
       ctx.globalCompositeOperation = "screen";
-      ctx.globalAlpha = 0.82;
+      ctx.globalAlpha = 0.42;
       ctx.drawImage(
         safeEyeTexture,
         -safeRadius,
@@ -16819,7 +16827,7 @@ function drawHazardFields(data) {
     const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
     ctx.save();
     ctx.translate(Number(field.x) || 0, Number(field.y) || 0);
-    ctx.globalAlpha = 0.72;
+    ctx.globalAlpha = 0.42;
     ctx.globalCompositeOperation = kind === "water" ? "source-over" : "lighter";
     if (sprite) {
       drawAnimatedTextureCentered(sprite, 0, 0, radius * 2.25, radius * 2.25, {
@@ -16835,6 +16843,40 @@ function drawHazardFields(data) {
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
+    }
+    // The persistent hazard owns one continuous material surface. The exact
+    // raster remains stationary beneath it; motion comes from connected shape
+    // deformation instead of a spray of interchangeable particles.
+    const flow = Math.sin(now / 520 + Number(field.x || 0) * 0.007);
+    ctx.globalAlpha = 0.58;
+    ctx.lineWidth = Math.max(2.5, radius * 0.045);
+    ctx.beginPath();
+    if (kind === "fire") {
+      ctx.fillStyle = "rgba(249,115,22,.2)";
+      ctx.strokeStyle = "rgba(254,215,170,.82)";
+      ctx.moveTo(-radius * 0.72, radius * 0.34);
+      ctx.bezierCurveTo(-radius * 0.52, -radius * (0.18 + flow * 0.08), -radius * 0.2, -radius * 0.62, 0, -radius * (0.42 + flow * 0.1));
+      ctx.bezierCurveTo(radius * 0.28, -radius * 0.72, radius * 0.56, -radius * (0.1 - flow * 0.07), radius * 0.72, radius * 0.34);
+      ctx.quadraticCurveTo(0, radius * 0.58, -radius * 0.72, radius * 0.34);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (kind === "poison") {
+      ctx.fillStyle = "rgba(132,204,22,.14)";
+      ctx.strokeStyle = "rgba(190,242,100,.7)";
+      ctx.moveTo(-radius * 0.78, radius * 0.08);
+      ctx.bezierCurveTo(-radius * 0.56, -radius * (0.52 + flow * 0.07), -radius * 0.12, -radius * 0.42, radius * 0.08, -radius * 0.28);
+      ctx.bezierCurveTo(radius * 0.44, -radius * 0.56, radius * 0.76, -radius * 0.2, radius * 0.72, radius * 0.18);
+      ctx.bezierCurveTo(radius * 0.42, radius * 0.52, -radius * 0.48, radius * 0.48, -radius * 0.78, radius * 0.08);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = "rgba(125,211,252,.76)";
+      ctx.ellipse(0, radius * 0.08, radius * (0.74 + flow * 0.03), radius * 0.28, 0, 0, Math.PI * 2);
+      ctx.moveTo(-radius * 0.52, radius * 0.04);
+      ctx.ellipse(0, radius * 0.04, radius * 0.48, radius * (0.16 + flow * 0.015), 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -17485,6 +17527,16 @@ function drawClairvoyanceAte(landing, time) {
     intensity: 0.94,
     baseAlpha: 0.18
   });
+  // A clairvoyance landing is a lens, so its visible motion remains a
+  // bounded scan aperture at the selected landing point.
+  const scanY = Math.sin(time * 1.7) * 9;
+  ctx.globalAlpha = 0.34;
+  ctx.strokeStyle = "rgba(186,230,253,.92)";
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.ellipse(landing.x, landing.y - 4 + scanY, size * 0.31, size * 0.115, 0, Math.PI * 0.08, Math.PI * 0.92);
+  ctx.ellipse(landing.x, landing.y - 4 - scanY * 0.45, size * 0.15, size * 0.046, 0, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -17911,6 +17963,10 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
 }
 
 function drawGeneratedStandaloneEffect(effect, progress) {
+  // bottle-shards is the sole finite physical-material exception.  It stays
+  // owned by this renderer and is never routed through a generic visual E.
+  const bottleShards = effect?.type === "bottle-shards";
+  if (bottleShards && ATE_PHYSICAL_PARTICLE_CONTRACT["bottle-shards"]?.owner !== "drawGeneratedStandaloneEffect") return false;
   if (effect?.type === "fighter-energy-charge") {
     recordVerificationMarkerRender(effect, "ordinary-ec", state.frameNow || performance.now());
   } else if (effect?.type === "action-dodge" && effect?.variant === "fixture-positive-control") {
@@ -18173,6 +18229,19 @@ function drawTacticalSystemsEffect(effect, progress) {
     intensity: 0.9,
     baseAlpha: 0.15
   });
+  // Tactical cells reveal through an owner-bound bracket sweep, not a shared
+  // particle language. The atlas cell index determines the settled quadrant.
+  const tacticalSweep = (progress * 0.82 + index * 0.091) % 1;
+  const tacticalSpan = size * (0.18 + tacticalSweep * 0.18);
+  ctx.globalAlpha *= 0.46;
+  ctx.strokeStyle = "rgba(165,243,252,.9)";
+  ctx.lineWidth = Math.max(2, size * 0.016);
+  ctx.beginPath();
+  ctx.moveTo(-tacticalSpan, -tacticalSpan * 0.64);
+  ctx.lineTo(-tacticalSpan * 0.32, -tacticalSpan * 0.64);
+  ctx.moveTo(tacticalSpan, tacticalSpan * 0.64);
+  ctx.lineTo(tacticalSpan * 0.32, tacticalSpan * 0.64);
+  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -18385,6 +18454,20 @@ function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
     intensity: 0.9,
     baseAlpha: 0.15
   });
+  // Philosophy effects retain a single, indexed idea contour. It grows from
+  // the effect event and never emits free-floating decorative fragments.
+  const philosophyRadius = size * (0.16 + pulse * 0.055);
+  ctx.globalAlpha *= 0.42;
+  ctx.strokeStyle = ["#fde68a", "#c4b5fd", "#a7f3d0", "#bae6fd"][index % 4];
+  ctx.lineWidth = Math.max(2, size * 0.014);
+  ctx.beginPath();
+  if (index % 2 === 0) {
+    ctx.ellipse(0, -size * 0.08, philosophyRadius, philosophyRadius * 0.42, index * 0.16, 0, Math.PI * 2);
+  } else {
+    ctx.moveTo(-philosophyRadius, size * 0.12);
+    ctx.quadraticCurveTo(0, -size * 0.18 - pulse * size * 0.06, philosophyRadius, size * 0.12);
+  }
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -18535,6 +18618,30 @@ function drawActionEffect(effect, progress, now) {
     intensity: 0.86,
     baseAlpha: 0.14
   });
+  // Ordinary actions get a compact owner-bound gesture.  This is keyed by
+  // the actual action semantics instead of stamping one central E shape over
+  // every action texture.
+  const actionMode = semanticEffectMotion(effect.type, effect.variant);
+  const actionReach = size * (0.16 + pulse * 0.08);
+  ctx.globalAlpha *= 0.44;
+  ctx.strokeStyle = "rgba(226,232,240,.9)";
+  ctx.lineWidth = Math.max(2, size * 0.016);
+  ctx.beginPath();
+  if (["beam", "recoil"].includes(actionMode)) {
+    ctx.moveTo(-actionReach * 1.5, 0);
+    ctx.quadraticCurveTo(0, -actionReach * 0.24, actionReach * 1.5, 0);
+  } else if (["shield", "ripple", "gravity"].includes(actionMode)) {
+    ctx.arc(0, 0, actionReach, -Math.PI * 0.8, Math.PI * 0.8);
+  } else if (["data-down", "data-up", "data-accelerate", "glitch"].includes(actionMode)) {
+    const gateY = actionMode === "data-up" ? -actionReach * 0.58 : actionReach * 0.58;
+    ctx.moveTo(-actionReach, gateY);
+    ctx.lineTo(actionReach, gateY);
+    ctx.moveTo(0, -actionReach * 0.86);
+    ctx.lineTo(0, actionReach * 0.86);
+  } else {
+    ctx.ellipse(0, 0, actionReach, actionReach * 0.46, 0, 0, Math.PI * 2);
+  }
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -18584,6 +18691,17 @@ function drawAlchemyEffect(effect, index, progress) {
     intensity: 0.9,
     baseAlpha: 0.15
   });
+  // Alchemy remains a reaction vessel: an event-sized, connected reaction
+  // contour keyed to its atlas recipe, never independent flakes.
+  const reaction = size * (0.14 + pulse * 0.075);
+  ctx.globalAlpha *= 0.46;
+  ctx.strokeStyle = index % 2 ? "rgba(196,181,253,.92)" : "rgba(110,231,183,.9)";
+  ctx.lineWidth = Math.max(2, size * 0.014);
+  ctx.beginPath();
+  ctx.ellipse(0, size * 0.07, reaction * 1.15, reaction * 0.42, 0, 0, Math.PI * 2);
+  ctx.moveTo(-reaction * 0.72, size * 0.07);
+  ctx.quadraticCurveTo(0, -reaction * 0.82, reaction * 0.72, size * 0.07);
+  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -18654,15 +18772,16 @@ function drawGravityStormImpactEffect(effect, progress) {
 }
 
 function drawStatusAndHazardEffect(effect, progress) {
+  const persistentHazardActivation = effect.type.startsWith("hazard-");
   let source = null;
   if (["status-burning", "hazard-fire"].includes(effect.type)) source = state.textures.hazardFireEffect;
   else if (["status-poison", "hazard-poison"].includes(effect.type)) source = state.textures.hazardPoisonEffect;
   else if (["status-burn-cleared", "hazard-water"].includes(effect.type)) source = state.textures.hazardWaterEffect;
   else if (effect.type === "status-poison-cleared" || effect.type === "hazard-antidote") source = state.textures.itemAntidote;
-  if (!source) return false;
-  const prepared = transparentSpriteSource(source, `status-effect-${effect.type}`, 18);
+  if (!source && !persistentHazardActivation) return false;
+  const prepared = source ? transparentSpriteSource(source, `status-effect-${effect.type}`, 18) : null;
   const sprite = prepared ? normalizedSpriteFrame(prepared, `status-effect-${effect.type}`, 1, 1, 0, 0) : null;
-  if (!sprite) return false;
+  if (!sprite && !persistentHazardActivation) return false;
   const pulse = Math.sin(Math.min(1, progress) * Math.PI);
   const baseSize = Math.max(150, Number(effect.radius) * 2 || 210);
   ctx.save();
@@ -18670,13 +18789,40 @@ function drawStatusAndHazardEffect(effect, progress) {
   ctx.globalCompositeOperation = effect.type.includes("water") || effect.type.includes("cleared") ? "source-over" : "lighter";
   const size = baseSize * (0.9 + pulse * 0.16);
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86) * 0.76;
-  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
-    mode: semanticEffectMotion(effect.type, effect.variant),
-    progress,
-    phase: effect.type.includes("cleared") ? 0.39 : 0.12,
-    intensity: 0.9,
-    baseAlpha: 0.14
-  });
+  // A persistent hazard already owns the one stationary semantic raster in
+  // drawHazardFields. Its activation contributes only connected causal
+  // geometry here, avoiding a second spark-like texture layer.
+  if (!persistentHazardActivation && sprite) {
+    drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+      mode: semanticEffectMotion(effect.type, effect.variant),
+      progress,
+      phase: effect.type.includes("cleared") ? 0.39 : 0.12,
+      intensity: 0.9,
+      baseAlpha: 0.14
+    });
+  }
+  // Material statuses stay connected to their affected area: flame is a
+  // tongue, poison a closed vapour contour, and water/cleanse a settling
+  // surface. No detached dots are emitted from these owners.
+  const material = size * (0.15 + pulse * 0.06);
+  ctx.globalAlpha *= 0.42;
+  ctx.strokeStyle = effect.type.includes("fire") || effect.type.includes("burning")
+    ? "rgba(254,215,170,.92)"
+    : effect.type.includes("poison")
+      ? "rgba(216,180,254,.9)"
+      : "rgba(186,230,253,.92)";
+  ctx.lineWidth = Math.max(2, size * 0.014);
+  ctx.beginPath();
+  if (effect.type.includes("fire") || effect.type.includes("burning")) {
+    ctx.moveTo(-material, material * 0.72);
+    ctx.quadraticCurveTo(-material * 0.38, -material, 0, material * 0.04);
+    ctx.quadraticCurveTo(material * 0.36, -material * 0.76, material, material * 0.72);
+  } else if (effect.type.includes("poison")) {
+    ctx.ellipse(0, 0, material, material * 0.56, 0, 0, Math.PI * 2);
+  } else {
+    ctx.ellipse(0, material * 0.23, material * 1.16, material * 0.35, 0, 0, Math.PI * 2);
+  }
+  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -19301,13 +19447,98 @@ function objectEffectFade(progress) {
   return 1 - normalized * normalized * (3 - 2 * normalized);
 }
 
+function drawSemanticObjectCausalField(effectKind, profile, effect, progress, time, fade) {
+  const pulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
+  const wave = Math.sin(time * (0.82 + (profile.size % 11) * 0.035));
+  const radius = profile.size * (0.18 + pulse * 0.045 + wave * 0.012);
+  ctx.save();
+  ctx.translate(effect.x, effect.y);
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = fade * 0.34;
+  ctx.strokeStyle = profile.accent;
+  ctx.fillStyle = profile.color;
+  ctx.lineWidth = Math.max(2, profile.size * 0.018);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  if (effectKind === "stamina") {
+    const lift = radius * (0.72 + wave * 0.08);
+    ctx.moveTo(-radius * 0.6, lift);
+    ctx.bezierCurveTo(-radius * 0.42, 0, -radius * 0.16, -lift, 0, -lift);
+    ctx.bezierCurveTo(radius * 0.16, -lift, radius * 0.42, 0, radius * 0.6, lift);
+  } else if (effectKind === "credits") {
+    ctx.ellipse(0, 0, radius * 1.12, radius * 0.48, wave * 0.08, 0, Math.PI * 2);
+    ctx.moveTo(-radius * 0.42, 0);
+    ctx.lineTo(radius * 0.42, 0);
+  } else if (effectKind === "mana") {
+    ctx.moveTo(0, -radius);
+    ctx.quadraticCurveTo(radius * 0.8, 0, 0, radius);
+    ctx.quadraticCurveTo(-radius * 0.8, 0, 0, -radius);
+  } else if (effectKind === "cooldownReduction") {
+    const rewind = Math.PI * (1.18 + wave * 0.12);
+    ctx.arc(0, 0, radius, -rewind, rewind * 0.52);
+    ctx.lineTo(radius * 0.72, -radius * 0.34);
+  } else if (effectKind === "statusRecovery") {
+    ctx.ellipse(0, 0, radius, radius * 0.42, 0, 0, Math.PI * 2);
+    ctx.moveTo(-radius * 0.52, radius * 0.06);
+    ctx.quadraticCurveTo(0, -radius * 0.72, radius * 0.52, radius * 0.06);
+  } else if (effectKind === "acceleration") {
+    ctx.moveTo(-radius * 1.18, -radius * 0.42);
+    ctx.bezierCurveTo(-radius * 0.25, -radius * 0.56, radius * 0.32, -radius * 0.12, radius * 1.18, 0);
+    ctx.moveTo(-radius * 1.18, radius * 0.42);
+    ctx.bezierCurveTo(-radius * 0.25, radius * 0.56, radius * 0.32, radius * 0.12, radius * 1.18, 0);
+  } else if (effectKind === "luckBoost") {
+    ctx.moveTo(0, -radius);
+    ctx.lineTo(radius * 0.92, radius * 0.7);
+    ctx.lineTo(-radius * 0.92, -radius * 0.28);
+    ctx.lineTo(radius * 0.92, -radius * 0.28);
+    ctx.lineTo(-radius * 0.92, radius * 0.7);
+    ctx.closePath();
+  } else if (effectKind === "overheal") {
+    ctx.arc(0, 0, radius, -Math.PI * 0.84, Math.PI * 0.84);
+    ctx.moveTo(-radius * 0.55, radius * 0.3);
+    ctx.quadraticCurveTo(0, radius * 0.78, radius * 0.55, radius * 0.3);
+  } else if (effectKind === "relaxation") {
+    ctx.ellipse(0, 0, radius * (1 + wave * 0.06), radius * (0.52 - wave * 0.025), 0, 0, Math.PI * 2);
+  } else if (effectKind === "herbalRecovery") {
+    ctx.moveTo(-radius * 0.9, radius * 0.46);
+    ctx.quadraticCurveTo(-radius * 0.24, -radius, radius * 0.82, -radius * 0.38);
+    ctx.quadraticCurveTo(radius * 0.32, radius * 0.5, -radius * 0.9, radius * 0.46);
+  } else if (effectKind === "healthyMeal") {
+    ctx.moveTo(0, radius * 0.82);
+    ctx.bezierCurveTo(-radius, radius * 0.15, -radius * 0.48, -radius * 0.92, 0, -radius * 0.28);
+    ctx.bezierCurveTo(radius * 0.48, -radius * 0.92, radius, radius * 0.15, 0, radius * 0.82);
+  } else if (effectKind === "mineralWater") {
+    ctx.ellipse(0, radius * 0.2, radius * 1.15, radius * (0.34 + wave * 0.025), 0, 0, Math.PI * 2);
+    ctx.moveTo(-radius * 0.72, -radius * 0.28);
+    ctx.quadraticCurveTo(0, -radius * 0.55, radius * 0.72, -radius * 0.28);
+  } else if (effectKind === "heal") {
+    ctx.moveTo(-radius, 0);
+    ctx.lineTo(radius, 0);
+    ctx.moveTo(0, -radius);
+    ctx.lineTo(0, radius);
+  } else if (effectKind === "fullRecovery") {
+    ctx.ellipse(0, 0, radius, radius, 0, 0, Math.PI * 2);
+    ctx.moveTo(-radius * 0.68, 0);
+    ctx.lineTo(radius * 0.68, 0);
+    ctx.moveTo(0, -radius * 0.68);
+    ctx.lineTo(0, radius * 0.68);
+  } else if (effectKind === "decoy") {
+    ctx.moveTo(-radius * 1.15, 0);
+    ctx.bezierCurveTo(-radius * 0.62, -radius * 0.8, -radius * 0.24, radius * 0.8, 0, 0);
+    ctx.bezierCurveTo(radius * 0.24, -radius * 0.8, radius * 0.62, radius * 0.8, radius * 1.15, 0);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawSemanticObjectEffect(sprite, effect, progress, now) {
-  const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind] || Object.freeze({ motion: "pulse", color: "#67e8f9", accent: "#f8fafc", size: 116 });
+  const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind];
+  if (!profile) return false;
   const time = now / 1000;
   const fade = objectEffectFade(progress);
-  // The semantic raster is a single stationary owner. All motion belongs to
-  // its one continuous mode-specific E field; unrelated texture echoes and
-  // the former generic particle celebration are intentionally absent.
+  // The semantic raster remains stationary. The exact effectKind owns one
+  // connected field below; no generic particle celebration or silent fallback.
   ctx.save();
   ctx.globalAlpha = fade;
   drawAnimatedTextureCentered(sprite, effect.x, effect.y, profile.size, profile.size, {
@@ -19320,6 +19551,8 @@ function drawSemanticObjectEffect(sprite, effect, progress, now) {
     opacityBoost: 3
   });
   ctx.restore();
+  drawSemanticObjectCausalField(effect.effectKind, profile, effect, progress, time, fade);
+  return true;
 }
 
 function drawObjectEffectFallback() {
@@ -19994,6 +20227,31 @@ function drawPersistentStatusAteLayers(player, data) {
       baseAlpha: naturalRecoveryGlow?.baseAlpha ?? 0.15,
       opacityBoost: naturalRecoveryGlow?.opacityBoost ?? 3.2
     });
+    // Persistent states use one marker-attached contour per semantic status.
+    // They are intentionally compact so a status reads as a durable condition
+    // on this player, rather than as particle traffic leaving the marker.
+    const statusWave = Math.sin(time * (1.2 + profile.phase) + profile.phase * Math.PI * 2);
+    const statusRadius = profile.size * (0.19 + statusWave * 0.025);
+    ctx.globalAlpha *= 0.36;
+    ctx.strokeStyle = category === "burning" ? "rgba(254,215,170,.92)"
+      : category === "poison" ? "rgba(216,180,254,.9)"
+        : category === "standFirm" ? "rgba(165,243,252,.92)"
+          : category === "clairvoyance" ? "rgba(186,230,253,.92)"
+            : "rgba(226,232,240,.88)";
+    ctx.lineWidth = Math.max(1.6, profile.size * 0.07);
+    ctx.beginPath();
+    if (category === "burning") {
+      ctx.moveTo(markerX - statusRadius, markerY + statusRadius * 0.66);
+      ctx.quadraticCurveTo(markerX - statusRadius * 0.26, markerY - statusRadius * 1.05, markerX, markerY);
+      ctx.quadraticCurveTo(markerX + statusRadius * 0.42, markerY - statusRadius * 0.76, markerX + statusRadius, markerY + statusRadius * 0.66);
+    } else if (category === "clairvoyance") {
+      ctx.ellipse(markerX, markerY, statusRadius * 1.24, statusRadius * 0.42, 0, Math.PI * 0.1, Math.PI * 0.9);
+    } else if (category === "standFirm" || category === "resistanceBreak") {
+      ctx.arc(markerX, markerY, statusRadius, -Math.PI * 0.82, Math.PI * 0.82);
+    } else {
+      ctx.ellipse(markerX, markerY, statusRadius, statusRadius * 0.48, 0, 0, Math.PI * 2);
+    }
+    ctx.stroke();
     if (category === "naturalRecovery") {
       drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState);
     }
@@ -20968,43 +21226,19 @@ function animatedTextureSize(sprite, maxWidth, maxHeight) {
 }
 
 const EFFECT_TEXTURE_VISIBILITY = Object.freeze({
-  effect: Object.freeze({ minimumAlpha: 0.36, brightness: 1.14, contrast: 1.1, saturation: 1.12 }),
+  // Exact semantic rasters identify the phenomenon while smooth causal
+  // geometry carries motion.  Keeping this bed restrained prevents unrelated
+  // authored flecks from visually collapsing every ATE into glowing debris.
+  effect: Object.freeze({ minimumAlpha: 0.22, brightness: 1.04, contrast: 1.04, saturation: 1.04 }),
   object: Object.freeze({ minimumAlpha: 0, brightness: 1, contrast: 1, saturation: 1 }),
   ambient: Object.freeze({ minimumAlpha: 0, brightness: 1, contrast: 1, saturation: 1 })
 });
 
-const ATE_ANIMATION_PROFILES = Object.freeze({
-  energy: Object.freeze({ family: "continuous-breathing-field", tempo: 0.82, phaseScale: 1.0, progressScale: 0.6, overlayGain: 0.92 }),
-  beam: Object.freeze({ family: "causal-directional-front", tempo: 1.28, phaseScale: 0.45, progressScale: 0.35, overlayGain: 1.08 }),
-  ripple: Object.freeze({ family: "continuous-counter-wave", tempo: 0.72, phaseScale: 1.3, progressScale: 0.8, overlayGain: 0.88 }),
-  "flow-up": Object.freeze({ family: "continuous-buoyant-ribbon", tempo: 0.58, phaseScale: 0.9, progressScale: 0.55, overlayGain: 0.96 }),
-  "data-down": Object.freeze({ family: "causal-descending-gate", tempo: 1.1, phaseScale: 1.7, progressScale: 0.2, overlayGain: 1.02 }),
-  "data-up": Object.freeze({ family: "causal-ascending-gate", tempo: 0.94, phaseScale: 1.4, progressScale: 0.26, overlayGain: 1.02 }),
-  "data-accelerate": Object.freeze({ family: "continuous-compute-conduit", tempo: 1.18, phaseScale: 1.15, progressScale: 0.28, overlayGain: 1.08 }),
-  shimmer: Object.freeze({ family: "continuous-aperture-sheen", tempo: 0.66, phaseScale: 0.7, progressScale: 0.45, overlayGain: 0.84 }),
-  orbit: Object.freeze({ family: "continuous-elliptic-field", tempo: 0.8, phaseScale: 1.8, progressScale: 0.75, overlayGain: 0.9 }),
-  resonance: Object.freeze({ family: "continuous-constructive-interference", tempo: 1.08, phaseScale: 0.88, progressScale: 0.54, overlayGain: 1.12 }),
-  glitch: Object.freeze({ family: "causal-quantized-field", tempo: 1.75, phaseScale: 2.3, progressScale: 0.18, overlayGain: 1.04 }),
-  teleport: Object.freeze({ family: "continuous-phase-connection", tempo: 1.12, phaseScale: 1.1, progressScale: 1.2, overlayGain: 1.0 }),
-  gravity: Object.freeze({ family: "causal-inward-compression", tempo: 0.48, phaseScale: 0.55, progressScale: 0.92, overlayGain: 0.94 }),
-  impact: Object.freeze({ family: "continuous-impulse-deformation", tempo: 0.9, phaseScale: 0.8, progressScale: 1.45, overlayGain: 1.1 }),
-  recoil: Object.freeze({ family: "causal-backward-pressure", tempo: 1.3, phaseScale: 0.6, progressScale: 1.6, overlayGain: 1.06 }),
-  shield: Object.freeze({ family: "continuous-boundary-closure", tempo: 0.62, phaseScale: 1.6, progressScale: 0.35, overlayGain: 0.9 }),
-  combustion: Object.freeze({ family: "continuous-turbulent-flame", tempo: 1.08, phaseScale: 1.2, progressScale: 0.7, overlayGain: 1.08 }),
-  targeting: Object.freeze({ family: "causal-settling-aperture", tempo: 0.76, phaseScale: 0.52, progressScale: 0.24, overlayGain: 0.98 }),
-  clairvoyance: Object.freeze({ family: "continuous-lens-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
-});
-
-// Keep the authored silhouette pixel-stable. Animation is limited to clipped
-// highlight layers inside that footprint, which avoids frame-to-frame wobble.
+// Keep the authored silhouette pixel-stable. Motion and complementary E are
+// owned by the exact outer renderer instead of this shared raster helper.
 function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeight, options = {}) {
   if (!sprite?.width || !sprite?.height) return false;
   const {
-    mode = "energy",
-    time = (state.frameNow || performance.now()) / 1000,
-    progress = 0,
-    phase = 0,
-    intensity = 1,
     flip = false,
     baseAlpha = 0.22,
     opacityBoost = 3,
@@ -21012,12 +21246,6 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   } = options;
   const { width, height } = animatedTextureSize(sprite, maxWidth, maxHeight);
   if (!(width > 0 && height > 0)) return false;
-  const sampledTime = Math.floor(time * 60) / 60;
-  const animationMode = mode == null || mode === "none" ? null : normalizeAteGlowMode(mode);
-  const profile = animationMode ? ATE_ANIMATION_PROFILES[animationMode] : null;
-  const profileTime = profile && !prefersReducedMotion() ? sampledTime * profile.tempo : sampledTime;
-  const profilePhase = profile ? phase * profile.phaseScale + progress * profile.progressScale : phase + progress;
-  const profileIntensity = profile ? intensity * profile.overlayGain : intensity;
   const inheritedAlpha = ctx.globalAlpha;
 
   ctx.save();
@@ -21034,20 +21262,8 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
     const inheritedFilter = ctx.filter && ctx.filter !== "none" ? `${ctx.filter} ` : "";
     ctx.filter = `${inheritedFilter}brightness(${visibility.brightness}) contrast(${visibility.contrast}) saturate(${visibility.saturation})`;
   }
-  if (animationMode) {
-    applyAteGlowContext(
-      ctx,
-      animationMode,
-      profileTime,
-      profilePhase,
-      profileIntensity * (visibilityProfile === "ambient" ? 0.52 : 1)
-    );
-  }
   ctx.globalAlpha = inheritedAlpha * baseTextureAlpha;
   ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-  if (visibilityProfile !== "ambient" && animationMode) {
-    drawAteComplementaryVfx(ctx, animationMode, width, height, profileTime, profilePhase, profileIntensity * 0.82);
-  }
   ctx.restore();
   return true;
 }
@@ -21619,7 +21835,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ate-owner-causal-motion-diversity-v623";
+const version = "ate-composite-perceptual-diversity-v624";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22578,7 +22794,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ate-owner-causal-motion-diversity-v623", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ate-composite-perceptual-diversity-v624", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

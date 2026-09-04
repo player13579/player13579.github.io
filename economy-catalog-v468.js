@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ate-owner-causal-motion-diversity-v623",
+    version: "ate-composite-perceptual-diversity-v624",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
