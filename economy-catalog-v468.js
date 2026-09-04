@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ate-semantic-primitive-diversity-v618",
+    version: "result-semantic-settlement-v619",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

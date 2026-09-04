@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ate-semantic-primitive-diversity-v618";
+const DVA_CLIENT_RELEASE = "result-semantic-settlement-v619";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -288,7 +288,6 @@ const els = {
   mysteryReveal: $("#mysteryReveal"),
   mysteryRevealResult: $("#mysteryRevealResult"),
   endOverlay: $("#endOverlay"),
-  resultConfetti: $("#resultConfetti"),
   endTitle: $("#endTitle"),
   endReason: $("#endReason"),
   resultRanking: $("#resultRanking"),
@@ -637,7 +636,6 @@ const state = {
   operatorRenderKey: "",
   operatorDetailTimer: 0,
   operatorDetailSource: null,
-  resultCelebrationKey: "",
   resultBoardFingerprint: "",
   mapPointer: null,
   expandedMapTap: null,
@@ -869,7 +867,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-semantic-primitive-diversity-v618";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "result-semantic-settlement-v619";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -10221,9 +10219,8 @@ function resetLocalSession() {
   els.shootButton.classList.remove("active");
   state.cameraViewIndex = -1;
   state.operatorRenderKey = "";
-  state.resultCelebrationKey = "";
   state.resultBoardFingerprint = "";
-  els.resultConfetti.replaceChildren();
+  if (typeof clearResultSettlementPresentation === "function") clearResultSettlementPresentation();
   state.actionSelectionId = "";
   state.phaseUiKey = "";
   state.actionLayoutKey = "";
@@ -14419,6 +14416,44 @@ function resultBoardFingerprint(data, results) {
   });
 }
 
+function resultOutcomeTitle(data) {
+  if (data.winner === "defenders") return "ディフェンダー勝利";
+  if (data.winner === "attackers") return "アタッカー勝利";
+  if (data.winner === "idea") return "善のイデア到達";
+  return "試合終了";
+}
+
+function clearResultSettlementPresentation() {
+  els.endTitle.classList.remove("result-settling");
+  els.resultRanking.querySelectorAll(".result-settling").forEach((node) => {
+    node.classList.remove("result-settling");
+  });
+}
+
+function settleResultPresentation() {
+  clearResultSettlementPresentation();
+  if (prefersReducedMotion()) return;
+  const targets = [
+    els.endTitle,
+    ...els.resultRanking.querySelectorAll(".result-row.is-first, .result-row.is-self, .result-points")
+  ];
+  targets.forEach((node) => {
+    node.classList.add("result-settling");
+    node.addEventListener("animationend", () => node.classList.remove("result-settling"), { once: true });
+  });
+}
+
+function playResultSettlementAudio(data, results) {
+  const selfResult = results.find((entry) => entry.id === data.selfId);
+  const ideaWinnerIds = Array.isArray(data.ideaWinnerIds) ? data.ideaWinnerIds : [data.ideaWinnerId];
+  const selfWon = data.winner === "idea"
+    ? (selfResult?.ideaWinner || ideaWinnerIds.includes(data.selfId))
+    : (data.winner === "attackers" && selfResult?.role === "attacker") ||
+      (data.winner === "defenders" && selfResult?.role === "defender");
+  playSound(selfWon ? "win" : "lose");
+  window.setTimeout(() => playSound("ranking"), 420);
+}
+
 function renderEnd(data) {
   const ended = data.phase === "ended";
   els.endOverlay.hidden = !ended;
@@ -14428,10 +14463,9 @@ function renderEnd(data) {
   if (!ended) {
     els.endTitle.textContent = "";
     els.endReason.textContent = "";
+    clearResultSettlementPresentation();
     els.resultRanking.replaceChildren();
-    state.resultCelebrationKey = "";
     state.resultBoardFingerprint = "";
-    els.resultConfetti.replaceChildren();
     return;
   }
   const ideaWinnerIds = new Set(
@@ -14442,7 +14476,7 @@ function renderEnd(data) {
   const results = data.results || [];
   const fingerprint = resultBoardFingerprint(data, results);
   const resultChanged = state.resultBoardFingerprint !== fingerprint;
-  els.endTitle.textContent = "ランクポイント";
+  els.endTitle.textContent = resultOutcomeTitle(data);
   els.endReason.textContent = data.finishReason || "";
   if (data.soloMission?.id === "cpu-gravity" && data.winner === "attackers") {
     localStorage.setItem(storage.cpuGravityHint, "1");
@@ -14481,9 +14515,10 @@ function renderEnd(data) {
           <span class="result-player">
             <strong>${escapeHtml(String(entry.name || ""))}</strong>
             ${mvpLabel ? `<small class="result-point-mvp">${mvpLabel}</small>` : ""}
+            ${entry.id === data.selfId ? '<small class="result-point-self">あなた</small>' : ""}
             <small class="result-point-breakdown">${escapeHtml(breakdown)}</small>
           </span>
-          <span class="result-points" aria-label="ランクポイント ${points > 0 ? "+" : ""}${points}"><strong>${points > 0 ? "+" : ""}${points}</strong><small>ランクP</small></span>
+          <span class="result-points" aria-label="最終ランクポイント ${points > 0 ? "+" : ""}${points}"><strong>${points > 0 ? "+" : ""}${points}</strong><small>最終ランクP</small></span>
         `;
         list.appendChild(row);
       });
@@ -14494,8 +14529,9 @@ function renderEnd(data) {
       left: previousScrollLeft
     });
     state.resultBoardFingerprint = fingerprint;
+    settleResultPresentation();
+    playResultSettlementAudio(data, results);
   }
-  startResultCelebration(data, results);
 }
 
 function syncResultTerminalPresentation(data) {
@@ -14510,47 +14546,6 @@ function syncResultTerminalPresentation(data) {
   els.sidePanel.hidden = ended;
   els.sidePanel.setAttribute("aria-hidden", String(ended));
   if (sidebarOwnedFocus) els.resetButton.focus({ preventScroll: true });
-}
-
-function startResultCelebration(data, results) {
-  if (!results.length) return;
-  const key = `${data.roomId}:${data.round}:${data.winner}`;
-  if (state.resultCelebrationKey === key) return;
-  state.resultCelebrationKey = key;
-  els.resultConfetti.replaceChildren();
-  const colors = ["#facc15", "#22d3ee", "#f43f5e", "#4ade80", "#fb923c", "#e879f9", "#f8fafc"];
-  for (let index = 0; index < 112; index += 1) {
-    const piece = document.createElement("i");
-    piece.style.setProperty("--x", `${(index * 37) % 101}%`);
-    piece.style.setProperty("--drift", `${((index * 53) % 220) - 110}px`);
-    piece.style.setProperty("--delay", `${(index % 14) * 0.055}s`);
-    piece.style.setProperty("--duration", `${2.2 + (index % 9) * 0.11}s`);
-    piece.style.setProperty("--spin", `${360 + (index % 7) * 130}deg`);
-    piece.style.backgroundColor = colors[index % colors.length];
-    els.resultConfetti.appendChild(piece);
-  }
-  for (let index = 0; index < 48; index += 1) {
-    const spark = document.createElement("b");
-    spark.style.setProperty("--x", `${(index * 67) % 101}%`);
-    spark.style.setProperty("--y", `${12 + (index * 43) % 76}%`);
-    spark.style.setProperty("--delay", `${(index % 12) * 0.07}s`);
-    spark.style.setProperty("--scale", `${0.55 + (index % 6) * 0.16}`);
-    spark.style.color = colors[(index * 3) % colors.length];
-    els.resultConfetti.appendChild(spark);
-  }
-  for (let index = 0; index < 4; index += 1) {
-    const halo = document.createElement("span");
-    halo.style.setProperty("--delay", `${index * 0.22}s`);
-    halo.style.setProperty("--halo-color", colors[index]);
-    els.resultConfetti.appendChild(halo);
-  }
-  const selfResult = results.find((entry) => entry.id === data.selfId);
-  const selfWon = data.winner === "idea"
-    ? (selfResult?.ideaWinner || (Array.isArray(data.ideaWinnerIds) ? data.ideaWinnerIds : [data.ideaWinnerId]).includes(data.selfId))
-    : (data.winner === "attackers" && selfResult?.role === "attacker") ||
-      (data.winner === "defenders" && selfResult?.role === "defender");
-  playSound(selfWon ? "win" : "lose");
-  window.setTimeout(() => playSound("ranking"), 420);
 }
 
 function setFeed() {
@@ -21850,7 +21845,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ate-semantic-primitive-diversity-v618";
+const version = "result-semantic-settlement-v619";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22809,7 +22804,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ate-semantic-primitive-diversity-v618", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=result-semantic-settlement-v619", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
