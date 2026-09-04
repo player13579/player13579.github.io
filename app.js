@@ -22027,13 +22027,13 @@ async function runV594RuntimeCacheVerification(registration) {
   try {
     const controllerDeadline = Date.now() + 6000;
     while (
-      !String(navigator.serviceWorker.controller?.scriptURL || "").includes("runtime-cache-bounded-v594") &&
+      !String(navigator.serviceWorker.controller?.scriptURL || "").includes("rev=2") &&
       Date.now() < controllerDeadline
     ) {
       await new Promise((resolve) => window.setTimeout(resolve, 50));
     }
     const controllerUrl = String(navigator.serviceWorker.controller?.scriptURL || "");
-    if (!controllerUrl.includes("runtime-cache-bounded-v594")) throw new Error("current v594 controller unavailable");
+    if (!controllerUrl.includes("rev=2")) throw new Error("current v594 revision 2 controller unavailable");
 
     const cache = await caches.open(cacheName);
     for (const request of await cache.keys()) {
@@ -22083,7 +22083,7 @@ async function runV594RuntimeCacheVerification(registration) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=runtime-cache-bounded-v594", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=runtime-cache-bounded-v594&rev=2", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
