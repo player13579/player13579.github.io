@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "result-terminal-ownership-v616";
-const CACHE_NAME = "dva-static-v616-result-terminal-ownership";
+const RUNTIME_RELEASE = "result-terminal-responsive-layout-v617";
+const CACHE_NAME = "dva-static-v617-result-terminal-responsive-layout";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

@@ -8506,4 +8506,6 @@ body [data-scroll-region].scroll-region-selected {
 @media (min-width: 901px) { .result-dialog .result-ranking { padding: 8px; } .end-overlay .result-dialog { padding: clamp(14px, 2.4cqh, 22px); } }
 @media (max-width: 900px) { .result-dialog .result-ranking { padding: 6px; } .result-dialog .result-row { gap: 8px; } .end-overlay .result-dialog { padding: clamp(8px, 2cqh, 16px); } }
 @media (orientation: portrait) { .result-dialog .result-heading, .result-dialog .result-team-title { padding-inline: 8px; } .result-dialog .result-row { min-height: 52px; } .end-overlay .result-dialog { gap: clamp(5px, 1.4cqh, 10px); } .end-overlay #resetButton { min-height: 36px; } }
+body.game-open.result-presentation .app-shell { grid-template-columns: minmax(0, 1fr); }
+body.game-open.result-presentation .game-area { width: 100%; height: 100%; }
 @container (max-height: 430px) { .end-overlay .result-dialog { min-height: 0; padding: 8px 10px; } .end-overlay #resetButton { min-height: 32px; } }

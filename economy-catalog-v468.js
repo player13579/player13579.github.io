@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "result-terminal-ownership-v616",
+    version: "result-terminal-responsive-layout-v617",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

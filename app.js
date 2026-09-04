@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "result-terminal-ownership-v616";
+const DVA_CLIENT_RELEASE = "result-terminal-responsive-layout-v617";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -869,7 +869,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "result-terminal-ownership-v616";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "result-terminal-responsive-layout-v617";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -11572,6 +11572,7 @@ function render() {
 
   if (!data) {
     els.endOverlay.hidden = true;
+    syncResultTerminalPresentation(null);
     setKillCameraOpen(false, { focus: false });
     if (state.expandedMapOpen) setExpandedMapOpen(false);
     syncKeyboardContext();
@@ -14422,6 +14423,7 @@ function renderEnd(data) {
   const ended = data.phase === "ended";
   els.endOverlay.hidden = !ended;
   els.resetButton.hidden = !ended;
+  syncResultTerminalPresentation(data);
   els.resetButton.textContent = data.soloMission ? "戦術いろはへ戻る" : "もう一度マッチング";
   if (!ended) {
     els.endTitle.textContent = "";
@@ -14494,6 +14496,20 @@ function renderEnd(data) {
     state.resultBoardFingerprint = fingerprint;
   }
   startResultCelebration(data, results);
+}
+
+function syncResultTerminalPresentation(data) {
+  const ended = data?.phase === "ended";
+  const wasEnded = document.body.classList.contains("result-presentation");
+  const sidebarOwnedFocus = Boolean(
+    ended &&
+    !wasEnded &&
+    els.sidePanel.contains?.(document.activeElement)
+  );
+  document.body.classList.toggle("result-presentation", ended);
+  els.sidePanel.hidden = ended;
+  els.sidePanel.setAttribute("aria-hidden", String(ended));
+  if (sidebarOwnedFocus) els.resetButton.focus({ preventScroll: true });
 }
 
 function startResultCelebration(data, results) {
@@ -21712,7 +21728,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "result-terminal-ownership-v616";
+const version = "result-terminal-responsive-layout-v617";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22671,7 +22687,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=result-terminal-ownership-v616", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=result-terminal-responsive-layout-v617", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
