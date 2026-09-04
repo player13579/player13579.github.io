@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "quality-lifecycle-accessibility-v589";
+const DVA_CLIENT_RELEASE = "visual-quality-additions-removed-v590";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -844,7 +844,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "quality-lifecycle-accessibility-v589";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "visual-quality-additions-removed-v590";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -14393,7 +14393,6 @@ function draw() {
     }
   });
 
-  drawCanvasStage("lighting", () => drawLighting(data, w, h, camera, worldZoom));
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("repair-indicators", () => drawSabotageRepairIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("hud", () => drawHud(data, w, h));
@@ -14401,6 +14400,7 @@ function draw() {
   drawCanvasStage("minimap", () => drawMinimap(data, w, h));
   drawCanvasStage("mode-banner", () => drawModeBanner(data, w));
   if (state.expandedMapOpen) drawCanvasStage("expanded-map", () => drawExpandedMap(data));
+  drawCanvasStage("lighting", () => drawLighting(data, w, h, camera, worldZoom));
   drawCanvasStage("kill-animation", () => drawKillAnimations(data, camera, w, h, worldZoom));
   drawCanvasStage("sensory", () => drawSensoryBlackout(data, w, h));
   drawCanvasStage("marker-explanation", () => drawMarkerExplanation(w, h));
@@ -14983,55 +14983,19 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
   if (!shadeMask) return false;
   const sampledTime = Math.floor(time * 60) / 60;
   const seed = [...String(room.id || "room")].reduce((value, character) => value + character.charCodeAt(0), 0);
-  const seedPhase = seed * 0.013;
-  const canopyHeight = Math.min(room.w, room.h) * 0.2;
-  const coherentGust = Math.sin(Math.PI * 2 * 0.075 * sampledTime + seedPhase) * 0.56
-    + Math.sin(Math.PI * 2 * 0.163 * sampledTime + seedPhase * 1.7) * 0.29
-    + Math.sin(Math.PI * 2 * 0.31 * sampledTime + 1.3) * 0.15;
+
   ctx.save();
   ctx.beginPath();
   appendWorldAreaPath(room);
   ctx.clip();
   ctx.globalCompositeOperation = "multiply";
   ctx.filter = "blur(0.85px)";
-  ctx.globalAlpha = 0.22 * intensity;
-  // The authored canopy map is a stationary lighting key. Wind never pans or
-  // resamples this raster; all movement below is independent shadow geometry.
+  ctx.globalAlpha = 0.2 * intensity;
+  // Keep the authored shade texture stationary. The rejected recent
+  // independent contour layer is removed without restoring raster panning.
   ctx.drawImage(shadeMask, room.x, room.y, room.w, room.h);
-  ctx.filter = "blur(1.1px)";
-
-  const clusterColumns = 4;
-  const clusterRows = 3;
-  for (let cluster = 0; cluster < clusterColumns * clusterRows; cluster += 1) {
-    const column = cluster % clusterColumns;
-    const row = Math.floor(cluster / clusterColumns);
-    const spatialPhase = seedPhase + column * 1.37 + row * 2.11;
-    const localFlutter = coherentGust * 0.72
-      + Math.sin(Math.PI * 2 * (0.21 + cluster * 0.004) * sampledTime + spatialPhase) * 0.2
-      + Math.sin(Math.PI * 2 * 0.47 * sampledTime + spatialPhase * 1.61) * 0.08;
-    const localOffset = projectedLeafShadowOffset(
-      canopyHeight * (0.82 + row * 0.08),
-      localFlutter * 0.017,
-      localFlutter * 0.009
-    );
-    const centerX = room.x + room.w * (0.14 + column * 0.24 + Math.sin(spatialPhase) * 0.018) + localOffset.x;
-    const centerY = room.y + room.h * (0.18 + row * 0.31 + Math.cos(spatialPhase) * 0.022) + localOffset.y;
-    const radiusX = room.w * (0.075 + row * 0.008) * (1 + localFlutter * 0.08);
-    const radiusY = room.h * (0.09 + column * 0.004) * (1 - localFlutter * 0.055);
-    const curl = Math.sin(sampledTime * 0.91 + spatialPhase) * 0.22;
-    ctx.globalAlpha = (0.024 + Math.abs(localFlutter) * 0.012) * intensity;
-    ctx.fillStyle = "rgba(24, 55, 42, 0.72)";
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY - radiusY);
-    ctx.bezierCurveTo(centerX + radiusX * (0.72 + curl), centerY - radiusY * 0.82, centerX + radiusX * (1.12 - curl), centerY + radiusY * 0.3, centerX + radiusX * 0.28, centerY + radiusY);
-    ctx.bezierCurveTo(centerX - radiusX * 0.42, centerY + radiusY * (1.02 + curl), centerX - radiusX * (1.08 + curl), centerY + radiusY * 0.18, centerX - radiusX * 0.36, centerY - radiusY * 0.9);
-    ctx.bezierCurveTo(centerX - radiusX * 0.12, centerY - radiusY * 1.08, centerX - radiusX * 0.04, centerY - radiusY, centerX, centerY - radiusY);
-    ctx.fill();
-  }
   ctx.filter = "none";
 
-  // Tiny sunlit dust motes are the complementary E layer. They follow the
-  // same wind field but do not redraw or duplicate the foliage-shadow texture.
   ctx.globalCompositeOperation = "screen";
   const dustMoteCount = Math.max(5, Math.min(11, Math.round(room.w * room.h / 62000)));
   for (let mote = 0; mote < dustMoteCount; mote += 1) {
@@ -15065,8 +15029,6 @@ function drawFootBathAmbient(object, time, intensity = 1) {
   ctx.filter = "saturate(0.82) brightness(0.72)";
   applyAteGlowContext(ctx, "ripple", time, Number(object.x || 0) * 0.001, intensity * 0.34);
 
-  // The sun direction is fixed. Steam density changes the beam visibility;
-  // the ray itself never rotates or slides away from its canopy opening.
   const godrayBreathing = 0.82 + Math.sin(sampledTime * Math.PI * 0.24) * 0.06;
   ctx.globalAlpha = intensity * 0.15 * godrayBreathing;
   ctx.drawImage(
@@ -15081,18 +15043,17 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     128
   );
 
-  // The authored bath highlight is stationary. Independent Bézier wavefronts
-  // change curvature and phase smoothly; source pixels never drift.
+  // The rejected recent wavefront and steam geometry is removed. Water
+  // samples remain fixed so the older panorama-style drift does not return.
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(0, 8, 118, 31, 0, 0, Math.PI * 2);
   ctx.clip();
   const wavePhase = sampledTime * Math.PI * 0.58;
-  const waterSourceX = sourceWidth * 0.025;
   ctx.globalAlpha = intensity * (0.255 + Math.sin(wavePhase) * 0.032);
   ctx.drawImage(
     sprite,
-    waterSourceX,
+    sourceWidth * 0.025,
     sourceHeight * 0.43,
     sourceWidth * 0.95,
     sourceHeight * 0.36,
@@ -15113,52 +15074,7 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     244,
     70
   );
-  ctx.globalCompositeOperation = "lighter";
-  ctx.filter = "none";
-  ctx.strokeStyle = "rgba(190, 246, 255, 0.82)";
-  ctx.lineCap = "round";
-  for (let wave = 0; wave < 5; wave += 1) {
-    const phase = wavePhase + wave * 1.37;
-    const y = -12 + wave * 6.5 + Math.sin(phase * 0.74) * 2.6;
-    const bend = Math.sin(phase) * 9.5;
-    ctx.globalAlpha = intensity * (0.12 + (wave % 2) * 0.035);
-    ctx.lineWidth = 1.2 + (wave % 3) * 0.45;
-    ctx.beginPath();
-    ctx.moveTo(-104, y);
-    ctx.bezierCurveTo(-54, y - bend, 52, y + bend, 104, y);
-    ctx.stroke();
-  }
   ctx.restore();
-
-  const steamColumns = [
-    { x: -49, delay: 0.04, wind: 0.8 },
-    { x: 0, delay: 0.37, wind: 1.15 },
-    { x: 49, delay: 0.7, wind: 0.95 }
-  ];
-  ctx.filter = "blur(1.4px)";
-  ctx.strokeStyle = "rgba(231, 251, 255, 0.82)";
-  ctx.lineCap = "round";
-  for (const steam of steamColumns) {
-    const phase = (sampledTime * 0.145 + steam.delay) % 1;
-    const rise = 48 * (1 - Math.exp(-phase * 3.25));
-    const lateralDrift = steam.wind * 8 * phase ** 1.35;
-    const alpha = Math.sin(phase * Math.PI) ** 1.35 * 0.245 * intensity;
-    if (alpha <= 0.005) continue;
-    ctx.globalAlpha = alpha;
-    ctx.lineWidth = 8 + phase * 5;
-    ctx.beginPath();
-    ctx.moveTo(steam.x, -46);
-    ctx.bezierCurveTo(
-      steam.x - 10 + lateralDrift * 0.24,
-      -58 - rise * 0.32,
-      steam.x + 12 + lateralDrift * 0.72,
-      -76 - rise * 0.72,
-      steam.x + lateralDrift,
-      -88 - rise
-    );
-    ctx.stroke();
-  }
-  ctx.filter = "none";
 
   const sparkleSlices = [
     { sx: 0.24, sy: 0.48, x: -67, y: -2, phase: 0.1 },
@@ -15763,15 +15679,6 @@ function drawGravityZones(data) {
         safeRadius * 2,
         safeRadius * 2
       );
-      ctx.strokeStyle = "rgba(233, 213, 255, 0.72)";
-      ctx.lineWidth = Math.max(3, safeRadius * 0.035);
-      for (let arc = 0; arc < 4; arc += 1) {
-        const start = -phase * 0.19 + arc * Math.PI / 2;
-        ctx.globalAlpha = 0.24 + arc * 0.07;
-        ctx.beginPath();
-        ctx.arc(0, 0, safeRadius * (0.72 + arc * 0.065), start, start + Math.PI * 0.62);
-        ctx.stroke();
-      }
       ctx.restore();
     }
   }
@@ -20516,259 +20423,6 @@ const ATE_ANIMATION_PROFILES = Object.freeze({
   clairvoyance: Object.freeze({ family: "horizon-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
 });
 
-const ATE_SMOOTH_MOTION_PROFILES = Object.freeze({
-  energy: Object.freeze({ family: "orbital-breath", tempo: 0.82, elements: 6 }),
-  beam: Object.freeze({ family: "luminous-propagation", tempo: 1.28, elements: 3 }),
-  ripple: Object.freeze({ family: "counter-wave-expansion", tempo: 0.72, elements: 4 }),
-  "flow-up": Object.freeze({ family: "buoyant-plume-growth", tempo: 0.58, elements: 5 }),
-  "data-down": Object.freeze({ family: "eased-packet-descent", tempo: 1.1, elements: 6 }),
-  "data-up": Object.freeze({ family: "eased-packet-ascent", tempo: 0.94, elements: 6 }),
-  "data-accelerate": Object.freeze({ family: "ingress-core-egress", tempo: 1.18, elements: 7 }),
-  shimmer: Object.freeze({ family: "glint-bloom-decay", tempo: 0.66, elements: 5 }),
-  orbit: Object.freeze({ family: "elliptic-depth-orbit", tempo: 0.8, elements: 6 }),
-  resonance: Object.freeze({ family: "wave-convergence-release", tempo: 1.08, elements: 6 }),
-  glitch: Object.freeze({ family: "signal-tear-recovery", tempo: 1.35, elements: 6 }),
-  teleport: Object.freeze({ family: "column-dissolve-rise", tempo: 1.12, elements: 7 }),
-  gravity: Object.freeze({ family: "spiral-inward-compression", tempo: 0.48, elements: 7 }),
-  impact: Object.freeze({ family: "impulse-expansion-decay", tempo: 0.9, elements: 4 }),
-  recoil: Object.freeze({ family: "kick-trail-settle", tempo: 1.3, elements: 5 }),
-  shield: Object.freeze({ family: "guard-segment-circulation", tempo: 0.62, elements: 5 }),
-  combustion: Object.freeze({ family: "flame-rise-curl-dissipate", tempo: 1.08, elements: 7 }),
-  targeting: Object.freeze({ family: "corner-settle-lock", tempo: 0.76, elements: 4 }),
-  clairvoyance: Object.freeze({ family: "horizon-scan-return", tempo: 0.64, elements: 5 })
-});
-
-const REDUCED_VISUAL_MOTION_QUERY = typeof globalThis.matchMedia === "function"
-  ? globalThis.matchMedia("(prefers-reduced-motion: reduce)")
-  : null;
-
-function reducedVisualMotionRequested() {
-  return Boolean(REDUCED_VISUAL_MOTION_QUERY?.matches);
-}
-
-function smoothAteCycle(value) {
-  return ((Number(value) % 1) + 1) % 1;
-}
-
-function smoothAteEase(value) {
-  const unit = clamp(Number(value) || 0, 0, 1);
-  return unit * unit * (3 - 2 * unit);
-}
-
-function drawSmoothAteDot(targetContext, x, y, radius, color, alpha) {
-  if (!(radius > 0 && alpha > 0.002)) return;
-  const gradient = targetContext.createRadialGradient(x, y, 0, x, y, radius);
-  gradient.addColorStop(0, color);
-  gradient.addColorStop(0.38, color);
-  gradient.addColorStop(1, "rgba(255,255,255,0)");
-  targetContext.globalAlpha = alpha;
-  targetContext.fillStyle = gradient;
-  targetContext.beginPath();
-  targetContext.arc(x, y, radius, 0, Math.PI * 2);
-  targetContext.fill();
-}
-
-// The raster is never sampled here. It remains a stationary semantic key while
-// independent geometry supplies continuous pose, trajectory and lifecycle motion.
-function drawIndependentAteMotionGeometry(targetContext, mode, width, height, time = 0, phase = 0, intensity = 1, progress = 0) {
-  if (!(width > 0 && height > 0)) return;
-  const strength = clamp(Number(intensity) || 0, 0, 1.45);
-  if (strength <= 0.002) return;
-  const normalizedMode = normalizeAteGlowMode(mode);
-  const motion = ATE_SMOOTH_MOTION_PROFILES[normalizedMode] || ATE_SMOOTH_MOTION_PROFILES.energy;
-  const glow = ATE_GLOW_PROFILES[normalizedMode] || ATE_GLOW_PROFILES.energy;
-  const clock = Number(time) * motion.tempo + Number(phase) * 0.37;
-  const unitSize = Math.min(width, height);
-  const drawRibbon = (x1, y1, cx1, cy1, cx2, cy2, x2, y2, lineWidth, alpha, color = glow.core) => {
-    targetContext.globalAlpha = clamp(alpha * strength, 0, 0.92);
-    targetContext.strokeStyle = color;
-    targetContext.lineWidth = Math.max(1, lineWidth);
-    targetContext.beginPath();
-    targetContext.moveTo(x1, y1);
-    targetContext.bezierCurveTo(cx1, cy1, cx2, cy2, x2, y2);
-    targetContext.stroke();
-  };
-
-  targetContext.save();
-  targetContext.globalCompositeOperation = "lighter";
-  targetContext.filter = "none";
-  targetContext.lineCap = "round";
-  targetContext.lineJoin = "round";
-  targetContext.shadowColor = glow.aura;
-  targetContext.shadowBlur = Math.max(4, unitSize * 0.055 * strength);
-
-  if (normalizedMode === "beam") {
-    for (let index = 0; index < 3; index += 1) {
-      const cycle = smoothAteCycle(clock * (0.54 + index * 0.035) + index / 3);
-      const eased = smoothAteEase(cycle);
-      const x = -width * 0.46 + eased * width * 0.92;
-      const y = (-0.2 + index * 0.2) * height + Math.sin(cycle * Math.PI * 2) * height * 0.025;
-      const life = Math.sin(cycle * Math.PI) ** 1.5;
-      drawRibbon(x - width * 0.16, y, x - width * 0.05, y - height * 0.035, x + width * 0.05, y + height * 0.035, x + width * 0.16, y, unitSize * 0.026, life * 0.56);
-    }
-  } else if (normalizedMode === "ripple") {
-    for (let index = 0; index < 4; index += 1) {
-      const cycle = smoothAteCycle(clock * 0.42 + index * 0.25);
-      const eased = smoothAteEase(cycle);
-      targetContext.globalAlpha = Math.sin(cycle * Math.PI) * 0.42 * strength;
-      targetContext.strokeStyle = index % 2 ? glow.core : glow.aura;
-      targetContext.lineWidth = Math.max(1, unitSize * (0.016 - index * 0.0015));
-      targetContext.beginPath();
-      targetContext.ellipse(0, height * 0.08, width * (0.12 + eased * 0.34), height * (0.045 + eased * 0.16), Math.sin(clock + index) * 0.025, 0, Math.PI * 2);
-      targetContext.stroke();
-    }
-  } else if (normalizedMode === "flow-up" || normalizedMode === "combustion") {
-    const flame = normalizedMode === "combustion";
-    for (let index = 0; index < motion.elements; index += 1) {
-      const cycle = smoothAteCycle(clock * (flame ? 0.42 : 0.25) + index / motion.elements);
-      const eased = 1 - (1 - cycle) ** 2;
-      const originX = (-0.34 + index * (0.68 / Math.max(1, motion.elements - 1))) * width;
-      const sway = Math.sin(clock * (2.1 + index * 0.08) + index * 1.7) * width * (flame ? 0.075 : 0.045);
-      const topY = height * 0.31 - eased * height * (flame ? 0.72 : 0.58);
-      const life = Math.sin(cycle * Math.PI) ** 1.3;
-      drawRibbon(originX, height * 0.32, originX - sway * 0.25, height * 0.12, originX + sway, topY + height * 0.14, originX + sway * 0.62, topY, unitSize * (flame ? 0.038 : 0.026) * (1 - cycle * 0.46), life * (flame ? 0.52 : 0.35), index % 2 ? glow.core : glow.aura);
-    }
-  } else if (["data-down", "data-up", "data-accelerate"].includes(normalizedMode)) {
-    const accelerate = normalizedMode === "data-accelerate";
-    const direction = normalizedMode === "data-down" ? 1 : -1;
-    for (let index = 0; index < motion.elements; index += 1) {
-      const cycle = smoothAteCycle(clock * (0.43 + index * 0.008) + index / motion.elements);
-      const eased = smoothAteEase(cycle);
-      let x;
-      let y;
-      if (accelerate) {
-        const inbound = index < Math.ceil(motion.elements / 2);
-        x = inbound ? -width * 0.43 + eased * width * 0.39 : width * 0.04 + eased * width * 0.39;
-        y = (-0.27 + (index % 4) * 0.18) * height * (1 - Math.sin(eased * Math.PI) * 0.72);
-      } else {
-        x = (-0.31 + (index % 5) * 0.155) * width + Math.sin(clock + index) * width * 0.012;
-        y = direction * (-height * 0.36 + eased * height * 0.72);
-      }
-      const life = Math.sin(cycle * Math.PI);
-      drawSmoothAteDot(targetContext, x, y, unitSize * (0.026 + life * 0.018), index % 2 ? glow.core : glow.aura, life * 0.58 * strength);
-    }
-  } else if (normalizedMode === "shimmer") {
-    for (let index = 0; index < motion.elements; index += 1) {
-      const cycle = smoothAteCycle(clock * 0.48 + index * 0.217);
-      const bloom = Math.sin(cycle * Math.PI) ** 3;
-      const x = Math.sin(index * 2.31) * width * 0.34;
-      const y = Math.cos(index * 1.73) * height * 0.28;
-      const radius = unitSize * (0.018 + bloom * 0.045);
-      drawRibbon(x - radius, y, x - radius * 0.25, y, x + radius * 0.25, y, x + radius, y, Math.max(1, radius * 0.24), bloom * 0.7);
-      drawRibbon(x, y - radius, x, y - radius * 0.25, x, y + radius * 0.25, x, y + radius, Math.max(1, radius * 0.24), bloom * 0.7);
-    }
-  } else if (normalizedMode === "orbit") {
-    targetContext.globalAlpha = 0.15 * strength;
-    targetContext.strokeStyle = glow.aura;
-    targetContext.lineWidth = Math.max(1, unitSize * 0.009);
-    targetContext.beginPath();
-    targetContext.ellipse(0, 0, width * 0.34, height * 0.22, Math.sin(clock * 0.3) * 0.14, 0, Math.PI * 2);
-    targetContext.stroke();
-    for (let index = 0; index < motion.elements; index += 1) {
-      const angle = clock * (0.72 + index * 0.018) + index * Math.PI * 2 / motion.elements;
-      const depth = 0.72 + Math.sin(angle) * 0.28;
-      drawSmoothAteDot(targetContext, Math.cos(angle) * width * 0.34, Math.sin(angle) * height * 0.22, unitSize * (0.025 + depth * 0.018), index % 2 ? glow.core : glow.aura, depth * 0.52 * strength);
-    }
-  } else if (normalizedMode === "resonance") {
-    const pulse = smoothAteCycle(clock * 0.48);
-    const convergence = 1 - Math.abs(pulse * 2 - 1);
-    for (const side of [-1, 1]) {
-      const startX = side * width * 0.44;
-      const endX = side * width * (0.35 - convergence * 0.28);
-      drawRibbon(startX, -height * 0.28, side * width * 0.26, -height * 0.08, side * width * 0.16, height * 0.08, endX, height * 0.28, unitSize * 0.025, (0.24 + convergence * 0.42), side > 0 ? glow.core : glow.aura);
-    }
-    drawSmoothAteDot(targetContext, 0, 0, unitSize * (0.035 + convergence * 0.075), glow.core, convergence * 0.68 * strength);
-  } else if (normalizedMode === "glitch") {
-    for (let index = 0; index < motion.elements; index += 1) {
-      const cycle = smoothAteCycle(clock * (0.75 + index * 0.025) + index * 0.19);
-      const recover = Math.sin(cycle * Math.PI);
-      const y = (-0.32 + index * 0.125) * height;
-      const tear = Math.sin(clock * 4.2 + index * 2.1) * width * 0.13 * recover;
-      drawRibbon(-width * 0.32 + tear, y, -width * 0.12, y - height * 0.012, width * 0.12, y + height * 0.012, width * 0.32 - tear * 0.35, y, unitSize * 0.014, recover * 0.44, index % 2 ? glow.core : glow.aura);
-    }
-  } else if (normalizedMode === "teleport") {
-    for (let index = 0; index < motion.elements; index += 1) {
-      const cycle = smoothAteCycle(clock * (0.34 + index * 0.006) + index / motion.elements);
-      const eased = smoothAteEase(cycle);
-      const x = (-0.34 + index * (0.68 / Math.max(1, motion.elements - 1))) * width;
-      const y = height * 0.36 - eased * height * 0.72;
-      const life = Math.sin(cycle * Math.PI);
-      drawRibbon(x, y + height * 0.18, x + Math.sin(clock + index) * width * 0.025, y + height * 0.11, x - Math.sin(clock * 0.7 + index) * width * 0.02, y + height * 0.04, x, y, unitSize * 0.018, life * 0.48);
-      drawSmoothAteDot(targetContext, x, y, unitSize * 0.022, glow.core, life * 0.5 * strength);
-    }
-  } else if (normalizedMode === "gravity") {
-    for (let index = 0; index < motion.elements; index += 1) {
-      const cycle = smoothAteCycle(clock * (0.31 + index * 0.004) + index / motion.elements);
-      const eased = smoothAteEase(cycle);
-      const angle = (1 - eased) * Math.PI * 2.4 + index * Math.PI * 2 / motion.elements;
-      const radius = unitSize * (0.42 * (1 - eased) + 0.035);
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius * 0.74;
-      const life = Math.sin(cycle * Math.PI);
-      drawSmoothAteDot(targetContext, x, y, unitSize * (0.02 + (1 - eased) * 0.018), index % 2 ? glow.core : glow.aura, life * 0.58 * strength);
-    }
-  } else if (normalizedMode === "impact") {
-    const eventProgress = clamp(Number(progress) || smoothAteCycle(clock * 0.48), 0, 1);
-    const eased = 1 - (1 - eventProgress) ** 3;
-    for (let index = 0; index < motion.elements; index += 1) {
-      const local = clamp(eased - index * 0.11, 0, 1);
-      targetContext.globalAlpha = (1 - local) * 0.62 * strength;
-      targetContext.strokeStyle = index % 2 ? glow.core : glow.aura;
-      targetContext.lineWidth = Math.max(1, unitSize * (0.032 - index * 0.004));
-      targetContext.beginPath();
-      targetContext.ellipse(0, 0, width * (0.06 + local * 0.4), height * (0.06 + local * 0.4), 0, 0, Math.PI * 2);
-      targetContext.stroke();
-    }
-  } else if (normalizedMode === "recoil") {
-    const kick = Math.sin(clamp(Number(progress) || smoothAteCycle(clock * 0.65), 0, 1) * Math.PI);
-    for (let index = 0; index < motion.elements; index += 1) {
-      const y = (-0.28 + index * 0.14) * height;
-      const length = width * (0.12 + kick * (0.18 + index * 0.012));
-      drawRibbon(width * 0.18, y, width * 0.08, y - height * 0.018, -width * 0.04, y + height * 0.018, width * 0.18 - length, y, unitSize * 0.017, kick * (0.5 - index * 0.035));
-    }
-  } else if (normalizedMode === "shield") {
-    const breathe = 0.94 + Math.sin(clock * Math.PI * 2) * 0.04;
-    for (let index = 0; index < motion.elements; index += 1) {
-      const angle = clock * 0.55 + index * Math.PI * 2 / motion.elements;
-      const radiusX = width * 0.38 * breathe;
-      const radiusY = height * 0.38 * breathe;
-      targetContext.globalAlpha = (0.2 + (index % 2) * 0.08) * strength;
-      targetContext.strokeStyle = index % 2 ? glow.core : glow.aura;
-      targetContext.lineWidth = Math.max(1, unitSize * 0.024);
-      targetContext.beginPath();
-      targetContext.ellipse(0, 0, radiusX, radiusY, 0, angle, angle + Math.PI * 0.58);
-      targetContext.stroke();
-    }
-  } else if (normalizedMode === "targeting") {
-    const settle = 1 - smoothAteEase(0.5 + Math.sin(clock * Math.PI * 2) * 0.5) * 0.18;
-    for (let index = 0; index < 4; index += 1) {
-      const angle = index * Math.PI / 2;
-      const x = Math.cos(angle) * width * 0.34 * settle;
-      const y = Math.sin(angle) * height * 0.34 * settle;
-      const tangentX = -Math.sin(angle) * unitSize * 0.08;
-      const tangentY = Math.cos(angle) * unitSize * 0.08;
-      drawRibbon(x - tangentX, y - tangentY, x - tangentX * 0.35, y - tangentY * 0.35, x + tangentX * 0.35, y + tangentY * 0.35, x + tangentX, y + tangentY, unitSize * 0.021, 0.52, index % 2 ? glow.core : glow.aura);
-    }
-  } else if (normalizedMode === "clairvoyance") {
-    const scan = 0.5 + Math.sin(clock * Math.PI * 2) * 0.5;
-    const eased = smoothAteEase(scan);
-    const y = -height * 0.28 + eased * height * 0.56;
-    drawRibbon(-width * 0.4, y, -width * 0.14, y - height * 0.05, width * 0.14, y + height * 0.05, width * 0.4, y, unitSize * 0.025, 0.62);
-    for (let index = 0; index < motion.elements; index += 1) {
-      const angle = clock * 0.45 + index * Math.PI * 2 / motion.elements;
-      drawSmoothAteDot(targetContext, Math.cos(angle) * width * 0.3, Math.sin(angle) * height * 0.16, unitSize * 0.022, index % 2 ? glow.core : glow.aura, 0.34 * strength);
-    }
-  } else {
-    const breathe = 0.72 + Math.sin(clock * Math.PI * 2) * 0.18;
-    for (let index = 0; index < motion.elements; index += 1) {
-      const angle = clock * (0.5 + index * 0.016) + index * Math.PI * 2 / motion.elements;
-      const radius = unitSize * (0.13 + index * 0.024 + breathe * 0.035);
-      drawSmoothAteDot(targetContext, Math.cos(angle) * radius, Math.sin(angle) * radius * 0.78, unitSize * (0.022 + breathe * 0.015), index % 2 ? glow.core : glow.aura, (0.3 + breathe * 0.22) * strength);
-    }
-  }
-  targetContext.restore();
-}
-
 // Keep the authored silhouette pixel-stable. Animation is limited to clipped
 // highlight layers inside that footprint, which avoids frame-to-frame wobble.
 function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeight, options = {}) {
@@ -20786,10 +20440,8 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   } = options;
   const { width, height } = animatedTextureSize(sprite, maxWidth, maxHeight);
   if (!(width > 0 && height > 0)) return false;
-  const sampledTime = reducedVisualMotionRequested() ? 0 : Math.floor(time * 60) / 60;
+  const sampledTime = Math.floor(time * 60) / 60;
   const animationMode = normalizeAteGlowMode(mode);
-  const animationProfile = ATE_ANIMATION_PROFILES[animationMode] || ATE_ANIMATION_PROFILES.energy;
-  const clock = sampledTime * animationProfile.tempo + phase * animationProfile.phaseScale + progress * animationProfile.progressScale;
   const inheritedAlpha = ctx.globalAlpha;
 
   ctx.save();
@@ -20816,16 +20468,7 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   ctx.globalAlpha = inheritedAlpha * baseTextureAlpha;
   ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
   if (visibilityProfile !== "ambient") {
-    drawIndependentAteMotionGeometry(
-      ctx,
-      animationMode,
-      width,
-      height,
-      sampledTime,
-      phase + progress,
-      intensity * animationProfile.overlayGain,
-      progress
-    );
+    drawAteComplementaryVfx(ctx, animationMode, width, height, sampledTime, phase + progress, intensity * 0.82);
   }
   ctx.restore();
   return true;
@@ -21381,63 +21024,7 @@ function drawExpandedMap(data) {
 }
 
 function drawLighting(data, w, h, camera = cameraFor(data, w, h), zoom = 1) {
-  if (!(w > 0 && h > 0) || !data) return;
-  const mapId = String(data.map?.id || "");
-  const laboratory = mapId === "outpost" || mapId === "laboratory";
-  const selfSource = Array.isArray(data.players)
-    ? data.players.find((player) => player.id === data.selfId)
-    : null;
-  const self = selfSource ? renderedPlayer(selfSource) : null;
-
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-  // A restrained directional wash gives map materials a shared light volume
-  // without repainting authored fixtures or moving their texture coordinates.
-  ctx.globalCompositeOperation = "screen";
-  const ambient = ctx.createLinearGradient(0, 0, w, h);
-  ambient.addColorStop(0, laboratory ? "rgba(151, 219, 255, 0.064)" : "rgba(255, 236, 186, 0.068)");
-  ambient.addColorStop(0.46, laboratory ? "rgba(91, 196, 219, 0.026)" : "rgba(103, 232, 249, 0.022)");
-  ambient.addColorStop(1, "rgba(255, 255, 255, 0)");
-  ctx.fillStyle = ambient;
-  ctx.fillRect(0, 0, w, h);
-
-  // Keep the locally controlled body readable against both bright furniture
-  // and deep corridors. This is a presentation lift, not a gameplay marker.
-  if (data.phase === "playing" && self && Number.isFinite(self.x) && Number.isFinite(self.y)) {
-    const screenX = (self.x - camera.x) * zoom;
-    const screenY = (self.y - camera.y) * zoom - 18 * zoom;
-    const radius = clamp(Math.min(w, h) * 0.21, 92, 190);
-    const focal = ctx.createRadialGradient(screenX, screenY, 4, screenX, screenY, radius);
-    focal.addColorStop(0, laboratory ? "rgba(192, 244, 255, 0.105)" : "rgba(255, 245, 212, 0.11)");
-    focal.addColorStop(0.34, laboratory ? "rgba(103, 232, 249, 0.052)" : "rgba(167, 243, 208, 0.046)");
-    focal.addColorStop(1, "rgba(255, 255, 255, 0)");
-    ctx.fillStyle = focal;
-    ctx.fillRect(
-      Math.max(0, screenX - radius),
-      Math.max(0, screenY - radius),
-      Math.min(w, radius * 2),
-      Math.min(h, radius * 2)
-    );
-  }
-
-  // Edge falloff restores foreground/background separation while all critical
-  // indicators and HUD are drawn later at full contrast.
-  ctx.globalCompositeOperation = "multiply";
-  const vignetteRadius = Math.hypot(w, h) * 0.58;
-  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.44, Math.min(w, h) * 0.24, w * 0.5, h * 0.44, vignetteRadius);
-  vignette.addColorStop(0, "rgba(255, 255, 255, 1)");
-  vignette.addColorStop(0.68, "rgba(245, 248, 247, 0.995)");
-  vignette.addColorStop(1, laboratory ? "rgba(188, 206, 218, 0.91)" : "rgba(205, 214, 205, 0.925)");
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, w, h);
-
-  const grounding = ctx.createLinearGradient(0, h * 0.52, 0, h);
-  grounding.addColorStop(0, "rgba(255, 255, 255, 1)");
-  grounding.addColorStop(1, laboratory ? "rgba(218, 226, 231, 0.955)" : "rgba(224, 227, 218, 0.965)");
-  ctx.fillStyle = grounding;
-  ctx.fillRect(0, h * 0.52, w, h * 0.48);
-  ctx.restore();
+  return;
 }
 
 function roundRect(x, y, w, h, r, fill, stroke) {
@@ -21454,7 +21041,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "quality-lifecycle-accessibility-v589";
+const version = "visual-quality-additions-removed-v590";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22410,7 +21997,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=quality-lifecycle-accessibility-v589", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=visual-quality-additions-removed-v590", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

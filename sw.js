@@ -5,9 +5,9 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "quality-lifecycle-accessibility-v589";
-const CACHE_NAME = "dva-static-v589-quality-lifecycle-accessibility";
-const RUNTIME_RECOVERY_REVISION = "v589-quality-lifecycle-accessibility-1";
+const RUNTIME_RELEASE = "visual-quality-additions-removed-v590";
+const CACHE_NAME = "dva-static-v590-visual-quality-additions-removed";
+const RUNTIME_RECOVERY_REVISION = "v590-visual-quality-additions-removed-1";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

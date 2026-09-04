@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "quality-lifecycle-accessibility-v589",
+    version: "visual-quality-additions-removed-v590",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
