@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "background-hidden-poll-suspension-v592";
+const DVA_CLIENT_RELEASE = "escape-title-room-lifecycle-v593";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -612,6 +612,7 @@ const state = {
   gunTriggerPointerId: null,
   gunFireStartPromise: null,
   gunActivationPending: false,
+  leaveRoomInFlight: null,
   operatorRenderKey: "",
   operatorDetailTimer: 0,
   operatorDetailSource: null,
@@ -845,7 +846,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "background-hidden-poll-suspension-v592";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "escape-title-room-lifecycle-v593";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -6680,10 +6681,12 @@ function bindEvents() {
     }
     if (event.key === "Escape" && state.screen !== "title") {
       event.preventDefault();
+      if (event.repeat) return;
       const destination = state.screen === "tactics" && state.tacticsReturnScreen === "game" && state.data
         ? "game"
         : "title";
-      switchScreenWithEffect(destination);
+      if (destination === "title") void returnToTitle();
+      else switchScreenWithEffect(destination);
       return;
     }
     if (!typingField && event.code === "KeyQ" && state.screen === "game" && ["playing", "meeting"].includes(state.data?.phase)) {
@@ -8964,18 +8967,25 @@ async function runVerificationRealScreenAutoStart() {
 }
 
 async function leaveCurrentRoom(options = {}) {
-  if (!state.roomId || !state.playerId) return false;
+  if (!state.roomId || !state.playerId || state.leaveRoomInFlight) return false;
   const roomId = state.roomId;
   const playerId = state.playerId;
+  const generation = state.roomSessionGeneration;
   const destination = options.destination || (state.data?.soloMission ? "tactics" : "title");
+  const leaveOwner = { roomId, playerId, generation };
+  state.leaveRoomInFlight = leaveOwner;
   els.leaveRoomButton.disabled = true;
-  const result = await request("/api/leave", { roomId, playerId }, { quiet: true });
-  els.leaveRoomButton.disabled = false;
-  if (!result || state.roomId !== roomId || state.playerId !== playerId) return false;
-  resetLocalSession();
-  switchScreenWithEffect(destination);
-  if (options.announce !== false) showToast("マッチから退出しました。");
-  return true;
+  try {
+    const result = await request("/api/leave", { roomId, playerId }, { quiet: true });
+    if (!result || state.leaveRoomInFlight !== leaveOwner || !isCurrentRoomSession(roomId, playerId, generation)) return false;
+    resetLocalSession();
+    switchScreenWithEffect(destination);
+    if (options.announce !== false) showToast("マッチから退出しました。");
+    return true;
+  } finally {
+    if (state.leaveRoomInFlight === leaveOwner) state.leaveRoomInFlight = null;
+    els.leaveRoomButton.disabled = false;
+  }
 }
 
 async function rematch() {
@@ -21054,7 +21064,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "background-hidden-poll-suspension-v592";
+const version = "escape-title-room-lifecycle-v593";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22010,7 +22020,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=background-hidden-poll-suspension-v592", document.baseURI)).then((registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=escape-title-room-lifecycle-v593", document.baseURI)).then((registration) => {
     // Ask for the current release immediately. Exact-query cache keys in the
     // worker keep a previous controller from supplying a mixed runtime while
     // the update is being installed.

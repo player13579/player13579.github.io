@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "background-hidden-poll-suspension-v592",
+    version: "escape-title-room-lifecycle-v593",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
