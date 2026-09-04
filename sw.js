@@ -353,8 +353,8 @@ const STATIC_ASSETS = [
 
 // Installation must make the shell and generated-offline authority usable,
 // not download the complete visual/audio catalogue twice. All other listed
-// assets remain network-first and are cached once under their exact request
-// key when gameplay first needs them.
+// assets remain network-first and are cached once under their release-scoped
+// canonical key when gameplay first needs them.
 const BOOT_CRITICAL_ASSETS = new Set([
   "/",
   "/index.html",

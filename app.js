@@ -22018,12 +22018,80 @@ function showToast(message) {
   }, 3600);
 }
 
+async function runV594RuntimeCacheVerification(registration) {
+  if (URL_PARAMETERS.get("verify") !== "v594-runtime-cache") return;
+  const root = document.documentElement;
+  root.setAttribute("data-v594-runtime-cache-status", "RUNNING");
+  const cacheName = "dva-static-v594-runtime-cache-bounded";
+  const probePrefix = "/assets/v594-runtime-probe-";
+  try {
+    const controllerDeadline = Date.now() + 6000;
+    while (
+      !String(navigator.serviceWorker.controller?.scriptURL || "").includes("runtime-cache-bounded-v594") &&
+      Date.now() < controllerDeadline
+    ) {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+    const controllerUrl = String(navigator.serviceWorker.controller?.scriptURL || "");
+    if (!controllerUrl.includes("runtime-cache-bounded-v594")) throw new Error("current v594 controller unavailable");
+
+    const cache = await caches.open(cacheName);
+    for (const request of await cache.keys()) {
+      if (new URL(request.url).pathname.startsWith(probePrefix)) await cache.delete(request);
+    }
+    const beforeCount = (await cache.keys()).length;
+    for (let index = 0; index < 132; index += 1) {
+      await cache.put(`${probePrefix}${index}.txt`, new Response(`probe-${index}`, { status: 200 }));
+    }
+    for (let index = 0; index < 12; index += 1) {
+      await fetch(`/manifest.webmanifest?verify=v594-query-${index}`, { cache: "reload" });
+    }
+
+    const trimDeadline = Date.now() + 3000;
+    let afterKeys = await cache.keys();
+    while (afterKeys.length > 128 && Date.now() < trimDeadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+      afterKeys = await cache.keys();
+    }
+    const manifestKeys = afterKeys.filter((request) => new URL(request.url).pathname === "/manifest.webmanifest");
+    const requiredBoot = ["/", "/index.html", "/styles.css", "/app.js", "/offline-runtime.js"];
+    const bootMissing = requiredBoot.filter((pathname) => {
+      return !afterKeys.some((request) => new URL(request.url).pathname === pathname);
+    });
+    const probeRemaining = afterKeys.filter((request) => new URL(request.url).pathname.startsWith(probePrefix)).length;
+    const queryCanonical = manifestKeys.length === 1 && !manifestKeys[0].url.includes("verify=");
+    const passed = afterKeys.length <= 128 && bootMissing.length === 0 && queryCanonical;
+
+    root.setAttribute("data-v594-runtime-cache-controller", controllerUrl);
+    root.setAttribute("data-v594-runtime-cache-before", String(beforeCount));
+    root.setAttribute("data-v594-runtime-cache-after", String(afterKeys.length));
+    root.setAttribute("data-v594-runtime-cache-probe-remaining", String(probeRemaining));
+    root.setAttribute("data-v594-runtime-cache-query-keys", String(manifestKeys.length));
+    root.setAttribute("data-v594-runtime-cache-boot-missing", bootMissing.join(","));
+    root.setAttribute("data-v594-runtime-cache-status", passed ? "PASS" : "FAIL");
+
+    for (const request of afterKeys) {
+      if (new URL(request.url).pathname.startsWith(probePrefix)) await cache.delete(request);
+    }
+    const cleaned = (await cache.keys()).filter((request) => new URL(request.url).pathname.startsWith(probePrefix)).length;
+    root.setAttribute("data-v594-runtime-cache-cleaned", String(cleaned));
+  } catch (error) {
+    root.setAttribute("data-v594-runtime-cache-error", String(error?.message || error));
+    root.setAttribute("data-v594-runtime-cache-status", "FAIL");
+  }
+}
+
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=runtime-cache-bounded-v594", document.baseURI)).then((registration) => {
-    // Ask for the current release immediately. Exact-query cache keys in the
-    // worker keep a previous controller from supplying a mixed runtime while
+  navigator.serviceWorker.register(new URL("sw.js?v=runtime-cache-bounded-v594", document.baseURI)).then(async (registration) => {
+    // Ask for the current release immediately. The release-scoped worker
+    // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
-    return registration.update();
-  }).catch(() => {});
+    await registration.update();
+    await runV594RuntimeCacheVerification(registration);
+  }).catch((error) => {
+    if (URL_PARAMETERS.get("verify") !== "v594-runtime-cache") return;
+    document.documentElement.setAttribute("data-v594-runtime-cache-error", String(error?.message || error));
+    document.documentElement.setAttribute("data-v594-runtime-cache-status", "FAIL");
+  });
 }
