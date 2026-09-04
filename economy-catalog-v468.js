@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "background-hidden-availability-v595",
+    version: "keybind-title-modal-v596",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "background-hidden-availability-v595";
+const DVA_CLIENT_RELEASE = "keybind-title-modal-v596";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -847,7 +847,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "background-hidden-availability-v595";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "keybind-title-modal-v596";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2350,6 +2350,7 @@ function setScreen(screen) {
     setSelectedScrollRegion(null, { focus: false });
   }
   closeSwitchDragMenu();
+  if (next !== "game" && state.keybindOpen) setKeybindOpen(false, { focus: false });
   if (next !== "game" && state.fieldFeedOpen) setFieldFeedOpen(false);
   if (next !== "game" && state.vendingOpen) setVendingOpen(false, { focus: false });
   document.body.classList.toggle("start-open", next !== "game");
@@ -7073,14 +7074,14 @@ function clearMovementInput() {
   state.lastMovementSentSignature = "";
 }
 
-function setKeybindOpen(open) {
+function setKeybindOpen(open, options = {}) {
   state.keybindOpen = Boolean(open);
   els.keybindOverlay.hidden = !state.keybindOpen;
   els.keybindButton.setAttribute("aria-expanded", String(state.keybindOpen));
   if (state.keybindOpen) {
     clearMovementInput();
     requestAnimationFrame(() => els.keybindList.focus({ preventScroll: true }));
-  } else {
+  } else if (options.focus !== false) {
     els.keybindButton.focus({ preventScroll: true });
   }
   requestAnimationFrame(() => syncKeyboardContext(true));
@@ -21102,7 +21103,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "background-hidden-availability-v595";
+const version = "keybind-title-modal-v596";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22058,7 +22059,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=background-hidden-availability-v595", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=keybind-title-modal-v596", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
