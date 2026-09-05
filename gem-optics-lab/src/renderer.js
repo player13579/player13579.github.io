@@ -3,11 +3,11 @@ import {
   OPTICS_APPROXIMATIONS,
   clamp,
   createCutPlanes,
-  refractiveIndicesRGB,
   cauchyCoefficients,
 } from './optics.js';
 import { createOpticalPostprocess } from './postprocess.js';
 import { createSpectralTable } from './spectrum.js';
+import { canContinueMotionBatch, getRenderPolicy } from './render-policy.js';
 
 const MAX_PLANES = 128;
 const MAX_BOUNCES = 40;
@@ -48,7 +48,6 @@ uniform vec2 uJitter;
 uniform int uSampleIndex;
 uniform int uSpectralCount;
 uniform int uBounceLimit;
-uniform bool uRefine;
 uniform vec3 uCauchy;
 uniform vec4 uSpectrum[48];
 uniform vec4 uDaylight[12];
@@ -56,7 +55,6 @@ uniform sampler2D uIlluminants;
 uniform vec3 uView;
 uniform float uLightAngle;
 uniform float uIntensity;
-uniform vec3 uIor;
 uniform vec3 uAbsorption;
 uniform int uPlaneCount;
 uniform int uEnvironment;
@@ -80,37 +78,6 @@ float softRect(vec3 d, vec3 center, vec3 tangent, float width, float height, flo
   vec2 edge = 1.0 - smoothstep(vec2(width, height) - softness,
                                vec2(width, height) + softness, abs(q));
   return edge.x * edge.y;
-}
-
-vec3 environmentRadiance(vec3 direction) {
-  vec3 d = normalize(direction);
-  float a = uLightAngle;
-  d.xy = rotate2(-a) * d.xy;
-
-  vec3 base = vec3(0.019, 0.023, 0.032);
-  float upper = smoothstep(-0.5, 0.9, d.z);
-  base += vec3(0.013, 0.017, 0.024) * upper;
-
-  if (uEnvironment == 0) {
-    float key = softRect(d, vec3(-0.52, -0.67, 0.53), vec3(0.78, -0.62, 0.0), 0.30, 0.54, 0.055);
-    float rim = softRect(d, vec3(0.82, 0.32, 0.48), vec3(-0.36, 0.93, 0.0), 0.13, 0.48, 0.035);
-    float strip = softRect(d, vec3(0.32, -0.05, 0.95), vec3(0.98, 0.0, -0.22), 0.62, 0.045, 0.012);
-    float pin = pow(max(dot(d, normalize(vec3(-0.20, 0.88, 0.44))), 0.0), 620.0);
-    return base + key * vec3(5.2, 4.7, 4.15) + rim * vec3(1.8, 2.6, 4.2)
-      + strip * vec3(2.8, 3.15, 3.7) + pin * vec3(11.0, 9.4, 7.4);
-  }
-  if (uEnvironment == 1) {
-    float spot = pow(max(dot(d, normalize(vec3(-0.38, -0.78, 0.50))), 0.0), 150.0);
-    float hard = pow(max(dot(d, normalize(vec3(0.60, 0.63, 0.49))), 0.0), 920.0);
-    float slash = softRect(d, vec3(-0.20, 0.10, 0.97), vec3(0.98, 0.02, 0.20), 0.38, 0.028, 0.008);
-    return base * 0.32 + spot * vec3(8.2, 6.5, 5.0) + hard * vec3(15.0, 17.0, 21.0)
-      + slash * vec3(2.2, 3.2, 5.0);
-  }
-  float sky = pow(max(d.z * 0.5 + 0.5, 0.0), 1.5);
-  float sun = pow(max(dot(d, normalize(vec3(-0.42, -0.52, 0.74))), 0.0), 1100.0);
-  float window = softRect(d, vec3(0.58, 0.34, 0.74), vec3(-0.50, 0.86, 0.0), 0.36, 0.36, 0.07);
-  return base + sky * vec3(0.24, 0.37, 0.62) + sun * vec3(24.0, 19.0, 12.0)
-    + window * vec3(2.6, 2.8, 3.1) + max(-d.z, 0.0) * vec3(0.06, 0.045, 0.035);
 }
 
 bool intersectGem(vec3 origin, vec3 direction, out float nearT, out float farT,
@@ -176,45 +143,6 @@ float fresnelDielectric(float cosIncident, float n1, float n2, out bool tir) {
   float rp = (n2 * ci - n1 * ct) / (n2 * ci + n1 * ct);
   return clamp(0.5 * (rs * rs + rp * rp), 0.0, 1.0);
 }
-
-float channelValue(vec3 color, int channel) {
-  if (channel == 0) return color.r;
-  if (channel == 1) return color.g;
-  return color.b;
-}
-
-float traceInside(vec3 entryPoint, vec3 incident, vec3 entryNormal,
-                  float ior, float absorption, int channel, out float entryReflectance) {
-  bool entryTir;
-  entryReflectance = fresnelDielectric(-dot(incident, entryNormal), 1.0, ior, entryTir);
-  vec3 direction = refract(incident, entryNormal, 1.0 / ior);
-  vec3 origin = entryPoint + direction * EPSILON;
-  float throughput = 1.0 - entryReflectance;
-  float radiance = 0.0;
-
-  for (int bounce = 0; bounce < MAX_BOUNCES; bounce++) {
-    if (bounce >= uBounceLimit) break;
-    float distance;
-    vec3 exitNormal;
-    if (!intersectGemExit(origin, direction, distance, exitNormal)) break;
-    throughput *= exp(-absorption * distance);
-    vec3 exitPoint = origin + direction * distance;
-    float cosIncident = max(dot(direction, exitNormal), 0.0);
-    bool tir;
-    float reflectance = fresnelDielectric(cosIncident, ior, 1.0, tir);
-    if (!tir) {
-      vec3 exitDirection = refract(direction, -exitNormal, ior);
-      radiance += throughput * (1.0 - reflectance)
-        * channelValue(environmentRadiance(exitDirection), channel);
-    }
-    throughput *= reflectance;
-    if (throughput < 0.00065) break;
-    direction = reflect(direction, exitNormal);
-    origin = exitPoint + direction * EPSILON;
-  }
-  return radiance;
-}
-
 
 // Planck's law ratios: analytic illuminants, normalized at 550 nm.
 float blackbody(float wavelength, float temperature) {
@@ -302,26 +230,18 @@ void main() {
   float nearT,farT;vec3 normal,farNormal;
   if(intersectGem(camera,ray,nearT,farT,normal,farNormal)&&nearT>0.0) {
     vec3 point=camera+ray*nearT;
-    if(uRefine) {
-      xyz=vec3(0.0);
-      // Per-pixel cyclic stratification covers every visible band without global hue flicker.
-      ivec2 p=ivec2(gl_FragCoord.xy);
-      int strata=uSpectralCount/3;
-      int offset=(p.x*73+p.y*151+uSampleIndex)%strata;
-      for(int k=0;k<3;k++) {
-        int index=offset+k*strata;
-        vec4 band=uSpectrum[index];
-        float daylight=uDaylight[index/4][index%4];
-        vec4 lamps=texelFetch(uIlluminants,ivec2(index,0),0);
-        xyz+=traceSpectral(point,ray,normal,band.x,daylight,lamps)*band.yzw/3.0;
-      }
-    } else {
-      vec3 reflected,transmitted,entryF;
-      transmitted.r=traceInside(point,ray,normal,uIor.r,uAbsorption.r,0,entryF.r);
-      transmitted.g=traceInside(point,ray,normal,uIor.g,uAbsorption.g,1,entryF.g);
-      transmitted.b=traceInside(point,ray,normal,uIor.b,uAbsorption.b,2,entryF.b);
-      reflected=environmentRadiance(reflect(ray,normal))*entryF;
-      xyz=rgbToXYZ(reflected+transmitted);
+    xyz=vec3(0.0);
+    // Every presented cycle covers all bands. Each subpass traces three bands;
+    // the CPU freezes one camera pose until all strata have accumulated.
+    ivec2 p=ivec2(gl_FragCoord.xy);
+    int strata=uSpectralCount/3;
+    int offset=(p.x*73+p.y*151+uSampleIndex)%strata;
+    for(int k=0;k<3;k++) {
+      int index=offset+k*strata;
+      vec4 band=uSpectrum[index];
+      float daylight=uDaylight[index/4][index%4];
+      vec4 lamps=texelFetch(uIlluminants,ivec2(index,0),0);
+      xyz+=traceSpectral(point,ray,normal,band.x,daylight,lamps)*band.yzw/3.0;
     }
     xyz*=uIntensity;
   } else {
@@ -406,18 +326,21 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
   const vao=gl.createVertexArray();
   const illuminantTexture=gl.createTexture();
   const uniform={};
-  for(const name of ['uResolution','uJitter','uSampleIndex','uSpectralCount','uBounceLimit','uRefine','uCauchy','uView','uLightAngle','uIntensity','uIor','uAbsorption','uPlaneCount','uEnvironment','uPlanes[0]','uSpectrum[0]','uDaylight[0]','uIlluminants'])uniform[name]=gl.getUniformLocation(program,name);
+  for(const name of ['uResolution','uJitter','uSampleIndex','uSpectralCount','uBounceLimit','uCauchy','uView','uLightAngle','uIntensity','uAbsorption','uPlaneCount','uEnvironment','uPlanes[0]','uSpectrum[0]','uDaylight[0]','uIlluminants'])uniform[name]=gl.getUniformLocation(program,name);
   let state={...DEFAULT_OPTIONS};
   let planes=createCutPlanes(state.cut),spectrum=createSpectralTable(24);
   let destroyed=false,frame=0,dirty=true,planesDirty=true,spectrumDirty=true;
   let rotationOffset=0,previous=performance.now(),lastInteraction=0,lastReport=0;
-  let mode='none',draws=0,statsStart=previous,autoDpr=Math.min(window.devicePixelRatio||1,1.25);
+  let mode='none',statsStart=previous,autoDpr=Math.min(window.devicePixelRatio||1,1.25);
+  let motionCycle=null,completedMotionFrames=0,totalPresentedFrames=0;
+  let presentedSinceStats=0,motionPresentedSinceStats=0,renderedYaw=null;
   let pointer=null;
   const pointers=new Map();
   let pinchDistance=0;
   const oldTouchAction=canvas.style.touchAction;canvas.style.touchAction='none';
-  function targetSamples(){return state.quality==='ultra'?128:state.quality==='high'?64:32;}
-  function bounceLimit(moving){return moving?12:state.quality==='ultra'?40:state.quality==='high'?24:16;}
+  function policy(){return getRenderPolicy(state.quality);}
+  function targetSamples(){return policy().targetSamples;}
+  function bounceLimit(){return policy().bounces;}
   function desiredDpr(){
     const device=window.devicePixelRatio||1;
     return state.quality==='ultra'?Math.min(Math.max(device,1.25),2):state.quality==='high'?Math.min(device,1.6):Math.min(device,autoDpr);
@@ -428,14 +351,69 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     const maxPixels=state.quality==='ultra'?2600000:state.quality==='high'?1500000:850000;
     dpr=Math.min(dpr,Math.sqrt(maxPixels/Math.max(1,rect.width*rect.height)));
     const w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));
-    if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;post.resize(w,h);dirty=true;}
+    if(canvas.width!==w||canvas.height!==h){
+      canvas.width=w;canvas.height=h;post.resize(w,h);motionCycle=null;dirty=true;
+    }
   }
   function halton(index,base){let value=0,f=1;while(index>0){f/=base;value+=f*(index%base);index=Math.floor(index/base);}return value;}
-  function notify(now,moving){
-    if(now-lastReport<110&&post.sampleCount!==targetSamples())return;
+  function resetStats(now){statsStart=now;presentedSinceStats=0;motionPresentedSinceStats=0;}
+  function notify(now,moving,motionSamples=0,force=false){
+    if(!force&&now-lastReport<110&&post.sampleCount!==targetSamples())return;
     lastReport=now;
-    onStats?.({fps:draws*1000/Math.max(1,now-statsStart),bounces:bounceLimit(moving),planes:planes.length,dpr:canvas.width/Math.max(1,canvas.clientWidth),samples:moving?0:post.sampleCount,targetSamples:targetSamples(),spectralBands:moving?3:spectrum.count,refining:!moving&&post.sampleCount<targetSamples(),moving,hdr:post.hdrSupported});
+    const elapsed=Math.max(1,now-statsStart);
+    onStats?.({
+      fps:presentedSinceStats*1000/elapsed,
+      presentFPS:presentedSinceStats*1000/elapsed,
+      motionFPS:motionPresentedSinceStats*1000/elapsed,
+      bounces:bounceLimit(),planes:planes.length,
+      dpr:canvas.width/Math.max(1,canvas.clientWidth),
+      samples:moving?0:post.sampleCount,targetSamples:targetSamples(),
+      motionSamples,targetMotionSamples:spectrum.count/3,
+      spectralBands:spectrum.count,
+      refining:!moving&&post.sampleCount<targetSamples(),moving,
+      mode,completedMotionFrames,totalPresentedFrames,renderedYaw,
+      hdr:post.hdrSupported,
+    });
+    if(elapsed>=2000)resetStats(now);
   }
+
+  function drawSpectralPass(renderState,sampleIndex,jitterX,jitterY){
+    post.beginSample();
+    gl.useProgram(program);gl.bindVertexArray(vao);
+    const material=GEM_MATERIALS[renderState.gem];
+    const coefficients=cauchyCoefficients(material.ior,material.abbe);
+    gl.uniform2f(uniform.uResolution,canvas.width,canvas.height);
+    gl.uniform2f(uniform.uJitter,jitterX,jitterY);
+    gl.uniform1i(uniform.uSampleIndex,sampleIndex);
+    gl.uniform1i(uniform.uSpectralCount,spectrum.count);
+    gl.uniform1i(uniform.uBounceLimit,getRenderPolicy(renderState.quality).bounces);
+    gl.uniform3f(uniform.uCauchy,material.ior,coefficients.B,renderState.dispersion);
+    gl.uniform3f(uniform.uView,renderState.yaw,renderState.pitch,renderState.zoom);
+    gl.uniform1f(uniform.uLightAngle,renderState.lightAngle*Math.PI/180);
+    gl.uniform1f(uniform.uIntensity,renderState.intensity);
+    gl.uniform3fv(uniform.uAbsorption,material.absorption);
+    gl.uniform1i(uniform.uEnvironment,ENVIRONMENTS[renderState.environment]);
+    if(planesDirty){
+      if(planes.length>MAX_PLANES)throw new Error('Gem geometry exceeds shader capacity');
+      const packed=new Float32Array(MAX_PLANES*4);
+      planes.forEach((p,i)=>packed.set([...p.normal,p.distance],i*4));
+      gl.uniform4fv(uniform['uPlanes[0]'],packed);gl.uniform1i(uniform.uPlaneCount,planes.length);planesDirty=false;
+    }
+    gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,illuminantTexture);gl.uniform1i(uniform.uIlluminants,4);
+    if(spectrumDirty){
+      gl.uniform4fv(uniform['uSpectrum[0]'],spectrum.packed);gl.uniform4fv(uniform['uDaylight[0]'],spectrum.daylight);
+      const lamps=new Float32Array(48*4);
+      spectrum.wavelengths.forEach((w,i)=>[5400,8500,4200,5800].forEach((temperature,k)=>{
+        lamps[i*4+k]=Math.pow(550/w,5)*Math.expm1(14387769/(550*temperature))/Math.expm1(14387769/(w*temperature));
+      }));
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,48,1,0,gl.RGBA,gl.FLOAT,lamps);spectrumDirty=false;
+    }
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    post.endSample();
+  }
+
   function render(now){
     if(destroyed)return;
     frame=requestAnimationFrame(render);
@@ -444,57 +422,53 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     try {
       resize();
       const moving=state.autoRotate||pointers.size>0||now-lastInteraction<120;
-      const nextMode=moving?'preview':'spectral';
-      if(mode!==nextMode){mode=nextMode;dirty=true;}
+      const nextMode=moving?'motion-spectral':'static-progressive';
+      if(mode!==nextMode){mode=nextMode;motionCycle=null;post.reset();dirty=true;resetStats(now);}
       if(!moving&&!dirty&&post.sampleCount>=targetSamples())return;
-      const initialPreview=!moving&&dirty;
-      if(moving||dirty)post.reset();
-      if(dirty){statsStart=now;draws=0;}
       if(state.autoRotate&&!pointers.size)rotationOffset+=delta*.085;
-      post.beginSample();
-      gl.useProgram(program);gl.bindVertexArray(vao);
-      const material=GEM_MATERIALS[state.gem];
-      const coefficients=cauchyCoefficients(material.ior,material.abbe);
+      if(moving){
+        const strata=spectrum.count/3;
+        if(!motionCycle){
+          post.reset();
+          motionCycle={state:{...state,yaw:state.yaw+rotationOffset},subpass:0,strata};
+          dirty=false;
+        }
+        const batchStart=performance.now();
+        let batched=0;
+        while(motionCycle.subpass<motionCycle.strata
+          && canContinueMotionBatch(batched,performance.now()-batchStart)){
+          drawSpectralPass(motionCycle.state,motionCycle.subpass,0,0);
+          motionCycle.subpass++;batched++;
+        }
+        const motionSamples=motionCycle.subpass;
+        const completed=motionSamples===motionCycle.strata;
+        if(completed){
+          post.present({glare:.075});
+          renderedYaw=motionCycle.state.yaw;
+          completedMotionFrames++;totalPresentedFrames++;
+          presentedSinceStats++;motionPresentedSinceStats++;
+          motionCycle=null;post.reset();
+        }
+        notify(now,true,motionSamples,completed);
+        return;
+      }
+
+      if(dirty){post.reset();dirty=false;}
       const count=post.sampleCount;
-      gl.uniform2f(uniform.uResolution,canvas.width,canvas.height);
-      // Rotate the subpixel sequence between spectral cycles to avoid a wavelength/edge correlation.
-      const cycle=Math.floor(count/(spectrum.count/3))+1;
-      gl.uniform2f(uniform.uJitter,moving?0:(halton(count+1,2)+halton(cycle,5))%1-.5,moving?0:(halton(count+1,3)+halton(cycle,7))%1-.5);
-      gl.uniform1i(uniform.uSampleIndex,count);
-      gl.uniform1i(uniform.uSpectralCount,spectrum.count);
-      gl.uniform1i(uniform.uBounceLimit,bounceLimit(moving));
-      gl.uniform1i(uniform.uRefine,moving||initialPreview?0:1);
-      gl.uniform3f(uniform.uCauchy,material.ior,coefficients.B,state.dispersion);
-      gl.uniform3f(uniform.uView,state.yaw+rotationOffset,state.pitch,state.zoom);
-      gl.uniform1f(uniform.uLightAngle,state.lightAngle*Math.PI/180);
-      gl.uniform1f(uniform.uIntensity,state.intensity);
-      gl.uniform3fv(uniform.uIor,refractiveIndicesRGB(material,state.dispersion));
-      gl.uniform3fv(uniform.uAbsorption,material.absorption);
-      gl.uniform1i(uniform.uEnvironment,ENVIRONMENTS[state.environment]);
-      if(planesDirty){
-        if(planes.length>MAX_PLANES)throw new Error('Gem geometry exceeds shader capacity');
-        const packed=new Float32Array(MAX_PLANES*4);
-        planes.forEach((p,i)=>packed.set([...p.normal,p.distance],i*4));
-        gl.uniform4fv(uniform['uPlanes[0]'],packed);gl.uniform1i(uniform.uPlaneCount,planes.length);planesDirty=false;
+      const strata=spectrum.count/3;
+      const cycle=Math.floor(count/strata)+1;
+      const renderState={...state,yaw:state.yaw+rotationOffset};
+      drawSpectralPass(
+        renderState,count,
+        (halton(count+1,2)+halton(cycle,5))%1-.5,
+        (halton(count+1,3)+halton(cycle,7))%1-.5,
+      );
+      if(post.sampleCount%strata===0){
+        post.present({glare:.075});
+        renderedYaw=renderState.yaw;
+        totalPresentedFrames++;presentedSinceStats++;
       }
-      gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,illuminantTexture);gl.uniform1i(uniform.uIlluminants,4);
-      if(spectrumDirty){
-        gl.uniform4fv(uniform['uSpectrum[0]'],spectrum.packed);gl.uniform4fv(uniform['uDaylight[0]'],spectrum.daylight);
-        const lamps=new Float32Array(48*4);
-        spectrum.wavelengths.forEach((w,i)=>[5400,8500,4200,5800].forEach((temperature,k)=>{
-          lamps[i*4+k]=Math.pow(550/w,5)*Math.expm1(14387769/(550*temperature))/Math.expm1(14387769/(w*temperature));
-        }));
-        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,48,1,0,gl.RGBA,gl.FLOAT,lamps);spectrumDirty=false;
-      }
-      gl.drawArrays(gl.TRIANGLES,0,3);
-      post.endSample();
-      // Show only whole spectral cycles; intermediate bands must never flash as coloured stripes.
-      if(moving||initialPreview||post.sampleCount%(spectrum.count/3)===0)post.present({glare:.075});
-      if(initialPreview)post.reset();
-      dirty=false;draws++;
-      notify(now,moving);
+      notify(now,false,0);
     }catch(error){cancelAnimationFrame(frame);onError?.(error);}
   }
   function changed(interaction=true){dirty=true;if(interaction)lastInteraction=performance.now();}
@@ -528,7 +502,10 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     if(event.key==='0')resetView();
     changed();event.preventDefault();
   }
-  function visibility(){previous=performance.now();if(!document.hidden)changed(false);}
+  function visibility(){
+    previous=performance.now();
+    if(!document.hidden){motionCycle=null;post.reset();changed(false);}
+  }
   function contextLost(event){event.preventDefault();cancelAnimationFrame(frame);onError?.(new Error('WebGL context lost; reload to restore'));}
   const handlers={pointerdown:pointerDown,pointermove:pointerMove,pointerup:pointerUp,pointercancel:pointerUp,keydown:keyDown,webglcontextlost:contextLost};
   Object.entries(handlers).forEach(([name,fn])=>canvas.addEventListener(name,fn));
@@ -540,10 +517,23 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
       const prior=state;state=validateOptions(state,partial);
       if(state.cut!==prior.cut){planes=createCutPlanes(state.cut);planesDirty=true;}
       if(state.quality!==prior.quality){spectrum=createSpectralTable(state.quality==='ultra'?48:24);spectrumDirty=true;autoDpr=Math.min(window.devicePixelRatio||1,1.25);}
+      const opticsChanged=['gem','cut','environment','lightAngle','intensity','dispersion','quality']
+        .some((key)=>state[key]!==prior[key]);
+      if(opticsChanged){motionCycle=null;post.reset();}
       changed(false);
     },resetView,
     destroy(){if(destroyed)return;destroyed=true;cancelAnimationFrame(frame);observer.disconnect();Object.entries(handlers).forEach(([name,fn])=>canvas.removeEventListener(name,fn));canvas.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',visibility);canvas.style.touchAction=oldTouchAction;post.destroy();gl.deleteTexture(illuminantTexture);gl.deleteVertexArray(vao);gl.deleteProgram(program);},
-    getState(){return Object.freeze({...state,yaw:state.yaw+rotationOffset,planeCount:planes.length,maxBounces:bounceLimit(false),sampleCount:post.sampleCount,targetSamples:targetSamples(),spectralBands:spectrum.count,hdr:post.hdrSupported,approximations:OPTICS_APPROXIMATIONS});},
+    getState(){
+      const moving=mode==='motion-spectral';
+      return Object.freeze({
+        ...state,yaw:state.yaw+rotationOffset,planeCount:planes.length,
+        maxBounces:bounceLimit(),sampleCount:moving?0:post.sampleCount,
+        targetSamples:targetSamples(),spectralBands:spectrum.count,
+        motionSamples:motionCycle?.subpass??0,targetMotionSamples:spectrum.count/3,
+        moving,mode,completedMotionFrames,totalPresentedFrames,renderedYaw,
+        hdr:post.hdrSupported,approximations:OPTICS_APPROXIMATIONS,
+      });
+    },
   });
 }
 

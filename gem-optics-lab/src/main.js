@@ -101,13 +101,18 @@ try {
   renderer = createGemRenderer($('gem-canvas'), {
     onError: showError,
     onStats: (stats) => {
-      if (!ready) { ready = true; $('loading').hidden = true; }
+      if (!ready && stats.totalPresentedFrames > 0) { ready = true; $('loading').hidden = true; }
       const percent = Math.min(100, Math.round(stats.samples / stats.targetSamples * 100));
-      $('refinement-status').textContent = stats.moving ? '回転を止めると、さらに精細に' : stats.refining ? `細部を描画中 ${percent}%` : `${stats.spectralBands}波長 · 精細化完了`;
+      $('refinement-status').textContent = stats.moving ? `${stats.spectralBands}波長 · 回転中も精細描画` : stats.refining ? `細部を描画中 ${percent}%` : `${stats.spectralBands}波長 · 精細化完了`;
       $('refinement-status').classList.toggle('complete', !stats.refining && !stats.moving);
       $('gem-canvas').dataset.samples = String(stats.samples);
       $('gem-canvas').dataset.targetSamples = String(stats.targetSamples);
       $('gem-canvas').dataset.hdr = String(stats.hdr);
+      $('gem-canvas').dataset.moving = String(stats.moving);
+      $('gem-canvas').dataset.spectralBands = String(stats.spectralBands);
+      $('gem-canvas').dataset.bounces = String(stats.bounces);
+      if (Number.isFinite(stats.completedMotionFrames)) $('gem-canvas').dataset.motionFrames = String(stats.completedMotionFrames);
+      if (Number.isFinite(stats.renderedYaw)) $('gem-canvas').dataset.renderedYaw = String(stats.renderedYaw);
     },
   });
   renderer.setOptions(options);

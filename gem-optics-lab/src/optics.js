@@ -454,7 +454,7 @@ export function intersectConvexPlanes(origin, direction, planes, epsilon = 1e-9)
 }
 
 export const OPTICS_APPROXIMATIONS = Object.freeze({
-  spectralSamples: '24/48 wavelength bands from 380–780 nm with CIE XYZ integration; RGB preview while interacting',
+  spectralSamples: '24/48 wavelength bands from 380–780 nm with CIE XYZ integration during motion and at rest',
   crystalModel: 'isotropic representative IOR; birefringence omitted',
   environment: 'analytic procedural studio lights',
   geometry: 'commercial cut families are idealized as exact convex, perfectly symmetric plane arrangements',
