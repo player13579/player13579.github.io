@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ate-composite-perceptual-diversity-v624";
+const DVA_CLIENT_RELEASE = "movement-acc-off-trial-isolated-v630";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -867,7 +867,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-composite-perceptual-diversity-v624";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "movement-acc-off-trial-isolated-v630";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9401,9 +9401,6 @@ async function runVerificationRealScreenAutoStart() {
   if (!VERIFY_REAL_SCREEN_AUTO_START || !state.offlineClient) return;
   document.documentElement.setAttribute("data-v533-auto-start-status", "starting");
   try {
-    // Follow the same texture-load boundary as the real title/matchmaking
-    // route before a deterministic fixture can claim visual coverage.
-    loadGameplayTextures();
     // Pages is the canonical verification origin, so sequential exact-route
     // fixtures share its localStorage. Never let a previous fixture's room
     // identity short-circuit or contaminate the next deterministic run.
@@ -14790,7 +14787,18 @@ function applyMovementAck(result) {
     result.movementAccActive == null && authoritativeMovementAccEnabled && authoritativeAcceleration + 1e-6 >= authoritativeMovementAccThreshold && Number(result.movementAcc) > 1.5
   );
   const authoritativeMovementAccMax = Math.max(1, Number(result.movementAccMax) || 2);
-  const authoritativeMovementAcc = authoritativeMovementAccActive ? authoritativeMovementAccMax : 1;
+  const reportedMovementAcc = Number(result.movementAcc);
+  const hasAuthoritativeMovementAcc = Number.isFinite(result.movementAcc) && result.movementAcc >= 0;
+  // Preserve a finite server value (including TimeKeeper's authoritative 0).
+  // Legacy ACKs retain the previous fallback, except OFF must never overwrite
+  // the released source acceleration with a stale ACC1 placeholder.
+  const authoritativeMovementAcc = hasAuthoritativeMovementAcc
+    ? reportedMovementAcc
+    : !authoritativeMovementAccEnabled
+      ? authoritativeAcceleration
+      : authoritativeMovementAccActive
+        ? authoritativeMovementAccMax
+        : 1;
   data.self.speedMultiplier = authoritativeSpeed;
   data.self.accelerationMultiplier = authoritativeAcceleration;
   data.self.movementAcc = authoritativeMovementAcc;
@@ -15676,6 +15684,12 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
   if (!shadeMask) return false;
   const sampledTime = Math.floor(time * 60) / 60;
   const seed = [...String(room.id || "room")].reduce((value, character) => value + character.charCodeAt(0), 0);
+  const seedPhase = seed * 0.013;
+  const canopyHeight = Math.min(room.w, room.h) * 0.2;
+  const coherentGust = Math.sin(Math.PI * 2 * 0.075 * sampledTime + seedPhase) * 0.56
+    + Math.sin(Math.PI * 2 * 0.163 * sampledTime + seedPhase * 1.7) * 0.29
+    + Math.sin(Math.PI * 2 * 0.31 * sampledTime + 1.3) * 0.15;
+  const coherentOffset = projectedLeafShadowOffset(canopyHeight, coherentGust * 0.015, coherentGust * 0.007);
 
   ctx.save();
   ctx.beginPath();
@@ -15684,11 +15698,42 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
   ctx.globalCompositeOperation = "multiply";
   ctx.filter = "blur(0.85px)";
   ctx.globalAlpha = 0.2 * intensity;
-  // Keep the authored shade texture stationary. The rejected recent
-  // independent contour layer is removed without restoring raster panning.
-  ctx.drawImage(shadeMask, room.x, room.y, room.w, room.h);
+  ctx.drawImage(shadeMask, room.x + coherentOffset.x, room.y + coherentOffset.y, room.w, room.h);
+
+  const penumbraOffset = projectedLeafShadowOffset(canopyHeight, coherentGust * 0.009, coherentGust * 0.004);
+  ctx.filter = "blur(1.65px)";
+  ctx.globalAlpha = 0.09 * intensity;
+  ctx.drawImage(shadeMask, room.x + penumbraOffset.x, room.y + penumbraOffset.y, room.w, room.h);
+  ctx.filter = "blur(0.65px)";
+
+  const clusterColumns = 4;
+  const clusterRows = 3;
+  for (let cluster = 0; cluster < clusterColumns * clusterRows; cluster += 1) {
+    const column = cluster % clusterColumns;
+    const row = Math.floor(cluster / clusterColumns);
+    const spatialPhase = seedPhase + column * 1.37 + row * 2.11;
+    const localFlutter = coherentGust * 0.72
+      + Math.sin(Math.PI * 2 * (0.21 + cluster * 0.004) * sampledTime + spatialPhase) * 0.2
+      + Math.sin(Math.PI * 2 * 0.47 * sampledTime + spatialPhase * 1.61) * 0.08;
+    const localOffset = projectedLeafShadowOffset(
+      canopyHeight * (0.82 + row * 0.08),
+      localFlutter * 0.017,
+      localFlutter * 0.009
+    );
+    const centerX = room.x + room.w * (0.14 + column * 0.24 + Math.sin(spatialPhase) * 0.018);
+    const centerY = room.y + room.h * (0.18 + row * 0.31 + Math.cos(spatialPhase) * 0.022);
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY, room.w * 0.19, room.h * 0.235, 0, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.globalAlpha = 0.115 * intensity;
+    ctx.drawImage(shadeMask, room.x + localOffset.x, room.y + localOffset.y, room.w, room.h);
+    ctx.restore();
+  }
   ctx.filter = "none";
 
+  // Tiny sunlit dust motes are the complementary E layer. They follow the
+  // same wind field but do not redraw or duplicate the foliage-shadow texture.
   ctx.globalCompositeOperation = "screen";
   const dustMoteCount = Math.max(5, Math.min(11, Math.round(room.w * room.h / 62000)));
   for (let mote = 0; mote < dustMoteCount; mote += 1) {
@@ -15722,6 +15767,8 @@ function drawFootBathAmbient(object, time, intensity = 1) {
   ctx.filter = "saturate(0.82) brightness(0.72)";
   applyAteGlowContext(ctx, "ripple", time, Number(object.x || 0) * 0.001, intensity * 0.34);
 
+  // The sun direction is fixed. Steam density changes the beam visibility;
+  // the ray itself never rotates or slides away from its canopy opening.
   const godrayBreathing = 0.82 + Math.sin(sampledTime * Math.PI * 0.24) * 0.06;
   ctx.globalAlpha = intensity * 0.15 * godrayBreathing;
   ctx.drawImage(
@@ -15736,17 +15783,19 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     128
   );
 
-  // The rejected recent wavefront and steam geometry is removed. Water
-  // samples remain fixed so the older panorama-style drift does not return.
+  // The authored bath rim stays in the room texture. Only highlights inside a
+  // fixed ellipse move, so no frame can displace the bath silhouette.
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(0, 8, 118, 31, 0, 0, Math.PI * 2);
   ctx.clip();
   const wavePhase = sampledTime * Math.PI * 0.58;
+  const waterDrift = Math.sin(wavePhase) * 4.2;
+  const waterSourceX = clamp(sourceWidth * 0.025 + waterDrift, 0, sourceWidth * 0.055);
   ctx.globalAlpha = intensity * (0.255 + Math.sin(wavePhase) * 0.032);
   ctx.drawImage(
     sprite,
-    sourceWidth * 0.025,
+    waterSourceX,
     sourceHeight * 0.43,
     sourceWidth * 0.95,
     sourceHeight * 0.36,
@@ -15758,7 +15807,7 @@ function drawFootBathAmbient(object, time, intensity = 1) {
   ctx.globalAlpha = intensity * (0.115 + Math.cos(wavePhase * 0.73) * 0.022);
   ctx.drawImage(
     sprite,
-    sourceWidth * 0.035,
+    clamp(sourceWidth * 0.035 - waterDrift * 0.64, 0, sourceWidth * 0.06),
     sourceHeight * 0.5,
     sourceWidth * 0.93,
     sourceHeight * 0.25,
@@ -15768,6 +15817,31 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     70
   );
   ctx.restore();
+
+  const steamSlices = [
+    { sx: 0.12, sw: 0.2, x: -49, delay: 0.04, wind: 0.8 },
+    { sx: 0.39, sw: 0.22, x: 0, delay: 0.37, wind: 1.15 },
+    { sx: 0.66, sw: 0.2, x: 49, delay: 0.7, wind: 0.95 }
+  ];
+  for (const steam of steamSlices) {
+    const phase = (sampledTime * 0.145 + steam.delay) % 1;
+    const rise = 48 * (1 - Math.exp(-phase * 3.25));
+    const lateralDrift = steam.wind * 8 * phase ** 1.35;
+    const alpha = Math.sin(phase * Math.PI) ** 1.35 * 0.245 * intensity;
+    if (alpha <= 0.005) continue;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(
+      sprite,
+      sourceWidth * steam.sx,
+      sourceHeight * 0.13,
+      sourceWidth * steam.sw,
+      sourceHeight * 0.37,
+      steam.x - 29 + lateralDrift,
+      -62 - rise,
+      58 + phase * 10,
+      94 + phase * 20
+    );
+  }
 
   const sparkleSlices = [
     { sx: 0.24, sy: 0.48, x: -67, y: -2, phase: 0.1 },
@@ -15830,6 +15904,24 @@ const OBJECT_EFFECT_PRESENTATIONS = Object.freeze({
   heal: Object.freeze({ motion: "heal", color: "#4ade80", accent: "#f0fdf4", size: 120 }),
   fullRecovery: Object.freeze({ motion: "burst", color: "#14b8a6", accent: "#fde68a", size: 128 }),
   decoy: Object.freeze({ motion: "signal", color: "#a78bfa", accent: "#67e8f9", size: 116 })
+});
+
+const OBJECT_EFFECT_APPEARANCE = Object.freeze({
+  stamina: Object.freeze({ choreography: "updraft", shape: "shard", palette: ["#34d399", "#a7f3d0", "#fde047", "#ffffff"] }),
+  credits: Object.freeze({ choreography: "fountain", shape: "confetti", palette: ["#f59e0b", "#fde047", "#fef3c7", "#fb7185"] }),
+  mana: Object.freeze({ choreography: "spiral", shape: "glint", palette: ["#6366f1", "#a78bfa", "#67e8f9", "#f0abfc"] }),
+  cooldownReduction: Object.freeze({ choreography: "rewind", shape: "shard", palette: ["#22d3ee", "#60a5fa", "#fef3c7", "#ffffff"] }),
+  statusRecovery: Object.freeze({ choreography: "cleanse", shape: "petal", palette: ["#10b981", "#6ee7b7", "#bae6fd", "#ffffff"] }),
+  acceleration: Object.freeze({ choreography: "backdraft", shape: "shard", palette: ["#38bdf8", "#67e8f9", "#a7f3d0", "#ffffff"] }),
+  luckBoost: Object.freeze({ choreography: "constellation", shape: "glint", palette: ["#f472b6", "#facc15", "#c4b5fd", "#ffffff"] }),
+  overheal: Object.freeze({ choreography: "guard", shape: "glint", palette: ["#3b82f6", "#60a5fa", "#bae6fd", "#ffffff"] }),
+  relaxation: Object.freeze({ choreography: "drift", shape: "petal", palette: ["#2dd4bf", "#7dd3fc", "#d8b4fe", "#ffffff"] }),
+  herbalRecovery: Object.freeze({ choreography: "bloom", shape: "leaf", palette: ["#16a34a", "#4ade80", "#a7f3d0", "#fde68a"] }),
+  healthyMeal: Object.freeze({ choreography: "fountain", shape: "petal", palette: ["#f59e0b", "#fb7185", "#4ade80", "#fef3c7"] }),
+  mineralWater: Object.freeze({ choreography: "splash", shape: "droplet", palette: ["#0284c7", "#38bdf8", "#a5f3fc", "#ffffff"] }),
+  heal: Object.freeze({ choreography: "bloom", shape: "petal", palette: ["#22c55e", "#86efac", "#f9a8d4", "#ffffff"] }),
+  fullRecovery: Object.freeze({ choreography: "prism-burst", shape: "glint", palette: ["#14b8a6", "#38bdf8", "#facc15", "#f472b6"] }),
+  decoy: Object.freeze({ choreography: "pixel-scatter", shape: "pixel", palette: ["#8b5cf6", "#22d3ee", "#f472b6", "#ffffff"] })
 });
 
 function dedicatedMapObjectEffectTexture(effectKind, type = "") {
@@ -16227,11 +16319,6 @@ function drawResolvePoint(data) {
   ctx.lineWidth = near ? 6 : 3;
   ctx.beginPath();
   ctx.ellipse(point.x, point.y + 30, 48, 18, 0, 0, Math.PI * 2);
-  // The resolve point owns a slow, grounded boundary orbit.  It is attached
-  // to the authoritative use range rather than borrowing a generic sparkle.
-  const resolveOrbit = time * 0.9 + Number(point.x || 0) * 0.006;
-  ctx.arc(point.x, point.y + 30, 39 + (near ? 5 : 0), resolveOrbit, resolveOrbit + Math.PI * 0.78);
-  ctx.arc(point.x, point.y + 30, 39 + (near ? 5 : 0), resolveOrbit + Math.PI, resolveOrbit + Math.PI * 1.56);
   ctx.stroke();
   ctx.globalAlpha = 1;
   ctx.fillStyle = "rgba(8,20,28,0.94)";
@@ -16312,45 +16399,29 @@ function drawGravityZones(data) {
       ctx.translate(zone.x, zone.y);
       ctx.globalCompositeOperation = "lighter";
       if (stormTexture) {
-        // The authored storm raster supplies material identity, but its dense
-        // shard detail must remain a quiet bed under the readable compression
-        // field instead of becoming the whole effect language.
-        ctx.globalAlpha = 0.26;
+        const spin = phase * 0.08;
+        ctx.save();
+        ctx.rotate(spin);
+        ctx.globalAlpha = 0.72;
         ctx.drawImage(stormTexture, -radius, -radius, radius * 2, radius * 2);
+        ctx.restore();
       }
-      const compression = Math.sin(phase * 0.34) * radius * 0.035;
-      const precession = Math.sin(phase * 0.19) * 0.16;
-      const fieldGradient = ctx.createRadialGradient(0, 0, radius * 0.08, 0, 0, radius);
-      fieldGradient.addColorStop(0, "rgba(233,213,255,0.17)");
-      fieldGradient.addColorStop(0.42, "rgba(139,92,246,0.12)");
-      fieldGradient.addColorStop(1, "rgba(76,29,149,0.02)");
-      ctx.fillStyle = fieldGradient;
+      ctx.fillStyle = "rgba(76,29,149,0.34)";
+      ctx.strokeStyle = "rgba(196,181,253,0.9)";
+      ctx.lineWidth = 8;
+      ctx.setLineDash([18, 12]);
+      ctx.lineDashOffset = -phase * 18;
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(196,181,253,0.9)";
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, radius - compression, radius * 0.72 + compression * 0.35, precession, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.globalAlpha *= 0.72;
-      ctx.strokeStyle = "rgba(167,139,250,0.88)";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, radius * 0.67 + compression * 0.5, radius * 0.31 - compression * 0.18, -precession * 0.7, 0, Math.PI * 2);
-      ctx.ellipse(0, 0, radius * 0.38 - compression * 0.22, radius * 0.18 + compression * 0.12, precession * 1.2, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha *= 0.78;
-      ctx.strokeStyle = "rgba(233,213,255,0.9)";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(-radius * 0.91, -radius * 0.2);
-      ctx.bezierCurveTo(-radius * 0.54, -radius * 0.48 + compression, -radius * 0.3, radius * 0.18, 0, 0);
-      ctx.bezierCurveTo(radius * 0.3, -radius * 0.18, radius * 0.54, radius * 0.48 - compression, radius * 0.91, radius * 0.2);
-      ctx.moveTo(-radius * 0.91, radius * 0.2);
-      ctx.bezierCurveTo(-radius * 0.54, radius * 0.48 - compression, -radius * 0.3, -radius * 0.18, 0, 0);
-      ctx.bezierCurveTo(radius * 0.3, radius * 0.18, radius * 0.54, -radius * 0.48 + compression, radius * 0.91, -radius * 0.2);
-      ctx.stroke();
+      ctx.setLineDash([]);
+      for (let index = 0; index < 20; index += 1) {
+        const angle = phase * (index % 2 ? -0.7 : 0.9) + index / 12 * Math.PI * 2;
+        const orbit = radius * (0.18 + (index % 5) * 0.16);
+        ctx.fillStyle = index % 3 ? "#a78bfa" : "#e9d5ff";
+        ctx.fillRect(Math.cos(angle) * orbit - 4, Math.sin(angle) * orbit - 4, 8, 8);
+      }
       const barrierUntil = Number(zone.barrierUntil || (Number(zone.endsAt) - 1000));
       ctx.fillStyle = "#f5f3ff";
       ctx.font = "900 11px Segoe UI, sans-serif";
@@ -16368,16 +16439,18 @@ function drawGravityZones(data) {
       const safeX = Number.isFinite(Number(zone.safeX)) ? Number(zone.safeX) : zone.x;
       const safeY = Number.isFinite(Number(zone.safeY)) ? Number(zone.safeY) : zone.y;
       if (!worldPointVisible(safeX, safeY, safeRadius + 70)) continue;
+      const safePulse = 1 + Math.sin(phase * 1.65) * 0.04;
       ctx.save();
       ctx.translate(safeX, safeY);
+      ctx.rotate(-phase * 0.04);
       ctx.globalCompositeOperation = "screen";
-      ctx.globalAlpha = 0.42;
+      ctx.globalAlpha = 0.82;
       ctx.drawImage(
         safeEyeTexture,
-        -safeRadius,
-        -safeRadius,
-        safeRadius * 2,
-        safeRadius * 2
+        -safeRadius * safePulse,
+        -safeRadius * safePulse,
+        safeRadius * safePulse * 2,
+        safeRadius * safePulse * 2
       );
       ctx.restore();
     }
@@ -16509,16 +16582,13 @@ function drawFacilityEffects(data) {
     } else if (station.type === "utility" || station.type === "repair") {
       const active = activeTaskIds.has(station.id);
       const strength = active ? 0.92 : 0.2;
-      const conduit = Math.sin(time * 2.4 + seed * 9) * 8;
-      ctx.globalAlpha = strength;
-      ctx.strokeStyle = "rgba(34,211,238,.88)";
-      ctx.lineWidth = active ? 4 : 2;
-      ctx.beginPath();
-      ctx.moveTo(station.x - 16, station.y + 21);
-      ctx.bezierCurveTo(station.x - 8 + conduit, station.y - 4, station.x + 8 - conduit, station.y - 31, station.x + 16, station.y - 48);
-      ctx.moveTo(station.x + 8, station.y + 19);
-      ctx.bezierCurveTo(station.x + 1 - conduit * .4, station.y - 7, station.x - 4 + conduit * .4, station.y - 23, station.x - 8, station.y - 42);
-      ctx.stroke();
+      for (let particleIndex = 0; particleIndex < 3; particleIndex += 1) {
+        const progress = (time * (0.36 + particleIndex * 0.025) + seed + particleIndex / 3) % 1;
+        const sway = Math.sin(time * 2.4 + particleIndex * 2.1 + stationIndex) * 9;
+        const alpha = Math.sin(progress * Math.PI) * strength;
+        ctx.fillStyle = `rgba(34,211,238,${alpha})`;
+        ctx.fillRect(station.x + sway - 1.5, station.y + 17 - progress * 62, 3, 8);
+      }
       if (active) {
         ctx.strokeStyle = `rgba(103,232,249,${0.4 + Math.sin(time * 5 + seed) * 0.18})`;
         ctx.lineWidth = 2;
@@ -16567,6 +16637,7 @@ function drawFacilityEffects(data) {
   ctx.restore();
 }
 
+
 function drawTaskTransferStationEffect(station, active, time, phase) {
   const download = station.task === "download";
   const source = download ? state.textures.transferInEffect : state.textures.transferOutEffect;
@@ -16584,19 +16655,33 @@ function drawTaskTransferStationEffect(station, active, time, phase) {
     phase,
     active ? 1.08 : 0.62
   );
-  ctx.globalAlpha = active ? 0.94 : 0.38;
-  drawNormalizedSpriteCentered(sprite, 0, 0, size, size);
   const direction = download ? 1 : -1;
-  const sway = Math.sin(time * 1.9 + phase * 7) * size * 0.09;
-  ctx.globalAlpha = active ? 0.74 : 0.26;
-  ctx.strokeStyle = download ? "rgba(103,232,249,.92)" : "rgba(186,230,253,.92)";
-  ctx.lineWidth = active ? 5 : 3;
-  ctx.beginPath();
-  ctx.moveTo(-size * .2, direction * size * .28);
-  ctx.bezierCurveTo(-size * .12 + sway, direction * size * .08, size * .1 - sway, -direction * size * .08, size * .2, -direction * size * .28);
-  ctx.moveTo(size * .08, direction * size * .28);
-  ctx.bezierCurveTo(size * .02 - sway * .5, direction * size * .06, -size * .07 + sway * .5, -direction * size * .09, -size * .12, -direction * size * .26);
-  ctx.stroke();
+  const travel = ((time * 0.62 + phase) % 1 + 1) % 1;
+  ctx.globalAlpha = active ? 0.24 : 0.1;
+  drawNormalizedSpriteCentered(sprite, 0, direction * (travel - 0.5) * 12, size * 1.12, size * 1.12);
+  ctx.globalAlpha = active ? 0.94 : 0.38;
+  drawNormalizedSpriteCentered(sprite, 0, direction * Math.sin(time * 2.4 + phase * 4) * 3, size, size);
+
+  const particleCount = active ? 12 : 6;
+  const particleColor = download ? "rgba(103,232,249,0.92)" : "rgba(186,230,253,0.92)";
+  for (let index = 0; index < particleCount; index += 1) {
+    const cycle = ((time * (active ? 0.92 : 0.54) + phase + index / particleCount) % 1 + 1) % 1;
+    const angle = phase * Math.PI * 2 + index * 2.399963229728653;
+    const radius = size * (0.18 + cycle * 0.34);
+    const particleSize = (active ? 4.4 : 3.1) * (1 - cycle * 0.46);
+    ctx.save();
+    ctx.translate(
+      Math.cos(angle) * radius,
+      Math.sin(angle) * radius * 0.62 + direction * (cycle - 0.5) * 18
+    );
+    ctx.rotate(angle + time * direction * 1.8);
+    ctx.globalAlpha = (active ? 0.84 : 0.34) * Math.sin(Math.PI * cycle);
+    ctx.fillStyle = particleColor;
+    ctx.shadowColor = particleColor;
+    ctx.shadowBlur = active ? 9 : 5;
+    ctx.fillRect(-particleSize / 2, -particleSize / 2, particleSize, particleSize);
+    ctx.restore();
+  }
   ctx.restore();
   return true;
 }
@@ -16775,41 +16860,32 @@ function drawHitEffects() {
   state.hitEffects = state.hitEffects.filter((effect) => now - effect.startedAt < effect.duration);
   for (const effect of state.hitEffects) {
     const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
+    const seed = [...String(effect.id)].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 17);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    ctx.translate(effect.x, effect.y);
-    const impulse = objectEffectEase(clamp(progress / 0.34, 0, 1));
-    const settle = objectEffectEase(clamp((progress - 0.28) / 0.72, 0, 1));
-    const radius = (effect.lethal ? 82 : 58) * (0.38 + impulse * 0.62 - settle * 0.12);
-    const verticalScale = effect.hitZone === "head" ? 0.72 : effect.lethal ? 0.58 : 0.42;
-    const coreGradient = ctx.createRadialGradient(0, 0, 2, 0, 0, radius);
-    coreGradient.addColorStop(0, effect.hitZone === "head" ? "rgba(255,248,220,0.82)" : "rgba(254,215,170,0.7)");
-    coreGradient.addColorStop(0.46, effect.lethal ? "rgba(244,63,94,0.32)" : "rgba(251,146,60,0.28)");
-    coreGradient.addColorStop(1, "rgba(239,68,68,0)");
-    ctx.globalAlpha = Math.max(0, 1 - progress);
-    ctx.fillStyle = coreGradient;
-    ctx.save();
-    ctx.scale(1, verticalScale);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = effect.hitZone === "head" ? "rgba(254,240,138,0.95)" : effect.lethal ? "rgba(251,113,133,0.94)" : "rgba(253,186,116,0.9)";
-    ctx.lineWidth = effect.lethal ? 4.5 : 3;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, radius, radius * verticalScale, 0, 0, Math.PI * 2);
-    if (effect.hitZone === "head") {
-      const seam = radius * (0.22 + impulse * 0.34);
-      ctx.moveTo(-seam, seam * 0.54);
-      ctx.quadraticCurveTo(0, -seam * 0.8, seam, seam * 0.54);
-      ctx.moveTo(-seam, -seam * 0.54);
-      ctx.quadraticCurveTo(0, seam * 0.8, seam, -seam * 0.54);
-    } else if (effect.lethal) {
-      ctx.moveTo(-radius * 0.72, 0);
-      ctx.bezierCurveTo(-radius * 0.3, -radius * 0.3, radius * 0.3, radius * 0.3, radius * 0.72, 0);
-      ctx.moveTo(0, -radius * verticalScale * 0.82);
-      ctx.bezierCurveTo(radius * 0.24, -radius * 0.16, -radius * 0.24, radius * 0.16, 0, radius * verticalScale * 0.82);
+    for (let index = 0; index < 22; index += 1) {
+      const angle = ((seed % 360) + index * 137.5) * Math.PI / 180;
+      const speed = 38 + ((seed >> (index % 12)) & 31) + index * 1.7;
+      const travel = speed * Math.sin(Math.min(1, progress) * Math.PI * 0.62);
+      const x = effect.x + Math.cos(angle) * travel;
+      const y = effect.y + Math.sin(angle) * travel + progress * progress * 34;
+      const alpha = (1 - progress) * (index % 3 === 0 ? 0.95 : 0.72);
+      const hue = (seed + index * 43 + now / 7) % 360;
+      const radius = Math.max(1.2, (effect.lethal ? 6.5 : 5) * (1 - progress * 0.65) * (0.7 + (index % 4) * 0.1));
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = `hsl(${hue} 96% 62%)`;
+      ctx.shadowColor = `hsl(${hue} 100% 72%)`;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius * 1.45, radius, angle, 0, Math.PI * 2);
+      ctx.fill();
+      if (index % 3 === 0) drawRainbowSpark(x, y, radius * 2.4, hue, angle + now / 420);
     }
+    ctx.globalAlpha = 1 - progress;
+    ctx.strokeStyle = `hsl(${(seed + now / 5) % 360} 100% 72%)`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, 16 + progress * (effect.lethal ? 76 : 52), 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -16827,7 +16903,7 @@ function drawHazardFields(data) {
     const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
     ctx.save();
     ctx.translate(Number(field.x) || 0, Number(field.y) || 0);
-    ctx.globalAlpha = 0.42;
+    ctx.globalAlpha = 0.72;
     ctx.globalCompositeOperation = kind === "water" ? "source-over" : "lighter";
     if (sprite) {
       drawAnimatedTextureCentered(sprite, 0, 0, radius * 2.25, radius * 2.25, {
@@ -16843,40 +16919,6 @@ function drawHazardFields(data) {
       ctx.beginPath();
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
-    }
-    // The persistent hazard owns one continuous material surface. The exact
-    // raster remains stationary beneath it; motion comes from connected shape
-    // deformation instead of a spray of interchangeable particles.
-    const flow = Math.sin(now / 520 + Number(field.x || 0) * 0.007);
-    ctx.globalAlpha = 0.58;
-    ctx.lineWidth = Math.max(2.5, radius * 0.045);
-    ctx.beginPath();
-    if (kind === "fire") {
-      ctx.fillStyle = "rgba(249,115,22,.2)";
-      ctx.strokeStyle = "rgba(254,215,170,.82)";
-      ctx.moveTo(-radius * 0.72, radius * 0.34);
-      ctx.bezierCurveTo(-radius * 0.52, -radius * (0.18 + flow * 0.08), -radius * 0.2, -radius * 0.62, 0, -radius * (0.42 + flow * 0.1));
-      ctx.bezierCurveTo(radius * 0.28, -radius * 0.72, radius * 0.56, -radius * (0.1 - flow * 0.07), radius * 0.72, radius * 0.34);
-      ctx.quadraticCurveTo(0, radius * 0.58, -radius * 0.72, radius * 0.34);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    } else if (kind === "poison") {
-      ctx.fillStyle = "rgba(132,204,22,.14)";
-      ctx.strokeStyle = "rgba(190,242,100,.7)";
-      ctx.moveTo(-radius * 0.78, radius * 0.08);
-      ctx.bezierCurveTo(-radius * 0.56, -radius * (0.52 + flow * 0.07), -radius * 0.12, -radius * 0.42, radius * 0.08, -radius * 0.28);
-      ctx.bezierCurveTo(radius * 0.44, -radius * 0.56, radius * 0.76, -radius * 0.2, radius * 0.72, radius * 0.18);
-      ctx.bezierCurveTo(radius * 0.42, radius * 0.52, -radius * 0.48, radius * 0.48, -radius * 0.78, radius * 0.08);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = "rgba(125,211,252,.76)";
-      ctx.ellipse(0, radius * 0.08, radius * (0.74 + flow * 0.03), radius * 0.28, 0, 0, Math.PI * 2);
-      ctx.moveTo(-radius * 0.52, radius * 0.04);
-      ctx.ellipse(0, radius * 0.04, radius * 0.48, radius * (0.16 + flow * 0.015), 0, 0, Math.PI * 2);
-      ctx.stroke();
     }
     ctx.restore();
   }
@@ -16978,9 +17020,6 @@ function normalizeAteGlowMode(mode = "energy") {
     charge: "flow-up",
     cleanse: "ripple",
     heal: "flow-up",
-    hold: "gravity",
-    power: "resonance",
-    guard: "shield",
     bloom: "flow-up",
     dash: "beam",
     rewind: "orbit",
@@ -17013,124 +17052,105 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   if (!Number.isFinite(rawIntensity) || rawIntensity <= 0.001) return;
   const normalizedMode = normalizeAteGlowMode(mode);
   const profile = ATE_GLOW_PROFILES[normalizedMode];
-  const reduced = prefersReducedMotion();
-  // Reduced motion freezes every mechanism at one readable, non-degenerate
-  // semantic pose instead of collapsing progress-driven paths to frame zero.
-  const sampledTime = reduced ? 0.73 : Math.floor(time * 60) / 60;
-  const sampledPhase = reduced ? 0.62 : phase;
+  const sampledTime = Math.floor(time * 60) / 60;
   const strength = clamp(rawIntensity, 0, 1.4);
-  const size = Math.max(2, Math.min(width, height));
-  // At gameplay scale a one-pixel contour collapses into a flying speck.  The
-  // E layer therefore reads as a compact continuous field, not detached dust.
-  const alpha = clamp(strength * 0.54, 0, 0.8);
-  const wave = (rate, offset = 0) => Math.sin(sampledTime * rate + sampledPhase * Math.PI * 2 + offset);
+  const count = normalizedMode === "resonance" ? 10 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 7 : 5;
+  const direction = normalizedMode === "data-down" ? 1 : -1;
 
   targetContext.save();
   targetContext.globalCompositeOperation = "lighter";
   targetContext.filter = "none";
   targetContext.shadowColor = profile.aura;
   targetContext.shadowBlur = Math.max(4, profile.blur * 0.42 * strength);
-  targetContext.globalAlpha = alpha;
-  targetContext.strokeStyle = profile.core;
-  targetContext.fillStyle = profile.aura;
-  targetContext.lineWidth = Math.max(2, size * 0.046);
-  switch (normalizedMode) {
-      case "energy": {
-        const breath = 0.84 + wave(2.1) * 0.12;
-        targetContext.beginPath(); targetContext.moveTo(0, -size * 0.29 * breath); targetContext.lineTo(size * 0.22 * breath, 0); targetContext.lineTo(0, size * 0.29 * breath); targetContext.lineTo(-size * 0.22 * breath, 0); targetContext.closePath(); targetContext.fill(); targetContext.globalAlpha *= 0.7; targetContext.beginPath(); targetContext.moveTo(0, -size * 0.12); targetContext.lineTo(size * 0.1, 0); targetContext.lineTo(0, size * 0.12); targetContext.lineTo(-size * 0.1, 0); targetContext.closePath(); targetContext.stroke();
-        break;
+  for (let index = 0; index < count; index += 1) {
+    const seed = phase * 7.13 + index * 1.917;
+    const cycle = ((sampledTime * (0.34 + index * 0.013) + seed) % 1 + 1) % 1;
+    let x = 0;
+    let y = 0;
+    let rotation = sampledTime * (0.8 + index * 0.07) + seed;
+    let shardWidth = Math.max(2, Math.min(width, height) * (0.018 + (index % 3) * 0.005));
+    let shardHeight = shardWidth * (1.6 + (index % 2) * 0.7);
+
+    if (normalizedMode === "data-accelerate") {
+      const input = index < 3;
+      const lane = input ? index : index - 3;
+      const laneCount = input ? 3 : 4;
+      const laneY = (-0.24 + lane * (0.48 / Math.max(1, laneCount - 1))) * height;
+      x = input
+        ? -width * 0.44 + cycle * width * 0.34
+        : width * 0.1 + cycle * width * 0.36;
+      y = laneY + Math.sin(sampledTime * 3.2 + seed) * height * 0.018;
+      rotation = 0;
+      shardWidth *= input ? 1.15 : 1.9;
+      shardHeight *= input ? 0.9 : 0.55;
+    } else if (["beam", "recoil", "data-down", "data-up"].includes(normalizedMode)) {
+      x = -width * 0.38 + cycle * width * 0.76;
+      y = (-0.24 + (index % 4) * 0.16) * height;
+      if (normalizedMode === "data-down" || normalizedMode === "data-up") {
+        x = (-0.3 + (index % 5) * 0.15) * width;
+        y = direction * (-height * 0.36 + cycle * height * 0.72);
+        shardWidth *= 1.35;
+        shardHeight *= 0.72;
+      } else {
+        rotation = 0;
+        shardWidth *= 2.1;
+        shardHeight *= 0.55;
       }
-      case "ripple": {
-        const ring = 0.24 + (wave(1.25) + 1) * 0.045;
-        targetContext.beginPath(); targetContext.ellipse(0, 0, size * ring, size * ring * 0.46, 0, 0, Math.PI * 2); targetContext.ellipse(0, 0, size * (0.49 - ring * 0.22), size * (0.49 - ring * 0.22) * 0.46, 0, 0, Math.PI * 2); targetContext.stroke(); targetContext.globalAlpha *= 0.48; targetContext.beginPath(); targetContext.ellipse(0, 0, size * 0.14, size * 0.065, 0, 0, Math.PI * 2); targetContext.fill();
-        break;
+    } else if (["flow-up", "combustion"].includes(normalizedMode)) {
+      x = (-0.3 + (index % 5) * 0.15) * width + Math.sin(sampledTime * 2.1 + seed) * width * 0.025;
+      y = height * 0.34 - cycle * height * 0.68;
+      rotation *= 0.7;
+    } else if (["orbit", "gravity", "teleport"].includes(normalizedMode)) {
+      const angle = sampledTime * (0.9 + index * 0.04) + seed;
+      x = Math.cos(angle) * width * (0.25 + (index % 2) * 0.06);
+      y = Math.sin(angle) * height * (0.2 + (index % 3) * 0.025);
+      if (normalizedMode === "teleport") y += (cycle - 0.5) * height * 0.24;
+      rotation = angle + Math.PI / 4;
+    } else if (normalizedMode === "resonance") {
+      const side = index % 2 ? -1 : 1;
+      const convergence = Math.min(1, cycle / 0.56);
+      if (cycle < 0.56) {
+        x = side * width * (0.46 - convergence * 0.36);
+        y = Math.sin(seed * 1.9) * height * 0.28 * (1 - convergence);
+        rotation = side > 0 ? Math.PI : 0;
+      } else {
+        const release = (cycle - 0.56) / 0.44;
+        const angle = seed * 0.73 + side * release * 0.34;
+        x = Math.cos(angle) * width * (0.08 + release * 0.34);
+        y = Math.sin(angle) * height * (0.06 + release * 0.3);
+        rotation = angle + Math.PI / 4;
       }
-      case "shimmer": {
-        const aperture = size * (0.15 + (wave(1.7, 1.1) + 1) * 0.045);
-        targetContext.beginPath(); targetContext.moveTo(-aperture, 0); targetContext.quadraticCurveTo(0, -aperture * 0.42, aperture, 0); targetContext.quadraticCurveTo(0, aperture * 0.42, -aperture, 0); targetContext.closePath(); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, aperture * 0.48, aperture * 0.11, 0, 0, Math.PI * 2); targetContext.fill();
-        break;
-      }
-      case "impact": {
-        const fracture = clamp(sampledPhase, 0, 1) * size * 0.38;
-        targetContext.beginPath(); targetContext.moveTo(-fracture, size * 0.16); targetContext.lineTo(-fracture * 0.18, -size * 0.09); targetContext.lineTo(fracture * 0.25, size * 0.13); targetContext.lineTo(fracture, -size * 0.2); targetContext.stroke(); targetContext.globalAlpha *= 0.45; targetContext.beginPath(); targetContext.ellipse(0, 0, size * (0.12 + fracture / size * 0.16), size * 0.095, 0, 0, Math.PI * 2); targetContext.fill();
-        break;
-      }
-      case "shield": {
-        const closure = wave(1.05) * 0.16;
-        targetContext.beginPath(); targetContext.arc(0, 0, size * 0.34, -Math.PI * 0.78 + closure, Math.PI * 0.78 - closure); targetContext.arc(0, 0, size * 0.2, Math.PI * 0.78 - closure, -Math.PI * 0.78 + closure, true); targetContext.stroke();
-        break;
-      }
-      case "targeting": {
-        const lock = size * (0.28 - clamp(sampledPhase, 0, 1) * 0.12);
-        targetContext.beginPath(); targetContext.rect(-lock, -lock, lock * 0.48, size * 0.05); targetContext.rect(lock * 0.52, -lock, lock * 0.48, size * 0.05); targetContext.rect(-size * 0.025, -lock, size * 0.05, lock * 0.48); targetContext.rect(-size * 0.025, lock * 0.52, size * 0.05, lock * 0.48); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, size * 0.075, size * 0.075, 0, 0, Math.PI * 2); targetContext.stroke();
-        break;
-      }
-      case "beam": {
-        const shear = wave(2.8) * size * 0.045;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.46, -size * 0.12); targetContext.lineTo(width * 0.46, -size * 0.035 + shear); targetContext.lineTo(width * 0.46, size * 0.035 + shear); targetContext.lineTo(-width * 0.46, size * 0.12); targetContext.closePath(); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.moveTo(-width * 0.42, 0); targetContext.lineTo(width * 0.42, shear); targetContext.stroke();
-        break;
-      }
-      case "recoil": {
-        const recoil = (1 - Math.cos(sampledTime * 3.1 + sampledPhase)) * size * 0.07;
-        targetContext.beginPath(); targetContext.moveTo(size * 0.34, -size * 0.16); targetContext.lineTo(-size * 0.38 - recoil, 0); targetContext.lineTo(size * 0.34, size * 0.16); targetContext.closePath(); targetContext.stroke(); targetContext.globalAlpha *= 0.45; targetContext.beginPath(); targetContext.moveTo(size * 0.12, -size * 0.07); targetContext.lineTo(-size * 0.2 - recoil * 0.5, 0); targetContext.lineTo(size * 0.12, size * 0.07); targetContext.closePath(); targetContext.fill();
-        break;
-      }
-      case "data-down": {
-        const gate = -height * 0.28 + ((sampledTime * 0.46 + sampledPhase) % 1) * height * 0.56;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.18, gate); targetContext.lineTo(width * 0.18, gate); targetContext.moveTo(0, gate - size * 0.15); targetContext.lineTo(0, gate + size * 0.15); targetContext.stroke(); targetContext.globalAlpha *= 0.38; targetContext.beginPath(); targetContext.roundRect(-width * 0.12, gate - size * 0.055, width * 0.24, size * 0.11, size * 0.035); targetContext.fill();
-        break;
-      }
-      case "data-up": {
-        const ascent = height * 0.28 - ((sampledTime * 0.39 + sampledPhase) % 1) * height * 0.56;
-        targetContext.beginPath(); targetContext.moveTo(-size * 0.14, ascent + size * 0.13); targetContext.lineTo(0, ascent - size * 0.13); targetContext.lineTo(size * 0.14, ascent + size * 0.13); targetContext.stroke(); targetContext.globalAlpha *= 0.38; targetContext.beginPath(); targetContext.moveTo(-size * 0.07, ascent + size * 0.07); targetContext.lineTo(0, ascent - size * 0.07); targetContext.lineTo(size * 0.07, ascent + size * 0.07); targetContext.closePath(); targetContext.fill();
-        break;
-      }
-      case "data-accelerate": {
-        const conduit = wave(2.2) * size * 0.08;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.44, -height * 0.22); targetContext.bezierCurveTo(-width * 0.12, -height * 0.22, -width * 0.08, conduit, width * 0.44, 0); targetContext.moveTo(-width * 0.44, height * 0.22); targetContext.bezierCurveTo(-width * 0.12, height * 0.22, -width * 0.08, -conduit, width * 0.44, 0); targetContext.stroke(); targetContext.globalAlpha *= 0.4; targetContext.beginPath(); targetContext.moveTo(-width * 0.32, 0); targetContext.bezierCurveTo(-width * 0.08, -conduit * 0.4, width * 0.14, conduit * 0.4, width * 0.32, 0); targetContext.stroke();
-        break;
-      }
-      case "flow-up": {
-        const ribbon = wave(1.6) * width * 0.07;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.2, height * 0.32); targetContext.bezierCurveTo(-width * 0.08 + ribbon, height * 0.05, width * 0.1 - ribbon, -height * 0.09, width * 0.18, -height * 0.34); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.moveTo(width * 0.02, height * 0.3); targetContext.bezierCurveTo(width * 0.13 - ribbon, height * 0.04, -width * 0.05 + ribbon, -height * 0.07, -width * 0.11, -height * 0.27); targetContext.stroke();
-        break;
-      }
-      case "combustion": {
-        const tongue = wave(4.7) * size * 0.09;
-        targetContext.beginPath(); targetContext.moveTo(-size * 0.24, size * 0.26); targetContext.quadraticCurveTo(-size * 0.09 + tongue, -size * 0.38, 0, size * 0.02); targetContext.quadraticCurveTo(size * 0.12 - tongue, -size * 0.3, size * 0.25, size * 0.26); targetContext.closePath(); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.moveTo(-size * 0.07, size * 0.2); targetContext.quadraticCurveTo(tongue * 0.34, -size * 0.2, size * 0.09, size * 0.2); targetContext.closePath(); targetContext.fill();
-        break;
-      }
-      case "orbit": {
-        const highlight = wave(1.2) * 0.08;
-        targetContext.beginPath(); targetContext.ellipse(0, 0, width * (0.31 + highlight), height * (0.23 - highlight * 0.45), 0, 0, Math.PI * 2); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, width * 0.16, height * 0.11, 0, 0, Math.PI * 2); targetContext.stroke();
-        break;
-      }
-      case "gravity": {
-        const pinch = 0.22 + (wave(0.72) + 1) * 0.035;
-        targetContext.beginPath(); targetContext.moveTo(-width * 0.42, -height * 0.25); targetContext.quadraticCurveTo(-width * pinch, 0, 0, 0); targetContext.quadraticCurveTo(width * pinch, 0, width * 0.42, height * 0.25); targetContext.moveTo(-width * 0.42, height * 0.25); targetContext.quadraticCurveTo(-width * pinch, 0, 0, 0); targetContext.quadraticCurveTo(width * pinch, 0, width * 0.42, -height * 0.25); targetContext.stroke();
-        break;
-      }
-      case "teleport": {
-        const phaseCut = wave(2.45) * size * 0.06;
-        targetContext.beginPath(); targetContext.rect(-width * 0.24, -height * 0.32, width * 0.48, size * 0.065); targetContext.rect(-width * 0.15 + phaseCut, -size * 0.033, width * 0.3, size * 0.065); targetContext.rect(-width * 0.24, height * 0.32, width * 0.48, size * 0.065); targetContext.fill(); targetContext.globalAlpha *= 0.38; targetContext.beginPath(); targetContext.moveTo(-width * 0.16, -height * 0.22); targetContext.lineTo(width * 0.16, height * 0.22); targetContext.stroke();
-        break;
-      }
-      case "resonance": {
-        const converge = 0.42 - (wave(1.38) + 1) * 0.09;
-        targetContext.beginPath(); targetContext.moveTo(-width * converge, -height * 0.22); targetContext.quadraticCurveTo(0, 0, width * converge, height * 0.22); targetContext.moveTo(-width * converge, height * 0.22); targetContext.quadraticCurveTo(0, 0, width * converge, -height * 0.22); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, 0, size * 0.12, size * 0.12, 0, 0, Math.PI * 2); targetContext.stroke();
-        break;
-      }
-      case "clairvoyance": {
-        const lens = wave(0.86) * height * 0.07;
-        targetContext.beginPath(); targetContext.ellipse(0, lens, width * 0.38, height * 0.14, 0, Math.PI * 0.06, Math.PI * 0.94); targetContext.stroke(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.ellipse(0, lens * 0.5, width * 0.15, height * 0.045, 0, 0, Math.PI * 2); targetContext.stroke();
-        break;
-      }
-      case "glitch": {
-        const offset = Math.sin(sampledTime * 7 + sampledPhase * 5) * width * 0.12;
-        targetContext.beginPath(); targetContext.rect(-width * 0.31 + offset, -height * 0.19, width * 0.38, size * 0.06); targetContext.rect(-width * 0.08 - offset, height * 0.17, width * 0.34, size * 0.06); targetContext.fill(); targetContext.globalAlpha *= 0.42; targetContext.beginPath(); targetContext.rect(-width * 0.17 - offset * 0.4, -size * 0.03, width * 0.34, size * 0.06); targetContext.stroke();
-        break;
-      }
-      default: break;
+      shardWidth *= 0.72;
+      shardHeight *= 1.42;
+    } else if (normalizedMode === "clairvoyance") {
+      const sweep = ((sampledTime * 0.42 + index / Math.max(1, count)) % 1 + 1) % 1;
+      x = (-0.4 + sweep * 0.8) * width;
+      y = Math.sin(sweep * Math.PI * 2 + seed) * height * 0.16;
+      rotation = Math.atan2(Math.cos(sweep * Math.PI * 2 + seed) * height * 0.16, width * 0.8);
+      shardWidth *= 1.7;
+      shardHeight *= 0.56;
+    } else if (normalizedMode === "glitch") {
+      x = (-0.34 + cycle * 0.68) * width;
+      y = (-0.32 + (index % 6) * 0.13) * height;
+      rotation = 0;
+      shardWidth *= 2.4;
+      shardHeight *= 0.5;
+    } else {
+      const angle = seed + cycle * Math.PI * 2;
+      const radius = (0.12 + cycle * 0.22) * Math.min(width, height);
+      x = Math.cos(angle) * radius;
+      y = Math.sin(angle) * radius;
+      rotation = angle + Math.PI / 4;
+    }
+
+    const life = Math.sin(cycle * Math.PI);
+    targetContext.save();
+    targetContext.translate(x, y);
+    targetContext.rotate(rotation);
+    targetContext.globalAlpha = clamp((0.16 + life * 0.5) * strength, 0, 0.82);
+    targetContext.fillStyle = index % 2 ? profile.core : profile.aura;
+    targetContext.fillRect(-shardWidth / 2, -shardHeight / 2, shardWidth, shardHeight);
+    targetContext.restore();
   }
   targetContext.restore();
 }
@@ -17398,18 +17418,11 @@ function drawThrowLandingPreview(data) {
   const hold = state.enhanceHold;
   const targeting = state.throwTargeting.active;
   if ((!targeting && (hold.kind !== "throw" || !hold.startedAt)) || data.phase !== "playing" || !data.self?.alive) return;
-  if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-entered", "true");
   const itemId = targeting ? state.throwTargeting.itemId : els.itemSelect?.value || "";
-  if (!itemId) {
-    if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-blocked", "missing-item");
-    return;
-  }
+  if (!itemId) return;
   const elapsedMs = targeting ? state.throwTargeting.holdMs : Math.max(0, performance.now() - hold.startedAt);
   const landing = targeting ? targetedThrowLanding(data) : predictedThrowLanding(data, elapsedMs);
-  if (!landing) {
-    if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-blocked", "missing-landing");
-    return;
-  }
+  if (!landing) return;
   const prepared = transparentSpriteSource(state.textures.throwLandingPreview, "throw-landing-preview", 16);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "throw-landing-preview", 1, 1, 0, 0) : null;
   if (!sprite) return;
@@ -17433,23 +17446,15 @@ function drawThrowLandingPreview(data) {
     opacityBoost: 2.5,
     visibilityProfile: "ambient"
   });
-  const aperture = markerSize * (0.31 + Math.sin(now * 1.8) * 0.025);
-  ctx.globalAlpha = 0.58;
-  ctx.strokeStyle = landing.valid === false ? "#fb7185" : "#a5f3fc";
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, aperture, aperture * 0.44, 0, Math.PI * 0.08, Math.PI * 0.92);
-  ctx.ellipse(0, 0, aperture, aperture * 0.44, 0, Math.PI * 1.08, Math.PI * 1.92);
-  ctx.stroke();
-  ctx.globalAlpha = 0.42;
-  ctx.strokeStyle = "#fde68a";
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(-aperture * 0.62, -aperture * 0.25);
-  ctx.quadraticCurveTo(0, -aperture * 0.48, aperture * 0.62, -aperture * 0.25);
-  ctx.moveTo(-aperture * 0.62, aperture * 0.25);
-  ctx.quadraticCurveTo(0, aperture * 0.48, aperture * 0.62, aperture * 0.25);
-  ctx.stroke();
+  for (let glint = 0; glint < 5; glint += 1) {
+    const cycle = ((now * (0.72 + glint * 0.035) + glint * 0.19) % 1 + 1) % 1;
+    const x = Math.sin(glint * 2.17) * markerSize * 0.31;
+    const y = -18 - cycle * 34;
+    const alpha = Math.sin(cycle * Math.PI) * 0.7;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = glint % 2 ? "#facc15" : "#67e8f9";
+    ctx.fillRect(x - 1.5, y - 4, 3, 8);
+  }
   ctx.restore();
 
   if (targeting) {
@@ -17473,39 +17478,27 @@ function drawThrowLandingPreview(data) {
   }
 
   const trajectoryLength = Math.hypot(markerX - landing.origin.x, markerY - landing.origin.y);
-  const arcHeight = Math.min(118, 42 + trajectoryLength * 0.085);
-  const controlX = (landing.origin.x + markerX) / 2;
-  const controlY = (landing.origin.y + markerY) / 2 - arcHeight;
-  const flow = ((now * 0.34) % 1 + 1) % 1;
-  const bandStart = Math.max(0, flow - 0.18);
-  const bandEnd = Math.min(1, flow + 0.18);
-  const guideGradient = ctx.createLinearGradient(landing.origin.x, landing.origin.y, markerX, markerY);
-  guideGradient.addColorStop(0, "rgba(103,232,249,0.2)");
-  guideGradient.addColorStop(bandStart, "rgba(103,232,249,0.34)");
-  guideGradient.addColorStop(flow, "rgba(254,240,138,0.94)");
-  guideGradient.addColorStop(bandEnd, "rgba(103,232,249,0.34)");
-  guideGradient.addColorStop(1, "rgba(103,232,249,0.2)");
+  const particleCount = Math.max(5, Math.min(16, Math.floor(trajectoryLength / 48)));
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.5 + distanceRatio * 0.28;
-  ctx.strokeStyle = guideGradient;
-  ctx.shadowColor = "#22d3ee";
-  ctx.shadowBlur = 9;
-  ctx.lineCap = "round";
-  ctx.lineWidth = 5.5;
-  ctx.beginPath();
-  ctx.moveTo(landing.origin.x, landing.origin.y - 18);
-  ctx.quadraticCurveTo(controlX, controlY, markerX, markerY);
-  ctx.stroke();
-  ctx.globalAlpha *= 0.68;
-  ctx.strokeStyle = "rgba(224,242,254,0.92)";
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.moveTo(landing.origin.x, landing.origin.y - 18);
-  ctx.quadraticCurveTo(controlX, controlY, markerX, markerY);
-  ctx.stroke();
-  if (IS_VERIFICATION_MODE) {
-    document.documentElement.setAttribute("data-v623-throw-preview-rendered", "continuous-path");
+  for (let index = 1; index <= particleCount; index += 1) {
+    const baseT = index / (particleCount + 1);
+    const flow = ((now * 0.46 + baseT) % 1 + 1) % 1;
+    const t = 0.08 + flow * 0.84;
+    const x = landing.origin.x + (markerX - landing.origin.x) * t;
+    const arcHeight = Math.sin(t * Math.PI) * Math.min(118, 42 + trajectoryLength * 0.085);
+    const y = landing.origin.y + (markerY - landing.origin.y) * t - arcHeight;
+    const alpha = Math.sin(t * Math.PI) * (0.28 + distanceRatio * 0.34);
+    const size = 2.2 + (index % 3) * 0.8;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 4 + t * 0.9);
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = index % 2 ? "#facc15" : "#22d3ee";
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = index % 2 ? "#fde68a" : "#a5f3fc";
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
   }
   ctx.restore();
 
@@ -17527,16 +17520,6 @@ function drawClairvoyanceAte(landing, time) {
     intensity: 0.94,
     baseAlpha: 0.18
   });
-  // A clairvoyance landing is a lens, so its visible motion remains a
-  // bounded scan aperture at the selected landing point.
-  const scanY = Math.sin(time * 1.7) * 9;
-  ctx.globalAlpha = 0.34;
-  ctx.strokeStyle = "rgba(186,230,253,.92)";
-  ctx.lineWidth = 2.6;
-  ctx.beginPath();
-  ctx.ellipse(landing.x, landing.y - 4 + scanY, size * 0.31, size * 0.115, 0, Math.PI * 0.08, Math.PI * 0.92);
-  ctx.ellipse(landing.x, landing.y - 4 - scanY * 0.45, size * 0.15, size * 0.046, 0, 0, Math.PI * 2);
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -17580,46 +17563,25 @@ function drawInventionEnergyTexture(effect, progress) {
   ctx.globalCompositeOperation = "lighter";
   if (railgun) {
     const shock = objectEffectEase(clamp(progress / 0.42, 0, 1));
-    const railsSpread = 18 * (1 - shock) + 4;
-    const railGradient = ctx.createLinearGradient(0, 0, length, 0);
-    railGradient.addColorStop(0, "rgba(139,233,255,0.08)");
-    railGradient.addColorStop(Math.max(0, shock - 0.14), "rgba(139,233,255,0.34)");
-    railGradient.addColorStop(shock, "rgba(255,244,207,0.98)");
-    railGradient.addColorStop(Math.min(1, shock + 0.18), "rgba(139,233,255,0.38)");
-    railGradient.addColorStop(1, "rgba(139,233,255,0.08)");
-    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.86;
-    ctx.strokeStyle = railGradient;
-    ctx.lineCap = "round";
-    ctx.lineWidth = 4.5;
-    ctx.beginPath();
-    ctx.moveTo(0, -railsSpread);
-    ctx.lineTo(length, -railsSpread * 0.22);
-    ctx.moveTo(0, railsSpread);
-    ctx.lineTo(length, railsSpread * 0.22);
-    ctx.stroke();
-    ctx.globalAlpha *= 0.72;
-    ctx.strokeStyle = "rgba(255,255,255,0.92)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(length, 0);
-    ctx.stroke();
+    for (let index = 0; index < 11; index += 1) {
+      const along = ((index + 0.5) / 11) * length;
+      const spread = (1 - shock) * (18 + (index % 3) * 9);
+      ctx.globalAlpha = (1 - progress) * (0.24 + (index % 4) * 0.055);
+      ctx.fillStyle = index % 3 === 0 ? "#fff4cf" : "#8be9ff";
+      ctx.fillRect(along, (index % 2 ? -1 : 1) * spread, 12 + (index % 4) * 8, 1.4 + (index % 2));
+    }
   } else {
-    const braidedChannelEnvelope = renderHeight * 0.22 * (1 - progress * 0.35);
-    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.72;
-    ctx.lineCap = "round";
-    for (let strand = -1; strand <= 1; strand += 1) {
-      ctx.strokeStyle = strand === 0 ? "rgba(229,183,255,0.9)" : "rgba(125,244,255,0.72)";
-      ctx.lineWidth = strand === 0 ? 3.6 : 2.4;
-      ctx.beginPath();
-      for (let step = 0; step <= 24; step += 1) {
-        const ratio = step / 24;
-        const x = ratio * length;
-        const y = Math.sin(ratio * Math.PI * 4 + now * 3.4 + strand * 2.1) * braidedChannelEnvelope * (strand === 0 ? 0.32 : 1);
-        if (step === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
+    for (let index = 0; index < 18; index += 1) {
+      const along = ((index / 18 + progress * 0.48) % 1) * length;
+      const helix = Math.sin(index * 1.73 + now * 9.2) * renderHeight * 0.26 * (1 - progress * 0.35);
+      const size = 1.4 + (index % 4) * 0.75;
+      ctx.globalAlpha = Math.max(0, 1 - progress) * (0.28 + (index % 5) * 0.06);
+      ctx.fillStyle = index % 2 ? "#e5b7ff" : "#7df4ff";
+      ctx.save();
+      ctx.translate(along, helix);
+      ctx.rotate(Math.PI / 4 + now * 0.7);
+      ctx.fillRect(-size, -size, size * 2, size * 2);
+      ctx.restore();
     }
   }
   ctx.restore();
@@ -17689,132 +17651,23 @@ const GENERATED_EFFECT_TEXTURES = {
   "transfer-in": ["transferInEffect", 210]
 };
 
-const SEMANTIC_EFFECT_MOTION = Object.freeze({
-  fire: "combustion",
-  substitution: "teleport",
-  "limit-break": "resonance",
-  "fighter-energy-charge": "resonance",
-  "iai-destruction-attack": "beam",
-  "fighter-energy-destruction-milestone": "beam",
-  "fighter-energy-destruction-slash": "beam",
-  "fighter-energy-release": "beam",
-  "fighter-energy-impact": "impact",
-  "fighter-shockwave": "impact",
-  "hacker-root": "data-down",
-  "natural-recovery": "ripple",
-  "gbo-overdrive": "resonance",
-  "gravity-time-keeper": "gravity",
-  "preparation-barrier-hit": "shield",
-  "alchemy-human-transmutation": "orbit",
-  "alchemy-excalibur": "beam",
-  "action-vibe-coding": "data-accelerate",
-  "item-hsg-activate": "shield",
-  "action-gunner-aim-headshot": "targeting",
-  "action-gunner-headshot": "targeting",
-  "gunner-rpg": "combustion",
-  "gunner-missile": "combustion",
-  "quantum-transmutation": "orbit",
-  "quantum-temperature-cold": "ripple",
-  "quantum-temperature-hot": "combustion",
-  "quantum-ice-impact": "impact",
-  "quantum-nuclear": "combustion",
-  "quantum-nuclear-fusion": "resonance",
-  "quantum-electric-discharge": "beam",
-  "hazard-antidote": "ripple",
-  "bottle-shards": "impact",
-  "action-push": "impact",
-  "resolve-focus": "targeting",
-  "hacker-status-recover": "ripple",
-  "transfer-out": "teleport",
-  "transfer-in": "teleport",
-  "action-smartphone": "data-up",
-  "action-smartphone-repair": "data-accelerate",
-  "pair-route-violation": "impact",
-  "action-taser": "beam",
-  "gravity-accelerate": "gravity",
-  "gravity-decelerate": "gravity",
-  "gravity-storm": "gravity",
-  "alchemy-object-recharge": "resonance",
-  "alchemy-particle-cannon": "beam",
-  "action-task": "data-accelerate",
-  "action-grit": "shield",
-  "action-stand": "shield",
-  "action-dodge": "recoil",
-  "action-rest": "ripple",
-  "action-teleport": "teleport",
-  "action-heart-teleport": "teleport",
-  "action-warp": "teleport",
-  "action-ninjutsu-focus": "targeting",
-  "gunner-passive-aim": "targeting",
-  "action-shoot": "beam",
-  "action-reason": "clairvoyance",
-  "action-sabotage": "glitch",
-  "action-repair": "data-accelerate",
-  "action-vent": "data-down",
-  "action-vending": "data-up",
-  "action-renki": "resonance",
-  "action-mana": "resonance",
-  "action-alchemy": "orbit",
-  "action-rational-free": "shimmer",
-  "fighter-slash": "beam",
-  "fighter-slash-parry": "shield",
-  "fighter-iaido": "beam",
-  "action-item-throw": "recoil",
-  "action-item-pickup": "flow-up",
-  "action-item-use": "resonance",
-  "rigid-item-impact": "impact",
-  "action-weapon-switch": "recoil",
-  "action-reload": "recoil",
-  "action-fighter-dodge-counter": "recoil",
-  "idea-truth": "clairvoyance",
-  "idea-beauty": "shield",
-  "idea-good": "resonance",
-  "idea-ascension": "flow-up",
-  "mystery-reveal": "clairvoyance",
-  emp: "resonance",
-  "emp-storage-lock": "data-down",
-  "emp-charge": "resonance",
-  "emp-cancel": "glitch",
-  "emp-resonance": "resonance",
-  "status-burning": "combustion",
-  "status-poison": "orbit",
-  "status-burn-cleared": "ripple",
-  "status-poison-cleared": "ripple",
-  "hazard-fire": "combustion",
-  "hazard-poison": "orbit",
-  "hazard-water": "ripple",
-  "gravity-storm-barrier-hit": "shield",
-  "gravity-storm-blast": "impact",
-  "gravity-storm-pull": "gravity",
-  "gravity-storm-crush": "gravity",
-  "gravity-storm-heavy": "gravity",
-  flora: "flow-up",
-  "flora-sunbeam": "beam",
-  "flora-invisible": "shimmer",
-  "alchemy-railgun": "beam",
-  "alchemy-particle-beam": "beam"
-});
 
-const ATE_PHYSICAL_PARTICLE_CONTRACT = Object.freeze({
-  "bottle-shards": Object.freeze({
-    owner: "drawGeneratedStandaloneEffect",
-    representedMaterial: "broken bottle glass",
-    maxRasterOwners: 1,
-    lifecycle: "one finite server-authored impact record"
-  })
-});
 
-function semanticEffectMotion(type, variant = "") {
-  const exactKey = variant ? `${String(type || "")}:${String(variant)}` : "";
-  const mode = SEMANTIC_EFFECT_MOTION[exactKey] || SEMANTIC_EFFECT_MOTION[String(type || "")];
-  if (mode) return mode;
-  if (IS_VERIFICATION_MODE) {
-    const root = document.documentElement;
-    const current = new Set(String(root.getAttribute("data-v623-ate-unclassified") || "").split(",").filter(Boolean));
-    current.add(String(type || "unknown"));
-    root.setAttribute("data-v623-ate-unclassified", [...current].sort().join(","));
-  }
-  return null;
+function semanticEffectMotion(type, variant = "", fallback = "energy") {
+  const token = `${String(type || "")} ${String(variant || "")}`.toLowerCase();
+  if (/gravity|decelerate|accelerate/.test(token)) return "gravity";
+  if (/emp|taser|shock|vibe|hack|pair-route|smartphone|gbo|overdrive/.test(token)) return "glitch";
+  if (/teleport|warp|substitution|transfer/.test(token)) return "teleport";
+  if (/fire|burn|hot|nuclear|rpg|missile/.test(token)) return "combustion";
+  if (/railgun|particle|sunbeam|excalibur|slash|shoot|beam/.test(token)) return "beam";
+  if (/reload|sustained-fire/.test(token)) return "recoil";
+  if (/grit|stand|shield|overheal|beauty/.test(token)) return "shield";
+  if (/mana|water|antidote|heal|flora|recovery|cold|ice/.test(token)) return "ripple";
+  if (/credits|luck|mystery|transmutation|invention/.test(token)) return "orbit";
+  if (/hover|limit-break|speed|acceleration|power/.test(token)) return "flow-up";
+  if (/aim|weak|scope|reason|truth/.test(token)) return "shimmer";
+  if (/push|impact|storm|violation/.test(token)) return "impact";
+  return fallback;
 }
 
 function drawGoldTransmutationStages(goldSprite, progress) {
@@ -17962,11 +17815,10 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
   return true;
 }
 
+
+
+
 function drawGeneratedStandaloneEffect(effect, progress) {
-  // bottle-shards is the sole finite physical-material exception.  It stays
-  // owned by this renderer and is never routed through a generic visual E.
-  const bottleShards = effect?.type === "bottle-shards";
-  if (bottleShards && ATE_PHYSICAL_PARTICLE_CONTRACT["bottle-shards"]?.owner !== "drawGeneratedStandaloneEffect") return false;
   if (effect?.type === "fighter-energy-charge") {
     recordVerificationMarkerRender(effect, "ordinary-ec", state.frameNow || performance.now());
   } else if (effect?.type === "action-dodge" && effect?.variant === "fixture-positive-control") {
@@ -17994,21 +17846,14 @@ function drawGeneratedStandaloneEffect(effect, progress) {
       intensity: 0.86,
       baseAlpha: 0.12
     });
-    // A held time field is read as a connected boundary: no detached motes
-    // imply that time itself is still travelling through the scene.
-    const timeHold = Math.sin((state.frameNow || performance.now()) / 1000 * 1.4 + progress * Math.PI) * size * 0.035;
-    ctx.globalAlpha = fade * (0.28 + arrive * 0.34);
-    ctx.strokeStyle = "rgba(189,247,255,.9)";
-    ctx.lineWidth = Math.max(3, size * 0.018);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, size * 0.35 + timeHold, size * 0.22 - timeHold * 0.28, 0, 0, Math.PI * 2);
-    ctx.ellipse(0, 0, size * 0.17 - timeHold * 0.36, size * 0.105 + timeHold * 0.18, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.globalAlpha *= 0.62;
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.42, 0);
-    ctx.quadraticCurveTo(0, timeHold, size * 0.42, 0);
-    ctx.stroke();
+    // Complementary E: sparse particles remain spatially fixed for the whole
+    // stop. They support the frozen-state read without redrawing the clockwork.
+    const fixedMotes = [[-0.36, -0.28], [0.31, -0.34], [-0.42, 0.08], [0.39, 0.16], [-0.2, 0.39], [0.23, 0.33]];
+    fixedMotes.forEach(([px, py], index) => {
+      ctx.globalAlpha = fade * (0.28 + (index % 3) * 0.11);
+      ctx.fillStyle = index % 2 ? "#f9d985" : "#bdf7ff";
+      ctx.fillRect(px * size - 2, py * size - 2, 4, 4);
+    });
     ctx.restore();
     return true;
   }
@@ -18051,21 +17896,17 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   if (effect.type === "alchemy-excalibur") {
     const edge = Math.sin(clamp(progress / 0.74, 0, 1) * Math.PI);
     ctx.globalCompositeOperation = "lighter";
-    const bladeWave = Math.sin(progress * Math.PI * 2) * size * 0.055;
-    ctx.globalAlpha = edge * 0.72;
-    ctx.strokeStyle = "#ffe6a3";
-    ctx.lineWidth = Math.max(4, size * 0.018);
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.44, size * 0.14);
-    ctx.quadraticCurveTo(-size * 0.1, -size * 0.23 + bladeWave, size * 0.16, -size * 0.04);
-    ctx.quadraticCurveTo(size * 0.33, size * 0.14 - bladeWave, size * 0.48, -size * 0.17);
-    ctx.stroke();
-    ctx.globalAlpha = edge * 0.36;
-    ctx.strokeStyle = "#baf6ff";
-    ctx.lineWidth = Math.max(2, size * 0.01);
-    ctx.beginPath();
-    ctx.ellipse(size * 0.08, -size * 0.045, size * 0.31, size * 0.12 + Math.abs(bladeWave) * 0.32, -0.32, 0, Math.PI * 2);
-    ctx.stroke();
+    for (let index = 0; index < 14; index += 1) {
+      const sweep = clamp((progress - index * 0.018) / 0.58, 0, 1);
+      const angle = -0.62 + sweep * 1.24 + (index - 7) * 0.018;
+      const radius = size * (0.26 + (index % 5) * 0.035);
+      ctx.globalAlpha = edge * (1 - sweep * 0.55) * (0.18 + (index % 4) * 0.06);
+      ctx.fillStyle = index % 3 === 0 ? "#ffe6a3" : "#baf6ff";
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.fillRect(radius, -1.2, 18 + (index % 4) * 7, 2.4);
+      ctx.restore();
+    }
   }
   if (effect.type === "quantum-transmutation") {
     const goldImage = state.textures?.itemTextures?.gold;
@@ -18103,6 +17944,15 @@ function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize)
       intensity: 0.94,
       baseAlpha: 0.12
     });
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 5; index += 1) {
+      const travel = clamp((progress - index * 0.035) / 0.58, 0, 1);
+      ctx.globalAlpha = fade * (1 - travel) * (0.28 + index * 0.035);
+      ctx.fillStyle = index % 2 ? "#a76dff" : "#8de9ff";
+      ctx.beginPath();
+      ctx.ellipse(-92 + travel * 154, 52 + index * 7 - travel * 32, 2.2, 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else if (kind === "stand-firm") {
     const rise = objectEffectEase(clamp(progress / 0.28, 0, 1));
     const compression = Math.sin(clamp((progress - 0.12) / 0.54, 0, 1) * Math.PI);
@@ -18116,6 +17966,16 @@ function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize)
       intensity: 0.9,
       baseAlpha: 0.14
     });
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 7; index += 1) {
+      const lift = clamp((progress - index * 0.04) / 0.7, 0, 1);
+      const offsetX = ((index * 37) % 88) - 44;
+      ctx.globalAlpha = fade * (1 - lift) * 0.34;
+      ctx.fillStyle = index % 3 === 0 ? "#ffd78d" : "#9dfff1";
+      ctx.beginPath();
+      ctx.arc(offsetX, 78 - lift * (92 + index * 3), 1.2 + (index % 2) * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else {
     const drive = objectEffectEase(clamp(progress / 0.3, 0, 1));
     const recoil = Math.sin(clamp(progress / 0.48, 0, 1) * Math.PI);
@@ -18128,6 +17988,15 @@ function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize)
       intensity: 0.94,
       baseAlpha: 0.12
     });
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 6; index += 1) {
+      const wake = clamp((progress - index * 0.045) / 0.62, 0, 1);
+      ctx.globalAlpha = fade * (1 - wake) * 0.32;
+      ctx.fillStyle = index % 2 ? "#ffcb75" : "#ff795d";
+      ctx.beginPath();
+      ctx.ellipse(-108 + wake * 112, -28 + index * 11, 2.4, 1.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   ctx.restore();
@@ -18139,16 +18008,16 @@ function drawUtilityInstantItemAcquisitionEffect(effect, progress, sprite, defau
   const enter = objectEffectEase(clamp(progress / 0.3, 0, 1));
   const pulse = Math.sin(clamp(progress / 0.7, 0, 1) * Math.PI);
   const profiles = {
-    stamina: { mode: "power", rotate: 1.2, dx: 0, dy: 42, sx: 0.5, sy: 0.5 },
-    heal: { mode: "ripple", rotate: -0.12, dx: 0, dy: 58, sx: 0.76, sy: 0.45 },
-    fire: { mode: "combustion", rotate: 0.08, dx: 0, dy: 76, sx: 0.66, sy: 0.36 },
-    substitution: { mode: "teleport", rotate: 1.55, dx: 34, dy: 0, sx: 0.22, sy: 0.9 },
-    warp: { mode: "teleport", rotate: -0.65, dx: -64, dy: 38, sx: 0.42, sy: 0.42 },
-    evade: { mode: "recoil", rotate: 0.06, dx: 72, dy: 0, sx: 0.38, sy: 0.82 },
-    speed: { mode: "flow-up", rotate: 0, dx: 0, dy: 78, sx: 0.6, sy: 0.34 },
-    mystery: { mode: "orbit", rotate: 2.4, dx: 0, dy: 0, sx: 0.52, sy: 0.52 },
-    mana: { mode: "ripple", rotate: -0.28, dx: -42, dy: 0, sx: 0.48, sy: 0.7 },
-    hack: { mode: "glitch", rotate: 0.04, dx: 0, dy: 54, sx: 0.68, sy: 0.5 }
+    stamina: { mode: "power", rotate: 1.2, dx: 0, dy: 42, sx: 0.5, sy: 0.5, color: "#ffe08a", mote: "orbit" },
+    heal: { mode: "ripple", rotate: -0.12, dx: 0, dy: 58, sx: 0.76, sy: 0.45, color: "#9fffe9", mote: "converge" },
+    fire: { mode: "combustion", rotate: 0.08, dx: 0, dy: 76, sx: 0.66, sy: 0.36, color: "#ff963f", mote: "rise" },
+    substitution: { mode: "teleport", rotate: 1.55, dx: 34, dy: 0, sx: 0.22, sy: 0.9, color: "#d9a2ff", mote: "cross" },
+    warp: { mode: "teleport", rotate: -0.65, dx: -64, dy: 38, sx: 0.42, sy: 0.42, color: "#8dc6ff", mote: "bridge" },
+    evade: { mode: "recoil", rotate: 0.06, dx: 72, dy: 0, sx: 0.38, sy: 0.82, color: "#a787ff", mote: "lateral" },
+    speed: { mode: "flow-up", rotate: 0, dx: 0, dy: 78, sx: 0.6, sy: 0.34, color: "#76f4ff", mote: "rise" },
+    mystery: { mode: "orbit", rotate: 2.4, dx: 0, dy: 0, sx: 0.52, sy: 0.52, color: "#ffcf67", mote: "orbit" },
+    mana: { mode: "ripple", rotate: -0.28, dx: -42, dy: 0, sx: 0.48, sy: 0.7, color: "#8ea7ff", mote: "wave" },
+    hack: { mode: "glitch", rotate: 0.04, dx: 0, dy: 54, sx: 0.68, sy: 0.5, color: "#77f4ff", mote: "scan" }
   };
   const profile = profiles[kind] || profiles.mana;
   ctx.save();
@@ -18167,6 +18036,43 @@ function drawUtilityInstantItemAcquisitionEffect(effect, progress, sprite, defau
   });
   ctx.restore();
 
+  ctx.save();
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
+  ctx.globalCompositeOperation = "lighter";
+  for (let index = 0; index < 7; index += 1) {
+    const travel = clamp((progress - index * 0.035) / 0.72, 0, 1);
+    let x = ((index * 43) % 96) - 48;
+    let y = 58 - travel * 106;
+    if (profile.mote === "converge") {
+      x *= 1 - travel;
+      y = -62 + travel * 62;
+    } else if (profile.mote === "cross") {
+      x = (index % 2 ? -1 : 1) * (74 - travel * 70);
+      y = ((index * 29) % 76) - 38;
+    } else if (profile.mote === "bridge") {
+      x = -92 + travel * 184;
+      y = (index - 3) * 7 + Math.sin(travel * Math.PI) * -22;
+    } else if (profile.mote === "lateral") {
+      x = (index % 2 ? -1 : 1) * (92 - travel * 34);
+      y = (index - 3) * 13;
+    } else if (profile.mote === "orbit") {
+      const angle = travel * Math.PI * 2 + index * 0.9;
+      x = Math.cos(angle) * (58 - travel * 24);
+      y = Math.sin(angle) * (38 - travel * 14);
+    } else if (profile.mote === "wave") {
+      x = -86 + travel * 172;
+      y = Math.sin(travel * Math.PI * 3 + index * 0.8) * 26;
+    } else if (profile.mote === "scan") {
+      x = -76 + travel * 152;
+      y = (index - 3) * 10;
+    }
+    ctx.globalAlpha = fade * (1 - travel) * (0.24 + (index % 3) * 0.055);
+    ctx.fillStyle = index % 3 === 0 ? "#ffffff" : profile.color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, profile.mote === "lateral" ? 3.2 : 1.6, 1.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
   return true;
 }
 
@@ -18223,25 +18129,13 @@ function drawTacticalSystemsEffect(effect, progress) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
   ctx.translate(effect.x, effect.y);
+  ctx.rotate(index === 5 ? progress * 0.24 : 0);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
-    mode: semanticEffectMotion(effect.type, effect.variant),
+    mode: semanticEffectMotion(effect.type, effect.variant, index === 6 ? "gravity" : "shimmer"),
     progress,
     intensity: 0.9,
     baseAlpha: 0.15
   });
-  // Tactical cells reveal through an owner-bound bracket sweep, not a shared
-  // particle language. The atlas cell index determines the settled quadrant.
-  const tacticalSweep = (progress * 0.82 + index * 0.091) % 1;
-  const tacticalSpan = size * (0.18 + tacticalSweep * 0.18);
-  ctx.globalAlpha *= 0.46;
-  ctx.strokeStyle = "rgba(165,243,252,.9)";
-  ctx.lineWidth = Math.max(2, size * 0.016);
-  ctx.beginPath();
-  ctx.moveTo(-tacticalSpan, -tacticalSpan * 0.64);
-  ctx.lineTo(-tacticalSpan * 0.32, -tacticalSpan * 0.64);
-  ctx.moveTo(tacticalSpan, tacticalSpan * 0.64);
-  ctx.lineTo(tacticalSpan * 0.32, tacticalSpan * 0.64);
-  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -18390,7 +18284,7 @@ function drawGunnerActionEffect(effect, progress) {
     ctx.translate(startX, startY);
     ctx.rotate(Math.atan2(unitY, unitX));
     drawAnimatedTextureCentered(sprite, flashLength / 2, 0, flashLength, flashHeight + pulse * 8, {
-      mode: semanticEffectMotion(effect.type, effect.variant), progress, intensity: 0.95, baseAlpha: 0.14
+      mode: semanticEffectMotion(effect.type, effect.variant, "beam"), progress, intensity: 0.95, baseAlpha: 0.14
     });
   } else {
     const size = 108 + pulse * 28;
@@ -18447,6 +18341,7 @@ function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
   ctx.translate(effect.x, effect.y);
+  ctx.rotate((index % 2 ? 1 : -1) * progress * 0.24);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
     mode: semanticEffectMotion(effect.type, effect.variant),
     progress,
@@ -18454,20 +18349,6 @@ function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
     intensity: 0.9,
     baseAlpha: 0.15
   });
-  // Philosophy effects retain a single, indexed idea contour. It grows from
-  // the effect event and never emits free-floating decorative fragments.
-  const philosophyRadius = size * (0.16 + pulse * 0.055);
-  ctx.globalAlpha *= 0.42;
-  ctx.strokeStyle = ["#fde68a", "#c4b5fd", "#a7f3d0", "#bae6fd"][index % 4];
-  ctx.lineWidth = Math.max(2, size * 0.014);
-  ctx.beginPath();
-  if (index % 2 === 0) {
-    ctx.ellipse(0, -size * 0.08, philosophyRadius, philosophyRadius * 0.42, index * 0.16, 0, Math.PI * 2);
-  } else {
-    ctx.moveTo(-philosophyRadius, size * 0.12);
-    ctx.quadraticCurveTo(0, -size * 0.18 - pulse * size * 0.06, philosophyRadius, size * 0.12);
-  }
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -18517,22 +18398,20 @@ function drawHeartTeleportEffect(effect, progress) {
       mode: "energy", progress, phase: 0.41, intensity: 1, baseAlpha: 0.24, opacityBoost: 2.7
     });
   }
-  // The transfer is a continuous tether from fist to the arrival phase,
-  // rather than unrelated square motes escaping its semantic owner.
-  const phaseLift = Math.sin(progress * Math.PI) * height * 0.18;
-  ctx.globalAlpha = Math.max(0.1, (1 - progress * 0.48) * (0.42 + pulse * 0.28));
-  ctx.strokeStyle = "rgba(255, 192, 203, 0.9)";
-  ctx.lineWidth = Math.max(3, width * 0.038);
-  ctx.beginPath();
-  ctx.moveTo(-width * 0.36, height * 0.12);
-  ctx.bezierCurveTo(-width * 0.12, -height * 0.34 + phaseLift, width * 0.13, height * 0.27 - phaseLift, width * 0.37, -height * 0.1);
-  ctx.stroke();
-  ctx.globalAlpha *= 0.48;
-  ctx.strokeStyle = "rgba(221,214,254,.88)";
-  ctx.lineWidth = Math.max(2, width * 0.018);
-  ctx.beginPath();
-  ctx.ellipse(width * 0.12, -height * 0.03, width * 0.19, height * 0.12 + phaseLift * 0.2, -0.28, 0, Math.PI * 2);
-  ctx.stroke();
+  // E adds sparse detached sparks only; the raster owns the red fist glow.
+  ctx.fillStyle = "rgba(255, 192, 203, 0.86)";
+  for (let index = 0; index < 5; index += 1) {
+    const phase = (progress * 1.8 + index / 5) % 1;
+    const angle = -0.8 + index * 0.38;
+    const travel = 14 + phase * 28;
+    const moteSize = 1.8 + (1 - phase) * 2.2;
+    ctx.save();
+    ctx.translate(Math.cos(angle) * travel, Math.sin(angle) * travel * 0.52);
+    ctx.rotate(angle + Math.PI / 4);
+    ctx.globalAlpha = Math.max(0.06, (1 - phase) * (0.36 + pulse * 0.28));
+    ctx.fillRect(-moteSize / 2, -moteSize / 2, moteSize, moteSize);
+    ctx.restore();
+  }
   ctx.restore();
   return true;
 }
@@ -18573,6 +18452,8 @@ function drawShopActivationEffect(effect, progress, now) {
   return true;
 }
 
+
+
 function drawActionEffect(effect, progress, now) {
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
@@ -18608,42 +18489,29 @@ function drawActionEffect(effect, progress, now) {
   if (!sprite) return;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.translate(effect.x, effect.y);
-  ctx.globalAlpha = Math.max(0, 1 - progress * 0.92) * 0.78;
-  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
-    mode: semanticEffectMotion(effect.type, effect.variant),
-    time: now / 1000,
-    progress,
-    phase: index * 0.071,
-    intensity: 0.86,
-    baseAlpha: 0.14
-  });
-  // Ordinary actions get a compact owner-bound gesture.  This is keyed by
-  // the actual action semantics instead of stamping one central E shape over
-  // every action texture.
-  const actionMode = semanticEffectMotion(effect.type, effect.variant);
-  const actionReach = size * (0.16 + pulse * 0.08);
-  ctx.globalAlpha *= 0.44;
-  ctx.strokeStyle = "rgba(226,232,240,.9)";
-  ctx.lineWidth = Math.max(2, size * 0.016);
-  ctx.beginPath();
-  if (["beam", "recoil"].includes(actionMode)) {
-    ctx.moveTo(-actionReach * 1.5, 0);
-    ctx.quadraticCurveTo(0, -actionReach * 0.24, actionReach * 1.5, 0);
-  } else if (["shield", "ripple", "gravity"].includes(actionMode)) {
-    ctx.arc(0, 0, actionReach, -Math.PI * 0.8, Math.PI * 0.8);
-  } else if (["data-down", "data-up", "data-accelerate", "glitch"].includes(actionMode)) {
-    const gateY = actionMode === "data-up" ? -actionReach * 0.58 : actionReach * 0.58;
-    ctx.moveTo(-actionReach, gateY);
-    ctx.lineTo(actionReach, gateY);
-    ctx.moveTo(0, -actionReach * 0.86);
-    ctx.lineTo(0, actionReach * 0.86);
-  } else {
-    ctx.ellipse(0, 0, actionReach, actionReach * 0.46, 0, 0, Math.PI * 2);
+  for (let layer = 0; layer < 2; layer += 1) {
+    const layerSize = size * (0.88 + layer * 0.16);
+    ctx.save();
+    ctx.translate(effect.x, effect.y);
+    ctx.rotate((index % 2 ? 1 : -1) * (progress * 0.28 + layer * 0.08));
+    ctx.globalAlpha = Math.max(0, 1 - progress * 0.92) * (0.78 - layer * 0.26);
+    drawAnimatedTextureCentered(sprite, 0, -progress * (8 + layer * 5), layerSize, layerSize, {
+      mode: semanticEffectMotion(effect.type, effect.variant, index === 3 || index === 9 ? "flow-up" : "energy"),
+      time: now / 1000,
+      progress,
+      phase: layer * 0.43,
+      intensity: 0.86,
+      baseAlpha: 0.14
+    });
+    ctx.restore();
   }
-  ctx.stroke();
   ctx.restore();
 }
+
+
+
+
+
 
 function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   const sources = [
@@ -18670,6 +18538,16 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   return true;
 }
 
+function drawEmpEffect(effect, progress, now) {
+  const maxRadius = Math.max(180, Number(effect.radius) || 260);
+  const interactionIndex = effect.type === "emp-resonance" ? 0 : effect.type === "emp-cancel" ? 1 : -1;
+  if (interactionIndex >= 0) {
+    drawEmpInteractionSprite(effect, interactionIndex, progress, maxRadius);
+  } else {
+    drawPhilosophyAtlasEffect(effect, PHILOSOPHY_EFFECT_CELLS.emp, progress, maxRadius * 0.92);
+  }
+}
+
 function drawAlchemyEffect(effect, index, progress) {
   const sprite = transparentSpriteSource(
     state.textures.alchemyEffectTextures?.[index],
@@ -18684,24 +18562,14 @@ function drawAlchemyEffect(effect, index, progress) {
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
   ctx.translate(effect.x, effect.y);
+  ctx.rotate((index % 2 ? 1 : -1) * progress * 0.18);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
-    mode: semanticEffectMotion(effect.type, effect.variant),
+    mode: semanticEffectMotion(effect.type, effect.variant, index === 7 ? "combustion" : "energy"),
     progress,
     phase: index * 0.17,
     intensity: 0.9,
     baseAlpha: 0.15
   });
-  // Alchemy remains a reaction vessel: an event-sized, connected reaction
-  // contour keyed to its atlas recipe, never independent flakes.
-  const reaction = size * (0.14 + pulse * 0.075);
-  ctx.globalAlpha *= 0.46;
-  ctx.strokeStyle = index % 2 ? "rgba(196,181,253,.92)" : "rgba(110,231,183,.9)";
-  ctx.lineWidth = Math.max(2, size * 0.014);
-  ctx.beginPath();
-  ctx.ellipse(0, size * 0.07, reaction * 1.15, reaction * 0.42, 0, 0, Math.PI * 2);
-  ctx.moveTo(-reaction * 0.72, size * 0.07);
-  ctx.quadraticCurveTo(0, -reaction * 0.82, reaction * 0.72, size * 0.07);
-  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -18714,16 +18582,6 @@ function drawIdeaEffect(effect, progress, now) {
   drawPhilosophyAtlasEffect(renderedEffect, PHILOSOPHY_EFFECT_CELLS[effect.type] ?? 9, progress, rawSize);
 }
 
-function drawEmpEffect(effect, progress, now) {
-  const maxRadius = Math.max(180, Number(effect.radius) || 260);
-  const interactionIndex = effect.type === "emp-resonance" ? 0 : effect.type === "emp-cancel" ? 1 : -1;
-  if (interactionIndex >= 0) {
-    drawEmpInteractionSprite(effect, interactionIndex, progress, maxRadius);
-  } else {
-    drawPhilosophyAtlasEffect(effect, PHILOSOPHY_EFFECT_CELLS.emp, progress, maxRadius * 0.92);
-  }
-}
-
 function drawGravityStormImpactEffect(effect, progress) {
   if (effect.type === "gravity-storm-barrier-hit") {
     const prepared = transparentSpriteSource(state.textures.gravityStormSafeEye, "gravity-storm-safe-eye-v320-hit", 18);
@@ -18732,6 +18590,7 @@ function drawGravityStormImpactEffect(effect, progress) {
     const size = Math.max(170, Number(effect.radius || 140) * 2) * (0.88 + pulse * 0.24);
     ctx.save();
     ctx.translate(effect.x, effect.y);
+    ctx.rotate(-progress * 0.18);
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
     drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
@@ -18759,70 +18618,54 @@ function drawGravityStormImpactEffect(effect, progress) {
   ctx.save();
   ctx.translate(effect.x, effect.y);
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88) * 0.78;
-  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
-    mode: semanticEffectMotion(effect.type, effect.variant),
-    progress,
-    phase: effect.type === "gravity-storm-pull" ? 0.23 : effect.type === "gravity-storm-crush" ? 0.71 : 0.47,
-    intensity: effect.type === "gravity-storm-crush" ? 1 : 0.92,
-    baseAlpha: 0.12
-  });
+  for (let layer = 0; layer < 2; layer += 1) {
+    const direction = effect.type === "gravity-storm-pull" ? -1 : 1;
+    ctx.save();
+    ctx.rotate(direction * (progress * 0.32 + layer * 0.11));
+    ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88) * (0.78 - layer * 0.28);
+    const layerSize = size * (0.9 + layer * 0.16);
+    drawAnimatedTextureCentered(sprite, 0, 0, layerSize, layerSize, {
+      mode: "gravity",
+      progress,
+      phase: layer * 0.47,
+      intensity: effect.type === "gravity-storm-crush" ? 1 : 0.92,
+      baseAlpha: 0.12
+    });
+    ctx.restore();
+  }
   ctx.restore();
   return true;
 }
 
 function drawStatusAndHazardEffect(effect, progress) {
-  const persistentHazardActivation = effect.type.startsWith("hazard-");
   let source = null;
   if (["status-burning", "hazard-fire"].includes(effect.type)) source = state.textures.hazardFireEffect;
   else if (["status-poison", "hazard-poison"].includes(effect.type)) source = state.textures.hazardPoisonEffect;
   else if (["status-burn-cleared", "hazard-water"].includes(effect.type)) source = state.textures.hazardWaterEffect;
   else if (effect.type === "status-poison-cleared" || effect.type === "hazard-antidote") source = state.textures.itemAntidote;
-  if (!source && !persistentHazardActivation) return false;
-  const prepared = source ? transparentSpriteSource(source, `status-effect-${effect.type}`, 18) : null;
+  if (!source) return false;
+  const prepared = transparentSpriteSource(source, `status-effect-${effect.type}`, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, `status-effect-${effect.type}`, 1, 1, 0, 0) : null;
-  if (!sprite && !persistentHazardActivation) return false;
+  if (!sprite) return false;
   const pulse = Math.sin(Math.min(1, progress) * Math.PI);
   const baseSize = Math.max(150, Number(effect.radius) * 2 || 210);
   ctx.save();
   ctx.translate(effect.x, effect.y);
   ctx.globalCompositeOperation = effect.type.includes("water") || effect.type.includes("cleared") ? "source-over" : "lighter";
-  const size = baseSize * (0.9 + pulse * 0.16);
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86) * 0.76;
-  // A persistent hazard already owns the one stationary semantic raster in
-  // drawHazardFields. Its activation contributes only connected causal
-  // geometry here, avoiding a second spark-like texture layer.
-  if (!persistentHazardActivation && sprite) {
-    drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
-      mode: semanticEffectMotion(effect.type, effect.variant),
+  for (let layer = 0; layer < 2; layer += 1) {
+    const size = baseSize * (0.82 + layer * 0.17 + pulse * 0.16);
+    ctx.save();
+    ctx.rotate((layer ? -1 : 1) * progress * 0.18);
+    ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86) * (0.76 - layer * 0.28);
+    drawAnimatedTextureCentered(sprite, 0, -progress * 12, size, size, {
+      mode: semanticEffectMotion(effect.type, effect.variant, effect.type.includes("water") || effect.type.includes("cleared") ? "ripple" : "flow-up"),
       progress,
-      phase: effect.type.includes("cleared") ? 0.39 : 0.12,
+      phase: layer * 0.39,
       intensity: 0.9,
       baseAlpha: 0.14
     });
+    ctx.restore();
   }
-  // Material statuses stay connected to their affected area: flame is a
-  // tongue, poison a closed vapour contour, and water/cleanse a settling
-  // surface. No detached dots are emitted from these owners.
-  const material = size * (0.15 + pulse * 0.06);
-  ctx.globalAlpha *= 0.42;
-  ctx.strokeStyle = effect.type.includes("fire") || effect.type.includes("burning")
-    ? "rgba(254,215,170,.92)"
-    : effect.type.includes("poison")
-      ? "rgba(216,180,254,.9)"
-      : "rgba(186,230,253,.92)";
-  ctx.lineWidth = Math.max(2, size * 0.014);
-  ctx.beginPath();
-  if (effect.type.includes("fire") || effect.type.includes("burning")) {
-    ctx.moveTo(-material, material * 0.72);
-    ctx.quadraticCurveTo(-material * 0.38, -material, 0, material * 0.04);
-    ctx.quadraticCurveTo(material * 0.36, -material * 0.76, material, material * 0.72);
-  } else if (effect.type.includes("poison")) {
-    ctx.ellipse(0, 0, material, material * 0.56, 0, 0, Math.PI * 2);
-  } else {
-    ctx.ellipse(0, material * 0.23, material * 1.16, material * 0.35, 0, 0, Math.PI * 2);
-  }
-  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -19392,6 +19235,7 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
       baseAlpha: 0.16,
       opacityBoost: 3
     });
+    drawAteComplementaryVfx(ctx, profile.motion, size, size, now / 1000, progress, fade * 0.42);
     ctx.restore();
   }
 }
@@ -19433,6 +19277,8 @@ function drawFighterEnergyChargeMarker(effect, progress, now) {
     baseAlpha: 0.16,
     opacityBoost: 3
   });
+  // E is sparse upward motes, distinct from the EC texture silhouette.
+  drawAteComplementaryVfx(ctx, "flow-up", size, size, time, progress, fade * 0.42);
   ctx.restore();
 }
 
@@ -19447,116 +19293,248 @@ function objectEffectFade(progress) {
   return 1 - normalized * normalized * (3 - 2 * normalized);
 }
 
-function drawSemanticObjectCausalField(effectKind, profile, effect, progress, time, fade) {
-  const pulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
-  const wave = Math.sin(time * (0.82 + (profile.size % 11) * 0.035));
-  const radius = profile.size * (0.18 + pulse * 0.045 + wave * 0.012);
+
+function drawObjectTextureLayer(sprite, size, alpha, options = {}) {
+  const {
+    x = 0,
+    y = 0,
+    rotation = 0,
+    scaleX = 1,
+    scaleY = 1,
+    composite = "screen",
+    mode = "energy",
+    time = (state.frameNow || performance.now()) / 1000,
+    phase = 0,
+    intensity = 1
+  } = options;
   ctx.save();
-  ctx.translate(effect.x, effect.y);
-  ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = fade * 0.34;
-  ctx.strokeStyle = profile.accent;
-  ctx.fillStyle = profile.color;
-  ctx.lineWidth = Math.max(2, profile.size * 0.018);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.scale(scaleX, scaleY);
+  ctx.globalCompositeOperation = composite;
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  applyAteGlowContext(ctx, mode, Math.floor(time * 60) / 60, phase, intensity * 0.72);
+  drawNormalizedSpriteCentered(sprite, 0, 0, size, size);
+  ctx.restore();
+}
+
+function objectAppearanceNoise(seed) {
+  const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function drawObjectAppearanceGlyph(shape, size, color, rotation) {
+  ctx.save();
+  ctx.rotate(rotation);
+  ctx.fillStyle = color;
   ctx.beginPath();
-  if (effectKind === "stamina") {
-    const lift = radius * (0.72 + wave * 0.08);
-    ctx.moveTo(-radius * 0.6, lift);
-    ctx.bezierCurveTo(-radius * 0.42, 0, -radius * 0.16, -lift, 0, -lift);
-    ctx.bezierCurveTo(radius * 0.16, -lift, radius * 0.42, 0, radius * 0.6, lift);
-  } else if (effectKind === "credits") {
-    ctx.ellipse(0, 0, radius * 1.12, radius * 0.48, wave * 0.08, 0, Math.PI * 2);
-    ctx.moveTo(-radius * 0.42, 0);
-    ctx.lineTo(radius * 0.42, 0);
-  } else if (effectKind === "mana") {
-    ctx.moveTo(0, -radius);
-    ctx.quadraticCurveTo(radius * 0.8, 0, 0, radius);
-    ctx.quadraticCurveTo(-radius * 0.8, 0, 0, -radius);
-  } else if (effectKind === "cooldownReduction") {
-    const rewind = Math.PI * (1.18 + wave * 0.12);
-    ctx.arc(0, 0, radius, -rewind, rewind * 0.52);
-    ctx.lineTo(radius * 0.72, -radius * 0.34);
-  } else if (effectKind === "statusRecovery") {
-    ctx.ellipse(0, 0, radius, radius * 0.42, 0, 0, Math.PI * 2);
-    ctx.moveTo(-radius * 0.52, radius * 0.06);
-    ctx.quadraticCurveTo(0, -radius * 0.72, radius * 0.52, radius * 0.06);
-  } else if (effectKind === "acceleration") {
-    ctx.moveTo(-radius * 1.18, -radius * 0.42);
-    ctx.bezierCurveTo(-radius * 0.25, -radius * 0.56, radius * 0.32, -radius * 0.12, radius * 1.18, 0);
-    ctx.moveTo(-radius * 1.18, radius * 0.42);
-    ctx.bezierCurveTo(-radius * 0.25, radius * 0.56, radius * 0.32, radius * 0.12, radius * 1.18, 0);
-  } else if (effectKind === "luckBoost") {
-    ctx.moveTo(0, -radius);
-    ctx.lineTo(radius * 0.92, radius * 0.7);
-    ctx.lineTo(-radius * 0.92, -radius * 0.28);
-    ctx.lineTo(radius * 0.92, -radius * 0.28);
-    ctx.lineTo(-radius * 0.92, radius * 0.7);
+  if (shape === "glint") {
+    for (let point = 0; point < 8; point += 1) {
+      const angle = point * Math.PI / 4;
+      const length = point % 2 === 0 ? size : size * 0.22;
+      const x = Math.cos(angle) * length;
+      const y = Math.sin(angle) * length;
+      if (point === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
     ctx.closePath();
-  } else if (effectKind === "overheal") {
-    ctx.arc(0, 0, radius, -Math.PI * 0.84, Math.PI * 0.84);
-    ctx.moveTo(-radius * 0.55, radius * 0.3);
-    ctx.quadraticCurveTo(0, radius * 0.78, radius * 0.55, radius * 0.3);
-  } else if (effectKind === "relaxation") {
-    ctx.ellipse(0, 0, radius * (1 + wave * 0.06), radius * (0.52 - wave * 0.025), 0, 0, Math.PI * 2);
-  } else if (effectKind === "herbalRecovery") {
-    ctx.moveTo(-radius * 0.9, radius * 0.46);
-    ctx.quadraticCurveTo(-radius * 0.24, -radius, radius * 0.82, -radius * 0.38);
-    ctx.quadraticCurveTo(radius * 0.32, radius * 0.5, -radius * 0.9, radius * 0.46);
-  } else if (effectKind === "healthyMeal") {
-    ctx.moveTo(0, radius * 0.82);
-    ctx.bezierCurveTo(-radius, radius * 0.15, -radius * 0.48, -radius * 0.92, 0, -radius * 0.28);
-    ctx.bezierCurveTo(radius * 0.48, -radius * 0.92, radius, radius * 0.15, 0, radius * 0.82);
-  } else if (effectKind === "mineralWater") {
-    ctx.ellipse(0, radius * 0.2, radius * 1.15, radius * (0.34 + wave * 0.025), 0, 0, Math.PI * 2);
-    ctx.moveTo(-radius * 0.72, -radius * 0.28);
-    ctx.quadraticCurveTo(0, -radius * 0.55, radius * 0.72, -radius * 0.28);
-  } else if (effectKind === "heal") {
-    ctx.moveTo(-radius, 0);
-    ctx.lineTo(radius, 0);
-    ctx.moveTo(0, -radius);
-    ctx.lineTo(0, radius);
-  } else if (effectKind === "fullRecovery") {
-    ctx.ellipse(0, 0, radius, radius, 0, 0, Math.PI * 2);
-    ctx.moveTo(-radius * 0.68, 0);
-    ctx.lineTo(radius * 0.68, 0);
-    ctx.moveTo(0, -radius * 0.68);
-    ctx.lineTo(0, radius * 0.68);
-  } else if (effectKind === "decoy") {
-    ctx.moveTo(-radius * 1.15, 0);
-    ctx.bezierCurveTo(-radius * 0.62, -radius * 0.8, -radius * 0.24, radius * 0.8, 0, 0);
-    ctx.bezierCurveTo(radius * 0.24, -radius * 0.8, radius * 0.62, radius * 0.8, radius * 1.15, 0);
+  } else if (shape === "leaf") {
+    ctx.moveTo(0, -size);
+    ctx.bezierCurveTo(size * 0.72, -size * 0.4, size * 0.62, size * 0.62, 0, size);
+    ctx.bezierCurveTo(-size * 0.62, size * 0.62, -size * 0.72, -size * 0.4, 0, -size);
+    ctx.closePath();
+  } else if (shape === "petal") {
+    ctx.moveTo(0, -size);
+    ctx.quadraticCurveTo(size * 0.9, -size * 0.05, 0, size);
+    ctx.quadraticCurveTo(-size * 0.9, -size * 0.05, 0, -size);
+    ctx.closePath();
+  } else if (shape === "droplet") {
+    ctx.moveTo(0, -size * 1.15);
+    ctx.bezierCurveTo(size * 0.72, -size * 0.18, size * 0.66, size * 0.86, 0, size);
+    ctx.bezierCurveTo(-size * 0.66, size * 0.86, -size * 0.72, -size * 0.18, 0, -size * 1.15);
+    ctx.closePath();
+  } else if (shape === "confetti") {
+    ctx.rect(-size * 0.72, -size * 0.34, size * 1.44, size * 0.68);
+  } else if (shape === "pixel") {
+    ctx.rect(-size * 0.5, -size * 0.5, size, size);
+  } else {
+    ctx.moveTo(0, -size);
+    ctx.lineTo(size * 0.42, 0);
+    ctx.lineTo(0, size);
+    ctx.lineTo(-size * 0.42, 0);
+    ctx.closePath();
   }
-  ctx.stroke();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawObjectAppearanceCelebration(effect, progress, time, baseSize) {
+  const presentation = OBJECT_EFFECT_APPEARANCE[effect.effectKind];
+  if (!presentation || progress >= 0.68) return;
+  const sampledTime = Math.floor(time * 60) / 60;
+  const reveal = objectEffectEase(progress / 0.12);
+  const exit = 1 - objectEffectEase(Math.max(0, progress - 0.4) / 0.28);
+  const appearanceAlpha = reveal * exit;
+  const count = presentation.choreography === "prism-burst" ? 18 : presentation.choreography === "constellation" ? 15 : 13;
+  const effectSeed = [...`${effect.type}:${effect.effectKind}:${Math.round(effect.x)}:${Math.round(effect.y)}`]
+    .reduce((sum, character, index) => sum + character.charCodeAt(0) * (index + 3), 0);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.filter = "none";
+  for (let index = 0; index < count; index += 1) {
+    const seed = effectSeed + index * 17.37;
+    const noiseA = objectAppearanceNoise(seed);
+    const noiseB = objectAppearanceNoise(seed + 9.71);
+    const delay = (index % 5) * 0.018;
+    if (progress < delay) continue;
+    const local = clamp((progress - delay) / Math.max(0.2, 0.62 - delay), 0, 1);
+    const life = Math.sin(local * Math.PI);
+    const angle = noiseA * Math.PI * 2;
+    let x = 0;
+    let y = 0;
+    let rotation = angle + sampledTime * (0.7 + noiseB * 1.1);
+
+    if (presentation.choreography === "updraft" || presentation.choreography === "cleanse") {
+      x = (noiseA - 0.5) * baseSize * 0.66 + Math.sin(sampledTime * 3 + seed) * baseSize * 0.035;
+      y = baseSize * 0.35 - local * baseSize * (0.58 + noiseB * 0.18);
+      rotation *= 0.45;
+    } else if (presentation.choreography === "fountain") {
+      const horizontal = (noiseA - 0.5) * baseSize * 0.92;
+      x = horizontal * local;
+      y = baseSize * 0.16 - local * baseSize * (0.64 + noiseB * 0.18) + local * local * baseSize * 0.32;
+      rotation += local * 4.2;
+    } else if (presentation.choreography === "spiral" || presentation.choreography === "rewind") {
+      const direction = presentation.choreography === "rewind" ? -1 : 1;
+      const spiralAngle = angle + direction * local * Math.PI * (2.3 + noiseB);
+      const radius = baseSize * (0.12 + local * (0.3 + noiseB * 0.08));
+      x = Math.cos(spiralAngle) * radius;
+      y = Math.sin(spiralAngle) * radius * 0.72 - local * baseSize * 0.08;
+      rotation = spiralAngle + Math.PI / 4;
+    } else if (presentation.choreography === "backdraft") {
+      x = baseSize * (0.42 - local * (0.78 + noiseA * 0.18));
+      y = (noiseB - 0.5) * baseSize * 0.58 + Math.sin(local * Math.PI) * (noiseA - 0.5) * 12;
+      rotation = -Math.PI / 2 + (noiseA - 0.5) * 0.45;
+    } else if (presentation.choreography === "constellation") {
+      x = (noiseA - 0.5) * baseSize * 0.76;
+      y = (noiseB - 0.5) * baseSize * 0.68;
+      rotation = sampledTime * (0.5 + noiseA) + angle;
+    } else if (presentation.choreography === "guard") {
+      x = Math.cos(angle) * baseSize * (0.34 + local * 0.08);
+      y = Math.sin(angle) * baseSize * (0.28 + local * 0.06);
+      rotation = angle + Math.PI / 4;
+    } else if (presentation.choreography === "drift" || presentation.choreography === "bloom") {
+      const spread = presentation.choreography === "bloom" ? 0.54 : 0.38;
+      x = (noiseA - 0.5) * baseSize * spread + Math.sin(sampledTime * 1.8 + seed) * baseSize * 0.06;
+      y = baseSize * 0.25 - local * baseSize * (0.34 + noiseB * 0.22);
+      rotation += Math.sin(sampledTime * 2.2 + seed) * 0.65;
+    } else if (presentation.choreography === "splash") {
+      x = Math.cos(angle) * local * baseSize * (0.28 + noiseB * 0.22);
+      y = Math.sin(angle) * local * baseSize * 0.3 - local * baseSize * 0.2 + local * local * baseSize * 0.22;
+      rotation = Math.atan2(y, x || 0.001);
+    } else if (presentation.choreography === "pixel-scatter") {
+      x = Math.round(((noiseA - 0.5) * baseSize * (0.32 + local * 0.32)) / 5) * 5;
+      y = Math.round(((noiseB - 0.5) * baseSize * (0.28 + local * 0.3)) / 5) * 5;
+      rotation = index % 2 ? 0 : Math.PI / 4;
+    } else {
+      x = Math.cos(angle) * local * baseSize * (0.28 + noiseA * 0.2);
+      y = Math.sin(angle) * local * baseSize * (0.24 + noiseB * 0.18);
+      rotation = angle + Math.PI / 4;
+    }
+
+    const color = presentation.palette[index % presentation.palette.length];
+    const size = baseSize * (0.025 + noiseB * 0.028) * (0.78 + life * 0.42);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = clamp(appearanceAlpha * (0.34 + life * 0.66), 0, 0.9);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 7 + size * 1.4;
+    drawObjectAppearanceGlyph(presentation.shape, size, color, rotation);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
 function drawSemanticObjectEffect(sprite, effect, progress, now) {
-  const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind];
-  if (!profile) return false;
+  const profile = OBJECT_EFFECT_PRESENTATIONS[effect.effectKind] || Object.freeze({ motion: "pulse", color: "#67e8f9", accent: "#f8fafc", size: 116 });
   const time = now / 1000;
+  const reveal = objectEffectEase(progress / 0.28);
   const fade = objectEffectFade(progress);
-  // The semantic raster remains stationary. The exact effectKind owns one
-  // connected field below; no generic particle celebration or silent fallback.
-  ctx.save();
-  ctx.globalAlpha = fade;
-  drawAnimatedTextureCentered(sprite, effect.x, effect.y, profile.size, profile.size, {
+  const pulse = Math.sin(progress * Math.PI);
+  const baseSize = profile.size * (0.7 + reveal * 0.3);
+  const drawLayer = (size, alpha, options = {}) => drawObjectTextureLayer(sprite, size, alpha, {
     mode: profile.motion,
     time,
-    progress,
     phase: progress,
     intensity: fade,
-    baseAlpha: 0.18,
-    opacityBoost: 3
+    ...options
   });
+  ctx.save();
+  ctx.translate(effect.x, effect.y);
+
+  if (profile.motion === "dash") {
+    const travel = -20 + reveal * 20;
+    drawLayer(baseSize, fade * 0.16, { x: travel - 24, scaleX: 1.12, scaleY: 0.84 });
+    drawLayer(baseSize, fade * 0.28, { x: travel - 12, scaleX: 1.06, scaleY: 0.9 });
+    drawLayer(baseSize, fade * 0.82, { x: travel, scaleX: 1.02, scaleY: 0.96 });
+  } else if (profile.motion === "orbit" || profile.motion === "constellation") {
+    const rotation = progress * (profile.motion === "orbit" ? 0.62 : 0.22);
+    drawLayer(baseSize * 1.08, fade * 0.22, { rotation: -rotation * 0.58 });
+    drawLayer(baseSize, fade * 0.84, { rotation });
+  } else if (profile.motion === "rewind") {
+    drawLayer(baseSize * 1.08, fade * 0.24, { rotation: progress * 0.58 });
+    drawLayer(baseSize, fade * 0.84, { rotation: -progress * 1.18 });
+  } else if (profile.motion === "cleanse" || profile.motion === "heal" || profile.motion === "bloom" || profile.motion === "charge") {
+    const rise = (1 - reveal) * 18 - progress * 9;
+    drawLayer(baseSize * 1.1, fade * 0.2, { y: rise + 7, scaleX: 1.04, scaleY: 0.92 });
+    drawLayer(baseSize, fade * 0.84, { y: rise, scaleX: 0.96 + pulse * 0.04, scaleY: 0.94 + reveal * 0.06 });
+  } else if (profile.motion === "shield") {
+    const breathe = 1 + Math.sin(time * 3.4) * 0.025;
+    drawLayer(baseSize * (1.12 + pulse * 0.05), fade * 0.22, { scaleX: breathe, scaleY: breathe });
+    drawLayer(baseSize, fade * 0.82, { scaleX: breathe, scaleY: breathe });
+  } else if (profile.motion === "breathe") {
+    const breathe = 0.96 + Math.sin(time * 2.2) * 0.045;
+    drawLayer(baseSize * 1.08, fade * 0.2, { y: Math.sin(time * 1.8) * 2.5 + 5, scaleX: breathe * 1.04, scaleY: breathe * 0.9 });
+    drawLayer(baseSize, fade * 0.82, { y: Math.sin(time * 1.8) * 2.5, scaleX: breathe, scaleY: breathe });
+  } else if (profile.motion === "ripple" || profile.motion === "pulse") {
+    const flatten = profile.motion === "ripple" ? 0.7 : 1;
+    drawLayer(baseSize * (1.1 + progress * 0.16), fade * 0.18, { scaleY: flatten });
+    drawLayer(baseSize, fade * 0.82, { scaleX: 0.96 + pulse * 0.05, scaleY: (0.96 + pulse * 0.05) * flatten });
+  } else if (profile.motion === "burst") {
+    drawLayer(baseSize * (1.02 + pulse * 0.24), fade * 0.24, { rotation: -progress * 0.14 });
+    drawLayer(baseSize * (0.76 + reveal * 0.24), fade * 0.76, { rotation: progress * 0.18 });
+  } else if (profile.motion === "signal") {
+    drawLayer(baseSize * (1.08 + pulse * 0.05), fade * 0.2, { rotation: -Math.sin(time * 2.6) * 0.03 });
+    drawLayer(baseSize, fade * 0.8, { rotation: Math.sin(time * 2.6) * 0.05 });
+  } else {
+    drawLayer(baseSize, fade * 0.82);
+  }
+  drawAteComplementaryVfx(ctx, profile.motion, baseSize, baseSize, time, progress, fade * 0.72);
+  drawObjectAppearanceCelebration(effect, progress, time, baseSize);
   ctx.restore();
-  drawSemanticObjectCausalField(effect.effectKind, profile, effect, progress, time, fade);
-  return true;
 }
 
 function drawObjectEffectFallback() {
   return false;
+}
+
+function drawRainbowSpark(x, y, radius, hue, rotation) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.fillStyle = `hsl(${(hue + 35) % 360} 100% 78%)`;
+  ctx.beginPath();
+  for (let point = 0; point < 8; point += 1) {
+    const angle = point * Math.PI / 4;
+    const length = point % 2 === 0 ? radius : radius * 0.22;
+    const px = Math.cos(angle) * length;
+    const py = Math.sin(angle) * length;
+    if (point === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawPlayers(data) {
@@ -19922,11 +19900,7 @@ function drawSoloHumanDeathBotAcceleration(player, data) {
   ) return;
   const prepared = transparentSpriteSource(state.textures.accelerationPhaseEffect, "status-marker-acceleration-v376-bot-tenfold", 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "status-marker-acceleration-v376-bot-tenfold", 1, 1, 0, 0) : null;
-  if (!sprite) {
-    if (IS_VERIFICATION_MODE) document.documentElement.setAttribute("data-v623-throw-preview-blocked", "missing-texture");
-    return;
-  }
-  if (IS_VERIFICATION_MODE) document.documentElement.removeAttribute("data-v623-throw-preview-blocked");
+  if (!sprite) return;
   const time = (state.frameNow || performance.now()) / 1000;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -19995,25 +19969,27 @@ function enhanceRimLightState(player, data) {
 
 function drawEnhanceRimLightGlints(rim) {
   if (!rim) return;
-  const breathe = Math.sin(rim.time * 2.1 + rim.level * 0.37);
+  const anchors = [
+    [-29, -54], [25, -44], [-35, -17], [34, 3], [-22, 30], [23, 33]
+  ];
+  const visibleGlints = Math.min(6, 3 + rim.level);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.36 + rim.level * 0.09;
-  ctx.strokeStyle = "#a5f3fc";
-  ctx.shadowColor = "#22d3ee";
-  ctx.shadowBlur = 8 + rim.level * 2;
-  ctx.lineWidth = 2.5 + rim.level * 0.5;
-  ctx.beginPath();
-  ctx.ellipse(0, -12, 33 + breathe * 2.2, 47 - breathe * 1.2, 0, -2.45, -0.54);
-  ctx.ellipse(0, -12, 33 - breathe * 1.8, 47 + breathe, 0, 0.7, 2.62);
-  ctx.stroke();
-  ctx.globalAlpha *= 0.58;
-  ctx.strokeStyle = "#e0f2fe";
-  ctx.lineWidth = 1.7 + rim.level * 0.28;
-  ctx.beginPath();
-  ctx.arc(0, -12, 37 + breathe * 2.6, -1.9, -0.95);
-  ctx.arc(0, -12, 37 - breathe * 2.1, 1.13, 2.06);
-  ctx.stroke();
+  for (let index = 0; index < visibleGlints; index += 1) {
+    const [baseX, baseY] = anchors[index];
+    const cycle = ((rim.time * (0.72 + index * 0.035) + index * 0.193) % 1 + 1) % 1;
+    const life = Math.sin(cycle * Math.PI);
+    const size = 2.2 + rim.level * 0.34 + life * 2.1;
+    ctx.save();
+    ctx.translate(baseX + Math.sin(rim.time * 2.1 + index) * 2.4, baseY - cycle * 9);
+    ctx.rotate(Math.PI / 4 + rim.time * 0.18 * (index % 2 ? -1 : 1));
+    ctx.globalAlpha = life * (0.38 + rim.level * 0.1);
+    ctx.fillStyle = index % 2 ? "#e0f2fe" : "#a5f3fc";
+    ctx.shadowColor = index % 2 ? "#c4b5fd" : "#22d3ee";
+    ctx.shadowBlur = 7 + rim.level * 2;
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -20127,27 +20103,32 @@ function naturalRecoveryMarkerGlow() {
 
 function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState) {
   if (!activeState?.naturalRecovery || !activeState?.aroma) return false;
-  const sway = Math.sin(time * 1.7) * 4.5;
+  // Five short-lived scent-leaf motes are intentionally complementary to the
+  // recovery raster rather than another marker texture or a full-size ATE.
+  const particleCount = 5;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.38 + Math.sin(time * 1.3) * 0.09;
-  ctx.strokeStyle = "#bbf7d0";
-  ctx.shadowColor = "#4ade80";
-  ctx.shadowBlur = 7;
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(markerX - 12, markerY + 11);
-  ctx.bezierCurveTo(markerX - 18 + sway, markerY + 1, markerX + 11 - sway, markerY - 8, markerX - 2, markerY - 29);
-  ctx.moveTo(markerX + 13, markerY + 9);
-  ctx.bezierCurveTo(markerX + 20 - sway, markerY - 3, markerX - 7 + sway, markerY - 13, markerX + 5, markerY - 33);
-  ctx.stroke();
-  ctx.globalAlpha *= 0.62;
-  ctx.strokeStyle = "#d8b4fe";
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(markerX - 7, markerY + 8);
-  ctx.bezierCurveTo(markerX + 12 + sway, markerY - 5, markerX + 1, markerY - 24, markerX + 9, markerY - 36);
-  ctx.stroke();
+  for (let index = 0; index < particleCount; index += 1) {
+    const cycle = ((time * (0.32 + index * 0.018) + index * 0.211) % 1 + 1) % 1;
+    const life = Math.sin(cycle * Math.PI);
+    const drift = Math.sin(time * 2.2 + index * 1.73) * (2.5 + index * 0.42);
+    const x = markerX + drift + (index - (particleCount - 1) / 2) * 2.2;
+    const y = markerY + 11 - cycle * (18 + (index % 2) * 4);
+    const size = 1.7 + life * 1.35;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.52 + time * 0.45 + index * 0.77);
+    ctx.globalAlpha = life * (0.28 + (index % 2) * 0.07);
+    ctx.fillStyle = index % 2 ? "#bbf7d0" : "#d8b4fe";
+    ctx.shadowColor = index % 2 ? "#4ade80" : "#c084fc";
+    ctx.shadowBlur = 4 + life * 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.quadraticCurveTo(size * 0.82, -size * 0.08, 0, size);
+    ctx.quadraticCurveTo(-size * 0.58, -size * 0.08, 0, -size);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.restore();
   return true;
 }
@@ -20162,7 +20143,8 @@ function drawFloraInvisibleGeneratedEffect(effect, progress) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88);
-  ctx.translate(effect.x, effect.y - 24);
+  ctx.translate(effect.x, effect.y - 24 - progress * 16);
+  ctx.rotate(Math.sin(progress * Math.PI * 2) * 0.035);
   drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
     mode: "shimmer",
     progress,
@@ -20227,31 +20209,6 @@ function drawPersistentStatusAteLayers(player, data) {
       baseAlpha: naturalRecoveryGlow?.baseAlpha ?? 0.15,
       opacityBoost: naturalRecoveryGlow?.opacityBoost ?? 3.2
     });
-    // Persistent states use one marker-attached contour per semantic status.
-    // They are intentionally compact so a status reads as a durable condition
-    // on this player, rather than as particle traffic leaving the marker.
-    const statusWave = Math.sin(time * (1.2 + profile.phase) + profile.phase * Math.PI * 2);
-    const statusRadius = profile.size * (0.19 + statusWave * 0.025);
-    ctx.globalAlpha *= 0.36;
-    ctx.strokeStyle = category === "burning" ? "rgba(254,215,170,.92)"
-      : category === "poison" ? "rgba(216,180,254,.9)"
-        : category === "standFirm" ? "rgba(165,243,252,.92)"
-          : category === "clairvoyance" ? "rgba(186,230,253,.92)"
-            : "rgba(226,232,240,.88)";
-    ctx.lineWidth = Math.max(1.6, profile.size * 0.07);
-    ctx.beginPath();
-    if (category === "burning") {
-      ctx.moveTo(markerX - statusRadius, markerY + statusRadius * 0.66);
-      ctx.quadraticCurveTo(markerX - statusRadius * 0.26, markerY - statusRadius * 1.05, markerX, markerY);
-      ctx.quadraticCurveTo(markerX + statusRadius * 0.42, markerY - statusRadius * 0.76, markerX + statusRadius, markerY + statusRadius * 0.66);
-    } else if (category === "clairvoyance") {
-      ctx.ellipse(markerX, markerY, statusRadius * 1.24, statusRadius * 0.42, 0, Math.PI * 0.1, Math.PI * 0.9);
-    } else if (category === "standFirm" || category === "resistanceBreak") {
-      ctx.arc(markerX, markerY, statusRadius, -Math.PI * 0.82, Math.PI * 0.82);
-    } else {
-      ctx.ellipse(markerX, markerY, statusRadius, statusRadius * 0.48, 0, 0, Math.PI * 2);
-    }
-    ctx.stroke();
     if (category === "naturalRecovery") {
       drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState);
     }
@@ -21226,19 +21183,43 @@ function animatedTextureSize(sprite, maxWidth, maxHeight) {
 }
 
 const EFFECT_TEXTURE_VISIBILITY = Object.freeze({
-  // Exact semantic rasters identify the phenomenon while smooth causal
-  // geometry carries motion.  Keeping this bed restrained prevents unrelated
-  // authored flecks from visually collapsing every ATE into glowing debris.
-  effect: Object.freeze({ minimumAlpha: 0.22, brightness: 1.04, contrast: 1.04, saturation: 1.04 }),
+  effect: Object.freeze({ minimumAlpha: 0.36, brightness: 1.14, contrast: 1.1, saturation: 1.12 }),
   object: Object.freeze({ minimumAlpha: 0, brightness: 1, contrast: 1, saturation: 1 }),
   ambient: Object.freeze({ minimumAlpha: 0, brightness: 1, contrast: 1, saturation: 1 })
 });
 
 // Keep the authored silhouette pixel-stable. Motion and complementary E are
 // owned by the exact outer renderer instead of this shared raster helper.
+const ATE_ANIMATION_PROFILES = Object.freeze({
+  energy: Object.freeze({ family: "breathing-motes", tempo: 0.82, phaseScale: 1.0, progressScale: 0.6, overlayGain: 0.92 }),
+  beam: Object.freeze({ family: "directional-sweep", tempo: 1.28, phaseScale: 0.45, progressScale: 0.35, overlayGain: 1.08 }),
+  ripple: Object.freeze({ family: "counter-wave", tempo: 0.72, phaseScale: 1.3, progressScale: 0.8, overlayGain: 0.88 }),
+  "flow-up": Object.freeze({ family: "buoyant-plume", tempo: 0.58, phaseScale: 0.9, progressScale: 0.55, overlayGain: 0.96 }),
+  "data-down": Object.freeze({ family: "packet-descent", tempo: 1.1, phaseScale: 1.7, progressScale: 0.2, overlayGain: 1.02 }),
+  "data-up": Object.freeze({ family: "packet-ascent", tempo: 0.94, phaseScale: 1.4, progressScale: 0.26, overlayGain: 1.02 }),
+  "data-accelerate": Object.freeze({ family: "compute-ingress-egress", tempo: 1.18, phaseScale: 1.15, progressScale: 0.28, overlayGain: 1.08 }),
+  shimmer: Object.freeze({ family: "asynchronous-glint", tempo: 0.66, phaseScale: 0.7, progressScale: 0.45, overlayGain: 0.84 }),
+  orbit: Object.freeze({ family: "elliptic-orbit", tempo: 0.8, phaseScale: 1.8, progressScale: 0.75, overlayGain: 0.9 }),
+  resonance: Object.freeze({ family: "constructive-interference", tempo: 1.08, phaseScale: 0.88, progressScale: 0.54, overlayGain: 1.12 }),
+  glitch: Object.freeze({ family: "discontinuous-slice", tempo: 1.75, phaseScale: 2.3, progressScale: 0.18, overlayGain: 1.04 }),
+  teleport: Object.freeze({ family: "phase-column", tempo: 1.12, phaseScale: 1.1, progressScale: 1.2, overlayGain: 1.0 }),
+  gravity: Object.freeze({ family: "inward-compression", tempo: 0.48, phaseScale: 0.55, progressScale: 0.92, overlayGain: 0.94 }),
+  impact: Object.freeze({ family: "radial-impulse", tempo: 0.9, phaseScale: 0.8, progressScale: 1.45, overlayGain: 1.1 }),
+  recoil: Object.freeze({ family: "backward-kick", tempo: 1.3, phaseScale: 0.6, progressScale: 1.6, overlayGain: 1.06 }),
+  shield: Object.freeze({ family: "layered-guard", tempo: 0.62, phaseScale: 1.6, progressScale: 0.35, overlayGain: 0.9 }),
+  combustion: Object.freeze({ family: "turbulent-flame", tempo: 1.08, phaseScale: 1.2, progressScale: 0.7, overlayGain: 1.08 }),
+  targeting: Object.freeze({ family: "settling-landing", tempo: 0.76, phaseScale: 0.52, progressScale: 0.24, overlayGain: 0.98 }),
+  clairvoyance: Object.freeze({ family: "horizon-scan", tempo: 0.64, phaseScale: 1.35, progressScale: 0.18, overlayGain: 1.06 })
+});
+
 function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeight, options = {}) {
   if (!sprite?.width || !sprite?.height) return false;
   const {
+    mode = "energy",
+    time = (state.frameNow || performance.now()) / 1000,
+    progress = 0,
+    phase = 0,
+    intensity = 1,
     flip = false,
     baseAlpha = 0.22,
     opacityBoost = 3,
@@ -21246,6 +21227,10 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   } = options;
   const { width, height } = animatedTextureSize(sprite, maxWidth, maxHeight);
   if (!(width > 0 && height > 0)) return false;
+  const sampledTime = Math.floor(time * 60) / 60;
+  const animationMode = normalizeAteGlowMode(mode);
+  const animationProfile = ATE_ANIMATION_PROFILES[animationMode] || ATE_ANIMATION_PROFILES.energy;
+  const clock = sampledTime * animationProfile.tempo + phase * animationProfile.phaseScale + progress * animationProfile.progressScale;
   const inheritedAlpha = ctx.globalAlpha;
 
   ctx.save();
@@ -21262,8 +21247,188 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
     const inheritedFilter = ctx.filter && ctx.filter !== "none" ? `${ctx.filter} ` : "";
     ctx.filter = `${inheritedFilter}brightness(${visibility.brightness}) contrast(${visibility.contrast}) saturate(${visibility.saturation})`;
   }
+  applyAteGlowContext(
+    ctx,
+    animationMode,
+    sampledTime,
+    phase + progress,
+    intensity * (visibilityProfile === "ambient" ? 0.52 : 1)
+  );
   ctx.globalAlpha = inheritedAlpha * baseTextureAlpha;
   ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
+
+  const drawClippedOverlay = (clipX, clipY, clipWidth, clipHeight, alpha, sourceOffsetX = 0, sourceOffsetY = 0, ellipse = false) => {
+    if (!(clipWidth > 0 && clipHeight > 0) || alpha <= 0.004) return;
+    ctx.save();
+    ctx.beginPath();
+    if (ellipse) ctx.ellipse(clipX + clipWidth / 2, clipY + clipHeight / 2, clipWidth / 2, clipHeight / 2, 0, 0, Math.PI * 2);
+    else ctx.rect(clipX, clipY, clipWidth, clipHeight);
+    ctx.clip();
+    const overlayAlpha = clamp(
+        Math.max(visibility.minimumAlpha * 0.72, alpha * intensity * effectiveOpacityBoost * animationProfile.overlayGain),
+      0,
+      1
+    );
+    ctx.globalAlpha = inheritedAlpha * overlayAlpha;
+    ctx.drawImage(sprite, -width / 2 + sourceOffsetX, -height / 2 + sourceOffsetY, width, height);
+    ctx.restore();
+  };
+
+  if (animationMode === "beam") {
+    const travel = ((clock * 0.72) % 1 + 1) % 1;
+    const bandWidth = width * 0.13;
+    for (let band = 0; band < 3; band += 1) {
+      const position = (travel + band / 3) % 1;
+      const x = -width * 0.42 + position * width * 0.84 - bandWidth / 2;
+      drawClippedOverlay(x, -height * 0.41, bandWidth, height * 0.82, 0.28 + band * 0.06, -position * width * 0.025, 0);
+    }
+  } else if (animationMode === "ripple") {
+    for (let band = 0; band < 4; band += 1) {
+      const y = -height * 0.34 + band * height * 0.19;
+      const drift = Math.sin(clock * 2.8 + band * 1.41) * width * 0.018;
+      drawClippedOverlay(-width * 0.41, y, width * 0.82, height * 0.12, 0.25 + Math.sin(clock * 3.1 + band) * 0.06, drift, 0, true);
+    }
+  } else if (animationMode === "flow-up") {
+    for (let plume = 0; plume < 3; plume += 1) {
+      const travel = ((clock * (0.19 + plume * 0.025) + plume * 0.31) % 1 + 1) % 1;
+      const plumeWidth = width * (0.16 + plume * 0.015);
+      const plumeHeight = height * 0.28;
+      const x = (-0.24 + plume * 0.24) * width - plumeWidth / 2;
+      const y = height * 0.24 - travel * height * 0.58 - plumeHeight / 2;
+      drawClippedOverlay(x, y, plumeWidth, plumeHeight, Math.sin(travel * Math.PI) * 0.42, 0, travel * height * 0.035, true);
+    }
+  } else if (animationMode === "data-accelerate") {
+    for (let stream = 0; stream < 6; stream += 1) {
+      const input = stream < 3;
+      const lane = input ? stream : stream - 3;
+      const travel = ((clock * (0.38 + stream * 0.012) + lane * 0.23) % 1 + 1) % 1;
+      const packetWidth = width * (input ? 0.09 : 0.13);
+      const packetHeight = height * (input ? 0.09 : 0.055);
+      const x = input
+        ? -width * 0.42 + travel * width * 0.31
+        : width * 0.11 + travel * width * 0.31;
+      const y = (-0.23 + lane * 0.23) * height - packetHeight / 2;
+      drawClippedOverlay(x - packetWidth / 2, y, packetWidth, packetHeight, Math.sin(travel * Math.PI) * 0.48, 0, 0, true);
+    }
+    const scanTravel = ((clock * 0.62) % 1 + 1) % 1;
+    const scanX = -width * 0.1 + scanTravel * width * 0.2;
+    drawClippedOverlay(scanX - width * 0.018, -height * 0.31, width * 0.036, height * 0.62, 0.42, 0, 0);
+  } else if (animationMode === "data-down" || animationMode === "data-up") {
+    const direction = animationMode === "data-down" ? 1 : -1;
+    for (let stream = 0; stream < 5; stream += 1) {
+      const travel = ((clock * (0.34 + stream * 0.016) + stream * 0.19) % 1 + 1) % 1;
+      const directedTravel = direction > 0 ? travel : 1 - travel;
+      const packetWidth = width * (0.08 + (stream % 2) * 0.025);
+      const packetHeight = height * (0.08 + (stream % 3) * 0.018);
+      const x = (-0.28 + stream * 0.14) * width - packetWidth / 2;
+      const y = -height * 0.34 + directedTravel * height * 0.68 - packetHeight / 2;
+      const alpha = Math.sin(travel * Math.PI) * (0.34 + (stream % 2) * 0.08);
+      drawClippedOverlay(x, y, packetWidth, packetHeight, alpha, Math.sin(clock * 2.2 + stream) * width * 0.008, direction * height * 0.018);
+    }
+    const scanTravel = ((clock * 0.46) % 1 + 1) % 1;
+    const scanY = -height * 0.32 + (direction > 0 ? scanTravel : 1 - scanTravel) * height * 0.64;
+    drawClippedOverlay(-width * 0.34, scanY - height * 0.025, width * 0.68, height * 0.05, 0.32, 0, direction * height * 0.012);
+  } else if (animationMode === "shimmer") {
+    const glints = [[-0.27, -0.18, 0.1], [0.23, -0.05, 1.7], [-0.08, 0.24, 3.2], [0.3, 0.25, 4.4]];
+    for (const [x, y, glintPhase] of glints) {
+      const alpha = Math.max(0, Math.sin(clock * 3.2 + glintPhase)) ** 2 * 0.56;
+      drawClippedOverlay(x * width - width * 0.055, y * height - height * 0.055, width * 0.11, height * 0.11, alpha, 0, 0, true);
+    }
+  } else if (animationMode === "orbit") {
+    for (let satellite = 0; satellite < 6; satellite += 1) {
+      const angle = clock * (0.9 + satellite * 0.035) + satellite * Math.PI / 3;
+      const x = Math.cos(angle) * width * 0.28;
+      const y = Math.sin(angle) * height * 0.2;
+      drawClippedOverlay(x - width * 0.065, y - height * 0.065, width * 0.13, height * 0.13, 0.34, -x * 0.12, -y * 0.12, true);
+    }
+  } else if (animationMode === "resonance") {
+    const synchronizedPulse = 0.32 + Math.max(0, Math.sin(clock * Math.PI * 2)) * 0.24;
+    for (const side of [-1, 1]) {
+      const centerX = side * width * 0.16;
+      drawClippedOverlay(
+        centerX - width * 0.31,
+        -height * 0.38,
+        width * 0.62,
+        height * 0.76,
+        synchronizedPulse,
+        -side * width * 0.012,
+        0,
+        true
+      );
+    }
+    const corePulse = 0.42 + Math.max(0, Math.sin(clock * Math.PI * 4 + Math.PI / 2)) * 0.34;
+    drawClippedOverlay(-width * 0.105, -height * 0.34, width * 0.21, height * 0.68, corePulse, 0, Math.sin(clock * 2.7) * height * 0.008, true);
+  } else if (animationMode === "glitch") {
+    for (let band = 0; band < 7; band += 1) {
+      const y = -height * 0.4 + band * height * 0.13;
+      const offset = Math.sin(clock * 8.7 + band * 2.17) * width * (band % 2 ? 0.055 : 0.028);
+      drawClippedOverlay(-width * 0.43, y, width * 0.86, height * 0.075, 0.24 + (band % 3) * 0.05, offset, 0);
+    }
+  } else if (animationMode === "teleport") {
+    for (let slice = 0; slice < 6; slice += 1) {
+      const x = -width * 0.42 + slice * width * 0.14;
+      const offsetY = Math.sin(clock * 4.2 + slice * 0.92) * height * 0.055;
+      drawClippedOverlay(x, -height * 0.42, width * 0.095, height * 0.84, 0.28 + slice * 0.025, 0, offsetY);
+    }
+  } else if (animationMode === "gravity") {
+    for (let ring = 0; ring < 4; ring += 1) {
+      const cycle = ((clock * 0.42 + ring * 0.23) % 1 + 1) % 1;
+      const ringWidth = width * (0.72 - cycle * 0.48);
+      const ringHeight = height * (0.72 - cycle * 0.48);
+      drawClippedOverlay(-ringWidth / 2, -ringHeight / 2, ringWidth, ringHeight, 0.22 + (1 - cycle) * 0.24, 0, 0, true);
+    }
+  } else if (animationMode === "impact") {
+    for (let band = 0; band < 4; band += 1) {
+      const cycle = clamp(progress * 1.3 - band * 0.12, 0, 1);
+      const bandWidth = width * (0.14 + cycle * 0.72);
+      const bandHeight = height * (0.12 + cycle * 0.72);
+      drawClippedOverlay(-bandWidth / 2, -bandHeight / 2, bandWidth, bandHeight, (1 - cycle) * 0.42 + 0.12, 0, 0, true);
+    }
+  } else if (animationMode === "recoil") {
+    for (let band = 0; band < 5; band += 1) {
+      const y = -height * 0.36 + band * height * 0.18;
+      const kick = Math.sin(progress * Math.PI) * width * (0.07 + band * 0.008);
+      drawClippedOverlay(-width * 0.42, y, width * 0.84, height * 0.1, 0.24 + band * 0.035, -kick, 0);
+    }
+  } else if (animationMode === "shield") {
+    for (let shell = 0; shell < 3; shell += 1) {
+      const pulse = 0.78 + Math.sin(clock * 2.4 + shell * 1.6) * 0.08;
+      const shellWidth = width * pulse * (1 - shell * 0.13);
+      const shellHeight = height * pulse * (1 - shell * 0.13);
+      drawClippedOverlay(-shellWidth / 2, -shellHeight / 2, shellWidth, shellHeight, 0.2 + shell * 0.08, 0, 0, true);
+    }
+  } else if (animationMode === "combustion") {
+    for (let plume = 0; plume < 5; plume += 1) {
+      const travel = ((clock * (0.24 + plume * 0.018) + plume * 0.19) % 1 + 1) % 1;
+      const plumeWidth = width * (0.12 + (plume % 2) * 0.035);
+      const plumeHeight = height * 0.24;
+      const x = (-0.3 + plume * 0.15) * width - plumeWidth / 2;
+      const y = height * 0.28 - travel * height * 0.63 - plumeHeight / 2;
+      drawClippedOverlay(x, y, plumeWidth, plumeHeight, Math.sin(travel * Math.PI) * 0.46, Math.sin(clock + plume) * width * 0.012, travel * height * 0.04, true);
+    }
+  } else if (animationMode === "targeting") {
+    for (let quadrant = 0; quadrant < 4; quadrant += 1) {
+      const phaseClock = clock * 2.4 + quadrant * Math.PI / 2;
+      const settle = 0.76 + Math.sin(phaseClock) * 0.08;
+      const glintWidth = width * 0.18;
+      const glintHeight = height * 0.18;
+      const x = Math.cos(quadrant * Math.PI / 2) * width * 0.26 * settle;
+      const y = Math.sin(quadrant * Math.PI / 2) * height * 0.2 * settle;
+      drawClippedOverlay(x - glintWidth / 2, y - glintHeight / 2, glintWidth, glintHeight, 0.26 + Math.max(0, Math.sin(phaseClock)) * 0.22, -x * 0.05, -y * 0.05, true);
+    }
+  } else {
+    for (let mote = 0; mote < 5; mote += 1) {
+      const angle = clock * (0.48 + mote * 0.035) + mote * Math.PI * 0.4;
+      const orbitX = Math.cos(angle) * width * (0.11 + mote * 0.018);
+      const orbitY = Math.sin(angle) * height * (0.1 + mote * 0.014);
+      const moteWidth = width * 0.13;
+      const moteHeight = height * 0.13;
+      drawClippedOverlay(orbitX - moteWidth / 2, orbitY - moteHeight / 2, moteWidth, moteHeight, 0.3 + Math.sin(clock * 2.7 + mote) * 0.08, -orbitX * 0.08, -orbitY * 0.08, true);
+    }
+  }
+  if (visibilityProfile !== "ambient") {
+    drawAteComplementaryVfx(ctx, animationMode, width, height, sampledTime, phase + progress, intensity * 0.82);
+  }
   ctx.restore();
   return true;
 }
@@ -21835,7 +22000,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ate-composite-perceptual-diversity-v624";
+const version = "movement-acc-off-trial-isolated-v630";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22304,6 +22469,29 @@ function transparentSpriteSource(image, key, threshold = 24) {
   const cached = state.textures.preparedSprites.get(key);
   if (cached) return cached;
   try {
+    const physicalMotionKey = key.startsWith("physical-motion-");
+    const generatedMotionKey = physicalMotionKey || key.startsWith("weapon-motion-") || key.startsWith("skinWalk3-");
+    const strictGreenKey = key === "cutin-blue-dress" ||
+      key === "blueDressMaster" ||
+      key.startsWith("physical-action-") ||
+      generatedMotionKey ||
+      key.startsWith("skinWalk60-blue-dress") ||
+      key.startsWith("playerSkin-blue-dress-");
+    if (!strictGreenKey) {
+      const cornerProbe = document.createElement("canvas");
+      cornerProbe.width = 3;
+      cornerProbe.height = 1;
+      const cornerContext = cornerProbe.getContext("2d", { willReadFrequently: true });
+      cornerContext.clearRect(0, 0, 3, 1);
+      cornerContext.drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
+      cornerContext.drawImage(image, image.naturalWidth - 1, 0, 1, 1, 1, 0, 1, 1);
+      cornerContext.drawImage(image, 0, image.naturalHeight - 1, 1, 1, 2, 0, 1, 1);
+      const probeAlpha = cornerContext.getImageData(0, 0, 3, 1).data;
+      if (probeAlpha[3] < 8 || probeAlpha[7] < 8 || probeAlpha[11] < 8) {
+        state.textures.preparedSprites.set(key, image);
+        return image;
+      }
+    }
     const canvas = document.createElement("canvas");
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
@@ -22314,14 +22502,6 @@ function transparentSpriteSource(image, key, threshold = 24) {
     const data = imageData.data;
     const w = canvas.width;
     const h = canvas.height;
-    const physicalMotionKey = key.startsWith("physical-motion-");
-    const generatedMotionKey = physicalMotionKey || key.startsWith("weapon-motion-") || key.startsWith("skinWalk3-");
-    const strictGreenKey = key === "cutin-blue-dress" ||
-      key === "blueDressMaster" ||
-      key.startsWith("physical-action-") ||
-      generatedMotionKey ||
-      key.startsWith("skinWalk60-blue-dress") ||
-      key.startsWith("playerSkin-blue-dress-");
     const transparentCorner = data[3] < 8 || data[(w - 1) * 4 + 3] < 8 || data[((h - 1) * w) * 4 + 3] < 8;
     if (transparentCorner && !strictGreenKey) {
       state.textures.preparedSprites.set(key, image);
@@ -22794,7 +22974,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ate-composite-perceptual-diversity-v624", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=movement-acc-off-trial-isolated-v630", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

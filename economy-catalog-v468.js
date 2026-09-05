@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ate-composite-perceptual-diversity-v624",
+    version: "movement-acc-off-trial-isolated-v630",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

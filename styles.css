@@ -3647,11 +3647,19 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
 }
 
 .solo-mission-card img,
-.operator-visual,
 .vending-item-icon,
 .alchemy-choice-icon {
-  /* Semantic rasters stay at their authored crop/anchor. v608 geometry owns motion. */
+  /* Non-AET UI presentation retains the prior visual-removal decision. */
   animation: none;
+}
+
+.operator-visual {
+  animation: texture-detail-live 4.6s ease-in-out infinite alternate;
+}
+
+@keyframes texture-detail-live {
+  from { filter: saturate(0.94) brightness(0.96); }
+  to { filter: saturate(1.08) brightness(1.08); }
 }
 
 .vending-item-icon.generated-item-texture-visible,
@@ -4516,7 +4524,7 @@ body .offline-team-choice button[data-offline-team] {
 }
 .operator-visual-hacker {
   background-image: url("assets/generated/operator-hacker-ate-v391.png?v=operator-ate-v391");
-  animation: operator-hacker-ate-v391 1880ms ease-in-out infinite;
+  animation: operator-hacker-ate-v391 1880ms steps(1, end) infinite;
 }
 
 .result-points {
@@ -4629,7 +4637,7 @@ body .offline-team-choice button[data-offline-team] {
   inset: 4%;
   background: radial-gradient(circle at 81% 28%, rgba(251, 191, 36, .9) 0 4%, rgba(249, 115, 22, .35) 5%, transparent 18%);
   filter: blur(2px);
-  animation: operator-gunner-flash-v391 1480ms ease-in-out infinite;
+  animation: operator-gunner-flash-v391 1480ms steps(1, end) infinite;
 }
 .operator-visual-gunner::after {
   inset: 8%;
@@ -4640,12 +4648,12 @@ body .offline-team-choice button[data-offline-team] {
   inset: 9%;
   background: linear-gradient(180deg, transparent 0 35%, rgba(34, 211, 238, .7) 36% 39%, transparent 40% 100%);
   mix-blend-mode: screen;
-  animation: operator-hacker-scan-v391 1880ms cubic-bezier(.25,.7,.3,1) infinite;
+  animation: operator-hacker-scan-v391 1880ms steps(7, end) infinite;
 }
 .operator-visual-hacker::after {
   inset: 4%;
   box-shadow: 3px 0 rgba(34, 211, 238, .22), -2px 0 rgba(244, 114, 182, .18);
-  animation: operator-hacker-fragment-v391 1880ms ease-in-out infinite;
+  animation: operator-hacker-fragment-v391 1880ms steps(1, end) infinite;
 }
 .operator-visual-assassin::before {
   inset: 12%;

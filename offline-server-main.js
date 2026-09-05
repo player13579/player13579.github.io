@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ate-composite-perceptual-diversity-v624",
+    version: "movement-acc-off-trial-isolated-v630",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -12824,7 +12824,10 @@ function movementAccState(room, player, timestamp = now()) {
     enabled,
     active,
     available,
-    selected: active ? FIXED_MOVEMENT_ACC : NORMAL_MOVEMENT_ACC,
+    // OFF releases the final movement clamp.  It must expose the current
+    // authoritative source acceleration (including TimeKeeper's zero), not
+    // cache NORMAL_MOVEMENT_ACC while the source keeps advancing.
+    selected: !enabled ? acceleration : active ? FIXED_MOVEMENT_ACC : NORMAL_MOVEMENT_ACC,
     maximum: FIXED_MOVEMENT_ACC,
     threshold: MOVEMENT_ACC_ACTIVATION_THRESHOLD
   };
@@ -13036,11 +13039,10 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
   const desireTimeMultiplier = player?.desireBias === "cognitive-dissonance"
     ? DESIRE_BIAS_TIME_MULTIPLIER
     : 1;
-  // ACC Fixed owns the final authoritative movement acceleration.  Older
-  // code multiplied an HSG source a second time after movementAccState(), so
-  // the armed value could exceed ACC2 and OFF could still be accelerated.
-  const fixed = movementAccState(room, player, timestamp).selected;
-  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * fixed * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier * desireTimeMultiplier;
+  // ACC Fixed owns the final authoritative movement acceleration only while
+  // armed; OFF returns the active source acceleration from movementAccState.
+  const movementAcceleration = movementAccState(room, player, timestamp).selected;
+  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * movementAcceleration * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier * desireTimeMultiplier;
 }
 
 function floraAromaSource(room, player) {
@@ -21951,301 +21953,6 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-1", durationMs: 1_500 });
     pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-2", durationMs: 1_500 });
     pushMagicEffect(room, "action-dodge", player, { radius: 115, playerId: player.id, variant: "fixture-positive-control", durationMs: 900 });
-  } else if (kind === "ate-owner-diversity") {
-    // Local-only visibility fixture: retain ordinary state serialization and
-    // the production render owners.  This deliberately creates no visual
-    // primitive of its own; the three normal magic-effect records, active
-    // Enhance state and Flora passive are the only presentation inputs.
-    const timestamp = now();
-    const map = getMap(room);
-    const station = map.stations.find((entry) => entry.type === "utility") ||
-      map.stations.find((entry) => entry.type === "task");
-    const target = [...room.players.values()].find((entry) => entry.isBot && entry.id !== player.id);
-    if (!station || !target) throw new ApiError(400, "ATE owner diversity実画面fixtureに端末または対象Botがありません。");
-    const targetX = Math.min(Number(map.width) - (Number(map.playerRadius) || 36), Number(station.x) + 124);
-    const targetY = Number(station.y);
-    Object.assign(player, {
-      role: "defender", special: "flora", operatorId: "defender-flora", operatorReady: true,
-      alive: true, ejected: false, inVent: false,
-      x: Number(station.x), y: Number(station.y), vx: 0, vy: 0, movementMode: "idle",
-      aimX: 1, aimY: 0,
-      mana: Math.max(2, Number(player.maxMana) || 2),
-      maxMana: Math.max(2, Number(player.maxMana) || 2),
-      stamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
-      maxStoredStamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
-      staminaUpdatedAt: timestamp,
-      enhanceChargeStartedAt: 0,
-      enhanceChargeKind: "",
-      enhanceChargeItemId: "",
-      enhanceChargeId: ""
-    });
-    Object.assign(target, {
-      alive: true, ejected: false, inVent: false,
-      x: targetX, y: targetY, vx: 0, vy: 0, movementMode: "idle",
-      nextBotActionAt: timestamp + 120_000,
-      taskAutoReadyAt: timestamp + 120_000,
-      timeStoppedUntil: timestamp + 8_000
-    });
-    for (const entry of room.players.values()) {
-      if (!entry.isBot || entry.id === target.id) continue;
-      entry.nextBotActionAt = timestamp + 120_000;
-      entry.taskAutoReadyAt = timestamp + 120_000;
-      entry.timeStoppedUntil = timestamp + 8_000;
-    }
-    room.preparationEndsAt = timestamp + 120_000;
-    room.meeting = null;
-    room.sabotage = null;
-    setEnhanceChargeState(room, player, true, "use", "fixture-ate-owner-diversity");
-    pushMagicEffect(room, "gravity-time-keeper", player, {
-      radius: 180, playerId: player.id, variant: "fixture-ate-owner-diversity-time-keeper", durationMs: 8_000
-    });
-    pushMagicEffect(room, "alchemy-excalibur", player, {
-      radius: 260, playerId: player.id, targetId: target.id, targetX, targetY,
-      variant: "fixture-ate-owner-diversity-excalibur", durationMs: 8_000
-    });
-    pushMagicEffect(room, "action-heart-teleport", player, {
-      radius: 130, playerId: player.id, targetId: target.id, targetX, targetY,
-      variant: "fixture-ate-owner-diversity-heart", durationMs: 8_000
-    });
-    pushEvent(room, `実画面検証: ${station.label || station.id} でFloraの自然回復・アロマ、Enhance充填、時の番人、Excalibur、心臓転移を通常rendererへ同時提示します。`);
-  } else if (/^ate-perceptual-v624-(?:gravity|hit|throw|railgun|recovery|shield|teleport|data|combustion|status|station|overlap)$/.test(kind)) {
-    // V624 deliberately uses only the same serialized state collections that
-    // live play sends to the canvas.  Each named route is isolated so a
-    // renderer audit can attribute motion and complementary E layers to one
-    // owner; overlap is the sole bounded multi-owner control.  No fixture
-    // drawing primitive or client-only preview is introduced here.
-    const timestamp = now();
-    const map = getMap(room);
-    const arena = [...map.walkable]
-      .filter((rect) => Number(rect.w) > 520 && Number(rect.h) > (Number(map.playerRadius) || 36) * 4)
-      .sort((left, right) => Number(right.w) - Number(left.w))[0];
-    const target = [...room.players.values()].find((entry) => entry.isBot && entry.id !== player.id);
-    if (!arena || !target) throw new ApiError(400, "V624 ATE実画面fixtureに広い通路または対象Botがありません。");
-    const radius = Number(map.playerRadius) || 36;
-    const x = Number(arena.x) + Math.max(radius + 54, 110);
-    const y = Number(arena.y) + Number(arena.h) / 2;
-    // Keep both authoritative endpoints and their bounded fields inside the
-    // ordinary gameplay camera at once.  The earlier 390px separation pushed
-    // the selected target's status/hazard fields to the viewport edge, which
-    // made the real-screen evidence judge clipping instead of the effect.
-    const targetX = Math.min(Number(arena.x) + Number(arena.w) - radius - 62, x + 150);
-    const targetY = y;
-    const durationMs = 60_000;
-    const endsAt = timestamp + durationMs;
-    const route = kind.slice("ate-perceptual-v624-".length);
-
-    const verificationObjectCooldowns = Object.fromEntries([
-      ...(map.objects || []),
-      ...(room.alchemyObjects || []),
-      ...(room.resolvePoint ? [room.resolvePoint] : [])
-    ].map((object) => [object.id, endsAt + 60_000]));
-    Object.assign(player, {
-      role: "defender", special: "gravity", operatorId: "defender-gravity", operatorReady: true,
-      alive: true, ejected: false, inVent: false, x, y, vx: 0, vy: 0, movementMode: "idle",
-      aimX: 1, aimY: 0, mana: 4,
-      maxMana: 4,
-      itemInventory: {}, hsgUntil: 0, hsgReadyAt: 0,
-      burnStatus: null, poisonStatus: null,
-      stamina: MAX_STORED_STAMINA,
-      maxStoredStamina: MAX_STORED_STAMINA,
-      staminaUpdatedAt: endsAt + 60_000,
-      mentalState: "理知",
-      ideaStage: 4,
-      lastPassiveCreditAt: endsAt + 60_000,
-      taskAutoReadyAt: endsAt + 60_000,
-      hackerTaskReadyAt: endsAt + 60_000,
-      gunnerSpecialAmmoReadyAt: endsAt + 60_000,
-      objectCooldowns: { ...verificationObjectCooldowns },
-      taskList: (player.taskList || []).map((task) => ({ ...task, done: true }))
-    });
-    for (const entry of room.players.values()) {
-      if (!entry.isBot) continue;
-      Object.assign(entry, {
-        role: "defender", special: "gravity", operatorId: "defender-gravity", operatorReady: true,
-        alive: false, ejected: true, inVent: false,
-        invisible: entry.id !== target.id,
-        x: entry.id === target.id ? targetX : x + 75, y: entry.id === target.id ? targetY : y,
-        vx: 0, vy: 0, movementMode: "idle",
-        mana: 1,
-        maxMana: 1_000_000_000,
-        stamina: 1,
-        maxStoredStamina: 1_000_000_000,
-        burnStatus: null,
-        poisonStatus: null,
-        staminaUpdatedAt: endsAt + 60_000,
-        mentalState: "気概",
-        ideaStage: 4,
-        lastPassiveCreditAt: endsAt + 60_000,
-        nextBotActionAt: endsAt + 60_000,
-        taskAutoReadyAt: endsAt + 60_000,
-        hackerTaskReadyAt: endsAt + 60_000,
-        gunnerSpecialAmmoReadyAt: endsAt + 60_000,
-        objectCooldowns: { ...verificationObjectCooldowns },
-        taskList: (entry.taskList || []).map((task) => ({ ...task, done: true })),
-        timeStoppedUntil: endsAt
-      });
-      // Solo generated-offline can accelerate bot deadlines after a human
-      // death.  Keep every combat/action deadline far beyond this bounded
-      // fixture so no bot can create a second effect or kill the observer.
-      for (const deadline of BOT_OPERATIONAL_DEADLINE_FIELDS) {
-        entry[deadline] = endsAt + 3_600_000;
-      }
-    }
-    // This fixture inspects effects after the opening barrier has expired.
-    // Bot/action deadlines above provide isolation; a future preparation end
-    // would reject the intended hazard and flood the route with barrier hits.
-    room.preparationEndsAt = 0;
-    room.meeting = null;
-    room.sabotage = null;
-    room.gravityZones = [];
-    room.hazardFields = [];
-    room.hitEffects = [];
-    room.magicEffects = [];
-    room.thrownItems = [];
-
-    const addGravity = () => {
-      room.gravityZones.push({
-        id: uid("fixture_v624_gravity_"), ownerId: player.id, targetId: target.id,
-        x: targetX, y: targetY, radius: Math.min(260, Number(arena.h) * 0.42), barrierRadius: 105,
-        safeX: x, safeY: y, startedAt: timestamp, barrierUntil: endsAt - 1_000,
-        endsAt, lastPulseAt: endsAt + 60_000
-      });
-      pushMagicEffect(room, "gravity-storm", player, {
-        radius: room.gravityZones[0].radius, playerId: player.id, targetId: target.id,
-        targetX, targetY, variant: "fixture-v624-isolated-gravity", durationMs
-      });
-    };
-    const addRailgun = () => pushMagicEffect(room, "alchemy-railgun", player, {
-      radius: 220, playerId: player.id, targetId: target.id, targetX, targetY,
-      variant: "fixture-v624-isolated-railgun", durationMs
-    });
-    const addRecovery = () => pushMagicEffect(room, "natural-recovery", player, {
-      radius: 130, playerId: player.id, variant: "fixture-v624-isolated-recovery", durationMs
-    });
-    const addShield = () => pushMagicEffect(room, "gravity-storm-barrier-hit", target, {
-      radius: 140, playerId: player.id, targetId: target.id, targetX, targetY,
-      variant: "fixture-v624-isolated-shield", durationMs
-    });
-    const addTeleport = () => pushMagicEffect(room, "action-teleport", player, {
-      radius: 135, playerId: player.id, targetX, targetY,
-      variant: "fixture-v624-isolated-teleport", durationMs
-    });
-    const addData = () => pushMagicEffect(room, "action-vibe-coding", player, {
-      radius: 145, playerId: player.id, variant: "fixture-v624-isolated-data", durationMs
-    });
-    const addCombustion = () => addHazardField(room, player, "fire", targetX, targetY, 80, 1, durationMs);
-    const addStatus = () => {
-      target.poisonStatus = { sourceId: player.id, strength: 1, nextTickAt: endsAt + 60_000 };
-      pushMagicEffect(room, "status-poison", target, {
-        radius: 105, playerId: target.id, targetId: target.id,
-        variant: "fixture-v624-isolated-status", durationMs
-      });
-    };
-    const addStation = () => {
-      const station = map.stations.find((entry) => entry.type === "utility") || map.stations.find((entry) => entry.type === "task");
-      if (!station) throw new ApiError(400, "V624 station ATE実画面fixtureに端末がありません。");
-      player.x = Number(station.x);
-      player.y = Number(station.y);
-      pushMagicEffect(room, "action-task", player, {
-        radius: 105, playerId: player.id, variant: "fixture-v624-isolated-station", durationMs
-      });
-    };
-
-    if (route === "gravity") addGravity();
-    else if (route === "hit") {
-      // The regular hit collection is intentionally present for the immediate
-      // hit owner; the long-lived impact ATE keeps the isolated route visible
-      // throughout the bounded inspection window.
-      pushHitEffect(room, target, "body", false);
-      pushMagicEffect(room, "fighter-energy-impact", target, {
-        radius: 118, playerId: player.id, targetId: target.id,
-        variant: "fixture-v624-isolated-hit", durationMs
-      });
-    } else if (route === "throw") {
-      // Do not synthesize a throw preview.  The verifier must hold/release the
-      // real HSG DOM or keyboard control, which enters queueThrownItem through
-      // the authoritative route.
-      addItem(player, "hsg", 1);
-    } else if (route === "railgun") addRailgun();
-    else if (route === "recovery") addRecovery();
-    else if (route === "shield") addShield();
-    else if (route === "teleport") addTeleport();
-    else if (route === "data") addData();
-    else if (route === "combustion") addCombustion();
-    else if (route === "status") addStatus();
-    else if (route === "station") addStation();
-    else {
-      // The only intentional multi-owner fixture: a plausible combat overlap
-      // of gravity control, an aimed railgun and a localized fire field.
-      addGravity();
-      addRailgun();
-      addCombustion();
-    }
-    pushEvent(room, `実画面検証: V624 ${route} は通常serialized stateと既存renderer ownerのみを提示します。`);
-  } else if (kind === "ate-causal-diversity") {
-    // This is a state-only fixture. It creates no renderer primitive and uses
-    // the same serialized room collections that a live match supplies to the
-    // production canvas. Keep every long-lived route alive for one bounded
-    // one-minute inspection while bots are prevented from introducing an
-    // unrelated trajectory.
-    const timestamp = now();
-    const map = getMap(room);
-    const arena = [...map.walkable]
-      .filter((rect) => Number(rect.w) > 520 && Number(rect.h) > (Number(map.playerRadius) || 36) * 5)
-      .sort((left, right) => Number(right.w) - Number(left.w))[0];
-    const target = [...room.players.values()].find((entry) => entry.isBot && entry.id !== player.id);
-    if (!arena || !target) throw new ApiError(400, "ATE因果多様性実画面fixtureに広い通路または対象Botがありません。");
-    const radius = Number(map.playerRadius) || 36;
-    const x = Number(arena.x) + Math.max(110, radius + 54);
-    const y = Number(arena.y) + Number(arena.h) / 2;
-    const yTop = Number(arena.y) + Math.max(radius + 42, Number(arena.h) * 0.24);
-    const yBottom = Number(arena.y) + Math.min(Number(arena.h) - radius - 42, Number(arena.h) * 0.76);
-    const targetX = Math.min(Number(arena.x) + Number(arena.w) - radius - 72, x + 410);
-    const fixtureDurationMs = 60_000;
-    const endsAt = timestamp + fixtureDurationMs;
-    Object.assign(player, {
-      role: "defender", special: "gravity", operatorId: "defender-gravity", operatorReady: true,
-      alive: true, ejected: false, inVent: false, x, y, vx: 0, vy: 0, movementMode: "idle",
-      aimX: 1, aimY: 0, mana: Math.max(4, Number(player.maxMana) || 4),
-      maxMana: Math.max(4, Number(player.maxMana) || 4),
-      itemInventory: { hsg: 1 }, hsgUntil: 0, hsgReadyAt: 0,
-      stamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
-      maxStoredStamina: Math.max(MAX_STORED_STAMINA, Number(player.maxStoredStamina) || 0),
-      staminaUpdatedAt: timestamp
-    });
-    for (const entry of room.players.values()) {
-      if (!entry.isBot) continue;
-      Object.assign(entry, {
-        alive: true, ejected: false, inVent: false,
-        x: entry.id === target.id ? targetX : x + 130,
-        y, vx: 0, vy: 0, movementMode: "idle",
-        nextBotActionAt: timestamp + 120_000,
-        taskAutoReadyAt: timestamp + 120_000,
-        timeStoppedUntil: endsAt
-      });
-    }
-    room.preparationEndsAt = timestamp + 120_000;
-    room.meeting = null;
-    room.sabotage = null;
-    room.gravityZones = [{
-      id: uid("fixture_gravity_"), ownerId: player.id, targetId: target.id,
-      x: targetX, y, radius: Math.min(260, Number(arena.h) * 0.42),
-      barrierRadius: 105, safeX: x, safeY: y, startedAt: timestamp,
-      barrierUntil: endsAt - 1_000, endsAt, lastPulseAt: timestamp + 120_000
-    }];
-    room.hazardFields = [];
-    addHazardField(room, player, "fire", x + 245, y, 118, 1, fixtureDurationMs);
-    room.hitEffects = [];
-    pushHitEffect(room, player, "head", false);
-    pushHitEffect(room, target, "body", false);
-    pushMagicEffect(room, "gravity-storm", player, { radius: room.gravityZones[0].radius, playerId: player.id, targetId: target.id, targetX, targetY: y, variant: "fixture-ate-causal-gravity", durationMs: fixtureDurationMs });
-    pushMagicEffect(room, "gravity-storm-pull", target, { radius: 165, playerId: player.id, targetId: target.id, targetX, targetY: y, variant: "fixture-ate-causal-pull", durationMs: fixtureDurationMs });
-    pushMagicEffect(room, "alchemy-railgun", { id: player.id, x, y: yTop }, { radius: 220, playerId: player.id, targetId: target.id, targetX, targetY: yTop, variant: "fixture-ate-causal-railgun", durationMs: fixtureDurationMs });
-    pushMagicEffect(room, "alchemy-particle-cannon", { id: player.id, x, y }, { radius: 260, playerId: player.id, targetId: target.id, targetX, targetY: y, variant: "fixture-ate-causal-particle-cannon", durationMs: fixtureDurationMs });
-    pushMagicEffect(room, "alchemy-particle-beam", { id: player.id, x, y: yBottom }, { radius: 260, playerId: player.id, targetId: target.id, targetX, targetY: yBottom, variant: "fixture-ate-causal-particle-beam", durationMs: fixtureDurationMs });
-    pushMagicEffect(room, "action-dodge", { id: player.id, x: x + 88, y: yBottom }, { radius: 120, playerId: player.id, variant: "fixture-ate-causal-action", durationMs: fixtureDurationMs });
-    pushMagicEffect(room, "status-poison", { id: target.id, x: targetX - 84, y: yTop }, { radius: 105, playerId: target.id, variant: "fixture-ate-causal-status", durationMs: fixtureDurationMs });
-    pushEvent(room, "実画面検証: Gravity zone、head/body hit、railgun、particle cannon/beam、action/status/hazard とHSG投擲入力を通常rendererで提示します。");
   } else if (kind === "credit-ate-task") {
     player.credits = 0;
     grantCredits(room, player, TASK_CREDIT_REWARD, "fixture-credit-task");
@@ -26099,7 +25806,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "ate-composite-perceptual-diversity-v624",
+  version: "movement-acc-off-trial-isolated-v630",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

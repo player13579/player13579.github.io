@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "ate-composite-perceptual-diversity-v624";
-const CACHE_NAME = "dva-static-v624-ate-composite-perceptual-diversity";
+const RUNTIME_RELEASE = "movement-acc-off-trial-isolated-v630";
+const CACHE_NAME = "dva-static-v630-movement-acc-off-trial-isolated";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
