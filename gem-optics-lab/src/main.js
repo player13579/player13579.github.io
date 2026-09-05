@@ -1,5 +1,5 @@
 import { createGemRenderer } from './renderer.js';
-import { GEM_MATERIALS } from './optics.js';
+import { GEM_MATERIALS, CUT_INFO } from './optics.js';
 
 const $ = (id) => document.getElementById(id);
 const materials = {
@@ -10,7 +10,7 @@ const materials = {
 };
 const cutNames = { brilliant: 'ラウンド・ブリリアント', emerald: 'エメラルド・カット', oval: 'オーバル・カット' };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const options = { gem: 'diamond', cut: 'brilliant', environment: 'studio', lightAngle: 35, intensity: 1.2, dispersion: 1, autoRotate: !reducedMotion.matches, quality: 'auto' };
+const options = { gem: 'diamond', cut: 'brilliant', environment: 'studio', lightAngle: 35, intensity: 1.2, dispersion: 1, autoRotate: false, quality: 'high' };
 let renderer;
 let ready = false;
 
@@ -27,6 +27,7 @@ function updateReadouts() {
   $('gem-japanese').textContent = gem.name;
   $('specimen-index').textContent = `SPECIMEN ${gem.number} / 04`;
   $('cut-description').textContent = cutNames[options.cut];
+  $('cut-description').title = `${CUT_INFO[options.cut].opticalFacets} 光学ファセット`;
   $('ior').textContent = gem.ior.toFixed(3);
   $('critical-angle').textContent = `${(Math.asin(1 / gem.ior) * 180 / Math.PI).toFixed(1)}°`;
   $('dispersion-readout').textContent = ((gem.ior - 1) / gem.abbe * options.dispersion).toFixed(4);
@@ -62,6 +63,7 @@ for (const button of document.querySelectorAll('[data-environment]')) {
   });
 }
 $('cut').addEventListener('change', (event) => updateOptions({ cut: event.target.value }));
+$('quality').addEventListener('change', (event) => updateOptions({ quality: event.target.value }));
 for (const [id, key, format] of [
   ['light-angle', 'lightAngle', (value) => `${value}°`],
   ['intensity', 'intensity', (value) => `${value.toFixed(1)} ×`],
@@ -98,8 +100,14 @@ reducedMotion.addEventListener('change', (event) => {
 try {
   renderer = createGemRenderer($('gem-canvas'), {
     onError: showError,
-    onStats: () => {
+    onStats: (stats) => {
       if (!ready) { ready = true; $('loading').hidden = true; }
+      const percent = Math.min(100, Math.round(stats.samples / stats.targetSamples * 100));
+      $('refinement-status').textContent = stats.moving ? '回転を止めると、さらに精細に' : stats.refining ? `細部を描画中 ${percent}%` : `${stats.spectralBands}波長 · 精細化完了`;
+      $('refinement-status').classList.toggle('complete', !stats.refining && !stats.moving);
+      $('gem-canvas').dataset.samples = String(stats.samples);
+      $('gem-canvas').dataset.targetSamples = String(stats.targetSamples);
+      $('gem-canvas').dataset.hdr = String(stats.hdr);
     },
   });
   renderer.setOptions(options);

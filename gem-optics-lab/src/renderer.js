@@ -4,10 +4,13 @@ import {
   clamp,
   createCutPlanes,
   refractiveIndicesRGB,
+  cauchyCoefficients,
 } from './optics.js';
+import { createOpticalPostprocess } from './postprocess.js';
+import { createSpectralTable } from './spectrum.js';
 
-const MAX_PLANES = 64;
-const MAX_BOUNCES = 12;
+const MAX_PLANES = 128;
+const MAX_BOUNCES = 40;
 
 const DEFAULT_OPTIONS = Object.freeze({
   gem: 'diamond',
@@ -16,11 +19,11 @@ const DEFAULT_OPTIONS = Object.freeze({
   lightAngle: 28,
   intensity: 1.15,
   dispersion: 1,
-  autoRotate: true,
-  quality: 'auto',
+  autoRotate: false,
+  quality: 'high',
   yaw: 0.35,
-  pitch: 0.66,
-  zoom: 1,
+  pitch: 0.95,
+  zoom: 0.96,
 });
 
 const ENVIRONMENTS = Object.freeze({ studio: 0, spotlight: 1, daylight: 2 });
@@ -41,7 +44,15 @@ precision highp int;
 
 out vec4 outColor;
 uniform vec2 uResolution;
-uniform float uTime;
+uniform vec2 uJitter;
+uniform int uSampleIndex;
+uniform int uSpectralCount;
+uniform int uBounceLimit;
+uniform bool uRefine;
+uniform vec3 uCauchy;
+uniform vec4 uSpectrum[48];
+uniform vec4 uDaylight[12];
+uniform sampler2D uIlluminants;
 uniform vec3 uView;
 uniform float uLightAngle;
 uniform float uIntensity;
@@ -49,11 +60,10 @@ uniform vec3 uIor;
 uniform vec3 uAbsorption;
 uniform int uPlaneCount;
 uniform int uEnvironment;
-uniform vec3 uPlaneNormal[MAX_PLANES];
-uniform float uPlaneDistance[MAX_PLANES];
+uniform vec4 uPlanes[MAX_PLANES];
 
 const float PI = 3.141592653589793;
-const float EPSILON = 0.00035;
+const float EPSILON = 0.000045;
 
 mat2 rotate2(float angle) {
   float c = cos(angle), s = sin(angle);
@@ -111,9 +121,9 @@ bool intersectGem(vec3 origin, vec3 direction, out float nearT, out float farT,
   farNormal = vec3(0.0);
   for (int i = 0; i < MAX_PLANES; i++) {
     if (i >= uPlaneCount) break;
-    vec3 normal = uPlaneNormal[i];
+    vec3 normal = uPlanes[i].xyz;
     float denominator = dot(normal, direction);
-    float numerator = uPlaneDistance[i] - dot(normal, origin);
+    float numerator = uPlanes[i].w - dot(normal, origin);
     if (abs(denominator) < 1e-7) {
       if (numerator < 0.0) return false;
     } else {
@@ -139,10 +149,10 @@ bool intersectGemExit(vec3 origin, vec3 direction, out float exitT, out vec3 exi
   exitNormal = vec3(0.0);
   for (int i = 0; i < MAX_PLANES; i++) {
     if (i >= uPlaneCount) break;
-    vec3 normal = uPlaneNormal[i];
+    vec3 normal = uPlanes[i].xyz;
     float denominator = dot(normal, direction);
     if (denominator > 1e-7) {
-      float t = (uPlaneDistance[i] - dot(normal, origin)) / denominator;
+      float t = (uPlanes[i].w - dot(normal, origin)) / denominator;
       if (t >= 0.0 && t < exitT) {
         exitT = t;
         exitNormal = normal;
@@ -183,6 +193,7 @@ float traceInside(vec3 entryPoint, vec3 incident, vec3 entryNormal,
   float radiance = 0.0;
 
   for (int bounce = 0; bounce < MAX_BOUNCES; bounce++) {
+    if (bounce >= uBounceLimit) break;
     float distance;
     vec3 exitNormal;
     if (!intersectGemExit(origin, direction, distance, exitNormal)) break;
@@ -204,51 +215,123 @@ float traceInside(vec3 entryPoint, vec3 incident, vec3 entryNormal,
   return radiance;
 }
 
-vec3 acesToneMap(vec3 x) {
-  const float a = 2.51;
-  const float b = 0.03;
-  const float c = 2.43;
-  const float d = 0.59;
-  const float e = 0.14;
-  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+
+// Planck's law ratios: analytic illuminants, normalized at 550 nm.
+float blackbody(float wavelength, float temperature) {
+  float c2 = 14387769.0;
+  return pow(550.0 / wavelength, 5.0)
+    * (exp(c2 / (550.0 * temperature)) - 1.0)
+    / (exp(c2 / (wavelength * temperature)) - 1.0);
+}
+
+float spectralEnvironment(vec3 direction, vec4 lamps, float daylight) {
+  vec3 d = normalize(direction);
+  d.xy = rotate2(-uLightAngle) * d.xy;
+  float upper = smoothstep(-0.5, 0.9, d.z);
+  float base = (0.028 + upper * 0.025) * daylight;
+  if (uEnvironment == 0) {
+    float key = softRect(d, vec3(-0.52,-0.67,0.53), vec3(0.78,-0.62,0.0),0.26,0.50,0.035);
+    float rim = softRect(d, vec3(0.82,0.32,0.48), vec3(-0.36,0.93,0.0),0.10,0.46,0.02);
+    float strip = softRect(d, vec3(0.32,-0.05,0.95),vec3(0.98,0.0,-0.22),0.57,0.038,0.008);
+    float pin = pow(max(dot(d,normalize(vec3(-0.20,0.88,0.44))),0.0),1100.0);
+    float fill = softRect(d,vec3(-0.62,0.63,-0.32),vec3(0.74,0.67,0.0),0.38,0.33,0.10);
+    return base + key*5.3*lamps.x + rim*3.1*lamps.y
+      + strip*3.7*daylight + pin*17.0*lamps.z + fill*0.55*daylight;
+  }
+  if (uEnvironment == 1) {
+    float spot=pow(max(dot(d,normalize(vec3(-0.38,-0.78,0.50))),0.0),220.0);
+    float pin=pow(max(dot(d,normalize(vec3(0.60,0.63,0.49))),0.0),1700.0);
+    float slash=softRect(d,vec3(-0.20,0.10,0.97),vec3(0.98,0.02,0.20),0.38,0.022,0.006);
+    return base*0.42 + spot*10.0*lamps.z + pin*28.0*daylight
+      + slash*3.4*lamps.y;
+  }
+  float sky=pow(max(d.z*.5+.5,0.0),1.5);
+  float sun=pow(max(dot(d,normalize(vec3(-0.42,-0.52,0.74))),0.0),1600.0);
+  float window=softRect(d,vec3(0.58,0.34,0.74),vec3(-0.50,0.86,0.0),0.36,0.36,0.06);
+  return base + sky*0.38*daylight + sun*30.0*lamps.w
+    + window*3.2*daylight + max(-d.z,0.0)*0.05*lamps.z;
+}
+
+float spectralAbsorption(float wavelength) {
+  if (wavelength < 550.0) return mix(uAbsorption.b,uAbsorption.g,clamp((wavelength-460.0)/90.0,0.0,1.0));
+  return mix(uAbsorption.g,uAbsorption.r,clamp((wavelength-550.0)/60.0,0.0,1.0));
+}
+
+float traceSpectral(vec3 entry, vec3 incident, vec3 entryNormal, float wavelength, float daylight, vec4 lamps) {
+  float waveUm=wavelength*.001;
+  float ior=uCauchy.x + uCauchy.y*(1.0/(waveUm*waveUm)-1.0/(.58930*.58930))*uCauchy.z;
+  float absorption=spectralAbsorption(wavelength);
+  bool tir;
+  float f=fresnelDielectric(-dot(incident,entryNormal),1.0,ior,tir);
+  float radiance=f*spectralEnvironment(reflect(incident,entryNormal),lamps,daylight);
+  float throughput=1.0-f;
+  vec3 direction=refract(incident,entryNormal,1.0/ior);
+  vec3 origin=entry+direction*EPSILON;
+  for(int bounce=0;bounce<MAX_BOUNCES;bounce++) {
+    if(bounce>=uBounceLimit)break;
+    float distance;vec3 normal;
+    if(!intersectGemExit(origin,direction,distance,normal))break;
+    throughput*=exp(-absorption*distance);
+    vec3 point=origin+direction*distance;
+    float reflectance=fresnelDielectric(dot(direction,normal),ior,1.0,tir);
+    if(!tir)radiance+=throughput*(1.0-reflectance)
+      *spectralEnvironment(refract(direction,-normal,ior),lamps,daylight);
+    throughput*=reflectance;
+    if(throughput<0.00012)break;
+    direction=reflect(direction,normal);origin=point+direction*EPSILON;
+  }
+  return radiance;
+}
+
+vec3 rgbToXYZ(vec3 c) {
+  return mat3(.4123908,.2126390,.0193308, .3575843,.7151687,.1191948, .1804808,.0721923,.9505322)*c;
 }
 
 void main() {
-  vec2 centered = (2.0 * gl_FragCoord.xy - uResolution.xy) / uResolution.y;
-  float vignette = 1.0 - 0.28 * smoothstep(0.15, 1.45, length(centered));
-
-  float yaw = uView.x;
-  float pitch = uView.y;
-  float zoom = uView.z;
-  float framing = min(1.0, (uResolution.x / uResolution.y) * 0.85);
-  vec3 camera = 3.45 * vec3(sin(yaw) * cos(pitch), -cos(yaw) * cos(pitch), sin(pitch));
-  vec3 forward = normalize(-camera);
-  vec3 right = normalize(cross(forward, vec3(0.0, 0.0, 1.0)));
-  vec3 up = cross(right, forward);
-  vec3 ray = normalize(forward * 2.82 + (centered.x * right + centered.y * up) / (zoom * framing));
-
-  vec3 color;
-  float nearT, farT;
-  vec3 entryNormal, farNormal;
-  if (intersectGem(camera, ray, nearT, farT, entryNormal, farNormal) && nearT > 0.0) {
-    vec3 point = camera + ray * nearT;
-    vec3 transmitted = vec3(0.0);
-    vec3 entryF = vec3(0.0);
-    transmitted.r = traceInside(point, ray, entryNormal, uIor.r, uAbsorption.r, 0, entryF.r);
-    transmitted.g = traceInside(point, ray, entryNormal, uIor.g, uAbsorption.g, 1, entryF.g);
-    transmitted.b = traceInside(point, ray, entryNormal, uIor.b, uAbsorption.b, 2, entryF.b);
-    vec3 reflected = environmentRadiance(reflect(ray, entryNormal)) * entryF;
-    color = reflected + transmitted;
-    color *= uIntensity;
+  vec2 pixel=gl_FragCoord.xy+uJitter;
+  vec2 centered=(2.0*pixel-uResolution.xy)/uResolution.y;
+  float yaw=uView.x,pitch=uView.y,zoom=uView.z;
+  float framing=min(1.0,(uResolution.x/uResolution.y)*0.96);
+  vec3 target=vec3(0.0,0.0,-0.18);
+  vec3 camera=target+3.65*vec3(sin(yaw)*cos(pitch),-cos(yaw)*cos(pitch),sin(pitch));
+  vec3 forward=normalize(target-camera);
+  vec3 right=normalize(cross(forward,vec3(0.0,0.0,1.0)));
+  vec3 up=cross(right,forward);
+  vec3 ray=normalize(forward*2.82+(centered.x*right+centered.y*up)/(zoom*framing));
+  vec3 xyz;
+  float nearT,farT;vec3 normal,farNormal;
+  if(intersectGem(camera,ray,nearT,farT,normal,farNormal)&&nearT>0.0) {
+    vec3 point=camera+ray*nearT;
+    if(uRefine) {
+      xyz=vec3(0.0);
+      // Per-pixel cyclic stratification covers every visible band without global hue flicker.
+      ivec2 p=ivec2(gl_FragCoord.xy);
+      int strata=uSpectralCount/3;
+      int offset=(p.x*73+p.y*151+uSampleIndex)%strata;
+      for(int k=0;k<3;k++) {
+        int index=offset+k*strata;
+        vec4 band=uSpectrum[index];
+        float daylight=uDaylight[index/4][index%4];
+        vec4 lamps=texelFetch(uIlluminants,ivec2(index,0),0);
+        xyz+=traceSpectral(point,ray,normal,band.x,daylight,lamps)*band.yzw/3.0;
+      }
+    } else {
+      vec3 reflected,transmitted,entryF;
+      transmitted.r=traceInside(point,ray,normal,uIor.r,uAbsorption.r,0,entryF.r);
+      transmitted.g=traceInside(point,ray,normal,uIor.g,uAbsorption.g,1,entryF.g);
+      transmitted.b=traceInside(point,ray,normal,uIor.b,uAbsorption.b,2,entryF.b);
+      reflected=environmentRadiance(reflect(ray,normal))*entryF;
+      xyz=rgbToXYZ(reflected+transmitted);
+    }
+    xyz*=uIntensity;
   } else {
-    float radial = length(centered * vec2(0.72, 0.86));
-    color = mix(vec3(0.008, 0.011, 0.019), vec3(0.0025, 0.0035, 0.006), smoothstep(0.05, 1.25, radial));
-    color += 0.006 * pow(max(0.0, 1.0 - radial), 3.0) * vec3(0.55, 0.66, 1.0);
+    float radial=length(centered*vec2(.72,.86));
+    vec3 background=mix(vec3(.008,.011,.019),vec3(.0025,.0035,.006),smoothstep(.05,1.25,radial));
+    background+=.006*pow(max(0.0,1.0-radial),3.0)*vec3(.55,.66,1.0);
+    xyz=rgbToXYZ(background);
   }
-  color *= vignette;
-  color = pow(acesToneMap(color), vec3(1.0 / 2.2));
-  float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
-  outColor = vec4(color + dither / 420.0, 1.0);
+  // Accumulate scene-linear XYZ. Tone mapping, camera glare and sRGB occur once at presentation.
+  outColor=vec4(xyz,1.0);
 }`;
 
 function createShader(gl, type, source) {
@@ -295,7 +378,7 @@ function validateOptions(current, partial) {
     next.environment = partial.environment;
   }
   if ('quality' in partial) {
-    if (!['auto', 'high'].includes(partial.quality)) throw new RangeError(`Unknown quality: ${partial.quality}`);
+    if (!['auto', 'high', 'ultra'].includes(partial.quality)) throw new RangeError(`Unknown quality: ${partial.quality}`);
     next.quality = partial.quality;
   }
   if ('lightAngle' in partial) next.lightAngle = Number(partial.lightAngle);
@@ -303,264 +386,165 @@ function validateOptions(current, partial) {
   if ('dispersion' in partial) next.dispersion = clamp(Number(partial.dispersion), 0, 2);
   if ('autoRotate' in partial) next.autoRotate = Boolean(partial.autoRotate);
   if ('yaw' in partial) next.yaw = Number(partial.yaw);
-  if ('pitch' in partial) next.pitch = clamp(Number(partial.pitch), -1.15, 1.15);
-  if ('zoom' in partial) next.zoom = clamp(Number(partial.zoom), 0.68, 1.65);
+  if ('pitch' in partial) next.pitch = clamp(Number(partial.pitch), -1.35, 1.45);
+  if ('zoom' in partial) next.zoom = clamp(Number(partial.zoom), 0.55, 2.8);
   for (const key of ['lightAngle', 'intensity', 'dispersion', 'yaw', 'pitch', 'zoom']) {
     if (!Number.isFinite(next[key])) throw new TypeError(`${key} must be a finite number`);
   }
   return next;
 }
 
-export function createGemRenderer(canvas, { onError, onStats } = {}) {
-  if (!(canvas instanceof HTMLCanvasElement)) throw new TypeError('A canvas element is required');
-  let gl;
-  let program;
+
+export function createGemRenderer(canvas,{onError,onStats}={}) {
+  if(!(canvas instanceof HTMLCanvasElement))throw new TypeError('A canvas element is required');
+  let gl,program,post;
   try {
-    gl = canvas.getContext('webgl2', {
-      alpha: false,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: 'high-performance',
-    });
-    if (!gl) throw new Error('WebGL 2 is unavailable in this browser');
-    program = createProgram(gl);
-  } catch (error) {
-    onError?.(error);
-    throw error;
+    gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,powerPreference:'high-performance'});
+    if(!gl)throw new Error('WebGL 2 is unavailable');
+    program=createProgram(gl);post=createOpticalPostprocess(gl);
+  }catch(error){if(program)gl.deleteProgram(program);onError?.(error);throw error;}
+  const vao=gl.createVertexArray();
+  const illuminantTexture=gl.createTexture();
+  const uniform={};
+  for(const name of ['uResolution','uJitter','uSampleIndex','uSpectralCount','uBounceLimit','uRefine','uCauchy','uView','uLightAngle','uIntensity','uIor','uAbsorption','uPlaneCount','uEnvironment','uPlanes[0]','uSpectrum[0]','uDaylight[0]','uIlluminants'])uniform[name]=gl.getUniformLocation(program,name);
+  let state={...DEFAULT_OPTIONS};
+  let planes=createCutPlanes(state.cut),spectrum=createSpectralTable(24);
+  let destroyed=false,frame=0,dirty=true,planesDirty=true,spectrumDirty=true;
+  let rotationOffset=0,previous=performance.now(),lastInteraction=0,lastReport=0;
+  let mode='none',draws=0,statsStart=previous,autoDpr=Math.min(window.devicePixelRatio||1,1.25);
+  let pointer=null;
+  const pointers=new Map();
+  let pinchDistance=0;
+  const oldTouchAction=canvas.style.touchAction;canvas.style.touchAction='none';
+  function targetSamples(){return state.quality==='ultra'?128:state.quality==='high'?64:32;}
+  function bounceLimit(moving){return moving?12:state.quality==='ultra'?40:state.quality==='high'?24:16;}
+  function desiredDpr(){
+    const device=window.devicePixelRatio||1;
+    return state.quality==='ultra'?Math.min(Math.max(device,1.25),2):state.quality==='high'?Math.min(device,1.6):Math.min(device,autoDpr);
   }
-
-  const vao = gl.createVertexArray();
-  const locations = {
-    resolution: gl.getUniformLocation(program, 'uResolution'),
-    time: gl.getUniformLocation(program, 'uTime'),
-    view: gl.getUniformLocation(program, 'uView'),
-    lightAngle: gl.getUniformLocation(program, 'uLightAngle'),
-    intensity: gl.getUniformLocation(program, 'uIntensity'),
-    ior: gl.getUniformLocation(program, 'uIor'),
-    absorption: gl.getUniformLocation(program, 'uAbsorption'),
-    planeCount: gl.getUniformLocation(program, 'uPlaneCount'),
-    environment: gl.getUniformLocation(program, 'uEnvironment'),
-    planeNormal: gl.getUniformLocation(program, 'uPlaneNormal[0]'),
-    planeDistance: gl.getUniformLocation(program, 'uPlaneDistance[0]'),
-  };
-
-  let state = { ...DEFAULT_OPTIONS };
-  let planes = createCutPlanes(state.cut);
-  let destroyed = false;
-  let animationFrame = 0;
-  let renderStart = performance.now();
-  let rotationOffset = 0;
-  let previousFrame = renderStart;
-  let statsStart = renderStart;
-  let statsFrames = 0;
-  let autoDpr = Math.min(window.devicePixelRatio || 1, 1.5);
-  let pointer = null;
-  let dirty = true;
-  let planesDirty = true;
-  const oldTouchAction = canvas.style.touchAction;
-  canvas.style.touchAction = 'none';
-
-  function desiredDpr() {
-    const device = window.devicePixelRatio || 1;
-    return state.quality === 'high' ? Math.min(device, 2) : Math.min(device, autoDpr);
+  function resize(){
+    const rect=canvas.getBoundingClientRect();
+    let dpr=desiredDpr();
+    const maxPixels=state.quality==='ultra'?2600000:state.quality==='high'?1500000:850000;
+    dpr=Math.min(dpr,Math.sqrt(maxPixels/Math.max(1,rect.width*rect.height)));
+    const w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));
+    if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;post.resize(w,h);dirty=true;}
   }
-
-  function resize() {
-    const rect = canvas.getBoundingClientRect();
-    const dpr = desiredDpr();
-    const width = Math.max(1, Math.round(rect.width * dpr));
-    const height = Math.max(1, Math.round(rect.height * dpr));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-      dirty = true;
-    }
+  function halton(index,base){let value=0,f=1;while(index>0){f/=base;value+=f*(index%base);index=Math.floor(index/base);}return value;}
+  function notify(now,moving){
+    if(now-lastReport<110&&post.sampleCount!==targetSamples())return;
+    lastReport=now;
+    onStats?.({fps:draws*1000/Math.max(1,now-statsStart),bounces:bounceLimit(moving),planes:planes.length,dpr:canvas.width/Math.max(1,canvas.clientWidth),samples:moving?0:post.sampleCount,targetSamples:targetSamples(),spectralBands:moving?3:spectrum.count,refining:!moving&&post.sampleCount<targetSamples(),moving,hdr:post.hdrSupported});
   }
-
-  function uploadPlanes() {
-    const normals = new Float32Array(MAX_PLANES * 3);
-    const distances = new Float32Array(MAX_PLANES);
-    planes.forEach((plane, index) => {
-      normals.set(plane.normal, index * 3);
-      distances[index] = plane.distance;
-    });
-    gl.uniform1i(locations.planeCount, planes.length);
-    gl.uniform3fv(locations.planeNormal, normals);
-    gl.uniform1fv(locations.planeDistance, distances);
-  }
-
-  function render(now) {
-    if (destroyed) return;
-    animationFrame = requestAnimationFrame(render);
-    resize();
-    const delta = Math.min((now - previousFrame) / 1000, 0.1);
-    previousFrame = now;
-    if (document.hidden || (!dirty && !state.autoRotate)) return;
-    dirty = false;
-    if (state.autoRotate) rotationOffset += delta * 0.115;
-
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.useProgram(program);
-    gl.bindVertexArray(vao);
-    const material = GEM_MATERIALS[state.gem];
-    const ior = refractiveIndicesRGB(material, state.dispersion);
-    gl.uniform2f(locations.resolution, canvas.width, canvas.height);
-    gl.uniform1f(locations.time, (now - renderStart) / 1000);
-    gl.uniform3f(locations.view, state.yaw + rotationOffset, state.pitch, state.zoom);
-    gl.uniform1f(locations.lightAngle, (state.lightAngle * Math.PI) / 180);
-    gl.uniform1f(locations.intensity, state.intensity);
-    gl.uniform3fv(locations.ior, ior);
-    gl.uniform3fv(locations.absorption, material.absorption);
-    gl.uniform1i(locations.environment, ENVIRONMENTS[state.environment]);
-    if (planesDirty) {
-      uploadPlanes();
-      planesDirty = false;
-    }
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-    statsFrames += 1;
-    if (now - statsStart >= 1000) {
-      const fps = (statsFrames * 1000) / (now - statsStart);
-      if (state.quality === 'auto') {
-        const device = window.devicePixelRatio || 1;
-        if (fps < 38 && autoDpr > 0.72) autoDpr = Math.max(0.72, autoDpr - 0.12);
-        else if (fps > 56 && autoDpr < Math.min(device, 1.5)) autoDpr = Math.min(device, 1.5, autoDpr + 0.06);
+  function render(now){
+    if(destroyed)return;
+    frame=requestAnimationFrame(render);
+    const delta=Math.min((now-previous)/1000,.1);previous=now;
+    if(document.hidden)return;
+    try {
+      resize();
+      const moving=state.autoRotate||pointers.size>0||now-lastInteraction<120;
+      const nextMode=moving?'preview':'spectral';
+      if(mode!==nextMode){mode=nextMode;dirty=true;}
+      if(!moving&&!dirty&&post.sampleCount>=targetSamples())return;
+      const initialPreview=!moving&&dirty;
+      if(moving||dirty)post.reset();
+      if(dirty){statsStart=now;draws=0;}
+      if(state.autoRotate&&!pointers.size)rotationOffset+=delta*.085;
+      post.beginSample();
+      gl.useProgram(program);gl.bindVertexArray(vao);
+      const material=GEM_MATERIALS[state.gem];
+      const coefficients=cauchyCoefficients(material.ior,material.abbe);
+      const count=post.sampleCount;
+      gl.uniform2f(uniform.uResolution,canvas.width,canvas.height);
+      // Rotate the subpixel sequence between spectral cycles to avoid a wavelength/edge correlation.
+      const cycle=Math.floor(count/(spectrum.count/3))+1;
+      gl.uniform2f(uniform.uJitter,moving?0:(halton(count+1,2)+halton(cycle,5))%1-.5,moving?0:(halton(count+1,3)+halton(cycle,7))%1-.5);
+      gl.uniform1i(uniform.uSampleIndex,count);
+      gl.uniform1i(uniform.uSpectralCount,spectrum.count);
+      gl.uniform1i(uniform.uBounceLimit,bounceLimit(moving));
+      gl.uniform1i(uniform.uRefine,moving||initialPreview?0:1);
+      gl.uniform3f(uniform.uCauchy,material.ior,coefficients.B,state.dispersion);
+      gl.uniform3f(uniform.uView,state.yaw+rotationOffset,state.pitch,state.zoom);
+      gl.uniform1f(uniform.uLightAngle,state.lightAngle*Math.PI/180);
+      gl.uniform1f(uniform.uIntensity,state.intensity);
+      gl.uniform3fv(uniform.uIor,refractiveIndicesRGB(material,state.dispersion));
+      gl.uniform3fv(uniform.uAbsorption,material.absorption);
+      gl.uniform1i(uniform.uEnvironment,ENVIRONMENTS[state.environment]);
+      if(planesDirty){
+        if(planes.length>MAX_PLANES)throw new Error('Gem geometry exceeds shader capacity');
+        const packed=new Float32Array(MAX_PLANES*4);
+        planes.forEach((p,i)=>packed.set([...p.normal,p.distance],i*4));
+        gl.uniform4fv(uniform['uPlanes[0]'],packed);gl.uniform1i(uniform.uPlaneCount,planes.length);planesDirty=false;
       }
-      onStats?.({ fps, bounces: MAX_BOUNCES, planes: planes.length, dpr: desiredDpr() });
-      statsStart = now;
-      statsFrames = 0;
-    }
+      gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,illuminantTexture);gl.uniform1i(uniform.uIlluminants,4);
+      if(spectrumDirty){
+        gl.uniform4fv(uniform['uSpectrum[0]'],spectrum.packed);gl.uniform4fv(uniform['uDaylight[0]'],spectrum.daylight);
+        const lamps=new Float32Array(48*4);
+        spectrum.wavelengths.forEach((w,i)=>[5400,8500,4200,5800].forEach((temperature,k)=>{
+          lamps[i*4+k]=Math.pow(550/w,5)*Math.expm1(14387769/(550*temperature))/Math.expm1(14387769/(w*temperature));
+        }));
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,48,1,0,gl.RGBA,gl.FLOAT,lamps);spectrumDirty=false;
+      }
+      gl.drawArrays(gl.TRIANGLES,0,3);
+      post.endSample();
+      // Show only whole spectral cycles; intermediate bands must never flash as coloured stripes.
+      if(moving||initialPreview||post.sampleCount%(spectrum.count/3)===0)post.present({glare:.075});
+      if(initialPreview)post.reset();
+      dirty=false;draws++;
+      notify(now,moving);
+    }catch(error){cancelAnimationFrame(frame);onError?.(error);}
   }
-
-  function pointerDown(event) {
-    state = { ...state, yaw: state.yaw + rotationOffset };
-    rotationOffset = 0;
-    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
-    canvas.setPointerCapture?.(event.pointerId);
+  function changed(interaction=true){dirty=true;if(interaction)lastInteraction=performance.now();}
+  function foldRotation(){state.yaw+=rotationOffset;rotationOffset=0;}
+  function pointerDown(event){
+    foldRotation();canvas.focus({preventScroll:true});
+    pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    pointer={id:event.pointerId,x:event.clientX,y:event.clientY};
+    canvas.setPointerCapture(event.pointerId);
+    if(pointers.size===2){const [a,b]=[...pointers.values()];pinchDistance=Math.hypot(a.x-b.x,a.y-b.y);}
   }
-
-  function pointerMove(event) {
-    if (!pointer || pointer.id !== event.pointerId) return;
-    const dx = event.clientX - pointer.x;
-    const dy = event.clientY - pointer.y;
-    pointer.x = event.clientX;
-    pointer.y = event.clientY;
-    state = {
-      ...state,
-      yaw: state.yaw - dx * 0.007,
-      pitch: clamp(state.pitch + dy * 0.006, -1.15, 1.15),
-    };
-    dirty = true;
+  function pointerMove(event){
+    if(!pointers.has(event.pointerId))return;
+    pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    if(pointers.size===2){const[a,b]=[...pointers.values()];const distance=Math.hypot(a.x-b.x,a.y-b.y);if(pinchDistance>0)state.zoom=clamp(state.zoom*distance/pinchDistance,.55,2.8);pinchDistance=distance;}
+    else if(pointer?.id===event.pointerId){state.yaw-=(event.clientX-pointer.x)*.007;state.pitch=clamp(state.pitch+(event.clientY-pointer.y)*.006,-1.35,1.45);}
+    pointer={id:event.pointerId,x:event.clientX,y:event.clientY};changed();
   }
-
-  function pointerUp(event) {
-    if (pointer?.id === event.pointerId) pointer = null;
+  function pointerUp(event){pointers.delete(event.pointerId);if(pointer?.id===event.pointerId)pointer=null;pinchDistance=0;changed();}
+  function wheel(event){event.preventDefault();state.zoom=clamp(state.zoom*Math.exp(-event.deltaY*.001),.55,2.8);changed();}
+  function resetView(){rotationOffset=0;state={...state,yaw:DEFAULT_OPTIONS.yaw,pitch:DEFAULT_OPTIONS.pitch,zoom:DEFAULT_OPTIONS.zoom};changed(false);}
+  function keyDown(event){
+    if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','=','-','_','0'].includes(event.key))return;
+    foldRotation();const turn=event.shiftKey?.16:.07;
+    if(event.key==='ArrowLeft')state.yaw+=turn;
+    if(event.key==='ArrowRight')state.yaw-=turn;
+    if(event.key==='ArrowUp')state.pitch=clamp(state.pitch-turn,-1.35,1.45);
+    if(event.key==='ArrowDown')state.pitch=clamp(state.pitch+turn,-1.35,1.45);
+    if(event.key==='+'||event.key==='=')state.zoom=clamp(state.zoom*1.1,.55,2.8);
+    if(event.key==='-'||event.key==='_')state.zoom=clamp(state.zoom/1.1,.55,2.8);
+    if(event.key==='0')resetView();
+    changed();event.preventDefault();
   }
-
-  function wheel(event) {
-    event.preventDefault();
-    state = { ...state, zoom: clamp(state.zoom * Math.exp(-event.deltaY * 0.001), 0.68, 1.65) };
-    dirty = true;
-  }
-
-  function keyDown(event) {
-    const turn = event.shiftKey ? 0.16 : 0.07;
-    const handledKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '=', '-', '_', '0']);
-    if (!handledKeys.has(event.key)) return;
-    state = { ...state, yaw: state.yaw + rotationOffset };
-    rotationOffset = 0;
-    switch (event.key) {
-      case 'ArrowLeft': state = { ...state, yaw: state.yaw + turn }; break;
-      case 'ArrowRight': state = { ...state, yaw: state.yaw - turn }; break;
-      case 'ArrowUp': state = { ...state, pitch: clamp(state.pitch - turn, -1.15, 1.15) }; break;
-      case 'ArrowDown': state = { ...state, pitch: clamp(state.pitch + turn, -1.15, 1.15) }; break;
-      case '+':
-      case '=': state = { ...state, zoom: clamp(state.zoom * 1.08, 0.68, 1.65) }; break;
-      case '-':
-      case '_': state = { ...state, zoom: clamp(state.zoom / 1.08, 0.68, 1.65) }; break;
-      case '0': state = { ...state, yaw: DEFAULT_OPTIONS.yaw, pitch: DEFAULT_OPTIONS.pitch, zoom: DEFAULT_OPTIONS.zoom }; break;
-      default: break;
-    }
-    dirty = true;
-    event.preventDefault();
-  }
-
-  function visibilityChange() {
-    previousFrame = performance.now();
-    statsStart = previousFrame;
-    statsFrames = 0;
-    if (!document.hidden) dirty = true;
-  }
-
-  function contextLost(event) {
-    event.preventDefault();
-    cancelAnimationFrame(animationFrame);
-    onError?.(new Error('WebGL context lost; reload the page to restore the renderer'));
-  }
-
-  canvas.addEventListener('pointerdown', pointerDown);
-  canvas.addEventListener('pointermove', pointerMove);
-  canvas.addEventListener('pointerup', pointerUp);
-  canvas.addEventListener('pointercancel', pointerUp);
-  canvas.addEventListener('wheel', wheel, { passive: false });
-  canvas.addEventListener('keydown', keyDown);
-  canvas.addEventListener('webglcontextlost', contextLost);
-  document.addEventListener('visibilitychange', visibilityChange);
-  const resizeObserver = new ResizeObserver(resize);
-  resizeObserver.observe(canvas);
-
-  gl.useProgram(program);
-  uploadPlanes();
-  planesDirty = false;
-  animationFrame = requestAnimationFrame(render);
-
+  function visibility(){previous=performance.now();if(!document.hidden)changed(false);}
+  function contextLost(event){event.preventDefault();cancelAnimationFrame(frame);onError?.(new Error('WebGL context lost; reload to restore'));}
+  const handlers={pointerdown:pointerDown,pointermove:pointerMove,pointerup:pointerUp,pointercancel:pointerUp,keydown:keyDown,webglcontextlost:contextLost};
+  Object.entries(handlers).forEach(([name,fn])=>canvas.addEventListener(name,fn));
+  canvas.addEventListener('wheel',wheel,{passive:false});document.addEventListener('visibilitychange',visibility);
+  const observer=new ResizeObserver(()=>{try{resize();}catch(error){onError?.(error)}});observer.observe(canvas);
+  frame=requestAnimationFrame(render);
   return Object.freeze({
-    setOptions(partial = {}) {
-      const previousCut = state.cut;
-      const previousQuality = state.quality;
-      state = validateOptions(state, partial);
-      if (state.cut !== previousCut) {
-        planes = createCutPlanes(state.cut);
-        planesDirty = true;
-      }
-      if (state.quality === 'auto' && state.quality !== previousQuality) {
-        autoDpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      }
-      dirty = true;
-    },
-    resetView() {
-      rotationOffset = 0;
-      state = { ...state, yaw: DEFAULT_OPTIONS.yaw, pitch: DEFAULT_OPTIONS.pitch, zoom: DEFAULT_OPTIONS.zoom };
-      dirty = true;
-    },
-    destroy() {
-      if (destroyed) return;
-      destroyed = true;
-      cancelAnimationFrame(animationFrame);
-      resizeObserver.disconnect();
-      canvas.removeEventListener('pointerdown', pointerDown);
-      canvas.removeEventListener('pointermove', pointerMove);
-      canvas.removeEventListener('pointerup', pointerUp);
-      canvas.removeEventListener('pointercancel', pointerUp);
-      canvas.removeEventListener('wheel', wheel);
-      canvas.removeEventListener('keydown', keyDown);
-      canvas.removeEventListener('webglcontextlost', contextLost);
-      document.removeEventListener('visibilitychange', visibilityChange);
-      canvas.style.touchAction = oldTouchAction;
-      gl.deleteVertexArray(vao);
-      gl.deleteProgram(program);
-    },
-    getState() {
-      return Object.freeze({
-        ...state,
-        yaw: state.yaw + rotationOffset,
-        planeCount: planes.length,
-        maxBounces: MAX_BOUNCES,
-        approximations: OPTICS_APPROXIMATIONS,
-      });
-    },
+    setOptions(partial={}){
+      const prior=state;state=validateOptions(state,partial);
+      if(state.cut!==prior.cut){planes=createCutPlanes(state.cut);planesDirty=true;}
+      if(state.quality!==prior.quality){spectrum=createSpectralTable(state.quality==='ultra'?48:24);spectrumDirty=true;autoDpr=Math.min(window.devicePixelRatio||1,1.25);}
+      changed(false);
+    },resetView,
+    destroy(){if(destroyed)return;destroyed=true;cancelAnimationFrame(frame);observer.disconnect();Object.entries(handlers).forEach(([name,fn])=>canvas.removeEventListener(name,fn));canvas.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',visibility);canvas.style.touchAction=oldTouchAction;post.destroy();gl.deleteTexture(illuminantTexture);gl.deleteVertexArray(vao);gl.deleteProgram(program);},
+    getState(){return Object.freeze({...state,yaw:state.yaw+rotationOffset,planeCount:planes.length,maxBounces:bounceLimit(false),sampleCount:post.sampleCount,targetSamples:targetSamples(),spectralBands:spectrum.count,hdr:post.hdrSupported,approximations:OPTICS_APPROXIMATIONS});},
   });
 }
 
-export { DEFAULT_OPTIONS, MAX_BOUNCES };
+export {DEFAULT_OPTIONS,MAX_BOUNCES};
