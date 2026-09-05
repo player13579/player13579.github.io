@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ui-applied-effects-reading-v631",
+    version: "ui-ec-effects-dedup-v633",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

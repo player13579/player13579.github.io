@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-applied-effects-reading-v631";
+const DVA_CLIENT_RELEASE = "ui-ec-effects-dedup-v633";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -867,7 +867,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-applied-effects-reading-v631";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-ec-effects-dedup-v633";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -13080,36 +13080,24 @@ function isRepeatableDisplayedWeaponAction(weaponAction) {
 
 function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
   const effects = [];
-  const add = (label, value, tone, detail, layout = "inline") => effects.push({ label, value, tone, detail, layout });
+  const add = (label, value, tone, detail, layout = "inline", key) => effects.push({ key, label, value, tone, detail, layout });
   const passiveEnabled = Boolean(self.passivesEnabled);
   const passiveValue = passiveEnabled ? "有効" : "理知まで休止";
   const passiveTone = passiveEnabled ? "rational" : "neutral";
 
   if (hasDisplayedOperatorAccess(self, "fighter")) {
-    add("キルカウンター", passiveValue, passiveTone, "確殺を回避した時だけ攻撃者を即時確殺");
-    const energyWait = Math.max(0, Number(self.fighterEnergyChargeReadyAt || 0) - liveNow);
-    const infinite = self.fighterInfiniteResources
-      ? " / MP・SP・HP・バリア∞"
-      : "";
-    const energyPeak = Math.max(Number(self.fighterEnergyPeak) || 0, Number(self.fighterEnergyCharge) || 0);
-    add(
-      "EC",
-      passiveEnabled ? `現在${Math.max(0, Number(self.fighterEnergyCharge) || 0)} / 最高${energyPeak} / 次${formatEffectCountdown(energyWait)}${infinite}` : passiveValue,
-      passiveTone,
-      "12秒ごとに1MPでEC+1。通常衝撃波はEC-1。初回100:MP・SP・HP・バリア∞。初回500:居合+1。初回1000:LB被確殺解除、消滅斬り（死体なし）、JG全反射。EC100以上の斬る:EC-100で特大衝撃波",
-      "stacked"
-    );
+    add("キルカウンター", passiveValue, passiveTone, "確殺を回避した時だけ攻撃者を即時確殺", "inline", "passive:fighter-kill-counter");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
-    add("リビテーション", self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床外移動中0.04MP/秒。終了時に床がなければ落下死");
+    add("リビテーション", self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床外移動中0.04MP/秒。終了時に床がなければ落下死", "inline", "passive:gravity-levitation");
   }
 
   if (hasDisplayedOperatorAccess(self, "flora")) {
     const aromaValue = self.aromaActive
       ? `自然回復 HP・SP・MP ×${Number(self.aromaRegenMultiplier || 1.75).toFixed(2)}`
       : passiveValue;
-    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の理知自然回復だけを強化。HP・SP・MPの漸進回復速度を1.75倍化");
+    add("アロマ", aromaValue, self.aromaActive ? "good" : passiveTone, "本人の理知自然回復だけを強化。HP・SP・MPの漸進回復速度を1.75倍化", "inline", "passive:flora-aroma");
   }
 
   if (hasDisplayedOperatorAccess(self, "gunner")) {
@@ -13121,7 +13109,9 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
         ? `${specialAmmoWait > 0 ? `次 ${formatEffectCountdown(specialAmmoWait)}` : "待機"} / 保持: ウィーク ${Math.max(0, Number(bufferedAmmo.weak) || 0)}・ペネトレイト ${Math.max(0, Number(bufferedAmmo.penetrate) || 0)}・ショック ${Math.max(0, Number(bufferedAmmo.shock) || 0)}`
         : passiveValue,
       passiveTone,
-      "理知中18秒ごとに選択中の銃へウィーク弾・貫通弾・ショック弾のいずれかを1マガジン獲得。非装填種も保持し、武器切替時に選択銃へ再適用"
+      "理知中18秒ごとに選択中の銃へウィーク弾・貫通弾・ショック弾のいずれかを1マガジン獲得。非装填種も保持し、武器切替時に選択銃へ再適用",
+      "inline",
+      "ammo:refill"
     );
     const aimMovementLabel = self.movementMode === "walk"
       ? "通常歩行"
@@ -13141,7 +13131,9 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       "エイム",
       aimValue,
       self.gunnerSnipingActive ? "truth" : passiveTone,
-      `理知中はダッシュ以外の移動状態で、選択銃の射程内かつ遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。幸運補正後のHSは腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.05) * 100)}%、エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.20) * 100)}%。正規ダッシュ時だけ即解除。手動ボタン・追尾移動なし`
+      `理知中はダッシュ以外の移動状態で、選択銃の射程内かつ遮蔽物越しでない最寄りの生存者へ射撃方向を自動追尾。幸運補正後のHSは腰撃ち${Math.round((Number(self.gunnerHipHeadshotChance) || 0.05) * 100)}%、エイム${Math.round((Number(self.gunnerAimHeadshotChance) || 0.20) * 100)}%。正規ダッシュ時だけ即解除。手動ボタン・追尾移動なし`,
+      "inline",
+      "passive:gunner-aim"
     );
   }
 
@@ -13152,18 +13144,20 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       "HSG",
       `${hsgGboActive ? "GBO" : "HSG"}浮揚中 ${formatEffectCountdown(hsgActiveMs)}`,
       "truth",
-      `${hsgGboActive ? "直接GBO" : "直接使用または床外自動起動"}の時間効果。期限終了時に床がなければ落下死。Storage cardで使用・投擲とCTを確認`
+      `${hsgGboActive ? "直接GBO" : "直接使用または床外自動起動"}の時間効果。期限終了時に床がなければ落下死。Storage cardで使用・投擲とCTを確認`,
+      "inline",
+      "hsg-active"
     );
   }
 
   if (hasDisplayedOperatorAccess(self, "assassin")) {
-    add("常時無音", "常時有効", "truth", "歩行・ダッシュを含む全移動で足音イベントを発生させず、敵Botにも足音証拠を与えない");
-    add("アサシン忍殺", "消滅へ変換", "truth", "忍殺成功時はアサシン忍殺による消滅となり、死体・通報対象・死体由来markerを残さない");
+    add("常時無音", "常時有効", "truth", "歩行・ダッシュを含む全移動で足音イベントを発生させず、敵Botにも足音証拠を与えない", "inline", "passive:assassin-silence");
+    add("アサシン忍殺", "消滅へ変換", "truth", "忍殺成功時はアサシン忍殺による消滅となり、死体・通報対象・死体由来markerを残さない", "inline", "passive:assassin-execution");
   }
 
   if (self.special === "alchemist") {
     const hackerOperational = phase === "playing" && self.alive && !self.ejected;
-    add("ハック", hackerOperational ? "稼働" : "戦闘中のみ", hackerOperational ? "rational" : "neutral", "生存中は対象位置を把握。防衛側ではタスクを60秒ごとに自動完了");
+    add("ハック", hackerOperational ? "稼働" : "戦闘中のみ", hackerOperational ? "rational" : "neutral", "生存中は対象位置を把握。防衛側ではタスクを60秒ごとに自動完了", "inline", "hacker:map-feed");
     const manaGpuDrain = Number(self.manaGpuDrainPerSecond || 0).toFixed(3);
     const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
@@ -13172,7 +13166,9 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
         ? `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積・稼働`
         : `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積・休止`,
       self.manaGpuActive ? "truth" : "neutral",
-      `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`
+      `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`,
+      "inline",
+      "passive:hacker-mana-gpu"
     );
   }
 
@@ -13185,33 +13181,28 @@ function renderActiveEffects(data) {
   const rational = self.mentalState === "理知";
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
   const effects = [];
-  const add = (label, value, tone, detail) => effects.push({ label, value, tone, detail });
-  const timed = (label, endsAt, tone, detail) => {
-    if ((endsAt || 0) > liveNow) add(label, formatEffectCountdown(endsAt - liveNow), tone, detail);
+  const add = (label, value, tone, detail, key) => effects.push({ key, label, value, tone, detail });
+  const timed = (label, endsAt, tone, detail, key) => {
+    if ((endsAt || 0) > liveNow) add(label, formatEffectCountdown(endsAt - liveNow), tone, detail, key);
   };
 
-  const immediate = self.lastImmediateFeedback;
-  if (immediate?.at && liveNow - immediate.at < 6500 && !["EC", "自然回復", "エイム"].includes(immediate.label)) {
-    add(immediate.label, "完了", "instant", immediate.detail);
-  }
-
   if (self.rationalFreeAbilityReady) {
-    add("固有能力無料化", "準備完了", "rational", "次の対象固有能力はMP消費なし（エレクトリックは固定1MP）");
+    add("固有能力無料化", "準備完了", "rational", "次の対象固有能力はMP消費なし（エレクトリックは固定1MP）", "rational:free-ability");
   } else if (rational) {
-    timed("固有能力無料化", self.rationalFreeAbilityReadyAt, "rational", "理知維持で準備");
+    timed("固有能力無料化", self.rationalFreeAbilityReadyAt, "rational", "理知維持で準備", "rational:free-ability");
   }
 
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
-  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "バスト+1・バリア+1・HP/状態回復・加速・タスクSP軽減");
-  if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "加速×1.65。移動・物理モーション・CT・行動不能・タスク速度へ適用");
+  if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "バスト+1・バリア+1・HP/状態回復・加速・タスクSP軽減", "buff:good-all");
+  if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "加速×1.65。移動・物理モーション・CT・行動不能・タスク速度へ適用", "accel:luminous");
   if (self.limitBreakActive) {
     const limitBreakDetail = self.fighterInfiniteResources
       ? `HP消費なし / MP・SP・HP・バリア∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
       : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / MP継続消費 / 即死回避無効`;
-    add("リミットブレイク", "永続", "truth", limitBreakDetail);
+    add("リミットブレイク", "永続", "truth", limitBreakDetail, "limit-break");
   }
   if (self.hackerRootActive) {
-    add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。バリア・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用");
+    add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。バリア・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用", "root");
   }
   effects.push(...collectOperatorPassiveEffects(self, liveNow, data.phase));
   if (Number(self.killChainCount) > 0) {
@@ -13219,22 +13210,24 @@ function renderActiveEffects(data) {
       "キルチェイン",
       `×${Math.max(0, Number(self.killChainCount) || 0)} / 次回キルCT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒`,
       "truth",
-      `合法な異陣営キルごとに基本キルCTを10%ずつ短縮。現在${Math.round(Math.max(0.25, Number(self.killChainCooldownMultiplier) || 1) * 100)}%（最短25%）。銃の発射間隔・リロード・能力CTは対象外`
+      `合法な異陣営キルごとに基本キルCTを10%ずつ短縮。現在${Math.round(Math.max(0.25, Number(self.killChainCooldownMultiplier) || 1) * 100)}%（最短25%）。銃の発射間隔・リロード・能力CTは対象外`,
+      "combat:kill-chain"
     );
   }
-  if ((self.overheal || 0) > 0) add("拡張HP", `${Number(self.health || 0).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}/${Number(self.maxHealth || 2).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`, "good", "上限2を超えた現在HP。ダメージ後も獲得済みの最大HPは維持");
-  if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化し、発動後もしばらく防護");
-  if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移");
-  if ((self.pushCharges || 0) > 0) add("バスト", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "バリア全消去。1回につき反動0.5");
-  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持");
-  if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `テレポート可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にテレポート権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費");
+  if ((self.overheal || 0) > 0) add("拡張HP", `${Number(self.health || 0).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}/${Number(self.maxHealth || 2).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`, "good", "上限2を超えた現在HP。ダメージ後も獲得済みの最大HPは維持", "health:overheal");
+  if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化し、発動後もしばらく防護", "barrier:charges");
+  if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移", "substitution:charges");
+  if ((self.pushCharges || 0) > 0) add("バスト", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "バリア全消去。1回につき反動0.5", "push:charges");
+  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持", "iai:charges");
+  if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `テレポート可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にテレポート権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費", "teleport:map-scroll-charges");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
     timed(
       "重力減速",
       self.gravityStormSlowUntil,
       "desire",
-      `速度${Math.round(multiplier * 100)}% / HP-${Number(self.lastGravityStormDamage || 0).toFixed(2)}`
+      `速度${Math.round(multiplier * 100)}% / HP-${Number(self.lastGravityStormDamage || 0).toFixed(2)}`,
+      "slow:gravity-storm"
     );
   }
   const borrowedOperatorAccess = (type) => hasDisplayedOperatorAccess(self, type);
@@ -13247,7 +13240,7 @@ function renderActiveEffects(data) {
       : self.gunnerSpecialAmmoType === "penetrate"
         ? "通常の遮蔽物を貫通して射線上の対象へ到達"
         : "幸運/直観0未満:確殺 / 0以上:6秒間35%減速";
-    add("特殊弾装填", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail);
+    add("装填中の特殊弾", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail, "ammo:loaded");
   }
   if (self.gravityTimeMode) timed(
     self.gravityTimeMode === "accelerate"
@@ -13255,19 +13248,20 @@ function renderActiveEffects(data) {
       : `ディーセラレート ×${Math.max(1, Number(self.gravityTimeStacks?.decelerate) || 1)}`,
     self.gravityTimeEndsAt,
     self.gravityTimeMode === "accelerate" ? "good" : "desire",
-    "1MP・8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用"
+    "1MP・8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用",
+    "gravity:time"
   );
-  timed("時の番人", self.timeKeeperEndsAt, "truth", "1000MP・5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止");
-  timed("時間停止", self.timeStoppedUntil, "desire", "入力・行動・クールタイム・物理モーション停止");
-  if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ");
-  timed("スマホ操作", self.smartphoneUntil, "neutral", "完了まで行動不能");
+  timed("時の番人", self.timeKeeperEndsAt, "truth", "1000MP・5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止", "gravity:time-keeper");
+  timed("時間停止", self.timeStoppedUntil, "desire", "入力・行動・クールタイム・物理モーション停止", "gravity:time-stop");
+  if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ", "route:pair-warning");
+  timed("スマホ操作", self.smartphoneUntil, "neutral", "完了まで行動不能", "action:smartphone");
 
   if ((self.dodgeDurationBonusMs || 0) > 0) {
-    add("回避時間拡張", `+${(self.dodgeDurationBonusMs / 1000).toFixed(2)}秒`, "beauty", "キル無効時間を延長");
+    add("回避時間拡張", `+${(self.dodgeDurationBonusMs / 1000).toFixed(2)}秒`, "beauty", "キル無効時間を延長", "dodge:duration-bonus");
   }
-  if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "加速×1.35。移動・物理モーション・CT・行動不能・タスク速度へ適用");
-  if (self.mapObjectEffects?.quiet) add("静音フィールド", "範囲内", "rational", "足音なし");
-  timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "確殺を無効化した時だけキルカウンター" : "効果中に受けた攻撃を無効化する");
+  if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "加速×1.35。移動・物理モーション・CT・行動不能・タスク速度へ適用", "accel:map-floor");
+  if (self.mapObjectEffects?.quiet) add("静音フィールド", "範囲内", "rational", "足音なし", "field:quiet");
+  timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "確殺を無効化した時だけキルカウンター" : "効果中に受けた攻撃を無効化する", "dodge:active");
   const slashPerfectRemaining = Math.max(0, Number(self.slashPerfectUntil) - liveNow);
   const slashGuardRemaining = Math.max(0, Number(self.slashActiveUntil) - liveNow);
   const slashRearmRemaining = Math.max(0, Number(self.slashPerfectReadyAt) - liveNow);
@@ -13276,53 +13270,85 @@ function renderActiveEffects(data) {
       self.fighterInfiniteResources ? "斬る・全反射ジャストガード" : "斬る・ジャストガード",
       `${Math.ceil(slashPerfectRemaining)}ms`,
       "truth",
-      self.fighterInfiniteResources ? "受付中は全攻撃を反射" : "受付中は物理衝撃を100%反射"
+      self.fighterInfiniteResources ? "受付中は全攻撃を反射" : "受付中は物理衝撃を100%反射",
+      "fighter:slash-guard"
     );
   } else if (slashGuardRemaining > 0) {
-    add("斬る・物理ガード", `${Math.ceil(slashGuardRemaining)}ms`, "rational", "物理攻撃を無効化。EMP・毒・光は不可");
+    add("斬る・物理ガード", `${Math.ceil(slashGuardRemaining)}ms`, "rational", "物理攻撃を無効化。EMP・毒・光は不可", "fighter:slash-guard");
   }
   if (hasDisplayedOrichalcumSword(self) && slashRearmRemaining > 0) {
-    add("ジャストガード再武装", `${(slashRearmRemaining / 1000).toFixed(1)}秒`, "neutral", "完了前の連打は受付遅延");
+    add("ジャストガード再武装", `${(slashRearmRemaining / 1000).toFixed(1)}秒`, "neutral", "完了前の連打は受付遅延", "fighter:slash-rearm");
   }
   const floraAcceleration = self.timedAccelerationStacks?.flora;
   timed(
     `フローラ加速${floraAcceleration?.count > 1 ? ` ×${floraAcceleration.count}` : ""}`,
     floraAcceleration?.endsAt || self.overhealSpeedUntil,
     "good",
-    `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`
+    `現在×${Number(floraAcceleration?.multiplier || 1.8).toFixed(2)}。移動・物理モーション・CT・行動不能・タスク速度へ適用`,
+    "accel:flora"
   );
-  timed("速度低下", self.slowedUntil, "desire", "移動速度低下");
-  timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下");
-  timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下");
-  timed("電子輸送減速", self.quantumElectricSlowUntil, "desire", "Electric固有の移動速度35%低下・3秒");
-  timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可");
-  timed("EMP機器異常", self.itemDisabledUntil, "desire", "アイテム・装備効果停止（状態異常回復の対象外）");
+  timed("速度低下", self.slowedUntil, "desire", "移動速度低下", "slow:generic");
+  timed("テーザー痺れ", self.taserSlowedUntil, "desire", "移動速度35%低下", "slow:taser");
+  timed("ショック減速", self.shockSlowedUntil, "desire", "移動速度35%低下", "slow:shock");
+  timed("電子輸送減速", self.quantumElectricSlowUntil, "desire", "Electric固有の移動速度35%低下・3秒", "slow:quantum-electric");
+  timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可", "status:ability-disabled");
+  timed("EMP機器異常", self.itemDisabledUntil, "desire", "アイテム・装備効果停止（状態異常回復の対象外）", "emp-lock");
   if (self.statusImmunityActive) {
     const hpRate = Number(self.naturalRecoveryHpPerSecond || 0.05).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     const spRate = Number(self.naturalRecoveryStaminaPerSecond || 19).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     const mpRate = Number(self.naturalRecoveryManaPerSecond || 0.127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は状態異常ではないため回復対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後もcurrent/maxを同率で拡張`);
+    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は状態異常ではないため回復対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後もcurrent/maxを同率で拡張`, "recovery:natural");
   }
-  if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・ヒール・理知中の自然回復で解除");
-  if (self.burnStatus) add("燃焼", "継続中", "desire", "水・ヒール・理知中の自然回復で解除");
-  timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止");
-  timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止");
-  timed("休息", self.sleepingUntil, "neutral", `行動停止・SP回復×4。SP全快時、MPが${Number(self.restCompletionManaFloor) || 2}未満なら${Number(self.restCompletionManaFloor) || 2}へ回復`);
-  timed("精神統一", self.meditatingUntil, "rational", "開始時にMPを獲得。タップ+10MP/35秒、420ms以上の長押し+100MP/350秒");
-  timed("インビジブル", self.floraInvisibleUntil, "good", "10秒間透明化。敵Botの直接視認・追跡対象外。自分のキャラクターは半透明表示");
+  if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・ヒール・理知中の自然回復で解除", "status:poison");
+  if (self.burnStatus) add("燃焼", "継続中", "desire", "水・ヒール・理知中の自然回復で解除", "burn");
+  timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止", "status:unconscious");
+  timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止", "status:gravity-pinned");
+  timed("休息", self.sleepingUntil, "neutral", `行動停止・SP回復×4。SP全快時、MPが${Number(self.restCompletionManaFloor) || 2}未満なら${Number(self.restCompletionManaFloor) || 2}へ回復`, "action:rest");
+  timed("精神統一", self.meditatingUntil, "rational", "開始時にMPを獲得。タップ+10MP/35秒、420ms以上の長押し+100MP/350秒", "action:meditate");
+  timed("インビジブル", self.floraInvisibleUntil, "good", "10秒間透明化。敵Botの直接視認・追跡対象外。自分のキャラクターは半透明表示", "flora-invisible");
   // The acquired product deliberately shares the native Hacker passive name
   // and map-feed meaning. A Hacker who also acquires it still gets exactly one
   // Applied Effects row; non-Hackers retain the acquired/EMP state wording.
-  if (self.hackActive && self.special !== "alchemist") add("ハック", self.hackEffective ? "稼働" : "遮断中", self.hackEffective ? "rational" : "desire", self.hackEffective ? "即席適用・全生存者を表示" : "即席効果を保持・EMP解除後に復帰");
+  if (self.hackActive && self.special !== "alchemist") add("ハック", self.hackEffective ? "稼働" : "遮断中", self.hackEffective ? "rational" : "desire", self.hackEffective ? "即席適用・全生存者を表示" : "即席効果を保持・EMP解除後に復帰", "hacker:map-feed");
+
+  const immediate = self.lastImmediateFeedback;
+  if (immediate?.at && liveNow - immediate.at < 6500 && !["EC", "自然回復", "エイム"].includes(immediate.label)) {
+    const feedbackOwners = new Map([
+      ["リミットブレイク", "limit-break"],
+      ["root化", "root"],
+      ["EMP機器異常", "emp-lock"],
+      ["インビジブル", "flora-invisible"],
+      ["燃焼", "burn"]
+    ]);
+    const feedbackOwnerKey = /^HSG・/.test(immediate.label)
+      ? "hsg-active"
+      : immediate.label === "HSG自動起動"
+        ? "hsg-active"
+        : feedbackOwners.get(immediate.label);
+    const existingOwner = feedbackOwnerKey
+      ? effects.find((effect) => effect.key === feedbackOwnerKey)
+      : null;
+    if (existingOwner) {
+      if (["root", "burn", "hsg-active"].includes(feedbackOwnerKey) && immediate.detail) {
+        const recentDetail = `直近: ${immediate.detail}`;
+        if (!String(existingOwner.detail || "").includes(recentDetail)) {
+          existingOwner.detail = `${existingOwner.detail} / ${recentDetail}`;
+        }
+      }
+    } else {
+      effects.unshift({ key: feedbackOwnerKey || "feedback:instant", label: immediate.label, value: "完了", tone: "instant", detail: immediate.detail });
+    }
+  }
 
   const panelHidden = !["playing", "meeting"].includes(data.phase);
   if (els.activeEffectsPanel.hidden !== panelHidden) els.activeEffectsPanel.hidden = panelHidden;
-  const visibleEffects = effects.length ? effects : [{ label: "効果なし", value: "-", tone: "neutral", detail: "現在適用されているバフ・デバフはない" }];
+  const visibleEffects = effects.length ? effects : [{ key: "none", label: "効果なし", value: "-", tone: "neutral", detail: "現在適用されているバフ・デバフはない" }];
   const renderKey = JSON.stringify(visibleEffects);
   if (state.activeEffectsRenderKey === renderKey) return;
   state.activeEffectsRenderKey = renderKey;
   reconcileActiveEffectRows(visibleEffects);
   const layoutKey = JSON.stringify(visibleEffects.map((effect) => [
+    effect.key,
     effect.label,
     effect.tone,
     effect.detail,
@@ -13338,13 +13364,10 @@ function renderActiveEffects(data) {
 function reconcileActiveEffectRows(visibleEffects) {
   const list = els.activeEffectsList;
   const existing = new Map([...list.children].map((row) => [row.dataset.effectKey || "", row]));
-  const labelOccurrences = new Map();
   let cursor = list.firstElementChild;
 
   visibleEffects.forEach((effect) => {
-    const occurrence = (labelOccurrences.get(effect.label) || 0) + 1;
-    labelOccurrences.set(effect.label, occurrence);
-    const key = `${effect.label}\u001f${occurrence}`;
+    const key = effect.key;
     let row = existing.get(key);
     if (!row) {
       row = document.createElement("li");
@@ -22000,7 +22023,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-applied-effects-reading-v631";
+const version = "ui-ec-effects-dedup-v633";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22974,7 +22997,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-applied-effects-reading-v631", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-ec-effects-dedup-v633", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
