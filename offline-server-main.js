@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-control-reading-v634",
+    version: "ui-emp-lock-projection-v635",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21572,6 +21572,7 @@ function serialize(room, viewer, options = {}) {
       unconsciousUntil: viewer.unconsciousUntil,
       actionBlockedUntil: actionBlockedUntil(viewer),
       abilityDisabledUntil: viewer.abilityDisabledUntil,
+      itemDisabledUntil: Number(viewer.itemDisabledUntil) || 0,
       overhealSpeedUntil: viewer.overhealSpeedUntil,
       floraMode: viewer.floraMode || "heal",
       sensoryBlockedUntil: sensoryBlockedUntil(viewer),
@@ -25806,7 +25807,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "ui-control-reading-v634",
+  version: "ui-emp-lock-projection-v635",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
