@@ -8534,3 +8534,182 @@ body #activeEffectsPanel:focus-visible {
   outline: 2px solid #087a88;
   outline-offset: 2px;
 }
+
+/* v634 candidate only: preserve native inventory actions and scroll ownership. */
+body #statusPanel .role-block {
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+body #statusPanel #roleName {
+  font-size: 20px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+body #itemControl {
+  gap: 8px;
+  padding: 8px;
+  color: #203947;
+  background-color: #f1f6f6;
+  background-image: none !important;
+  border: 1px solid #8ea9b1;
+  border-left: 3px solid #24788a;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+body #itemControl .item-control-head {
+  display: grid;
+  gap: 4px;
+  align-items: start;
+}
+
+body #itemControl .item-control-head > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+body #itemControl .item-control-head strong {
+  color: #18475a;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+body #itemControl .item-control-head small,
+body #itemControl .item-control-head > span:last-child,
+body #itemControl #enhanceReadout {
+  margin: 0;
+  color: #415c69;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body #itemControl #itemInventoryGrid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 3px;
+}
+
+/* The local scroll owner remains the inventory grid.  Its short-view limit
+   keeps transfer controls above the persistent launcher in landscape. */
+body #itemControl:not(.scroll-region-expanded) #itemInventoryGrid {
+  max-height: clamp(124px, calc(100dvh - 644px), 238px);
+}
+
+body #itemControl .item-inventory-choice {
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 56px;
+  padding: 5px 8px;
+  border: 1px solid #8ea9b1;
+  border-radius: 6px;
+  background-color: #ffffff;
+  background-image: none !important;
+  color: #203947 !important;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+body #itemControl .item-choice-copy {
+  gap: 4px;
+}
+
+body #itemControl .item-choice-copy strong {
+  color: #203947 !important;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  text-shadow: none;
+}
+
+body #itemControl .item-choice-copy small {
+  color: #415c69 !important;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  text-shadow: none;
+}
+
+body #itemControl .item-inventory-choice:hover:not(:disabled) {
+  border-color: #24788a;
+  transform: none;
+}
+
+body #itemControl .item-inventory-choice.selected {
+  border-color: #164e63;
+  background-color: #164e63;
+  box-shadow: inset 4px 0 #67e8f9;
+}
+
+body #itemControl .item-inventory-choice.selected .item-choice-copy strong,
+body #itemControl .item-inventory-choice.selected .item-choice-copy small {
+  color: #ffffff !important;
+}
+
+body #itemControl .item-inventory-choice:disabled,
+body #itemControl .item-control-actions button:disabled,
+body #itemControl .item-transfer-actions button:disabled {
+  opacity: 1;
+  color: #475569 !important;
+  background-color: #e5ecee;
+  border-style: dashed;
+  filter: none;
+}
+
+body #itemControl > label {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  color: #203947;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+body #itemControl .item-inventory-choice:disabled .item-choice-copy strong,
+body #itemControl .item-inventory-choice:disabled .item-choice-copy small {
+  color: #475569 !important;
+}
+
+body #itemControl .item-control-actions,
+body #itemControl .item-transfer-actions {
+  gap: 8px;
+}
+
+body #itemControl .item-control-actions button,
+body #itemControl .item-transfer-actions button,
+body #itemControl > label select,
+body #itemControl > label input {
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #8ea9b1;
+  border-radius: 6px;
+  color: #203947 !important;
+  background-color: #ffffff;
+  background-image: none !important;
+  font-size: 14px;
+  line-height: 1.4;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+body #itemControl .item-control-actions button:first-child:not(:disabled) {
+  border-color: #24788a;
+  background-color: #def1f3;
+}
+
+body #itemControl :is(button, select, input):focus-visible {
+  outline: 2px solid #076c91;
+  outline-offset: 2px;
+}
