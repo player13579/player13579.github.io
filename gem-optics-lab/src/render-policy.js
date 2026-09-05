@@ -1,7 +1,7 @@
 const POLICIES = Object.freeze({
   auto: Object.freeze({
-    static: Object.freeze({ spectralBands: 24, targetSamples: 32, bounces: 16, maxPixels: 450_000 }),
-    motion: Object.freeze({ spectralBands: 6, bounces: 8, basePixels: 200_000, minPixels: 80_000, maxPixels: 300_000 }),
+    static: Object.freeze({ spectralBands: 48, targetSamples: 96, bounces: 28, maxPixels: 1_600_000 }),
+    motion: Object.freeze({ spectralBands: 12, bounces: 16, basePixels: 420_000, minPixels: 260_000, maxPixels: 1_200_000 }),
   }),
   high: Object.freeze({
     static: Object.freeze({ spectralBands: 24, targetSamples: 64, bounces: 24, maxPixels: 1_500_000 }),
@@ -15,7 +15,7 @@ const POLICIES = Object.freeze({
 
 export const MOTION_BATCH_MAX = 4;
 export const MOTION_CPU_BUDGET_MS = 9;
-export const MOTION_TARGET_FRAME_MS = 1000 / 30;
+export const MOTION_TARGET_FRAME_MS = 1000 / 24;
 
 export function getRenderPolicy(quality, moving = false) {
   const qualityPolicy = POLICIES[quality];
@@ -31,13 +31,15 @@ export function motionPixelBudget(quality, adaptiveScale = 1) {
     Math.max(policy.minPixels, policy.basePixels * scale)));
 }
 
-// This dead band prevents small frame-time fluctuations from resizing the
-// backing store. The scheduler also waits for several frames between changes.
+// 38–52 ms is a wide stability band around the 24 fps target. Large misses are
+// corrected quickly; smaller changes avoid visible resolution pumping.
 export function adaptMotionScale(currentScale, meanFrameMs) {
   const scale = Number.isFinite(currentScale) ? currentScale : 1;
   if (!Number.isFinite(meanFrameMs)) return scale;
-  if (meanFrameMs > 42) return Math.max(.4, scale * .82);
-  if (meanFrameMs < 27) return Math.min(1.5, scale * 1.08);
+  if (meanFrameMs > 70) return Math.max(.5, scale * .72);
+  if (meanFrameMs > 52) return Math.max(.5, scale * .86);
+  if (meanFrameMs < 27) return Math.min(3, scale * 1.18);
+  if (meanFrameMs < 38) return Math.min(3, scale * 1.08);
   return scale;
 }
 

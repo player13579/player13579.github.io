@@ -12,12 +12,12 @@ import {
 
 test('static quality remains detailed while every motion tier has a bounded workload', () => {
   assert.deepEqual(getRenderPolicy('auto'), {
-    spectralBands: 24, targetSamples: 32, bounces: 16, maxPixels: 450_000,
-    moving: false, strata: 8,
+    spectralBands: 48, targetSamples: 96, bounces: 28, maxPixels: 1_600_000,
+    moving: false, strata: 16,
   });
   assert.deepEqual(getRenderPolicy('auto', true), {
-    spectralBands: 6, bounces: 8, basePixels: 200_000, minPixels: 80_000, maxPixels: 300_000,
-    moving: true, strata: 2,
+    spectralBands: 12, bounces: 16, basePixels: 420_000, minPixels: 260_000, maxPixels: 1_200_000,
+    moving: true, strata: 4,
   });
   assert.deepEqual(
     [getRenderPolicy('high', true), getRenderPolicy('ultra', true)]
@@ -41,15 +41,17 @@ test('every same-pose cycle covers its motion or static spectrum exactly once', 
   }
 });
 
-test('auto motion resolution reacts outside a stable 27-42ms hysteresis band', () => {
-  assert.equal(adaptMotionScale(1, 33), 1);
-  assert.equal(adaptMotionScale(1, 50), .82);
-  assert.equal(adaptMotionScale(1, 20), 1.08);
+test('auto motion resolution reacts outside a stable 38-52ms hysteresis band', () => {
+  assert.equal(adaptMotionScale(1, 45), 1);
+  assert.equal(adaptMotionScale(1, 60), .86);
+  assert.equal(adaptMotionScale(1, 80), .72);
+  assert.equal(adaptMotionScale(1, 33), 1.08);
+  assert.equal(adaptMotionScale(1, 20), 1.18);
   let scale = 1;
   for (let i = 0; i < 20; i += 1) scale = adaptMotionScale(scale, 80);
-  assert.equal(motionPixelBudget('auto', scale), 80_000);
+  assert.equal(motionPixelBudget('auto', scale), 260_000);
   for (let i = 0; i < 40; i += 1) scale = adaptMotionScale(scale, 10);
-  assert.equal(motionPixelBudget('auto', scale), 300_000);
+  assert.equal(motionPixelBudget('auto', scale), 1_200_000);
 });
 
 test('motion batching always permits one pass, then respects time and pass budgets', () => {

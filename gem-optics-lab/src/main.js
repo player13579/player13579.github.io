@@ -1,5 +1,5 @@
-import { createGemRenderer } from './renderer.js';
-import { GEM_MATERIALS, CUT_INFO } from './optics.js';
+import { createGemRenderer } from './renderer.js?v=20260905-ipad-hq';
+import { GEM_MATERIALS, CUT_INFO } from './optics.js?v=20260905-ipad-hq';
 
 const $ = (id) => document.getElementById(id);
 const materials = {
@@ -103,7 +103,7 @@ try {
     onStats: (stats) => {
       if (!ready && stats.totalPresentedFrames > 0) { ready = true; $('loading').hidden = true; }
       const percent = Math.min(100, Math.round(stats.samples / stats.targetSamples * 100));
-      $('refinement-status').textContent = stats.moving ? (options.quality === 'auto' ? '回転中 · タブレット向け描画' : `${stats.spectralBands}波長 · 回転中も精細描画`) : stats.refining ? `細部を描画中 ${percent}%` : `${stats.spectralBands}波長 · 精細化完了`;
+      $('refinement-status').textContent = stats.moving ? (options.quality === 'auto' ? '回転中 · iPad高画質' : `${stats.spectralBands}波長 · 回転中も精細描画`) : stats.refining ? `細部を描画中 ${percent}%` : `${stats.spectralBands}波長 · 精細化完了`;
       $('refinement-status').classList.toggle('complete', !stats.refining && !stats.moving);
       $('gem-canvas').dataset.samples = String(stats.samples);
       $('gem-canvas').dataset.targetSamples = String(stats.targetSamples);

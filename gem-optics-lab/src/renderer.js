@@ -4,7 +4,7 @@ import {
   clamp,
   createCutPlanes,
   cauchyCoefficients,
-} from './optics.js';
+} from './optics.js?v=20260905-ipad-hq';
 import { createOpticalPostprocess } from './postprocess.js';
 import { createSpectralTable } from './spectrum.js';
 import {
@@ -12,7 +12,7 @@ import {
   canContinueMotionBatch,
   getRenderPolicy,
   motionPixelBudget,
-} from './render-policy.js';
+} from './render-policy.js?v=20260905-ipad-hq';
 
 const MAX_PLANES = 128;
 const MAX_BOUNCES = 40;
@@ -336,7 +336,7 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
   let planes=createCutPlanes(state.cut),spectrum=createSpectralTable(24);
   let destroyed=false,frame=0,dirty=true,planesDirty=true,spectrumDirty=true;
   let rotationOffset=0,previous=performance.now(),lastInteraction=0,lastReport=0;
-  let mode='none',statsStart=previous,autoDpr=Math.min(window.devicePixelRatio||1,1.25);
+  let mode='none',statsStart=previous;
   let motionCycle=null,completedMotionFrames=0,totalPresentedFrames=0;
   let presentedSinceStats=0,motionPresentedSinceStats=0;
   let renderedYaw=null,renderedPitch=null,renderedZoom=null;
@@ -356,7 +356,7 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
   }
   function desiredDpr(){
     const device=window.devicePixelRatio||1;
-    return state.quality==='ultra'?Math.min(Math.max(device,1.25),2):state.quality==='high'?Math.min(device,1.6):Math.min(device,autoDpr);
+    return state.quality==='ultra'?Math.min(Math.max(device,1.25),2):state.quality==='high'?Math.min(device,1.6):Math.min(device,2);
   }
   function resize(moving=isMovingMode()){
     const rect=canvas.getBoundingClientRect();
@@ -554,7 +554,6 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
       if(state.quality!==prior.quality){
         adaptiveScale=1;motionFrameMean=0;lastMotionPresent=0;
         activateSpectrum(isMovingMode());
-        autoDpr=Math.min(window.devicePixelRatio||1,1.25);
       }
       const opticsChanged=['gem','cut','environment','lightAngle','intensity','dispersion','quality']
         .some((key)=>state[key]!==prior[key]);
