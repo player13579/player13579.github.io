@@ -29,15 +29,42 @@ function interpolateD65(w) {
 }
 
 export function createSpectralTable(count = 24) {
-  if (![24, 48].includes(count)) throw new RangeError('count must be 24 or 48');
-  const wavelengths = Array.from({ length: count }, (_, i) => 380 + (i + .5) * 400 / count);
-  const daylight = Float32Array.from(wavelengths, interpolateD65);
-  const whiteRaw = wavelengths.reduce((sum, w, i) => {
-    const [x, y, z] = cieXYZ(w); return [sum[0] + daylight[i] * x, sum[1] + daylight[i] * y, sum[2] + daylight[i] * z];
-  }, [0, 0, 0]);
+  if (![6, 12, 24, 48].includes(count)) throw new RangeError('count must be 6, 12, 24, or 48');
+  const width = 400 / count;
+  const wavelengths = Array.from({ length: count }, (_, i) => 380 + (i + .5) * width);
+  // A broad six-band preview badly under-samples the narrow blue colour-matching
+  // functions at simple midpoints. Integrate D65 * CMF within each band, then
+  // express that integral as one representative wavelength and one effective CMF.
+  // This keeps a common Y normalization (no per-channel white balance) and makes
+  // the low-cost motion estimator neutral under the reference illuminant.
+  const quadrature = wavelengths.map((_, index) => {
+    const samples = Math.max(12, Math.ceil(width));
+    const sums = [0, 0, 0];
+    let daylightSum = 0;
+    for (let sample = 0; sample < samples; sample += 1) {
+      const w = 380 + index * width + (sample + .5) * width / samples;
+      const d65 = interpolateD65(w);
+      const xyz = cieXYZ(w);
+      daylightSum += d65;
+      for (let channel = 0; channel < 3; channel += 1) sums[channel] += d65 * xyz[channel];
+    }
+    return {
+      daylight: daylightSum / samples,
+      xyz: sums.map((value) => value / daylightSum),
+    };
+  });
+  const daylight = Float32Array.from(quadrature, (band) => band.daylight);
+  const whiteRaw = quadrature.reduce((sum, band) => [
+    sum[0] + band.daylight * band.xyz[0],
+    sum[1] + band.daylight * band.xyz[1],
+    sum[2] + band.daylight * band.xyz[2],
+  ], [0, 0, 0]);
   const denom = whiteRaw[1];
   const packed = new Float32Array(48 * 4);
-  wavelengths.forEach((w, i) => { const [x, y, z] = cieXYZ(w); packed.set([w, x * count / denom, y * count / denom, z * count / denom], i * 4); });
+  wavelengths.forEach((w, i) => {
+    const [x, y, z] = quadrature[i].xyz;
+    packed.set([w, x * count / denom, y * count / denom, z * count / denom], i * 4);
+  });
   return { count, packed, daylight, whiteXYZ: whiteRaw.map(v => v / denom), wavelengths };
 }
 

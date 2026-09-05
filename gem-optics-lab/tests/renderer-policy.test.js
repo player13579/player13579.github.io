@@ -3,38 +3,53 @@ import assert from 'node:assert/strict';
 import {
   MOTION_BATCH_MAX,
   MOTION_CPU_BUDGET_MS,
+  adaptMotionScale,
   canContinueMotionBatch,
   getRenderPolicy,
+  motionPixelBudget,
   spectralIndicesForSubpass,
 } from '../src/render-policy.js';
 
-test('motion uses the full spectral and bounce policy of every quality', () => {
+test('static quality remains detailed while every motion tier has a bounded workload', () => {
   assert.deepEqual(getRenderPolicy('auto'), {
-    spectralBands: 24, targetSamples: 32, bounces: 16, strata: 8,
+    spectralBands: 24, targetSamples: 32, bounces: 16, maxPixels: 450_000,
+    moving: false, strata: 8,
   });
-  assert.deepEqual(getRenderPolicy('high'), {
-    spectralBands: 24, targetSamples: 64, bounces: 24, strata: 8,
+  assert.deepEqual(getRenderPolicy('auto', true), {
+    spectralBands: 6, bounces: 8, basePixels: 200_000, minPixels: 80_000, maxPixels: 300_000,
+    moving: true, strata: 2,
   });
-  assert.deepEqual(getRenderPolicy('ultra'), {
-    spectralBands: 48, targetSamples: 128, bounces: 40, strata: 16,
-  });
+  assert.deepEqual(
+    [getRenderPolicy('high', true), getRenderPolicy('ultra', true)]
+      .map(({ spectralBands, bounces, strata }) => ({ spectralBands, bounces, strata })),
+    [{ spectralBands: 12, bounces: 12, strata: 4 }, { spectralBands: 24, bounces: 20, strata: 8 }],
+  );
   assert.throws(() => getRenderPolicy('preview'), /Unknown render quality/);
 });
 
-test('a complete same-pose cycle covers every spectral band exactly once per pixel', () => {
-  for (const bands of [24, 48]) {
+test('every same-pose cycle covers its motion or static spectrum exactly once', () => {
+  for (const bands of [6, 12, 24, 48]) {
     const strata = bands / 3;
     for (const [x, y] of [[0, 0], [1, 7], [1390, 1061], [-2, 5]]) {
       const visited = [];
       for (let subpass = 0; subpass < strata; subpass += 1) {
-        const indices = spectralIndicesForSubpass(x, y, subpass, bands);
-        assert.equal(indices.length, 3);
-        visited.push(...indices);
+        visited.push(...spectralIndicesForSubpass(x, y, subpass, bands));
       }
       assert.deepEqual(visited.sort((a, b) => a - b),
         Array.from({ length: bands }, (_, index) => index));
     }
   }
+});
+
+test('auto motion resolution reacts outside a stable 27-42ms hysteresis band', () => {
+  assert.equal(adaptMotionScale(1, 33), 1);
+  assert.equal(adaptMotionScale(1, 50), .82);
+  assert.equal(adaptMotionScale(1, 20), 1.08);
+  let scale = 1;
+  for (let i = 0; i < 20; i += 1) scale = adaptMotionScale(scale, 80);
+  assert.equal(motionPixelBudget('auto', scale), 80_000);
+  for (let i = 0; i < 40; i += 1) scale = adaptMotionScale(scale, 10);
+  assert.equal(motionPixelBudget('auto', scale), 300_000);
 });
 
 test('motion batching always permits one pass, then respects time and pass budgets', () => {

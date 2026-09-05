@@ -22,3 +22,15 @@
 @media(max-width:800px){.refinement-status{right:22px;top:55px;font-size:9px}.quality-control{grid-column:1/-1;margin-top:6px}.quality-control p{font-size:12px}.quality-control select{max-width:210px}.observation-note{grid-column:1/-1}.quality-control>label{font-size:14px}}
 @media(max-width:360px){.refinement-status{font-size:8px;right:20px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.touch-hint{display:none}
+@media(min-width:801px) and (max-width:1150px){.viewer{height:calc(100svh - 82px);min-height:620px}}
+@media(pointer:coarse){
+  .icon-button,.dialog-heading .icon-button{width:44px;height:44px;min-width:44px}
+  .text-button,select{min-height:44px}
+  .quality-control select{width:65%}
+  input[type=range]{height:44px;margin:0;background-size:100% 3px;background-repeat:no-repeat;background-position:center;touch-action:pan-y}
+  input[type=range]::-webkit-slider-thumb{width:20px;height:20px}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px}
+  .desktop-hint{display:none}.touch-hint{display:inline}
+  .interaction-hint>span{max-width:190px;line-height:1.65}
+}

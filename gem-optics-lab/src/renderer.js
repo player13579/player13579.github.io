@@ -7,7 +7,12 @@ import {
 } from './optics.js';
 import { createOpticalPostprocess } from './postprocess.js';
 import { createSpectralTable } from './spectrum.js';
-import { canContinueMotionBatch, getRenderPolicy } from './render-policy.js';
+import {
+  adaptMotionScale,
+  canContinueMotionBatch,
+  getRenderPolicy,
+  motionPixelBudget,
+} from './render-policy.js';
 
 const MAX_PLANES = 128;
 const MAX_BOUNCES = 40;
@@ -20,7 +25,7 @@ const DEFAULT_OPTIONS = Object.freeze({
   intensity: 1.15,
   dispersion: 1,
   autoRotate: false,
-  quality: 'high',
+  quality: 'auto',
   yaw: 0.35,
   pitch: 0.95,
   zoom: 0.96,
@@ -333,22 +338,32 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
   let rotationOffset=0,previous=performance.now(),lastInteraction=0,lastReport=0;
   let mode='none',statsStart=previous,autoDpr=Math.min(window.devicePixelRatio||1,1.25);
   let motionCycle=null,completedMotionFrames=0,totalPresentedFrames=0;
-  let presentedSinceStats=0,motionPresentedSinceStats=0,renderedYaw=null;
+  let presentedSinceStats=0,motionPresentedSinceStats=0;
+  let renderedYaw=null,renderedPitch=null,renderedZoom=null;
+  let adaptiveScale=1,motionFrameMean=0,lastMotionPresent=0;
+  let motionFramesSinceAdapt=0,lastAdaptAt=0;
   let pointer=null;
   const pointers=new Map();
   let pinchDistance=0;
   const oldTouchAction=canvas.style.touchAction;canvas.style.touchAction='none';
-  function policy(){return getRenderPolicy(state.quality);}
-  function targetSamples(){return policy().targetSamples;}
-  function bounceLimit(){return policy().bounces;}
+  function isMovingMode(){return mode==='motion-spectral';}
+  function policy(moving=isMovingMode()){return getRenderPolicy(state.quality,moving);}
+  function targetSamples(){return getRenderPolicy(state.quality,false).targetSamples;}
+  function bounceLimit(moving=isMovingMode()){return policy(moving).bounces;}
+  function activateSpectrum(moving){
+    const count=getRenderPolicy(state.quality,moving).spectralBands;
+    if(spectrum.count!==count){spectrum=createSpectralTable(count);spectrumDirty=true;}
+  }
   function desiredDpr(){
     const device=window.devicePixelRatio||1;
     return state.quality==='ultra'?Math.min(Math.max(device,1.25),2):state.quality==='high'?Math.min(device,1.6):Math.min(device,autoDpr);
   }
-  function resize(){
+  function resize(moving=isMovingMode()){
     const rect=canvas.getBoundingClientRect();
     let dpr=desiredDpr();
-    const maxPixels=state.quality==='ultra'?2600000:state.quality==='high'?1500000:850000;
+    const maxPixels=moving
+      ?motionPixelBudget(state.quality,state.quality==='auto'?adaptiveScale:1)
+      :getRenderPolicy(state.quality,false).maxPixels;
     dpr=Math.min(dpr,Math.sqrt(maxPixels/Math.max(1,rect.width*rect.height)));
     const w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));
     if(canvas.width!==w||canvas.height!==h){
@@ -365,13 +380,15 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
       fps:presentedSinceStats*1000/elapsed,
       presentFPS:presentedSinceStats*1000/elapsed,
       motionFPS:motionPresentedSinceStats*1000/elapsed,
-      bounces:bounceLimit(),planes:planes.length,
+      bounces:bounceLimit(moving),planes:planes.length,
       dpr:canvas.width/Math.max(1,canvas.clientWidth),
       samples:moving?0:post.sampleCount,targetSamples:targetSamples(),
       motionSamples,targetMotionSamples:spectrum.count/3,
       spectralBands:spectrum.count,
       refining:!moving&&post.sampleCount<targetSamples(),moving,
-      mode,completedMotionFrames,totalPresentedFrames,renderedYaw,
+      mode,completedMotionFrames,totalPresentedFrames,
+      renderedYaw,renderedPitch,renderedZoom,
+      renderPixels:canvas.width*canvas.height,adaptiveScale,
       hdr:post.hdrSupported,
     });
     if(elapsed>=2000)resetStats(now);
@@ -386,7 +403,7 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     gl.uniform2f(uniform.uJitter,jitterX,jitterY);
     gl.uniform1i(uniform.uSampleIndex,sampleIndex);
     gl.uniform1i(uniform.uSpectralCount,spectrum.count);
-    gl.uniform1i(uniform.uBounceLimit,getRenderPolicy(renderState.quality).bounces);
+    gl.uniform1i(uniform.uBounceLimit,getRenderPolicy(renderState.quality,renderState.moving).bounces);
     gl.uniform3f(uniform.uCauchy,material.ior,coefficients.B,renderState.dispersion);
     gl.uniform3f(uniform.uView,renderState.yaw,renderState.pitch,renderState.zoom);
     gl.uniform1f(uniform.uLightAngle,renderState.lightAngle*Math.PI/180);
@@ -401,7 +418,8 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     }
     gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,illuminantTexture);gl.uniform1i(uniform.uIlluminants,4);
     if(spectrumDirty){
-      gl.uniform4fv(uniform['uSpectrum[0]'],spectrum.packed);gl.uniform4fv(uniform['uDaylight[0]'],spectrum.daylight);
+      const daylightUniform=new Float32Array(48);daylightUniform.set(spectrum.daylight);
+      gl.uniform4fv(uniform['uSpectrum[0]'],spectrum.packed);gl.uniform4fv(uniform['uDaylight[0]'],daylightUniform);
       const lamps=new Float32Array(48*4);
       spectrum.wavelengths.forEach((w,i)=>[5400,8500,4200,5800].forEach((temperature,k)=>{
         lamps[i*4+k]=Math.pow(550/w,5)*Math.expm1(14387769/(550*temperature))/Math.expm1(14387769/(w*temperature));
@@ -420,17 +438,21 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     const delta=Math.min((now-previous)/1000,.1);previous=now;
     if(document.hidden)return;
     try {
-      resize();
       const moving=state.autoRotate||pointers.size>0||now-lastInteraction<120;
       const nextMode=moving?'motion-spectral':'static-progressive';
-      if(mode!==nextMode){mode=nextMode;motionCycle=null;post.reset();dirty=true;resetStats(now);}
+      if(mode!==nextMode){
+        mode=nextMode;motionCycle=null;post.reset();dirty=true;resetStats(now);
+        activateSpectrum(moving);
+        if(moving){motionFrameMean=0;lastMotionPresent=0;motionFramesSinceAdapt=0;lastAdaptAt=now;}
+      }
+      resize(moving);
       if(!moving&&!dirty&&post.sampleCount>=targetSamples())return;
       if(state.autoRotate&&!pointers.size)rotationOffset+=delta*.085;
       if(moving){
         const strata=spectrum.count/3;
         if(!motionCycle){
           post.reset();
-          motionCycle={state:{...state,yaw:state.yaw+rotationOffset},subpass:0,strata};
+          motionCycle={state:{...state,yaw:state.yaw+rotationOffset,moving:true},subpass:0,strata};
           dirty=false;
         }
         const batchStart=performance.now();
@@ -445,8 +467,20 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
         if(completed){
           post.present({glare:.075});
           renderedYaw=motionCycle.state.yaw;
+          renderedPitch=motionCycle.state.pitch;renderedZoom=motionCycle.state.zoom;
           completedMotionFrames++;totalPresentedFrames++;
           presentedSinceStats++;motionPresentedSinceStats++;
+          const finishedAt=performance.now();
+          if(state.quality==='auto'&&lastMotionPresent>0){
+            const frameMs=Math.min(500,finishedAt-lastMotionPresent);
+            motionFrameMean=motionFrameMean?motionFrameMean*.78+frameMs*.22:frameMs;
+            motionFramesSinceAdapt++;
+            if(motionFramesSinceAdapt>=8&&finishedAt-lastAdaptAt>=750){
+              adaptiveScale=adaptMotionScale(adaptiveScale,motionFrameMean);
+              motionFramesSinceAdapt=0;lastAdaptAt=finishedAt;
+            }
+          }
+          lastMotionPresent=finishedAt;
           motionCycle=null;post.reset();
         }
         notify(now,true,motionSamples,completed);
@@ -457,7 +491,7 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
       const count=post.sampleCount;
       const strata=spectrum.count/3;
       const cycle=Math.floor(count/strata)+1;
-      const renderState={...state,yaw:state.yaw+rotationOffset};
+      const renderState={...state,yaw:state.yaw+rotationOffset,moving:false};
       drawSpectralPass(
         renderState,count,
         (halton(count+1,2)+halton(cycle,5))%1-.5,
@@ -466,6 +500,7 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
       if(post.sampleCount%strata===0){
         post.present({glare:.075});
         renderedYaw=renderState.yaw;
+        renderedPitch=renderState.pitch;renderedZoom=renderState.zoom;
         totalPresentedFrames++;presentedSinceStats++;
       }
       notify(now,false,0);
@@ -516,7 +551,11 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     setOptions(partial={}){
       const prior=state;state=validateOptions(state,partial);
       if(state.cut!==prior.cut){planes=createCutPlanes(state.cut);planesDirty=true;}
-      if(state.quality!==prior.quality){spectrum=createSpectralTable(state.quality==='ultra'?48:24);spectrumDirty=true;autoDpr=Math.min(window.devicePixelRatio||1,1.25);}
+      if(state.quality!==prior.quality){
+        adaptiveScale=1;motionFrameMean=0;lastMotionPresent=0;
+        activateSpectrum(isMovingMode());
+        autoDpr=Math.min(window.devicePixelRatio||1,1.25);
+      }
       const opticsChanged=['gem','cut','environment','lightAngle','intensity','dispersion','quality']
         .some((key)=>state[key]!==prior[key]);
       if(opticsChanged){motionCycle=null;post.reset();}
@@ -524,13 +563,16 @@ export function createGemRenderer(canvas,{onError,onStats}={}) {
     },resetView,
     destroy(){if(destroyed)return;destroyed=true;cancelAnimationFrame(frame);observer.disconnect();Object.entries(handlers).forEach(([name,fn])=>canvas.removeEventListener(name,fn));canvas.removeEventListener('wheel',wheel);document.removeEventListener('visibilitychange',visibility);canvas.style.touchAction=oldTouchAction;post.destroy();gl.deleteTexture(illuminantTexture);gl.deleteVertexArray(vao);gl.deleteProgram(program);},
     getState(){
-      const moving=mode==='motion-spectral';
+      const moving=isMovingMode();
       return Object.freeze({
         ...state,yaw:state.yaw+rotationOffset,planeCount:planes.length,
-        maxBounces:bounceLimit(),sampleCount:moving?0:post.sampleCount,
+        maxBounces:bounceLimit(moving),sampleCount:moving?0:post.sampleCount,
         targetSamples:targetSamples(),spectralBands:spectrum.count,
-        motionSamples:motionCycle?.subpass??0,targetMotionSamples:spectrum.count/3,
-        moving,mode,completedMotionFrames,totalPresentedFrames,renderedYaw,
+        motionSamples:motionCycle?.subpass??0,
+        targetMotionSamples:getRenderPolicy(state.quality,true).strata,
+        moving,mode,completedMotionFrames,totalPresentedFrames,
+        renderedYaw,renderedPitch,renderedZoom,
+        renderPixels:canvas.width*canvas.height,adaptiveScale,
         hdr:post.hdrSupported,approximations:OPTICS_APPROXIMATIONS,
       });
     },

@@ -17,4 +17,26 @@ test('flat D65 estimator integrates to its reference white', () => {
   for (let i = 0; i < t.count; i++) for (let c = 0; c < 3; c++) xyz[c] += t.daylight[i] * t.packed[i * 4 + c + 1] / t.count;
   assert.deepEqual(xyz.map(v => +v.toFixed(4)), t.whiteXYZ.map(v => +v.toFixed(4)));
 });
-test('1931 Y peak is near 550 nm and counts are explicit', () => { assert.ok(cieXYZ(550)[1] > .98); assert.throws(() => createSpectralTable(12), RangeError); });
+test('motion tables cover the visible interval and retain normalized D65 energy', () => {
+  for (const count of [6, 12]) {
+    const table = createSpectralTable(count);
+    assert.equal(table.count, count);
+    assert.ok(table.wavelengths[0] > 380 && table.wavelengths.at(-1) < 780);
+    assert.ok(table.wavelengths[0] < 420 && table.wavelengths.at(-1) > 740);
+    const xyz = [0, 0, 0];
+    for (let i = 0; i < count; i += 1) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        xyz[channel] += table.daylight[i] * table.packed[i * 4 + channel + 1] / count;
+      }
+    }
+    assert.deepEqual(xyz.map((value) => +value.toFixed(4)),
+      table.whiteXYZ.map((value) => +value.toFixed(4)));
+    assert.ok(Math.abs(table.whiteXYZ[1] - 1) < 1e-6);
+    assert.ok(Math.abs(table.whiteXYZ[0] - .95) < .012, String(table.whiteXYZ));
+    assert.ok(Math.abs(table.whiteXYZ[2] - 1.089) < .018, String(table.whiteXYZ));
+  }
+});
+test('1931 Y peak is near 550 nm and supported counts are explicit', () => {
+  assert.ok(cieXYZ(550)[1] > .98);
+  assert.throws(() => createSpectralTable(9), RangeError);
+});

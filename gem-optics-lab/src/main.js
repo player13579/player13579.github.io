@@ -10,7 +10,7 @@ const materials = {
 };
 const cutNames = { brilliant: 'ラウンド・ブリリアント', emerald: 'エメラルド・カット', oval: 'オーバル・カット' };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const options = { gem: 'diamond', cut: 'brilliant', environment: 'studio', lightAngle: 35, intensity: 1.2, dispersion: 1, autoRotate: false, quality: 'high' };
+const options = { gem: 'diamond', cut: 'brilliant', environment: 'studio', lightAngle: 35, intensity: 1.2, dispersion: 1, autoRotate: false, quality: 'auto' };
 let renderer;
 let ready = false;
 
@@ -103,7 +103,7 @@ try {
     onStats: (stats) => {
       if (!ready && stats.totalPresentedFrames > 0) { ready = true; $('loading').hidden = true; }
       const percent = Math.min(100, Math.round(stats.samples / stats.targetSamples * 100));
-      $('refinement-status').textContent = stats.moving ? `${stats.spectralBands}波長 · 回転中も精細描画` : stats.refining ? `細部を描画中 ${percent}%` : `${stats.spectralBands}波長 · 精細化完了`;
+      $('refinement-status').textContent = stats.moving ? (options.quality === 'auto' ? '回転中 · タブレット向け描画' : `${stats.spectralBands}波長 · 回転中も精細描画`) : stats.refining ? `細部を描画中 ${percent}%` : `${stats.spectralBands}波長 · 精細化完了`;
       $('refinement-status').classList.toggle('complete', !stats.refining && !stats.moving);
       $('gem-canvas').dataset.samples = String(stats.samples);
       $('gem-canvas').dataset.targetSamples = String(stats.targetSamples);
@@ -111,14 +111,15 @@ try {
       $('gem-canvas').dataset.moving = String(stats.moving);
       $('gem-canvas').dataset.spectralBands = String(stats.spectralBands);
       $('gem-canvas').dataset.bounces = String(stats.bounces);
+      if (Number.isFinite(stats.renderPixels)) $('gem-canvas').dataset.renderPixels = String(stats.renderPixels);
+      if (Number.isFinite(stats.adaptiveScale)) $('gem-canvas').dataset.adaptiveScale = String(stats.adaptiveScale);
       if (Number.isFinite(stats.completedMotionFrames)) $('gem-canvas').dataset.motionFrames = String(stats.completedMotionFrames);
       if (Number.isFinite(stats.renderedYaw)) $('gem-canvas').dataset.renderedYaw = String(stats.renderedYaw);
+      if (Number.isFinite(stats.renderedZoom)) $('gem-canvas').dataset.renderedZoom = String(stats.renderedZoom);
     },
   });
   renderer.setOptions(options);
   updateReadouts();
-  // Compilation succeeded; the first animation frame can now paint the gemstone.
-  requestAnimationFrame(() => { if ($('render-error').hidden) $('loading').hidden = true; });
 } catch (error) { showError(error); }
 
 window.addEventListener('pagehide', () => renderer?.destroy());
