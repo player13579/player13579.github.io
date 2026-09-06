@@ -11098,3 +11098,279 @@ body #fieldFeedPanel #chatForm {
     overflow: visible !important;
   }
 }
+
+/* Developer-only candidate — append after the current Applied Effects cascade. */
+/* Paint only: native scroll, row order, text metrics, and effect semantics stay owned by existing rules. */
+body #activeEffectsPanel {
+  border-color: #9eb9c1;
+  background-color: #f2f7f8;
+  box-shadow: inset 0 1px rgba(250, 252, 253, 0.9), 0 8px 20px rgba(16, 37, 50, 0.1);
+  color: #173b48;
+}
+
+body #activeEffectsPanel h3 {
+  color: #f2f7f8;
+  background-color: #102532;
+  border-bottom-color: #315260;
+  box-shadow: inset 0 -1px rgba(52, 179, 190, 0.28), inset 0 1px rgba(250, 252, 253, 0.1);
+}
+
+/* Tablet final cascade names the direct heading and otherwise wins specificity. */
+body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) > h3 {
+  color: #f2f7f8 !important;
+  background-color: #102532;
+  border-bottom-color: #315260;
+}
+
+body #activeEffectsPanel li {
+  border-color: #d4e1e4;
+  background-color: #fafcfd;
+  box-shadow: inset 0 0 0 1px rgba(181, 203, 210, 0.2);
+  color: #173b48;
+}
+
+body #activeEffectsPanel .effect-name {
+  color: #173b48;
+}
+
+body #activeEffectsPanel .effect-detail {
+  color: #4d6872;
+}
+
+body #activeEffectsPanel .effect-value {
+  color: #173b48;
+  background-color: #e3f0f2;
+  box-shadow: inset 0 0 0 1px rgba(52, 179, 190, 0.2);
+}
+
+body #activeEffectsPanel li.effect-tone-neutral { border-left-color: #698590; }
+body #activeEffectsPanel li.effect-tone-desire { border-left-color: #8f3a55; }
+body #activeEffectsPanel li.effect-tone-spirit { border-left-color: #ad7926; }
+body #activeEffectsPanel li.effect-tone-rational { border-left-color: #34b3be; }
+body #activeEffectsPanel li.effect-tone-truth { border-left-color: #a06f20; }
+body #activeEffectsPanel li.effect-tone-beauty { border-left-color: #238b9a; }
+body #activeEffectsPanel li.effect-tone-good { border-left-color: #177d6e; }
+body #activeEffectsPanel li.effect-tone-idea { border-left-color: #526f79; }
+body #activeEffectsPanel li.effect-tone-instant { border-left-color: #bf6a2b; }
+
+body #activeEffectsPanel li.effect-tone-desire .effect-value { background-color: #f7e8ed; }
+body #activeEffectsPanel li.effect-tone-spirit .effect-value,
+body #activeEffectsPanel li.effect-tone-truth .effect-value { background-color: #f7efdf; }
+body #activeEffectsPanel li.effect-tone-rational .effect-value,
+body #activeEffectsPanel li.effect-tone-beauty .effect-value { background-color: #e1f4f6; }
+body #activeEffectsPanel li.effect-tone-good .effect-value { background-color: #e3f3ee; }
+body #activeEffectsPanel li.effect-tone-instant .effect-value { background-color: #fbede2; }
+
+/* Developer-only inventory paint append. Append after styles.css v644. */
+body #itemControl {
+  color: #173b48;
+  border-color: #b5cbd2;
+  background-color: #f2f7f8;
+  background-image: linear-gradient(145deg, #fafcfd, #edf4f5) !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 8px 18px rgba(16, 37, 50, 0.12);
+}
+
+body #itemControl .item-control-head {
+  border-bottom-color: #b5cbd2;
+  background-color: #193846;
+  background-image: linear-gradient(135deg, #193846, #102532);
+}
+
+body #itemControl .item-control-head > span:first-child strong {
+  color: #f2f7f8 !important;
+  text-shadow: none;
+}
+
+body #itemControl .item-control-head > span:first-child small,
+body #itemControl .item-control-head > span:last-child {
+  color: #d9edf0 !important;
+  text-shadow: none;
+}
+
+body #itemControl #enhanceReadout {
+  color: #4d6872 !important;
+  text-shadow: none;
+}
+
+body #itemControl #itemInventoryGrid {
+  border-color: #b5cbd2;
+  background-color: #edf4f5;
+}
+
+body #itemControl .item-inventory-choice {
+  border-color: #b5cbd2;
+  color: #173b48 !important;
+  background-color: #fafcfd;
+  box-shadow: inset 0 1px 0 #ffffff, 0 2px 5px rgba(16, 37, 50, 0.09);
+}
+
+body #itemControl .item-inventory-choice:hover:not(:disabled),
+body #itemControl .item-inventory-choice:focus-visible:not(:disabled) {
+  border-color: #34b3be;
+  background-color: #eefafb;
+  box-shadow: inset 3px 0 #34b3be, inset 0 0 0 1px rgba(52, 179, 190, 0.22), 0 3px 8px rgba(16, 37, 50, 0.12);
+}
+
+body #itemControl .item-inventory-choice.selected:not([data-inventory-kind="weapon"]) {
+  border-color: #177d6e;
+  color: #f2fffb !important;
+  background-color: #177d6e;
+  background-image: none !important;
+  box-shadow: inset 4px 0 #34b3be, inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 3px 8px rgba(23, 125, 110, 0.16);
+}
+
+body #itemControl .item-inventory-choice.selected:not([data-inventory-kind="weapon"]) .item-choice-copy :is(strong, small) {
+  color: #f2fffb !important;
+}
+
+body #itemControl .item-inventory-choice:not(.selected) .item-choice-copy strong {
+  color: #173b48 !important;
+}
+
+body #itemControl .item-inventory-choice:not(.selected) .item-choice-copy small {
+  color: #4d6872 !important;
+}
+
+body #itemControl .item-inventory-choice:disabled {
+  border-color: #c9d6da;
+  color: #4d6872 !important;
+  background-color: #e8eef0;
+  box-shadow: inset 3px 0 #c9d6da;
+}
+
+body #itemControl .item-control-actions button,
+body #itemControl .item-transfer-actions button {
+  border-color: #177d6e;
+  color: #f2fffb !important;
+  background-color: #177d6e;
+  background-image: linear-gradient(135deg, #177d6e, #145d63) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 5px rgba(20, 93, 99, 0.15);
+  text-shadow: none;
+}
+
+body #itemControl .item-control-actions button:disabled,
+body #itemControl .item-transfer-actions button:disabled {
+  border-color: #c9d6da;
+  color: #4d6872 !important;
+  background-color: #e8eef0;
+  background-image: none !important;
+  box-shadow: none;
+}
+
+body #itemControl > label {
+  color: #365660 !important;
+}
+
+body #itemControl > label :is(select, input) {
+  border-color: #b5cbd2;
+  color: #173b48 !important;
+  background-color: #fafcfd;
+  box-shadow: inset 0 1px 2px rgba(16, 37, 50, 0.06);
+}
+
+body #itemControl > label :is(select, input):focus {
+  border-color: #34b3be;
+  box-shadow: inset 0 1px 2px rgba(16, 37, 50, 0.06), 0 0 0 2px rgba(52, 179, 190, 0.2);
+}
+
+body #inventoryItemDetail {
+  color: #173b48;
+  border-color: #34b3be;
+  background-color: #f2f7f8;
+  background-image: linear-gradient(145deg, #fafcfd, #edf4f5);
+  box-shadow: inset 3px 0 #34b3be, inset 0 1px 0 #ffffff, 0 16px 38px rgba(16, 37, 50, 0.24);
+}
+
+body #inventoryItemDetail .inventory-item-detail-kicker {
+  color: #177d6e;
+}
+
+body #inventoryItemDetail strong {
+  color: #102532;
+}
+
+body #inventoryItemDetail small {
+  color: #ad7926;
+}
+
+body #inventoryItemDetail p {
+  color: #365660;
+}
+
+/* Paint-only hierarchy for existing operator detail and ability selection.
+   No dimensions, flow, input state, or field ownership are changed here. */
+body #operatorDetail:not([hidden]) {
+  color: #173b48;
+  border-color: #b5cbd2;
+  border-top-color: #34b3be;
+  background-color: #f2f7f8 !important;
+  box-shadow: inset 3px 0 #34b3be, inset 0 0 0 1px rgba(181, 203, 210, 0.56);
+}
+
+body #operatorDetail:not([hidden]) .operator-detail-kicker {
+  color: #177d6e;
+}
+
+body #operatorDetail:not([hidden]) .operator-detail-head strong {
+  color: #102532;
+}
+
+body #operatorDetail:not([hidden]) > p {
+  color: #365660;
+}
+
+body #teleportControl:not([hidden]) {
+  color: #173b48;
+  border-color: #b5cbd2;
+  background-color: #f2f7f8;
+  box-shadow: inset 3px 0 #34b3be, inset 0 0 0 1px rgba(181, 203, 210, 0.52);
+}
+
+body #teleportControl:not([hidden]) :is(.ability-mode-switch > label, > label) {
+  color: #173b48;
+}
+
+body #teleportControl:not([hidden]) select {
+  color: #173b48;
+  border-color: #8fb8c1;
+  background-color: #fafcfd;
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+body #teleportControl:not([hidden]) select:focus-visible {
+  border-color: #177d6e;
+  background-color: #f4fbfb;
+  box-shadow: 0 0 0 3px rgba(52, 179, 190, 0.24), inset 0 1px 0 #ffffff;
+}
+
+body #teleportControl:not([hidden]) select:disabled {
+  color: #4d6872;
+  border-color: #c6d5d9;
+  background-color: #e7edef;
+  box-shadow: none;
+}
+
+body #teleportControl:not([hidden]) .ability-cascade-selects {
+  border-left-color: #34b3be;
+}
+
+body #teleportControl:not([hidden]) .ability-auto-activate {
+  color: #173b48 !important;
+  border-color: #7fb9c3;
+  background-color: #faffff;
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+body #teleportControl:not([hidden]) .ability-auto-activate[data-enabled="0"] {
+  color: #4d6872 !important;
+  border-color: #c6d5d9;
+  background-color: #e7edef;
+  box-shadow: none;
+}
+
+body #teleportControl:not([hidden]) .ability-mode-description {
+  color: #173b48;
+  border-left-color: #34b3be;
+  background-color: #e8f5f6;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}

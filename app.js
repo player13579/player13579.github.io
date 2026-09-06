@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v644";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v645";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -868,7 +868,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v644";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v645";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1426,6 +1426,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
   els.hackerAbilityDock.hidden = !visible;
   if (!visible) {
     state.hackerDockRenderKey = "";
+    if (state.inventoryItemDetailSource && els.hackerAbilityDock.contains(state.inventoryItemDetailSource)) hideInventoryItemDetail();
     return;
   }
   if (opening) {
@@ -1448,6 +1449,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
   const renderKey = `${category.id}:${recipes.map((recipe) => recipe.id).join("|")}`;
   if (force || renderKey !== state.hackerDockRenderKey) {
     state.hackerDockRenderKey = renderKey;
+    if (state.inventoryItemDetailSource && els.hackerAbilityGrid.contains(state.inventoryItemDetailSource)) hideInventoryItemDetail();
     els.hackerAbilityGrid.replaceChildren();
     recipes.forEach((recipe, index) => {
       const source = els.alchemyChoiceGrid.querySelector(`[data-alchemy-choice="${CSS.escape(recipe.id)}"]`);
@@ -11925,7 +11927,7 @@ function hideOperatorDetail() {
 }
 
 function showOperatorDetail(operator, sourceButton) {
-  if (!operator || !sourceButton) return;
+  if (!operator || !sourceButton?.isConnected || sourceButton.closest("[hidden]")) return;
   hideOperatorDetail();
   state.operatorDetailSource = sourceButton;
   sourceButton.setAttribute("aria-describedby", "operatorDetail");
@@ -11943,6 +11945,10 @@ function showOperatorDetail(operator, sourceButton) {
   });
   scheduleGameplayViewportReflow(true);
   state.operatorDetailTimer = window.setTimeout(hideOperatorDetail, 12_000);
+}
+
+function isDetailKeyboardShortcut(event) {
+  return !event.repeat && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"));
 }
 
 function bindOperatorDetailHold(button, operator) {
@@ -11965,6 +11971,14 @@ function bindOperatorDetailHold(button, operator) {
     event.stopPropagation();
     clearSelection();
   };
+  button.setAttribute("aria-keyshortcuts", "Shift+F10 ContextMenu");
+  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10");
+  button.addEventListener("keydown", (event) => {
+    if (!isDetailKeyboardShortcut(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showOperatorDetail(operator, button);
+  });
   for (const type of ["contextmenu", "selectstart", "dragstart", "copy"]) button.addEventListener(type, suppressNative);
   button.addEventListener("pointerdown", (event) => {
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
@@ -12903,7 +12917,7 @@ function hideInventoryItemDetail() {
 }
 
 function showInventoryItemDetail(item, sourceButton) {
-  if (!item || !sourceButton) return;
+  if (!item || !sourceButton?.isConnected || sourceButton.closest("[hidden]")) return;
   if (state.inventoryItemDetailTimer) window.clearTimeout(state.inventoryItemDetailTimer);
   state.inventoryItemDetailSource?.removeAttribute("aria-describedby");
   state.inventoryItemDetailSource = sourceButton;
@@ -12988,6 +13002,14 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     event.stopPropagation();
     clearNativeSelection();
   };
+  button.setAttribute("aria-keyshortcuts", "Shift+F10 ContextMenu");
+  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10");
+  button.addEventListener("keydown", (event) => {
+    if (!isDetailKeyboardShortcut(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showInventoryItemDetail(button.__inventoryDetailItem || item, button);
+  });
   button.addEventListener("contextmenu", suppressNativeLongPress);
   button.addEventListener("selectstart", suppressNativeLongPress);
   button.addEventListener("dragstart", suppressNativeLongPress);
@@ -13084,6 +13106,7 @@ function renderItemControl(data) {
     if (preferredItemId) els.itemSelect.value = preferredItemId;
     els.transferTargetSelect.innerHTML = targets.map((target) => `<option value="${escapeHtml(target.id)}">${escapeHtml(playerIdentityLabel(target))}</option>`).join("");
     if (targets.some((target) => target.id === previousTarget)) els.transferTargetSelect.value = previousTarget;
+    if (state.inventoryItemDetailSource && els.itemInventoryGrid.contains(state.inventoryItemDetailSource)) hideInventoryItemDetail();
     els.itemInventoryGrid.replaceChildren();
     items.forEach((item) => {
       const button = document.createElement("button");
@@ -22251,7 +22274,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v644";
+const version = "ui-visual-elevation-v645";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23225,7 +23248,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v644", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v645", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
