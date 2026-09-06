@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-emp-lock-projection-v635";
+const DVA_CLIENT_RELEASE = "ui-controls-accessibility-v636";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -438,6 +438,7 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
 const state = {
   screen: "title",
   tacticsReturnScreen: "title",
+  tacticsReturnFocus: "",
   data: null,
   soloMissionStarting: false,
   roomId: localStorage.getItem(storage.room) || "",
@@ -867,7 +868,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-emp-lock-projection-v635";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-controls-accessibility-v636";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2358,6 +2359,7 @@ async function runTitleCommandTransition(button, action) {
   button.classList.remove("title-command-dispersing");
   els.titlePlayButton.disabled = false;
   els.titleTacticsButton.disabled = false;
+  if (state.screen === "title" && state.tacticsReturnScreen === "title" && state.tacticsReturnFocus === "title-tactics") syncKeyboardContext(true);
   state.titleCommandTransitionRunning = false;
   return true;
 }
@@ -5056,7 +5058,7 @@ function preferredKeyboardElement(elements) {
   const preferred = state.fieldFeedOpen
     ? (!els.chatInput.disabled ? els.chatInput : els.chatTab)
     : state.screen === "title"
-    ? els.titlePlayButton
+    ? (state.tacticsReturnScreen === "title" && state.tacticsReturnFocus === "title-tactics" ? els.titleTacticsButton : els.titlePlayButton)
     : state.screen === "tactics"
       ? els.tacticsChapterList.querySelector("button.active")
     : phase === "join"
@@ -5088,6 +5090,18 @@ function syncKeyboardContext(force = false) {
   const context = keyboardContextKey();
   const controls = contextKeyboardElements();
   const currentValid = state.keyboardElement?.isConnected && controls.includes(state.keyboardElement);
+  const retainedClosedKeybindLauncher =
+    !force &&
+    context === state.keyboardContext &&
+    !state.keybindOpen &&
+    state.keyboardElement === els.keybindButton &&
+    document.activeElement === els.keybindButton &&
+    els.keybindButton.isConnected &&
+    !els.keybindButton.disabled &&
+    !els.keybindButton.hidden &&
+    !els.keybindButton.closest("[hidden]") &&
+    els.keybindButton.getClientRects().length > 0;
+  if (retainedClosedKeybindLauncher) return;
   if (!force && context === state.keyboardContext && currentValid) return;
   state.keyboardContext = context;
   state.keyboardElement = null;
@@ -5096,6 +5110,9 @@ function syncKeyboardContext(force = false) {
   });
   const preferred = preferredKeyboardElement(controls);
   if (preferred) setKeyboardSelection(preferred, false);
+  if (preferred === els.titleTacticsButton && state.tacticsReturnScreen === "title" && state.tacticsReturnFocus === "title-tactics") {
+    state.tacticsReturnFocus = "";
+  }
 }
 
 function navigateKeyboardContext(key) {
@@ -6104,6 +6121,15 @@ function handleKeybindModalKeydown(event) {
     return true;
   }
   if (editableTarget) return false;
+  if (
+    (event.key === "Enter" || event.code === "Space") &&
+    activeElement === els.keybindCloseButton &&
+    contextKeyboardElements().includes(activeElement)
+  ) {
+    event.preventDefault();
+    if (!event.repeat) els.keybindCloseButton.click();
+    return true;
+  }
   if (event.key === "Escape") {
     event.preventDefault();
     setKeybindOpen(false);
@@ -6277,12 +6303,15 @@ function bindEvents() {
     void runTitleCommandTransition(els.titlePlayButton, () => switchScreenWithEffect("game"));
   });
   els.titleTacticsButton.addEventListener("click", () => {
+    if (els.titleTacticsButton.disabled || state.titleCommandTransitionRunning) return;
     state.tacticsReturnScreen = "title";
+    state.tacticsReturnFocus = "title-tactics";
     recordUsageCheckpoint("tactics_open");
     void runTitleCommandTransition(els.titleTacticsButton, () => switchScreenWithEffect("tactics"));
   });
   els.gameTacticsButton.addEventListener("click", () => {
     state.tacticsReturnScreen = "game";
+    state.tacticsReturnFocus = "";
     recordUsageCheckpoint("tactics_open_from_game");
     switchScreenWithEffect("tactics");
   });
@@ -6895,6 +6924,7 @@ function bindEvents() {
   document.addEventListener("pointerdown", (event) => {
     const element = event.target;
     if (!(element instanceof Element)) return;
+    if (state.screen === "title" && state.tacticsReturnFocus === "title-tactics") state.tacticsReturnFocus = "";
     const scrollRegion = element.closest("[data-scroll-region]");
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
     const rightPaneTap = state.screen === "game" &&
@@ -6975,11 +7005,26 @@ function bindEvents() {
 
   window.addEventListener("keydown", (event) => {
     const eventTarget = event.target instanceof Element ? event.target : document.activeElement;
+    if (state.screen === "title" && state.tacticsReturnFocus === "title-tactics") state.tacticsReturnFocus = "";
     if (handleSwitchDragMenuKeydown(event)) return;
     if (handleKillCameraDialogKeydown(event)) return;
     if (handleKeybindModalKeydown(event)) return;
     if (handleFieldFeedDialogKeydown(event)) return;
     if (handleExpandedMapDialogKeydown(event)) return;
+    const closedKeybindLauncherActivation =
+      !state.keybindOpen &&
+      eventTarget === els.keybindButton &&
+      document.activeElement === els.keybindButton &&
+      els.keybindButton.isConnected &&
+      !els.keybindButton.disabled &&
+      !els.keybindButton.hidden &&
+      !els.keybindButton.closest("[hidden]") &&
+      els.keybindButton.getClientRects().length > 0 &&
+      (event.key === "Enter" || event.code === "Space");
+    if (closedKeybindLauncherActivation) {
+      if (event.repeat) event.preventDefault();
+      return;
+    }
     const editableTarget = eventTarget?.matches?.('input, textarea, [contenteditable="true"]')
       ? eventTarget
       : document.activeElement?.matches?.('input, textarea, [contenteditable="true"]')
@@ -7040,10 +7085,20 @@ function bindEvents() {
       navigateSelectedScrollRegion(event.key);
       return;
     }
-    if (!typingField && selectedScrollRegion() && (event.key === "Enter" || event.code === "Space")) {
+    const selectedRegion = !typingField ? selectedScrollRegion() : null;
+    const scrollRegionActivationKey = event.key === "Enter" || event.code === "Space";
+    const focusedContextControl =
+      selectedRegion && scrollRegionActivationKey && contextKeyboardElements().includes(document.activeElement)
+        ? document.activeElement
+        : null;
+    if (
+      selectedRegion &&
+      scrollRegionActivationKey &&
+      (!focusedContextControl || focusedContextControl === selectedRegion || selectedRegion.contains(focusedContextControl))
+    ) {
       event.preventDefault();
       if (!event.repeat) {
-        const region = selectedScrollRegion();
+        const region = selectedRegion;
         beginContinuousActionKeyHold(event.code, () => {
           if (selectedScrollRegion() !== region) return false;
           return activateSelectedScrollRegionChoice();
@@ -7449,7 +7504,8 @@ function clearMovementInput() {
 }
 
 function setKeybindOpen(open, options = {}) {
-  state.keybindOpen = Boolean(open);
+  const willOpen = Boolean(open);
+  state.keybindOpen = willOpen;
   els.keybindOverlay.hidden = !state.keybindOpen;
   els.keybindButton.setAttribute("aria-expanded", String(state.keybindOpen));
   if (state.keybindOpen) {
@@ -7466,9 +7522,17 @@ function setKeybindOpen(open, options = {}) {
     clearLocalGunTrigger();
     requestAnimationFrame(() => els.keybindList.focus({ preventScroll: true }));
   } else if (options.focus !== false) {
+    syncKeyboardContext(true);
+    state.keyboardElement?.classList.remove("keyboard-selected");
+    state.keyboardElement = els.keybindButton;
+    els.keybindButton.classList.add("keyboard-selected");
     els.keybindButton.focus({ preventScroll: true });
   }
-  requestAnimationFrame(() => syncKeyboardContext(true));
+  if (willOpen || options.focus === false) {
+    requestAnimationFrame(() => {
+      if (state.keybindOpen === willOpen) syncKeyboardContext(true);
+    });
+  }
 }
 
 function bindTabletControls() {
@@ -22023,7 +22087,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-emp-lock-projection-v635";
+const version = "ui-controls-accessibility-v636";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22997,7 +23061,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-emp-lock-projection-v635", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-controls-accessibility-v636", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

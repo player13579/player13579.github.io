@@ -1028,13 +1028,19 @@ body.game-open .app-shell {
   font-size: 14px;
 }
 
-.title-command.title-play {
+body .title-command.title-play {
   border-color: #67e8f9;
+  color: #f8fafc;
   background:
-    linear-gradient(110deg, rgba(8, 70, 75, 0.98), rgba(13, 148, 136, 0.95) 58%, rgba(8, 61, 72, 0.98));
+    linear-gradient(110deg, rgba(8, 70, 75, 0.98), rgba(12, 113, 107, 0.95) 58%, rgba(8, 61, 72, 0.98));
+}
+
+body .title-command.title-play > span[aria-hidden="true"] {
+  color: inherit;
 }
 
 .title-command-mark > span[aria-hidden="true"] {
+  color: inherit;
   font-size: 26px;
 }
 
@@ -1184,6 +1190,7 @@ body.tactics-open {
 
 .tactics-header h2 {
   margin: 0;
+  color: #f1f5f9;
   font-size: 28px;
   letter-spacing: 0;
 }
@@ -1223,7 +1230,7 @@ body.tactics-open {
   border-color: transparent;
   background: transparent;
   padding: 0 10px;
-  color: #b9c6ce;
+  color: #17384a;
   font-size: 12px;
   text-align: left;
 }
@@ -1306,6 +1313,10 @@ body.tactics-open {
 .solo-training-heading h3,
 .solo-training-heading p {
   margin: 0;
+}
+
+#soloTrainingTitle {
+  color: #f1f5f9;
 }
 
 .solo-training-progress {

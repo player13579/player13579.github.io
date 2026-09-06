@@ -149,7 +149,7 @@
   };
 
   return Object.freeze({
-    version: "ui-emp-lock-projection-v635",
+    version: "ui-controls-accessibility-v636",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
