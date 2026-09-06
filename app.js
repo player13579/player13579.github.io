@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v649";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v650";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -901,7 +901,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v649";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v650";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -6524,9 +6524,17 @@ function handleExpandedMapDialogKeydown(event) {
 
 function handleKillCameraDialogKeydown(event) {
   if (els.killCameraOverlay.hidden) return false;
+  const reselectAvailable = !els.operatorReselectButton.hidden && !els.operatorReselectButton.disabled;
   if (event.key === "Tab") {
     event.preventDefault();
-    els.killCameraCloseButton.focus({ preventScroll: true });
+    const controls = reselectAvailable
+      ? [els.killCameraCloseButton, els.operatorReselectButton]
+      : [els.killCameraCloseButton];
+    const activeIndex = controls.indexOf(document.activeElement);
+    const nextIndex = activeIndex < 0
+      ? (event.shiftKey ? controls.length - 1 : 0)
+      : (activeIndex + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+    controls[nextIndex].focus({ preventScroll: true });
     return true;
   }
   if (event.key === "Escape") {
@@ -6538,12 +6546,29 @@ function handleKillCameraDialogKeydown(event) {
     }
     return true;
   }
+  if (reselectAvailable && document.activeElement === els.operatorReselectButton && (event.key === "Enter" || event.code === "Space")) {
+    event.preventDefault();
+    if (!event.repeat) {
+      const record = state.data?.self?.killCamera;
+      if (record?.id) state.dismissedKillCameraId = record.id;
+      setKillCameraOpen(false, { focus: false });
+      els.operatorReselectButton.click();
+    }
+    return true;
+  }
   event.preventDefault();
   return true;
 }
 
 function handleKillCameraOwnedPointer(event) {
   if (els.killCameraOverlay.hidden || els.killCameraOverlay.contains(event.target)) return;
+  const reselectAvailable = !els.operatorReselectButton.hidden && !els.operatorReselectButton.disabled;
+  if (reselectAvailable && els.operatorReselectButton.contains(event.target)) {
+    const record = state.data?.self?.killCamera;
+    if (record?.id) state.dismissedKillCameraId = record.id;
+    setKillCameraOpen(false, { focus: false });
+    return;
+  }
   event.preventDefault();
   event.stopImmediatePropagation();
 }
@@ -22596,7 +22621,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v649";
+const version = "ui-visual-elevation-v650";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23570,7 +23595,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v649", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v650", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
