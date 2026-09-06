@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v656";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v657";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -895,7 +895,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v656";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v657";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -13150,11 +13150,11 @@ function renderItemControl(data) {
   }
   [...els.itemSelect.options].forEach((option) => {
     const item = items.find((entry) => entry.id === option.value);
-    if (item) option.textContent = `${item.label} ${item.badge || ""}`.trim();
+    if (item) { const expected = `${item.label} ${item.badge || ""}`.trim(); if (option.textContent !== expected) option.textContent = expected; }
   });
   [...els.transferTargetSelect.options].forEach((option) => {
     const target = targets.find((entry) => entry.id === option.value);
-    if (target) option.textContent = playerIdentityLabel(target);
+    if (target) { const expected = playerIdentityLabel(target); if (option.textContent !== expected) option.textContent = expected; }
   });
   els.itemInventoryGrid.querySelectorAll("[data-item-choice]").forEach((button) => {
     const item = items.find((entry) => entry.id === button.dataset.itemChoice);
@@ -22700,7 +22700,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v656";
+const version = "ui-visual-elevation-v657";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23737,7 +23737,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v656", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v657", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

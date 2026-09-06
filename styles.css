@@ -12122,6 +12122,14 @@ body .toast[data-toast-motion="exit"] {
   min-height: 44px;
 }
 
+/* Medium landscape: stage top chrome plus its 44px control row consumes 260px at the constrained route. Keep native 16:9 video and controls initially visible; transcript scrolls below. */
+@media (min-width:600px) and (max-width:900px) and (orientation:landscape) and (min-height:440px) and (max-height:640px) {
+  .tactics-panel.novel-active .tactics-novel-video-stage { overflow-y:auto; overscroll-behavior:contain; padding-bottom:max(14px, env(safe-area-inset-bottom, 0px)); }
+  .tactics-panel.novel-active #tacticsNovelVideo { width:auto; max-width:100%; height:auto; max-height:min(300px, calc(100dvh - 260px)); margin-inline:auto; }
+  /* Reserve the fixed lower utility lane at the transcript endpoint only; do not alter the initial video budget. */
+  .tactics-panel.novel-active .tactics-novel-transcript { padding-bottom:80px; scroll-margin-bottom:80px; }
+}
+
 /* v654 review: a 220px drill shelf stays complete on short landscape screens.
    The extra :not(.novel-active) also raises specificity above the existing
    final ID-based card rows without affecting the dedicated novel layout. */
@@ -12207,5 +12215,139 @@ body .toast[data-toast-motion="exit"] {
 
   #tacticsPanel:not([hidden]):not(.novel-active) .tactics-layout {
     min-height: 240px;
+  }
+}
+
+/* Medium landscape has the same tall seven-card source data as the v655 wide
+   shelf, but not the wide layout's spare horizontal space. Bound this one
+   training shelf so the chapter/article owner keeps a useful reading height. */
+@media (min-width: 600px) and (max-width: 900px) and (orientation: landscape) and (min-height: 440px) and (max-height: 640px) {
+  #tacticsPanel:not([hidden]):not(.novel-active) {
+    grid-template-rows: 80px clamp(104px, calc(100dvh - 336px), 156px) minmax(256px, 1fr);
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .tactics-header {
+    height: 80px;
+    min-height: 80px;
+    padding: 6px 12px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .tactics-header .title-icon-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-training {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 2px 12px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-training-heading {
+    min-height: 20px;
+    align-items: center;
+    margin-bottom: 2px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-training .title-kicker {
+    display: none;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) #soloTrainingTitle {
+    font-size: 16px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-mission-grid {
+    grid-template-columns: repeat(7, 320px);
+    grid-template-rows: 128px;
+    grid-auto-rows: 128px;
+    width: 100%;
+    height: 144px;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    padding: 0 2px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-mission-card {
+    grid-template-columns: 52px minmax(0, 1fr) 68px;
+    grid-template-rows: minmax(0, 1fr);
+    width: 320px;
+    min-width: 320px;
+    height: 128px;
+    min-height: 128px;
+    max-height: 128px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-mission-card img {
+    grid-column: 1;
+    grid-row: 1;
+    width: 52px;
+    height: 100%;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-mission-card > div {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    padding: 5px 7px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-mission-card > div > h4 {
+    display: block;
+    font-size: 14px;
+    line-height: 1.25;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-mission-card > div > span {
+    display: block;
+    font-size: 12px;
+    line-height: 1.32;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .solo-mission-card button {
+    grid-column: 3;
+    grid-row: 1;
+    width: 68px;
+    min-width: 68px;
+    height: 100%;
+    min-height: 44px;
+    padding-inline: 5px;
+  }
+
+  #tacticsPanel:not([hidden]):not(.novel-active) .tactics-layout {
+    min-height: 256px;
+  }
+
+  /* The lower utility rail is fixed. Reserve its 72px lane plus 8px so the
+     final article line remains visible at the native scroll endpoint. */
+  #tacticsPanel:not([hidden]):not(.novel-active) .tactics-content {
+    padding-bottom: 80px;
+    scroll-padding-bottom: 80px;
+  }
+
+  @media (max-width: 720px) {
+    #tacticsPanel:not([hidden]):not(.novel-active) .tactics-layout {
+      grid-template-rows: 56px minmax(0, 1fr);
+    }
+
+    #tacticsPanel:not([hidden]):not(.novel-active) .tactics-chapters {
+      padding: 6px;
+    }
+
+    #tacticsPanel:not([hidden]):not(.novel-active) .tactics-chapters button {
+      flex-basis: 148px;
+      min-height: 44px;
+    }
   }
 }
