@@ -4037,6 +4037,20 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   color: #047857;
 }
 
+.solo-name-guidance:not([hidden]) {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  margin-top: 6px;
+  border-left: 3px solid #24788a;
+  background: #eef7f6;
+  padding: 6px 8px;
+  color: #294b55;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 #nameInput[readonly] {
   border-color: rgba(16, 185, 129, 0.48);
   background: rgba(236, 253, 245, 0.92);
@@ -12189,4 +12203,10 @@ body .toast[data-toast-motion="exit"] {
     animation: none;
     will-change: auto;
   }
+}
+
+
+/* v652: maintain 44px targets for the existing novel dialogue controls. */
+.tactics-panel.novel-active .tactics-novel-controls button {
+  min-height: 44px;
 }

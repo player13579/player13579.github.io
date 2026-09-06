@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v651";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v652";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -191,6 +191,7 @@ const els = {
   transferCreditsButton: $("#transferCreditsButton"),
   nameInput: $("#nameInput"),
   namePolicy: $("#namePolicy"),
+  soloNameGuidance: $("#soloNameGuidance"),
   skinSelect: $("#skinSelect"),
   mapSelect: $("#mapSelect"),
   matchmakingButton: $("#matchmakingButton"),
@@ -475,6 +476,7 @@ const state = {
   tacticsReturnFocus: "",
   data: null,
   soloMissionStarting: false,
+  soloNameGuidanceOpen: false,
   roomId: localStorage.getItem(storage.room) || "",
   playerId: localStorage.getItem(storage.player) || "",
   pendingSkinId: "",
@@ -707,6 +709,7 @@ const state = {
   tacticsNovelAuto: false,
   tacticsNovelSceneChangedAt: 0,
   tacticsNovelFrame: 0,
+  tacticsNovelLayout: null,
   tacticsNovelPointer: null,
   tacticsNovelSuppressClickUntil: 0,
   phaseUiKey: "",
@@ -907,7 +910,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v651";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v652";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2610,9 +2613,17 @@ async function runTitleCommandTransition(button, action) {
   return true;
 }
 
+function setSoloNameGuidance(open) {
+  state.soloNameGuidanceOpen = Boolean(open);
+  els.soloNameGuidance.hidden = !state.soloNameGuidanceOpen;
+  if (state.soloNameGuidanceOpen) els.nameInput.setAttribute("aria-describedby", "namePolicy soloNameGuidance");
+  else els.nameInput.setAttribute("aria-describedby", "namePolicy");
+}
+
 function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   const previous = state.screen;
+  if (next !== "game") setSoloNameGuidance(false);
   state.screen = next;
   state.frameDriver?.sync?.();
   if (previous !== next && (state.activeScrollRegion || state.expandedScrollRegion)) {
@@ -2771,9 +2782,18 @@ function initializeTacticsNovel() {
     syncTacticsNovelAutoControl();
     syncTacticsNovelAnimation();
   });
-  window.addEventListener("resize", () => {
+  const refreshTacticsNovelLayout = () => {
+    measureTacticsNovelLayout();
     if (prefersReducedMotion()) syncTacticsNovelAnimation();
-  }, { passive: true });
+  };
+  const novelDialogue = els.tacticsNovelSpeaker?.closest(".tactics-novel-dialogue");
+  if ("ResizeObserver" in window && novelDialogue) {
+    const novelLayoutObserver = new ResizeObserver(refreshTacticsNovelLayout);
+    novelLayoutObserver.observe(els.tacticsNovelStage);
+    novelLayoutObserver.observe(novelDialogue);
+  } else {
+    window.addEventListener("resize", refreshTacticsNovelLayout, { passive: true });
+  }
   const novelImages = [
     ...Object.values(state.textures.tacticsNovelMotions || {}).flatMap((motions) => Object.values(motions)),
     ...Object.values(state.textures.tacticsNovelMangaSymbols || {})
@@ -2825,6 +2845,48 @@ function setTacticsNovelScene(requestedIndex, options = {}) {
   syncTacticsNovelAnimation();
 }
 
+function measureTacticsNovelLayout() {
+  const canvas = els.tacticsNovelCanvas;
+  const speakerBand = els.tacticsNovelSpeaker?.closest(".tactics-novel-speaker");
+  if (!canvas || !speakerBand) return null;
+  const canvasRect = canvas.getBoundingClientRect();
+  const speakerRect = speakerBand.getBoundingClientRect();
+  if (canvasRect.width < 2 || canvasRect.height < 2 || !Number.isFinite(speakerRect.top)) return null;
+  state.tacticsNovelLayout = {
+    width: canvasRect.width,
+    height: canvasRect.height,
+    occlusionTop: clamp(speakerRect.top - canvasRect.top, 0, canvasRect.height)
+  };
+  return state.tacticsNovelLayout;
+}
+
+function tacticsNovelCharacterLayout(rect) {
+  const compact = rect.width < 620;
+  const legacyHeight = clamp(rect.height * (compact ? 0.56 : 0.72), 245, compact ? 360 : 520);
+  const legacyY = rect.height * (compact ? 0.63 : 0.8);
+  const lowLandscape = !compact && rect.height <= 520 && rect.width >= rect.height * 1.45;
+  if (!lowLandscape) {
+    return { mode: "legacy", compact, characterHeight: legacyHeight, characterY: legacyY, anchorY: legacyY, occlusionTop: rect.height };
+  }
+  const cached = state.tacticsNovelLayout;
+  const cacheMatches = cached && Math.abs(cached.width - rect.width) < 2 && Math.abs(cached.height - rect.height) < 2;
+  const occlusionTop = clamp(cacheMatches ? cached.occlusionTop : rect.height * 0.44, 0, rect.height);
+  const safeTop = clamp(rect.height * 0.12, 48, 58);
+  // Across all seven source gestures and all three frames, the measured worst
+  // face bottom is 55.83% of the normalized opaque frame. 0.62 also contains
+  // the 1.045 active scale and the three-pixel maximum downward bob.
+  const characterHeight = Math.min(250, Math.max(1, occlusionTop - 16 - safeTop) / 0.62);
+  return {
+    mode: "contained-low-landscape",
+    compact: false,
+    characterHeight,
+    characterY: safeTop,
+    anchorY: safeTop + characterHeight * 1.045,
+    occlusionTop,
+    safeTop
+  };
+}
+
 function syncTacticsNovelAnimation() {
   const hidden = typeof document !== "undefined" && document.hidden;
   const active = !hidden && state.screen === "tactics" && state.tacticsChapterId === "tactics-novel" && !els.tacticsNovelStage?.hidden;
@@ -2837,6 +2899,7 @@ function syncTacticsNovelAnimation() {
     }
     return;
   }
+  measureTacticsNovelLayout();
   if (prefersReducedMotion()) {
     if (state.tacticsNovelFrame) cancelAnimationFrame(state.tacticsNovelFrame);
     state.tacticsNovelFrame = 0;
@@ -2873,7 +2936,7 @@ function tacticsNovelGestureActivity(elapsed, active, person) {
   return Math.max(...windows.map(([start, end]) => tacticsNovelCueEnvelope(elapsed, start, end, 210)));
 }
 
-function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, active, timeSeconds, entrance, elapsed) {
+function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, active, timeSeconds, entrance, elapsed, containedFromTop = false) {
   const gestureActivity = tacticsNovelGestureActivity(elapsed, active, person);
   const displayedGesture = gestureActivity > 0.01 ? gesture : "rest";
   const image = state.textures.tacticsNovelMotions?.[person]?.[displayedGesture];
@@ -2884,8 +2947,10 @@ function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, activ
   const frame = gestureActivity > 0.01
     ? tacticsNovelMotionFrame(timeSeconds + (person === "sophia" ? 0 : 0.37))
     : 1;
-  const sourceWidth = source.width / 3;
-  const sourceHeight = source.height;
+  const normalizedFrame = containedFromTop ? normalizedSpriteFrame(source, key, 3, 1, 0, frame) : null;
+  if (containedFromTop && !normalizedFrame) return;
+  const sourceWidth = containedFromTop ? normalizedFrame.width : source.width / 3;
+  const sourceHeight = containedFromTop ? normalizedFrame.height : source.height;
   const activeScale = active ? 1 + gestureActivity * 0.045 : 0.94 + gestureActivity * 0.018;
   const drawHeight = height * activeScale;
   const drawWidth = drawHeight * sourceWidth / sourceHeight;
@@ -2896,7 +2961,11 @@ function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, activ
   ctx.globalAlpha = (active ? 1 : 0.72) * (0.48 + entrance * 0.52);
   ctx.filter = active ? "saturate(1.05) brightness(1.03)" : "saturate(0.78) brightness(0.82)";
   ctx.translate(x + slide, baseY + bob);
-  ctx.drawImage(source, frame * sourceWidth, 0, sourceWidth, sourceHeight, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  if (containedFromTop) {
+    ctx.drawImage(normalizedFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
+  } else {
+    ctx.drawImage(source, frame * sourceWidth, 0, sourceWidth, sourceHeight, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  }
   ctx.restore();
 }
 
@@ -3019,15 +3088,21 @@ function drawTacticsNovelFrame(timestamp) {
   const timeSeconds = reduced ? 0 : timestamp / 1000;
   const entrance = reduced ? 1 : 1 - Math.pow(1 - clamp(elapsed / 520, 0, 1), 3);
   drawTacticsNovelAmbientE(ctx, rect.width, rect.height, timeSeconds);
-  const compact = rect.width < 620;
-  const characterHeight = clamp(rect.height * (compact ? 0.56 : 0.72), 245, compact ? 360 : 520);
-  const baseY = rect.height * (compact ? 0.63 : 0.8);
+  const layout = tacticsNovelCharacterLayout(rect);
+  const { compact, characterHeight, characterY, anchorY } = layout;
+  const contained = layout.mode === "contained-low-landscape";
   const anchors = {
-    sophia: { x: rect.width * (compact ? 0.28 : 0.3), y: baseY, size: characterHeight },
-    philia: { x: rect.width * (compact ? 0.72 : 0.7), y: baseY, size: characterHeight }
+    sophia: { x: rect.width * (compact ? 0.28 : 0.3), y: anchorY, size: characterHeight },
+    philia: { x: rect.width * (compact ? 0.72 : 0.7), y: anchorY, size: characterHeight }
   };
-  drawTacticsNovelCharacter(ctx, "sophia", scene.sophiaGesture, anchors.sophia.x, baseY, characterHeight, scene.speaker === "sophia", timeSeconds, entrance, elapsed);
-  drawTacticsNovelCharacter(ctx, "philia", scene.philiaGesture, anchors.philia.x, baseY, characterHeight, scene.speaker === "philia", timeSeconds, entrance, elapsed);
+  drawTacticsNovelCharacter(ctx, "sophia", scene.sophiaGesture, anchors.sophia.x, characterY, characterHeight, scene.speaker === "sophia", timeSeconds, entrance, elapsed, contained);
+  drawTacticsNovelCharacter(ctx, "philia", scene.philiaGesture, anchors.philia.x, characterY, characterHeight, scene.speaker === "philia", timeSeconds, entrance, elapsed, contained);
+  if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
+    canvas.dataset.characterLayout = layout.mode;
+    canvas.dataset.characterTop = Number(characterY).toFixed(2);
+    canvas.dataset.characterHeight = Number(characterHeight).toFixed(2);
+    canvas.dataset.dialogueOcclusionTop = Number(layout.occlusionTop).toFixed(2);
+  }
   scene.symbols.forEach((symbol, index) => drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance, elapsed));
   if (!reduced && state.tacticsNovelAuto && elapsed >= 7_000) {
     if (state.tacticsNovelIndex >= TACTICS_NOVEL_SCENES.length - 1) setTacticsNovelAuto(false);
@@ -9712,6 +9787,7 @@ async function startMatchmaking() {
     els.nameInput.focus();
     return;
   }
+  setSoloNameGuidance(false);
   const skinId = normalizeSkinId(els.skinSelect.value);
   const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
   localStorage.setItem(storage.name, name);
@@ -9778,10 +9854,12 @@ async function startSoloMission(missionId) {
   if (!soloMissionIds.includes(missionId) || state.soloMissionStarting) return;
   const name = localStorage.getItem(storage.name) || els.nameInput.value.trim();
   if (!name) {
+    setSoloNameGuidance(true);
     showToast("最初に名前を入力してください。");
     setScreen("game");
     return;
   }
+  setSoloNameGuidance(false);
   loadGameplayTextures();
   state.soloMissionStarting = true;
   recordUsageCheckpoint(`solo_start_${missionId}`);
@@ -22772,7 +22850,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v651";
+const version = "ui-visual-elevation-v652";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23796,7 +23874,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v651", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v652", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
