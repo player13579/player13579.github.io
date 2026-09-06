@@ -11374,3 +11374,27 @@ body #teleportControl:not([hidden]) .ability-mode-description {
   background-color: #e8f5f6;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
+
+/* Existing native ability pickers only: give each authored label/select pair
+   its own full-width row. Picker ownership, values, focus and handlers stay
+   with the browser and current renderer. */
+body #teleportControl:not([hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body #teleportControl:not([hidden]) .ability-mode-switch > label:not(.ability-auto-activate),
+body #teleportControl:not([hidden]) > label,
+body #teleportControl:not([hidden]) .ability-cascade-selects > label:not([hidden]) {
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-items: start;
+}
+
+body #teleportControl:not([hidden]) :is(
+  #teleportModeSelect,
+  #teleportTargetSelect,
+  #rootAbilityBranchSelect,
+  #quantumKineticBranchSelect
+) {
+  width: 100%;
+  min-height: 44px;
+}

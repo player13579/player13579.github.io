@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v645";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v646";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -623,6 +623,7 @@ const state = {
   teleportTargeting: false,
   teleportBorrowed: false,
   teleportShopAbilityId: "",
+  selectedShopAbilityId: "",
   teleportTargetId: "",
   teleportTargetMode: "body",
   instantWarpTargeting: false,
@@ -868,7 +869,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v645";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v646";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3490,6 +3491,81 @@ function shopAbilityOwned(abilityId, self = state.data?.self) {
   return Boolean((self?.shopAbilityEntitlements || []).includes(String(abilityId || "")));
 }
 
+function activePurchasedShopAbilities(self = state.data?.self) {
+  return (self?.shopAbilityEntitlements || [])
+    .map((id) => DVA_ECONOMY.abilityProduct(id))
+    .filter((ability) => ability && ["active", "active-target-map"].includes(ability.behavior));
+}
+
+function selectedPurchasedShopAbility(self = state.data?.self) {
+  const selectedId = String(state.selectedShopAbilityId || "");
+  const ability = activePurchasedShopAbilities(self).find((entry) => entry.id === selectedId) || null;
+  if (!ability && selectedId) state.selectedShopAbilityId = "";
+  return ability;
+}
+
+function syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, nativeOptions) {
+  const select = els.teleportModeSelect;
+  const self = data?.self;
+  const choices = activePurchasedShopAbilities(self);
+  const selected = selectedPurchasedShopAbility(self);
+  const fallbackNativeOption = !nativeOptions.length && !rootAbilitySwitchVisible;
+  const choiceKey = choices.map((ability) => ability.id).join("|");
+  const structureKey = [
+    self?.id || "",
+    self?.special || "",
+    rootAbilitySwitchVisible ? "root" : "native",
+    fallbackNativeOption ? "fallback" : nativeOptions.map(([value]) => value).join("|"),
+    select.dataset.specialKey || "",
+    choiceKey
+  ].join(":");
+  const groupPresent = Boolean(select.querySelector("optgroup[data-shop-ability-option]"));
+  const fallbackPresent = Boolean(select.querySelector("option[data-shop-native-option]"));
+  const structureCurrent = select.dataset.shopAbilityKey === structureKey &&
+    groupPresent === Boolean(choices.length) &&
+    fallbackPresent === fallbackNativeOption;
+  if (!structureCurrent) {
+    select.querySelectorAll("[data-shop-ability-option], [data-shop-native-option]").forEach((entry) => entry.remove());
+    if (fallbackNativeOption) {
+      select.replaceChildren();
+      const prompt = document.createElement("option");
+      prompt.value = "";
+      prompt.textContent = "元の固有能力";
+      prompt.disabled = false;
+      prompt.dataset.shopNativeOption = "1";
+      select.append(prompt);
+    }
+    if (choices.length) {
+      const group = document.createElement("optgroup");
+      group.label = "購入済み能力";
+      group.dataset.shopAbilityOption = "1";
+      choices.forEach((ability) => {
+        const option = document.createElement("option");
+        option.value = "shop:" + ability.id;
+        option.textContent = ability.label;
+        group.append(option);
+      });
+      select.append(group);
+    }
+    select.dataset.shopAbilityKey = structureKey;
+  }
+  if (selected) select.value = "shop:" + selected.id;
+  else if (fallbackNativeOption && String(select.value || "").startsWith("shop:")) select.value = "";
+  return selected;
+}
+
+function commitPurchasedAbilityModeSelect() {
+  const value = String(els.teleportModeSelect.value || "");
+  if (!value.startsWith("shop:")) {
+    if (state.selectedShopAbilityId) state.selectedShopAbilityId = "";
+    return false;
+  }
+  const abilityId = value.slice("shop:".length);
+  const ability = activePurchasedShopAbilities().find((entry) => entry.id === abilityId) || null;
+  state.selectedShopAbilityId = ability?.id || "";
+  return true;
+}
+
 async function executePurchasedShopAbility(ability) {
   if (!ability || !shopAbilityOwned(ability.id)) return false;
   if (ability.behavior === "passive") {
@@ -4168,6 +4244,9 @@ function abilityBatchEligible(button) {
 function operatorAbilityAction() {
   const self = state.data?.self;
   if (!self) return null;
+  const selectedShopAbilityId = String(state.selectedShopAbilityId || "");
+  const purchasedShopAbility = selectedPurchasedShopAbility(self);
+  if (selectedShopAbilityId || purchasedShopAbility) return null;
   if (self.special === "fighter") return { path: "/api/limit-break", action: {} };
   if (self.special === "teleport") {
     const mode = els.teleportModeSelect.value;
@@ -6916,6 +6995,21 @@ function bindEvents() {
   els.empButton.addEventListener("click", () => api("/api/emp", { phase: els.empPhaseSelect.value }));
   [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
     select.addEventListener("change", () => {
+      if (select === els.teleportModeSelect && !String(select.value || "") && state.selectedShopAbilityId) {
+        state.selectedShopAbilityId = "";
+        if (state.data) renderTargetOptions(state.data);
+        if (state.data) updateActionButtons(state.data);
+        select.blur();
+        return;
+      }
+      if (select === els.teleportModeSelect && commitPurchasedAbilityModeSelect()) {
+        if (state.data) renderTargetOptions(state.data);
+        if (state.data) updateActionButtons(state.data);
+        const purchased = selectedPurchasedShopAbility();
+        if (state.abilityAutoActivate && purchased) void executePurchasedShopAbility(purchased);
+        select.blur();
+        return;
+      }
       if ([els.teleportModeSelect, els.quantumKineticBranchSelect].includes(select)) {
         if (commitNativeQuantumModeSelect(select)) {
           if (state.data) updateActionButtons(state.data);
@@ -7172,6 +7266,14 @@ function bindEvents() {
     if (handleKeybindModalKeydown(event)) return;
     if (handleFieldFeedDialogKeydown(event)) return;
     if (handleExpandedMapDialogKeydown(event)) return;
+    const persistentOperatorDetailOpen = Boolean(state.operatorDetailSource && !state.operatorDetailTimer && !els.operatorDetail.hidden);
+    const persistentInventoryDetailOpen = Boolean(state.inventoryItemDetailSource && !state.inventoryItemDetailTimer && !els.inventoryItemDetail.hidden);
+    if (event.key === "Escape" && (persistentOperatorDetailOpen || persistentInventoryDetailOpen)) {
+      event.preventDefault();
+      if (persistentOperatorDetailOpen) hideOperatorDetail();
+      if (persistentInventoryDetailOpen) hideInventoryItemDetail();
+      return;
+    }
     const closedKeybindLauncherActivation =
       !state.keybindOpen &&
       eventTarget === els.keybindButton &&
@@ -8459,6 +8561,8 @@ function renderTabletBranch(data, force = false) {
 }
 
 function conciseTabletAbilityName(data) {
+  const purchased = selectedPurchasedShopAbility(data?.self);
+  if (purchased) return purchased.label;
   const owner = els.operatorAbilityButton.dataset.operator || data?.self?.special || "none";
   const mode = els.teleportModeSelect.value;
   const modeNames = {
@@ -9223,6 +9327,12 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
 function triggerOperatorAbility() {
   const self = state.data?.self;
   if (!self) return;
+  const selectedShopAbilityId = String(state.selectedShopAbilityId || "");
+  const purchased = selectedPurchasedShopAbility(self);
+  if (selectedShopAbilityId) {
+    if (purchased) void executePurchasedShopAbility(purchased);
+    return;
+  }
   if (self.special === "fighter") {
     void api("/api/limit-break");
   } else if (self.special === "teleport") {
@@ -11926,7 +12036,7 @@ function hideOperatorDetail() {
   }
 }
 
-function showOperatorDetail(operator, sourceButton) {
+function showOperatorDetail(operator, sourceButton, options = {}) {
   if (!operator || !sourceButton?.isConnected || sourceButton.closest("[hidden]")) return;
   hideOperatorDetail();
   state.operatorDetailSource = sourceButton;
@@ -11944,7 +12054,13 @@ function showOperatorDetail(operator, sourceButton) {
     scheduleGameplayViewportReflow(true);
   });
   scheduleGameplayViewportReflow(true);
-  state.operatorDetailTimer = window.setTimeout(hideOperatorDetail, 12_000);
+  if (options.autoClose !== false) {
+    const detailTimer = window.setTimeout(() => {
+      if (state.operatorDetailTimer !== detailTimer) return;
+      hideOperatorDetail();
+    }, 12_000);
+    state.operatorDetailTimer = detailTimer;
+  }
 }
 
 function isDetailKeyboardShortcut(event) {
@@ -11972,12 +12088,15 @@ function bindOperatorDetailHold(button, operator) {
     clearSelection();
   };
   button.setAttribute("aria-keyshortcuts", "Shift+F10 ContextMenu");
-  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10");
+  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10。Escapeで閉じる");
   button.addEventListener("keydown", (event) => {
     if (!isDetailKeyboardShortcut(event)) return;
     event.preventDefault();
     event.stopPropagation();
-    showOperatorDetail(operator, button);
+    showOperatorDetail(operator, button, { autoClose: false });
+  });
+  button.addEventListener("blur", () => {
+    if (state.operatorDetailSource === button && !state.operatorDetailTimer) hideOperatorDetail();
   });
   for (const type of ["contextmenu", "selectstart", "dragstart", "copy"]) button.addEventListener(type, suppressNative);
   button.addEventListener("pointerdown", (event) => {
@@ -12525,10 +12644,11 @@ function renderTargetOptions(data) {
   state.rootAbilitySelectWasActive = rootAbilitySwitchVisible;
   const alchemyTargetVisible = self.special === "alchemist" &&
     (els.alchemySelect.value === "revive" || els.alchemySelect.value.startsWith("hack-"));
-  const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible) && self.alive && !self.ejected;
+  const purchasedShopAbilities = activePurchasedShopAbilities(self);
+  const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible || purchasedShopAbilities.length > 0) && self.alive && !self.ejected;
   els.teleportControl.hidden = !controlVisible;
-  els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length;
-  els.abilityAutoActivateControl.hidden = !rootAbilitySwitchVisible && !options.length;
+  els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length && !purchasedShopAbilities.length;
+  els.abilityAutoActivateControl.hidden = !rootAbilitySwitchVisible && !options.length && !purchasedShopAbilities.length;
   els.empPhaseControl.hidden = data.phase !== "playing" || !self.alive || self.ejected;
   if (!controlVisible && self.special !== "alchemist") return;
 
@@ -12589,7 +12709,11 @@ function renderTargetOptions(data) {
     rememberSelectedOperatorMode();
   }
 
-  if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && !nativeQuantumKineticTerminalActive(self)) {
+  const selectedShopAbility = syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, options);
+  if (selectedShopAbility) {
+    const descriptionOwner = selectedShopAbility.operator === "gravity" ? "teleport" : selectedShopAbility.operator;
+    els.teleportModeDescription.textContent = "購入済み: " + selectedShopAbility.label + "。" + abilityModeDescription(descriptionOwner, selectedShopAbility.mode, self);
+  } else if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && !nativeQuantumKineticTerminalActive(self)) {
     const explicitMode = modeOwner === "quantum"
       ? selectedQuantumExecutableMode(Boolean(borrowedOperator))
       : "";
@@ -12599,9 +12723,14 @@ function renderTargetOptions(data) {
   const currentAbilityMode = rootAbilitySwitchVisible && borrowedOperator
     ? state.borrowedAbilityModes[borrowedOperator] || ""
     : els.teleportModeSelect.value;
-  const floraTargeting = modeOwner === "flora" &&
-    currentAbilityMode === "sunbeam";
-  const gravityTargeting = ["teleport", "gravity"].includes(modeOwner) && currentAbilityMode !== "time-keeper";
+  const shopFloraTargeting = selectedShopAbility?.operator === "flora" && selectedShopAbility.mode === "sunbeam";
+  const shopGravityTargeting = selectedShopAbility?.operator === "gravity" && selectedShopAbility.mode !== "time-keeper";
+  const floraTargeting = selectedShopAbility
+    ? shopFloraTargeting
+    : modeOwner === "flora" && currentAbilityMode === "sunbeam";
+  const gravityTargeting = selectedShopAbility
+    ? shopGravityTargeting
+    : ["teleport", "gravity"].includes(modeOwner) && currentAbilityMode !== "time-keeper";
   els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && !gravityTargeting && !floraTargeting;
   els.teleportTargetSelect.setAttribute("aria-label", floraTargeting ? "サンビーム対象" : "能力対象");
 
@@ -12624,6 +12753,14 @@ function renderTargetOptions(data) {
     });
     const fallback = targets.find((player) => player.id !== self.id)?.id || targets[0]?.id || "";
     els.teleportTargetSelect.value = targets.some((player) => player.id === previous) ? previous : fallback;
+  }
+  if (
+    selectedShopAbility?.operator === "gravity" &&
+    ["heart", "near"].includes(selectedShopAbility.mode) &&
+    els.teleportTargetSelect.value === self.id
+  ) {
+    const otherTarget = [...els.teleportTargetSelect.options].find((option) => option.value !== self.id);
+    if (otherTarget) els.teleportTargetSelect.value = otherTarget.value;
   }
   if (self.special === "teleport" || borrowedOperator === "gravity") ensureTeleportTargetForMode(data);
 }
@@ -12916,9 +13053,10 @@ function hideInventoryItemDetail() {
   els.inventoryItemDetail.hidden = true;
 }
 
-function showInventoryItemDetail(item, sourceButton) {
+function showInventoryItemDetail(item, sourceButton, options = {}) {
   if (!item || !sourceButton?.isConnected || sourceButton.closest("[hidden]")) return;
   if (state.inventoryItemDetailTimer) window.clearTimeout(state.inventoryItemDetailTimer);
+  state.inventoryItemDetailTimer = null;
   state.inventoryItemDetailSource?.removeAttribute("aria-describedby");
   state.inventoryItemDetailSource = sourceButton;
   sourceButton.setAttribute("aria-describedby", "inventoryItemDetailDescription");
@@ -12927,11 +13065,13 @@ function showInventoryItemDetail(item, sourceButton) {
   els.inventoryItemDetailDescription.textContent = item.detail || "使用・投擲可能";
   els.inventoryItemDetail.hidden = false;
   positionInventoryItemDetail(sourceButton);
-  const detailTimer = window.setTimeout(() => {
-    if (state.inventoryItemDetailTimer !== detailTimer) return;
-    hideInventoryItemDetail();
-  }, 12_000);
-  state.inventoryItemDetailTimer = detailTimer;
+  if (options.autoClose !== false) {
+    const detailTimer = window.setTimeout(() => {
+      if (state.inventoryItemDetailTimer !== detailTimer) return;
+      hideInventoryItemDetail();
+    }, 12_000);
+    state.inventoryItemDetailTimer = detailTimer;
+  }
 }
 
 function positionInventoryItemDetail(sourceButton = state.inventoryItemDetailSource) {
@@ -13003,12 +13143,15 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     clearNativeSelection();
   };
   button.setAttribute("aria-keyshortcuts", "Shift+F10 ContextMenu");
-  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10");
+  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10。Escapeで閉じる");
   button.addEventListener("keydown", (event) => {
     if (!isDetailKeyboardShortcut(event)) return;
     event.preventDefault();
     event.stopPropagation();
-    showInventoryItemDetail(button.__inventoryDetailItem || item, button);
+    showInventoryItemDetail(button.__inventoryDetailItem || item, button, { autoClose: false });
+  });
+  button.addEventListener("blur", () => {
+    if (state.inventoryItemDetailSource === button && !state.inventoryItemDetailTimer) hideInventoryItemDetail();
   });
   button.addEventListener("contextmenu", suppressNativeLongPress);
   button.addEventListener("selectstart", suppressNativeLongPress);
@@ -14266,6 +14409,7 @@ function updateActionButtons(data) {
     hasDisplayedOperatorAccess(self, "gunner"),
     hasDisplayedOperatorAccess(self, "quantum"),
     activeBorrowedOperator,
+    state.selectedShopAbilityId,
     els.teleportModeSelect.value,
     els.teleportTargetSelect.value
   ]);
@@ -14504,6 +14648,16 @@ function updateActionButtons(data) {
     : abilityBatchActionSupported(operatorAbilityAction())
     ? "タップは通常1回。長押しはサーバーが現在MPから2を残す量を一括消費し、通常MPコストで成立する回数を同じ対象・方式へ並列発動"
     : "タップで現在の固有能力を1回発動";
+  const selectedShopAbility = selectedPurchasedShopAbility(self);
+  if (selectedShopAbility) {
+    els.operatorAbilityButton.hidden = false;
+    els.operatorAbilityButton.textContent = selectedShopAbility.label;
+    els.operatorAbilityButton.dataset.operator = "shop:" + selectedShopAbility.id;
+    els.operatorAbilityButton.dataset.repeatableAbility = "0";
+    els.operatorAbilityButton.classList.remove("active");
+    els.operatorAbilityButton.disabled = !canUseAbility;
+    els.operatorAbilityButton.title = "タップで選択した購入済み能力を1回実行";
+  }
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
   els.empButton.textContent = empSeconds > 0 ? `${empPhaseLabel}EMP ${empSeconds}秒` : `${empPhaseLabel}EMP`;
@@ -22274,7 +22428,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v645";
+const version = "ui-visual-elevation-v646";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23248,7 +23402,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v645", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v646", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

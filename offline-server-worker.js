@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-visual-elevation-v645",
+    version: "ui-visual-elevation-v646",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -13041,8 +13041,12 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
     : 1;
   // ACC Fixed owns the final authoritative movement acceleration only while
   // armed; OFF returns the active source acceleration from movementAccState.
-  const movementAcceleration = movementAccState(room, player, timestamp).selected;
-  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * movementAcceleration * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier * desireTimeMultiplier;
+  const movementState = movementAccState(room, player, timestamp);
+  // ACC OFF already exposes gravity's scale as selected; apply it only when
+  // ACC's enabled clamp has substituted NORMAL_MOVEMENT_ACC for a slow.
+  const gravityTimeMultiplier = movementState.enabled ? gravityTimeScaleFor(room, player, timestamp) : 1;
+  const movementAcceleration = movementState.selected;
+  return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * movementAcceleration * gravityTimeMultiplier * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier * desireTimeMultiplier;
 }
 
 function floraAromaSource(room, player) {
@@ -23172,12 +23176,16 @@ async function handleApi(req, res) {
       if (room.phase !== "selecting" || !["defender", "attacker"].includes(role)) {
         throw new ApiError(409, "いまは陣営を選択できません。");
       }
-      player.role = role;
       const bots = [...room.players.values()].filter((entry) => entry.isBot);
-      if (role === "attacker") {
-        bots.forEach((entry) => { entry.role = "defender"; });
-      } else {
-        bots.forEach((entry, index) => { entry.role = index === 0 ? "attacker" : "defender"; });
+      const totalPlayers = room.players.size;
+      const configuredAttackerCount = Math.max(1, Math.min(totalPlayers - 1, Math.floor(room.settings.attackerCount)));
+      const botAttackerCount = Math.max(0, Math.min(bots.length, configuredAttackerCount - (role === "attacker" ? 1 : 0)));
+      player.role = role;
+      const existingBotAttackers = bots.filter((entry) => entry.role === "attacker");
+      const assignmentAlreadyMatches = existingBotAttackers.length === botAttackerCount;
+      if (!assignmentAlreadyMatches) {
+        const botAttackers = new Set(shuffle(bots).slice(0, botAttackerCount).map((entry) => entry.id));
+        bots.forEach((entry) => { entry.role = botAttackers.has(entry.id) ? "attacker" : "defender"; });
       }
       const attackerCount = [...room.players.values()].filter((entry) => entry.role === "attacker").length;
       const defenderCount = [...room.players.values()].filter((entry) => entry.role === "defender").length;
@@ -25815,5 +25823,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ui-visual-elevation-v645" });
+self.postMessage({ type: "ready", version: "ui-visual-elevation-v646" });
 })();
