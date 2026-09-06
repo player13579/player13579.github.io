@@ -11531,3 +11531,303 @@ body #teleportControl:not([hidden]) .ability-mode-description {
 #vendingPanel .vending-grid button.shop-ability-owned .item-name-meta:not(.purchase-state) {
   grid-column: 1 / -1;
 }
+
+/* DVA developer-only append candidate: inventory readability v649.
+ * Paint-only scope for the existing #itemInventoryGrid cards. It preserves the
+ * renderer, native scroll owner, card dimensions, typography, padding, and all
+ * item selection/hold/input behavior. */
+body #itemControl #itemInventoryGrid {
+  border-color: #b5cbd2;
+  background-color: #edf4f5;
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+body #itemControl .item-inventory-choice {
+  border-color: #a9c0c6;
+  background-color: #fafcfd;
+  background-image: linear-gradient(90deg, rgba(52, 179, 190, 0.055), transparent 42%) !important;
+  color: #173b48 !important;
+  box-shadow: inset 0 1px 0 #ffffff, inset 0 -1px 0 rgba(23, 59, 72, 0.045), 0 3px 8px rgba(16, 37, 50, 0.09);
+  text-shadow: none;
+}
+
+body #itemControl .item-inventory-choice:not(:disabled) :is(.item-choice-copy strong, .item-choice-copy small) {
+  color: inherit !important;
+}
+
+body #itemControl .item-inventory-choice:hover:not(:disabled),
+body #itemControl .item-inventory-choice:focus-visible:not(:disabled) {
+  border-color: #208d99;
+  background-color: #f0fbfc;
+  background-image: linear-gradient(90deg, rgba(52, 179, 190, 0.13), transparent 50%) !important;
+  box-shadow: inset 4px 0 #34b3be, inset 0 0 0 1px rgba(52, 179, 190, 0.16), 0 4px 10px rgba(16, 37, 50, 0.13);
+  outline: 2px solid rgba(52, 179, 190, 0.42);
+  outline-offset: 1px;
+}
+
+body #itemControl .item-inventory-choice.selected {
+  border-color: #0d5f65;
+  background-color: #155f63;
+  background-image: linear-gradient(105deg, #155f63, #193846 78%) !important;
+  color: #f7ffff !important;
+  box-shadow: inset 5px 0 #77e0e2, inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 4px 10px rgba(13, 95, 101, 0.2);
+}
+
+body #itemControl .item-inventory-choice.selected :is(.item-choice-copy strong, .item-choice-copy small) {
+  color: #f7ffff !important;
+}
+
+/* The source already reserves this absolute top-right marker for selected
+ * weapons. Raising only that existing marker to readable Japanese text leaves
+ * every card's flow dimensions and non-weapon title space unchanged. */
+body #itemControl .item-inventory-choice.selected[data-inventory-kind="weapon"][aria-selected="true"]::after {
+  content: "選択中";
+  position: absolute;
+  top: 2px;
+  right: 5px;
+  color: #ffffff !important;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-shadow: 0 1px 1px rgba(16, 37, 50, 0.56);
+  outline: 1px solid rgba(119, 224, 226, 0.9);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 2px rgba(16, 37, 50, 0.62);
+}
+
+body #itemControl .item-inventory-choice:disabled {
+  border-color: #c4d1d5;
+  background-color: #e8eef0;
+  background-image: linear-gradient(90deg, rgba(77, 104, 114, 0.055), transparent 48%) !important;
+  color: #526c75 !important;
+  box-shadow: inset 4px 0 #c4d1d5, inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+body #itemControl .item-inventory-choice:disabled :is(.item-choice-copy strong, .item-choice-copy small) {
+  color: #526c75 !important;
+}
+
+
+/* v649 candidate: Applied Effects paint hierarchy only.
+   Append after public/styles.css at baseline A3ACF44B...03AD9BA9. */
+body #activeEffectsPanel {
+  border-color: #9fb8c0;
+  background-color: #eaf2f4;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 8px 18px rgba(16, 37, 50, 0.12);
+  color: #173b48;
+}
+
+body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) > h3 {
+  color: #eff9fb !important;
+  background-color: #102532;
+  border-bottom-color: #3b6975;
+  box-shadow: inset 0 -1px 0 rgba(52, 179, 190, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) li {
+  border-top-color: #ccdce0;
+  border-right-color: #ccdce0;
+  border-bottom-color: #ccdce0;
+  background-color: #fbfdfe;
+  box-shadow: inset 0 0 0 1px rgba(181, 203, 210, 0.24), 0 2px 5px rgba(16, 37, 50, 0.055);
+  color: #173b48;
+}
+
+body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel .effect-name {
+  color: #102f3b;
+}
+
+body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel .effect-detail {
+  color: #486570;
+}
+
+body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel .effect-value {
+  color: #0e3541;
+  background-color: #dceff2;
+  box-shadow: inset 0 0 0 1px rgba(37, 116, 130, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
+/* Tone borders remain the semantic key; the matching paper tint groups each row
+   without turning the time/value chip into the sole status signal. */
+body #activeEffectsPanel li.effect-tone-neutral { background-color: #f5f8f9; }
+body #activeEffectsPanel li.effect-tone-desire { background-color: #fff7f8; }
+body #activeEffectsPanel li.effect-tone-spirit,
+body #activeEffectsPanel li.effect-tone-truth { background-color: #fffaf0; }
+body #activeEffectsPanel li.effect-tone-rational,
+body #activeEffectsPanel li.effect-tone-beauty { background-color: #f1fbfc; }
+body #activeEffectsPanel li.effect-tone-good { background-color: #f1faf6; }
+body #activeEffectsPanel li.effect-tone-idea { background-color: #f5f7fa; }
+body #activeEffectsPanel li.effect-tone-instant { background-color: #fff7f0; }
+
+body #activeEffectsPanel li.effect-tone-desire .effect-value { background-color: #f8e4ea; }
+body #activeEffectsPanel li.effect-tone-spirit .effect-value,
+body #activeEffectsPanel li.effect-tone-truth .effect-value { background-color: #f8edcf; }
+body #activeEffectsPanel li.effect-tone-rational .effect-value,
+body #activeEffectsPanel li.effect-tone-beauty .effect-value { background-color: #d9f1f4; }
+body #activeEffectsPanel li.effect-tone-good .effect-value { background-color: #dcefe7; }
+body #activeEffectsPanel li.effect-tone-idea .effect-value { background-color: #e8eef2; }
+body #activeEffectsPanel li.effect-tone-instant .effect-value { background-color: #fae8d9; }
+
+/* A 390px tablet portrait leaves too little first-row space for a Japanese
+   name when a long live value occupies the opposite grid cell.  Keep both
+   strings intact by using the existing stacked-row reading order. */
+@media (max-width: 480px) {
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) li {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "effect-name" "effect-value" "effect-detail";
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) .effect-value {
+    justify-self: start;
+    text-align: start;
+  }
+}
+
+/* v649 candidate — append after styles.css; pre-play selection surface only. */
+body.game-open #selectPanel {
+  border-color: #b5cbd2;
+  background-color: #f2f7f8 !important;
+  background-image: linear-gradient(145deg, #f2f7f8 0%, #fafcfd 68%, #e7f2f3 100%) !important;
+  box-shadow: 0 18px 42px rgba(6, 25, 35, .22), inset 0 1px 0 rgba(255, 255, 255, .92);
+}
+body.game-open #selectPanel .panel-title-row {
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #b5cbd2;
+  background-color: #102532 !important;
+  background-image: none !important;
+}
+body.game-open #selectPanel .panel-title-row h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  color: #f2f7f8 !important;
+  font-size: clamp(17px, 2vw, 23px);
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+body.game-open #selectPanel #selectTimer {
+  flex: 0 0 auto;
+  border: 1px solid #8bd8de;
+  border-radius: 999px;
+  background-color: #f2f7f8 !important;
+  background-image: none !important;
+  padding: 5px 8px;
+  color: #102532;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+body.game-open #selectPanel #selectTeamText {
+  margin: 9px 0 10px;
+  color: #244957;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+body.game-open #selectPanel #operatorList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(218px, 1fr));
+  gap: 8px;
+  max-height: min(calc(100dvh - 246px), 520px);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 6px 88px 2px;
+  scrollbar-gutter: stable;
+}
+body.game-open #selectPanel #operatorList .operator-card,
+body.game-open #selectPanel #operatorList .operator-card.has-visual {
+  --operator-family-border: #34b3be;
+  min-height: 72px;
+  align-items: stretch;
+  justify-content: flex-start;
+  border-color: #b5cbd2;
+  border-left: 4px solid var(--operator-family-border);
+  border-radius: 10px;
+  background: #fafcfd;
+  padding: 8px 44px 8px 76px;
+  color: #173b48;
+  box-shadow: 0 2px 7px rgba(15, 47, 60, .08);
+}
+body.game-open #selectPanel #operatorList .operator-visual {
+  left: 9px;
+  width: 54px;
+  height: 54px;
+  border-color: #7da9b4;
+  border-radius: 8px;
+  background-color: #193846;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 2px 6px rgba(15,47,60,.16);
+}
+body.game-open #selectPanel #operatorList .operator-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+body.game-open #selectPanel #operatorList .name-line {
+  overflow-wrap: anywhere;
+  color: #102532;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+body.game-open #selectPanel #operatorList .operator-card .badge {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  border: 1px solid #b5cbd2;
+  border-radius: 999px;
+  background: #eef5f6;
+  padding: 3px 6px;
+  color: #244957;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+body.game-open #selectPanel #operatorList .operator-card:has(.operator-visual-fighter) { --operator-family-border: #ad7926; }
+body.game-open #selectPanel #operatorList .operator-card:has(.operator-visual-teleport) { --operator-family-border: #7757a6; }
+body.game-open #selectPanel #operatorList .operator-card:has(.operator-visual-flora) { --operator-family-border: #177d6e; }
+body.game-open #selectPanel #operatorList .operator-card:has(.operator-visual-quantum) { --operator-family-border: #2589a2; }
+body.game-open #selectPanel #operatorList .operator-card:has(.operator-visual-gunner) { --operator-family-border: #ad7926; }
+body.game-open #selectPanel #operatorList .operator-card:has(.operator-visual-assassin) { --operator-family-border: #8f3a55; }
+body.game-open #selectPanel #operatorList .operator-card:has(.operator-visual-hacker) { --operator-family-border: #7757a6; }
+body.game-open #selectPanel #operatorList .operator-card[data-selectable="1"] {
+  border-top-color: #34b3be;
+  border-right-color: #34b3be;
+  border-bottom-color: #34b3be;
+  background: linear-gradient(135deg, #f7ffff, #e3f7f8);
+  box-shadow: 0 5px 13px rgba(29,119,129,.16);
+}
+body.game-open #selectPanel #operatorList .operator-card.selected {
+  border-top-color: #177d6e;
+  border-right-color: #177d6e;
+  border-bottom-color: #177d6e;
+  background: linear-gradient(135deg, #e3f5ef, #f8fffd);
+  box-shadow: inset 0 0 0 2px #177d6e, 0 5px 13px rgba(23,125,110,.16);
+}
+body.game-open #selectPanel #operatorList .operator-card[aria-disabled="true"] {
+  cursor: help;
+  opacity: .72;
+}
+body.game-open #selectPanel #operatorList .operator-card:hover:not([aria-disabled="true"]),
+body.game-open #selectPanel #operatorList .operator-card:focus-visible,
+body.game-open #selectPanel #operatorList .operator-card.detail-active {
+  border-top-color: #34b3be;
+  border-right-color: #34b3be;
+  border-bottom-color: #34b3be;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(52,179,190,.18), 0 8px 17px rgba(15,47,60,.13);
+  outline: none;
+}
+@media (max-width: 520px) {
+  body.game-open #selectPanel #operatorList {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: min(calc(100dvh - 234px), 430px);
+    padding-bottom: 84px;
+  }
+}
+

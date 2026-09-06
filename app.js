@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v648";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v649";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -305,6 +305,38 @@ for (const overlay of [els.inventoryItemDetail]) {
 // scenes are still being painted, which presents as a full-field flash.
 const ctx = els.canvas.getContext("2d", { alpha: false });
 const mapCtx = els.expandedMapCanvas.getContext("2d");
+let fieldCanvasCssWidth = 0;
+let fieldCanvasCssHeight = 0;
+let fieldCanvasCssTop = 0;
+let soloMissionHudCssBottom = 0;
+const syncFieldCanvasCssSize = (rect) => {
+  const width = Number(rect?.width);
+  const height = Number(rect?.height);
+  if (Number.isFinite(width) && width > 0) fieldCanvasCssWidth = width;
+  if (Number.isFinite(height) && height > 0) fieldCanvasCssHeight = height;
+  if (Number.isFinite(Number(rect?.top))) fieldCanvasCssTop = Number(rect.top);
+};
+const syncSoloMissionHudCssHeight = (rect) => {
+  const height = Number(rect?.height);
+  if (Number.isFinite(Number(rect?.bottom))) soloMissionHudCssBottom = Number(rect.bottom);
+};
+syncFieldCanvasCssSize(els.canvas.getBoundingClientRect());
+syncSoloMissionHudCssHeight(els.soloMissionHud.getBoundingClientRect());
+if ("ResizeObserver" in window) {
+  const fieldCanvasSizeObserver = new ResizeObserver((entries) => {
+    syncFieldCanvasCssSize(els.canvas.getBoundingClientRect());
+  });
+  fieldCanvasSizeObserver.observe(els.canvas);
+  const soloMissionHudSizeObserver = new ResizeObserver((entries) => {
+    syncSoloMissionHudCssHeight(els.soloMissionHud.getBoundingClientRect());
+  });
+  soloMissionHudSizeObserver.observe(els.soloMissionHud);
+} else {
+  window.addEventListener("resize", () => {
+    syncFieldCanvasCssSize(els.canvas.getBoundingClientRect());
+    syncSoloMissionHudCssHeight(els.soloMissionHud.getBoundingClientRect());
+  });
+}
 const CAMERA_ZOOM = 1.65;
 const SFX_ASSETS = Object.freeze({
   click: ["ui-click.wav"],
@@ -869,7 +901,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v648";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v649";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4299,6 +4331,7 @@ function rootShortcutHoldEligible(button) {
     source === els.operatorAbilityButton &&
     self?.special === "alchemist" &&
     self.hackerRootActive &&
+    !selectedPurchasedShopAbility(self) &&
     state.screen === "game" &&
     state.data?.phase === "playing" &&
     self.alive &&
@@ -11830,26 +11863,30 @@ function syncAccessibleGameStatus(data) {
   let announcement = "";
   if (!previous || previous.roomId !== current.roomId) {
     announcement = `${phaseLabel}を開始。${current.role}、${current.operator}。`;
-  } else if (previous.phase !== current.phase) {
-    announcement = `${phaseLabel}へ移行。`;
-  } else if (previous.alive && !current.alive) {
-    announcement = "戦闘不能になりました。";
-  } else if (previous.sabotage !== current.sabotage) {
-    announcement = current.sabotage
-      ? `${sabotageLabels[current.sabotage] || current.sabotage}が発生しました。`
-      : "妨害が終了しました。";
-  } else if (current.health + 0.0001 < previous.health) {
-    announcement = `ダメージ。HP ${formatAccessibleResource(current.health)}/${formatAccessibleResource(current.maxHealth)}。`;
-  } else if (current.immediateAt > previous.immediateAt && current.immediateLabel) {
-    announcement = `${current.immediateLabel}。${current.immediateDetail}`;
-  } else if (previous.mentalState !== current.mentalState) {
-    announcement = `心状態 ${current.mentalState}。`;
-  } else if (previous.movementAccActive !== current.movementAccActive) {
-    announcement = current.movementAccActive ? "移動固定ACCが有効になりました。" : "移動固定ACCが待機に戻りました。";
+  } else {
+    const criticalAnnouncements = [];
+    if (previous.phase !== current.phase) criticalAnnouncements.push(`${phaseLabel}へ移行。`);
+    if (previous.alive && !current.alive) criticalAnnouncements.push("戦闘不能になりました。");
+    if (criticalAnnouncements.length) {
+      announcement = criticalAnnouncements.join(" ");
+    } else if (previous.sabotage !== current.sabotage) {
+      announcement = current.sabotage
+        ? `${sabotageLabels[current.sabotage] || current.sabotage}が発生しました。`
+        : "妨害が終了しました。";
+    } else if (current.health + 0.0001 < previous.health) {
+      announcement = `ダメージ。HP ${formatAccessibleResource(current.health)}/${formatAccessibleResource(current.maxHealth)}。`;
+    } else if (current.immediateAt > previous.immediateAt && current.immediateLabel) {
+      announcement = `${current.immediateLabel}。${current.immediateDetail}`;
+    } else if (previous.mentalState !== current.mentalState) {
+      announcement = `心状態 ${current.mentalState}。`;
+    } else if (previous.movementAccActive !== current.movementAccActive) {
+      announcement = current.movementAccActive ? "移動固定ACCが有効になりました。" : "移動固定ACCが待機に戻りました。";
+    }
   }
-  if (announcement && els.canvasStatusAnnouncement.textContent !== announcement) {
-    els.canvasStatusAnnouncement.textContent = announcement;
-  }
+  // Each non-empty value represents a new semantic event. Reassign even an
+  // identical phrase so a later repeated damage/death event creates a fresh
+  // live-region mutation; unchanged polls still perform no write.
+  if (announcement) els.canvasStatusAnnouncement.textContent = announcement;
   state.accessibleGameStatus = current;
   if (IS_VERIFICATION_MODE) {
     document.documentElement.setAttribute("data-v589-accessible-status", summary);
@@ -12721,7 +12758,8 @@ function renderTargetOptions(data) {
   const selectedShopAbility = syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, options);
   if (selectedShopAbility) {
     const descriptionOwner = selectedShopAbility.operator === "gravity" ? "teleport" : selectedShopAbility.operator;
-    els.teleportModeDescription.textContent = "購入済み: " + selectedShopAbility.label + "。" + abilityModeDescription(descriptionOwner, selectedShopAbility.mode, self);
+    const description = "購入済み: " + selectedShopAbility.label + "。" + abilityModeDescription(descriptionOwner, selectedShopAbility.mode, self);
+    if (els.teleportModeDescription.textContent !== description) els.teleportModeDescription.textContent = description;
   } else if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && !nativeQuantumKineticTerminalActive(self)) {
     const explicitMode = modeOwner === "quantum"
       ? selectedQuantumExecutableMode(Boolean(borrowedOperator))
@@ -12819,7 +12857,8 @@ function abilityModeDescription(owner, mode, self) {
 function syncAbilityModeDescription(owner, self, explicitMode = "") {
   if (!els.teleportModeDescription) return;
   const autoState = state.abilityAutoActivate ? "ON（選択時に即実行）" : "OFF（選択だけ確定）";
-  els.teleportModeDescription.textContent = `${abilityModeDescription(owner, explicitMode || els.teleportModeSelect.value, self)} 選択時実行: ${autoState}`;
+  const description = `${abilityModeDescription(owner, explicitMode || els.teleportModeSelect.value, self)} 選択時実行: ${autoState}`;
+  if (els.teleportModeDescription.textContent !== description) els.teleportModeDescription.textContent = description;
 }
 
 function ensureTeleportTargetForMode(data) {
@@ -22126,10 +22165,21 @@ function drawHud(data, w, h) {
   const healthText = formatHealth(health);
   const maxHealthText = formatHealth(maxHealth);
   const healthRatio = maxHealth > 0 ? health / maxHealth : 0;
+  const compactHudNumber = (value, integer = false) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "∞";
+    if (Math.abs(numeric) >= 1_000_000) {
+      return numeric.toExponential(Math.abs(numeric) >= 1_000_000_000 ? 0 : 1).replace("e+", "e");
+    }
+    return String(integer ? Math.round(numeric) : Math.round(numeric * 100) / 100);
+  };
+  const compactHudHealth = (value, fallback) => Math.abs(Number(value)) >= 1_000_000
+    ? compactHudNumber(value)
+    : fallback;
   const bars = [
-    { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${Math.round(stamina)}/${Math.round(maxStamina)}` },
-    { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.mentalState === "理知" ? "#a78bfa" : self.mentalState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${Math.round(mana * 100) / 100}/${Math.round(manaGaugeMax * 100) / 100}` },
-    { label: "HP", value: self.fighterInfiniteResources ? maxHealth : health, max: maxHealth, color: healthRatio >= 0.75 ? "#22c55e" : healthRatio >= 0.325 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${healthText}/${maxHealthText}` }
+    { label: "SP", value: self.fighterInfiniteResources ? maxStamina : Math.max(0, stamina), max: maxStamina, color: stamina <= 0 ? "#fb7185" : "#22c55e", text: self.fighterInfiniteResources ? "∞" : `${compactHudNumber(stamina, true)}/${compactHudNumber(maxStamina, true)}` },
+    { label: "MP", value: self.fighterInfiniteResources ? manaGaugeMax : Math.max(0, mana), max: manaGaugeMax, color: self.mentalState === "理知" ? "#a78bfa" : self.mentalState === "気概" ? "#fbbf24" : "#fb7185", text: self.fighterInfiniteResources ? "∞" : `${compactHudNumber(mana)}/${compactHudNumber(manaGaugeMax)}` },
+    { label: "HP", value: self.fighterInfiniteResources ? maxHealth : health, max: maxHealth, color: healthRatio >= 0.75 ? "#22c55e" : healthRatio >= 0.325 ? "#f59e0b" : "#f43f5e", text: self.fighterInfiniteResources ? "∞" : `${compactHudHealth(health, healthText)}/${compactHudHealth(maxHealth, maxHealthText)}` }
   ];
   if (IS_VERIFICATION_MODE) {
     const hudProbe = JSON.stringify({
@@ -22144,9 +22194,30 @@ function drawHud(data, w, h) {
     document.documentElement.setAttribute("data-v583-healing-max", maxHealthText);
     document.documentElement.setAttribute("data-v583-healing-expanded", maxHealth > 2 && Math.abs(health - maxHealth) < 0.000001 ? "true" : "false");
   }
-  const width = Math.min(260, Math.max(224, w * 0.27));
-  const barWidth = width - 116;
-  const rowHeight = 25;
+  // The field canvas is shrunk by CSS on tablet layouts. Derive only this
+  // HUD's local scale from its displayed width so resource labels retain a
+  // readable CSS-pixel size without changing the canvas, camera, or controls.
+  const canvasCssWidth = fieldCanvasCssWidth || w;
+  const canvasCssHeight = fieldCanvasCssHeight || h;
+  const hudCssScale = clamp(canvasCssWidth / Math.max(1, w), 0.1, 1);
+  const soloMissionHudOverlapCss = Math.max(0, soloMissionHudCssBottom - fieldCanvasCssTop);
+  const soloMissionHudVisible = Boolean(data.soloMission && soloMissionHudOverlapCss > 0);
+  const soloMissionHudGapCss = 8;
+  const hudTop = soloMissionHudVisible && canvasCssWidth < 500
+    ? Math.ceil((soloMissionHudOverlapCss + soloMissionHudGapCss) / hudCssScale)
+    : 14;
+  const hudOffsetY = hudTop - 14;
+  const targetHudCssWidth = Math.min(220, Math.max(172, canvasCssWidth - 28));
+  const width = Math.min(w - 28, Math.floor(targetHudCssWidth / hudCssScale));
+  const labelFontPx = clamp(Math.ceil(13 / hudCssScale), 18, 36);
+  const valueFontPx = clamp(Math.ceil(12 / hudCssScale), 17, 34);
+  const detailFontPx = Math.max(12, Math.ceil(9 / hudCssScale));
+  const detailLineHeight = Math.max(19, detailFontPx + 10);
+  const barHeight = Math.max(10, Math.ceil(11 / hudCssScale));
+  const rowHeight = Math.max(31, labelFontPx + 12);
+  const barX = Math.max(68, Math.ceil(27 + labelFontPx * 2.1));
+  const barRightInset = Math.max(48, Math.ceil(valueFontPx * 4.5));
+  const minBarWidth = Math.max(36, Math.ceil(42 / hudCssScale));
   const liveIdeaProgress = Math.max(0, Number(self.ideaProgressMs) || 0) + (
     Number(self.ideaProgressUpdatedAt || 0) > 0
       ? Math.max(0, timestamp - Number(self.ideaProgressUpdatedAt)) * Math.max(1, Number(self.ideaProgressRate) || 1)
@@ -22155,76 +22226,111 @@ function drawHud(data, w, h) {
   const idea = Number(self.ideaNextThresholdMs || 0) > 0 && Number(self.ideaProgressStartedAt || 0) > 0
     ? Math.max(0, Math.ceil((Number(self.ideaNextThresholdMs) - liveIdeaProgress) / 1000))
     : 0;
-  const detailTop = 38 + bars.length * rowHeight;
-  const vibeCodingOffset = self.special === "alchemist" ? 19 : 0;
-  const desireOffset = self.desireBiasLabel ? 34 : 0;
-  const height = detailTop + vibeCodingOffset + desireOffset + (idea > 0 ? 104 : 86);
+  const detailTop = 40 + bars.length * rowHeight;
+  const vibeCodingOffset = self.special === "alchemist" ? detailLineHeight : 0;
+  const desireOffset = self.desireBiasLabel ? detailLineHeight * 2 : 0;
+  const normalHeight = detailTop + vibeCodingOffset + desireOffset + (idea > 0 ? detailLineHeight * 6 : detailLineHeight * 5);
+  const availableHudHeight = Math.max(0, h - hudTop - 14);
+  const showLuck = availableHudHeight >= detailTop + detailLineHeight * 3 + vibeCodingOffset;
+  const showMental = availableHudHeight >= detailTop + detailLineHeight * 4 + vibeCodingOffset;
+  const showDesire = Boolean(self.desireBiasLabel) && availableHudHeight >= detailTop + detailLineHeight * 6 + vibeCodingOffset;
+  const showIdea = idea > 0 && !self.ideaBlockedByDesire && availableHudHeight >= detailTop + detailLineHeight * 5 + vibeCodingOffset + (showDesire ? desireOffset : 0);
+  const height = Math.min(normalHeight, Math.max(detailTop + detailLineHeight * 2 + vibeCodingOffset, availableHudHeight));
 
   ctx.save();
+  ctx.translate(0, hudOffsetY);
   ctx.fillStyle = "rgba(8, 24, 32, 0.88)";
   ctx.strokeStyle = "rgba(103, 232, 249, 0.7)";
   ctx.lineWidth = 1.5;
   roundRect(14, 14, width, height, 8, true, true);
   bars.forEach((bar, index) => {
-    const y = 34 + index * rowHeight;
+    const y = 36 + index * rowHeight;
     const ratio = clamp(bar.max > 0 ? bar.value / bar.max : 0, 0, 1);
-    ctx.font = "900 11px Segoe UI, sans-serif";
+    ctx.font = `900 ${labelFontPx}px Segoe UI, sans-serif`;
     ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
     ctx.fillStyle = bar.color;
     ctx.fillText(bar.label, 27, y);
     ctx.fillStyle = "rgba(255,255,255,0.14)";
-    roundRect(68, y - 9, barWidth, 9, 4, true, false);
+    ctx.font = `800 ${valueFontPx}px Segoe UI, sans-serif`;
+    const valueWidth = Math.ceil(ctx.measureText(bar.text).width);
+    const rowBarWidth = Math.max(minBarWidth, width - barX - valueWidth - barRightInset);
+    roundRect(barX, y - barHeight / 2, rowBarWidth, barHeight, barHeight / 2, true, false);
     if (ratio > 0) {
       ctx.fillStyle = bar.color;
-      roundRect(68, y - 9, Math.max(2, barWidth * ratio), 9, 4, true, false);
+      roundRect(barX, y - barHeight / 2, Math.max(2, rowBarWidth * ratio), barHeight, barHeight / 2, true, false);
     }
     ctx.fillStyle = "#f8fafc";
     ctx.textAlign = "right";
+    ctx.font = `800 ${valueFontPx}px Segoe UI, sans-serif`;
     ctx.fillText(bar.text, width, y);
   });
-  ctx.font = "900 11px Segoe UI, sans-serif";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `800 ${detailFontPx}px Segoe UI, sans-serif`;
   ctx.textAlign = "left";
+  const readinessText = (label, remaining) => remaining <= 0
+    ? `${label} READY`
+    : `${label} ${Math.ceil(remaining / 1000)}s`;
+  const readinessGap = Math.ceil(8 / hudCssScale);
+  const firstReadinessWidth = Math.max(
+    ctx.measureText(readinessText("EMP", empCooldownRemaining)).width,
+    self.special === "alchemist" ? ctx.measureText(readinessText("VIBE", vibeCodingCooldownRemaining)).width : 0
+  );
+  const secondReadinessWidth = Math.max(
+    ctx.measureText(readinessText("KILL", cooldownRemaining)).width,
+    self.special === "alchemist"
+      ? ctx.measureText(`短縮 ${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}s`).width
+      : 0
+  );
+  const readinessSecondX = Math.min(
+    width - secondReadinessWidth - readinessGap,
+    Math.max(127, Math.ceil(27 + firstReadinessWidth + readinessGap))
+  );
   ctx.fillStyle = "#7dd3fc";
   const fighterEcText = hasDisplayedOperatorAccess(self, "fighter")
     ? `   EC ${Math.max(0, Math.floor(Number(self.fighterEnergyCharge) || 0))}`
     : "";
   const movementAccText = ` / 移動固定 ${movementAccActive ? `ACC${movementAccMax.toFixed(0)}` : movementAccEnabled ? "待機" : "OFF"}`;
   ctx.fillText(`ACC ×${accelerationMultiplier.toFixed(2)}${movementAccText}${fighterEcText}`, 27, detailTop);
-  const drawReadyText = (label, remaining, x, y = detailTop + 19) => {
+  const drawReadyText = (label, remaining, x, y = detailTop + detailLineHeight) => {
     const ready = remaining <= 0;
     ctx.save();
     ctx.fillStyle = ready ? "#ecfeff" : "#94a3b8";
     ctx.shadowColor = ready ? "#22d3ee" : "transparent";
     ctx.shadowBlur = ready ? 14 : 0;
-    ctx.fillText(ready ? `${label} READY` : `${label} ${Math.ceil(remaining / 1000)}s`, x, y);
+    ctx.fillText(readinessText(label, remaining), x, y);
     ctx.restore();
   };
   drawReadyText("EMP", empCooldownRemaining, 27);
-  drawReadyText("KILL", cooldownRemaining, 127);
+  drawReadyText("KILL", cooldownRemaining, readinessSecondX);
   if (self.special === "alchemist") {
     ctx.fillStyle = "#22d3ee";
-    ctx.fillText(`短縮 ${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}s`, 127, detailTop + 38);
+    ctx.fillText(`短縮 ${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}s`, readinessSecondX, detailTop + detailLineHeight * 2);
   }
-  if (self.special === "alchemist") drawReadyText("VIBE", vibeCodingCooldownRemaining, 27, detailTop + 38);
+  if (self.special === "alchemist") drawReadyText("VIBE", vibeCodingCooldownRemaining, 27, detailTop + detailLineHeight * 2);
   const resourceOffset = vibeCodingOffset;
   ctx.fillStyle = "#fbbf24";
-  ctx.fillText(`${Math.round(Number(self.credits) || 0)}C`, 27, detailTop + 38 + resourceOffset);
-  ctx.fillStyle = Number(self.luck || 0) >= 0 ? "#f0abfc" : "#fb7185";
-  ctx.fillText(`幸運／直観 ${Number(self.luck || 0).toFixed(2)}`, 27, detailTop + 56 + resourceOffset);
-  ctx.fillStyle = "#e2e8f0";
+  ctx.fillText(`${Math.round(Number(self.credits) || 0)}C`, 27, detailTop + detailLineHeight * 2 + resourceOffset);
+  if (showLuck) {
+    ctx.fillStyle = Number(self.luck || 0) >= 0 ? "#f0abfc" : "#fb7185";
+    ctx.fillText(`幸運／直観 ${Number(self.luck || 0).toFixed(2)}`, 27, detailTop + detailLineHeight * 3 + resourceOffset);
+  }
   const mind = self.mentalPoints || {};
-  ctx.fillText(`心状態:${self.mentalState || "気概"}（MP${Number(mind.manaPoints) || 0}+SP${Number(mind.staminaPoints) || 0}=${Number(mind.total) || 0} / 上限比）`, 27, detailTop + 74 + resourceOffset);
-  if (self.desireBiasLabel) {
+  if (showMental) {
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fillText(`心状態:${self.mentalState || "気概"}（MP${Number(mind.manaPoints) || 0}+SP${Number(mind.staminaPoints) || 0}=${Number(mind.total) || 0} / 上限比）`, 27, detailTop + detailLineHeight * 4 + resourceOffset);
+  }
+  if (showDesire) {
     ctx.fillStyle = "#fb7185";
-    ctx.fillText(self.desireBiasLabel, 27, detailTop + 92 + resourceOffset);
+    ctx.fillText(self.desireBiasLabel, 27, detailTop + detailLineHeight * 5 + resourceOffset);
     ctx.font = "700 9px Segoe UI, sans-serif";
     ctx.fillStyle = "#fecdd3";
-    ctx.fillText(String(self.desireBiasDetail || "").slice(0, 34), 27, detailTop + 108 + resourceOffset);
+    ctx.fillText(String(self.desireBiasDetail || "").slice(0, 34), 27, detailTop + detailLineHeight * 6 + resourceOffset);
   }
-  if (idea > 0 && !self.ideaBlockedByDesire) {
+  if (showIdea) {
     const ideaLabel = ["真/美", "真/美", "善", "善のイデア"][Math.min(3, Number(self.ideaStage) || 0)];
     ctx.fillStyle = "#fde68a";
-    ctx.fillText(`${ideaLabel} ${idea}s`, 27, detailTop + 92 + resourceOffset + desireOffset);
+    ctx.fillText(`${ideaLabel} ${idea}s`, 27, detailTop + detailLineHeight * 5 + resourceOffset + (showDesire ? desireOffset : 0));
   }
   ctx.restore();
 }
@@ -22490,7 +22596,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v648";
+const version = "ui-visual-elevation-v649";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23464,7 +23570,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v648", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v649", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
