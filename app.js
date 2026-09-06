@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v654";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v655";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -895,7 +895,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v654";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v655";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1069,7 +1069,10 @@ function ensureDynamicVendingChoices() {
     button.dataset.vendingAsset = product.asset;
     button.dataset.vendingCategory = product.category;
     button.dataset.vendingAvailable = product.vendingAvailable ? "1" : "0";
-    button.querySelector(":scope > span:last-child").textContent = product.label;
+    const copy = button.querySelector(":scope > span:last-child");
+    // renderVending owns the structured name, price and state copy. This setup
+    // path only supplies a label for a newly created empty button before data arrives.
+    if (copy && !copy.textContent.trim()) copy.textContent = product.label;
     button.setAttribute("aria-label", `${product.label} ${product.price}C`);
     applyGeneratedItemTexture(button, product.asset || product.id);
   }
@@ -1085,7 +1088,8 @@ function ensureDynamicVendingChoices() {
     button.dataset.shopAbility = ability.id;
     button.dataset.shopOperator = ability.operator;
     button.dataset.vendingCategory = ability.genreId;
-    button.querySelector(":scope > span:last-child").textContent = ability.label;
+    const copy = button.querySelector(":scope > span:last-child");
+    if (copy && !copy.textContent.trim()) copy.textContent = ability.label;
     button.setAttribute("aria-label", `${ability.label} ${ability.price}C`);
   }
 }
@@ -14085,9 +14089,21 @@ function renderVending(data) {
       : "";
     const statusLabel = availabilityState.statusLabel;
     const visibleName = `${label}${price ? ` ${price}` : ""}${ownership ? ` ${ownership}` : ""}${statusLabel ? ` ${statusLabel}` : ""}`;
-    if (copy && copy.textContent.trim() !== visibleName) {
+    const cardCopyKey = [label, price, ownership, statusLabel].join("\u001f");
+    const labelNode = copy?.querySelector(":scope > .item-name-label");
+    const metaNodes = copy ? [...copy.querySelectorAll(":scope > .item-name-meta")] : [];
+    const expectedMeta = [price || ownership ? [price, ownership].filter(Boolean).join(" / ") : "", statusLabel].filter(Boolean);
+    const copyStructureCurrent = Boolean(
+      copy &&
+      copy.dataset.shopCopyKey === cardCopyKey &&
+      labelNode?.textContent === label &&
+      metaNodes.length === expectedMeta.length &&
+      metaNodes.every((node, index) => node.textContent === expectedMeta[index])
+    );
+    if (copy && !copyStructureCurrent) {
       copy.classList.add("item-name-line");
       copy.innerHTML = `<span class="item-name-label">${escapeHtml(label)}</span>${price || ownership ? `<small class="item-name-meta">${escapeHtml([price, ownership].filter(Boolean).join(" / "))}</small>` : ""}${statusLabel ? `<small class="item-name-meta purchase-state">${escapeHtml(statusLabel)}</small>` : ""}`;
+      copy.dataset.shopCopyKey = cardCopyKey;
     }
     button.setAttribute("aria-label", visibleName);
     const accessibilityDescription = availabilityState.purchaseBlockedMessage || availabilityState.bulkPurchaseBlockedMessage;
@@ -22618,7 +22634,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v654";
+const version = "ui-visual-elevation-v655";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23655,7 +23671,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v654", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v655", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
