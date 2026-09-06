@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v650";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v651";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -87,6 +87,7 @@ const els = {
   titlePlayProgress: $("#titlePlayProgress"),
   titleTacticsButton: $("#titleTacticsButton"),
   fullscreenButton: $("#fullscreenButton"),
+  canvasUiToggle: $("#canvasUiToggle"),
   keybindButton: $("#keybindButton"),
   keybindOverlay: $("#keybindOverlay"),
   keybindCloseButton: $("#keybindCloseButton"),
@@ -257,6 +258,7 @@ const els = {
   hackerCategoryPreviousButton: $("#hackerCategoryPreviousButton"),
   hackerCategoryNextButton: $("#hackerCategoryNextButton"),
   hackerCategoryLabel: $("#hackerCategoryLabel"),
+  hackerSelectedAction: $("#hackerSelectedAction"),
   gunnerReloadButton: $("#gunnerReloadButton"),
   vendingPanel: $("#vendingPanel"),
   vendingBulkPurchase: $("#vendingBulkPurchase"),
@@ -581,6 +583,9 @@ const state = {
   expandedMapOpen: false,
   expandedMapReturnFocus: null,
   tabletOpen: false,
+  // Playing starts with the surrounding controls stored away; this is a view
+  // preference only and never changes the authoritative game state.
+  canvasUiOpen: false,
   tabletResumeAfterMap: false,
   tabletStick: { pointerId: null, dx: 0, dy: 0, strength: 0, mode: "idle" },
   tabletBranchGroup: "",
@@ -607,7 +612,6 @@ const state = {
   fighterSlashPendingRequests: new Set(),
   selectedWeaponItemId: "",
   explicitInventoryItemId: "",
-  implicitHsgInventoryFallback: false,
   pendingExplicitWeaponSelectionId: "",
   enhanceHold: { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" },
   throwTargeting: {
@@ -634,6 +638,7 @@ const state = {
   },
   clairvoyanceTeleportTap: null,
   clairvoyanceTeleportRequestSerial: 0,
+  canvasItemUseTap: null,
   markerHitTargets: [],
   markerExplanation: null,
   operatorBranchesOpen: false,
@@ -719,7 +724,7 @@ const state = {
   vendingSelectedByCategory: Object.create(null),
   vendingPageByCategory: Object.create(null),
   itemRenderKey: "",
-  hsgLiveTicker: 0,
+  hoverSprintLiveTicker: 0,
   utilityRenderKey: "",
   lastCanvasStageError: "",
   lastCanvasItemError: "",
@@ -835,7 +840,6 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   plutonium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
   "orichalcum-sword": "物理武器。直接斬撃は確殺（死体あり）。斬る: 150SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
-  hsg: "Storageへ入る物理HSG。通常使用と床外へ進む直前の自動起動は1MPで即8秒・ACC 1.8。600〜2999ms長押しは総コスト固定1MPのEnhance、3000ms以上は総コスト固定2MPのGBOとして即80秒・ACC 18で起動しHSG 1個を破壊。全所持者が使え、理知を要しない。MP不足時は発動せず、通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。最後の浮揚が床のない場所で終了すると落下死。起動中・20秒CT中は使用不可",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
@@ -847,8 +851,10 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
 const VENDING_PRODUCT_LABELS = DVA_ECONOMY.productLabels;
 const VENDING_PRODUCT_COSTS = DVA_ECONOMY.productCosts;
 
+const vendingItemProducts = DVA_ECONOMY.products.filter((product) => product.id !== "hsg");
+
 const alchemyRecipes = [
-  ...DVA_ECONOMY.products.map((product) => ({
+  ...vendingItemProducts.map((product) => ({
     id: product.hackerRecipeId,
     productId: product.id,
     label: product.label,
@@ -901,7 +907,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v650";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v651";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -920,7 +926,6 @@ const generatedItemTextureFiles = new Map([
   ["ice", { file: "item-ice.webp" }],
   ["heated-water", { file: "item-heated-water.webp" }],
   ["orichalcum-sword", { file: "item-orichalcum-sword-v453.png" }],
-  ["hsg", { file: "item-hsg-v486.png" }],
   ["iai", { file: "instant-iai-abstract-v451.png" }],
   ["stamina", { file: "alchemy-effect-stamina-v311.png" }],
   ["heal", { file: "alchemy-effect-heal-v311.png" }],
@@ -1057,13 +1062,13 @@ function shopButtonCatalogEntry(button) {
 function ensureDynamicVendingChoices() {
   const grid = els.vendingPanel.querySelector(".vending-grid");
   if (!grid) return;
-  const catalogIds = new Set(DVA_ECONOMY.products.map((product) => product.id));
+  const catalogIds = new Set(vendingItemProducts.map((product) => product.id));
   const abilityIds = new Set(DVA_ECONOMY.abilityProducts.map((product) => product.id));
   for (const button of vendingProductButtons()) {
     if (button.dataset.drink && !catalogIds.has(button.dataset.drink)) button.remove();
     if (button.dataset.shopAbility && !abilityIds.has(button.dataset.shopAbility)) button.remove();
   }
-  for (const product of DVA_ECONOMY.products) {
+  for (const product of vendingItemProducts) {
     let button = grid.querySelector(`[data-drink="${CSS.escape(product.id)}"]`);
     if (!button) {
       button = document.createElement("button");
@@ -1271,7 +1276,7 @@ function cycleHackerTarget(direction = 1) {
   const currentIndex = targets.findIndex((player) => player.id === state.hackerTargetId);
   const nextIndex = (Math.max(0, currentIndex) + direction + targets.length) % targets.length;
   state.hackerTargetId = targets[nextIndex].id;
-  renderHackerAbilityDock(state.data, true);
+  renderHackerAbilityDock(state.data);
   els.hackerTargetSelect.focus({ preventScroll: true });
   const selected = targets[nextIndex];
   showToast(`ハッカー対象: ${selected.name}${selected.id === state.data?.selfId ? "（自分）" : ""}`);
@@ -1282,7 +1287,13 @@ function hackerActionButtons() {
   return [...els.hackerAbilityGrid.querySelectorAll("[data-hacker-recipe]")];
 }
 
-function syncHackerSelectedName() {}
+function syncHackerSelectedName() {
+  const selected = alchemyRecipes.find((recipe) => recipe.id === state.hackerSelectedRecipeId);
+  const label = selected?.label || "選択なし";
+  if (els.hackerSelectedAction && els.hackerSelectedAction.textContent !== label) {
+    els.hackerSelectedAction.textContent = label;
+  }
+}
 
 function selectHackerAction(recipeId, focus = true, behavior = "smooth") {
   const buttons = hackerActionButtons();
@@ -1478,9 +1489,19 @@ function renderHackerAbilityDock(data = state.data, force = false) {
   const category = availableCategories.find((entry) => entry.id === state.hackerCategoryId) || availableCategories[0] || hackerRecipeCategories[0];
   state.hackerCategoryId = category.id;
   const recipes = availableRecipes.filter((recipe) => hackerRecipeCategory(recipe) === category.id);
-  els.hackerCategoryLabel.textContent = `${category.label} ${recipes.length}`;
+  const categoryLabel = `${category.label} ${recipes.length}`;
+  if (els.hackerCategoryLabel.textContent !== categoryLabel) els.hackerCategoryLabel.textContent = categoryLabel;
   const renderKey = `${category.id}:${recipes.map((recipe) => recipe.id).join("|")}`;
+  let focusedRecipeIdToRestore = "";
+  let preserveHackerGridScroll = false;
+  let previousHackerGridScrollTop = 0;
   if (force || renderKey !== state.hackerDockRenderKey) {
+    const focusedAction = els.hackerAbilityGrid.contains(document.activeElement)
+      ? document.activeElement?.closest?.("[data-hacker-recipe]")
+      : null;
+    focusedRecipeIdToRestore = focusedAction?.dataset?.hackerRecipe || "";
+    preserveHackerGridScroll = state.hackerDockRenderKey.startsWith(`${category.id}:`);
+    previousHackerGridScrollTop = els.hackerAbilityGrid.scrollTop;
     state.hackerDockRenderKey = renderKey;
     if (state.inventoryItemDetailSource && els.hackerAbilityGrid.contains(state.inventoryItemDetailSource)) hideInventoryItemDetail();
     els.hackerAbilityGrid.replaceChildren();
@@ -1514,6 +1535,7 @@ function renderHackerAbilityDock(data = state.data, force = false) {
       false,
       "auto"
     );
+    if (preserveHackerGridScroll) els.hackerAbilityGrid.scrollTop = previousHackerGridScrollTop;
     els.hackerAbilityDock.classList.remove("page-transition");
     void els.hackerAbilityDock.offsetWidth;
     els.hackerAbilityDock.classList.add("page-transition");
@@ -1541,11 +1563,24 @@ function renderHackerAbilityDock(data = state.data, force = false) {
       state.hackerGenerationInFlight ||
       (targetRequired && !target) ||
       (!recipe.kind && (!vibeCodingReady || !enoughMana));
-    button.disabled = false;
-    button.dataset.actionDisabled = actionDisabled ? "1" : "0";
-    button.setAttribute("aria-disabled", String(actionDisabled));
-    button.classList.toggle("action-unavailable", actionDisabled);
+    if (button.disabled) button.disabled = false;
+    const actionDisabledValue = actionDisabled ? "1" : "0";
+    if (button.dataset.actionDisabled !== actionDisabledValue) {
+      button.dataset.actionDisabled = actionDisabledValue;
+      button.setAttribute("aria-disabled", String(actionDisabled));
+      button.classList.toggle("action-unavailable", actionDisabled);
+    }
   });
+  if (focusedRecipeIdToRestore) {
+    const matchingFocus = els.hackerAbilityGrid.querySelector(
+      `[data-hacker-recipe="${CSS.escape(focusedRecipeIdToRestore)}"]`
+    );
+    const fallbackFocus = matchingFocus || els.hackerAbilityGrid.querySelector("[data-hacker-recipe]") || els.hackerAbilityDock;
+    fallbackFocus.focus({ preventScroll: true });
+    if (!matchingFocus && fallbackFocus !== els.hackerAbilityDock) {
+      fallbackFocus.scrollIntoView({ block: "nearest", inline: "nearest", behavior: motionSafeScrollBehavior("auto") });
+    }
+  }
 }
 
 const soloMissionIds = ["movement", "combat", "defense", "intel", "emp", "cpu-gravity", "cpu-stage2"];
@@ -2374,6 +2409,11 @@ function restorePollScrollPositions(snapshot, { defer = true } = {}) {
       const { surface } = entry;
       if (!(surface instanceof Element) || !surface.isConnected) continue;
       if ((scrollSurfaceRevisions.get(surface) || 0) !== entry.revision) continue;
+      const currentMaxTop = Math.max(0, surface.scrollHeight - surface.clientHeight);
+      const currentMaxLeft = Math.max(0, surface.scrollWidth - surface.clientWidth);
+      // Preserve browser-owned elastic overscroll for every native surface.
+      // Valid in-range positions still restore after DOM replacement.
+      if (Number(surface.scrollTop) < 0 || Number(surface.scrollTop) > currentMaxTop || Number(surface.scrollLeft) < 0 || Number(surface.scrollLeft) > currentMaxLeft) continue;
       const maxTop = Math.max(0, surface.scrollHeight - surface.clientHeight);
       const maxLeft = Math.max(0, surface.scrollWidth - surface.clientWidth);
       const top = Math.min(entry.atEndY && entry.wasScrollableY ? maxTop : entry.top, maxTop);
@@ -2432,10 +2472,10 @@ function createFullscreenSwipeGuard({ isActive, resolveScrollable }) {
       if (Math.abs(deltaY) < 0.5) return false;
       const scrollable = touch.scrollable;
       if (!scrollable) return true;
-      const maxScrollTop = Math.max(0, scrollable.scrollHeight - scrollable.clientHeight);
-      if (maxScrollTop <= 0) return true;
-      if (deltaY > 0) return scrollable.scrollTop <= 0;
-      return scrollable.scrollTop >= maxScrollTop - 1;
+      // A recognized local surface owns its whole native flick, including its
+      // endpoint. CSS overscroll containment stops page chaining; cancelling
+      // this document-level touchmove at the edge would interrupt momentum.
+      return false;
     },
     end(id) {
       return touches.delete(id);
@@ -2483,6 +2523,20 @@ function syncFullscreenButton() {
   els.fullscreenButton.classList.toggle("active", active);
   els.fullscreenButton.title = active ? "全画面表示を終了する" : "全画面表示にする";
   els.fullscreenButton.setAttribute("aria-label", els.fullscreenButton.title);
+}
+
+function setCanvasUiOpen(open, { focus = false } = {}) {
+  const playable = state.screen === "game" && state.data?.phase === "playing";
+  state.canvasUiOpen = Boolean(playable && open);
+  const collapsed = Boolean(playable && !state.canvasUiOpen);
+  document.body.classList.toggle("canvas-ui-collapsed", collapsed);
+  els.canvasUiToggle.hidden = !playable;
+  els.canvasUiToggle.classList.toggle("active", state.canvasUiOpen);
+  els.canvasUiToggle.setAttribute("aria-expanded", String(state.canvasUiOpen));
+  els.canvasUiToggle.setAttribute("aria-label", state.canvasUiOpen ? "UIを格納する" : "UIを表示する");
+  els.canvasUiToggle.title = state.canvasUiOpen ? "UIを格納する（Ctrl+U）" : "UIを表示する（Ctrl+U）";
+  if (collapsed && els.sidePanel.contains(document.activeElement)) els.canvasUiToggle.focus({ preventScroll: true });
+  if (focus && state.canvasUiOpen) els.sidePanel.focus({ preventScroll: true });
 }
 
 function createBgmAudio(src, volume) {
@@ -3242,7 +3296,6 @@ const actionHotkeys = {
   KeyN: "nextCameraButton",
   KeyV: "vendingButton",
   KeyH: "operatorAbilityButton",
-  KeyK: "sleepButton",
   KeyC: "renkiButton",
   KeyL: "sabotageButton",
   KeyU: "utilityButton",
@@ -3264,7 +3317,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/dodge": "evade",
   "/api/fighter-slash": "slash",
   "/api/limit-break": "power",
-  "/api/sleep": "rest",
   "/api/donate": "interact",
   "/api/teleport": "cast",
   "/api/gravity-time": "cast",
@@ -3357,7 +3409,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-special-ammo-load": "reload",
   "action-gunner-aim-headshot": "shoot",
   "action-gunner-headshot": "shoot",
-  "item-hsg-activate": "power",
   "gunner-passive-aim": "focus",
   "action-weapon-switch": "weapon-switch",
   "action-reason": "attack",
@@ -3430,7 +3481,7 @@ function magicCharacterActionKind(type, variant = "") {
   if (/gunner-(rpg|missile|nuclear)|railgun|particle|sunbeam/.test(type)) return "shoot";
   if (/flora/.test(type)) return "heal";
   if (/dodge|substitution|stand/.test(type)) return "evade";
-  if (/limit-break|item-hsg|idea-/.test(type)) return "power";
+  if (/limit-break|idea-/.test(type)) return "power";
   if (/gunner-aim/.test(type)) return "focus";
   if (/emp|gravity|fire|vibe|alchemy|teleport/.test(type)) return "cast";
   if (/vending|object|push/.test(type)) return "interact";
@@ -3445,9 +3496,7 @@ const vendingHotkeys = {
   Digit5: "mystery",
   Digit6: "fire",
   Digit7: "substitution",
-  Digit8: "grit",
   Digit9: "heal",
-  Digit0: "reason",
   KeyP: "mana",
   "Alt+Digit1": "railgun",
   "Alt+Digit2": "particle-cannon",
@@ -3635,10 +3684,22 @@ async function purchaseVendingItem(button, { bulk = false } = {}) {
     const ability = DVA_ECONOMY.abilityProduct(button.dataset.shopAbility);
     if (ability) {
       if (shopAbilityOwned(ability.id)) return executePurchasedShopAbility(ability);
+      const roomId = state.roomId;
+      const playerId = state.playerId;
+      const generation = state.roomSessionGeneration;
       const result = await api("/api/shop/purchase", {
         abilityId: ability.id,
         transactionId: newShopPurchaseTransactionId()
       });
+      const confirmedPurchase = result?.roomId === roomId && result?.shopPurchase?.abilityId === ability.id &&
+        (result.self?.shopAbilityEntitlements || []).includes(ability.id);
+      const selectableAbility = ['active', 'active-target-map'].includes(ability.behavior);
+      if (selectableAbility && confirmedPurchase && isCurrentRoomSession(roomId, playerId, generation) &&
+        state.data?.roomId === roomId && (state.data.self?.shopAbilityEntitlements || []).includes(ability.id)) {
+        state.selectedShopAbilityId = ability.id;
+        renderTargetOptions(state.data);
+        updateActionButtons(state.data);
+      }
       return result;
     }
     // Bulk purchase is a single authoritative transaction.  Repeating normal
@@ -3775,7 +3836,6 @@ function isContinuousGameActionButton(button) {
   if ([
     "tabletEmpShortcut",
     "tabletDodgeShortcut",
-    "tabletRestShortcut",
     "tabletDonateShortcut"
   ].includes(button.id)) return true;
   if (["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button.id)) {
@@ -4732,7 +4792,7 @@ function toggleClairvoyance(force = null) {
 
 function clientGboEligibleItemId(itemId) {
   const id = String(itemId || "");
-  return id === "hsg" || id === "orichalcum-sword" || id.startsWith("weapon:") || id.startsWith("heavy:") || id.startsWith("invention:");
+  return id === "orichalcum-sword" || id.startsWith("weapon:") || id.startsWith("heavy:") || id.startsWith("invention:");
 }
 
 function updateEnhanceReadout() {
@@ -4784,10 +4844,11 @@ function cancelEnhanceAction(kind = state.enhanceHold.kind, { recoverOnFailure =
   const hold = state.enhanceHold;
   if (!hold.kind || (kind && hold.kind !== kind)) return false;
   if (hold.timer) cancelAnimationFrame(hold.timer);
+  if (state.canvasItemUseTap?.pointerId === hold.pointerId) state.canvasItemUseTap = null;
   state.enhanceHold = { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
   if (hold.chargeKind === "shoot") state.gunActivationPending = false;
   if (hold.pointerId !== null) {
-    for (const button of [els.shootButton, els.tabletShootShortcut, els.fireJutsuButton, els.tabletFireShortcut, els.itemUseButton, els.itemThrowButton]) {
+    for (const button of [els.shootButton, els.tabletShootShortcut, els.fireJutsuButton, els.tabletFireShortcut, els.itemUseButton, els.itemThrowButton, els.canvas]) {
       try {
         if (button?.hasPointerCapture?.(hold.pointerId)) button.releasePointerCapture(hold.pointerId);
       } catch {}
@@ -5131,7 +5192,6 @@ function selectItemChoice(itemId, focus = true) {
   if (!button) return false;
   els.itemSelect.value = button.dataset.itemChoice;
   state.explicitInventoryItemId = button.dataset.itemChoice;
-  state.implicitHsgInventoryFallback = false;
   if (isDisplayedWeaponItemId(button.dataset.itemChoice)) state.selectedWeaponItemId = button.dataset.itemChoice;
   els.itemSelect.dispatchEvent(new Event("change", { bubbles: true }));
   if (focus) button.focus({ preventScroll: true });
@@ -6624,6 +6684,7 @@ function bindEvents() {
     button.addEventListener("click", () => startSoloMission(button.dataset.soloMission));
   });
   els.fullscreenButton.addEventListener("click", toggleFullscreen);
+  els.canvasUiToggle.addEventListener("click", () => setCanvasUiOpen(!state.canvasUiOpen, { focus: true }));
   els.keybindButton.addEventListener("click", () => setKeybindOpen(!state.keybindOpen));
   els.tabletButton?.addEventListener("click", () => setTabletOpen(!state.tabletOpen));
   els.tabletBranchCloseButton.addEventListener("click", () => setTabletBranchGroup(""));
@@ -6636,7 +6697,6 @@ function bindEvents() {
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
   els.tabletRenkiShortcut.addEventListener("click", () => els.renkiButton.click());
-  els.tabletRestShortcut.addEventListener("click", () => els.sleepButton.click());
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
   els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
   els.vendingBulkPurchase.addEventListener("change", () => {
@@ -6732,7 +6792,7 @@ function bindEvents() {
   els.hackerTargetSelect.addEventListener("change", () => {
     if (!hackerTargets().some((player) => player.id === els.hackerTargetSelect.value)) return;
     state.hackerTargetId = els.hackerTargetSelect.value;
-    renderHackerAbilityDock(state.data, true);
+    renderHackerAbilityDock(state.data);
     const target = currentHackerTarget();
     if (target) showToast(`ハッカー対象: ${target.name}${target.id === state.data?.selfId ? "（自分）" : ""}`);
   });
@@ -7136,7 +7196,6 @@ function bindEvents() {
       if (state.tabletOpen && recipe) void executeHackerRecipe(recipe.id);
     });
   });
-  els.sleepButton.addEventListener("click", () => api("/api/sleep"));
   els.renkiButton.addEventListener("click", () => api("/api/renki"));
   const bindEnhanceButton = (button, kind) => {
     let suppressClickUntil = 0;
@@ -7180,7 +7239,6 @@ function bindEvents() {
   };
   bindEnhanceButton(els.fireJutsuButton, "fire");
   bindEnhanceButton(els.tabletFireShortcut, "fire");
-  bindEnhanceButton(els.itemUseButton, "use");
   bindEnhanceButton(els.itemThrowButton, "throw");
   window.addEventListener("pointerup", (event) => {
     // The control-local pointerup must own releases that began on an Enhance
@@ -7188,6 +7246,8 @@ function bindEvents() {
     // button can suppress its synthetic click, which starts a second charge
     // and makes the first ordinary use fail the server transaction check.
     if (event.target instanceof Element && event.target.closest(".enhance-hold-control")) return;
+    // Canvas item taps finish locally so a cancellation cannot become a generic use.
+    if (state.canvasItemUseTap?.pointerId === event.pointerId) return;
     if (state.enhanceHold.pointerId !== event.pointerId) return;
     void finishEnhanceAction(state.enhanceHold.kind, event.pointerId);
   }, true);
@@ -7207,7 +7267,6 @@ function bindEvents() {
   els.itemSelect.addEventListener("change", () => {
     cancelThrowTargeting(true);
     state.explicitInventoryItemId = els.itemSelect.value;
-    state.implicitHsgInventoryFallback = false;
     if (isDisplayedWeaponItemId(els.itemSelect.value)) state.selectedWeaponItemId = els.itemSelect.value;
     state.itemRenderKey = "";
     if (state.data) {
@@ -7359,6 +7418,11 @@ function bindEvents() {
         ? document.activeElement
         : null;
     if (editableTarget) return;
+    if (event.ctrlKey && !event.altKey && !event.metaKey && event.code === "KeyU" && state.screen === "game" && state.data?.phase === "playing") {
+      event.preventDefault();
+      if (!event.repeat) setCanvasUiOpen(!state.canvasUiOpen, { focus: true });
+      return;
+    }
     if (triggerDeveloperAnalyticsHotkey(event)) return;
     const typingField = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
     if (!typingField && state.enhanceHold.kind) {
@@ -7626,13 +7690,13 @@ function bindEvents() {
     if (event.relatedTarget == null) clearMovementInput();
   });
   window.addEventListener("pointerup", (event) => {
-    if (state.enhanceHold.pointerId === event.pointerId) void finishEnhanceAction(state.enhanceHold.kind, event.pointerId);
+    if (state.canvasItemUseTap?.pointerId !== event.pointerId && state.enhanceHold.pointerId === event.pointerId) void finishEnhanceAction(state.enhanceHold.kind, event.pointerId);
     stopContinuousActionHold(event.pointerId);
     releasePointerInput(event.pointerId);
     if (state.gunTriggerPointerId === event.pointerId) state.gunTriggerPointerId = null;
   });
   window.addEventListener("pointercancel", (event) => {
-    if (state.enhanceHold.pointerId === event.pointerId) cancelEnhanceAction(state.enhanceHold.kind);
+    if (state.canvasItemUseTap?.pointerId !== event.pointerId && state.enhanceHold.pointerId === event.pointerId) cancelEnhanceAction(state.enhanceHold.kind);
     stopContinuousActionHold(event.pointerId);
     releasePointerInput(event.pointerId);
     if (state.gunTriggerPointerId === event.pointerId) state.gunTriggerPointerId = null;
@@ -7775,11 +7839,15 @@ function bindEvents() {
   els.expandedMapCanvas.addEventListener("pointerleave", () => {
     if (!state.expandedMapTap) state.mapPointer = null;
   });
+  window.addEventListener("pointerdown", cancelCanvasItemUseForSecondaryPointer, true);
   els.canvas.addEventListener("pointerdown", attackFromCanvas);
-  els.canvas.addEventListener("pointermove", moveClairvoyanceTeleportTap);
-  els.canvas.addEventListener("pointerup", (event) => void finishClairvoyanceTeleportTap(event));
-  els.canvas.addEventListener("pointercancel", (event) => void finishClairvoyanceTeleportTap(event, true));
-  els.canvas.addEventListener("lostpointercapture", (event) => void finishClairvoyanceTeleportTap(event, true));
+  els.canvas.addEventListener("pointermove", (event) => {
+    moveClairvoyanceTeleportTap(event);
+    moveCanvasItemUseTap(event);
+  });
+  els.canvas.addEventListener("pointerup", (event) => void finishCanvasPrimaryTap(event));
+  els.canvas.addEventListener("pointercancel", (event) => void finishCanvasPrimaryTap(event, true));
+  els.canvas.addEventListener("lostpointercapture", (event) => void finishCanvasPrimaryTap(event, true));
 }
 
 function clearPointerInput() {
@@ -8524,7 +8592,7 @@ function renderTabletBranch(data, force = false) {
       const availableRecipes = alchemyRecipes.filter((recipe) => alchemyRecipeAvailable(recipe, self));
       const recipesForPath = {
         "hacker-resources": availableRecipes.filter((recipe) => recipe.id.startsWith("hack-")),
-        "hacker-supplies": availableRecipes.filter((recipe) => ["stamina", "heal", "fire", "substitution", "warp", "grit", "reason"].includes(recipe.id)),
+        "hacker-supplies": availableRecipes.filter((recipe) => ["stamina", "heal", "fire", "substitution", "warp"].includes(recipe.id)),
         "hacker-weapons": availableRecipes.filter((recipe) => hackerRecipeCategory(recipe) === "weapon"),
         "hacker-special": availableRecipes.filter((recipe) => recipe.id === "revive")
       }[branchPath];
@@ -8578,7 +8646,6 @@ function renderTabletBranch(data, force = false) {
           cycleSelectBy(els.itemSelect, 1);
           renderTabletBranch(state.data, true);
         }, { kind: "cycle", disabled: els.itemSelect.options.length < 2 });
-        appendTabletBranchButton("通常使用", () => void finishEnhanceActionAfterTablet("use"), { kind: "action", hold: "enhance-use", disabled: els.itemUseButton.disabled });
         appendTabletBranchButton("投擲", () => void finishEnhanceActionAfterTablet("throw"), { kind: "danger", hold: "enhance-throw", disabled: els.itemThrowButton.disabled });
         appendTabletBranchButton(`譲渡先: ${els.transferTargetSelect.options[els.transferTargetSelect.selectedIndex]?.textContent || "なし"}`, () => {
           cycleSelectBy(els.transferTargetSelect, 1);
@@ -8593,7 +8660,7 @@ function renderTabletBranch(data, force = false) {
     if (!els.vendingPanel.hidden) {
       const vendingGroups = {
         "vending-support": ["mineral-water", "antidote", "evade", "speed", "heal", "mana"],
-        "vending-tactical": ["warp", "mystery", "fire", "molotov", "substitution", "grit", "reason", "ice", "heated-water"],
+        "vending-tactical": ["warp", "mystery", "fire", "molotov", "substitution", "ice", "heated-water"],
         "vending-inventions": ["railgun", "particle-cannon", "excalibur", "exile", "hack", "handgun", "smg", "assault", "sniper", "taser", "rpg", "missile"],
         "vending-materials": ["mercury", "lead", "uranium", "plutonium"]
       };
@@ -8699,11 +8766,13 @@ function renderTabletControls(data) {
   els.tabletAbilityShortcut.setAttribute("aria-haspopup", "false");
   setTabletShortcutLabel(els.tabletShootShortcut, "射撃", els.shootButton.textContent || "射撃");
   els.tabletShootShortcut.disabled = els.shootButton.disabled;
-  els.tabletShootShortcut.hidden = els.shootButton.hidden;
+  // Acquiring a firearm must not add an extra button to the common shortcuts.
+  els.tabletShootShortcut.hidden = true;
   els.tabletShootShortcut.classList.toggle("active", els.shootButton.classList.contains("active"));
   setTabletShortcutLabel(els.tabletFireShortcut, "ファイア", els.fireJutsuButton.textContent || "ファイア");
   els.tabletFireShortcut.disabled = els.fireJutsuButton.disabled || els.fireJutsuButton.hidden;
-  els.tabletFireShortcut.hidden = els.fireJutsuButton.hidden;
+  // Fire remains available through its existing item/action route.
+  els.tabletFireShortcut.hidden = true;
   els.tabletFireShortcut.dataset.actionDisabled = els.fireJutsuButton.disabled ? "1" : "0";
   els.tabletFireShortcut.classList.toggle("action-disabled", els.fireJutsuButton.disabled);
   setTabletShortcutLabel(els.tabletEmpShortcut, "EMP", els.empButton.textContent || "EMP");
@@ -8728,8 +8797,6 @@ function renderTabletControls(data) {
   els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
   setTabletShortcutLabel(els.tabletRenkiShortcut, "練気", els.renkiButton.title || els.renkiButton.textContent || "練気");
   els.tabletRenkiShortcut.disabled = els.renkiButton.disabled;
-  setTabletShortcutLabel(els.tabletRestShortcut, "休息", els.sleepButton.title || els.sleepButton.textContent || "休息");
-  els.tabletRestShortcut.disabled = els.sleepButton.disabled;
   setTabletShortcutLabel(els.tabletDonateShortcut, "募金", "10Cを募金");
   const canAct = data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent;
   els.tabletDonateShortcut.disabled = !canAct || Number(data.self.credits || 0) < 10;
@@ -8898,7 +8965,6 @@ function smartphoneRepairState(data = state.data) {
   const inPhysicalRange = nearRepairStation || nearClosedDoor;
   const itemBlocked = (Number(self?.itemDisabledUntil) || 0) > liveNow;
   const actionBlocked = self ? Math.max(
-    Number(self.sleepingUntil) || 0,
     Number(self.unconsciousUntil) || 0,
     Number(self.meditatingUntil) || 0,
     Number(self.smartphoneUntil) || 0,
@@ -10116,7 +10182,7 @@ async function api(path, extra = {}, options = {}) {
   if (path === "/api/gunner-weapon") {
     // Only an accepted, user-originated weapon switch may move the Storage
     // selection to the new firearm. Purchases and grants also update the
-    // authoritative equipped firearm, but must preserve an explicit HSG or
+    // authoritative equipped firearm, but must preserve an explicit item or
     // other still-valid item selection.
     state.pendingExplicitWeaponSelectionId = String(result?.self?.gunnerWeapon || "");
   }
@@ -10229,8 +10295,76 @@ async function performNinjutsu() {
   }
 }
 
+function canvasTapHitsWorldEntity(event) {
+  const data = state.data;
+  const point = canvasPointerPosition(event);
+  const viewport = state.drawViewport;
+  if (!data || !point || !viewport) return false;
+  const zoom = worldZoomFor(data);
+  const world = { x: viewport.left + point.x / zoom, y: viewport.top + point.y / zoom };
+  const playerRadius = Math.max(18, Number(data.map?.playerRadius) || 22);
+  const groups = [
+    (data.players || []).map((entry) => ({ ...entry, hitRadius: playerRadius * 1.5 })),
+    (data.map?.objects || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 42) })),
+    (data.map?.alchemyObjects || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 42) })),
+    (data.map?.mysteryBoxes || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 54) })),
+    (data.groundItems || []).map((entry) => ({ ...entry, hitRadius: Math.max(22, Number(entry.radius) || 30) })),
+    // drawHazardFields draws every serialized field; server snapshot removal owns expiry.
+    (data.hazardFields || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 80) }))
+  ];
+  return groups.some((entries) => entries.some((entry) => (
+    Number.isFinite(Number(entry.x)) && Number.isFinite(Number(entry.y)) &&
+    Math.hypot(world.x - Number(entry.x), world.y - Number(entry.y)) <= entry.hitRadius
+  )));
+}
+
+function beginCanvasItemUseTap(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return false;
+  if (state.screen !== "game" || state.data?.phase !== "playing" || els.itemControl.hidden || els.itemUseButton.disabled) return false;
+  if (canvasTapHitsWorldEntity(event) || state.enhanceHold.kind) return false;
+  if (!beginEnhanceAction("use", event.pointerId)) return false;
+  state.canvasItemUseTap = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false };
+  try { els.canvas.setPointerCapture(event.pointerId); } catch {}
+  event.preventDefault();
+  return true;
+}
+
+function cancelCanvasItemUseForSecondaryPointer(event) {
+  const tap = state.canvasItemUseTap;
+  if (!tap || event.isPrimary || tap.pointerId === event.pointerId) return false;
+  return cancelEnhanceAction("use");
+}
+
+function moveCanvasItemUseTap(event) {
+  const tap = state.canvasItemUseTap;
+  if (!tap || tap.pointerId !== event.pointerId || tap.moved) return;
+  if (Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) <= 10) return;
+  tap.moved = true;
+  cancelEnhanceAction("use");
+}
+
+async function finishCanvasItemUseTap(event, cancelled = false) {
+  const tap = state.canvasItemUseTap;
+  if (!tap || tap.pointerId !== event.pointerId) return false;
+  state.canvasItemUseTap = null;
+  if (cancelled || tap.moved) {
+    if (state.enhanceHold.kind === "use") cancelEnhanceAction("use");
+    return false;
+  }
+  return finishEnhanceAction("use", event.pointerId);
+}
+
+async function finishCanvasPrimaryTap(event, cancelled = false) {
+  if (state.clairvoyanceTeleportTap) return finishClairvoyanceTeleportTap(event, cancelled);
+  return finishCanvasItemUseTap(event, cancelled);
+}
+
 async function attackFromCanvas(event) {
   if (!state.data || event.button !== 0) return;
+  if (!event.isPrimary) {
+    cancelCanvasItemUseForSecondaryPointer(event);
+    return;
+  }
   if (beginClairvoyanceTeleportTap(event)) {
     event.preventDefault();
     return;
@@ -10247,7 +10381,9 @@ async function attackFromCanvas(event) {
   if (pointerHitsMinimap(event)) {
     event.preventDefault();
     openExpandedMapFromMinimap();
+    return;
   }
+  beginCanvasItemUseTap(event);
 }
 
 function clearLocalGunTrigger() {
@@ -10636,7 +10772,6 @@ function resetLocalSession() {
   state.accessibleGameStatus = null;
   state.inventoryVisualWeapon = "";
   state.explicitInventoryItemId = "";
-  state.implicitHsgInventoryFallback = false;
   state.pendingExplicitWeaponSelectionId = "";
   state.selectedWeaponItemId = "";
   state.hackerTargetId = "";
@@ -10750,7 +10885,7 @@ function applyState(data, options = {}) {
     state.lastStateReceivedAt = performance.now();
   }
   state.data = data;
-  syncHsgLiveCountdownTicker(data);
+  syncHoverSprintLiveCountdownTicker(data);
   updateManualVerificationBotContinuity(data, options.source || "state");
   if (IS_VERIFICATION_MODE) {
     const barrierActive = data.phase === "playing" && Number(data.preparationEndsAt) > Number(data.serverNow || Date.now());
@@ -11136,7 +11271,6 @@ function detectMysteryResult(previous, next) {
 function isActionBlocked(data = state.data) {
   if (!data) return false;
   const blockedUntil = data.self?.actionBlockedUntil || Math.max(
-    Number(data.self?.sleepingUntil) || 0,
     Number(data.self?.unconsciousUntil) || 0
   );
   return blockedUntil > estimatedServerNow(data);
@@ -11730,11 +11864,13 @@ function isClientMovementAllowed(data, player, x, y, radius) {
     player?.levitationActive ||
     (player?.id === data.selfId && data.self?.levitationActive)
   );
-  const accelerationPhasing = Boolean(
-    player?.accelerationPhasing ||
-    (player?.id === data.selfId && data.self?.accelerationPhasing)
-  );
-  return accelerationPhasing || levitating || !player?.alive || isClientWalkable(data, x, y, radius);
+  const hoverSprintUntil = Number(
+    player?.id === data.selfId
+      ? data.self?.hoverSprintUntil
+      : player?.hoverSprintUntil
+  ) || 0;
+  const hoverSprinting = hoverSprintUntil > liveNow;
+  return hoverSprinting || levitating || !player?.alive || isClientWalkable(data, x, y, radius);
 }
 
 function renderedPlayer(player) {
@@ -11819,6 +11955,14 @@ function renderKillCamera(data) {
   setKillCameraOpen(true);
 }
 
+function displayedManaValue(value) {
+  // Desire debt is an authoritative internal state, but player-facing MP is
+  // never negative. Keep the debt in game state while presenting its usable
+  // resource projection consistently across canvas and accessibility output.
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
+}
+
 function accessibleGameStatusSnapshot(data) {
   const self = data?.self;
   if (!self) return null;
@@ -11830,7 +11974,7 @@ function accessibleGameStatusSnapshot(data) {
     : 0;
   const maxHealth = Math.max(2, Number(self.maxHealth) || 2, health);
   const stamina = Math.max(0, Number(self.stamina) || 0);
-  const mana = Math.max(0, Number(self.mana) || 0);
+  const mana = displayedManaValue(self.mana);
   const acceleration = Math.max(1, Number(self.accelerationMultiplier) || 1);
   const movementAccActive = self.movementAccActive === true || (
     self.movementAccActive == null &&
@@ -11928,6 +12072,7 @@ function render() {
     setSelectedScrollRegion(null, { focus: false });
   }
   const offlineContext = state.offlineMode || (!data && !state.onlineAvailable);
+  setCanvasUiOpen(state.canvasUiOpen);
   updateSensoryOverlay(data);
   syncAccessibleGameStatus(data);
   els.soloMissionHud.hidden = !data?.soloMission;
@@ -12062,12 +12207,14 @@ function renderOperatorSelect(data) {
     button.dataset.operatorId = operator.id;
     button.dataset.selectable = selectable ? "1" : "0";
     if (operatorIndex < 9) button.dataset.hotkey = String(operatorIndex + 1);
+    const inlineDescription = String(operator.description || "");
     button.setAttribute("aria-disabled", String(!selectable));
-    button.setAttribute("aria-label", `${operator.name}。長押しで説明`);
+    button.setAttribute("aria-label", `${operator.name}。${inlineDescription}${inlineDescription ? "。" : ""}長押しで詳細`);
     button.innerHTML = `
       ${operator.asset ? `<span class="operator-visual operator-visual-${escapeHtml(operator.asset)}" aria-hidden="true"></span>` : ""}
       <span class="operator-meta">
         <span class="name-line">${escapeHtml(operator.name)}</span>
+        <span class="operator-description">${escapeHtml(inlineDescription)}</span>
       </span>
       <span class="badge">${operator.taken} / ${operator.limit >= 99 ? "∞" : operator.limit}</span>
     `;
@@ -12781,16 +12928,6 @@ function renderTargetOptions(data) {
   }
 
   const selectedShopAbility = syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, options);
-  if (selectedShopAbility) {
-    const descriptionOwner = selectedShopAbility.operator === "gravity" ? "teleport" : selectedShopAbility.operator;
-    const description = "購入済み: " + selectedShopAbility.label + "。" + abilityModeDescription(descriptionOwner, selectedShopAbility.mode, self);
-    if (els.teleportModeDescription.textContent !== description) els.teleportModeDescription.textContent = description;
-  } else if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && !nativeQuantumKineticTerminalActive(self)) {
-    const explicitMode = modeOwner === "quantum"
-      ? selectedQuantumExecutableMode(Boolean(borrowedOperator))
-      : "";
-    syncAbilityModeDescription(modeOwner, self, explicitMode);
-  }
 
   const currentAbilityMode = rootAbilitySwitchVisible && borrowedOperator
     ? state.borrowedAbilityModes[borrowedOperator] || ""
@@ -12835,6 +12972,21 @@ function renderTargetOptions(data) {
     if (otherTarget) els.teleportTargetSelect.value = otherTarget.value;
   }
   if (self.special === "teleport" || borrowedOperator === "gravity") ensureTeleportTargetForMode(data);
+
+  const descriptionMode = selectedShopAbility?.operator === "gravity"
+    ? selectedShopAbility.mode
+    : currentAbilityMode;
+  const availabilityHint = gravityDecelerateSelfImmunityHint(self, descriptionMode, els.teleportTargetSelect.value);
+  if (selectedShopAbility) {
+    const descriptionOwner = selectedShopAbility.operator === "gravity" ? "teleport" : selectedShopAbility.operator;
+    const description = "購入済み: " + selectedShopAbility.label + "。" + abilityModeDescription(descriptionOwner, selectedShopAbility.mode, self) + availabilityHint;
+    if (els.teleportModeDescription.textContent !== description) els.teleportModeDescription.textContent = description;
+  } else if ((!rootAbilitySwitchVisible || state.rootAbilitySelectStage === "operator") && !nativeQuantumKineticTerminalActive(self)) {
+    const explicitMode = modeOwner === "quantum"
+      ? selectedQuantumExecutableMode(Boolean(borrowedOperator))
+      : "";
+    syncAbilityModeDescription(modeOwner, self, explicitMode, availabilityHint);
+  }
 }
 
 function abilityModeDescription(owner, mode, self) {
@@ -12879,10 +13031,15 @@ function abilityModeDescription(owner, mode, self) {
   return ownerDescriptions?.[mode] || "選択した能力の発動条件と効果をここに表示します。";
 }
 
-function syncAbilityModeDescription(owner, self, explicitMode = "") {
+function gravityDecelerateSelfImmunityHint(self, mode, targetId) {
+  if (mode !== "decelerate" || !self?.statusImmunityActive || String(targetId || "") !== String(self.id || "")) return "";
+  return " 現在の自分は理知の自然回復中のため、自分へのディーセラレートは状態異常として無効化される。";
+}
+
+function syncAbilityModeDescription(owner, self, explicitMode = "", availabilityHint = "") {
   if (!els.teleportModeDescription) return;
   const autoState = state.abilityAutoActivate ? "ON（選択時に即実行）" : "OFF（選択だけ確定）";
-  const description = `${abilityModeDescription(owner, explicitMode || els.teleportModeSelect.value, self)} 選択時実行: ${autoState}`;
+  const description = `${abilityModeDescription(owner, explicitMode || els.teleportModeSelect.value, self)}${availabilityHint} 選択時実行: ${autoState}`;
   if (els.teleportModeDescription.textContent !== description) els.teleportModeDescription.textContent = description;
 }
 
@@ -12941,34 +13098,11 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
   const chargeDescriptions = {
     "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire
   };
+  // A stale pre-v650 snapshot must not recreate the retired item card.
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
-    item && (!item.kind || ["item", "charge", "instant"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0
+    item && item.id !== "hsg" && (!item.kind || ["item", "charge", "instant"].includes(item.kind)) && typeof item.id === "string" && item.id.length > 0 && Number(item.amount) > 0
   ).map((item) => {
     const inventoryKind = item.kind === "instant" ? "instant" : item.kind === "charge" ? "charge" : "item";
-    if (item.id === "hsg") {
-      const activeMs = Math.max(0, Number(self.hsgUntil) - liveNow);
-      const cooldownMs = Math.max(0, Number(self.hsgReadyAt) - liveNow);
-      const gboActive = Number(self.timedAccelerationStacks?.hsg?.multiplier) >= 18;
-      const stateLabel = activeMs > 0
-        ? `${gboActive ? "GBO作動中" : "作動中"} ${Math.ceil(activeMs / 1000)}秒`
-        : cooldownMs > 0
-          ? `CT ${Math.ceil(cooldownMs / 1000)}秒`
-          : "待機";
-      return {
-        ...item,
-        inventoryKind,
-        output: `物理武具 / ${stateLabel}`,
-        detail: activeMs > 0
-          ? `物理HSG。${gboActive ? "GBO" : "通常／Enhance"}浮揚中（残り${(activeMs / 1000).toFixed(1)}秒）。期限終了時に床がなければ落下死。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
-          : cooldownMs > 0
-            ? `物理HSG。20秒CT中（残り${(cooldownMs / 1000).toFixed(1)}秒）。本体はStorageに残り、投擲・譲渡・死亡時戦利品移動が可能`
-            : "物理HSG。通常使用と床外自動起動は1MPで即8秒・ACC 1.8。Useを600〜2999ms長押しすると総コスト固定1MPの単一Enhanceで即10秒・ACC 2.0、3000ms以上で総コスト固定2MPのGBOを即起動。MP不足時は発動せず、GBOだけHSGを1個破壊。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能",
-        badge: `×${Number(item.amount) || 1} / ${stateLabel}`,
-        usable: activeMs <= 0 && cooldownMs <= 0 && (Boolean(self.fighterInfiniteResources) || Number(self.mana) >= Math.max(1, Number(self.hsgManaCost) || 1)),
-        throwable: true,
-        transferable: true
-      };
-    }
     return {
       ...item,
       inventoryKind,
@@ -12977,7 +13111,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
       badge: `×${Number(item.amount) || 1}`
     };
   });
-  const availableGunnerWeapons = (Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [])
+    const availableGunnerWeapons = (Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [])
     .filter((weapon) => weapon.available !== false);
   // Purchased/Hacker-generated firearms are already authoritative in
   // gunnerWeapons. Gating only on the native Gunner operator made those owned
@@ -13290,14 +13424,7 @@ function defaultInventoryItemSelection(items, self, explicitItemId = "") {
   if (explicit) return explicit.id;
   const equippedFirearmId = self?.gunnerWeapon ? `weapon:${self.gunnerWeapon}` : "";
   if (equippedFirearmId && available.some((item) => item.id === equippedFirearmId)) return equippedFirearmId;
-  const nonHsgWeapon = available.find((item) => item.id !== "hsg" && displayedWeaponKind(item));
-  if (nonHsgWeapon) return nonHsgWeapon.id;
-  if (available.some((item) => item.id === "hsg")) return "hsg";
-  return available[0]?.id || "";
-}
-
-function hasNonHsgDisplayedWeapon(items) {
-  return (Array.isArray(items) ? items : []).some((item) => item.id !== "hsg" && displayedWeaponKind(item));
+  return available.find((item) => displayedWeaponKind(item))?.id || available[0]?.id || "";
 }
 
 function renderItemControl(data) {
@@ -13320,9 +13447,7 @@ function renderItemControl(data) {
   if (state.itemRenderKey !== renderKey) {
     state.itemRenderKey = renderKey;
     if (!items.some((item) => item.id === state.explicitInventoryItemId)) state.explicitInventoryItemId = "";
-    const replaceImplicitHsg = state.implicitHsgInventoryFallback && !state.explicitInventoryItemId && hasNonHsgDisplayedWeapon(items);
-    const preferredItemId = defaultInventoryItemSelection(items, self, replaceImplicitHsg ? "" : state.explicitInventoryItemId);
-    state.implicitHsgInventoryFallback = !state.explicitInventoryItemId && preferredItemId === "hsg" && !hasNonHsgDisplayedWeapon(items);
+    const preferredItemId = defaultInventoryItemSelection(items, self, state.explicitInventoryItemId);
     els.itemSelect.innerHTML = items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)} ${escapeHtml(item.badge || "")}</option>`).join("");
     if (preferredItemId) els.itemSelect.value = preferredItemId;
     els.transferTargetSelect.innerHTML = targets.map((target) => `<option value="${escapeHtml(target.id)}">${escapeHtml(playerIdentityLabel(target))}</option>`).join("");
@@ -13343,7 +13468,7 @@ function renderItemControl(data) {
       button.style.userSelect = "none";
       button.setAttribute("role", "option");
       button.setAttribute("aria-label", item.label);
-      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong>${item.inventoryKind === "special-ammo" || item.id === "hsg" ? `<small>${escapeHtml(item.badge)}</small>` : ""}</span>`;
+      button.innerHTML = `<span class="alchemy-choice-icon" aria-hidden="true"></span><span class="item-choice-copy"><strong>${escapeHtml(item.label)}</strong>${item.inventoryKind === "special-ammo" ? `<small>${escapeHtml(item.badge)}</small>` : ""}</span>`;
       bindInventoryDetailHold(button, item);
       button.addEventListener("click", () => {
         hideInventoryItemDetail();
@@ -13390,10 +13515,9 @@ function renderItemControl(data) {
   if (acceptedExplicitWeaponSelection) {
     // Keyboard/card switching must move the visible inventory selection with
     // its accepted authoritative weapon. Passive grant/purchase/pickup changes
-    // have no pending user intent and therefore preserve explicit HSG/items.
+    // have no pending user intent and therefore preserve explicit items.
     els.itemSelect.value = acceptedExplicitWeaponItemId;
     state.explicitInventoryItemId = acceptedExplicitWeaponItemId;
-    state.implicitHsgInventoryFallback = false;
   }
   const fallbackItemId = defaultInventoryItemSelection(items, self, state.explicitInventoryItemId);
   const selected = items.find((item) => item.id === els.itemSelect.value) || items.find((item) => item.id === fallbackItemId) || items[0];
@@ -13414,7 +13538,8 @@ function renderItemControl(data) {
   const transferCredits = transferCreditAmount();
   els.transferCreditsAmount.max = String(Math.max(1, Math.floor(Number(self.credits) || 0)));
   els.itemUseButton.disabled = !canUse || selectedWeaponReloading;
-  els.itemUseButton.hidden = false;
+  // Availability adapter for Shift+V and the canvas gesture; it is never a visible command.
+  els.itemUseButton.hidden = true;
   els.itemThrowButton.hidden = selectedInstant;
   els.itemThrowButton.disabled = selectedInstant || !canActOnItem || selected?.throwable === false;
   els.transferItemButton.hidden = selectedInstant;
@@ -13422,9 +13547,7 @@ function renderItemControl(data) {
   els.transferCreditsButton.disabled = Number(self.credits) < transferCredits || !targets.length;
   const selectedUseLabel = selected?.inventoryKind === "weapon"
     ? selectedWeaponReloading ? `自動リロード ${Math.max(0, (Number(self.gunnerReloadUntil) - estimatedServerNow(data)) / 1000).toFixed(1)}秒` : "射撃"
-    : selected?.id === "hsg"
-      ? "使用"
-      : selected?.sourceId === "orichalcum-sword" || selected?.id === "orichalcum-sword"
+    : selected?.sourceId === "orichalcum-sword" || selected?.id === "orichalcum-sword"
       ? "斬る"
       : selectedInstant ? "発動" : selected?.usable === false ? "使用不可" : "使用";
   els.itemUseButton.textContent = `${selectedUseLabel} [Shift+V]`;
@@ -13447,45 +13570,38 @@ function formatEffectCountdown(milliseconds) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function hsgCountdownState(self, liveNow = estimatedServerNow(state.data)) {
-  const activeMs = Math.max(0, Number(self?.hsgUntil) - liveNow);
-  const cooldownMs = Math.max(0, Number(self?.hsgReadyAt) - liveNow);
-  return { activeMs, cooldownMs, running: activeMs > 0 || cooldownMs > 0 };
+function hoverSprintCountdownState(self, liveNow = estimatedServerNow(state.data)) {
+  const activeMs = Math.max(0, Number(self?.hoverSprintUntil) - liveNow);
+  return { activeMs, running: activeMs > 0 };
 }
 
-function refreshHsgLiveCountdown(data = state.data) {
+function refreshHoverSprintLiveCountdown(data = state.data) {
   const self = data?.self;
   if (!self || data?.phase !== "playing") return false;
-  const liveNow = estimatedServerNow(data);
-  const countdown = hsgCountdownState(self, liveNow);
-  // These two UI owners derive their wording solely from serverNow plus the
-  // authoritative deadlines. Rendering them from the estimated clock makes
-  // a received HSG state visibly progress if the next poll is delayed; no
-  // client-owned gameplay deadline is introduced.
-  renderItemControl(data);
+  const countdown = hoverSprintCountdownState(self, estimatedServerNow(data));
+  // This display ticker derives only from the authoritative deadline. It does
+  // not trigger the action, spend MP, extend its duration, or expose controls.
   renderActiveEffects(data);
   if (IS_VERIFICATION_MODE) {
     const root = document.documentElement;
-    root.setAttribute("data-v583-hsg-live-countdown-ms", String(Math.ceil(countdown.activeMs)));
-    root.setAttribute("data-v583-hsg-live-countdown-running", countdown.running ? "true" : "false");
-    root.setAttribute("data-v583-hsg-live-countdown-source", "serverNow+hsgUntil");
+    root.setAttribute("data-v650-hover-sprint-countdown-ms", String(Math.ceil(countdown.activeMs)));
+    root.setAttribute("data-v650-hover-sprint-countdown-running", countdown.running ? "true" : "false");
+    root.setAttribute("data-v650-hover-sprint-countdown-source", "serverNow+hoverSprintUntil");
   }
   return countdown.running;
 }
 
-function syncHsgLiveCountdownTicker(data = state.data) {
-  const running = refreshHsgLiveCountdown(data);
-  if (running && !state.hsgLiveTicker) {
-    // Bounded display ticker: it neither issues requests nor mutates game
-    // state, and it tears down as soon as active/CT time has elapsed.
-    state.hsgLiveTicker = window.setInterval(() => {
-      if (refreshHsgLiveCountdown(state.data)) return;
-      window.clearInterval(state.hsgLiveTicker);
-      state.hsgLiveTicker = 0;
+function syncHoverSprintLiveCountdownTicker(data = state.data) {
+  const running = refreshHoverSprintLiveCountdown(data);
+  if (running && !state.hoverSprintLiveTicker) {
+    state.hoverSprintLiveTicker = window.setInterval(() => {
+      if (refreshHoverSprintLiveCountdown(state.data)) return;
+      window.clearInterval(state.hoverSprintLiveTicker);
+      state.hoverSprintLiveTicker = 0;
     }, 125);
-  } else if (!running && state.hsgLiveTicker) {
-    window.clearInterval(state.hsgLiveTicker);
-    state.hsgLiveTicker = 0;
+  } else if (!running && state.hoverSprintLiveTicker) {
+    window.clearInterval(state.hoverSprintLiveTicker);
+    state.hoverSprintLiveTicker = 0;
   }
 }
 
@@ -13606,16 +13722,15 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
     );
   }
 
-  const hsgActiveMs = Math.max(0, Number(self.hsgUntil) - liveNow);
-  const hsgGboActive = Number(self.timedAccelerationStacks?.hsg?.multiplier) >= 18;
-  if (hsgActiveMs > 0) {
+  const hoverSprintActiveMs = Math.max(0, Number(self.hoverSprintUntil) - liveNow);
+  if (hoverSprintActiveMs > 0) {
     add(
-      "HSG",
-      `${hsgGboActive ? "GBO" : "HSG"}浮揚中 ${formatEffectCountdown(hsgActiveMs)}`,
+      "ホバースプリント",
+      `自動浮揚・ACC ×${Number(self.timedAccelerationStacks?.hoverSprint?.multiplier || 1.8).toFixed(1)} ${formatEffectCountdown(hoverSprintActiveMs)}`,
       "truth",
-      `${hsgGboActive ? "直接GBO" : "直接使用または床外自動起動"}の時間効果。期限終了時に床がなければ落下死。Storage cardで使用・投擲とCTを確認`,
+      "支持床から床外へ進む時に1MPで自動起動する全員共通action。8秒間浮揚し、起動時から20秒CT。最後の浮揚終了時に足場がなければ落下死",
       "inline",
-      "hsg-active"
+      "hover-sprint-active"
     );
   }
 
@@ -13683,7 +13798,6 @@ function renderActiveEffects(data) {
       "combat:kill-chain"
     );
   }
-  if ((self.overheal || 0) > 0) add("拡張HP", `${Number(self.health || 0).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}/${Number(self.maxHealth || 2).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`, "good", "上限2を超えた現在HP。ダメージ後も獲得済みの最大HPは維持", "health:overheal");
   if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化し、発動後もしばらく防護", "barrier:charges");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移", "substitution:charges");
   if ((self.pushCharges || 0) > 0) add("バスト", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "バリア全消去。1回につき反動0.5", "push:charges");
@@ -13772,8 +13886,25 @@ function renderActiveEffects(data) {
   if (self.burnStatus) add("燃焼", "継続中", "desire", "水・ヒール・理知中の自然回復で解除", "burn");
   timed("意識消失", self.unconsciousUntil, "desire", "視聴覚・行動停止", "status:unconscious");
   timed("重力拘束", self.gravityPinnedUntil, "desire", "移動・行動停止", "status:gravity-pinned");
-  timed("休息", self.sleepingUntil, "neutral", `行動停止・SP回復×4。SP全快時、MPが${Number(self.restCompletionManaFloor) || 2}未満なら${Number(self.restCompletionManaFloor) || 2}へ回復`, "action:rest");
-  timed("精神統一", self.meditatingUntil, "rational", "開始時にMPを獲得。タップ+10MP/35秒、420ms以上の長押し+100MP/350秒", "action:meditate");
+  const desireRecoverySeconds = Math.max(0, (Number(self.desireRecoveryEndsAt) - liveNow) / 1000);
+  if (self.resting) add(
+    "停止休息",
+    self.desireRecoveryMode === "rest" ? `MP負債回復 ${desireRecoverySeconds.toFixed(1)}秒` : "停止中",
+    self.desireRecoveryMode === "rest" ? "desire" : "neutral",
+    self.desireRecoveryMode === "rest"
+      ? `MP−100を${Number(self.desireStationaryRecoveryMs || 5000) / 1000}秒の連続停止でMP${Number(self.restCompletionManaFloor) || 2}へ回復。移動すると経過を即時取消。SPは毎秒${Number(self.sleepRegenPerSecond) || 76}回復`
+      : `停止中は毎秒${Number(self.sleepRegenPerSecond) || 76}SPを回復。移動で即時に止まり、行動不能中でも停止していれば回復。SP全快時、MPが${Number(self.restCompletionManaFloor) || 2}未満なら${Number(self.restCompletionManaFloor) || 2}へ回復`,
+    "action:rest"
+  );
+  timed(
+    self.desireRecoveryMode === "renki" ? "欲望回復・練気" : "精神統一",
+    self.meditatingUntil,
+    self.desireRecoveryMode === "renki" ? "desire" : "rational",
+    self.desireRecoveryMode === "renki"
+      ? `${Number(self.desireRenkiRecoveryMs || 3000) / 1000}秒の完了時にMP−100からMP${Number(self.restCompletionManaFloor) || 2}へ回復`
+      : "開始時にMPを獲得。タップ+10MP/35秒、420ms以上の長押し+100MP/350秒",
+    "action:meditate"
+  );
   timed("インビジブル", self.floraInvisibleUntil, "good", "10秒間透明化。敵Botの直接視認・追跡対象外。自分のキャラクターは半透明表示", "flora-invisible");
   // The acquired product deliberately shares the native Hacker passive name
   // and map-feed meaning. A Hacker who also acquires it still gets exactly one
@@ -13789,16 +13920,14 @@ function renderActiveEffects(data) {
       ["インビジブル", "flora-invisible"],
       ["燃焼", "burn"]
     ]);
-    const feedbackOwnerKey = /^HSG・/.test(immediate.label)
-      ? "hsg-active"
-      : immediate.label === "HSG自動起動"
-        ? "hsg-active"
-        : feedbackOwners.get(immediate.label);
+    const feedbackOwnerKey = /^ホバースプリント/.test(immediate.label)
+      ? "hover-sprint-active"
+      : feedbackOwners.get(immediate.label);
     const existingOwner = feedbackOwnerKey
       ? effects.find((effect) => effect.key === feedbackOwnerKey)
       : null;
     if (existingOwner) {
-      if (["root", "burn", "hsg-active"].includes(feedbackOwnerKey) && immediate.detail) {
+      if (["root", "burn", "hover-sprint-active"].includes(feedbackOwnerKey) && immediate.detail) {
         const recentDetail = `直近: ${immediate.detail}`;
         if (!String(existingOwner.detail || "").includes(recentDetail)) {
           existingOwner.detail = `${existingOwner.detail} / ${recentDetail}`;
@@ -13809,9 +13938,27 @@ function renderActiveEffects(data) {
     }
   }
 
+  const markerDeduplicatedEffects = removeEffectsDuplicatedByVisibleSelfMarker(effects, data);
   const panelHidden = !["playing", "meeting"].includes(data.phase);
   if (els.activeEffectsPanel.hidden !== panelHidden) els.activeEffectsPanel.hidden = panelHidden;
-  const visibleEffects = effects.length ? effects : [{ key: "none", label: "効果なし", value: "-", tone: "neutral", detail: "現在適用されているバフ・デバフはない" }];
+  const visibleEffects = markerDeduplicatedEffects.length ? markerDeduplicatedEffects : [{ key: "none", label: "その他の効果なし", value: "マーカー表示中", tone: "neutral", detail: "自己マーカーで表示中の適用効果以外はない" }];
+
+  function removeEffectsDuplicatedByVisibleSelfMarker(sourceEffects, currentData) {
+    const markerCategoryByEffectKey = new Map([
+      ["recovery:natural", "naturalRecovery"],
+      ["passive:gravity-levitation", "levitation"],
+      ["barrier:charges", "standFirm"],
+      ["push:charges", "push"],
+      ["iai:charges", "iai"],
+      ["burn", "burning"],
+      ["status:poison", "poison"],
+      ["passive:hacker-mana-gpu", "manaGpu"]
+    ]);
+    return sourceEffects.filter((effect) => {
+      const category = markerCategoryByEffectKey.get(effect.key);
+      return !category || !hasVisibleSelfPersistentStatusMarker(currentData, category);
+    });
+  }
   const renderKey = JSON.stringify(visibleEffects);
   if (state.activeEffectsRenderKey === renderKey) return;
   state.activeEffectsRenderKey = renderKey;
@@ -14344,8 +14491,14 @@ function objectiveText(data) {
   if ((self.ascensionUntil || 0) > liveNow) {
     return `善のイデアへ昇天中 / 特殊勝利まで${((self.ascensionUntil - liveNow) / 1000).toFixed(1)}秒`;
   }
-  if ((self.sleepingUntil || 0) > liveNow) {
-    return `休息中 / 行動不能 / 高速回復 / 残り${((self.sleepingUntil - liveNow) / 1000).toFixed(1)}秒`;
+  if (self.desireRecoveryMode === "renki" && (self.meditatingUntil || 0) > liveNow) {
+    return `欲望回復・練気中 / MP−100をMP${Number(self.restCompletionManaFloor) || 2}へ / 残り${((self.meditatingUntil - liveNow) / 1000).toFixed(1)}秒`;
+  }
+  if (self.desireRecoveryMode === "rest" && self.resting) {
+    return `欲望回復・停止休息中 / MP−100をMP${Number(self.restCompletionManaFloor) || 2}へ / 残り${Math.max(0, (Number(self.desireRecoveryEndsAt) - liveNow) / 1000).toFixed(1)}秒 / 移動で経過取消`;
+  }
+  if (self.resting) {
+    return `停止休息中 / 毎秒${Number(self.sleepRegenPerSecond) || 76}SP回復 / 移動で即時解除`;
   }
   if ((self.meditatingUntil || 0) > liveNow) {
     return `練気・精神統一中 / 行動不能 / 残り${((self.meditatingUntil - liveNow) / 1000).toFixed(1)}秒`;
@@ -14515,7 +14668,6 @@ function updateActionButtons(data) {
     els.teleportButton.hidden = true;
     els.shootButton.hidden = true;
     els.weaponButton.hidden = true;
-    els.sleepButton.hidden = false;
     els.renkiButton.hidden = false;
     els.healButton.hidden = true;
     els.alchemyButton.hidden = true;
@@ -14776,14 +14928,18 @@ function updateActionButtons(data) {
   els.cameraButton.classList.toggle("active", state.cameraViewIndex >= 0);
   els.cameraButton.disabled = !(canUseAbility && self.role === "defender" && cameraIndices.length);
   els.nextCameraButton.disabled = state.cameraViewIndex < 0;
-  const sleepSeconds = Math.max(0, Math.ceil(((self.sleepingUntil || 0) - liveNow) / 1000));
-  const sleepEstimate = Math.max(0.1, ((self.maxStoredStamina || 500) - self.stamina) / (self.sleepRegenPerSecond || 76));
-  els.sleepButton.textContent = sleepSeconds > 0 ? `休息 ${sleepSeconds}秒` : `休息 約${sleepEstimate.toFixed(1)}秒`;
-  els.sleepButton.title = `SP全快まで行動を停止して毎秒${Number(self.sleepRegenPerSecond) || 76}SP回復。完了時にMPが${Number(self.restCompletionManaFloor) || 2}未満なら${Number(self.restCompletionManaFloor) || 2}へ回復します。`;
-  els.sleepButton.disabled = !(canActAlive && self.stamina < (self.maxStoredStamina || 500));
   const renkiSeconds = Math.max(0, ((self.meditatingUntil || 0) - liveNow) / 1000);
-  els.renkiButton.textContent = renkiSeconds > 0 ? `精神統一 ${renkiSeconds.toFixed(1)}秒` : "練気 +10MP / 35秒";
-  els.renkiButton.title = "タップは+10MP・35秒。420ms以上の長押しは+100MP・350秒。どちらも一回だけ自動確定し、反復しません。";
+  const desireRenkiAvailable = self.desireDebtActive || Number(self.mana) <= -100;
+  els.renkiButton.textContent = desireRenkiAvailable
+    ? renkiSeconds > 0
+      ? `欲望回復 ${renkiSeconds.toFixed(1)}秒`
+      : `練気 MP${Number(self.restCompletionManaFloor) || 2} / ${Number(self.desireRenkiRecoveryMs || 3000) / 1000}秒`
+    : renkiSeconds > 0
+      ? `精神統一 ${renkiSeconds.toFixed(1)}秒`
+      : "練気 +10MP / 35秒";
+  els.renkiButton.title = desireRenkiAvailable
+    ? `欲望のMP−100時は${Number(self.desireRenkiRecoveryMs || 3000) / 1000}秒の練気完了でMP${Number(self.restCompletionManaFloor) || 2}へ回復します。完了前にMPは増えません。`
+    : "タップは+10MP・35秒。420ms以上の長押しは+100MP・350秒。どちらも一回だけ自動確定し、反復しません。";
   els.renkiButton.disabled = !canUseAbility;
   els.dashButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked && activeStaminaFor(data) > 0);
   els.slowWalkButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked);
@@ -15627,7 +15783,7 @@ function draw() {
       ctx.translate(-camera.x, -camera.y);
       drawStations(data);
       drawMapObjects(data);
-      drawResolvePoint(data);
+      drawMysteryBoxes(data);
       drawAlchemyObjects(data);
       drawGravityZones(data);
       drawHazardFields(data);
@@ -16840,52 +16996,31 @@ function drawMapObjects(data) {
   }
 }
 
-function drawResolvePoint(data) {
-  const point = data.map.resolvePoint;
-  if (!point || !worldPointVisible(point.x, point.y, 180)) return;
+function drawMysteryBoxes(data) {
+  const boxes = Array.isArray(data.map.mysteryBoxes) ? data.map.mysteryBoxes : [];
+  if (!boxes.length) return;
   const self = selfPlayer();
-  const near = Boolean(self && dist(self, point) <= Number(point.useRange || 82));
-  const color = point.reward === "grit" ? "#67e8f9" : "#f0abfc";
-  const time = (state.frameNow || performance.now()) / 1000;
-  const prepared = transparentSpriteSource(state.textures.resolvePoint, "resolve-point", 18);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, "resolve-point", 1, 1, 0, 0) : null;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.94;
-  if (sprite) {
-    drawAnimatedTextureCentered(sprite, point.x, point.y - 9, 144, 144, {
-      mode: "energy",
-      time,
-      phase: Number(point.x || 0) * 0.003,
-      intensity: 0.88,
-      baseAlpha: 0.22
-    });
-  } else {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y - 10, 33, 0, Math.PI * 2);
-    ctx.stroke();
+  const prepared = transparentSpriteSource(state.textures.mysteryBox, "mystery-box", 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "mystery-box", 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  for (const box of boxes) {
+    if (!worldPointVisible(box.x, box.y, 140)) continue;
+    const near = Boolean(self && dist(self, box) <= Number(box.useRange || 82));
+    ctx.save();
+    drawNormalizedSpriteCentered(sprite, box.x, box.y - 11, 112, 112);
+    ctx.globalAlpha = near ? 1 : 0.84;
+    ctx.fillStyle = "rgba(8,20,28,0.94)";
+    roundRect(box.x - 76, box.y + 47, 152, 35, 6, true, false);
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "900 11px Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(box.label || "ミステリーボックス", box.x, box.y + 58);
+    ctx.fillStyle = "#facc15";
+    ctx.font = "800 9px Segoe UI, sans-serif";
+    ctx.fillText(box.effectLabel || "ランダムなショップ報酬", box.x, box.y + 73);
+    ctx.restore();
   }
-  ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha = 0.48 + Math.sin(time * 3.4) * 0.1;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = near ? 6 : 3;
-  ctx.beginPath();
-  ctx.ellipse(point.x, point.y + 30, 48, 18, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = "rgba(8,20,28,0.94)";
-  roundRect(point.x - 68, point.y + 51, 136, 35, 6, true, false);
-  ctx.fillStyle = "#f8fafc";
-  ctx.font = "900 11px Segoe UI, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(point.label, point.x, point.y + 62);
-  ctx.fillStyle = color;
-  ctx.font = "800 9px Segoe UI, sans-serif";
-  ctx.fillText(point.effectLabel, point.x, point.y + 77);
-  ctx.restore();
 }
 
 function drawAlchemyObjects(data) {
@@ -18060,21 +18195,8 @@ function drawThrowLandingPreview(data) {
 }
 
 function drawClairvoyanceAte(landing, time) {
-  const prepared = transparentSpriteSource(state.textures.clairvoyanceThrowAte, "clairvoyance-throw-ate", 16);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, "clairvoyance-throw-ate", 1, 1, 0, 0) : null;
-  if (!sprite) return;
-  const phase = (time * 0.37) % 1;
-  const size = 118 + Math.sin(time * 3.1) * 5;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  drawAnimatedTextureCentered(sprite, landing.x, landing.y - 4, size, size, {
-    mode: "clairvoyance",
-    time,
-    phase,
-    intensity: 0.94,
-    baseAlpha: 0.18
-  });
-  ctx.restore();
+  // Shared view activation only; targeting and movement remain unchanged.
+  drawCommonActionSimpleIcon({ type: "action-clairvoyance", x: landing.x, y: landing.y - 4, radius: 118 }, 0.24);
 }
 
 function drawStandaloneClairvoyanceAte(data) {
@@ -18184,7 +18306,6 @@ const GENERATED_EFFECT_TEXTURES = {
   "alchemy-human-transmutation": ["humanTransmutationEffect", 260],
   "alchemy-excalibur": ["alchemyExcaliburEffect", 520],
   "action-vibe-coding": ["vibeCodingEffect", 220],
-  "item-hsg-activate": ["hsgItemTexture", 240],
   "action-gunner-aim-headshot": ["gunnerWeaponsAtlas", 210],
   "action-gunner-headshot": ["gunnerWeaponsAtlas", 210],
   "gunner-rpg": ["gunnerRpgEffect", 280],
@@ -18373,6 +18494,7 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
 
 
 function drawGeneratedStandaloneEffect(effect, progress) {
+  if (drawCommonActionSimpleIcon(effect, progress)) return true;
   if (effect?.type === "fighter-energy-charge") {
     recordVerificationMarkerRender(effect, "ordinary-ec", state.frameNow || performance.now());
   } else if (effect?.type === "action-dodge" && effect?.variant === "fixture-positive-control") {
@@ -18671,6 +18793,9 @@ const TACTICAL_SYSTEM_EFFECT_CELLS = {
 };
 
 function drawTacticalSystemsEffect(effect, progress) {
+  // Shared smartphone actions use the same single-icon presentation as the shop.
+  // Operator-only tactical effects continue through their dedicated renderer.
+  if (drawCommonActionSimpleIcon(effect, progress)) return true;
   const index = TACTICAL_SYSTEM_EFFECT_CELLS[effect.type];
   if (!Number.isInteger(index)) return false;
   const atlas = transparentSpriteSource(state.textures.tacticalSystemsAtlas, "tactical-systems-atlas", 18);
@@ -19008,12 +19133,69 @@ function drawShopActivationEffect(effect, progress, now) {
 
 
 
+const COMMON_ACTION_SIMPLE_GLYPHS = Object.freeze({
+  "action-task": "task", "action-grit": "shield", "action-stand": "shield", "action-dodge": "dodge", "action-rest": "rest", "action-warp": "warp", "action-sabotage": "sabotage", "action-repair": "repair", "action-vent": "vent", "action-vending": "shop", "action-renki": "renki", "action-reason": "reason", "action-push": "push", "action-smartphone": "phone", "action-smartphone-repair": "phone", "action-clairvoyance": "eye", fire: "fire", "hover-sprint-active": "hover", emp: "emp", "emp-charge": "emp", "emp-storage-lock": "emp"
+});
+const COMMON_ACTION_SIMPLE_ITEM_IDS = new Set(["orichalcum-sword", "mercury", "lead", "uranium", "plutonium", "seawater", "mineral-water", "antidote", "molotov", "ice", "heated-water"]);
+const COMMON_ACTION_SIMPLE_ITEM_ALIASES = Object.freeze({"quantum-mercury": "mercury", "quantum-lead": "lead", "quantum-uranium": "uranium", "quantum-plutonium": "plutonium", "quantum-ice": "ice", "quantum-heated-water": "heated-water"});
+function commonActionItemId(variant) { const raw = String(variant || "").replace(/^(?:flight|impact):/, ""); return COMMON_ACTION_SIMPLE_ITEM_ALIASES[raw] || raw; }
+function commonActionSimpleItemSprite(itemId) {
+  const id = String(itemId || ""); if (!COMMON_ACTION_SIMPLE_ITEM_IDS.has(id)) return null;
+  const source = id === "orichalcum-sword" ? state.textures?.groundItemTextures?.[id] : state.textures?.itemTextures?.[id];
+  const prepared = transparentSpriteSource(source, "common-action-item-" + id, 12);
+  return prepared ? normalizedSpriteFrame(prepared, "common-action-item-" + id, 1, 1, 0, 0) : null;
+}
+function commonActionSimpleIconSprite(effect) {
+  const type = String(effect?.type || "");
+  if (type === "mystery-box") {
+    const prepared = transparentSpriteSource(state.textures?.mysteryBox, "common-action-mystery-box", 12);
+    return prepared ? normalizedSpriteFrame(prepared, "common-action-mystery-box", 1, 1, 0, 0) : null;
+  }
+  if (["action-item-use", "action-item-throw", "action-item-pickup"].includes(type)) return commonActionSimpleItemSprite(commonActionItemId(effect.variant));
+  if (type !== "action-shoot") return null;
+  const weaponId = gunnerWeaponIdFromActionVariant(effect.variant);
+  if (weaponId === "taser") { const prepared = transparentSpriteSource(state.textures?.groundItemTextures?.taser, "common-action-firearm-taser", 12); return prepared ? normalizedSpriteFrame(prepared, "common-action-firearm-taser", 1, 1, 0, 0) : null; }
+  const cell = GROUND_FIREARM_ICON_CELLS[weaponId]; const prepared = transparentSpriteSource(state.textures?.groundFirearmIcons, "common-action-firearm-icons", 12);
+  return Number.isInteger(cell) && prepared ? normalizedSpriteFrame(prepared, "common-action-firearm-" + weaponId, 4, 1, 0, cell) : null;
+}
+function commonActionSimpleGlyph(effect) { return COMMON_ACTION_SIMPLE_GLYPHS[String(effect?.type || "")] || ""; }
+function drawCommonActionGlyph(kind, size) {
+  const half = size / 2; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(2, size * 0.075); ctx.strokeStyle = "#e6fbff"; ctx.fillStyle = "#126579";
+  if (kind === "task") { ctx.strokeRect(-half*.55,-half*.68,half*1.1,half*1.36); [-.28,.08,.44].forEach((y)=>{ctx.beginPath();ctx.moveTo(-half*.3,half*y);ctx.lineTo(-half*.12,half*(y+.14));ctx.lineTo(half*.33,half*(y-.18));ctx.stroke();});
+  } else if (kind === "shield") { ctx.beginPath();ctx.moveTo(0,-half*.72);ctx.lineTo(half*.58,-half*.42);ctx.lineTo(half*.44,half*.38);ctx.lineTo(0,half*.7);ctx.lineTo(-half*.44,half*.38);ctx.lineTo(-half*.58,-half*.42);ctx.closePath();ctx.fill();ctx.stroke();
+  } else if (kind === "dodge") { [-.22,.27].forEach((o)=>{ctx.beginPath();ctx.moveTo(-half*.58,half*o);ctx.lineTo(0,half*(o-.38));ctx.lineTo(half*.58,half*o);ctx.stroke();});
+  } else if (kind === "rest") { ctx.strokeRect(-half*.66,-half*.02,half*1.32,half*.36);ctx.beginPath();ctx.moveTo(-half*.66,-half*.02);ctx.lineTo(-half*.66,-half*.42);ctx.lineTo(-half*.25,-half*.42);ctx.quadraticCurveTo(0,-half*.06,half*.66,-half*.02);ctx.stroke();
+  } else if (kind === "warp") { ctx.beginPath();ctx.moveTo(-half*.62,-half*.4);ctx.lineTo(0,-half*.7);ctx.lineTo(half*.62,-half*.4);ctx.lineTo(0,half*.7);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(0,-half*.45);ctx.lineTo(0,half*.35);ctx.stroke();
+  } else if (kind === "sabotage" || kind === "repair") { const d=kind==="sabotage"?-1:1;ctx.beginPath();ctx.moveTo(-half*.62,half*.58*d);ctx.lineTo(half*.42,-half*.46*d);ctx.stroke();ctx.beginPath();ctx.arc(half*.47,-half*.5*d,half*.18,0,Math.PI*2);ctx.stroke();
+  } else if (kind === "vent") { [-.38,0,.38].forEach((y)=>{ctx.beginPath();ctx.moveTo(-half*.65,half*y);ctx.lineTo(half*.65,half*y);ctx.stroke();});
+  } else if (kind === "shop") { ctx.strokeRect(-half*.62,-half*.06,half*1.24,half*.62);ctx.beginPath();ctx.moveTo(-half*.72,-half*.12);ctx.lineTo(-half*.48,-half*.58);ctx.lineTo(half*.48,-half*.58);ctx.lineTo(half*.72,-half*.12);ctx.closePath();ctx.fill();ctx.stroke();
+  } else if (kind === "renki") { [-.36,0,.36].forEach((x)=>{ctx.beginPath();ctx.moveTo(half*x,half*.58);ctx.quadraticCurveTo(half*(x-.18),0,half*x,-half*.58);ctx.stroke();});
+  } else if (kind === "reason") { ctx.beginPath();ctx.arc(-half*.2,-half*.08,half*.42,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(half*.03,half*.28);ctx.lineTo(half*.48,half*.62);ctx.stroke();
+  } else if (kind === "push") { ctx.beginPath();ctx.moveTo(-half*.68,0);ctx.lineTo(half*.5,0);ctx.lineTo(half*.16,-half*.34);ctx.moveTo(half*.5,0);ctx.lineTo(half*.16,half*.34);ctx.stroke();
+  } else if (kind === "phone") { ctx.strokeRect(-half*.38,-half*.67,half*.76,half*1.34);ctx.beginPath();ctx.arc(0,half*.48,Math.max(1,half*.06),0,Math.PI*2);ctx.fill();
+  } else if (kind === "hover") { ctx.beginPath(); ctx.moveTo(-half * 0.62, half * 0.44); ctx.lineTo(half * 0.62, half * 0.44); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-half * 0.42, half * 0.12); ctx.lineTo(-half * 0.12, -half * 0.42); ctx.lineTo(half * 0.1, half * 0.12); ctx.lineTo(half * 0.38, -half * 0.18); ctx.stroke();
+  } else if (kind === "eye") { ctx.beginPath();ctx.moveTo(-half*.72,0);ctx.quadraticCurveTo(0,-half*.64,half*.72,0);ctx.quadraticCurveTo(0,half*.64,-half*.72,0);ctx.stroke();ctx.beginPath();ctx.arc(0,0,half*.2,0,Math.PI*2);ctx.fill();
+  } else if (kind === "fire") { ctx.beginPath();ctx.moveTo(0,-half*.72);ctx.bezierCurveTo(half*.56,-half*.18,half*.42,half*.58,0,half*.7);ctx.bezierCurveTo(-half*.52,half*.42,-half*.5,-half*.04,-half*.1,-half*.4);ctx.quadraticCurveTo(0,-half*.55,0,-half*.72);ctx.fill();ctx.stroke();
+  } else if (kind === "emp") { ctx.strokeRect(-half*.68,-half*.42,half*1.36,half*.84);ctx.fillStyle="#e6fbff";ctx.font="800 "+Math.max(10,half*.48)+"px Segoe UI, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("EMP",0,0); }
+}
+function drawCommonActionSimpleIcon(effect, progress) {
+  const sprite=commonActionSimpleIconSprite(effect), glyph=commonActionSimpleGlyph(effect); if(!sprite&&!glyph)return false;
+  const type=String(effect.type||""), flight=type==="action-item-throw"&&String(effect.variant||"").startsWith("flight:"), travel=flight?clamp(progress,0,1):0;
+  const targetX=Number.isFinite(effect.targetX)?effect.targetX:effect.x, targetY=Number.isFinite(effect.targetY)?effect.targetY:effect.y;
+  const x=flight?effect.x+(targetX-effect.x)*travel:effect.x, y=flight?effect.y+(targetY-effect.y)*travel:effect.y, radius=Math.max(0,Number(effect.radius)||0);
+  const iconSize=clamp(radius*.58||58,48,type.startsWith("emp")?156:92), fade=1-objectEffectEase(clamp((progress-.72)/.28,0,1));
+  ctx.save();ctx.globalCompositeOperation="source-over";ctx.globalAlpha=Math.max(.18,fade);if(sprite)drawNormalizedSpriteCentered(sprite,x,y-iconSize*.12,iconSize,iconSize);else{ctx.translate(x,y-iconSize*.12);drawCommonActionGlyph(glyph,iconSize);}ctx.restore();return true;
+}
+
 function drawActionEffect(effect, progress, now) {
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
   if (["action-weapon-switch", "action-reload"].includes(effect.type)) return;
   if (effect.type === "action-shop-open" && drawShopActivationEffect(effect, progress, now)) return;
+  // Shared actions use one stable semantic raster. Ninjutsu and exclusive
+  // operator effects do not enter this map and retain their authored ATE.
+  if (drawCommonActionSimpleIcon(effect, progress)) return;
   if (effect.type === "action-shoot" && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-heart-teleport" && drawHeartTeleportEffect(effect, progress)) return;
@@ -19093,6 +19275,9 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
 }
 
 function drawEmpEffect(effect, progress, now) {
+  // EMP activation and its storage lock retain their authoritative radius,
+  // while using the existing EMP raster once instead of layered ATE.
+  if (drawCommonActionSimpleIcon(effect, progress)) return;
   const maxRadius = Math.max(180, Number(effect.radius) || 260);
   const interactionIndex = effect.type === "emp-resonance" ? 0 : effect.type === "emp-cancel" ? 1 : -1;
   if (interactionIndex >= 0) {
@@ -19290,7 +19475,6 @@ function nonCreditHeadMarkerSemanticKey(effect) {
     const category = String(effect.category || effect.effectKind || type || "status");
     return `persistent:${category}`;
   }
-  if (type === "attacker-ally-marker") return "persistent:attacker-ally";
   return "";
 }
 
@@ -19301,7 +19485,7 @@ function coalesceNonCreditHeadMarkerEffects(effects, now) {
   for (const effect of Array.isArray(effects) ? effects : []) {
     const semanticKey = nonCreditHeadMarkerSemanticKey(effect);
     if (!semanticKey || effect?.active === false) continue;
-    const persistent = Boolean(effect?.persistent || effect?.type === "persistent-status" || effect?.type === "attacker-ally-marker");
+    const persistent = Boolean(effect?.persistent || effect?.type === "persistent-status");
     const startedAt = Number.isFinite(Number(effect?.startedAt))
       ? Number(effect.startedAt)
       : Number.isFinite(Number(effect?.at)) ? Number(effect.at) : timestamp;
@@ -19646,17 +19830,6 @@ function sharedHeadMarkerCount(effect) {
 function persistentHeadMarkerEffects(player, data) {
   if (!player?.id || !player.alive || player.ejected) return [];
   const effects = [];
-  if (data?.phase === "playing" && player.attackerAlly) {
-    effects.push({
-      id: `ally:${player.id}`,
-      type: "attacker-ally-marker",
-      category: "attackerAlly",
-      playerId: player.id,
-      persistent: true,
-      active: true,
-      at: 0
-    });
-  }
   const activeState = persistentStatusAteState(player, data);
   for (const category of Object.keys(PERSISTENT_STATUS_ATE_PROFILES)) {
     if (!activeState[category]) continue;
@@ -20379,7 +20552,6 @@ function drawHuman(player, data) {
     drawEnhanceRimLightGlints(enhanceRim);
     drawPreparationBarrierAte(player);
     drawLuminousFeathers(player);
-    drawAttackerAllyMarker(player);
     drawPersistentStatusAteLayers(player, data);
     drawSoloHumanDeathBotAcceleration(player, data);
     ctx.restore();
@@ -20437,7 +20609,6 @@ function drawHuman(player, data) {
   ctx.fillText(identityLabel, 0, -32);
   drawPreparationBarrierAte(player);
   drawLuminousFeathers(player);
-  drawAttackerAllyMarker(player);
   drawPersistentStatusAteLayers(player, data);
   drawSoloHumanDeathBotAcceleration(player, data);
   ctx.restore();
@@ -20568,44 +20739,6 @@ function drawHackerRootState(player) {
   ctx.restore();
 }
 
-function drawAttackerAllyMarker(player) {
-  if (state.data?.phase !== "playing" || !player.attackerAlly || !player.alive || player.ejected) return;
-  const now = state.frameNow || performance.now();
-  const presentation = headMarkerPresentationForPlayer(player, state.data, now);
-  const markerEffect = {
-    id: `ally:${player.id}`,
-    type: "attacker-ally-marker",
-    category: "attackerAlly",
-    playerId: player.id,
-    persistent: true
-  };
-  const placement = nonCreditHeadMarkerPlacement(markerEffect, presentation);
-  if (!placement.candidate) return;
-  const prepared = transparentSpriteSource(state.textures.attackerAllyMarker, "attacker-ally-marker", 18);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, "attacker-ally-marker", 1, 1, 0, 0) : null;
-  if (!sprite) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha *= 0.88;
-  const marker = headMarkerSlot(placement.baseIndex, placement.total, placement.startRow);
-  registerMarkerHitTarget(
-    `ally:${player.id}`,
-    marker.x,
-    marker.y,
-    18,
-    "アタッカー味方",
-    "自分と同じアタッカー陣営のプレイヤーです。"
-  );
-  drawAnimatedTextureCentered(sprite, marker.x, marker.y, 28, 28, {
-    mode: "energy",
-    time: (state.frameNow || performance.now()) / 1000,
-    intensity: 0.82,
-    baseAlpha: 0.14,
-    opacityBoost: 2.8
-  });
-  ctx.restore();
-}
-
 const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   naturalRecovery: Object.freeze({ texture: "naturalRecoveryEffect", mode: "ripple", size: 31, alpha: 0.94, phase: 0.04 }),
   acceleration: Object.freeze({ texture: "accelerationPhaseEffect", mode: "flow-up", size: 32, alpha: 0.94, phase: 0.08 }),
@@ -20640,6 +20773,18 @@ function persistentStatusAteState(player, data) {
     infiniteResources: Boolean(data.self?.fighterInfiniteResources),
     destructionSlash: Boolean(data.self?.fighterDestructionSlash)
   };
+}
+
+// Applied Effects may remove only states already represented by a renderable
+// self marker. This read-only predicate does not alter marker selection or drawing.
+function hasVisibleSelfPersistentStatusMarker(data, category) {
+  const selfId = String(data?.selfId || "");
+  const selfPlayer = (data?.players || []).find((player) => String(player?.id || "") === selfId);
+  if (!selfPlayer || !selfPlayer.alive || selfPlayer.ejected || !["playing", "meeting"].includes(data?.phase)) return false;
+  const activeState = persistentStatusAteState(selfPlayer, data);
+  const profile = PERSISTENT_STATUS_ATE_PROFILES[category];
+  const source = profile ? state.textures?.[profile.texture] : null;
+  return Boolean(activeState?.[category] && source?.complete && Number(source.naturalWidth) > 0);
 }
 
 // Aroma deliberately does not alter the Natural Recovery texture's silhouette
@@ -20771,7 +20916,9 @@ function drawPersistentStatusAteLayers(player, data) {
 }
 
 function drawPlayerSprite(player, data, ghost, characterAction = null) {
-  if (characterAction && drawPhysicalActionSprite(player, data, ghost, characterAction)) return true;
+  // Ghosts retain their exact skin/Bot texture owners, but stale action
+  // presentation cannot override their stationary spectral pose.
+  if (!ghost && characterAction && drawPhysicalActionSprite(player, data, ghost, characterAction)) return true;
   if (player.isBot && drawBotWalkSprite(player, data, ghost)) return true;
   if (!player.isBot && drawPetSprite(player, data, ghost)) return true;
   if (!player.isBot && drawOperatorWalkSprite(player, data, ghost)) return true;
@@ -21274,12 +21421,13 @@ function drawPetSprite(player, data, ghost) {
   const facing = facingFor(player, motion);
   const direction = { down: "front", left: "left", right: "right", up: "back" }[facing] || "front";
   const movementMode = walkMotionMode(player);
-  const frame = walkAnimationFrame(player, motion, movementMode);
+  const frame = ghost ? 0 : walkAnimationFrame(player, motion, movementMode);
+  const moving = !ghost && motion.moving;
   const walkRowSource = state.textures.playerWalkRows?.[skinId]?.[direction];
   const walkRowKey = `skinWalk3-${skinId}-${direction}-v483`;
   const walkRow = walkRowSource ? transparentSpriteSource(walkRowSource, walkRowKey, 12) : null;
   if (walkRow) {
-    drawMinimalWalkFrame(walkRow, walkRowKey, direction, frame, motion.moving, movementMode, -47, -63, 94, 94);
+    drawMinimalWalkFrame(walkRow, walkRowKey, direction, frame, moving, movementMode, -47, -63, 94, 94);
     drawNameplate(player, ghost, -78);
     return true;
   }
@@ -21545,8 +21693,8 @@ function drawOperatorWalkSprite(player, data, ghost) {
   const motion = motionFor(player, data);
   const movementMode = walkMotionMode(player);
   const profile = walkMotionProfile(movementMode);
-  const sequence = profile.operatorSequence;
-  const frame = walkAnimationFrame(player, motion, movementMode);
+  const sequence = ghost ? [0] : profile.operatorSequence;
+  const frame = ghost ? 0 : walkAnimationFrame(player, motion, movementMode);
   const phase = frame / 60 * sequence.length;
   const index = Math.floor(phase) % sequence.length;
   const nextIndex = (index + 1) % sequence.length;
@@ -21557,13 +21705,13 @@ function drawOperatorWalkSprite(player, data, ghost) {
   if (!sprite || !nextSprite) return false;
   const facing = facingFor(player, motion);
   const direction = { down: "front", left: "left", right: "right", up: "back" }[facing] || "front";
-  const body = walkBodyMotion(movementMode, direction, frame, motion.moving);
+  const body = walkBodyMotion(movementMode, direction, frame, !ghost && motion.moving);
   ctx.save();
   ctx.translate(body.sway * 0.75, -body.lift * 0.75);
   ctx.rotate(body.lean * 0.8);
   ctx.save();
   ctx.globalAlpha *= 1 - blend;
-  drawNormalizedSprite(sprite, 0, 31, 70, 94, motion.moving && motion.dx < -0.18);
+  drawNormalizedSprite(sprite, 0, 31, 70, 94, !ghost && motion.moving && motion.dx < -0.18);
   ctx.restore();
   if (blend > 0.001) {
     ctx.save();
@@ -22162,7 +22310,7 @@ function drawHud(data, w, h) {
 
   const timestamp = estimatedServerNow(data);
   const stamina = Number(self.stamina) || 0;
-  const mana = Number(self.mana) || 0;
+  const mana = displayedManaValue(self.mana);
   const serializedHealth = Number(self.health);
   const health = self.alive
     ? Math.max(0, Number.isFinite(serializedHealth)
@@ -22326,8 +22474,8 @@ function drawHud(data, w, h) {
     ctx.fillText(readinessText(label, remaining), x, y);
     ctx.restore();
   };
-  drawReadyText("EMP", empCooldownRemaining, 27);
-  drawReadyText("KILL", cooldownRemaining, readinessSecondX);
+  if (!state.tabletOpen || empCooldownRemaining > 0) drawReadyText("EMP", empCooldownRemaining, 27);
+  if (!state.tabletOpen || cooldownRemaining > 0) drawReadyText("KILL", cooldownRemaining, readinessSecondX);
   if (self.special === "alchemist") {
     ctx.fillStyle = "#22d3ee";
     ctx.fillText(`短縮 ${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}s`, readinessSecondX, detailTop + detailLineHeight * 2);
@@ -22343,7 +22491,10 @@ function drawHud(data, w, h) {
   const mind = self.mentalPoints || {};
   if (showMental) {
     ctx.fillStyle = "#e2e8f0";
-    ctx.fillText(`心状態:${self.mentalState || "気概"}（MP${Number(mind.manaPoints) || 0}+SP${Number(mind.staminaPoints) || 0}=${Number(mind.total) || 0} / 上限比）`, 27, detailTop + detailLineHeight * 4 + resourceOffset);
+    const mentalStateText = self.desireDebtActive
+      ? `心状態:欲望（MP負債 ${compactHudNumber(mana)} / 停止休息5秒または練気3秒でMP2）`
+      : `心状態:${self.mentalState || "気概"}（MP${Number(mind.manaPoints) || 0}+SP${Number(mind.staminaPoints) || 0}=${Number(mind.total) || 0} / 上限比）`;
+    ctx.fillText(mentalStateText, 27, detailTop + detailLineHeight * 4 + resourceOffset);
   }
   if (showDesire) {
     ctx.fillStyle = "#fb7185";
@@ -22621,7 +22772,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v650";
+const version = "ui-visual-elevation-v651";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22729,7 +22880,6 @@ const version = "ui-visual-elevation-v650";
   const gravityStorm = new Image();
   const gravityStormSafeEye = new Image();
   const luminousMeetingEffect = new Image();
-  const attackerAllyMarker = new Image();
   const hackerRootMatrix = new Image();
   const gravityTimeKeeperEffect = new Image();
   const fireJutsuFieldEffect = new Image();
@@ -22745,7 +22895,6 @@ const version = "ui-visual-elevation-v650";
   const statusHpReductionEffect = new Image();
   const statusManaGpuEffect = new Image();
   const vibeCodingEffect = new Image();
-  const hsgItemTexture = new Image();
   const gunnerSpecialAmmoEffects = {
     weak: new Image(),
     penetrate: new Image(),
@@ -22778,7 +22927,7 @@ const version = "ui-visual-elevation-v650";
   const pushStandFirmBreak = new Image();
   const transferOutEffect = new Image();
   const transferInEffect = new Image();
-  const resolvePoint = new Image();
+  const mysteryBox = new Image();
   const sabotageRepairMarker = new Image();
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
@@ -22866,7 +23015,6 @@ const version = "ui-visual-elevation-v650";
   defer(gravityStorm, "assets/generated/gravity-storm.webp");
   defer(gravityStormSafeEye, "assets/generated/gravity-storm-safe-eye-v320.png");
   defer(luminousMeetingEffect, "assets/generated/luminous-meeting-effect-v311.png");
-  defer(attackerAllyMarker, "assets/generated/attacker-ally-marker.webp");
   defer(hackerRootMatrix, "assets/generated/hacker-root-matrix-v497.png");
   defer(gravityTimeKeeperEffect, "assets/generated/gravity-time-keeper-v497.png");
   defer(fireJutsuFieldEffect, "assets/generated/fire-jutsu-field.webp");
@@ -22881,7 +23029,6 @@ const version = "ui-visual-elevation-v650";
   defer(statusHpReductionEffect, "assets/generated/status-hp-reduction-v375.png");
   defer(statusManaGpuEffect, "assets/generated/status-mana-gpu-ate-v402.png");
   defer(vibeCodingEffect, "assets/generated/action-vibe-coding-v311.png");
-  defer(hsgItemTexture, "assets/generated/item-hsg-v486.png");
   defer(gunnerSpecialAmmoEffects.weak, "assets/generated/gunner-special-ammo-weak-v455.png");
   defer(gunnerSpecialAmmoEffects.penetrate, "assets/generated/gunner-special-ammo-penetrate-v455.png");
   defer(gunnerSpecialAmmoEffects.shock, "assets/generated/gunner-special-ammo-shock-v455.png");
@@ -22910,7 +23057,7 @@ const version = "ui-visual-elevation-v650";
   defer(pushStandFirmBreak, "assets/generated/push-stand-firm-break-v311.png");
   defer(transferOutEffect, "assets/generated/effect-transfer-out.webp");
   defer(transferInEffect, "assets/generated/effect-transfer-in.webp");
-  defer(resolvePoint, "assets/generated/resolve-point.webp");
+  defer(mysteryBox, "assets/generated/mystery-box-christmas-v650.png");
   defer(sabotageRepairMarker, "assets/generated/sabotage-repair-map-marker.webp");
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
@@ -23001,7 +23148,6 @@ const version = "ui-visual-elevation-v650";
     gravityStorm,
     gravityStormSafeEye,
     luminousMeetingEffect,
-    attackerAllyMarker,
     hackerRootMatrix,
     gravityTimeKeeperEffect,
     fireJutsuFieldEffect,
@@ -23016,7 +23162,6 @@ const version = "ui-visual-elevation-v650";
     statusHpReductionEffect,
     statusManaGpuEffect,
     vibeCodingEffect,
-    hsgItemTexture,
     gunnerSpecialAmmoEffects,
     gunnerRpgEffect,
     gunnerMissileEffect,
@@ -23045,7 +23190,7 @@ const version = "ui-visual-elevation-v650";
     pushStandFirmBreak,
     transferOutEffect,
     transferInEffect,
-    resolvePoint,
+    mysteryBox,
     sabotageRepairMarker,
     smartphoneRepairIcon,
     throwLandingPreview,
@@ -23581,21 +23726,77 @@ function playSound(kind, options = {}) {
   }
 }
 
-function showToast(message) {
+function toastMotionDuration() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? 0 : 180;
+}
+
+function clearToastDismissTimers() {
   clearTimeout(state.toastTimer);
-  els.toast.textContent = message;
-  els.toast.hidden = false;
-  const timer = setTimeout(() => {
-    if (state.toastTimer !== timer) return;
-    els.toast.hidden = true;
-    state.toastTimer = null;
+  clearTimeout(state.toastExitTimer);
+  state.toastTimer = null;
+  state.toastExitTimer = null;
+}
+
+function clearToastTimers() {
+  clearToastDismissTimers();
+  clearTimeout(state.toastMotionTimer);
+  state.toastMotionTimer = null;
+}
+
+function scheduleToastExit(revision) {
+  state.toastTimer = setTimeout(() => {
+    if (state.toastRevision !== revision || els.toast.hidden) return;
+    state.toastPhase = "exit";
+    els.toast.dataset.toastMotion = "exit";
+    const duration = toastMotionDuration();
+    state.toastExitTimer = setTimeout(() => {
+      if (state.toastRevision !== revision) return;
+      els.toast.hidden = true;
+      els.toast.removeAttribute("data-toast-motion");
+      state.toastMessage = "";
+      state.toastPhase = "hidden";
+      state.toastTimer = null;
+      state.toastExitTimer = null;
+    }, duration);
   }, 3600);
-  state.toastTimer = timer;
+}
+
+function showToast(message) {
+  const text = String(message || "");
+  if (!text) return;
+  const sameVisibleMessage = !els.toast.hidden && state.toastMessage === text;
+  if (sameVisibleMessage && state.toastPhase === "enter") {
+    // Polling the same event must preserve the in-flight enter deadline.
+    clearToastDismissTimers();
+    scheduleToastExit(state.toastRevision);
+    return;
+  }
+  clearToastTimers();
+  const revision = (Number(state.toastRevision) || 0) + 1;
+  state.toastRevision = revision;
+  if (sameVisibleMessage) {
+    state.toastPhase = "read";
+    els.toast.dataset.toastMotion = "read";
+    scheduleToastExit(revision);
+    return;
+  }
+  state.toastMessage = text;
+  state.toastPhase = "enter";
+  els.toast.textContent = text;
+  els.toast.hidden = false;
+  els.toast.dataset.toastMotion = "enter";
+  state.toastMotionTimer = setTimeout(() => {
+    if (state.toastRevision !== revision || els.toast.hidden) return;
+    state.toastPhase = "read";
+    els.toast.dataset.toastMotion = "read";
+    state.toastMotionTimer = null;
+  }, toastMotionDuration());
+  scheduleToastExit(revision);
 }
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v650", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v651", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

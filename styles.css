@@ -1071,6 +1071,30 @@ body .title-command.title-play > span[aria-hidden="true"] {
   height: 28px;
 }
 
+/* The title tactics command keeps its book mark, and exposes its existing
+   accessible name in the same 62px/54px command target.  End padding keeps
+   the visual label clear of the pre-existing I shortcut badge. */
+.title-command-mark .title-tactics-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.title-command-mark {
+  gap: 6px;
+}
+
+.title-command-mark .title-tactics-label {
+  color: inherit;
+  padding-inline-end: 18px;
+  white-space: nowrap;
+}
+
+.title-command-mark .title-tactics-icon .control-icon {
+  width: 24px;
+  height: 24px;
+}
+
 .title-command-dispersing {
   animation: title-command-digital-disperse 640ms cubic-bezier(0.55, 0, 0.8, 0.35) both !important;
   pointer-events: none;
@@ -6857,7 +6881,7 @@ body.tablet-mode-active .hacker-direct-action {
   .start-hero,
   .title-hero-character,
   .title-hero-atmosphere {
-    object-position: right top;
+    object-position: 84% top;
   }
 }
 
@@ -9686,6 +9710,13 @@ body.tablet-mode-active #sidePanel #empPhaseControl > label {
 
 
 /* Developer-only paint fragment. Append after public/styles.css in primary-owned integration. */
+#tabletQuickActions .rest-action-spacer,
+#actionCommandRegistry .rest-action-spacer {
+  visibility: hidden;
+  pointer-events: none;
+  touch-action: none;
+}
+
 #tabletQuickActions .tablet-quick-action {
   border-color: #85a8b8;
   color: #153747;
@@ -11831,3 +11862,331 @@ body.game-open #selectPanel #operatorList .operator-card.detail-active {
   }
 }
 
+/* Every operator card owns its existing summary directly. The hold panel
+   remains available as optional expanded detail, never as the only copy. */
+body.game-open #selectPanel #operatorList .operator-meta {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 4px;
+}
+
+body.game-open #selectPanel #operatorList .operator-description {
+  display: block;
+  min-width: 0;
+  color: #244957;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+body.game-open #selectPanel #operatorList .operator-card.selected .operator-description,
+body.game-open #selectPanel #operatorList .operator-card:is(:hover, :focus-visible, .detail-active) .operator-description {
+  color: #173b48;
+}
+
+body.game-open #selectPanel #operatorList .operator-card[aria-disabled="true"] .operator-description {
+  color: #365966;
+}
+
+/* v650 canvas-first presentation: only an active match stores external UI.
+   Selection, matching, meeting and result routes retain their normal layout. */
+.canvas-ui-toggle {
+  position: absolute;
+  z-index: 70;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  width: 48px;
+  min-width: 48px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  touch-action: manipulation;
+}
+
+.canvas-ui-toggle.active {
+  border-color: #67e8f9;
+  background: #164e63;
+  color: #effcff;
+}
+
+body.game-open.canvas-ui-collapsed:not(.result-presentation) .app-shell {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+}
+
+body.game-open.canvas-ui-collapsed:not(.result-presentation) .game-area,
+body.game-open.canvas-ui-collapsed:not(.result-presentation) .field-stage-slot {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+body.game-open.canvas-ui-collapsed:not(.result-presentation) .field-stage-slot {
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+
+body.game-open.canvas-ui-collapsed:not(.result-presentation) .board-wrap {
+  width: 100cqw;
+  height: 100cqh;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+body.game-open.canvas-ui-collapsed:not(.result-presentation) #sidePanel,
+body.game-open.canvas-ui-collapsed:not(.result-presentation) #fieldLowerRow {
+  display: none !important;
+}
+
+@media (orientation: portrait) {
+  body.game-open.canvas-ui-collapsed:not(.result-presentation) .board-wrap {
+    width: 100cqw;
+    height: 100cqh;
+  }
+}
+
+
+/* v650 candidate — append after styles.css; Hacker dock internals only. */
+body #statusPanel #hackerAbilityDock {
+  border-color: #3b9eaa;
+  background:
+    linear-gradient(135deg, rgba(52, 179, 190, .14), transparent 43%),
+    linear-gradient(315deg, rgba(119, 87, 166, .12), transparent 40%),
+    #102532;
+  box-shadow: inset 0 1px 0 rgba(242, 247, 248, .14), 0 10px 24px rgba(12, 36, 48, .22);
+}
+body #statusPanel #hackerAbilityDock .hacker-ability-head {
+  gap: 7px 9px;
+  padding: 1px 1px 2px;
+}
+body #statusPanel #hackerAbilityDock .hacker-console-heading {
+  gap: 2px;
+}
+body #statusPanel #hackerAbilityDock .hacker-console-heading strong {
+  color: #f2f7f8;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .035em;
+}
+body #statusPanel #hackerAbilityDock .hacker-console-heading small {
+  color: #b9d7dc;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+body #statusPanel #hackerAbilityDock .hacker-console-state {
+  display: grid;
+  justify-items: end;
+  min-width: 0;
+  gap: 1px;
+  border-left: 2px solid #34b3be;
+  padding-left: 7px;
+  color: #b9d7dc;
+  font-size: 9px;
+  line-height: 1.1;
+}
+body #statusPanel #hackerAbilityDock .hacker-console-state strong {
+  max-inline-size: 15ch;
+  overflow-wrap: anywhere;
+  color: #f2f7f8;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+}
+body #statusPanel #hackerAbilityDock .hacker-category-control {
+  gap: 6px;
+  padding-top: 2px;
+}
+body #statusPanel #hackerAbilityDock .hacker-category-step {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-color: #b5cbd2;
+  border-radius: 9px;
+  background: #193846;
+  color: #f2f7f8;
+  font-size: 24px;
+  box-shadow: inset 0 1px 0 rgba(242,247,248,.12);
+}
+body #statusPanel #hackerAbilityDock .hacker-category-step:focus-visible {
+  outline: 3px solid rgba(52, 179, 190, .72);
+  outline-offset: 2px;
+}
+body #statusPanel #hackerAbilityDock .hacker-category-label {
+  border: 1px solid rgba(181, 203, 210, .7);
+  border-radius: 8px;
+  background: rgba(7, 28, 38, .54);
+  padding: 6px 8px;
+  color: #f2f7f8;
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: .035em;
+}
+body #statusPanel #hackerAbilityDock .hacker-ability-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(64px, max-content);
+  gap: 8px;
+  max-height: min(31vh, 252px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-behavior: auto;
+  padding: 2px 4px 12px 1px;
+  scrollbar-color: #34b3be #102532;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action {
+  grid-template-columns: 42px minmax(0, 1fr);
+  min-height: 64px;
+  border-width: 1px 1px 1px 4px;
+  border-radius: 9px;
+  padding: 7px 10px 7px 8px;
+  box-shadow: inset 0 1px 0 rgba(242,247,248,.08), 0 4px 12px rgba(4, 20, 28, .2);
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action .hacker-action-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 7px;
+}
+body #statusPanel #hackerAbilityDock .hacker-action-copy {
+  align-content: center;
+  gap: 3px;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action strong,
+body #statusPanel #hackerAbilityDock .hacker-direct-action small {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action strong {
+  color: #f2f7f8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action small {
+  color: #c4d8dc;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action.hacker-key-selected {
+  border-color: #f2cf72;
+  background:
+    linear-gradient(90deg, rgba(242, 207, 114, .19), transparent 47%),
+    #173b48;
+  box-shadow: inset 0 0 0 1px rgba(242,207,114,.36), 0 0 0 2px rgba(242,207,114,.13), 0 6px 16px rgba(4,20,28,.28);
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action.hacker-key-selected::after {
+  content: "選択中・Enterで実行";
+  right: 8px;
+  bottom: 6px;
+  color: #f9df94;
+  font-size: 8px;
+  letter-spacing: .02em;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable {
+  border-color: #798e96;
+  background: #263942;
+  opacity: .78;
+  filter: saturate(.48);
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable::after {
+  content: "現在は実行不可";
+  right: 8px;
+  bottom: 6px;
+  color: #e6b8c4;
+  font-size: 8px;
+  font-weight: 800;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action:focus-visible {
+  outline: 3px solid rgba(52, 179, 190, .8);
+  outline-offset: 2px;
+}
+@media (max-width: 520px) {
+  body #statusPanel #hackerAbilityDock .hacker-console-state strong { max-inline-size: 12ch; }
+  body #statusPanel #hackerAbilityDock .hacker-ability-grid { max-height: min(33vh, 260px); }
+}
+
+body #statusPanel #hackerAbilityDock .hacker-console-state > span {
+  color: #b9d7dc !important;
+  font-size: 9px;
+  font-weight: 750;
+}
+/* The header plus border already identify selection. Do not place pale microcopy over
+   the final card material, which may be a light legacy surface. */
+body #statusPanel #hackerAbilityDock .hacker-direct-action.hacker-key-selected::after {
+  content: none !important;
+}
+/* Unavailable remains a compact, high-contrast state chip on either light or dark cards. */
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable::after {
+  content: "実行不可";
+  right: 8px;
+  bottom: 6px;
+  border: 1px solid #a84b61;
+  border-radius: 999px;
+  background: #fff4f6;
+  padding: 2px 5px;
+  color: #7e263f;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* v650: toast-only semantic feedback lifecycle; it does not move the protected control/footer layout. */
+body .toast {
+  color: #102532;
+  background: linear-gradient(135deg, #fafdfe 0%, #edf7f8 100%);
+  border-color: #5f9eaa;
+  box-shadow: 0 12px 30px rgba(7, 27, 37, 0.24), inset 3px 0 #34b3be;
+  padding: 11px 15px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+}
+
+body .toast[data-toast-motion="enter"] {
+  animation: notification-toast-latch-in 180ms cubic-bezier(.18, .86, .28, 1) both;
+  will-change: opacity, transform;
+}
+
+body .toast[data-toast-motion="read"] {
+  animation: none;
+}
+
+body .toast[data-toast-motion="exit"] {
+  animation: notification-toast-latch-out 180ms ease-in both;
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+
+@keyframes notification-toast-latch-in {
+  0% { opacity: 0; transform: translateY(8px) scale(.985); }
+  62% { opacity: 1; transform: translateY(-1px) scale(1); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes notification-toast-latch-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-5px) scale(.99); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body .toast[data-toast-motion="enter"],
+  body .toast[data-toast-motion="exit"] {
+    animation: none;
+    will-change: auto;
+  }
+}

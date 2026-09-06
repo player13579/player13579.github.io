@@ -7366,12 +7366,9 @@ const LABORATORY_MAP = Object.freeze({
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
     ["fire", "ファイア", 8, "instant-item", "fire", "fire"],
     ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
-    ["grit", "バリア", 5, "instant-item", "grit", "grit"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
-    ["reason", "バスト", 5, "instant-item", "reason", "reason"],
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],
-    ["hsg", "HSG", 8, "weapon", "hsg", "hsg"],
     ["railgun", "レールガン", 13, "weapon", "vending-railgun", "railgun"],
     ["particle-cannon", "荷電粒子砲", 16, "weapon", "vending-particle-cannon", "particle-cannon"],
     ["excalibur", "エクスカリバー", 19, "weapon", "vending-excalibur", "excalibur"],
@@ -7429,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-visual-elevation-v650",
+    version: "ui-visual-elevation-v651",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7595,12 +7592,10 @@ const EMP_SLOW_MULTIPLIER = 0.55;
 const TASER_MOVEMENT_MULTIPLIER = 0.65;
 const EMP_INITIAL_LOCK_MS = 15_000;
 const HACKER_EMP_OPENING_PROTECTION_MS = 30_000;
-const HSG_BASE_DURATION_MS = 8_000;
-const HSG_BASE_ACC_MULTIPLIER = 1.8;
-const HSG_BASE_MANA_COST = 1;
-const HSG_ENHANCE_DURATION_MS_PER_LEVEL = 2_000;
-const HSG_ENHANCE_ACC_PER_LEVEL = 0.2;
-const HSG_ACTIVATION_COOLDOWN_MS = 20_000;
+const HOVER_SPRINT_BASE_DURATION_MS = 8_000;
+const HOVER_SPRINT_BASE_ACC_MULTIPLIER = 1.8;
+const HOVER_SPRINT_BASE_MANA_COST = 1;
+const HOVER_SPRINT_ACTIVATION_COOLDOWN_MS = 20_000;
 const HACKER_INVENTION_LABELS = Object.freeze({
   railgun: "レールガン",
   "particle-cannon": "荷電粒子砲",
@@ -7642,8 +7637,9 @@ const EMP_RESONANCE_LETHAL_RANGE = 110;
 const EMP_RESONANCE_BODY_RANGE = EMP_RANGE;
 const EMP_ITEM_LOCK_MS = 7_000;
 const MAP_OBJECT_RANGE = 150;
-const RESOLVE_POINT_USE_RANGE = 82;
-const RESOLVE_POINT_CLEARANCE = 118;
+const MYSTERY_BOX_USE_RANGE = 82;
+const MYSTERY_BOX_CLEARANCE = 118;
+const MYSTERY_BOX_MAX_COUNT = 3;
 const MAP_OBJECT_SPEED_MULTIPLIER = 1.35;
 const LIMIT_BREAK_SPEED_MULTIPLIER = 3;
 const LIMIT_BREAK_MANA_DRAIN_PER_SECOND = 0.08;
@@ -7709,6 +7705,8 @@ const MYSTERY_COST = vendingPrice("mystery");
 const MYSTERY_ABILITY_LOCK_MS = 15_000;
 const MYSTERY_UNCONSCIOUS_MS = 8_000;
 const DESIRE_RESOURCE_DEBT = -100;
+const DESIRE_STATIONARY_RECOVERY_MS = 5_000;
+const DESIRE_RENKI_RECOVERY_MS = 3_000;
 const DEFAULT_MAX_MANA = 2;
 const REST_COMPLETION_MANA_FLOOR = 2;
 const ABILITY_HOLD_MANA_RESERVE = 2;
@@ -7758,10 +7756,8 @@ const FLORA_INVISIBLE_MANA_COST = 10;
 const FLORA_INVISIBLE_DURATION_MS = 10_000;
 const ALCHEMY_MANA_COST = ABILITY_MANA_COST;
 const SABOTAGE_MANA_COST = 0;
-const STAND_FIRM_COST = vendingPrice("grit");
 const STAND_FIRM_BARRIER_DURATION_MS = 1_500;
 const HEAL_COST = vendingPrice("heal");
-const PUSH_COST = vendingPrice("reason");
 const PUSH_BACKLASH_DAMAGE_PER_CHARGE = 0.5;
 const MANA_POTION_COST = vendingPrice("mana");
 // Six minutes without donations. Passive income fully donated shortens this to
@@ -7974,8 +7970,8 @@ const OPERATORS = {
       special: "gunner",
       limit: 99,
       asset: "gunner",
-      description: "ARとエイム・特殊弾装填を持ち、5種の銃器を扱う。全員共通の物理HSGも使用できる。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。特殊弾装填は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。全員の開始装備である物理HSGはStorageに入り、足場上から足場のない場所へ進む直前に自動起動して通常8秒間の浮揚とACC 1.8を付与する。通常投擲は接地後に回収でき、譲渡・死亡時戦利品移動も可能。HSGを含む最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積・リセット・準備変更できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      description: "ARとエイム・特殊弾装填を持ち、5種の銃器を扱う。足場のない場所への移動では共通アクションのホバースプリントが自動発動する。",
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。特殊弾装填は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。ホバースプリントは全員共通の自動アクションで、足場上から足場のない場所へ進む直前に1MPで8秒間の浮揚とACC 1.8を付与する。アイテムの所持やStorageの利用は不要。最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -8002,7 +7998,6 @@ const OPERATORS = {
 
 const ITEM_DEFINITIONS = Object.freeze({
   "orichalcum-sword": Object.freeze({ id: "orichalcum-sword", label: "オリハルコン・ソード", asset: "orichalcum-sword", throwable: true, weapon: true, reusable: true }),
-  hsg: Object.freeze({ id: "hsg", label: "HSG", asset: "hsg", throwable: true, usable: true, reusable: true }),
   mercury: Object.freeze({ id: "mercury", label: "水銀瓶", asset: "quantum-mercury", throwable: true }),
   lead: Object.freeze({ id: "lead", label: "鉛瓶", asset: "quantum-lead", throwable: true }),
   uranium: Object.freeze({ id: "uranium", label: "ウラン容器", asset: "quantum-uranium", throwable: true }),
@@ -9467,7 +9462,7 @@ function createRoom(id) {
     hazardFields: [],
     thrownItems: [],
     groundItems: [],
-    resolvePoint: null,
+    mysteryBoxes: [],
     lastTickAt: now(),
     doorState: {},
     destroyedCameras: {},
@@ -9502,14 +9497,42 @@ function getMap(room) {
   return MAPS[room.settings.mapId] || MAPS.station;
 }
 
-function createResolvePoint(room) {
+function createMysteryBox(room) {
   const map = getMap(room);
+  const boxes = Array.isArray(room.mysteryBoxes) ? room.mysteryBoxes : [];
   const obstacles = [
     ...(map.stations || []),
     ...(map.objects || []),
     ...room.players.values()
   ];
-  const regions = (map.rooms || []).filter((region) => region.w > 120 && region.h > 120);
+  const mapRegions = (map.rooms || []).filter((region) => region.w > 120 && region.h > 120);
+  const regions = mapRegions.length ? mapRegions : [{
+    id: "corridor",
+    x: 0,
+    y: 0,
+    w: Number(map.width) || 0,
+    h: Number(map.height) || 0
+  }];
+  const placementAt = (x, y, region) => {
+    if (!isWalkable(room, x, y, map.playerRadius)) return null;
+    const spawnClearance = map.spawns.length
+      ? Math.min(...map.spawns.map((spawn) => distance({ x, y }, spawn)))
+      : Infinity;
+    if (spawnClearance < 420) return null;
+    const boxClearance = boxes.length
+      ? Math.min(...boxes.map((box) => distance({ x, y }, box)))
+      : Infinity;
+    if (boxClearance < MYSTERY_BOX_CLEARANCE) return null;
+    const clearance = obstacles.length
+      ? Math.min(...obstacles.map((obstacle) => distance({ x, y }, obstacle)))
+      : Infinity;
+    return { x, y, room: region.id, clearance, boxClearance };
+  };
+  const preferPlacement = (candidate, current) => (
+    !current ||
+    candidate.clearance > current.clearance ||
+    (candidate.clearance === current.clearance && candidate.boxClearance > current.boxClearance)
+  );
   let best = null;
   for (let attempt = 0; attempt < 320; attempt += 1) {
     const region = regions[Math.floor(Math.random() * regions.length)];
@@ -9517,38 +9540,41 @@ function createResolvePoint(room) {
     const margin = Math.min(64, Math.max(34, Math.min(region.w, region.h) * 0.16));
     const x = region.x + margin + Math.random() * Math.max(1, region.w - margin * 2);
     const y = region.y + margin + Math.random() * Math.max(1, region.h - margin * 2);
-    if (!isWalkable(room, x, y, map.playerRadius)) continue;
-    const spawnClearance = map.spawns.length
-      ? Math.min(...map.spawns.map((spawn) => distance({ x, y }, spawn)))
-      : Infinity;
-    if (spawnClearance < 420) continue;
-    const clearance = obstacles.length
-      ? Math.min(...obstacles.map((obstacle) => distance({ x, y }, obstacle)))
-      : Infinity;
-    if (!best || clearance > best.clearance) best = { x, y, room: region.id, clearance };
-    if (clearance >= RESOLVE_POINT_CLEARANCE) break;
+    const candidate = placementAt(x, y, region);
+    if (!candidate) continue;
+    if (preferPlacement(candidate, best)) best = candidate;
+    if (candidate.clearance >= MYSTERY_BOX_CLEARANCE) break;
   }
   if (!best) {
-    const fallbackRegion = regions.find((region) => region.id !== "atrium") || regions[0];
-    const x = fallbackRegion ? fallbackRegion.x + fallbackRegion.w / 2 : map.width * 0.15;
-    const y = fallbackRegion ? fallbackRegion.y + fallbackRegion.h / 2 : map.height * 0.15;
-    best = { x, y, room: fallbackRegion?.id || "corridor", clearance: 0 };
+    const gridStep = Math.max(48, Math.ceil((Number(map.playerRadius) || 20) * 2.4));
+    for (const region of regions) {
+      const margin = Math.min(64, Math.max(34, Math.min(region.w, region.h) * 0.16));
+      const minX = region.x + margin;
+      const maxX = region.x + region.w - margin;
+      const minY = region.y + margin;
+      const maxY = region.y + region.h - margin;
+      for (let y = minY; y <= maxY; y += gridStep) {
+        for (let x = minX; x <= maxX; x += gridStep) {
+          const candidate = placementAt(x, y, region);
+          if (candidate && preferPlacement(candidate, best)) best = candidate;
+        }
+      }
+    }
   }
-  const reward = Math.random() < 0.5 ? "grit" : "reason";
+  if (!best) throw new Error("ミステリーボックスを重ならない安全な地点へ配置できません。");
   return {
-    id: uid("resolve_"),
-    type: "resolvePoint",
-    label: "意志の焦点",
-    effectLabel: reward === "grit" ? "バリア+1" : "バスト+1",
-    effectKind: "resolve",
-    reward,
-    x: Math.round(best.x),
-    y: Math.round(best.y),
-    room: best.room,
-    interactive: true,
-    useRange: RESOLVE_POINT_USE_RANGE,
-    radius: 54
+    id: uid("mystery_box_"), type: "mysteryBox", kind: "mystery-box", label: "ミステリーボックス",
+    effectLabel: "ランダムなショップ報酬", effectKind: "mysteryBox",
+    x: Math.round(best.x), y: Math.round(best.y), room: best.room, interactive: true,
+    useRange: MYSTERY_BOX_USE_RANGE, radius: 54, createdAt: now()
   };
+}
+
+function replenishMysteryBoxes(room) {
+  room.mysteryBoxes = Array.isArray(room.mysteryBoxes) ? room.mysteryBoxes : [];
+  while (room.mysteryBoxes.length < MYSTERY_BOX_MAX_COUNT) {
+    room.mysteryBoxes.push(createMysteryBox(room));
+  }
 }
 
 function touch(room) {
@@ -9807,8 +9833,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunnerSpecialAmmoInventory: { weak: 0, penetrate: 0, shock: 0 },
     gunnerSpecialAmmoReadyAt: 0,
     gunnerSpecialAmmoBag: [],
-    hsgUntil: 0,
-    hsgReadyAt: 0,
+    hoverSprintUntil: 0,
+    hoverSprintReadyAt: 0,
     killCamera: null,
     gunnerSnipingActive: false,
     gunnerLastHitZone: "",
@@ -9896,6 +9922,8 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     desireBias: "",
     desireBiasBag: [],
     lastDesireBias: "",
+    desireRestRecoveryStartedAt: 0,
+    desireRenkiRecovery: false,
     desireIdeaForfeited: false,
     truthCharges: 0,
     beautyCharges: 0,
@@ -10446,15 +10474,14 @@ function startGame(room) {
     player.gunnerReloadUntil = 0;
     player.gunnerReloadWeapon = "";
     player.unavailableGunnerWeapons = [];
-    player.realScreenExplicitHsgGrantAt = 0;
     player.gunnerSpecialAmmoType = "";
     player.gunnerSpecialAmmoWeapon = "";
     player.gunnerSpecialAmmoRounds = 0;
     player.gunnerSpecialAmmoInventory = { weak: 0, penetrate: 0, shock: 0 };
     player.gunnerSpecialAmmoReadyAt = 0;
     player.gunnerSpecialAmmoBag = [];
-    player.hsgUntil = 0;
-    player.hsgReadyAt = 0;
+    player.hoverSprintUntil = 0;
+    player.hoverSprintReadyAt = 0;
     player.killCamera = null;
     player.gunnerSnipingActive = false;
     player.gunnerLastHitZone = "";
@@ -10532,6 +10559,8 @@ function startGame(room) {
     player.ideaStage = 0;
     player.ideaFirstAspect = "";
     player.desireBias = "";
+    player.desireRestRecoveryStartedAt = 0;
+    player.desireRenkiRecovery = false;
     player.desireIdeaForfeited = false;
     player.truthCharges = 0;
     player.beautyCharges = 0;
@@ -10849,8 +10878,8 @@ function startBattle(room) {
     player.abilityDisabledUntil = 0;
     player.overhealSpeedUntil = 0;
     player.floraInvisibleUntil = 0;
-    player.hsgUntil = 0;
-    player.hsgReadyAt = 0;
+    player.hoverSprintUntil = 0;
+    player.hoverSprintReadyAt = 0;
     player.killCamera = null;
     player.gunnerSnipingActive = false;
     player.gunnerLastHitZone = "";
@@ -10887,6 +10916,8 @@ function startBattle(room) {
     player.ideaStage = 0;
     player.ideaFirstAspect = "";
     player.desireBias = "";
+    player.desireRestRecoveryStartedAt = 0;
+    player.desireRenkiRecovery = false;
     player.desireIdeaForfeited = false;
     player.truthCharges = 0;
     player.beautyCharges = 0;
@@ -10899,12 +10930,6 @@ function startBattle(room) {
       : createItemInventory(player.itemInventory);
     if (player.special === "fighter" && itemCount(player, "orichalcum-sword") <= 0) {
       addItem(player, "orichalcum-sword");
-    }
-    // HSG is one common physical starting gear item for every participant.
-    // This is deliberately after Quantum's authored starting inventory so all
-    // operators, bots and generated/offline rooms receive exactly one body.
-    if (itemCount(player, "hsg") <= 0) {
-      addItem(player, "hsg");
     }
     player.poisonStatus = null;
     player.burnStatus = null;
@@ -10923,7 +10948,8 @@ function startBattle(room) {
   room.battleStartedAt = timestamp;
   room.quantumEndgameAt = timestamp + QUANTUM_ENDGAME_DELAY_MS;
   room.preparationEndsAt = timestamp + PREPARATION_PHASE_MS;
-  room.resolvePoint = createResolvePoint(room);
+  room.mysteryBoxes = [];
+  replenishMysteryBoxes(room);
   room.operatorSelectEndsAt = 0;
   room.operatorTurnOrder = [];
   room.operatorTurnIndex = 0;
@@ -11012,11 +11038,7 @@ function distance(a, b) {
 }
 
 function actionBlockedUntil(player) {
-  const restUntil = player?.resting && Number(player.stamina) < staminaCapacityFor(player) - 0.01
-    ? Math.max(Number(player.sleepingUntil) || 0, now() + 250)
-    : Number(player.sleepingUntil) || 0;
   return Math.max(
-    restUntil,
     Number(player.unconsciousUntil) || 0,
     Number(player.meditatingUntil) || 0,
     Number(player.smartphoneUntil) || 0,
@@ -11369,7 +11391,12 @@ function mentalPointsFor(player) {
   };
 }
 
+function hasDesireManaDebt(player) {
+  return Number(player?.mana) <= DESIRE_RESOURCE_DEBT;
+}
+
 function mentalStateFor(player) {
+  if (hasDesireManaDebt(player)) return "欲望";
   return mentalStateForResources(
     player?.mana,
     player?.stamina,
@@ -11595,13 +11622,17 @@ function limitBreakMultiplier(player) {
 
 function spendLimitBreakHealth(player) {
   if (hasFighterInfiniteResources(player)) return;
-  if (remainingHealth(player) <= 0) {
+  const healthBefore = remainingHealth(player);
+  if (healthBefore <= 0) {
     throw new ApiError(400, "リミットブレイクには消費できるHPが必要です。");
   }
-  if ((Number(player.overheal) || 0) > 0) {
-    player.overheal = Math.max(0, Number(player.overheal) - 1);
-  } else {
-    player.bodyHits = Math.max(0, Number(player.bodyHits) || 0) + 1;
+  const cost = Math.min(1, healthBefore);
+  const overhealBefore = Math.max(0, Number(player.overheal) || 0);
+  const overhealSpent = Math.min(cost, overhealBefore);
+  player.overheal = Number((overhealBefore - overhealSpent).toFixed(6));
+  const bodySpent = cost - overhealSpent;
+  if (bodySpent > 0) {
+    player.bodyHits = Number(Math.min(2, Math.max(0, Number(player.bodyHits) || 0) + bodySpent).toFixed(6));
   }
 }
 
@@ -11852,6 +11883,8 @@ function enterDesireState(room, player, sourceLabel = "", timestamp = now()) {
   const enteredNow = !player.desireBias;
   if (enteredNow) {
     player.desireBias = nextDesireBias(player);
+    player.desireRestRecoveryStartedAt = 0;
+    player.desireRenkiRecovery = false;
   }
   player.mana = DESIRE_RESOURCE_DEBT;
   player.credits = DESIRE_RESOURCE_DEBT;
@@ -11929,6 +11962,13 @@ function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
   const previousRaw = Math.round((Number(player.mana) || 0) * 100) / 100;
   const previous = previousRaw <= 0 ? DESIRE_RESOURCE_DEBT : previousRaw;
   const rawRequested = Math.round((Number(rawMana) || 0) * 100) / 100;
+  if (hasDesireManaDebt(player) && options.desireRecovery !== true) {
+    player.mana = DESIRE_RESOURCE_DEBT;
+    syncMentalState(room, player, sourceLabel, timestamp);
+    player.luck = luckValueFor(player);
+    if (room) maintainNaturalRecovery(room, player, timestamp);
+    return Number(player.mana);
+  }
   const requested = !options.exact && player.desireBias === "sunk-cost" && previous > 0 && rawRequested < previous
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
@@ -12001,9 +12041,63 @@ function canSpendOperatorMana(player, timestamp = now(), amount = ABILITY_MANA_C
   return rationalFree || (Number(player.mana) || 0) >= cost;
 }
 
+function completeDesireManaRecovery(room, player, source, timestamp = now()) {
+  if (!hasDesireManaDebt(player)) return false;
+  player.desireRestRecoveryStartedAt = 0;
+  player.desireRenkiRecovery = false;
+  player.renkiTargetMana = null;
+  player.meditatingUntil = 0;
+  if (player.movementMode === "meditating") player.movementMode = "idle";
+  setMana(room, player, REST_COMPLETION_MANA_FLOOR, source === "renki" ? "欲望・練気完了" : "欲望・停止休息完了", {
+    exact: true,
+    desireRecovery: true
+  });
+  const staminaFull = Number(player.stamina) >= staminaCapacityFor(player) - 0.01;
+  if (player.resting && staminaFull) {
+    player.resting = false;
+    player.sleepingUntil = 0;
+    if (player.movementMode === "sleep") player.movementMode = "idle";
+  }
+  if (source === "renki") {
+    pushGainAte(room, player, "mana", { variant: "desire-recovery", durationMs: 1680 });
+    pushMagicEffect(room, "action-renki", player, { radius: 120, playerId: player.id, variant: "desire-recovery" });
+  } else {
+    pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id, variant: "desire-recovery" });
+  }
+  setImmediateFeedback(player, "欲望回復", `${source === "renki" ? "練気" : "停止休息"}完了 / MP ${REST_COMPLETION_MANA_FLOOR}`);
+  pushEvent(room, `${player.name} が${source === "renki" ? "練気" : "停止休息"}を完了し、欲望のMP負債からマナ${REST_COMPLETION_MANA_FLOOR}へ回復しました。`);
+  touch(room);
+  return true;
+}
+
 function practiceRenki(room, player, options = {}) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在は練気できません。");
+  }
+  let desireHold = null;
+  if (hasDesireManaDebt(player) && options.holdId) {
+    desireHold = commitAbilityHold(room, player, options.holdId, "/api/renki");
+    if (desireHold.duplicate) return { duplicate: true, batch: Boolean(desireHold.batch), desireRecovery: true };
+  }
+  if (hasDesireManaDebt(player)) {
+    ensureAbilityAvailable(player);
+    const timestamp = now();
+    player.desireRestRecoveryStartedAt = 0;
+    player.desireRenkiRecovery = true;
+    player.renkiTargetMana = REST_COMPLETION_MANA_FLOOR;
+    player.meditatingUntil = timestamp + DESIRE_RENKI_RECOVERY_MS;
+    player.resting = false;
+    player.sleepingUntil = 0;
+    player.vx = 0;
+    player.vy = 0;
+    player.movementMode = "meditating";
+    player.lastMoveAt = timestamp;
+    clearAttackState(player);
+    pushMagicEffect(room, "action-renki", player, { radius: 120, playerId: player.id, variant: "desire-recovery-start" });
+    setImmediateFeedback(player, "欲望回復・練気", `${DESIRE_RENKI_RECOVERY_MS / 1000}秒後にMP ${REST_COMPLETION_MANA_FLOOR}`);
+    pushEvent(room, `${player.name} が欲望のMP負債を回復する練気に入りました（${DESIRE_RENKI_RECOVERY_MS / 1000}秒 / 完了時MP ${REST_COMPLETION_MANA_FLOOR}）。`);
+    touch(room);
+    return { duplicate: false, batch: Boolean(desireHold?.batch), desireRecovery: true };
   }
   if (options.holdId) {
     const committed = commitAbilityHold(room, player, options.holdId, "/api/renki");
@@ -12091,12 +12185,25 @@ function donateCredits(room, player) {
 }
 
 function finishRenki(room, player, timestamp) {
+  if (player.desireRenkiRecovery && (room.phase !== "playing" || !player.alive || player.ejected || player.inVent)) {
+    player.desireRenkiRecovery = false;
+    player.renkiTargetMana = null;
+    player.meditatingUntil = 0;
+    if (player.movementMode === "meditating") player.movementMode = "idle";
+    return;
+  }
   if (room.phase !== "playing") return;
   if (player.renkiTargetMana == null || !player.meditatingUntil || player.meditatingUntil > timestamp) return;
   const targetMana = player.renkiTargetMana;
+  const desireRecovery = Boolean(player.desireRenkiRecovery);
   player.renkiTargetMana = null;
   player.meditatingUntil = 0;
-  player.movementMode = "idle";
+  player.desireRenkiRecovery = false;
+  if (player.movementMode === "meditating") player.movementMode = "idle";
+  if (desireRecovery) {
+    completeDesireManaRecovery(room, player, "renki", timestamp);
+    return;
+  }
   const previousMana = Number(player.mana) || 0;
   setMana(room, player, targetMana, "練気");
   if (Number(player.mana) > previousMana) pushGainAte(room, player, "mana", { variant: "renki", durationMs: 1680 });
@@ -12333,7 +12440,7 @@ function advanceClairvoyanceMana(room, player, elapsedMs) {
 
 function activeLevitationSources(player, timestamp = now()) {
   const sources = [];
-  if (Number(player?.hsgUntil) > timestamp) sources.push("hsg");
+  if (Number(player?.hoverSprintUntil) > timestamp) sources.push("hoverSprint");
   if (
     hasOperatorAccess(player, "gravity") &&
     Number(player.mana) > 0 &&
@@ -12352,8 +12459,8 @@ function synchronizeSharedLevitationExpiry(room, player, timestamp = now()) {
   player.sharedLevitationActive = active;
   // `sharedLevitationActive` is presentation/reconciliation state, never the
   // authority for survival. A missed state update used to make an already
-  // false flag indistinguishable from an HSG expiry, leaving an off-floor
-  // player alive. Re-evaluate actual timed sources on every tick: HSG is
+  // false flag indistinguishable from an hover-sprint expiry, leaving an off-floor
+  // player alive. Re-evaluate actual timed sources on every tick: hover sprint is
   // active strictly before its deadline, while Gravity remains independent.
   if (active) return false;
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) return false;
@@ -12772,7 +12879,7 @@ function addTimedAcceleration(player, source, multiplier, durationMs, timestamp 
   };
   player.timedAccelerationEffects.push(effect);
   if (effect.source === "flora") player.overhealSpeedUntil = Math.max(Number(player.overhealSpeedUntil) || 0, effect.endsAt);
-  if (effect.source === "hsg") player.hsgUntil = Math.max(Number(player.hsgUntil) || 0, effect.endsAt);
+  if (effect.source === "hoverSprint") player.hoverSprintUntil = Math.max(Number(player.hoverSprintUntil) || 0, effect.endsAt);
   return timedAccelerationSummary(player, timestamp);
 }
 
@@ -12856,7 +12963,7 @@ function persistentStatusAteState(room, player, timestamp = now()) {
     naturalRecovery: hasNaturalRecovery(room, player),
     acceleration,
     clairvoyance: Boolean(player.clairvoyanceActive),
-    levitation: Boolean(player.levitationEngaged || Number(player.hsgUntil) > timestamp),
+    levitation: Boolean(player.levitationEngaged || Number(player.hoverSprintUntil) > timestamp),
     hpReduction: hasLimitBreakDeathVulnerability(player),
     resistanceBreak: hasLimitBreakDeathVulnerability(player),
     standFirm: (Number(player.gritCharges) || 0) > 0,
@@ -12883,7 +12990,7 @@ const ACCELERATED_ACTION_UNTIL_FIELDS = Object.freeze([
 ]);
 
 const TIME_KEEPER_FROZEN_DEADLINE_FIELDS = Object.freeze([
-  "hsgUntil",
+  "hoverSprintUntil",
   "dodgeActiveUntil",
   "limitBreakEndsAt",
   "slowedUntil",
@@ -12912,6 +13019,7 @@ const TIME_KEEPER_FROZEN_ANCHOR_FIELDS = Object.freeze([
   "gunnerLastShotAt",
   "lastPassiveCreditAt",
   "staminaUpdatedAt",
+  "desireRestRecoveryStartedAt",
   "taskPresenceSince",
   "ideaProgressStartedAt",
   "ideaProgressUpdatedAt",
@@ -12995,7 +13103,10 @@ function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
 function advanceAccelerationTime(room, player, elapsedMs, timestamp = now()) {
   if (room.phase !== "playing" || !player.alive || player.ejected) return;
   const elapsed = Math.max(0, Number(elapsedMs) || 0);
-  const multiplier = effectiveAccelerationMultiplier(room, player, timestamp);
+  const desireTimeMultiplier = player?.desireBias === "cognitive-dissonance" && !player.desireRenkiRecovery
+    ? DESIRE_BIAS_TIME_MULTIPLIER
+    : 1;
+  const multiplier = effectiveAccelerationMultiplier(room, player, timestamp) * desireTimeMultiplier;
   const adjustment = elapsed * (multiplier - 1);
   if (Math.abs(adjustment) < 0.001) return;
   if (adjustment > 0) reducePlayerCooldowns(player, adjustment, timestamp);
@@ -13034,7 +13145,7 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
     : 1;
   const groupMultiplier = desireBiasGroupActive(room, player) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
   // Cognitive dissonance is a legal post-ACC movement modifier.  It must not
-  // alter the source threshold that arms ACC Fixed (for example HSG Enhance
+  // alter the source threshold that arms ACC Fixed (for example a temporary acceleration source
   // at ACC 2); otherwise a slow would incorrectly disable the fixed state.
   const desireTimeMultiplier = player?.desireBias === "cognitive-dissonance"
     ? DESIRE_BIAS_TIME_MULTIPLIER
@@ -13059,32 +13170,28 @@ function floraAromaMultiplier(room, player) {
   return floraAromaSource(room, player) ? FLORA_AROMA_REGEN_MULTIPLIER : 1;
 }
 
-function activateHsgForUnsupportedMovement(room, player, targetX, targetY, timestamp = now()) {
+function activateHoverSprintForUnsupportedMovement(room, player, targetX, targetY, timestamp = now()) {
   const radius = getMap(room).playerRadius;
   if (
-    itemCount(player, "hsg") < 1 ||
-    !player.alive ||
-    player.ejected ||
-    player.inVent ||
-    !itemStorageAvailable(player, timestamp) ||
-    Number(player.hsgUntil) > timestamp ||
-    Number(player.hsgReadyAt) > timestamp ||
+    room.phase !== "playing" ||
+    !player.alive || player.ejected || player.inVent ||
+    actionBlockedUntil(player) > timestamp ||
+    Number(player.hoverSprintUntil) > timestamp ||
+    Number(player.hoverSprintReadyAt) > timestamp ||
     !hasFloorSupport(room, player.x, player.y, radius) ||
     hasFloorSupport(room, targetX, targetY, radius) ||
-    (!hasFighterInfiniteResources(player) && (Number(player.mana) || 0) < HSG_BASE_MANA_COST)
+    (!hasFighterInfiniteResources(player) && (Number(player.mana) || 0) < HOVER_SPRINT_BASE_MANA_COST)
   ) return false;
-  spendHeldPowerMana(room, player, HSG_BASE_MANA_COST, "HSG自動起動");
-  addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
-  player.hsgReadyAt = timestamp + HSG_ACTIVATION_COOLDOWN_MS;
-  pushMagicEffect(room, "item-hsg-activate", player, {
-    radius: 135,
-    playerId: player.id,
-    variant: "auto-unsupported",
-    durationMs: HSG_BASE_DURATION_MS,
-    accelerationMultiplier: HSG_BASE_ACC_MULTIPLIER
+  spendHeldPowerMana(room, player, HOVER_SPRINT_BASE_MANA_COST, "ホバースプリント");
+  addTimedAcceleration(player, "hoverSprint", HOVER_SPRINT_BASE_ACC_MULTIPLIER, HOVER_SPRINT_BASE_DURATION_MS, timestamp);
+  player.hoverSprintReadyAt = timestamp + HOVER_SPRINT_ACTIVATION_COOLDOWN_MS;
+  pushMagicEffect(room, "hover-sprint-active", player, {
+    radius: 135, playerId: player.id, variant: "auto-unsupported",
+    durationMs: HOVER_SPRINT_BASE_DURATION_MS,
+    accelerationMultiplier: HOVER_SPRINT_BASE_ACC_MULTIPLIER
   });
-  setImmediateFeedback(player, "HSG自動起動", `MP ${HSG_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒`);
-  pushEvent(room, `${player.name} のHSGが足場のない場所への移動を検知して自動起動しました（MP ${HSG_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
+  setImmediateFeedback(player, "ホバースプリント", `MP ${HOVER_SPRINT_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HOVER_SPRINT_ACTIVATION_COOLDOWN_MS / 1000}秒`);
+  pushEvent(room, `${player.name} が足場のない場所へ移動してホバースプリントを発動しました（MP ${HOVER_SPRINT_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HOVER_SPRINT_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
   return true;
 }
 
@@ -13121,9 +13228,21 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
     mover.vx = 0;
     mover.vy = 0;
     mover.movementMode = "idle";
-    replenishStamina(mover, timestamp, true, 1, room);
+    const stationaryRestActive = syncAutomaticStationaryRest(room, mover, true, timestamp);
+    const naturalRecoveryActive = hasNaturalRecovery(room, mover);
+    replenishStamina(
+      mover,
+      timestamp,
+      true,
+      (stationaryRestActive ? SLEEP_REGEN_MULTIPLIER : 1) * (naturalRecoveryActive ? floraAromaMultiplier(room, mover) : 1),
+      room,
+      naturalRecoveryActive
+    );
+    completeRestAtFullStamina(room, mover, timestamp);
     return;
   }
+  const interruptedDesireRestStartedAt = Number(mover.desireRestRecoveryStartedAt) || 0;
+  syncAutomaticStationaryRest(room, mover, false, timestamp);
   const canDash = Boolean(wantsDash && availableStamina(mover) > 0.5);
   const movementMode = canDash ? "dash" : wantsSlow ? "slow" : "walk";
   mover.vx = dx;
@@ -13152,8 +13271,8 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   const beforeY = mover.y;
   const nx = mover.x + dx * speed * dt;
   const ny = mover.y + dy * speed * dt;
-  if (player.alive) activateHsgForUnsupportedMovement(room, player, nx, ny, timestamp);
-  if (!player.alive || player.hsgUntil > timestamp || canLevitate(player)) {
+  if (player.alive) activateHoverSprintForUnsupportedMovement(room, player, nx, ny, timestamp);
+  if (!player.alive || player.hoverSprintUntil > timestamp || canLevitate(player)) {
     mover.x = clampNumber(nx, radius, map.width - radius, mover.x);
     mover.y = clampNumber(ny, radius, map.height - radius, mover.y);
   } else if (isWalkable(room, nx, ny, radius)) {
@@ -13164,7 +13283,14 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   } else if (isWalkable(room, mover.x, ny, radius)) {
     mover.y = ny;
   }
-  if (beforeX === mover.x && beforeY === mover.y) return;
+  if (beforeX === mover.x && beforeY === mover.y) {
+    mover.vx = 0;
+    mover.vy = 0;
+    mover.movementMode = "idle";
+    if (interruptedDesireRestStartedAt > 0) mover.desireRestRecoveryStartedAt = interruptedDesireRestStartedAt;
+    syncAutomaticStationaryRest(room, mover, true, timestamp);
+    return;
+  }
   if (player.alive && movementMode !== "dash") {
     const drainRate = movementMode === "slow" ? SLOW_WALK_DRAIN_PER_SECOND : WALK_DRAIN_PER_SECOND;
     spendStamina(mover, drainRate * dt, room, movementMode === "slow" ? "無音歩行" : "歩行");
@@ -13262,7 +13388,7 @@ function botPlannerSlotsForRoom(room) {
 
 const BOT_OPERATIONAL_DEADLINE_FIELDS = Object.freeze([
   "nextBotActionAt", "nextBotSabotageAt", "nextBotVentAt", "nextBotDefenseDecisionAt", "nextBotClairvoyanceAt",
-  "killReadyAt", "gunReadyAt", "gunnerReloadUntil", "gunnerSpecialAmmoReadyAt", "hsgReadyAt",
+  "killReadyAt", "gunReadyAt", "gunnerReloadUntil", "gunnerSpecialAmmoReadyAt", "hoverSprintReadyAt",
   "sabotageReadyAt", "dodgeReadyAt", "teleportReadyAt", "empReadyAt", "gravityStormReadyAt",
   "vibeCodingReadyAt", "fighterEnergyChargeReadyAt", "rationalFreeAbilityReadyAt", "particleCannonNextAt",
   "routeDamageReadyAt", "botTargetUntil", "botDeceptionUntil", "botRetaliationUntil", "botWitnessUntil",
@@ -13784,7 +13910,7 @@ function completeTasksAfterDeath(room, player) {
 
 const MEETING_PAUSED_PLAYER_DEADLINE_FIELDS = Object.freeze([
   "gunnerReloadUntil",
-  "hsgUntil",
+  "hoverSprintUntil",
   "dodgeActiveUntil",
   "limitBreakEndsAt",
   "itemDisabledUntil",
@@ -14084,6 +14210,16 @@ function tickRoom(room) {
       syncHackerRootState(room, player);
       player.vx = 0;
       player.vy = 0;
+      player.resting = false;
+      player.sleepingUntil = 0;
+      player.desireRestRecoveryStartedAt = 0;
+      if (player.desireRenkiRecovery) {
+        player.desireRenkiRecovery = false;
+        player.renkiTargetMana = null;
+        player.meditatingUntil = 0;
+        if (player.movementMode === "meditating") player.movementMode = "idle";
+      }
+      if (player.movementMode === "sleep") player.movementMode = "idle";
     }
     maybeEndMeeting(room);
     return;
@@ -14094,17 +14230,6 @@ function tickRoom(room) {
   advanceThrownItems(room, timestamp, elapsedMs);
   if (!roomTimeStopped) advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
-    if (
-      room.phase === "playing" &&
-      player.alive &&
-      !player.ejected &&
-      Number(player.realScreenExplicitHsgGrantAt) > 0 &&
-      Number(player.realScreenExplicitHsgGrantAt) <= timestamp
-    ) {
-      player.realScreenExplicitHsgGrantAt = 0;
-      purchaseFirearm(player, "sniper");
-      pushEvent(room, "実画面検証: 明示HSG選択後にスナイパーライフルを追加しました。");
-    }
     if (!floraInvisibleActive(player, timestamp)) clearFloraInvisible(room, player, "透明化終了");
     syncFighterInfiniteResources(player);
     syncMentalState(room, player, "資源更新", timestamp);
@@ -14142,14 +14267,6 @@ function tickRoom(room) {
         resolveReadyAim(room, player, timestamp);
       }
     }
-    if (player.resting) {
-      if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-        player.resting = false;
-        player.sleepingUntil = 0;
-      } else if (Number(player.stamina) < staminaCapacityFor(player) - 0.01) {
-        player.sleepingUntil = Math.max(Number(player.sleepingUntil) || 0, timestamp + 250);
-      }
-    }
     // `runPlayingBots` deliberately schedules only one expensive repertoire
     // evaluation per callback.  Its last selected legal waypoint is instead
     // integrated here for every Bot.  This is the authoritative equivalent of
@@ -14178,12 +14295,13 @@ function tickRoom(room) {
       }
     }
     const stopped = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01;
+    const stationaryRestActive = syncAutomaticStationaryRest(room, player, stopped, timestamp);
     const naturalRecoveryActive = hasNaturalRecovery(room, player);
     replenishStamina(
       player,
       timestamp,
       stopped || naturalRecoveryActive,
-      (player.resting ? SLEEP_REGEN_MULTIPLIER : 1) * (naturalRecoveryActive ? floraAromaMultiplier(room, player) : 1),
+      (stationaryRestActive ? SLEEP_REGEN_MULTIPLIER : 1) * (naturalRecoveryActive ? floraAromaMultiplier(room, player) : 1),
       room,
       naturalRecoveryActive
     );
@@ -14722,30 +14840,33 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
   touch(room);
 }
 
-function startRest(room, player) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は休息できません。");
-  }
-  ensureConscious(player);
-  const timestamp = now();
-  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01);
+function syncAutomaticStationaryRest(room, player, stationary, timestamp = now()) {
   const capacity = staminaCapacityFor(player);
-  if (player.stamina >= capacity - 0.01) throw new ApiError(400, "スタミナは既に最大です。");
-  const missingStamina = capacity - player.stamina;
-  const sleepDurationMs = Math.max(
-    100,
-    Math.ceil(missingStamina / (STAMINA_REGEN_PER_SECOND * SLEEP_REGEN_MULTIPLIER) * 1000)
+  const desireDebt = hasDesireManaDebt(player);
+  const active = Boolean(
+    room?.phase === "playing" &&
+    player?.alive &&
+    !player.ejected &&
+    !player.inVent &&
+    stationary &&
+    (Number(player.stamina) < capacity - 0.01 || desireDebt)
   );
-  player.resting = true;
-  player.sleepingUntil = timestamp + sleepDurationMs;
-  player.vx = 0;
-  player.vy = 0;
-  player.movementMode = "sleep";
-  player.lastMoveAt = timestamp;
-  clearAttackState(player);
-  pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id });
-  pushEvent(room, `${player.name} が休息に入りました。スタミナが上限へ達するまで行動できません。`);
-  touch(room);
+  player.sleepingUntil = 0;
+  player.resting = active;
+  if (!active) {
+    player.desireRestRecoveryStartedAt = 0;
+  } else if (desireDebt) {
+    if (!(Number(player.desireRestRecoveryStartedAt) > 0)) player.desireRestRecoveryStartedAt = timestamp;
+    if (timestamp - Number(player.desireRestRecoveryStartedAt) >= DESIRE_STATIONARY_RECOVERY_MS) {
+      completeDesireManaRecovery(room, player, "rest", timestamp);
+      player.resting = Number(player.stamina) < capacity - 0.01;
+    }
+  } else {
+    player.desireRestRecoveryStartedAt = 0;
+  }
+  if (player.resting && player.movementMode === "idle") player.movementMode = "sleep";
+  if (!player.resting && player.movementMode === "sleep") player.movementMode = "idle";
+  return player.resting;
 }
 
 function completeRestAtFullStamina(room, player, timestamp = now()) {
@@ -14756,6 +14877,7 @@ function completeRestAtFullStamina(room, player, timestamp = now()) {
     player.ejected ||
     player.inVent
   ) return { completed: false, manaRestored: false };
+  if (hasDesireManaDebt(player)) return { completed: false, manaRestored: false };
   const capacity = staminaCapacityFor(player);
   if (Number(player.stamina) < capacity - 0.01) {
     return { completed: false, manaRestored: false };
@@ -14767,7 +14889,7 @@ function completeRestAtFullStamina(room, player, timestamp = now()) {
   }
   player.resting = false;
   player.sleepingUntil = 0;
-  player.movementMode = "idle";
+  if (player.movementMode === "sleep") player.movementMode = "idle";
   pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id, variant: "complete" });
   pushEvent(
     room,
@@ -16073,7 +16195,7 @@ function nearbyMapObjects(room, player, objectId = "") {
   const objects = [
     ...(getMap(room).objects || []),
     ...(room.alchemyObjects || []),
-    ...(room.resolvePoint ? [room.resolvePoint] : [])
+    ...(room.mysteryBoxes || [])
   ].filter((object) => object.interactive);
   const candidates = objectId ? objects.filter((object) => object.id === objectId) : objects;
   return candidates
@@ -16169,18 +16291,15 @@ function useMapObject(room, player, objectId) {
     throw new ApiError(400, `${object.label}は再起動中です（残り${Math.ceil((readyAt - timestamp) / 1000)}秒）。`);
   }
 
-  if (object.type === "resolvePoint") {
-    if (!room.resolvePoint || room.resolvePoint.id !== object.id) return;
-    if (object.reward === "grit") grantStandFirmCharge(room, player, false, "resolve-focus");
-    else grantPushCharge(room, player, false, "resolve-focus");
-    room.resolvePoint = null;
-    pushMagicEffect(room, "resolve-focus", object, {
-      radius: Number(object.radius || 100),
-      playerId: player.id,
-      variant: object.reward
-    });
-    setImmediateFeedback(player, "意志の焦点", object.effectLabel);
-    pushEvent(room, `${player.name} が意志の焦点から${object.effectLabel}を獲得しました。`);
+  if (object.type === "mysteryBox") {
+    const boxIndex = (room.mysteryBoxes || []).findIndex((entry) => entry.id === object.id);
+    if (boxIndex < 0) return;
+    const reward = awardMysteryBoxReward(room, player, timestamp);
+    room.mysteryBoxes.splice(boxIndex, 1);
+    markObjectContactUsed(player, object.id);
+    pushMagicEffect(room, "mystery-box", object, { radius: Number(object.radius || 100), playerId: player.id, variant: reward.id });
+    setImmediateFeedback(player, "ミステリーボックス", reward.label);
+    pushEvent(room, `${player.name} がミステリーボックスから${reward.label}を獲得しました。`);
     touch(room);
     return;
   }
@@ -16281,7 +16400,7 @@ function autoUseNearbyMapObject(room, player, timestamp = now()) {
     if (usedDuringContact.has(object.id)) continue;
     const readyAt = Number(player.objectCooldowns?.[object.id] || 0);
     if (readyAt > timestamp) continue;
-    const useful = object.type === "resolvePoint" || object.effectKind === "mana" || object.effectKind === "decoy" ||
+    const useful = object.type === "mysteryBox" || object.effectKind === "mana" || object.effectKind === "decoy" ||
       object.effectKind === "credits" || object.effectKind === "acceleration" || object.effectKind === "luckBoost" ||
       object.effectKind === "overheal" || object.effectKind === "relaxation" || object.effectKind === "healthyMeal" ||
       object.effectKind === "footBath" ||
@@ -16494,13 +16613,39 @@ function useShopAbility(room, player, abilityId, options = {}) {
   }
 }
 
-function purchaseDrink(room, player, itemId, options = {}) {
+function mysteryBoxEligibleRewards(player) {
+  const excluded = new Set(["grit", "reason", "hsg"]);
+  return [
+    ...DVA_ECONOMY.vendingProducts.filter((product) => !excluded.has(product.id) && vendingPurchaseCapacity(player, product.id) >= 1).map((product) => ({ kind: "product", ...product })),
+    ...DVA_ECONOMY.abilityProducts.filter((product) => !ownsShopAbility(player, product.id)).map((product) => ({ kind: "ability", ...product }))
+  ];
+}
+
+function awardMysteryBoxReward(room, player, timestamp = now()) {
+  const rewards = mysteryBoxEligibleRewards(player);
+  if (!rewards.length) throw new ApiError(500, "ミステリーボックスの報酬候補がありません。");
+  const reward = rewards[Math.floor(Math.random() * rewards.length)];
+  if (reward.kind === "ability") {
+    player.shopAbilityEntitlements = [...new Set([...(player.shopAbilityEntitlements || []), reward.id])];
+  } else {
+    const item = vendingItemDefinitions(room, player)[reward.id];
+    if (!item) throw new ApiError(500, `ミステリーボックス報酬の実装がありません: ${reward.id}`);
+    if (vendingPurchaseCapacity(player, reward.id) < 1) throw new ApiError(409, `${reward.label}は現在これ以上獲得できません。`);
+    item.apply();
+    pushInstantItemAcquisitionAte(room, player, reward.id, "mystery-box");
+  }
+  player.lastMysteryBoxReward = reward.id;
+  player.lastMysteryBoxRewardAt = timestamp;
+  return reward;
+}
+
+function vendingItemDefinitions(room, player) {
   if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
     throw new ApiError(403, "現在はショップを利用できません。");
   }
   ensureConscious(player);
   ensureItemStorageAvailable(player);
-  const items = {
+  return {
     "mineral-water": { label: "ミネラルウォーター", cost: MINERAL_WATER_COST, apply: () => { addItem(player, "mineral-water"); } },
     seawater: { label: "海水", cost: 2, apply: () => { addItem(player, "seawater"); } },
     antidote: { label: "解毒剤", cost: ANTIDOTE_COST, apply: () => { addItem(player, "antidote"); } },
@@ -16522,7 +16667,6 @@ function purchaseDrink(room, player, itemId, options = {}) {
       if (player.substitutionCharges >= 2) throw new ApiError(400, "変わり身は最大2回分まで所持できます。");
       player.substitutionCharges += 1;
     } },
-    grit: { label: "バリア", cost: STAND_FIRM_COST, apply: () => grantStandFirmCharge(room, player, true, "vending") },
     heal: { label: "回復", cost: HEAL_COST, apply: () => {
       recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0)));
     } },
@@ -16532,8 +16676,6 @@ function purchaseDrink(room, player, itemId, options = {}) {
     stamina: { label: "スタミナ", cost: 6, apply: () => {
       grantStamina(room, player, 350, "スタミナ", now(), { floorAtZero: true });
     } },
-    hsg: { label: "HSG", cost: 8, apply: () => acquirePhysicalHsg(player) },
-    reason: { label: "バスト", cost: PUSH_COST, apply: () => grantPushCharge(room, player, true, "vending") },
     railgun: { label: "素敵な発明品・レールガン", cost: 150, apply: () => { player.inventions.push("railgun"); } },
     "particle-cannon": { label: "素敵な発明品・荷電粒子砲", cost: 190, apply: () => { player.inventions.push("particle-cannon"); } },
     excalibur: { label: "素敵な発明品・エクスカリバー", cost: 230, apply: () => { player.inventions.push("excalibur"); } },
@@ -16550,6 +16692,15 @@ function purchaseDrink(room, player, itemId, options = {}) {
       player.exiled = true;
     } }
   };
+}
+
+function purchaseDrink(room, player, itemId, options = {}) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    throw new ApiError(403, "現在はショップを利用できません。");
+  }
+  ensureConscious(player);
+  ensureItemStorageAvailable(player);
+  const items = vendingItemDefinitions(room, player);
   const product = DVA_ECONOMY.product(itemId);
   const item = items[itemId];
   if (!product || !item || !product.vendingAvailable) throw new ApiError(404, "その商品はショップでは販売していません。");
@@ -16637,10 +16788,6 @@ function purchaseFirearm(player, weaponId) {
 function activateHackInstant(player) {
   if (player.hackActive) throw new ApiError(400, "ハックは適用済みです。");
   player.hackActive = true;
-}
-
-function acquirePhysicalHsg(player) {
-  addItem(player, "hsg");
 }
 
 function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired") {
@@ -17054,8 +17201,7 @@ function botCanCommitLuminous(room, bot, targetId, timestamp = now()) {
 
 function isGboEligibleItemId(itemId) {
   const id = String(itemId || "");
-  return id === "hsg" ||
-    id === "orichalcum-sword" ||
+  return id === "orichalcum-sword" ||
     id.startsWith("weapon:") ||
     id.startsWith("heavy:") ||
     (id.startsWith("invention:") && Boolean(HACKER_INVENTION_LABELS[id.slice(10)]));
@@ -17139,57 +17285,6 @@ function pushGboOverdriveEffect(room, player, itemId, variant = "activate") {
     variant: `${variant}:${String(itemId || "gear")}`,
     durationMs: 1_450
   });
-}
-
-function useHsgDirect(room, player, rawHoldMs = 0, chargeId = "") {
-  if (room.phase !== "playing" || !player?.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はHSGを使用できません。");
-  }
-  ensureItemStorageAvailable(player);
-  if (itemCount(player, "hsg") < 1) throw new ApiError(400, "HSGを所有していません。");
-  if (Number(player.hsgUntil) > now() || Number(player.hsgReadyAt) > now()) {
-    clearEnhanceChargeState(player);
-    throw new ApiError(400, "HSGの作動中またはクールタイム中は使用できません。");
-  }
-  const timestamp = now();
-  if (!hasFloorSupport(room, player.x, player.y, getMap(room).playerRadius)) {
-    clearEnhanceChargeState(player);
-    throw new ApiError(400, "HSGの直接使用は支持床の上でのみ行えます。");
-  }
-  const power = resolveHeldPowerMode(room, player, rawHoldMs, "HSG", {
-    kind: "use",
-    itemId: "hsg",
-    chargeId,
-    gboEligible: true
-  });
-  if (power.mode === "normal") {
-    spendHeldPowerMana(room, player, HSG_BASE_MANA_COST, "HSG・通常");
-  }
-  const durationMs = power.mode === "gbo"
-    ? HSG_BASE_DURATION_MS * GBO_PERFORMANCE_MULTIPLIER
-    : HSG_BASE_DURATION_MS + power.enhanceLevel * HSG_ENHANCE_DURATION_MS_PER_LEVEL;
-  const accelerationMultiplier = power.mode === "gbo"
-    ? HSG_BASE_ACC_MULTIPLIER * GBO_PERFORMANCE_MULTIPLIER
-    : HSG_BASE_ACC_MULTIPLIER + power.enhanceLevel * HSG_ENHANCE_ACC_PER_LEVEL;
-  addTimedAcceleration(player, "hsg", accelerationMultiplier, durationMs, timestamp);
-  player.hsgReadyAt = timestamp + HSG_ACTIVATION_COOLDOWN_MS;
-  if (power.mode === "gbo") {
-    consumeItem(player, "hsg");
-    pushGboOverdriveEffect(room, player, "hsg", "direct-use");
-  }
-  const modeLabel = power.mode === "gbo" ? "GBO" : power.mode === "enhance" ? "Enhance" : "通常";
-  pushMagicEffect(room, "item-hsg-activate", player, {
-    radius: 135,
-    playerId: player.id,
-    variant: `direct:${power.mode}`,
-    durationMs,
-    accelerationMultiplier
-  });
-  const manaCost = power.mode === "gbo" ? GBO_FIXED_MANA_COST : power.mode === "enhance" ? ENHANCE_FIXED_MANA_COST : HSG_BASE_MANA_COST;
-  setImmediateFeedback(player, `HSG・${modeLabel}`, `MP ${manaCost} / 直接起動 / 浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}`);
-  pushEvent(room, `${player.name} がHSGを${modeLabel}で直接起動しました（MP ${manaCost} / 浮揚 ${durationMs / 1000}秒 / ACC ${accelerationMultiplier.toFixed(1)} / CT ${HSG_ACTIVATION_COOLDOWN_MS / 1000}秒${power.mode === "gbo" ? " / HSG 1個を破壊" : ""}）。`);
-  touch(room);
-  return power;
 }
 
 function clearEnhanceChargeState(player) {
@@ -17681,7 +17776,7 @@ function applyThrownImpactDamage(room, source, landing, label, damage, radius, o
 function rigidThrownItemKind(itemId, item = {}) {
   const id = String(itemId || "");
   // Authored bottles and the two radioactive containers open/shatter at their
-  // first collision or landing. Every other physical item (HSG, sword,
+  // first collision or landing. Every other physical item (sword,
   // firearm, heavy weapon and invention) remains recoverable after normal Throw.
   if (!id || id === "fire-jutsu" || DISPOSABLE_THROW_CONTAINER_ITEM_IDS.has(id)) return "";
   if (id === "orichalcum-sword") return "sword";
@@ -18045,7 +18140,7 @@ function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Numbe
     kind: "throw",
     itemId,
     chargeId,
-    gboEligible: itemId === "orichalcum-sword" || itemId === "hsg"
+    gboEligible: itemId === "orichalcum-sword"
   });
   if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
   consumeItem(player, itemId);
@@ -18138,7 +18233,6 @@ function useInventoryItem(room, player, itemId, rawHoldMs = 0, chargeId = "") {
 }
 
 function useOwnedItem(room, player, itemId, rawHoldMs = 0, chargeId = "") {
-  if (itemId === "hsg") return useHsgDirect(room, player, rawHoldMs, chargeId);
   if (ITEM_DEFINITIONS[itemId]) return useInventoryItem(room, player, itemId, rawHoldMs, chargeId);
   if (itemId === "fire-jutsu") return useFireJutsu(room, player, rawHoldMs, chargeId);
   if (itemId === "instant-warp") throw new ApiError(400, "テレポートマップスクロールは即席です。拡大マップからテレポート権利を行使してください。");
@@ -18660,13 +18754,10 @@ function useFloraAbility(room, player, mode, options = {}) {
 const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   "orichalcum-sword": { label: "オリハルコン・ソード", cost: 0, apply: (_room, player) => addItem(player, "orichalcum-sword") },
   stamina: { label: "スタミナ", cost: 1, apply: (room, player) => { const timestamp = now(); grantStamina(room, player, 350, "バイブコーディング", timestamp, { floorAtZero: true }); pushInstantItemAcquisitionAte(room, player, "stamina", "hacker"); } },
-  hsg: { label: "HSG", cost: 0, apply: (_room, player) => acquirePhysicalHsg(player) },
   heal: { label: "回復", cost: 1, apply: (room, player) => { recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0))); pushInstantItemAcquisitionAte(room, player, "heal", "hacker"); } },
   fire: { label: "ファイア", cost: 1, apply: (room, player) => { player.fireJutsuCharges += 1; pushInstantItemAcquisitionAte(room, player, "fire", "hacker"); } },
   substitution: { label: "変わり身の術", cost: 1, apply: (room, player) => { player.substitutionCharges += 1; pushInstantItemAcquisitionAte(room, player, "substitution", "hacker"); } },
   warp: { label: "テレポートマップスクロール", cost: 1, apply: (room, player) => { player.warpCharges += 1; pushInstantItemAcquisitionAte(room, player, "warp", "hacker"); } },
-  grit: { label: "バリア", cost: 1, apply: (room, player) => grantStandFirmCharge(room, player, false, "hacker") },
-  reason: { label: "バスト", cost: 1, apply: (room, player) => grantPushCharge(room, player, false, "hacker") },
   mercury: { label: "水銀瓶", cost: 0, apply: (_room, player) => addItem(player, "mercury") },
   lead: { label: "鉛瓶", cost: 0, apply: (_room, player) => addItem(player, "lead") },
   uranium: { label: "ウラン容器", cost: 0, apply: (_room, player) => addItem(player, "uranium") },
@@ -18735,8 +18826,6 @@ const ALCHEMY_RECIPES = Object.fromEntries([
 ]);
 
 const ALCHEMY_RECIPE_ALIASES = Object.freeze({
-  "stand-firm": "grit",
-  push: "reason",
   "instant-warp": "warp",
   "fire-jutsu": "fire",
   "vending-mineral-water": "mineral-water",
@@ -18769,9 +18858,6 @@ function duplicateHackableInventory(target) {
   }
   target.inventions = [...(target.inventions || []), ...(target.inventions || [])];
   for (const itemId of Object.keys(target.itemInventory || {})) {
-    // HSG is one physical body, not a stackable Hacker duplication output.
-    // Preserve its current owner/ground identity unchanged.
-    if (itemId === "hsg") continue;
     target.itemInventory[itemId] = itemCount(target, itemId) * 2;
   }
 }
@@ -18781,7 +18867,7 @@ function hasHackableInventory(target, duplicate = false) {
     .some((field) => Math.max(0, Number(target?.[field]) || 0) > 0)) return true;
   if ((target?.inventions || []).length > 0) return true;
   return Object.keys(target?.itemInventory || {}).some((itemId) =>
-    (!duplicate || itemId !== "hsg") && itemCount(target, itemId) > 0);
+    itemCount(target, itemId) > 0);
 }
 
 function recoverHackerTargetStatus(room, player, targetId) {
@@ -19226,7 +19312,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
   } else if (key === "flora") {
     useFloraAbility(room, player, String(options.mode || "heal"), options);
   } else if (key === "gunner") {
-    throw new ApiError(400, "ガンナーのエイム・特殊弾装填は理知中に自動作動します。HSGはStorageの物理武具として使用／投擲し、GBOは所持武具のUse／Throw／Shoot長押しから全員が使用します。");
+    throw new ApiError(400, "ガンナーのエイム・特殊弾装填は理知中に自動作動します。ホバースプリントは床外への移動で自動発動し、GBOは所持武具のUse／Throw／Shoot長押しから全員が使用します。");
   } else if (key === "quantum") {
     return useQuantumControl(room, player, String(options.mode || "nuclear-transmutation"));
   }
@@ -21352,7 +21438,6 @@ function serialize(room, viewer, options = {}) {
       movementAccThreshold: movementAccState(room, player, timestamp).threshold,
       levitationActive: canLevitate(player),
       statusAte: persistentStatusAteState(room, player, timestamp),
-      accelerationPhasing: Number(player.hsgUntil) > timestamp,
       hackerRootActive: hackerRootEligible(player),
       gunnerSnipingActive: Boolean(player.gunnerSnipingActive),
       aromaActive: Boolean(aromaSource),
@@ -21437,7 +21522,7 @@ function serialize(room, viewer, options = {}) {
         readyAt: Number(viewer.objectCooldowns?.[object.id] || 0)
       })),
       alchemyObjects: room.alchemyObjects || [],
-      resolvePoint: room.resolvePoint ? { ...room.resolvePoint } : null,
+      mysteryBoxes: (room.mysteryBoxes || []).map((box) => ({ ...box })),
       vents: map.vents,
       cameras: map.cameras.map((camera) => ({ ...camera, destroyed: Boolean(room.destroyedCameras[camera.id]) })),
       portals: map.portals,
@@ -21509,13 +21594,11 @@ function serialize(room, viewer, options = {}) {
       gunnerSpecialAmmoInventory: { ...ensureGunnerSpecialAmmoInventory(viewer) },
       gunnerSpecialAmmoReadyAt: Number(viewer.gunnerSpecialAmmoReadyAt) || 0,
       gunnerSpecialAmmoIntervalMs: GUNNER_SPECIAL_AMMO_INTERVAL_MS,
-      hsgOwned: itemCount(viewer, "hsg") > 0,
-      hsgUntil: Number(viewer.hsgUntil) || 0,
-      hsgReadyAt: Number(viewer.hsgReadyAt) || 0,
-      hsgDurationMs: HSG_BASE_DURATION_MS,
-      hsgCooldownMs: HSG_ACTIVATION_COOLDOWN_MS,
-      hsgManaCost: HSG_BASE_MANA_COST,
-      accelerationPhasing: Number(viewer.hsgUntil) > timestamp,
+      hoverSprintUntil: Number(viewer.hoverSprintUntil) || 0,
+      hoverSprintReadyAt: Number(viewer.hoverSprintReadyAt) || 0,
+      hoverSprintDurationMs: HOVER_SPRINT_BASE_DURATION_MS,
+      hoverSprintCooldownMs: HOVER_SPRINT_ACTIVATION_COOLDOWN_MS,
+      hoverSprintManaCost: HOVER_SPRINT_BASE_MANA_COST,
       gunnerSnipingActive: Boolean(viewer.gunnerSnipingActive),
       gunnerHipHeadshotChance: gunnerHeadshotChance(viewer, false),
       gunnerAimHeadshotChance: gunnerHeadshotChance(viewer, true),
@@ -21614,6 +21697,23 @@ function serialize(room, viewer, options = {}) {
       desireBias: viewer.desireBias || "",
       desireBiasLabel: desireBiasDefinition(viewer)?.label || "",
       desireBiasDetail: desireBiasDefinition(viewer)?.detail || "",
+      desireDebtActive: hasDesireManaDebt(viewer),
+      desireRecoveryMode: hasDesireManaDebt(viewer)
+        ? viewer.desireRenkiRecovery
+          ? "renki"
+          : viewer.resting && Number(viewer.desireRestRecoveryStartedAt) > 0
+            ? "rest"
+            : ""
+        : "",
+      desireRecoveryEndsAt: hasDesireManaDebt(viewer)
+        ? viewer.desireRenkiRecovery
+          ? Number(viewer.meditatingUntil) || 0
+          : Number(viewer.desireRestRecoveryStartedAt) > 0
+            ? Number(viewer.desireRestRecoveryStartedAt) + DESIRE_STATIONARY_RECOVERY_MS
+            : 0
+        : 0,
+      desireStationaryRecoveryMs: DESIRE_STATIONARY_RECOVERY_MS,
+      desireRenkiRecoveryMs: DESIRE_RENKI_RECOVERY_MS,
       desireIdeaForfeited: Boolean(viewer.desireIdeaForfeited),
       ideaBlockedByDesire: Boolean(viewer.desireIdeaForfeited || isDesireState(viewer) || viewer.desireBias),
       luck: luckValueFor(viewer),
@@ -21909,8 +22009,36 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       entry.nextBotActionAt = timestamp + 120_000;
       entry.taskAutoReadyAt = timestamp + 120_000;
     }
-  } else if (kind === "hsg-fall-live") {
-    // Prepare a normal eight-second HSG source over an unsupported in-map
+  } else if (kind === "hover-sprint-input") {
+    const timestamp = now(), map = getMap(room), radius = map.playerRadius;
+    let boundary = null;
+    for (const rect of map.walkable) {
+      if (boundary) break;
+      const y = Number(rect.y) + Number(rect.h) / 2;
+      let previous = null;
+      for (let x = Number(rect.x) + radius + 1; x < Math.min(map.width - radius, Number(rect.x) + Number(rect.w) + radius * 2); x += 2) {
+        if (hasFloorSupport(room, x, y, radius)) previous = { x, y };
+        else if (previous) { boundary = previous; break; }
+      }
+    }
+    if (!boundary) throw new ApiError(400, "ホバースプリント入力fixtureに支持床の境界がありません。");
+    Object.assign(player, boundary, {
+      mana: 10, maxMana: Math.max(20, Number(player.maxMana) || 0),
+      stamina: 100, maxStoredStamina: 5000, staminaUpdatedAt: timestamp,
+      hoverSprintUntil: 0, hoverSprintReadyAt: 0, timedAccelerationEffects: [],
+      vx: 0, vy: 0, lastMovementDx: 0, lastMovementDy: 0,
+      itemInventory: {}, itemDisabledUntil: timestamp + 120000,
+      unconsciousUntil: 0, sleepingUntil: 0, levitationEngaged: false
+    });
+    room.preparationEndsAt = timestamp + 120000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120000;
+      entry.taskAutoReadyAt = timestamp + 120000;
+    }
+    setImmediateFeedback(player, "入力検証の前提状態", "停止で休息 / 右移動でホバースプリント / 左移動で足場へ復帰");
+  } else if (kind === "hover-sprint-fall-live") {
+    // Prepare a normal eight-second hover-sprint source over an unsupported in-map
     // coordinate. The ordinary room tick owns both countdown expiry and the
     // subsequent unsupported-fall death; the fixture performs no terminal
     // action and never bypasses the shared levitation owner.
@@ -21927,37 +22055,25 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
         }
       }
     }
-    if (!unsupported) throw new ApiError(400, "HSG落下実画面fixtureに床外地点がありません。");
-    if (itemCount(player, "hsg") < 1) addItem(player, "hsg", 1);
+    if (!unsupported) throw new ApiError(400, "ホバースプリント落下実画面fixtureに床外地点がありません。");
     Object.assign(player, {
       x: unsupported.x,
       y: unsupported.y,
       alive: true,
       ejected: false,
       inVent: false,
-      hsgUntil: 0,
-      hsgReadyAt: timestamp + HSG_ACTIVATION_COOLDOWN_MS,
+      hoverSprintUntil: 0,
+      hoverSprintReadyAt: timestamp + HOVER_SPRINT_ACTIVATION_COOLDOWN_MS,
       sharedLevitationActive: true,
       levitationEngaged: false
     });
-    addTimedAcceleration(player, "hsg", HSG_BASE_ACC_MULTIPLIER, HSG_BASE_DURATION_MS, timestamp);
+    addTimedAcceleration(player, "hoverSprint", HOVER_SPRINT_BASE_ACC_MULTIPLIER, HOVER_SPRINT_BASE_DURATION_MS, timestamp);
     for (const entry of room.players.values()) {
       if (!entry.isBot) continue;
       entry.nextBotActionAt = timestamp + 120_000;
       entry.taskAutoReadyAt = timestamp + 120_000;
     }
-    setImmediateFeedback(player, "HSG実画面検証", "浮揚 8秒 / 期限終了時に床がなければ落下死");
-  } else if (kind === "hsg-ground-pickup") {
-    if (itemCount(player, "hsg") < 1) addItem(player, "hsg", 1);
-    consumeItem(player, "hsg", 1);
-    const groundItem = placeRigidGroundItem(room, {
-      itemId: "hsg", item: { id: "hsg", label: ITEM_DEFINITIONS.hsg.label, amount: 1 },
-      ownerId: player.id, x: player.x, y: player.y, targetX: player.x, targetY: player.y
-    }, { x: player.x, y: player.y }, "hsg");
-    // A deterministic hidden-screen fixture must survive the same first bot
-    // tick that delivers it to the client. Normal ground items never carry
-    // this local-developer-only reservation and retain ordinary bot pickup.
-    groundItem.fixtureReservedOwnerId = player.id;
+    setImmediateFeedback(player, "ホバースプリント実画面検証", "浮揚 8秒 / 期限終了時に床がなければ落下死");
   } else if (kind === "marker-coalesce") {
     pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-1", durationMs: 1_500 });
     pushMagicEffect(room, "fighter-energy-charge", player, { radius: 112, playerId: player.id, variant: "fixture-ec-2", durationMs: 1_500 });
@@ -21982,14 +22098,14 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     Object.assign(player, {
       role: "attacker", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
       alive: true, ejected: false, inVent: false, x, y, aimX: 1, aimY: 0,
-      credits: 0, stamina: MAX_STORED_STAMINA, itemInventory: { "orichalcum-sword": 1, hsg: 1 },
+      credits: 0, stamina: MAX_STORED_STAMINA, itemInventory: { "orichalcum-sword": 1 },
       inventions: [], heavyWeapons: [], purchasedWeapons: [], unavailableGunnerWeapons: [...GUNNER_WEAPON_ORDER],
       killReadyAt: 0, slashActiveUntil: 0, slashPerfectGuardReadyAt: 0
     });
     Object.assign(target, {
       role: "defender", special: "quantum", operatorId: "operator-quantum-control", operatorReady: true,
       alive: true, ejected: false, inVent: false, x: x + Math.min(100, room.settings.killRange - 10), y,
-      credits: 37, itemInventory: { mercury: 2, hsg: 1 }, inventions: ["railgun"],
+      credits: 37, itemInventory: { mercury: 2 }, inventions: ["railgun"],
       heavyWeapons: ["rpg"], purchasedWeapons: ["assault"], unavailableGunnerWeapons: ["handgun", "smg", "sniper", "taser"],
       gunnerAmmo: { ...createGunnerAmmo(), assault: 9 }, gritCharges: 0, overheal: 0,
       dodgeActiveUntil: 0, standFirmBarrierUntil: 0,
@@ -22294,7 +22410,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       alive: true, ejected: false, inVent: false,
       movementAccEnabled: true,
       speedMultiplier: 1,
-      timedAccelerationEffects: [{ source: "hsg-enhance", multiplier: 2, endsAt: timestamp + 4_000 }]
+      timedAccelerationEffects: [{ source: "fixture-acceleration", multiplier: 2, endsAt: timestamp + 4_000 }]
     });
     room.preparationEndsAt = timestamp + 120_000;
     for (const entry of room.players.values()) {
@@ -22302,31 +22418,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
       entry.nextBotActionAt = timestamp + 120_000;
       entry.taskAutoReadyAt = timestamp + 120_000;
     }
-    pushEvent(room, "実画面検証: HSG EnhanceによりACC2固定が有効、4秒後の次tickでACC1へ戻ります。");
-  } else if (["non-hsg-selection-hsg", "non-hsg-selection-grant", "non-hsg-selection-explicit-grant"].includes(kind)) {
-    const timestamp = now();
-    Object.assign(player, {
-      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
-      alive: true, ejected: false, inVent: false,
-      purchasedWeapons: [], unavailableGunnerWeapons: [...GUNNER_WEAPON_ORDER],
-      gunnerWeapon: DEFAULT_GUNNER_WEAPON, gunnerAmmo: createGunnerAmmo(),
-      itemInventory: { hsg: 1 }, realScreenExplicitHsgGrantAt: 0
-    });
-    if (kind !== "non-hsg-selection-hsg") purchaseFirearm(player, "assault");
-    if (kind === "non-hsg-selection-explicit-grant") {
-      player.realScreenExplicitHsgGrantAt = timestamp + 12_000;
-    }
-    room.preparationEndsAt = timestamp + 120_000;
-    for (const entry of room.players.values()) {
-      if (!entry.isBot) continue;
-      entry.nextBotActionAt = timestamp + 120_000;
-      entry.taskAutoReadyAt = timestamp + 120_000;
-    }
-    pushEvent(room, kind === "non-hsg-selection-hsg"
-      ? "実画面検証: HSGだけを所持し、暗黙選択はHSGです。"
-      : kind === "non-hsg-selection-explicit-grant"
-        ? "実画面検証: アサルトライフルからHSGを明示選択してください。12秒後にスナイパーライフルを追加します。"
-        : "実画面検証: HSGにアサルトライフルを追加し、暗黙選択を非HSG武器へ移します。");
+    pushEvent(room, "実画面検証: 検証用加速によりACC2固定が有効、4秒後の次tickでACC1へ戻ります。");
   } else if (kind === "human-defender-task") {
     const timestamp = now();
     const map = getMap(room);
@@ -23342,13 +23434,6 @@ async function handleApi(req, res) {
       break;
     }
 
-    case "/api/sleep": {
-      const { room, player } = requireRoomPlayer(body);
-      startRest(room, player);
-      payload = serialize(room, player);
-      break;
-    }
-
     case "/api/renki": {
       const { room, player } = requireRoomPlayer(body);
       const outcome = practiceRenki(room, player, { holdId: String(body.renkiHoldId || body.abilityHoldId || "") });
@@ -23711,8 +23796,8 @@ async function handleApi(req, res) {
         entry.abilityDisabledUntil = 0;
         entry.overhealSpeedUntil = 0;
         entry.floraInvisibleUntil = 0;
-        entry.hsgUntil = 0;
-        entry.hsgReadyAt = 0;
+        entry.hoverSprintUntil = 0;
+        entry.hoverSprintReadyAt = 0;
         entry.killCamera = null;
         entry.gunnerSnipingActive = false;
         entry.gunnerAimTargetId = "";
@@ -24254,7 +24339,11 @@ function heardMovementWaypoint(room, bot, timestamp = now()) {
 }
 
 function botHasHumanOpponent(room, bot) {
-  return botOpposesLivingHuman(room, bot);
+  if (botOpposesLivingHuman(room, bot)) return true;
+  // In a sole-human Bot match, death/ejection turns that human into a spectator;
+  // it must not silently downgrade the opposing Bots while their match continues.
+  const human = soleHumanBotMatchPlayer(room);
+  return Boolean(bot?.isBot && !room?.soloMission && human && bot.role !== human.role);
 }
 
 function stableBotHash(value) {
@@ -24970,8 +25059,17 @@ function runEnemyDefenderTask(room, bot, map, timestamp = now()) {
   }
 
   const pending = (Array.isArray(bot.taskList) ? bot.taskList : []).filter((item) => !item.done);
-  const pendingDownloads = pending.filter((item) => item.type === "download");
-  const candidates = pendingDownloads.length ? pendingDownloads : pending;
+  // An Upload is legal as soon as completed Downloads outnumber completed
+  // Uploads.  Do not force every remaining Download first: that old shortcut
+  // can make an enemy Defender cross the map past an already-unlocked nearby
+  // Upload.  This mirrors completeTask's authoritative stage guard while
+  // retaining the same assigned stations, visibility boundary, costs and
+  // task cooldown.
+  const completedDownloads = bot.taskList.filter((item) => item.type === "download" && item.done).length;
+  const completedUploads = bot.taskList.filter((item) => item.type === "upload" && item.done).length;
+  const candidates = pending.filter((item) => (
+    item.type !== "upload" || completedDownloads > completedUploads
+  ));
   bot.botTaskBlockedUntilById ||= {};
   for (const [taskId, blockedUntil] of Object.entries(bot.botTaskBlockedUntilById)) {
     if (Number(blockedUntil) <= timestamp) delete bot.botTaskBlockedUntilById[taskId];
@@ -25407,18 +25505,6 @@ function botCombatCandidates(room, bot, target, timestamp) {
   const aimAtTarget = () => { const dx = target.x - bot.x, dy = target.y - bot.y, length = Math.hypot(dx, dy) || 1; bot.aimX = dx / length; bot.aimY = dy / length; };
   if (storageAvailable && clearTargetPath) for (const invention of ["excalibur", "railgun", "particle-cannon"]) if ((bot.inventions || []).includes(invention) && (invention !== "railgun" || !botRailgunLineHasAlly(room, bot, target))) add(`invention-${invention}`, invention === "particle-cannon" ? 830 : 810, () => { aimAtTarget(); const chargeId = setEnhanceChargeState(room, bot, true, "use", `invention:${invention}`); return useAlchemistInvention(room, bot, invention, 0, chargeId); });
   if (storageAvailable && clearTargetPath) for (const itemId of ["orichalcum-sword", "molotov", "heated-water", "ice"]) if (itemCount(bot, itemId) > 0 && targetDistance <= 700) add(`throw-${itemId}`, itemId === "molotov" ? 760 : 650, () => { const chargeId = setEnhanceChargeState(room, bot, true, "throw", itemId); return throwInventoryItem(room, bot, itemId, 0, target.x, target.y, chargeId); });
-  if (
-    storageAvailable &&
-    itemCount(bot, "hsg") > 0 &&
-    Number(bot.hsgUntil) <= timestamp &&
-    Number(bot.hsgReadyAt) <= timestamp &&
-    (hasFighterInfiniteResources(bot) || (Number(bot.mana) || 0) >= HSG_BASE_MANA_COST)
-  ) {
-    add("owned-hsg-use", 350, () => {
-      const chargeId = setEnhanceChargeState(room, bot, true, "use", "hsg");
-      return useHsgDirect(room, bot, 0, chargeId);
-    });
-  }
   if (bot.role === "attacker" && targetDistance <= EMP_RANGE && Number(bot.empReadyAt) <= timestamp) {
     add("emp", 650, () => activateEmp(room, bot));
   }
@@ -25626,7 +25712,14 @@ function runPlayingBots(room) {
     if (bot.special === "alchemist" && isRational(bot) && (bot.stamina < MAX_STAMINA || bot.substitutionCharges < 1)) {
         try { useAlchemy(room, bot, bot.substitutionCharges < 1 ? "substitution" : "stamina"); } catch {}
       }
-      const heardWaypoint = heardMovementWaypoint(room, bot, timestamp);
+      // Footsteps intentionally expose only an anonymous position.  When this Bot
+      // shares the human Attacker faction, that signal cannot distinguish its ally
+      // from an enemy, so it must not become a human-follow tether.  Combat targets
+      // still come from preferredDefenderTarget; the ordinary patrol/objective fallback
+      // below remains available when no visible hostile exists.
+      const heardWaypoint = botSharesTeamWithHuman(room, bot)
+        ? null
+        : heardMovementWaypoint(room, bot, timestamp);
       const target = preferredDefenderTarget(room, bot, timestamp);
       if (runBotAttackerDeception(room, bot, map, target, timestamp)) continue;
       if (bot.gunFiring && (!target || distance(bot, target) > gunnerWeaponFor(bot).range)) stopGunnerFire(room, bot, { reason: "対象喪失" });
@@ -25824,5 +25917,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ui-visual-elevation-v650" });
+self.postMessage({ type: "ready", version: "ui-visual-elevation-v651" });
 })();
