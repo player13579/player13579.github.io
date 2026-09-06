@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-independent-improvements-v637",
+    version: "ui-landscape-visual-and-loss-points-v638",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21169,7 +21169,10 @@ function calculateResultPointBreakdown(room, player) {
   const players = [...room.players.values()];
   const attackers = players.filter((entry) => entry.role === "attacker");
   const defenders = players.filter((entry) => entry.role === "defender");
-  const attackerQuota = Math.max(1, Math.ceil(defenders.length / Math.max(1, attackers.length)));
+  const attackerQuota = Math.max(
+    1,
+    Number(room.killRateAttackerTarget) || Math.ceil(defenders.length / Math.max(1, attackers.length))
+  );
   const kills = Math.max(0, Number(player.totalKills) || 0);
   const killPoints = player.role === "attacker" ? Math.floor(kills / attackerQuota) : kills;
   const decidedOutcome = room.winner === "defenders" || room.winner === "attackers" || room.winner === "idea";
@@ -25807,7 +25810,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "ui-independent-improvements-v637",
+  version: "ui-landscape-visual-and-loss-points-v638",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
