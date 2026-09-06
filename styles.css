@@ -1082,8 +1082,8 @@ body .title-command.title-play > span[aria-hidden="true"] {
   100% { opacity: 0; filter: brightness(2.4) blur(2px); clip-path: polygon(48% 0, 54% 10%, 48% 24%, 57% 38%, 47% 52%, 54% 66%, 48% 82%, 52% 100%, 46% 86%, 51% 70%, 44% 54%, 51% 38%, 45% 20%); transform: skewX(-4deg) scaleX(1.9) scaleY(0.4); }
 }
 
-.start-screen .title-command:hover:not(:disabled),
-.start-screen .title-command:focus-visible {
+.start-screen:not(.title-arriving) .title-command:hover:not(:disabled),
+.start-screen:not(.title-arriving) .title-command:focus-visible {
   animation: none;
   opacity: 1;
   transform: translate(8px, -3px) skewX(-4deg) scale(1.025);
@@ -1403,8 +1403,7 @@ body.tactics-open {
 }
 
 .solo-mission-card.completed button::before {
-  content: "螳御ｺ・ｸ医∩  ";
-  color: #5eead4;
+  content: none;
 }
 
 .solo-mission-hud {
@@ -3692,7 +3691,7 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   }
   100% {
     opacity: 1;
-    transform: skewX(-4deg);
+    transform: translate3d(0, 0, 0) rotateY(0deg) rotateZ(0deg) scale(1) skewX(-4deg);
     filter: blur(0) brightness(1);
   }
 }
@@ -3743,12 +3742,15 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   .title-hero-vfx::after,
   .title-hero-mote,
   .title-command,
+  .start-screen.title-ready.title-arriving .title-command,
   .title-command::before,
   .tactics-novel-background {
     animation: none;
   }
 
-  .title-command {
+  .title-command,
+  .title-command-dispersing {
+    animation: none !important;
     opacity: 1;
     transform: none;
   }
@@ -6566,7 +6568,7 @@ body.tablet-mode-active .hacker-direct-action {
   .title-menu {
     justify-content: flex-end;
     width: 100%;
-    padding: 76px 22px 40px;
+    padding: 76px 22px calc(max(18px, env(safe-area-inset-bottom, 0px)) + 54px + 16px);
   }
 
   .title-menu h1 {
@@ -6580,6 +6582,21 @@ body.tablet-mode-active .hacker-direct-action {
   .title-command {
     min-height: 54px;
     font-size: 14px;
+  }
+
+  /* Constrained-height phones keep the full title content in its native
+     scroll owner. The owner ends above the fixed 54px utility band, so no
+     reachable command or progress text can travel behind those controls. */
+  @media (max-height: 480px) {
+    .title-menu {
+      min-height: 0;
+      height: calc(100dvh - max(18px, env(safe-area-inset-bottom, 0px)) - 54px);
+      justify-content: flex-start;
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      padding: max(24px, env(safe-area-inset-top, 0px)) 22px 16px;
+    }
   }
 
   /* A cover-sized 16:9 image cannot retain the full right-hand character in
@@ -6832,6 +6849,18 @@ body.tablet-mode-active .hacker-direct-action {
   }
 }
 
+/* Portrait tablets retain the base full-frame cover sizing so the raster
+   reaches the lower title edge. Only the shared source focus moves right-top
+   to retain the face and primary silhouette. The <=720px portrait frame above
+   remains the established contain geometry, including its character anchor. */
+@media (orientation: portrait) and (min-width: 721px) {
+  .start-hero,
+  .title-hero-character,
+  .title-hero-atmosphere {
+    object-position: right top;
+  }
+}
+
 @container (max-height: 430px) {
   .result-dialog {
     gap: 5px;
@@ -6944,12 +6973,18 @@ body :is(
 }
 
 /* Semantic hover motion: each UI family has its own material response. */
-body .title-command:hover:not(:disabled) {
+body .start-screen:not(.title-arriving) .title-command:hover:not(:disabled) {
   background-image:
     linear-gradient(125deg, rgba(45, 212, 191, 0.3), rgba(15, 118, 110, 0.08) 48%, rgba(250, 204, 21, 0.16)),
     url("assets/generated/ui-control-surface.webp?v=bright-surfaces-v155");
   background-size: 100% 100%, 138% 160%;
   animation: ui-hover-title-orbit 1.35s var(--ui-ease-out) infinite alternate;
+}
+
+.start-screen.title-reduced-motion .title-command,
+.start-screen.title-reduced-motion .title-command::before {
+  animation: none !important;
+  transition: none !important;
 }
 
 body .topbar-actions button:hover:not(:disabled) {
@@ -9798,4 +9833,864 @@ body.tablet-mode-active #sidePanel #empPhaseControl > label {
   border-color: #ffe1db;
   background: linear-gradient(145deg, #965a62, #283b58 72%);
   box-shadow: inset 0 -7px 14px rgba(84, 35, 43, 0.44), inset 0 1px 0 rgba(255, 235, 231, 0.48), 0 0 0 5px rgba(231, 162, 154, 0.13), 0 8px 24px rgba(2, 13, 28, 0.52);
+}
+
+/* Developer-only candidate — append after the current final Tactics cascade. */
+/* Scope: Tactics header and solo-training cards only. */
+#tacticsPanel:not([hidden]) .tactics-header {
+  border-bottom-color: #315260;
+  background:
+    linear-gradient(108deg, rgba(52, 179, 190, 0.14), transparent 48%),
+    #102532;
+  box-shadow: 0 2px 12px rgba(8, 27, 36, 0.18);
+}
+
+#tacticsPanel:not([hidden]) .tactics-header .title-kicker,
+#tacticsPanel:not([hidden]) .solo-training .title-kicker {
+  color: #34b3be;
+  letter-spacing: 0.12em;
+}
+
+#tacticsPanel:not([hidden]) .tactics-header h2 {
+  color: #f2f7f8;
+  letter-spacing: 0.03em;
+}
+
+#tacticsPanel:not([hidden]) .tactics-header p:last-child {
+  color: #c7d9de;
+  line-height: 1.5;
+}
+
+#tacticsPanel:not([hidden]) .tactics-header .title-icon-button {
+  border-color: #52717b;
+  background: rgba(250, 252, 253, 0.08);
+  color: #dff8fa;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12);
+}
+
+#tacticsPanel:not([hidden]) .solo-training {
+  border-color: #b5cbd2;
+  background: #f2f7f8;
+  box-shadow: inset 0 -1px rgba(23, 59, 72, 0.05);
+}
+
+#tacticsPanel:not([hidden]) #soloTrainingTitle {
+  color: #173b48;
+}
+
+#tacticsPanel:not([hidden]) .solo-training-progress {
+  border: 1px solid #9fc4c9;
+  border-radius: 999px;
+  background: #e4f4f3;
+  padding: 3px 9px;
+  color: #177d6e;
+  letter-spacing: 0.03em;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-grid {
+  gap: 12px;
+  padding: 2px 2px 5px;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card {
+  border-color: #b5cbd2;
+  border-radius: 10px;
+  background-color: #fafcfd;
+  background-image: linear-gradient(155deg, #fafcfd, #edf5f6);
+  box-shadow: 0 5px 14px rgba(16, 37, 50, 0.11);
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card > div {
+  padding: 10px 12px 11px;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card > div > p {
+  color: #248b97;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card > div > h4 {
+  color: #173b48;
+  line-height: 1.3;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card > div > span {
+  color: #4d6872;
+  line-height: 1.55;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card button {
+  min-height: 44px;
+  border-color: #b5cbd2;
+  background: #e8f3f4;
+  color: #173b48;
+  letter-spacing: 0.04em;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card button:hover,
+#tacticsPanel:not([hidden]) .solo-mission-card button:focus-visible {
+  border-color: #34b3be;
+  background: #d9eff1;
+  color: #123a45;
+  box-shadow: inset 0 0 0 1px rgba(52, 179, 190, 0.22);
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card.completed {
+  border-color: #55a999;
+  background-image: linear-gradient(155deg, #f6fbf9, #e5f3ee);
+  box-shadow: inset 0 0 0 1px rgba(23, 125, 110, 0.12), 0 5px 14px rgba(23, 83, 73, 0.1);
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card.completed > div > p::after {
+  content: "完了";
+  display: inline-block;
+  margin-left: 7px;
+  border: 1px solid #79b8a9;
+  border-radius: 999px;
+  background: #e2f3ed;
+  padding: 1px 6px;
+  color: #177d6e;
+  font-size: 9px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card.completed button {
+  border-color: #79b8a9;
+  background: #dff1eb;
+  color: #176b5e;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card.completed button::before {
+  content: none;
+}
+
+/* Developer-only visual append for the existing vending panel. */
+body #vendingPanel {
+  border-color: #b5cbd2;
+  color: #173b48;
+  background-color: #f2f7f8;
+  background-image: linear-gradient(145deg, #fafcfd, #edf4f5);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86), 0 10px 24px rgba(16,37,50,.14);
+}
+body #vendingPanel .vending-title-row {
+  border-color: #b5cbd2;
+  background-color: #193846;
+  background-image: linear-gradient(135deg, #193846, #102532);
+  box-shadow: 0 2px 8px rgba(16,37,50,.18);
+}
+body #vendingPanel .vending-title-row h3,
+body #vendingPanel .vending-title-row label { color: #f2f7f8; }
+body #vendingPanel .vending-continuous-toggle {
+  border-color: rgba(180,224,229,.62);
+  color: #e8fafb;
+  background-color: rgba(52,179,190,.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
+}
+body #vendingPanel .vending-category-control {
+  border-color: #8ec8d0;
+  background-color: #e6f4f6;
+  box-shadow: inset 0 1px 0 #fff;
+}
+body #vendingPanel .hacker-category-step {
+  border-color: #8ec8d0;
+  color: #173b48;
+  background-color: #fafdfe;
+  box-shadow: 0 1px 3px rgba(16,37,50,.12);
+}
+body #vendingPanel #vendingCategoryLabel { color: #173b48; }
+body #vendingPanel .shop-jump-controls {
+  border-color: #b5cbd2;
+  background-color: #fafcfd;
+  box-shadow: inset 0 1px 0 #fff;
+}
+body #vendingPanel .shop-jump-controls label { color: #4d6872; }
+body #vendingPanel .shop-jump-controls select {
+  border-color: #b5cbd2;
+  color: #173b48;
+  background-color: #f2f7f8;
+  box-shadow: inset 0 1px 2px rgba(16,37,50,.08);
+}
+body #vendingPanel .vending-grid .vending-item-with-icon {
+  border-color: #b5cbd2;
+  color: #173b48;
+  background-color: #fafcfd;
+  background-image: linear-gradient(145deg, #fff, #f2f7f8);
+  box-shadow: inset 0 1px 0 #fff, 0 2px 5px rgba(16,37,50,.1);
+}
+body #vendingPanel .vending-grid .vending-item-with-icon:is(:hover, :focus-visible, .keyboard-selected) {
+  border-color: #34b3be;
+  background-color: #eefafb;
+  background-image: linear-gradient(145deg, #fff, #e2f5f7);
+  box-shadow: inset 0 0 0 1px rgba(52,179,190,.22), 0 4px 10px rgba(16,37,50,.14);
+}
+body #vendingPanel .vending-grid .item-name-label { color: #173b48; }
+body #vendingPanel .vending-grid .item-name-meta {
+  border-color: #8ec8d0;
+  color: #175362;
+  background-color: #e4f4f6;
+  text-shadow: none;
+}
+body #vendingPanel .vending-grid .item-name-meta.purchase-state {
+  border-color: #ad7926;
+  color: #fff9ed;
+  background-color: #8f3a55;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2);
+}
+body #vendingPanel .vending-grid .shop-ability-owned {
+  border-color: #177d6e;
+  background-color: #e8f7f3;
+  background-image: linear-gradient(145deg, #f5fffb, #d9f0e9);
+  box-shadow: inset 3px 0 #177d6e, 0 2px 5px rgba(23,125,110,.12);
+}
+body #vendingPanel .vending-grid .shop-ability-owned .item-name-meta:not(.purchase-state) {
+  border-color: #177d6e;
+  color: #f2fffb;
+  background-color: #177d6e;
+}
+body #vendingPanel .vending-grid .purchase-unavailable {
+  border-color: #c9d6da;
+  color: #657b83;
+  background-color: #eef2f3;
+  background-image: linear-gradient(145deg, #f5f7f8, #e4eaec);
+  box-shadow: inset 0 0 0 1px rgba(90,112,120,.1);
+}
+body #vendingPanel .vending-grid .purchase-bulk-unavailable { border-color: #ad7926; }
+
+/* Result-only visual candidate. The existing terminal state, ranking data,
+ * result labels, native scroll owner, and reset action remain unchanged. */
+body.game-open.result-presentation .end-overlay .result-dialog {
+  color: #173b48;
+  background: linear-gradient(145deg, #fafcfd, #f2f7f8);
+  border-color: #b5cbd2;
+  box-shadow: 0 16px 38px rgba(16, 37, 50, 0.2), inset 0 1px 0 #ffffff;
+}
+
+body.game-open.result-presentation .end-overlay .end-title {
+  color: #102532;
+  text-shadow: none;
+  font-weight: 950;
+  letter-spacing: 0.025em;
+}
+
+body.game-open.result-presentation .end-overlay .end-reason {
+  color: #4d6872;
+  background: #f2f7f8;
+  border-inline-start: 4px solid #34b3be;
+  border-radius: 4px;
+  padding: 8px 10px;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-heading {
+  align-items: center;
+  color: #faffff;
+  background: #193846;
+  border-color: #102532;
+  box-shadow: inset 4px 0 #34b3be;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-heading strong {
+  color: inherit;
+  font-size: 18px;
+  letter-spacing: 0.03em;
+}
+
+body.game-open.result-presentation .result-heading span {
+  color: #d8eef0;
+  font-weight: 750;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-ranking {
+  background: #f2f7f8;
+  border: 1px solid #b5cbd2;
+  border-radius: 8px;
+  scrollbar-color: #5f98a2 #e5eff1;
+}
+
+body.game-open.result-presentation .result-team {
+  background: #fafcfd;
+  border: 1px solid #b5cbd2;
+  border-radius: 7px;
+  box-shadow: 0 4px 12px rgba(16, 37, 50, 0.08);
+}
+
+body.game-open.result-presentation .result-team-title {
+  color: #173b48;
+  background: #e7f1f3;
+  border-color: #b5cbd2;
+  box-shadow: inset 3px 0 #34b3be;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-team-title strong {
+  color: inherit;
+  font-weight: 900;
+}
+
+body.game-open.result-presentation .result-team-title span {
+  color: #4d6872;
+  font-weight: 750;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-row {
+  color: #173b48;
+  background: #fafcfd;
+  border-bottom-color: #d6e3e6;
+  box-shadow: none;
+}
+
+body.game-open.result-presentation .result-row.is-self {
+  background: #e2f2f1;
+  box-shadow: inset 4px 0 #177d6e;
+}
+
+body.game-open.result-presentation .result-row.is-first,
+body.game-open.result-presentation .result-row.is-luminous {
+  background: #fff7e8;
+  border-left-color: #ad7926;
+  box-shadow: inset 4px 0 #ad7926;
+}
+
+body.game-open.result-presentation .result-row.is-idea-winner {
+  background: #fff5e7;
+  border-left-color: #ad7926;
+  box-shadow: inset 4px 0 #ad7926;
+}
+
+body.game-open.result-presentation .result-player strong {
+  color: #173b48;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-player :is(.result-point-breakdown, small) {
+  color: #4d6872;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-point-mvp,
+body.game-open.result-presentation .result-point-self {
+  border-color: currentColor;
+  background: #ffffff;
+  box-shadow: none;
+  font-weight: 900;
+}
+
+body.game-open.result-presentation .result-point-mvp {
+  color: #ad7926;
+}
+
+body.game-open.result-presentation .result-point-self {
+  color: #177d6e;
+}
+
+body.game-open.result-presentation .result-points {
+  color: #173b48;
+  background: #e7f1f3;
+  border: 1px solid #b5cbd2;
+  box-shadow: none;
+  font-variant-numeric: tabular-nums;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .result-row .result-points.result-points-positive {
+  color: #145e54;
+  background: #dff3ed;
+  border-color: #177d6e;
+}
+
+body.game-open.result-presentation .result-row .result-points.result-points-negative {
+  color: #762b44;
+  background: #f9e7ed;
+  border-color: #8f3a55;
+}
+
+body.game-open.result-presentation .result-row .result-points.result-points-neutral {
+  color: #355964;
+  background: #e7f1f3;
+  border-color: #8aa8b0;
+}
+
+body.game-open.result-presentation .end-overlay #resetButton {
+  color: #ffffff;
+  background: #193846;
+  border-color: #102532;
+  box-shadow: inset 3px 0 #34b3be, 0 5px 12px rgba(16, 37, 50, 0.18);
+  font-weight: 900;
+  text-shadow: none;
+}
+
+body.game-open.result-presentation .end-overlay #resetButton:focus-visible {
+  outline: 3px solid #34b3be;
+  outline-offset: 3px;
+}
+
+/* Developer-only visual candidate v642. Append after public/styles.css only
+ * during primary-owned integration. It is paint and HUD-text hierarchy only:
+ * no canvas/map art, board/control geometry, input, state, or utility selector
+ * is owned here. Landscape is the primary tablet presentation. */
+@media (min-width: 681px) and (orientation: landscape) {
+  body.game-open.tablet-mode-active:not(.result-presentation),
+  body.game-open.tablet-mode-active:not(.result-presentation) .app-shell {
+    background-color: #102532;
+    background-image:
+      linear-gradient(rgba(242, 247, 248, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(242, 247, 248, 0.035) 1px, transparent 1px),
+      linear-gradient(135deg, #102532, #193846);
+    background-size: 28px 28px, 28px 28px, 100% 100%;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) .game-area {
+    background-color: #193846;
+    background-image: radial-gradient(ellipse at 50% 42%, rgba(52, 179, 190, 0.13), transparent 56%);
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) .board-wrap {
+    border-color: #B5CBD2;
+    box-shadow: 0 12px 28px rgba(5, 20, 28, 0.38), 0 0 0 1px rgba(52, 179, 190, 0.2);
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #soloMissionHud:not([hidden]) {
+    border-color: #34B3BE;
+    background-color: #102532;
+    background-image: linear-gradient(105deg, rgba(52, 179, 190, 0.2), transparent 48%), linear-gradient(145deg, #193846, #102532);
+    box-shadow: 0 8px 18px rgba(5, 20, 28, 0.34), inset 0 1px 0 rgba(250, 252, 253, 0.13);
+    color: #FAFCFD;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #soloMissionHud:not([hidden]) > span {
+    color: #8DE2E8;
+    font-weight: 850;
+    letter-spacing: 0.07em;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #soloMissionHud:not([hidden]) > strong {
+    color: #FAFCFD;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #sidePanel {
+    border-color: #B5CBD2;
+    border-top-color: #34B3BE;
+    background-color: #F2F7F8;
+    background-image: linear-gradient(180deg, #FAFCFD, #F2F7F8);
+    box-shadow: 0 12px 26px rgba(5, 20, 28, 0.26);
+    color: #173B48;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #sidePanel > :is(#statusPanel, #activeEffectsPanel, .utility-panel, .luminous-panel) {
+    border-color: #B5CBD2;
+    background-color: #FAFCFD;
+    color: #173B48;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #statusPanel > .role-block {
+    border-left-color: #34B3BE;
+    background-color: #F2F7F8;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #statusPanel > .role-block > #roleName {
+    color: #173B48;
+    font-weight: 850;
+    letter-spacing: 0.025em;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #statusPanel > .role-block > #specialName {
+    border-color: #B5CBD2;
+    background-color: #E3F3F4;
+    color: #177D6E;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) > h3 {
+    border-bottom-color: #B5CBD2;
+    color: #173B48;
+    font-weight: 850;
+    letter-spacing: 0.045em;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) li {
+    border-color: #D4E1E4;
+    background-color: #FAFCFD;
+    box-shadow: inset 2px 0 0 rgba(52, 179, 190, 0.22);
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel :is(.effect-name, .effect-value) {
+    color: #173B48;
+    font-weight: 800;
+  }
+
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel .effect-detail {
+    color: #4D6872;
+  }
+}
+
+/* Portrait repair: it only restores readable colors inside the existing HUD
+ * overlay. Its placement, transform, parent grid, board, and controls remain
+ * wholly owned by the active layout rules. */
+@media (max-width: 768px) and (orientation: portrait) {
+  body.game-open:not(.result-presentation) #soloMissionHud:not([hidden]) {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    transform: none;
+    box-sizing: border-box;
+    border-color: #34B3BE;
+    background-color: #102532;
+    background-image: linear-gradient(145deg, #193846, #102532);
+    box-shadow: 0 7px 16px rgba(5, 20, 28, 0.3);
+    color: #FAFCFD;
+  }
+
+  body.game-open:not(.result-presentation) #soloMissionHud:not([hidden]) > span {
+    color: #8DE2E8;
+  }
+
+  body.game-open:not(.result-presentation) #soloMissionHud:not([hidden]) > strong {
+    color: #FAFCFD;
+  }
+}
+
+/* Candidate only — append after styles.css v641.
+   Scope: shipped join/name/matchmaking form. No flow, storage, or viewport rules. */
+body #joinPanel {
+  color: #173b48;
+  border-color: #b5cbd2;
+  background-color: #f2f7f8;
+  background-image: linear-gradient(145deg, #fafcfd 0%, #edf4f5 100%) !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 10px 24px rgba(16, 37, 50, 0.12);
+}
+
+body #joinPanel > h2 {
+  color: #102532;
+  border-bottom: 2px solid #34b3be;
+  text-shadow: none;
+}
+
+body #joinPanel > .objective {
+  color: #365660;
+  border-left-color: #34b3be;
+  background-color: #eaf5f6;
+  box-shadow: inset 0 0 0 1px rgba(181, 203, 210, 0.72);
+}
+
+body #joinPanel > label {
+  color: #294d58;
+  border-left-color: #b5cbd2;
+  background-color: #f7fbfc;
+  box-shadow: inset 0 0 0 1px rgba(181, 203, 210, 0.48);
+}
+
+body #joinPanel > label:focus-within {
+  color: #173b48;
+  border-left-color: #34b3be;
+  background-color: #f2f9fa;
+  box-shadow: inset 0 0 0 1px rgba(52, 179, 190, 0.62);
+}
+
+body #joinPanel > label :is(input, select) {
+  color: #173b48;
+  border-color: #b5cbd2;
+  background-color: #fafcfd;
+  box-shadow: inset 0 1px 2px rgba(16, 37, 50, 0.06);
+}
+
+body #joinPanel > label :is(input, select):focus {
+  border-color: #34b3be;
+  box-shadow: inset 0 1px 2px rgba(16, 37, 50, 0.06), 0 0 0 2px rgba(52, 179, 190, 0.2);
+}
+
+body #joinPanel .name-policy {
+  color: #4d6872;
+}
+
+body #joinPanel .name-policy.locked {
+  color: #177d6e;
+}
+
+body #joinPanel #nameInput[readonly] {
+  color: #176356;
+  border-color: #72ada3;
+  background-color: #eaf6f2;
+  box-shadow: inset 0 1px 2px rgba(16, 37, 50, 0.05);
+}
+
+body #joinPanel > #matchmakingButton {
+  color: #f7fcfc;
+  border-color: #177d6e;
+  background: linear-gradient(135deg, #177d6e, #145d63);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 4px 10px rgba(20, 93, 99, 0.2);
+  text-shadow: none;
+}
+
+body #joinPanel > #matchmakingButton:hover:not(:disabled),
+body #joinPanel > #matchmakingButton:focus-visible:not(:disabled) {
+  border-color: #34b3be;
+  background: linear-gradient(135deg, #198b80, #176b72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 5px 12px rgba(20, 93, 99, 0.24);
+}
+
+body #joinPanel > #matchmakingButton:disabled {
+  color: #4d6872;
+  border-color: #b5cbd2;
+  background: #e8f0f2;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+
+/* Key-reference modal only. Existing bindings, open/close focus behavior,
+ * keyboard navigation, and #keybindList native scroll ownership are unchanged. */
+body .keybind-overlay {
+  background: rgba(16, 37, 50, 0.76);
+}
+
+body .keybind-overlay .keybind-dialog {
+  color: #173b48 !important;
+  background: #f2f7f8 !important;
+  border-color: #b5cbd2 !important;
+  box-shadow: 0 20px 46px rgba(16, 37, 50, 0.28), inset 0 1px 0 #ffffff !important;
+}
+
+body .keybind-overlay .keybind-dialog > header {
+  background: #193846;
+  border-inline-start: 4px solid #34b3be;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+body .keybind-overlay .keybind-dialog h2 {
+  color: #ffffff !important;
+  font-weight: 950;
+  letter-spacing: 0.025em;
+  text-shadow: none !important;
+}
+
+body .keybind-overlay .keybind-dialog header button {
+  color: #173b48 !important;
+  background: #f2f7f8 !important;
+  border-color: #b5cbd2 !important;
+  box-shadow: none;
+  font-weight: 900;
+}
+
+body .keybind-overlay .keybind-dialog header button:focus-visible,
+body .keybind-overlay .keybind-list:focus-visible {
+  outline: 3px solid #34b3be;
+  outline-offset: 3px;
+}
+
+body .keybind-overlay .keybind-list {
+  background: #f2f7f8;
+  scrollbar-color: #5f98a2 #e5eff1;
+}
+
+body .keybind-overlay .keybind-list section {
+  background: #fafcfd !important;
+  border-color: #b5cbd2 !important;
+  border-top-color: #34b3be !important;
+  box-shadow: 0 4px 12px rgba(16, 37, 50, 0.08);
+}
+
+body .keybind-overlay .keybind-list h3 {
+  color: #173b48 !important;
+  border-inline-start: 3px solid #34b3be;
+  padding-inline-start: 8px;
+  font-weight: 900;
+  letter-spacing: 0.025em;
+  text-shadow: none !important;
+}
+
+body .keybind-overlay .keybind-list dt {
+  color: #173b48 !important;
+  background: #e7f1f3;
+  border-color: #b5cbd2;
+  box-shadow: inset 0 1px 0 #ffffff;
+  font-weight: 900;
+  text-shadow: none !important;
+}
+
+body .keybind-overlay .keybind-list dd {
+  color: #4d6872 !important;
+  border-left-color: #34b3be;
+  font-weight: 650;
+}
+
+body .keybind-overlay .keybind-list section:nth-child(odd) {
+  border-inline-start: 3px solid #177d6e;
+}
+
+body .keybind-overlay .keybind-list section:nth-child(even) {
+  border-inline-start: 3px solid #ad7926;
+}
+
+/* Developer-only supplement — append after tactics-visual-v642.candidate.css. */
+/* Reserve card body space for two-line titles and full three-to-four-line objectives. */
+#tacticsPanel:not([hidden]) .solo-mission-card {
+  grid-template-rows: 70px minmax(116px, 1fr) 44px;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card img {
+  height: 70px;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card > div {
+  padding: 8px 12px 9px;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card > div > h4 {
+  display: -webkit-box;
+  font-size: 15px;
+  line-height: 1.28;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+#tacticsPanel:not([hidden]) .solo-mission-card > div > span {
+  font-size: 11px;
+  line-height: 1.45;
+  -webkit-line-clamp: 4;
+}
+
+/* Supplementary final-cascade fix. Append after shop-visual-v642.css. */
+body #vendingPanel .vending-title-row label.vending-continuous-toggle {
+  color: #f2f7f8 !important;
+}
+
+/* Supplement to keybind-visual-hierarchy-v642.css. The list remains its
+ * existing focusable native scroll surface; only card flow changes so short
+ * groups no longer inherit a tall adjacent grid row. */
+@media (min-width: 621px) {
+  body .keybind-overlay .keybind-list {
+    display: block;
+    columns: 280px 2;
+    column-gap: 14px;
+    column-fill: balance;
+  }
+
+  body .keybind-overlay .keybind-list > section {
+    break-inside: avoid-column;
+    margin: 0 0 14px;
+  }
+}
+
+@media (max-width: 620px) {
+  body .keybind-overlay .keybind-list {
+    display: block;
+    columns: 1;
+  }
+
+  body .keybind-overlay .keybind-list > section {
+    margin: 0 0 14px;
+  }
+}
+
+/* Supplementary join-route layout. Append after join-visual-v642.css.
+   The selector ceases to match as soon as the existing join panel is hidden. */
+body.game-open .app-shell:has(#joinPanel:not([hidden])) {
+  background-color: #102532;
+  background-image: radial-gradient(ellipse at 50% 42%, #193846 0%, #102532 72%);
+}
+
+@media (min-width: 681px) {
+  body.game-open .app-shell:has(#joinPanel:not([hidden])) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    place-items: center;
+    gap: 0;
+  }
+
+  body.game-open .app-shell:has(#joinPanel:not([hidden])) .game-area {
+    display: none;
+  }
+
+  body.game-open .app-shell:has(#joinPanel:not([hidden])) #sidePanel {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: center;
+    align-self: center;
+    width: min(560px, 100%);
+    max-width: 100%;
+    max-height: calc(100% - 24px);
+    overflow-y: auto;
+  }
+}
+
+
+/* Join-only painted backdrop: render the broad gradients once at page size. */
+body.game-open:has(#joinPanel:not([hidden])),
+body.game-open .app-shell:has(#joinPanel:not([hidden])) {
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* Supplement to result-visual-hierarchy-v642.css. Shared ui-surface-enter
+ * begins at opacity:0, so terminal Result keeps its existing transform cue
+ * while every first-visible reading surface is opaque from frame one. */
+@keyframes result-first-visible-enter {
+  from { transform: translateY(6px) scale(0.992); }
+  to { transform: translateY(0) scale(1); }
+}
+
+body.game-open.result-presentation .end-overlay .result-dialog {
+  opacity: 1 !important;
+  background-color: #f2f7f8 !important;
+  background-image: none !important;
+  animation: result-first-visible-enter 160ms var(--ui-ease-out) both !important;
+}
+
+body.game-open.result-presentation .result-heading {
+  color: #ffffff !important;
+  background-color: #193846 !important;
+  background-image: none !important;
+}
+
+body.game-open.result-presentation .result-heading :is(strong, span) {
+  color: inherit !important;
+}
+
+body.game-open.result-presentation :is(.result-ranking, .result-team, .result-overall, .result-team-list) {
+  color: #173b48 !important;
+  background-color: #f2f7f8 !important;
+  background-image: none !important;
+}
+
+body.game-open.result-presentation .result-team-title {
+  color: #173b48 !important;
+  background-color: #e7f1f3 !important;
+  background-image: none !important;
+}
+
+body.game-open.result-presentation .result-team-title :is(strong, span) {
+  color: inherit !important;
+}
+
+body.game-open.result-presentation .result-row {
+  color: #173b48 !important;
+  background-color: #fafcfd !important;
+  background-image: none !important;
+}
+
+body.game-open.result-presentation .result-row.is-self {
+  background-color: #e2f2f1 !important;
+}
+
+body.game-open.result-presentation .result-row:is(.is-first, .is-luminous, .is-idea-winner) {
+  background-color: #fff7e8 !important;
+}
+
+body.game-open.result-presentation .result-player :is(strong, small) {
+  color: #173b48 !important;
+  text-shadow: none !important;
+}
+
+/* Preserve the existing operating-system reduced-motion contract. */
+@media (prefers-reduced-motion: reduce) {
+  body.game-open.result-presentation .end-overlay .result-dialog {
+    animation: none !important;
+  }
 }

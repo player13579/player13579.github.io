@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-controls-visual-only-v641";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v642";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -868,7 +868,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-controls-visual-only-v641";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v642";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1655,7 +1655,10 @@ function updateSoloProgressUi() {
   els.titlePlayProgress.textContent = `${playMode} / ソロ訓練 ${count}/${soloMissionIds.length}`;
   els.soloTrainingProgress.textContent = `${count} / ${soloMissionIds.length} 完了`;
   els.soloMissionGrid.querySelectorAll("[data-solo-card]").forEach((card) => {
-    card.classList.toggle("completed", completed.has(card.dataset.soloCard));
+    const isCompleted = completed.has(card.dataset.soloCard);
+    card.classList.toggle("completed", isCompleted);
+    const launchButton = card.querySelector("[data-solo-mission]");
+    if (launchButton) launchButton.textContent = isCompleted ? "再挑戦" : "開始";
   });
   const hint = $("#cpuGravityHint");
   if (hint) hint.hidden = localStorage.getItem(storage.cpuGravityHint) !== "1";
@@ -1672,6 +1675,15 @@ function recordSoloMissionCompletion(missionId) {
 }
 
 const TITLE_COMMAND_DEPTH_UV = Object.freeze({ x: 0.58, y: 0.59 });
+const TITLE_HERO_INTRINSIC_FALLBACK = Object.freeze({ width: 1672, height: 941 });
+const TITLE_COMMAND_START_DEPTH_PX = 680;
+const TITLE_COMMAND_DEPTH_PROPERTY_NAMES = Object.freeze(["startX", "startY", "farX", "farY", "approachX", "approachY", "overshootX", "overshootY", "settleX", "settleY", "roll", "approachRoll"]);
+
+function titleDepthGeometryError(message) {
+  const error = new RangeError(message);
+  error.titleDepthGeometry = true;
+  return error;
+}
 
 init();
 
@@ -1692,15 +1704,80 @@ function prepareTitleHero() {
   els.startHero.addEventListener("error", reveal, { once: true });
 }
 
+function titlePositionTokenOffset(token, axis, extent, propertyName) {
+  const normalized = String(token || "").trim().toLowerCase();
+  const keywords = axis === "x"
+    ? { left: 0, center: 0.5, right: 1 }
+    : { top: 0, center: 0.5, bottom: 1 };
+  if (Object.hasOwn(keywords, normalized)) return keywords[normalized] * extent;
+  const percentage = normalized.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))%$/);
+  if (percentage) return Number(percentage[1]) * extent / 100;
+  const pixels = propertyName === "perspective-origin"
+    ? normalized.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))px$/)
+    : null;
+  if (pixels) return Number(pixels[1]);
+  throw titleDepthGeometryError(`Unsupported title ${propertyName} ${axis} token: ${normalized || "<empty>"}`);
+}
+
+function titlePositionPair(value, extentX, extentY, propertyName) {
+  const tokens = String(value || "").trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 1) {
+    if (tokens[0] === "top" || tokens[0] === "bottom") {
+      return {
+        x: titlePositionTokenOffset("center", "x", extentX, propertyName),
+        y: titlePositionTokenOffset(tokens[0], "y", extentY, propertyName)
+      };
+    }
+    return {
+      x: titlePositionTokenOffset(tokens[0], "x", extentX, propertyName),
+      y: titlePositionTokenOffset("center", "y", extentY, propertyName)
+    };
+  }
+  if (tokens.length === 2) {
+    return {
+      x: titlePositionTokenOffset(tokens[0], "x", extentX, propertyName),
+      y: titlePositionTokenOffset(tokens[1], "y", extentY, propertyName)
+    };
+  }
+  throw titleDepthGeometryError(`Unsupported title ${propertyName}: ${String(value || "<empty>")}`);
+}
+
+function titleObjectFitScale(objectFit, boxWidth, boxHeight, naturalWidth, naturalHeight) {
+  if (objectFit === "cover") return Math.max(boxWidth / naturalWidth, boxHeight / naturalHeight);
+  if (objectFit === "contain") return Math.min(boxWidth / naturalWidth, boxHeight / naturalHeight);
+  throw titleDepthGeometryError(`Unsupported title object-fit: ${objectFit || "<empty>"}`);
+}
+
 function titleTextureDepthPoint() {
   const screenRect = els.startScreen.getBoundingClientRect();
-  const naturalWidth = Math.max(1, Number(els.startHero?.naturalWidth) || 1672);
-  const naturalHeight = Math.max(1, Number(els.startHero?.naturalHeight) || 941);
-  const coverScale = Math.max(screenRect.width / naturalWidth, screenRect.height / naturalHeight);
-  const renderedWidth = naturalWidth * coverScale;
-  const renderedHeight = naturalHeight * coverScale;
-  const renderedLeft = screenRect.left + (screenRect.width - renderedWidth) / 2;
-  const renderedTop = screenRect.top + (screenRect.height - renderedHeight) / 2;
+  const heroRect = els.startHero?.getBoundingClientRect?.() || screenRect;
+  const finiteMetric = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const screenLeft = finiteMetric(screenRect.left);
+  const screenTop = finiteMetric(screenRect.top);
+  const screenWidth = Math.max(0, finiteMetric(screenRect.width));
+  const screenHeight = Math.max(0, finiteMetric(screenRect.height));
+  const boxLeft = finiteMetric(heroRect.left, screenLeft);
+  const boxTop = finiteMetric(heroRect.top, screenTop);
+  const boxWidth = Math.max(0, finiteMetric(heroRect.width, screenWidth));
+  const boxHeight = Math.max(0, finiteMetric(heroRect.height, screenHeight));
+  const suppliedNaturalWidth = Number(els.startHero?.naturalWidth);
+  const suppliedNaturalHeight = Number(els.startHero?.naturalHeight);
+  const naturalWidth = Number.isFinite(suppliedNaturalWidth) && suppliedNaturalWidth > 0
+    ? suppliedNaturalWidth
+    : TITLE_HERO_INTRINSIC_FALLBACK.width;
+  const naturalHeight = Number.isFinite(suppliedNaturalHeight) && suppliedNaturalHeight > 0
+    ? suppliedNaturalHeight
+    : TITLE_HERO_INTRINSIC_FALLBACK.height;
+  const heroStyle = els.startHero
+    ? getComputedStyle(els.startHero)
+    : { objectFit: "cover", objectPosition: "center" };
+  const objectFit = String(heroStyle.objectFit || "").trim().toLowerCase();
+  const scale = titleObjectFitScale(objectFit, boxWidth, boxHeight, naturalWidth, naturalHeight);
+  const renderedWidth = naturalWidth * scale;
+  const renderedHeight = naturalHeight * scale;
+  const position = titlePositionPair(heroStyle.objectPosition, 1, 1, "object-position");
+  const renderedLeft = boxLeft + (boxWidth - renderedWidth) * position.x;
+  const renderedTop = boxTop + (boxHeight - renderedHeight) * position.y;
   return {
     x: renderedLeft + renderedWidth * TITLE_COMMAND_DEPTH_UV.x,
     y: renderedTop + renderedHeight * TITLE_COMMAND_DEPTH_UV.y
@@ -1710,9 +1787,18 @@ function titleTextureDepthPoint() {
 function titleCommandDepthPath(depthPoint, commandRect) {
   const centerX = commandRect.left + commandRect.width / 2;
   const centerY = commandRect.top + commandRect.height / 2;
-  const startX = depthPoint.x - centerX;
-  const startY = depthPoint.y - centerY;
-  const rayAngle = Math.atan2(-startY, -startX) * 180 / Math.PI;
+  const perspective = commandRect.perspective;
+  const perspectiveOriginX = commandRect.perspectiveOriginX;
+  const perspectiveOriginY = commandRect.perspectiveOriginY;
+  if (![perspective, perspectiveOriginX, perspectiveOriginY].every(Number.isFinite) || perspective <= 0) {
+    throw titleDepthGeometryError("Unsupported title command perspective geometry");
+  }
+  const projectionExpansion = (perspective + TITLE_COMMAND_START_DEPTH_PX) / perspective;
+  const startX = (depthPoint.x - perspectiveOriginX) * projectionExpansion - (centerX - perspectiveOriginX);
+  const startY = (depthPoint.y - perspectiveOriginY) * projectionExpansion - (centerY - perspectiveOriginY);
+  const screenRayX = depthPoint.x - centerX;
+  const screenRayY = depthPoint.y - centerY;
+  const rayAngle = Math.atan2(-screenRayY, -screenRayX) * 180 / Math.PI;
   const roll = Math.max(-9, Math.min(9, rayAngle * 0.08));
   return {
     startX,
@@ -1731,37 +1817,100 @@ function titleCommandDepthPath(depthPoint, commandRect) {
 }
 
 function titleCommandLayoutRect(button) {
-  const parentRect = button.parentElement.getBoundingClientRect();
+  const parent = button.parentElement;
+  const offsetParent = button.offsetParent;
+  if (!parent || !offsetParent) throw titleDepthGeometryError("Unsupported title command offset parent");
+  const parentRect = parent.getBoundingClientRect();
+  const offsetParentRect = offsetParent.getBoundingClientRect();
+  const parentStyle = getComputedStyle(parent);
+  const perspectiveMatch = String(parentStyle.perspective || "").trim().toLowerCase()
+    .match(/^([+]?(?:\d+(?:\.\d*)?|\.\d+))px$/);
+  if (!perspectiveMatch || Number(perspectiveMatch[1]) <= 0) {
+    throw titleDepthGeometryError(`Unsupported title command perspective: ${parentStyle.perspective || "<empty>"}`);
+  }
+  const perspectiveOrigin = titlePositionPair(
+    parentStyle.perspectiveOrigin,
+    parentRect.width,
+    parentRect.height,
+    "perspective-origin"
+  );
+  const metrics = {
+    left: Number(offsetParentRect.left) + Number(offsetParent.clientLeft || 0) - Number(offsetParent.scrollLeft || 0) + Number(button.offsetLeft),
+    top: Number(offsetParentRect.top) + Number(offsetParent.clientTop || 0) - Number(offsetParent.scrollTop || 0) + Number(button.offsetTop),
+    width: Number(button.offsetWidth),
+    height: Number(button.offsetHeight)
+  };
+  if (!Object.values(metrics).every(Number.isFinite) || metrics.width <= 0 || metrics.height <= 0) {
+    throw titleDepthGeometryError("Unsupported title command layout geometry");
+  }
   return {
-    left: parentRect.left + button.offsetLeft,
-    top: parentRect.top + button.offsetTop,
-    width: button.offsetWidth,
-    height: button.offsetHeight
+    ...metrics,
+    perspective: Number(perspectiveMatch[1]),
+    perspectiveOriginX: Number(parentRect.left) + perspectiveOrigin.x,
+    perspectiveOriginY: Number(parentRect.top) + perspectiveOrigin.y
   };
 }
 
-function updateTitleCommandDepthPaths() {
-  if (!els.startScreen || !els.titlePlayButton || !els.titleTacticsButton) return;
-  const depthPoint = titleTextureDepthPoint();
-  [els.titlePlayButton, els.titleTacticsButton].forEach((button) => {
-    const path = titleCommandDepthPath(depthPoint, titleCommandLayoutRect(button));
-    for (const [name, value] of Object.entries(path)) {
-      button.style.setProperty(`--title-depth-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`, `${value}${name.endsWith("Roll") || name === "roll" ? "deg" : "px"}`);
+function clearTitleCommandDepthPaths(reason = "unsupported-geometry") {
+  for (const button of [els.titlePlayButton, els.titleTacticsButton]) {
+    if (!button) continue;
+    for (const name of TITLE_COMMAND_DEPTH_PROPERTY_NAMES) {
+      button.style.removeProperty(`--title-depth-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`);
     }
-    button.dataset.titleDepthOrigin = "texture-vanishing-point";
-  });
+    button.dataset.titleDepthOrigin = reason;
+  }
+}
+
+function updateTitleCommandDepthPaths() {
+  if (!els.startScreen || !els.titlePlayButton || !els.titleTacticsButton) return false;
+  if (els.startScreen.classList.contains("title-arriving")) {
+    if (state.titleArrivalTimer) window.clearTimeout(state.titleArrivalTimer);
+    state.titleArrivalTimer = null;
+    els.startScreen.classList.remove("title-arriving");
+  }
+  try {
+    const depthPoint = titleTextureDepthPoint();
+    [els.titlePlayButton, els.titleTacticsButton].forEach((button) => {
+      const path = titleCommandDepthPath(depthPoint, titleCommandLayoutRect(button));
+      for (const [name, value] of Object.entries(path)) {
+        button.style.setProperty(`--title-depth-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`, `${value}${name.endsWith("Roll") || name === "roll" ? "deg" : "px"}`);
+      }
+      button.dataset.titleDepthOrigin = "texture-vanishing-point";
+    });
+    return true;
+  } catch (error) {
+    if (!(error instanceof RangeError) || error.titleDepthGeometry !== true) throw error;
+    if (state.titleArrivalTimer) window.clearTimeout(state.titleArrivalTimer);
+    state.titleArrivalTimer = null;
+    els.startScreen.classList.remove("title-arriving");
+    clearTitleCommandDepthPaths();
+    return false;
+  }
 }
 
 function playTitleCommandArrival() {
   if (state.titleArrivalTimer) window.clearTimeout(state.titleArrivalTimer);
   els.startScreen.classList.remove("title-arriving");
-  updateTitleCommandDepthPaths();
+  const reducedMotion = prefersReducedMotion();
+  els.startScreen.classList.toggle("title-reduced-motion", reducedMotion);
+  for (const button of [els.titlePlayButton, els.titleTacticsButton]) {
+    button?.classList.remove("title-command-dispersing");
+  }
+  if (!updateTitleCommandDepthPaths()) {
+    state.titleArrivalTimer = null;
+    return false;
+  }
+  if (reducedMotion) {
+    state.titleArrivalTimer = null;
+    return true;
+  }
   void els.startScreen.offsetWidth;
   els.startScreen.classList.add("title-arriving");
   state.titleArrivalTimer = window.setTimeout(() => {
     els.startScreen.classList.remove("title-arriving");
     state.titleArrivalTimer = null;
   }, 700);
+  return true;
 }
 
 function init() {
@@ -2322,8 +2471,16 @@ function switchScreenWithEffect(next) {
 async function runTitleCommandTransition(button, action) {
   if (!button || state.titleCommandTransitionRunning) return false;
   state.titleCommandTransitionRunning = true;
-  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  const duration = reduced ? 160 : 640;
+  const reduced = prefersReducedMotion();
+  if (reduced) {
+    try {
+      action();
+    } finally {
+      state.titleCommandTransitionRunning = false;
+    }
+    return true;
+  }
+  const duration = 640;
   const rect = button.getBoundingClientRect();
   const overlay = els.titleCommandTransitionAte;
   const pixels = els.titleCommandPixelField;
@@ -2351,7 +2508,7 @@ async function runTitleCommandTransition(button, action) {
   els.titleTacticsButton.disabled = true;
   await delay(duration);
   action();
-  await delay(reduced ? 20 : 140);
+  await delay(140);
   overlay.classList.remove("active");
   overlay.classList.remove("reduced");
   overlay.hidden = true;
@@ -22088,7 +22245,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-controls-visual-only-v641";
+const version = "ui-visual-elevation-v642";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23062,7 +23219,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-controls-visual-only-v641", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v642", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
