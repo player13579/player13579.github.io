@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-visual-elevation-v653",
+    version: "ui-visual-elevation-v654",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7883,7 +7883,9 @@ const MIME = {
   ".svg": "image/svg+xml; charset=utf-8",
   ".png": "image/png",
   ".webp": "image/webp",
-  ".mp3": "audio/mpeg"
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm"
 };
 
 const COLORS = [
@@ -12052,17 +12054,9 @@ function completeDesireManaRecovery(room, player, source, timestamp = now()) {
     exact: true,
     desireRecovery: true
   });
-  const staminaFull = Number(player.stamina) >= staminaCapacityFor(player) - 0.01;
-  if (player.resting && staminaFull) {
-    player.resting = false;
-    player.sleepingUntil = 0;
-    if (player.movementMode === "sleep") player.movementMode = "idle";
-  }
   if (source === "renki") {
     pushGainAte(room, player, "mana", { variant: "desire-recovery", durationMs: 1680 });
     pushMagicEffect(room, "action-renki", player, { radius: 120, playerId: player.id, variant: "desire-recovery" });
-  } else {
-    pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id, variant: "desire-recovery" });
   }
   setImmediateFeedback(player, "欲望回復", `${source === "renki" ? "練気" : "停止休息"}完了 / MP ${REST_COMPLETION_MANA_FLOOR}`);
   pushEvent(room, `${player.name} が${source === "renki" ? "練気" : "停止休息"}を完了し、欲望のMP負債からマナ${REST_COMPLETION_MANA_FLOOR}へ回復しました。`);
@@ -13187,7 +13181,7 @@ function activateHoverSprintForUnsupportedMovement(room, player, targetX, target
   player.hoverSprintReadyAt = timestamp + HOVER_SPRINT_ACTIVATION_COOLDOWN_MS;
   pushMagicEffect(room, "hover-sprint-active", player, {
     radius: 135, playerId: player.id, variant: "auto-unsupported",
-    durationMs: HOVER_SPRINT_BASE_DURATION_MS,
+    durationMs: 1200,
     accelerationMultiplier: HOVER_SPRINT_BASE_ACC_MULTIPLIER
   });
   setImmediateFeedback(player, "ホバースプリント", `MP ${HOVER_SPRINT_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HOVER_SPRINT_ACTIVATION_COOLDOWN_MS / 1000}秒`);
@@ -14843,26 +14837,31 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
 function syncAutomaticStationaryRest(room, player, stationary, timestamp = now()) {
   const capacity = staminaCapacityFor(player);
   const desireDebt = hasDesireManaDebt(player);
+  const wasResting = Boolean(player.resting);
+  const staminaNeedsRecovery = Number(player.stamina) < capacity - 0.01;
   const active = Boolean(
     room?.phase === "playing" &&
     player?.alive &&
     !player.ejected &&
     !player.inVent &&
-    stationary &&
-    (Number(player.stamina) < capacity - 0.01 || desireDebt)
+    stationary
   );
   player.sleepingUntil = 0;
   player.resting = active;
   if (!active) {
+    player.restCompletionPending = false;
     player.desireRestRecoveryStartedAt = 0;
-  } else if (desireDebt) {
-    if (!(Number(player.desireRestRecoveryStartedAt) > 0)) player.desireRestRecoveryStartedAt = timestamp;
-    if (timestamp - Number(player.desireRestRecoveryStartedAt) >= DESIRE_STATIONARY_RECOVERY_MS) {
-      completeDesireManaRecovery(room, player, "rest", timestamp);
-      player.resting = Number(player.stamina) < capacity - 0.01;
-    }
   } else {
-    player.desireRestRecoveryStartedAt = 0;
+    if (!wasResting) player.restCompletionPending = staminaNeedsRecovery;
+    else if (staminaNeedsRecovery) player.restCompletionPending = true;
+    if (desireDebt) {
+      if (!(Number(player.desireRestRecoveryStartedAt) > 0)) player.desireRestRecoveryStartedAt = timestamp;
+      if (timestamp - Number(player.desireRestRecoveryStartedAt) >= DESIRE_STATIONARY_RECOVERY_MS) {
+        completeDesireManaRecovery(room, player, "rest", timestamp);
+      }
+    } else {
+      player.desireRestRecoveryStartedAt = 0;
+    }
   }
   if (player.resting && player.movementMode === "idle") player.movementMode = "sleep";
   if (!player.resting && player.movementMode === "sleep") player.movementMode = "idle";
@@ -14873,6 +14872,7 @@ function completeRestAtFullStamina(room, player, timestamp = now()) {
   if (
     room?.phase !== "playing" ||
     !player?.resting ||
+    !player.restCompletionPending ||
     !player.alive ||
     player.ejected ||
     player.inVent
@@ -14887,10 +14887,8 @@ function completeRestAtFullStamina(room, player, timestamp = now()) {
   if (manaRestored) {
     setMana(room, player, REST_COMPLETION_MANA_FLOOR, "休息完了", { exact: true });
   }
-  player.resting = false;
+  player.restCompletionPending = false;
   player.sleepingUntil = 0;
-  if (player.movementMode === "sleep") player.movementMode = "idle";
-  pushMagicEffect(room, "action-rest", player, { radius: 105, playerId: player.id, variant: "complete" });
   pushEvent(
     room,
     `${player.name} の休息が完了し、スタミナが上限まで回復しました${manaRestored ? "。マナは2へ回復しました" : ""}。`
@@ -16297,7 +16295,7 @@ function useMapObject(room, player, objectId) {
     const reward = awardMysteryBoxReward(room, player, timestamp);
     room.mysteryBoxes.splice(boxIndex, 1);
     markObjectContactUsed(player, object.id);
-    pushMagicEffect(room, "mystery-box", object, { radius: Number(object.radius || 100), playerId: player.id, variant: reward.id });
+    pushMagicEffect(room, "mystery-box", object, { radius: Number(object.radius || 100), playerId: player.id, variant: reward.id, viewerId: player.id, durationMs: 2600 });
     setImmediateFeedback(player, "ミステリーボックス", reward.label);
     pushEvent(room, `${player.name} がミステリーボックスから${reward.label}を獲得しました。`);
     touch(room);
@@ -16624,18 +16622,26 @@ function mysteryBoxEligibleRewards(player) {
 function awardMysteryBoxReward(room, player, timestamp = now()) {
   const rewards = mysteryBoxEligibleRewards(player);
   if (!rewards.length) throw new ApiError(500, "ミステリーボックスの報酬候補がありません。");
-  const reward = rewards[Math.floor(Math.random() * rewards.length)];
+  const forcedRewardId = Number(player.mysteryFixtureForceRewardUntil) >= timestamp ? String(player.mysteryFixtureForceRewardId || "") : "";
+  delete player.mysteryFixtureForceRewardId;
+  delete player.mysteryFixtureForceRewardUntil;
+  const reward = rewards.find((entry) => entry.id === forcedRewardId) || rewards[Math.floor(Math.random() * rewards.length)];
+  let detail = "";
+  let nestedMysteryResultAt = 0;
   if (reward.kind === "ability") {
     player.shopAbilityEntitlements = [...new Set([...(player.shopAbilityEntitlements || []), reward.id])];
   } else {
     const item = vendingItemDefinitions(room, player)[reward.id];
     if (!item) throw new ApiError(500, `ミステリーボックス報酬の実装がありません: ${reward.id}`);
     if (vendingPurchaseCapacity(player, reward.id) < 1) throw new ApiError(409, `${reward.label}は現在これ以上獲得できません。`);
-    item.apply();
+    detail = String(item.apply() || (reward.id === "mystery" ? player.lastMysteryResult || "" : ""));
+    nestedMysteryResultAt = reward.id === "mystery" ? Number(player.lastMysteryResultAt) || 0 : 0;
     pushInstantItemAcquisitionAte(room, player, reward.id, "mystery-box");
   }
   player.lastMysteryBoxReward = reward.id;
   player.lastMysteryBoxRewardAt = timestamp;
+  player.lastMysteryReveal = { id: uid("mystery_reveal_"), source: "box", rewardId: reward.id,
+    rewardKind: reward.kind, label: reward.label, asset: String(reward.asset || reward.id), detail, nestedMysteryResultAt, at: timestamp };
   return reward;
 }
 
@@ -17439,7 +17445,8 @@ function advanceNaturalRecoveryHealth(room, player, elapsedMs) {
   if (!hasNaturalRecovery(room, player)) return false;
   if (player.hackerRootActive || hasFighterInfiniteResources(player)) return false;
   const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
-  const recovered = NATURAL_RECOVERY_HP_PER_SECOND * floraAromaMultiplier(room, player) * elapsedSeconds;
+  const restMultiplier = player.resting ? SLEEP_REGEN_MULTIPLIER : 1;
+  const recovered = NATURAL_RECOVERY_HP_PER_SECOND * restMultiplier * floraAromaMultiplier(room, player) * elapsedSeconds;
   if (recovered <= 0) return false;
   return recoverHealth(player, recovered).recovered > 0;
 }
@@ -17449,7 +17456,8 @@ function advanceNaturalRecoveryMana(room, player, elapsedMs) {
   if (player.hackerRootActive || hasFighterInfiniteResources(player)) return false;
   const before = Math.max(0, Number(player.mana) || 0);
   const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
-  const recovered = NATURAL_RECOVERY_MANA_PER_SECOND * floraAromaMultiplier(room, player) * elapsedSeconds;
+  const restMultiplier = player.resting ? SLEEP_REGEN_MULTIPLIER : 1;
+  const recovered = NATURAL_RECOVERY_MANA_PER_SECOND * restMultiplier * floraAromaMultiplier(room, player) * elapsedSeconds;
   if (recovered <= 0) return false;
   player.mana = Number((before + recovered).toFixed(6));
   expandManaCapacityFor(player, player.mana);
@@ -21407,6 +21415,7 @@ function serialize(room, viewer, options = {}) {
       moveY: player.vy,
       moving: Math.hypot(player.vx, player.vy) > 0.01,
       movementMode: player.movementMode,
+      resting: Boolean(player.resting),
       relocationRevision: Math.max(0, Number(player.relocationRevision) || 0),
       movementSession: player.id === viewer.id ? String(player.movementSession || "") : "",
       movementSeq: player.id === viewer.id && Number.isSafeInteger(player.lastMovementSeq) ? player.lastMovementSeq : 0,
@@ -21467,6 +21476,7 @@ function serialize(room, viewer, options = {}) {
       delete serializedPlayer.moveY;
       delete serializedPlayer.moving;
       delete serializedPlayer.movementMode;
+      delete serializedPlayer.resting;
       delete serializedPlayer.relocationRevision;
       delete serializedPlayer.aimX;
       delete serializedPlayer.aimY;
@@ -21668,6 +21678,8 @@ function serialize(room, viewer, options = {}) {
       sensoryBlockedUntil: sensoryBlockedUntil(viewer),
       lastMysteryResult: viewer.lastMysteryResult,
       lastMysteryResultAt: viewer.lastMysteryResultAt,
+      lastMysteryReveal: viewer.lastMysteryReveal ? { ...viewer.lastMysteryReveal } : null,
+      mysteryPickupFixture: viewer.mysteryPickupFixture ? { ...viewer.mysteryPickupFixture } : null,
       lastImmediateFeedback: viewer.lastImmediateFeedback || null,
       movementMode: viewer.movementMode,
       bodyHits: viewer.bodyHits,
@@ -21767,9 +21779,9 @@ function serialize(room, viewer, options = {}) {
       maxStamina: MAX_STAMINA,
       maxStoredStamina: serializeResourceValue(staminaCapacityFor(viewer)),
       statusImmunityActive: hasNaturalRecovery(room, viewer),
-      naturalRecoveryHpPerSecond: NATURAL_RECOVERY_HP_PER_SECOND * floraAromaMultiplier(room, viewer),
-      naturalRecoveryStaminaPerSecond: STAMINA_REGEN_PER_SECOND * floraAromaMultiplier(room, viewer),
-      naturalRecoveryManaPerSecond: NATURAL_RECOVERY_MANA_PER_SECOND * floraAromaMultiplier(room, viewer),
+      naturalRecoveryHpPerSecond: NATURAL_RECOVERY_HP_PER_SECOND * (viewer.resting ? SLEEP_REGEN_MULTIPLIER : 1) * floraAromaMultiplier(room, viewer),
+      naturalRecoveryStaminaPerSecond: STAMINA_REGEN_PER_SECOND * (viewer.resting ? SLEEP_REGEN_MULTIPLIER : 1) * floraAromaMultiplier(room, viewer),
+      naturalRecoveryManaPerSecond: NATURAL_RECOVERY_MANA_PER_SECOND * (viewer.resting ? SLEEP_REGEN_MULTIPLIER : 1) * floraAromaMultiplier(room, viewer),
       naturalRecoveryManaCap: serializeResourceValue(manaCapacityFor(viewer)),
       sleepRegenPerSecond: STAMINA_REGEN_PER_SECOND * SLEEP_REGEN_MULTIPLIER,
       restCompletionManaFloor: REST_COMPLETION_MANA_FLOOR,
@@ -21979,7 +21991,48 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     throw new ApiError(400, "実画面回帰fixtureはプレイ中の生存プレイヤーだけに使用できます。");
   }
   const kind = String(rawKind || "");
-  if (kind === "desire-precondition") {
+  if (kind === "mystery-pickup-alive" || kind === "mystery-pickup-mystery-alive") {
+    // The fixture only positions a normal, alive player outside the existing
+    // box contact radius. A regular movement packet and the ordinary room tick
+    // own proximity, reward selection, removal and the reveal effect.
+    const timestamp = now();
+    const fixtureForcesMystery = kind === "mystery-pickup-mystery-alive";
+    if (fixtureForcesMystery && !mysteryBoxEligibleRewards(player).some((reward) => reward.id === "mystery")) {
+      throw new ApiError(400, "ミステリー報酬が通常候補にありません。");
+    }
+    if (fixtureForcesMystery) {
+      player.mysteryFixtureForceRewardId = "mystery";
+      player.mysteryFixtureForceRewardUntil = timestamp + 120_000;
+    }
+    replenishMysteryBoxes(room);
+    const box = (room.mysteryBoxes || [])[0];
+    if (!box) throw new ApiError(400, "ミステリーボックス実画面fixtureに既存箱がありません。");
+    const map = getMap(room);
+    const startDistance = Number(box.useRange || MYSTERY_BOX_USE_RANGE) + 18;
+    const directions = [[1, 0], [0, 1], [-1, 0], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2], [Math.SQRT1_2, -Math.SQRT1_2]];
+    const start = directions
+      .map(([dx, dy]) => ({ x: Math.round(Number(box.x) + dx * startDistance), y: Math.round(Number(box.y) + dy * startDistance), dx: -dx, dy: -dy }))
+      .find((candidate) => isWalkable(room, candidate.x, candidate.y, Number(map.playerRadius) || 0));
+    if (!start) throw new ApiError(400, "ミステリーボックス実画面fixtureに通常移動できる開始地点がありません。");
+    Object.assign(player, {
+      alive: true, ejected: false, inVent: false, x: start.x, y: start.y,
+      vx: 0, vy: 0, lastMovementDx: 0, lastMovementDy: 0,
+      objectContactUsedIds: [], itemDisabledUntil: 0
+    });
+    player.mysteryPickupFixture = {
+      boxId: box.id, boxX: Number(box.x), boxY: Number(box.y), useRange: Number(box.useRange || MYSTERY_BOX_USE_RANGE),
+      startX: start.x, startY: start.y, startDistance: Math.hypot(start.x - Number(box.x), start.y - Number(box.y)),
+      canvasDx: start.dx, canvasDy: start.dy, expectedRewardId: fixtureForcesMystery ? "mystery" : "", normalInput: "hold the displayed canvas direction until contact"
+    };
+    room.preparationEndsAt = timestamp + 120_000;
+    for (const entry of room.players.values()) {
+      if (!entry.isBot) continue;
+      entry.nextBotActionAt = timestamp + 120_000;
+      entry.taskAutoReadyAt = timestamp + 120_000;
+      entry.emergenciesLeft = 0;
+    }
+    setImmediateFeedback(player, "ミステリーボックス実画面検証", "箱 (" + box.x + ", " + box.y + ") へ通常移動");
+  } else if (kind === "desire-precondition") {
     setMana(room, player, 0, "実画面Desire fixture", { exact: true });
     setStamina(room, player, 0.25, "実画面Desire fixture");
     const base = Math.max(1, Number(player.lastMovementClock) || 1);
@@ -22347,7 +22400,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     pushEvent(room, player.friendlyAttackerBotFireLaneVerification.complete
       ? "実画面検証: 味方Attackerユーザーが射線上ではBot射撃no-commit、射線解除後は敵Defenderへの射撃だけを受理しました。"
       : "実画面検証: 味方Attacker Bot射線検証が未完了です。");
-  } else if (kind === "hacker-flick-tap") {
+  } else if (kind === "hacker-flick-tap" || kind === "hacker-flick-tap-no-barrier") {
     const timestamp = now();
     player.role = "attacker";
     player.operatorId = "attacker-alchemist";
@@ -22364,7 +22417,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     // Hold the ordinary combat actors outside their decision windows long
     // enough for a bounded hidden-screen pointer transaction. The gesture and
     // its Hacker action route remain the production UI and API paths.
-    room.preparationEndsAt = timestamp + 120_000;
+    room.preparationEndsAt = kind === "hacker-flick-tap-no-barrier" ? 0 : timestamp + 120_000;
     for (const entry of room.players.values()) {
       if (!entry.isBot) continue;
       entry.nextBotActionAt = timestamp + 120_000;
@@ -23805,6 +23858,7 @@ async function handleApi(req, res) {
         entry.particleCannonPerformanceMultiplier = 1;
         entry.lastMysteryResult = "";
         entry.lastMysteryResultAt = 0;
+        entry.lastMysteryReveal = null;
         entry.movementMode = "idle";
         entry.movementAccEnabled = true;
         entry.bodyHits = 0;
@@ -25912,7 +25966,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "ui-visual-elevation-v653",
+  version: "ui-visual-elevation-v654",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

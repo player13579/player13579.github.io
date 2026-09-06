@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v653";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v654";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -87,7 +87,6 @@ const els = {
   titlePlayProgress: $("#titlePlayProgress"),
   titleTacticsButton: $("#titleTacticsButton"),
   fullscreenButton: $("#fullscreenButton"),
-  canvasUiToggle: $("#canvasUiToggle"),
   keybindButton: $("#keybindButton"),
   keybindOverlay: $("#keybindOverlay"),
   keybindCloseButton: $("#keybindCloseButton"),
@@ -102,16 +101,10 @@ const els = {
   tacticsChapterList: $("#tacticsChapterList"),
   tacticsContent: $("#tacticsContent"),
   tacticsNovelStage: $("#tacticsNovelStage"),
-  tacticsNovelCanvas: $("#tacticsNovelCanvas"),
-  tacticsNovelChapter: $("#tacticsNovelChapter"),
-  tacticsNovelProgress: $("#tacticsNovelProgress"),
-  tacticsNovelSpeakerRole: $("#tacticsNovelSpeakerRole"),
-  tacticsNovelSpeaker: $("#tacticsNovelSpeaker"),
-  tacticsNovelText: $("#tacticsNovelText"),
-  tacticsNovelRestart: $("#tacticsNovelRestart"),
-  tacticsNovelPrev: $("#tacticsNovelPrev"),
-  tacticsNovelAuto: $("#tacticsNovelAuto"),
-  tacticsNovelNext: $("#tacticsNovelNext"),
+  tacticsNovelVideo: $("#tacticsNovelVideo"),
+  tacticsNovelPlay: $("#tacticsNovelPlay"),
+  tacticsNovelReplay: $("#tacticsNovelReplay"),
+  tacticsNovelVideoStatus: $("#tacticsNovelVideoStatus"),
   soloTrainingProgress: $("#soloTrainingProgress"),
   soloMissionGrid: $("#soloMissionGrid"),
   canvas: $("#gameCanvas"),
@@ -548,6 +541,7 @@ const state = {
     suppressClickUntil: new WeakMap()
   },
   mysteryRevealTimer: null,
+  mysteryRevealStageTimers: [],
   titleArrivalTimer: null,
   fieldFeedOpen: false,
   lastRoomChatId: "",
@@ -585,11 +579,6 @@ const state = {
   expandedMapOpen: false,
   expandedMapReturnFocus: null,
   tabletOpen: false,
-  // Playing starts with the surrounding controls stored away; this is a view
-  // preference only and never changes the authoritative game state.
-  canvasUiOpen: false,
-  // Shop owns this only when it temporarily reveals a collapsed side UI.
-  vendingCanvasUiRestore: false,
   vendingReturnFocus: null,
   tabletResumeAfterMap: false,
   tabletStick: { pointerId: null, dx: 0, dy: 0, strength: 0, mode: "idle" },
@@ -708,13 +697,6 @@ const state = {
   onlineAvailabilityCheckOwner: null,
   startupFullscreenPending: false,
   tacticsChapterId: "tactics-basics",
-  tacticsNovelIndex: 0,
-  tacticsNovelAuto: false,
-  tacticsNovelSceneChangedAt: 0,
-  tacticsNovelFrame: 0,
-  tacticsNovelLayout: null,
-  tacticsNovelPointer: null,
-  tacticsNovelSuppressClickUntil: 0,
   phaseUiKey: "",
   actionLayoutKey: "",
   activeEffectsRenderKey: "",
@@ -913,7 +895,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v653";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v654";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1590,129 +1572,6 @@ function renderHackerAbilityDock(data = state.data, force = false) {
 }
 
 const soloMissionIds = ["movement", "combat", "defense", "intel", "emp", "cpu-gravity", "cpu-stage2"];
-
-const TACTICS_NOVEL_SCENES = Object.freeze([
-  {
-    title: "ようこそ",
-    speaker: "sophia",
-    role: "TACTICAL GUIDE",
-    name: "ソフィア",
-    text: "戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。",
-    sophiaGesture: "interact",
-    philiaGesture: "rest",
-    symbols: [{ type: "note", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
-  },
-  {
-    title: "試合の流れ",
-    speaker: "philia",
-    role: "FLOW GUIDE",
-    name: "フィリア",
-    text: "オペレーター選択、バトル、会議、次ラウンド、リザルトの順です。死体通報かスマホ緊急会議で会議へ移ります。",
-    sophiaGesture: "focus",
-    philiaGesture: "interact",
-    symbols: [{ type: "cheer", owner: "philia" }, { type: "note", owner: "sophia" }]
-  },
-  {
-    title: "陣営と勝利",
-    speaker: "sophia",
-    role: "VICTORY GUIDE",
-    name: "ソフィア",
-    text: "ディフェンダーは全タスク完了か全アタッカー排除、アタッカーはディフェンダー全滅か致命サボタージュ完遂で勝利。善のイデア到達は幸運／直観が最大でも1秒だけ早まり、アタッカーに対ディフェンダーの定期キル期限はありません。",
-    sophiaGesture: "power",
-    philiaGesture: "focus",
-    symbols: [{ type: "sparkle", owner: "sophia" }, { type: "cheer", owner: "philia" }]
-  },
-  {
-    title: "移動とSP",
-    speaker: "philia",
-    role: "MOVEMENT GUIDE",
-    name: "フィリア",
-    text: "SPは満タン開始。歩行でも減り、ダッシュはより多く消費します。停止してからタスクへ取りかかりましょう。",
-    sophiaGesture: "rest",
-    philiaGesture: "focus",
-    symbols: [{ type: "idea", owner: "philia" }, { type: "note", owner: "sophia" }]
-  },
-  {
-    title: "MP・SPと心の状態",
-    speaker: "sophia",
-    role: "RESOURCE GUIDE",
-    name: "ソフィア",
-    text: "SPとMPは各自の現在上限に対する割合で、0%=0点、0%超〜50%=1点、50%超=2点。合計0=欲望、1〜2=気概、3〜4=理知です。HPは含めません。HP・SP・MPの回復は不足分を満たし、余剰分でcurrent/maxを一緒に拡張します。消費やダメージで上限は縮みません。",
-    sophiaGesture: "focus",
-    philiaGesture: "interact",
-    symbols: [{ type: "idea", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
-  },
-  {
-    title: "戦闘用語",
-    speaker: "philia",
-    role: "COMBAT GUIDE",
-    name: "フィリア",
-    text: "HPは2。確殺は残HPに関係なく倒します。破壊と消滅は同じ強制死亡ですが、破壊は死体あり、消滅は死体なしです。",
-    sophiaGesture: "interact",
-    philiaGesture: "power",
-    symbols: [{ type: "idea", owner: "philia" }, { type: "sparkle", owner: "sophia" }]
-  },
-  {
-    title: "ファイターとEC",
-    speaker: "sophia",
-    role: "FIGHTER GUIDE",
-    name: "ソフィア",
-    text: "オリハルコン・ソード自体は物理斬撃・ガード・JG反射を行う剣です。これとは別に、ファイター能力のECは初回100でMP・SP・HP・バリア無限、初回500で居合、初回1000でLB被確殺解除・消滅斬り・全攻撃JG反射を永続獲得します。EC100以上の斬るではEC100を使い特大衝撃波も起こせます。",
-    sophiaGesture: "power",
-    philiaGesture: "focus",
-    symbols: [{ type: "sparkle", owner: "sophia" }, { type: "idea", owner: "philia" }]
-  },
-  {
-    title: "アイテムとショップ",
-    speaker: "philia",
-    role: "ITEM GUIDE",
-    name: "フィリア",
-    text: "ショップはどこでも開け、商品とオペレーター別能力を分類・ページから選びます。瓶は接地で壊れ、ウラン／プルトニウム容器は投擲中に空中で開くため回収できません。それ以外の物理アイテムは被弾地点か接地点に残り、誰でも拾えます。長押しで詳細を確認できます。",
-    sophiaGesture: "interact",
-    philiaGesture: "throw",
-    symbols: [{ type: "cheer", owner: "philia" }, { type: "note", owner: "sophia" }]
-  },
-  {
-    title: "オペレーター",
-    speaker: "sophia",
-    role: "OPERATOR GUIDE",
-    name: "ソフィア",
-    text: "ガンナーは銃と特殊弾、グラビティは時空と全域重力嵐、フローラはヒールと光、ハッカーは生成、クオンタムは物質変換を担当します。",
-    sophiaGesture: "interact",
-    philiaGesture: "cast",
-    symbols: [{ type: "note", owner: "sophia" }, { type: "sparkle", owner: "philia" }]
-  },
-  {
-    title: "索敵・EMP・サボ",
-    speaker: "philia",
-    role: "INTEL GUIDE",
-    name: "フィリア",
-    text: "千里眼は全員共通で0.25MP/秒。同位相EMPは900ms以内で共振、逆位相は相殺します。敵陣営Botも千里眼で索敵します。",
-    sophiaGesture: "focus",
-    philiaGesture: "cast",
-    symbols: [{ type: "idea", owner: "philia" }, { type: "cheer", owner: "sophia" }]
-  },
-  {
-    title: "会議とルミナス",
-    speaker: "sophia",
-    role: "MEETING GUIDE",
-    name: "ソフィア",
-    text: "匿名投票とゲーム内テキストチャットで情報を整理します。ルミナスはディフェンダーが一試合に一度だけ使い、的中するとキル1です。",
-    sophiaGesture: "focus",
-    philiaGesture: "interact",
-    symbols: [{ type: "idea", owner: "sophia" }, { type: "note", owner: "philia" }]
-  },
-  {
-    title: "実戦へ",
-    speaker: "philia",
-    role: "READY GUIDE",
-    name: "フィリア",
-    text: "イデア到達者が複数なら、その全員が勝利します。仕様表とソロ訓練も使い、得意な判断を見つけたらプレイへ進みましょう。",
-    sophiaGesture: "heal",
-    philiaGesture: "power",
-    symbols: [{ type: "cheer", owner: "philia" }, { type: "sparkle", owner: "sophia" }, { type: "note", owner: "philia", secondary: true }]
-  }
-]);
 
 function completedSoloMissions() {
   try {
@@ -2531,29 +2390,9 @@ function syncFullscreenButton() {
   els.fullscreenButton.setAttribute("aria-label", els.fullscreenButton.title);
 }
 
-function setCanvasUiOpen(open, { focus = false } = {}) {
-  // Shop cards live in the side panel.  A direct canvas-UI collapse must not
-  // leave their semantic open state behind a hidden ancestor.
-  if (!open && state.vendingOpen) setVendingOpen(false, { focus: false });
-  const playable = state.screen === "game" && state.data?.phase === "playing";
-  state.canvasUiOpen = Boolean(playable && open);
-  const collapsed = Boolean(playable && !state.canvasUiOpen);
-  document.body.classList.toggle("canvas-ui-collapsed", collapsed);
-  els.canvasUiToggle.hidden = !playable;
-  els.canvasUiToggle.classList.toggle("active", state.canvasUiOpen);
-  els.canvasUiToggle.setAttribute("aria-expanded", String(state.canvasUiOpen));
-  els.canvasUiToggle.setAttribute("aria-label", state.canvasUiOpen ? "UIを格納する" : "UIを表示する");
-  els.canvasUiToggle.title = state.canvasUiOpen ? "UIを格納する（Ctrl+U）" : "UIを表示する（Ctrl+U）";
-  if (collapsed && els.sidePanel.contains(document.activeElement)) els.canvasUiToggle.focus({ preventScroll: true });
-  if (focus && state.canvasUiOpen) els.sidePanel.focus({ preventScroll: true });
-}
-
-function restoreVendingCanvasUi({ focus = false, opener = null } = {}) {
-  const shouldRestore = state.vendingCanvasUiRestore;
+function restoreVendingFocus({ focus = false, opener = null } = {}) {
   const returnFocus = opener || state.vendingReturnFocus;
-  state.vendingCanvasUiRestore = false;
   state.vendingReturnFocus = null;
-  if (shouldRestore) setCanvasUiOpen(false);
   if (!focus) return;
   requestAnimationFrame(() => {
     const canFocus = (element) => Boolean(
@@ -2564,11 +2403,7 @@ function restoreVendingCanvasUi({ focus = false, opener = null } = {}) {
       !element.closest?.("[hidden]") &&
       element.getClientRects?.().length
     );
-    // V delegates through a hidden desktop command source.  When restoring the
-    // collapsed view, use the visible canvas toggle; a tablet opener retains
-    // its own focus return.
-    const fallback = shouldRestore ? els.canvasUiToggle : els.sidePanel;
-    const target = canFocus(returnFocus) ? returnFocus : fallback;
+    const target = canFocus(returnFocus) ? returnFocus : els.sidePanel;
     if (canFocus(target)) target.focus({ preventScroll: true });
   });
 }
@@ -2684,7 +2519,7 @@ function setScreen(screen) {
     els.tacticsBackButton.title = label;
   }
   if (next === "tactics") setActiveTacticsChapter(state.tacticsChapterId || "tactics-basics");
-  else syncTacticsNovelAnimation();
+  else syncTacticsNovelVideo();
   if (next !== "game") clearMovementInput();
   window.scrollTo(0, 0);
   syncBgm();
@@ -2766,381 +2601,21 @@ function setActiveTacticsChapter(id) {
     article.setAttribute("aria-hidden", String(!active));
   });
   els.tacticsContent.scrollTop = 0;
-  syncTacticsNovelAnimation();
+  syncTacticsNovelVideo();
 }
 
 function initializeTacticsNovel() {
-  if (!els.tacticsNovelStage || !els.tacticsNovelCanvas) return;
-  els.tacticsNovelProgress.replaceChildren(...TACTICS_NOVEL_SCENES.map(() => document.createElement("i")));
-  els.tacticsNovelRestart.addEventListener("click", () => setTacticsNovelScene(0));
-  els.tacticsNovelPrev.addEventListener("click", () => setTacticsNovelScene(state.tacticsNovelIndex - 1));
-  els.tacticsNovelNext.addEventListener("click", () => {
-    if (state.tacticsNovelIndex >= TACTICS_NOVEL_SCENES.length - 1) {
-      setTacticsNovelAuto(false);
-      setTacticsNovelScene(0);
-      return;
-    }
-    setTacticsNovelScene(state.tacticsNovelIndex + 1);
-  });
-  els.tacticsNovelAuto.addEventListener("click", () => setTacticsNovelAuto(!state.tacticsNovelAuto));
-  els.tacticsNovelStage.addEventListener("click", (event) => {
-    if (event.target instanceof Element && event.target.closest("button")) return;
-    if (performance.now() < state.tacticsNovelSuppressClickUntil) return;
-    els.tacticsNovelNext.click();
-  });
-  els.tacticsNovelStage.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    if (event.target instanceof Element && event.target.closest("button")) return;
-    state.tacticsNovelPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
-    try { els.tacticsNovelStage.setPointerCapture(event.pointerId); } catch {}
-  });
-  els.tacticsNovelStage.addEventListener("pointerup", (event) => {
-    const pointer = state.tacticsNovelPointer;
-    state.tacticsNovelPointer = null;
-    if (!pointer || pointer.id !== event.pointerId) return;
-    const dx = event.clientX - pointer.x;
-    const dy = event.clientY - pointer.y;
-    if (Math.abs(dx) < 46 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
-    state.tacticsNovelSuppressClickUntil = performance.now() + 650;
-    setTacticsNovelScene(state.tacticsNovelIndex + (dx < 0 ? 1 : -1));
-  });
-  els.tacticsNovelStage.addEventListener("pointercancel", () => {
-    state.tacticsNovelPointer = null;
-  });
-  const motionPreference = window.matchMedia?.(REDUCED_MOTION_QUERY);
-  motionPreference?.addEventListener?.("change", () => {
-    if (motionPreference.matches) state.tacticsNovelAuto = false;
-    syncTacticsNovelAutoControl();
-    syncTacticsNovelAnimation();
-  });
-  const refreshTacticsNovelLayout = () => {
-    measureTacticsNovelLayout();
-    if (prefersReducedMotion()) syncTacticsNovelAnimation();
-  };
-  const novelDialogue = els.tacticsNovelSpeaker?.closest(".tactics-novel-dialogue");
-  if ("ResizeObserver" in window && novelDialogue) {
-    const novelLayoutObserver = new ResizeObserver(refreshTacticsNovelLayout);
-    novelLayoutObserver.observe(els.tacticsNovelStage);
-    novelLayoutObserver.observe(novelDialogue);
-  } else {
-    window.addEventListener("resize", refreshTacticsNovelLayout, { passive: true });
-  }
-  const novelImages = [
-    ...Object.values(state.textures.tacticsNovelMotions || {}).flatMap((motions) => Object.values(motions)),
-    ...Object.values(state.textures.tacticsNovelMangaSymbols || {})
-  ];
-  novelImages.forEach((image) => {
-    if (!image?.complete) image?.addEventListener?.("load", () => {
-      if (prefersReducedMotion()) syncTacticsNovelAnimation();
-    }, { once: true });
-  });
-  syncTacticsNovelAutoControl();
-  setTacticsNovelScene(0, { quiet: true });
+  const video=els.tacticsNovelVideo;if(!video)return;video.autoplay=false;video.loop=false;video.defaultMuted=true;video.muted=true;video.volume=0;
+  els.tacticsNovelPlay?.addEventListener("click",()=>{if(!video.paused&&!video.ended){video.pause();return;}playTacticsNovelVideo();});
+  els.tacticsNovelReplay?.addEventListener("click",()=>{video.currentTime=0;playTacticsNovelVideo();});
+  video.addEventListener("play",()=>{video.dataset.explicitPlay="true";keepTacticsNovelVideoSilent();syncTacticsNovelVideoControl();});video.addEventListener("pause",()=>syncTacticsNovelVideoControl());video.addEventListener("ended",()=>{video.currentTime=0;syncTacticsNovelVideoControl();});video.addEventListener("volumechange",()=>keepTacticsNovelVideoSilent());
+  window.matchMedia?.(REDUCED_MOTION_QUERY)?.addEventListener?.("change",event=>{if(event.matches&&!video.paused&&!video.ended)pauseAndResetTacticsNovelVideo("動きを減らす設定に切り替わったため一度停止しました。再生ボタンから開始できます。");else syncTacticsNovelVideo();});syncTacticsNovelVideo();
 }
-
-function syncTacticsNovelAutoControl() {
-  const reduced = prefersReducedMotion();
-  if (reduced) state.tacticsNovelAuto = false;
-  els.tacticsNovelAuto.disabled = reduced;
-  els.tacticsNovelAuto.setAttribute("aria-pressed", String(state.tacticsNovelAuto));
-  els.tacticsNovelAuto.textContent = reduced
-    ? "自動 OFF（動きを減らす）"
-    : state.tacticsNovelAuto ? "自動 ON" : "自動 OFF";
-}
-
-function setTacticsNovelAuto(enabled) {
-  state.tacticsNovelAuto = Boolean(enabled) && !prefersReducedMotion();
-  state.tacticsNovelSceneChangedAt = performance.now();
-  syncTacticsNovelAutoControl();
-  syncTacticsNovelAnimation();
-}
-
-function setTacticsNovelScene(requestedIndex, options = {}) {
-  const index = clamp(Number(requestedIndex) || 0, 0, TACTICS_NOVEL_SCENES.length - 1);
-  const changed = index !== state.tacticsNovelIndex;
-  state.tacticsNovelIndex = index;
-  state.tacticsNovelSceneChangedAt = performance.now();
-  const scene = TACTICS_NOVEL_SCENES[index];
-  els.tacticsNovelChapter.textContent = `${String(index + 1).padStart(2, "0")} / ${String(TACTICS_NOVEL_SCENES.length).padStart(2, "0")}　${scene.title}`;
-  els.tacticsNovelSpeakerRole.textContent = scene.role;
-  els.tacticsNovelSpeaker.textContent = scene.name;
-  els.tacticsNovelText.textContent = scene.text;
-  els.tacticsNovelPrev.disabled = index === 0;
-  els.tacticsNovelRestart.disabled = index === 0;
-  els.tacticsNovelNext.textContent = index === TACTICS_NOVEL_SCENES.length - 1 ? "もう一度 ↻" : "次へ →";
-  [...els.tacticsNovelProgress.children].forEach((dot, dotIndex) => {
-    dot.classList.toggle("active", dotIndex === index);
-    dot.classList.toggle("complete", dotIndex < index);
-  });
-  if (changed && !options.quiet) playSound("select");
-  syncTacticsNovelAnimation();
-}
-
-function measureTacticsNovelLayout() {
-  const canvas = els.tacticsNovelCanvas;
-  const speakerBand = els.tacticsNovelSpeaker?.closest(".tactics-novel-speaker");
-  if (!canvas || !speakerBand) return null;
-  const canvasRect = canvas.getBoundingClientRect();
-  const speakerRect = speakerBand.getBoundingClientRect();
-  if (canvasRect.width < 2 || canvasRect.height < 2 || !Number.isFinite(speakerRect.top)) return null;
-  state.tacticsNovelLayout = {
-    width: canvasRect.width,
-    height: canvasRect.height,
-    occlusionTop: clamp(speakerRect.top - canvasRect.top, 0, canvasRect.height)
-  };
-  return state.tacticsNovelLayout;
-}
-
-function tacticsNovelCharacterLayout(rect) {
-  const compact = rect.width < 620;
-  const legacyHeight = clamp(rect.height * (compact ? 0.56 : 0.72), 245, compact ? 360 : 520);
-  const legacyY = rect.height * (compact ? 0.63 : 0.8);
-  const lowLandscape = !compact && rect.height <= 520 && rect.width >= rect.height * 1.45;
-  if (!lowLandscape) {
-    return { mode: "legacy", compact, characterHeight: legacyHeight, characterY: legacyY, anchorY: legacyY, occlusionTop: rect.height };
-  }
-  const cached = state.tacticsNovelLayout;
-  const cacheMatches = cached && Math.abs(cached.width - rect.width) < 2 && Math.abs(cached.height - rect.height) < 2;
-  const occlusionTop = clamp(cacheMatches ? cached.occlusionTop : rect.height * 0.44, 0, rect.height);
-  const safeTop = clamp(rect.height * 0.12, 48, 58);
-  // Across all seven source gestures and all three frames, the measured worst
-  // face bottom is 55.83% of the normalized opaque frame. 0.62 also contains
-  // the 1.045 active scale and the three-pixel maximum downward bob.
-  const characterHeight = Math.min(250, Math.max(1, occlusionTop - 16 - safeTop) / 0.62);
-  return {
-    mode: "contained-low-landscape",
-    compact: false,
-    characterHeight,
-    characterY: safeTop,
-    anchorY: safeTop + characterHeight * 1.045,
-    occlusionTop,
-    safeTop
-  };
-}
-
-function syncTacticsNovelAnimation() {
-  const hidden = typeof document !== "undefined" && document.hidden;
-  const active = !hidden && state.screen === "tactics" && state.tacticsChapterId === "tactics-novel" && !els.tacticsNovelStage?.hidden;
-  if (!active) {
-    if (state.tacticsNovelFrame) cancelAnimationFrame(state.tacticsNovelFrame);
-    state.tacticsNovelFrame = 0;
-    if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
-      els.tacticsNovelCanvas.dataset.motionMode = hidden ? "hidden-paused" : "inactive";
-      els.tacticsNovelCanvas.dataset.frameOwner = "none";
-    }
-    return;
-  }
-  measureTacticsNovelLayout();
-  if (prefersReducedMotion()) {
-    if (state.tacticsNovelFrame) cancelAnimationFrame(state.tacticsNovelFrame);
-    state.tacticsNovelFrame = 0;
-    drawTacticsNovelFrame(performance.now());
-    if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
-      els.tacticsNovelCanvas.dataset.motionMode = "reduced-static";
-      els.tacticsNovelCanvas.dataset.frameOwner = "none";
-    }
-    return;
-  }
-  if (!state.tacticsNovelFrame) state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
-  if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
-    els.tacticsNovelCanvas.dataset.motionMode = "animated";
-    els.tacticsNovelCanvas.dataset.frameOwner = state.tacticsNovelFrame ? "scheduled" : "none";
-  }
-}
-
-function tacticsNovelMotionFrame(timeSeconds) {
-  return [0, 1, 2, 1][Math.floor(timeSeconds * 1.35) % 4];
-}
-
-function tacticsNovelCueEnvelope(elapsed, start, end, fade = 240) {
-  if (elapsed <= start - fade || elapsed >= end + fade) return 0;
-  if (elapsed < start) return clamp((elapsed - (start - fade)) / fade, 0, 1);
-  if (elapsed > end) return clamp(((end + fade) - elapsed) / fade, 0, 1);
-  return 1;
-}
-
-function tacticsNovelGestureActivity(elapsed, active, person) {
-  const offset = person === "sophia" ? 0 : 120;
-  const windows = active
-    ? [[520 + offset, 1_900 + offset], [4_180 + offset, 5_080 + offset]]
-    : [[2_520 + offset, 3_260 + offset]];
-  return Math.max(...windows.map(([start, end]) => tacticsNovelCueEnvelope(elapsed, start, end, 210)));
-}
-
-function drawTacticsNovelCharacter(ctx, person, gesture, x, baseY, height, active, timeSeconds, entrance, elapsed, containedFromTop = false) {
-  const gestureActivity = tacticsNovelGestureActivity(elapsed, active, person);
-  const displayedGesture = gestureActivity > 0.01 ? gesture : "rest";
-  const image = state.textures.tacticsNovelMotions?.[person]?.[displayedGesture];
-  const skin = person === "sophia" ? "blue-dress" : "white-hood";
-  const key = `physical-motion-${skin}-${displayedGesture}-novel-v466`;
-  const source = image ? transparentSpriteSource(image, key, 20) : null;
-  if (!source) return;
-  const frame = gestureActivity > 0.01
-    ? tacticsNovelMotionFrame(timeSeconds + (person === "sophia" ? 0 : 0.37))
-    : 1;
-  const normalizedFrame = containedFromTop ? normalizedSpriteFrame(source, key, 3, 1, 0, frame) : null;
-  if (containedFromTop && !normalizedFrame) return;
-  const sourceWidth = containedFromTop ? normalizedFrame.width : source.width / 3;
-  const sourceHeight = containedFromTop ? normalizedFrame.height : source.height;
-  const activeScale = active ? 1 + gestureActivity * 0.045 : 0.94 + gestureActivity * 0.018;
-  const drawHeight = height * activeScale;
-  const drawWidth = drawHeight * sourceWidth / sourceHeight;
-  const direction = person === "sophia" ? -1 : 1;
-  const slide = direction * (1 - entrance) * 54;
-  const bob = Math.sin(timeSeconds * 1.45 + (person === "sophia" ? 0 : 1.4)) * (0.45 + gestureActivity * (active ? 2.95 : 1.2));
-  ctx.save();
-  ctx.globalAlpha = (active ? 1 : 0.72) * (0.48 + entrance * 0.52);
-  ctx.filter = active ? "saturate(1.05) brightness(1.03)" : "saturate(0.78) brightness(0.82)";
-  ctx.translate(x + slide, baseY + bob);
-  if (containedFromTop) {
-    ctx.drawImage(normalizedFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
-  } else {
-    ctx.drawImage(source, frame * sourceWidth, 0, sourceWidth, sourceHeight, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
-  }
-  ctx.restore();
-}
-
-function drawTacticsNovelAmbientE(ctx, width, height, timeSeconds) {
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  for (let index = 0; index < 18; index += 1) {
-    const phase = (timeSeconds * (0.022 + index * 0.0007) + index * 0.071) % 1;
-    const x = ((index * 83) % 997) / 997 * width + Math.sin(timeSeconds * 0.6 + index) * 10;
-    const y = height * (0.78 - phase * 0.66);
-    const alpha = Math.sin(phase * Math.PI) * 0.28;
-    ctx.fillStyle = index % 3 === 0 ? `rgba(250,204,21,${alpha})` : `rgba(94,234,212,${alpha * 0.74})`;
-    ctx.fillRect(x, y, 2 + index % 2, 2 + index % 2);
-  }
-  ctx.restore();
-}
-
-function drawTacticsNovelMangaE(ctx, type, x, y, size, timeSeconds, phase, visibility) {
-  ctx.save();
-  ctx.globalAlpha = visibility;
-  ctx.globalCompositeOperation = "screen";
-  const pulse = 0.5 + Math.sin(timeSeconds * 4.2 + phase) * 0.5;
-  if (type === "sparkle") {
-    ctx.translate(x, y);
-    for (let index = 0; index < 5; index += 1) {
-      const angle = phase + index * Math.PI * 0.4;
-      const radius = size * (0.56 + pulse * 0.12);
-      ctx.fillStyle = `rgba(103,232,249,${0.14 + pulse * 0.2})`;
-      ctx.save();
-      ctx.translate(Math.cos(angle) * radius, Math.sin(angle) * radius);
-      ctx.rotate(angle + timeSeconds * 0.3);
-      ctx.fillRect(-2, -2, 4, 4);
-      ctx.restore();
-    }
-  } else if (type === "idea") {
-    for (let index = 0; index < 4; index += 1) {
-      const angle = -Math.PI * 0.82 + index * Math.PI * 0.55;
-      ctx.fillStyle = `rgba(250,204,21,${0.12 + pulse * 0.19})`;
-      ctx.beginPath();
-      ctx.arc(x + Math.cos(angle) * size * 0.58, y + Math.sin(angle) * size * 0.58, 2.2 + pulse * 1.4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (type === "cheer") {
-    ctx.strokeStyle = `rgba(94,234,212,${0.12 + pulse * 0.17})`;
-    ctx.lineWidth = Math.max(3, size * 0.045);
-    ctx.beginPath();
-    ctx.moveTo(x - size * 0.55, y + size * 0.5);
-    ctx.bezierCurveTo(x - size * 0.2, y + size * 0.2, x + size * 0.08, y - size * 0.1, x + size * 0.58, y - size * 0.48);
-    ctx.stroke();
-  } else if (type === "note") {
-    for (let index = 0; index < 4; index += 1) {
-      const rise = (timeSeconds * 0.18 + index * 0.23 + phase) % 1;
-      const px = x + (index - 1.5) * size * 0.24 + Math.sin(timeSeconds + index) * 4;
-      const py = y + size * 0.5 - rise * size;
-      const radius = 2.8 + index % 2;
-      ctx.fillStyle = `rgba(165,243,252,${Math.sin(rise * Math.PI) * 0.24})`;
-      ctx.beginPath();
-      for (let side = 0; side < 6; side += 1) {
-        const angle = side * Math.PI / 3;
-        const hx = px + Math.cos(angle) * radius;
-        const hy = py + Math.sin(angle) * radius;
-        if (side === 0) ctx.moveTo(hx, hy);
-        else ctx.lineTo(hx, hy);
-      }
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-
-function drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance, elapsed) {
-  const cueStarts = [980, 3_720, 5_380];
-  const cueDurations = [1_020, 900, 720];
-  const cueIndex = Math.min(index, cueStarts.length - 1);
-  const visibility = tacticsNovelCueEnvelope(elapsed, cueStarts[cueIndex], cueStarts[cueIndex] + cueDurations[cueIndex], 220);
-  if (visibility <= 0) return;
-  const image = state.textures.tacticsNovelMangaSymbols?.[symbol.type];
-  if (!image?.complete || !image.naturalWidth) return;
-  const ownerAnchor = anchors[symbol.owner] || anchors.sophia;
-  const secondaryOffset = symbol.secondary ? 78 : 0;
-  const x = ownerAnchor.x + (symbol.owner === "sophia" ? -ownerAnchor.size * 0.52 : ownerAnchor.size * 0.52) + secondaryOffset;
-  const y = ownerAnchor.y - ownerAnchor.size * (symbol.secondary ? 0.36 : 0.72);
-  const baseSize = clamp(ownerAnchor.size * (symbol.secondary ? 0.23 : 0.3), 58, 118);
-  const localTime = timeSeconds + index * 0.73;
-  const scale = entrance * (0.94 + Math.sin(localTime * 3.2) * 0.055);
-  const rotation = Math.sin(localTime * 1.8) * 0.08;
-  drawTacticsNovelMangaE(ctx, symbol.type, x, y, baseSize, timeSeconds, index * 0.67, visibility);
-  ctx.save();
-  ctx.globalAlpha = entrance * visibility;
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.scale(scale, scale);
-  ctx.drawImage(image, -baseSize / 2, -baseSize / 2, baseSize, baseSize);
-  ctx.restore();
-}
-
-function drawTacticsNovelFrame(timestamp) {
-  state.tacticsNovelFrame = 0;
-  if ((typeof document !== "undefined" && document.hidden) || state.screen !== "tactics" || state.tacticsChapterId !== "tactics-novel") return;
-  const reduced = prefersReducedMotion();
-  const canvas = els.tacticsNovelCanvas;
-  const rect = canvas.getBoundingClientRect();
-  if (rect.width < 2 || rect.height < 2) {
-    if (!reduced) state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
-    return;
-  }
-  const pixelRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-  const targetWidth = Math.round(rect.width * pixelRatio);
-  const targetHeight = Math.round(rect.height * pixelRatio);
-  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-  }
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-  ctx.clearRect(0, 0, rect.width, rect.height);
-  const scene = TACTICS_NOVEL_SCENES[state.tacticsNovelIndex];
-  const elapsed = reduced ? 1_200 : Math.max(0, timestamp - state.tacticsNovelSceneChangedAt);
-  const timeSeconds = reduced ? 0 : timestamp / 1000;
-  const entrance = reduced ? 1 : 1 - Math.pow(1 - clamp(elapsed / 520, 0, 1), 3);
-  drawTacticsNovelAmbientE(ctx, rect.width, rect.height, timeSeconds);
-  const layout = tacticsNovelCharacterLayout(rect);
-  const { compact, characterHeight, characterY, anchorY } = layout;
-  const contained = layout.mode === "contained-low-landscape";
-  const anchors = {
-    sophia: { x: rect.width * (compact ? 0.28 : 0.3), y: anchorY, size: characterHeight },
-    philia: { x: rect.width * (compact ? 0.72 : 0.7), y: anchorY, size: characterHeight }
-  };
-  drawTacticsNovelCharacter(ctx, "sophia", scene.sophiaGesture, anchors.sophia.x, characterY, characterHeight, scene.speaker === "sophia", timeSeconds, entrance, elapsed, contained);
-  drawTacticsNovelCharacter(ctx, "philia", scene.philiaGesture, anchors.philia.x, characterY, characterHeight, scene.speaker === "philia", timeSeconds, entrance, elapsed, contained);
-  if (typeof IS_VERIFICATION_MODE !== "undefined" && IS_VERIFICATION_MODE) {
-    canvas.dataset.characterLayout = layout.mode;
-    canvas.dataset.characterTop = Number(characterY).toFixed(2);
-    canvas.dataset.characterHeight = Number(characterHeight).toFixed(2);
-    canvas.dataset.dialogueOcclusionTop = Number(layout.occlusionTop).toFixed(2);
-  }
-  scene.symbols.forEach((symbol, index) => drawTacticsNovelMangaAte(ctx, symbol, index, anchors, timeSeconds, entrance, elapsed));
-  if (!reduced && state.tacticsNovelAuto && elapsed >= 7_000) {
-    if (state.tacticsNovelIndex >= TACTICS_NOVEL_SCENES.length - 1) setTacticsNovelAuto(false);
-    else setTacticsNovelScene(state.tacticsNovelIndex + 1);
-  }
-  if (!reduced) state.tacticsNovelFrame = requestAnimationFrame(drawTacticsNovelFrame);
-}
+function syncTacticsNovelVideoControl(message="") { const video=els.tacticsNovelVideo,playing=Boolean(video&&!video.paused&&!video.ended);if(els.tacticsNovelPlay){els.tacticsNovelPlay.textContent=playing?"一時停止":"動画を再生";els.tacticsNovelPlay.setAttribute("aria-pressed",String(playing));}if(els.tacticsNovelVideoStatus)els.tacticsNovelVideoStatus.textContent=message; }
+function keepTacticsNovelVideoSilent() { const video=els.tacticsNovelVideo;if(!video)return;if(!video.muted)video.muted=true;if(video.volume!==0)video.volume=0;if(typeof IS_VERIFICATION_MODE!=="undefined"&&IS_VERIFICATION_MODE)video.dataset.verifyMuted="true"; }
+function playTacticsNovelVideo() { const video=els.tacticsNovelVideo;if(!video)return;keepTacticsNovelVideoSilent();video.dataset.explicitPlay="true";const playback=video.play();if(playback?.catch)playback.catch(()=>syncTacticsNovelVideoControl("動画を読み込めませんでした。再生でもう一度試せます。")); }
+function pauseAndResetTacticsNovelVideo(message="") { const video=els.tacticsNovelVideo;if(!video)return;video.pause();try{video.currentTime=0;}catch{}delete video.dataset.explicitPlay;syncTacticsNovelVideoControl(message); }
+function syncTacticsNovelVideo() { const video=els.tacticsNovelVideo;if(!video)return;const active=!document.hidden&&state.screen==="tactics"&&state.tacticsChapterId==="tactics-novel"&&!els.tacticsNovelStage?.hidden;keepTacticsNovelVideoSilent();if(!active)pauseAndResetTacticsNovelVideo();else syncTacticsNovelVideoControl(prefersReducedMotion()?"動きを減らす設定中です。動画は再生ボタンから開始できます。":""); }
 
 function syncTacticsChapterFromScroll() {
   const top = els.tacticsContent.scrollTop + 36;
@@ -3500,7 +2975,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-grit": "evade",
   "action-stand": "evade",
   "action-dodge": "evade",
-  "action-rest": "rest",
   "action-teleport": "cast",
   "action-heart-teleport": "heart-transfer",
   "action-warp": "cast",
@@ -3889,6 +3363,9 @@ function moveVendingHold(event) {
 }
 
 function finishVendingHold(event) {
+  if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
+  // Do not purchase when the only travel sample arrives on pointerup.
+  moveVendingHold(event);
   if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
   const wasHeld = vendingHold.held;
   if (wasHeld || vendingHold.moved) {
@@ -6429,23 +5906,6 @@ function triggerScreenHotkey(event) {
     if (!event.repeat) switchScreenWithEffect("game");
     return true;
   }
-  if (state.screen === "tactics" && state.tacticsChapterId === "tactics-novel") {
-    const buttonFocused = document.activeElement?.matches?.("button");
-    const action = event.code === "ArrowLeft"
-      ? () => els.tacticsNovelPrev.click()
-      : event.code === "ArrowRight"
-        ? () => els.tacticsNovelNext.click()
-        : event.code === "Home"
-          ? () => els.tacticsNovelRestart.click()
-          : !buttonFocused && ["Space", "Enter"].includes(event.code)
-            ? () => els.tacticsNovelNext.click()
-          : null;
-    if (action) {
-      event.preventDefault();
-      if (!event.repeat) action();
-      return true;
-    }
-  }
   if (state.screen === "tactics" && /^Digit[1-7]$/.test(event.code)) {
     const button = els.soloMissionGrid.querySelector(`[data-solo-mission="${soloMissionIds[Number(event.code.slice(-1)) - 1]}"]`);
     if (!button) return false;
@@ -6790,7 +6250,6 @@ function bindEvents() {
     button.addEventListener("click", () => startSoloMission(button.dataset.soloMission));
   });
   els.fullscreenButton.addEventListener("click", toggleFullscreen);
-  els.canvasUiToggle.addEventListener("click", () => setCanvasUiOpen(!state.canvasUiOpen, { focus: true }));
   els.keybindButton.addEventListener("click", () => setKeybindOpen(!state.keybindOpen));
   els.tabletButton?.addEventListener("click", () => setTabletOpen(!state.tabletOpen));
   els.tabletBranchCloseButton.addEventListener("click", () => setTabletBranchGroup(""));
@@ -6958,7 +6417,8 @@ function bindEvents() {
     // deliberately makes the same horizontal flick available from anywhere in
     // that category UI.  This avoids a tiny, hard-to-hit-only gesture target.
     surface = strip,
-    threshold = 10,
+    // Match card hold cancellation: a 9px-plus release is travel, never tap.
+    threshold = 9,
     axisRatio = 1.2,
     onTravel = null,
     actionGate = null,
@@ -7528,11 +6988,6 @@ function bindEvents() {
         ? document.activeElement
         : null;
     if (editableTarget) return;
-    if (event.ctrlKey && !event.altKey && !event.metaKey && event.code === "KeyU" && state.screen === "game" && state.data?.phase === "playing") {
-      event.preventDefault();
-      if (!event.repeat) setCanvasUiOpen(!state.canvasUiOpen, { focus: true });
-      return;
-    }
     if (triggerDeveloperAnalyticsHotkey(event)) return;
     const typingField = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
     if (!typingField && state.enhanceHold.kind) {
@@ -7879,7 +7334,7 @@ function bindEvents() {
     finishAbilityBatchPointerHold(event, true);
   }, true);
   document.addEventListener("visibilitychange", () => {
-    syncTacticsNovelAnimation();
+    syncTacticsNovelVideo();
     if (document.hidden) {
       cancelActiveRootShortcutHolds();
       cancelActiveAbilityBatchHolds();
@@ -10891,7 +10346,7 @@ function resetLocalSession() {
   state.hackerDockRenderKey = "";
   state.hackerSelectedRecipeId = "";
   state.hackerSelectedByCategory = Object.create(null);
-  restoreVendingCanvasUi({ focus: false });
+  state.vendingReturnFocus = null;
   state.vendingOpen = false;
   state.vendingBulkPurchase = false;
   state.vendingBulkTransactions = Object.create(null);
@@ -10945,7 +10400,7 @@ function applyState(data, options = {}) {
     cancelEnhanceAction();
     cancelThrowTargeting(true);
     state.vendingOpen = false;
-    restoreVendingCanvasUi({ focus: false });
+    state.vendingReturnFocus = null;
     state.vendingBulkPurchase = false;
     state.vendingBulkTransactions = Object.create(null);
     els.vendingBulkPurchase.checked = false;
@@ -10987,6 +10442,7 @@ function applyState(data, options = {}) {
   detectGameSounds(state.data, data);
   detectAttackResult(state.data, data);
   detectLuminousResult(state.data, data);
+  detectMysteryBoxReveal(state.data, data);
   detectMysteryResult(state.data, data);
   detectWorldSounds(state.data, data);
   detectHitEffects(state.data, data);
@@ -11266,6 +10722,15 @@ function applyState(data, options = {}) {
             document.documentElement.setAttribute("data-v533-enemy-bot-killed", "false");
             document.documentElement.setAttribute("data-v561-enemy-bot-continuous-movement", "false");
           }
+          if (VERIFY_REAL_SCREEN_FIXTURE_KIND === "mystery-pickup-alive" || VERIFY_REAL_SCREEN_FIXTURE_KIND === "mystery-pickup-mystery-alive") {
+            const fixture = result.self?.mysteryPickupFixture;
+            if (fixture) {
+              document.documentElement.setAttribute("data-mystery-pickup-box", String(fixture.boxX) + "," + String(fixture.boxY));
+              document.documentElement.setAttribute("data-mystery-pickup-start", String(fixture.startX) + "," + String(fixture.startY));
+              document.documentElement.setAttribute("data-mystery-pickup-canvas-direction", String(fixture.canvasDx) + "," + String(fixture.canvasDy));
+              document.documentElement.setAttribute("data-mystery-pickup-box-id", String(fixture.boxId || ""));
+            }
+          }
           applyState(result, { authoritative: true });
         }
       });
@@ -11363,14 +10828,100 @@ function clearMysteryReveal() {
     clearTimeout(activeTimer);
     if (state.mysteryRevealTimer === activeTimer) state.mysteryRevealTimer = null;
   }
+  for (const timer of state.mysteryRevealStageTimers || []) clearTimeout(timer);
+  state.mysteryRevealStageTimers = [];
   els.mysteryReveal.hidden = true;
+  els.mysteryReveal.getAnimations?.().forEach((animation) => animation.cancel());
+  els.mysteryReveal.style.animation = "";
+  els.mysteryReveal.style.transform = "";
   els.mysteryRevealResult.textContent = "";
+  const title = els.mysteryReveal.querySelector("span");
+  if (title) title.textContent = "ミステリー獲得結果";
+  els.mysteryReveal.querySelector(".mystery-reveal-box-stage")?.remove();
+  document.documentElement.removeAttribute("data-mystery-reveal-phase");
+  document.documentElement.removeAttribute("data-mystery-reveal-phase-at");
+}
+
+function scheduleMysteryRevealStage(callback, delay, owner) {
+  const timer = setTimeout(() => {
+    state.mysteryRevealStageTimers = (state.mysteryRevealStageTimers || []).filter((entry) => entry !== timer);
+    if (state.mysteryRevealTimer === owner) callback();
+  }, delay);
+  state.mysteryRevealStageTimers.push(timer);
+}
+
+function showMysteryBoxReveal(reveal) {
+  const panel = els.mysteryReveal;
+  const title = panel.querySelector("span");
+  if (title) { title.textContent = "ミステリーボックスを開封"; title.style.color = "#276876"; }
+  panel.style.animation = "none";
+  panel.style.boxSizing = "border-box";
+  panel.style.maxWidth = "calc(100vw - 32px)";
+  panel.style.transform = "translateX(-50%)";
+  els.mysteryRevealResult.textContent = reveal.label || "獲得";
+  const stage = document.createElement("div");
+  stage.className = "mystery-reveal-box-stage";
+  const revealStartedAt = performance.now();
+  const setRevealQaPhase = (phase, elapsedMs) => {
+    stage.dataset.mysteryRevealPhase = phase;
+    stage.dataset.mysteryRevealElapsedMs = String(elapsedMs);
+    stage.dataset.mysteryRevealStartedAt = String(Math.round(revealStartedAt));
+    document.documentElement.setAttribute("data-mystery-reveal-phase", phase);
+    document.documentElement.setAttribute("data-mystery-reveal-phase-at", String(Math.round(revealStartedAt + elapsedMs)));
+  };
+  setRevealQaPhase("box", 0);
+  stage.setAttribute("aria-hidden", "true");
+  stage.style.cssText = "position:relative;display:grid;justify-items:center;min-height:116px;overflow:hidden";
+  const box = document.createElement("img");
+  box.alt = ""; box.decoding = "async"; box.src = state.textures?.mysteryBoxOpen?.src || assetUrl("assets/generated/mystery-box-open-v655.png");
+  box.style.cssText = "position:absolute;width:94px;height:94px;object-fit:contain;clip-path:inset(43% 6% 3% 6%);opacity:.18;transform:translateY(14px) scale(.72)";
+  const lid = document.createElement("img");
+  lid.alt = ""; lid.decoding = "async"; lid.src = box.src;
+  lid.style.cssText = "position:absolute;width:94px;height:94px;object-fit:contain;clip-path:polygon(20% 4%,98% 4%,98% 54%,20% 54%);transform-origin:45% 43%;opacity:.18;transform:translateY(14px) rotate(-39deg) scaleY(.38)";
+  const light = document.createElement("div");
+  light.style.cssText = "position:absolute;inset:4px 20%;background:radial-gradient(ellipse at 50% 78%,rgba(255,231,142,.62),rgba(125,211,252,.18) 38%,transparent 70%);opacity:0;filter:blur(5px)";
+  const reward = document.createElement("div");
+  reward.style.cssText = "position:absolute;left:50%;bottom:0;display:flex;align-items:center;gap:8px;max-width:calc(100% - 20px);min-width:0;padding:4px 8px;border-radius:10px;background:rgba(255,255,255,.96);opacity:0;transform:translateX(-50%) translateY(20px) scale(.82);font-weight:900";
+  reward.innerHTML = '<span class="vending-item-icon" style="width:34px;height:34px;display:inline-block"></span><span style="display:grid;text-align:left;color:#14323d"><strong style="color:#14323d"></strong><small style="color:#29545e"></small></span>';
+  reward.querySelector("strong").textContent = reveal.label || "獲得";
+  reward.querySelector("small").textContent = reveal.detail || (reveal.rewardKind === "ability" ? "ショップ能力を解放" : "ショップ商品を獲得");
+  applyGeneratedItemTexture(reward, reveal.asset || reveal.rewardId);
+  stage.append(light, box, lid, reward); panel.append(stage); panel.hidden = false;
+  panel.animate([{ opacity: 0, transform: "translate(-50%, -16px) scale(.96)" }, { opacity: 1, transform: "translate(-50%, 0) scale(1)" }], { duration: 260, fill: "forwards", easing: "ease-out" });
+  const owner = state.mysteryRevealTimer;
+  scheduleMysteryRevealStage(() => {
+    box.animate([{ opacity: .18, transform: "translateY(14px) scale(.72)" }, { opacity: 1, transform: "translateY(0) scale(1)" }], { duration: 560, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" });
+    lid.animate([{ opacity: .18, transform: "translateY(14px) rotate(-39deg) scaleY(.38)" }, { opacity: 1, transform: "translateY(0) rotate(0) scaleY(1)" }], { duration: 560, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" });
+  }, 0, owner);
+  scheduleMysteryRevealStage(() => { setRevealQaPhase("spill", 460); light.animate([{ opacity: 0, transform: "scale(.55)" }, { opacity: 1, transform: "scale(1.12)" }, { opacity: .42, transform: "scale(.94)" }], { duration: 820, fill: "forwards", easing: "ease-out" }); }, 460, owner);
+  scheduleMysteryRevealStage(() => { setRevealQaPhase("reward", 980); reward.animate([{ opacity: 0, transform: "translateX(-50%) translateY(20px) scale(.82)" }, { opacity: 1, transform: "translateX(-50%) translateY(0) scale(1)" }], { duration: 520, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" }); }, 980, owner);
+}
+
+function detectMysteryBoxReveal(previous, next) {
+  const reveal = next?.self?.lastMysteryReveal;
+  if (!previous || !reveal || reveal.at <= Number(previous.self?.lastMysteryReveal?.at || 0)) return;
+  clearMysteryReveal();
+  const owner = setTimeout(() => { if (state.mysteryRevealTimer === owner) { state.mysteryRevealTimer = null; clearMysteryReveal(); } }, 6000);
+  state.mysteryRevealTimer = owner;
+  showToast("ミステリーボックス: " + reveal.label);
+  showMysteryBoxReveal(reveal);
+}
+
+function nestedMysteryResultBelongsToBox(next) {
+  const reveal = next?.self?.lastMysteryReveal;
+  return reveal?.rewardId === "mystery" &&
+    Number(reveal.nestedMysteryResultAt) > 0 &&
+    Number(reveal.nestedMysteryResultAt) === Number(next?.self?.lastMysteryResultAt);
 }
 
 function detectMysteryResult(previous, next) {
   if (!previous || !next.self.lastMysteryResultAt || next.self.lastMysteryResultAt <= (previous.self.lastMysteryResultAt || 0)) return;
+  if (nestedMysteryResultBelongsToBox(next)) {
+    document.documentElement.setAttribute("data-mystery-reveal-nested-result", "merged");
+    return;
+  }
   const result = next.self.lastMysteryResult || "効果なし";
-  showToast(`ミステリー: ${result}`);
+  showToast("ミステリー: " + result);
   els.mysteryRevealResult.textContent = result;
   els.mysteryReveal.hidden = false;
   clearTimeout(state.mysteryRevealTimer);
@@ -11532,6 +11083,7 @@ function magicEffectDuration(type) {
   if (type === "action-heart-teleport") return 1800;
   if (type === "idea-ascension") return 5200;
   if (type === "mystery-reveal") return 2200;
+  if (type === "mystery-box") return 2600;
   if (type === "fire") return 1500;
   if (type === "emp-resonance" || type === "emp-cancel") return 1600;
   if (type === "emp-storage-lock") return 7000;
@@ -12187,7 +11739,6 @@ function render() {
     setSelectedScrollRegion(null, { focus: false });
   }
   const offlineContext = state.offlineMode || (!data && !state.onlineAvailable);
-  setCanvasUiOpen(state.canvasUiOpen);
   updateSensoryOverlay(data);
   syncAccessibleGameStatus(data);
   els.soloMissionHud.hidden = !data?.soloMission;
@@ -12322,14 +11873,12 @@ function renderOperatorSelect(data) {
     button.dataset.operatorId = operator.id;
     button.dataset.selectable = selectable ? "1" : "0";
     if (operatorIndex < 9) button.dataset.hotkey = String(operatorIndex + 1);
-    const inlineDescription = String(operator.description || "");
     button.setAttribute("aria-disabled", String(!selectable));
-    button.setAttribute("aria-label", `${operator.name}。${inlineDescription}${inlineDescription ? "。" : ""}長押しで詳細`);
+    button.setAttribute("aria-label", `${operator.name}。長押しで説明`);
     button.innerHTML = `
       ${operator.asset ? `<span class="operator-visual operator-visual-${escapeHtml(operator.asset)}" aria-hidden="true"></span>` : ""}
       <span class="operator-meta">
         <span class="name-line">${escapeHtml(operator.name)}</span>
-        <span class="operator-description">${escapeHtml(inlineDescription)}</span>
       </span>
       <span class="badge">${operator.taken} / ${operator.limit >= 99 ? "∞" : operator.limit}</span>
     `;
@@ -12395,10 +11944,6 @@ function showOperatorDetail(operator, sourceButton, options = {}) {
   }
 }
 
-function isDetailKeyboardShortcut(event) {
-  return !event.repeat && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"));
-}
-
 function bindOperatorDetailHold(button, operator) {
   const clickGate = createInventoryClickGate();
   let pointerId = null;
@@ -12419,17 +11964,6 @@ function bindOperatorDetailHold(button, operator) {
     event.stopPropagation();
     clearSelection();
   };
-  button.setAttribute("aria-keyshortcuts", "Shift+F10 ContextMenu");
-  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10。Escapeで閉じる");
-  button.addEventListener("keydown", (event) => {
-    if (!isDetailKeyboardShortcut(event)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    showOperatorDetail(operator, button, { autoClose: false });
-  });
-  button.addEventListener("blur", () => {
-    if (state.operatorDetailSource === button && !state.operatorDetailTimer) hideOperatorDetail();
-  });
   for (const type of ["contextmenu", "selectstart", "dragstart", "copy"]) button.addEventListener(type, suppressNative);
   button.addEventListener("pointerdown", (event) => {
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
@@ -12445,7 +11979,7 @@ function bindOperatorDetailHold(button, operator) {
   });
   button.addEventListener("pointerup", (event) => {
     if (pointerId !== event.pointerId) return;
-    const result = gesture.end(pointerId);
+    const result = gesture.end(pointerId, event.clientX, event.clientY);
     if (result !== "tap") {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -13355,8 +12889,14 @@ function createInventoryTouchGesture({
       }
       return moved;
     },
-    end(id) {
+    end(id, clientX = originX, clientY = originY) {
       if (touchId !== id) return "ignored";
+      // A compact flick can have no delivered pointermove before release.
+      // Classify its final coordinate with the same tolerance as move().
+      if (!moved && Math.hypot(clientX - originX, clientY - originY) > moveTolerance) {
+        moved = true;
+        clearTimer();
+      }
       const result = held ? "hold" : moved ? "scroll" : "tap";
       clearTimer();
       onClearSelection();
@@ -13508,7 +13048,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   });
   button.addEventListener("pointerup", (event) => {
     if (activePointerId !== event.pointerId) return;
-    const result = pointerGesture.end(event.pointerId);
+    const result = pointerGesture.end(event.pointerId, event.clientX, event.clientY);
     if (result !== "tap") {
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -14374,15 +13914,7 @@ function setVendingOpen(open, { focus = true, opener = null } = {}) {
     !data.self.inVent
   );
   const nextOpen = Boolean(open && available);
-  if (nextOpen && !wasOpen) {
-    state.vendingReturnFocus = opener || document.activeElement || null;
-    if (!state.canvasUiOpen) {
-      state.vendingCanvasUiRestore = true;
-      setCanvasUiOpen(true);
-    } else {
-      state.vendingCanvasUiRestore = false;
-    }
-  }
+  if (nextOpen && !wasOpen) state.vendingReturnFocus = opener || document.activeElement || null;
   state.vendingOpen = nextOpen;
   state.vendingRenderKey = "";
   if (!state.vendingOpen) {
@@ -14401,7 +13933,7 @@ function setVendingOpen(open, { focus = true, opener = null } = {}) {
     if (!wasOpen) triggerShopActivationPresentation(data);
     requestAnimationFrame(() => setSelectedScrollRegion(els.vendingPanel, { focus }));
   } else if (wasOpen) {
-    restoreVendingCanvasUi({ focus, opener });
+    restoreVendingFocus({ focus, opener });
   }
 }
 
@@ -14474,7 +14006,7 @@ function renderVending(data) {
   const available = Boolean(data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent);
   if (!available) {
     state.vendingOpen = false;
-    restoreVendingCanvasUi({ focus: false });
+    state.vendingReturnFocus = null;
     stopVendingHold({ suppressClick: true });
     stopVendingKeyHold();
   }
@@ -18137,6 +17669,7 @@ function drawMagicEffects() {
       }
       continue;
     }
+    if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
     if (drawTacticalSystemsEffect(effect, progress)) continue;
@@ -18324,7 +17857,7 @@ function drawThrowLandingPreview(data) {
 
 function drawClairvoyanceAte(landing, time) {
   // Shared view activation only; targeting and movement remain unchanged.
-  drawCommonActionSimpleIcon({ type: "action-clairvoyance", x: landing.x, y: landing.y - 4, radius: 118 }, 0.24);
+  drawCommonActionSimpleIcon({ type: "action-clairvoyance", x: landing.x, y: landing.y - 4, radius: 118 }, 0.24, time);
 }
 
 function drawStandaloneClairvoyanceAte(data) {
@@ -18622,6 +18155,9 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
 
 
 function drawGeneratedStandaloneEffect(effect, progress) {
+  // Hover Sprint already has the owner-following persistent levitation marker.
+  // Consuming its coordinate snapshot here prevents a duplicate icon trail.
+  if (effect?.type === "hover-sprint-active") return true;
   if (drawCommonActionSimpleIcon(effect, progress)) return true;
   if (effect?.type === "fighter-energy-charge") {
     recordVerificationMarkerRender(effect, "ordinary-ec", state.frameNow || performance.now());
@@ -19135,6 +18671,71 @@ const ALCHEMY_VARIANT_CELLS = {
   reason: 11
 };
 
+function drawMysteryBoxRevealEffect(effect, progress, now) {
+  const prepared = transparentSpriteSource(state.textures?.mysteryBoxOpen, "mystery-box-open", 14);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "mystery-box-open", 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  const closedPrepared = transparentSpriteSource(state.textures?.mysteryBox, "mystery-box-closed", 14);
+  const closedSprite = closedPrepared ? normalizedSpriteFrame(closedPrepared, "mystery-box-closed", 1, 1, 0, 0) : null;
+  const opening = objectEffectEase(clamp(progress / 0.34, 0, 1));
+  const emerging = objectEffectEase(clamp((progress - 0.34) / 0.42, 0, 1));
+  const boxSize = animatedTextureSize(sprite, 146, 146);
+  const left = effect.x - boxSize.width / 2;
+  const top = effect.y - 22 - emerging * 12 - boxSize.height / 2;
+  // The authored open sprite has a clearly separate back lid: normalized x=.20-.98,
+  // y=.04-.54 and a left-lower hinge at (.45,.43).  We crop that exact pixel region
+  // and rotate it around its actual hinge; this is never a closed/open cross-fade.
+  const lid = Object.freeze({ x: 0.20, y: 0.04, width: 0.78, height: 0.50, hingeX: 0.45, hingeY: 0.43 });
+  const body = Object.freeze({ x: 0.06, y: 0.43, width: 0.88, height: 0.54 });
+  const drawCrop = (region) => ctx.drawImage(sprite,
+    sprite.width * region.x, sprite.height * region.y, sprite.width * region.width, sprite.height * region.height,
+    left + boxSize.width * region.x, top + boxSize.height * region.y, boxSize.width * region.width, boxSize.height * region.height);
+  ctx.save();
+  if (opening < 0.15 && closedSprite) {
+    // A brief closed starting pose establishes the before-state.  The following pose
+    // is assembled from the real opened asset's body and independently moving lid.
+    drawAnimatedTextureCentered(closedSprite, effect.x, effect.y - 22, 126, 126, { mode: "shimmer", time: now / 1000, progress, phase: 0.34, intensity: 0.56, baseAlpha: 0.08 });
+  } else if (opening < 0.98) {
+    ctx.globalAlpha = 0.98;
+    drawCrop(body);
+    const hingeX = left + boxSize.width * lid.hingeX;
+    const hingeY = top + boxSize.height * lid.hingeY;
+    ctx.save();
+    ctx.translate(hingeX, hingeY);
+    ctx.rotate(-0.68 * (1 - opening));
+    ctx.scale(1, 0.38 + opening * 0.62);
+    ctx.translate(-hingeX, -hingeY);
+    drawCrop(lid);
+    ctx.restore();
+  } else {
+    ctx.globalAlpha = 0.98;
+    ctx.drawImage(sprite, left, top, boxSize.width, boxSize.height);
+  }
+  // E begins as a short, broad spill anchored at the real opening. It is not a box-wide shadow or halo.
+  ctx.globalCompositeOperation = "lighter";
+  const spillPhase = clamp((progress - 0.2) / 0.48, 0, 1);
+  if (spillPhase > 0 && spillPhase < 1) {
+    const spillStrength = Math.sin(spillPhase * Math.PI) * 0.24;
+    const spill = ctx.createRadialGradient(effect.x, effect.y - 34, 8, effect.x, effect.y - 54, 76);
+    spill.addColorStop(0, "rgba(255, 231, 142, 0.74)");
+    spill.addColorStop(0.46, "rgba(186, 230, 253, 0.2)");
+    spill.addColorStop(1, "rgba(186, 230, 253, 0)");
+    ctx.globalAlpha = spillStrength;
+    ctx.fillStyle = spill;
+    ctx.fillRect(effect.x - 78, effect.y - 122, 156, 104);
+  }
+  // Only four detached motes follow the spill. The raster owns lid, ribbon and bow.
+  for (let index = 0; index < 4; index += 1) {
+    const phase = clamp((progress - 0.22 - index * 0.045) / 0.58, 0, 1);
+    if (!phase || phase >= 1) continue;
+    const size = 6 + (1 - phase) * 8;
+    ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.34;
+    ctx.fillStyle = index % 2 ? "#fde68a" : "#bae6fd";
+    ctx.fillRect(effect.x + (index - 1.5) * 16 - size / 2, effect.y - 26 - phase * 64, size, size);
+  }
+  ctx.restore();
+}
+
 function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
   const sprite = transparentSpriteSource(
     state.textures.philosophyEffectTextures?.[index],
@@ -19264,6 +18865,20 @@ function drawShopActivationEffect(effect, progress, now) {
 const COMMON_ACTION_SIMPLE_GLYPHS = Object.freeze({
   "action-task": "task", "action-grit": "shield", "action-stand": "shield", "action-dodge": "dodge", "action-rest": "rest", "action-warp": "warp", "action-sabotage": "sabotage", "action-repair": "repair", "action-vent": "vent", "action-vending": "shop", "action-renki": "renki", "action-reason": "reason", "action-push": "push", "action-smartphone": "phone", "action-smartphone-repair": "phone", "action-clairvoyance": "eye", fire: "fire", "hover-sprint-active": "hover", emp: "emp", "emp-charge": "emp", "emp-storage-lock": "emp"
 });
+
+// The withdrawn "all common actions" category is intentionally not used here.
+// Only the fixed-meaning activations exposed in #tabletQuickActions receive
+// this compact ATE profile. Shop keeps its dedicated owner. Operator abilities,
+// Ninjutsu, dynamic Context, hidden firearm/Fire shortcuts, automatic rest and
+// Hover Sprint retain their existing owners.
+const SHORTCUT_ACTION_COMPACT_ATE_PROFILES = Object.freeze({
+  "action-renki": Object.freeze({ texture: "philosophy", index: 0, motion: "flow-up", family: "renki-buoyant-focus", phase: 0.31, tempo: 0.58, maxSize: 88, travelX: 0, travelY: -11, oscillateX: 0.7, oscillateY: 2.3, rotation: 0.018, scaleX: 0.92, scaleY: 1.04 }),
+  "action-smartphone": Object.freeze({ texture: "tactical", index: 1, motion: "orbit", family: "donation-orbiting-transfer", phase: 0.44, tempo: 0.82, maxSize: 78, travelX: 4, travelY: -6, oscillateX: 1.7, oscillateY: 1.2, rotation: 0.045, scaleX: 0.92, scaleY: 1.04 }),
+  "action-clairvoyance": Object.freeze({ texture: "clairvoyance", index: 0, motion: "clairvoyance", family: "clairvoyance-horizon-scan", phase: 0.73, tempo: 0.64, maxSize: 92, travelX: 5, travelY: -4, oscillateX: 2.1, oscillateY: 0.5, rotation: 0.025, scaleX: 1.08, scaleY: 0.9 }),
+  emp: Object.freeze({ texture: "philosophy", index: 11, motion: "resonance", family: "emp-expanding-interference", phase: 0.12, tempo: 1.08, maxSize: 104, travelX: 0, travelY: -3, oscillateX: 1.3, oscillateY: 1.3, rotation: 0.055, scaleX: 1, scaleY: 1 }),
+  "emp-charge": Object.freeze({ texture: "philosophy", index: 11, motion: "flow-up", family: "emp-charge-convergence", phase: 0.36, tempo: 0.76, maxSize: 96, travelX: 0, travelY: -9, oscillateX: 0.8, oscillateY: 2.4, rotation: -0.035, scaleX: 0.92, scaleY: 1.02 }),
+  "emp-storage-lock": Object.freeze({ texture: "philosophy", index: 11, motion: "glitch", family: "emp-storage-discontinuous-lock", phase: 0.61, tempo: 1.72, maxSize: 96, travelX: -4, travelY: 0, oscillateX: 3.2, oscillateY: 0.9, rotation: 0, scaleX: 1.04, scaleY: 0.9 })
+});
 const COMMON_ACTION_SIMPLE_ITEM_IDS = new Set(["orichalcum-sword", "mercury", "lead", "uranium", "plutonium", "seawater", "mineral-water", "antidote", "molotov", "ice", "heated-water"]);
 const COMMON_ACTION_SIMPLE_ITEM_ALIASES = Object.freeze({"quantum-mercury": "mercury", "quantum-lead": "lead", "quantum-uranium": "uranium", "quantum-plutonium": "plutonium", "quantum-ice": "ice", "quantum-heated-water": "heated-water"});
 function commonActionItemId(variant) { const raw = String(variant || "").replace(/^(?:flight|impact):/, ""); return COMMON_ACTION_SIMPLE_ITEM_ALIASES[raw] || raw; }
@@ -19287,6 +18902,30 @@ function commonActionSimpleIconSprite(effect) {
   return Number.isInteger(cell) && prepared ? normalizedSpriteFrame(prepared, "common-action-firearm-" + weaponId, 4, 1, 0, cell) : null;
 }
 function commonActionSimpleGlyph(effect) { return COMMON_ACTION_SIMPLE_GLYPHS[String(effect?.type || "")] || ""; }
+function shortcutActionCompactAteSprite(effect, profile = SHORTCUT_ACTION_COMPACT_ATE_PROFILES[String(effect?.type || "")]) {
+  if (!profile) return null;
+  let source = null;
+  let columns = 1;
+  let rows = 1;
+  let row = 0;
+  let column = 0;
+  if (profile.texture === "action") {
+    source = state.textures?.actionEffectTextures?.[profile.index];
+  } else if (profile.texture === "philosophy") {
+    source = state.textures?.philosophyEffectTextures?.[profile.index];
+  } else if (profile.texture === "tactical") {
+    source = state.textures?.tacticalSystemsAtlas;
+    columns = 3;
+    rows = 3;
+    row = Math.floor(profile.index / columns);
+    column = profile.index % columns;
+  } else if (profile.texture === "clairvoyance") {
+    source = state.textures?.clairvoyanceThrowAte;
+  }
+  const key = "shortcut-action-ate-" + String(effect?.type || "") + "-" + profile.texture + "-" + profile.index;
+  const prepared = transparentSpriteSource(source, key, 12);
+  return prepared ? normalizedSpriteFrame(prepared, key, columns, rows, row, column) : null;
+}
 function drawCommonActionGlyph(kind, size) {
   const half = size / 2; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(2, size * 0.075); ctx.strokeStyle = "#e6fbff"; ctx.fillStyle = "#126579";
   if (kind === "task") { ctx.strokeRect(-half*.55,-half*.68,half*1.1,half*1.36); [-.28,.08,.44].forEach((y)=>{ctx.beginPath();ctx.moveTo(-half*.3,half*y);ctx.lineTo(-half*.12,half*(y+.14));ctx.lineTo(half*.33,half*(y-.18));ctx.stroke();});
@@ -19306,13 +18945,83 @@ function drawCommonActionGlyph(kind, size) {
   } else if (kind === "fire") { ctx.beginPath();ctx.moveTo(0,-half*.72);ctx.bezierCurveTo(half*.56,-half*.18,half*.42,half*.58,0,half*.7);ctx.bezierCurveTo(-half*.52,half*.42,-half*.5,-half*.04,-half*.1,-half*.4);ctx.quadraticCurveTo(0,-half*.55,0,-half*.72);ctx.fill();ctx.stroke();
   } else if (kind === "emp") { ctx.strokeRect(-half*.68,-half*.42,half*1.36,half*.84);ctx.fillStyle="#e6fbff";ctx.font="800 "+Math.max(10,half*.48)+"px Segoe UI, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("EMP",0,0); }
 }
-function drawCommonActionSimpleIcon(effect, progress) {
-  const sprite=commonActionSimpleIconSprite(effect), glyph=commonActionSimpleGlyph(effect); if(!sprite&&!glyph)return false;
-  const type=String(effect.type||""), flight=type==="action-item-throw"&&String(effect.variant||"").startsWith("flight:"), travel=flight?clamp(progress,0,1):0;
-  const targetX=Number.isFinite(effect.targetX)?effect.targetX:effect.x, targetY=Number.isFinite(effect.targetY)?effect.targetY:effect.y;
-  const x=flight?effect.x+(targetX-effect.x)*travel:effect.x, y=flight?effect.y+(targetY-effect.y)*travel:effect.y, radius=Math.max(0,Number(effect.radius)||0);
-  const iconSize=clamp(radius*.58||58,48,type.startsWith("emp")?156:92), fade=1-objectEffectEase(clamp((progress-.72)/.28,0,1));
-  ctx.save();ctx.globalCompositeOperation="source-over";ctx.globalAlpha=Math.max(.18,fade);if(sprite)drawNormalizedSpriteCentered(sprite,x,y-iconSize*.12,iconSize,iconSize);else{ctx.translate(x,y-iconSize*.12);drawCommonActionGlyph(glyph,iconSize);}ctx.restore();return true;
+function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || performance.now()) / 1000) {
+  const type = String(effect?.type || "");
+  const shortcutProfile = SHORTCUT_ACTION_COMPACT_ATE_PROFILES[type];
+  if (shortcutProfile) {
+    const shortcutSprite = shortcutActionCompactAteSprite(effect, shortcutProfile);
+    if (!shortcutSprite) return false;
+    const normalizedProgress = clamp(progress, 0, 1);
+    const reveal = objectEffectEase(clamp(normalizedProgress / 0.2, 0, 1));
+    const fade = 1 - objectEffectEase(clamp((normalizedProgress - 0.72) / 0.28, 0, 1));
+    const impulse = Math.sin(normalizedProgress * Math.PI);
+    const sampledTime = Math.floor((Number(time) || 0) * 60) / 60;
+    const wave = Math.sin((sampledTime * shortcutProfile.tempo + shortcutProfile.phase) * Math.PI * 2);
+    const motionWave = shortcutProfile.motion === "glitch" ? Math.round(wave * 2) / 2 : wave;
+    const radius = Math.max(0, Number(effect?.radius) || 0);
+    const iconSize = clamp(radius * 0.58 || 58, 48, shortcutProfile.maxSize);
+    const anchorX = Number(effect?.x) || 0;
+    const anchorY = (Number(effect?.y) || 0) - iconSize * 0.12;
+    const entranceScale = 0.78 + reveal * 0.22;
+    // EMP can create one storage-lock marker per affected player, including
+    // several markers at the same reflected owner. Source-over preserves every
+    // draw without additive white saturation; its lower intensity keeps the
+    // semantic glow and complementary E readable when four or eight overlap.
+    const empOverlapSafe = type === "emp" || type === "emp-charge" || type === "emp-storage-lock";
+    ctx.save();
+    ctx.translate(
+      anchorX + shortcutProfile.travelX * impulse + shortcutProfile.oscillateX * motionWave,
+      anchorY + shortcutProfile.travelY * impulse + shortcutProfile.oscillateY * motionWave
+    );
+    ctx.rotate(shortcutProfile.rotation * impulse);
+    ctx.scale(shortcutProfile.scaleX * entranceScale, shortcutProfile.scaleY * entranceScale);
+    ctx.globalCompositeOperation = empOverlapSafe ? "source-over" : "lighter";
+    ctx.globalAlpha = Math.max(0.08, reveal * fade);
+    drawAnimatedTextureCentered(shortcutSprite, 0, 0, iconSize, iconSize, {
+      mode: shortcutProfile.motion,
+      time: sampledTime,
+      progress: normalizedProgress,
+      phase: shortcutProfile.phase,
+      intensity: empOverlapSafe ? 0.4 : 0.86,
+      baseAlpha: empOverlapSafe ? (type === "emp-storage-lock" ? 0.12 : 0.14) : 0.17,
+      opacityBoost: empOverlapSafe ? 1 : 2.35,
+      visibilityProfile: empOverlapSafe ? "ambient" : "effect"
+    });
+    if (empOverlapSafe) {
+      // Ambient raster presentation deliberately omits the shared bright
+      // shard cloud. Add one compact, subtype-specific E cue per event.
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha *= 0.2;
+      ctx.strokeStyle = type === "emp" ? "#67e8f9" : type === "emp-charge" ? "#93c5fd" : "#c4b5fd";
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.lineWidth = Math.max(1, iconSize * 0.012);
+      if (type === "emp") {
+        const arcStart = sampledTime * 0.7 + shortcutProfile.phase;
+        ctx.beginPath();
+        ctx.arc(0, 0, iconSize * (0.34 + motionWave * 0.012), arcStart, arcStart + Math.PI * 1.35);
+        ctx.stroke();
+      } else if (type === "emp-charge") {
+        for (let index = 0; index < 3; index += 1) {
+          const lift = ((sampledTime * 0.32 + normalizedProgress * 0.28 + index / 3) % 1 + 1) % 1;
+          const mote = Math.max(1, iconSize * 0.022);
+          ctx.fillRect((index - 1) * iconSize * 0.15 - mote / 2, iconSize * (0.22 - lift * 0.48), mote, mote * 1.8);
+        }
+      } else {
+        for (let index = 0; index < 3; index += 1) {
+          const y = (index - 1) * iconSize * 0.16;
+          const offset = ((index % 2 ? -1 : 1) * motionWave) * iconSize * 0.018;
+          ctx.fillRect(-iconSize * 0.27 + offset, y, iconSize * (0.12 + index * 0.025), Math.max(1, iconSize * 0.018));
+        }
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+    return true;
+  }
+  // Returning false is deliberate: actions outside the current shortcut set
+  // continue through drawActionEffect to their existing authored ATE owners.
+  return false;
 }
 
 function drawActionEffect(effect, progress, now) {
@@ -19321,9 +19030,9 @@ function drawActionEffect(effect, progress, now) {
   // either state creates an unrelated line-like overlay.
   if (["action-weapon-switch", "action-reload"].includes(effect.type)) return;
   if (effect.type === "action-shop-open" && drawShopActivationEffect(effect, progress, now)) return;
-  // Shared actions use one stable semantic raster. Ninjutsu and exclusive
-  // operator effects do not enter this map and retain their authored ATE.
-  if (drawCommonActionSimpleIcon(effect, progress)) return;
+  // Only fixed-meaning #tabletQuickActions activations enter the compact ATE
+  // map. Every other action continues to its existing authored renderer below.
+  if (drawCommonActionSimpleIcon(effect, progress, now / 1000)) return;
   if (effect.type === "action-shoot" && drawGunnerActionEffect(effect, progress)) return;
   if (["action-fighter-dodge-counter", "fighter-slash", "fighter-slash-parry"].includes(effect.type) && drawFighterDodgeCounterEffect(effect, progress)) return;
   if (effect.type === "action-heart-teleport" && drawHeartTeleportEffect(effect, progress)) return;
@@ -20609,7 +20318,6 @@ function displayedEnhanceCharge(player, data = state.data) {
 
 function currentCharacterAction(player) {
   const timestamp = state.frameNow || performance.now();
-  if (player.movementMode === "sleep") return { kind: "rest", progress: loopedPhysicalMotionProgress(player, "rest", 1600, "action-rest"), motionId: "action-rest" };
   if (player.id === state.data?.selfId && state.throwTargeting.active) {
     // Hold the authored wind-up pose while the landing point is being placed.
     // The release animation is emitted independently by /api/item-throw.
@@ -20924,8 +20632,18 @@ const NATURAL_RECOVERY_MARKER_GLOW = Object.freeze({
   opacityBoost: 3.2
 });
 
-function naturalRecoveryMarkerGlow() {
-  return NATURAL_RECOVERY_MARKER_GLOW;
+// Rest increases Natural Recovery itself. Keep that state legible at the same
+// marker, using its authored raster and anchor rather than a second ATE.
+const RESTING_NATURAL_RECOVERY_MARKER_GLOW = Object.freeze({
+  intensity: 1.1,
+  baseAlpha: 0.19,
+  opacityBoost: 3.45
+});
+
+function naturalRecoveryMarkerGlow(activeState, player) {
+  return activeState?.naturalRecovery && player?.resting
+    ? RESTING_NATURAL_RECOVERY_MARKER_GLOW
+    : NATURAL_RECOVERY_MARKER_GLOW;
 }
 
 function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState) {
@@ -21005,7 +20723,7 @@ function drawPersistentStatusAteLayers(player, data) {
     const profile = PERSISTENT_STATUS_ATE_PROFILES[category];
     if (!profile) continue;
     const naturalRecoveryGlow = category === "naturalRecovery"
-      ? naturalRecoveryMarkerGlow(activeState)
+      ? naturalRecoveryMarkerGlow(activeState, player)
       : null;
     const source = state.textures[profile.texture];
     const prepared = transparentSpriteSource(source, `persistent-status-${category}`, 18);
@@ -22900,7 +22618,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v653";
+const version = "ui-visual-elevation-v654";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23056,6 +22774,7 @@ const version = "ui-visual-elevation-v653";
   const transferOutEffect = new Image();
   const transferInEffect = new Image();
   const mysteryBox = new Image();
+  const mysteryBoxOpen = new Image();
   const sabotageRepairMarker = new Image();
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
@@ -23107,15 +22826,6 @@ const version = "ui-visual-elevation-v653";
   const tacticsStoryboard = new Image();
   const tacticsPlayerHood = new Image();
   const tacticsPlayerBlue = new Image();
-  const tacticsNovelMangaSymbols = Object.fromEntries(["sparkle", "idea", "cheer", "note"].map((type) => [
-    type,
-    eagerImage(`assets/generated/tactics-manga-${type}-v466.png`)
-  ]));
-  const tacticsNovelMotionKinds = ["interact", "rest", "focus", "power", "throw", "cast", "heal"];
-  const tacticsNovelMotions = {
-    sophia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-blue-dress-${kind}-v483.png`)])),
-    philia: Object.fromEntries(tacticsNovelMotionKinds.map((kind) => [kind, eagerImage(`assets/generated/physical-motion-white-hood-${kind}-v483.png`)]))
-  };
   defer(operators, "assets/operators.webp");
   defer(operatorsWalk, "assets/operators-walk.webp");
   defer(playerMaster, "assets/player-master-b.webp");
@@ -23186,6 +22896,7 @@ const version = "ui-visual-elevation-v653";
   defer(transferOutEffect, "assets/generated/effect-transfer-out.webp");
   defer(transferInEffect, "assets/generated/effect-transfer-in.webp");
   defer(mysteryBox, "assets/generated/mystery-box-christmas-v650.png");
+  defer(mysteryBoxOpen, "assets/generated/mystery-box-open-v655.png");
   defer(sabotageRepairMarker, "assets/generated/sabotage-repair-map-marker.webp");
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
@@ -23319,6 +23030,7 @@ const version = "ui-visual-elevation-v653";
     transferOutEffect,
     transferInEffect,
     mysteryBox,
+    mysteryBoxOpen,
     sabotageRepairMarker,
     smartphoneRepairIcon,
     throwLandingPreview,
@@ -23332,8 +23044,6 @@ const version = "ui-visual-elevation-v653";
     tacticsStoryboard,
     tacticsPlayerHood,
     tacticsPlayerBlue,
-    tacticsNovelMangaSymbols,
-    tacticsNovelMotions,
     facilityProps,
     roomProps,
     assetVersion: version,
@@ -23352,6 +23062,24 @@ function loadGameplayTextures() {
   if (!textures || textures.gameplayLoaded) return;
   textures.gameplayLoaded = true;
   for (const [entry, source] of textures.pendingSources || []) entry.src = source;
+}
+
+const SOPHIA_HAIR_ALPHA_MASKS = {"attack":{"sourceSha256":"FC8CCA6A1D75B3478B900D8A319AFE1FFA793806FB26317035CC154A94F42E6C","width":1693,"height":929,"frames":[[[370,204,204],[371,204,204],[372,204,205],[373,204,206],[374,204,207],[375,204,208],[376,204,208],[377,204,208],[378,204,208],[379,204,209],[380,204,209],[381,204,209],[382,204,210],[383,204,211],[384,204,211],[385,204,212],[386,204,212],[387,204,213],[388,204,214],[389,203,215],[390,203,215],[391,203,215],[392,203,215],[393,203,215],[394,203,215],[395,203,215],[396,203,214],[397,203,214],[398,203,214],[399,203,214],[400,203,213],[401,202,213],[402,202,213],[403,201,213],[404,201,213],[405,200,212],[406,200,212],[407,199,211],[408,199,211],[409,198,210],[410,198,210],[411,197,209],[412,197,209],[413,197,209],[414,196,208],[415,196,208],[416,196,208],[417,196,208],[418,196,207],[419,195,207],[420,195,206],[421,195,205],[422,195,205],[423,195,205],[424,195,204],[425,195,204],[426,196,204],[427,196,204],[428,196,204],[429,197,203],[430,197,202],[431,198,201],[432,198,201],[433,199,200],[434,200,200],[448,452,452],[449,452,452],[450,452,453],[451,452,453],[452,452,453],[453,452,454],[454,452,454],[455,452,453],[456,452,453],[457,451,453],[458,450,453],[459,450,453],[460,450,453],[461,449,452],[462,449,452],[463,448,452],[464,448,451],[465,447,451],[466,447,450],[467,447,449],[468,446,448],[469,446,447],[470,446,446]],[[398,1005,1005],[399,1005,1006],[400,1006,1008],[401,1006,1009],[402,1006,1011],[403,1007,1012],[404,1007,1014],[405,1008,1015],[406,1008,1017],[407,1009,1018],[408,1010,1019],[409,1010,1020],[410,1011,1021],[411,1012,1022],[412,1013,1022],[413,1014,1022],[414,1016,1023],[415,1017,1023],[416,1018,1023],[417,1019,1024],[418,1021,1024],[419,1022,1024],[420,1024,1024],[432,1014,1014],[433,1014,1015],[434,1015,1016],[435,1015,1018],[436,1015,1019],[437,1015,1020],[438,1016,1020],[439,1016,1020],[440,1016,1020],[440,1035,1035],[441,1016,1020],[441,1035,1035],[442,1017,1020],[442,1035,1036],[443,1017,1020],[443,1035,1037],[444,1018,1020],[444,1036,1037],[445,1018,1019],[445,1036,1038],[446,1019,1019],[446,1036,1038],[447,1019,1019],[447,1036,1038],[448,1036,1038],[449,1036,1039],[450,1036,1039],[451,1037,1039],[452,1037,1039],[453,1037,1039],[454,1036,1038],[455,1036,1038],[456,1036,1038],[457,1035,1037],[458,1035,1037],[459,1035,1037],[460,1034,1036],[461,1034,1035],[462,1034,1034],[463,1034,1034]],[[372,1305,1305],[373,1305,1306],[374,1305,1307],[375,1305,1308],[376,1305,1309],[377,1305,1309],[378,1305,1309],[379,1305,1310],[380,1305,1310],[381,1305,1310],[382,1305,1311],[383,1305,1311],[384,1305,1312],[385,1305,1312],[386,1305,1313],[387,1305,1314],[388,1305,1314],[389,1305,1315],[390,1305,1316],[391,1305,1316],[392,1305,1315],[393,1305,1315],[394,1305,1315],[395,1305,1315],[396,1305,1315],[397,1304,1314],[398,1304,1314],[399,1304,1314],[400,1304,1314],[401,1304,1314],[402,1303,1314],[403,1303,1313],[404,1302,1313],[405,1302,1312],[406,1301,1312],[407,1301,1311],[408,1300,1311],[409,1299,1310],[410,1299,1310],[411,1298,1309],[412,1298,1309],[413,1298,1309],[414,1297,1308],[415,1297,1308],[416,1297,1307],[417,1296,1307],[418,1296,1307],[419,1296,1306],[420,1296,1306],[421,1296,1305],[422,1295,1305],[423,1295,1305],[424,1295,1305],[425,1295,1305],[426,1296,1304],[427,1296,1304],[428,1296,1304],[429,1297,1301],[430,1297,1300],[431,1298,1300],[432,1298,1300],[448,1549,1549],[449,1549,1549],[450,1549,1550],[451,1550,1550],[452,1550,1551],[453,1550,1551],[454,1550,1550],[455,1550,1550],[456,1550,1551],[457,1550,1551],[458,1549,1551],[459,1549,1551],[460,1549,1550],[461,1549,1550],[462,1548,1550],[463,1548,1550],[464,1547,1549],[465,1547,1548],[466,1547,1547],[467,1546,1547],[468,1545,1546],[469,1544,1545],[470,1544,1544],[471,1544,1544],[472,1544,1544]]]},"cast":{"sourceSha256":"CDD1FDCE33E0B4340AF0533902E25B815E013F5278B5A80814B2D80967F8A273","width":1691,"height":930,"frames":[[[437,198,198],[438,198,198],[439,198,198],[440,197,198],[441,197,198],[442,197,198],[443,196,198],[444,196,198],[445,196,198],[446,196,199],[447,196,199],[448,196,199],[449,196,200],[450,196,200],[451,197,200],[452,197,201],[453,198,201],[454,198,201],[455,198,201],[456,199,201],[457,199,201],[458,200,200],[459,200,200]],[[336,756,758],[337,756,758],[338,756,759],[339,756,759],[340,756,760],[341,756,760],[342,756,760],[343,756,761],[344,756,761],[345,756,761],[346,756,761],[347,756,762],[348,756,762],[349,756,763],[350,756,763],[351,756,764],[352,756,764],[353,756,764],[354,756,764],[355,756,764],[356,756,764],[357,756,763],[358,756,763],[359,756,763],[360,756,762],[361,756,762],[362,756,762],[363,756,761],[364,756,761],[365,755,760],[366,755,760],[367,755,759],[368,755,759],[369,755,758],[370,754,758],[371,754,758],[372,753,757],[373,753,757],[374,752,756],[375,752,756],[376,751,756],[377,751,755],[378,751,755],[378,981,981],[379,751,754],[379,981,981],[380,750,754],[380,981,982],[381,750,753],[381,981,983],[382,750,753],[382,981,983],[383,750,752],[383,981,984],[384,749,752],[384,981,984],[385,749,751],[385,981,985],[386,749,751],[386,981,985],[387,749,750],[387,981,986],[388,749,750],[388,981,987],[389,749,750],[389,981,987],[390,749,749],[390,982,988],[391,749,749],[391,982,988],[392,749,749],[392,982,989],[393,749,749],[393,983,989],[394,983,990],[395,984,990],[396,984,990],[397,984,990],[398,985,991],[399,985,991],[400,986,991],[401,986,991],[402,987,991],[403,987,991],[404,988,991],[405,989,991],[406,990,991],[407,990,991],[415,977,977],[416,977,977],[417,977,977],[418,977,978],[419,977,979],[420,977,979],[421,977,980],[422,977,980],[423,977,981],[424,977,981],[425,977,981],[426,976,981],[427,976,981],[428,976,981],[429,976,980],[430,976,980],[431,977,979],[432,977,979],[433,977,978],[434,977,977]],[[422,1512,1512],[423,1512,1512],[424,1512,1513],[425,1512,1514],[426,1512,1514],[427,1512,1515],[428,1512,1515],[429,1512,1515],[430,1512,1516],[431,1512,1516],[432,1512,1516],[433,1512,1516],[434,1512,1516],[435,1512,1516],[436,1512,1516],[437,1512,1515],[438,1512,1514],[439,1512,1513]]]},"enhance":{"sourceSha256":"2D2B2AD518FA4E645A5D510A1E18B027F89C05015028DFDDDA1DB39D10F4CC98","width":1693,"height":929,"frames":[[[325,207,207],[326,207,208],[327,208,209],[328,208,210],[329,208,211],[330,208,211],[331,208,211],[332,208,212],[333,208,212],[334,208,213],[335,208,213],[336,208,213],[337,208,214],[338,208,214],[339,208,215],[340,208,215],[341,208,216],[342,208,216],[343,208,217],[344,208,216],[345,208,216],[346,208,216],[347,208,216],[348,208,216],[349,208,216],[350,208,216],[351,208,215],[352,208,215],[353,208,215],[354,208,215],[355,208,214],[356,208,214],[357,208,214],[358,207,213],[359,207,213],[360,207,213],[361,206,213],[362,206,212],[363,205,212],[364,205,211],[365,204,211],[366,204,210],[367,203,210],[368,203,209],[369,203,209],[369,435,435],[370,203,208],[370,435,435],[371,202,208],[371,435,436],[372,202,207],[372,435,436],[373,202,207],[373,435,437],[374,202,206],[374,435,437],[375,202,206],[375,435,438],[376,202,205],[376,435,438],[377,201,205],[377,435,439],[378,201,204],[378,435,440],[379,201,204],[379,435,440],[380,201,204],[380,435,441],[381,201,203],[381,436,441],[382,201,203],[382,436,442],[383,201,202],[383,436,442],[384,201,202],[384,437,443],[385,201,201],[385,437,443],[386,201,201],[386,437,444],[387,201,201],[387,438,444],[388,438,445],[389,438,445],[390,439,445],[391,439,445],[392,440,445],[393,440,446],[394,441,446],[395,441,446],[396,441,446],[397,442,446],[398,443,446],[399,443,445],[400,444,445],[401,444,445],[402,445,445],[409,431,431],[410,431,431],[411,431,432],[412,432,433],[413,432,433],[414,431,434],[415,432,434],[416,432,435],[417,431,435],[418,431,436],[419,431,436],[420,431,436],[421,431,435],[422,431,435],[423,431,435],[424,431,434],[425,431,434],[426,431,433],[427,431,433],[427,451,451],[428,432,432],[428,451,451],[429,432,432],[429,451,451],[430,451,452],[431,451,452],[432,451,452],[433,451,452],[434,451,452],[435,450,453],[436,450,452],[437,449,452],[438,449,452],[439,448,451],[440,448,451],[441,447,451],[442,447,450],[443,446,450],[444,446,450],[445,445,449],[446,445,449],[447,444,448],[448,444,447],[449,443,446],[450,443,445],[451,443,444],[452,443,443],[454,200,200],[455,200,201],[456,200,201],[457,201,202],[458,201,202],[459,201,203],[460,201,203],[461,201,204],[462,201,204],[463,201,205],[464,201,205],[465,201,204],[466,200,204],[467,200,203],[468,199,203],[469,199,202],[470,198,202],[471,197,201],[472,196,201],[473,195,201],[474,194,200],[475,192,199],[476,192,199],[477,193,198],[478,197,197]],[[325,752,752],[326,752,753],[327,752,754],[328,752,755],[329,752,755],[330,752,756],[331,752,756],[332,752,756],[333,752,756],[334,752,757],[335,752,757],[336,752,757],[337,752,758],[338,752,758],[339,752,758],[340,752,759],[341,752,759],[342,752,760],[343,752,760],[344,752,759],[345,752,759],[346,752,759],[347,752,759],[348,752,758],[349,752,758],[350,752,757],[351,752,757],[352,751,757],[353,751,756],[354,751,754],[355,751,753],[356,751,752],[357,751,751],[361,749,749],[362,748,749],[363,748,750],[364,747,751],[365,747,751],[366,747,751],[367,746,751],[368,746,750],[369,746,750],[370,746,749],[371,745,749],[372,745,748],[372,977,977],[373,745,748],[373,977,977],[374,745,747],[374,977,978],[375,745,747],[375,977,978],[376,745,746],[376,977,978],[377,745,746],[377,978,979],[378,745,746],[378,978,980],[379,745,745],[379,978,980],[380,745,745],[380,978,981],[381,745,745],[381,978,981],[382,978,982],[383,978,983],[384,978,984],[385,978,984],[386,979,985],[387,979,985],[388,979,986],[389,980,986],[390,980,987],[391,981,987],[392,981,987],[393,981,987],[394,982,987],[395,982,988],[396,983,988],[397,983,988],[398,984,988],[399,984,988],[400,985,988],[401,986,987],[402,986,987],[403,987,987],[410,973,973],[411,973,973],[412,973,974],[413,973,974],[414,973,975],[415,973,975],[416,973,976],[417,973,976],[418,973,977],[419,973,977],[420,973,977],[421,973,978],[422,973,978],[423,973,977],[424,973,977],[425,973,977],[426,973,976],[427,973,976],[427,992,992],[428,973,975],[428,992,992],[429,973,975],[429,992,992],[430,974,974],[430,992,992],[431,974,974],[431,992,992],[432,992,992],[433,992,992],[434,992,993],[435,991,993],[436,991,993],[437,991,994],[438,990,994],[439,990,993],[440,990,993],[441,989,993],[442,989,993],[443,988,992],[444,988,992],[445,987,991],[446,987,990],[447,986,989],[448,986,989],[449,985,988],[450,985,986],[451,984,985],[452,984,984],[461,763,764],[462,763,764],[463,763,764],[464,763,765],[465,763,766],[466,763,766],[467,764,767],[468,764,768],[469,765,768],[470,766,769],[471,766,769],[472,767,769],[473,767,770],[474,768,770],[475,768,771],[476,768,771],[477,769,771],[478,769,772],[479,769,771],[480,770,771],[481,770,770]],[[327,1316,1316],[328,1316,1317],[329,1316,1318],[330,1316,1319],[331,1316,1319],[332,1316,1320],[333,1316,1320],[334,1316,1320],[335,1316,1320],[336,1316,1321],[337,1316,1321],[338,1316,1322],[339,1316,1322],[340,1316,1323],[341,1316,1323],[342,1317,1324],[343,1317,1324],[344,1317,1325],[345,1316,1325],[346,1316,1325],[347,1316,1325],[348,1316,1324],[349,1316,1324],[350,1316,1324],[351,1316,1323],[352,1316,1323],[353,1316,1323],[354,1316,1323],[355,1316,1322],[356,1316,1322],[357,1316,1322],[358,1316,1321],[359,1316,1321],[360,1315,1321],[361,1315,1320],[362,1314,1320],[363,1314,1320],[364,1314,1319],[365,1313,1319],[366,1313,1318],[367,1312,1318],[368,1312,1317],[369,1311,1317],[370,1311,1316],[371,1311,1316],[371,1539,1539],[372,1310,1315],[372,1539,1539],[373,1310,1315],[373,1539,1540],[374,1310,1314],[374,1539,1540],[375,1310,1314],[375,1539,1540],[376,1310,1313],[376,1539,1541],[377,1310,1313],[377,1540,1542],[378,1309,1312],[378,1540,1542],[379,1309,1312],[379,1540,1543],[380,1309,1312],[380,1540,1543],[381,1309,1311],[381,1540,1544],[382,1309,1311],[382,1540,1545],[383,1309,1310],[383,1540,1545],[384,1309,1310],[384,1540,1546],[385,1309,1309],[385,1540,1546],[386,1309,1309],[386,1540,1547],[387,1541,1547],[388,1541,1548],[389,1541,1548],[390,1542,1549],[391,1542,1549],[392,1542,1549],[393,1543,1549],[394,1543,1550],[395,1544,1550],[396,1544,1550],[397,1545,1550],[398,1545,1550],[399,1546,1549],[400,1546,1549],[401,1547,1549],[402,1548,1549],[403,1548,1549],[404,1549,1549],[411,1535,1535],[412,1535,1535],[413,1535,1536],[414,1535,1536],[415,1535,1537],[416,1535,1537],[417,1535,1538],[418,1535,1538],[419,1535,1538],[420,1535,1539],[421,1535,1539],[422,1535,1539],[423,1535,1539],[424,1535,1538],[425,1535,1538],[426,1535,1537],[427,1535,1537],[427,1552,1552],[428,1535,1536],[428,1552,1552],[429,1535,1536],[429,1552,1552],[430,1552,1553],[431,1552,1553],[432,1552,1553],[433,1553,1553],[434,1553,1553],[435,1553,1553],[436,1553,1553],[437,1552,1553],[438,1552,1554],[439,1552,1554],[440,1552,1553],[441,1552,1553],[442,1551,1553],[443,1551,1553],[444,1551,1553],[445,1550,1553],[446,1550,1552],[447,1549,1551],[448,1548,1551],[449,1547,1550],[450,1547,1548],[451,1546,1548],[452,1545,1547],[453,1545,1546],[454,1546,1546],[455,1546,1546]]]},"evade":{"sourceSha256":"77258E5A22C0674B5D8BBAB6296BE885DF3A4D1705EBA7B241D9965BADDC28F8","width":1693,"height":929,"frames":[[[380,240,240],[381,240,241],[382,240,243],[383,240,244],[384,240,244],[385,240,244],[386,240,244],[387,240,244],[388,240,245],[389,240,245],[390,241,245],[391,241,246],[392,241,246],[393,241,247],[394,241,247],[395,241,248],[396,241,249],[397,241,249],[398,241,250],[399,241,251],[400,241,251],[401,241,252],[402,241,253],[403,241,254],[403,468,468],[404,241,255],[404,468,468],[405,241,255],[405,468,469],[406,241,255],[406,469,470],[407,241,255],[407,469,470],[408,241,255],[408,469,471],[409,241,255],[409,469,471],[410,241,255],[410,469,472],[411,241,254],[411,469,473],[412,240,254],[412,469,474],[413,240,254],[413,470,474],[414,239,253],[414,470,475],[415,239,253],[415,470,476],[416,238,252],[416,471,476],[417,238,252],[417,471,477],[418,237,252],[418,471,478],[419,237,252],[419,472,478],[420,237,251],[420,472,479],[421,237,251],[421,473,479],[422,237,250],[422,473,479],[423,237,250],[423,474,480],[424,237,250],[424,474,480],[425,237,249],[425,475,480],[426,237,249],[426,475,480],[427,237,249],[427,476,481],[428,238,248],[428,476,481],[429,238,248],[429,477,481],[430,238,248],[430,478,481],[431,238,247],[431,478,480],[432,238,247],[432,479,480],[433,239,246],[433,480,480],[434,239,246],[435,240,246],[436,240,246],[437,241,246],[438,242,246],[439,242,246],[440,243,246],[441,244,246],[442,244,245],[442,468,468],[443,245,245],[443,468,468],[444,468,469],[445,469,470],[446,469,470],[447,469,471],[448,469,471],[449,469,472],[450,469,472],[451,469,472],[452,469,472],[453,469,472],[454,469,472],[455,468,471],[456,468,471],[456,487,487],[457,469,471],[457,487,488],[458,469,470],[458,488,488],[459,469,470],[459,488,488],[460,470,470],[460,488,489],[461,488,489],[462,488,489],[463,488,489],[464,488,489],[465,488,489],[466,487,490],[467,487,489],[468,487,489],[469,486,489],[470,486,488],[471,485,488],[472,485,488],[473,484,487],[474,484,487],[475,484,487],[476,483,486],[477,483,486],[478,482,486],[479,481,484],[480,481,483],[481,481,482],[482,481,482],[483,481,481]],[[368,804,804],[369,804,805],[370,804,805],[371,804,807],[372,804,808],[373,804,808],[374,804,809],[375,804,809],[376,804,809],[377,804,809],[378,804,809],[379,803,809],[380,803,809],[381,803,809],[382,803,808],[383,803,808],[384,803,807],[385,803,807],[386,803,807],[387,802,806],[388,802,806],[389,802,805],[390,802,805],[391,802,805],[392,802,804],[393,801,804],[394,801,803],[395,801,803],[396,801,802],[397,801,801],[398,800,800],[399,799,800],[400,799,800],[401,798,800],[402,797,800],[403,797,799],[404,796,799],[405,796,799],[406,795,799],[407,795,798],[408,795,798],[409,795,797],[410,794,797],[411,794,797],[412,794,796],[413,793,796],[414,793,796],[415,793,795],[416,793,795],[417,793,795],[418,793,794],[419,793,794],[420,794,794],[420,1031,1031],[421,794,794],[421,1031,1031],[422,1031,1032],[423,1031,1032],[424,1031,1033],[425,1031,1033],[426,1031,1034],[427,1031,1034],[428,1031,1035],[429,1031,1035],[430,1031,1036],[431,1031,1036],[432,1031,1036],[433,1031,1037],[434,1031,1037],[435,1031,1038],[436,1032,1038],[437,1032,1038],[438,1032,1038],[439,1033,1038],[440,1033,1038],[441,1033,1038],[442,1033,1038],[443,1034,1039],[444,1034,1039],[445,1034,1038],[446,1035,1038],[447,1035,1038],[448,1036,1037],[449,1036,1037],[450,1037,1037],[451,1037,1037],[474,1037,1037],[475,1037,1037],[476,1037,1037],[477,1036,1037],[478,1036,1037],[479,1036,1037],[480,1036,1037],[481,1035,1038],[482,1035,1038],[483,1035,1037],[484,1034,1037],[485,1034,1037],[486,1034,1036],[487,1033,1036],[488,1032,1035],[489,1031,1034],[490,1031,1034],[491,1029,1033],[492,1028,1032],[493,1028,1030],[494,1028,1029],[495,1028,1028],[496,1028,1028],[497,1028,1028],[498,1028,1028],[499,1027,1028],[500,1026,1027],[501,1025,1026]],[[372,1289,1289],[373,1289,1290],[374,1289,1290],[375,1289,1291],[376,1289,1293],[377,1289,1293],[378,1289,1293],[379,1289,1293],[380,1289,1294],[381,1289,1294],[382,1289,1294],[383,1289,1295],[384,1289,1295],[385,1289,1295],[386,1289,1296],[387,1289,1296],[388,1289,1297],[389,1289,1298],[390,1289,1298],[391,1289,1299],[392,1289,1300],[393,1289,1300],[394,1289,1301],[395,1289,1301],[396,1289,1300],[397,1289,1300],[398,1289,1300],[399,1289,1300],[400,1288,1300],[401,1288,1299],[402,1288,1299],[403,1288,1299],[404,1287,1299],[405,1287,1298],[406,1286,1298],[407,1286,1297],[408,1285,1297],[408,1510,1510],[409,1285,1296],[409,1510,1510],[410,1284,1296],[410,1510,1511],[411,1283,1295],[411,1511,1511],[412,1283,1295],[412,1511,1512],[413,1282,1294],[413,1511,1512],[414,1282,1294],[414,1511,1513],[415,1282,1293],[415,1511,1514],[416,1281,1293],[416,1511,1514],[417,1281,1292],[417,1511,1515],[418,1281,1292],[418,1511,1515],[419,1281,1291],[419,1511,1516],[420,1281,1291],[420,1511,1516],[421,1281,1291],[421,1511,1517],[422,1281,1290],[422,1511,1517],[423,1281,1290],[423,1511,1518],[424,1281,1289],[424,1512,1518],[425,1281,1289],[425,1512,1518],[426,1281,1289],[426,1513,1519],[427,1281,1288],[427,1513,1519],[428,1282,1288],[428,1513,1519],[429,1282,1288],[429,1514,1520],[430,1283,1287],[430,1514,1520],[431,1283,1287],[431,1515,1520],[432,1284,1287],[432,1515,1520],[433,1285,1286],[433,1515,1520],[434,1286,1286],[434,1516,1520],[435,1516,1520],[436,1517,1520],[437,1518,1519],[438,1518,1519],[439,1519,1519]]]},"focus":{"sourceSha256":"A45EA8DB80581A4A084210BD6A4DDCE302C6F4D6A8419D4F6D75F9E41F37FE79","width":1693,"height":929,"frames":[[],[],[]]},"heal":{"sourceSha256":"4C107116C476B2ABFC067442F5D59671986BFF35081477BDA975BBD327F99647","width":1695,"height":928,"frames":[[[317,205,205],[318,205,205],[319,205,206],[320,205,207],[321,205,208],[322,205,208],[323,205,209],[324,205,209],[325,205,209],[326,205,210],[327,205,210],[328,205,211],[329,205,211],[330,206,211],[331,206,212],[332,206,212],[333,206,213],[334,206,213],[335,206,214],[336,206,214],[337,205,214],[338,205,214],[339,205,214],[340,205,214],[341,206,214],[342,206,214],[343,205,213],[344,205,213],[345,205,213],[346,205,213],[347,205,213],[348,205,212],[349,205,212],[350,205,212],[351,205,211],[352,204,211],[353,204,210],[354,203,210],[355,203,209],[356,202,209],[357,202,208],[358,201,208],[358,432,432],[359,201,207],[359,432,432],[360,200,207],[360,432,433],[361,200,206],[361,432,433],[362,200,206],[362,432,434],[363,200,206],[363,432,435],[364,199,205],[364,432,436],[365,199,205],[365,433,436],[366,199,204],[366,433,437],[367,199,204],[367,433,437],[368,199,203],[368,433,438],[369,199,203],[369,433,439],[370,199,202],[370,433,439],[371,199,202],[371,434,440],[372,199,202],[372,434,441],[373,199,201],[373,434,441],[374,199,201],[374,435,442],[375,199,200],[375,435,442],[376,199,200],[376,436,443],[377,199,200],[377,436,443],[378,199,199],[378,437,443],[379,437,444],[380,438,444],[381,438,444],[382,438,444],[383,439,445],[384,440,445],[385,440,445],[386,441,445],[387,441,445],[388,442,445],[389,443,444],[390,444,444],[391,444,444],[398,429,429],[399,429,429],[400,429,430],[401,429,431],[402,429,432],[403,429,432],[404,429,433],[405,429,433],[406,429,434],[407,429,434],[408,429,434],[409,429,434],[410,429,434],[411,429,433],[412,429,433],[413,429,432],[414,429,431],[415,429,431],[415,450,450],[416,429,430],[416,450,450],[417,429,429],[417,450,450],[418,429,429],[418,450,451],[419,450,451],[420,450,451],[421,449,451],[422,449,451],[423,449,451],[424,449,450],[425,448,450],[426,448,450],[427,447,450],[428,447,449],[429,446,449],[430,446,449],[431,445,448],[432,445,448],[433,444,447],[434,443,447],[435,443,447],[436,442,446],[437,442,445],[438,441,444],[439,441,442],[440,440,441],[441,440,440],[442,440,440],[443,440,440],[444,440,440],[445,440,440]],[[322,764,764],[323,764,764],[324,764,765],[325,764,766],[326,764,767],[327,764,767],[328,764,768],[329,764,768],[330,764,768],[331,764,768],[332,764,768],[333,764,769],[334,764,769],[335,764,769],[336,764,770],[337,764,770],[338,764,771],[339,764,771],[340,764,772],[341,764,772],[342,764,772],[343,764,772],[344,764,772],[345,764,771],[346,764,771],[347,764,771],[348,764,770],[349,764,770],[350,764,770],[351,764,769],[352,764,769],[353,763,768],[354,763,764],[355,763,764],[356,763,763],[357,762,763],[358,762,763],[359,761,763],[360,761,763],[361,760,763],[362,760,764],[363,759,764],[364,759,763],[365,758,763],[366,758,763],[367,758,762],[368,758,762],[369,758,761],[370,757,761],[371,757,760],[372,757,760],[373,757,759],[374,757,759],[375,757,759],[376,757,758],[377,757,758],[378,757,758],[379,757,757],[380,757,757],[381,757,757],[460,761,761],[461,761,762],[461,777,778],[462,761,762],[462,777,778],[463,761,762],[463,777,779],[464,761,763],[464,777,779],[465,760,763],[465,777,780],[466,760,764],[466,777,780],[467,760,764],[467,778,781],[468,759,765],[468,779,782],[469,759,765],[469,779,782],[470,758,766],[470,780,783],[471,757,766],[471,780,783],[472,756,766],[472,781,784],[473,755,767],[473,781,784],[474,754,766],[474,782,785],[475,752,766],[475,782,785],[476,752,766],[476,782,785],[476,931,931],[477,753,765],[477,783,785],[477,931,931],[478,755,763],[478,782,785],[478,930,932],[479,756,762],[479,782,785],[479,930,932],[480,781,784],[480,930,933],[481,781,784],[481,930,934],[482,780,783],[482,931,935],[483,779,782],[483,931,936],[484,778,781],[484,932,936],[485,777,778],[485,933,937],[486,933,936],[487,935,935]],[[322,1317,1317],[323,1317,1318],[324,1318,1318],[325,1318,1320],[326,1318,1321],[327,1318,1322],[328,1318,1322],[329,1318,1322],[330,1318,1322],[331,1318,1323],[332,1318,1323],[333,1318,1324],[334,1318,1324],[335,1318,1324],[336,1318,1325],[337,1319,1325],[338,1318,1326],[339,1318,1326],[340,1318,1327],[341,1318,1327],[342,1318,1327],[343,1318,1327],[344,1318,1327],[345,1318,1327],[346,1318,1327],[347,1318,1327],[348,1318,1326],[349,1318,1326],[350,1318,1326],[351,1318,1325],[352,1318,1325],[353,1318,1325],[354,1318,1325],[355,1318,1324],[356,1317,1324],[357,1317,1323],[358,1316,1323],[359,1316,1323],[360,1315,1322],[361,1315,1322],[362,1314,1321],[363,1314,1321],[364,1313,1320],[365,1313,1319],[366,1312,1319],[367,1312,1319],[368,1312,1318],[369,1312,1317],[370,1311,1317],[371,1311,1316],[372,1311,1316],[373,1311,1315],[374,1311,1315],[375,1311,1315],[376,1311,1314],[377,1311,1314],[378,1311,1314],[379,1311,1313],[380,1311,1313],[381,1311,1312],[382,1311,1312],[383,1311,1312],[384,1312,1312]]]},"heart-transfer":{"sourceSha256":"E53BD4998789008FD41456E3D583010E05810334D6CA2404F709EC1B9B105D83","width":1694,"height":929,"frames":[[[320,232,232],[321,232,232],[322,232,232],[323,232,233],[324,232,235],[325,232,236],[326,232,236],[327,232,236],[328,232,237],[329,232,237],[330,232,237],[331,232,237],[332,233,238],[333,233,238],[334,233,239],[335,233,239],[336,233,240],[337,233,240],[338,233,241],[339,233,241],[340,233,241],[341,233,241],[342,233,241],[343,233,241],[344,233,241],[345,233,240],[346,233,240],[347,233,240],[348,233,240],[349,233,240],[350,233,239],[351,233,239],[352,233,239],[353,233,239],[354,233,238],[355,232,238],[356,232,237],[357,232,237],[358,231,237],[359,231,236],[360,230,236],[361,230,235],[362,229,235],[363,229,234],[364,228,234],[365,228,233],[366,228,233],[367,227,232],[368,227,232],[369,227,231],[370,227,231],[371,227,231],[372,227,230],[373,226,230],[374,226,229],[375,226,229],[376,226,229],[377,226,228],[378,226,228],[379,226,227],[380,226,227],[381,226,227],[407,456,456],[408,456,456],[409,456,457],[410,456,457],[411,456,458],[412,456,458],[413,456,459],[414,456,459],[415,456,460],[416,456,460],[417,456,460],[418,456,460],[419,456,460],[420,456,460],[421,455,459],[422,455,459],[423,455,459],[424,456,458],[425,456,458],[426,457,457],[426,475,475],[427,457,457],[427,475,475],[428,475,476],[429,475,476],[430,476,477],[431,476,477],[432,476,477],[433,475,477],[434,475,476],[435,475,476],[436,474,476],[437,474,476],[438,474,476],[439,473,476],[440,473,475],[441,472,475],[442,472,475],[443,471,474],[444,470,474],[445,470,473],[446,469,472],[447,469,472],[448,468,470],[449,468,469],[450,467,468],[451,467,468]],[[319,753,753],[320,753,753],[321,753,754],[322,753,756],[323,753,756],[324,753,756],[325,753,756],[326,753,757],[327,753,757],[328,753,757],[329,753,758],[330,753,758],[331,753,758],[332,753,758],[333,753,759],[334,753,759],[335,753,760],[336,753,760],[337,753,760],[338,753,760],[339,753,760],[340,753,759],[341,753,759],[342,753,759],[343,753,759],[344,753,758],[345,753,758],[346,753,758],[347,752,757],[348,752,757],[349,753,755],[350,752,754],[351,752,753],[352,752,752],[355,751,751],[356,750,751],[357,750,752],[358,749,752],[359,748,752],[360,748,752],[361,748,752],[362,747,751],[363,747,751],[364,747,750],[365,747,750],[366,747,749],[367,747,749],[368,746,748],[368,979,979],[369,746,748],[369,979,979],[370,746,747],[370,979,979],[371,746,747],[371,979,980],[372,746,747],[372,979,980],[373,746,747],[373,979,981],[374,746,746],[374,979,981],[375,746,746],[375,979,982],[376,746,746],[376,979,983],[377,979,983],[378,979,984],[379,979,985],[380,980,985],[381,980,986],[382,980,987],[383,980,987],[384,981,987],[385,981,988],[386,981,988],[387,982,988],[388,982,988],[389,983,988],[390,983,988],[391,984,989],[392,984,989],[393,985,989],[394,985,989],[395,986,989],[396,986,989],[397,987,988],[398,988,988],[399,988,988],[407,975,975],[408,975,975],[409,975,976],[410,975,976],[411,975,977],[412,975,977],[413,975,977],[414,975,978],[415,975,978],[416,975,979],[417,974,978],[418,974,978],[419,974,978],[420,974,978],[421,974,977],[422,974,977],[423,975,976],[423,992,992],[424,975,976],[424,992,992],[425,975,975],[425,992,993],[426,975,975],[426,992,993],[427,992,993],[428,993,993],[429,993,994],[430,993,994],[431,992,994],[432,992,995],[433,992,994],[434,992,994],[435,991,994],[436,991,994],[437,991,993],[438,990,993],[439,990,993],[440,989,992],[441,988,992],[442,988,991],[443,987,990],[444,987,989],[445,986,988],[446,986,986],[456,749,749],[457,749,749],[458,749,750],[459,749,750],[460,748,750],[461,748,751],[462,748,751],[463,747,752],[464,747,752],[465,746,753],[466,745,753],[467,745,754],[468,744,754],[469,742,754],[470,741,754],[471,740,753],[472,740,753],[473,742,752],[474,744,751],[475,744,745],[475,747,748]],[[321,1280,1280],[322,1280,1280],[323,1280,1281],[324,1280,1282],[325,1281,1283],[326,1281,1284],[327,1281,1284],[328,1281,1284],[329,1281,1284],[330,1281,1285],[331,1281,1285],[332,1281,1285],[333,1281,1286],[334,1281,1286],[335,1281,1287],[336,1281,1287],[337,1281,1288],[338,1281,1289],[339,1281,1289],[340,1281,1289],[341,1281,1289],[342,1281,1288],[343,1281,1288],[344,1281,1288],[345,1281,1288],[346,1281,1288],[347,1281,1287],[348,1281,1287],[349,1281,1287],[350,1281,1286],[351,1281,1286],[352,1281,1286],[353,1281,1285],[354,1281,1285],[355,1280,1285],[356,1280,1285],[357,1280,1284],[358,1279,1284],[359,1279,1283],[360,1278,1283],[361,1278,1282],[362,1277,1282],[363,1277,1281],[364,1277,1281],[365,1276,1280],[366,1276,1280],[367,1275,1279],[368,1275,1279],[369,1275,1278],[370,1275,1278],[371,1275,1278],[372,1274,1277],[373,1274,1277],[374,1274,1276],[375,1274,1276],[376,1274,1275],[377,1274,1275],[378,1274,1275],[379,1274,1274],[380,1274,1274],[406,1498,1498],[407,1498,1498],[408,1498,1498],[409,1498,1499],[410,1498,1499],[411,1498,1500],[412,1498,1500],[413,1498,1501],[414,1498,1501],[415,1498,1501],[416,1498,1501],[417,1498,1501],[418,1498,1501],[419,1498,1501],[420,1498,1500],[421,1498,1500],[422,1498,1500],[423,1498,1499],[424,1499,1499]]]},"iai":{"sourceSha256":"966F96A17CDBE104C0CA0054185198FADB8DBBCEBBB47CA4C6BC991C81E28B69","width":1692,"height":929,"frames":[[[400,165,165],[401,165,166],[402,165,167],[403,165,169],[404,165,169],[405,165,169],[406,165,170],[407,165,170],[408,165,170],[409,166,171],[410,166,171],[411,166,172],[412,166,172],[413,166,173],[414,166,173],[415,166,174],[416,166,174],[417,166,175],[418,167,176],[419,167,176],[420,167,176],[421,167,176],[422,167,176],[423,167,176],[424,167,176],[425,167,176],[426,167,175],[427,167,176],[428,167,176],[429,167,175],[430,167,175],[431,166,175],[432,166,174],[433,166,174],[434,166,174],[435,165,174],[436,165,173],[437,164,173],[438,164,173],[439,164,172],[440,163,172],[441,163,172],[442,163,171],[443,162,171],[444,162,170],[445,162,170],[446,162,170],[447,162,170],[448,162,169],[449,162,169],[450,162,169],[451,162,168],[452,162,168],[453,162,168],[454,162,167],[455,163,167],[456,163,167],[457,163,166],[458,163,166],[459,164,166],[460,165,165],[461,165,165],[462,165,165],[477,398,399],[478,398,399],[479,398,399],[480,398,399],[481,398,399],[482,398,400],[483,398,400],[484,397,400],[485,397,399],[486,396,399],[487,396,399],[488,396,398],[489,395,398],[490,394,398],[491,394,397],[492,393,397],[493,393,396],[494,392,395],[495,392,394],[496,391,393],[497,391,392],[498,391,391]],[[430,1001,1001],[431,1001,1002],[432,1002,1003],[433,1002,1004],[434,1002,1005],[435,1003,1006],[436,1003,1007],[437,1003,1008],[438,1004,1009],[439,1004,1011],[440,1004,1012],[441,1005,1013],[442,1006,1014],[443,1006,1015],[444,1007,1016],[445,1008,1016],[446,1009,1017],[447,1010,1017],[448,1010,1018],[449,1011,1018],[450,1012,1019],[451,1013,1019],[452,1014,1019],[453,1015,1019],[454,1016,1019],[455,1018,1019],[456,1019,1019],[479,1026,1026],[480,1026,1026],[481,1026,1026],[482,1026,1026],[483,1025,1026],[484,1025,1027],[485,1025,1026],[486,1024,1026],[487,1024,1026],[488,1024,1026],[489,1023,1026],[490,1023,1026],[491,1023,1025],[492,1022,1025],[493,1021,1024],[494,1020,1023],[495,1020,1023],[496,1019,1022],[497,1019,1021],[498,1019,1020],[499,1018,1019],[500,1018,1018],[512,996,996],[513,996,996],[514,996,996],[515,995,996],[516,995,996],[517,995,996],[518,995,996],[519,996,996],[520,996,996],[521,995,996],[522,995,996],[523,995,996],[524,995,997],[525,995,997],[526,995,998],[527,995,998],[528,995,999],[529,995,1000],[530,996,1000],[531,997,1001],[532,997,1002],[533,997,1003],[534,999,1001]],[[393,1329,1329],[394,1329,1329],[395,1329,1330],[396,1329,1332],[397,1329,1332],[398,1329,1333],[399,1329,1333],[400,1329,1333],[401,1330,1334],[402,1330,1334],[403,1330,1334],[404,1330,1335],[405,1330,1335],[406,1330,1336],[407,1330,1336],[408,1330,1337],[409,1330,1338],[410,1330,1338],[411,1330,1338],[412,1330,1338],[413,1330,1338],[414,1330,1338],[415,1330,1338],[416,1330,1337],[417,1330,1337],[418,1330,1337],[419,1330,1336],[420,1330,1336],[421,1330,1336],[422,1330,1336],[423,1330,1336],[424,1329,1335],[425,1329,1335],[426,1329,1335],[427,1328,1334],[428,1328,1334],[429,1327,1333],[430,1327,1333],[431,1326,1332],[431,1538,1538],[432,1326,1332],[432,1538,1539],[433,1326,1331],[433,1538,1539],[434,1325,1331],[434,1538,1540],[435,1325,1331],[435,1538,1540],[436,1325,1330],[436,1538,1541],[437,1325,1330],[437,1538,1542],[438,1325,1329],[438,1538,1543],[439,1324,1329],[439,1539,1543],[440,1324,1328],[440,1539,1544],[441,1324,1328],[441,1539,1545],[442,1324,1328],[442,1539,1545],[443,1327,1327],[443,1539,1546],[444,1540,1547],[445,1540,1547],[446,1541,1548],[447,1541,1548],[448,1542,1549],[449,1542,1549],[450,1543,1549],[451,1543,1550],[452,1544,1550],[453,1544,1550],[454,1545,1550],[455,1546,1550],[456,1547,1550],[457,1548,1549],[458,1548,1549],[459,1549,1549],[466,1536,1536],[467,1536,1537],[468,1536,1537],[469,1536,1538],[470,1536,1539],[471,1537,1539],[472,1537,1540],[473,1537,1540],[474,1537,1540],[475,1537,1541],[476,1536,1540],[477,1536,1540],[478,1536,1539],[479,1537,1539],[479,1553,1553],[480,1537,1538],[480,1553,1553],[481,1537,1538],[481,1553,1553],[482,1553,1554],[483,1553,1554],[484,1554,1554],[485,1554,1554],[486,1554,1554],[487,1553,1554],[488,1553,1554],[489,1553,1555],[490,1553,1554],[491,1553,1554],[492,1552,1554],[493,1552,1554],[494,1552,1554],[495,1551,1554],[496,1551,1553],[497,1550,1553],[498,1549,1551],[499,1549,1550],[500,1548,1550],[501,1547,1549],[502,1548,1549],[503,1548,1548],[521,1525,1525],[522,1525,1525],[523,1525,1525],[524,1525,1525],[525,1525,1526],[526,1525,1527],[527,1525,1527],[528,1525,1527],[529,1525,1528],[530,1525,1529],[531,1526,1530],[532,1526,1531],[533,1527,1532]]]},"interact":{"sourceSha256":"BB93AEEBE6C52FFC5BBE191D9F01E16DD37D6ECE30E90B9EDA4151984402D79F","width":1693,"height":929,"frames":[[[364,213,213],[365,213,214],[366,213,214],[367,213,215],[368,213,217],[369,213,218],[370,213,219],[371,213,219],[372,214,220],[373,214,220],[374,214,220],[375,214,220],[376,214,221],[377,214,221],[378,214,222],[379,214,222],[380,214,222],[381,214,223],[382,214,224],[383,214,224],[384,214,225],[385,214,226],[386,214,226],[387,214,226],[388,214,226],[389,214,225],[390,214,225],[391,214,225],[392,214,225],[393,214,225],[393,464,464],[394,214,225],[394,464,465],[395,214,224],[395,465,465],[396,214,224],[396,465,466],[397,214,224],[397,465,467],[398,214,224],[398,465,468],[399,214,223],[399,466,468],[400,214,223],[400,466,469],[401,213,223],[401,466,470],[402,213,222],[402,466,471],[403,212,222],[403,466,472],[404,212,222],[404,466,472],[405,211,222],[405,467,473],[406,211,221],[406,468,474],[407,210,221],[407,468,475],[408,210,220],[408,469,475],[409,209,220],[409,469,476],[410,209,219],[410,470,476],[411,209,219],[411,470,477],[412,209,218],[412,471,477],[413,208,218],[413,471,478],[414,208,218],[414,472,478],[415,208,217],[415,472,479],[416,208,217],[416,473,479],[417,208,217],[417,474,479],[418,208,216],[418,474,479],[419,208,216],[419,475,479],[420,208,216],[420,476,479],[421,208,215],[421,477,479],[422,208,215],[422,478,479],[423,208,215],[423,478,479],[424,209,214],[424,479,479],[425,211,214],[426,213,214],[446,486,486],[447,486,486],[448,486,487],[449,487,487],[450,487,488],[451,487,488],[452,487,488],[453,487,489],[454,487,489],[455,487,489],[456,487,489],[457,486,489],[458,486,489],[459,486,489],[460,485,488],[461,485,488],[462,484,488],[463,484,487],[464,484,487],[465,484,487],[466,483,487],[467,483,486],[468,482,485],[469,482,484],[470,482,483],[471,482,483],[472,482,482],[473,481,482],[474,481,481],[475,481,481],[476,481,481]],[[365,738,738],[366,738,739],[367,738,739],[368,739,741],[369,739,742],[370,739,742],[371,739,742],[372,739,743],[373,739,743],[374,739,743],[375,739,743],[376,739,744],[377,740,744],[378,740,745],[379,740,745],[380,740,746],[381,740,746],[382,740,747],[383,740,747],[384,740,748],[385,740,749],[386,740,750],[387,740,750],[388,740,750],[389,740,750],[390,740,750],[391,740,750],[392,740,750],[393,740,750],[394,740,750],[395,740,749],[396,740,749],[397,739,749],[397,983,983],[398,739,748],[398,983,984],[399,739,748],[399,983,985],[400,739,748],[400,984,986],[401,738,748],[401,984,987],[402,738,748],[402,984,987],[403,738,748],[403,984,988],[404,737,747],[404,984,989],[405,737,747],[405,985,990],[406,736,747],[406,985,991],[407,736,747],[407,985,992],[408,736,746],[408,986,992],[409,736,746],[409,986,993],[410,736,746],[410,987,994],[411,738,745],[411,987,994],[412,739,745],[412,988,995],[413,740,745],[413,989,995],[414,741,744],[414,989,996],[415,743,744],[415,990,996],[416,744,744],[416,990,997],[417,991,997],[418,992,997],[419,993,997],[420,993,997],[421,994,997],[422,996,997],[423,996,997],[424,997,997],[433,984,984],[434,984,985],[435,985,986],[436,985,987],[437,985,987],[438,985,988],[439,986,989],[440,986,989],[441,986,990],[442,986,990],[443,986,990],[444,986,990],[445,986,989],[446,986,989],[446,1004,1004],[447,986,989],[447,1004,1005],[448,986,989],[448,1005,1005],[449,987,988],[449,1005,1005],[450,987,988],[450,1005,1006],[451,987,987],[451,1005,1006],[452,1005,1007],[453,1005,1007],[454,1005,1007],[455,1005,1008],[456,1005,1008],[457,1005,1008],[458,1005,1008],[459,1005,1008],[460,1004,1007],[461,1004,1007],[462,1003,1007],[463,1003,1007],[464,1002,1006],[465,1002,1005],[466,1001,1005],[467,1001,1004],[468,1001,1004],[469,1002,1004],[470,1002,1003],[471,1002,1003],[472,1002,1002],[473,1001,1002],[474,1001,1001],[475,1001,1001],[483,978,978],[484,978,978],[485,978,978],[486,977,978],[487,977,978],[488,977,978],[489,976,978],[490,977,978],[491,978,978],[492,978,979],[493,978,979],[494,978,979],[495,977,980],[496,977,980],[497,978,981],[498,978,981],[499,978,982],[500,978,983],[501,978,984],[502,978,985],[503,979,985],[504,980,986],[505,982,988],[506,983,987]],[[364,1295,1295],[365,1295,1296],[366,1295,1297],[367,1295,1298],[368,1295,1299],[369,1295,1299],[370,1295,1299],[371,1296,1299],[372,1296,1300],[373,1296,1300],[374,1296,1301],[375,1296,1301],[376,1296,1301],[377,1296,1302],[378,1296,1302],[379,1296,1303],[380,1296,1303],[381,1296,1304],[382,1296,1304],[383,1296,1305],[384,1297,1306],[385,1297,1306],[386,1297,1305],[387,1296,1305],[388,1296,1305],[389,1296,1305],[390,1296,1305],[391,1296,1304],[392,1296,1304],[393,1296,1304],[394,1296,1304],[395,1296,1304],[396,1296,1303],[397,1296,1303],[398,1295,1303],[399,1295,1302],[400,1295,1302],[401,1294,1302],[402,1294,1301],[403,1293,1301],[404,1293,1300],[405,1292,1300],[406,1292,1299],[407,1291,1299],[408,1291,1298],[409,1291,1298],[410,1290,1297],[411,1290,1297],[411,1309,1309],[412,1290,1297],[412,1309,1309],[413,1290,1297],[413,1308,1309],[414,1290,1296],[414,1308,1309],[415,1290,1296],[415,1307,1309],[416,1290,1296],[416,1307,1309],[417,1290,1296],[417,1307,1309],[418,1290,1295],[418,1306,1309],[419,1290,1295],[419,1306,1308],[420,1290,1294],[420,1306,1308],[421,1290,1294],[421,1306,1307],[422,1290,1294],[422,1305,1307],[423,1291,1294],[423,1305,1306],[424,1291,1295],[424,1304,1306],[425,1291,1295],[425,1304,1306],[426,1292,1295],[426,1304,1306],[427,1292,1295],[427,1303,1305],[428,1293,1295],[429,1294,1295],[430,1295,1295],[431,1295,1295],[436,1524,1524],[437,1524,1524],[438,1524,1525],[439,1524,1525],[440,1524,1526],[441,1524,1527],[442,1524,1527],[443,1524,1528],[444,1524,1528],[445,1524,1528],[446,1524,1528],[447,1524,1528],[448,1524,1528],[449,1524,1527],[450,1524,1527],[451,1525,1526],[451,1541,1541],[452,1525,1525],[452,1541,1542],[453,1541,1542],[454,1541,1542],[455,1542,1543],[456,1542,1543],[457,1542,1543],[458,1542,1543],[459,1542,1543],[460,1542,1543],[461,1542,1543],[462,1542,1544],[463,1542,1544],[464,1541,1544],[465,1541,1543],[466,1541,1543],[467,1540,1542],[468,1540,1543],[469,1540,1542],[470,1539,1541],[471,1538,1540],[472,1537,1539],[473,1537,1538],[474,1536,1538],[475,1536,1537],[476,1537,1537],[477,1537,1537]]]},"jump":{"sourceSha256":"00ED1A0E2C86D9E27BDBD5628CA1740C5C1FD50DD543F12A3CA22A7A82DA3D78","width":1601,"height":983,"frames":[[[525,164,164],[526,164,165],[527,164,167],[528,164,167],[529,164,167],[530,164,168],[531,164,168],[532,164,168],[533,164,169],[533,408,409],[534,164,169],[534,408,410],[535,164,170],[535,408,412],[536,164,170],[536,408,413],[537,164,170],[537,409,415],[538,164,171],[538,409,416],[539,164,172],[539,410,418],[540,164,172],[540,410,419],[541,164,173],[541,411,420],[542,164,174],[542,412,422],[543,164,175],[543,413,422],[544,164,176],[544,414,423],[545,164,177],[545,415,423],[546,164,178],[546,416,424],[547,164,177],[547,417,424],[548,164,177],[548,419,425],[549,164,176],[549,420,425],[550,164,176],[550,421,425],[551,164,176],[551,423,425],[552,163,175],[552,425,425],[553,163,175],[554,163,175],[555,163,174],[556,162,174],[557,162,173],[558,161,173],[559,161,172],[560,160,172],[561,160,172],[562,159,171],[563,158,171],[563,414,416],[564,158,171],[564,414,417],[565,158,170],[565,415,418],[566,157,170],[566,415,419],[567,157,170],[567,415,420],[568,156,163],[568,169,169],[568,415,420],[569,156,161],[569,416,420],[570,156,159],[570,416,420],[571,155,158],[571,416,420],[572,155,157],[572,416,420],[573,155,156],[573,416,419],[574,155,155],[574,187,188],[574,418,419],[575,186,188],[575,419,419],[576,186,189],[576,419,419],[577,185,189],[578,185,190],[579,185,190],[580,185,190],[581,186,190],[582,186,191],[583,187,191],[584,187,191],[585,187,188],[585,191,191],[586,188,189],[587,188,189]],[[420,958,958],[421,958,958],[422,958,958],[423,958,958],[424,958,959],[425,957,959],[426,957,959],[427,957,959],[428,957,959],[429,956,959],[430,956,959],[431,955,959],[432,955,959],[433,954,957],[434,954,956],[435,953,956],[436,952,955],[437,952,953],[438,951,952],[442,707,707],[443,707,707],[444,707,707],[445,706,708],[446,706,709],[447,705,709],[448,704,710],[449,704,710],[450,703,711],[451,702,711],[452,700,712],[453,699,712],[454,698,711],[455,699,710],[456,701,709],[457,701,702],[457,705,706],[459,924,925],[460,924,925],[461,924,925],[462,923,925],[463,923,926],[464,924,926],[465,924,926],[466,924,927],[467,924,928],[468,924,929],[469,925,929],[470,926,931],[471,927,932]],[[542,1230,1230],[543,1230,1232],[544,1230,1232],[545,1230,1232],[546,1230,1233],[547,1230,1233],[548,1230,1233],[549,1230,1233],[550,1231,1234],[551,1231,1234],[552,1231,1235],[553,1231,1235],[554,1231,1236],[555,1231,1236],[556,1231,1237],[557,1231,1237],[558,1231,1238],[559,1231,1239],[559,1466,1466],[560,1231,1239],[560,1466,1468],[561,1231,1239],[561,1467,1469],[562,1231,1239],[562,1467,1471],[563,1231,1238],[563,1468,1472],[564,1231,1238],[564,1468,1474],[565,1231,1238],[565,1469,1475],[566,1231,1237],[566,1469,1477],[567,1231,1237],[567,1469,1478],[568,1231,1236],[568,1470,1479],[569,1231,1236],[569,1471,1480],[570,1231,1235],[570,1471,1481],[571,1231,1235],[571,1473,1481],[572,1231,1234],[572,1474,1482],[573,1230,1234],[573,1475,1482],[574,1230,1233],[574,1476,1483],[575,1229,1233],[575,1477,1483],[576,1229,1233],[576,1479,1483],[577,1229,1232],[577,1245,1245],[577,1481,1482],[578,1228,1231],[578,1245,1245],[578,1482,1483],[579,1227,1231],[579,1244,1245],[580,1227,1230],[580,1244,1245],[581,1227,1230],[581,1243,1245],[582,1226,1230],[582,1243,1245],[583,1226,1229],[583,1242,1245],[584,1225,1229],[584,1242,1244],[585,1225,1228],[585,1241,1244],[586,1225,1228],[586,1240,1243],[587,1224,1227],[587,1240,1243],[587,1470,1470],[588,1224,1227],[588,1240,1243],[588,1470,1471],[589,1224,1226],[589,1239,1243],[589,1471,1472],[590,1224,1226],[590,1239,1242],[590,1471,1474],[591,1224,1225],[591,1239,1242],[591,1471,1475],[592,1224,1225],[592,1239,1242],[592,1471,1475],[593,1224,1225],[593,1239,1242],[593,1472,1476],[594,1224,1225],[594,1239,1242],[594,1472,1476],[595,1224,1225],[595,1240,1241],[595,1472,1476],[595,1490,1491],[596,1224,1225],[596,1240,1241],[596,1473,1475],[596,1491,1492],[597,1224,1225],[597,1241,1241],[597,1473,1475],[597,1491,1492],[598,1224,1225],[598,1473,1474],[598,1492,1493],[599,1224,1225],[599,1474,1474],[599,1493,1493],[600,1225,1226],[600,1493,1494],[601,1225,1227],[601,1493,1494],[602,1225,1228],[602,1493,1495],[603,1226,1228],[603,1493,1494],[604,1227,1228],[604,1493,1494],[605,1228,1228],[605,1493,1495],[606,1493,1495],[607,1493,1495],[608,1492,1494],[609,1492,1494],[610,1491,1493],[611,1491,1493],[612,1490,1492],[613,1490,1491],[614,1489,1491],[615,1490,1490]]]},"power":{"sourceSha256":"CA6D5CCDFB70E930BC73ABD6B4FEA85DFB425DCB941F7210BE6539B7368150FF","width":1694,"height":929,"frames":[[[489,472,472],[490,472,473],[491,473,474],[492,473,475],[493,473,475],[494,474,475],[495,474,476],[496,475,476],[497,475,477],[498,475,477],[499,475,477],[500,474,477],[501,474,477],[502,474,477],[503,474,476],[504,474,476],[505,473,477],[506,473,477],[507,473,476],[508,473,476],[509,473,475],[510,473,474],[511,473,474],[512,473,473]],[[306,763,763],[307,763,764],[308,763,764],[309,763,764],[310,762,765],[311,762,765],[312,762,765],[313,762,765],[314,762,766],[315,762,766],[316,762,766],[317,762,766],[318,761,767],[319,761,766],[320,761,766],[321,761,765],[322,761,765],[323,761,765],[324,761,764],[325,761,764],[326,761,763],[327,760,763],[328,760,762],[329,760,762],[330,760,761],[331,759,760],[332,759,760],[333,758,759],[334,758,758],[335,757,758],[336,756,757],[337,755,756],[338,754,755],[339,753,755],[340,753,754],[341,752,753],[342,751,753],[343,751,752],[344,750,752],[345,750,751],[346,749,750],[347,749,750],[348,749,749]],[[492,1567,1567],[493,1567,1568],[494,1567,1568],[495,1568,1569],[496,1568,1569],[497,1569,1569],[498,1569,1570],[499,1569,1570],[500,1569,1570],[501,1569,1570],[502,1569,1571],[503,1569,1571],[504,1569,1571],[505,1569,1571],[506,1569,1571],[507,1568,1571],[508,1568,1570],[509,1568,1570],[510,1567,1569],[511,1567,1568],[512,1567,1568],[513,1566,1567],[514,1566,1566],[515,1565,1566],[516,1565,1566],[517,1565,1565]]]},"reload":{"sourceSha256":"ECEC778059E618C4BF35227FAFDBA64E66CFA63936036A6A3C4B3AD2318287E9","width":1693,"height":929,"frames":[[[420,419,419],[421,419,420],[422,419,420],[423,419,421],[424,419,421],[425,419,422],[426,418,422],[427,418,422],[428,418,422],[429,418,422],[430,418,421],[431,418,421],[432,418,421],[433,418,420],[434,418,420],[435,418,419],[435,437,437],[436,419,419],[436,437,437],[437,437,437],[438,437,438],[439,437,438],[440,437,438],[441,437,438],[442,437,438],[443,436,438],[444,436,438],[445,435,437],[446,435,437],[447,434,437],[448,434,436],[449,433,436],[450,433,435],[451,432,435],[452,432,435],[453,431,434],[454,430,433],[455,430,433],[456,429,432],[457,429,430],[458,429,429]],[[424,963,963],[425,963,963],[426,963,963],[427,963,964],[428,963,964],[429,963,964],[430,963,964],[431,963,965],[432,963,965],[433,962,965],[434,962,965],[435,962,964],[436,962,964],[437,961,964],[438,961,963],[439,960,963],[440,959,962],[441,959,962],[442,958,961],[443,958,960],[444,958,958],[445,957,958]],[]]},"rest":{"sourceSha256":"01CD1085D87E6156E1B0E3B7072D63598F3F973EDC8061E97D7A7BC015AE5F28","width":1693,"height":929,"frames":[[[551,426,426],[552,426,426],[553,426,427],[554,426,427],[555,426,428],[556,426,428],[557,426,429],[558,426,430],[559,426,430],[560,426,431],[561,426,432],[562,426,432],[563,427,433],[564,427,433],[565,428,434],[566,428,434],[567,428,435],[568,429,435],[569,429,435],[570,430,436],[571,430,436],[572,431,436],[573,431,436],[574,432,436],[575,432,437],[576,433,436],[577,433,436],[578,434,436],[579,435,436],[580,435,436],[581,436,436],[590,423,423],[591,423,424],[592,423,424],[593,423,425],[594,423,425],[595,423,426],[596,423,426],[597,423,426],[598,423,427],[599,423,427],[600,423,427],[601,423,426],[602,423,426],[603,423,426],[604,422,426],[605,423,425],[605,442,442],[606,423,425],[606,442,442],[607,423,424],[607,442,443],[608,424,424],[608,443,443],[609,443,443],[610,443,444],[611,442,444],[612,442,444],[613,442,444],[614,442,444],[615,441,443],[616,441,443],[617,440,443],[618,440,442],[619,439,442],[620,439,442],[621,438,441],[622,438,440],[623,437,440],[624,437,440],[625,436,440],[626,436,439],[627,435,437],[628,435,436],[629,435,435]],[[554,951,951],[555,951,952],[556,952,952],[557,952,953],[558,952,953],[559,952,954],[560,952,954],[561,952,955],[562,952,955],[563,952,956],[564,952,957],[565,952,957],[566,953,958],[567,953,958],[568,953,959],[569,953,959],[570,954,960],[571,954,960],[572,954,961],[573,955,961],[574,955,961],[575,956,961],[576,956,961],[577,957,961],[578,957,961],[579,958,961],[580,958,961],[581,959,961],[582,960,961],[583,960,961],[584,961,961],[593,948,948],[594,948,949],[595,948,949],[596,948,950],[597,948,950],[598,948,950],[599,948,951],[600,948,951],[601,948,952],[602,948,952],[603,948,952],[604,948,952],[605,948,951],[606,948,951],[607,948,950],[608,948,950],[609,948,949],[610,948,949],[611,948,948],[653,934,934],[654,934,934],[655,934,934],[656,934,934],[657,934,935],[658,934,935],[659,933,935],[660,933,936],[661,933,936],[662,934,937],[663,934,938],[664,935,939],[665,935,940],[666,936,941],[667,937,942]],[[340,1305,1305],[341,1305,1306],[342,1305,1308],[343,1305,1308],[344,1305,1308],[345,1305,1309],[346,1305,1309],[347,1305,1309],[348,1305,1310],[349,1305,1310],[350,1305,1310],[351,1305,1311],[352,1305,1311],[353,1306,1312],[354,1306,1313],[355,1306,1313],[356,1306,1313],[357,1306,1313],[358,1306,1313],[359,1305,1313],[360,1305,1313],[361,1305,1313],[362,1306,1313],[363,1306,1312],[364,1306,1312],[365,1306,1312],[366,1306,1312],[367,1306,1312],[368,1306,1311],[369,1305,1311],[370,1305,1310],[371,1305,1310],[372,1305,1310],[373,1304,1309],[374,1304,1309],[375,1303,1309],[376,1303,1308],[377,1302,1308],[378,1302,1307],[379,1301,1307],[380,1301,1306],[381,1301,1306],[382,1300,1305],[383,1300,1305],[384,1300,1304],[385,1300,1304],[386,1299,1303],[387,1299,1303],[388,1299,1303],[389,1299,1302],[390,1299,1302],[391,1299,1301],[392,1299,1301],[393,1299,1301],[394,1299,1300],[395,1299,1300],[396,1299,1299],[397,1299,1299],[398,1299,1299],[424,1520,1520],[425,1520,1520],[426,1520,1521],[427,1520,1521],[428,1520,1522],[429,1520,1522],[430,1520,1523],[431,1520,1523],[432,1520,1523],[433,1520,1523],[434,1519,1522],[435,1519,1522],[436,1519,1522],[437,1519,1521],[438,1519,1521],[439,1520,1520]]]},"shoot":{"sourceSha256":"1AA0837FBECEA89EB416DC1D8B1A57F2A02BA41FD1CC0399FECE1E64C65BF199","width":1660,"height":948,"frames":[[[337,214,215],[338,215,215],[339,215,216],[340,215,217],[341,215,218],[342,215,219],[343,215,219],[344,215,219],[345,215,219],[346,215,220],[347,215,220],[348,215,220],[349,215,220],[350,215,221],[351,215,221],[352,215,222],[353,215,222],[354,215,222],[355,215,223],[356,215,224],[357,215,224],[358,215,224],[359,215,224],[360,215,224],[361,215,223],[362,215,223],[363,215,223],[364,215,222],[365,215,222],[366,215,221],[367,214,221],[368,214,220],[369,214,220],[370,213,219],[371,213,219],[372,212,218],[373,212,218],[374,211,217],[375,211,217],[376,211,212],[376,214,216],[377,215,215],[378,444,444],[379,444,444],[380,444,445],[381,444,445],[382,444,446],[383,444,447],[384,444,447],[385,444,448],[386,444,449],[387,444,449],[388,444,450],[389,445,451],[390,445,451],[391,445,452],[392,446,452],[393,446,453],[394,447,453],[395,447,454],[396,447,454],[397,448,454],[398,448,454],[399,449,454],[400,449,454],[401,450,454],[402,450,454],[403,451,454],[404,452,454],[405,453,454],[406,453,454],[414,440,440],[415,440,440],[416,440,441],[417,440,442],[418,440,442],[419,440,443],[420,440,444],[421,440,444],[422,440,444],[423,440,444],[424,440,444],[425,440,444],[426,440,444],[427,440,443],[428,440,443],[429,440,442],[429,460,460],[430,441,442],[430,460,460],[431,441,441],[431,460,461],[432,460,461],[433,460,461],[434,460,461],[435,460,461],[436,460,461],[437,459,461],[438,459,461],[439,458,460],[440,458,460],[441,457,460],[442,456,459],[443,456,459],[444,455,458],[445,454,457],[446,454,457],[447,453,457],[448,453,456],[449,453,455],[450,452,454],[451,452,453]],[[340,746,746],[341,746,747],[342,747,748],[343,747,749],[344,747,750],[345,747,751],[346,747,751],[347,747,751],[348,747,751],[349,747,752],[350,747,752],[351,747,752],[352,747,753],[353,747,753],[354,748,753],[355,748,754],[356,748,754],[357,748,755],[358,748,755],[359,752,755],[360,754,755],[361,754,754],[381,975,975],[382,975,976],[383,975,976],[384,975,977],[385,975,977],[386,975,978],[387,975,979],[388,975,980],[389,975,980],[390,975,981],[391,976,982],[392,976,982],[393,977,983],[394,977,984],[395,977,984],[396,978,985],[397,978,985],[398,979,985],[399,979,985],[400,980,985],[401,980,985],[402,981,986],[403,981,986],[404,982,986],[405,983,985],[406,984,985],[407,984,985],[408,985,985],[416,972,972],[417,972,972],[418,972,973],[419,972,974],[420,972,974],[421,972,975],[422,972,975],[423,972,976],[424,972,976],[425,972,976],[426,972,976],[427,971,976],[428,971,976],[429,972,975],[430,972,975],[430,990,990],[431,972,974],[431,990,990],[432,973,973],[432,990,991],[433,973,973],[433,990,991],[434,990,991],[435,990,991],[436,990,991],[437,990,992],[438,990,992],[439,990,992],[440,989,992],[441,989,992],[442,989,992],[443,988,991],[444,988,991],[445,987,990],[446,987,989],[447,986,989],[448,986,988],[449,985,988],[450,985,986],[451,984,985]],[[338,1291,1292],[339,1291,1292],[340,1292,1294],[341,1292,1295],[342,1292,1295],[343,1292,1296],[344,1292,1296],[345,1292,1296],[346,1292,1296],[347,1292,1297],[348,1292,1297],[349,1292,1297],[350,1292,1298],[351,1292,1298],[352,1292,1299],[353,1292,1299],[354,1292,1300],[355,1293,1300],[356,1296,1301],[357,1296,1302],[358,1296,1302],[359,1296,1302],[360,1298,1302],[361,1299,1301],[362,1299,1301],[363,1300,1300],[364,1300,1300],[379,1517,1517],[380,1517,1517],[381,1517,1518],[382,1517,1518],[383,1517,1519],[384,1517,1519],[385,1518,1520],[386,1518,1521],[387,1518,1521],[388,1518,1522],[389,1518,1523],[390,1518,1523],[391,1518,1524],[392,1518,1525],[393,1518,1525],[394,1519,1526],[395,1519,1526],[396,1519,1527],[397,1520,1527],[398,1520,1527],[399,1521,1528],[400,1521,1528],[401,1521,1528],[402,1522,1528],[403,1522,1528],[404,1523,1528],[405,1523,1528],[406,1524,1528],[407,1525,1528],[408,1526,1527],[409,1527,1527],[410,1527,1527],[417,1514,1514],[418,1514,1515],[419,1513,1515],[420,1513,1516],[421,1513,1517],[422,1514,1517],[423,1514,1517],[424,1513,1518],[425,1513,1517],[426,1513,1517],[427,1513,1517],[428,1513,1516],[429,1513,1516],[430,1513,1515],[430,1531,1531],[431,1514,1514],[431,1531,1531],[432,1514,1514],[432,1531,1531],[433,1531,1532],[434,1531,1532],[435,1531,1532],[436,1531,1532],[437,1531,1532],[438,1531,1532],[439,1531,1532],[440,1531,1532],[441,1530,1532],[442,1530,1532],[443,1529,1532],[444,1529,1531],[445,1529,1531],[446,1528,1530],[447,1527,1530],[448,1527,1530],[462,1300,1304],[463,1300,1305],[464,1300,1305],[465,1299,1306],[466,1298,1306],[467,1297,1306],[468,1296,1306],[469,1295,1306],[470,1293,1305],[471,1293,1305],[472,1295,1304],[473,1296,1302],[474,1297,1298]]]},"slash":{"sourceSha256":"06FE8B1650457BA6A8775AEE6D0D4B41F767FC0C55211314D081C6B8406AF8EB","width":1695,"height":928,"frames":[[[354,205,205],[355,205,205],[356,205,206],[357,206,206],[358,206,207],[359,206,208],[360,205,209],[361,205,210],[362,205,210],[363,205,210],[364,205,211],[365,205,211],[366,205,212],[367,206,212],[368,206,212],[369,206,213],[370,206,213],[371,206,214],[372,206,215],[373,206,215],[374,205,215],[375,205,215],[376,205,215],[377,205,215],[378,205,215],[379,205,215],[380,205,215],[381,205,214],[382,205,214],[383,205,214],[384,205,214],[385,205,213],[386,204,213],[387,204,213],[388,204,212],[389,203,212],[390,203,212],[391,202,211],[392,202,211],[393,201,210],[394,200,210],[394,427,428],[395,200,209],[395,427,428],[396,200,209],[396,427,429],[397,199,209],[397,428,430],[398,199,208],[398,427,431],[399,199,208],[399,428,432],[400,198,207],[400,428,433],[401,198,207],[401,428,434],[402,198,206],[402,428,435],[403,198,206],[403,428,436],[404,198,206],[404,218,218],[404,428,437],[405,198,205],[405,217,218],[405,428,438],[406,198,205],[406,216,217],[406,428,439],[407,197,205],[407,216,217],[407,429,440],[408,197,204],[408,216,217],[408,429,441],[409,197,204],[409,215,217],[409,430,442],[410,198,204],[410,215,216],[410,430,443],[411,198,204],[411,214,216],[411,431,444],[412,198,203],[412,214,216],[412,431,445],[413,198,203],[413,214,216],[413,432,445],[414,199,203],[414,214,216],[414,433,446],[415,199,203],[415,213,216],[415,433,447],[416,200,203],[416,213,216],[416,434,447],[417,200,203],[417,213,216],[417,435,448],[418,201,203],[418,213,216],[418,435,448],[419,202,203],[419,213,216],[419,436,449],[420,202,203],[420,214,216],[420,437,449],[421,203,204],[421,214,216],[421,438,449],[422,204,204],[422,214,216],[422,439,449],[423,204,205],[423,215,216],[423,439,449],[424,205,205],[424,215,216],[424,440,450],[425,216,216],[425,442,449],[426,443,449],[427,443,449],[428,444,449],[429,444,449],[430,445,449],[431,445,448],[432,443,448],[433,425,425],[433,443,448],[434,425,426],[434,444,447],[435,426,427],[435,444,447],[436,426,428],[436,444,446],[437,426,429],[437,445,446],[438,426,430],[439,426,430],[440,426,431],[441,426,432],[442,426,432],[443,426,432],[444,426,432],[444,455,455],[445,426,432],[445,455,456],[446,426,431],[446,455,456],[447,426,431],[447,455,457],[448,426,430],[448,456,457],[449,427,430],[449,456,457],[450,428,429],[450,435,435],[450,456,458],[451,429,429],[451,434,436],[451,456,458],[452,434,436],[452,456,458],[453,433,437],[453,456,458],[454,433,437],[454,455,458],[455,432,437],[455,455,458],[456,432,437],[456,454,458],[457,432,436],[457,454,457],[458,432,436],[458,453,457],[459,432,436],[459,453,456],[460,432,435],[460,452,456],[461,432,435],[461,452,455],[462,433,435],[462,451,455],[463,433,435],[463,451,454],[464,433,434],[464,451,453],[465,433,434],[465,451,452],[466,434,434],[466,450,451],[467,450,450],[468,450,450]],[[351,748,748],[352,748,748],[353,748,748],[354,748,749],[355,748,749],[356,748,750],[357,748,750],[358,748,751],[359,748,752],[360,748,753],[361,747,754],[362,747,755],[363,747,755],[364,747,755],[365,747,755],[366,746,756],[367,746,756],[368,746,756],[369,746,757],[370,745,757],[371,745,757],[372,745,758],[373,745,758],[374,745,758],[375,744,758],[376,744,757],[377,744,757],[378,744,757],[379,743,757],[380,743,757],[381,743,756],[382,743,756],[383,743,755],[384,742,755],[385,742,754],[386,742,754],[387,741,753],[388,740,753],[389,739,752],[390,738,751],[391,737,751],[392,736,750],[393,735,749],[394,735,749],[395,734,748],[396,734,748],[397,733,747],[398,733,746],[399,733,745],[400,732,745],[401,731,744],[402,731,744],[403,731,744],[404,731,743],[405,731,743],[406,731,742],[407,730,742],[408,730,742],[409,730,742],[410,730,742],[411,730,742],[412,731,742],[413,731,743],[414,731,743],[415,732,743],[416,732,743],[417,733,744],[418,733,742],[419,734,739],[420,734,738],[421,735,738],[422,735,739],[423,736,740],[424,737,741],[425,737,743],[426,737,743],[427,741,744],[428,743,743],[482,785,785],[483,785,785],[484,785,786],[485,785,787],[486,785,787],[487,784,788],[488,784,788],[489,783,789],[490,783,790],[491,782,790],[492,780,791],[493,779,790],[494,778,790],[495,778,789],[496,780,789],[497,782,788],[498,783,783]],[[359,1344,1344],[360,1344,1345],[361,1344,1346],[362,1344,1347],[363,1344,1348],[364,1344,1348],[365,1344,1348],[366,1344,1349],[367,1344,1349],[368,1344,1349],[369,1344,1350],[370,1344,1350],[371,1344,1351],[372,1344,1351],[373,1344,1352],[374,1344,1352],[375,1344,1353],[376,1344,1353],[377,1344,1353],[378,1344,1353],[379,1344,1353],[380,1344,1353],[381,1344,1353],[382,1343,1352],[383,1344,1352],[384,1344,1352],[385,1344,1352],[386,1343,1351],[387,1343,1351],[388,1343,1351],[389,1343,1350],[390,1342,1350],[391,1342,1350],[392,1341,1350],[393,1341,1349],[394,1340,1349],[395,1340,1348],[395,1562,1562],[396,1339,1348],[396,1562,1562],[397,1339,1347],[397,1562,1563],[398,1338,1346],[398,1562,1564],[399,1338,1346],[399,1562,1565],[400,1338,1345],[400,1562,1565],[401,1337,1345],[401,1563,1566],[402,1337,1345],[402,1563,1567],[403,1337,1344],[403,1563,1568],[404,1337,1344],[404,1563,1569],[405,1336,1343],[405,1563,1570],[406,1336,1343],[406,1355,1355],[406,1563,1571],[407,1336,1342],[407,1355,1355],[407,1563,1572],[408,1336,1342],[408,1354,1355],[408,1563,1573],[409,1336,1342],[409,1354,1354],[409,1563,1574],[410,1336,1341],[410,1353,1354],[410,1564,1575],[411,1336,1341],[411,1353,1354],[411,1564,1576],[412,1336,1341],[412,1352,1353],[412,1565,1577],[413,1336,1340],[413,1352,1353],[413,1565,1578],[414,1337,1340],[414,1352,1353],[414,1566,1579],[415,1337,1340],[415,1352,1353],[415,1566,1580],[416,1337,1340],[416,1351,1353],[416,1567,1580],[417,1338,1340],[417,1351,1352],[417,1568,1581],[418,1338,1340],[418,1350,1352],[418,1568,1582],[419,1339,1340],[419,1350,1352],[419,1569,1582],[420,1339,1340],[420,1350,1352],[420,1570,1583],[421,1340,1340],[421,1350,1352],[421,1570,1583],[422,1340,1340],[422,1350,1352],[422,1571,1583],[423,1350,1352],[423,1572,1583],[424,1351,1352],[424,1573,1583],[425,1351,1352],[425,1574,1584],[426,1352,1352],[426,1575,1584],[427,1576,1583],[428,1577,1583],[429,1577,1583],[430,1578,1583],[431,1579,1583],[432,1579,1582],[433,1576,1576],[433,1580,1582],[434,1559,1559],[434,1576,1578],[434,1580,1581],[435,1559,1559],[435,1577,1580],[436,1559,1560],[436,1577,1580],[437,1559,1562],[437,1578,1580],[438,1560,1562],[438,1578,1579],[439,1560,1563],[439,1579,1579],[440,1560,1563],[441,1560,1564],[442,1560,1564],[443,1560,1565],[444,1560,1565],[445,1560,1565],[445,1588,1588],[446,1560,1565],[446,1588,1589],[447,1560,1564],[447,1588,1589],[448,1560,1564],[448,1588,1590],[449,1560,1563],[449,1588,1590],[450,1561,1563],[450,1588,1591],[451,1562,1562],[451,1569,1570],[451,1589,1591],[452,1568,1570],[452,1589,1591],[453,1567,1571],[453,1589,1591],[454,1567,1571],[454,1589,1591],[455,1566,1571],[455,1589,1591],[456,1566,1571],[456,1589,1591],[457,1566,1570],[457,1589,1592],[458,1566,1569],[458,1588,1592],[459,1566,1569],[459,1588,1591],[460,1566,1569],[460,1587,1591],[461,1566,1569],[461,1587,1591],[462,1566,1569],[462,1587,1590],[463,1566,1568],[463,1586,1590],[464,1566,1568],[464,1586,1589],[465,1566,1568],[465,1586,1589],[466,1566,1567],[466,1585,1588],[467,1567,1567],[467,1585,1587],[468,1584,1586],[469,1584,1586],[470,1585,1585]]]},"throw":{"sourceSha256":"013B3FAFC348A3B7BBEE08E23449C35C2FE4D94EC0AEAF740D7AD2CFEBDF5977","width":1692,"height":929,"frames":[[[351,249,249],[352,249,250],[353,250,251],[354,250,252],[355,250,253],[356,250,254],[357,250,255],[358,250,255],[359,250,256],[360,250,256],[361,251,256],[362,251,257],[363,251,257],[364,251,257],[365,251,258],[366,251,258],[367,251,258],[368,251,259],[369,252,259],[370,252,260],[371,252,260],[372,252,261],[373,252,261],[374,252,261],[375,253,260],[376,253,260],[377,253,260],[378,253,260],[379,254,259],[380,254,259],[381,254,257],[382,255,256],[383,256,256],[401,487,487],[402,487,488],[403,487,488],[404,487,489],[405,487,489],[406,487,490],[407,488,490],[408,488,491],[409,488,492],[410,488,492],[411,488,493],[412,488,494],[413,489,494],[414,489,495],[415,489,496],[416,489,496],[417,490,497],[418,490,497],[419,491,498],[420,491,498],[421,492,498],[422,492,499],[423,493,499],[424,493,499],[425,493,499],[426,494,499],[427,495,499],[428,495,499],[429,496,499],[430,497,499],[431,497,499],[432,498,498],[441,485,485],[442,485,486],[443,485,487],[444,486,487],[445,486,488],[446,485,489],[447,485,489],[448,485,489],[449,485,489],[450,485,489],[451,485,490],[452,485,489],[453,485,489],[454,485,489],[455,484,488],[456,484,488],[456,506,506],[457,485,487],[457,506,506],[458,486,487],[458,506,507],[459,486,486],[459,506,507],[460,506,507],[461,507,507],[462,506,508],[463,506,508],[464,506,508],[465,506,508],[466,505,508],[467,505,508],[468,505,507],[469,504,507],[470,504,507],[471,503,506],[472,503,506],[473,502,505],[474,502,505],[475,501,505],[476,501,505],[477,500,504],[478,499,503],[479,499,501],[480,498,500],[481,498,499],[482,498,499],[483,498,498],[484,498,498]],[[351,777,777],[352,777,778],[353,778,779],[354,778,779],[355,777,780],[356,777,780],[357,777,781],[358,777,781],[359,777,781],[360,777,781],[361,777,782],[362,776,782],[363,776,782],[364,776,783],[365,776,783],[366,776,783],[367,776,783],[368,776,783],[369,776,783],[370,776,782],[371,775,782],[372,775,782],[373,775,781],[374,775,781],[374,1002,1002],[375,775,780],[375,1002,1002],[376,775,780],[376,1002,1002],[377,774,779],[377,1002,1003],[378,774,779],[378,1002,1003],[379,774,778],[379,1002,1003],[380,774,777],[380,1002,1004],[381,774,777],[381,1002,1004],[382,773,776],[382,1002,1004],[383,773,776],[383,1002,1004],[384,773,775],[384,1002,1004],[385,773,775],[385,1003,1004],[386,772,774],[386,1003,1004],[387,772,773],[387,1003,1005],[388,771,773],[388,1003,1005],[389,771,772],[389,1003,1005],[390,770,771],[390,1004,1005],[391,769,771],[391,1004,1005],[392,768,770],[392,1004,1005],[393,767,769],[393,1004,1005],[394,767,769],[394,1005,1005],[395,766,768],[395,1005,1005],[396,766,768],[396,1005,1005],[397,766,767],[398,766,767],[399,766,766],[418,1006,1006],[419,1006,1006],[420,1006,1007],[421,1006,1007],[422,1006,1008],[423,1006,1008],[424,1006,1009],[425,1005,1009],[426,1006,1010],[427,1006,1010],[428,1006,1011],[429,1006,1011],[430,1006,1012],[431,1006,1013],[432,1006,1013],[433,1007,1014],[434,1007,1014],[435,1007,1015],[436,1008,1015],[437,1008,1016],[438,1009,1016],[439,1009,1017],[440,1009,1017],[441,1010,1017],[442,1010,1017],[443,1011,1017],[444,1011,1017],[445,1012,1017],[446,1012,1017],[447,1013,1017],[448,1013,1017],[449,1014,1017],[450,1015,1016],[451,1016,1016],[452,1016,1016],[454,1000,1000],[455,1000,1000],[456,1000,1001],[457,1000,1001],[458,1000,1002],[459,754,755],[459,1000,1003],[460,753,755],[460,1000,1004],[461,753,755],[461,1000,1004],[462,752,755],[462,1000,1005],[463,752,755],[463,1000,1005],[464,752,755],[464,1000,1006],[465,753,756],[465,1000,1006],[466,754,755],[466,1000,1006],[467,755,756],[467,1000,1006],[468,755,756],[468,1000,1005],[469,756,757],[469,1000,1005],[470,756,760],[470,1000,1005],[471,757,760],[471,1000,1004],[471,1018,1018],[472,757,759],[472,1000,1003],[472,1018,1018],[473,758,759],[473,1001,1003],[473,1018,1019],[474,758,759],[474,1001,1002],[474,1018,1019],[475,758,759],[475,1001,1002],[475,1018,1020],[476,1018,1020],[477,1018,1020],[478,1018,1020],[479,1018,1020],[480,1018,1021],[481,1017,1021],[482,1017,1021],[483,1016,1020],[484,1016,1020],[485,1016,1019],[486,1015,1019],[487,1014,1018],[488,1013,1018],[489,1012,1018],[490,1012,1017],[491,1011,1016],[492,1011,1015],[493,1012,1014],[494,1012,1013],[495,1012,1012]],[[359,1316,1316],[360,1316,1317],[361,1317,1317],[362,1317,1318],[363,1317,1319],[364,1317,1320],[365,1317,1322],[366,1317,1323],[367,1317,1324],[368,1317,1324],[369,1317,1324],[370,1318,1325],[371,1318,1325],[372,1318,1325],[373,1318,1326],[374,1318,1326],[375,1318,1326],[376,1318,1327],[377,1318,1327],[378,1318,1328],[379,1318,1329],[380,1318,1329],[381,1318,1329],[382,1318,1329],[383,1318,1328],[384,1318,1328],[385,1318,1328],[386,1317,1328],[387,1317,1328],[388,1317,1327],[389,1317,1327],[390,1317,1327],[391,1317,1326],[392,1317,1326],[393,1317,1326],[394,1317,1325],[395,1316,1325],[396,1316,1325],[397,1316,1324],[398,1315,1324],[399,1315,1324],[400,1314,1323],[401,1313,1322],[402,1313,1322],[403,1312,1321],[404,1312,1321],[405,1311,1320],[406,1311,1320],[407,1310,1319],[408,1310,1319],[409,1310,1318],[410,1309,1318],[411,1309,1317],[412,1309,1317],[413,1309,1316],[414,1308,1316],[414,1548,1548],[415,1308,1315],[415,1548,1548],[416,1308,1315],[416,1548,1548],[417,1308,1315],[417,1548,1549],[418,1308,1314],[418,1548,1549],[419,1308,1314],[419,1548,1550],[420,1308,1313],[420,1548,1551],[421,1309,1313],[421,1548,1551],[422,1309,1313],[422,1548,1552],[423,1309,1312],[423,1548,1552],[424,1310,1312],[424,1548,1553],[425,1310,1311],[425,1548,1553],[426,1310,1311],[426,1548,1554],[427,1311,1311],[427,1548,1555],[428,1548,1555],[429,1549,1556],[430,1549,1556],[431,1549,1557],[432,1550,1557],[433,1550,1558],[434,1550,1558],[435,1551,1558],[436,1551,1558],[437,1552,1559],[438,1552,1559],[439,1553,1559],[440,1553,1559],[441,1554,1559],[442,1554,1559],[443,1555,1558],[444,1555,1558],[445,1556,1558],[446,1557,1558],[447,1558,1558],[453,1543,1543],[454,1543,1543],[455,1543,1544],[456,1543,1545],[457,1543,1545],[458,1543,1546],[459,1543,1546],[460,1543,1547],[461,1543,1547],[462,1543,1547],[463,1543,1547],[464,1543,1547],[465,1543,1547],[466,1542,1547],[467,1542,1546],[468,1543,1545],[469,1543,1545],[470,1543,1544],[470,1561,1561],[471,1561,1561],[472,1561,1562],[473,1561,1562],[474,1561,1562],[475,1561,1563],[476,1562,1563],[477,1562,1563],[478,1561,1563],[479,1561,1562],[480,1561,1562],[481,1561,1562],[482,1560,1563],[483,1560,1562],[484,1560,1562],[485,1560,1561],[486,1559,1561],[487,1558,1561],[488,1558,1561],[489,1557,1559],[490,1556,1558],[491,1555,1557],[492,1554,1556],[493,1554,1555],[494,1329,1329],[494,1553,1555],[495,1328,1329],[495,1553,1554],[496,1328,1330],[496,1553,1553],[497,1329,1330],[498,1329,1331],[499,1329,1332],[500,1329,1332],[501,1330,1333],[502,1330,1333],[503,1331,1334],[504,1331,1334],[505,1331,1334],[506,1331,1334],[507,1331,1331],[507,1334,1334],[508,1330,1331],[508,1334,1335],[509,1330,1331],[509,1334,1334],[510,1329,1331],[511,1328,1330]]]}};
+
+function markSophiaHairBackgroundVoids(data, width, height, key, isBackground, edgeSeen) {
+  // These source-hash-guarded spans are the baked background islands enclosed
+  // by Sophia's side hair. The shared RLE is also consumed by the video owner.
+  const match = key.match(/^physical-motion-blue-dress-(.+?)(?:-novel-v466|-v483)$/);
+  const mask = match ? SOPHIA_HAIR_ALPHA_MASKS[match[1]] : null;
+  if (!mask || width !== mask.width || height !== mask.height) return;
+  for (const frame of mask.frames) {
+    for (const [y, startX, endX] of frame) {
+      for (let x = startX; x <= endX; x += 1) {
+        const index = y * width + x;
+        if (isBackground(index)) edgeSeen[index] = 1;
+      }
+    }
+  }
 }
 
 function transparentSpriteSource(image, key, threshold = 24) {
@@ -23441,6 +23169,9 @@ function transparentSpriteSource(image, key, threshold = 24) {
       enqueue(x, y + 1);
       enqueue(x, y - 1);
     }
+    const sophiaV483Motion = key.startsWith("physical-motion-blue-dress-") &&
+      (key.endsWith("-v483") || key.endsWith("-novel-v466"));
+    if (sophiaV483Motion) markSophiaHairBackgroundVoids(data, w, h, key, isBg, seen);
     if (!tail && !strictGreenKey) {
       state.textures.preparedSprites.set(key, image);
       return image;
@@ -23924,7 +23655,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v653", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v654", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

@@ -1768,6 +1768,12 @@ body.tactics-open {
   to { transform: scale(1.035) translate3d(0.35%, -0.25%, 0); filter: saturate(0.98) brightness(0.9); }
 }
 
+/* Candidate: authored silent video replaces the interactive Canvas digest. */
+.tactics-panel.novel-active .tactics-novel-video-stage { height:100%; min-height:0; }
+.tactics-novel-video-stage { position:relative; display:grid; gap:14px; width:min(1920px,100%); margin:auto; padding:14px; border:1px solid rgba(14,116,144,.62); border-radius:18px; background:#07131c; color:#f8fafc; }
+#tacticsNovelVideo { display:block; width:100%; max-height:min(70dvh,720px); aspect-ratio:16/9; background:#020b12; border-radius:12px; }
+.tactics-novel-video-controls { display:flex; flex-wrap:wrap; gap:8px; }.tactics-novel-video-controls button { min-height:44px; padding-inline:18px; font-weight:900; }.tactics-novel-video-status { min-height:1.5em; margin:0; color:#fef3c7; font-weight:700; }.tactics-novel-transcript { max-width:100%; padding:14px 18px; border:1px solid rgba(103,232,249,.35); border-radius:12px; background:rgba(4,23,34,.94); }.tactics-novel-transcript h4 { margin:0 0 10px; color:#a5f3fc; }.tactics-novel-transcript ol { display:grid; gap:10px; margin:0; padding-left:24px; }.tactics-novel-transcript li { color:#e5f6f8; line-height:1.65; }.tactics-novel-transcript li strong,.tactics-novel-transcript li span { display:block; }@media (prefers-reduced-motion:reduce) { #tacticsNovelVideo { animation:none; } }
+
 .title-home-button {
   min-height: 32px;
   border-color: #78909f;
@@ -11875,102 +11881,6 @@ body.game-open #selectPanel #operatorList .operator-card.detail-active {
     padding-bottom: 84px;
   }
 }
-
-/* Every operator card owns its existing summary directly. The hold panel
-   remains available as optional expanded detail, never as the only copy. */
-body.game-open #selectPanel #operatorList .operator-meta {
-  display: grid;
-  min-width: 0;
-  align-content: start;
-  gap: 4px;
-}
-
-body.game-open #selectPanel #operatorList .operator-description {
-  display: block;
-  min-width: 0;
-  color: #244957;
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-body.game-open #selectPanel #operatorList .operator-card.selected .operator-description,
-body.game-open #selectPanel #operatorList .operator-card:is(:hover, :focus-visible, .detail-active) .operator-description {
-  color: #173b48;
-}
-
-body.game-open #selectPanel #operatorList .operator-card[aria-disabled="true"] .operator-description {
-  color: #365966;
-}
-
-/* v650 canvas-first presentation: only an active match stores external UI.
-   Selection, matching, meeting and result routes retain their normal layout. */
-.canvas-ui-toggle {
-  position: absolute;
-  z-index: 70;
-  top: max(12px, env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
-  display: grid;
-  place-items: center;
-  width: 48px;
-  min-width: 48px;
-  min-height: 44px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: .08em;
-  touch-action: manipulation;
-}
-
-.canvas-ui-toggle.active {
-  border-color: #67e8f9;
-  background: #164e63;
-  color: #effcff;
-}
-
-body.game-open.canvas-ui-collapsed:not(.result-presentation) .app-shell {
-  grid-template-columns: minmax(0, 1fr);
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  padding: 0;
-  gap: 0;
-}
-
-body.game-open.canvas-ui-collapsed:not(.result-presentation) .game-area,
-body.game-open.canvas-ui-collapsed:not(.result-presentation) .field-stage-slot {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
-body.game-open.canvas-ui-collapsed:not(.result-presentation) .field-stage-slot {
-  grid-template-rows: minmax(0, 1fr);
-  gap: 0;
-}
-
-body.game-open.canvas-ui-collapsed:not(.result-presentation) .board-wrap {
-  width: 100cqw;
-  height: 100cqh;
-  aspect-ratio: auto;
-  border-radius: 0;
-}
-
-body.game-open.canvas-ui-collapsed:not(.result-presentation) #sidePanel,
-body.game-open.canvas-ui-collapsed:not(.result-presentation) #fieldLowerRow {
-  display: none !important;
-}
-
-@media (orientation: portrait) {
-  body.game-open.canvas-ui-collapsed:not(.result-presentation) .board-wrap {
-    width: 100cqw;
-    height: 100cqh;
-  }
-}
-
 
 /* v650 candidate — append after styles.css; Hacker dock internals only. */
 body #statusPanel #hackerAbilityDock {

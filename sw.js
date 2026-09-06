@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "ui-visual-elevation-v653";
-const CACHE_NAME = "dva-static-v653-ui-visual-elevation";
+const RUNTIME_RELEASE = "ui-visual-elevation-v654";
+const CACHE_NAME = "dva-static-v654-ui-visual-elevation";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -25,6 +25,8 @@ const STATIC_ASSETS = [
   "/assets/title-hero-v466.png",
   "/assets/site-thumbnail-v497.png",
   "/assets/generated/tactics-novel-briefing-room-v466.png",
+  "/assets/generated/tactics-novel-digest-poster-v654.png",
+  "/assets/generated/mystery-box-open-v655.png",
   "/assets/generated/tactics-manga-sparkle-v466.png",
   "/assets/generated/tactics-manga-idea-v466.png",
   "/assets/generated/tactics-manga-cheer-v466.png",
@@ -428,7 +430,7 @@ async function trimRuntimeCache(cache) {
 
 function commitRuntimeResponse(request, response) {
   const key = runtimeCacheKey(request);
-  if (!key || !response.ok) return Promise.resolve();
+  if (!key || response.status !== 200) return Promise.resolve();
   const operation = runtimeCacheMutation.catch(() => {}).then(async () => {
     const cache = await caches.open(CACHE_NAME);
     await cache.put(key, response);
@@ -479,6 +481,8 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
   if (event.request.method !== "GET") return;
+  // Range responses are partial representations: bypass the full-resource cache key.
+  if (event.request.headers.has("range")) { event.respondWith(fetch(event.request)); return; }
 
   const networkResponse = fetch(event.request);
   event.waitUntil(networkResponse.then((response) => {
