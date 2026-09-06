@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-controls-accessibility-v636",
+    version: "ui-independent-improvements-v637",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -25812,5 +25812,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ui-controls-accessibility-v636" });
+self.postMessage({ type: "ready", version: "ui-independent-improvements-v637" });
 })();

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-controls-accessibility-v636";
+const DVA_CLIENT_RELEASE = "ui-independent-improvements-v637";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -868,7 +868,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-controls-accessibility-v636";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-independent-improvements-v637";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5062,7 +5062,9 @@ function preferredKeyboardElement(elements) {
     : state.screen === "tactics"
       ? els.tacticsChapterList.querySelector("button.active")
     : phase === "join"
-        ? els.matchmakingButton
+        ? (elements.includes(els.nameInput) && !els.nameInput.readOnly && !els.nameInput.value.trim()
+            ? els.nameInput
+            : els.matchmakingButton)
         : phase === "selecting"
             ? els.operatorList.querySelector('.operator-card[data-selectable="1"]') || els.operatorList.querySelector(".operator-card")
             : phase === "meeting"
@@ -9377,8 +9379,7 @@ async function startSoloMission(missionId) {
   const name = localStorage.getItem(storage.name) || els.nameInput.value.trim();
   if (!name) {
     showToast("最初に名前を入力してください。");
-    setScreen("online");
-    els.nameInput.focus();
+    setScreen("game");
     return;
   }
   loadGameplayTextures();
@@ -14613,7 +14614,7 @@ function renderEnd(data) {
             ${entry.id === data.selfId ? '<small class="result-point-self">あなた</small>' : ""}
             <small class="result-point-breakdown">${escapeHtml(breakdown)}</small>
           </span>
-          <span class="result-points" aria-label="最終ランクポイント ${points > 0 ? "+" : ""}${points}"><strong>${points > 0 ? "+" : ""}${points}</strong><small>最終ランクP</small></span>
+          <span class="result-points result-points-${points > 0 ? "positive" : points < 0 ? "negative" : "neutral"}" aria-label="最終ランクポイント ${points > 0 ? "+" : ""}${points}"><strong>${points > 0 ? "+" : ""}${points}</strong><small>最終ランクP</small></span>
         `;
         list.appendChild(row);
       });
@@ -22087,7 +22088,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-controls-accessibility-v636";
+const version = "ui-independent-improvements-v637";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23061,7 +23062,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-controls-accessibility-v636", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-independent-improvements-v637", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

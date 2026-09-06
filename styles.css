@@ -5574,6 +5574,71 @@ body .keybind-list dd {
   line-height: 1.45;
 }
 
+/* Keep the key reference as a local, scan-friendly reading surface.
+ * The early dark keybind skin uses equal-specificity !important rules.
+ * These scoped, later !important declarations deliberately supersede only
+ * those card/keycap rules. */
+body .keybind-overlay .keybind-list {
+  align-content: start;
+  gap: 14px;
+  padding: 2px 2px 24px;
+  scroll-behavior: auto;
+  scroll-padding-block: 8px 24px;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+body .keybind-overlay .keybind-list section {
+  border: 1px solid #9bbbc7 !important;
+  border-top: 4px solid #38bdf8 !important;
+  border-radius: 8px;
+  background: #f6fcfe !important;
+  box-shadow: 0 5px 15px rgba(5, 32, 45, 0.14);
+  padding: 12px;
+}
+
+body .keybind-overlay .keybind-list h3 {
+  color: #0e4b62 !important;
+  font-size: 14px;
+  line-height: 1.25;
+  text-shadow: none !important;
+}
+
+body .keybind-overlay .keybind-list dl {
+  grid-template-columns: minmax(112px, 0.78fr) minmax(0, 1.22fr);
+  gap: 7px 12px;
+  margin-top: 10px;
+}
+
+body .keybind-overlay .keybind-list dt {
+  align-self: start;
+  border: 1px solid #b8dce7;
+  border-radius: 5px;
+  background: #e6f7fb;
+  color: #123f50 !important;
+  font-size: 12px !important;
+  line-height: 1.35;
+  padding: 4px 6px;
+  text-shadow: none !important;
+}
+
+body .keybind-overlay .keybind-list dd {
+  align-self: center;
+  border-left: 2px solid #b4dce7;
+  color: #294b59 !important;
+  font-size: 13px !important;
+  line-height: 1.52 !important;
+  padding-left: 9px;
+}
+
+body .keybind-overlay .keybind-dialog header button {
+  border-color: #7aaebb !important;
+  background: #ecfbff !important;
+  color: #123f50 !important;
+  font-weight: 900;
+}
+
 @media (max-width: 620px) {
   .keybind-list { grid-template-columns: 1fr; }
 }
@@ -8723,4 +8788,533 @@ body #itemControl .item-control-actions button:first-child:not(:disabled) {
 body #itemControl :is(button, select, input):focus-visible {
   outline: 2px solid #076c91;
   outline-offset: 2px;
+}
+
+/* DVA developer-only replacement fragment: Shop information hierarchy.
+ * Apply after public/styles.css.  It deliberately owns only #vendingPanel
+ * descendants and retains the native buttons, selects, existing attributes and
+ * scrolling owner. */
+
+#vendingPanel {
+  max-height: min(58vh, 540px);
+  padding: 12px;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+#vendingPanel .vending-title-row {
+  position: sticky;
+  top: -12px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 10px;
+  margin: -12px -12px 0;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid rgba(14, 116, 144, 0.42);
+  background: #f6fcff;
+  box-shadow: 0 6px 12px rgba(8, 47, 73, 0.1);
+}
+
+#vendingPanel .vending-title-row h3 {
+  min-width: 0;
+  margin: 0;
+  color: #082f49;
+  font-size: 16px;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+}
+
+#vendingPanel .vending-continuous-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 4px 7px;
+  border: 1px solid rgba(22, 163, 74, 0.42);
+  border-radius: 7px;
+  background: rgba(240, 253, 244, 0.92);
+  color: #14532d;
+  font-size: 11px;
+}
+
+#vendingPanel .vending-continuous-toggle input {
+  inline-size: 18px;
+  block-size: 18px;
+  min-inline-size: 18px;
+  min-block-size: 18px;
+  min-height: 18px;
+  margin: 0;
+  flex: 0 0 18px;
+}
+
+#vendingPanel .vending-category-control {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+  min-height: 38px;
+  margin: 0;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+}
+
+#vendingPanel .vending-category-control .hacker-category-step {
+  display: grid;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  place-items: center;
+}
+
+#vendingPanel #vendingCategoryLabel {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  padding: 5px 8px;
+  color: #0c4a6e;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.22;
+  text-align: center;
+}
+
+#vendingPanel .shop-jump-controls {
+  width: 100%;
+  max-width: none;
+  margin: 10px 0 8px;
+  padding: 8px;
+  border: 1px solid rgba(14, 116, 144, 0.28);
+  border-radius: 8px;
+  background: rgba(224, 247, 255, 0.58);
+  gap: 8px;
+}
+
+#vendingPanel .shop-jump-controls label {
+  gap: 4px;
+  color: #075985;
+  font-size: 11px;
+  letter-spacing: 0.025em;
+}
+
+#vendingPanel .shop-jump-controls select {
+  min-height: 40px;
+  padding: 5px 8px;
+  border-color: #0e7490;
+  background: #fff;
+  color: #082f49;
+  font-size: 13px;
+}
+
+#vendingPanel .vending-grid {
+  gap: 9px;
+  margin-top: 4px;
+  padding-bottom: 2px;
+}
+
+#vendingPanel .vending-grid button.vending-item-with-icon {
+  min-height: 68px;
+  padding: 9px;
+  align-items: center;
+  border-width: 2px;
+}
+
+#vendingPanel .vending-item-icon {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+}
+
+#vendingPanel .vending-grid button .item-name-line {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 7px !important;
+  width: 100%;
+}
+
+#vendingPanel .vending-grid button .item-name-label {
+  color: #082f49;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.22;
+}
+
+#vendingPanel .vending-grid button .item-name-meta {
+  justify-self: end;
+  padding: 2px 6px;
+  font-size: 10px !important;
+  font-weight: 850;
+  line-height: 1.2 !important;
+}
+
+#vendingPanel .vending-grid button .item-name-meta.purchase-state {
+  grid-column: 1 / -1;
+  justify-self: start;
+  border-color: #b45309 !important;
+  background: #78350f !important;
+  color: #fffbea !important;
+}
+
+#vendingPanel .vending-grid button.shop-ability-owned .item-name-meta:not(.purchase-state) {
+  border-color: #15803d !important;
+  background: #14532d !important;
+  color: #f0fdf4 !important;
+}
+
+#vendingPanel .vending-grid button.purchase-unavailable {
+  border-color: #64748b;
+  background-color: #e2e8f0;
+  box-shadow: inset 4px 0 0 #64748b;
+}
+
+#vendingPanel .vending-grid button.purchase-bulk-unavailable {
+  border-color: #b45309;
+  box-shadow: inset 4px 0 0 #d97706, inset 0 0 0 1px rgba(245, 158, 11, 0.34);
+}
+
+#vendingPanel .vending-grid button:focus-visible {
+  outline: 3px solid #0369a1;
+  outline-offset: 2px;
+}
+
+#vendingPanel #magicInventory {
+  color: #713f12 !important;
+}
+
+@media (max-width: 540px) {
+  #vendingPanel .shop-jump-controls,
+  #vendingPanel .vending-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #vendingPanel .vending-title-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #vendingPanel .vending-continuous-toggle {
+    justify-self: start;
+  }
+}
+
+/* DVA developer-only replacement fragment: Result information hierarchy.
+ * Append after the current public/styles.css only during primary-owned
+ * integration.  It scopes to existing Result descendants and preserves the
+ * server-authored result rows, their order, the compact point chip, and the
+ * existing native result-ranking scroll owner. */
+
+.result-dialog .result-heading {
+  align-items: start;
+  gap: 4px 14px;
+  padding: 9px 10px;
+}
+
+.result-dialog .result-heading strong {
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.result-dialog .result-heading span {
+  max-width: 34ch;
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: right;
+}
+
+.result-dialog .result-team-title {
+  gap: 8px;
+  padding: 7px 10px;
+}
+
+.result-dialog .result-team-title strong {
+  font-size: 14px;
+  letter-spacing: 0.025em;
+}
+
+.result-dialog .result-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  min-height: 62px;
+  padding: 9px 10px;
+}
+
+.result-dialog .result-player {
+  gap: 4px;
+}
+
+.result-dialog .result-player strong {
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.result-dialog .result-player .result-point-breakdown {
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.32;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.result-dialog .result-point-mvp,
+.result-dialog .result-point-self {
+  justify-self: start;
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.result-dialog .result-points {
+  min-inline-size: 66px;
+  max-inline-size: 42%;
+  align-self: center;
+  gap: 2px;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+}
+
+.result-dialog .result-points :is(strong, small) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.result-dialog .result-points strong {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.result-dialog .result-points small {
+  color: currentColor;
+  font-size: 9px;
+  line-height: 1.15;
+}
+
+/* Result totals retain their signed text; these are presentation states only.
+ * The higher row-qualified selectors override the legacy all-nonzero green
+ * rule without changing the compact right-hand score column. */
+.result-dialog .result-row .result-points.result-points-positive {
+  border-color: #34d399;
+  background-color: #064e3b;
+  color: #a7f3d0;
+}
+
+.result-dialog .result-row .result-points.result-points-negative {
+  border-color: #f87171;
+  background-color: #5f1720;
+  color: #fecaca;
+}
+
+.result-dialog .result-row .result-points.result-points-neutral {
+  border-color: #94a3b8;
+  background-color: #263640;
+  color: #e2e8f0;
+}
+
+/* The Result is terminal UI. Its existing overlay is nested in the size
+ * container that owns the field, while the field utility buttons are fixed
+ * siblings above that container. Suppress only unrelated utilities for the
+ * already-authored result-presentation state so a short viewport cannot paint
+ * or receive a tap through the ranking or its return action. The audio button
+ * remains available and receives its own short-height safe band below. The
+ * native ranking remains the sole scroll owner. */
+body.game-open.result-presentation :is(
+  .keybind-button,
+  .tablet-launch-button:not(.audio-launch-button),
+  .game-tactics-button,
+  .leave-room-launch-button,
+  .operator-reselect-button
+) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.game-open.result-presentation .end-overlay:not([hidden]) {
+  pointer-events: auto;
+}
+
+/* Keep the terminal primary action touch-sized even when the public portrait
+ * and short-container rules reduce its normal field-space minimum. */
+body.game-open.result-presentation .end-overlay #resetButton {
+  min-height: 44px;
+}
+
+/* The fixed audio control is intentionally still available at Result. Reserve
+ * its 54px button, its viewport inset, and an 8px separation only when the
+ * viewport is short. The dialog's existing minmax ranking row absorbs the
+ * reduction and remains the native vertical scroll region. */
+@media (max-height: 640px) {
+  body.game-open.result-presentation .end-overlay {
+    padding-bottom: calc(max(18px, env(safe-area-inset-bottom)) + 62px);
+  }
+}
+
+@media (max-width: 480px) {
+  .result-dialog .result-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+
+  .result-dialog .result-heading span {
+    max-width: none;
+    text-align: left;
+  }
+
+  .result-dialog .result-team-title {
+    min-height: 32px;
+    padding-inline: 8px;
+  }
+
+  .result-dialog .result-row {
+    column-gap: 8px;
+    min-height: 60px;
+    padding: 8px;
+  }
+
+  .result-dialog .result-player strong {
+    font-size: 14px;
+  }
+
+  .result-dialog .result-player .result-point-breakdown {
+    font-size: 10px;
+  }
+
+  .result-dialog .result-points {
+    min-inline-size: 60px;
+    max-inline-size: 42%;
+    padding-inline: 6px;
+  }
+
+  .result-dialog .result-points strong {
+    font-size: 16px;
+  }
+}
+
+/* Candidate only — append after the present side-panel rules.
+ * Scope is the shipped matchmaking form (#joinPanel) only. */
+body #joinPanel > .objective {
+  margin: 0 0 12px;
+  border-left: 3px solid #24788a;
+  background-color: #eef7f6;
+  padding: 7px 9px;
+  color: #294b55;
+}
+
+body #joinPanel > label {
+  gap: 7px;
+  margin: 9px 0;
+  border-left: 3px solid #a9c4c2;
+  background-color: #f1f7f6;
+  padding: 7px 9px;
+  color: #274550;
+}
+
+body #joinPanel > :is(input, select) {
+  min-height: 40px;
+  color: #183b49;
+  background-color: #ffffff;
+}
+
+body #joinPanel > #matchmakingButton {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+}
+
+body #joinPanel > #matchmakingButton:disabled {
+  cursor: progress;
+  opacity: 1;
+  border-style: dashed;
+  border-color: #77939a;
+  color: #425b64;
+  background: #e6efee;
+  box-shadow: none;
+}
+
+/* Portrait pre-match state only.  The field has no playable session while the
+ * existing join or operator-selection panel is visible, so it must not consume
+ * the single-column mobile viewport above that panel.  #sidePanel remains the
+ * native scroll owner. */
+@media (max-width: 680px) and (orientation: portrait) {
+  body.game-open:has(#joinPanel:not([hidden]), #selectPanel:not([hidden])) .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: 10px;
+  }
+
+  body.game-open:has(#joinPanel:not([hidden]), #selectPanel:not([hidden])) .game-area {
+    display: none;
+  }
+
+  body.game-open:has(#joinPanel:not([hidden]), #selectPanel:not([hidden])) #sidePanel {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+  }
+}
+
+/* The title-return, tactics and audio utilities remain fixed in the lower
+ * lane.  On a short portrait viewport reserve that lane above the form's
+ * native scroll box instead of hiding utilities or allowing a submit button
+ * to sit behind one. */
+@media (max-width: 680px) and (orientation: portrait) and (max-height: 640px) {
+  body.game-open:has(#joinPanel:not([hidden]), #selectPanel:not([hidden])) #sidePanel {
+    height: calc(100% - 138px);
+    max-height: calc(100% - 138px);
+  }
+}
+
+/* Active play has a canvas-sized first grid row and a long tactical sidebar.
+ * Let the app shell own the vertical native scroll between those two regions;
+ * a 15px clipped sidebar cannot make its own local scroll usable. Results and
+ * meetings retain their existing dedicated presentation/interaction owners. */
+@media (max-width: 680px) and (orientation: portrait) {
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):not(:has(#meetingPanel:not([hidden]))) .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    /* An overflow:auto flex rail has a zero automatic minimum size.  Give both
+     * rows their intrinsic block size so the second row cannot collapse to its
+     * border while the app shell is the outer scroll surface. */
+    grid-template-rows: max-content max-content;
+    align-content: start;
+    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px;
+  }
+
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):not(:has(#meetingPanel:not([hidden]))) #sidePanel {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+    height: max-content;
+    min-height: max-content;
+    max-height: none;
+  }
+}
+
+@media (max-width: 680px) and (orientation: portrait) and (max-height: 640px) {
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):not(:has(#meetingPanel:not([hidden]))) .app-shell {
+    padding-bottom: 138px;
+  }
 }
