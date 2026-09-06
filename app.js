@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v646";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v647";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -869,7 +869,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v646";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v647";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -12691,6 +12691,7 @@ function renderTargetOptions(data) {
   } else if (options.length && els.teleportModeSelect.dataset.specialKey !== `${modeOwner}:${modeKey}`) {
     clearAbilityCascadeSelects();
     const previousMode = els.teleportModeSelect.value;
+    els.teleportModeSelect.setAttribute("aria-label", "能力方式");
     els.teleportModeSelect.dataset.specialKey = `${modeOwner}:${modeKey}`;
     els.teleportModeSelect.innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
     const rememberedMode = borrowedOperator ? state.borrowedAbilityModes[borrowedOperator] : "";
@@ -12767,8 +12768,13 @@ function renderTargetOptions(data) {
 
 function abilityModeDescription(owner, mode, self) {
   const costs = self?.abilityCosts || {};
-  const free = self?.hackerManaFree || self?.rationalFreeAbilityReady;
+  const operatorManaFree = Boolean(self?.hackerManaFree || self?.fighterInfiniteResources);
+  const free = operatorManaFree || self?.rationalFreeAbilityReady;
   const cost = (key, fallback = 1) => free ? "今回0MP" : `${Number(costs[key] ?? fallback)}MP`;
+  const directCost = (key, fallback = 1) => operatorManaFree ? "今回0MP" : `${Number(costs[key] ?? fallback)}MP`;
+  const nuclearCost = operatorManaFree
+    ? `発動には${Number(costs.quantumNuclear ?? 2)}MP保有（消費0MP）`
+    : `${Number(costs.quantumNuclear ?? 2)}MP消費`;
   const descriptions = {
     fighter: {
       "limit-break": "HPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ累積する。HPを使い切ると死亡する。"
@@ -12776,7 +12782,7 @@ function abilityModeDescription(owner, mode, self) {
     teleport: {
       near: `局所重力場で時空曲率を変え、対象の近くへ全身転移する。${cost("teleport")}。`,
       target: `局所重力場で時空曲率を変え、マップ指定地点へ選択対象を転移する。味方への誤射は発動者が即死する。${cost("teleport")}。`,
-      heart: `遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる。位置は公開しない。${cost("heartTeleport", 10)}。`,
+      heart: `遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる。位置は公開しない。${directCost("heartTeleport", 10)}。`,
       accelerate: `対象の時間進行率を8秒間×2.5にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
       decelerate: `対象の時間進行率を8秒間×0.38にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。${cost("teleport")}。`,
       "time-keeper": `5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する。${cost("timeKeeper", 1000)}。`,
@@ -12794,8 +12800,8 @@ function abilityModeDescription(owner, mode, self) {
       "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動・熱エネルギーを減らし、氷へ相変化させる。対象がなければ何も起きない。",
       "electric-discharge": "量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / 1MP（無料化対象外）。",
       "nuclear-transmutation": "所持している鉛か水銀を自動選択し、原子核変換で金へ変えて100Cへ即時換金する。どちらもなければ何も起きない。",
-      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ作用させる。どちらもなければ何も起きない。${cost("quantumNuclear")}。`,
-      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合反応で全人間へ作用させる。海水がなければ何も起きない。${cost("quantumNuclear")}。`
+      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ作用させる。どちらもなければ何も起きない。${nuclearCost}。`,
+      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合反応で全人間へ作用させる。海水がなければ何も起きない。${nuclearCost}。`
     }
   };
   const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
@@ -14061,6 +14067,11 @@ function vendingCardAvailability(button, data) {
   const cost = Number(ability?.price ?? VENDING_PRODUCT_COSTS[itemId]);
   const credits = Math.max(0, Math.floor(Number(self.credits) || 0));
   const owned = Boolean(ability && shopAbilityOwned(ability.id, self));
+  const itemStorageDisabledUntil = Number(self.itemDisabledUntil) || 0;
+  const itemStorageBlocked = !owned && itemStorageDisabledUntil > estimatedServerNow(data);
+  const itemStorageRemainingSeconds = itemStorageBlocked
+    ? Math.max(1, Math.ceil((itemStorageDisabledUntil - estimatedServerNow(data)) / 1000))
+    : 0;
   const capacities = self.vendingPurchaseCapacities || {};
   const hasFiniteCapacity = !ability && Object.prototype.hasOwnProperty.call(capacities, itemId);
   const capacity = hasFiniteCapacity
@@ -14068,7 +14079,7 @@ function vendingCardAvailability(button, data) {
     : Number.POSITIVE_INFINITY;
   const capReached = !ability && capacity < 1;
   const insufficientCredits = !owned && Number.isFinite(cost) && credits < cost;
-  const purchaseUnavailable = capReached || insufficientCredits;
+  const purchaseUnavailable = itemStorageBlocked || capReached || insufficientCredits;
   const affordableQuantity = Number.isFinite(cost) && cost > 0 ? Math.floor(credits / cost) : 0;
   const bulkUnavailable = Boolean(
     state.vendingBulkPurchase &&
@@ -14077,8 +14088,10 @@ function vendingCardAvailability(button, data) {
     Number.isFinite(capacity) &&
     affordableQuantity > capacity
   );
-  const statusLabel = capReached
-    ? "上限"
+  const statusLabel = itemStorageBlocked
+    ? `EMP機器異常 / 残り${itemStorageRemainingSeconds}秒`
+    : capReached
+      ? "上限"
     : insufficientCredits
       ? "通貨不足"
       : bulkUnavailable
@@ -14094,8 +14107,10 @@ function vendingCardAvailability(button, data) {
     purchaseUnavailable,
     bulkUnavailable,
     statusLabel,
-    purchaseBlockedMessage: capReached
-      ? `${label}は購入上限に達しています。長押しで詳細を確認できます。`
+    purchaseBlockedMessage: itemStorageBlocked
+      ? `EMP機器異常中です（残り${itemStorageRemainingSeconds}秒）。解除後に${label}を購入できます。`
+      : capReached
+        ? `${label}は購入上限に達しています。長押しで詳細を確認できます。`
       : insufficientCredits
         ? `${label}の購入には${cost}C必要です。長押しで詳細を確認できます。`
         : "",
@@ -14184,10 +14199,10 @@ function renderVending(data) {
     const owned = availabilityState.owned;
     const ownership = owned
       ? ability.behavior === "passive"
-        ? "購入済み・自動"
+        ? "購入済み・自動適用"
         : ability.behavior === "panel"
-          ? "購入済み・操作解放"
-          : "購入済み・発動"
+          ? "購入済み・生成パネル"
+          : "購入済み・次タップで発動"
       : "";
     const statusLabel = availabilityState.statusLabel;
     const visibleName = `${label}${price ? ` ${price}` : ""}${ownership ? ` ${ownership}` : ""}${statusLabel ? ` ${statusLabel}` : ""}`;
@@ -14214,6 +14229,7 @@ function renderVending(data) {
     data.self.substitutionCharges || 0,
     data.self.standFirmCharges || 0,
     data.self.pushCharges || 0,
+    Math.max(0, Math.ceil(((Number(data.self.itemDisabledUntil) || 0) - estimatedServerNow(data)) / 1000)),
     mysteryVisible ? data.self.lastMysteryResult : "",
     Boolean(data.self.hackActive),
     Object.entries(data.self.vendingPurchaseCapacities || {}).sort(([left], [right]) => left.localeCompare(right)),
@@ -14372,14 +14388,20 @@ function updateActionButtons(data) {
   const abilityCosts = self.abilityCosts || {};
   const selectedAlchemy = alchemyRecipes.find((recipe) => recipe.id === els.alchemySelect.value) || alchemyRecipes[0];
   const activeBorrowedOperator = selectedBorrowedOperator();
+  const operatorManaFree = Boolean(self.hackerManaFree || self.fighterInfiniteResources);
+  const rationalWaiverApplies = (key) => !["heartTeleport", "fighterCharge", "quantumNuclear", "quantumElectric"].includes(key);
+  const fixedManaReserveApplies = (key) => ["quantumNuclear", "quantumElectric"].includes(key);
   const hasMana = (key) => {
-    if (self.hackerManaFree || self.rationalFreeAbilityReady) return true;
     const cost = Number(abilityCosts[key]) || 0;
+    if (fixedManaReserveApplies(key)) return cost <= 0 || (Number(self.mana) || 0) >= cost;
+    if (operatorManaFree || (self.rationalFreeAbilityReady && rationalWaiverApplies(key))) return true;
     return cost <= 0 || (Number(self.mana) || 0) >= cost;
   };
-  const operatorCostLabel = (key) => self.hackerManaFree
-    ? "0MP / CTあり"
-    : self.rationalFreeAbilityReady
+  const operatorCostLabel = (key) => fixedManaReserveApplies(key)
+    ? `-${abilityCosts[key] ?? 1}MP`
+    : operatorManaFree
+      ? "0MP / CTあり"
+      : self.rationalFreeAbilityReady && rationalWaiverApplies(key)
       ? "FREE"
       : `-${abilityCosts[key] ?? 1}MP`;
   const target = nearestTarget();
@@ -14606,9 +14628,13 @@ function updateActionButtons(data) {
   const nuclearModeLocked = (mode) => ["nuclear-fission", "nuclear-fusion"].includes(mode) && !data.quantumEndgameAvailable;
   const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
   const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
-  const strictElectricManaUnavailable = (Number(self.mana) || 0) < Number(abilityCosts.quantumElectric ?? 1);
-  const nativeQuantumManaUnavailable = displayedOperator === "quantum" && nativeQuantumMode === "electric-discharge" && strictElectricManaUnavailable;
-  const borrowedQuantumManaUnavailable = borrowedDisplayedOperator === "quantum" && borrowedQuantumMode === "electric-discharge" && strictElectricManaUnavailable;
+  const quantumFixedManaUnavailable = (mode) => mode === "electric-discharge"
+    ? (Number(self.mana) || 0) < Number(abilityCosts.quantumElectric ?? 1)
+    : ["nuclear-fission", "nuclear-fusion"].includes(mode)
+      ? (Number(self.mana) || 0) < Number(abilityCosts.quantumNuclear ?? 2)
+      : false;
+  const nativeQuantumManaUnavailable = displayedOperator === "quantum" && quantumFixedManaUnavailable(nativeQuantumMode);
+  const borrowedQuantumManaUnavailable = borrowedDisplayedOperator === "quantum" && quantumFixedManaUnavailable(borrowedQuantumMode);
   const nativeFloraUnavailable = displayedOperator === "flora" && (
     !hasMana(floraCostKey) || (operatorMode === "invisible" && self.floraInvisibleActive)
   );
@@ -14634,7 +14660,7 @@ function updateActionButtons(data) {
       nativeFloraUnavailable ||
       nativeQuantumManaUnavailable ||
       (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
-      (displayedOperator === "fighter" && (!hasMana("fighterCharge") || (Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0)) <= 1)) ||
+      (displayedOperator === "fighter" && !self.fighterInfiniteResources && (Number(self.mana) || 0) <= 0) ||
       nativeQuantumEndgameLocked ||
       (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16));
   els.operatorAbilityButton.title = self.hackerRootActive && borrowedQuantumEndgameLocked
@@ -14650,12 +14676,24 @@ function updateActionButtons(data) {
     : "タップで現在の固有能力を1回発動";
   const selectedShopAbility = selectedPurchasedShopAbility(self);
   if (selectedShopAbility) {
+    const purchasedManaKey = selectedShopAbility.operator === "gravity"
+      ? selectedShopAbility.mode === "heart" ? "heartTeleport" : selectedShopAbility.mode === "storm" ? "gravityStorm" : selectedShopAbility.mode === "time-keeper" ? "timeKeeper" : "teleport"
+      : selectedShopAbility.operator === "flora"
+        ? selectedShopAbility.mode === "sunbeam" ? "floraSunbeam" : selectedShopAbility.mode === "invisible" ? "floraInvisible" : "flora"
+        : "";
+    const purchasedManaUnavailable = Boolean(purchasedManaKey && !hasMana(purchasedManaKey));
+    const purchasedQuantumUnavailable = selectedShopAbility.operator === "quantum" && (
+      quantumFixedManaUnavailable(selectedShopAbility.mode) ||
+      (hasCompatibleQuantumItem(self, selectedShopAbility.mode) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16))
+    );
+    const purchasedLimitBreakUnavailable = selectedShopAbility.operator === "fighter" &&
+      !operatorManaFree && (Number(self.mana) || 0) <= 0;
     els.operatorAbilityButton.hidden = false;
     els.operatorAbilityButton.textContent = selectedShopAbility.label;
     els.operatorAbilityButton.dataset.operator = "shop:" + selectedShopAbility.id;
     els.operatorAbilityButton.dataset.repeatableAbility = "0";
     els.operatorAbilityButton.classList.remove("active");
-    els.operatorAbilityButton.disabled = !canUseAbility;
+    els.operatorAbilityButton.disabled = !canUseAbility || purchasedManaUnavailable || purchasedQuantumUnavailable || purchasedLimitBreakUnavailable;
     els.operatorAbilityButton.title = "タップで選択した購入済み能力を1回実行";
   }
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
@@ -22428,7 +22466,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v646";
+const version = "ui-visual-elevation-v647";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23402,7 +23440,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v646", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v647", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

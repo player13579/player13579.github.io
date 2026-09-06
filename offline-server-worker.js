@@ -7429,7 +7429,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-visual-elevation-v646",
+    version: "ui-visual-elevation-v647",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -21618,6 +21618,7 @@ function serialize(room, viewer, options = {}) {
       ideaBlockedByDesire: Boolean(viewer.desireIdeaForfeited || isDesireState(viewer) || viewer.desireBias),
       luck: luckValueFor(viewer),
       passivesEnabled: passivesEnabled(viewer),
+      hackerManaFree: isHackerOperator(viewer),
       rationalFreeAbilityReadyAt: Number(viewer.rationalFreeAbilityReadyAt) || 0,
       rationalFreeAbilityReady: isRational(viewer) &&
         (Number(viewer.rationalFreeAbilityReadyAt) || Infinity) <= timestamp,
@@ -25823,5 +25824,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ui-visual-elevation-v646" });
+self.postMessage({ type: "ready", version: "ui-visual-elevation-v647" });
 })();

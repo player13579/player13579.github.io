@@ -11398,3 +11398,112 @@ body #teleportControl:not([hidden]) :is(
   width: 100%;
   min-height: 44px;
 }
+
+/* v647 expanded-map visual refinement: paint-only, scoped to the existing dialog. */
+#expandedMapOverlay:not([hidden]) {
+  background-color: #f2f7f8 !important;
+  background-image: linear-gradient(132deg, rgba(250,252,253,.98), rgba(228,241,244,.94)) !important;
+  box-shadow: inset 0 0 0 1px #b5cbd2;
+}
+
+#expandedMapOverlay:not([hidden]) > .expanded-map-toolbar {
+  color: #f2f7f8 !important;
+  background: #102532 !important;
+  border-bottom-color: #34b3be !important;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.12);
+}
+
+#expandedMapOverlay:not([hidden]) > .expanded-map-toolbar #expandedMapTitle {
+  color: #f2f7f8 !important;
+  text-shadow: none;
+}
+
+#expandedMapOverlay:not([hidden]) > .expanded-map-toolbar #teleportMapStatus:not([hidden]) {
+  color: #102532 !important;
+  background: #f2f7f8 !important;
+  background-image: none !important;
+  border-color: #34b3be !important;
+  box-shadow: inset 0 0 0 1px rgba(52,179,190,.32);
+}
+
+#expandedMapOverlay:not([hidden]) > #expandedMapCanvas {
+  background-color: #e7f0f3;
+  box-shadow: inset 0 0 0 2px #b5cbd2, inset 0 0 0 4px rgba(250,252,253,.9);
+}
+
+#expandedMapOverlay:not([hidden]) > .expanded-map-toolbar .map-close-button {
+  color: #f2f7f8 !important;
+  background: #193846 !important;
+  background-image: none !important;
+  border-color: #b5cbd2 !important;
+  box-shadow: none;
+}
+
+#expandedMapOverlay:not([hidden]) > .expanded-map-toolbar .map-close-button:hover {
+  background: #245467 !important;
+  border-color: #34b3be !important;
+}
+
+#expandedMapOverlay:not([hidden]) > .expanded-map-toolbar .map-close-button:focus-visible {
+  outline: 3px solid #34b3be;
+  outline-offset: 2px;
+}
+
+
+/* v647 candidate: state paint only; no layout or input ownership changes. */
+.vending-grid .shop-ability-card.shop-ability-owned .item-name-meta {
+  border-color: rgba(52, 179, 190, 0.72);
+  color: #e8fbfd !important;
+  background: rgba(16, 55, 66, 0.9);
+}
+
+.vending-grid .shop-ability-card.purchase-unavailable .purchase-state {
+  border-color: rgba(173, 121, 38, 0.88);
+  color: #fff4d9 !important;
+  background: rgba(99, 58, 22, 0.92);
+}
+
+/* A purchased ability has both price and next-tap state. Keep those metadata
+   chips below its name so a narrow sidebar never reduces the name to letters. */
+#vendingPanel .vending-grid button.shop-ability-owned .item-name-line {
+  display: grid !important;
+  /* Overrides the existing generic two-column `1fr auto` card rule. */
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-items: start;
+}
+
+#vendingPanel .vending-grid button.shop-ability-owned .item-name-label {
+  min-width: 0;
+  grid-column: 1;
+}
+
+#vendingPanel .vending-grid button.shop-ability-owned .item-name-meta {
+  justify-self: start;
+  grid-column: 1;
+}
+
+/* v647 ability information: compact only the interior rows of the existing
+   teleport/borrowed-ability form. Native picker ownership and outer field
+   geometry remain with the established v646 rules. */
+body #teleportControl:not([hidden]) {
+  gap: 6px;
+}
+
+body #teleportControl:not([hidden]) .ability-mode-switch {
+  gap: 4px;
+  align-content: start;
+}
+
+body #teleportControl:not([hidden]) .ability-mode-switch > label,
+body #teleportControl:not([hidden]) > label,
+body #teleportControl:not([hidden]) .ability-cascade-selects > label:not([hidden]) {
+  margin-block: 0;
+}
+
+body #teleportControl:not([hidden]) .ability-auto-activate {
+  align-self: start;
+}
+
+body #teleportControl:not([hidden]) .ability-mode-description {
+  margin-block: 0;
+}
