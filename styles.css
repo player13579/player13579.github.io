@@ -9929,3 +9929,24 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Keep the current shortcuts and120px stick. Place only the stick beside
+ * the bottom information row, within the left thumb's corner reach. */
+@media (min-width: 681px) and (orientation: landscape) {
+  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel {
+    overflow: visible;
+  }
+  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel .tablet-joystick-zone {
+    position: absolute;
+    top: auto;
+    left: max(12px, env(safe-area-inset-left, 0px));
+    bottom: calc(env(safe-area-inset-bottom, 0px) - var(--landscape-info-height));
+  }
+  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions {
+    grid-column: 2;
+  }
+  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #fieldLowerRow {
+    width: calc(100% - 144px);
+    justify-self: end;
+  }
+}
