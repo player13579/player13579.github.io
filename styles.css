@@ -11507,3 +11507,27 @@ body #teleportControl:not([hidden]) .ability-auto-activate {
 body #teleportControl:not([hidden]) .ability-mode-description {
   margin-block: 0;
 }
+
+/* v648: Every vending card gives its name a full row. An unowned price and
+   state then share the lower row; the owned combined meta spans that row. */
+#vendingPanel .vending-grid button .item-name-line {
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  align-items: start;
+}
+
+#vendingPanel .vending-grid button .item-name-label {
+  grid-column: 1 / -1;
+}
+
+#vendingPanel .vending-grid button .item-name-meta {
+  grid-row: 2;
+  justify-self: start;
+}
+
+#vendingPanel .vending-grid button .item-name-meta.purchase-state {
+  grid-column: 2;
+}
+
+#vendingPanel .vending-grid button.shop-ability-owned .item-name-meta:not(.purchase-state) {
+  grid-column: 1 / -1;
+}

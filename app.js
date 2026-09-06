@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v647";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v648";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -869,7 +869,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v647";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v648";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -5232,7 +5232,7 @@ function keyboardContextKey() {
   if (state.keybindOpen) return "keybind";
   if (state.screen === "title") return "title";
   if (state.screen === "tactics") return `tactics:${state.tacticsChapterId}`;
-  if (state.fieldFeedOpen) return "game:feed:chat";
+  if (state.fieldFeedOpen && state.data?.phase !== "meeting") return "game:feed:chat";
   if (state.expandedMapOpen) return "game:map";
   if (state.operatorBranchesOpen) return "game:operator-branches";
   if (state.tabletOpen) return "game:tablet";
@@ -5264,7 +5264,7 @@ function contextKeyboardElements() {
   if (state.screen === "tactics") {
     return keyboardControlsIn(els.tacticsPanel);
   }
-  if (state.fieldFeedOpen) return keyboardControlsIn(els.fieldFeedPanel);
+  if (state.fieldFeedOpen && state.data?.phase !== "meeting") return keyboardControlsIn(els.fieldFeedPanel);
   if (state.expandedMapOpen) return keyboardControlsIn(els.expandedMapOverlay);
   if (state.operatorBranchesOpen) return keyboardControlsIn(els.operatorBranchPanel);
   if (state.tabletOpen) return [];
@@ -5293,7 +5293,7 @@ function contextKeyboardElements() {
 
 function preferredKeyboardElement(elements) {
   const phase = state.data?.phase || "join";
-  const preferred = state.fieldFeedOpen
+  const preferred = state.fieldFeedOpen && phase !== "meeting"
     ? (!els.chatInput.disabled ? els.chatInput : els.chatTab)
     : state.screen === "title"
     ? (state.tacticsReturnScreen === "title" && state.tacticsReturnFocus === "title-tactics" ? els.titleTacticsButton : els.titlePlayButton)
@@ -6401,6 +6401,13 @@ function handleFieldFeedDialogKeydown(event) {
     : activeElement?.matches?.('input, textarea, [contenteditable="true"]')
       ? activeElement
       : null;
+  if (state.data?.phase === "meeting") {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      return true;
+    }
+    return false;
+  }
   if (event.key === "Tab") {
     event.preventDefault();
     const controls = contextKeyboardElements();
@@ -11894,6 +11901,7 @@ function render() {
   }
   state.fieldFeedOpen = Boolean(data && data.phase === "meeting");
   els.fieldFeedPanel.hidden = !state.fieldFeedOpen;
+  els.fieldFeedPanel.setAttribute("aria-modal", String(state.fieldFeedOpen && data?.phase !== "meeting"));
   els.leaveRoomButton.hidden = state.screen === "title";
   els.operatorReselectButton.hidden = !(
     state.screen === "game" &&
@@ -14738,84 +14746,100 @@ function updateActionButtons(data) {
   renderTabletControls(data);
 }
 
+function reconcileMeetingActionRows(container, entries, createRow, updateRow) {
+  const existing = new Map([...container.children].map((row) => [row.dataset.keyboardKey || "", row]));
+  const desiredKeys = new Set(entries.map((entry) => entry.key));
+  existing.forEach((row, key) => {
+    if (desiredKeys.has(key)) return;
+    row.remove();
+    existing.delete(key);
+  });
+  let cursor = container.firstElementChild;
+  entries.forEach((entry) => {
+    let row = existing.get(entry.key);
+    if (!row) row = createRow(entry);
+    existing.delete(entry.key);
+    updateRow(row, entry);
+    if (row !== cursor) container.insertBefore(row, cursor);
+    cursor = row.nextElementSibling;
+  });
+}
+
+function repairMeetingKeyboardSelection(selectedMeetingKey, meetingOwnedFocus) {
+  if (!selectedMeetingKey || (state.keyboardElement?.isConnected && !state.keyboardElement.disabled)) return false;
+  state.keyboardElement?.classList.remove("keyboard-selected");
+  state.keyboardElement = null;
+  const enabledVoteRows = [...els.voteList.querySelectorAll("[data-keyboard-key]")].filter((button) => !button.disabled);
+  const enabledLuminousRows = [...els.luminousList.querySelectorAll("[data-keyboard-key]")].filter((button) => !button.disabled);
+  const enabledRows = [...enabledVoteRows, ...enabledLuminousRows];
+  const replacement = enabledRows.find((button) => button.dataset.keyboardKey === selectedMeetingKey) || enabledRows[0] || null;
+  if (!meetingOwnedFocus || !replacement) return false;
+  state.keyboardElement = replacement;
+  replacement.classList.add("keyboard-selected");
+  replacement.focus({ preventScroll: true });
+  return true;
+}
+
 function renderMeeting(data) {
   if (data.phase !== "meeting" || !data.meeting) return;
   const selectedMeetingKey = els.meetingPanel.contains(state.keyboardElement)
     ? state.keyboardElement?.dataset?.keyboardKey || ""
     : "";
+  const meetingOwnedFocus = els.meetingPanel.contains(document.activeElement);
   const m = data.meeting;
   const discussion = m.discussionSecondsLeft > 0;
   els.meetingReason.textContent = discussion ? `${m.reason} / 討論中` : m.reason;
   els.meetingTimer.textContent = discussion ? `討論 ${m.discussionSecondsLeft}秒` : `投票 ${m.secondsLeft}秒`;
-  els.voteList.innerHTML = "";
-
   const alivePlayers = data.players.filter((player) => player.alive && !player.ejected);
   const canUseLuminous = data.self.role === "defender" && data.self.alive && !data.self.ejected && !data.self.luminousUsed;
   els.luminousPanel.hidden = data.self.role !== "defender";
-  els.luminousList.innerHTML = "";
   if (data.self.role === "defender") {
-    els.luminousStatus.textContent = data.self.luminousActive
-      ? "成功 / キル1"
-      : data.self.luminousUsed
-        ? "使用済み"
-        : "1回限り";
-    alivePlayers
-      .filter((player) => player.id !== data.selfId)
-      .forEach((player) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "luminous-target";
-        button.dataset.keyboardKey = `luminous:${player.id}`;
-        button.disabled = !canUseLuminous;
-        button.innerHTML = `<span>${escapeHtml(playerIdentityLabel(player))}</span><strong>発動</strong>`;
-        button.addEventListener("click", () => api("/api/luminous", { targetId: player.id }));
-        els.luminousList.appendChild(button);
-      });
+    els.luminousStatus.textContent = data.self.luminousActive ? "成功 / キル1" : data.self.luminousUsed ? "使用済み" : "1回限り";
   }
-
-  alivePlayers.forEach((player, playerIndex) => {
-    const votes = voteCountFor(data, player.id);
+  const luminousEntries = data.self.role === "defender"
+    ? alivePlayers.filter((player) => player.id !== data.selfId).map((player) => ({ key: `luminous:${player.id}`, player }))
+    : [];
+  reconcileMeetingActionRows(els.luminousList, luminousEntries, (entry) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "luminous-target";
+    button.dataset.keyboardKey = entry.key;
+    button.innerHTML = '<span></span><strong>発動</strong>';
+    button.addEventListener("click", () => api("/api/luminous", { targetId: button.dataset.targetId }));
+    return button;
+  }, (button, entry) => {
+    button.dataset.targetId = entry.player.id;
+    button.disabled = !canUseLuminous;
+    const name = playerIdentityLabel(entry.player);
+    const label = button.querySelector("span");
+    if (label.textContent !== name) label.textContent = name;
+  });
+  const voteDisabled = discussion || !data.self.alive || data.self.ejected || Boolean(data.meeting.votes?.[data.selfId]);
+  const voteEntries = alivePlayers.map((player, index) => ({ key: `vote:${player.id}`, targetId: player.id, player, hotkey: index < 9 ? String(index + 1) : "", votes: voteCountFor(data, player.id) }));
+  voteEntries.push({ key: "vote:skip", targetId: "skip", player: null, hotkey: "0", votes: voteCountFor(data, "skip") });
+  reconcileMeetingActionRows(els.voteList, voteEntries, (entry) => {
     const button = document.createElement("button");
     button.className = "vote-card";
     button.type = "button";
-    if (playerIndex < 9) button.dataset.hotkey = String(playerIndex + 1);
-    button.dataset.keyboardKey = `vote:${player.id}`;
-    button.disabled = discussion || !data.self.alive || data.self.ejected || Boolean(data.meeting.votes?.[data.selfId]);
-    button.innerHTML = `
-      <span class="player-meta">
-        <span class="name-line">${escapeHtml(playerIdentityLabel(player))}</span>
-        <span class="sub-line">${escapeHtml(playerFacingRoleLabel(player.role))}</span>
-      </span>
-      <span class="badge">${votes}</span>
-    `;
-    button.addEventListener("click", () => api("/api/vote", { targetId: player.id }));
-    els.voteList.appendChild(button);
+    button.dataset.keyboardKey = entry.key;
+    button.innerHTML = '<span class="player-meta"><span class="name-line"></span><span class="sub-line"></span></span><span class="badge"></span>';
+    button.addEventListener("click", () => api("/api/vote", { targetId: button.dataset.voteTargetId }));
+    return button;
+  }, (button, entry) => {
+    button.dataset.voteTargetId = entry.targetId;
+    if (entry.hotkey) button.dataset.hotkey = entry.hotkey;
+    else delete button.dataset.hotkey;
+    button.disabled = voteDisabled;
+    const name = entry.player ? playerIdentityLabel(entry.player) : "スキップ";
+    const sub = entry.player ? playerFacingRoleLabel(entry.player.role) : "投票をスキップ";
+    const nameNode = button.querySelector(".name-line");
+    const subNode = button.querySelector(".sub-line");
+    const badge = button.querySelector(".badge");
+    if (nameNode.textContent !== name) nameNode.textContent = name;
+    if (subNode.textContent !== sub) subNode.textContent = sub;
+    if (badge.textContent !== String(entry.votes)) badge.textContent = String(entry.votes);
   });
-
-  const skip = document.createElement("button");
-  skip.className = "vote-card";
-  skip.type = "button";
-  skip.dataset.hotkey = "0";
-  skip.dataset.keyboardKey = "vote:skip";
-  skip.disabled = discussion || !data.self.alive || data.self.ejected || Boolean(data.meeting.votes?.[data.selfId]);
-  skip.innerHTML = `
-    <span class="player-meta">
-      <span class="name-line">スキップ</span>
-      <span class="sub-line">投票をスキップ</span>
-    </span>
-    <span class="badge">${voteCountFor(data, "skip")}</span>
-  `;
-  skip.addEventListener("click", () => api("/api/vote", { targetId: "skip" }));
-  els.voteList.appendChild(skip);
-  if (selectedMeetingKey) {
-    const replacement = [...els.meetingPanel.querySelectorAll("[data-keyboard-key]")]
-      .find((button) => button.dataset.keyboardKey === selectedMeetingKey && !button.disabled);
-    if (replacement) {
-      state.keyboardElement = replacement;
-      replacement.classList.add("keyboard-selected");
-      replacement.focus({ preventScroll: true });
-    }
-  }
+  repairMeetingKeyboardSelection(selectedMeetingKey, meetingOwnedFocus);
 }
 
 function voteCountFor(data, targetId) {
@@ -22466,7 +22490,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v647";
+const version = "ui-visual-elevation-v648";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23440,7 +23464,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v647", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v648", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
