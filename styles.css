@@ -9649,3 +9649,153 @@ body.tablet-mode-active #sidePanel #empPhaseControl > label {
   }
 }
 
+
+/* Developer-only paint fragment. Append after public/styles.css in primary-owned integration. */
+#tabletQuickActions .tablet-quick-action {
+  border-color: #85a8b8;
+  color: #153747;
+  background-color: #e7f2f5;
+  background-image: linear-gradient(145deg, #f6fbfc, #d7e9ee);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.78), 0 2px 5px rgba(7,28,39,.18);
+  text-shadow: none;
+}
+#tabletQuickActions .tablet-quick-action:is(.ability, .movement) {
+  border-color: #76b8cd;
+  color: #10384a;
+  background-color: #d9eff5;
+  background-image: linear-gradient(145deg, #f0fbfd, #c8e5ee);
+}
+#tabletQuickActions .tablet-quick-action.danger {
+  border-color: #c87788;
+  color: #fff5f7;
+  background-color: #681d36;
+  background-image: linear-gradient(145deg, #78223f, #54162c);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 5px rgba(49,5,20,.28);
+  text-shadow: 0 1px 1px rgba(45,5,18,.9);
+}
+#tabletQuickActions .tablet-quick-action.tactical {
+  border-color: #a99bd7;
+  color: #f8f6ff;
+  background-color: #403077;
+  background-image: linear-gradient(145deg, #51408f, #342663);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 5px rgba(22,13,55,.3);
+  text-shadow: 0 1px 1px rgba(22,13,55,.92);
+}
+#tabletQuickActions .tablet-quick-action.resource {
+  border-color: #78bea9;
+  color: #effff8;
+  background-color: #155f53;
+  background-image: linear-gradient(145deg, #1d7868, #104b43);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 5px rgba(2,42,34,.3);
+  text-shadow: 0 1px 1px rgba(2,42,34,.92);
+}
+#tabletQuickActions .tablet-quick-action.active:not(:disabled) {
+  border-color: #e6c66f;
+  box-shadow: inset 0 0 0 2px rgba(255,246,203,.48), 0 2px 5px rgba(7,28,39,.24);
+}
+#tabletQuickActions .tablet-quick-action:disabled {
+  border-color: #a9b8be;
+  box-shadow: inset 0 0 0 1px rgba(55,79,91,.14);
+}
+:is(#keybindButton, #gameMuteButton, #tabletButton, #gameTacticsButton, #leaveRoomButton) {
+  border-color: #aabec8;
+  color: #173847;
+  background-color: #f1f7f9;
+  background-image: linear-gradient(145deg, #fbfeff, #deedf1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86), 0 2px 5px rgba(9,32,42,.18);
+  text-shadow: none;
+}
+:is(#tabletButton.active, #gameTacticsButton.active) {
+  border-color: #6f9faf;
+  background-color: #d9edf3;
+  background-image: linear-gradient(145deg, #ecf9fc, #c8e3ec);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.7), 0 2px 5px rgba(9,32,42,.22);
+}
+#gameMuteButton.is-muted {
+  border-color: #afb9be;
+  color: #53646d;
+  background-color: #e4eaed;
+  background-image: linear-gradient(145deg, #f0f4f5, #d7e0e4);
+}
+
+/* Paint-only candidate. Existing size, placement, gesture handling, state
+ * attributes, transforms, and motion remain owned by the v640 tablet control. */
+.tablet-joystick {
+  border-color: #4c9dab;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(118, 223, 225, 0.24) 0 28%, transparent 29%),
+    radial-gradient(circle at 50% 50%, rgba(27, 92, 108, 0.88), rgba(9, 30, 46, 0.92) 72%);
+  box-shadow:
+    inset 0 0 0 1px rgba(204, 248, 246, 0.2),
+    inset 0 0 28px rgba(43, 173, 181, 0.26),
+    0 10px 26px rgba(3, 15, 28, 0.38);
+}
+
+.tablet-joystick::before,
+.tablet-joystick::after {
+  background: rgba(185, 235, 231, 0.25);
+}
+
+.tablet-joystick-knob {
+  border-color: #c9f7f2;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(238, 255, 253, 0.82), transparent 26%),
+    linear-gradient(145deg, #2b8d9a, #123c59 72%);
+  box-shadow:
+    inset 0 -7px 14px rgba(4, 34, 54, 0.44),
+    inset 0 1px 0 rgba(237, 255, 254, 0.45),
+    0 6px 18px rgba(2, 13, 28, 0.48);
+}
+
+.tablet-joystick.active .tablet-joystick-knob {
+  border-color: #e6fffb;
+  box-shadow:
+    inset 0 -7px 14px rgba(4, 34, 54, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 0 6px rgba(70, 202, 196, 0.18),
+    0 8px 22px rgba(2, 13, 28, 0.52);
+}
+
+/* The existing mode attributes keep their established slow/walk/dash cues;
+ * only their painted surface is made legible on a bright board. */
+.tablet-joystick[data-mode="slow"] {
+  border-color: #84dedc;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(160, 255, 248, 0.27) 0 28%, transparent 29%),
+    radial-gradient(circle at 50% 50%, rgba(23, 103, 116, 0.9), rgba(7, 36, 53, 0.94) 72%);
+  box-shadow: inset 0 0 30px rgba(105, 223, 215, 0.28), 0 10px 26px rgba(3, 15, 28, 0.4);
+}
+
+.tablet-joystick[data-mode="walk"] {
+  border-color: #e6ca88;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(252, 222, 147, 0.25) 0 28%, transparent 29%),
+    radial-gradient(circle at 50% 50%, rgba(59, 96, 95, 0.9), rgba(12, 38, 52, 0.94) 72%);
+  box-shadow: inset 0 0 30px rgba(241, 196, 105, 0.24), 0 10px 26px rgba(3, 15, 28, 0.4);
+}
+
+.tablet-joystick[data-mode="dash"] {
+  border-color: #e7a29a;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(252, 174, 160, 0.25) 0 28%, transparent 29%),
+    radial-gradient(circle at 50% 50%, rgba(91, 66, 78, 0.92), rgba(25, 37, 55, 0.95) 72%);
+  box-shadow: inset 0 0 34px rgba(232, 132, 123, 0.27), 0 0 0 5px rgba(232, 132, 123, 0.1), 0 12px 30px rgba(3, 15, 28, 0.46);
+}
+
+.tablet-joystick[data-mode="slow"] .tablet-joystick-knob {
+  border-color: #d5fffa;
+  background: linear-gradient(145deg, #319da1, #164760 72%);
+  box-shadow: inset 0 -7px 14px rgba(4, 47, 57, 0.44), inset 0 1px 0 rgba(237, 255, 254, 0.5), 0 6px 18px rgba(2, 13, 28, 0.48);
+}
+
+.tablet-joystick[data-mode="walk"] .tablet-joystick-knob {
+  border-color: #fff0c6;
+  background: linear-gradient(145deg, #8b7951, #243e56 72%);
+  box-shadow: inset 0 -7px 14px rgba(65, 51, 26, 0.4), inset 0 1px 0 rgba(255, 247, 220, 0.48), 0 6px 18px rgba(2, 13, 28, 0.48);
+}
+
+.tablet-joystick[data-mode="dash"] .tablet-joystick-knob {
+  border-color: #ffe1db;
+  background: linear-gradient(145deg, #965a62, #283b58 72%);
+  box-shadow: inset 0 -7px 14px rgba(84, 35, 43, 0.44), inset 0 1px 0 rgba(255, 235, 231, 0.48), 0 0 0 5px rgba(231, 162, 154, 0.13), 0 8px 24px rgba(2, 13, 28, 0.52);
+}
