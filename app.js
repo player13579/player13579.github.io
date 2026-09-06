@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-left-thumb-position-v639";
+const DVA_CLIENT_RELEASE = "ui-controls-thread-changes-reverted-v640";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -868,7 +868,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-left-thumb-position-v639";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-controls-thread-changes-reverted-v640";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2380,7 +2380,6 @@ function setScreen(screen) {
   document.body.classList.toggle("tactics-open", next === "tactics");
   document.body.classList.toggle("game-open", next === "game");
   document.documentElement.classList.toggle("game-open", next === "game");
-  syncPortraitTabletDock();
   if (next === "game") scheduleStableGameplayViewportReflow(previous !== "game" ? 0 : 80);
   els.startScreen.hidden = next === "game";
   els.startScreen.classList.remove("title-arriving");
@@ -8413,21 +8412,15 @@ function portraitTabletRequired() {
   return window.innerHeight > window.innerWidth;
 }
 
-function landscapeTabletDockRequired(open = state.tabletOpen) {
-  return window.matchMedia("(min-width: 681px) and (orientation: landscape)").matches && state.screen === "game" && state.data?.phase === "playing" && Boolean(open);
-}
-
-function syncPortraitTabletDock(open = state.tabletOpen) {
+function syncPortraitTabletDock() {
   const panel = els.tabletPanel;
   const fieldSlot = document.querySelector(".field-stage-slot");
   const board = fieldSlot?.querySelector(".board-wrap");
   const lower = els.fieldLowerRow;
   if (!panel || !fieldSlot || !board || !lower) return;
   const portrait = portraitTabletRequired();
-  const landscape = landscapeTabletDockRequired(open);
   document.body.classList.toggle("portrait-tablet-dock", portrait);
-  document.body.classList.toggle("landscape-tablet-dock", landscape);
-  if (portrait || landscape) {
+  if (portrait) {
     if (panel.parentElement !== fieldSlot || panel.nextElementSibling !== lower) fieldSlot.insertBefore(panel, lower);
   } else if (panel.parentElement !== board || panel !== board.firstElementChild) {
     board.prepend(panel);
@@ -8438,9 +8431,8 @@ function setTabletOpen(open, { persist = true, focus = true } = {}) {
   const playable = state.screen === "game" && state.data?.phase === "playing";
   const portrait = portraitTabletRequired();
   const expandedMapOwnsSurface = state.expandedMapOpen || state.tabletResumeAfterMap;
-  const nextOpen = Boolean(playable && !expandedMapOwnsSurface && (open || portrait));
-  syncPortraitTabletDock(nextOpen);
-  state.tabletOpen = nextOpen;
+  syncPortraitTabletDock();
+  state.tabletOpen = Boolean(playable && !expandedMapOwnsSurface && (open || portrait));
   els.tabletPanel.hidden = !state.tabletOpen;
   els.tabletButton?.setAttribute("aria-expanded", String(state.tabletOpen));
   els.tabletButton?.classList.toggle("active", state.tabletOpen);
@@ -13647,17 +13639,8 @@ function layoutActiveEffectsPanel() {
   const measuredFieldRemainder = fieldSlot && board
     ? fieldSlot.getBoundingClientRect().height - board.getBoundingClientRect().height - stageGap - lowerExtras
     : 0;
-  const lowerStyle = lowerRow ? getComputedStyle(lowerRow) : null;
-  const landscapeDock = document.body.classList.contains("tablet-mode-active") && document.body.classList.contains("landscape-tablet-dock");
-  const lowerInnerHeight = lowerRow
-    ? Math.max(0, lowerRow.getBoundingClientRect().height -
-      (Number.parseFloat(lowerStyle?.paddingTop) || 0) - (Number.parseFloat(lowerStyle?.paddingBottom) || 0) -
-      (Number.parseFloat(lowerStyle?.borderTopWidth) || 0) - (Number.parseFloat(lowerStyle?.borderBottomWidth) || 0))
-    : 0;
   const fallbackHeight = Math.min(360, Math.floor(window.innerHeight * 0.36));
-  const availableHeight = landscapeDock
-    ? Math.max(48, Math.floor(lowerInnerHeight))
-    : Math.max(116, Math.floor(measuredFieldRemainder > 0 ? measuredFieldRemainder : fallbackHeight));
+  const availableHeight = Math.max(116, Math.floor(measuredFieldRemainder > 0 ? measuredFieldRemainder : fallbackHeight));
   const borderHeight = (Number.parseFloat(getComputedStyle(panel).borderTopWidth) || 0) +
     (Number.parseFloat(getComputedStyle(panel).borderBottomWidth) || 0);
   const naturalHeight = Math.ceil(panel.scrollHeight + borderHeight);
@@ -22105,7 +22088,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-left-thumb-position-v639";
+const version = "ui-controls-thread-changes-reverted-v640";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23079,7 +23062,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-left-thumb-position-v639", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-controls-thread-changes-reverted-v640", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

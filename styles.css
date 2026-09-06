@@ -9319,150 +9319,6 @@ body #joinPanel > #matchmakingButton:disabled {
   }
 }
 
-/* Structural candidate only: tablet-active landscape play gives the board the
- * flexible first row, then reserves one dedicated touch lane and one locally
- * scrollable information lane. Colors and control styling stay with their owners. */
-@media (min-width: 681px) and (orientation: landscape) {
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .app-shell {
-    grid-template-columns: minmax(0, 1fr) clamp(280px, 25vw, 320px);
-    gap: 12px;
-    padding: 12px;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .game-area,
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .field-stage-slot {
-    min-width: 0;
-    min-height: 0;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .field-stage-slot {
-    --landscape-dock-height: clamp(120px, 15vh, 132px);
-    --landscape-info-height: max(94px, 14vh);
-    grid-template-rows: minmax(0, 1fr) var(--landscape-dock-height) var(--landscape-info-height);
-    row-gap: 12px;
-    align-content: stretch;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .field-stage-slot > .board-wrap {
-    width: min(100cqw, calc((100cqh - var(--landscape-dock-height) - var(--landscape-info-height) - 24px) * 98 / 62));
-    min-height: 0;
-    align-self: center;
-    justify-self: center;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel {
-    position: relative;
-    inset: auto;
-    grid-row: 2;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    display: grid;
-    grid-template-columns: 120px minmax(0, 1fr);
-    column-gap: 12px;
-    align-items: center;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel .tablet-joystick-zone {
-    position: static;
-    width: 120px;
-    height: 120px;
-    grid-template-columns: 120px;
-    align-self: center;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel .tablet-joystick {
-    width: 120px;
-    height: 120px;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel .tablet-quick-actions {
-    position: static;
-    width: 100%;
-    height: 120px;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(48px, 1fr));
-    grid-auto-rows: 48px;
-    align-content: start;
-    gap: 8px;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-    touch-action: pan-y;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #fieldLowerRow {
-    grid-row: 3;
-    min-height: 0;
-    max-height: none;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-    touch-action: pan-y;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #fieldLowerRow .status-active-effects,
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-    touch-action: pan-y;
-  }
-}
-
-@media (min-width: 681px) and (max-width: 800px) and (orientation: landscape) {
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel .tablet-quick-actions {
-    grid-template-columns: repeat(4, minmax(48px, 1fr));
-  }
-}
-
-/* DVA developer-only replacement fragment: tablet shortcut readability.
- * Append after current public/styles.css only during primary-owned integration.
- * It does not change tablet geometry, action bindings, labels, assets, or
- * disabled behavior. Only existing dark semantic categories receive light
- * foregrounds and an opaque-enough category reading surface. Bright base,
- * movement, and ability controls retain the global dark foreground. */
-
-body #tabletQuickActions .tablet-quick-action.danger {
-  border-color: #fecdd3;
-  color: #fff1f2;
-  background-color: #6b122d;
-  background-image:
-    linear-gradient(145deg, rgba(107, 18, 45, 0.98), rgba(157, 23, 77, 0.96)),
-    url("assets/generated/ui-tablet-surface.webp?v=ui-furnishings-v160");
-  text-shadow: 0 1px 2px rgba(51, 5, 19, 0.96);
-}
-
-body #tabletQuickActions .tablet-quick-action.tactical {
-  border-color: #ddd6fe;
-  color: #f5f3ff;
-  background-color: #35227e;
-  background-image:
-    linear-gradient(145deg, rgba(53, 34, 126, 0.98), rgba(91, 33, 182, 0.96)),
-    url("assets/generated/ui-tablet-surface.webp?v=ui-furnishings-v160");
-  text-shadow: 0 1px 2px rgba(25, 14, 71, 0.96);
-}
-
-body #tabletQuickActions .tablet-quick-action.resource {
-  border-color: #a7f3d0;
-  color: #ecfdf5;
-  background-color: #075a48;
-  background-image:
-    linear-gradient(145deg, rgba(7, 90, 72, 0.98), rgba(13, 132, 108, 0.96)),
-    url("assets/generated/ui-tablet-surface.webp?v=ui-furnishings-v160");
-  text-shadow: 0 1px 2px rgba(2, 44, 34, 0.96);
-}
-
-body #tabletQuickActions .tablet-quick-action.active:not(:disabled) {
-  outline: 2px solid rgba(254, 249, 195, 0.92);
-  outline-offset: 1px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.46),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.34),
-    0 0 0 2px rgba(8, 47, 73, 0.48),
-    0 7px 22px rgba(2, 34, 56, 0.42);
-}
-
 /* Developer-only candidate — append after current solo-mission HUD rules.
  * Scope: visible solo HUD during ordinary landscape play, never Result. */
 @media (orientation: landscape) {
@@ -9498,170 +9354,123 @@ body #tabletQuickActions .tablet-quick-action.active:not(:disabled) {
   }
 }
 
+@media (min-width: 681px) and (orientation: landscape) {
 /* Developer-only candidate. Ownership is limited to the future landscape
  * tablet dock's existing sidebar descendants; it does not set rail geometry,
  * scrolling, colors, actions, or state. */
-body.landscape-tablet-dock #sidePanel #statusPanel {
+body.tablet-mode-active #sidePanel #statusPanel {
   gap: 8px;
 }
 
-body.landscape-tablet-dock #sidePanel #statusPanel > .role-block {
+body.tablet-mode-active #sidePanel #statusPanel > .role-block {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 4px;
   padding-bottom: 2px;
 }
 
-body.landscape-tablet-dock #sidePanel #statusPanel > .role-block > #roleName {
+body.tablet-mode-active #sidePanel #statusPanel > .role-block > #roleName {
   white-space: normal;
   overflow: visible;
   overflow-wrap: anywhere;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl {
+body.tablet-mode-active #sidePanel #itemControl {
   gap: 8px;
   margin: 6px 0 8px;
   padding: 8px;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl .item-control-head {
+body.tablet-mode-active #sidePanel #itemControl .item-control-head {
   display: grid;
   align-items: start;
   gap: 4px;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl .item-control-head > span:last-child,
-body.landscape-tablet-dock #sidePanel #itemControl #enhanceReadout {
+body.tablet-mode-active #sidePanel #itemControl .item-control-head > span:last-child,
+body.tablet-mode-active #sidePanel #itemControl #enhanceReadout {
   margin: 0;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl #itemInventoryGrid {
+body.tablet-mode-active #sidePanel #itemControl #itemInventoryGrid {
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl .item-choice-copy strong {
+body.tablet-mode-active #sidePanel #itemControl .item-choice-copy strong {
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl > .item-control-actions {
+body.tablet-mode-active #sidePanel #itemControl > .item-control-actions {
   border-top: 1px solid currentColor;
   padding-top: 8px;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl > label:first-of-type {
+body.tablet-mode-active #sidePanel #itemControl > label:first-of-type {
   border-top: 1px solid currentColor;
   padding-top: 8px;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl > label {
+body.tablet-mode-active #sidePanel #itemControl > label {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 4px;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl > .item-transfer-actions {
+body.tablet-mode-active #sidePanel #itemControl > .item-transfer-actions {
   align-items: stretch;
 }
 
-body.landscape-tablet-dock #sidePanel #itemControl > .item-transfer-actions > button {
+body.tablet-mode-active #sidePanel #itemControl > .item-transfer-actions > button {
   white-space: normal;
 }
 
-body.landscape-tablet-dock #sidePanel #empPhaseControl {
+body.tablet-mode-active #sidePanel #empPhaseControl {
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   margin-top: 6px;
 }
 
-body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
+body.tablet-mode-active #sidePanel #empPhaseControl > label {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 4px;
 }
 
+
+}
 @media (min-width: 681px) and (orientation: landscape) {
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #fieldLowerRow {
+  body.tablet-mode-active:not(.result-presentation) #fieldLowerRow {
     height: 100%;
     align-self: stretch;
-  }
-}
-
-/* DVA developer-only replacement fragment: landscape tablet utility row.
- * Append after current public/styles.css only during primary-owned integration.
- * The shared landscape-tablet-dock state is owned by the dock implementation;
- * this fragment only positions the existing fixed utilities and reserves the
- * matching native-sidebar scroll space. */
-
-@media (min-width: 681px) and (orientation: landscape) {
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel {
-    height: calc(100% - 64px);
-    min-height: 0;
-    max-height: calc(100% - 64px);
-    overflow-y: auto;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) :is(
-    #keybindButton,
-    #gameMuteButton,
-    #tabletButton,
-    #gameTacticsButton,
-    #leaveRoomButton
-  ) {
-    bottom: max(20px, env(safe-area-inset-bottom));
-    width: 48px;
-    min-width: 48px;
-    height: 48px;
-    min-height: 48px;
-    padding: 0;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #leaveRoomButton {
-    right: max(20px, env(safe-area-inset-right));
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #gameTacticsButton {
-    right: calc(max(20px, env(safe-area-inset-right)) + 54px);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletButton {
-    right: calc(max(20px, env(safe-area-inset-right)) + 108px);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #gameMuteButton {
-    right: calc(max(20px, env(safe-area-inset-right)) + 162px);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #keybindButton {
-    right: calc(max(20px, env(safe-area-inset-right)) + 216px);
   }
 }
 
 /* Developer-only visual candidate. Append after the current landscape/tablet
  * rules. It owns paint only for ordinary landscape tablet play. */
 @media (min-width: 681px) and (orientation: landscape) {
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation),
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .app-shell {
+  body.game-open.tablet-mode-active:not(.result-presentation),
+  body.game-open.tablet-mode-active:not(.result-presentation) .app-shell {
     background: linear-gradient(135deg, #101e28, #203642) center / 100% 100% no-repeat #101e28;
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .game-area {
+  body.game-open.tablet-mode-active:not(.result-presentation) .game-area {
     background-color: #142631;
     background-image: radial-gradient(ellipse at 50% 46%, #203642, #101e28 78%);
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) .board-wrap {
+  body.game-open.tablet-mode-active:not(.result-presentation) .board-wrap {
     border-color: rgba(207, 235, 239, 0.72);
     background-color: #1a2c35;
     box-shadow: 0 8px 22px rgba(3, 11, 16, 0.3), 0 0 0 1px rgba(130, 183, 190, 0.2);
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #soloMissionHud:not([hidden]) {
+  body.game-open.tablet-mode-active:not(.result-presentation) #soloMissionHud:not([hidden]) {
     border-color: rgba(113, 208, 222, 0.72);
     background-color: #132a38;
     background-image: linear-gradient(135deg, #193647, #112531);
@@ -9669,21 +9478,21 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     color: #eff9fb;
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #soloMissionHud:not([hidden]) > span {
+  body.game-open.tablet-mode-active:not(.result-presentation) #soloMissionHud:not([hidden]) > span {
     color: #67e8f9;
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #soloMissionHud:not([hidden]) > strong {
+  body.game-open.tablet-mode-active:not(.result-presentation) #soloMissionHud:not([hidden]) > strong {
     color: #eff9fb;
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #fieldLowerRow:not([hidden]) {
+  body.game-open.tablet-mode-active:not(.result-presentation) #fieldLowerRow:not([hidden]) {
     border-color: #a9c3c8;
     background-color: #eaf2f3;
     box-shadow: 0 5px 14px rgba(5, 21, 28, 0.16);
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #activeEffectsPanel:not([hidden]) {
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) {
     border-color: #a9c3c8;
     background-color: #f5f8f8;
     background-image: none;
@@ -9691,107 +9500,17 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     color: #183540;
   }
 
-  body.game-open.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #activeEffectsPanel:not([hidden]) > h3 {
+  body.game-open.tablet-mode-active:not(.result-presentation) #activeEffectsPanel:not([hidden]) > h3 {
     border-bottom: 1px solid #c7d8da;
     color: #245566;
   }
 
 }
 
-/* DVA developer-only replacement fragment: landscape tablet control surfaces.
- * Append after current public/styles.css and the tablet shortcut contrast
- * fragment during primary-owned integration. It is visual-only: no action,
- * layout, scroll, DOM, or animation owner changes. */
-
-@media (min-width: 681px) and (orientation: landscape) {
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions .tablet-quick-action {
-    min-height: 48px;
-    border-color: #8bb6c7;
-    color: #153446;
-    background-color: #eaf6fa;
-    background-image: linear-gradient(145deg, #f7fdff, #d8edf4);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 2px 5px rgba(7, 28, 39, 0.2);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    text-shadow: none;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions .tablet-quick-action:is(.ability, .movement) {
-    border-color: #7fc7dc;
-    color: #103648;
-    background-color: #d9f2f8;
-    background-image: linear-gradient(145deg, #f4fdff, #c7e8f2);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions .tablet-quick-action.danger {
-    border-color: #c87587;
-    color: #fff5f7;
-    background-color: #651d35;
-    background-image: linear-gradient(145deg, #76213d, #56172d);
-    text-shadow: 0 1px 1px rgba(44, 5, 17, 0.9);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions .tablet-quick-action.tactical {
-    border-color: #a89bd5;
-    color: #f8f6ff;
-    background-color: #413078;
-    background-image: linear-gradient(145deg, #51408f, #352766);
-    text-shadow: 0 1px 1px rgba(22, 13, 56, 0.92);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions .tablet-quick-action.resource {
-    border-color: #77bda9;
-    color: #effff8;
-    background-color: #155e52;
-    background-image: linear-gradient(145deg, #1d7767, #104b43);
-    text-shadow: 0 1px 1px rgba(2, 42, 34, 0.92);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions .tablet-quick-action.active:not(:disabled) {
-    border-color: #f4d78d;
-    box-shadow: inset 0 0 0 2px rgba(255, 248, 211, 0.46), 0 0 0 1px rgba(99, 74, 20, 0.58), 0 2px 5px rgba(7, 28, 39, 0.26);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions .tablet-quick-action:disabled {
-    border-color: #aabac2;
-    box-shadow: inset 0 0 0 1px rgba(55, 79, 91, 0.14);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) :is(#keybindButton, #gameMuteButton, #tabletButton, #gameTacticsButton, #leaveRoomButton) {
-    border-color: #aabec8;
-    color: #173847;
-    background-color: #f2f8fa;
-    background-image: linear-gradient(145deg, #fbfeff, #dfedf1);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 2px 5px rgba(9, 32, 42, 0.18);
-    font-weight: 700;
-    text-shadow: none;
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) :is(#tabletButton.active, #gameTacticsButton.active) {
-    border-color: #6f9faf;
-    background-color: #d9edf3;
-    background-image: linear-gradient(145deg, #ecf9fc, #c8e3ec);
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7), 0 2px 5px rgba(9, 32, 42, 0.22);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #gameMuteButton.is-muted {
-    border-color: #aeb8bd;
-    color: #53646d;
-    background-color: #e4eaed;
-    background-image: linear-gradient(145deg, #f0f4f5, #d7e0e4);
-  }
-
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) :is(#keybindButton, #gameMuteButton, #tabletButton, #gameTacticsButton, #leaveRoomButton):disabled {
-    border-color: #b9c5ca;
-    color: #61737d;
-  }
-}
-
 /* Candidate only: the active landscape tablet dock keeps the game board dark
  * while the information rail becomes one calm, readable surface. */
 @media (min-width: 681px) and (orientation: landscape) {
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel {
+  body.tablet-mode-active:not(.result-presentation) #sidePanel {
     overflow-y: auto;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
@@ -9802,7 +9521,7 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     box-shadow: 0 10px 24px rgba(9, 29, 36, 0.14);
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     p,
     span,
     small,
@@ -9821,7 +9540,7 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
 
   /* One compact accent makes the role, operator, and inventory sections easy
    * to scan without surrounding every small label with a separate frame. */
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     #statusPanel > header,
     #statusPanel > h2,
     #statusPanel > h3,
@@ -9840,7 +9559,7 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     line-height: 1.35;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     .role-block,
     .operator-branch-panel,
     .item-control,
@@ -9856,12 +9575,12 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     box-shadow: none;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel .item-control {
+  body.tablet-mode-active:not(.result-presentation) #sidePanel .item-control {
     padding: 9px;
     border-left-color: #167985;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     .item-control-head span,
     .enhance-readout,
     .item-control-head > span:first-child small,
@@ -9870,7 +9589,7 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     color: #4a6670;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     .item-control-head > span:first-child strong,
     .role-block strong,
     .operator-branch-panel strong,
@@ -9879,7 +9598,7 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     color: #123b46;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     .item-inventory-choice,
     .operator-branch-list button,
     .vending-panel button,
@@ -9894,7 +9613,7 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     overflow-wrap: anywhere;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     button,
     select,
     input:not([type="hidden"])
@@ -9902,14 +9621,14 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     min-height: 44px;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel .item-inventory-choice.selected {
+  body.tablet-mode-active:not(.result-presentation) #sidePanel .item-inventory-choice.selected {
     color: #ffffff;
     background: #124f58;
     border-color: #0b3e46;
     box-shadow: inset 3px 0 #73e5e3;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel .item-inventory-choice.selected :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel .item-inventory-choice.selected :is(
     strong,
     small,
     span,
@@ -9918,7 +9637,7 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
     color: #ffffff;
   }
 
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #sidePanel :is(
+  body.tablet-mode-active:not(.result-presentation) #sidePanel :is(
     .item-inventory-grid,
     .operator-branch-list,
     .vending-panel,
@@ -9930,23 +9649,3 @@ body.landscape-tablet-dock #sidePanel #empPhaseControl > label {
   }
 }
 
-/* Keep the current shortcuts and120px stick. Place only the stick beside
- * the bottom information row, within the left thumb's corner reach. */
-@media (min-width: 681px) and (orientation: landscape) {
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel {
-    overflow: visible;
-  }
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletPanel .tablet-joystick-zone {
-    position: absolute;
-    top: auto;
-    left: max(12px, env(safe-area-inset-left, 0px));
-    bottom: calc(env(safe-area-inset-bottom, 0px) - var(--landscape-info-height));
-  }
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #tabletQuickActions {
-    grid-column: 2;
-  }
-  body.tablet-mode-active.landscape-tablet-dock:not(.result-presentation) #fieldLowerRow {
-    width: calc(100% - 144px);
-    justify-self: end;
-  }
-}
