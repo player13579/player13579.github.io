@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v652";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v653";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -588,6 +588,9 @@ const state = {
   // Playing starts with the surrounding controls stored away; this is a view
   // preference only and never changes the authoritative game state.
   canvasUiOpen: false,
+  // Shop owns this only when it temporarily reveals a collapsed side UI.
+  vendingCanvasUiRestore: false,
+  vendingReturnFocus: null,
   tabletResumeAfterMap: false,
   tabletStick: { pointerId: null, dx: 0, dy: 0, strength: 0, mode: "idle" },
   tabletBranchGroup: "",
@@ -910,7 +913,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v652";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v653";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2529,6 +2532,9 @@ function syncFullscreenButton() {
 }
 
 function setCanvasUiOpen(open, { focus = false } = {}) {
+  // Shop cards live in the side panel.  A direct canvas-UI collapse must not
+  // leave their semantic open state behind a hidden ancestor.
+  if (!open && state.vendingOpen) setVendingOpen(false, { focus: false });
   const playable = state.screen === "game" && state.data?.phase === "playing";
   state.canvasUiOpen = Boolean(playable && open);
   const collapsed = Boolean(playable && !state.canvasUiOpen);
@@ -2540,6 +2546,31 @@ function setCanvasUiOpen(open, { focus = false } = {}) {
   els.canvasUiToggle.title = state.canvasUiOpen ? "UIを格納する（Ctrl+U）" : "UIを表示する（Ctrl+U）";
   if (collapsed && els.sidePanel.contains(document.activeElement)) els.canvasUiToggle.focus({ preventScroll: true });
   if (focus && state.canvasUiOpen) els.sidePanel.focus({ preventScroll: true });
+}
+
+function restoreVendingCanvasUi({ focus = false, opener = null } = {}) {
+  const shouldRestore = state.vendingCanvasUiRestore;
+  const returnFocus = opener || state.vendingReturnFocus;
+  state.vendingCanvasUiRestore = false;
+  state.vendingReturnFocus = null;
+  if (shouldRestore) setCanvasUiOpen(false);
+  if (!focus) return;
+  requestAnimationFrame(() => {
+    const canFocus = (element) => Boolean(
+      element &&
+      element.isConnected !== false &&
+      !element.disabled &&
+      !element.hidden &&
+      !element.closest?.("[hidden]") &&
+      element.getClientRects?.().length
+    );
+    // V delegates through a hidden desktop command source.  When restoring the
+    // collapsed view, use the visible canvas toggle; a tablet opener retains
+    // its own focus return.
+    const fallback = shouldRestore ? els.canvasUiToggle : els.sidePanel;
+    const target = canFocus(returnFocus) ? returnFocus : fallback;
+    if (canFocus(target)) target.focus({ preventScroll: true });
+  });
 }
 
 function createBgmAudio(src, volume) {
@@ -6769,11 +6800,15 @@ function bindEvents() {
   els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
-  els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
+  els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
+    opener: els.tabletVendingShortcut
+  }));
   els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
   els.tabletRenkiShortcut.addEventListener("click", () => els.renkiButton.click());
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
-  els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen));
+  els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
+    opener: els.vendingButton
+  }));
   els.vendingBulkPurchase.addEventListener("change", () => {
     state.vendingBulkPurchase = Boolean(els.vendingBulkPurchase.checked);
     if (!state.vendingBulkPurchase) stopVendingHold({ suppressClick: true });
@@ -10856,6 +10891,7 @@ function resetLocalSession() {
   state.hackerDockRenderKey = "";
   state.hackerSelectedRecipeId = "";
   state.hackerSelectedByCategory = Object.create(null);
+  restoreVendingCanvasUi({ focus: false });
   state.vendingOpen = false;
   state.vendingBulkPurchase = false;
   state.vendingBulkTransactions = Object.create(null);
@@ -10909,6 +10945,7 @@ function applyState(data, options = {}) {
     cancelEnhanceAction();
     cancelThrowTargeting(true);
     state.vendingOpen = false;
+    restoreVendingCanvasUi({ focus: false });
     state.vendingBulkPurchase = false;
     state.vendingBulkTransactions = Object.create(null);
     els.vendingBulkPurchase.checked = false;
@@ -14326,7 +14363,7 @@ function triggerShopActivationPresentation(data) {
   return true;
 }
 
-function setVendingOpen(open, { focus = true } = {}) {
+function setVendingOpen(open, { focus = true, opener = null } = {}) {
   const data = state.data;
   const wasOpen = state.vendingOpen;
   const available = Boolean(
@@ -14336,7 +14373,17 @@ function setVendingOpen(open, { focus = true } = {}) {
     !data.self.ejected &&
     !data.self.inVent
   );
-  state.vendingOpen = Boolean(open && available);
+  const nextOpen = Boolean(open && available);
+  if (nextOpen && !wasOpen) {
+    state.vendingReturnFocus = opener || document.activeElement || null;
+    if (!state.canvasUiOpen) {
+      state.vendingCanvasUiRestore = true;
+      setCanvasUiOpen(true);
+    } else {
+      state.vendingCanvasUiRestore = false;
+    }
+  }
+  state.vendingOpen = nextOpen;
   state.vendingRenderKey = "";
   if (!state.vendingOpen) {
     stopVendingHold();
@@ -14353,6 +14400,8 @@ function setVendingOpen(open, { focus = true } = {}) {
   if (state.vendingOpen) {
     if (!wasOpen) triggerShopActivationPresentation(data);
     requestAnimationFrame(() => setSelectedScrollRegion(els.vendingPanel, { focus }));
+  } else if (wasOpen) {
+    restoreVendingCanvasUi({ focus, opener });
   }
 }
 
@@ -14425,6 +14474,7 @@ function renderVending(data) {
   const available = Boolean(data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent);
   if (!available) {
     state.vendingOpen = false;
+    restoreVendingCanvasUi({ focus: false });
     stopVendingHold({ suppressClick: true });
     stopVendingKeyHold();
   }
@@ -22850,7 +22900,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v652";
+const version = "ui-visual-elevation-v653";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23874,7 +23924,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v652", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v653", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
