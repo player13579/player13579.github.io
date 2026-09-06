@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v655";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v656";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -895,7 +895,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v655";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v656";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -11734,6 +11734,14 @@ function syncAccessibleGameStatus(data) {
   }
 }
 
+function formatSoloMissionHudProgress(mission) {
+  const objective = String(mission?.objective ?? "").trim();
+  const progress = String(mission?.progress ?? "").trim();
+  if (!progress || progress === objective) return objective;
+  if (!objective) return progress;
+  return `${objective} / ${progress}`;
+}
+
 function render() {
   const pollScrollPositions = capturePollScrollPositions();
   const data = state.data;
@@ -11750,7 +11758,7 @@ function render() {
     els.soloMissionHudName.textContent = data.soloMission.name;
     els.soloMissionHudProgress.textContent = data.soloMission.completed
       ? "訓練完了"
-      : `${data.soloMission.objective} / ${data.soloMission.progress}`;
+      : formatSoloMissionHudProgress(data.soloMission);
   }
   const phaseUiKey = data ? `${data.roomId}:${data.phase}` : "disconnected";
   const resetSidebarForPhaseContext = state.phaseUiKey !== phaseUiKey && (
@@ -18188,6 +18196,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   const prepared = transparentSpriteSource(state.textures[textureKey], textureKey, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
   if (!sprite) return false;
+  const preparationBarrierHit = effect.type === "preparation-barrier-hit";
   if (effect.type === "gravity-time-keeper") {
     const arrive = objectEffectEase(clamp(progress / 0.12, 0, 1));
     const fade = 1 - objectEffectEase(clamp((progress - 0.84) / 0.16, 0, 1));
@@ -18234,8 +18243,8 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     : size;
   const renderWidth = goldTransmutation ? renderHeight * (510 / 141) : size;
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
+  ctx.globalCompositeOperation = preparationBarrierHit ? "source-over" : "lighter";
+  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84) * (preparationBarrierHit ? 0.62 : 1);
   ctx.translate(directed ? (effect.x + targetX) / 2 : effect.x, directed ? (effect.y + targetY) / 2 : effect.y);
   if (directed) {
     const sourceAxisOffset = effect.type === "alchemy-excalibur" ? Math.PI / 4 : 0;
@@ -18247,8 +18256,25 @@ function drawGeneratedStandaloneEffect(effect, progress) {
     goldTransmutation ? 30 : renderHeight / 2,
     directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : renderWidth,
     renderHeight,
-    { mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant), progress, intensity: 0.94, baseAlpha: 0.16 }
+    {
+      mode: preparationBarrierHit ? "shield" : directed ? "beam" : semanticEffectMotion(effect.type, effect.variant),
+      progress,
+      intensity: preparationBarrierHit ? 0.62 : 0.94,
+      baseAlpha: preparationBarrierHit ? 0.15 : 0.16,
+      opacityBoost: preparationBarrierHit ? 1.2 : 3,
+      visibilityProfile: preparationBarrierHit ? "ambient" : "effect"
+    }
   );
+  if (preparationBarrierHit) {
+    const barrierTime = (state.frameNow || performance.now()) / 1000;
+    drawPreparationBarrierComplementaryVfx(
+      directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : renderWidth,
+      renderHeight,
+      barrierTime,
+      (effect.id?.length || 0) * 0.13,
+      Math.sin(Math.min(1, progress) * Math.PI)
+    );
+  }
   if (effect.type === "alchemy-excalibur") {
     const edge = Math.sin(clamp(progress / 0.74, 0, 1) * Math.PI);
     ctx.globalCompositeOperation = "lighter";
@@ -20493,23 +20519,63 @@ function drawSoloHumanDeathBotAcceleration(player, data) {
   ctx.restore();
 }
 
+function drawPreparationBarrierComplementaryVfx(width, height, time, phase = 0, impact = 0) {
+  if (!(width > 0 && height > 0)) return;
+  const sampledTime = Math.floor(time * 60) / 60;
+  const travel = ((sampledTime * 0.42 + phase * 0.31) % 1 + 1) % 1;
+  const impactStrength = clamp(Number(impact) || 0, 0, 1);
+  const inheritedAlpha = ctx.globalAlpha;
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowColor = "rgba(103, 232, 249, 0.28)";
+  ctx.shadowBlur = Math.max(2, Math.min(width, height) * 0.025);
+  ctx.strokeStyle = "rgba(186, 230, 253, 0.82)";
+  ctx.lineWidth = Math.max(1, Math.min(width, height) * 0.012);
+  for (const side of [-1, 1]) {
+    const x = side * width * (0.34 - impactStrength * 0.025);
+    const y = -height * 0.24 + travel * height * 0.48;
+    ctx.globalAlpha = inheritedAlpha * (0.13 + impactStrength * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(x - side * width * 0.018, y - height * 0.055);
+    ctx.lineTo(x + side * width * 0.018, y + height * 0.055);
+    ctx.stroke();
+  }
+  if (impactStrength > 0.01) {
+    const radius = Math.min(width, height) * (0.3 - impactStrength * 0.065);
+    ctx.globalAlpha = inheritedAlpha * impactStrength * 0.16;
+    for (let quadrant = 0; quadrant < 4; quadrant += 1) {
+      const angle = Math.PI * 0.25 + quadrant * Math.PI * 0.5;
+      const outer = radius + Math.min(width, height) * 0.045;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+      ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawPreparationBarrierAte(player) {
   if (!player.preparationBarrierActive || !player.alive || player.ejected) return;
   const prepared = transparentSpriteSource(state.textures.preparationBarrierEffect, "preparation-barrier-ate-v392", 12);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "preparation-barrier-ate-v392", 1, 1, 0, 0) : null;
   if (!sprite) return;
   const time = Math.floor(((state.frameNow || performance.now()) / 1000) * 60) / 60;
+  const phase = (player.id?.length || 0) * 0.17;
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha *= 0.9;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha *= 0.72;
   drawAnimatedTextureCentered(sprite, 0, -8, 116, 132, {
     mode: "shield",
     time,
-    phase: (player.id?.length || 0) * 0.17,
-    intensity: 0.9,
-    baseAlpha: 0.14,
-    opacityBoost: 3
+    phase,
+    intensity: 0.66,
+    baseAlpha: 0.16,
+    opacityBoost: 1.2,
+    visibilityProfile: "ambient"
   });
+  drawPreparationBarrierComplementaryVfx(116, 132, time, phase, 0);
   ctx.restore();
 }
 
@@ -22634,7 +22700,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v655";
+const version = "ui-visual-elevation-v656";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23671,7 +23737,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v655", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v656", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

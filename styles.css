@@ -5511,9 +5511,10 @@ body .offline-team-choice button[data-offline-team] {
   z-index: 210;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  min-height: 42px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border-color: #67e8f9;
   background: rgba(12, 25, 32, 0.94);
