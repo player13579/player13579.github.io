@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-close-controls-v661";
+const DVA_CLIENT_RELEASE = "emp-activation-ate-correction-v662";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -895,7 +895,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-close-controls-v661";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-activation-ate-correction-v662";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19225,7 +19225,7 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   return true;
 }
 
-function drawEmpActivationMark(effect, progress, now) {
+function drawEmpActivationAte(effect, progress, now) {
   const rawIntensity = Number(effect?.intensity);
   const intensity = Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
   if (intensity <= 0.001) return true;
@@ -19241,14 +19241,14 @@ function drawEmpActivationMark(effect, progress, now) {
   const snap = reduced ? 0 : Math.sin(clamp((normalized - 0.18) / 0.18, 0, 1) * Math.PI);
   const settle = reduced ? 1 : objectEffectEase(clamp((normalized - 0.42) / 0.3, 0, 1));
   const fade = 1 - objectEffectEase(clamp((normalized - 0.74) / 0.26, 0, 1));
-  // The field mark remains at the authoritative effect point. Its 76–96 world-unit
-  // size communicates charge → snap → settle without following the actor.
+  // Keep the activation ATE at the authoritative EMP effect point. Its 76–96
+  // world-unit size communicates charge → snap → settle without following an actor.
   const size = 76 + charge * 12 + snap * 8 - settle * 8;
   const { width, height } = animatedTextureSize(sprite, size, size);
   if (!(width > 0 && height > 0)) return false;
 
   ctx.save();
-  ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 126);
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
   ctx.rotate(snap * 0.035);
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = Math.max(0, (0.48 + charge * 0.52) * fade * intensity);
@@ -19280,9 +19280,15 @@ function drawEmpActivationMark(effect, progress, now) {
 }
 
 function drawEmpEffect(effect, progress, now) {
-  // Only the authoritative EMP activation receives the dedicated field mark.
-  // Charge, storage lock, resonance and cancellation retain their established owners.
-  if (effect.type === "emp" && drawEmpActivationMark(effect, progress, now)) return;
+  // Only the authoritative EMP activation receives the dedicated ATE. If its
+  // texture is temporarily unavailable, retain the existing full-size EMP ATE
+  // directly; never fall through to a generic compact marker owner.
+  if (effect.type === "emp") {
+    if (drawEmpActivationAte(effect, progress, now)) return;
+    const maxRadius = Math.max(180, Number(effect.radius) || 260);
+    drawPhilosophyAtlasEffect(effect, PHILOSOPHY_EFFECT_CELLS.emp, progress, maxRadius * 0.92);
+    return;
+  }
   if (drawCommonActionSimpleIcon(effect, progress)) return;
   const maxRadius = Math.max(180, Number(effect.radius) || 260);
   const interactionIndex = effect.type === "emp-resonance" ? 0 : effect.type === "emp-cancel" ? 1 : -1;
@@ -22827,7 +22833,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-close-controls-v661";
+const version = "emp-activation-ate-correction-v662";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23867,7 +23873,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-close-controls-v661", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-activation-ate-correction-v662", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
