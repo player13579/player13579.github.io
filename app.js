@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "recovery-rest-ack-v666";
+const DVA_CLIENT_RELEASE = "ability-name-mp-display-v667";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -775,7 +775,7 @@ const utilityLabels = {
 
 const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "mineral-water": "通常使用: 自分の燃焼解除・SP+100。投擲: 着地点半径135の全員へ同効果。瓶片は確率ダメージ",
-  seawater: "重水素を含む海水。通常使用は自分の燃焼解除、投擲は着地点へ消火水域を作る。クオンタムの運動エネルギー制御で高温水または氷へ変換でき、終盤は2MPの核融合にも使える",
+  seawater: "重水素を含む海水。通常使用は自分の燃焼解除、投擲は着地点へ消火水域を作る。クオンタムの運動エネルギー制御で高温水または氷へ変換でき、終盤は核融合（2MP）にも使える",
   antidote: "通常使用: 自分の毒解除。投擲: 着地点半径120の全員へ同効果。瓶片は確率ダメージ",
   molotov: "通常使用は自分を燃焼。投擲は着地点周囲を継続燃焼し、瓶片が確率ダメージ。Enhanceは強度・範囲のみ強化",
   evade: "回避受付+0.25秒（累積上限+1.50秒）。回避自体は200SPを消費",
@@ -817,15 +817,15 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
   exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
   hack: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
-  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhanceは0.58（最遠0.37）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhanceは0.50（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhanceは0.70（最遠0.55）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhanceは与ダメージ1.62・固定1MP。固有の確殺なし。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhanceは0.19（最遠0.14）・固定1MP。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhance（固定1MP）は0.58（最遠0.37）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhance（固定1MP）は0.50（最遠0.14）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhance（固定1MP）は0.70（最遠0.55）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhance（固定1MP）は与ダメージ1.62。固有の確殺なし。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhance（固定1MP）は0.19（最遠0.14）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
-  uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
-  plutonium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムは2MPで核分裂し全域を破壊して死体を残す",
+  uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムの核分裂（2MP）は全域を破壊して死体を残す",
+  plutonium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムの核分裂（2MP）は全域を破壊して死体を残す",
   "orichalcum-sword": "物理武器。直接斬撃は確殺（死体あり）。斬る: 150SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
   iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
@@ -849,7 +849,7 @@ const alchemyRecipes = [
     asset: product.asset,
     hackerAccess: product.hackerAccess
   })),
-  { id: "revive", label: "人体生成", output: "死者を一度だけ復活 / 0MP" },
+  { id: "revive", label: "人体生成（0MP）", output: "死者を一度だけ復活" },
   { id: "hack-credits-delete", label: "クレジット削除", output: "対象のクレジットを0にする", asset: "hack-credits-delete" },
   { id: "hack-credits-duplicate", label: "クレジット増殖", output: "対象のクレジットを複製", asset: "hack-credits-duplicate" },
   { id: "hack-items-delete", label: "アイテム削除", output: "対象の所持品を削除", asset: "hack-items-delete" },
@@ -894,7 +894,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "recovery-rest-ack-v666";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ability-name-mp-display-v667";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3268,7 +3268,7 @@ function syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, nativeO
       choices.forEach((ability) => {
         const option = document.createElement("option");
         option.value = "shop:" + ability.id;
-        option.textContent = ability.label;
+        option.textContent = abilityNameWithMana(ability.label, ability.operator, ability.mode, self);
         group.append(option);
       });
       select.append(group);
@@ -4433,7 +4433,7 @@ function toggleClairvoyance(force = null) {
   syncClairvoyanceManaUsage();
   if (shouldEnable) {
     const drain = Number(data?.self?.clairvoyanceManaPerSecond) || 0.25;
-    showToast(`千里眼を起動しました。観測中 ${drain.toFixed(2)}MP/秒。`);
+    showToast(`千里眼（${drain.toFixed(2)}MP/秒）を起動しました。`);
   }
   return true;
 }
@@ -4457,10 +4457,10 @@ function updateEnhanceReadout() {
   els.enhanceReadout.textContent = !hold.kind
     ? "長押し: 600msからエンハンス / 武具は3000msでGBO"
     : gbo
-      ? mana >= 2 ? "GBO / 性能×10 / -2MP / 使用後に武具破壊" : "GBO / MP不足（2MP必要） / 解放時は不成立"
+      ? mana >= 2 ? "GBO（2MP） / 性能×10 / 使用後に武具破壊" : "GBO（2MP） / MP不足 / 解放時は不成立"
       : requested > 0
-        ? mana >= 1 ? "エンハンス / -1MP" : "エンハンス / MP不足（1MP必要）"
-        : "通常動作 / 0MP";
+        ? mana >= 1 ? "エンハンス（1MP）" : "エンハンス（1MP） / MP不足"
+        : "通常動作（0MP）";
   if (hold.kind) hold.timer = requestAnimationFrame(updateEnhanceReadout);
 }
 
@@ -5193,7 +5193,7 @@ function quantumTopLevelHoldChoices({ borrowed = false } = {}) {
     return {
       key: `quantum:${mode}`,
       group: "クオンタム",
-      label,
+      label: borrowed ? rootBorrowedAbilityLabel("quantum", mode, label) : label,
       selected: selected === mode,
       apply() {
         if (borrowed) commitRootHoldAbility("quantum", mode);
@@ -5214,7 +5214,7 @@ function borrowedOperatorHoldChoices(self = state.data?.self) {
       : (OPERATOR_ABILITY_MODE_OPTIONS[type] || []).map(([mode, label]) => ({
         key: `${type}:${mode}`,
         group: HACKER_ROOT_OPERATOR_LABELS[type] || type,
-        label,
+        label: rootBorrowedAbilityLabel(type, mode, label, self),
         selected: state.borrowedOperatorType === type && state.borrowedAbilityModes[type] === mode,
         apply() { commitRootHoldAbility(type, mode); }
       }))
@@ -8362,11 +8362,22 @@ function conciseTabletAbilityName(data) {
     if (!data?.self?.hackerRootActive) return "Root化";
     const borrowed = selectedBorrowedOperator();
     const borrowedOwner = borrowed === "gravity" ? "teleport" : borrowed;
-    if (borrowedOwner === "quantum") return quantumModeLabel(selectedQuantumExecutableMode(true));
+    if (borrowedOwner === "quantum") return tabletAbilityNameWithMana(quantumModeLabel(selectedQuantumExecutableMode(true)), "quantum", selectedQuantumExecutableMode(true), data?.self);
     return modeNames[borrowedOwner]?.[state.borrowedAbilityModes[borrowed] || mode] || specialLabels[borrowedOwner] || "借用能力";
   }
-  if (owner === "quantum") return quantumModeLabel(selectedQuantumExecutableMode(data?.self?.special === "alchemist"));
+  if (owner === "quantum") {
+    const mode = selectedQuantumExecutableMode(data?.self?.special === "alchemist");
+    return tabletAbilityNameWithMana(quantumModeLabel(mode), "quantum", mode, data?.self);
+  }
   return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
+}
+
+function tabletAbilityNameWithMana(label, owner, mode, self) {
+  const display = abilityNameWithMana(label, owner, mode, self);
+  // Keep the tablet shortcut to one concise cost. The retained nuclear 2MP
+  // possession gate belongs in its adjacent description and button title.
+  if (owner === "quantum" && self?.hackerManaFree && ["nuclear-fission", "nuclear-fusion"].includes(mode)) return `${label}（0MP）`;
+  return display;
 }
 
 function setTabletShortcutLabel(button, name, detail = "") {
@@ -8416,7 +8427,7 @@ function renderTabletControls(data) {
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
-  setTabletShortcutLabel(els.tabletClairvoyanceShortcut, "千里眼", state.clairvoyance.active ? "千里眼を解除" : "千里眼を発動");
+  setTabletShortcutLabel(els.tabletClairvoyanceShortcut, `千里眼（${Number(data?.self?.clairvoyanceManaPerSecond ?? 0.25).toFixed(2)}MP/秒）`, state.clairvoyance.active ? "千里眼を解除" : "千里眼を発動");
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
   els.tabletClairvoyanceShortcut.setAttribute("aria-pressed", String(state.clairvoyance.active));
@@ -9016,17 +9027,17 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
 
     if (activeType === "teleport" || activeType === "gravity") {
       const gravityDescriptions = {
-        near: "1MP。局所重力場で時空曲率を変え、選択対象の近くへ全身転移する",
-        target: "1MP。局所重力場で時空曲率を変え、選択対象をマップ指定地点へ転移する。味方への誤射は発動者が即死する",
-        heart: "10MP。遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる",
-      accelerate: "1MP。対象の時間進行率を8秒間×2.5にし、移動・行動不能時間・CT・タスク・物理モーションを同率加速する",
-      decelerate: "1MP。対象の時間進行率を8秒間×0.38にし、移動・行動不能時間・CT・タスク・物理モーションを同率減速する",
-      "time-keeper": "1000MP。5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する",
-      storm: "10MP。指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
+        near: "局所重力場で時空曲率を変え、選択対象の近くへ全身転移する",
+        target: "局所重力場で時空曲率を変え、選択対象をマップ指定地点へ転移する。味方への誤射は発動者が即死する",
+        heart: "遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる",
+      accelerate: "対象の時間進行率を8秒間×2.5にし、移動・行動不能時間・CT・タスク・物理モーションを同率加速する",
+      decelerate: "対象の時間進行率を8秒間×0.38にし、移動・行動不能時間・CT・タスク・物理モーションを同率減速する",
+      "time-keeper": "5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する",
+      storm: "指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束。発動者は最後の1秒だけバリアなし"
     };
     const gravityModes = new Set(["near", "target", "heart", "accelerate", "decelerate", "time-keeper", "storm"]);
     [...els.teleportModeSelect.options].filter((option) => gravityModes.has(option.value)).forEach((option) => {
-      addBranch(option.textContent, () => {
+      addBranch(abilityNameWithMana(option.textContent, activeType, option.value, self), () => {
         state.borrowedAbilityModes.gravity = option.value;
         els.teleportModeSelect.value = option.value;
         els.teleportModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -9034,13 +9045,13 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
     });
   } else if (activeType === "flora") {
     const floraDescriptions = {
-      heal: "1MP。生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して加速を付与する",
-      sunbeam: "10MP。屈折・回折による経路制御で選択対象方向へ光線を放ち、交差した全対象を貫通して確殺する",
-      invisible: "10MP。光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる"
+      heal: "生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して加速を付与する",
+      sunbeam: "屈折・回折による経路制御で選択対象方向へ光線を放ち、交差した全対象を貫通して確殺する",
+      invisible: "光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる"
     };
     const floraModes = new Set(["heal", "sunbeam", "invisible"]);
     [...els.teleportModeSelect.options].filter((option) => floraModes.has(option.value)).forEach((option) => {
-      addBranch(option.textContent, () => {
+      addBranch(abilityNameWithMana(option.textContent, activeType, option.value, self), () => {
         state.borrowedAbilityModes.flora = option.value;
         els.teleportModeSelect.value = option.value;
         els.teleportModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -12320,7 +12331,7 @@ function populateRootAbilityModeSelect(type, { prompt = false, selectedMode = ""
     els.rootAbilityBranchSelect.dataset.specialKey = `root-abilities:${type}:${choices.map(([value]) => value).join("|")}`;
     els.rootAbilityBranchSelect.innerHTML = [
       '<option value="" disabled>能力を選択</option>',
-      ...choices.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+      ...choices.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(rootBorrowedAbilityLabel(type, value, label, self))}</option>`)
     ].join("");
     const effectiveSelected = choices.some(([value]) => value === selectedMode) ? selectedMode : "";
     els.rootAbilityBranchSelect.value = effectiveSelected;
@@ -12385,7 +12396,8 @@ function commitRootAbilityModeSelect(source = els.teleportModeSelect) {
     populateRootOperatorModeSelect(self);
     syncAbilityModeDescription(type, self);
     ensureTeleportTargetForMode(state.data);
-    showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}: ${choices.find(([value]) => value === mode)?.[1] || mode}`);
+    const selectedLabel = choices.find(([value]) => value === mode)?.[1] || mode;
+    showToast(`${HACKER_ROOT_OPERATOR_LABELS[type] || type}: ${rootBorrowedAbilityLabel(type, mode, selectedLabel, self)}`);
     updateActionButtons(state.data);
     if (state.abilityAutoActivate) triggerBorrowedAbility(type, mode);
     return true;
@@ -12566,7 +12578,7 @@ function renderTargetOptions(data) {
     const previousMode = els.teleportModeSelect.value;
     els.teleportModeSelect.setAttribute("aria-label", "能力方式");
     els.teleportModeSelect.dataset.specialKey = `${modeOwner}:${modeKey}`;
-    els.teleportModeSelect.innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+    els.teleportModeSelect.innerHTML = options.map(([value, label]) => `<option value="${value}">${escapeHtml(abilityNameWithMana(label, modeOwner, value, self))}</option>`).join("");
     const rememberedMode = borrowedOperator ? state.borrowedAbilityModes[borrowedOperator] : "";
     const defaultMode = modeOwner === "teleport" || modeOwner === "gravity" ? "accelerate" : options[0]?.[0];
     const gravityDefault = ["teleport", "gravity"].includes(modeOwner);
@@ -12645,42 +12657,65 @@ function renderTargetOptions(data) {
   }
 }
 
-function abilityModeDescription(owner, mode, self) {
+function abilityNameWithMana(label, owner, mode, self) {
   const costs = self?.abilityCosts || {};
   const operatorManaFree = Boolean(self?.hackerManaFree || self?.fighterInfiniteResources);
-  const free = operatorManaFree || self?.rationalFreeAbilityReady;
-  const cost = (key, fallback = 1) => free ? "今回0MP" : `${Number(costs[key] ?? fallback)}MP`;
-  const directCost = (key, fallback = 1) => operatorManaFree ? "今回0MP" : `${Number(costs[key] ?? fallback)}MP`;
-  const nuclearCost = operatorManaFree
-    ? `発動には${Number(costs.quantumNuclear ?? 2)}MP保有（消費0MP）`
-    : `${Number(costs.quantumNuclear ?? 2)}MP消費`;
+  const rationalManaFree = Boolean(self?.rationalFreeAbilityReady);
+  const waived = (key) => operatorManaFree || (rationalManaFree && !["heartTeleport", "quantumNuclear", "quantumElectric"].includes(key));
+  let presentation = "";
+  if (owner === "fighter" && mode === "limit-break") presentation = operatorManaFree ? "0MP/秒" : `${Number(self?.limitBreakManaPerSecond ?? 0.08)}MP/秒`;
+  if (["teleport", "gravity"].includes(owner)) {
+    const key = mode === "heart" ? "heartTeleport" : mode === "time-keeper" ? "timeKeeper" : mode === "storm" ? "gravityStorm" : "teleport";
+    const fallback = mode === "heart" || mode === "storm" ? 10 : mode === "time-keeper" ? 1000 : 1;
+    presentation = waived(key) ? "0MP" : `${Number(costs[key] ?? fallback)}MP`;
+  }
+  if (owner === "flora") {
+    const key = mode === "sunbeam" ? "floraSunbeam" : mode === "invisible" ? "floraInvisible" : "flora";
+    const fallback = mode === "heal" ? 1 : 10;
+    presentation = waived(key) ? "0MP" : `${Number(costs[key] ?? fallback)}MP`;
+  }
+  if (owner === "quantum" && mode === "electric-discharge") presentation = operatorManaFree ? "0MP" : `${Number(costs.quantumElectric ?? 1)}MP`;
+  if (owner === "quantum" && ["nuclear-fission", "nuclear-fusion"].includes(mode)) {
+    const reserve = Number(costs.quantumNuclear ?? 2);
+    presentation = operatorManaFree ? `0MP・発動には${reserve}MP保有` : `${reserve}MP`;
+  }
+  return presentation ? `${label}（${presentation}）` : label;
+}
+
+function rootBorrowedAbilityLabel(type, mode, label, self = state.data?.self) {
+  return abilityNameWithMana(label, type, mode, self);
+}
+
+function abilityModeDescription(owner, mode, self) {
+  const costs = self?.abilityCosts || {};
+  const nuclearReserve = Number(costs.quantumNuclear ?? 2);
   const descriptions = {
     fighter: {
       "limit-break": "HPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ累積する。HPを使い切ると死亡する。"
     },
     teleport: {
-      near: `局所重力場で時空曲率を変え、対象の近くへ全身転移する。${cost("teleport")}。`,
-      target: `局所重力場で時空曲率を変え、マップ指定地点へ選択対象を転移する。味方への誤射は発動者が即死する。${cost("teleport")}。`,
-      heart: `遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる。位置は公開しない。${directCost("heartTeleport", 10)}。`,
-      accelerate: `対象の時間進行率を8秒間×2.5にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。${cost("teleport")}。`,
-      decelerate: `対象の時間進行率を8秒間×0.38にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。${cost("teleport")}。`,
-      "time-keeper": `5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する。${cost("timeKeeper", 1000)}。`,
-      storm: `指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。${cost("gravityStorm", 10)}。`
+      near: `局所重力場で時空曲率を変え、対象の近くへ全身転移する。`,
+      target: `局所重力場で時空曲率を変え、マップ指定地点へ選択対象を転移する。味方への誤射は発動者が即死する。`,
+      heart: `遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる。位置は公開しない。`,
+      accelerate: `対象の時間進行率を8秒間×2.5にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。`,
+      decelerate: `対象の時間進行率を8秒間×0.38にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。`,
+      "time-keeper": `5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する。`,
+      storm: `指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。`
     },
     gravity: null,
     flora: {
-      heal: `生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して12秒間加速する。${cost("flora")}。`,
-      sunbeam: `屈折・回折による経路制御で選択対象方向へ発動し、交差した全対象を貫通して確殺する。${cost("floraSunbeam", 10)}。壁は貫通しない。`,
-      invisible: `光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる。自分には半透明で表示する。${cost("floraInvisible", 10)}。`
+      heal: `生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して12秒間加速する。`,
+      sunbeam: `屈折・回折による経路制御で選択対象方向へ発動し、交差した全対象を貫通して確殺する。壁は貫通しない。`,
+      invisible: `光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる。自分には半透明で表示する。`
     },
     quantum: {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。ミネラルウォーターまたは海水を所持していなければ何も起きない。",
       "kinetic-accelerate": "所持しているミネラルウォーターまたは海水の運動・熱エネルギーを増やし、高温水へ相変化させる。対象がなければ何も起きない。",
       "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動・熱エネルギーを減らし、氷へ相変化させる。対象がなければ何も起きない。",
-      "electric-discharge": "量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP / 1MP（無料化対象外）。",
+      "electric-discharge": "量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP（無料化対象外）。",
       "nuclear-transmutation": "所持している鉛か水銀を自動選択し、原子核変換で金へ変えて100Cへ即時換金する。どちらもなければ何も起きない。",
-      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ作用させる。どちらもなければ何も起きない。${nuclearCost}。`,
-      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合反応で全人間へ作用させる。海水がなければ何も起きない。${nuclearCost}。`
+      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ作用させる。どちらもなければ何も起きない。発動には${nuclearReserve}MP保有が必要。`,
+      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合反応で全人間へ作用させる。海水がなければ何も起きない。発動には${nuclearReserve}MP保有が必要。`
     }
   };
   const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
@@ -12763,7 +12798,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
       ...item,
       inventoryKind,
       output: item.kind === "instant" ? "即席" : item.kind === "charge" ? "消耗品" : "所持品",
-      detail: `${chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能"}${item.id === "orichalcum-sword" ? " / UseまたはThrowを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBOは該当数値性能を一回だけ10倍にし、その使用で剣を破壊" : ""}`,
+      detail: `${chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能"}${item.id === "orichalcum-sword" ? " / UseまたはThrowを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBOは該当数値性能を一回だけ10倍にし、その使用で剣を破壊" : ""}`,
       badge: `×${Number(item.amount) || 1}`
     };
   });
@@ -12787,7 +12822,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
           asset: weapon.id,
           inventoryKind: "weapon",
           output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.20 : 0.05)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}・幸運補正済み）${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.20 : 0.05)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}・幸運補正済み）${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -12826,7 +12861,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
     asset: id,
     inventoryKind: "invention",
     output: "発明武器",
-    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使用・投擲可能"} / Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBOは該当数値性能を一回だけ10倍にして発明武器を破壊`,
+    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使用・投擲可能"} / Use・Throwを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBOは該当数値性能を一回だけ10倍にして発明武器を破壊`,
     badge: `×${count}`
   }));
   const heavyNames = { rpg: "RPG", missile: "ミサイル" };
@@ -12841,7 +12876,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
     asset: id,
     inventoryKind: "heavy",
     output: "重火器",
-    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器"} / Use・Throwを600ms以上長押しすると固定1MPのEnhance、3000ms以上で固定2MPのGBO。GBOは該当数値性能を一回だけ10倍にして重火器を破壊`,
+    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器"} / Use・Throwを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBOは該当数値性能を一回だけ10倍にして重火器を破壊`,
     badge: `×${count}`
   }));
   return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems];
@@ -13341,7 +13376,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
-    add("リビテーション", self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床外移動中0.04MP/秒。終了時に床がなければ落下死", "inline", "passive:gravity-levitation");
+    add(`リビテーション（${Number(self.levitationManaPerSecond ?? 0.04)}MP/秒）`, self.levitationActive ? "浮揚可能" : passiveValue, self.levitationActive ? "rational" : passiveTone, "床外移動中に継続消費。終了時に床がなければ落下死", "inline", "passive:gravity-levitation");
   }
 
   if (hasDisplayedOperatorAccess(self, "flora")) {
@@ -13391,10 +13426,10 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
   const hoverSprintActiveMs = Math.max(0, Number(self.hoverSprintUntil) - liveNow);
   if (hoverSprintActiveMs > 0) {
     add(
-      "ホバースプリント",
+      `ホバースプリント（${Number(self.hoverSprintManaCost ?? 1)}MP）`,
       `自動浮揚・ACC ×${Number(self.timedAccelerationStacks?.hoverSprint?.multiplier || 1.8).toFixed(1)} ${formatEffectCountdown(hoverSprintActiveMs)}`,
       "truth",
-      "支持床から床外へ進む時に1MPで自動起動する全員共通action。8秒間浮揚し、起動時から20秒CT。最後の浮揚終了時に足場がなければ落下死",
+      "支持床から床外へ進む時に自動起動する全員共通action。8秒間浮揚し、起動時から20秒CT。最後の浮揚終了時に足場がなければ落下死",
       "inline",
       "hover-sprint-active"
     );
@@ -13411,12 +13446,12 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
     const manaGpuDrain = Number(self.manaGpuDrainPerSecond || 0).toFixed(3);
     const manaGpuReductionSeconds = Math.round(Number(self.manaGpuCooldownReductionMsPerMana || 0) / 1000);
     add(
-      "マナGPU",
+      `マナGPU（${manaGpuDrain}MP/秒・1MP=${manaGpuReductionSeconds}秒）`,
       self.manaGpuActive
         ? `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積・稼働`
         : `${(Math.max(0, Number(self.manaGpuCooldownCreditMs) || 0) / 1000).toFixed(1)}秒蓄積・休止`,
       self.manaGpuActive ? "truth" : "neutral",
-      `毎秒${manaGpuDrain}MPを短縮クール化。1MP=${manaGpuReductionSeconds}秒`,
+      "短縮クールへ変換し、次のバイブコーディングで必要分を自動消費",
       "inline",
       "passive:hacker-mana-gpu"
     );
@@ -13437,7 +13472,7 @@ function renderActiveEffects(data) {
   };
 
   if (self.rationalFreeAbilityReady) {
-    add("固有能力無料化", "準備完了", "rational", "次の対象固有能力はMP消費なし（エレクトリックは固定1MP）", "rational:free-ability");
+    add("固有能力無料化", "準備完了", "rational", "次の対象固有能力を無料化（エレクトリック（固定1MP）は対象外）", "rational:free-ability");
   } else if (rational) {
     timed("固有能力無料化", self.rationalFreeAbilityReadyAt, "rational", "理知維持で準備", "rational:free-ability");
   }
@@ -13448,8 +13483,8 @@ function renderActiveEffects(data) {
   if (self.limitBreakActive) {
     const limitBreakDetail = self.fighterInfiniteResources
       ? `HP消費なし / MP・SP・HP・バリア∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
-      : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / MP継続消費 / 即死回避無効`;
-    add("リミットブレイク", "永続", "truth", limitBreakDetail, "limit-break");
+      : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 継続消費 / 即死回避無効`;
+    add(abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self), "永続", "truth", limitBreakDetail, "limit-break");
   }
   if (self.hackerRootActive) {
     add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。バリア・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用", "root");
@@ -13493,14 +13528,14 @@ function renderActiveEffects(data) {
   }
   if (self.gravityTimeMode) timed(
     self.gravityTimeMode === "accelerate"
-      ? `アクセラレート ×${Math.max(1, Number(self.gravityTimeStacks?.accelerate) || 1)}`
-      : `ディーセラレート ×${Math.max(1, Number(self.gravityTimeStacks?.decelerate) || 1)}`,
+      ? `${abilityNameWithMana("アクセラレート", "gravity", "accelerate", self)} ×${Math.max(1, Number(self.gravityTimeStacks?.accelerate) || 1)}`
+      : `${abilityNameWithMana("ディーセラレート", "gravity", "decelerate", self)} ×${Math.max(1, Number(self.gravityTimeStacks?.decelerate) || 1)}`,
     self.gravityTimeEndsAt,
     self.gravityTimeMode === "accelerate" ? "good" : "desire",
-    "1MP・8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用",
+    "8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用",
     "gravity:time"
   );
-  timed("時の番人", self.timeKeeperEndsAt, "truth", "1000MP・5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止", "gravity:time-keeper");
+  timed(abilityNameWithMana("時の番人", "gravity", "time-keeper", self), self.timeKeeperEndsAt, "truth", "5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止", "gravity:time-keeper");
   timed("時間停止", self.timeStoppedUntil, "desire", "入力・行動・クールタイム・物理モーション停止", "gravity:time-stop");
   if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ", "route:pair-warning");
   timed("スマホ操作", self.smartphoneUntil, "neutral", "完了まで行動不能", "action:smartphone");
@@ -14232,7 +14267,7 @@ function objectiveText(data) {
     return `ファイター / EC・キルカウンター・リミットブレイク / 初期装備: オリハルコン・ソード / ${dodgeText}`;
   }
   if (self.special === "teleport" && self.alive) {
-    return `タスクを進めてください。テレポート ${self.abilityCosts?.teleport || 0}MP / ${dodgeText}`;
+    return `タスクを進めてください。テレポート（${self.abilityCosts?.teleport || 0}MP） / ${dodgeText}`;
   }
   if (self.role === "attacker") {
     if (self.aimTargetId && self.aimReadyAt > liveNow) {
@@ -14499,15 +14534,15 @@ function updateActionButtons(data) {
   const teleportMode = els.teleportModeSelect.value === "heart" ? "heart" : "body";
   const teleportTargetIsSelf = (els.teleportTargetSelect.value || self.id) === self.id;
   els.teleportButton.textContent = teleportMode === "heart"
-    ? `心臓へ転移 ${operatorCostLabel("heartTeleport")}`
-    : `全身を転移 ${operatorCostLabel("teleport")}`;
+    ? abilityNameWithMana("心臓へ転移", "gravity", "heart", self)
+    : abilityNameWithMana("全身を転移", "gravity", "near", self);
   els.teleportButton.classList.toggle("danger", teleportMode === "heart");
   els.teleportButton.disabled = !(canUseAbility && self.special === "teleport" &&
     hasMana(teleportMode === "heart" ? "heartTeleport" : "teleport") &&
     (teleportMode !== "heart" || !teleportTargetIsSelf));
-  els.healButton.textContent = `ヒール ${operatorCostLabel("flora")}`;
+  els.healButton.textContent = abilityNameWithMana("ヒール", "flora", "heal", self);
   els.healButton.disabled = !(canUseAbility && self.special === "flora" && hasMana("flora"));
-  els.alchemyButton.textContent = `バイブコーディング: ${selectedAlchemy.label} ${operatorCostLabel("alchemy")}`;
+  els.alchemyButton.textContent = `バイブコーディング（0MP）: ${selectedAlchemy.label}`;
   els.alchemyButton.disabled = !(canUseAbility &&
     self.special === "alchemist" &&
     hasMana("alchemy") &&
@@ -14521,22 +14556,20 @@ function updateActionButtons(data) {
       ? "floraInvisible"
       : "flora";
   const operatorLabels = {
-    fighter: self.limitBreakActive ? `リミットブレイク ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : "リミットブレイク",
-    teleport: operatorMode === "near" ? `転移・対象付近 ${operatorCostLabel("teleport")}`
-      : operatorMode === "target" ? `対象転移 ${operatorCostLabel("teleport")}`
-        : operatorMode === "heart" ? `心臓転移 ${operatorCostLabel("heartTeleport")}`
-          : operatorMode === "accelerate" ? `アクセラレート 8秒 ${operatorCostLabel("teleport")}`
-            : operatorMode === "decelerate" ? `ディーセラレート 8秒 ${operatorCostLabel("teleport")}`
-              : operatorMode === "time-keeper" ? `時の番人 5秒 ${operatorCostLabel("timeKeeper")}`
-                : `グラビティストーム ${operatorCostLabel("gravityStorm")}`,
+    fighter: self.limitBreakActive ? `${abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self)} ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self),
+    teleport: operatorMode === "near" ? abilityNameWithMana("転移・対象付近", "gravity", "near", self)
+      : operatorMode === "target" ? abilityNameWithMana("対象転移", "gravity", "target", self)
+        : operatorMode === "heart" ? abilityNameWithMana("心臓転移", "gravity", "heart", self)
+          : operatorMode === "accelerate" ? `${abilityNameWithMana("アクセラレート", "gravity", "accelerate", self)} 8秒`
+            : operatorMode === "decelerate" ? `${abilityNameWithMana("ディーセラレート", "gravity", "decelerate", self)} 8秒`
+              : operatorMode === "time-keeper" ? `${abilityNameWithMana("時の番人", "gravity", "time-keeper", self)} 5秒`
+                : abilityNameWithMana("グラビティストーム", "gravity", "storm", self),
     flora: operatorMode === "heal"
-      ? `ヒール ${operatorCostLabel("flora")}`
+      ? abilityNameWithMana("ヒール", "flora", "heal", self)
       : operatorMode === "sunbeam"
-        ? `サンビーム ${operatorCostLabel("floraSunbeam")}`
-        : `インビジブル 10秒 ${operatorCostLabel("floraInvisible")}`,
-    quantum: selectedQuantumExecutableMode(activeBorrowedOperator === "quantum") === "electric-discharge"
-      ? `${quantumModeLabel("electric-discharge")} -1MP / -16SP`
-      : quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")),
+        ? abilityNameWithMana("サンビーム", "flora", "sunbeam", self)
+        : `${abilityNameWithMana("インビジブル", "flora", "invisible", self)} 10秒`,
+    quantum: abilityNameWithMana(quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")), "quantum", selectedQuantumExecutableMode(activeBorrowedOperator === "quantum"), self) + (selectedQuantumExecutableMode(activeBorrowedOperator === "quantum") === "electric-discharge" ? " / -16SP" : ""),
     assassin: "常時無音（パッシブ）",
     alchemist: "Root化"
   };
@@ -14588,13 +14621,13 @@ function updateActionButtons(data) {
       nativeQuantumEndgameLocked ||
       (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16));
   els.operatorAbilityButton.title = self.hackerRootActive && borrowedQuantumEndgameLocked
-    ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
+    ? `${borrowedDisplayedLabel}は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
     : rootToggle && self.hackerRootActive
     ? `タップで${borrowedDisplayedLabel}を実行。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
     : rootToggle
     ? "タップでROOT化"
     : nativeQuantumEndgameLocked
-    ? `核分裂・核融合は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）`
+    ? `${operatorLabels.quantum}は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）`
     : abilityBatchActionSupported(operatorAbilityAction())
     ? "タップは通常1回。長押しはサーバーが現在MPから2を残す量を一括消費し、通常MPコストで成立する回数を同じ対象・方式へ並列発動"
     : "タップで現在の固有能力を1回発動";
@@ -14613,7 +14646,7 @@ function updateActionButtons(data) {
     const purchasedLimitBreakUnavailable = selectedShopAbility.operator === "fighter" &&
       !operatorManaFree && (Number(self.mana) || 0) <= 0;
     els.operatorAbilityButton.hidden = false;
-    els.operatorAbilityButton.textContent = selectedShopAbility.label;
+    els.operatorAbilityButton.textContent = abilityNameWithMana(selectedShopAbility.label, selectedShopAbility.operator, selectedShopAbility.mode, self);
     els.operatorAbilityButton.dataset.operator = "shop:" + selectedShopAbility.id;
     els.operatorAbilityButton.dataset.repeatableAbility = "0";
     els.operatorAbilityButton.classList.remove("active");
@@ -19664,7 +19697,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
 const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   naturalRecovery: ["自然回復", "理知中、人体の状態異常を無効化・即時解除し、HP・SP・MPを独立して漸進回復します。EMP機器異常は状態異常ではないため解除できません。アロマ有効中は、このマーカーに香気と葉片の補助エフェクトが加わります。"],
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
-  levitation: ["浮揚", "床外移動中は0.04MP/秒。終了時に床がなければ落下死します。"],
+  levitation: ["リビテーション（0.04MP/秒）", "床外移動中に継続消費します。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
   resistanceBreak: ["確殺耐性無効", "リミットブレイク中はバリア・変わり身による確殺回避が無効です。EC1000到達後は解除されます。"],
   standFirm: ["バリア", "次に受ける確殺を一度だけ防ぎ、発動後もしばらく防護します。"],
@@ -19672,7 +19705,7 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
   burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・ヒール・理知中の自然回復で解除できます。"],
   poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・ヒール・理知中の自然回復で解除できます。"],
-  manaGpu: ["マナGPU", "0.025MP/秒を短縮クールへ変換（1MP=20秒）。次のバイブコーディングで必要分を自動消費します。"],
+  manaGpu: ["マナGPU（0.025MP/秒・1MP=20秒）", "短縮クールへ変換し、次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC100回到達報酬によりMP・SP・HP・バリアが無限になっています。"],
   destructionSlash: ["常時消滅斬り", "EC1000回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
@@ -22787,7 +22820,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "recovery-rest-ack-v666";
+const version = "ability-name-mp-display-v667";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23835,7 +23868,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=recovery-rest-ack-v666", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ability-name-mp-display-v667", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "recovery-rest-ack-v666",
+    version: "ability-name-mp-display-v667",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -7931,7 +7931,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "12秒ごとに1MPを自動消費してECを1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイクは発動ごとにHPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "EC（1MP / 12秒）を自動で1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイク（0.08MP/秒）は発動ごとにHPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7941,7 +7941,7 @@ const OPERATORS = {
       limit: 99,
       asset: "teleport",
       description: "重力と時空を操作し、転移・時間加減速・浮揚・重力嵐を扱う。",
-      details: "重力による時空の曲率を操作するオペレーター。転移は1MPを消費し、他人の付近へ自分を移動する。心臓転移は10MPを消費して対象を遠隔確殺する。アクセラレートとディーセラレートは1MPで8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストームは10MPを消費し、指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
+      details: "重力による時空の曲率を操作するオペレーター。転移（1MP）は他人の付近へ自分を移動する。心臓転移（10MP）は対象を遠隔確殺する。アクセラレート（1MP）とディーセラレート（1MP）は8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストーム（10MP）は指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
     },
     {
       id: "defender-flora",
@@ -7951,7 +7951,7 @@ const OPERATORS = {
       limit: 99,
       asset: "flora",
       description: "ヒール・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "ヒールは1MPで自分へHP・スタミナ・状態解除・加速を付与する。サンビームは10MPで屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブルは10MPで光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
+      details: "ヒール（1MP）は自分へHP・スタミナ・状態解除・加速を付与する。サンビーム（10MP）は屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブル（10MP）は光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -7961,7 +7961,7 @@ const OPERATORS = {
       limit: 99,
       asset: "quantum",
       description: "運動エネルギー制御・エレクトリック・核変換・核分裂を使い分ける。",
-      details: "エレクトリックは16SPと1MPを使い、見通し上の最近接敵へ距離を問わず、空気の局所絶縁破壊から一条の電子輸送路を形成して0.35ダメージと3秒35%減速を与える。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。運動エネルギー制御は所持水の運動・熱エネルギーを増減し、高温水または氷へ相変化させる。核変換は原子核変換で所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂・核融合は終盤に所持核素材へ2MPで作用する。対象がなければ何も起きない。"
+      details: "エレクトリック（1MP / 16SP）は見通し上の最近接敵へ距離を問わず、空気の局所絶縁破壊から一条の電子輸送路を形成して0.35ダメージと3秒35%減速を与える。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。運動エネルギー制御は所持水の運動・熱エネルギーを増減し、高温水または氷へ相変化させる。核変換は原子核変換で所持している鉛か水銀を金へ変え、金の共通取得処理で100Cへ即時換金する。核分裂（2MP）・核融合（2MP）は終盤に所持核素材へ作用する。対象がなければ何も起きない。"
     }
   ],
   attacker: [
@@ -7973,7 +7973,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARとエイム・特殊弾装填を持ち、5種の銃器を扱う。足場のない場所への移動では共通アクションのホバースプリントが自動発動する。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。特殊弾装填は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。ホバースプリントは全員共通の自動アクションで、足場上から足場のない場所へ進む直前に1MPで8秒間の浮揚とACC 1.8を付与する。アイテムの所持やStorageの利用は不要。最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。特殊弾装填は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。ホバースプリント（1MP）は全員共通の自動アクションで、足場上から足場のない場所へ進む直前に8秒間の浮揚とACC 1.8を付与する。アイテムの所持やStorageの利用は不要。最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -7993,7 +7993,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングは訓練世界の計算機的な資源・所持品・永続オブジェクト・オペ能力の状態を生成または変更する。共有商品はMP消費0、最終CTはショップ価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化は自身の生体状態をHP 0.0001へ固定し、バリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化した後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPUは毎秒0.025MPを短縮クールへ変換し、1MPにつき20秒を上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、通常Human Taskとは別の時間経過passiveでタスクを自動完了する。自身のスマホはハッキングされない。"
+      details: "バイブコーディングは訓練世界の計算機的な資源・所持品・永続オブジェクト・オペ能力の状態を生成または変更する。共有商品のバイブコーディング（0MP）は最終CTはショップ価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化は自身の生体状態をHP 0.0001へ固定し、バリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化した後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPU（0.025MP/秒・1MP=20秒）は短縮クールを上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、通常Human Taskとは別の時間経過passiveでタスクを自動完了する。自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -11279,7 +11279,7 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
   const unitManaCost = Math.max(0.01, Number(committed.hold.unitManaCost) || abilityBatchUnitManaCost(actionPath, body) || 0);
   const parallelCount = Math.floor((spendableMana + 1e-9) / unitManaCost);
   if (parallelCount < 1) {
-    throw new ApiError(400, `能力長押しには理知維持用2MPとは別に${unitManaCost}MP以上が必要です。`);
+    throw new ApiError(400, `能力長押し（1回${unitManaCost}MP）には理知維持用2MPとは別に、1回分以上のMPが必要です。`);
   }
   if (parallelCount > ABILITY_BATCH_MAX_PARALLEL) {
     throw new ApiError(400, `一括並列発動は${ABILITY_BATCH_MAX_PARALLEL}回までです。MPを通常発動で調整してから再実行してください。`);
@@ -11321,10 +11321,10 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
   setAbilityBatchManaReserve(room, player, "能力一括並列発動");
   setImmediateFeedback(
     player,
-    "能力一括並列発動",
-    `${appliedCount}/${parallelCount}回 / MP-${spendableMana.toFixed(2)} / 2MP維持${partialError ? " / 対象状態変化で残り終了" : ""}`
+    `能力一括並列発動（${spendableMana.toFixed(2)}MP）`,
+    `${appliedCount}/${parallelCount}回 / 2MP維持${partialError ? " / 対象状態変化で残り終了" : ""}`
   );
-  pushEvent(room, `${player.name} が能力を${appliedCount}回並列発動し、${spendableMana.toFixed(2)}MPを消費して2MPを維持しました。`);
+  pushEvent(room, `${player.name} が能力一括並列発動（${spendableMana.toFixed(2)}MP）を${appliedCount}回成立させ、2MPを維持しました。`);
   touch(room);
   return {
     value,
@@ -11997,7 +11997,7 @@ function spendMana(room, player, amount, label) {
   if (hasFighterInfiniteResources(player)) return false;
   if (isHackerOperator(player)) return false;
   if ((Number(player.mana) || 0) < cost) {
-    throw new ApiError(400, `${label}にはマナ ${cost} が必要です。`);
+    throw new ApiError(400, `${label}（${cost}MP）を発動するには同量のMPが必要です。`);
   }
   setMana(room, player, (Number(player.mana) || 0) - cost, label);
 }
@@ -12026,7 +12026,7 @@ function canSpendQuantumElectricResources(player) {
 
 function spendQuantumElectricResources(room, player) {
   if (!canSpendQuantumElectricResources(player)) {
-    throw new ApiError(400, `エレクトリックには${QUANTUM_ACTION_STAMINA_COST}SPと${QUANTUM_ELECTRIC_MANA_COST}MPが必要です。`);
+    throw new ApiError(400, `エレクトリック（${QUANTUM_ELECTRIC_MANA_COST}MP / ${QUANTUM_ACTION_STAMINA_COST}SP）には同量の資源が必要です。`);
   }
   player.stamina = Math.max(0, Number(player.stamina) - QUANTUM_ACTION_STAMINA_COST);
   player.staminaUpdatedAt = now();
@@ -13184,8 +13184,8 @@ function activateHoverSprintForUnsupportedMovement(room, player, targetX, target
     durationMs: 1200,
     accelerationMultiplier: HOVER_SPRINT_BASE_ACC_MULTIPLIER
   });
-  setImmediateFeedback(player, "ホバースプリント", `MP ${HOVER_SPRINT_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HOVER_SPRINT_ACTIVATION_COOLDOWN_MS / 1000}秒`);
-  pushEvent(room, `${player.name} が足場のない場所へ移動してホバースプリントを発動しました（MP ${HOVER_SPRINT_BASE_MANA_COST} / 浮揚 8秒 / ACC 1.8 / CT ${HOVER_SPRINT_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
+  setImmediateFeedback(player, `ホバースプリント（${HOVER_SPRINT_BASE_MANA_COST}MP）`, `浮揚 8秒 / ACC 1.8 / CT ${HOVER_SPRINT_ACTIVATION_COOLDOWN_MS / 1000}秒`);
+  pushEvent(room, `${player.name} が足場のない場所へ移動してホバースプリント（${HOVER_SPRINT_BASE_MANA_COST}MP）を発動しました（浮揚 8秒 / ACC 1.8 / CT ${HOVER_SPRINT_ACTIVATION_COOLDOWN_MS / 1000}秒）。`);
   return true;
 }
 
@@ -14975,7 +14975,7 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
       variant: target.role,
       viewerId: player.id
     });
-    setImmediateFeedback(player, "心臓転移", `10MP / ${target.name}`);
+    setImmediateFeedback(player, `心臓転移（${HEART_TELEPORT_MANA_COST}MP）`, target.name);
     const eliminated = eliminatePlayerWithEmp(room, player, target, timestamp, "心臓転移");
     if (eliminated) pushEvent(room, `${player.name} が ${target.name} の心臓へ遠隔テレポートを適用しました。`);
     player.teleportReadyAt = 0;
@@ -15072,7 +15072,7 @@ function useTimeKeeper(room, player) {
     durationMs: GRAVITY_TIME_KEEPER_DURATION_MS,
     variant: "total-stop"
   });
-  pushEvent(room, `${player.name} が時の番人を発動し、術者以外の全てを${GRAVITY_TIME_KEEPER_DURATION_MS / 1000}秒間停止しました（${stoppedCount}人 / マナ${GRAVITY_TIME_KEEPER_MANA_COST}）。`);
+  pushEvent(room, `${player.name} が時の番人（${GRAVITY_TIME_KEEPER_MANA_COST}MP）を発動し、術者以外の全てを${GRAVITY_TIME_KEEPER_DURATION_MS / 1000}秒間停止しました（${stoppedCount}人）。`);
   touch(room);
 }
 
@@ -16899,8 +16899,8 @@ function applyAutomaticSurplusManaProtection(room, player, previousMana, request
   }
   if (converted) {
     const detail = [reason ? `バスト+${reason}` : "", grit ? `バリア+${grit}` : ""].filter(Boolean).join("・");
-    setImmediateFeedback(player, "余剰マナ自動変換", `MP-${converted} / ${detail}`);
-    pushEvent(room, `${player.name} の余剰マナ ${converted}MP を${detail}へ自動変換しました。`);
+    setImmediateFeedback(player, `余剰マナ自動変換（${converted}MP）`, detail);
+    pushEvent(room, `${player.name} の余剰マナ自動変換（${converted}MP）で${detail}を得ました。`);
   }
   return { mana, converted, reason, grit };
 }
@@ -17228,7 +17228,7 @@ function spendHeldPowerMana(room, player, amount, label) {
   const cost = Math.max(0, Number(amount) || 0);
   if (hasFighterInfiniteResources(player)) return false;
   if ((Number(player.mana) || 0) < cost) {
-    throw new ApiError(400, `${label}にはマナ ${cost} が必要です。`);
+    throw new ApiError(400, `${label}（${cost}MP）を発動するには同量のMPが必要です。`);
   }
   setMana(room, player, (Number(player.mana) || 0) - cost, label);
   return true;
@@ -18425,11 +18425,11 @@ function useQuantumControl(room, player, rawMode) {
   }
   ensureAbilityAvailable(player);
   if (mode === "electric-discharge" && !canSpendQuantumElectricResources(player)) {
-    throw new ApiError(400, `エレクトリックには${QUANTUM_ACTION_STAMINA_COST}SPと${QUANTUM_ELECTRIC_MANA_COST}MPが必要です。`);
+    throw new ApiError(400, `エレクトリック（${QUANTUM_ELECTRIC_MANA_COST}MP / ${QUANTUM_ACTION_STAMINA_COST}SP）には同量の資源が必要です。`);
   }
   if (mode !== "electric-discharge" && Number(player.stamina) < QUANTUM_ACTION_STAMINA_COST) throw new ApiError(400, `クオンタムには${QUANTUM_ACTION_STAMINA_COST}SPが必要です。`);
   if (nuclearMode && Number(player.mana) < QUANTUM_NUCLEAR_MANA_COST) {
-    throw new ApiError(400, `${mode === "nuclear-fusion" ? "核融合" : "核分裂"}には${QUANTUM_NUCLEAR_MANA_COST}MPが必要です。`);
+    throw new ApiError(400, `${mode === "nuclear-fusion" ? "核融合" : "核分裂"}（${isHackerOperator(player) ? 0 : QUANTUM_NUCLEAR_MANA_COST}MP / 発動には${QUANTUM_NUCLEAR_MANA_COST}MP保有）を使用できません。`);
   }
   if (mode === "electric-discharge") {
     spendQuantumElectricResources(room, player);
@@ -21845,6 +21845,8 @@ function serialize(room, viewer, options = {}) {
       levitationActive: canLevitate(viewer),
       clairvoyanceActive: Boolean(viewer.clairvoyanceActive),
       clairvoyanceManaPerSecond: CLAIRVOYANCE_MANA_DRAIN_PER_SECOND,
+      levitationManaPerSecond: LEVITATION_MANA_DRAIN_PER_SECOND,
+      limitBreakManaPerSecond: LIMIT_BREAK_MANA_DRAIN_PER_SECOND,
       alchemyReviveUsed: Boolean(viewer.alchemyReviveUsed),
       vibeCodingReadyAt: Number(viewer.vibeCodingReadyAt) || 0,
       vibeCodingCooldownMs: Number(viewer.vibeCodingCooldownMs) || 0,
@@ -21932,7 +21934,7 @@ function serialize(room, viewer, options = {}) {
         progress: soloMissionProgress(room, timestamp),
         hintUnlocked: Boolean(room.soloMission.hintUnlocked),
         hint: room.soloMission.hintUnlocked
-          ? "CPUは自分へアクセラレート→練気1回（+10MP）→心臓転移を繰り返します。35秒の精神統一中か、心臓転移に必要な10MPを確保する前を狙って妨害してください。"
+          ? "CPUは自分へアクセラレート→練気1回（+10MP）→心臓転移を繰り返します。35秒の精神統一中か、心臓転移（10MP）の準備が整う前を狙って妨害してください。"
           : ""
       };
     })(),
@@ -22467,7 +22469,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.preparationEndsAt = 0;
     room.meeting = null;
     room.sabotage = null;
-    pushEvent(room, "実画面検証: フローラは20MPでサンビームを2回連続発動できます。");
+    pushEvent(room, "実画面検証: サンビーム（合計20MP）を2回連続発動できます。");
   } else if (kind === "movement-acc") {
     const timestamp = now();
     Object.assign(player, {
@@ -22699,7 +22701,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     room.preparationEndsAt = 0;
     room.meeting = null;
     room.sabotage = null;
-    pushEvent(room, `実画面検証: ${rootBorrowed ? "ROOT借用" : "通常"}エレクトリックは16SP+1MPで、見通し上の最近接敵へ距離を問わず絶縁破壊→電子輸送を一度だけ実行します。`);
+    pushEvent(room, `実画面検証: ${rootBorrowed ? "ROOT借用" : "通常"}エレクトリック（1MP / 16SP）は見通し上の最近接敵へ距離を問わず絶縁破壊→電子輸送を一度だけ実行します。`);
   } else if (["gunner-luck-headshot-aim", "gunner-luck-headshot-hip"].includes(kind)) {
     const timestamp = now();
     const map = getMap(room);
@@ -25983,5 +25985,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "recovery-rest-ack-v666" });
+self.postMessage({ type: "ready", version: "ability-name-mp-display-v667" });
 })();
