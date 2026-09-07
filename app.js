@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-digital-activation-v696";
+const DVA_CLIENT_RELEASE = "emp-charge-icon-v697";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-digital-activation-v696";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-charge-icon-v697";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19702,7 +19702,7 @@ function drawNativeEmpStateAte(effect, progress, now) {
   const charge = type === "emp-charge";
   const resonance = type === "emp-resonance";
   if (!charge && !resonance) return false;
-  const sprite = charge ? state.textures?.empChargeNativeRgba : state.textures?.empResonanceNativeRgba;
+  const sprite = charge ? state.textures?.empChargeIconRgba : state.textures?.empResonanceNativeRgba;
   // This adopted route is deliberately silent when its raw texture is not ready:
   // it must never resurrect the old charge/resonance asset behind the new one.
   if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
@@ -19728,18 +19728,26 @@ function drawNativeEmpStateAte(effect, progress, now) {
   ctx.lineCap = "round";
   ctx.lineWidth = charge ? 1.45 : 1.7;
   if (charge) {
-    // E: phase changes the side from which three short paths converge, not only colour.
-    ctx.strokeStyle = phase === "negative" ? "rgba(216, 180, 255, 0.92)" : "rgba(157, 232, 255, 0.92)";
-    const advance = reduced ? 0.48 : (time * 0.7 + p * 0.42) % 1;
-    for (let index = 0; index < 3; index += 1) {
-      const lane = (index - 1) * 12;
-      const outer = polarity * size * (0.36 - advance * 0.08);
-      const inner = polarity * size * (0.1 + advance * 0.025);
-      ctx.beginPath();
-      ctx.moveTo(outer, lane + polarity * 3);
-      ctx.lineTo(inner, lane * 0.26);
-      ctx.stroke();
-    }
+    // E is a low-gain emitted accumulation patch inside the measured stored band:
+    // source x520..735/y854 in the accepted 1254px raw maps into this stationary 92px T.
+    // The single upper-right incoming branch stays in T; phase reverses only the local seat sweep.
+    const seatY = (854 / 1254 - 0.5) * size;
+    const seatLeft = (520 / 1254 - 0.5) * size;
+    const seatRight = (735 / 1254 - 0.5) * size;
+    const seatCenter = (627 / 1254 - 0.5) * size;
+    const sweep = reduced ? 1 : clamp(p / 0.65, 0, 1);
+    const origin = phase === "negative" ? seatRight : seatLeft;
+    const x = origin + (seatCenter - origin) * sweep;
+    const settled = reduced ? 1 : clamp((p - 0.65) / 0.16, 0, 1);
+    const radius = 2.25 + settled * 1.15;
+    const light = ctx.createRadialGradient(x, seatY, 0, x, seatY, radius);
+    light.addColorStop(0, "rgba(158, 251, 255, 0.78)");
+    light.addColorStop(0.48, "rgba(90, 220, 238, 0.34)");
+    light.addColorStop(1, "rgba(90, 220, 238, 0)");
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = Math.max(0, rise * fade * (reduced ? 0.15 : 0.16 + settled * 0.04));
+    ctx.fillStyle = light;
+    ctx.fillRect(x - radius, seatY - radius * 0.48, radius * 2, radius * 0.96);
   } else {
     // E: short midpoint joints strengthen then open outward; the raw texture remains stationary.
     ctx.strokeStyle = "rgba(198, 242, 255, 0.9)";
@@ -23452,7 +23460,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-digital-activation-v696";
+const version = "emp-charge-icon-v697";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23518,7 +23526,7 @@ const version = "emp-digital-activation-v696";
     "assets/generated/alchemy-effect-reason-v311.png"
   ]);
   const empResonanceEffect = new Image();
-  const empChargeNativeRgba = new Image();
+  const empChargeIconRgba = eagerImage("assets/generated/emp-charge-icon-rgba-v697.png");
   const empResonanceNativeRgba = new Image();
   const empCancelEffect = new Image();
   const empStorageLockNativeRgba = new Image();
@@ -23683,7 +23691,6 @@ const version = "emp-digital-activation-v696";
   defer(blueDressKillCutin, "assets/generated/skin-blue-dress-kill-cutin.webp");
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
-  defer(empChargeNativeRgba, "assets/generated/emp-charge-native-rgba-v683.png");
   defer(empResonanceNativeRgba, "assets/generated/emp-resonance-native-rgba-v683.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
   defer(empStorageLockNativeRgba, "assets/generated/emp-storage-lock-native-rgba-v685.png");
@@ -23810,7 +23817,7 @@ const version = "emp-digital-activation-v696";
     philosophyEffectTextures,
     alchemyEffectTextures,
     empResonanceEffect,
-    empChargeNativeRgba,
+    empChargeIconRgba,
     empResonanceNativeRgba,
     empCancelEffect,
     empStorageLockNativeRgba,
@@ -24521,7 +24528,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-digital-activation-v696", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-charge-icon-v697", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
