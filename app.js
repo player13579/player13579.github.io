@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-charge-icon-v697";
+const DVA_CLIENT_RELEASE = "emp-cancel-icon-v698";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-charge-icon-v697";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-cancel-icon-v698";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19767,17 +19767,44 @@ function drawNativeEmpStateAte(effect, progress, now) {
 
 function drawNativeEmpCancelAte(effect, progress, now) {
   if (effect?.type !== "emp-cancel") return false;
-  const sprite = state.textures?.empCancelNativeRgba;
+  const sprite = state.textures?.empCancelIconRgba;
+  // New cancel T owns its load gap; do not revive the legacy interaction raster.
   if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
-  const p = clamp(Number(progress) || 0, 0, 1), reduced = prefersReducedMotion();
-  const fade = reduced ? Math.max(0, 1 - Math.max(0, p - 0.7) / 0.3) : Math.max(0, 1 - p), size = Math.max(110, Math.min(150, Number(effect?.radius) || 130));
-  ctx.save(); ctx.translate(Number(effect?.x)||0, Number(effect?.y)||0); ctx.globalCompositeOperation="source-over"; ctx.filter="none"; ctx.shadowBlur=0; ctx.shadowColor="transparent"; ctx.globalAlpha=fade*.8;
-  ctx.drawImage(sprite,-size/2,-size/2,size,size);
-  ctx.globalAlpha=fade*.5;ctx.strokeStyle="rgba(215,238,255,.9)";ctx.lineWidth=1.7;ctx.lineCap="round";
-  const close=reduced?.5:Math.min(1,p/.55);for(const side of[-1,1]){ctx.beginPath();ctx.moveTo(side*size*(.32-close*.12),-size*.08);ctx.lineTo(side*size*(.07+close*.04),size*.05);ctx.stroke();}
-  ctx.restore();return true;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const reduced = prefersReducedMotion();
+  const fade = reduced ? Math.max(0, 1 - Math.max(0, p - 0.7) / 0.3) : Math.max(0, 1 - p);
+  const size = Math.max(110, Math.min(150, Number(effect?.radius) || 130));
+  ctx.save();
+  ctx.translate(Number(effect?.x) || 0, Number(effect?.y) || 0);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.globalAlpha = fade * 0.8;
+  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+  // E: each opposing step emits only at its inward termination, then attenuates.
+  // Source landmarks are inward face centres cyan (559,620) and plum (695,620)
+  // in the accepted 1254px raw: the two signals stop horizontally across the central gap.
+  const settle = reduced ? 1 : clamp(p / 0.42, 0, 1);
+  const terminalFade = (reduced ? 0.16 : 0.2 - settle * 0.06) * fade;
+  const terminals = [
+    { x: (559 / 1254 - 0.5) * size, y: (620 / 1254 - 0.5) * size, color: "rgba(79, 239, 255, 0.72)" },
+    { x: (695 / 1254 - 0.5) * size, y: (620 / 1254 - 0.5) * size, color: "rgba(238, 107, 255, 0.70)" }
+  ];
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0, terminalFade);
+  for (const terminal of terminals) {
+    const radius = 3.3 - settle * 0.9;
+    const light = ctx.createRadialGradient(terminal.x, terminal.y, 0, terminal.x, terminal.y, radius);
+    light.addColorStop(0, terminal.color);
+    light.addColorStop(0.5, terminal.color.replace(/, 0\.[0-9]+\)/, ", 0.26)"));
+    light.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = light;
+    ctx.fillRect(terminal.x - radius, terminal.y - radius, radius * 2, radius * 2);
+  }
+  ctx.restore();
+  return true;
 }
-
 function latestEmpStorageLocks(effects){const latest=new Map();for(const e of effects)if(e?.type==="emp-storage-lock"&&e.playerId){const p=latest.get(e.playerId);if(!p||Number(e.startedAt)>=Number(p.startedAt))latest.set(e.playerId,e);}return latest;}
 function drawNativeEmpStorageLockAte(effect,progress,now){if(effect?.type!=="emp-storage-lock")return false;const p=(state.data?.players||[]).find(x=>x.id===effect.playerId&&x.alive!==false&&!x.ejected&&!x.inVent&&(!x.invisible||x.id===state.data?.self?.id));if(!p)return true;const a=state.textures?.empStorageLockNativeRgba;if(!a?.complete||!a.naturalWidth)return true;const r=renderedPlayer(p),reduced=prefersReducedMotion(),tail=clamp((progress-(1-300/7000))/(300/7000),0,1),fade=.6*(progress>=1?0:1-tail);ctx.save();ctx.translate(r.x,r.y-38);ctx.globalCompositeOperation="source-over";ctx.filter="none";ctx.shadowBlur=0;ctx.shadowColor="transparent";ctx.globalAlpha=fade*.6;ctx.drawImage(a,-46,-46,92,92);ctx.globalAlpha=fade*.28;ctx.strokeStyle="rgba(194,222,240,.8)";ctx.lineWidth=1.3;for(const side of[-1,1]){ctx.beginPath();ctx.moveTo(side*28,-4);ctx.lineTo(side*12,5);ctx.stroke();}ctx.restore();return true;}
 
@@ -23460,7 +23487,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-charge-icon-v697";
+const version = "emp-cancel-icon-v698";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23530,7 +23557,7 @@ const version = "emp-charge-icon-v697";
   const empResonanceNativeRgba = new Image();
   const empCancelEffect = new Image();
   const empStorageLockNativeRgba = new Image();
-  const empCancelNativeRgba = new Image();
+  const empCancelIconRgba = eagerImage("assets/generated/emp-cancel-icon-rgba-v698.png");
   const empAppIconActivationEffect = eagerImage("assets/generated/emp-digital-activation-rgba-v696.png");
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
   const gunnerWeaponsAtlas = new Image();
@@ -23694,7 +23721,6 @@ const version = "emp-charge-icon-v697";
   defer(empResonanceNativeRgba, "assets/generated/emp-resonance-native-rgba-v683.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
   defer(empStorageLockNativeRgba, "assets/generated/emp-storage-lock-native-rgba-v685.png");
-  defer(empCancelNativeRgba, "assets/generated/emp-cancel-native-rgba-v684.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
@@ -23821,7 +23847,7 @@ const version = "emp-charge-icon-v697";
     empResonanceNativeRgba,
     empCancelEffect,
     empStorageLockNativeRgba,
-    empCancelNativeRgba,
+    empCancelIconRgba,
     empAppIconActivationEffect,
     heartTeleportEffect,
     gunnerWeaponsAtlas,
@@ -24528,7 +24554,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-charge-icon-v697", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-cancel-icon-v698", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
