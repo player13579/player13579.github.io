@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "clairvoyance-native-status-v679";
-const CACHE_NAME = "dva-static-v679-clairvoyance-native-status";
+const RUNTIME_RELEASE = "enhance-pointer-cancel-v680";
+const CACHE_NAME = "dva-static-v680-enhance-pointer-cancel";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

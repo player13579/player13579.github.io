@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "clairvoyance-native-status-v679";
+const DVA_CLIENT_RELEASE = "enhance-pointer-cancel-v680";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "clairvoyance-native-status-v679";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "enhance-pointer-cancel-v680";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -6874,10 +6874,16 @@ function bindEvents() {
       finishPointerAction(event);
     });
     button.addEventListener("pointercancel", (event) => {
-      finishPointerAction(event);
+      if (state.enhanceHold.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      suppressClickUntil = performance.now() + 700;
+      cancelEnhanceAction(kind);
     });
     button.addEventListener("lostpointercapture", (event) => {
-      finishPointerAction(event);
+      if (state.enhanceHold.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      suppressClickUntil = performance.now() + 700;
+      cancelEnhanceAction(kind);
     });
     button.addEventListener("click", (event) => {
       if (performance.now() < suppressClickUntil) return;
@@ -22945,7 +22951,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "clairvoyance-native-status-v679";
+const version = "enhance-pointer-cancel-v680";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23994,7 +24000,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=clairvoyance-native-status-v679", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=enhance-pointer-cancel-v680", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
