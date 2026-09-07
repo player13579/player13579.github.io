@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "common-renki-dodge-native-v682";
+const DVA_CLIENT_RELEASE = "emp-charge-resonance-native-v683";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "common-renki-dodge-native-v682";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-charge-resonance-native-v683";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2899,7 +2899,7 @@ function drawTacticsIntel(ctx, w, h, time) {
   }
   drawTacticsSprite(ctx, state.textures.facilityProps[2], "camera", 155, 118, 110, 110);
   tacticsLabel(ctx, samePhase ? "同位相: 共振 / 至近確殺" : "逆位相: 相殺", w / 2, 44, { color: samePhase ? "#f8fafc" : "#f0abfc" });
-  tacticsLabel(ctx, "EMP再充填 18秒 / 干渉窓 900ms", w / 2, h - 52, { font: "800 15px Segoe UI, sans-serif" });
+  tacticsLabel(ctx, "EMP再充填 18秒 / 干渉窓 1200ms", w / 2, h - 52, { font: "800 15px Segoe UI, sans-serif" });
 }
 
 function drawTacticsMeeting(ctx, w, h, time, duration) {
@@ -17838,6 +17838,7 @@ function drawMagicEffects() {
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
     if (drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) continue;
+    if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
     if (drawTacticalSystemsEffect(effect, progress)) continue;
@@ -17855,6 +17856,7 @@ function drawMagicEffects() {
     if (effect.type === "flora-invisible") drawFloraInvisibleGeneratedEffect(effect, progress);
     if (effect.type === "alchemy-railgun" || effect.type === "alchemy-particle-beam") drawDirectedEnergyEffect(effect, progress, now);
     if (effect.type.startsWith("gravity-storm-")) drawGravityStormImpactEffect(effect, progress);
+    if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (effect.type === "emp" || effect.type.startsWith("emp-")) drawEmpEffect(effect, progress, now);
     if (effect.type.startsWith("status-") || effect.type.startsWith("hazard-")) drawStatusAndHazardEffect(effect, progress);
     if (effect.type === "mystery-reveal") drawPhilosophyAtlasEffect(effect, 10, progress, 170);
@@ -19373,6 +19375,69 @@ function drawActionEffect(effect, progress, now) {
 
 
 
+// Candidate helper for insertion before the generic emp-* route only.
+// It owns precisely emp-charge and emp-resonance; emp, emp-cancel and
+// emp-storage-lock retain their current renderers.
+function drawNativeEmpStateAte(effect, progress, now) {
+  const type = String(effect?.type || "");
+  const charge = type === "emp-charge";
+  const resonance = type === "emp-resonance";
+  if (!charge && !resonance) return false;
+  const sprite = charge ? state.textures?.empChargeNativeRgba : state.textures?.empResonanceNativeRgba;
+  // This adopted route is deliberately silent when its raw texture is not ready:
+  // it must never resurrect the old charge/resonance asset behind the new one.
+  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const reduced = prefersReducedMotion();
+  const phase = String(effect?.variant || "positive") === "negative" ? "negative" : "positive";
+  const polarity = phase === "negative" ? -1 : 1;
+  const rise = reduced ? 1 : Math.min(1, p / 0.22);
+  const fade = Math.max(0, 1 - Math.max(0, p - 0.7) / 0.3);
+  const size = charge ? 92 : Math.max(108, Math.min(154, Number(effect?.radius) || 124));
+  const time = reduced ? 0 : Number(now || 0) / 1000;
+  ctx.save();
+  ctx.translate(Number(effect?.x) || 0, Number(effect?.y) || 0);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.globalAlpha = Math.max(0, (charge ? 0.82 : 0.8) * rise * fade);
+  // T is one stationary, full-square native RGBA draw. No normalization,
+  // filter, shadow, tint, duplicate texture, or additive whitening is used.
+  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+  ctx.globalAlpha = Math.max(0, rise * fade * (charge ? 0.5 : 0.55));
+  ctx.lineCap = "round";
+  ctx.lineWidth = charge ? 1.45 : 1.7;
+  if (charge) {
+    // E: phase changes the side from which three short paths converge, not only colour.
+    ctx.strokeStyle = phase === "negative" ? "rgba(216, 180, 255, 0.92)" : "rgba(157, 232, 255, 0.92)";
+    const advance = reduced ? 0.48 : (time * 0.7 + p * 0.42) % 1;
+    for (let index = 0; index < 3; index += 1) {
+      const lane = (index - 1) * 12;
+      const outer = polarity * size * (0.36 - advance * 0.08);
+      const inner = polarity * size * (0.1 + advance * 0.025);
+      ctx.beginPath();
+      ctx.moveTo(outer, lane + polarity * 3);
+      ctx.lineTo(inner, lane * 0.26);
+      ctx.stroke();
+    }
+  } else {
+    // E: short midpoint joints strengthen then open outward; the raw texture remains stationary.
+    ctx.strokeStyle = "rgba(198, 242, 255, 0.9)";
+    const joint = reduced ? 0.62 : Math.min(1, Math.max(0, (p - 0.08) / 0.55));
+    for (const side of [-1, 1]) {
+      const inner = side * size * (0.04 + (1 - joint) * 0.12);
+      const outer = side * size * (0.18 + joint * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(inner, -size * 0.07);
+      ctx.quadraticCurveTo(side * size * 0.12, 0, outer, size * 0.1);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  return true;
+}
+
 function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   const sources = [
     state.textures.empResonanceEffect,
@@ -19453,13 +19518,11 @@ function drawEmpActivationAte(effect, progress, now) {
 }
 
 function drawEmpEffect(effect, progress, now) {
-  // Only the authoritative EMP activation receives the dedicated ATE. If its
-  // texture is temporarily unavailable, retain the existing full-size EMP ATE
-  // directly; never fall through to a generic compact marker owner.
+  if (drawNativeEmpStateAte(effect, progress, now)) return;
+  // The adopted native activation owns this route, including image-load gaps.
+  // Missing native pixels must not revive the withdrawn EMP atlas.
   if (effect.type === "emp") {
-    if (drawEmpActivationAte(effect, progress, now)) return;
-    const maxRadius = Math.max(180, Number(effect.radius) || 260);
-    drawPhilosophyAtlasEffect(effect, PHILOSOPHY_EFFECT_CELLS.emp, progress, maxRadius * 0.92);
+    drawEmpActivationAte(effect, progress, now);
     return;
   }
   if (drawCommonActionSimpleIcon(effect, progress)) return;
@@ -23054,7 +23117,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "common-renki-dodge-native-v682";
+const version = "emp-charge-resonance-native-v683";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23120,6 +23183,8 @@ const version = "common-renki-dodge-native-v682";
     "assets/generated/alchemy-effect-reason-v311.png"
   ]);
   const empResonanceEffect = new Image();
+  const empChargeNativeRgba = new Image();
+  const empResonanceNativeRgba = new Image();
   const empCancelEffect = new Image();
   const empAppIconActivationEffect = new Image();
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
@@ -23276,6 +23341,8 @@ const version = "common-renki-dodge-native-v682";
   defer(blueDressKillCutin, "assets/generated/skin-blue-dress-kill-cutin.webp");
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
+  defer(empChargeNativeRgba, "assets/generated/emp-charge-native-rgba-v683.png");
+  defer(empResonanceNativeRgba, "assets/generated/emp-resonance-native-rgba-v683.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
   empAppIconActivationEffect.addEventListener("load", () => {
     const key = "emp-activation-ate-v676-native-alpha";
@@ -23407,6 +23474,8 @@ const version = "common-renki-dodge-native-v682";
     philosophyEffectTextures,
     alchemyEffectTextures,
     empResonanceEffect,
+    empChargeNativeRgba,
+    empResonanceNativeRgba,
     empCancelEffect,
     empAppIconActivationEffect,
     heartTeleportEffect,
@@ -24111,7 +24180,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=common-renki-dodge-native-v682", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-charge-resonance-native-v683", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
