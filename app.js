@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-charge-resonance-native-v683";
+const DVA_CLIENT_RELEASE = "emp-cancellation-native-v684";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-charge-resonance-native-v683";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-cancellation-native-v684";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19438,6 +19438,19 @@ function drawNativeEmpStateAte(effect, progress, now) {
   return true;
 }
 
+function drawNativeEmpCancelAte(effect, progress, now) {
+  if (effect?.type !== "emp-cancel") return false;
+  const sprite = state.textures?.empCancelNativeRgba;
+  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
+  const p = clamp(Number(progress) || 0, 0, 1), reduced = prefersReducedMotion();
+  const fade = reduced ? Math.max(0, 1 - Math.max(0, p - 0.7) / 0.3) : Math.max(0, 1 - p), size = Math.max(110, Math.min(150, Number(effect?.radius) || 130));
+  ctx.save(); ctx.translate(Number(effect?.x)||0, Number(effect?.y)||0); ctx.globalCompositeOperation="source-over"; ctx.filter="none"; ctx.shadowBlur=0; ctx.shadowColor="transparent"; ctx.globalAlpha=fade*.8;
+  ctx.drawImage(sprite,-size/2,-size/2,size,size);
+  ctx.globalAlpha=fade*.5;ctx.strokeStyle="rgba(215,238,255,.9)";ctx.lineWidth=1.7;ctx.lineCap="round";
+  const close=reduced?.5:Math.min(1,p/.55);for(const side of[-1,1]){ctx.beginPath();ctx.moveTo(side*size*(.32-close*.12),-size*.08);ctx.lineTo(side*size*(.07+close*.04),size*.05);ctx.stroke();}
+  ctx.restore();return true;
+}
+
 function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   const sources = [
     state.textures.empResonanceEffect,
@@ -19518,6 +19531,7 @@ function drawEmpActivationAte(effect, progress, now) {
 }
 
 function drawEmpEffect(effect, progress, now) {
+  if (drawNativeEmpCancelAte(effect, progress, now)) return;
   if (drawNativeEmpStateAte(effect, progress, now)) return;
   // The adopted native activation owns this route, including image-load gaps.
   // Missing native pixels must not revive the withdrawn EMP atlas.
@@ -23117,7 +23131,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-charge-resonance-native-v683";
+const version = "emp-cancellation-native-v684";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23186,6 +23200,7 @@ const version = "emp-charge-resonance-native-v683";
   const empChargeNativeRgba = new Image();
   const empResonanceNativeRgba = new Image();
   const empCancelEffect = new Image();
+  const empCancelNativeRgba = new Image();
   const empAppIconActivationEffect = new Image();
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
   const gunnerWeaponsAtlas = new Image();
@@ -23344,6 +23359,7 @@ const version = "emp-charge-resonance-native-v683";
   defer(empChargeNativeRgba, "assets/generated/emp-charge-native-rgba-v683.png");
   defer(empResonanceNativeRgba, "assets/generated/emp-resonance-native-rgba-v683.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
+  defer(empCancelNativeRgba, "assets/generated/emp-cancel-native-rgba-v684.png");
   empAppIconActivationEffect.addEventListener("load", () => {
     const key = "emp-activation-ate-v676-native-alpha";
     // The accepted RGBA asset already contains intentional native transparency.
@@ -23477,6 +23493,7 @@ const version = "emp-charge-resonance-native-v683";
     empChargeNativeRgba,
     empResonanceNativeRgba,
     empCancelEffect,
+    empCancelNativeRgba,
     empAppIconActivationEffect,
     heartTeleportEffect,
     gunnerWeaponsAtlas,
@@ -24180,7 +24197,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-charge-resonance-native-v683", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-cancellation-native-v684", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
