@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ninjutsu-focus-native-v689";
+const DVA_CLIENT_RELEASE = "ninjutsu-luminous-v690";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-focus-native-v689";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-luminous-v690";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19354,11 +19354,15 @@ function drawNativeNinjutsuFocusState(now) {
     // Native RGBA: direct full-square draw, without the atlas normalization
     // or brightening filters that would wash out translucent filled regions.
     ctx.drawImage(image, -50, -50, 100, 100);
-    // E: two short segments converge toward the observation aperture.
-    ctx.globalAlpha = 0.30;
+    // E: the existing opposing aperture segments converge toward the locked
+    // aim. Their local lavender emission accumulates inward with focus; this
+    // is a target-lock intake, not a repair-style cooling seam or global pulse.
+    ctx.globalAlpha = 0.15 + segment * 0.17;
     ctx.strokeStyle = "rgba(218, 201, 255, 0.90)";
     ctx.lineWidth = 1.35;
     ctx.lineCap = "round";
+    ctx.shadowColor = "rgba(192, 166, 255, 0.76)";
+    ctx.shadowBlur = 1.8 + segment * 2.6;
     for (const side of [-1, 1]) {
       const inner = side * (20 - segment * 8);
       const outer = inner + side * 5;
@@ -23375,7 +23379,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ninjutsu-focus-native-v689";
+const version = "ninjutsu-luminous-v690";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24449,7 +24453,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-focus-native-v689", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-luminous-v690", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
