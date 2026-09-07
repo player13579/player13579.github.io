@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "clair-target-emp-phase-v687";
-const CACHE_NAME = "dva-static-v687-clair-target-emp-phase";
+const RUNTIME_RELEASE = "donation-result-native-v688";
+const CACHE_NAME = "dva-static-v688-donation-result-native";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -35,6 +35,7 @@ const STATIC_ASSETS = [
   "/assets/generated/clairvoyance-throw-ate-v412.png",
   "/assets/generated/clairvoyance-native-rgba-v679.png",
   "/assets/generated/action-donation-native-v681.png",
+  "/assets/generated/donation-unjust-native-rgba-v688.png",
   "/assets/generated/action-renki-native-rgba-v680.png",
   "/assets/generated/renki-tenfold-native-rgba-v686.png",
   "/assets/generated/renki-desire-recovery-native-rgba-v686.png",

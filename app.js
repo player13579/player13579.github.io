@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "clair-target-emp-phase-v687";
+const DVA_CLIENT_RELEASE = "donation-result-native-v688";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "clair-target-emp-phase-v687";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "donation-result-native-v688";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17839,7 +17839,7 @@ function drawMagicEffects() {
     if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
-    if (drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) continue;
+    if (drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
@@ -19408,6 +19408,59 @@ function drawNativeCommonActionAte(effect, progress, now) {
 
 // Candidate only: donation-rational. Emergency, repair, and unjust outcomes
 // retain their owners until their own semantic assets are accepted.
+function drawNativeDonationUnjustAte(effect, progress, now) {
+  if (effect?.type !== "action-smartphone" || effect.variant !== "donation-unjust") return false;
+  const sprite = state.textures?.donationUnjustNativeRgba;
+  // After adoption this exact result never falls back to the shared phone art.
+  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const reduced = prefersReducedMotion();
+  const fade = reduced ? Math.max(0, 1 - Math.max(0, p - 0.72) / 0.28) : Math.max(0, 1 - p);
+  const resultDelta = Number(effect?.donationResultDelta) || 0;
+  const size = 88;
+  const phase = reduced ? 0.45 : p;
+  ctx.save();
+  ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 8);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.globalAlpha = fade * 0.76;
+  // T is one raw, full-square native RGBA draw: no normalization, tint,
+  // filtering, shadow, additive blend, resampling pass, or duplicate raster.
+  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+  // E1 is a short payment-acceptance trace and remains present even at a cap;
+  // it adds distinct information without claiming a numerical result.
+  ctx.globalAlpha = fade * 0.19;
+  ctx.strokeStyle = "rgba(244, 201, 171, 0.9)";
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = "round";
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    const seamY = -size * (0.18 - phase * 0.1) + side * 2;
+    ctx.moveTo(-size * 0.15, seamY);
+    ctx.lineTo(-size * 0.09, seamY - size * 0.025);
+    ctx.stroke();
+  }
+  // E2 states a real decrease only. At a luck/bounds clamp it remains absent,
+  // preventing an invented loss while the adverse-donation T remains visible.
+  if (resultDelta < 0) {
+    ctx.globalAlpha = fade * 0.34;
+    ctx.strokeStyle = "rgba(244, 151, 181, 0.92)";
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = "round";
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      const gapY = size * (0.035 + phase * 0.085);
+      ctx.moveTo(size * 0.2 + side * 3, gapY);
+      ctx.lineTo(size * 0.2 + side * 3, gapY + size * 0.045);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  return true;
+}
+
 function drawNativeRationalDonationAte(effect, progress, now) {
   if (effect?.type !== "action-smartphone" || effect.variant !== "donation-rational") return false;
   const sprite = state.textures?.donationNativeAte;
@@ -23257,7 +23310,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "clair-target-emp-phase-v687";
+const version = "donation-result-native-v688";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23429,6 +23482,7 @@ const version = "clair-target-emp-phase-v687";
   const renkiDesireRecoveryNativeRgba = eagerImage("assets/generated/renki-desire-recovery-native-rgba-v686.png");
   const actionDodgeNativeRgba = new Image();
   const donationNativeAte = new Image();
+  const donationUnjustNativeRgba = eagerImage("assets/generated/donation-unjust-native-rgba-v688.png");
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
@@ -23707,6 +23761,7 @@ const version = "clair-target-emp-phase-v687";
     clairvoyanceNativeRgba,
     actionRenkiNativeRgba, renkiTenfoldNativeRgba, renkiDesireRecoveryNativeRgba, actionDodgeNativeRgba,
     donationNativeAte,
+    donationUnjustNativeRgba,
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
@@ -24327,7 +24382,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=clair-target-emp-phase-v687", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=donation-result-native-v688", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

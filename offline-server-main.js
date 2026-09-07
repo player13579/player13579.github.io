@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "clair-target-emp-phase-v687",
+    version: "donation-result-native-v688",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7448,7 +7448,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "clair-target-emp-phase-v687";
+const PRODUCT_RELEASE = "donation-result-native-v688";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -9675,6 +9675,9 @@ function pushMagicEffect(room, type, source, options = {}) {
     completionKind: String(options.completionKind || ""),
     markerCount: Math.max(1, Math.floor(Number(options.markerCount) || 1)),
     durationMs: Math.max(0, Number(options.durationMs) || 0),
+    ...(type === "action-smartphone" && /^(?:donation-rational|donation-unjust)$/.test(String(options.variant || ""))
+      ? { donationResultDelta: Math.round((Number(options.donationResultDelta) || 0) * 100) / 100 }
+      : {}),
     at: now()
   });
   room.magicEffects = room.magicEffects.slice(-48);
@@ -12165,6 +12168,7 @@ function donateCredits(room, player) {
     throw new ApiError(400, `募金には${DONATION_CREDIT_COST}Cが必要です。`);
   }
   player.credits -= DONATION_CREDIT_COST;
+  const luckBeforeDonation = luckValueFor(player);
   const rationalDonation = isRational(player);
   const donationLuckDelta = rationalDonation ? DONATION_LUCK_GAIN : -DONATION_LUCK_GAIN;
   player.donationLuckBonus = clampNumber(
@@ -12174,17 +12178,22 @@ function donateCredits(room, player) {
     0
   );
   player.luck = luckValueFor(player);
+  const donationResultDelta = Math.round((player.luck - luckBeforeDonation) * 100) / 100;
+  const donationResultText = donationResultDelta === 0
+    ? "変化なし（上限・下限）"
+    : `${donationResultDelta > 0 ? "+" : ""}${donationResultDelta.toFixed(2)}`;
   setImmediateFeedback(
     player,
     "スマホ募金",
-    `-${DONATION_CREDIT_COST}C / 幸運・直観 ${donationLuckDelta >= 0 ? "+" : ""}${donationLuckDelta.toFixed(2)}`
+    `-${DONATION_CREDIT_COST}C / 幸運・直観 ${donationResultText}`
   );
   pushMagicEffect(room, "action-smartphone", player, {
     radius: 105,
-    variant: rationalDonation ? "donation-rational" : "donation-unjust"
+    variant: rationalDonation ? "donation-rational" : "donation-unjust",
+    donationResultDelta
   });
   if (rationalDonation) {
-    pushGainAte(room, player, "luckBoost", { variant: "donation-rational", durationMs: 1680 });
+    if (donationResultDelta > 0) pushGainAte(room, player, "luckBoost", { variant: "donation-rational", durationMs: 1680 });
   } else {
     pushMagicEffect(room, "action-mana", player, { radius: 125, variant: "欲望" });
   }
@@ -26037,7 +26046,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "clair-target-emp-phase-v687",
+  version: "donation-result-native-v688",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
