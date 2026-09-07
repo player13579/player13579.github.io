@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "repair-icon-anchor-v692";
+const DVA_CLIENT_RELEASE = "shop-luminous-v693";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "repair-icon-anchor-v692";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shop-luminous-v693";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19060,6 +19060,7 @@ function drawShopActivationEffect(effect, progress, now) {
   const opening = objectEffectEase(clamp(progress / 0.34, 0, 1));
   const settle = objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
   const pulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
+  const reduced = prefersReducedMotion();
   const width = 196 * (0.38 + opening * 0.62 - settle * 0.06);
   const height = 128 * (0.82 + opening * 0.18);
 
@@ -19075,9 +19076,14 @@ function drawShopActivationEffect(effect, progress, now) {
     baseAlpha: 0.16,
     opacityBoost: 1.34
   });
+  // E: paired counter handoff rails carry a restrained cyan emission from
+  // the kiosk center as its shutters open. This is not a generic pulse and
+  // does not redraw the awning rim or the texture's own neon outline.
   ctx.strokeStyle = `rgba(104, 255, 239, ${0.5 * pulse * (1 - settle)})`;
   ctx.lineWidth = 2.2;
   ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(90, 255, 232, 0.78)";
+  ctx.shadowBlur = reduced ? 2.8 : 1.8 + opening * 3.4 - settle * 1.2;
   const eLayerTravel = 18 + opening * 42;
   ctx.beginPath();
   ctx.moveTo(effect.x - 7, effect.y - 29);
@@ -23438,7 +23444,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "repair-icon-anchor-v692";
+const version = "shop-luminous-v693";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24514,7 +24520,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=repair-icon-anchor-v692", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=shop-luminous-v693", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
