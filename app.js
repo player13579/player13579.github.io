@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-cancellation-native-v684";
+const DVA_CLIENT_RELEASE = "emp-storage-lock-native-v685";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-cancellation-native-v684";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-storage-lock-native-v685";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17764,6 +17764,7 @@ function drawMagicEffects() {
   const now = state.frameNow || performance.now();
   state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect));
+  const latestStorageLocks = latestEmpStorageLocks(state.magicEffects);
   for (const player of state.data?.players || []) {
     const previousSlot = state.headMarkerSlots.get(player.id) || null;
     const presentation = selectHeadMarkerPresentation(
@@ -17838,6 +17839,7 @@ function drawMagicEffects() {
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
     if (drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) continue;
+    if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
@@ -19450,6 +19452,9 @@ function drawNativeEmpCancelAte(effect, progress, now) {
   const close=reduced?.5:Math.min(1,p/.55);for(const side of[-1,1]){ctx.beginPath();ctx.moveTo(side*size*(.32-close*.12),-size*.08);ctx.lineTo(side*size*(.07+close*.04),size*.05);ctx.stroke();}
   ctx.restore();return true;
 }
+
+function latestEmpStorageLocks(effects){const latest=new Map();for(const e of effects)if(e?.type==="emp-storage-lock"&&e.playerId){const p=latest.get(e.playerId);if(!p||Number(e.startedAt)>=Number(p.startedAt))latest.set(e.playerId,e);}return latest;}
+function drawNativeEmpStorageLockAte(effect,progress,now){if(effect?.type!=="emp-storage-lock")return false;const p=(state.data?.players||[]).find(x=>x.id===effect.playerId&&x.alive!==false&&!x.ejected&&!x.inVent&&(!x.invisible||x.id===state.data?.self?.id));if(!p)return true;const a=state.textures?.empStorageLockNativeRgba;if(!a?.complete||!a.naturalWidth)return true;const r=renderedPlayer(p),reduced=prefersReducedMotion(),tail=clamp((progress-(1-300/7000))/(300/7000),0,1),fade=.6*(progress>=1?0:1-tail);ctx.save();ctx.translate(r.x,r.y-38);ctx.globalCompositeOperation="source-over";ctx.filter="none";ctx.shadowBlur=0;ctx.shadowColor="transparent";ctx.globalAlpha=fade*.6;ctx.drawImage(a,-46,-46,92,92);ctx.globalAlpha=fade*.28;ctx.strokeStyle="rgba(194,222,240,.8)";ctx.lineWidth=1.3;for(const side of[-1,1]){ctx.beginPath();ctx.moveTo(side*28,-4);ctx.lineTo(side*12,5);ctx.stroke();}ctx.restore();return true;}
 
 function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   const sources = [
@@ -23131,7 +23136,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-cancellation-native-v684";
+const version = "emp-storage-lock-native-v685";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23200,6 +23205,7 @@ const version = "emp-cancellation-native-v684";
   const empChargeNativeRgba = new Image();
   const empResonanceNativeRgba = new Image();
   const empCancelEffect = new Image();
+  const empStorageLockNativeRgba = new Image();
   const empCancelNativeRgba = new Image();
   const empAppIconActivationEffect = new Image();
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
@@ -23359,6 +23365,7 @@ const version = "emp-cancellation-native-v684";
   defer(empChargeNativeRgba, "assets/generated/emp-charge-native-rgba-v683.png");
   defer(empResonanceNativeRgba, "assets/generated/emp-resonance-native-rgba-v683.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
+  defer(empStorageLockNativeRgba, "assets/generated/emp-storage-lock-native-rgba-v685.png");
   defer(empCancelNativeRgba, "assets/generated/emp-cancel-native-rgba-v684.png");
   empAppIconActivationEffect.addEventListener("load", () => {
     const key = "emp-activation-ate-v676-native-alpha";
@@ -23493,6 +23500,7 @@ const version = "emp-cancellation-native-v684";
     empChargeNativeRgba,
     empResonanceNativeRgba,
     empCancelEffect,
+    empStorageLockNativeRgba,
     empCancelNativeRgba,
     empAppIconActivationEffect,
     heartTeleportEffect,
@@ -24197,7 +24205,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-cancellation-native-v684", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-storage-lock-native-v685", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

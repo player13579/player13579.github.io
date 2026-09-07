@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "emp-cancellation-native-v684";
-const CACHE_NAME = "dva-static-v684-emp-cancellation-native";
+const RUNTIME_RELEASE = "emp-storage-lock-native-v685";
+const CACHE_NAME = "dva-static-v685-emp-storage-lock-native";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -40,6 +40,7 @@ const STATIC_ASSETS = [
   "/assets/generated/emp-charge-native-rgba-v683.png",
   "/assets/generated/emp-resonance-native-rgba-v683.png",
   "/assets/generated/emp-cancel-native-rgba-v684.png",
+  "/assets/generated/emp-storage-lock-native-rgba-v685.png",
   "/assets/generated/gunner-weapon-icons-v422.png",
   "/assets/generated/gunner-weapon-icons-v422.webp",
   "/assets/generated/gunner-special-ammo-weak-v455.png",
