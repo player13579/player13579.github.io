@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "donation-result-native-v688",
+    version: "ninjutsu-focus-native-v689",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7448,7 +7448,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "donation-result-native-v688";
+const PRODUCT_RELEASE = "ninjutsu-focus-native-v689";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -21456,6 +21456,8 @@ function serialize(room, viewer, options = {}) {
     const aromaSource = floraAromaSource(room, player);
     const concealedFromViewer = room.phase === "playing" && player.id !== viewer.id && floraInvisibleActive(player, timestamp);
     const publicDesireRenkiRecovery = Boolean(player.desireRenkiRecovery && player.alive && !player.ejected && !player.inVent && Number(player.meditatingUntil) > timestamp);
+    // Non-owners receive only a visible actor deadline, never an aim target id.
+    const publicNinjutsuFocus = Boolean(room.phase === "playing" && player.alive && !player.ejected && !player.inVent && player.aimTargetId && Number(player.aimReadyAt) > timestamp);
     const serializedPlayer = {
       id: player.id,
       name: player.name,
@@ -21551,6 +21553,7 @@ function serialize(room, viewer, options = {}) {
       serializedPlayer.invisible = false;
       serializedPlayer.desireRenkiRecoveryEndsAt = publicDesireRenkiRecovery ? Number(player.meditatingUntil) : 0;
       serializedPlayer.desireRenkiRecoveryMs = publicDesireRenkiRecovery ? DESIRE_RENKI_RECOVERY_MS : 0;
+      if (publicNinjutsuFocus) serializedPlayer.ninjutsuFocusEndsAt = Number(player.aimReadyAt);
     }
     return serializedPlayer;
   });
@@ -26046,7 +26049,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "donation-result-native-v688",
+  version: "ninjutsu-focus-native-v689",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

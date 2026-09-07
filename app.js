@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "donation-result-native-v688";
+const DVA_CLIENT_RELEASE = "ninjutsu-focus-native-v689";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "donation-result-native-v688";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-focus-native-v689";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17763,6 +17763,7 @@ function drawMagicEffects() {
   }
   const now = state.frameNow || performance.now();
   drawNativeDesireRecoveryState(now);
+  drawNativeNinjutsuFocusState(now);
   state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect));
   const latestStorageLocks = latestEmpStorageLocks(state.magicEffects);
@@ -17839,6 +17840,8 @@ function drawMagicEffects() {
     if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
+    // Persistent focus owns only the old transient Ninjutsu focus flash.
+    if (effect.type === "action-ninjutsu-focus") continue;
     if (drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
@@ -19308,6 +19311,68 @@ function drawNativeRenkiPhaseAte(effect, progress, now) {
   ctx.restore();
   return true;
 }
+
+// Candidate-only native persistent Ninjutsu preparation marker.
+// It deliberately consumes no target identity for non-self actors.
+function drawNativeNinjutsuFocusState(now) {
+  const data = state.data;
+  const self = data?.self;
+  if (data?.phase !== "playing") return false;
+  const image = state.textures?.ninjutsuFocusNativeRgba;
+  // Dedicated adoption owns this state. A missing image is safely silent.
+  if (!image?.complete || !(image.naturalWidth > 0) || !(image.naturalHeight > 0)) return false;
+  const serverNow = estimatedServerNow(data);
+  let drawn = false;
+  for (const player of data.players || []) {
+    if (!player || player.alive === false || player.ejected || player.inVent) continue;
+    const own = player.id === self?.id;
+    if (!own && player.invisible) continue;
+    let endsAt = 0;
+    if (own) {
+      if (!self?.aimTargetId) continue;
+      const target = (data.players || []).find((entry) => entry?.id === self.aimTargetId);
+      // A self client already has its target id. Do not retain focus after the
+      // authoritative target is no longer a live, visible actor.
+      if (!target || target.alive === false || target.ejected || target.inVent || target.invisible) continue;
+      endsAt = Number(self.aimReadyAt) || 0;
+    } else {
+      endsAt = Number(player.ninjutsuFocusEndsAt) || 0;
+    }
+    const remaining = endsAt - serverNow;
+    if (!(remaining > 0)) continue;
+    const progress = clamp(1 - remaining / 4000, 0, 1);
+    const reduced = prefersReducedMotion();
+    const anchor = renderedPlayer(player);
+    const segment = reduced ? 0.52 : progress;
+    ctx.save();
+    ctx.translate(anchor.x, anchor.y - 42);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.filter = "none";
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+    ctx.globalAlpha = 0.58;
+    // Native RGBA: direct full-square draw, without the atlas normalization
+    // or brightening filters that would wash out translucent filled regions.
+    ctx.drawImage(image, -50, -50, 100, 100);
+    // E: two short segments converge toward the observation aperture.
+    ctx.globalAlpha = 0.30;
+    ctx.strokeStyle = "rgba(218, 201, 255, 0.90)";
+    ctx.lineWidth = 1.35;
+    ctx.lineCap = "round";
+    for (const side of [-1, 1]) {
+      const inner = side * (20 - segment * 8);
+      const outer = inner + side * 5;
+      ctx.beginPath();
+      ctx.moveTo(outer, -outer);
+      ctx.lineTo(inner, -inner);
+      ctx.stroke();
+    }
+    ctx.restore();
+    drawn = true;
+  }
+  return drawn;
+}
+
 
 function drawNativeDesireRecoveryState(now) {
   const data = state.data, self = data?.self;
@@ -23310,7 +23375,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "donation-result-native-v688";
+const version = "ninjutsu-focus-native-v689";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23483,6 +23548,7 @@ const version = "donation-result-native-v688";
   const actionDodgeNativeRgba = new Image();
   const donationNativeAte = new Image();
   const donationUnjustNativeRgba = eagerImage("assets/generated/donation-unjust-native-rgba-v688.png");
+  const ninjutsuFocusNativeRgba = eagerImage("assets/generated/ninjutsu-focus-native-rgba-v689.png");
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
@@ -23762,6 +23828,7 @@ const version = "donation-result-native-v688";
     actionRenkiNativeRgba, renkiTenfoldNativeRgba, renkiDesireRecoveryNativeRgba, actionDodgeNativeRgba,
     donationNativeAte,
     donationUnjustNativeRgba,
+    ninjutsuFocusNativeRgba,
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
@@ -24382,7 +24449,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=donation-result-native-v688", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-focus-native-v689", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
