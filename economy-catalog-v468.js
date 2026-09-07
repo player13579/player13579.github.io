@@ -147,6 +147,7 @@
 
   return Object.freeze({
     version: "ui-controls-accessibility-v636",
+    onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,

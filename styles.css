@@ -11153,6 +11153,29 @@ body.game-open #meetingPanel:not([hidden]) #voteList .vote-card:disabled .badge 
   background: #ffffff;
 }
 
+/* Authoritative self-vote state; aggregate badges remain anonymous. */
+body.game-open #meetingPanel:not([hidden]) #voteList .vote-card.own-vote,
+body.game-open #meetingPanel:not([hidden]) #voteList .vote-card.own-vote:disabled {
+  color: #102532;
+  background: #e4f5f6;
+  border-color: #34b3be;
+  border-style: solid;
+  box-shadow: inset 4px 0 #34b3be, 0 0 0 2px rgba(52, 179, 190, 0.18);
+}
+
+body.game-open #meetingPanel:not([hidden]) #voteList .vote-card .own-vote-status { display: none; }
+body.game-open #meetingPanel:not([hidden]) #voteList .vote-card.own-vote .own-vote-status {
+  display: inline-block; margin-top: 3px; color: #145e54; font-size: 12px; font-weight: 900; line-height: 1.2;
+}
+body.game-open #meetingPanel:not([hidden]) #voteList .vote-card.own-vote:disabled .badge {
+  color: #102532; background: #d8eff1; border-color: #77bfc5;
+}
+
+/* A submitted own vote remains disabled, but it is a readable receipt. */
+body.game-open #meetingPanel:not([hidden]) #voteList .vote-card.own-vote:disabled {
+  opacity: 1;
+}
+
 /* Developer-only candidate — append after the current meeting-surface cascade. */
 /* Scope: meeting chat paint only; geometry and input behavior remain owned elsewhere. */
 body #fieldFeedPanel {

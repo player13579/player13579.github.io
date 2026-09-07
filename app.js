@@ -1,7 +1,9 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "opening-actions-roster-v668";
+const DVA_CLIENT_RELEASE = "online-protocol-v669";
+const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
+if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -457,8 +459,8 @@ function normalizeMatchmakingMapId(value) {
 }
 const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   fighter: Object.freeze([["limit-break", "リミットブレイク"]]),
-  teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
-  gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
+  teleport: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓転移"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
+  gravity: Object.freeze([["near", "転移・対象付近"], ["target", "対象転移"], ["heart", "心臓転移"], ["accelerate", "アクセラレート"], ["decelerate", "ディーセラレート"], ["time-keeper", "時の番人"], ["storm", "グラビティストーム"]]),
   flora: Object.freeze([["heal", "ヒール"], ["sunbeam", "サンビーム"], ["invisible", "インビジブル"]]),
   quantum: QUANTUM_ABILITY_MODE_OPTIONS
 });
@@ -746,7 +748,7 @@ function playerFacingRoleLabel(role) {
 }
 
 function onlineApiHeaders(headers = {}) {
-  return { ...headers, [DVA_CLIENT_RELEASE_HEADER]: DVA_CLIENT_RELEASE };
+  return { ...headers, [DVA_CLIENT_RELEASE_HEADER]: DVA_ONLINE_PROTOCOL_VERSION };
 }
 
 const specialLabels = {
@@ -894,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "opening-actions-roster-v668";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "online-protocol-v669";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2111,7 +2113,7 @@ async function checkOnlineAvailability() {
       signal: controller.signal
     });
     const result = response.ok ? await response.json().catch(() => null) : null;
-    const compatibleRelease = result?.requiredClientRelease === DVA_CLIENT_RELEASE;
+    const compatibleRelease = result?.requiredClientRelease === DVA_ONLINE_PROTOCOL_VERSION;
     nextOnlineAvailable = Boolean(
       response.ok &&
       result?.ok &&
@@ -2166,7 +2168,7 @@ function ensureRealtimeConnection() {
     roomId: state.roomId,
     playerId: state.playerId,
     clientId: clientId(),
-    clientRelease: DVA_CLIENT_RELEASE,
+    clientRelease: DVA_ONLINE_PROTOCOL_VERSION,
     performanceMode: "standard"
   });
 }
@@ -3107,6 +3109,10 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "idea-good": "power",
   "idea-ascension": "power"
 });
+
+function isFighterJustGuardSuccessEffect(type, variant = "") {
+  return type === "fighter-slash-parry" && /^(?:perfect-reflect|perfect-all-reflect):[^\s:]+$/.test(String(variant || ""));
+}
 
 function magicCharacterActionKind(type, variant = "") {
   // Tasks and Hacker content application intentionally keep the character
@@ -11065,6 +11071,7 @@ function detectMagicEffects(previous, next) {
       if (object) showToast(`${object.label}: ${object.effectLabel}`);
     }
     const actionKind = magicCharacterActionKind(effect.type, effect.variant);
+    const justGuardSuccess = isFighterJustGuardSuccessEffect(effect.type, effect.variant);
     if (actionKind && effect.playerId) {
       if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
         state.facing.set(
@@ -11079,11 +11086,11 @@ function detectMagicEffects(previous, next) {
       triggerCharacterAction(
         effect.playerId,
         actionKind,
-        CHARACTER_ACTION_DURATION[actionKind] || duration,
+        justGuardSuccess ? 380 : (CHARACTER_ACTION_DURATION[actionKind] || duration),
         startedAt,
         effect.id,
         effect.variant,
-        effect.type
+        justGuardSuccess ? "fighter-just-guard" : effect.type
       );
     }
   }
@@ -14768,7 +14775,9 @@ function renderMeeting(data) {
     const label = button.querySelector("span");
     if (label.textContent !== name) label.textContent = name;
   });
-  const voteDisabled = discussion || !data.self.alive || data.self.ejected || Boolean(data.meeting.votes?.[data.selfId]);
+  // The client may identify only its own authoritative submitted target.
+  const ownVoteTargetId = String(data.meeting.votes?.[data.selfId] || "");
+  const voteDisabled = discussion || !data.self.alive || data.self.ejected || Boolean(ownVoteTargetId);
   const voteEntries = alivePlayers.map((player, index) => ({ key: `vote:${player.id}`, targetId: player.id, player, hotkey: index < 9 ? String(index + 1) : "", votes: voteCountFor(data, player.id) }));
   voteEntries.push({ key: "vote:skip", targetId: "skip", player: null, hotkey: "0", votes: voteCountFor(data, "skip") });
   reconcileMeetingActionRows(els.voteList, voteEntries, (entry) => {
@@ -14776,7 +14785,7 @@ function renderMeeting(data) {
     button.className = "vote-card";
     button.type = "button";
     button.dataset.keyboardKey = entry.key;
-    button.innerHTML = '<span class="player-meta"><span class="name-line"></span><span class="sub-line"></span></span><span class="badge"></span>';
+    button.innerHTML = '<span class="player-meta"><span class="name-line"></span><span class="sub-line"></span><strong class="own-vote-status"></strong></span><span class="badge"></span>';
     button.addEventListener("click", () => api("/api/vote", { targetId: button.dataset.voteTargetId }));
     return button;
   }, (button, entry) => {
@@ -14786,11 +14795,18 @@ function renderMeeting(data) {
     button.disabled = voteDisabled;
     const name = entry.player ? playerIdentityLabel(entry.player) : "スキップ";
     const sub = entry.player ? playerFacingRoleLabel(entry.player.role) : "投票をスキップ";
+    const ownVote = ownVoteTargetId !== "" && entry.targetId === ownVoteTargetId;
+    const ownVoteText = ownVote ? "自分の投票（送信済み）" : "";
+    button.classList.toggle("own-vote", ownVote);
+    const voteAriaLabel = `${name}、${sub}、合計${entry.votes}票${ownVote ? "、自分の投票を送信済み" : ""}`;
+    if (button.getAttribute("aria-label") !== voteAriaLabel) button.setAttribute("aria-label", voteAriaLabel);
     const nameNode = button.querySelector(".name-line");
     const subNode = button.querySelector(".sub-line");
     const badge = button.querySelector(".badge");
+    const ownVoteStatus = button.querySelector(".own-vote-status");
     if (nameNode.textContent !== name) nameNode.textContent = name;
     if (subNode.textContent !== sub) subNode.textContent = sub;
+    if (ownVoteStatus.textContent !== ownVoteText) ownVoteStatus.textContent = ownVoteText;
     if (badge.textContent !== String(entry.votes)) badge.textContent = String(entry.votes);
   });
   repairMeetingKeyboardSelection(selectedMeetingKey, meetingOwnedFocus);
@@ -20494,6 +20510,12 @@ function currentCharacterAction(player) {
   }
   const action = state.characterActions.get(player.id);
   if (!action) return null;
+  if (action.motionId === "fighter-just-guard" && (
+    state.data?.phase !== "playing" || !player.alive || player.ejected || prefersReducedMotion()
+  )) {
+    state.characterActions.delete(player.id);
+    return null;
+  }
   const lastSampleAt = Number(action.lastSampleAt) || Number(action.startedAt) || timestamp;
   const elapsed = clamp(timestamp - lastSampleAt, 0, 100);
   const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
@@ -21026,6 +21048,16 @@ function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId,
   const impulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
   const ease = objectEffectEase(clamp(progress, 0, 1));
   const hasId = (...tokens) => tokens.some((token) => id === token || id.includes(token));
+
+  if (hasId("fighter-just-guard")) {
+    const brace = objectEffectEase(clamp(progress / 0.18, 0, 1));
+    const recoil = Math.sin(clamp((progress - 0.15) / 0.32, 0, 1) * Math.PI);
+    const recover = objectEffectEase(clamp((progress - 0.5) / 0.5, 0, 1));
+    ctx.translate(facing * (-4.5 * brace + 8 * recoil + 4.5 * recover) * motionScale, (4 * brace + 2 * recoil - 4 * recover) * motionScale);
+    ctx.rotate(-facing * (0.055 * brace + 0.085 * recoil - 0.055 * recover) * motionScale);
+    ctx.scale(1 - 0.07 * brace + 0.07 * recover, 1 + 0.08 * brace - 0.08 * recover);
+    return true;
+  }
 
   if (kind === "shop" || hasId("action-shop-open")) {
     const approach = objectEffectEase(clamp(progress / 0.3, 0, 1));
@@ -22821,7 +22853,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "opening-actions-roster-v668";
+const version = "online-protocol-v669";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23869,7 +23901,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=opening-actions-roster-v668", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=online-protocol-v669", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
