@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "renki-debt-icon-v700";
-const CACHE_NAME = "dva-static-v700-renki-debt-icon";
+const RUNTIME_RELEASE = "renki-postfocus-mana-v701";
+const CACHE_NAME = "dva-static-v701-renki-postfocus-mana";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

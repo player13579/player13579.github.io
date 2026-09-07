@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "renki-debt-icon-v700",
+    version: "renki-postfocus-mana-v701",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7448,7 +7448,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "renki-debt-icon-v700";
+const PRODUCT_RELEASE = "renki-postfocus-mana-v701";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -12212,11 +12212,10 @@ function finishRenki(room, player, timestamp) {
   }
   if (room.phase !== "playing") return;
   if (player.renkiTargetMana == null || !player.meditatingUntil || player.meditatingUntil > timestamp) return;
-  const targetMana = player.renkiTargetMana;
   const desireRecovery = Boolean(player.desireRenkiRecovery);
   const completionKind = String(player.renkiCompletionKind || "normal");
   player.renkiTargetMana = null;
-    player.renkiCompletionKind = "";
+  player.renkiCompletionKind = "";
   player.meditatingUntil = 0;
   player.desireRenkiRecovery = false;
   if (player.movementMode === "meditating") player.movementMode = "idle";
@@ -12224,9 +12223,8 @@ function finishRenki(room, player, timestamp) {
     completeDesireManaRecovery(room, player, "renki", timestamp);
     return;
   }
-  const previousMana = Number(player.mana) || 0;
-  setMana(room, player, targetMana, "練気");
-  if (Number(player.mana) > previousMana) pushGainAte(room, player, "mana", { variant: "renki", durationMs: 1680 });
+  // Renki grants MP at commit. Completion releases focus and reports the ATE;
+  // it must not restore the saved target over drains or gains during focus.
   pushMagicEffect(room, "action-mana", player, { radius: 135, playerId: player.id, variant: "renki", completionKind });
   pushEvent(room, `${player.name} が精神統一を完了しました。`);
   touch(room);
@@ -26054,5 +26052,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "renki-debt-icon-v700" });
+self.postMessage({ type: "ready", version: "renki-postfocus-mana-v701" });
 })();
