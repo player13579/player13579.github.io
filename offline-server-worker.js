@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ui-hacker-focus-contrast-v664",
+    version: "recovery-rest-ack-v666",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -13233,6 +13233,17 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
       naturalRecoveryActive
     );
     completeRestAtFullStamina(room, mover, timestamp);
+    return;
+  }
+  // A zero-time packet switches intent after prior movement was integrated.
+  // Preserve immediate aiming input without reclassifying physical motion.
+  // Explicit zero-direction packets already settle rest in the branch above.
+  if (dt <= 0) {
+    if (wantsDash && availableStamina(mover) > 0.5) clearGunnerAim(player);
+    if (!player.gunnerSnipingActive) {
+      player.aimX = dx;
+      player.aimY = dy;
+    }
     return;
   }
   const interruptedDesireRestStartedAt = Number(mover.desireRestRecoveryStartedAt) || 0;
@@ -21236,6 +21247,7 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     y: player.y,
     moveX: player.vx,
     moveY: player.vy,
+    resting: Boolean(player.resting),
     movementMode: player.movementMode,
     speedMultiplier: effectiveMovementMultiplier(room, player, timestamp),
     accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
@@ -25971,5 +25983,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ui-hacker-focus-contrast-v664" });
+self.postMessage({ type: "ready", version: "recovery-rest-ack-v666" });
 })();

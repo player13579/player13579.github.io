@@ -3527,6 +3527,11 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   white-space: nowrap;
 }
 
+/* Rows without a concrete value keep their readable name/detail column only. */
+.active-effects-panel .effect-value:empty {
+  display: none;
+}
+
 .active-effects-panel li.effect-layout-stacked {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:

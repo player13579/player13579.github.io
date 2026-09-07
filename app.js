@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-hacker-focus-contrast-v664";
+const DVA_CLIENT_RELEASE = "recovery-rest-ack-v666";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -632,7 +632,6 @@ const state = {
   },
   clairvoyanceTeleportTap: null,
   clairvoyanceTeleportRequestSerial: 0,
-  canvasItemUseTap: null,
   markerHitTargets: [],
   markerExplanation: null,
   operatorBranchesOpen: false,
@@ -895,7 +894,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-hacker-focus-contrast-v664";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "recovery-rest-ack-v666";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4493,7 +4492,6 @@ function cancelEnhanceAction(kind = state.enhanceHold.kind, { recoverOnFailure =
   const hold = state.enhanceHold;
   if (!hold.kind || (kind && hold.kind !== kind)) return false;
   if (hold.timer) cancelAnimationFrame(hold.timer);
-  if (state.canvasItemUseTap?.pointerId === hold.pointerId) state.canvasItemUseTap = null;
   state.enhanceHold = { kind: "", chargeKind: "", pointerId: null, startedAt: 0, timer: 0, itemId: "", chargeId: "" };
   if (hold.chargeKind === "shoot") state.gunActivationPending = false;
   if (hold.pointerId !== null) {
@@ -6883,6 +6881,7 @@ function bindEvents() {
   };
   bindEnhanceButton(els.fireJutsuButton, "fire");
   bindEnhanceButton(els.tabletFireShortcut, "fire");
+  bindEnhanceButton(els.itemUseButton, "use");
   bindEnhanceButton(els.itemThrowButton, "throw");
   window.addEventListener("pointerup", (event) => {
     // The control-local pointerup must own releases that began on an Enhance
@@ -6890,8 +6889,6 @@ function bindEvents() {
     // button can suppress its synthetic click, which starts a second charge
     // and makes the first ordinary use fail the server transaction check.
     if (event.target instanceof Element && event.target.closest(".enhance-hold-control")) return;
-    // Canvas item taps finish locally so a cancellation cannot become a generic use.
-    if (state.canvasItemUseTap?.pointerId === event.pointerId) return;
     if (state.enhanceHold.pointerId !== event.pointerId) return;
     void finishEnhanceAction(state.enhanceHold.kind, event.pointerId);
   }, true);
@@ -7329,13 +7326,13 @@ function bindEvents() {
     if (event.relatedTarget == null) clearMovementInput();
   });
   window.addEventListener("pointerup", (event) => {
-    if (state.canvasItemUseTap?.pointerId !== event.pointerId && state.enhanceHold.pointerId === event.pointerId) void finishEnhanceAction(state.enhanceHold.kind, event.pointerId);
+    if (state.enhanceHold.pointerId === event.pointerId) void finishEnhanceAction(state.enhanceHold.kind, event.pointerId);
     stopContinuousActionHold(event.pointerId);
     releasePointerInput(event.pointerId);
     if (state.gunTriggerPointerId === event.pointerId) state.gunTriggerPointerId = null;
   });
   window.addEventListener("pointercancel", (event) => {
-    if (state.canvasItemUseTap?.pointerId !== event.pointerId && state.enhanceHold.pointerId === event.pointerId) cancelEnhanceAction(state.enhanceHold.kind);
+    if (state.enhanceHold.pointerId === event.pointerId) cancelEnhanceAction(state.enhanceHold.kind);
     stopContinuousActionHold(event.pointerId);
     releasePointerInput(event.pointerId);
     if (state.gunTriggerPointerId === event.pointerId) state.gunTriggerPointerId = null;
@@ -7478,15 +7475,11 @@ function bindEvents() {
   els.expandedMapCanvas.addEventListener("pointerleave", () => {
     if (!state.expandedMapTap) state.mapPointer = null;
   });
-  window.addEventListener("pointerdown", cancelCanvasItemUseForSecondaryPointer, true);
   els.canvas.addEventListener("pointerdown", attackFromCanvas);
-  els.canvas.addEventListener("pointermove", (event) => {
-    moveClairvoyanceTeleportTap(event);
-    moveCanvasItemUseTap(event);
-  });
-  els.canvas.addEventListener("pointerup", (event) => void finishCanvasPrimaryTap(event));
-  els.canvas.addEventListener("pointercancel", (event) => void finishCanvasPrimaryTap(event, true));
-  els.canvas.addEventListener("lostpointercapture", (event) => void finishCanvasPrimaryTap(event, true));
+  els.canvas.addEventListener("pointermove", moveClairvoyanceTeleportTap);
+  els.canvas.addEventListener("pointerup", (event) => void finishClairvoyanceTeleportTap(event));
+  els.canvas.addEventListener("pointercancel", (event) => void finishClairvoyanceTeleportTap(event, true));
+  els.canvas.addEventListener("lostpointercapture", (event) => void finishClairvoyanceTeleportTap(event, true));
 }
 
 function clearPointerInput() {
@@ -9937,76 +9930,9 @@ async function performNinjutsu() {
   }
 }
 
-function canvasTapHitsWorldEntity(event) {
-  const data = state.data;
-  const point = canvasPointerPosition(event);
-  const viewport = state.drawViewport;
-  if (!data || !point || !viewport) return false;
-  const zoom = worldZoomFor(data);
-  const world = { x: viewport.left + point.x / zoom, y: viewport.top + point.y / zoom };
-  const playerRadius = Math.max(18, Number(data.map?.playerRadius) || 22);
-  const groups = [
-    (data.players || []).map((entry) => ({ ...entry, hitRadius: playerRadius * 1.5 })),
-    (data.map?.objects || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 42) })),
-    (data.map?.alchemyObjects || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 42) })),
-    (data.map?.mysteryBoxes || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 54) })),
-    (data.groundItems || []).map((entry) => ({ ...entry, hitRadius: Math.max(22, Number(entry.radius) || 30) })),
-    // drawHazardFields draws every serialized field; server snapshot removal owns expiry.
-    (data.hazardFields || []).map((entry) => ({ ...entry, hitRadius: Math.max(24, Number(entry.radius) || 80) }))
-  ];
-  return groups.some((entries) => entries.some((entry) => (
-    Number.isFinite(Number(entry.x)) && Number.isFinite(Number(entry.y)) &&
-    Math.hypot(world.x - Number(entry.x), world.y - Number(entry.y)) <= entry.hitRadius
-  )));
-}
-
-function beginCanvasItemUseTap(event) {
-  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return false;
-  if (state.screen !== "game" || state.data?.phase !== "playing" || els.itemControl.hidden || els.itemUseButton.disabled) return false;
-  if (canvasTapHitsWorldEntity(event) || state.enhanceHold.kind) return false;
-  if (!beginEnhanceAction("use", event.pointerId)) return false;
-  state.canvasItemUseTap = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false };
-  try { els.canvas.setPointerCapture(event.pointerId); } catch {}
-  event.preventDefault();
-  return true;
-}
-
-function cancelCanvasItemUseForSecondaryPointer(event) {
-  const tap = state.canvasItemUseTap;
-  if (!tap || event.isPrimary || tap.pointerId === event.pointerId) return false;
-  return cancelEnhanceAction("use");
-}
-
-function moveCanvasItemUseTap(event) {
-  const tap = state.canvasItemUseTap;
-  if (!tap || tap.pointerId !== event.pointerId || tap.moved) return;
-  if (Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) <= 10) return;
-  tap.moved = true;
-  cancelEnhanceAction("use");
-}
-
-async function finishCanvasItemUseTap(event, cancelled = false) {
-  const tap = state.canvasItemUseTap;
-  if (!tap || tap.pointerId !== event.pointerId) return false;
-  state.canvasItemUseTap = null;
-  if (cancelled || tap.moved) {
-    if (state.enhanceHold.kind === "use") cancelEnhanceAction("use");
-    return false;
-  }
-  return finishEnhanceAction("use", event.pointerId);
-}
-
-async function finishCanvasPrimaryTap(event, cancelled = false) {
-  if (state.clairvoyanceTeleportTap) return finishClairvoyanceTeleportTap(event, cancelled);
-  return finishCanvasItemUseTap(event, cancelled);
-}
-
 async function attackFromCanvas(event) {
   if (!state.data || event.button !== 0) return;
-  if (!event.isPrimary) {
-    cancelCanvasItemUseForSecondaryPointer(event);
-    return;
-  }
+  if (!event.isPrimary) return;
   if (beginClairvoyanceTeleportTap(event)) {
     event.preventDefault();
     return;
@@ -10025,7 +9951,6 @@ async function attackFromCanvas(event) {
     openExpandedMapFromMinimap();
     return;
   }
-  beginCanvasItemUseTap(event);
 }
 
 function clearLocalGunTrigger() {
@@ -13279,8 +13204,8 @@ function renderItemControl(data) {
   const transferCredits = transferCreditAmount();
   els.transferCreditsAmount.max = String(Math.max(1, Math.floor(Number(self.credits) || 0)));
   els.itemUseButton.disabled = !canUse || selectedWeaponReloading;
-  // Availability adapter for Shift+V and the canvas gesture; it is never a visible command.
-  els.itemUseButton.hidden = true;
+  // The selected item owns the visible use command; keyboard follows the same action.
+  els.itemUseButton.hidden = false;
   els.itemThrowButton.hidden = selectedInstant;
   els.itemThrowButton.disabled = selectedInstant || !canActOnItem || selected?.throwable === false;
   els.transferItemButton.hidden = selectedInstant;
@@ -13680,9 +13605,26 @@ function renderActiveEffects(data) {
   }
 
   const markerDeduplicatedEffects = removeEffectsDuplicatedByVisibleSelfMarker(effects, data);
+  // Effect names, concrete durations, quantities, and conditions already explain
+  // the mechanic. Do not spend the value column on repeated lifecycle badges.
+  const redundantEffectStatusValues = new Map([
+    ["有効", ""], ["理知まで休止", ""], ["浮揚可能", ""],
+    ["常時有効", ""], ["稼働", ""], ["戦闘中のみ", ""],
+    ["準備完了", ""], ["適用中", ""], ["適用中・Hで解除", "Hで解除"],
+    ["現在休止", ""], ["遮断中", ""], ["EMP遮断", ""],
+    ["継続中", ""], ["停止中", ""], ["完了", ""], ["マーカー表示中", ""]
+  ]);
+  const withoutRedundantEffectStatus = (value) => {
+    const text = String(value || "");
+    if (redundantEffectStatusValues.has(text)) return redundantEffectStatusValues.get(text);
+    return text
+      .replace(/・(?:稼働|休止|追尾中|対象探索中)$/, "")
+      .replace(/\s*\/\s*(?:EMP遮断|有効|理知まで休止)$/, "");
+  };
   const panelHidden = !["playing", "meeting"].includes(data.phase);
   if (els.activeEffectsPanel.hidden !== panelHidden) els.activeEffectsPanel.hidden = panelHidden;
-  const visibleEffects = markerDeduplicatedEffects.length ? markerDeduplicatedEffects : [{ key: "none", label: "その他の効果なし", value: "マーカー表示中", tone: "neutral", detail: "自己マーカーで表示中の適用効果以外はない" }];
+  const baseVisibleEffects = markerDeduplicatedEffects.length ? markerDeduplicatedEffects : [{ key: "none", label: "その他の効果なし", value: "マーカー表示中", tone: "neutral", detail: "自己マーカーで表示中の適用効果以外はない" }];
+  const visibleEffects = baseVisibleEffects.map((effect) => ({ ...effect, value: withoutRedundantEffectStatus(effect.value) }));
 
   function removeEffectsDuplicatedByVisibleSelfMarker(sourceEffects, currentData) {
     const markerCategoryByEffectKey = new Map([
@@ -15283,6 +15225,12 @@ function applyMovementAck(result) {
   player.movementAccActive = authoritativeMovementAccActive;
   player.movementAccAvailable = result.movementAccAvailable === true;
   player.movementAccThreshold = authoritativeMovementAccThreshold;
+  // Movement ACKs carry the same authoritative rest state as full snapshots.
+  // Preserve the last full snapshot for legacy ACKs without this field.
+  if (typeof result.resting === "boolean") {
+    player.resting = result.resting;
+    data.self.resting = result.resting;
+  }
   player.x = result.x;
   player.y = result.y;
   player.moveX = result.moveX;
@@ -19233,10 +19181,10 @@ function drawEmpActivationAte(effect, progress, now) {
   const rawIntensity = Number(effect?.intensity);
   const intensity = Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
   if (intensity <= 0.001) return true;
-  // The approved icon is intentionally opaque navy app-mark art. Do not key
-  // out its dark pixels; normalize only its single source frame.
-  const source = state.textures.empAppIconActivationEffect;
-  const sprite = source ? normalizedSpriteFrame(source, "emp-app-icon-ate-v660", 1, 1, 0, 0) : null;
+  // The approved icon contains intentional dark navy plate and chip detail,
+  // plus an opaque exterior matte. Texture-load prewarming removes only dark
+  // pixels connected to the source edges; activation consumes its cache only.
+  const sprite = state.textures.preparedSprites.get("cell:emp-app-icon-ate-v660-exterior-matte:1:1:0:0") || null;
   if (!sprite) return false;
 
   const normalized = clamp(progress, 0, 1);
@@ -20854,9 +20802,11 @@ const NATURAL_RECOVERY_MARKER_GLOW = Object.freeze({
 // Rest increases Natural Recovery itself. Keep that state legible at the same
 // marker, using its authored raster and anchor rather than a second ATE.
 const RESTING_NATURAL_RECOVERY_MARKER_GLOW = Object.freeze({
-  intensity: 1.1,
-  baseAlpha: 0.19,
-  opacityBoost: 3.45
+  // The earlier 1.1 / 0.19 profile was too close to the ordinary 31px marker
+  // to read in play. These remain within drawAnimatedTextureCentered's bounds.
+  intensity: 1.42,
+  baseAlpha: 0.25,
+  opacityBoost: 4
 });
 
 function naturalRecoveryMarkerGlow(activeState, player) {
@@ -22837,7 +22787,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-hacker-focus-contrast-v664";
+const version = "recovery-rest-ack-v666";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23056,6 +23006,14 @@ const version = "ui-hacker-focus-contrast-v664";
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
+  empAppIconActivationEffect.addEventListener("load", () => {
+    const key = "emp-app-icon-ate-v660-exterior-matte";
+    const isolated = transparentSpriteSource(empAppIconActivationEffect, key, 56);
+    // A readback/CORS failure returns the original opaque image. Do not cache a
+    // square fallback; drawEmpEffect will retain the full-size EMP ATE instead.
+    if (!isolated || isolated === empAppIconActivationEffect) return;
+    normalizedSpriteFrame(isolated, key, 1, 1, 0, 0);
+  }, { once: true });
   defer(empAppIconActivationEffect, "assets/generated/emp-app-icon-ate-v660.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
@@ -23877,7 +23835,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-hacker-focus-contrast-v664", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=recovery-rest-ack-v666", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
