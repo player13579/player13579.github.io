@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "mp-detail-label-v695";
+const DVA_CLIENT_RELEASE = "emp-digital-activation-v696";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mp-detail-label-v695";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-digital-activation-v696";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19802,47 +19802,49 @@ function drawEmpActivationAte(effect, progress, now) {
   const rawIntensity = Number(effect?.intensity);
   const intensity = Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
   if (intensity <= 0.001) return true;
-  // The accepted native-alpha asset owns its intended plate, chip, and edge detail.
-  // Activation consumes the direct RGBA cache without exterior-matte removal.
-  const sprite = state.textures.preparedSprites.get("cell:emp-activation-ate-v676-native-alpha:1:1:0:0") || null;
-  if (!sprite) return false;
-
+  const sprite = state.textures?.empAppIconActivationEffect;
+  // Native activation owns load gaps; never return to the withdrawn atlas/cache.
+  if (!sprite?.complete || !sprite.naturalWidth || !sprite.naturalHeight) return true;
   const normalized = clamp(progress, 0, 1);
   const reduced = prefersReducedMotion();
   const charge = reduced ? 1 : objectEffectEase(clamp(normalized / 0.22, 0, 1));
   const snap = reduced ? 0 : Math.sin(clamp((normalized - 0.18) / 0.18, 0, 1) * Math.PI);
   const settle = reduced ? 1 : objectEffectEase(clamp((normalized - 0.42) / 0.3, 0, 1));
   const fade = 1 - objectEffectEase(clamp((normalized - 0.74) / 0.26, 0, 1));
-  // Keep the activation ATE at the authoritative EMP effect point. Its 76–96
-  // world-unit size communicates charge → snap → settle without following an actor.
   const size = 76 + charge * 12 + snap * 8 - settle * 8;
-  const { width, height } = animatedTextureSize(sprite, size, size);
-  if (!(width > 0 && height > 0)) return false;
-
   ctx.save();
   ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
   ctx.rotate(snap * 0.035);
-  // Match Shop ATE layering: additive light and a low-alpha texture let the actor remain visible beneath the EMP plate.
-  ctx.globalCompositeOperation = "lighter";
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
   ctx.globalAlpha = Math.max(0, (0.16 + charge * 0.20) * fade * intensity);
-  // Existing data/electromagnetic glow stays silhouette-bound and restrained.
-  applyAteGlowContext(ctx, "data-up", reduced ? 0 : now / 1000, reduced ? 0 : normalized, intensity * (reduced ? 0.3 : 0.42));
-  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-
-  // E communicates polarity through opposite packet slopes; both propagate outward.
-  // Keep sparse static packets in reduced motion so polarity is not color-only.
+  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+  // Accepted 1254px image: upper cuts y570, lower cuts y668; measured outer exits x265/980.
+  // Packets depart beyond those exits, not over the raster's existing bright marks.
   const polarity = effect.variant === "negative" ? -1 : 1;
   const packet = reduced ? 0.5 : clamp((normalized - 0.06) / 0.48, 0, 1);
   if (reduced || normalized < 0.54) {
+    ctx.globalCompositeOperation = "lighter";
     ctx.filter = "none";
+    ctx.shadowColor = "rgba(103, 232, 249, 0.65)";
+    ctx.shadowBlur = 2.5;
     ctx.strokeStyle = "rgba(103, 232, 249, 0.92)";
-    ctx.lineWidth = 1.8; ctx.lineCap = "round";
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = "round";
     ctx.globalAlpha = Math.max(0, (reduced ? 0.22 : Math.sin(packet * Math.PI) * 0.30) * intensity * fade);
+    const sourceY = polarity > 0 ? 570 : 668;
     for (const side of [-1, 1]) {
-      const x = side * width * (0.2 + packet * 0.12);
-      const y = -polarity * 7;
-      ctx.beginPath(); ctx.moveTo(x, y);
-      ctx.lineTo(x + side * 9, y + polarity * 8); ctx.stroke();
+      const sourceX = side < 0 ? 265 : 980;
+      const x = (sourceX / 1254 - 0.5) * size + side * packet * size * 0.12;
+      const y = (sourceY / 1254 - 0.5) * size;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + side * 9, y + polarity * 8);
+      ctx.stroke();
     }
   }
   ctx.restore();
@@ -23450,7 +23452,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mp-detail-label-v695";
+const version = "emp-digital-activation-v696";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23521,7 +23523,7 @@ const version = "mp-detail-label-v695";
   const empCancelEffect = new Image();
   const empStorageLockNativeRgba = new Image();
   const empCancelNativeRgba = new Image();
-  const empAppIconActivationEffect = new Image();
+  const empAppIconActivationEffect = eagerImage("assets/generated/emp-digital-activation-rgba-v696.png");
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
   const gunnerWeaponsAtlas = new Image();
   const gunnerCombatStateEffects = imageSet([
@@ -23686,13 +23688,6 @@ const version = "mp-detail-label-v695";
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
   defer(empStorageLockNativeRgba, "assets/generated/emp-storage-lock-native-rgba-v685.png");
   defer(empCancelNativeRgba, "assets/generated/emp-cancel-native-rgba-v684.png");
-  empAppIconActivationEffect.addEventListener("load", () => {
-    const key = "emp-activation-ate-v676-native-alpha";
-    // The accepted RGBA asset already contains intentional native transparency.
-    // Cache its original pixels directly; exterior-matte removal would corrupt it.
-    normalizedSpriteFrame(empAppIconActivationEffect, key, 1, 1, 0, 0);
-  }, { once: true });
-  defer(empAppIconActivationEffect, "assets/generated/emp-activation-ate-v676.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
@@ -24526,7 +24521,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=mp-detail-label-v695", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-digital-activation-v696", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
