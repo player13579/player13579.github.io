@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "purchased-ability-mp-v671";
+const DVA_CLIENT_RELEASE = "shop-detail-keyboard-v672";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "purchased-ability-mp-v671";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shop-detail-keyboard-v672";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3186,7 +3186,7 @@ function vendingProductDetail(button) {
       label: ability.label,
       output: `${DVA_ECONOMY.abilityGenres.find((genre) => genre.id === ability.genreId)?.label || ability.operator}能力`,
       badge: `${ability.price}C`,
-      detail: `${behavior} 購入時には発動せず、オペレーターidentityも変更しません。`
+      detail: `${behavior} 購入した時点では発動せず、使用中のオペレーターも変わりません。`
     };
   }
   const id = String(button?.dataset?.drink || "");
@@ -6925,6 +6925,7 @@ function bindEvents() {
   els.emergencyButton.addEventListener("click", () => api("/api/emergency"));
   els.sabotageButton.addEventListener("click", () => api("/api/sabotage", { type: els.sabotageSelect.value }));
   els.utilityButton.addEventListener("click", () => api("/api/utility", { type: els.utilitySelect.value }));
+  bindVendingDetailKeyboard();
   vendingProductButtons().forEach((button) => {
     button.addEventListener("click", (event) => {
       if (vendingCategoryActionGate.consume() || performance.now() < vendingHold.suppressClickUntil) {
@@ -13051,6 +13052,20 @@ function isDetailKeyboardShortcut(event) {
   return !event.repeat && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"));
 }
 
+function bindVendingDetailKeyboard(panel = els.vendingPanel) {
+  panel.addEventListener("keydown", (event) => {
+    const button = event.target?.closest?.("[data-drink], [data-shop-ability]");
+    if (!button || !panel.contains(button) || !isDetailKeyboardShortcut(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showInventoryItemDetail(vendingProductDetail(button), button, { autoClose: false });
+  });
+  panel.addEventListener("focusout", (event) => {
+    const button = event.target?.closest?.("[data-drink], [data-shop-ability]");
+    if (button && panel.contains(button) && state.inventoryItemDetailSource === button && !state.inventoryItemDetailTimer) hideInventoryItemDetail();
+  });
+}
+
 function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid) {
   button.__inventoryDetailItem = item;
   const clickGate = createInventoryClickGate();
@@ -14176,8 +14191,9 @@ function renderVending(data) {
     }
     button.setAttribute("aria-label", visibleName);
     const accessibilityDescription = availabilityState.purchaseBlockedMessage || availabilityState.bulkPurchaseBlockedMessage;
-    if (accessibilityDescription) button.setAttribute("aria-description", accessibilityDescription);
-    else button.removeAttribute("aria-description");
+    const detailKeyboardDescription = "説明を開く: メニューキー、またはShift+F10。Escapeで閉じる";
+    button.setAttribute("aria-keyshortcuts", "Shift+F10 ContextMenu");
+    button.setAttribute("aria-description", [accessibilityDescription, detailKeyboardDescription].filter(Boolean).join(" "));
     button.setAttribute("aria-pressed", ability ? String(owned) : "false");
     button.classList.toggle("shop-ability-owned", owned);
     button.removeAttribute("title");
@@ -22856,7 +22872,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "purchased-ability-mp-v671";
+const version = "shop-detail-keyboard-v672";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23904,7 +23920,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=purchased-ability-mp-v671", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=shop-detail-keyboard-v672", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
