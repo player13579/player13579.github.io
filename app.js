@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "donation-unjust-icon-v703";
+const DVA_CLIENT_RELEASE = "sabotage-comms-icon-v704";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "donation-unjust-icon-v703";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sabotage-comms-icon-v704";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17843,7 +17843,7 @@ function drawMagicEffects() {
     // Persistent focus owns only the old transient Ninjutsu focus flash.
     if (effect.type === "action-ninjutsu-focus") continue;
     if (drawNativeLocalRepairAte(effect, progress, now)) continue;
-    if (drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
+    if (drawNativeSabotageCommsAte(effect, progress, now) || drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
@@ -19533,6 +19533,54 @@ function drawNativeDesireRecoveryState(now) {
   return drawn;
 }
 
+function drawNativeSabotageCommsAte(effect, progress, now) {
+  if (effect?.type !== "action-sabotage" || effect?.variant !== "comms") return false;
+  const source = state.textures?.sabotageCommsIconRgba;
+  // Only the explicit comms route is consumed while its native image is pending.
+  if (!source?.complete || !(source.naturalWidth > 0) || !(source.naturalHeight > 0)) return true;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const reduced = prefersReducedMotion();
+  const phase = reduced ? 0.4 : p;
+  const fade = 1 - clamp((p - 0.72) / 0.28, 0, 1);
+  const size = 96;
+  const alpha = 0.76 * fade;
+  const at = (px, py) => [(px / 1254 - 0.5) * size, (py / 1254 - 0.5) * size];
+  ctx.save();
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(source, -size / 2, -size / 2, size, size);
+  // Measured raw cut edge (635,610): signal accumulates locally, then goes dark.
+  const [cx, cy] = at(635, 610);
+  const accumulation = reduced ? 0.65 : Math.sin(clamp(phase / 0.64, 0, 1) * Math.PI);
+  const radius = 1.3 + accumulation * 0.5;
+  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+  halo.addColorStop(0, "rgba(255, 196, 146, 0.78)");
+  halo.addColorStop(0.45, "rgba(255, 128, 110, 0.32)");
+  halo.addColorStop(1, "rgba(255, 128, 110, 0)");
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = alpha * accumulation * 0.2;
+  ctx.fillStyle = halo;
+  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+  // The lower raw cut fragment (620,640)-(625,652) shrinks and drops locally.
+  // It never travels toward the receiving port (x >= 940) or bridges the gap.
+  const loss = reduced ? 0.4 : clamp((phase - 0.22) / 0.65, 0, 1);
+  const [fx, fy] = at(620, 640);
+  ctx.globalAlpha = alpha * (1 - loss) * 0.2;
+  ctx.strokeStyle = "rgba(255, 174, 143, 0.78)";
+  ctx.lineWidth = 0.85;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(fx, fy + loss * 1.6);
+  ctx.lineTo(fx + 0.38 * (1 - loss), fy + loss * 1.6 + 0.92 * (1 - loss));
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
+
 function drawNativeCommonActionAte(effect, progress, now) {
   const type = String(effect?.type || "");
   const isDefaultRenki = type === "action-renki" && !String(effect?.variant || "");
@@ -19708,7 +19756,7 @@ function drawNativeRationalDonationAte(effect, progress, now) {
 }
 
 function drawActionEffect(effect, progress, now) {
-  if (drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
+  if (drawNativeSabotageCommsAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
@@ -23563,7 +23611,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "donation-unjust-icon-v703";
+const version = "sabotage-comms-icon-v704";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23733,6 +23781,7 @@ const version = "donation-unjust-icon-v703";
   const renkiNormalIconRgba = eagerImage("assets/generated/renki-normal-icon-rgba-v699.png");
   const renkiTenfoldNativeRgba = eagerImage("assets/generated/renki-tenfold-native-rgba-v686.png");
   const renkiDebtIconRgba = eagerImage("assets/generated/renki-debt-icon-rgba-v700.png");
+  const sabotageCommsIconRgba = eagerImage("assets/generated/sabotage-comms-icon-rgba-v704.png");
   const dodgeIconRgba = eagerImage("assets/generated/dodge-icon-rgba-v702.png");
   const donationNativeAte = new Image();
   const donationUnjustIconRgba = eagerImage("assets/generated/donation-unjust-icon-rgba-v703.png");
@@ -24004,7 +24053,7 @@ const version = "donation-unjust-icon-v703";
     throwLandingPreview,
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
-    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba,
+    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba, sabotageCommsIconRgba,
     donationNativeAte,
     donationUnjustIconRgba,
     ninjutsuFocusIconRgba,
@@ -24629,7 +24678,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=donation-unjust-icon-v703", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=sabotage-comms-icon-v704", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

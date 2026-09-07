@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "donation-unjust-icon-v703",
+    version: "sabotage-comms-icon-v704",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7448,7 +7448,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "donation-unjust-icon-v703";
+const PRODUCT_RELEASE = "sabotage-comms-icon-v704";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -20837,7 +20837,7 @@ function startSabotage(room, player, type) {
     pushEvent(room, `${player.name} が全室を封鎖しました。`);
     pushEvent(room, `${player.name} がサボタージュ報酬 ${SABOTAGE_CREDIT_REWARD}Cを獲得しました。`);
     pushDoorLog(room, "複数ドアがロック");
-    pushMagicEffect(room, "action-sabotage", player, { radius: 135, playerId: player.id });
+    pushMagicEffect(room, "action-sabotage", player, { radius: 135, playerId: player.id, variant: sabotageType });
     markSoloMissionAction(room, player, "sabotage");
     touch(room);
     return;
@@ -20854,7 +20854,7 @@ function startSabotage(room, player, type) {
   grantCredits(room, player, SABOTAGE_CREDIT_REWARD, "sabotage");
   pushEvent(room, `${sabotageLabel(sabotageType)} サボタージュ発生。`);
   pushEvent(room, `${player.name} がサボタージュ報酬 ${SABOTAGE_CREDIT_REWARD}Cを獲得しました。`);
-  pushMagicEffect(room, "action-sabotage", player, { radius: 135, playerId: player.id });
+  pushMagicEffect(room, "action-sabotage", player, { radius: 135, playerId: player.id, variant: sabotageType });
   markSoloMissionAction(room, player, "sabotage");
   touch(room);
 }
@@ -26047,7 +26047,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "donation-unjust-icon-v703",
+  version: "sabotage-comms-icon-v704",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
