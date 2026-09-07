@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ui-visual-elevation-v657";
+const DVA_CLIENT_RELEASE = "ui-visual-elevation-v658";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -895,7 +895,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v657";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ui-visual-elevation-v658";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2305,6 +2305,63 @@ function isFullscreenScrollableSurface(surface) {
   return /^(auto|scroll|overlay)$/.test(overflowY);
 }
 
+function tacticsNovelStageOwnsScroll() {
+  return state.screen === "tactics" &&
+    state.tacticsChapterId === "tactics-novel" &&
+    isFullscreenScrollableSurface(els.tacticsNovelStage);
+}
+
+function syncTacticsNovelScrollRegion({ remapActive = false } = {}) {
+  const stage = els.tacticsNovelStage;
+  if (!stage) return false;
+  const ownsScroll = tacticsNovelStageOwnsScroll();
+  const previousOwner = state.activeScrollRegion;
+  const remapKeyboardOwner = state.keyboardElement === previousOwner;
+  if (ownsScroll) {
+    if (stage.dataset.scrollRegion !== "ノベルダイジェスト全文") stage.dataset.scrollRegion = "ノベルダイジェスト全文";
+    if (stage.getAttribute("role") !== "region") stage.setAttribute("role", "region");
+    if (stage.getAttribute("aria-label") !== "ノベルダイジェスト動画と全文（スクロール可能）") {
+      stage.setAttribute("aria-label", "ノベルダイジェスト動画と全文（スクロール可能）");
+    }
+    if (stage.tabIndex !== 0) stage.tabIndex = 0;
+  } else {
+    delete stage.dataset.scrollRegion;
+    stage.classList.remove("scroll-region-selected", "scroll-region-expanded");
+    stage.removeAttribute("aria-current");
+    stage.removeAttribute("role");
+    if (stage.getAttribute("aria-label") !== "ノベルダイジェスト動画") {
+      stage.setAttribute("aria-label", "ノベルダイジェスト動画");
+    }
+    stage.removeAttribute("tabindex");
+    if (state.expandedScrollRegion === stage) state.expandedScrollRegion = null;
+  }
+  if (remapActive && state.screen === "tactics") {
+    const expectedOwner = state.tacticsChapterId === "tactics-novel" && ownsScroll
+      ? stage
+      : els.tacticsContent;
+    if (
+      (previousOwner === stage || previousOwner === els.tacticsContent) &&
+      previousOwner !== expectedOwner
+    ) {
+      setSelectedScrollRegion(expectedOwner, { focus: false });
+      if (remapKeyboardOwner) {
+        document.querySelectorAll(".keyboard-selected").forEach((entry) => entry.classList.remove("keyboard-selected"));
+        state.keyboardElement = expectedOwner;
+        expectedOwner.classList.add("keyboard-selected");
+      }
+    }
+  }
+  return ownsScroll;
+}
+
+function scrollRegionFromElement(element) {
+  if (!(element instanceof Element)) return null;
+  if (els.tacticsNovelStage?.contains(element)) {
+    return syncTacticsNovelScrollRegion() ? els.tacticsNovelStage : els.tacticsContent;
+  }
+  return element.closest("[data-scroll-region]");
+}
+
 function resolveFullscreenScrollableSurface(target) {
   if (!(target instanceof Element)) return null;
   const visited = new Set();
@@ -2605,6 +2662,11 @@ function setActiveTacticsChapter(id) {
     article.setAttribute("aria-hidden", String(!active));
   });
   els.tacticsContent.scrollTop = 0;
+  const novelStageOwnsScroll = syncTacticsNovelScrollRegion({ remapActive: true });
+  if (id === "tactics-novel" && novelStageOwnsScroll) {
+    els.tacticsNovelStage?.scrollTo?.({ top: 0, behavior: "auto" });
+  }
+  if (state.screen === "tactics") state.keyboardContext = keyboardContextKey();
   syncTacticsNovelVideo();
 }
 
@@ -2613,7 +2675,7 @@ function initializeTacticsNovel() {
   els.tacticsNovelPlay?.addEventListener("click",()=>{if(!video.paused&&!video.ended){video.pause();return;}playTacticsNovelVideo();});
   els.tacticsNovelReplay?.addEventListener("click",()=>{video.currentTime=0;playTacticsNovelVideo();});
   video.addEventListener("play",()=>{video.dataset.explicitPlay="true";keepTacticsNovelVideoSilent();syncTacticsNovelVideoControl();});video.addEventListener("pause",()=>syncTacticsNovelVideoControl());video.addEventListener("ended",()=>{video.currentTime=0;syncTacticsNovelVideoControl();});video.addEventListener("volumechange",()=>keepTacticsNovelVideoSilent());
-  window.matchMedia?.(REDUCED_MOTION_QUERY)?.addEventListener?.("change",event=>{if(event.matches&&!video.paused&&!video.ended)pauseAndResetTacticsNovelVideo("動きを減らす設定に切り替わったため一度停止しました。再生ボタンから開始できます。");else syncTacticsNovelVideo();});syncTacticsNovelVideo();
+  window.matchMedia?.(REDUCED_MOTION_QUERY)?.addEventListener?.("change",event=>{if(event.matches&&!video.paused&&!video.ended)pauseAndResetTacticsNovelVideo("動きを減らす設定に切り替わったため一度停止しました。再生ボタンから開始できます。");else syncTacticsNovelVideo();});syncTacticsNovelVideo();window.addEventListener("resize",()=>syncTacticsNovelScrollRegion({remapActive:true}),{passive:true});
 }
 function syncTacticsNovelVideoControl(message="") { const video=els.tacticsNovelVideo,playing=Boolean(video&&!video.paused&&!video.ended);if(els.tacticsNovelPlay){els.tacticsNovelPlay.textContent=playing?"一時停止":"動画を再生";els.tacticsNovelPlay.setAttribute("aria-pressed",String(playing));}if(els.tacticsNovelVideoStatus)els.tacticsNovelVideoStatus.textContent=message; }
 function keepTacticsNovelVideoSilent() { const video=els.tacticsNovelVideo;if(!video)return;if(!video.muted)video.muted=true;if(video.volume!==0)video.volume=0;if(typeof IS_VERIFICATION_MODE!=="undefined"&&IS_VERIFICATION_MODE)video.dataset.verifyMuted="true"; }
@@ -4656,18 +4718,24 @@ function scrollRegionTarget(region) {
 }
 
 function visibleScrollRegions() {
+  const novelStageOwnsScroll = syncTacticsNovelScrollRegion();
   return [...document.querySelectorAll("[data-scroll-region]")].filter((region) =>
-    !region.hidden && !region.closest("[hidden]") && region.getClientRects().length > 0
+    !region.hidden && !region.closest("[hidden]") && region.getClientRects().length > 0 &&
+    !(novelStageOwnsScroll && region === els.tacticsContent)
   );
 }
 
 function isTacticsScrollRegion(region) {
-  return state.screen === "tactics" && (region === els.tacticsChapterList || region === els.tacticsContent);
+  return state.screen === "tactics" && (
+    region === els.tacticsChapterList ||
+    region === els.tacticsContent ||
+    region === els.tacticsNovelStage
+  );
 }
 
 function isExpandableScrollRegion(region) {
   if (!(region instanceof Element)) return false;
-  if (isTacticsScrollRegion(region)) return true;
+  if (isTacticsScrollRegion(region)) return region !== els.tacticsNovelStage;
   return state.screen === "game" &&
     state.data?.phase === "playing" &&
     region !== els.sidePanel &&
@@ -4796,7 +4864,9 @@ function navigateSelectedScrollRegion(key) {
   if (region === els.hackerAbilityDock) {
     moved = navigateHackerAction(key);
   } else {
-    const choices = scrollRegionChoices(region);
+    const choices = region === els.tacticsNovelStage && vertical
+      ? []
+      : scrollRegionChoices(region);
     if (choices.length) {
       const current = choices.includes(document.activeElement)
         ? document.activeElement
@@ -6870,7 +6940,7 @@ function bindEvents() {
   document.addEventListener("focusin", (event) => {
     const element = event.target;
     if (!(element instanceof Element)) return;
-    const scrollRegion = element.closest("[data-scroll-region]");
+    const scrollRegion = scrollRegionFromElement(element);
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
     if (contextKeyboardElements().includes(element)) setKeyboardSelection(element, false);
   });
@@ -6878,7 +6948,7 @@ function bindEvents() {
     const element = event.target;
     if (!(element instanceof Element)) return;
     if (state.screen === "title" && state.tacticsReturnFocus === "title-tactics") state.tacticsReturnFocus = "";
-    const scrollRegion = element.closest("[data-scroll-region]");
+    const scrollRegion = scrollRegionFromElement(element);
     if (scrollRegion) setSelectedScrollRegion(scrollRegion, { focus: false });
     const rightPaneTap = state.screen === "game" &&
       scrollRegion &&
@@ -22700,7 +22770,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ui-visual-elevation-v657";
+const version = "ui-visual-elevation-v658";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23737,7 +23807,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v657", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ui-visual-elevation-v658", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
