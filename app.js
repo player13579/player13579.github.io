@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "enhance-pointer-cancel-v680";
+const DVA_CLIENT_RELEASE = "donation-native-cost-v681";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "enhance-pointer-cancel-v680";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "donation-native-cost-v681";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -8456,9 +8456,10 @@ function renderTabletControls(data) {
   els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
   setTabletShortcutLabel(els.tabletRenkiShortcut, "練気", els.renkiButton.title || els.renkiButton.textContent || "練気");
   els.tabletRenkiShortcut.disabled = els.renkiButton.disabled;
-  setTabletShortcutLabel(els.tabletDonateShortcut, "募金", "10Cを募金");
+  const donationCost = DVA_ECONOMY.creditIncome.donationCost;
+  setTabletShortcutLabel(els.tabletDonateShortcut, "募金", `${donationCost}Cを募金`);
   const canAct = data.phase === "playing" && data.self.alive && !data.self.ejected && !data.self.inVent;
-  els.tabletDonateShortcut.disabled = !canAct || Number(data.self.credits || 0) < 10;
+  els.tabletDonateShortcut.disabled = !canAct || Number(data.self.credits || 0) < donationCost;
   renderTabletBranch(data);
 }
 
@@ -17836,6 +17837,7 @@ function drawMagicEffects() {
     if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
+    if (drawNativeRationalDonationAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
     if (drawTacticalSystemsEffect(effect, progress)) continue;
@@ -19208,7 +19210,40 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
   return false;
 }
 
+// Candidate only: donation-rational. Emergency, repair, and unjust outcomes
+// retain their owners until their own semantic assets are accepted.
+function drawNativeRationalDonationAte(effect, progress, now) {
+  if (effect?.type !== "action-smartphone" || effect.variant !== "donation-rational") return false;
+  const sprite = state.textures?.donationNativeAte;
+  if (!sprite?.complete || !(sprite.naturalWidth > 0)) return true;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const reveal = Math.min(1, p / 0.12);
+  const fade = Math.min(1, (1 - p) / 0.28);
+  const size = 88;
+  const reduced = prefersReducedMotion();
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 8);
+  ctx.globalAlpha = reveal * fade * 0.72;
+  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+  // E follows the receipt seam beneath the coin, not a second coin or glyph.
+  const received = reduced ? 0.5 : Math.min(1, Math.max(0, (p - 0.18) / 0.5));
+  ctx.globalAlpha = reveal * fade * 0.55;
+  ctx.strokeStyle = "#ddfff3";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.18, size * 0.12);
+  ctx.quadraticCurveTo(0, size * (0.16 + received * 0.02), size * 0.18, size * 0.12);
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
+
 function drawActionEffect(effect, progress, now) {
+  if (drawNativeRationalDonationAte(effect, progress, now)) return;
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
@@ -22951,7 +22986,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "enhance-pointer-cancel-v680";
+const version = "donation-native-cost-v681";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23114,6 +23149,7 @@ const version = "enhance-pointer-cancel-v680";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const clairvoyanceNativeRgba = new Image();
+  const donationNativeAte = new Image();
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
@@ -23244,6 +23280,7 @@ const version = "enhance-pointer-cancel-v680";
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(clairvoyanceNativeRgba, "assets/generated/clairvoyance-native-rgba-v679.png");
+  defer(donationNativeAte, "assets/generated/action-donation-native-v681.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
   defer(shopActivationEffect, "assets/generated/shop-activation-ate-v581.png");
@@ -23380,6 +23417,7 @@ const version = "enhance-pointer-cancel-v680";
     throwLandingPreview,
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
+    donationNativeAte,
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
@@ -24000,7 +24038,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=enhance-pointer-cancel-v680", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=donation-native-cost-v681", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
