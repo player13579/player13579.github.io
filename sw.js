@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "decelerate-received-status-v678";
-const CACHE_NAME = "dva-static-v678-decelerate-received-status";
+const RUNTIME_RELEASE = "clairvoyance-native-status-v679";
+const CACHE_NAME = "dva-static-v679-clairvoyance-native-status";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -33,6 +33,7 @@ const STATIC_ASSETS = [
   "/assets/generated/tactics-manga-note-v466.png",
   "/assets/generated/throw-landing-preview-v384.png",
   "/assets/generated/clairvoyance-throw-ate-v412.png",
+  "/assets/generated/clairvoyance-native-rgba-v679.png",
   "/assets/generated/gunner-weapon-icons-v422.png",
   "/assets/generated/gunner-weapon-icons-v422.webp",
   "/assets/generated/gunner-special-ammo-weak-v455.png",

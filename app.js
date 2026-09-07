@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "decelerate-received-status-v678";
+const DVA_CLIENT_RELEASE = "clairvoyance-native-status-v679";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "decelerate-received-status-v678";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "clairvoyance-native-status-v679";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -13515,6 +13515,15 @@ function renderActiveEffects(data) {
     add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。バリア・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用", "root");
   }
   effects.push(...collectOperatorPassiveEffects(self, liveNow, data.phase));
+  if (self.clairvoyanceActive && self.alive && !self.ejected) {
+    add(
+      `千里眼（${Number(self.clairvoyanceManaPerSecond ?? 0.25).toFixed(2)}MP/秒）`,
+      "遠隔観測中 / Zで解除",
+      "truth",
+      "遠隔地点を観測します。Zキーまたは千里眼ボタンで解除",
+      "clairvoyance:active"
+    );
+  }
   if (Number(self.killChainCount) > 0) {
     add(
       "キルチェイン",
@@ -20867,7 +20876,7 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   // second persistent EC-looking overhead marker.  Its durable state remains
   // in Applied Effects; the dedicated milestone owns the field ATE.
   destructionSlash: Object.freeze({ texture: "fighterDestructionSlashMilestoneEffect", mode: "beam", size: 30, alpha: 0.94, phase: 0.76 }),
-  clairvoyance: Object.freeze({ texture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 })
+  clairvoyance: Object.freeze({ texture: "clairvoyanceNativeRgba", fallbackTexture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 1, phase: 0.18, nativeAlpha: true, reducedMotion: true })
 });
 
 function persistentStatusAteState(player, data) {
@@ -20998,12 +21007,42 @@ function drawPersistentStatusAteLayers(player, data) {
   ));
   for (const candidate of candidates) {
     const category = candidate.category;
-    const profile = PERSISTENT_STATUS_ATE_PROFILES[category];
+    let profile = PERSISTENT_STATUS_ATE_PROFILES[category];
     if (!profile) continue;
     const naturalRecoveryGlow = category === "naturalRecovery"
       ? naturalRecoveryMarkerGlow(activeState, player)
       : null;
-    const source = state.textures[profile.texture];
+    const nativeSource = profile.nativeAlpha ? state.textures[profile.texture] : null;
+    const nativeClairvoyance = Boolean(nativeSource?.complete && nativeSource.naturalWidth > 0 && nativeSource.naturalHeight > 0);
+    if (profile.nativeAlpha && !nativeClairvoyance) {
+      profile = { texture: profile.fallbackTexture, mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 };
+    }
+    const source = nativeClairvoyance ? nativeSource : state.textures[profile.texture];
+    if (nativeClairvoyance) {
+      const markerEffect = candidate.sourceEffect || { id: candidate.instanceKey, type: "persistent-status", category, playerId: player.id, persistent: true };
+      const placement = nonCreditHeadMarkerPlacement(markerEffect, presentation);
+      if (!placement.candidate) continue;
+      const marker = headMarkerSlot(placement.baseIndex, placement.total, placement.startRow);
+      const markerX = marker.x;
+      const markerY = marker.y;
+      const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.filter = "none";
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = "transparent";
+      ctx.globalAlpha *= profile.alpha;
+      registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
+      ctx.drawImage(source, markerX - profile.size / 2, markerY - profile.size / 2, profile.size, profile.size);
+      ctx.globalAlpha *= 0.38;
+      ctx.strokeStyle = "#c4f7e7";
+      ctx.lineWidth = 1;
+      const scanY = markerY + (prefersReducedMotion() ? 5 : 5 + Math.sin(time * 1.1 + profile.phase) * 1.4);
+      ctx.beginPath(); ctx.moveTo(markerX - profile.size * 0.23, scanY); ctx.lineTo(markerX + profile.size * 0.23, scanY); ctx.stroke();
+      ctx.restore();
+      continue;
+    }
+
     const prepared = transparentSpriteSource(source, `persistent-status-${category}`, 18);
     const sprite = prepared ? normalizedSpriteFrame(prepared, `persistent-status-${category}`, 1, 1, 0, 0) : null;
     if (!sprite) continue;
@@ -22906,7 +22945,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "decelerate-received-status-v678";
+const version = "clairvoyance-native-status-v679";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23068,6 +23107,7 @@ const version = "decelerate-received-status-v678";
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
+  const clairvoyanceNativeRgba = new Image();
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
@@ -23197,6 +23237,7 @@ const version = "decelerate-received-status-v678";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
+  defer(clairvoyanceNativeRgba, "assets/generated/clairvoyance-native-rgba-v679.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
   defer(shopActivationEffect, "assets/generated/shop-activation-ate-v581.png");
@@ -23332,6 +23373,7 @@ const version = "decelerate-received-status-v678";
     smartphoneRepairIcon,
     throwLandingPreview,
     clairvoyanceThrowAte,
+    clairvoyanceNativeRgba,
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
@@ -23952,7 +23994,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=decelerate-received-status-v678", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=clairvoyance-native-status-v679", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
