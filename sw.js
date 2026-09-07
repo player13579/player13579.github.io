@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "renki-normal-icon-v699";
-const CACHE_NAME = "dva-static-v699-renki-normal-icon";
+const RUNTIME_RELEASE = "renki-debt-icon-v700";
+const CACHE_NAME = "dva-static-v700-renki-debt-icon";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -47,6 +47,7 @@ const STATIC_ASSETS = [
   "/assets/generated/emp-charge-icon-rgba-v697.png",
   "/assets/generated/emp-resonance-native-rgba-v683.png",
   "/assets/generated/emp-cancel-native-rgba-v684.png",
+  "/assets/generated/renki-debt-icon-rgba-v700.png",
   "/assets/generated/renki-normal-icon-rgba-v699.png",
   "/assets/generated/emp-cancel-icon-rgba-v698.png",
   "/assets/generated/emp-storage-lock-native-rgba-v685.png",

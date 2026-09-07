@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "renki-normal-icon-v699";
+const DVA_CLIENT_RELEASE = "renki-debt-icon-v700";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-normal-icon-v699";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-debt-icon-v700";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19264,6 +19264,7 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
 // and generic action renderers: if (drawNativeCommonActionAte(effect, progress, now)) continue;
 // Candidate: generation and real-size acceptance are separate gates.
 function drawNativeRenkiPhaseAte(effect, progress, now) {
+  if (drawNativeRenkiDebtEvent(effect, progress)) return true;
   const startTenfold = effect?.type === 'action-renki' && effect.variant === 'tenfold';
   const complete = effect?.type === 'action-mana' && effect.variant === 'renki';
   const desireStart = effect?.type === 'action-renki' && effect.variant === 'desire-recovery-start';
@@ -19275,7 +19276,7 @@ function drawNativeRenkiPhaseAte(effect, progress, now) {
   const actor = effect.playerId ? (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id)) : null;
   if (effect.playerId && !actor) return true;
   const tenfold = startTenfold || effect.completionKind === 'tenfold';
-  const image = desire ? state.textures?.renkiDesireRecoveryNativeRgba : tenfold ? state.textures?.renkiTenfoldNativeRgba : state.textures?.renkiNormalIconRgba;
+  const image = desire ? state.textures?.renkiDebtIconRgba : tenfold ? state.textures?.renkiTenfoldNativeRgba : state.textures?.renkiNormalIconRgba;
   if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return true;
   const p = clamp(Number(progress) || 0, 0, 1);
   const reduced = prefersReducedMotion();
@@ -19458,34 +19459,76 @@ function drawNativeNinjutsuFocusState(now) {
 }
 
 
+function drawRenkiDebtIconAt(position, progress, completion) {
+  const image = state.textures?.renkiDebtIconRgba;
+  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return false;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  if (p >= 1) return false;
+  const reduced = prefersReducedMotion();
+  const q = reduced ? (completion ? .8 : .5) : p;
+  const fade = completion ? 1 - clamp((p - .72) / .28, 0, 1) : 1;
+  const reveal = completion && !reduced ? clamp(p / .1, 0, 1) : 1;
+  const alpha = (completion ? .76 : .62) * fade * reveal;
+  ctx.save();
+  ctx.translate(Number(position.x) || 0, Number(position.y) || 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.filter = 'none'; ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+  ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(image, -50, -50, 100, 100);
+  // Actual raw1254px: left band contact(300,640), peel(836,435)->(1080,518), reserve(620,842).
+  // Only short moving local accents; never repaint the full raster band or luminous baseline.
+  const point = (x, y) => [(x / 1254 - .5) * 100, (y / 1254 - .5) * 100];
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.shadowColor = 'rgba(221,190,246,.6)'; ctx.shadowBlur = 2;
+  ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+  const contact = point(300, 640);
+  ctx.strokeStyle = '#d8c4ef';
+  ctx.globalAlpha = alpha * (completion ? .12 * (1 - q) : .3 * (1 - q));
+  ctx.beginPath();ctx.moveTo(contact[0],contact[1]-2);ctx.lineTo(contact[0],contact[1]+2);ctx.stroke();
+  const peel = q <= .5
+    ? point(836 + 240 * q, 435 + 122 * q)
+    : point(956 + 248 * (q - .5), 496 + 44 * (q - .5));
+  const release = completion ? 8 * q : 0;
+  ctx.globalAlpha = alpha * (completion ? .42 : .24 + .12 * q);
+  ctx.beginPath();ctx.moveTo(peel[0]+release,peel[1]-1-release*.3);
+  ctx.lineTo(peel[0]+release+3,peel[1]-release*.3);ctx.stroke();
+  if (completion) {
+    const reserve = point(620,842);
+    ctx.strokeStyle = '#c7f0f2'; ctx.shadowColor = 'rgba(183,232,244,.6)';
+    ctx.globalAlpha = alpha * .25;
+    ctx.beginPath();ctx.moveTo(reserve[0]-2,reserve[1]+2);ctx.lineTo(reserve[0]+2,reserve[1]+2);ctx.stroke();
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawNativeRenkiDebtEvent(effect, progress) {
+  if (effect?.type !== 'action-renki' || !['desire-recovery-start','desire-recovery'].includes(effect.variant)) return false;
+  // Live state owns every start, so event duplicates cannot stack over it.
+  if (effect.variant === 'desire-recovery-start') return true;
+  const actor = effect.playerId ? (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id)) : null;
+  if (effect.playerId && !actor) return true;
+  if (state.data?.phase !== 'playing') return true;
+  drawRenkiDebtIconAt(actor ? renderedPlayer(actor) : effect, progress, true);
+  return true;
+}
+
 function drawNativeDesireRecoveryState(now) {
   const data = state.data, self = data?.self;
   if (data?.phase !== 'playing') return false;
-  const image = state.textures?.renkiDesireRecoveryNativeRgba;
-  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return false;
   const serverNow = estimatedServerNow(data);
   let drawn = false;
   for (const player of data.players || []) {
-  if (player.alive === false || player.ejected || player.inVent || (player.invisible && player.id !== self?.id)) continue;
-  const own = player.id === self?.id;
-  const end = own ? (self.desireRecoveryMode === 'renki' ? Number(self.desireRecoveryEndsAt) : 0) : Number(player.desireRenkiRecoveryEndsAt);
-  const remaining = end - serverNow;
-  if (!(remaining > 0)) continue;
-  const anchor = renderedPlayer(player);
-  const duration = Math.max(1, Number(own ? self.desireRenkiRecoveryMs : player.desireRenkiRecoveryMs) || 3000);
-  const phase = clamp(1 - remaining / duration, 0, 1);
-  const reduced = prefersReducedMotion();
-  ctx.save(); ctx.translate(anchor.x, anchor.y - 38);
-  ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
-  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-  ctx.globalAlpha = .62;
-  ctx.drawImage(image, -50, -50, 100, 100);
-  ctx.globalAlpha = .32; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.strokeStyle = '#bdebe9';
-  const q = reduced ? .5 : phase;
-  const x = -22 + 32 * q, y = 17 - 27 * q;
-  ctx.beginPath(); ctx.moveTo(x - 4.5, y + 3.5); ctx.lineTo(x + 4.5, y - 3.5); ctx.stroke();
-  ctx.restore();
-  drawn = true;
+    if (player.alive === false || player.ejected || player.inVent || (player.invisible && player.id !== self?.id)) continue;
+    const own = player.id === self?.id;
+    const end = own ? (self.desireRecoveryMode === 'renki' ? Number(self.desireRecoveryEndsAt) : 0) : Number(player.desireRenkiRecoveryEndsAt);
+    const remaining = end - serverNow;
+    if (!(remaining > 0)) continue;
+    const duration = Math.max(1, Number(own ? self.desireRenkiRecoveryMs : player.desireRenkiRecoveryMs) || 3000);
+    const phase = clamp(1 - remaining / duration, 0, 1);
+    const anchor = renderedPlayer(player);
+    drawn = drawRenkiDebtIconAt({x:anchor.x,y:anchor.y-38}, phase, false) || drawn;
   }
   return drawn;
 }
@@ -23495,7 +23538,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "renki-normal-icon-v699";
+const version = "renki-debt-icon-v700";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23664,7 +23707,7 @@ const version = "renki-normal-icon-v699";
   const clairvoyanceNativeRgba = new Image();
   const renkiNormalIconRgba = eagerImage("assets/generated/renki-normal-icon-rgba-v699.png");
   const renkiTenfoldNativeRgba = eagerImage("assets/generated/renki-tenfold-native-rgba-v686.png");
-  const renkiDesireRecoveryNativeRgba = eagerImage("assets/generated/renki-desire-recovery-native-rgba-v686.png");
+  const renkiDebtIconRgba = eagerImage("assets/generated/renki-debt-icon-rgba-v700.png");
   const actionDodgeNativeRgba = new Image();
   const donationNativeAte = new Image();
   const donationUnjustNativeRgba = eagerImage("assets/generated/donation-unjust-native-rgba-v688.png");
@@ -23937,7 +23980,7 @@ const version = "renki-normal-icon-v699";
     throwLandingPreview,
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
-    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDesireRecoveryNativeRgba, actionDodgeNativeRgba,
+    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, actionDodgeNativeRgba,
     donationNativeAte,
     donationUnjustNativeRgba,
     ninjutsuFocusIconRgba,
@@ -24562,7 +24605,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=renki-normal-icon-v699", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=renki-debt-icon-v700", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
