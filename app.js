@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "chat-live-announcement-v677";
+const DVA_CLIENT_RELEASE = "decelerate-received-status-v678";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "chat-live-announcement-v677";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "decelerate-received-status-v678";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -13555,11 +13555,26 @@ function renderActiveEffects(data) {
     self.gravityTimeMode === "accelerate"
       ? `${abilityNameWithMana("アクセラレート", "gravity", "accelerate", self)} ×${Math.max(1, Number(self.gravityTimeStacks?.accelerate) || 1)}`
       : `${abilityNameWithMana("ディーセラレート", "gravity", "decelerate", self)} ×${Math.max(1, Number(self.gravityTimeStacks?.decelerate) || 1)}`,
-    self.gravityTimeEndsAt,
+    self.gravityTimeEffectiveEndsAt ?? self.gravityTimeEndsAt,
     self.gravityTimeMode === "accelerate" ? "good" : "desire",
-    "8秒。移動・物理モーション・CT・行動不能・タスク速度へ適用",
+    self.gravityTimeTargetIsSelf
+      ? (self.receivedDecelerateMovementSuppressed && self.gravityTimeMode === "decelerate"
+        ? "自分への効果は保持中。千里眼中は千里眼移動が優先され、千里眼終了時に効果が残っていれば減速へ戻る"
+        : "自分に適用。移動・物理モーション・CT・行動不能・タスク速度へ適用")
+      : "対象に適用中。移動・物理モーション・CT・行動不能・タスク速度へ適用",
     "gravity:time"
   );
+  if ((Number(self.receivedDecelerateEndsAt) || 0) > liveNow) {
+    timed(
+      "ディーセラレート（効果中）",
+      self.receivedDecelerateEndsAt,
+      "desire",
+      self.receivedDecelerateMovementSuppressed
+        ? "効果は保持中。千里眼中は千里眼移動が優先され、千里眼終了時に効果が残っていれば減速へ戻る"
+        : "移動・物理モーション・CT・行動不能・タスク速度へ適用中",
+      "gravity:received-decelerate"
+    );
+  }
   timed(abilityNameWithMana("時の番人", "gravity", "time-keeper", self), self.timeKeeperEndsAt, "truth", "5秒。術者以外の全プレイヤー・入力・CT・物体運動を完全停止", "gravity:time-keeper");
   timed("時間停止", self.timeStoppedUntil, "desire", "入力・行動・クールタイム・物理モーション停止", "gravity:time-stop");
   if ((self.routePartnerCount || 0) > 0) add("ペア行動警告", `${self.routePartnerCount}人`, "desire", "同経路5秒で継続ダメージ", "route:pair-warning");
@@ -22891,7 +22906,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "chat-live-announcement-v677";
+const version = "decelerate-received-status-v678";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23937,7 +23952,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=chat-live-announcement-v677", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=decelerate-received-status-v678", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

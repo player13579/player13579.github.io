@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "chat-live-announcement-v677",
+    version: "decelerate-received-status-v678",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7448,7 +7448,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "chat-live-announcement-v677";
+const PRODUCT_RELEASE = "decelerate-received-status-v678";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -15047,13 +15047,25 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   touch(room);
 }
 
-function gravityTimeScaleFor(room, target, timestamp = now()) {
-  if (hasNaturalRecovery(room, target)) return 1;
-  if (timeKeeperStops(target, timestamp)) return 0;
-  const controllers = [...room.players.values()].filter((player) => (
+function receivedGravityTimeControllersFor(room, target, timestamp = now()) {
+  if (hasNaturalRecovery(room, target) || timeKeeperStops(target, timestamp)) return [];
+  return [...room.players.values()].filter((player) => (
     (hasOperatorAccess(player, "gravity") || hasShopGravityTimeLifecycle(player)) && player.gravityTimeMode && player.gravityTimeTargetId === target.id &&
     Number(player.gravityTimeEndsAt) > timestamp && player.alive && !player.ejected
   ));
+}
+
+function receivedDecelerateStatusFor(room, target, timestamp = now()) {
+  const latest = receivedGravityTimeControllersFor(room, target, timestamp)
+    .filter((player) => player.gravityTimeMode === "decelerate")
+    .reduce((endsAt, player) => Math.max(endsAt, Number(player.gravityTimeEndsAt) || 0), 0);
+  return latest > timestamp ? { endsAt: latest } : null;
+}
+
+function gravityTimeScaleFor(room, target, timestamp = now()) {
+  if (hasNaturalRecovery(room, target)) return 1;
+  if (timeKeeperStops(target, timestamp)) return 0;
+  const controllers = receivedGravityTimeControllersFor(room, target, timestamp);
   if (controllers.some((player) => player.gravityTimeMode === "decelerate")) return GRAVITY_TIME_SCALE_SLOW;
   return 1;
 }
@@ -21412,6 +21424,11 @@ function serialize(room, viewer, options = {}) {
     : null;
   const operatorTurnPlayer = room.phase === "selecting" ? currentOperatorPlayer(room) : null;
   const viewerObjectEffects = activeMapObjectEffects(room, viewer);
+  const receivedDecelerate = receivedDecelerateStatusFor(room, viewer, timestamp);
+  const viewerSelfDecelerateController = Boolean(
+    viewer.gravityTimeMode === "decelerate" &&
+    receivedGravityTimeControllersFor(room, viewer, timestamp).includes(viewer)
+  );
 
   const players = [...room.players.values()].map((player) => {
     const attackerAlly = viewer.role === "attacker" && player.role === "attacker" && player.id !== viewer.id;
@@ -21858,6 +21875,12 @@ function serialize(room, viewer, options = {}) {
       gravityTimeMode: viewer.gravityTimeMode || "",
       gravityTimeTargetId: viewer.gravityTimeTargetId || "",
       gravityTimeEndsAt: Number(viewer.gravityTimeEndsAt) || 0,
+      gravityTimeEffectiveEndsAt: viewer.gravityTimeMode === "decelerate" && viewer.gravityTimeTargetId === viewer.id
+        ? (viewerSelfDecelerateController ? Number(receivedDecelerate?.endsAt) || 0 : 0)
+        : Number(viewer.gravityTimeEndsAt) || 0,
+      gravityTimeTargetIsSelf: viewer.gravityTimeTargetId === viewer.id,
+      receivedDecelerateEndsAt: viewerSelfDecelerateController ? 0 : Number(receivedDecelerate?.endsAt) || 0,
+      receivedDecelerateMovementSuppressed: Boolean(receivedDecelerate && viewer.clairvoyanceActive),
       timeKeeperEndsAt: Number(viewer.timeKeeperEndsAt) || 0,
       timeStoppedUntil: Number(viewer.timeStoppedUntil) || 0,
       levitationActive: canLevitate(viewer),
@@ -26004,5 +26027,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "chat-live-announcement-v677" });
+self.postMessage({ type: "ready", version: "decelerate-received-status-v678" });
 })();
