@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "renki-postfocus-mana-v701";
+const DVA_CLIENT_RELEASE = "dodge-icon-v702";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-postfocus-mana-v701";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "dodge-icon-v702";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19541,7 +19541,7 @@ function drawNativeCommonActionAte(effect, progress, now) {
 
   const source = isDefaultRenki
     ? state.textures.renkiNormalIconRgba
-    : state.textures.actionDodgeNativeRgba;
+    : state.textures.dodgeIconRgba;
   // The adopted route owns this activation. A pending/missing native image is
   // safely silent and must not revive the former atlas texture.
   if (!source?.complete || !(source.naturalWidth || source.width) || !(source.naturalHeight || source.height)) return true;
@@ -19583,15 +19583,38 @@ function drawNativeCommonActionAte(effect, progress, now) {
     ctx.globalAlpha = Math.max(0, alpha * (reduced ? 0.16 : 0.13 + hold * 0.05));
     ctx.fillStyle = light; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   } else {
-    // E: two short lateral contours open away from the central escape gap.
-    ctx.strokeStyle = "rgba(255, 224, 181, 0.88)";
-    const opening = reduced ? 0.55 : 0.36 + Math.sin(time * 4.2) * 0.09;
-    for (const side of [-1, 1]) {
+    // E uses three distinct short raw-boundary responses. T stays stationary.
+    // Shoulder: (868,525)-(935,580)-(949,625); departure: (440,663)-(520,704)-(547,757).
+    // Attack tip: (870,820)-(950,780)-(990,750), never across the escape gap.
+    const phase = reduced ? 0.45 : p;
+    const point = (a, b, c, t) => [
+      (1 - t) ** 2 * a[0] + 2 * (1 - t) * t * b[0] + t * t * c[0],
+      (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * b[1] + t * t * c[1],
+    ];
+    const trace = (curve, from, to, offsetX, color, strength) => {
+      ctx.globalAlpha = Math.max(0, alpha * strength);
+      ctx.strokeStyle = color;
+      // E-only local emission: each boundary response lights its own short path.
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 1.6;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
       ctx.beginPath();
-      ctx.moveTo(side * size * 0.10, -size * 0.18);
-      ctx.quadraticCurveTo(side * size * (0.22 + opening * 0.12), 0, side * size * 0.38, size * 0.17);
+      for (let i = 0; i <= 4; i += 1) {
+        const [px, py] = point(...curve, from + (to - from) * i / 4);
+        const lx = (px / 1254 - 0.5) * size + offsetX;
+        const ly = (py / 1254 - 0.5) * size;
+        if (i === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+      }
       ctx.stroke();
-    }
+    };
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineWidth = 0.8;
+    // Shoulder edge opens outward by less than one pixel; departure contracts.
+    trace([[868, 525], [935, 580], [949, 625]], 0.15, 0.72, phase * 0.7, "rgba(111, 255, 210, 0.72)", 0.16);
+    trace([[440, 663], [520, 704], [547, 757]], phase * 0.65, 0.85, 0, "rgba(139, 197, 255, 0.68)", 0.19 * (1 - phase));
+    // A single packet advances along only the terminal portion of the raw lane.
+    trace([[870, 820], [950, 780], [990, 750]], phase * 0.72, phase * 0.72 + 0.2, 0, "rgba(255, 153, 133, 0.7)", 0.14);
   }
   ctx.restore();
   return true;
@@ -23538,7 +23561,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "renki-postfocus-mana-v701";
+const version = "dodge-icon-v702";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23708,7 +23731,7 @@ const version = "renki-postfocus-mana-v701";
   const renkiNormalIconRgba = eagerImage("assets/generated/renki-normal-icon-rgba-v699.png");
   const renkiTenfoldNativeRgba = eagerImage("assets/generated/renki-tenfold-native-rgba-v686.png");
   const renkiDebtIconRgba = eagerImage("assets/generated/renki-debt-icon-rgba-v700.png");
-  const actionDodgeNativeRgba = new Image();
+  const dodgeIconRgba = eagerImage("assets/generated/dodge-icon-rgba-v702.png");
   const donationNativeAte = new Image();
   const donationUnjustNativeRgba = eagerImage("assets/generated/donation-unjust-native-rgba-v688.png");
   const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-focus-icon-rgba-v694.png");
@@ -23838,7 +23861,6 @@ const version = "renki-postfocus-mana-v701";
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(clairvoyanceNativeRgba, "assets/generated/clairvoyance-native-rgba-v679.png");
-  defer(actionDodgeNativeRgba, "assets/generated/action-dodge-native-rgba-v680.png");
   defer(donationNativeAte, "assets/generated/action-donation-native-v681.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
@@ -23980,7 +24002,7 @@ const version = "renki-postfocus-mana-v701";
     throwLandingPreview,
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
-    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, actionDodgeNativeRgba,
+    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba,
     donationNativeAte,
     donationUnjustNativeRgba,
     ninjutsuFocusIconRgba,
@@ -24605,7 +24627,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=renki-postfocus-mana-v701", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=dodge-icon-v702", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
