@@ -8410,6 +8410,15 @@ body.start-open .game-tactics-button {
   display: none !important;
 }
 
+/* During ordinary landscape play the fixed return tile occupies the top of the
+ * lower utility stack. Reserve that existing stack at the sidebar's scroll
+ * endpoint so its final native controls cannot sit beneath any fixed utility. */
+@media (min-width: 681px) and (orientation: landscape) {
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])) #sidePanel {
+    padding-bottom: calc(max(18px, env(safe-area-inset-bottom, 0px)) + 128px + 54px + 8px);
+  }
+}
+
 .tablet-launch-glyph {
   position: relative;
   display: block;
@@ -10280,6 +10289,81 @@ body.game-open.result-presentation .end-overlay #resetButton:focus-visible {
   outline: 3px solid #34b3be;
   outline-offset: 3px;
 }
+/* Medium landscape Result: retain every existing value while giving the native ranking
+ * enough first-frame height for its header and multiple readable player rows. */
+@media (min-width: 600px) and (max-width: 900px) and (orientation: landscape) and (min-height: 440px) and (max-height: 640px) {
+  body.game-open.result-presentation .end-overlay .result-dialog {
+    gap: 6px;
+    padding: clamp(8px, 1.6cqh, 12px);
+  }
+
+  body.game-open.result-presentation .end-overlay .end-title {
+    font-size: clamp(24px, 5cqh, 30px);
+    line-height: 1.1;
+  }
+
+  body.game-open.result-presentation .end-overlay .end-reason {
+    margin: 0;
+    padding: 5px 8px;
+    line-height: 1.32;
+  }
+
+  body.game-open.result-presentation .result-heading {
+    padding: 6px 8px;
+  }
+
+  body.game-open.result-presentation .result-heading strong {
+    font-size: 16px;
+  }
+
+  body.game-open.result-presentation .result-ranking {
+    gap: 6px;
+    padding: 4px;
+  }
+
+  body.game-open.result-presentation .result-team-title {
+    min-height: 30px;
+    padding: 4px 8px;
+  }
+
+  body.game-open.result-presentation .result-row {
+    min-height: 48px;
+    column-gap: 8px;
+    padding: 5px 8px;
+  }
+
+  body.game-open.result-presentation .result-player {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    grid-template-areas:
+      "name mvp self"
+      "breakdown breakdown breakdown";
+    column-gap: 5px;
+    row-gap: 2px;
+  }
+
+  body.game-open.result-presentation .result-player > strong { grid-area: name; }
+  body.game-open.result-presentation .result-point-mvp { grid-area: mvp; }
+  body.game-open.result-presentation .result-point-self { grid-area: self; }
+  body.game-open.result-presentation .result-player .result-point-breakdown {
+    grid-area: breakdown;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  body.game-open.result-presentation .result-points {
+    min-inline-size: 78px;
+    padding: 4px 7px;
+  }
+
+  body.game-open.result-presentation .result-points small {
+    white-space: nowrap;
+  }
+
+  body.game-open.result-presentation .end-overlay #resetButton {
+    min-height: 44px;
+  }
+}
 
 /* Developer-only visual candidate v642. Append after public/styles.css only
  * during primary-owned integration. It is paint and HUD-text hierarchy only:
@@ -10944,6 +11028,9 @@ body.game-open #meetingPanel:not([hidden]) {
 }
 
 body.game-open #meetingPanel:not([hidden]) > .panel-title-row {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   color: #ffffff;
   background: #193846;
   border-inline-start: 4px solid #34b3be;
