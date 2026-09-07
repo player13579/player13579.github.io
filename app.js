@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "donation-native-cost-v681";
+const DVA_CLIENT_RELEASE = "common-renki-dodge-native-v682";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "donation-native-cost-v681";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "common-renki-dodge-native-v682";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17837,7 +17837,7 @@ function drawMagicEffects() {
     if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
-    if (drawNativeRationalDonationAte(effect, progress, now)) continue;
+    if (drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
     if (drawTacticalSystemsEffect(effect, progress)) continue;
@@ -19210,6 +19210,74 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
   return false;
 }
 
+// Candidate-only integration helper. It expects the existing app globals
+// ctx, state, clamp, and prefersReducedMotion. Add its call before compact
+// and generic action renderers: if (drawNativeCommonActionAte(effect, progress, now)) continue;
+function drawNativeCommonActionAte(effect, progress, now) {
+  const type = String(effect?.type || "");
+  const isDefaultRenki = type === "action-renki" && !String(effect?.variant || "");
+  const isDodge = type === "action-dodge";
+  if (!isDefaultRenki && !isDodge) return false;
+
+  const source = isDefaultRenki
+    ? state.textures.actionRenkiNativeRgba
+    : state.textures.actionDodgeNativeRgba;
+  // The adopted route owns this activation. A pending/missing native image is
+  // safely silent and must not revive the former atlas texture.
+  if (!source?.complete || !(source.naturalWidth || source.width) || !(source.naturalHeight || source.height)) return true;
+
+  const reduced = prefersReducedMotion();
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const pulse = reduced ? 1 : Math.sin(p * Math.PI);
+  const fade = 1 - clamp((p - 0.72) / 0.28, 0, 1);
+  const size = isDefaultRenki ? 88 : 82;
+  const alpha = 0.8 * (0.76 + pulse * 0.24) * fade;
+  const x = Number(effect?.x) || 0;
+  const y = Number(effect?.y) || 0;
+  const time = reduced ? 0 : Number(now || 0) / 1000;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.globalAlpha = Math.max(0, alpha);
+  // Native RGBA: direct, full-square, one-pass draw. Do not trim, brighten,
+  // shadow, tint, duplicate, or feed it through the legacy texture helpers.
+  ctx.drawImage(source, -size / 2, -size / 2, size, size);
+
+  ctx.globalAlpha = Math.max(0, alpha * 0.52);
+  ctx.lineCap = "round";
+  ctx.lineWidth = isDefaultRenki ? 1.35 : 1.5;
+  if (isDefaultRenki) {
+    // E: three short scans converge inward; they complement the raw planes.
+    ctx.strokeStyle = "rgba(174, 230, 255, 0.88)";
+    for (let index = 0; index < 3; index += 1) {
+      const lane = (index - 1) * 12;
+      const phase = reduced ? 0.48 : (time * 0.72 + index / 3) % 1;
+      const start = -size * (0.33 - phase * 0.16);
+      const end = -size * (0.09 - phase * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(start, lane);
+      ctx.lineTo(end, lane * 0.34);
+      ctx.stroke();
+    }
+  } else {
+    // E: two short lateral contours open away from the central escape gap.
+    ctx.strokeStyle = "rgba(255, 224, 181, 0.88)";
+    const opening = reduced ? 0.55 : 0.36 + Math.sin(time * 4.2) * 0.09;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * size * 0.10, -size * 0.18);
+      ctx.quadraticCurveTo(side * size * (0.22 + opening * 0.12), 0, side * size * 0.38, size * 0.17);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  return true;
+}
+
 // Candidate only: donation-rational. Emergency, repair, and unjust outcomes
 // retain their owners until their own semantic assets are accepted.
 function drawNativeRationalDonationAte(effect, progress, now) {
@@ -19243,7 +19311,7 @@ function drawNativeRationalDonationAte(effect, progress, now) {
 }
 
 function drawActionEffect(effect, progress, now) {
-  if (drawNativeRationalDonationAte(effect, progress, now)) return;
+  if (drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
@@ -22986,7 +23054,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "donation-native-cost-v681";
+const version = "common-renki-dodge-native-v682";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23149,6 +23217,8 @@ const version = "donation-native-cost-v681";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const clairvoyanceNativeRgba = new Image();
+  const actionRenkiNativeRgba = new Image();
+  const actionDodgeNativeRgba = new Image();
   const donationNativeAte = new Image();
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
@@ -23280,6 +23350,8 @@ const version = "donation-native-cost-v681";
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(clairvoyanceNativeRgba, "assets/generated/clairvoyance-native-rgba-v679.png");
+  defer(actionRenkiNativeRgba, "assets/generated/action-renki-native-rgba-v680.png");
+  defer(actionDodgeNativeRgba, "assets/generated/action-dodge-native-rgba-v680.png");
   defer(donationNativeAte, "assets/generated/action-donation-native-v681.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
@@ -23417,6 +23489,7 @@ const version = "donation-native-cost-v681";
     throwLandingPreview,
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
+    actionRenkiNativeRgba, actionDodgeNativeRgba,
     donationNativeAte,
     naturalRecoveryEffect,
     gboOverdriveEffect,
@@ -24038,7 +24111,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=donation-native-cost-v681", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=common-renki-dodge-native-v682", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
