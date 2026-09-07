@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-cancel-icon-v698";
+const DVA_CLIENT_RELEASE = "renki-normal-icon-v699";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-cancel-icon-v698";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-normal-icon-v699";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19275,7 +19275,7 @@ function drawNativeRenkiPhaseAte(effect, progress, now) {
   const actor = effect.playerId ? (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id)) : null;
   if (effect.playerId && !actor) return true;
   const tenfold = startTenfold || effect.completionKind === 'tenfold';
-  const image = desire ? state.textures?.renkiDesireRecoveryNativeRgba : tenfold ? state.textures?.renkiTenfoldNativeRgba : state.textures?.actionRenkiNativeRgba;
+  const image = desire ? state.textures?.renkiDesireRecoveryNativeRgba : tenfold ? state.textures?.renkiTenfoldNativeRgba : state.textures?.renkiNormalIconRgba;
   if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return true;
   const p = clamp(Number(progress) || 0, 0, 1);
   const reduced = prefersReducedMotion();
@@ -19301,8 +19301,17 @@ function drawNativeRenkiPhaseAte(effect, progress, now) {
     const y = size * (desireComplete ? .22 + .08 * phase : .17 - .27 * phase);
     ctx.beginPath(); ctx.moveTo(x - size * .045, y + size * .035);
     ctx.lineTo(x + size * .045, y - size * .035); ctx.stroke();
+  } else if (complete && !tenfold) {
+    // Normal completion releases the same held drop: no second collection/gain cue.
+    const x = (627 / 1254 - 0.5) * size, y = (720 / 1254 - 0.5) * size;
+    const release = reduced ? .56 : clamp(p / .5, 0, 1);
+    const radius = 3.2 - release * .9;
+    const light = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    light.addColorStop(0, "rgba(173, 237, 255, 0.54)"); light.addColorStop(.55, "rgba(116, 190, 255, 0.18)"); light.addColorStop(1, "rgba(116, 190, 255, 0)");
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.max(0, .18 * reveal * fade);
+    ctx.fillStyle = light; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   } else if (complete) {
-    // Completion releases the held state once; it never repeats a gain intake.
+    // Tenfold completion remains byte-for-byte on its established release route.
     for (const side of [-1, 1]) {
       const x = side * size * (.12 + .16 * phase);
       ctx.beginPath(); ctx.moveTo(x, size * .08);
@@ -19488,7 +19497,7 @@ function drawNativeCommonActionAte(effect, progress, now) {
   if (!isDefaultRenki && !isDodge) return false;
 
   const source = isDefaultRenki
-    ? state.textures.actionRenkiNativeRgba
+    ? state.textures.renkiNormalIconRgba
     : state.textures.actionDodgeNativeRgba;
   // The adopted route owns this activation. A pending/missing native image is
   // safely silent and must not revive the former atlas texture.
@@ -19519,18 +19528,17 @@ function drawNativeCommonActionAte(effect, progress, now) {
   ctx.lineCap = "round";
   ctx.lineWidth = isDefaultRenki ? 1.35 : 1.5;
   if (isDefaultRenki) {
-    // E: three short scans converge inward; they complement the raw planes.
-    ctx.strokeStyle = "rgba(174, 230, 255, 0.88)";
-    for (let index = 0; index < 3; index += 1) {
-      const lane = (index - 1) * 12;
-      const phase = reduced ? 0.48 : (time * 0.72 + index / 3) % 1;
-      const start = -size * (0.33 - phase * 0.16);
-      const end = -size * (0.09 - phase * 0.05);
-      ctx.beginPath();
-      ctx.moveTo(start, lane);
-      ctx.lineTo(end, lane * 0.34);
-      ctx.stroke();
-    }
+    // E is held local light inside the measured mana drop (627,720) of the v699 raw,
+    // not a second circulating loop or an overlay on its bright segmented seams.
+    const hold = reduced ? 1 : clamp(p / 0.46, 0, 1);
+    const x = (627 / 1254 - 0.5) * size;
+    const y = (720 / 1254 - 0.5) * size;
+    const radius = 2.1 + hold * 1.1;
+    const light = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    light.addColorStop(0, "rgba(133, 244, 255, 0.68)"); light.addColorStop(0.55, "rgba(93, 205, 255, 0.24)"); light.addColorStop(1, "rgba(93, 205, 255, 0)");
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = Math.max(0, alpha * (reduced ? 0.16 : 0.13 + hold * 0.05));
+    ctx.fillStyle = light; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   } else {
     // E: two short lateral contours open away from the central escape gap.
     ctx.strokeStyle = "rgba(255, 224, 181, 0.88)";
@@ -23487,7 +23495,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-cancel-icon-v698";
+const version = "renki-normal-icon-v699";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23654,7 +23662,7 @@ const version = "emp-cancel-icon-v698";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const clairvoyanceNativeRgba = new Image();
-  const actionRenkiNativeRgba = eagerImage("assets/generated/action-renki-native-rgba-v680.png");
+  const renkiNormalIconRgba = eagerImage("assets/generated/renki-normal-icon-rgba-v699.png");
   const renkiTenfoldNativeRgba = eagerImage("assets/generated/renki-tenfold-native-rgba-v686.png");
   const renkiDesireRecoveryNativeRgba = eagerImage("assets/generated/renki-desire-recovery-native-rgba-v686.png");
   const actionDodgeNativeRgba = new Image();
@@ -23929,7 +23937,7 @@ const version = "emp-cancel-icon-v698";
     throwLandingPreview,
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
-    actionRenkiNativeRgba, renkiTenfoldNativeRgba, renkiDesireRecoveryNativeRgba, actionDodgeNativeRgba,
+    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDesireRecoveryNativeRgba, actionDodgeNativeRgba,
     donationNativeAte,
     donationUnjustNativeRgba,
     ninjutsuFocusIconRgba,
@@ -24554,7 +24562,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-cancel-icon-v698", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=renki-normal-icon-v699", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
