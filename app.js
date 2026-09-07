@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "dodge-icon-v702";
+const DVA_CLIENT_RELEASE = "donation-unjust-icon-v703";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "dodge-icon-v702";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "donation-unjust-icon-v703";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19624,15 +19624,15 @@ function drawNativeCommonActionAte(effect, progress, now) {
 // retain their owners until their own semantic assets are accepted.
 function drawNativeDonationUnjustAte(effect, progress, now) {
   if (effect?.type !== "action-smartphone" || effect.variant !== "donation-unjust") return false;
-  const sprite = state.textures?.donationUnjustNativeRgba;
-  // After adoption this exact result never falls back to the shared phone art.
+  const sprite = state.textures?.donationUnjustIconRgba;
   if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
   const p = clamp(Number(progress) || 0, 0, 1);
   const reduced = prefersReducedMotion();
   const fade = reduced ? Math.max(0, 1 - Math.max(0, p - 0.72) / 0.28) : Math.max(0, 1 - p);
-  const resultDelta = Number(effect?.donationResultDelta) || 0;
+  const resultDelta = Number(effect?.donationResultDelta);
   const size = 88;
   const phase = reduced ? 0.45 : p;
+  const point = (x, y) => [(x / 1254 - 0.5) * size, (y / 1254 - 0.5) * size];
   ctx.save();
   ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 8);
   ctx.globalCompositeOperation = "source-over";
@@ -19640,36 +19640,38 @@ function drawNativeDonationUnjustAte(effect, progress, now) {
   ctx.shadowBlur = 0;
   ctx.shadowColor = "transparent";
   ctx.globalAlpha = fade * 0.76;
-  // T is one raw, full-square native RGBA draw: no normalization, tint,
-  // filtering, shadow, additive blend, resampling pass, or duplicate raster.
   ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-  // E1 is a short payment-acceptance trace and remains present even at a cap;
-  // it adds distinct information without claiming a numerical result.
-  ctx.globalAlpha = fade * 0.19;
-  ctx.strokeStyle = "rgba(244, 201, 171, 0.9)";
+  // Receipt opens once as a small curved edge, not a copy of the raster sparkle.
+  const receipt = point(782, 420);
+  const receiptLife = reduced ? 0.55 : Math.max(0, 1 - p / 0.62);
+  const receiptRadius = reduced ? 2.0 : 1.1 + Math.min(1, p / 0.62) * 2.3;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = fade * receiptLife * 0.65;
+  ctx.strokeStyle = "rgba(255, 225, 149, 0.95)";
+  ctx.shadowColor = "rgba(255, 207, 110, 0.9)";
+  ctx.shadowBlur = 3.2;
   ctx.lineWidth = 1.2;
   ctx.lineCap = "round";
-  for (const side of [-1, 1]) {
+  ctx.beginPath();
+  ctx.arc(receipt[0], receipt[1], receiptRadius, -1.3, 0.6);
+  ctx.stroke();
+  // A real loss folds a small luminous wedge into the measured return endpoint.
+  // Delayed contraction has a different silhouette and timing from receipt.
+  if (Number.isFinite(resultDelta) && resultDelta < 0) {
+    const end = point(642, 930);
+    const lossPhase = reduced ? 0.45 : clamp((p - 0.12) / 0.88, 0, 1);
+    const lossLife = reduced ? 0.6 : (p < 0.12 ? 0 : Math.sin(Math.PI * lossPhase));
+    const span = 3.8 * (1 - lossPhase) + 0.35;
+    ctx.globalAlpha = fade * lossLife * 0.58;
+    ctx.fillStyle = "rgba(255, 170, 232, 0.9)";
+    ctx.shadowColor = "rgba(239, 124, 225, 0.88)";
+    ctx.shadowBlur = 2.8;
     ctx.beginPath();
-    const seamY = -size * (0.18 - phase * 0.1) + side * 2;
-    ctx.moveTo(-size * 0.15, seamY);
-    ctx.lineTo(-size * 0.09, seamY - size * 0.025);
-    ctx.stroke();
-  }
-  // E2 states a real decrease only. At a luck/bounds clamp it remains absent,
-  // preventing an invented loss while the adverse-donation T remains visible.
-  if (resultDelta < 0) {
-    ctx.globalAlpha = fade * 0.34;
-    ctx.strokeStyle = "rgba(244, 151, 181, 0.92)";
-    ctx.lineWidth = 1.4;
-    ctx.lineCap = "round";
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      const gapY = size * (0.035 + phase * 0.085);
-      ctx.moveTo(size * 0.2 + side * 3, gapY);
-      ctx.lineTo(size * 0.2 + side * 3, gapY + size * 0.045);
-      ctx.stroke();
-    }
+    ctx.moveTo(end[0], end[1]);
+    ctx.lineTo(end[0] - span, end[1] - span * 0.65);
+    ctx.lineTo(end[0] - span * 0.55, end[1] + span * 0.32);
+    ctx.closePath();
+    ctx.fill();
   }
   ctx.restore();
   return true;
@@ -23561,7 +23563,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "dodge-icon-v702";
+const version = "donation-unjust-icon-v703";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23733,7 +23735,7 @@ const version = "dodge-icon-v702";
   const renkiDebtIconRgba = eagerImage("assets/generated/renki-debt-icon-rgba-v700.png");
   const dodgeIconRgba = eagerImage("assets/generated/dodge-icon-rgba-v702.png");
   const donationNativeAte = new Image();
-  const donationUnjustNativeRgba = eagerImage("assets/generated/donation-unjust-native-rgba-v688.png");
+  const donationUnjustIconRgba = eagerImage("assets/generated/donation-unjust-icon-rgba-v703.png");
   const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-focus-icon-rgba-v694.png");
   const localRepairIconRgba = eagerImage("assets/generated/local-repair-icon-rgba-v691.png");
   const naturalRecoveryEffect = new Image();
@@ -24004,7 +24006,7 @@ const version = "dodge-icon-v702";
     clairvoyanceNativeRgba,
     renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba,
     donationNativeAte,
-    donationUnjustNativeRgba,
+    donationUnjustIconRgba,
     ninjutsuFocusIconRgba,
     localRepairIconRgba,
     naturalRecoveryEffect,
@@ -24627,7 +24629,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=dodge-icon-v702", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=donation-unjust-icon-v703", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
