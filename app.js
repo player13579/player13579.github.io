@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ninjutsu-focus-icon-v694";
+const DVA_CLIENT_RELEASE = "mp-detail-label-v695";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-focus-icon-v694";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mp-detail-label-v695";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3183,7 +3183,7 @@ function vendingProductDetail(button) {
         ? "購入後、この対戦中は対応する操作パネルを解放します。"
         : "購入後、このカードから既存の資源・対象・クールタイム規則で発動できます。";
     return {
-      label: ability.label,
+      label: abilityNameWithMana(ability.label, ability.operator, ability.mode, state.data?.self),
       output: `${DVA_ECONOMY.abilityGenres.find((genre) => genre.id === ability.genreId)?.label || ability.operator}能力`,
       badge: `${ability.price}C`,
       detail: `${behavior} 購入した時点では発動せず、使用中のオペレーターも変わりません。`
@@ -23450,7 +23450,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ninjutsu-focus-icon-v694";
+const version = "mp-detail-label-v695";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24526,7 +24526,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-focus-icon-v694", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=mp-detail-label-v695", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
