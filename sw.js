@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "ninjutsu-luminous-v690";
-const CACHE_NAME = "dva-static-v690-ninjutsu-luminous";
+const RUNTIME_RELEASE = "local-repair-icon-v691";
+const CACHE_NAME = "dva-static-v691-local-repair-icon";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -37,6 +37,7 @@ const STATIC_ASSETS = [
   "/assets/generated/action-donation-native-v681.png",
   "/assets/generated/donation-unjust-native-rgba-v688.png",
   "/assets/generated/ninjutsu-focus-native-rgba-v689.png",
+  "/assets/generated/local-repair-icon-rgba-v691.png",
   "/assets/generated/action-renki-native-rgba-v680.png",
   "/assets/generated/renki-tenfold-native-rgba-v686.png",
   "/assets/generated/renki-desire-recovery-native-rgba-v686.png",

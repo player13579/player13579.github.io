@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ninjutsu-luminous-v690";
+const DVA_CLIENT_RELEASE = "local-repair-icon-v691";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-luminous-v690";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "local-repair-icon-v691";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17842,6 +17842,7 @@ function drawMagicEffects() {
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
     // Persistent focus owns only the old transient Ninjutsu focus flash.
     if (effect.type === "action-ninjutsu-focus") continue;
+    if (drawNativeLocalRepairAte(effect, progress, now)) continue;
     if (drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
@@ -19314,6 +19315,64 @@ function drawNativeRenkiPhaseAte(effect, progress, now) {
 
 // Candidate-only native persistent Ninjutsu preparation marker.
 // It deliberately consumes no target identity for non-self actors.
+// Candidate-only manual local repair ATE. Automatic proximity repair retains
+// its legacy owner; this native route owns only an empty action-repair variant.
+function drawNativeLocalRepairAte(effect, progress, now) {
+  if (effect?.type !== "action-repair" || String(effect?.variant || "")) return false;
+  const image = state.textures?.localRepairIconRgba;
+  // Once adopted, an unavailable native image is silent rather than reviving
+  // the unrelated legacy atlas behind it.
+  if (!image?.complete || !(image.naturalWidth > 0) || !(image.naturalHeight > 0)) return true;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const reduced = prefersReducedMotion();
+  const fade = Math.max(0, 1 - Math.max(0, p - 0.72) / 0.28);
+  const x = Number(effect?.x) || 0;
+  const y = Number(effect?.y) || 0;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.globalAlpha = 0.68 * fade;
+  // Raw native RGBA, one full-square draw: no atlas crop, tint, shadow,
+  // normalization, duplicate, or additive whitening.
+  ctx.drawImage(image, -44, -44, 88, 88);
+  // E follows this compact wrench's inner neck slit and paired blue/gold tab
+  // junctions, never its C-shaped outer silhouette or bright raster rims.
+  ctx.strokeStyle = "rgba(182, 239, 221, 0.92)";
+  ctx.lineWidth = 1.4;
+  ctx.lineCap = "round";
+  const scan = reduced ? 0.5 : clamp((p - 0.08) / 0.32, 0, 1);
+  // The scanner advances once along the small neck slit. Its emission grows
+  // with the scanned contact, rather than pulsing the whole tool.
+  const scanX = -5 + scan * 10;
+  ctx.globalAlpha = (0.16 + scan * 0.14) * fade;
+  ctx.shadowColor = "rgba(113, 255, 205, 0.72)";
+  ctx.shadowBlur = 1.8 + scan * 1.1;
+  ctx.beginPath();
+  ctx.moveTo(scanX - 2.5, -9);
+  ctx.lineTo(scanX + 2.5, -9);
+  ctx.stroke();
+  // Once the neck scan has reached the contact, each inner jaw tab receives a
+  // short joining confirmation. The fresh join emits wider light, then cools
+  // to a narrow seated edge; reduced motion keeps both confirmations seated.
+  const join = reduced ? 1 : clamp((p - 0.42) / 0.24, 0, 1);
+  if (join > 0) for (const tab of [-1, 1]) {
+    ctx.globalAlpha = (0.21 + (1 - join) * 0.11) * fade;
+    ctx.shadowColor = "rgba(140, 244, 226, 0.76)";
+    ctx.shadowBlur = 2 + (1 - join) * 1.2;
+    ctx.beginPath();
+    const junction = tab < 0 ? { x: -3, y: -13, dx: 5, dy: 5 } : { x: 7, y: -4, dx: -5, dy: -5 };
+    ctx.moveTo(junction.x, junction.y);
+    ctx.lineTo(junction.x + junction.dx * join, junction.y + junction.dy * join);
+    ctx.stroke();
+  }
+  ctx.restore();
+  return true;
+}
+
+
 function drawNativeNinjutsuFocusState(now) {
   const data = state.data;
   const self = data?.self;
@@ -23379,7 +23438,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ninjutsu-luminous-v690";
+const version = "local-repair-icon-v691";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23553,6 +23612,7 @@ const version = "ninjutsu-luminous-v690";
   const donationNativeAte = new Image();
   const donationUnjustNativeRgba = eagerImage("assets/generated/donation-unjust-native-rgba-v688.png");
   const ninjutsuFocusNativeRgba = eagerImage("assets/generated/ninjutsu-focus-native-rgba-v689.png");
+  const localRepairIconRgba = eagerImage("assets/generated/local-repair-icon-rgba-v691.png");
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
@@ -23833,6 +23893,7 @@ const version = "ninjutsu-luminous-v690";
     donationNativeAte,
     donationUnjustNativeRgba,
     ninjutsuFocusNativeRgba,
+    localRepairIconRgba,
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
@@ -24453,7 +24514,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-luminous-v690", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=local-repair-icon-v691", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
