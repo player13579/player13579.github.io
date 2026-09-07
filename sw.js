@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "hacker-target-selection-v674";
-const CACHE_NAME = "dva-static-v674-hacker-target-selection";
+const RUNTIME_RELEASE = "idea-victory-unblock-v675";
+const CACHE_NAME = "dva-static-v675-idea-victory-unblock";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

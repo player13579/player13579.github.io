@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "hacker-target-selection-v674",
+    version: "idea-victory-unblock-v675",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -12246,7 +12246,7 @@ function grantIdeaGood(room, player, timestamp) {
 }
 
 function beginIdeaAscension(room, player, timestamp) {
-  if (player.desireIdeaForfeited) return false;
+  if (!player.alive || player.ejected || player.desireIdeaForfeited) return false;
   if (room.phase !== "playing" || ideaWinnerIdsFor(room).includes(player.id)) return false;
   // Preserve genuine simultaneous arrivals, but never collect a player whose
   // canonical arrival belongs to a later tick while the first ascension
@@ -13868,6 +13868,29 @@ function markSoloMissionAction(room, player, action) {
   evaluateSoloMission(room);
 }
 
+function resolvePendingIdeaVictory(room, timestamp) {
+  if (!room.pendingIdeaVictoryAt || timestamp < room.pendingIdeaVictoryAt) return false;
+  const ideaWinners = ideaWinnerIdsFor(room)
+    .map((id) => room.players.get(id))
+    .filter((player) => player && player.alive && !player.ejected && !player.desireIdeaForfeited);
+  if (ideaWinners.length) {
+    const winnerNames = ideaWinners.map((player) => player.name).join("、");
+    const sourceIds = ideaWinners.map((player) => player.id);
+    // Commit only eligible survivors to the result board, including simultaneous arrivals.
+    setIdeaWinnerIds(room, sourceIds);
+    if (finish(room, "idea", winnerNames + " が善のイデアへ到達しました。", {
+      type: "idea",
+      sourceId: sourceIds[0],
+      sourceIds
+    })) return true;
+  }
+  // Missing/dead candidates or denied ownership must not lock ordinary victory checks.
+  room.pendingIdeaVictoryAt = 0;
+  room.ideaVictoryArrivalAt = 0;
+  setIdeaWinnerIds(room, []);
+  return false;
+}
+
 function checkWin(room) {
   if (room.phase !== "playing" && room.phase !== "meeting") return;
   if (room.pendingIdeaVictoryAt) return;
@@ -14360,24 +14383,7 @@ function tickRoom(room) {
   }
   if (room.phase === "playing") {
     if (evaluateSoloMission(room, timestamp)) return;
-    if (room.pendingIdeaVictoryAt && timestamp >= room.pendingIdeaVictoryAt) {
-      const ideaWinners = ideaWinnerIdsFor(room)
-        .map((id) => room.players.get(id))
-        .filter(Boolean);
-      if (!ideaWinners.length) {
-        room.pendingIdeaVictoryAt = 0;
-        room.ideaVictoryArrivalAt = 0;
-        setIdeaWinnerIds(room, []);
-        return;
-      }
-      const winnerNames = ideaWinners.map((player) => player.name).join("、");
-      finish(room, "idea", `${winnerNames} が善のイデアへ到達しました。`, {
-        type: "idea",
-        sourceId: ideaWinners[0].id,
-        sourceIds: ideaWinners.map((player) => player.id)
-      });
-      return;
-    }
+    if (resolvePendingIdeaVictory(room, timestamp)) return;
     if (room.sabotage?.endsAt && now() >= room.sabotage.endsAt) {
       const type = room.sabotage.type;
       if (type === "reactor" || type === "oxygen") {
@@ -25992,7 +25998,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "hacker-target-selection-v674",
+  version: "idea-victory-unblock-v675",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
