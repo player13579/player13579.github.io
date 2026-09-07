@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "local-repair-icon-v691";
+const DVA_CLIENT_RELEASE = "repair-icon-anchor-v692";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "local-repair-icon-v691";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "repair-icon-anchor-v692";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19346,13 +19346,13 @@ function drawNativeLocalRepairAte(effect, progress, now) {
   const scan = reduced ? 0.5 : clamp((p - 0.08) / 0.32, 0, 1);
   // The scanner advances once along the small neck slit. Its emission grows
   // with the scanned contact, rather than pulsing the whole tool.
-  const scanX = -5 + scan * 10;
+  const scanX = -12 + scan * 6;
   ctx.globalAlpha = (0.16 + scan * 0.14) * fade;
   ctx.shadowColor = "rgba(113, 255, 205, 0.72)";
   ctx.shadowBlur = 1.8 + scan * 1.1;
   ctx.beginPath();
-  ctx.moveTo(scanX - 2.5, -9);
-  ctx.lineTo(scanX + 2.5, -9);
+  ctx.moveTo(scanX - 2.5, 4);
+  ctx.lineTo(scanX + 2.5, 4);
   ctx.stroke();
   // Once the neck scan has reached the contact, each inner jaw tab receives a
   // short joining confirmation. The fresh join emits wider light, then cools
@@ -19363,7 +19363,7 @@ function drawNativeLocalRepairAte(effect, progress, now) {
     ctx.shadowColor = "rgba(140, 244, 226, 0.76)";
     ctx.shadowBlur = 2 + (1 - join) * 1.2;
     ctx.beginPath();
-    const junction = tab < 0 ? { x: -3, y: -13, dx: 5, dy: 5 } : { x: 7, y: -4, dx: -5, dy: -5 };
+    const junction = tab < 0 ? { x: 6, y: -14, dx: 4, dy: 4 } : { x: 14, y: -7, dx: -4, dy: -4 };
     ctx.moveTo(junction.x, junction.y);
     ctx.lineTo(junction.x + junction.dx * join, junction.y + junction.dy * join);
     ctx.stroke();
@@ -23438,7 +23438,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "local-repair-icon-v691";
+const version = "repair-icon-anchor-v692";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24514,7 +24514,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=local-repair-icon-v691", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=repair-icon-anchor-v692", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
