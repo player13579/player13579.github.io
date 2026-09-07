@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-native-alpha-ate-v676";
+const DVA_CLIENT_RELEASE = "chat-live-announcement-v677";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-native-alpha-ate-v676";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "chat-live-announcement-v677";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -14836,16 +14836,35 @@ function voteCountFor(data, targetId) {
 }
 
 function renderFeeds(data) {
-  const renderKey = JSON.stringify([data.roomId || "", data.phase || "", data.chat || []]);
+  const chat = Array.isArray(data.chat) ? data.chat : [];
+  const renderKey = JSON.stringify([data.roomId || "", data.phase || "", chat]);
   if (state.chatFeedRenderKey === renderKey) return;
   state.chatFeedRenderKey = renderKey;
-  els.chatFeed.innerHTML = "";
-  data.chat.forEach((line) => {
-    const div = document.createElement("div");
-    div.className = "feed-line";
-    div.innerHTML = `<strong>${escapeHtml(playerIdentityLabel(line))}</strong>: ${escapeHtml(line.message)}`;
-    els.chatFeed.appendChild(div);
+  const roomId = String(data.roomId || "");
+  const existing = [...els.chatFeed.querySelectorAll(".feed-line[data-chat-id]")];
+  const lineId = (line) => String(line?.id || "");
+  const rowFingerprint = (line) => JSON.stringify([lineId(line), line?.name || "", line?.killRate || 0, line?.message || "", Boolean(line?.muted)]);
+  const currentIds = new Set(chat.map(lineId).filter(Boolean));
+  const reusable = els.chatFeed.dataset.chatRoomId === roomId;
+  const rowsById = new Map(existing.map((node) => [node.dataset.chatId, node]));
+  if (!reusable) els.chatFeed.replaceChildren();
+  else existing.forEach((node) => { if (!currentIds.has(node.dataset.chatId)) node.remove(); });
+  chat.forEach((line) => {
+    const id = lineId(line);
+    let div = reusable && id ? rowsById.get(id) : null;
+    const fingerprint = rowFingerprint(line);
+    if (!div) {
+      div = document.createElement("div");
+      div.className = "feed-line";
+      div.dataset.chatId = id;
+      els.chatFeed.appendChild(div);
+    }
+    if (div.dataset.chatFingerprint !== fingerprint) {
+      div.dataset.chatFingerprint = fingerprint;
+      div.innerHTML = `<strong>${escapeHtml(playerIdentityLabel(line))}</strong>: ${escapeHtml(line.message)}`;
+    }
   });
+  els.chatFeed.dataset.chatRoomId = roomId;
   els.chatFeed.scrollTop = els.chatFeed.scrollHeight;
 }
 
@@ -22872,7 +22891,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-native-alpha-ate-v676";
+const version = "chat-live-announcement-v677";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23918,7 +23937,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-native-alpha-ate-v676", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=chat-live-announcement-v677", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
