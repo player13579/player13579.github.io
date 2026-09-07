@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "online-protocol-v669",
+    version: "tablet-ability-mp-v670",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -25997,5 +25997,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "online-protocol-v669" });
+self.postMessage({ type: "ready", version: "tablet-ability-mp-v670" });
 })();

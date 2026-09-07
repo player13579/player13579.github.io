@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "online-protocol-v669";
+const DVA_CLIENT_RELEASE = "tablet-ability-mp-v670";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "online-protocol-v669";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "tablet-ability-mp-v670";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -8363,19 +8363,22 @@ function conciseTabletAbilityName(data) {
       "nuclear-fusion": "核融合"
     }
   };
-  if (owner === "fighter") return "リミットブレイク";
+  if (owner === "fighter") return tabletAbilityNameWithMana("リミットブレイク", "fighter", "limit-break", data?.self);
   if (owner === "alchemist") {
     if (!data?.self?.hackerRootActive) return "Root化";
     const borrowed = selectedBorrowedOperator();
     const borrowedOwner = borrowed === "gravity" ? "teleport" : borrowed;
     if (borrowedOwner === "quantum") return tabletAbilityNameWithMana(quantumModeLabel(selectedQuantumExecutableMode(true)), "quantum", selectedQuantumExecutableMode(true), data?.self);
-    return modeNames[borrowedOwner]?.[state.borrowedAbilityModes[borrowed] || mode] || specialLabels[borrowedOwner] || "借用能力";
+    const borrowedMode = state.borrowedAbilityModes[borrowed] || mode;
+    const borrowedLabel = modeNames[borrowedOwner]?.[borrowedMode] || specialLabels[borrowedOwner] || "借用能力";
+    return tabletAbilityNameWithMana(borrowedLabel, borrowedOwner, borrowedMode, data?.self);
   }
   if (owner === "quantum") {
     const mode = selectedQuantumExecutableMode(data?.self?.special === "alchemist");
     return tabletAbilityNameWithMana(quantumModeLabel(mode), "quantum", mode, data?.self);
   }
-  return modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
+  const label = modeNames[owner]?.[mode] || specialLabels[owner] || "オペ能力";
+  return tabletAbilityNameWithMana(label, owner, mode, data?.self);
 }
 
 function tabletAbilityNameWithMana(label, owner, mode, self) {
@@ -22853,7 +22856,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "online-protocol-v669";
+const version = "tablet-ability-mp-v670";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23901,7 +23904,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=online-protocol-v669", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=tablet-ability-mp-v670", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

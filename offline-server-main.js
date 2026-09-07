@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "online-protocol-v669",
+    version: "tablet-ability-mp-v670",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -25992,7 +25992,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "online-protocol-v669",
+  version: "tablet-ability-mp-v670",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
