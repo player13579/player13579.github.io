@@ -12158,6 +12158,20 @@ body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable::a
   line-height: 1;
 }
 
+/* The shared grid forces a light background-image. Selected and keyboard-focused
+   Hacker cards own both their dark material and light copy as one contrast pair. */
+body #statusPanel #hackerAbilityDock .hacker-direct-action:is(.hacker-key-selected, :focus-visible) {
+  background-image: linear-gradient(90deg, rgba(242, 207, 114, .19), transparent 47%), linear-gradient(315deg, rgba(34, 211, 238, .12), transparent 56%) !important;
+  background-color: #173b48 !important;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action:is(.hacker-key-selected, :focus-visible) .hacker-action-copy strong {
+  color: #f2f7f8 !important;
+  text-shadow: 0 1px 2px rgba(0, 14, 25, .8);
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action:is(.hacker-key-selected, :focus-visible) .hacker-action-copy small {
+  color: #c4d8dc !important;
+}
+
 /* v650: toast-only semantic feedback lifecycle; it does not move the protected control/footer layout. */
 body .toast {
   color: #102532;
