@@ -8622,6 +8622,17 @@ body [data-scroll-region].scroll-region-selected {
 @keyframes result-semantic-settle { 0% { opacity: 0.72; transform: translateY(7px) scale(0.985); } 62% { opacity: 1; transform: translateY(-1px) scale(1.008); } 100% { opacity: 1; transform: none; } }
 @keyframes result-point-lock { 0% { opacity: 0.72; transform: translateY(6px) scale(0.9, 1.08); } 58% { opacity: 1; transform: translateY(-1px) scale(1.045, 0.97); } 100% { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .result-dialog .result-settling { animation: none !important; transform: none !important; } }
+@media (orientation: portrait) {
+  /* Result keeps audio available, above an explicitly reserved terminal band. */
+  body.game-open.result-presentation .audio-launch-button {
+    top: max(18px, env(safe-area-inset-top));
+    bottom: auto;
+  }
+  body.game-open.result-presentation .end-overlay {
+    padding-top: calc(max(18px, env(safe-area-inset-top)) + 62px);
+  }
+}
+
 body.game-open.result-presentation .app-shell { grid-template-columns: minmax(0, 1fr); }
 body.game-open.result-presentation .game-area { width: 100%; height: 100%; }
 body.game-open.result-presentation .field-stage-slot { grid-template-rows: minmax(0, 1fr); align-items: stretch; align-content: stretch; }

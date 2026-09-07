@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "shop-detail-keyboard-v672",
+    version: "result-clarity-v673",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -13889,7 +13889,7 @@ function checkWin(room) {
 
   if (attackers.length === 0) {
     if (botMatchHumanEarnedEliminationVictory(room, "defender")) {
-      finish(room, "defenders", "アタッカーを全員追放しました。", { type: "elimination" });
+      finish(room, "defenders", "アタッカーを全員排除しました。", { type: "elimination" });
     }
     return;
   }
@@ -25992,7 +25992,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "shop-detail-keyboard-v672",
+  version: "result-clarity-v673",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
