@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ability-name-mp-display-v667",
+    version: "opening-actions-roster-v668",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
     categories,
@@ -10428,6 +10428,8 @@ function startGame(room) {
   } else if (room.settings.hostTeam === "defender" && host) {
     attackerPlayers = ordered.filter((player) => player.id !== host.id).slice(0, attackerCount);
   }
+  // Human attackers have no allied attacker Bots; displaced Bots remain defenders.
+  if (attackerPlayers.some((player) => !player.isBot)) attackerPlayers = attackerPlayers.filter((player) => !player.isBot);
   const attackers = new Set(attackerPlayers.map((player) => player.id));
 
   players.forEach((player, index) => {
@@ -10826,6 +10828,8 @@ function startBattle(room) {
     player.killsThisRound = 0;
     player.killChainCount = 0;
     player.killReadyAt = canUseKill(player) ? timestamp + killCooldownDurationMs(room, player) : 0;
+    // One initial Ninjutsu preparation is human-only; later values remain ordinary cooldowns.
+    player.ninjutsuOpeningKillReadyAt = !player.isBot && canUseKill(player) ? player.killReadyAt : 0;
     clearAttackState(player);
     player.lastAttackResult = "";
     player.lastAttackResultAt = 0;
@@ -10863,7 +10867,7 @@ function startBattle(room) {
     player.fighterEnergyChargeReadyAt = timestamp + FIGHTER_ENERGY_PASSIVE_INTERVAL_MS;
     player.manaGpuCooldownCreditMs = 0;
     player.manaGpuDrainCarry = 0;
-    player.empReadyAt = timestamp + (room.soloMission?.id === "emp" ? 0 : EMP_INITIAL_LOCK_MS);
+    player.empReadyAt = 0;
     player.itemDisabledUntil = 0;
     player.lastPassiveCreditAt = timestamp;
     player.slowedUntil = 0;
@@ -19398,7 +19402,11 @@ function validateAttackStart(room, killer, targetId, options = {}) {
 }
 
 function startNinjutsu(room, player, targetId) {
-  const { target, timestamp } = validateAttackStart(room, player, targetId);
+  const openingReadyAt = Number(player.ninjutsuOpeningKillReadyAt) || 0;
+  const openingReady = !player.isBot && openingReadyAt > now() && Number(player.killReadyAt) === openingReadyAt;
+  const { target, timestamp } = validateAttackStart(room, player, targetId, { ignoreCooldown: openingReady });
+  // Consume only after all existing target/range/alive validation succeeds.
+  player.ninjutsuOpeningKillReadyAt = 0;
   recordBotVisibleHumanAttackStart(room, player, "ninjutsu", timestamp);
   player.aimTargetId = target.id;
   player.aimStartedAt = timestamp;
@@ -21572,6 +21580,7 @@ function serialize(room, viewer, options = {}) {
       taskPresenceSince: Number(viewer.taskPresenceSince) || 0,
       taskPresenceDurationMs: AUTO_TASK_PRESENCE_MS / effectiveAccelerationMultiplier(room, viewer, timestamp),
       killReadyAt: viewer.killReadyAt,
+      ninjutsuOpeningReady: !viewer.isBot && Number(viewer.ninjutsuOpeningKillReadyAt) > timestamp && Number(viewer.killReadyAt) === Number(viewer.ninjutsuOpeningKillReadyAt),
       killChainCount: Math.max(0, Math.floor(Number(viewer.killChainCount) || 0)),
       killChainCooldownMultiplier: killChainCooldownMultiplier(viewer),
       killChainCooldownMs: killCooldownDurationMs(room, viewer),
@@ -23339,7 +23348,8 @@ async function handleApi(req, res) {
       const bots = [...room.players.values()].filter((entry) => entry.isBot);
       const totalPlayers = room.players.size;
       const configuredAttackerCount = Math.max(1, Math.min(totalPlayers - 1, Math.floor(room.settings.attackerCount)));
-      const botAttackerCount = Math.max(0, Math.min(bots.length, configuredAttackerCount - (role === "attacker" ? 1 : 0)));
+      // A human attacker has no allied attacker Bots; a human defender keeps enemy attacker Bots.
+      const botAttackerCount = role === "attacker" ? 0 : Math.max(0, Math.min(bots.length, configuredAttackerCount));
       player.role = role;
       const existingBotAttackers = bots.filter((entry) => entry.role === "attacker");
       const assignmentAlreadyMatches = existingBotAttackers.length === botAttackerCount;
@@ -25985,5 +25995,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ability-name-mp-display-v667" });
+self.postMessage({ type: "ready", version: "opening-actions-roster-v668" });
 })();

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ability-name-mp-display-v667";
+const DVA_CLIENT_RELEASE = "opening-actions-roster-v668";
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
 const API_BASE_URL = String(globalThis.DVA_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const URL_PARAMETERS = new URLSearchParams(location.search);
@@ -894,7 +894,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ability-name-mp-display-v667";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "opening-actions-roster-v668";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -14273,7 +14273,7 @@ function objectiveText(data) {
     if (self.aimTargetId && self.aimReadyAt > liveNow) {
       return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分か対象が動くと失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺による消滅となり、死体・通報対象を残しません" : "通常忍殺として通報可能な死体を残します"}。`;
     }
-    const cd = Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
+    const cd = self.ninjutsuOpeningReady ? 0 : Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
     const sabotageSeconds = Math.max(0, Math.ceil(((self.sabotageReadyAt || 0) - liveNow) / 1000));
     const assassinStatus = self.special === "assassin" ? "アサシン / 足音常時無音 / " : "";
@@ -14443,13 +14443,14 @@ function updateActionButtons(data) {
     els.contextActionButton.title = "";
     els.contextActionButton.removeAttribute("data-hotkey");
   }
+  const ninjutsuOpeningReady = Boolean(self.ninjutsuOpeningReady);
   const killSeconds = Math.max(0, Math.ceil(((self.killReadyAt || 0) - liveNow) / 1000));
   els.ninjutsuButton.textContent = aiming
     ? `忍殺 ${(Math.max(0, self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒`
-    : killSeconds > 0
+    : killSeconds > 0 && !ninjutsuOpeningReady
       ? `忍殺 ${killSeconds}秒`
       : "忍殺";
-  els.ninjutsuButton.disabled = !(canActAlive && canUseKill && !aiming && self.killReadyAt <= liveNow && target);
+  els.ninjutsuButton.disabled = !(canActAlive && canUseKill && !aiming && (self.killReadyAt <= liveNow || ninjutsuOpeningReady) && target);
   els.ninjutsuButton.classList.toggle("active", aiming);
   const killChainSuffix = Number(self.killChainCount) > 0
     ? ` キルチェイン${Number(self.killChainCount)}、次回キルCT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒。`
@@ -22820,7 +22821,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ability-name-mp-display-v667";
+const version = "opening-actions-roster-v668";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23868,7 +23869,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ability-name-mp-display-v667", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=opening-actions-roster-v668", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
