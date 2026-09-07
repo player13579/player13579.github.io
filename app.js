@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "shop-luminous-v693";
+const DVA_CLIENT_RELEASE = "ninjutsu-focus-icon-v694";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shop-luminous-v693";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-focus-icon-v694";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19383,7 +19383,7 @@ function drawNativeNinjutsuFocusState(now) {
   const data = state.data;
   const self = data?.self;
   if (data?.phase !== "playing") return false;
-  const image = state.textures?.ninjutsuFocusNativeRgba;
+  const image = state.textures?.ninjutsuFocusIconRgba;
   // Dedicated adoption owns this state. A missing image is safely silent.
   if (!image?.complete || !(image.naturalWidth > 0) || !(image.naturalHeight > 0)) return false;
   const serverNow = estimatedServerNow(data);
@@ -19419,21 +19419,27 @@ function drawNativeNinjutsuFocusState(now) {
     // Native RGBA: direct full-square draw, without the atlas normalization
     // or brightening filters that would wash out translucent filled regions.
     ctx.drawImage(image, -50, -50, 100, 100);
-    // E: the existing opposing aperture segments converge toward the locked
-    // aim. Their local lavender emission accumulates inward with focus; this
-    // is a target-lock intake, not a repair-style cooling seam or global pulse.
+    // E maps to the source icon's two inward shutter ends, not the ochre
+    // holding light. Each short guide advances toward the target but stops
+    // before its gold edge, accumulating a local focus-lock emission.
     ctx.globalAlpha = 0.15 + segment * 0.17;
     ctx.strokeStyle = "rgba(218, 201, 255, 0.90)";
     ctx.lineWidth = 1.35;
     ctx.lineCap = "round";
     ctx.shadowColor = "rgba(192, 166, 255, 0.76)";
     ctx.shadowBlur = 1.8 + segment * 2.6;
-    for (const side of [-1, 1]) {
-      const inner = side * (20 - segment * 8);
-      const outer = inner + side * 5;
+    const guides = [
+      { x: -23.7, y: -27.3, dx: 7.0, dy: 4.9 },
+      { x: 23.8, y: 23.4, dx: -4.0, dy: -6.9 }
+    ];
+    for (const guide of guides) {
+      const advance = reduced ? 0.52 : segment;
+      const startX = guide.x + guide.dx * advance;
+      const startY = guide.y + guide.dy * advance;
+      const unit = Math.hypot(guide.dx, guide.dy) || 1;
       ctx.beginPath();
-      ctx.moveTo(outer, -outer);
-      ctx.lineTo(inner, -inner);
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(startX + guide.dx / unit * 5.4, startY + guide.dy / unit * 5.4);
       ctx.stroke();
     }
     ctx.restore();
@@ -23444,7 +23450,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "shop-luminous-v693";
+const version = "ninjutsu-focus-icon-v694";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23617,7 +23623,7 @@ const version = "shop-luminous-v693";
   const actionDodgeNativeRgba = new Image();
   const donationNativeAte = new Image();
   const donationUnjustNativeRgba = eagerImage("assets/generated/donation-unjust-native-rgba-v688.png");
-  const ninjutsuFocusNativeRgba = eagerImage("assets/generated/ninjutsu-focus-native-rgba-v689.png");
+  const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-focus-icon-rgba-v694.png");
   const localRepairIconRgba = eagerImage("assets/generated/local-repair-icon-rgba-v691.png");
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
@@ -23898,7 +23904,7 @@ const version = "shop-luminous-v693";
     actionRenkiNativeRgba, renkiTenfoldNativeRgba, renkiDesireRecoveryNativeRgba, actionDodgeNativeRgba,
     donationNativeAte,
     donationUnjustNativeRgba,
-    ninjutsuFocusNativeRgba,
+    ninjutsuFocusIconRgba,
     localRepairIconRgba,
     naturalRecoveryEffect,
     gboOverdriveEffect,
@@ -24520,7 +24526,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=shop-luminous-v693", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-focus-icon-v694", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
