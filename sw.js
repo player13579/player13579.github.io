@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "emp-storage-lock-native-v685";
-const CACHE_NAME = "dva-static-v685-emp-storage-lock-native";
+const RUNTIME_RELEASE = "renki-variants-native-v686";
+const CACHE_NAME = "dva-static-v686-renki-variants-native";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -36,6 +36,8 @@ const STATIC_ASSETS = [
   "/assets/generated/clairvoyance-native-rgba-v679.png",
   "/assets/generated/action-donation-native-v681.png",
   "/assets/generated/action-renki-native-rgba-v680.png",
+  "/assets/generated/renki-tenfold-native-rgba-v686.png",
+  "/assets/generated/renki-desire-recovery-native-rgba-v686.png",
   "/assets/generated/action-dodge-native-rgba-v680.png",
   "/assets/generated/emp-charge-native-rgba-v683.png",
   "/assets/generated/emp-resonance-native-rgba-v683.png",

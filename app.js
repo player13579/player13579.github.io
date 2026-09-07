@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-storage-lock-native-v685";
+const DVA_CLIENT_RELEASE = "renki-variants-native-v686";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-storage-lock-native-v685";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-variants-native-v686";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17762,6 +17762,7 @@ function drawMagicEffects() {
     return;
   }
   const now = state.frameNow || performance.now();
+  drawNativeDesireRecoveryState(now);
   state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect));
   const latestStorageLocks = latestEmpStorageLocks(state.magicEffects);
@@ -17838,7 +17839,7 @@ function drawMagicEffects() {
     if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
     if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
-    if (drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) continue;
+    if (drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
@@ -19217,6 +19218,95 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
 // Candidate-only integration helper. It expects the existing app globals
 // ctx, state, clamp, and prefersReducedMotion. Add its call before compact
 // and generic action renderers: if (drawNativeCommonActionAte(effect, progress, now)) continue;
+// Candidate: generation and real-size acceptance are separate gates.
+function drawNativeRenkiPhaseAte(effect, progress, now) {
+  const startTenfold = effect?.type === 'action-renki' && effect.variant === 'tenfold';
+  const complete = effect?.type === 'action-mana' && effect.variant === 'renki';
+  const desireStart = effect?.type === 'action-renki' && effect.variant === 'desire-recovery-start';
+  const desireComplete = effect?.type === 'action-renki' && effect.variant === 'desire-recovery';
+  const desire = desireStart || desireComplete;
+  if (!startTenfold && !complete && !desire) return false;
+  // Recovery starts are owned by live actor state, preventing stale or duplicate overlays.
+  if (desireStart && effect.playerId) return true;
+  const actor = effect.playerId ? (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id)) : null;
+  if (effect.playerId && !actor) return true;
+  const tenfold = startTenfold || effect.completionKind === 'tenfold';
+  const image = desire ? state.textures?.renkiDesireRecoveryNativeRgba : tenfold ? state.textures?.renkiTenfoldNativeRgba : state.textures?.actionRenkiNativeRgba;
+  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return true;
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const reduced = prefersReducedMotion();
+  const size = desire ? 100 : tenfold ? 108 : 88;
+  const fade = 1 - clamp((p - .72) / .28, 0, 1);
+  const reveal = reduced ? 1 : clamp(p / .1, 0, 1);
+  const phase = reduced ? .65 : clamp(p / .65, 0, 1);
+  ctx.save();
+  const position = actor ? renderedPlayer(actor) : effect;
+  ctx.translate(Number(position.x) || 0, Number(position.y) || 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.filter = 'none'; ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+  ctx.globalAlpha = .76 * reveal * fade;
+  // Full square, native alpha; fixed texture position, scale and orientation.
+  ctx.drawImage(image, -size / 2, -size / 2, size, size);
+  ctx.globalAlpha = .44 * reveal * fade;
+  ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+  ctx.strokeStyle = complete ? '#e5d8ff' : '#cce9ff';
+  if (desire) {
+    // Joining traverses the broad path once; completion releases the detached restraint.
+    ctx.strokeStyle = desireComplete ? '#d6badc' : '#bdebe9';
+    const x = size * (desireComplete ? .18 + .12 * phase : -.22 + .32 * phase);
+    const y = size * (desireComplete ? .22 + .08 * phase : .17 - .27 * phase);
+    ctx.beginPath(); ctx.moveTo(x - size * .045, y + size * .035);
+    ctx.lineTo(x + size * .045, y - size * .035); ctx.stroke();
+  } else if (complete) {
+    // Completion releases the held state once; it never repeats a gain intake.
+    for (const side of [-1, 1]) {
+      const x = side * size * (.12 + .16 * phase);
+      ctx.beginPath(); ctx.moveTo(x, size * .08);
+      ctx.lineTo(x + side * size * .09, size * (.08 - .06 * phase)); ctx.stroke();
+    }
+  } else {
+    // One downward collection settles against the holding plane, without loops.
+    const y = size * (-.31 + .34 * phase);
+    const half = size * (.22 - .1 * phase);
+    ctx.beginPath(); ctx.moveTo(-half, y - size * .025);
+    ctx.quadraticCurveTo(0, y + size * .035, half, y - size * .025); ctx.stroke();
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawNativeDesireRecoveryState(now) {
+  const data = state.data, self = data?.self;
+  if (data?.phase !== 'playing') return false;
+  const image = state.textures?.renkiDesireRecoveryNativeRgba;
+  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return false;
+  const serverNow = estimatedServerNow(data);
+  let drawn = false;
+  for (const player of data.players || []) {
+  if (player.alive === false || player.ejected || player.inVent || (player.invisible && player.id !== self?.id)) continue;
+  const own = player.id === self?.id;
+  const end = own ? (self.desireRecoveryMode === 'renki' ? Number(self.desireRecoveryEndsAt) : 0) : Number(player.desireRenkiRecoveryEndsAt);
+  const remaining = end - serverNow;
+  if (!(remaining > 0)) continue;
+  const anchor = renderedPlayer(player);
+  const duration = Math.max(1, Number(own ? self.desireRenkiRecoveryMs : player.desireRenkiRecoveryMs) || 3000);
+  const phase = clamp(1 - remaining / duration, 0, 1);
+  const reduced = prefersReducedMotion();
+  ctx.save(); ctx.translate(anchor.x, anchor.y - 38);
+  ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+  ctx.globalAlpha = .62;
+  ctx.drawImage(image, -50, -50, 100, 100);
+  ctx.globalAlpha = .32; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.strokeStyle = '#bdebe9';
+  const q = reduced ? .5 : phase;
+  const x = -22 + 32 * q, y = 17 - 27 * q;
+  ctx.beginPath(); ctx.moveTo(x - 4.5, y + 3.5); ctx.lineTo(x + 4.5, y - 3.5); ctx.stroke();
+  ctx.restore();
+  drawn = true;
+  }
+  return drawn;
+}
+
 function drawNativeCommonActionAte(effect, progress, now) {
   const type = String(effect?.type || "");
   const isDefaultRenki = type === "action-renki" && !String(effect?.variant || "");
@@ -23136,7 +23226,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-storage-lock-native-v685";
+const version = "renki-variants-native-v686";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23303,7 +23393,9 @@ const version = "emp-storage-lock-native-v685";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const clairvoyanceNativeRgba = new Image();
-  const actionRenkiNativeRgba = new Image();
+  const actionRenkiNativeRgba = eagerImage("assets/generated/action-renki-native-rgba-v680.png");
+  const renkiTenfoldNativeRgba = eagerImage("assets/generated/renki-tenfold-native-rgba-v686.png");
+  const renkiDesireRecoveryNativeRgba = eagerImage("assets/generated/renki-desire-recovery-native-rgba-v686.png");
   const actionDodgeNativeRgba = new Image();
   const donationNativeAte = new Image();
   const naturalRecoveryEffect = new Image();
@@ -23440,7 +23532,6 @@ const version = "emp-storage-lock-native-v685";
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(clairvoyanceNativeRgba, "assets/generated/clairvoyance-native-rgba-v679.png");
-  defer(actionRenkiNativeRgba, "assets/generated/action-renki-native-rgba-v680.png");
   defer(actionDodgeNativeRgba, "assets/generated/action-dodge-native-rgba-v680.png");
   defer(donationNativeAte, "assets/generated/action-donation-native-v681.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
@@ -23583,7 +23674,7 @@ const version = "emp-storage-lock-native-v685";
     throwLandingPreview,
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
-    actionRenkiNativeRgba, actionDodgeNativeRgba,
+    actionRenkiNativeRgba, renkiTenfoldNativeRgba, renkiDesireRecoveryNativeRgba, actionDodgeNativeRgba,
     donationNativeAte,
     naturalRecoveryEffect,
     gboOverdriveEffect,
@@ -24205,7 +24296,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-storage-lock-native-v685", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=renki-variants-native-v686", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

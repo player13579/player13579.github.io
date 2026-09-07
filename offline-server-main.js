@@ -7426,7 +7426,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "emp-storage-lock-native-v685",
+    version: "renki-variants-native-v686",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7448,7 +7448,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "emp-storage-lock-native-v685";
+const PRODUCT_RELEASE = "renki-variants-native-v686";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -9672,6 +9672,7 @@ function pushMagicEffect(room, type, source, options = {}) {
     variant: String(options.variant || ""),
     mode: String(options.mode || ""),
     effectKind: String(options.effectKind || ""),
+    completionKind: String(options.completionKind || ""),
     markerCount: Math.max(1, Math.floor(Number(options.markerCount) || 1)),
     durationMs: Math.max(0, Number(options.durationMs) || 0),
     at: now()
@@ -10553,6 +10554,7 @@ function startGame(room) {
     player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
+    player.renkiCompletionKind = "";
     player.abilityHold = null;
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
@@ -10912,6 +10914,7 @@ function startBattle(room) {
     player.mentalState = "理知";
     player.meditatingUntil = 0;
     player.renkiTargetMana = null;
+    player.renkiCompletionKind = "";
     player.abilityHold = null;
     player.rationalFreeAbilityReadyAt = 0;
     player.gritCharges = 0;
@@ -12055,6 +12058,7 @@ function completeDesireManaRecovery(room, player, source, timestamp = now()) {
   player.desireRestRecoveryStartedAt = 0;
   player.desireRenkiRecovery = false;
   player.renkiTargetMana = null;
+    player.renkiCompletionKind = "";
   player.meditatingUntil = 0;
   if (player.movementMode === "meditating") player.movementMode = "idle";
   setMana(room, player, REST_COMPLETION_MANA_FLOOR, source === "renki" ? "欲望・練気完了" : "欲望・停止休息完了", {
@@ -12086,6 +12090,7 @@ function practiceRenki(room, player, options = {}) {
     player.desireRestRecoveryStartedAt = 0;
     player.desireRenkiRecovery = true;
     player.renkiTargetMana = REST_COMPLETION_MANA_FLOOR;
+    player.renkiCompletionKind = "";
     player.meditatingUntil = timestamp + DESIRE_RENKI_RECOVERY_MS;
     player.resting = false;
     player.sleepingUntil = 0;
@@ -12112,6 +12117,7 @@ function practiceRenki(room, player, options = {}) {
       const batchMana = currentMana + RENKI_HOLD_MANA_GAIN;
       setMana(room, player, batchMana, "練気・十連");
       player.renkiTargetMana = batchMana;
+      player.renkiCompletionKind = "tenfold";
       player.meditatingUntil = timestamp + RENKI_HOLD_FOCUS_DURATION_MS;
       player.vx = 0;
       player.vy = 0;
@@ -12135,6 +12141,7 @@ function practiceRenki(room, player, options = {}) {
   // without issuing a second resource gain.
   setMana(room, player, tapMana, "練気");
   player.renkiTargetMana = tapMana;
+  player.renkiCompletionKind = "normal";
   player.meditatingUntil = timestamp + RENKI_TAP_FOCUS_DURATION_MS;
   player.vx = 0;
   player.vy = 0;
@@ -12189,6 +12196,7 @@ function finishRenki(room, player, timestamp) {
   if (player.desireRenkiRecovery && (room.phase !== "playing" || !player.alive || player.ejected || player.inVent)) {
     player.desireRenkiRecovery = false;
     player.renkiTargetMana = null;
+    player.renkiCompletionKind = "";
     player.meditatingUntil = 0;
     if (player.movementMode === "meditating") player.movementMode = "idle";
     return;
@@ -12197,7 +12205,9 @@ function finishRenki(room, player, timestamp) {
   if (player.renkiTargetMana == null || !player.meditatingUntil || player.meditatingUntil > timestamp) return;
   const targetMana = player.renkiTargetMana;
   const desireRecovery = Boolean(player.desireRenkiRecovery);
+  const completionKind = String(player.renkiCompletionKind || "normal");
   player.renkiTargetMana = null;
+    player.renkiCompletionKind = "";
   player.meditatingUntil = 0;
   player.desireRenkiRecovery = false;
   if (player.movementMode === "meditating") player.movementMode = "idle";
@@ -12208,7 +12218,7 @@ function finishRenki(room, player, timestamp) {
   const previousMana = Number(player.mana) || 0;
   setMana(room, player, targetMana, "練気");
   if (Number(player.mana) > previousMana) pushGainAte(room, player, "mana", { variant: "renki", durationMs: 1680 });
-  pushMagicEffect(room, "action-mana", player, { radius: 135, playerId: player.id, variant: "renki" });
+  pushMagicEffect(room, "action-mana", player, { radius: 135, playerId: player.id, variant: "renki", completionKind });
   pushEvent(room, `${player.name} が精神統一を完了しました。`);
   touch(room);
 }
@@ -14251,6 +14261,7 @@ function tickRoom(room) {
       if (player.desireRenkiRecovery) {
         player.desireRenkiRecovery = false;
         player.renkiTargetMana = null;
+    player.renkiCompletionKind = "";
         player.meditatingUntil = 0;
         if (player.movementMode === "meditating") player.movementMode = "idle";
       }
@@ -21435,6 +21446,7 @@ function serialize(room, viewer, options = {}) {
     const roleVisible = player.id === viewer.id || attackerAlly || revealRoles || room.phase === "lobby" || room.phase === "selecting";
     const aromaSource = floraAromaSource(room, player);
     const concealedFromViewer = room.phase === "playing" && player.id !== viewer.id && floraInvisibleActive(player, timestamp);
+    const publicDesireRenkiRecovery = Boolean(player.desireRenkiRecovery && player.alive && !player.ejected && !player.inVent && Number(player.meditatingUntil) > timestamp);
     const serializedPlayer = {
       id: player.id,
       name: player.name,
@@ -21528,6 +21540,8 @@ function serialize(room, viewer, options = {}) {
       delete serializedPlayer.aimY;
     } else {
       serializedPlayer.invisible = false;
+      serializedPlayer.desireRenkiRecoveryEndsAt = publicDesireRenkiRecovery ? Number(player.meditatingUntil) : 0;
+      serializedPlayer.desireRenkiRecoveryMs = publicDesireRenkiRecovery ? DESIRE_RENKI_RECOVERY_MS : 0;
     }
     return serializedPlayer;
   });
@@ -23901,6 +23915,7 @@ async function handleApi(req, res) {
         entry.resting = false;
         entry.meditatingUntil = 0;
         entry.renkiTargetMana = null;
+    entry.renkiCompletionKind = "";
         entry.unconsciousUntil = 0;
         entry.abilityDisabledUntil = 0;
         entry.overhealSpeedUntil = 0;
@@ -26022,7 +26037,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "emp-storage-lock-native-v685",
+  version: "renki-variants-native-v686",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
