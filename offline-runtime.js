@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "selection-and-ui-fixes-v720";
+const OFFLINE_WORKER_VERSION = "mystery-photon-inventory-v721";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "selection-and-ui-fixes-v720";
+const DVA_CLIENT_RELEASE = "mystery-photon-inventory-v721";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -902,7 +902,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "selection-and-ui-fixes-v720";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mystery-photon-inventory-v721";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -10939,8 +10939,9 @@ function clearMysteryReveal() {
   els.mysteryRevealResult.textContent = "";
   els.mysteryRevealResult.classList.remove("visually-hidden");
   const title = els.mysteryReveal.querySelector("span");
-  if (title) title.textContent = "ミステリー獲得結果";
+  if (title) { title.textContent = ""; title.hidden = true; }
   els.mysteryReveal.querySelector(".mystery-reveal-box-stage")?.remove();
+  document.querySelectorAll(".mystery-photon-stream").forEach((entry) => entry.remove());
   document.documentElement.removeAttribute("data-mystery-reveal-phase");
   document.documentElement.removeAttribute("data-mystery-reveal-phase-at");
 }
@@ -10953,17 +10954,89 @@ function scheduleMysteryRevealStage(callback, delay, owner) {
   state.mysteryRevealStageTimers.push(timer);
 }
 
+function mysteryInventoryPhotonTarget(reveal) {
+  const visibleCenter = (target) => {
+    if (!target || target.closest?.("[hidden]") || !target.getClientRects?.().length) return null;
+    const rect = target.getBoundingClientRect();
+    const viewportWidth = Math.max(0, Number(window.innerWidth) || 0, Number(document.documentElement.clientWidth) || 0);
+    const viewportHeight = Math.max(0, Number(window.innerHeight) || 0, Number(document.documentElement.clientHeight) || 0);
+    const intersectsViewport = rect.right > 0 && rect.bottom > 0 && rect.left < viewportWidth && rect.top < viewportHeight;
+    return rect.width > 0 && rect.height > 0 && intersectsViewport ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+  };
+  const abilityReward = reveal?.rewardKind === "ability";
+  if (abilityReward) {
+    const magicTarget = visibleCenter(els.magicInventory);
+    if (magicTarget) return magicTarget;
+    // Ability rewards are catalogued in the shop's carried-ability inventory.
+    // Do not open it just for the presentation; use its established opener.
+    return visibleCenter(els.tabletVendingShortcut) || visibleCenter(els.vendingButton);
+  }
+  const items = [...els.itemInventoryGrid?.querySelectorAll?.("[data-item-choice]") || []];
+  const rewardId = String(reveal?.rewardId || "");
+  const rewardAsset = String(reveal?.asset || rewardId);
+  const target = items.find((item) => item.dataset.itemChoice === rewardId || item.dataset.alchemyAsset === rewardAsset) ||
+    items.find((item) => item.classList.contains("selected")) || items[0] || els.itemInventoryGrid;
+  const itemTarget = visibleCenter(target);
+  if (itemTarget) return itemTarget;
+  // When synchronization has not made the item panel visible yet, the known
+  // inventory/shop opener is an honest destination and avoids opening UI.
+  return visibleCenter(els.tabletVendingShortcut) || visibleCenter(els.vendingButton);
+}
+
+function emitMysteryInventoryPhotonStream(reveal, source, owner, attempt = 0) {
+  if (state.mysteryRevealTimer !== owner || prefersReducedMotion()) return false;
+  const target = mysteryInventoryPhotonTarget(reveal);
+  if (!target) {
+    if (attempt < 3) scheduleMysteryRevealStage(() => emitMysteryInventoryPhotonStream(reveal, source, owner, attempt + 1), 90, owner);
+    return false;
+  }
+  const sourceRect = source.getBoundingClientRect();
+  if (!(sourceRect.width > 0 && sourceRect.height > 0)) return false;
+  document.querySelectorAll(".mystery-photon-stream").forEach((entry) => entry.remove());
+  const stream = document.createElement("div");
+  stream.className = "mystery-photon-stream";
+  stream.setAttribute("aria-hidden", "true");
+  stream.style.cssText = "position:fixed;inset:0;z-index:207;pointer-events:none;overflow:hidden";
+  const sourceX = sourceRect.left + sourceRect.width / 2;
+  const sourceY = sourceRect.top + sourceRect.height * 0.58;
+  const count = 26;
+  let streamLifetime = 0;
+  for (let index = 0; index < count; index += 1) {
+    const photon = document.createElement("i");
+    const spread = ((index * 37) % 19 - 9) * 3.1;
+    const lift = 18 + ((index * 29) % 7) * 7;
+    const bend = (index % 2 ? 1 : -1) * (18 + (index % 5) * 8);
+    const size = 2 + (index % 4) * 0.85;
+    const delay = index * 22;
+    const duration = 670 + (index % 6) * 55;
+    const startX = sourceX + spread;
+    const startY = sourceY + (index % 5 - 2) * 2;
+    streamLifetime = Math.max(streamLifetime, delay + duration);
+    photon.style.cssText = `position:fixed;left:${startX}px;top:${startY}px;width:${size}px;height:${size}px;border-radius:50%;background:${index % 3 === 0 ? "#ffffff" : index % 2 ? "#bae6fd" : "#fde68a"};box-shadow:0 0 ${5 + size * 2}px currentColor;color:${index % 2 ? "#7dd3fc" : "#fde68a"};opacity:0;will-change:transform,opacity`;
+    stream.append(photon);
+    photon.animate([
+      { opacity: 0, transform: "translate3d(0, 0, 0) scale(.35)" },
+      { opacity: 0.94, transform: `translate3d(${bend}px, ${-lift}px, 0) scale(1)` , offset: 0.2 },
+      { opacity: 0.82, transform: `translate3d(${target.x - startX + bend * 0.36}px, ${target.y - startY - lift * 0.24}px, 0) scale(.8)`, offset: 0.78 },
+      { opacity: 0, transform: `translate3d(${target.x - startX}px, ${target.y - startY}px, 0) scale(.18)` }
+    ], { delay, duration, easing: "cubic-bezier(.18,.78,.22,1)", fill: "both" });
+  }
+  document.body.append(stream);
+  scheduleMysteryRevealStage(() => stream.remove(), streamLifetime + 90, owner);
+  return true;
+}
+
 function showMysteryBoxReveal(reveal) {
   const panel = els.mysteryReveal;
   const title = panel.querySelector("span");
-  if (title) { title.textContent = "ミステリーボックスを開封"; title.style.color = "#276876"; }
+  if (title) { title.textContent = ""; title.hidden = true; }
   panel.style.animation = "none";
   panel.style.boxSizing = "border-box";
   panel.style.maxWidth = "calc(100vw - 32px)";
   panel.style.transform = "translateX(-50%)";
-  // The staged reward card is the visual result. Keep this native live-region
-  // label for assistive technology without painting the same reward text twice.
-  els.mysteryRevealResult.textContent = reveal.label || "獲得";
+  // The inventory icon and actual destination own the result; no reward text
+  // is painted or announced from this temporary opening presentation.
+  els.mysteryRevealResult.textContent = "";
   els.mysteryRevealResult.classList.add("visually-hidden");
   const stage = document.createElement("div");
   stage.className = "mystery-reveal-box-stage";
@@ -10987,10 +11060,8 @@ function showMysteryBoxReveal(reveal) {
   const light = document.createElement("div");
   light.style.cssText = "position:absolute;inset:4px 20%;background:radial-gradient(ellipse at 50% 78%,rgba(255,231,142,.62),rgba(125,211,252,.18) 38%,transparent 70%);opacity:0;filter:blur(5px)";
   const reward = document.createElement("div");
-  reward.style.cssText = "position:absolute;left:50%;bottom:0;display:flex;align-items:center;gap:8px;max-width:calc(100% - 20px);min-width:0;padding:4px 8px;border-radius:10px;background:rgba(255,255,255,.96);opacity:0;transform:translateX(-50%) translateY(20px) scale(.82);font-weight:900";
-  reward.innerHTML = '<span class="vending-item-icon" style="width:34px;height:34px;display:inline-block"></span><span style="display:grid;text-align:left;color:#14323d"><strong style="color:#14323d"></strong><small style="color:#29545e"></small></span>';
-  reward.querySelector("strong").textContent = reveal.label || "獲得";
-  reward.querySelector("small").textContent = reveal.detail || (reveal.rewardKind === "ability" ? "ショップ能力を解放" : "ショップ商品を獲得");
+  reward.style.cssText = "position:absolute;left:50%;bottom:0;width:42px;height:42px;opacity:0;transform:translateX(-50%) translateY(20px) scale(.82)";
+  reward.innerHTML = '<span class="vending-item-icon" style="width:42px;height:42px;display:block" aria-hidden="true"></span>';
   applyGeneratedItemTexture(reward, reveal.asset || reveal.rewardId);
   stage.append(light, box, lid, reward); panel.append(stage); panel.hidden = false;
   panel.animate([{ opacity: 0, transform: "translate(-50%, -16px) scale(.96)" }, { opacity: 1, transform: "translate(-50%, 0) scale(1)" }], { duration: 260, fill: "forwards", easing: "ease-out" });
@@ -11000,7 +11071,7 @@ function showMysteryBoxReveal(reveal) {
     lid.animate([{ opacity: .18, transform: "translateY(14px) rotate(-39deg) scaleY(.38)" }, { opacity: 1, transform: "translateY(0) rotate(0) scaleY(1)" }], { duration: 560, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" });
   }, 0, owner);
   scheduleMysteryRevealStage(() => { setRevealQaPhase("spill", 460); light.animate([{ opacity: 0, transform: "scale(.55)" }, { opacity: 1, transform: "scale(1.12)" }, { opacity: .42, transform: "scale(.94)" }], { duration: 820, fill: "forwards", easing: "ease-out" }); }, 460, owner);
-  scheduleMysteryRevealStage(() => { setRevealQaPhase("reward", 980); reward.animate([{ opacity: 0, transform: "translateX(-50%) translateY(20px) scale(.82)" }, { opacity: 1, transform: "translateX(-50%) translateY(0) scale(1)" }], { duration: 520, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" }); }, 980, owner);
+  scheduleMysteryRevealStage(() => { setRevealQaPhase("inventory", 980); reward.animate([{ opacity: 0, transform: "translateX(-50%) translateY(20px) scale(.82)" }, { opacity: 1, transform: "translateX(-50%) translateY(0) scale(1)" }], { duration: 340, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" }); emitMysteryInventoryPhotonStream(reveal, box, owner); }, 980, owner);
 }
 
 function detectMysteryBoxReveal(previous, next) {
@@ -11009,7 +11080,6 @@ function detectMysteryBoxReveal(previous, next) {
   clearMysteryReveal();
   const owner = setTimeout(() => { if (state.mysteryRevealTimer === owner) { state.mysteryRevealTimer = null; clearMysteryReveal(); } }, 6000);
   state.mysteryRevealTimer = owner;
-  showToast("ミステリーボックス: " + reveal.label);
   showMysteryBoxReveal(reveal);
 }
 
@@ -16920,18 +16990,8 @@ function drawMysteryBoxes(data) {
     if (!worldPointVisible(box.x, box.y, 140)) continue;
     const near = Boolean(self && dist(self, box) <= Number(box.useRange || 82));
     ctx.save();
-    drawNormalizedSpriteCentered(sprite, box.x, box.y - 11, 112, 112);
     ctx.globalAlpha = near ? 1 : 0.84;
-    ctx.fillStyle = "rgba(8,20,28,0.94)";
-    roundRect(box.x - 76, box.y + 47, 152, 35, 6, true, false);
-    ctx.fillStyle = "#f8fafc";
-    ctx.font = "900 11px Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(box.label || "ミステリーボックス", box.x, box.y + 58);
-    ctx.fillStyle = "#facc15";
-    ctx.font = "800 9px Segoe UI, sans-serif";
-    ctx.fillText(box.effectLabel || "ランダムなショップ報酬", box.x, box.y + 73);
+    drawNormalizedSpriteCentered(sprite, box.x, box.y - 11, 112, 112);
     ctx.restore();
   }
 }
@@ -23049,7 +23109,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "selection-and-ui-fixes-v720";
+const version = "mystery-photon-inventory-v721";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24089,7 +24149,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=selection-and-ui-fixes-v720", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=mystery-photon-inventory-v721", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "selection-and-ui-fixes-v720",
+    version: "mystery-photon-inventory-v721",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "selection-and-ui-fixes-v720";
+const PRODUCT_RELEASE = "mystery-photon-inventory-v721";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -16301,7 +16301,6 @@ function useMapObject(room, player, objectId) {
     room.mysteryBoxes.splice(boxIndex, 1);
     markObjectContactUsed(player, object.id);
     pushMagicEffect(room, "mystery-box", object, { radius: Number(object.radius || 100), playerId: player.id, variant: reward.id, viewerId: player.id, durationMs: 2600 });
-    setImmediateFeedback(player, "ミステリーボックス", reward.label);
     pushEvent(room, `${player.name} がミステリーボックスから${reward.label}を獲得しました。`);
     touch(room);
     return;
@@ -26079,5 +26078,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "selection-and-ui-fixes-v720" });
+self.postMessage({ type: "ready", version: "mystery-photon-inventory-v721" });
 })();
