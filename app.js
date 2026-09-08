@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "hs-jets-earliest-renki-v719";
+const DVA_CLIENT_RELEASE = "selection-and-ui-fixes-v720";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -161,6 +161,9 @@ const els = {
   soloMissionHudProgress: $("#soloMissionHudProgress"),
   joinPanel: $("#joinPanel"),
   selectPanel: $("#selectPanel"),
+  operatorSelectionSettings: $("#operatorSelectionSettings"),
+  operatorSettingStatus: $("#operatorSettingStatus"),
+  operatorRetryButton: $("#operatorRetryButton"),
   statusPanel: $("#statusPanel"),
   meetingPanel: $("#meetingPanel"),
   fieldFeedPanel: $("#fieldFeedPanel"),
@@ -196,6 +199,7 @@ const els = {
   analyticsToggleButton: $("#analyticsToggleButton"),
   selectTimer: $("#selectTimer"),
   selectTeamText: $("#selectTeamText"),
+  operatorHoldHint: $("#operatorHoldHint"),
   offlineTeamChoice: $("#offlineTeamChoice"),
   offlineDefenderButton: $("#offlineDefenderButton"),
   offlineAttackerButton: $("#offlineAttackerButton"),
@@ -558,6 +562,8 @@ const state = {
   matchmakingInFlight: false,
   matchmakingSerial: 0,
   matchmakingTicket: null,
+  operatorSelectionRouteOpen: false,
+  operatorSelectionSettingsRequestSeq: 0,
   offlineTeamChoiceInFlight: false,
   textures: createTextures(),
   motion: new Map(),
@@ -896,7 +902,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "hs-jets-earliest-renki-v719";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "selection-and-ui-fixes-v720";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1898,7 +1904,10 @@ async function initializeProfileIdentity() {
   if (result?.profile?.developer) localStorage.setItem(storage.developerIdentity, "1");
   const savedName = String(result?.profile?.name || "").trim();
   if (els.namePolicy && result?.policy) els.namePolicy.textContent = String(result.policy);
-  if (savedName) lockPlayerName(savedName);
+  if (savedName) {
+    els.nameInput.value = savedName;
+    localStorage.setItem(storage.name, savedName);
+  }
   else if (!result?.profile?.developer && els.nameInput.value.trim() === "プレイヤー") {
     els.nameInput.value = "";
     els.nameInput.placeholder = "名前を入力";
@@ -2488,59 +2497,63 @@ function switchScreenWithEffect(next) {
   setScreen(next);
 }
 
+function clearTitleCommandTransition() {
+  if (state.titleArrivalTimer) window.clearTimeout(state.titleArrivalTimer);
+  state.titleArrivalTimer = null;
+  els.startScreen?.classList.remove("title-arriving");
+  els.titleCommandTransitionAte?.classList.remove("active", "reduced");
+  if (els.titleCommandTransitionAte) els.titleCommandTransitionAte.hidden = true;
+  els.titleCommandPixelField?.replaceChildren();
+  for (const button of [els.titlePlayButton, els.titleTacticsButton]) {
+    button?.classList.remove("title-command-dispersing", "press-pulse");
+    if (button) button.disabled = false;
+  }
+  state.titleCommandTransitionRunning = false;
+}
 async function runTitleCommandTransition(button, action) {
   if (!button || state.titleCommandTransitionRunning) return false;
   state.titleCommandTransitionRunning = true;
-  const reduced = prefersReducedMotion();
-  if (reduced) {
-    try {
+  try {
+    const reduced = prefersReducedMotion();
+    if (reduced) {
       action();
-    } finally {
-      state.titleCommandTransitionRunning = false;
+      return true;
     }
+    const duration = 640;
+    const rect = button.getBoundingClientRect();
+    const overlay = els.titleCommandTransitionAte;
+    const pixels = els.titleCommandPixelField;
+    pixels.replaceChildren();
+    overlay.style.setProperty("--command-left", `${rect.left}px`);
+    overlay.style.setProperty("--command-top", `${rect.top}px`);
+    overlay.style.setProperty("--command-width", `${rect.width}px`);
+    overlay.style.setProperty("--command-height", `${rect.height}px`);
+    for (let index = 0; index < 38; index += 1) {
+      const pixel = document.createElement("i");
+      const side = index % 2 ? 1 : -1;
+      pixel.style.setProperty("--pixel-x", `${(index * 47) % 100}%`);
+      pixel.style.setProperty("--pixel-y", `${(index * 29) % 100}%`);
+      pixel.style.setProperty("--pixel-dx", `${side * (70 + (index % 9) * 21)}px`);
+      pixel.style.setProperty("--pixel-delay", `${(index % 8) * 18}ms`);
+      pixel.style.setProperty("--pixel-size", `${2 + index % 4}px`);
+      pixels.appendChild(pixel);
+    }
+    overlay.hidden = false;
+    overlay.classList.toggle("reduced", Boolean(reduced));
+    void overlay.offsetWidth;
+    overlay.classList.add("active");
+    button.classList.add("title-command-dispersing");
+    els.titlePlayButton.disabled = true;
+    els.titleTacticsButton.disabled = true;
+    await delay(duration);
+    action();
+    await delay(140);
     return true;
+  } finally {
+    clearTitleCommandTransition();
+    if (state.screen === "title" && state.tacticsReturnScreen === "title" && state.tacticsReturnFocus === "title-tactics") syncKeyboardContext(true);
   }
-  const duration = 640;
-  const rect = button.getBoundingClientRect();
-  const overlay = els.titleCommandTransitionAte;
-  const pixels = els.titleCommandPixelField;
-  pixels.replaceChildren();
-  overlay.style.setProperty("--command-left", `${rect.left}px`);
-  overlay.style.setProperty("--command-top", `${rect.top}px`);
-  overlay.style.setProperty("--command-width", `${rect.width}px`);
-  overlay.style.setProperty("--command-height", `${rect.height}px`);
-  for (let index = 0; index < 38; index += 1) {
-    const pixel = document.createElement("i");
-    const side = index % 2 ? 1 : -1;
-    pixel.style.setProperty("--pixel-x", `${(index * 47) % 100}%`);
-    pixel.style.setProperty("--pixel-y", `${(index * 29) % 100}%`);
-    pixel.style.setProperty("--pixel-dx", `${side * (70 + (index % 9) * 21)}px`);
-    pixel.style.setProperty("--pixel-delay", `${(index % 8) * 18}ms`);
-    pixel.style.setProperty("--pixel-size", `${2 + index % 4}px`);
-    pixels.appendChild(pixel);
-  }
-  overlay.hidden = false;
-  overlay.classList.toggle("reduced", Boolean(reduced));
-  void overlay.offsetWidth;
-  overlay.classList.add("active");
-  button.classList.add("title-command-dispersing");
-  els.titlePlayButton.disabled = true;
-  els.titleTacticsButton.disabled = true;
-  await delay(duration);
-  action();
-  await delay(140);
-  overlay.classList.remove("active");
-  overlay.classList.remove("reduced");
-  overlay.hidden = true;
-  pixels.replaceChildren();
-  button.classList.remove("title-command-dispersing");
-  els.titlePlayButton.disabled = false;
-  els.titleTacticsButton.disabled = false;
-  if (state.screen === "title" && state.tacticsReturnScreen === "title" && state.tacticsReturnFocus === "title-tactics") syncKeyboardContext(true);
-  state.titleCommandTransitionRunning = false;
-  return true;
 }
-
 function setSoloNameGuidance(open) {
   state.soloNameGuidanceOpen = Boolean(open);
   els.soloNameGuidance.hidden = !state.soloNameGuidanceOpen;
@@ -2551,6 +2564,8 @@ function setSoloNameGuidance(open) {
 function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   const previous = state.screen;
+  if (previous !== next) clearTitleCommandTransition();
+  if (next === "title") state.operatorSelectionRouteOpen = false;
   if (next !== "game") setSoloNameGuidance(false);
   state.screen = next;
   state.frameDriver?.sync?.();
@@ -5033,7 +5048,7 @@ function contextKeyboardElements() {
   if (state.expandedMapOpen) return keyboardControlsIn(els.expandedMapOverlay);
   if (state.operatorBranchesOpen) return keyboardControlsIn(els.operatorBranchPanel);
   if (state.tabletOpen) return [];
-  const phase = state.data?.phase || "join";
+  const phase = state.data?.phase || (state.operatorSelectionRouteOpen ? "selecting" : "join");
   if (phase === "playing") return [];
   const panel = phase === "join"
     ? els.joinPanel
@@ -5057,7 +5072,7 @@ function contextKeyboardElements() {
 }
 
 function preferredKeyboardElement(elements) {
-  const phase = state.data?.phase || "join";
+  const phase = state.data?.phase || (state.operatorSelectionRouteOpen ? "selecting" : "join");
   const preferred = state.fieldFeedOpen && phase !== "meeting"
     ? (!els.chatInput.disabled ? els.chatInput : els.chatTab)
     : state.screen === "title"
@@ -5068,8 +5083,8 @@ function preferredKeyboardElement(elements) {
         ? (elements.includes(els.nameInput) && !els.nameInput.readOnly && !els.nameInput.value.trim()
             ? els.nameInput
             : els.matchmakingButton)
-        : phase === "selecting"
-            ? els.operatorList.querySelector('.operator-card[data-selectable="1"]') || els.operatorList.querySelector(".operator-card")
+    : phase === "selecting"
+            ? els.operatorList.querySelector('.operator-card[data-selectable="1"]') || els.operatorList.querySelector(".operator-card") || els.nameInput
             : phase === "meeting"
               ? els.voteList.querySelector(".vote-card:not(:disabled)")
               : els.resetButton;
@@ -6317,17 +6332,21 @@ function bindEvents() {
     loadGameplayTextures();
     deactivateOfflineMode();
     state.realtime?.disconnect();
-    document.documentElement.dataset.connectionMode = "matching";
-    recordUsageCheckpoint("matchmaking_open");
     void enterFullscreen();
-    void runTitleCommandTransition(els.titlePlayButton, () => switchScreenWithEffect("game"));
+    switchScreenWithEffect("game");
+    void startMatchmaking({ allowDefaultName: true, source: "title-play" });
   });
   els.titleTacticsButton.addEventListener("click", () => {
     if (els.titleTacticsButton.disabled || state.titleCommandTransitionRunning) return;
     state.tacticsReturnScreen = "title";
     state.tacticsReturnFocus = "title-tactics";
     recordUsageCheckpoint("tactics_open");
-    void runTitleCommandTransition(els.titleTacticsButton, () => switchScreenWithEffect("tactics"));
+    // Opening the tactics reference is navigation, not a gameplay command.
+    // Clear a stale title-command presentation if an earlier path was
+    // interrupted, then keep this compact control out of the former
+    // title-command dissolve/viewport overlay path.
+    clearTitleCommandTransition();
+    switchScreenWithEffect("tactics");
   });
   els.gameTacticsButton.addEventListener("click", () => {
     state.tacticsReturnScreen = "game";
@@ -6434,18 +6453,22 @@ function bindEvents() {
   els.titleMuteButton?.addEventListener("click", toggleGameMuted);
   els.tacticsMuteButton?.addEventListener("click", toggleGameMuted);
   els.gameMuteButton?.addEventListener("click", toggleGameMuted);
-  els.skinSelect.addEventListener("change", syncSelectedSkin);
+  els.skinSelect.addEventListener("change", () => void syncOperatorSelectionSettings("skin"));
   els.mapSelect.addEventListener("change", () => {
     const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
     els.mapSelect.value = mapId;
     localStorage.setItem(storage.map, mapId);
+    void syncOperatorSelectionSettings("map");
   });
   els.matchmakingButton.addEventListener("click", startMatchmaking);
+  els.operatorRetryButton?.addEventListener("click", () => void startMatchmaking({ allowDefaultName: true, source: "selection-retry" }));
   [els.nameInput].forEach((input) => {
+    input.addEventListener("change", () => void syncOperatorSelectionSettings("name"));
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
-      startMatchmaking();
+      if (state.data?.phase === "selecting") void syncOperatorSelectionSettings("name");
+      else void startMatchmaking();
     });
   });
   els.analyticsToggleButton.addEventListener("click", () => void loadDropoffAnalytics());
@@ -8826,7 +8849,9 @@ function syncExpandedMapUi() {
         ? `${teleportTarget?.name || "対象"} の対象転移先`
         : `${teleportTarget?.name || "自分"} の転移先`
       : `現在地: ${area}`;
-  els.teleportMapStatus.hidden = !targeting;
+  // The targeting state remains visible through the map cursor and title;
+  // the former redundant instruction badge is intentionally not presented.
+  els.teleportMapStatus.hidden = true;
   els.expandedMapCanvas.classList.toggle("teleport-targeting", targeting);
 }
 
@@ -9339,11 +9364,55 @@ async function syncSelectedSkin() {
   if (!ok) state.pendingSkinId = "";
 }
 
+async function syncOperatorSelectionSettings(changedField = "") {
+  const data = state.data;
+  const skinId = normalizeSkinId(els.skinSelect.value);
+  const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
+  const name = els.nameInput.value.trim();
+  els.skinSelect.value = skinId;
+  els.mapSelect.value = mapId;
+  localStorage.setItem(storage.skin, skinId);
+  localStorage.setItem(storage.map, mapId);
+
+  if (data?.phase !== "selecting" || !state.roomId || !state.playerId) {
+    if (changedField === "skin") await syncSelectedSkin();
+    return false;
+  }
+  if (!name) {
+    showToast("名前を入力してください。");
+    els.nameInput.focus();
+    return false;
+  }
+  const requestSeq = ++state.operatorSelectionSettingsRequestSeq;
+  els.operatorSettingStatus.textContent = "設定を反映中…";
+  const nameAtRequest = name;
+  const result = await api("/api/operator-selection-settings", { name, skinId, mapId });
+  if (requestSeq !== state.operatorSelectionSettingsRequestSeq) return false;
+  if (!result) {
+    els.operatorSettingStatus.textContent = "設定を反映できませんでした。";
+    return false;
+  }
+  const confirmedName = String(result.profile?.name || nameAtRequest);
+  localStorage.setItem(storage.name, confirmedName);
+  if (els.nameInput.value.trim() === nameAtRequest) els.nameInput.value = confirmedName;
+  state.pendingSkinId = "";
+  applyState(result);
+  els.operatorSettingStatus.textContent = changedField === "map"
+    ? "ステージを切り替えました。"
+    : changedField === "skin"
+      ? "スキンを切り替えました。"
+      : "名前を変更しました。";
+  return true;
+}
+
 function acceptMatchmakingResult(result, name, offline) {
   if (!result || result.phase === "lobby") return false;
+  state.operatorSelectionRouteOpen = false;
   if (offline) activateOfflineMode();
   else deactivateOfflineMode();
-  lockPlayerName(result.profile?.name || responsePlayerName(result, name));
+  const confirmedName = result.profile?.name || responsePlayerName(result, name);
+  els.nameInput.value = confirmedName;
+  localStorage.setItem(storage.name, confirmedName);
   setCurrentRoomSession(result.roomId, result.playerId);
   applyState(result);
   recordUsageCheckpoint(offline ? "matchmaking_offline" : "matchmaking_online");
@@ -9369,15 +9438,17 @@ async function cancelInstantMatchmaking(ticket) {
   });
 }
 
-async function startMatchmaking() {
+async function startMatchmaking(options = {}) {
   if (state.matchmakingInFlight) return;
   loadGameplayTextures();
-  const name = els.nameInput.value.trim();
+  const fallbackName = options.allowDefaultName ? "プレイヤー" : "";
+  const name = els.nameInput.value.trim() || localStorage.getItem(storage.name) || fallbackName;
   if (!name) {
     showToast("最初に名前を入力してください。");
     els.nameInput.focus();
     return;
   }
+  els.nameInput.value = name;
   setSoloNameGuidance(false);
   const skinId = normalizeSkinId(els.skinSelect.value);
   const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
@@ -9387,6 +9458,9 @@ async function startMatchmaking() {
   const serial = ++state.matchmakingSerial;
   state.matchmakingInFlight = true;
   state.matchmakingTicket = null;
+  state.operatorSelectionRouteOpen = true;
+  els.operatorSettingStatus.textContent = "接続中…";
+  render();
   els.matchmakingButton.disabled = true;
   els.matchmakingButton.textContent = "対戦方式を即時判定中…";
   document.documentElement.dataset.connectionMode = "matching";
@@ -9437,19 +9511,19 @@ async function startMatchmaking() {
       state.matchmakingTicket = null;
       els.matchmakingButton.disabled = false;
       els.matchmakingButton.textContent = "マッチング開始 [L]";
+      if (!state.data) {
+        els.operatorSettingStatus.textContent = "接続できませんでした。プレイを押してやり直してください。";
+        render();
+      }
     }
   }
 }
 
 async function startSoloMission(missionId) {
   if (!soloMissionIds.includes(missionId) || state.soloMissionStarting) return;
-  const name = localStorage.getItem(storage.name) || els.nameInput.value.trim();
-  if (!name) {
-    setSoloNameGuidance(true);
-    showToast("最初に名前を入力してください。");
-    setScreen("game");
-    return;
-  }
+  const name = localStorage.getItem(storage.name) || els.nameInput.value.trim() || "プレイヤー";
+  els.nameInput.value = name;
+  localStorage.setItem(storage.name, name);
   setSoloNameGuidance(false);
   loadGameplayTextures();
   state.soloMissionStarting = true;
@@ -11080,13 +11154,9 @@ function detectMagicEffects(previous, next) {
     state.magicEffects.push(localEffect);
     state.headMarkerPresentationFrame = -1;
     state.headMarkerPresentationCache.clear();
-    if (effect.type.startsWith("object-") && effect.playerId === next.selfId) {
-      const objectType = effect.type.slice("object-".length);
-      const object = (next.map?.objects || []).find((entry) => (
-        entry.type === objectType && Math.hypot(entry.x - effect.x, entry.y - effect.y) < 4
-      ));
-      if (object) showToast(`${object.label}: ${object.effectLabel}`);
-    }
+    // The canvas object-ATE owns the activation acknowledgement.  Do not
+    // duplicate its label as an automatic right-bottom toast; durable object
+    // states remain in Applied Effects and other action toasts are unchanged.
     const actionKind = magicCharacterActionKind(effect.type, effect.variant);
     if (actionKind && effect.playerId) {
       if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
@@ -11788,6 +11858,10 @@ function render() {
       : formatSoloMissionHudProgress(data.soloMission);
   }
   const phaseUiKey = data ? `${data.roomId}:${data.phase}` : "disconnected";
+  const operatorSelectionVisible = Boolean(
+    state.screen === "game" &&
+    (state.operatorSelectionRouteOpen || data?.phase === "selecting")
+  );
   const resetSidebarForPhaseContext = state.phaseUiKey !== phaseUiKey && (
     data?.phase === "selecting" ||
     (data?.phase === "playing" && String(state.phaseUiKey || "").endsWith(":selecting"))
@@ -11799,8 +11873,8 @@ function render() {
       resetScrollSurfaceForSemanticContext(els.gameApp);
     }
     state.phaseUiKey = phaseUiKey;
-    els.joinPanel.hidden = Boolean(data);
-    els.selectPanel.hidden = !data || data.phase !== "selecting";
+    els.joinPanel.hidden = true;
+    els.selectPanel.hidden = !operatorSelectionVisible;
     els.statusPanel.hidden = !data || data.phase === "selecting";
     els.meetingPanel.hidden = !data || data.phase !== "meeting";
     if (data?.phase !== "selecting" && !els.operatorDetail.hidden) {
@@ -11810,6 +11884,19 @@ function render() {
     if (data?.phase === "playing" && tabletModePreferenceEnabled()) {
       requestAnimationFrame(() => setTabletOpen(true, { persist: false, focus: false }));
     }
+  }
+  els.joinPanel.hidden = true;
+  els.selectPanel.hidden = !operatorSelectionVisible;
+  const selecting = data?.phase === "selecting";
+  els.operatorSelectionSettings.hidden = !operatorSelectionVisible;
+  els.operatorSettingStatus.hidden = !operatorSelectionVisible;
+  els.operatorRetryButton.hidden = !(operatorSelectionVisible && !selecting && !state.matchmakingInFlight);
+  if (!selecting && operatorSelectionVisible) {
+    els.selectTimer.textContent = "接続中";
+    els.selectTeamText.hidden = true;
+    els.operatorHoldHint.hidden = true;
+    els.offlineTeamChoice.hidden = true;
+    els.operatorList.hidden = true;
   }
   state.fieldFeedOpen = Boolean(data && data.phase === "meeting");
   els.fieldFeedPanel.hidden = !state.fieldFeedOpen;
@@ -11865,6 +11952,15 @@ function formatBattleTime(data) {
 
 function renderOperatorSelect(data) {
   if (data.phase !== "selecting") return;
+  els.operatorSelectionSettings.hidden = false;
+  els.operatorSettingStatus.hidden = false;
+  els.operatorRetryButton.hidden = true;
+  els.operatorHoldHint.hidden = false;
+  els.operatorList.hidden = false;
+  state.operatorSelectionRouteOpen = false;
+  if (els.operatorSettingStatus.textContent === "接続中…") {
+    els.operatorSettingStatus.textContent = "名前・スキン・ステージを変更できます。";
+  }
   const self = data.self;
   const role = playerFacingRoleLabel(self.role);
   els.offlineTeamChoice.hidden = !state.offlineMode;
@@ -11875,9 +11971,9 @@ function renderOperatorSelect(data) {
   const turnLabel = `${data.operatorTurnPosition || 0} / ${data.operatorTurnTotal || 0}`;
   els.selectTimer.textContent = `${turnLabel} ・ ${data.operatorSelectSecondsLeft || 0}秒`;
   if (self.operatorReady) {
-    els.selectTeamText.textContent = `${role} を選択済みです。${data.operatorTurnName || "次のプレイヤー"}の選択を待っています。`;
+    els.selectTeamText.textContent = `${role} / 決定済み。${data.operatorTurnName || "次のプレイヤー"}を待っています。`;
   } else if (isTurn) {
-    els.selectTeamText.textContent = `あなたの選択順です。${role}として使用するオペレーターを選択してください。`;
+    els.selectTeamText.textContent = `${role} / カードをタップして決定してください。`;
   } else {
     els.selectTeamText.textContent = `${data.operatorTurnName || "前のプレイヤー"}の選択を待っています。`;
   }
@@ -22953,7 +23049,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "hs-jets-earliest-renki-v719";
+const version = "selection-and-ui-fixes-v720";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23993,7 +24089,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=hs-jets-earliest-renki-v719", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=selection-and-ui-fixes-v720", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

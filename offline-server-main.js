@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "hs-jets-earliest-renki-v719",
+    version: "selection-and-ui-fixes-v720",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "hs-jets-earliest-renki-v719";
+const PRODUCT_RELEASE = "selection-and-ui-fixes-v720";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -8694,6 +8694,10 @@ function normalizedRequestIp(req) {
   return candidate.slice(0, 128);
 }
 
+function isGeneratedOfflineRequest(req) {
+  return String(req?.socket?.remoteAddress || "").startsWith("offline:");
+}
+
 function playerProfileId(req) {
   const normalizedIp = normalizedRequestIp(req);
   return normalizedIp
@@ -8801,6 +8805,41 @@ function reservePlayerName(rawName, profileId, legacyProfileId = "") {
     savePlayerProfiles();
   }
   return requested;
+}
+
+function renameSelectingPlayerName(rawName, profileId, legacyProfileId = "") {
+  const requested = cleanName(rawName);
+  const targetId = canonicalProfileId(profileId);
+  const profile = targetId ? playerProfiles[targetId] || migrateLegacyProfile(profileId, legacyProfileId) : null;
+  if (!profile) return reservePlayerName(requested, profileId, legacyProfileId);
+  if (requested === RESERVED_DEVELOPER_NAME && !isDeveloperProfileId(profileId)) {
+    throw new ApiError(403, "このユーザー名は使用できません。別の名前を入力してください。");
+  }
+  const owner = Object.entries(playerProfiles).find(([, candidate]) => candidate?.name === requested);
+  if (owner && canonicalProfileId(owner[0]) !== targetId) {
+    throw new ApiError(409, "このユーザー名は既に使用されています。");
+  }
+  if (profile.name !== requested) {
+    profile.name = requested;
+    profile.identityVersion = 2;
+    profile.updatedAt = now();
+    savePlayerProfiles();
+  }
+  return profile.name;
+}
+
+function relocateSelectingPlayersForMap(room) {
+  const map = getMap(room);
+  [...room.players.values()].forEach((entry, index) => {
+    const spawn = map.spawns[index % map.spawns.length];
+    entry.x = spawn.x;
+    entry.y = spawn.y;
+    entry.vx = 0;
+    entry.vy = 0;
+    entry.aimX = 0;
+    entry.aimY = 1;
+    entry.lastMoveAt = now();
+  });
 }
 
 async function writeRemoteJson(writeUrl, payload, message) {
@@ -23282,6 +23321,42 @@ async function handleApi(req, res) {
       break;
     }
 
+    case "/api/operator-selection-settings": {
+      const { room, player } = requireRoomPlayer(body);
+      const profileId = playerProfileId(req);
+      const generatedOffline = isGeneratedOfflineRequest(req) && room.matchmaking?.status === "offline";
+      const selectionProfileId = profileId || (generatedOffline ? legacyPlayerProfileId(body.clientId) : "");
+      if (room.phase !== "selecting" || room.soloMission) {
+        throw new ApiError(409, "いまは出撃設定を変更できません。");
+      }
+      if (player.moderationKey && player.moderationKey !== identityKey) {
+        throw new ApiError(403, "この出撃設定は変更できません。");
+      }
+      if (!generatedOffline && (!profileId || canonicalProfileId(player.profileId) !== canonicalProfileId(profileId))) {
+        throw new ApiError(403, "この出撃設定は変更できません。");
+      }
+      const nextMapId = normalizeMapId(body.mapId);
+      const mapChanged = nextMapId !== normalizeMapId(room.settings.mapId);
+      if (mapChanged && room.matchmaking?.status !== "offline") {
+        throw new ApiError(409, "オンラインで組まれた試合ではステージを変更できません。");
+      }
+      const nextName = renameSelectingPlayerName(body.name, selectionProfileId, legacyPlayerProfileId(body.clientId));
+      player.name = nextName;
+      if (generatedOffline && selectionProfileId) player.profileId = selectionProfileId;
+      player.skinId = cleanSkinId(body.skinId);
+      if (mapChanged) {
+        room.settings.mapId = nextMapId;
+        relocateSelectingPlayersForMap(room);
+      }
+      touch(room);
+      payload = {
+        ...serialize(room, player),
+        profile: { name: nextName, locked: false },
+        selectionSettings: { mapChanged, mapId: room.settings.mapId }
+      };
+      break;
+    }
+
     case "/api/skin": {
       const { room, player } = requireRoomPlayer(body);
       player.skinId = cleanSkinId(body.skinId);
@@ -25999,7 +26074,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "hs-jets-earliest-renki-v719",
+  version: "selection-and-ui-fixes-v720",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

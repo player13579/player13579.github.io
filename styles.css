@@ -12492,3 +12492,35 @@ body .toast[data-toast-motion="exit"] {
     }
   }
 }
+/* Operator selection owns all pre-battle identity controls.  They retain the
+ * existing form's native inputs while the server owns the selected-room update. */
+body #selectPanel .operator-selection-settings {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0;
+}
+
+body #selectPanel .operator-selection-settings > label {
+  display: grid;
+  gap: 7px;
+  border-left: 3px solid #b5cbd2;
+  background-color: #f7fbfc;
+  padding: 7px 9px;
+  color: #294d58;
+}
+
+body #selectPanel .operator-selection-settings > label:focus-within {
+  border-left-color: #34b3be;
+  background-color: #f2f9fa;
+}
+
+body #selectPanel .operator-selection-settings :is(input, select) {
+  min-height: 40px;
+  color: #173b48;
+  border-color: #b5cbd2;
+  background-color: #fafcfd;
+}
+
+body #selectPanel .operator-setting-status[hidden] {
+  display: none;
+}
