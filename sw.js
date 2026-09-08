@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "clair-follow-limit-break-cost-v718";
-const CACHE_NAME = "dva-static-v718-clair-follow-limit-break-cost";
+const RUNTIME_RELEASE = "hs-jets-earliest-renki-v719";
+const CACHE_NAME = "dva-static-v719-hs-jets-earliest-renki";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -99,6 +99,7 @@ const STATIC_ASSETS = [
   "/assets/generated/gravity-storm-safe-eye-v320.png",
   "/assets/generated/status-marker-acceleration-v376.png",
   "/assets/generated/status-levitation-v375.png",
+  "/assets/generated/hover-sprint-jet-exhaust-v719.png",
   "/assets/generated/status-hp-reduction-v375.png",
   "/assets/generated/status-mana-gpu-ate-v402.png",
   "/assets/generated/hacker-root-matrix-v497.png",

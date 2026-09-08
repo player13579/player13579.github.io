@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "clair-follow-limit-break-cost-v718",
+    version: "hs-jets-earliest-renki-v719",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "clair-follow-limit-break-cost-v718";
+const PRODUCT_RELEASE = "hs-jets-earliest-renki-v719";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -21501,6 +21501,7 @@ function serialize(room, viewer, options = {}) {
       delete serializedPlayer.aimY;
     } else {
       serializedPlayer.invisible = false;
+      serializedPlayer.hoverSprintUntil = Number(player.hoverSprintUntil) > timestamp ? Number(player.hoverSprintUntil) : 0;
       serializedPlayer.desireRenkiRecoveryEndsAt = publicDesireRenkiRecovery ? Number(player.meditatingUntil) : 0;
       serializedPlayer.desireRenkiRecoveryMs = publicDesireRenkiRecovery ? DESIRE_RENKI_RECOVERY_MS : 0;
       if (publicNinjutsuFocus) serializedPlayer.ninjutsuFocusEndsAt = Number(player.aimReadyAt);
@@ -25998,7 +25999,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "clair-follow-limit-break-cost-v718",
+  version: "hs-jets-earliest-renki-v719",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

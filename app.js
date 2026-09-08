@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "clair-follow-limit-break-cost-v718";
+const DVA_CLIENT_RELEASE = "hs-jets-earliest-renki-v719";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "clair-follow-limit-break-cost-v718";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "hs-jets-earliest-renki-v719";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -15614,7 +15614,7 @@ function draw() {
       drawBodies(data);
       drawWorldSoundEffects();
       drawThrowLandingPreview(data);
-      drawStandaloneClairvoyanceAte(data);
+      // Standalone Clairvoyance follows the selected player without a world marker.
       drawPlayers(data);
       drawGunnerAim(data);
       drawKillCameraWorldMarkers(data);
@@ -17969,14 +17969,6 @@ function drawClairvoyanceAte(landing, time) {
   drawCommonActionSimpleIcon({ type: "action-clairvoyance", x: landing.x, y: landing.y - 4, radius: 118 }, 0.24, time);
 }
 
-function drawStandaloneClairvoyanceAte(data) {
-  if (!state.clairvoyance.active || state.throwTargeting.active || data.phase !== "playing") return;
-  const target = ensureClairvoyanceFollowTarget(data);
-  if (!target) return;
-  const position = renderedPlayer(target);
-  drawClairvoyanceAte({ x: position.x, y: position.y }, (state.frameNow || performance.now()) / 1000);
-}
-
 function drawInventionEnergyTexture(effect, progress) {
   const railgun = effect.type === "alchemy-railgun";
   const particle = effect.type === "alchemy-particle-cannon" || effect.type === "alchemy-particle-beam";
@@ -18294,9 +18286,11 @@ function drawPlicyV540PreparationBarrierHit(effect, progress, sprite, defaultSiz
 }
 
 function drawGeneratedStandaloneEffect(effect, progress) {
-  // Hover Sprint already has the owner-following persistent levitation marker.
-  // Consuming its coordinate snapshot here prevents a duplicate icon trail.
-  if (effect?.type === "hover-sprint-active") return true;
+  // The event owns only the ignition kick; sustained jets are state-owned.
+  if (effect?.type === "hover-sprint-active") {
+    drawHoverSprintActivationJets(effect, progress);
+    return true;
+  }
   if (drawCommonActionSimpleIcon(effect, progress)) return true;
   if (effect?.type === "fighter-energy-charge") {
     recordVerificationMarkerRender(effect, "ordinary-ec", state.frameNow || performance.now());
@@ -18418,6 +18412,121 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   }
   ctx.restore();
   return true;
+}
+
+const HOVER_SPRINT_JET_SOURCE_ANCHOR = Object.freeze({
+  // Keep the authored pair's semantic bounds, rather than its noisy alpha
+  // extrema. The two nozzles are at (527,550)/(727,550) in the 1254 canvas.
+  sourceX: 438,
+  sourceY: 505,
+  sourceWidth: 380,
+  sourceHeight: 725,
+  nozzleX: 0.5,
+  nozzleY: 45 / 725,
+  nozzleSpacing: 100 / 380
+});
+
+function hoverSprintTravelHeading(player, data) {
+  const renderState = state.renderPlayers.get(player?.id);
+  const input = player?.id === data?.selfId ? getDirection() : null;
+  const dx = Number(input?.dx ?? renderState?.moveX ?? player?.moveX) || 0;
+  const dy = Number(input?.dy ?? renderState?.moveY ?? player?.moveY) || 0;
+  if (Math.hypot(dx, dy) > 0.01) return Math.atan2(dy, dx);
+  const facing = state.facing.get(player?.id) || "down";
+  return ({ up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 })[facing] ?? Math.PI / 2;
+}
+
+function drawHoverSprintJetPair(anchorX, anchorY, heading, options = {}) {
+  const sprite = state.textures?.hoverSprintJetEffect;
+  const sourceWidth = Number(sprite?.naturalWidth || sprite?.width) || 0;
+  const sourceHeight = Number(sprite?.naturalHeight || sprite?.height) || 0;
+  if (!(sourceWidth > 0 && sourceHeight > 0)) return false;
+  const {
+    height = 72,
+    alpha = 1,
+    flare = 0,
+    pulse = 0,
+    reduced = false
+  } = options;
+  const renderHeight = height * (reduced ? 0.9 : 1 + flare * 0.12);
+  const renderWidth = renderHeight * HOVER_SPRINT_JET_SOURCE_ANCHOR.sourceWidth / HOVER_SPRINT_JET_SOURCE_ANCHOR.sourceHeight;
+  const nozzleX = renderWidth * HOVER_SPRINT_JET_SOURCE_ANCHOR.nozzleX;
+  const nozzleY = renderHeight * HOVER_SPRINT_JET_SOURCE_ANCHOR.nozzleY;
+  const inheritedAlpha = ctx.globalAlpha;
+
+  ctx.save();
+  ctx.translate(anchorX, anchorY);
+  // Source is forward-up / exhaust-down. Rotate exhaust to movement opposite.
+  ctx.rotate(heading + Math.PI / 2);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= alpha;
+  // One raw paired texture draw: use only its semantic source rectangle, so
+  // isolated near-transparent canvas specks cannot shift the nozzle anchor.
+  ctx.drawImage(
+    sprite,
+    HOVER_SPRINT_JET_SOURCE_ANCHOR.sourceX,
+    HOVER_SPRINT_JET_SOURCE_ANCHOR.sourceY,
+    HOVER_SPRINT_JET_SOURCE_ANCHOR.sourceWidth,
+    HOVER_SPRINT_JET_SOURCE_ANCHOR.sourceHeight,
+    -nozzleX,
+    -nozzleY,
+    renderWidth,
+    renderHeight
+  );
+
+  const nozzleSpacing = renderWidth * HOVER_SPRINT_JET_SOURCE_ANCHOR.nozzleSpacing;
+  ctx.fillStyle = "rgba(218,255,255,.88)";
+  for (const side of [-1, 1]) {
+    const x = side * nozzleSpacing;
+    // E: compact nozzle flare, constrained to each emitter.
+    ctx.globalAlpha = inheritedAlpha * alpha * (0.22 + flare * 0.44);
+    ctx.fillRect(x - 1.8, -2.5, 3.6, 5 + flare * 7);
+    if (!reduced && pulse > 0.01) {
+      // Two short aft shock arcs, never a circular badge around the actor.
+      ctx.globalAlpha = inheritedAlpha * alpha * pulse * 0.22;
+      ctx.strokeStyle = "rgba(125,237,255,.72)";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(x, renderHeight * 0.34, 7 + pulse * 9, 3 + pulse * 3, 0, Math.PI * 0.18, Math.PI * 0.82);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawHoverSprintActivationJets(effect, progress) {
+  const player = state.data?.players?.find((entry) => entry?.id === effect.playerId);
+  const rendered = player ? renderedPlayer(player) : null;
+  const x = Number(rendered?.x ?? effect.x) || 0;
+  const y = Number(rendered?.y ?? effect.y) || 0;
+  const ignition = objectEffectEase(clamp(progress / 0.15, 0, 1));
+  const fade = 1 - objectEffectEase(clamp((progress - 0.7) / 0.3, 0, 1));
+  const pulse = Math.sin(clamp(progress / 0.42, 0, 1) * Math.PI);
+  return drawHoverSprintJetPair(x, y + 23, hoverSprintTravelHeading(player || effect, state.data), {
+    height: 76 + ignition * 10,
+    alpha: fade * (0.35 + ignition * 0.65),
+    flare: ignition,
+    pulse,
+    reduced: prefersReducedMotion()
+  });
+}
+
+function drawHoverSprintSustainedJets(player, data) {
+  const until = Number(player?.id === data?.selfId ? data?.self?.hoverSprintUntil : player?.hoverSprintUntil) || 0;
+  if (until <= estimatedServerNow(data)) return false;
+  const time = (state.frameNow || performance.now()) / 1000;
+  const reduced = prefersReducedMotion();
+  const throttle = reduced ? 0.5 : 0.52 + Math.sin(time * 8.4 + (player.id?.length || 0)) * 0.14;
+  // drawHuman() already translates to the current rendered actor position.
+  // This is the backpack-mounted variant: it has no visible pack hardware.
+  return drawHoverSprintJetPair(0, -2, hoverSprintTravelHeading(player, data), {
+    height: 66,
+    alpha: 0.38 + throttle * 0.24,
+    flare: throttle,
+    pulse: reduced ? 0 : 0.18 + throttle * 0.12,
+    reduced
+  });
 }
 
 function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize) {
@@ -18816,6 +18925,9 @@ const PHILOSOPHY_EFFECT_CELLS = {
 };
 
 const ALCHEMY_EFFECT_CELLS = {
+  // Earliest retained executable route (PLiCy v393): every Renki completion
+  // variant uses the original Alchemy atlas cell 0 before generic philosophy.
+  "action-renki": 0,
   "action-rational-free": 2,
   "action-alchemy": 3
 };
@@ -20569,6 +20681,7 @@ function drawHuman(player, data) {
   if (drewPlayerSprite) {
     drawEnhanceRimLightGlints(enhanceRim);
     drawPreparationBarrierAte(player);
+    drawHoverSprintSustainedJets(player, data);
     drawLuminousFeathers(player);
     drawPersistentStatusAteLayers(player, data);
     drawSoloHumanDeathBotAcceleration(player, data);
@@ -20626,6 +20739,7 @@ function drawHuman(player, data) {
   ctx.textBaseline = "middle";
   ctx.fillText(identityLabel, 0, -32);
   drawPreparationBarrierAte(player);
+  drawHoverSprintSustainedJets(player, data);
   drawLuminousFeathers(player);
   drawPersistentStatusAteLayers(player, data);
   drawSoloHumanDeathBotAcceleration(player, data);
@@ -22839,7 +22953,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "clair-follow-limit-break-cost-v718";
+const version = "hs-jets-earliest-renki-v719";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22956,6 +23070,7 @@ const version = "clair-follow-limit-break-cost-v718";
   const alchemyExcaliburEffect = new Image();
   const accelerationPhaseEffect = new Image();
   const instantSpeedTexture = accelerationPhaseEffect;
+  const hoverSprintJetEffect = new Image();
   const statusLevitationEffect = new Image();
   const preparationBarrierEffect = new Image();
   const humanTransmutationEffect = new Image();
@@ -23082,6 +23197,7 @@ const version = "clair-follow-limit-break-cost-v718";
   defer(limitBreakReleaseEffect, "assets/generated/limit-break-release-v309.png");
   defer(alchemyExcaliburEffect, "assets/generated/alchemy-excalibur.webp");
   defer(accelerationPhaseEffect, "assets/generated/status-marker-acceleration-v376.png");
+  defer(hoverSprintJetEffect, "assets/generated/hover-sprint-jet-exhaust-v719.png");
   defer(statusLevitationEffect, "assets/generated/status-levitation-v375.png");
   defer(preparationBarrierEffect, "assets/generated/status-preparation-barrier-ate-v392.png");
   defer(humanTransmutationEffect, "assets/generated/human-transmutation-sd-silhouette-v407.png");
@@ -23216,6 +23332,7 @@ const version = "clair-follow-limit-break-cost-v718";
     limitBreakReleaseEffect,
     alchemyExcaliburEffect,
     accelerationPhaseEffect,
+    hoverSprintJetEffect,
     statusLevitationEffect,
     preparationBarrierEffect,
     humanTransmutationEffect,
@@ -23876,7 +23993,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=clair-follow-limit-break-cost-v718", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=hs-jets-earliest-renki-v719", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
