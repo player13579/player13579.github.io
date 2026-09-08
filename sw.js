@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "field-icons-restart-v710";
-const CACHE_NAME = "dva-static-v710-field-icons-restart";
+const RUNTIME_RELEASE = "unused-donation-preloads-v711";
+const CACHE_NAME = "dva-static-v711-unused-donation-preloads";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -34,7 +34,6 @@ const STATIC_ASSETS = [
   "/assets/generated/throw-landing-preview-v384.png",
   "/assets/generated/clairvoyance-throw-ate-v412.png",
   "/assets/generated/clairvoyance-native-rgba-v679.png",
-  "/assets/generated/action-donation-native-v681.png",
   "/assets/generated/donation-unjust-native-rgba-v688.png",
   "/assets/generated/ninjutsu-focus-native-rgba-v689.png",
   "/assets/generated/ninjutsu-focus-icon-rgba-v694.png",
@@ -47,6 +46,7 @@ const STATIC_ASSETS = [
   "/assets/generated/emp-charge-icon-rgba-v697.png",
   "/assets/generated/emp-resonance-native-rgba-v683.png",
   "/assets/generated/emp-cancel-native-rgba-v684.png",
+
   "/assets/generated/comms-field-icons-restart-v710.png",
   "/assets/generated/reactor-field-icons-restart-v710.png",
   "/assets/generated/oxygen-field-icons-restart-v710.png",
@@ -70,7 +70,6 @@ const STATIC_ASSETS = [
   "/assets/generated/emp-cancel-icon-restart-v705.png",
   "/assets/generated/emp-storage-icon-restart-v705.png",
   "/assets/generated/sabotage-comms-icon-rgba-v704.png",
-  "/assets/generated/donation-unjust-icon-rgba-v703.png",
   "/assets/generated/dodge-icon-rgba-v702.png",
   "/assets/generated/renki-debt-icon-rgba-v700.png",
   "/assets/generated/renki-normal-icon-rgba-v699.png",

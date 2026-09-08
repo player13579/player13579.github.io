@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "field-icons-restart-v710";
+const DVA_CLIENT_RELEASE = "unused-donation-preloads-v711";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "field-icons-restart-v710";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "unused-donation-preloads-v711";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -23303,7 +23303,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "field-icons-restart-v710";
+const version = "unused-donation-preloads-v711";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23483,8 +23483,6 @@ const version = "field-icons-restart-v710";
   const rationalSocialIconRgba = eagerImage("assets/generated/donation-rational-social-icons-restart-v708.png");
   const unjustSocialIconRgba = eagerImage("assets/generated/donation-unjust-social-icons-restart-v708.png");
   const emergencySocialIconRgba = eagerImage("assets/generated/emergency-call-social-icons-restart-v708.png");
-  const donationNativeAte = new Image();
-  const donationUnjustIconRgba = eagerImage("assets/generated/donation-unjust-icon-rgba-v703.png");
   const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-core-icons-restart-v707.png");
   const localRepairIconRgba = eagerImage("assets/generated/repair-core-icons-restart-v707.png");
   const naturalRecoveryEffect = new Image();
@@ -23609,7 +23607,6 @@ const version = "field-icons-restart-v710";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
-  defer(donationNativeAte, "assets/generated/action-donation-native-v681.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
   defer(shopActivationEffect, "assets/generated/shop-activation-ate-v581.png");
@@ -23755,8 +23752,6 @@ const version = "field-icons-restart-v710";
     rationalSocialIconRgba,
     unjustSocialIconRgba,
     emergencySocialIconRgba,
-    donationNativeAte,
-    donationUnjustIconRgba,
     ninjutsuFocusIconRgba,
     localRepairIconRgba,
     naturalRecoveryEffect,
@@ -24379,7 +24374,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=field-icons-restart-v710", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=unused-donation-preloads-v711", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
