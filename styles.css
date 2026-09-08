@@ -12494,13 +12494,13 @@ body .toast[data-toast-motion="exit"] {
 }
 /* Operator selection owns all pre-battle identity controls.  They retain the
  * existing form's native inputs while the server owns the selected-room update. */
-body #selectPanel .operator-selection-settings {
+#operatorSelectionSettings {
   display: grid;
   gap: 9px;
   margin: 10px 0;
 }
 
-body #selectPanel .operator-selection-settings > label {
+#operatorSelectionSettings > label {
   display: grid;
   gap: 7px;
   border-left: 3px solid #b5cbd2;
@@ -12509,12 +12509,12 @@ body #selectPanel .operator-selection-settings > label {
   color: #294d58;
 }
 
-body #selectPanel .operator-selection-settings > label:focus-within {
+#operatorSelectionSettings > label:focus-within {
   border-left-color: #34b3be;
   background-color: #f2f9fa;
 }
 
-body #selectPanel .operator-selection-settings :is(input, select) {
+#operatorSelectionSettings :is(input, select) {
   min-height: 40px;
   color: #173b48;
   border-color: #b5cbd2;
@@ -12524,3 +12524,11 @@ body #selectPanel .operator-selection-settings :is(input, select) {
 body #selectPanel .operator-setting-status[hidden] {
   display: none;
 }
+
+.pregame-canvas-settings{position:absolute;z-index:24;inset:clamp(16px,6%,54px) clamp(16px,8%,88px) auto;max-height:min(82%,520px);overflow:auto;padding:clamp(16px,3vw,30px);border:1px solid rgba(152,225,242,.68);border-radius:18px;background:linear-gradient(145deg,rgba(13,38,47,.96),rgba(20,61,72,.92));box-shadow:0 18px 54px rgba(0,0,0,.42);pointer-events:auto}.pregame-canvas-settings[hidden]{display:none}.pregame-canvas-open #gameCanvas{pointer-events:none}@media(max-width:640px){.pregame-canvas-settings{inset:10px;max-height:calc(100% - 20px);border-radius:12px}}
+
+/* All shortcuts remain a single horizontal rail; narrow screens scroll the rail instead of creating a three-column stack. */
+.tablet-quick-actions,body.portrait-tablet-dock .tablet-quick-actions{display:flex;flex-flow:row nowrap;align-items:stretch;max-width:calc(100% - 132px);overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}.tablet-quick-action{flex:0 0 clamp(58px,8vw,94px)}body.portrait-tablet-dock .tablet-quick-actions{max-width:100%;width:100%;align-self:stretch}
+
+/* Canvas setup has its own responsive three-setting form after leaving the sidebar. */
+#operatorSelectionSettings.pregame-canvas-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0}#operatorSelectionSettings.pregame-canvas-settings>.objective{grid-column:1/-1;margin:0}#operatorSelectionSettings.pregame-canvas-settings>label{min-width:0}@media(max-width:680px){#operatorSelectionSettings.pregame-canvas-settings{grid-template-columns:1fr}}

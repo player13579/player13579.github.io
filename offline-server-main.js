@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "mystery-photon-inventory-v721",
+    version: "pregame-canvas-dodge-shortcuts-v722",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "mystery-photon-inventory-v721";
+const PRODUCT_RELEASE = "pregame-canvas-dodge-shortcuts-v722";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7492,7 +7492,7 @@ const FLORA_SPEED_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.72;
 const FLORA_SPEED_DURATION_MS = 12_000;
 const MAX_STAMINA = 100;
 const MAX_STORED_STAMINA = 500;
-const DODGE_STAMINA_COST = 200;
+const DODGE_STAMINA_COST = 100;
 const REMOTE_REPAIR_STAMINA_COST = 600;
 const SLEEP_REGEN_MULTIPLIER = 4;
 const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
@@ -26073,7 +26073,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "mystery-photon-inventory-v721",
+  version: "pregame-canvas-dodge-shortcuts-v722",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "mystery-photon-inventory-v721";
+const OFFLINE_WORKER_VERSION = "pregame-canvas-dodge-shortcuts-v722";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.

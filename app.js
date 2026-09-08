@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "mystery-photon-inventory-v721";
+const DVA_CLIENT_RELEASE = "pregame-canvas-dodge-shortcuts-v722";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -162,6 +162,7 @@ const els = {
   joinPanel: $("#joinPanel"),
   selectPanel: $("#selectPanel"),
   operatorSelectionSettings: $("#operatorSelectionSettings"),
+  pregameCanvasSettings: $("#operatorSelectionSettings"),
   operatorSettingStatus: $("#operatorSettingStatus"),
   operatorRetryButton: $("#operatorRetryButton"),
   statusPanel: $("#statusPanel"),
@@ -902,7 +903,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mystery-photon-inventory-v721";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pregame-canvas-dodge-shortcuts-v722";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -11958,7 +11959,8 @@ function render() {
   els.joinPanel.hidden = true;
   els.selectPanel.hidden = !operatorSelectionVisible;
   const selecting = data?.phase === "selecting";
-  els.operatorSelectionSettings.hidden = !operatorSelectionVisible;
+  els.pregameCanvasSettings.hidden = !operatorSelectionVisible;
+  document.body.classList.toggle("pregame-canvas-open", operatorSelectionVisible);
   els.operatorSettingStatus.hidden = !operatorSelectionVisible;
   els.operatorRetryButton.hidden = !(operatorSelectionVisible && !selecting && !state.matchmakingInFlight);
   if (!selecting && operatorSelectionVisible) {
@@ -12022,7 +12024,7 @@ function formatBattleTime(data) {
 
 function renderOperatorSelect(data) {
   if (data.phase !== "selecting") return;
-  els.operatorSelectionSettings.hidden = false;
+  els.pregameCanvasSettings.hidden = false;
   els.operatorSettingStatus.hidden = false;
   els.operatorRetryButton.hidden = true;
   els.operatorHoldHint.hidden = false;
@@ -15731,8 +15733,14 @@ function draw() {
   state.markerHitTargets.length = 0;
   ctx.fillStyle = data ? "#91a8b7" : "#25323d";
   ctx.fillRect(0, 0, w, h);
-  if (!data) {
-    drawIdle(w, h);
+  const pregameCanvas = !data || state.operatorSelectionRouteOpen || ["lobby", "selecting"].includes(data.phase);
+  if (pregameCanvas) {
+    // Match setup deliberately does not expose a live field.
+    const wash = ctx.createLinearGradient(0, 0, w, h);
+    wash.addColorStop(0, "#11242c");
+    wash.addColorStop(1, "#1d3a44");
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, 0, w, h);
     return;
   }
   if (data.phase !== "playing") {
@@ -23109,7 +23117,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mystery-photon-inventory-v721";
+const version = "pregame-canvas-dodge-shortcuts-v722";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24149,7 +24157,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=mystery-photon-inventory-v721", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=pregame-canvas-dodge-shortcuts-v722", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

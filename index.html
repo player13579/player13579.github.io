@@ -14,7 +14,7 @@
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
     <link rel="preload" as="image" href="assets/title-hero-v466.png?v=core-icons-restart-v707" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=mystery-photon-inventory-v721">
+  <link rel="stylesheet" href="styles.css?v=pregame-canvas-dodge-shortcuts-v722">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
@@ -298,6 +298,29 @@
             </div>
           </section>
           <canvas id="gameCanvas" width="980" height="620" tabindex="-1" role="img" aria-label="ゲームマップ" aria-describedby="gameCanvasStatusSummary"></canvas>
+          <div id="operatorSelectionSettings" class="operator-selection-settings pregame-canvas-settings" aria-label="出撃設定" hidden>
+            <p class="objective">スキンとステージは、ここで切り替えられます。</p>
+          <label>
+            名前
+            <input id="nameInput" maxlength="16" autocomplete="nickname" placeholder="プレイヤー" aria-describedby="namePolicy">
+            <small id="namePolicy" class="name-policy">名前は出撃準備中に変更できます。</small>
+            <small id="soloNameGuidance" class="name-policy solo-name-guidance" aria-live="polite" hidden>名前を入力したら、本のアイコンから「戦術いろは」へ戻り、訓練の「開始」を押してください。</small>
+          </label>
+          <label>
+            プレイヤースキン
+            <select id="skinSelect">
+              <option value="hood">フィリア</option>
+              <option value="blue-dress">ソフィア</option>
+            </select>
+          </label>
+          <label>
+            マップ
+            <select id="mapSelect">
+              <option value="station">アウレリア自然共生館</option>
+              <option value="outpost">ルミナ総合研究・休養棟</option>
+            </select>
+          </label>
+          </div>
           <p id="gameCanvasStatusSummary" class="visually-hidden">ゲーム開始前です。</p>
           <p id="gameCanvasStatusAnnouncement" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>
           <section id="killCameraOverlay" class="kill-camera-overlay" role="dialog" aria-modal="true" aria-labelledby="killCameraTitle" aria-owns="operatorReselectButton" hidden>
@@ -368,29 +391,7 @@
             <span id="selectTimer" class="badge">接続中</span>
             <button id="operatorRetryButton" type="button" hidden>再試行</button>
           </div>
-          <div id="operatorSelectionSettings" class="operator-selection-settings">
-            <p class="objective">スキンとステージは、ここで切り替えられます。</p>
-          <label>
-            名前
-            <input id="nameInput" maxlength="16" autocomplete="nickname" placeholder="プレイヤー" aria-describedby="namePolicy">
-            <small id="namePolicy" class="name-policy">名前は出撃準備中に変更できます。</small>
-            <small id="soloNameGuidance" class="name-policy solo-name-guidance" aria-live="polite" hidden>名前を入力したら、本のアイコンから「戦術いろは」へ戻り、訓練の「開始」を押してください。</small>
-          </label>
-          <label>
-            プレイヤースキン
-            <select id="skinSelect">
-              <option value="hood">フィリア</option>
-              <option value="blue-dress">ソフィア</option>
-            </select>
-          </label>
-          <label>
-            マップ
-            <select id="mapSelect">
-              <option value="station">アウレリア自然共生館</option>
-              <option value="outpost">ルミナ総合研究・休養棟</option>
-            </select>
-          </label>
-          </div>
+
           <p id="operatorSettingStatus" class="objective operator-setting-status" aria-live="polite"></p>
           <p id="selectTeamText" class="objective"></p>
           <p id="operatorHoldHint" class="objective">長押しでオペ詳細説明を表示する</p>
@@ -680,11 +681,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-    <script src="economy-catalog-v468.js?v=mystery-photon-inventory-v721"></script>
-    <script src="game-runtime.js?v=mystery-photon-inventory-v721"></script>
-    <script src="game-engine.js?v=mystery-photon-inventory-v721"></script>
-    <script src="offline-runtime.js?v=mystery-photon-inventory-v721"></script>
-    <script src="config.js?v=mystery-photon-inventory-v721"></script>
-    <script src="app.js?v=mystery-photon-inventory-v721"></script>
+    <script src="economy-catalog-v468.js?v=pregame-canvas-dodge-shortcuts-v722"></script>
+    <script src="game-runtime.js?v=pregame-canvas-dodge-shortcuts-v722"></script>
+    <script src="game-engine.js?v=pregame-canvas-dodge-shortcuts-v722"></script>
+    <script src="offline-runtime.js?v=pregame-canvas-dodge-shortcuts-v722"></script>
+    <script src="config.js?v=pregame-canvas-dodge-shortcuts-v722"></script>
+    <script src="app.js?v=pregame-canvas-dodge-shortcuts-v722"></script>
 </body>
 </html>
