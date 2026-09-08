@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "sabotage-comms-icon-v704";
+const DVA_CLIENT_RELEASE = "emp-icon-restart-v705";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -896,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sabotage-comms-icon-v704";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-icon-restart-v705";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17839,7 +17839,7 @@ function drawMagicEffects() {
     }
     if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
-    if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
+    if (drawRestartEmpAte(effect, progress, now)) continue;
     // Persistent focus owns only the old transient Ninjutsu focus flash.
     if (effect.type === "action-ninjutsu-focus") continue;
     if (drawNativeLocalRepairAte(effect, progress, now)) continue;
@@ -19818,119 +19818,99 @@ function drawActionEffect(effect, progress, now) {
 
 
 
-// Candidate helper for insertion before the generic emp-* route only.
-// It owns precisely emp-charge and emp-resonance; emp, emp-cancel and
-// emp-storage-lock retain their current renderers.
-function drawNativeEmpStateAte(effect, progress, now) {
-  const type = String(effect?.type || "");
-  const charge = type === "emp-charge";
-  const resonance = type === "emp-resonance";
-  if (!charge && !resonance) return false;
-  const sprite = charge ? state.textures?.empChargeIconRgba : state.textures?.empResonanceNativeRgba;
-  // This adopted route is deliberately silent when its raw texture is not ready:
-  // it must never resurrect the old charge/resonance asset behind the new one.
-  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
+// Fresh restart EMP family. Coordinates below are measured on the five 1254px raws.
+function drawRestartEmpAte(effect, progress, now) {
+  const type = effect?.type;
+  const slots = { emp: "empAppIconActivationEffect", "emp-charge": "empChargeIconRgba", "emp-resonance": "empResonanceNativeRgba", "emp-cancel": "empCancelIconRgba", "emp-storage-lock": "empStorageLockNativeRgba" };
+  if (!Object.prototype.hasOwnProperty.call(slots, type)) return false;
   const p = clamp(Number(progress) || 0, 0, 1);
   const reduced = prefersReducedMotion();
-  const phase = String(effect?.variant || "positive") === "negative" ? "negative" : "positive";
-  const polarity = phase === "negative" ? -1 : 1;
-  const rise = reduced ? 1 : Math.min(1, p / 0.22);
-  const fade = Math.max(0, 1 - Math.max(0, p - 0.7) / 0.3);
-  const size = charge ? 92 : Math.max(108, Math.min(154, Number(effect?.radius) || 124));
-  const time = reduced ? 0 : Number(now || 0) / 1000;
-  ctx.save();
-  ctx.translate(Number(effect?.x) || 0, Number(effect?.y) || 0);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.globalAlpha = Math.max(0, (charge ? 0.82 : 0.8) * rise * fade);
-  // T is one stationary, full-square native RGBA draw. No normalization,
-  // filter, shadow, tint, duplicate texture, or additive whitening is used.
+  const phase = reduced ? 0.5 : p;
+  let x = Number(effect.x) || 0, y = Number(effect.y) || 0;
+  if (type === "emp-storage-lock") {
+    const latest = latestEmpStorageLocks(state.magicEffects || [effect]).get(effect.playerId);
+    if (latest && latest !== effect) return true;
+    const target = (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id));
+    if (!target) return true;
+    const position = renderedPlayer(target); x = position.x; y = position.y - 38;
+  }
+  const sprite = state.textures?.[slots[type]];
+  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
+  const rawIntensity = Number(effect.intensity);
+  const intensity = type === "emp" && Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
+  const fadeStart = type === "emp-storage-lock" ? 1 - 300 / 7000 : 0.72;
+  const fade = (1 - clamp((p - fadeStart) / (1 - fadeStart), 0, 1)) * intensity;
+  const size = type === "emp-resonance" ? 124 : type === "emp-cancel" ? 130 : 92;
+  const at = point => [(point[0] / 1254 - 0.5) * size, (point[1] / 1254 - 0.5) * size];
+  ctx.save(); ctx.translate(x, y);
+  ctx.globalCompositeOperation = "source-over"; ctx.filter = "none";
+  ctx.shadowBlur = 0; ctx.shadowColor = "transparent"; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+  ctx.globalAlpha = 0.62 * fade;
   ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-  ctx.globalAlpha = Math.max(0, rise * fade * (charge ? 0.5 : 0.55));
-  ctx.lineCap = "round";
-  ctx.lineWidth = charge ? 1.45 : 1.7;
-  if (charge) {
-    // E is a low-gain emitted accumulation patch inside the measured stored band:
-    // source x520..735/y854 in the accepted 1254px raw maps into this stationary 92px T.
-    // The single upper-right incoming branch stays in T; phase reverses only the local seat sweep.
-    const seatY = (854 / 1254 - 0.5) * size;
-    const seatLeft = (520 / 1254 - 0.5) * size;
-    const seatRight = (735 / 1254 - 0.5) * size;
-    const seatCenter = (627 / 1254 - 0.5) * size;
-    const sweep = reduced ? 1 : clamp(p / 0.65, 0, 1);
-    const origin = phase === "negative" ? seatRight : seatLeft;
-    const x = origin + (seatCenter - origin) * sweep;
-    const settled = reduced ? 1 : clamp((p - 0.65) / 0.16, 0, 1);
-    const radius = 2.25 + settled * 1.15;
-    const light = ctx.createRadialGradient(x, seatY, 0, x, seatY, radius);
-    light.addColorStop(0, "rgba(158, 251, 255, 0.78)");
-    light.addColorStop(0.48, "rgba(90, 220, 238, 0.34)");
-    light.addColorStop(1, "rgba(90, 220, 238, 0)");
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = Math.max(0, rise * fade * (reduced ? 0.15 : 0.16 + settled * 0.04));
-    ctx.fillStyle = light;
-    ctx.fillRect(x - radius, seatY - radius * 0.48, radius * 2, radius * 0.96);
+  // E alone emits light. T is stationary and already drawn before these settings.
+  ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+  function packet(points, fraction, span, width, color, gain) {
+    const pos = value => {
+      const f = clamp(value, 0, 1) * (points.length - 1), i = Math.min(points.length - 2, Math.floor(f)), t = f - i;
+      return at([points[i][0] + (points[i + 1][0] - points[i][0]) * t, points[i][1] + (points[i + 1][1] - points[i][1]) * t]);
+    };
+    const a = pos(fraction), b = pos(Math.min(1, fraction + span));
+    ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 2.2;
+    ctx.lineWidth = width; ctx.globalAlpha = fade * gain;
+    ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+  }
+  function glow(point, radius, color, gain) {
+    const [gx, gy] = at(point), light = ctx.createRadialGradient(gx, gy, 0, gx, gy, radius);
+    light.addColorStop(0, color); light.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.shadowBlur = 0; ctx.shadowColor = "transparent"; ctx.fillStyle = light; ctx.globalAlpha = fade * gain;
+    ctx.fillRect(gx - radius, gy - radius, radius * 2, radius * 2);
+  }
+  if (type === "emp") {
+    // Both phases propagate outward; polarity reverses which measured side leads.
+    const negative = effect.variant === "negative";
+    // Independent correction: [593,724] is support, not the emitting core.
+    // Only local glow at the measured luminous core; packets stay inside each wave.
+    glow([627,680], 2.0, "rgba(166,249,255,0.8)", 0.16);
+    const paths = [[[498,514],[150,480]], [[750,511],[1105,480]]];
+    paths.forEach((path, side) => {
+      const delay = side === (negative ? 1 : 0) ? 0 : 0.1;
+      const travel = reduced ? (side === (negative ? 1 : 0) ? 0.66 : 0.4) : clamp((phase - delay) / 0.75, 0, 1);
+      packet(path, travel * 0.88, 0.1, 1.45, "rgba(105,245,255,0.82)", 0.24);
+    });
+  } else if (type === "emp-charge") {
+    // Stored horizontal band only; never redraw the incoming upper chevron.
+    const fill = reduced ? 0.62 : clamp(phase / 0.8, 0, 1);
+    packet([[410,726],[633,726]], fill * 0.85, 0.14, 1.8, "rgba(148,221,255,0.82)", 0.23);
+    packet([[855,726],[633,726]], fill * 0.85, 0.14, 1.8, "rgba(190,155,255,0.82)", 0.23);
+    glow([633,726], 1.7 + fill * 0.6, "rgba(177,235,255,0.75)", 0.08 + fill * 0.09);
+  } else if (type === "emp-resonance") {
+    const travel = reduced ? 0.45 : clamp(phase / 0.85, 0, 1);
+    packet([[658,611],[800,570],[950,700]], travel * 0.84, 0.14, 1.3 + travel * 1.6, "rgba(220,193,255,0.88)", 0.25);
+    glow([658,611], 2.0, "rgba(183,255,247,0.78)", 0.12);
+  } else if (type === "emp-cancel") {
+    const loss = reduced ? 0.5 : phase;
+    // The two inward ends attenuate in place; neither light enters the gap.
+    packet([[525,514],[525,547]], 0.18, 0.65 * (1 - loss), 1.8 - loss * 0.7, "rgba(127,249,255,0.82)", 0.26 * (1 - loss));
+    packet([[712,580],[712,622]], 0.18, 0.65 * (1 - loss), 1.8 - loss * 0.7, "rgba(255,168,245,0.82)", 0.26 * (1 - loss));
   } else {
-    // E: short midpoint joints strengthen then open outward; the raw texture remains stationary.
-    ctx.strokeStyle = "rgba(198, 242, 255, 0.9)";
-    const joint = reduced ? 0.62 : Math.min(1, Math.max(0, (p - 0.08) / 0.55));
-    for (const side of [-1, 1]) {
-      const inner = side * size * (0.04 + (1 - joint) * 0.12);
-      const outer = side * size * (0.18 + joint * 0.16);
-      ctx.beginPath();
-      ctx.moveTo(inner, -size * 0.07);
-      ctx.quadraticCurveTo(side * size * 0.12, 0, outer, size * 0.1);
-      ctx.stroke();
-    }
+    // Latch -> nearby restraint-bar segment, slowly held for the lock lifetime.
+    const held = reduced ? 0.5 : clamp(phase / 0.55, 0, 1);
+    glow([1016,680], 1.8, "rgba(218,171,255,0.8)", 0.13);
+    packet([[1016,680],[958,680],[880,680]], held * 0.68, 0.2, 1.5, "rgba(205,148,255,0.8)", 0.16);
   }
-  ctx.restore();
-  return true;
+  ctx.restore(); return true;
 }
-
+function drawNativeEmpStateAte(effect, progress, now) {
+  if (effect?.type !== "emp-charge" && effect?.type !== "emp-resonance") return false;
+  return drawRestartEmpAte(effect, progress, now);
+}
 function drawNativeEmpCancelAte(effect, progress, now) {
-  if (effect?.type !== "emp-cancel") return false;
-  const sprite = state.textures?.empCancelIconRgba;
-  // New cancel T owns its load gap; do not revive the legacy interaction raster.
-  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const reduced = prefersReducedMotion();
-  const fade = reduced ? Math.max(0, 1 - Math.max(0, p - 0.7) / 0.3) : Math.max(0, 1 - p);
-  const size = Math.max(110, Math.min(150, Number(effect?.radius) || 130));
-  ctx.save();
-  ctx.translate(Number(effect?.x) || 0, Number(effect?.y) || 0);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.globalAlpha = fade * 0.8;
-  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-  // E: each opposing step emits only at its inward termination, then attenuates.
-  // Source landmarks are inward face centres cyan (559,620) and plum (695,620)
-  // in the accepted 1254px raw: the two signals stop horizontally across the central gap.
-  const settle = reduced ? 1 : clamp(p / 0.42, 0, 1);
-  const terminalFade = (reduced ? 0.16 : 0.2 - settle * 0.06) * fade;
-  const terminals = [
-    { x: (559 / 1254 - 0.5) * size, y: (620 / 1254 - 0.5) * size, color: "rgba(79, 239, 255, 0.72)" },
-    { x: (695 / 1254 - 0.5) * size, y: (620 / 1254 - 0.5) * size, color: "rgba(238, 107, 255, 0.70)" }
-  ];
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0, terminalFade);
-  for (const terminal of terminals) {
-    const radius = 3.3 - settle * 0.9;
-    const light = ctx.createRadialGradient(terminal.x, terminal.y, 0, terminal.x, terminal.y, radius);
-    light.addColorStop(0, terminal.color);
-    light.addColorStop(0.5, terminal.color.replace(/, 0\.[0-9]+\)/, ", 0.26)"));
-    light.addColorStop(1, "rgba(0, 0, 0, 0)");
-    ctx.fillStyle = light;
-    ctx.fillRect(terminal.x - radius, terminal.y - radius, radius * 2, radius * 2);
-  }
-  ctx.restore();
-  return true;
+  return effect?.type === "emp-cancel" ? drawRestartEmpAte(effect, progress, now) : false;
 }
 function latestEmpStorageLocks(effects){const latest=new Map();for(const e of effects)if(e?.type==="emp-storage-lock"&&e.playerId){const p=latest.get(e.playerId);if(!p||Number(e.startedAt)>=Number(p.startedAt))latest.set(e.playerId,e);}return latest;}
-function drawNativeEmpStorageLockAte(effect,progress,now){if(effect?.type!=="emp-storage-lock")return false;const p=(state.data?.players||[]).find(x=>x.id===effect.playerId&&x.alive!==false&&!x.ejected&&!x.inVent&&(!x.invisible||x.id===state.data?.self?.id));if(!p)return true;const a=state.textures?.empStorageLockNativeRgba;if(!a?.complete||!a.naturalWidth)return true;const r=renderedPlayer(p),reduced=prefersReducedMotion(),tail=clamp((progress-(1-300/7000))/(300/7000),0,1),fade=.6*(progress>=1?0:1-tail);ctx.save();ctx.translate(r.x,r.y-38);ctx.globalCompositeOperation="source-over";ctx.filter="none";ctx.shadowBlur=0;ctx.shadowColor="transparent";ctx.globalAlpha=fade*.6;ctx.drawImage(a,-46,-46,92,92);ctx.globalAlpha=fade*.28;ctx.strokeStyle="rgba(194,222,240,.8)";ctx.lineWidth=1.3;for(const side of[-1,1]){ctx.beginPath();ctx.moveTo(side*28,-4);ctx.lineTo(side*12,5);ctx.stroke();}ctx.restore();return true;}
+function drawNativeEmpStorageLockAte(effect, progress, now) {
+  return effect?.type === "emp-storage-lock" ? drawRestartEmpAte(effect, progress, now) : false;
+}
 
 function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   const sources = [
@@ -19958,67 +19938,11 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
 }
 
 function drawEmpActivationAte(effect, progress, now) {
-  const rawIntensity = Number(effect?.intensity);
-  const intensity = Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
-  if (intensity <= 0.001) return true;
-  const sprite = state.textures?.empAppIconActivationEffect;
-  // Native activation owns load gaps; never return to the withdrawn atlas/cache.
-  if (!sprite?.complete || !sprite.naturalWidth || !sprite.naturalHeight) return true;
-  const normalized = clamp(progress, 0, 1);
-  const reduced = prefersReducedMotion();
-  const charge = reduced ? 1 : objectEffectEase(clamp(normalized / 0.22, 0, 1));
-  const snap = reduced ? 0 : Math.sin(clamp((normalized - 0.18) / 0.18, 0, 1) * Math.PI);
-  const settle = reduced ? 1 : objectEffectEase(clamp((normalized - 0.42) / 0.3, 0, 1));
-  const fade = 1 - objectEffectEase(clamp((normalized - 0.74) / 0.26, 0, 1));
-  const size = 76 + charge * 12 + snap * 8 - settle * 8;
-  ctx.save();
-  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
-  ctx.rotate(snap * 0.035);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
-  ctx.globalAlpha = Math.max(0, (0.16 + charge * 0.20) * fade * intensity);
-  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-  // Accepted 1254px image: upper cuts y570, lower cuts y668; measured outer exits x265/980.
-  // Packets depart beyond those exits, not over the raster's existing bright marks.
-  const polarity = effect.variant === "negative" ? -1 : 1;
-  const packet = reduced ? 0.5 : clamp((normalized - 0.06) / 0.48, 0, 1);
-  if (reduced || normalized < 0.54) {
-    ctx.globalCompositeOperation = "lighter";
-    ctx.filter = "none";
-    ctx.shadowColor = "rgba(103, 232, 249, 0.65)";
-    ctx.shadowBlur = 2.5;
-    ctx.strokeStyle = "rgba(103, 232, 249, 0.92)";
-    ctx.lineWidth = 1.8;
-    ctx.lineCap = "round";
-    ctx.globalAlpha = Math.max(0, (reduced ? 0.22 : Math.sin(packet * Math.PI) * 0.30) * intensity * fade);
-    const sourceY = polarity > 0 ? 570 : 668;
-    for (const side of [-1, 1]) {
-      const sourceX = side < 0 ? 265 : 980;
-      const x = (sourceX / 1254 - 0.5) * size + side * packet * size * 0.12;
-      const y = (sourceY / 1254 - 0.5) * size;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + side * 9, y + polarity * 8);
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
-  return true;
+  return effect?.type === "emp" ? drawRestartEmpAte(effect, progress, now) : false;
 }
 
 function drawEmpEffect(effect, progress, now) {
-  if (drawNativeEmpCancelAte(effect, progress, now)) return;
-  if (drawNativeEmpStateAte(effect, progress, now)) return;
-  // The adopted native activation owns this route, including image-load gaps.
-  // Missing native pixels must not revive the withdrawn EMP atlas.
-  if (effect.type === "emp") {
-    drawEmpActivationAte(effect, progress, now);
-    return;
-  }
+  if (drawRestartEmpAte(effect, progress, now)) return;
   if (drawCommonActionSimpleIcon(effect, progress)) return;
   const maxRadius = Math.max(180, Number(effect.radius) || 260);
   const interactionIndex = effect.type === "emp-resonance" ? 0 : effect.type === "emp-cancel" ? 1 : -1;
@@ -23611,7 +23535,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "sabotage-comms-icon-v704";
+const version = "emp-icon-restart-v705";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23677,12 +23601,12 @@ const version = "sabotage-comms-icon-v704";
     "assets/generated/alchemy-effect-reason-v311.png"
   ]);
   const empResonanceEffect = new Image();
-  const empChargeIconRgba = eagerImage("assets/generated/emp-charge-icon-rgba-v697.png");
-  const empResonanceNativeRgba = new Image();
+  const empChargeIconRgba = eagerImage("assets/generated/emp-charge-icon-restart-v705.png");
+  const empResonanceNativeRgba = eagerImage("assets/generated/emp-resonance-icon-restart-v705.png");
   const empCancelEffect = new Image();
-  const empStorageLockNativeRgba = new Image();
-  const empCancelIconRgba = eagerImage("assets/generated/emp-cancel-icon-rgba-v698.png");
-  const empAppIconActivationEffect = eagerImage("assets/generated/emp-digital-activation-rgba-v696.png");
+  const empStorageLockNativeRgba = eagerImage("assets/generated/emp-storage-icon-restart-v705.png");
+  const empCancelIconRgba = eagerImage("assets/generated/emp-cancel-icon-restart-v705.png");
+  const empAppIconActivationEffect = eagerImage("assets/generated/emp-activation-icon-restart-v705.png");
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
   const gunnerWeaponsAtlas = new Image();
   const gunnerCombatStateEffects = imageSet([
@@ -23843,9 +23767,7 @@ const version = "sabotage-comms-icon-v704";
   defer(blueDressKillCutin, "assets/generated/skin-blue-dress-kill-cutin.webp");
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
-  defer(empResonanceNativeRgba, "assets/generated/emp-resonance-native-rgba-v683.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
-  defer(empStorageLockNativeRgba, "assets/generated/emp-storage-lock-native-rgba-v685.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
@@ -24678,7 +24600,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=sabotage-comms-icon-v704", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-icon-restart-v705", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
