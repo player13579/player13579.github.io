@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "core-icons-restart-v707";
+const DVA_CLIENT_RELEASE = "social-icons-restart-v708";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "core-icons-restart-v707";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "social-icons-restart-v708";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17735,7 +17735,7 @@ function drawMagicEffects() {
     // Persistent focus owns only the old transient Ninjutsu focus flash.
     if (effect.type === "action-ninjutsu-focus") continue;
     if (drawNativeLocalRepairAte(effect, progress, now)) continue;
-    if (drawNativeSabotageCommsAte(effect, progress, now) || drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
+    if (drawRestartSocialAte(effect, progress, now) || drawNativeSabotageCommsAte(effect, progress, now) || drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
@@ -19406,6 +19406,54 @@ function drawNativeDonationUnjustAte(effect, progress, now) {
   return true;
 }
 
+// Exact successful smartphone-event owners. T expresses acceptance, never luck outcome.
+function drawRestartSocialAte(effect, progress, now) {
+  const slots = {'donation-rational':'rationalSocialIconRgba','donation-unjust':'unjustSocialIconRgba',emergency:'emergencySocialIconRgba'};
+  if (effect?.type !== 'action-smartphone' || !Object.prototype.hasOwnProperty.call(slots, effect.variant)) return false;
+  const sprite = state.textures?.[slots[effect.variant]], p = clamp(Number(progress) || 0, 0, 1);
+  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0) || p >= 1) return true;
+  const q = prefersReducedMotion() ? .55 : p, fade = 1 - clamp((p - .72) / .28, 0, 1), size = 96;
+  const at = (x,y) => [(x / 1254 - .5) * size, (y / 1254 - .5) * size];
+  ctx.save();
+  try {
+    ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 8);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = .62 * fade;
+    ctx.filter = 'none'; ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    ctx.drawImage(sprite, -48, -48, 96, 96);
+    ctx.globalCompositeOperation = 'lighter';
+    const light = (px, py, strength, radius, rgb) => {
+      const [x,y] = at(px,py), g = ctx.createRadialGradient(x,y,0,x,y,radius);
+      g.addColorStop(0,`rgba(${rgb},.65)`); g.addColorStop(.45,`rgba(${rgb},.22)`); g.addColorStop(1,`rgba(${rgb},0)`);
+      ctx.globalAlpha = fade * strength; ctx.fillStyle = g; ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
+    };
+    const band = (px,py,width,strength,rgb) => {
+      const [x,y] = at(px,py), g = ctx.createLinearGradient(x-width,y,x+width,y);
+      g.addColorStop(0,`rgba(${rgb},0)`);g.addColorStop(.5,`rgba(${rgb},.55)`);g.addColorStop(1,`rgba(${rgb},0)`);
+      ctx.globalAlpha=fade*strength;ctx.fillStyle=g;ctx.fillRect(x-width,y-.7,width*2,1.4);
+    };
+    const delta = effect.donationResultDelta;
+    const realDelta = typeof delta === 'number' && Number.isFinite(delta);
+    if (effect.variant === 'donation-rational') {
+      // Coin/receiver contacts, then a separate response only for actual gain.
+      const seat = clamp(q / .25,0,1);
+      light(420,665,.12+.12*seat,1.6,'142,255,219'); light(830,665,.12+.12*seat,1.6,'142,255,219');
+      if (realDelta && delta > 0) light(840,590-55*q,.2*(1-q*.5),1.7,'175,255,220');
+    } else if (effect.variant === 'donation-unjust') {
+      light(635,555,.16,1.7,'235,194,255');
+      // This endpoint is the payment transfer band, not a fixed luck loss.
+      band(914,873,2.3-1.3*q,.23*(1-q*.6),'159,255,226');
+      if (realDelta && delta < 0) light(790,990+28*q,.22*(1-q),1.8,'186,151,240');
+    } else {
+      // Source request arrives first; empty receiving windows answer locally.
+      light(627,640,.24*(1-.45*q),2.1,'255,185,111');
+      band(291,520,2.7,.24*clamp((q-.16)/.18,0,1),'153,242,255');
+      band(972,520,2.7,.24*clamp((q-.28)/.18,0,1),'153,242,255');
+    }
+  } finally { ctx.restore(); }
+  return true;
+}
+
+
 function drawNativeRationalDonationAte(effect, progress, now) {
   if (effect?.type !== "action-smartphone" || effect.variant !== "donation-rational") return false;
   const sprite = state.textures?.donationNativeAte;
@@ -19437,7 +19485,7 @@ function drawNativeRationalDonationAte(effect, progress, now) {
 }
 
 function drawActionEffect(effect, progress, now) {
-  if (drawNativeSabotageCommsAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
+  if (drawRestartSocialAte(effect, progress, now) || drawNativeSabotageCommsAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
@@ -23215,7 +23263,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "core-icons-restart-v707";
+const version = "social-icons-restart-v708";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23387,6 +23435,9 @@ const version = "core-icons-restart-v707";
   const renkiDebtIconRgba = eagerImage("assets/generated/desire-core-icons-restart-v707.png");
   const sabotageCommsIconRgba = eagerImage("assets/generated/sabotage-comms-icon-rgba-v704.png");
   const dodgeIconRgba = eagerImage("assets/generated/dodge-core-icons-restart-v707.png");
+  const rationalSocialIconRgba = eagerImage("assets/generated/donation-rational-social-icons-restart-v708.png");
+  const unjustSocialIconRgba = eagerImage("assets/generated/donation-unjust-social-icons-restart-v708.png");
+  const emergencySocialIconRgba = eagerImage("assets/generated/emergency-call-social-icons-restart-v708.png");
   const donationNativeAte = new Image();
   const donationUnjustIconRgba = eagerImage("assets/generated/donation-unjust-icon-rgba-v703.png");
   const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-core-icons-restart-v707.png");
@@ -23656,6 +23707,9 @@ const version = "core-icons-restart-v707";
     clairvoyanceThrowAte,
     clairvoyanceNativeRgba,
     renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba, sabotageCommsIconRgba,
+    rationalSocialIconRgba,
+    unjustSocialIconRgba,
+    emergencySocialIconRgba,
     donationNativeAte,
     donationUnjustIconRgba,
     ninjutsuFocusIconRgba,
@@ -24280,7 +24334,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=core-icons-restart-v707", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=social-icons-restart-v708", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
