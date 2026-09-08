@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "surveillance-camera-removal-v706";
-const CACHE_NAME = "dva-static-v706-surveillance-camera-removal";
+const RUNTIME_RELEASE = "core-icons-restart-v707";
+const CACHE_NAME = "dva-static-v707-core-icons-restart";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -47,6 +47,12 @@ const STATIC_ASSETS = [
   "/assets/generated/emp-charge-icon-rgba-v697.png",
   "/assets/generated/emp-resonance-native-rgba-v683.png",
   "/assets/generated/emp-cancel-native-rgba-v684.png",
+  "/assets/generated/repair-core-icons-restart-v707.png",
+  "/assets/generated/normal-core-icons-restart-v707.png",
+  "/assets/generated/tenfold-core-icons-restart-v707.png",
+  "/assets/generated/desire-core-icons-restart-v707.png",
+  "/assets/generated/ninjutsu-core-icons-restart-v707.png",
+  "/assets/generated/dodge-core-icons-restart-v707.png",
 
   "/assets/generated/emp-activation-icon-restart-v705.png",
   "/assets/generated/emp-charge-icon-restart-v705.png",

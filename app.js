@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "surveillance-camera-removal-v706";
+const DVA_CLIENT_RELEASE = "core-icons-restart-v707";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "surveillance-camera-removal-v706";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "core-icons-restart-v707";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19155,6 +19155,53 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
 // ctx, state, clamp, and prefersReducedMotion. Add its call before compact
 // and generic action renderers: if (drawNativeCommonActionAte(effect, progress, now)) continue;
 // Candidate: generation and real-size acceptance are separate gates.
+function drawRestartCoreIcon(kind, position, progress, completion = false, persistent = false) {
+  const slots={repair:'localRepairIconRgba',normal:'renkiNormalIconRgba',tenfold:'renkiTenfoldNativeRgba',desire:'renkiDebtIconRgba',ninjutsu:'ninjutsuFocusIconRgba',dodge:'dodgeIconRgba'};
+  const image=state.textures?.[slots[kind]],p=clamp(Number(progress)||0,0,1);
+  if(!image?.complete||!image.naturalWidth||!image.naturalHeight||p>=1)return false;
+  const q=prefersReducedMotion()?.55:p,size={repair:88,normal:88,tenfold:108,desire:100,ninjutsu:100,dodge:82}[kind];
+  const fade=persistent?1:1-clamp((p-.72)/.28,0,1),at=(x,y)=>[(x/1254-.5)*size,(y/1254-.5)*size];
+  ctx.save();ctx.translate(Number(position.x)||0,Number(position.y)||0);
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.62*fade;ctx.filter='none';ctx.shadowBlur=0;ctx.shadowColor='transparent';ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+  ctx.drawImage(image,-size/2,-size/2,size,size);
+  ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+  const edge=(a,b,strength=.22,width=1.1,color='#b6efff')=>{
+    ctx.globalAlpha=fade*strength;ctx.lineWidth=width;ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=2;
+    ctx.beginPath();ctx.moveTo(...at(...a));ctx.lineTo(...at(...b));ctx.stroke();
+  };
+  const glow=(point,strength,radius=2.2,color='126,216,255')=>{
+    const [x,y]=at(...point),g=ctx.createRadialGradient(x,y,0,x,y,radius);
+    g.addColorStop(0,`rgba(${color},.65)`);g.addColorStop(.5,`rgba(${color},.2)`);g.addColorStop(1,`rgba(${color},0)`);
+    ctx.shadowBlur=0;ctx.globalAlpha=fade*strength;ctx.fillStyle=g;ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
+  };
+  // Raw-image contacts, not whole-icon transforms or paths across transparent gaps.
+  if(kind==='repair') {
+    [[475,555],[530,585],[583,610],[613,633],[700,663],[760,680]].forEach((a,i)=>{
+      const seat=clamp(q*7-i,0,1);edge([a[0]-10,a[1]-5],[a[0]+10,a[1]+5],.24*seat,1.1,i===3||i===4?'#ffe1a0':'#a8efff');
+    });
+  }else if(kind==='normal'){
+    const collect=completion?0:1-clamp(q/.6,0,1);
+    edge([335,553],[359,569],.22*collect);edge([894,569],[918,553],.22*collect);
+    glow([626,520],completion?.22*(1-q):.08+.17*clamp(q/.6,0,1));
+  }else if(kind==='tenfold'){
+    const half=42-22*q;
+    for(const y of [429,538])edge([626-half,y],[626+half,y],completion?.24*(1-q):.13+.12*q,1.2,'#c8d6ff');
+    glow([626,538],completion?.15*(1-q):.16*q,2.4,'178,192,255');
+  }else if(kind==='desire'){
+    // Lower recovery outlet during active state; no success burst or completion badge.
+    const opening=completion?1:q;
+    edge([568,808],[583,808],.13+.1*opening,1,'#bcefff');edge([671,808],[686,808],.13+.1*opening,1,'#bcefff');
+    edge([619,925+opening*22],[635,925+opening*22],completion?.22*(1-q):.14*opening,1,'#d1b6ee');
+  }else if(kind==='ninjutsu'){
+    // Mouth restraints hold, never depict an attack result.
+    edge([546,608],[566,618],.16+.08*q,1.1,'#d3b2ff');edge([690,618],[710,608],.16+.08*q,1.1,'#d3b2ff');
+  }else if(kind==='dodge'){
+    edge([444-12*(1-q),640],[444+12*(1-q),640],.23*(1-q),1,'#9cbfff');
+    const a=[910+35*q,760+55*q];edge(a,[a[0]+8,a[1]+13],.22,1.2,'#c6ecff');
+  }
+  ctx.restore();return true;
+}
+
 function drawNativeRenkiPhaseAte(effect, progress, now) {
   if (drawNativeRenkiDebtEvent(effect, progress)) return true;
   const startTenfold = effect?.type === 'action-renki' && effect.variant === 'tenfold';
@@ -19168,116 +19215,13 @@ function drawNativeRenkiPhaseAte(effect, progress, now) {
   const actor = effect.playerId ? (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id)) : null;
   if (effect.playerId && !actor) return true;
   const tenfold = startTenfold || effect.completionKind === 'tenfold';
-  const image = desire ? state.textures?.renkiDebtIconRgba : tenfold ? state.textures?.renkiTenfoldNativeRgba : state.textures?.renkiNormalIconRgba;
-  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return true;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const reduced = prefersReducedMotion();
-  const size = desire ? 100 : tenfold ? 108 : 88;
-  const fade = 1 - clamp((p - .72) / .28, 0, 1);
-  const reveal = reduced ? 1 : clamp(p / .1, 0, 1);
-  const phase = reduced ? .65 : clamp(p / .65, 0, 1);
-  ctx.save();
-  const position = actor ? renderedPlayer(actor) : effect;
-  ctx.translate(Number(position.x) || 0, Number(position.y) || 0);
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.filter = 'none'; ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-  ctx.globalAlpha = .76 * reveal * fade;
-  // Full square, native alpha; fixed texture position, scale and orientation.
-  ctx.drawImage(image, -size / 2, -size / 2, size, size);
-  ctx.globalAlpha = .44 * reveal * fade;
-  ctx.lineWidth = 1.4; ctx.lineCap = 'round';
-  ctx.strokeStyle = complete ? '#e5d8ff' : '#cce9ff';
-  if (desire) {
-    // Joining traverses the broad path once; completion releases the detached restraint.
-    ctx.strokeStyle = desireComplete ? '#d6badc' : '#bdebe9';
-    const x = size * (desireComplete ? .18 + .12 * phase : -.22 + .32 * phase);
-    const y = size * (desireComplete ? .22 + .08 * phase : .17 - .27 * phase);
-    ctx.beginPath(); ctx.moveTo(x - size * .045, y + size * .035);
-    ctx.lineTo(x + size * .045, y - size * .035); ctx.stroke();
-  } else if (complete && !tenfold) {
-    // Normal completion releases the same held drop: no second collection/gain cue.
-    const x = (627 / 1254 - 0.5) * size, y = (720 / 1254 - 0.5) * size;
-    const release = reduced ? .56 : clamp(p / .5, 0, 1);
-    const radius = 3.2 - release * .9;
-    const light = ctx.createRadialGradient(x, y, 0, x, y, radius);
-    light.addColorStop(0, "rgba(173, 237, 255, 0.54)"); light.addColorStop(.55, "rgba(116, 190, 255, 0.18)"); light.addColorStop(1, "rgba(116, 190, 255, 0)");
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.max(0, .18 * reveal * fade);
-    ctx.fillStyle = light; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-  } else if (complete) {
-    // Tenfold completion remains byte-for-byte on its established release route.
-    for (const side of [-1, 1]) {
-      const x = side * size * (.12 + .16 * phase);
-      ctx.beginPath(); ctx.moveTo(x, size * .08);
-      ctx.lineTo(x + side * size * .09, size * (.08 - .06 * phase)); ctx.stroke();
-    }
-  } else {
-    // One downward collection settles against the holding plane, without loops.
-    const y = size * (-.31 + .34 * phase);
-    const half = size * (.22 - .1 * phase);
-    ctx.beginPath(); ctx.moveTo(-half, y - size * .025);
-    ctx.quadraticCurveTo(0, y + size * .035, half, y - size * .025); ctx.stroke();
-  }
-  ctx.restore();
+  drawRestartCoreIcon(desire ? 'desire' : tenfold ? 'tenfold' : 'normal',actor ? renderedPlayer(actor) : effect,progress,complete || desireComplete);
   return true;
 }
 
-// Candidate-only native persistent Ninjutsu preparation marker.
-// It deliberately consumes no target identity for non-self actors.
-// Candidate-only manual local repair ATE. Automatic proximity repair retains
-// its legacy owner; this native route owns only an empty action-repair variant.
 function drawNativeLocalRepairAte(effect, progress, now) {
-  if (effect?.type !== "action-repair" || String(effect?.variant || "")) return false;
-  const image = state.textures?.localRepairIconRgba;
-  // Once adopted, an unavailable native image is silent rather than reviving
-  // the unrelated legacy atlas behind it.
-  if (!image?.complete || !(image.naturalWidth > 0) || !(image.naturalHeight > 0)) return true;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const reduced = prefersReducedMotion();
-  const fade = Math.max(0, 1 - Math.max(0, p - 0.72) / 0.28);
-  const x = Number(effect?.x) || 0;
-  const y = Number(effect?.y) || 0;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.globalAlpha = 0.68 * fade;
-  // Raw native RGBA, one full-square draw: no atlas crop, tint, shadow,
-  // normalization, duplicate, or additive whitening.
-  ctx.drawImage(image, -44, -44, 88, 88);
-  // E follows this compact wrench's inner neck slit and paired blue/gold tab
-  // junctions, never its C-shaped outer silhouette or bright raster rims.
-  ctx.strokeStyle = "rgba(182, 239, 221, 0.92)";
-  ctx.lineWidth = 1.4;
-  ctx.lineCap = "round";
-  const scan = reduced ? 0.5 : clamp((p - 0.08) / 0.32, 0, 1);
-  // The scanner advances once along the small neck slit. Its emission grows
-  // with the scanned contact, rather than pulsing the whole tool.
-  const scanX = -12 + scan * 6;
-  ctx.globalAlpha = (0.16 + scan * 0.14) * fade;
-  ctx.shadowColor = "rgba(113, 255, 205, 0.72)";
-  ctx.shadowBlur = 1.8 + scan * 1.1;
-  ctx.beginPath();
-  ctx.moveTo(scanX - 2.5, 4);
-  ctx.lineTo(scanX + 2.5, 4);
-  ctx.stroke();
-  // Once the neck scan has reached the contact, each inner jaw tab receives a
-  // short joining confirmation. The fresh join emits wider light, then cools
-  // to a narrow seated edge; reduced motion keeps both confirmations seated.
-  const join = reduced ? 1 : clamp((p - 0.42) / 0.24, 0, 1);
-  if (join > 0) for (const tab of [-1, 1]) {
-    ctx.globalAlpha = (0.21 + (1 - join) * 0.11) * fade;
-    ctx.shadowColor = "rgba(140, 244, 226, 0.76)";
-    ctx.shadowBlur = 2 + (1 - join) * 1.2;
-    ctx.beginPath();
-    const junction = tab < 0 ? { x: 6, y: -14, dx: 4, dy: 4 } : { x: 14, y: -7, dx: -4, dy: -4 };
-    ctx.moveTo(junction.x, junction.y);
-    ctx.lineTo(junction.x + junction.dx * join, junction.y + junction.dy * join);
-    ctx.stroke();
-  }
-  ctx.restore();
-  return true;
+  if(effect?.type !== 'action-repair' || String(effect?.variant || ''))return false;
+  drawRestartCoreIcon('repair',effect,progress);return true;
 }
 
 
@@ -19308,43 +19252,8 @@ function drawNativeNinjutsuFocusState(now) {
     const remaining = endsAt - serverNow;
     if (!(remaining > 0)) continue;
     const progress = clamp(1 - remaining / 4000, 0, 1);
-    const reduced = prefersReducedMotion();
-    const anchor = renderedPlayer(player);
-    const segment = reduced ? 0.52 : progress;
-    ctx.save();
-    ctx.translate(anchor.x, anchor.y - 42);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.filter = "none";
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = "transparent";
-    ctx.globalAlpha = 0.58;
-    // Native RGBA: direct full-square draw, without the atlas normalization
-    // or brightening filters that would wash out translucent filled regions.
-    ctx.drawImage(image, -50, -50, 100, 100);
-    // E maps to the source icon's two inward shutter ends, not the ochre
-    // holding light. Each short guide advances toward the target but stops
-    // before its gold edge, accumulating a local focus-lock emission.
-    ctx.globalAlpha = 0.15 + segment * 0.17;
-    ctx.strokeStyle = "rgba(218, 201, 255, 0.90)";
-    ctx.lineWidth = 1.35;
-    ctx.lineCap = "round";
-    ctx.shadowColor = "rgba(192, 166, 255, 0.76)";
-    ctx.shadowBlur = 1.8 + segment * 2.6;
-    const guides = [
-      { x: -23.7, y: -27.3, dx: 7.0, dy: 4.9 },
-      { x: 23.8, y: 23.4, dx: -4.0, dy: -6.9 }
-    ];
-    for (const guide of guides) {
-      const advance = reduced ? 0.52 : segment;
-      const startX = guide.x + guide.dx * advance;
-      const startY = guide.y + guide.dy * advance;
-      const unit = Math.hypot(guide.dx, guide.dy) || 1;
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(startX + guide.dx / unit * 5.4, startY + guide.dy / unit * 5.4);
-      ctx.stroke();
-    }
-    ctx.restore();
+    const anchor=renderedPlayer(player);
+    drawRestartCoreIcon('ninjutsu',{x:anchor.x,y:anchor.y-42},progress,false,true);
     drawn = true;
   }
   return drawn;
@@ -19352,48 +19261,9 @@ function drawNativeNinjutsuFocusState(now) {
 
 
 function drawRenkiDebtIconAt(position, progress, completion) {
-  const image = state.textures?.renkiDebtIconRgba;
-  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return false;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  if (p >= 1) return false;
-  const reduced = prefersReducedMotion();
-  const q = reduced ? (completion ? .8 : .5) : p;
-  const fade = completion ? 1 - clamp((p - .72) / .28, 0, 1) : 1;
-  const reveal = completion && !reduced ? clamp(p / .1, 0, 1) : 1;
-  const alpha = (completion ? .76 : .62) * fade * reveal;
-  ctx.save();
-  ctx.translate(Number(position.x) || 0, Number(position.y) || 0);
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.filter = 'none'; ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-  ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(image, -50, -50, 100, 100);
-  // Actual raw1254px: left band contact(300,640), peel(836,435)->(1080,518), reserve(620,842).
-  // Only short moving local accents; never repaint the full raster band or luminous baseline.
-  const point = (x, y) => [(x / 1254 - .5) * 100, (y / 1254 - .5) * 100];
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.shadowColor = 'rgba(221,190,246,.6)'; ctx.shadowBlur = 2;
-  ctx.lineWidth = 1.3; ctx.lineCap = 'round';
-  const contact = point(300, 640);
-  ctx.strokeStyle = '#d8c4ef';
-  ctx.globalAlpha = alpha * (completion ? .12 * (1 - q) : .3 * (1 - q));
-  ctx.beginPath();ctx.moveTo(contact[0],contact[1]-2);ctx.lineTo(contact[0],contact[1]+2);ctx.stroke();
-  const peel = q <= .5
-    ? point(836 + 240 * q, 435 + 122 * q)
-    : point(956 + 248 * (q - .5), 496 + 44 * (q - .5));
-  const release = completion ? 8 * q : 0;
-  ctx.globalAlpha = alpha * (completion ? .42 : .24 + .12 * q);
-  ctx.beginPath();ctx.moveTo(peel[0]+release,peel[1]-1-release*.3);
-  ctx.lineTo(peel[0]+release+3,peel[1]-release*.3);ctx.stroke();
-  if (completion) {
-    const reserve = point(620,842);
-    ctx.strokeStyle = '#c7f0f2'; ctx.shadowColor = 'rgba(183,232,244,.6)';
-    ctx.globalAlpha = alpha * .25;
-    ctx.beginPath();ctx.moveTo(reserve[0]-2,reserve[1]+2);ctx.lineTo(reserve[0]+2,reserve[1]+2);ctx.stroke();
-  }
-  ctx.restore();
-  return true;
+  return drawRestartCoreIcon('desire',position,progress,completion,!completion);
 }
+
 
 function drawNativeRenkiDebtEvent(effect, progress) {
   if (effect?.type !== 'action-renki' || !['desire-recovery-start','desire-recovery'].includes(effect.variant)) return false;
@@ -19474,94 +19344,13 @@ function drawNativeSabotageCommsAte(effect, progress, now) {
 }
 
 function drawNativeCommonActionAte(effect, progress, now) {
-  const type = String(effect?.type || "");
-  const isDefaultRenki = type === "action-renki" && !String(effect?.variant || "");
-  const isDodge = type === "action-dodge";
-  if (!isDefaultRenki && !isDodge) return false;
-
-  const source = isDefaultRenki
-    ? state.textures.renkiNormalIconRgba
-    : state.textures.dodgeIconRgba;
-  // The adopted route owns this activation. A pending/missing native image is
-  // safely silent and must not revive the former atlas texture.
-  if (!source?.complete || !(source.naturalWidth || source.width) || !(source.naturalHeight || source.height)) return true;
-
-  const reduced = prefersReducedMotion();
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const pulse = reduced ? 1 : Math.sin(p * Math.PI);
-  const fade = 1 - clamp((p - 0.72) / 0.28, 0, 1);
-  const size = isDefaultRenki ? 88 : 82;
-  const alpha = 0.8 * (0.76 + pulse * 0.24) * fade;
-  const x = Number(effect?.x) || 0;
-  const y = Number(effect?.y) || 0;
-  const time = reduced ? 0 : Number(now || 0) / 1000;
-
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.globalAlpha = Math.max(0, alpha);
-  // Native RGBA: direct, full-square, one-pass draw. Do not trim, brighten,
-  // shadow, tint, duplicate, or feed it through the legacy texture helpers.
-  ctx.drawImage(source, -size / 2, -size / 2, size, size);
-
-  ctx.globalAlpha = Math.max(0, alpha * 0.52);
-  ctx.lineCap = "round";
-  ctx.lineWidth = isDefaultRenki ? 1.35 : 1.5;
-  if (isDefaultRenki) {
-    // E is held local light inside the measured mana drop (627,720) of the v699 raw,
-    // not a second circulating loop or an overlay on its bright segmented seams.
-    const hold = reduced ? 1 : clamp(p / 0.46, 0, 1);
-    const x = (627 / 1254 - 0.5) * size;
-    const y = (720 / 1254 - 0.5) * size;
-    const radius = 2.1 + hold * 1.1;
-    const light = ctx.createRadialGradient(x, y, 0, x, y, radius);
-    light.addColorStop(0, "rgba(133, 244, 255, 0.68)"); light.addColorStop(0.55, "rgba(93, 205, 255, 0.24)"); light.addColorStop(1, "rgba(93, 205, 255, 0)");
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = Math.max(0, alpha * (reduced ? 0.16 : 0.13 + hold * 0.05));
-    ctx.fillStyle = light; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-  } else {
-    // E uses three distinct short raw-boundary responses. T stays stationary.
-    // Shoulder: (868,525)-(935,580)-(949,625); departure: (440,663)-(520,704)-(547,757).
-    // Attack tip: (870,820)-(950,780)-(990,750), never across the escape gap.
-    const phase = reduced ? 0.45 : p;
-    const point = (a, b, c, t) => [
-      (1 - t) ** 2 * a[0] + 2 * (1 - t) * t * b[0] + t * t * c[0],
-      (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * b[1] + t * t * c[1],
-    ];
-    const trace = (curve, from, to, offsetX, color, strength) => {
-      ctx.globalAlpha = Math.max(0, alpha * strength);
-      ctx.strokeStyle = color;
-      // E-only local emission: each boundary response lights its own short path.
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 1.6;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      ctx.beginPath();
-      for (let i = 0; i <= 4; i += 1) {
-        const [px, py] = point(...curve, from + (to - from) * i / 4);
-        const lx = (px / 1254 - 0.5) * size + offsetX;
-        const ly = (py / 1254 - 0.5) * size;
-        if (i === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
-      }
-      ctx.stroke();
-    };
-    ctx.globalCompositeOperation = "lighter";
-    ctx.lineWidth = 0.8;
-    // Shoulder edge opens outward by less than one pixel; departure contracts.
-    trace([[868, 525], [935, 580], [949, 625]], 0.15, 0.72, phase * 0.7, "rgba(111, 255, 210, 0.72)", 0.16);
-    trace([[440, 663], [520, 704], [547, 757]], phase * 0.65, 0.85, 0, "rgba(139, 197, 255, 0.68)", 0.19 * (1 - phase));
-    // A single packet advances along only the terminal portion of the raw lane.
-    trace([[870, 820], [950, 780], [990, 750]], phase * 0.72, phase * 0.72 + 0.2, 0, "rgba(255, 153, 133, 0.7)", 0.14);
-  }
-  ctx.restore();
-  return true;
+  const normal=effect?.type === 'action-renki' && !String(effect?.variant || '');
+  const dodge=effect?.type === 'action-dodge';
+  if(!normal && !dodge)return false;
+  drawRestartCoreIcon(normal?'normal':'dodge',effect,progress);return true;
 }
 
-// Candidate only: donation-rational. Emergency, repair, and unjust outcomes
-// retain their owners until their own semantic assets are accepted.
+
 function drawNativeDonationUnjustAte(effect, progress, now) {
   if (effect?.type !== "action-smartphone" || effect.variant !== "donation-unjust") return false;
   const sprite = state.textures?.donationUnjustIconRgba;
@@ -23426,7 +23215,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "surveillance-camera-removal-v706";
+const version = "core-icons-restart-v707";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23593,15 +23382,15 @@ const version = "surveillance-camera-removal-v706";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const clairvoyanceNativeRgba = new Image();
-  const renkiNormalIconRgba = eagerImage("assets/generated/renki-normal-icon-rgba-v699.png");
-  const renkiTenfoldNativeRgba = eagerImage("assets/generated/renki-tenfold-native-rgba-v686.png");
-  const renkiDebtIconRgba = eagerImage("assets/generated/renki-debt-icon-rgba-v700.png");
+  const renkiNormalIconRgba = eagerImage("assets/generated/normal-core-icons-restart-v707.png");
+  const renkiTenfoldNativeRgba = eagerImage("assets/generated/tenfold-core-icons-restart-v707.png");
+  const renkiDebtIconRgba = eagerImage("assets/generated/desire-core-icons-restart-v707.png");
   const sabotageCommsIconRgba = eagerImage("assets/generated/sabotage-comms-icon-rgba-v704.png");
-  const dodgeIconRgba = eagerImage("assets/generated/dodge-icon-rgba-v702.png");
+  const dodgeIconRgba = eagerImage("assets/generated/dodge-core-icons-restart-v707.png");
   const donationNativeAte = new Image();
   const donationUnjustIconRgba = eagerImage("assets/generated/donation-unjust-icon-rgba-v703.png");
-  const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-focus-icon-rgba-v694.png");
-  const localRepairIconRgba = eagerImage("assets/generated/local-repair-icon-rgba-v691.png");
+  const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-core-icons-restart-v707.png");
+  const localRepairIconRgba = eagerImage("assets/generated/repair-core-icons-restart-v707.png");
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
@@ -24491,7 +24280,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=surveillance-camera-removal-v706", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=core-icons-restart-v707", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
