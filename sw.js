@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "ninjutsu-slow-target-v717";
-const CACHE_NAME = "dva-static-v717-ninjutsu-slow-target";
+const RUNTIME_RELEASE = "clair-follow-limit-break-cost-v718";
+const CACHE_NAME = "dva-static-v718-clair-follow-limit-break-cost";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

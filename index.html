@@ -14,7 +14,7 @@
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
     <link rel="preload" as="image" href="assets/title-hero-v466.png?v=core-icons-restart-v707" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=ninjutsu-slow-target-v717">
+  <link rel="stylesheet" href="styles.css?v=clair-follow-limit-break-cost-v718">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
@@ -255,6 +255,8 @@
               <button id="tabletFireShortcut" class="tablet-quick-action danger" type="button" hidden>ファイア</button>
               <button id="tabletEmpShortcut" class="tablet-quick-action tactical" type="button">EMP</button>
               <button id="tabletClairvoyanceShortcut" class="tablet-quick-action tactical" type="button">千里眼</button>
+              <button id="tabletClairvoyancePreviousShortcut" class="tablet-quick-action tactical" type="button" hidden aria-label="千里眼の前の追尾先">追尾 ‹</button>
+              <button id="tabletClairvoyanceNextShortcut" class="tablet-quick-action tactical" type="button" hidden aria-label="千里眼の次の追尾先">追尾 ›</button>
               <button id="tabletVendingShortcut" class="tablet-quick-action resource" type="button" aria-controls="vendingPanel" aria-expanded="false">ショップ</button>
               <button id="tabletDodgeShortcut" class="tablet-quick-action" type="button">回避</button>
               <button id="tabletRenkiShortcut" class="tablet-quick-action resource" type="button">練気</button>
@@ -665,7 +667,7 @@
         <div id="keybindList" class="keybind-list" data-scroll-region="キー割り当て表" tabindex="0" role="region" aria-label="キー操作一覧（スクロール可能）">
           <section><h3>移動</h3><dl><dt>W A S D</dt><dd>移動</dd><dt>Shift</dt><dd>ダッシュ</dd><dt>Ctrl / Alt</dt><dd>無音歩行</dd></dl></section>
           <section><h3>基本操作</h3><dl><dt>L / Enter</dt><dd>マッチング開始</dd><dt>\\</dt><dd>ゲーム音オン / オフ</dd><dt>@</dt><dd>キー割り当て表</dd><dt>I</dt><dd>戦術いろはを開く / ゲームへ戻る</dd><dt>Tab</dt><dd>タブレット</dd><dt>3 / 4</dt><dd>緊急会議 / スマホ修理</dd><dt>6</dt><dd>忍殺</dd><dt>8</dt><dd>回避</dd><dt>C</dt><dd>練気（通常: タップ+10MP・35秒、長押し+100MP・350秒 / MP−100: 3秒後MP2）</dd><dt>停止中</dt><dd>自動休息: 毎秒76SP回復。MP−100は5秒の連続停止でMP2、移動で経過取消</dd><dt>G / ' 長押し</dt><dd>スマホ募金</dd><dt>M</dt><dd>マップ</dd><dt>Backspace</dt><dd>タイトルへ戻る</dd></dl></section>
-          <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>千里眼 / EMP</dd><dt>千里眼中の移動キー</dt><dd>障害物を無視して全域の現場を観測</dd><dt>投擲中の移動キー</dt><dd>着地点を動かし、画面外では千里眼を自動発動</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動</dd><dt>矢印 + Enter / Space</dt><dd>サボ内容を選択して起動</dd><dt>L</dt><dd>選択中のサボを直接起動</dd></dl></section>
+          <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>千里眼 / EMP</dd><dt>千里眼中の←→↑↓</dt><dd>生存中プレイヤーの追尾先を切替。発動者は移動しない</dd><dt>投擲中の移動キー</dt><dd>着地点を動かし、画面外では千里眼を自動発動</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動</dd><dt>矢印 + Enter / Space</dt><dd>サボ内容を選択して起動</dd><dt>L</dt><dd>選択中のサボを直接起動</dd></dl></section>
           <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>固有能力。対応するMP能力は長押しで2MPを残して一括並列発動</dd><dt>能力・対象の切替</dt><dd>能力・対象の欄をタップして選ぶ。続きの選択肢がある場合は順番に選び、最後に確定</dd><dt>O / P</dt><dd>O: 現在の能力方式を切替 / P: 対象欄が表示されている時に対象を切替</dd><dt>7</dt><dd>ガンナー射撃</dd><dt>T / Shift+T</dt><dd>武器を次 / 前へ切替</dd><dt>R</dt><dd>リロード</dd><dt>所持品欄</dt><dd>武器・発明品・重火器を選択して使用。見切れ時のフリックは局所欄だけを慣性スクロール</dd><dt>PageUp / PageDown</dt><dd>操作するUI領域を前 / 次へ切替</dd><dt>Shift + ← / →</dt><dd>ハッカー／ショップの分類を切替</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中UI内を移動。↑↓は同時にスクロール</dd><dt>P</dt><dd>ハッカーの適用対象を切替</dd><dt>Enter / Space</dt><dd>選択中の内容を実行</dd></dl></section>
           <section><h3>ショップ・所持品</h3><dl><dt>V</dt><dd>どこでもショップを開く / 閉じる</dd><dt>1〜0 / P</dt><dd>ショップを開いている間の商品ショートカット</dd><dt>ジャンル / ページ</dt><dd>上部の選択欄から、見たい分類とページを選ぶ</dd><dt>PageUp / PageDown</dt><dd>ショップ・所持品UIへ前後移動</dd><dt>↑ ↓ ← →</dt><dd>商品・所持品を選択移動</dd><dt>Shift+V / Shift+G</dt><dd>使用 / 投擲（600msからEnhance、対象が武具なら3000msからGBO）</dd><dt>Alt+V / Alt+C</dt><dd>所持品 / 設定量Cを譲渡</dd><dt>Alt+1 / 2 / 3 / 5</dt><dd>ショップ表示中はレールガン / 荷電粒子砲 / エクスカリバー / 亡命</dd><dt>Alt+4</dt><dd>ショップ表示中はハック</dd><dt>Alt+6 / 7 / 8 / 9 / 0</dt><dd>ショップ表示中はHG / SMG / AR / SR / テーザー</dd></dl></section>
           <section><h3>選択</h3><dl><dt>↑ ↓ ← →</dt><dd>表示方向へ候補を選択</dd><dt>Shift + ← / →</dt><dd>分類を切替</dd><dt>Enter / Space</dt><dd>選択を実行</dd><dt>Shift+F10 / メニューキー</dt><dd>フォーカス中の所持品・ハッカー内容の説明</dd><dt>オペレーターの説明</dt><dd>名前を長押しして表示</dd><dt>Escape</dt><dd>閉じる・戻る</dd></dl></section>
@@ -677,11 +679,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-    <script src="economy-catalog-v468.js?v=ninjutsu-slow-target-v717"></script>
-    <script src="game-runtime.js?v=ninjutsu-slow-target-v717"></script>
-    <script src="game-engine.js?v=ninjutsu-slow-target-v717"></script>
-    <script src="offline-runtime.js?v=ninjutsu-slow-target-v717"></script>
-    <script src="config.js?v=ninjutsu-slow-target-v717"></script>
-    <script src="app.js?v=ninjutsu-slow-target-v717"></script>
+    <script src="economy-catalog-v468.js?v=clair-follow-limit-break-cost-v718"></script>
+    <script src="game-runtime.js?v=clair-follow-limit-break-cost-v718"></script>
+    <script src="game-engine.js?v=clair-follow-limit-break-cost-v718"></script>
+    <script src="offline-runtime.js?v=clair-follow-limit-break-cost-v718"></script>
+    <script src="config.js?v=clair-follow-limit-break-cost-v718"></script>
+    <script src="app.js?v=clair-follow-limit-break-cost-v718"></script>
 </body>
 </html>

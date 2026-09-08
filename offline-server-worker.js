@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "ninjutsu-slow-target-v717",
+    version: "clair-follow-limit-break-cost-v718",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "ninjutsu-slow-target-v717";
+const PRODUCT_RELEASE = "clair-follow-limit-break-cost-v718";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7572,7 +7572,7 @@ const MYSTERY_BOX_CLEARANCE = 118;
 const MYSTERY_BOX_MAX_COUNT = 3;
 const MAP_OBJECT_SPEED_MULTIPLIER = 1.35;
 const LIMIT_BREAK_SPEED_MULTIPLIER = 3;
-const LIMIT_BREAK_MANA_DRAIN_PER_SECOND = 0.08;
+const LIMIT_BREAK_MANA_COST = 1;
 const FIRE_JUTSU_COST = vendingPrice("fire");
 const FIRE_JUTSU_RADIUS = 240;
 const ENHANCE_HOLD_STEP_MS = 600;
@@ -7861,7 +7861,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "EC（1MP / 12秒）を自動で1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイク（0.08MP/秒）は発動ごとにHPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ重ね、マナが尽きるまで永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "EC（1MP / 12秒）を自動で1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイク（1MP）は発動ごとにHPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ重ね、永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -11572,10 +11572,15 @@ function toggleLimitBreak(room, player) {
   }
   ensureAbilityAvailable(player);
   ensureConscious(player);
-  if (!isHackerOperator(player) && !hasFighterInfiniteResources(player) && Number(player.mana) <= 0) {
-    throw new ApiError(400, "リミットブレイクの維持に必要なマナがありません。");
-  }
   const timestamp = now();
+  // Limit Break is a one-time 1MP activation/stack cost. Its historical free
+  // cases are only Fighter infinite resources and an active Hacker ROOT; the
+  // ordinary Rational free-ability route never owned this action.
+  const limitBreakManaFree = hasFighterInfiniteResources(player) || (isHackerOperator(player) && hackerRootEligible(player));
+  if (!limitBreakManaFree && (Number(player.mana) || 0) < LIMIT_BREAK_MANA_COST) {
+    throw new ApiError(400, `リミットブレイク（${LIMIT_BREAK_MANA_COST}MP）を発動するには同量のMPが必要です。`);
+  }
+  if (!limitBreakManaFree) setMana(room, player, Number(player.mana) - LIMIT_BREAK_MANA_COST, "リミットブレイク", { exact: true });
   const previousStamina = Math.max(0, Number(player.stamina) || 0);
   const firstActivation = !player.limitBreakActive;
   if (firstActivation) player.limitBreakBaseStamina = previousStamina;
@@ -11600,11 +11605,15 @@ function toggleLimitBreak(room, player) {
   const stacks = limitBreakStackCount(player);
   const multiplier = limitBreakMultiplier(player);
   const infiniteReward = hasFighterInfiniteResources(player);
-  const costDetail = infiniteReward ? "HP消費なし / MP・SP・HP・バリア∞" : "HP-1";
+  const costDetail = infiniteReward
+    ? "HP消費なし / MP・SP・HP・バリア∞"
+    : limitBreakManaFree
+      ? "MP-0 / HP-1"
+      : `MP-${LIMIT_BREAK_MANA_COST} / HP-1`;
   const vulnerabilityDetail = infiniteReward ? "被確殺デメリット解除" : "即死回避無効";
   pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: `active-stack-${stacks}` });
   setImmediateFeedback(player, "リミットブレイク", `${costDetail} / 永続 / SP・加速×${multiplier} / ${vulnerabilityDetail}`);
-  pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。${costDetail} / SP・加速${multiplier}倍 / ${infiniteReward ? "永続" : "マナが続く限り永続"} / ${vulnerabilityDetail}。`);
+  pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。${costDetail} / SP・加速${multiplier}倍 / 永続 / ${vulnerabilityDetail}。`);
   touch(room);
   return true;
 }
@@ -11635,19 +11644,10 @@ function advanceLimitBreak(room, player, elapsedMs) {
     syncFighterInfiniteResources(player);
     return false;
   }
-  if (isHackerOperator(player) && hackerRootEligible(player)) return false;
-  player.limitBreakManaCarry = Math.max(0, Number(player.limitBreakManaCarry) || 0) +
-    LIMIT_BREAK_MANA_DRAIN_PER_SECOND * Math.max(0, Number(elapsedMs) || 0) / 1000;
-  const wholeMana = Math.floor(player.limitBreakManaCarry);
-  if (wholeMana <= 0) return false;
-  player.limitBreakManaCarry -= wholeMana;
-  if (Number(player.mana) <= wholeMana) {
-    setMana(room, player, 0, "リミットブレイク");
-    stopLimitBreak(room, player, "マナ切れで終了しました");
-    return true;
-  }
-  setMana(room, player, Number(player.mana) - wholeMana, "リミットブレイク");
-  return true;
+  // MP is settled at activation. Keep the compatibility carry inert so an
+  // active one-MP Limit Break remains active at zero MP.
+  player.limitBreakManaCarry = 0;
+  return false;
 }
 
 function advanceFighterEnergyPassive(room, player, timestamp = now()) {
@@ -21862,7 +21862,8 @@ function serialize(room, viewer, options = {}) {
       clairvoyanceActive: Boolean(viewer.clairvoyanceActive),
       clairvoyanceManaPerSecond: CLAIRVOYANCE_MANA_DRAIN_PER_SECOND,
       levitationManaPerSecond: LEVITATION_MANA_DRAIN_PER_SECOND,
-      limitBreakManaPerSecond: LIMIT_BREAK_MANA_DRAIN_PER_SECOND,
+      limitBreakManaPerSecond: 0,
+      limitBreakActivationCost: LIMIT_BREAK_MANA_COST,
       alchemyReviveUsed: Boolean(viewer.alchemyReviveUsed),
       vibeCodingReadyAt: Number(viewer.vibeCodingReadyAt) || 0,
       vibeCodingCooldownMs: Number(viewer.vibeCodingCooldownMs) || 0,
@@ -26002,5 +26003,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "ninjutsu-slow-target-v717" });
+self.postMessage({ type: "ready", version: "clair-follow-limit-break-cost-v718" });
 })();

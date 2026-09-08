@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ninjutsu-slow-target-v717";
+const DVA_CLIENT_RELEASE = "clair-follow-limit-break-cost-v718";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -134,6 +134,8 @@ const els = {
   tabletFireShortcut: $("#tabletFireShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
   tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
+  tabletClairvoyancePreviousShortcut: $("#tabletClairvoyancePreviousShortcut"),
+  tabletClairvoyanceNextShortcut: $("#tabletClairvoyanceNextShortcut"),
   tabletVendingShortcut: $("#tabletVendingShortcut"),
   tabletDodgeShortcut: $("#tabletDodgeShortcut"),
   tabletRenkiShortcut: $("#tabletRenkiShortcut"),
@@ -624,6 +626,7 @@ const state = {
     active: false,
     x: 0,
     y: 0,
+    targetId: "",
     lastFrameAt: 0,
     frame: 0,
     serverDesired: false,
@@ -893,7 +896,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-slow-target-v717";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "clair-follow-limit-break-cost-v718";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4282,18 +4285,37 @@ function releaseThrowTargetMovement(event) {
   return true;
 }
 
-function clairvoyanceDirection() {
-  let dx = 0;
-  let dy = 0;
-  if (state.tabletOpen && state.tabletStick.pointerId !== null) {
-    dx = Number(state.tabletStick.dx) || 0;
-    dy = Number(state.tabletStick.dy) || 0;
-  } else {
-    dx = Number(state.keys.has("right")) - Number(state.keys.has("left"));
-    dy = Number(state.keys.has("down")) - Number(state.keys.has("up"));
+function clairvoyanceFollowCandidates(data = state.data) {
+  if (!data?.selfId || !Array.isArray(data.players)) return [];
+  return data.players
+    .filter((player) => player && player.id !== data.selfId && player.alive && !player.ejected && !player.inVent &&
+      Number.isFinite(player.x) && Number.isFinite(player.y))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+function ensureClairvoyanceFollowTarget(data = state.data) {
+  const candidates = clairvoyanceFollowCandidates(data);
+  if (!candidates.length) return null;
+  const preferredId = String(state.clairvoyance.targetId || "");
+  const target = candidates.find((player) => player.id === preferredId) || candidates[0];
+  state.clairvoyance.targetId = target.id;
+  return target;
+}
+
+function cycleClairvoyanceFollowTarget(step = 1, data = state.data) {
+  if (!state.clairvoyance.active) return null;
+  const candidates = clairvoyanceFollowCandidates(data);
+  if (!candidates.length) {
+    toggleClairvoyance(false);
+    return null;
   }
-  const length = Math.hypot(dx, dy);
-  return length > 1 ? { dx: dx / length, dy: dy / length } : { dx, dy };
+  const currentIndex = candidates.findIndex((player) => player.id === state.clairvoyance.targetId);
+  const target = candidates[(Math.max(0, currentIndex) + (step < 0 ? -1 : 1) + candidates.length) % candidates.length];
+  state.clairvoyance.targetId = target.id;
+  state.camera.initialized = false;
+  updateActionButtons(data);
+  showToast(`千里眼の追尾先: ${target.name || "プレイヤー"}`);
+  return target;
 }
 
 function beginClairvoyanceMovement(event) {
@@ -4301,8 +4323,7 @@ function beginClairvoyanceMovement(event) {
   const direction = throwTargetKey(event);
   if (!direction) return false;
   event.preventDefault();
-  state.keys.add(direction);
-  sendMovement(true);
+  if (!event.repeat) cycleClairvoyanceFollowTarget(["up", "left"].includes(direction) ? -1 : 1);
   return true;
 }
 
@@ -4311,8 +4332,6 @@ function releaseClairvoyanceMovement(event) {
   const direction = throwTargetKey(event);
   if (!direction) return false;
   event.preventDefault();
-  state.keys.delete(direction);
-  sendMovement(true);
   return true;
 }
 
@@ -4330,17 +4349,16 @@ function updateClairvoyanceFrame(timestamp) {
     showToast("千里眼はMP切れで終了しました。");
     return;
   }
-  const elapsed = clamp(timestamp - (view.lastFrameAt || timestamp), 0, 40);
   view.lastFrameAt = timestamp;
-  const direction = clairvoyanceDirection();
-  if (direction.dx || direction.dy) {
-    const acceleration = state.clairvoyance.active
-      ? 2
-      : clamp(Number(data.self.accelerationMultiplier) || 1, 0.25, 16);
-    const distance = 540 * acceleration * elapsed / 1000;
-    view.x = clamp(view.x + direction.dx * distance, 0, data.map.width);
-    view.y = clamp(view.y + direction.dy * distance, 0, data.map.height);
+  const target = ensureClairvoyanceFollowTarget(data);
+  if (!target) {
+    toggleClairvoyance(false);
+    showToast("千里眼の追尾先がいないため終了しました。");
+    return;
   }
+  const rendered = renderedPlayer(target);
+  view.x = rendered.x;
+  view.y = rendered.y;
   view.frame = requestAnimationFrame(updateClairvoyanceFrame);
 }
 
@@ -4360,6 +4378,7 @@ function setLocalClairvoyanceActive(shouldEnable, data = state.data) {
       active: false,
       x: 0,
       y: 0,
+      targetId: view.targetId || "",
       lastFrameAt: 0,
       frame: 0,
       serverDesired,
@@ -4370,14 +4389,15 @@ function setLocalClairvoyanceActive(shouldEnable, data = state.data) {
     updateActionButtons(data);
     return true;
   }
-  const self = data.players.find((player) => player.id === data.selfId);
-  if (!self) return false;
-  const origin = renderedPlayer(self);
+  const target = ensureClairvoyanceFollowTarget(data);
+  if (!target) return false;
+  const targetPosition = renderedPlayer(target);
   const timestamp = performance.now();
   state.clairvoyance = {
     active: true,
-    x: origin.x,
-    y: origin.y,
+    x: targetPosition.x,
+    y: targetPosition.y,
+    targetId: target.id,
     lastFrameAt: timestamp,
     frame: 0,
     serverDesired,
@@ -6328,6 +6348,8 @@ function bindEvents() {
   els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
+  els.tabletClairvoyancePreviousShortcut.addEventListener("click", () => cycleClairvoyanceFollowTarget(-1));
+  els.tabletClairvoyanceNextShortcut.addEventListener("click", () => cycleClairvoyanceFollowTarget(1));
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
     opener: els.tabletVendingShortcut
   }));
@@ -8378,17 +8400,18 @@ function conciseTabletAbilityName(data) {
 }
 
 function tabletAbilityNameWithMana(label, owner, mode, self) {
-  const display = abilityNameWithMana(label, owner, mode, self);
-  // Keep the tablet shortcut to one concise cost. The retained nuclear 2MP
-  // possession gate belongs in its adjacent description and button title.
-  if (owner === "quantum" && self?.hackerManaFree && ["nuclear-fission", "nuclear-fusion"].includes(mode)) return `${label}（0MP）`;
-  return display;
+  return label;
+}
+
+function shortcutLabelWithoutMana(label) {
+  return String(label || "").replace(/[（(][^）)]*MP[^）)]*[）)]/g, "").trim();
 }
 
 function setTabletShortcutLabel(button, name, detail = "") {
   if (!button) return;
-  button.textContent = name;
-  button.setAttribute("aria-label", name);
+  const shortcutName = shortcutLabelWithoutMana(name);
+  button.textContent = shortcutName;
+  button.setAttribute("aria-label", shortcutName);
   button.title = detail || name;
 }
 
@@ -8432,10 +8455,22 @@ function renderTabletControls(data) {
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
-  setTabletShortcutLabel(els.tabletClairvoyanceShortcut, `千里眼（${Number(data?.self?.clairvoyanceManaPerSecond ?? 0.25).toFixed(2)}MP/秒）`, state.clairvoyance.active ? "千里眼を解除" : "千里眼を発動");
+  const clairvoyanceTarget = state.clairvoyance.active ? ensureClairvoyanceFollowTarget(data) : null;
+  setTabletShortcutLabel(els.tabletClairvoyanceShortcut, "千里眼", state.clairvoyance.active
+    ? `千里眼を解除。追尾先: ${clairvoyanceTarget?.name || "なし"}`
+    : `千里眼を発動（${Number(data?.self?.clairvoyanceManaPerSecond ?? 0.25).toFixed(2)}MP/秒）`);
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
   els.tabletClairvoyanceShortcut.setAttribute("aria-pressed", String(state.clairvoyance.active));
+  const clairvoyanceCandidates = clairvoyanceFollowCandidates(data);
+  const clairvoyanceTargetName = clairvoyanceTarget?.name || "追尾先なし";
+  const clairvoyanceTargetsVisible = state.clairvoyance.active;
+  els.tabletClairvoyancePreviousShortcut.hidden = !clairvoyanceTargetsVisible;
+  els.tabletClairvoyanceNextShortcut.hidden = !clairvoyanceTargetsVisible;
+  els.tabletClairvoyancePreviousShortcut.disabled = clairvoyanceCandidates.length < 2;
+  els.tabletClairvoyanceNextShortcut.disabled = clairvoyanceCandidates.length < 2;
+  setTabletShortcutLabel(els.tabletClairvoyancePreviousShortcut, "追尾 ‹", `前の追尾先: ${clairvoyanceTargetName}`);
+  setTabletShortcutLabel(els.tabletClairvoyanceNextShortcut, "追尾 ›", `次の追尾先: ${clairvoyanceTargetName}`);
   setTabletShortcutLabel(els.tabletVendingShortcut, "ショップ", state.vendingOpen ? "ショップを閉じる" : "ショップを開く");
   els.tabletVendingShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected || data.self.inVent;
   els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
@@ -8671,12 +8706,10 @@ function canvasPointerPosition(event) {
 }
 
 function clairvoyanceTeleportContext(data = state.data) {
-  const self = data?.self;
-  if (!state.clairvoyance.active || !self || data?.phase !== "playing" || !self.alive || self.ejected || self.inVent) return null;
-  // Presentation only: the endpoint independently selects and validates the
-  // Gravity/Scroll route from authoritative state.
-  if (!hasDisplayedOperatorAccess(self, "gravity") && Number(self.warpCharges) <= 0) return null;
-  return { self };
+  // Retain this owner as a closed compatibility seam for the old pointer
+  // handlers. Clairvoyance is camera-only, so no canvas state may open a
+  // relocation request. Gravity and scroll moves retain their explicit owners.
+  return null;
 }
 
 function clairvoyanceCanvasWorldPoint(event) {
@@ -12651,7 +12684,7 @@ function abilityNameWithMana(label, owner, mode, self) {
   const rationalManaFree = Boolean(self?.rationalFreeAbilityReady);
   const waived = (key) => operatorManaFree || (rationalManaFree && !["heartTeleport", "quantumNuclear", "quantumElectric"].includes(key));
   let presentation = "";
-  if (owner === "fighter" && mode === "limit-break") presentation = operatorManaFree ? "0MP/秒" : `${Number(self?.limitBreakManaPerSecond ?? 0.08)}MP/秒`;
+  if (owner === "fighter" && mode === "limit-break") presentation = operatorManaFree ? "0MP" : `${Number(self?.limitBreakActivationCost ?? 1)}MP`;
   if (["teleport", "gravity"].includes(owner)) {
     const key = mode === "heart" ? "heartTeleport" : mode === "time-keeper" ? "timeKeeper" : mode === "storm" ? "gravityStorm" : "teleport";
     const fallback = mode === "heart" || mode === "storm" ? 10 : mode === "time-keeper" ? 1000 : 1;
@@ -12679,7 +12712,7 @@ function abilityModeDescription(owner, mode, self) {
   const nuclearReserve = Number(costs.quantumNuclear ?? 2);
   const descriptions = {
     fighter: {
-      "limit-break": "HPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ累積する。HPを使い切ると死亡する。"
+      "limit-break": "発動1回につき1MPとHP1を消費し、SPと移動加速を3倍ずつ累積する。継続MP消費はない。HPを使い切ると死亡する。"
     },
     teleport: {
       near: `局所重力場で時空曲率を変え、対象の近くへ全身転移する。`,
@@ -13485,7 +13518,7 @@ function renderActiveEffects(data) {
   if (self.limitBreakActive) {
     const limitBreakDetail = self.fighterInfiniteResources
       ? `HP消費なし / MP・SP・HP・バリア∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
-      : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 継続消費 / 即死回避無効`;
+      : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 発動1回1MP・維持消費なし / 即死回避無効`;
     add(abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self), "永続", "truth", limitBreakDetail, "limit-break");
   }
   if (self.hackerRootActive) {
@@ -14641,7 +14674,7 @@ function updateActionButtons(data) {
       nativeFloraUnavailable ||
       nativeQuantumManaUnavailable ||
       (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
-      (displayedOperator === "fighter" && !self.fighterInfiniteResources && (Number(self.mana) || 0) <= 0) ||
+      (displayedOperator === "fighter" && !operatorManaFree && (Number(self.mana) || 0) < Number(self.limitBreakActivationCost ?? 1)) ||
       nativeQuantumEndgameLocked ||
       (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16));
   els.operatorAbilityButton.title = self.hackerRootActive && borrowedQuantumEndgameLocked
@@ -14668,7 +14701,7 @@ function updateActionButtons(data) {
       (hasCompatibleQuantumItem(self, selectedShopAbility.mode) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16))
     );
     const purchasedLimitBreakUnavailable = selectedShopAbility.operator === "fighter" &&
-      !operatorManaFree && (Number(self.mana) || 0) <= 0;
+      !operatorManaFree && (Number(self.mana) || 0) < Number(self.limitBreakActivationCost ?? 1);
     els.operatorAbilityButton.hidden = false;
     els.operatorAbilityButton.textContent = abilityNameWithMana(selectedShopAbility.label, selectedShopAbility.operator, selectedShopAbility.mode, self);
     els.operatorAbilityButton.dataset.operator = "shop:" + selectedShopAbility.id;
@@ -14676,6 +14709,9 @@ function updateActionButtons(data) {
     els.operatorAbilityButton.classList.remove("active");
     els.operatorAbilityButton.disabled = !canUseAbility || purchasedManaUnavailable || purchasedQuantumUnavailable || purchasedLimitBreakUnavailable;
     els.operatorAbilityButton.title = "タップで選択した購入済み能力を1回実行";
+  }
+  for (const button of [els.operatorAbilityButton, els.teleportButton, els.healButton]) {
+    button.textContent = shortcutLabelWithoutMana(button.textContent);
   }
   const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
@@ -15641,7 +15677,8 @@ function drawModeBanner(data, w) {
   if (throwTargetClairvoyanceActive(data)) {
     text = "千里眼 / 着地点追従 / 全域投擲";
   } else if (state.clairvoyance.active) {
-    text = "千里眼 / 広域観測 / Zで解除";
+    const target = ensureClairvoyanceFollowTarget(data);
+    text = `千里眼 / ${target?.name || "追尾先なし"}を追尾 / ←→で切替 / Zで解除`;
   } else if (data.self.aimTargetId) {
     const target = data.players.find((player) => player.id === data.self.aimTargetId);
     const remaining = Math.max(0, data.self.aimReadyAt - estimatedServerNow(data));
@@ -15684,8 +15721,11 @@ function cameraFor(data, w, h, zoom = 1) {
   const throwTarget = state.throwTargeting.active
     ? { x: state.throwTargeting.targetX, y: state.throwTargeting.targetY }
     : null;
-  const clairvoyanceTarget = !throwTarget && state.clairvoyance.active
-    ? { x: state.clairvoyance.x, y: state.clairvoyance.y }
+  const clairvoyanceFollowPlayer = !throwTarget && state.clairvoyance.active
+    ? ensureClairvoyanceFollowTarget(data)
+    : null;
+  const clairvoyanceTarget = clairvoyanceFollowPlayer
+    ? renderedPlayer(clairvoyanceFollowPlayer)
     : null;
   const target = killCameraTarget || throwTarget || clairvoyanceTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
   const viewW = w / zoom;
@@ -15697,7 +15737,7 @@ function cameraFor(data, w, h, zoom = 1) {
     : throwTarget
     ? `throw-target:${throwTargetClairvoyanceActive(data) ? "clairvoyance" : "follow"}:${zoom}`
     : clairvoyanceTarget
-      ? `clairvoyance:${zoom}`
+      ? `clairvoyance-follow:${clairvoyanceFollowPlayer.id}:${zoom}`
       : `player:${data.selfId}:${zoom}`;
   const camera = state.camera;
   if (!camera.initialized || camera.mode !== mode) {
@@ -17931,7 +17971,10 @@ function drawClairvoyanceAte(landing, time) {
 
 function drawStandaloneClairvoyanceAte(data) {
   if (!state.clairvoyance.active || state.throwTargeting.active || data.phase !== "playing") return;
-  drawClairvoyanceAte({ x: state.clairvoyance.x, y: state.clairvoyance.y }, (state.frameNow || performance.now()) / 1000);
+  const target = ensureClairvoyanceFollowTarget(data);
+  if (!target) return;
+  const position = renderedPlayer(target);
+  drawClairvoyanceAte({ x: position.x, y: position.y }, (state.frameNow || performance.now()) / 1000);
 }
 
 function drawInventionEnergyTexture(effect, progress) {
@@ -22796,7 +22839,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ninjutsu-slow-target-v717";
+const version = "clair-follow-limit-break-cost-v718";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23833,7 +23876,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-slow-target-v717", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=clair-follow-limit-break-cost-v718", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
