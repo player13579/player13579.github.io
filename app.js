@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "context-icons-restart-v709";
+const DVA_CLIENT_RELEASE = "field-icons-restart-v710";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "context-icons-restart-v709";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "field-icons-restart-v710";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17746,7 +17746,7 @@ function drawMagicEffects() {
     if (effect.type === "action-ninjutsu-focus") continue;
     if (drawRestartPickupAte(effect, progress)) continue;
     if (drawNativeLocalRepairAte(effect, progress, now)) continue;
-    if (drawRestartSocialAte(effect, progress, now) || drawNativeSabotageCommsAte(effect, progress, now) || drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
+    if (drawRestartSocialAte(effect, progress, now) || drawFieldSabotageRestartAte(effect, progress, now) || drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
     if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
@@ -17936,42 +17936,9 @@ function drawThrowLandingPreview(data) {
 }
 
 function drawClairvoyanceAte(landing, time) {
-  // Target/throw observation keeps its existing authoritative landing anchor.
-  const x = Number(landing?.x);
-  const y = Number(landing?.y);
+  const x = Number(landing?.x), y = Number(landing?.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-  const image = state.textures?.clairvoyanceNativeRgba;
-  // The accepted RGBA route owns this ATE. Missing/loading is intentionally
-  // silent here; never revive the v412 compact/throw texture as a fallback.
-  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return true;
-  const reduced = prefersReducedMotion();
-  const phase = reduced ? 0.5 : ((Number(time) || 0) * 0.32) % 1;
-  const alpha = 0.72 * (reduced ? 1 : 0.9 + 0.1 * Math.sin(phase * Math.PI * 2));
-  const size = 104;
-  ctx.save();
-  ctx.translate(x, y - 4);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.globalAlpha = alpha;
-  // Direct full-square native RGBA draw: no trim, tint, filter, shadow, or duplicate.
-  ctx.drawImage(image, -size / 2, -size / 2, size, size);
-  // E: two short observation-aperture segments make one calm traverse; the native lens stays fixed.
-  const scan = reduced ? 0.5 : phase;
-  const scanX = -size * 0.22 + size * 0.44 * scan;
-  ctx.globalAlpha = alpha * 0.34;
-  ctx.strokeStyle = "rgba(206, 241, 232, 0.9)";
-  ctx.lineWidth = 1.35;
-  ctx.lineCap = "round";
-  for (const offsetY of [-size * 0.12, size * 0.12]) {
-    ctx.beginPath();
-    ctx.moveTo(scanX - size * 0.075, offsetY);
-    ctx.lineTo(scanX + size * 0.075, offsetY);
-    ctx.stroke();
-  }
-  ctx.restore();
-  return true;
+  return drawFieldRestartIcon("clairvoyance", x, y - 4, 104, ((Number(time) || 0) * .32) % 1);
 }
 
 function drawStandaloneClairvoyanceAte(data) {
@@ -19371,52 +19338,61 @@ function drawNativeDesireRecoveryState(now) {
   return drawn;
 }
 
-function drawNativeSabotageCommsAte(effect, progress, now) {
-  if (effect?.type !== "action-sabotage" || effect?.variant !== "comms") return false;
-  const source = state.textures?.sabotageCommsIconRgba;
-  // Only the explicit comms route is consumed while its native image is pending.
-  if (!source?.complete || !(source.naturalWidth > 0) || !(source.naturalHeight > 0)) return true;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const reduced = prefersReducedMotion();
-  const phase = reduced ? 0.4 : p;
-  const fade = 1 - clamp((p - 0.72) / 0.28, 0, 1);
-  const size = 96;
-  const alpha = 0.76 * fade;
-  const at = (px, py) => [(px / 1254 - 0.5) * size, (py / 1254 - 0.5) * size];
+function drawFieldRestartIcon(kind, x, y, size, phase, fade = 1) {
+  if (![x, y, size, phase, fade].every(Number.isFinite) || size <= 0 || fade <= 0) return true;
+  const source = state.textures?.[`${kind}FieldRestartRgba`];
+  if (!source?.complete || !source.naturalWidth || !source.naturalHeight) return true;
+  const q = prefersReducedMotion() ? 0.5 : clamp(phase, 0, 1);
+  const inherited = clamp(Number(ctx.globalAlpha) || 0, 0, 1);
+  const opacity = clamp(fade, 0, 1) * inherited;
+  const px = n => (n / 1254 - 0.5) * size;
   ctx.save();
-  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
+  ctx.translate(x, y);
   ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.globalAlpha = alpha;
+  ctx.filter = "none"; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
+  ctx.globalAlpha = 0.62 * opacity;
   ctx.drawImage(source, -size / 2, -size / 2, size, size);
-  // Measured raw cut edge (635,610): signal accumulates locally, then goes dark.
-  const [cx, cy] = at(635, 610);
-  const accumulation = reduced ? 0.65 : Math.sin(clamp(phase / 0.64, 0, 1) * Math.PI);
-  const radius = 1.3 + accumulation * 0.5;
-  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  halo.addColorStop(0, "rgba(255, 196, 146, 0.78)");
-  halo.addColorStop(0.45, "rgba(255, 128, 110, 0.32)");
-  halo.addColorStop(1, "rgba(255, 128, 110, 0)");
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = alpha * accumulation * 0.2;
-  ctx.fillStyle = halo;
-  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
-  // The lower raw cut fragment (620,640)-(625,652) shrinks and drops locally.
-  // It never travels toward the receiving port (x >= 940) or bridges the gap.
-  const loss = reduced ? 0.4 : clamp((phase - 0.22) / 0.65, 0, 1);
-  const [fx, fy] = at(620, 640);
-  ctx.globalAlpha = alpha * (1 - loss) * 0.2;
-  ctx.strokeStyle = "rgba(255, 174, 143, 0.78)";
-  ctx.lineWidth = 0.85;
   ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(fx, fy + loss * 1.6);
-  ctx.lineTo(fx + 0.38 * (1 - loss), fy + loss * 1.6 + 0.92 * (1 - loss));
-  ctx.stroke();
+  const light = (color, alpha) => {
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.shadowColor = color;
+    ctx.shadowBlur = size * 0.045; ctx.globalAlpha = alpha * opacity;
+  };
+  const line = (a,b,width) => { ctx.lineWidth = width * size / 1254; ctx.beginPath(); ctx.moveTo(px(a[0]),px(a[1])); ctx.lineTo(px(b[0]),px(b[1])); ctx.stroke(); };
+  if (kind === "comms") {
+    // Packet stops on the left face of the interruption; no path crosses the right gap.
+    light("#9df8ef", 0.65 * (1-q*0.65));
+    const end = 460 + 160*q;
+    line([end-75,590],[end,590],18);
+    light("#c9a8ff", 0.55*q); line([625,560],[635,610],13);
+  } else if (kind === "reactor") {
+    // Heat accumulates inside the amber thermal boundary, never on the blue supports.
+    light("#ffd29a", 0.32 + 0.4*q);
+    const width = 45+95*q;
+    ctx.beginPath(); ctx.ellipse(px(665),px(500),width*size/1254,12*size/1254,0,0,Math.PI*2); ctx.fill();
+  } else if (kind === "oxygen") {
+    light("#b8edff", 0.55); line([427,575],[438,640],12);
+    light("#b2e7ff", 0.5*(1-0.7*q));
+    ctx.beginPath(); ctx.ellipse(px(460+440*q),px(620+15*q),(15+20*q)*size/1254,(20+90*q)*size/1254,0,0,Math.PI*2); ctx.fill();
+  } else if (kind === "doors") {
+    light("#ffda9d", 0.65);
+    for (const cy of [285,925]) {
+      const d=110*(1-q); line([625-d-28,cy],[625-d,cy],12); line([625+d+28,cy],[625+d,cy],12);
+    }
+  } else if (kind === "clairvoyance") {
+    const stages = [Math.max(0,1-Math.abs(q-.18)/.28),Math.max(0,1-Math.abs(q-.5)/.28),Math.max(0,1-Math.abs(q-.82)/.28)];
+    light("#b2fff2", .5*stages[0]); line([590,620],[637,620],11);
+    light("#b9caff", .5*stages[1]); line([704,598],[704,650],10);
+    light("#fff1bd", .6*stages[2]); line([837,585],[837,655],11);
+  }
   ctx.restore();
   return true;
+}
+function drawFieldSabotageRestartAte(effect, progress, now) {
+  if (effect?.type !== "action-sabotage" || !["comms","reactor","oxygen","doors"].includes(effect.variant)) return false;
+  if (!Number.isFinite(progress)) return true;
+  const p = clamp(progress,0,1);
+  return drawFieldRestartIcon(effect.variant,effect.x,effect.y,96,p,1-clamp((p-.72)/.28,0,1));
 }
 
 function drawNativeCommonActionAte(effect, progress, now) {
@@ -19561,7 +19537,7 @@ function drawNativeRationalDonationAte(effect, progress, now) {
 }
 
 function drawActionEffect(effect, progress, now) {
-  if (drawRestartSocialAte(effect, progress, now) || drawNativeSabotageCommsAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
+  if (drawRestartSocialAte(effect, progress, now) || drawFieldSabotageRestartAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
@@ -21270,7 +21246,7 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   // second persistent EC-looking overhead marker.  Its durable state remains
   // in Applied Effects; the dedicated milestone owns the field ATE.
   destructionSlash: Object.freeze({ texture: "fighterDestructionSlashMilestoneEffect", mode: "beam", size: 30, alpha: 0.94, phase: 0.76 }),
-  clairvoyance: Object.freeze({ texture: "clairvoyanceNativeRgba", fallbackTexture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 1, phase: 0.18, nativeAlpha: true, reducedMotion: true })
+  clairvoyance: Object.freeze({ texture: "clairvoyanceFieldRestartRgba", mode: "shimmer", size: 30, alpha: 1, phase: 0.18, nativeAlpha: true, reducedMotion: true })
 });
 
 function persistentStatusAteState(player, data) {
@@ -21409,7 +21385,7 @@ function drawPersistentStatusAteLayers(player, data) {
     const nativeSource = profile.nativeAlpha ? state.textures[profile.texture] : null;
     const nativeClairvoyance = Boolean(nativeSource?.complete && nativeSource.naturalWidth > 0 && nativeSource.naturalHeight > 0);
     if (profile.nativeAlpha && !nativeClairvoyance) {
-      profile = { texture: profile.fallbackTexture, mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 };
+      continue;
     }
     const source = nativeClairvoyance ? nativeSource : state.textures[profile.texture];
     if (nativeClairvoyance) {
@@ -21420,20 +21396,8 @@ function drawPersistentStatusAteLayers(player, data) {
       const markerX = marker.x;
       const markerY = marker.y;
       const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.filter = "none";
-      ctx.shadowBlur = 0;
-      ctx.shadowColor = "transparent";
-      ctx.globalAlpha *= profile.alpha;
       registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
-      ctx.drawImage(source, markerX - profile.size / 2, markerY - profile.size / 2, profile.size, profile.size);
-      ctx.globalAlpha *= 0.38;
-      ctx.strokeStyle = "#c4f7e7";
-      ctx.lineWidth = 1;
-      const scanY = markerY + (prefersReducedMotion() ? 5 : 5 + Math.sin(time * 1.1 + profile.phase) * 1.4);
-      ctx.beginPath(); ctx.moveTo(markerX - profile.size * 0.23, scanY); ctx.lineTo(markerX + profile.size * 0.23, scanY); ctx.stroke();
-      ctx.restore();
+      drawFieldRestartIcon("clairvoyance", markerX, markerY, profile.size, (time * .32 + profile.phase) % 1);
       continue;
     }
 
@@ -23339,7 +23303,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "context-icons-restart-v709";
+const version = "field-icons-restart-v710";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23505,13 +23469,16 @@ const version = "context-icons-restart-v709";
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
-  const clairvoyanceNativeRgba = new Image();
+  const clairvoyanceFieldRestartRgba = eagerImage("assets/generated/clairvoyance-field-icons-restart-v710.png");
   const pickupContextIconRgba = eagerImage("assets/generated/pickup-context-icons-restart-v709.png");
   const terminalContextIconRgba = eagerImage("assets/generated/terminal-context-icons-restart-v709.png");
   const renkiNormalIconRgba = eagerImage("assets/generated/normal-core-icons-restart-v707.png");
   const renkiTenfoldNativeRgba = eagerImage("assets/generated/tenfold-core-icons-restart-v707.png");
   const renkiDebtIconRgba = eagerImage("assets/generated/desire-core-icons-restart-v707.png");
-  const sabotageCommsIconRgba = eagerImage("assets/generated/sabotage-comms-icon-rgba-v704.png");
+  const commsFieldRestartRgba = eagerImage("assets/generated/comms-field-icons-restart-v710.png");
+  const reactorFieldRestartRgba = eagerImage("assets/generated/reactor-field-icons-restart-v710.png");
+  const oxygenFieldRestartRgba = eagerImage("assets/generated/oxygen-field-icons-restart-v710.png");
+  const doorsFieldRestartRgba = eagerImage("assets/generated/doors-field-icons-restart-v710.png");
   const dodgeIconRgba = eagerImage("assets/generated/dodge-core-icons-restart-v707.png");
   const rationalSocialIconRgba = eagerImage("assets/generated/donation-rational-social-icons-restart-v708.png");
   const unjustSocialIconRgba = eagerImage("assets/generated/donation-unjust-social-icons-restart-v708.png");
@@ -23642,7 +23609,6 @@ const version = "context-icons-restart-v709";
   defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
-  defer(clairvoyanceNativeRgba, "assets/generated/clairvoyance-native-rgba-v679.png");
   defer(donationNativeAte, "assets/generated/action-donation-native-v681.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
   defer(gboOverdriveEffect, "assets/generated/gbo-overdrive-ate-v513.png");
@@ -23784,8 +23750,8 @@ const version = "context-icons-restart-v709";
     smartphoneRepairIcon,
     throwLandingPreview,
     clairvoyanceThrowAte,
-    clairvoyanceNativeRgba,
-    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba, sabotageCommsIconRgba,
+    clairvoyanceFieldRestartRgba,
+    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba, commsFieldRestartRgba, reactorFieldRestartRgba, oxygenFieldRestartRgba, doorsFieldRestartRgba,
     rationalSocialIconRgba,
     unjustSocialIconRgba,
     emergencySocialIconRgba,
@@ -24413,7 +24379,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=context-icons-restart-v709", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=field-icons-restart-v710", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
