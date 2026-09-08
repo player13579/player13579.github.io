@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "preparation-tap-editors-v725";
+const DVA_CLIENT_RELEASE = "preparation-roster-summon-v726";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -577,6 +577,8 @@ const state = {
   matchmakingSerial: 0,
   matchmakingTicket: null,
   operatorSelectionRouteOpen: false,
+  // PREPARATION_ROSTER_V726: keyed by room session, never by the current id set.
+  preparationRosterEntries: new Map(),
   operatorSelectionSettingsRequestSeq: 0,
   preparationEditingField: "",
   offlineTeamChoiceInFlight: false,
@@ -918,7 +920,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "preparation-tap-editors-v725";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "preparation-roster-summon-v726";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2581,6 +2583,8 @@ function setScreen(screen) {
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   const previous = state.screen;
   if (previous !== next) clearTitleCommandTransition();
+  // PREPARATION_ROSTER_V726: a screen transition never carries an old room's entrance state.
+  if (previous !== next) state.preparationRosterEntries.clear();
   if (next === "title") state.operatorSelectionRouteOpen = false;
   if (next !== "game") setSoloNameGuidance(false);
   state.screen = next;
@@ -10334,6 +10338,7 @@ function setCurrentRoomSession(roomId, playerId) {
   if (state.roomId !== nextRoomId || state.playerId !== nextPlayerId) {
     state.roomSessionGeneration += 1;
     setPreparationEditingField("");
+    state.preparationRosterEntries.clear();
   }
   state.roomId = nextRoomId;
   state.playerId = nextPlayerId;
@@ -10487,6 +10492,7 @@ function resetLocalSession() {
   invalidateFocusResync();
   state.roomSessionGeneration += 1;
   state.pollInFlight = false;
+  state.preparationRosterEntries.clear();
   state.pollInFlightGeneration = 0;
   state.realtime?.disconnect();
   state.movementQueue?.clear();
@@ -10583,6 +10589,8 @@ function applyState(data, options = {}) {
     return false;
   }
   const previousPhase = state.data?.phase || "";
+  // PREPARATION_ROSTER_V726: applyState is the lifecycle boundary even when draw() is not called.
+  if (!data || data.soloMission || data.phase === "playing" || !["lobby", "selecting"].includes(data.phase)) state.preparationRosterEntries.clear();
   if (!data.self?.gunFiring && state.gunTriggerHeld && !state.gunFireStartPromise) {
     clearLocalGunTrigger();
   }
@@ -15914,6 +15922,151 @@ function drawCanvasStage(name, callback) {
   }
 }
 
+
+// PREPARATION_ROSTER_V726_START
+function preparationRosterActive(data = state.data) {
+  return Boolean(data && !data.soloMission && ["lobby", "selecting"].includes(data.phase) && state.screen === "game");
+}
+
+function clearPreparationRosterEntries() {
+  state.preparationRosterEntries?.clear();
+}
+
+function preparationRosterSummonClock(entry, nowMs, reducedMotion, spriteReady) {
+  if (reducedMotion) { entry.summonExpired = true; return { active: false, t: 1 }; }
+  const ring = state.textures?.preparationSummonCircle;
+  if (!Number.isFinite(entry.summonStartedAt) && !entry.summonExpired && spriteReady && ring?.complete && ring.naturalWidth > 0 && ring.naturalHeight > 0) {
+    entry.summonStartedAt = nowMs;
+  }
+  // A failed or missing request cannot turn each poll into a new entrant. It stays inert until this session resets.
+  if (!Number.isFinite(entry.summonStartedAt) && nowMs - entry.appearedAt > 4_000) entry.summonExpired = true;
+  if (!Number.isFinite(entry.summonStartedAt)) return { active: false, t: 1 };
+  const duration = reducedMotion ? 1 : 980;
+  const t = Math.max(0, Math.min(1, (nowMs - entry.summonStartedAt) / duration));
+  return { active: t < 1, t };
+}
+
+function drawPreparationRosterSummon(entry, x, footY, scale, clock) {
+  if (!clock.active) return;
+  const t = clock.t;
+  const easeOut = 1 - Math.pow(1 - t, 3);
+  const ring = state.textures?.preparationSummonCircle;
+  const size = Math.max(1, 116 * scale * (0.64 + easeOut * 0.36));
+  ctx.save();
+  ctx.translate(x, footY);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= (1 - t) * 0.86;
+  if (ring?.complete && ring.naturalWidth > 0 && ring.naturalHeight > 0) {
+    ctx.save();
+    ctx.rotate((t - 0.5) * 0.42);
+    ctx.drawImage(ring, -size / 2, -size * 0.22, size, size * 0.44);
+    ctx.restore();
+  }
+  // E: rising light beams and a few dispersing motes add motion independent of the raster.
+  const beamHeight = (42 + 96 * easeOut) * scale;
+  ctx.lineWidth = Math.max(1, 1.7 * scale);
+  for (const side of [-1, 1]) {
+    const baseX = side * size * 0.16;
+    ctx.strokeStyle = "rgba(184, 245, 255, 0.78)";
+    ctx.beginPath();
+    ctx.moveTo(baseX, -3 * scale);
+    ctx.lineTo(baseX * 0.36, -beamHeight);
+    ctx.stroke();
+  }
+  const particleCount = 5;
+  ctx.fillStyle = "rgba(216, 250, 255, 0.92)";
+  for (let particle = 0; particle < particleCount; particle += 1) {
+    const lane = particle - (particleCount - 1) / 2;
+    const particleT = Math.max(0, Math.min(1, (t - particle * 0.075) / 0.72));
+    const drift = lane * (6 + 12 * particleT) * scale;
+    ctx.globalAlpha = (1 - particleT) * (1 - t * 0.25) * 0.8;
+    ctx.fillRect(drift - scale, -8 * scale - particleT * beamHeight * 0.72, 2 * scale, 2 * scale);
+  }
+  ctx.restore();
+}
+
+function preparationRosterSprite(player, data) {
+  const skinId = displayedSkinId(player, data);
+  const source = player.isBot
+    ? transparentSpriteSource(state.textures?.operatorsWalk, "operatorsWalk", 24)
+    : transparentSpriteSource(state.textures?.playerWalkRows?.[skinId]?.front, "preparation-roster-" + skinId + "-front", 24);
+  return source
+    ? normalizedSpriteFrame(source, player.isBot ? "operatorsWalk" : "preparation-roster-" + skinId + "-front", player.isBot ? 4 : 3, player.isBot ? 2 : 1, 0, 0)
+    : null;
+}
+
+function drawPreparationRosterCharacter(sprite, player, size) {
+  if (!sprite) return false;
+  // The normalized sprite's bottom is local zero, so the caller's origin is the physical foot anchor.
+  drawNormalizedSprite(sprite, 0, 0, size, size);
+  ctx.font = "800 10px Segoe UI, sans-serif";
+  ctx.fillStyle = "#effcff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(String(player?.name || "参加者").slice(0, 14), 0, -size - 5);
+  return true;
+}
+
+function drawPreparationRoster(data, width, height) {
+  if (!preparationRosterActive(data)) { clearPreparationRosterEntries(); return; }
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+  const roster = Array.isArray(data.players) ? data.players.filter((player) => player && !player.ejected) : [];
+  const sessionKey = String(data.roomId || "") + ":" + (Number(state.roomSessionGeneration) || 0);
+  const ids = new Set(roster.map((player) => String(player.id || "")));
+  for (const id of state.preparationRosterEntries.keys()) if (!ids.has(id)) state.preparationRosterEntries.delete(id);
+  if (!roster.length) return;
+
+  const reducedMotion = prefersReducedMotion();
+  const nowMs = performance.now();
+  const side = Math.max(42, Math.min(96, width * 0.08));
+  // The roster begins below the three-setting summary overlay and leaves room for it on narrow canvases.
+  const top = Math.max(154, Math.min(height * 0.30, 250));
+  const bottom = Math.max(top + 110, height - Math.max(132, Math.min(210, height * 0.24)));
+  const usableWidth = Math.max(1, width - side * 2);
+  const usableHeight = Math.max(1, bottom - top);
+  let columns = 1;
+  let bestFit = 0;
+  for (let trial = 1; trial <= roster.length; trial += 1) {
+    const fit = Math.min(usableWidth / trial / 132, usableHeight / Math.ceil(roster.length / trial) / 220);
+    if (fit > bestFit) { bestFit = fit; columns = trial; }
+  }
+  const rows = Math.ceil(roster.length / columns);
+  const cellWidth = usableWidth / columns;
+  const cellHeight = usableHeight / rows;
+  const scale = Math.max(0.001, Math.min(1.08, cellWidth / 132, cellHeight / 220));
+
+  roster.forEach((player, index) => {
+    const id = String(player.id || "");
+    let entry = state.preparationRosterEntries.get(id);
+    if (!entry || entry.sessionKey !== sessionKey) {
+      entry = { sessionKey, appearedAt: nowMs };
+      state.preparationRosterEntries.set(id, entry);
+    }
+    const sprite = preparationRosterSprite(player, data);
+    const clock = preparationRosterSummonClock(entry, nowMs, reducedMotion, Boolean(sprite));
+    const t = clock.t;
+    const descent = reducedMotion ? 0 : Math.pow(1 - Math.min(1, t / 0.64), 2) * 78 * scale;
+    const impact = reducedMotion ? 0 : Math.sin(Math.max(0, Math.min(1, (t - 0.54) / 0.30)) * Math.PI);
+    const stanceX = 1 + impact * 0.105;
+    const stanceY = 1 - impact * 0.13;
+    const lean = reducedMotion ? 0 : ((id.length % 2) ? 1 : -1) * impact * 0.035;
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = side + cellWidth * (column + 0.5);
+    const footY = top + cellHeight * (row + 0.82);
+
+    drawPreparationRosterSummon(entry, x, footY, scale, clock);
+    // Preparation owns a stationary, front-facing source frame; it never reads or mutates gameplay motion/effect maps.
+    ctx.save();
+    ctx.translate(x, footY - descent);
+    ctx.rotate(lean);
+    ctx.scale(scale * stanceX, scale * stanceY);
+    drawPreparationRosterCharacter(sprite, player, 94);
+    ctx.restore();
+  });
+}
+// PREPARATION_ROSTER_V726_END
+
 function draw() {
   const data = state.data;
   const canvas = els.canvas;
@@ -15935,8 +16088,11 @@ function draw() {
     wash.addColorStop(1, "#1d3a44");
     ctx.fillStyle = wash;
     ctx.fillRect(0, 0, w, h);
+    drawPreparationRoster(data, w, h);
     return;
   }
+  // PREPARATION_ROSTER_V726: direct draw() callers also release preparation state.
+  clearPreparationRosterEntries();
   if (data.phase !== "playing") {
     if (state.tabletOpen) setTabletOpen(false, { persist: false, focus: false });
     if (state.operatorBranchesOpen) setOperatorBranchesOpen(false);
@@ -23343,7 +23499,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "preparation-tap-editors-v725";
+const version = "preparation-roster-summon-v726";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23508,6 +23664,8 @@ const version = "preparation-tap-editors-v725";
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
+  // PREPARATION_ROSTER_V726: this first-preparation texture must begin loading immediately.
+  const preparationSummonCircle = eagerImage("assets/generated/preparation-summon-circle-v726.png");
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
     skinId,
     Object.fromEntries(["front", "left", "right", "back"].map((direction) => [direction, new Image()]))
@@ -23766,6 +23924,7 @@ const version = "preparation-tap-editors-v725";
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
+    preparationSummonCircle,
     physicalActionMotions,
     weaponActionMotions,
     fullMapComposites,
@@ -24383,7 +24542,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=preparation-tap-editors-v725", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=preparation-roster-summon-v726", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

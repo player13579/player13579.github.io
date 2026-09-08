@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "preparation-tap-editors-v725";
-const CACHE_NAME = "dva-static-v725-preparation-tap-editors";
+const RUNTIME_RELEASE = "preparation-roster-summon-v726";
+const CACHE_NAME = "dva-static-v726-preparation-roster-summon";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -100,6 +100,7 @@ const STATIC_ASSETS = [
   "/assets/generated/status-marker-acceleration-v376.png",
   "/assets/generated/status-levitation-v375.png",
   "/assets/generated/hover-sprint-jet-exhaust-v719.png",
+  "/assets/generated/preparation-summon-circle-v726.png",
   "/assets/generated/status-hp-reduction-v375.png",
   "/assets/generated/status-mana-gpu-ate-v402.png",
   "/assets/generated/hacker-root-matrix-v497.png",
