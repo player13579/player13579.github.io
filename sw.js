@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "emp-barrier-plicy-restored-v714";
-const CACHE_NAME = "dva-static-v714-emp-barrier-plicy-restored";
+const RUNTIME_RELEASE = "renki-dodge-plicy-restored-v715";
+const CACHE_NAME = "dva-static-v715-renki-dodge-plicy-restored";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

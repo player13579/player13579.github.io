@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-barrier-plicy-restored-v714";
+const DVA_CLIENT_RELEASE = "renki-dodge-plicy-restored-v715";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-barrier-plicy-restored-v714";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-dodge-plicy-restored-v715";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -18979,7 +18979,6 @@ const COMMON_ACTION_SIMPLE_GLYPHS = Object.freeze({
 // Ninjutsu, dynamic Context, hidden firearm/Fire shortcuts, automatic rest and
 // Hover Sprint retain their existing owners.
 const SHORTCUT_ACTION_COMPACT_ATE_PROFILES = Object.freeze({
-  "action-renki": Object.freeze({ texture: "philosophy", index: 0, motion: "flow-up", family: "renki-buoyant-focus", phase: 0.31, tempo: 0.58, maxSize: 88, travelX: 0, travelY: -11, oscillateX: 0.7, oscillateY: 2.3, rotation: 0.018, scaleX: 0.92, scaleY: 1.04 }),
   "action-smartphone": Object.freeze({ texture: "tactical", index: 1, motion: "orbit", family: "donation-orbiting-transfer", phase: 0.44, tempo: 0.82, maxSize: 78, travelX: 4, travelY: -6, oscillateX: 1.7, oscillateY: 1.2, rotation: 0.045, scaleX: 0.92, scaleY: 1.04 }),
   "action-clairvoyance": Object.freeze({ texture: "clairvoyance", index: 0, motion: "clairvoyance", family: "clairvoyance-horizon-scan", phase: 0.73, tempo: 0.64, maxSize: 92, travelX: 5, travelY: -4, oscillateX: 2.1, oscillateY: 0.5, rotation: 0.025, scaleX: 1.08, scaleY: 0.9 }),
   emp: Object.freeze({ texture: "philosophy", index: 11, motion: "resonance", family: "emp-expanding-interference", phase: 0.12, tempo: 1.08, maxSize: 104, travelX: 0, travelY: -3, oscillateX: 1.3, oscillateY: 1.3, rotation: 0.055, scaleX: 1, scaleY: 1 }),
@@ -22787,7 +22786,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-barrier-plicy-restored-v714";
+const version = "renki-dodge-plicy-restored-v715";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23824,7 +23823,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-barrier-plicy-restored-v714", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=renki-dodge-plicy-restored-v715", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
