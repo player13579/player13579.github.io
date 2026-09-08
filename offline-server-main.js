@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "pregame-canvas-dodge-shortcuts-v722",
+    version: "actor-time-four-jets-v723",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "pregame-canvas-dodge-shortcuts-v722";
+const PRODUCT_RELEASE = "actor-time-four-jets-v723";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -12786,7 +12786,8 @@ function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, 
   const elapsed = Math.min(0.5, Math.max(0, (timestamp - last) / 1000));
   if (allowRegen) {
     const desireMultiplier = desireBiasGroupActive(room, entity) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
-    const recovery = STAMINA_REGEN_PER_SECOND * elapsed * Math.max(1, multiplier) * desireMultiplier;
+    const actorTime = room ? playerProgressMultiplier(room, entity, timestamp) : 1;
+    const recovery = STAMINA_REGEN_PER_SECOND * elapsed * Math.max(1, multiplier) * desireMultiplier * actorTime;
     const capacity = staminaCapacityFor(entity);
     // Desire intentionally creates a -100 SP debt.  Clamping that debt to zero
     // here made the unified Desire state and its selected cognitive bias vanish
@@ -12894,6 +12895,17 @@ function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
   return gravityScale < 1 ? gravityScale : accelerated;
 }
 
+// Actor-time is intentionally separate from movement ACC.  ACC Fixed may cap
+// movement at 2, while every personal progression path follows the underlying
+// acceleration source (or a received time slow) without advancing the world.
+function playerProgressMultiplier(room, player, timestamp = now()) {
+  if (timeKeeperStops(player, timestamp)) return 0;
+  const desireTimeMultiplier = player?.desireBias === "cognitive-dissonance" && !player.desireRenkiRecovery
+    ? DESIRE_BIAS_TIME_MULTIPLIER
+    : 1;
+  return Math.max(0, effectiveAccelerationMultiplier(room, player, timestamp) * desireTimeMultiplier);
+}
+
 function movementAccState(room, player, timestamp = now()) {
   const enabled = player?.movementAccEnabled !== false;
   const acceleration = effectiveAccelerationMultiplier(room, player, timestamp);
@@ -12958,7 +12970,33 @@ const ACCELERATED_ACTION_UNTIL_FIELDS = Object.freeze([
   "taserSlowedUntil",
   "shockSlowedUntil",
   "gunnerReloadUntil",
-  "attackResolveAt"
+  "attackResolveAt",
+  "dodgeActiveUntil",
+  "floraInvisibleUntil",
+  "airborneUntil",
+  "particleCannonUntil",
+  "particleCannonNextAt",
+  "gunnerFiringNextAt",
+  "gunnerFiringEndsAt",
+  "aimExpiresAt",
+  "slashActiveUntil",
+  "slashPerfectUntil",
+  "slashDetachedGuardUntil",
+  "standFirmBarrierUntil",
+  "objectLuckUntil",
+  "quantumElectricSlowUntil",
+  "gravityStormSlowUntil"
+]);
+
+// These anchors are read through the actor's own timestamp deltas. Moving an
+// anchor by the same adjustment as a deadline gives exactly one time-scale
+// application; their callers must continue to consume ordinary timestamps.
+const ACCELERATED_PLAYER_PROGRESS_ANCHOR_FIELDS = Object.freeze([
+  "lastPassiveCreditAt",
+  "taskPresenceSince",
+  "ideaProgressUpdatedAt",
+  "desireRestRecoveryStartedAt",
+  "enhanceChargeStartedAt"
 ]);
 
 const TIME_KEEPER_FROZEN_DEADLINE_FIELDS = Object.freeze([
@@ -13038,33 +13076,43 @@ function freezeRoomTimeKeeperState(room, elapsedMs, timestamp = now()) {
   return true;
 }
 
-function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
+function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now(), previousTimestamp = timestamp - elapsedMs) {
   if (!timeKeeperStops(player, timestamp)) return;
   const elapsed = Math.max(0, Number(elapsedMs) || 0);
   if (!elapsed) return;
-  for (const field of TIME_KEEPER_FROZEN_DEADLINE_FIELDS) {
+  for (const field of new Set([...TIME_KEEPER_FROZEN_DEADLINE_FIELDS, ...ACCELERATED_ACTION_UNTIL_FIELDS])) {
     const deadline = Number(player[field]) || 0;
-    if (deadline > timestamp) player[field] = deadline + elapsed;
+    if (deadline > previousTimestamp) player[field] = deadline + elapsed;
   }
-  for (const field of TIME_KEEPER_FROZEN_ANCHOR_FIELDS) {
+  for (const field of new Set([...TIME_KEEPER_FROZEN_ANCHOR_FIELDS, ...ACCELERATED_PLAYER_PROGRESS_ANCHOR_FIELDS])) {
     const anchor = Number(player[field]) || 0;
     if (anchor > 0) player[field] = anchor + elapsed;
   }
+  for (const [key, rawValue] of Object.entries(player)) {
+    if (!key.endsWith("ReadyAt")) continue;
+    const deadline = Number(rawValue) || 0;
+    if (deadline > previousTimestamp) player[key] = deadline + elapsed;
+  }
+  player.objectCooldowns ||= {};
+  for (const [key, rawValue] of Object.entries(player.objectCooldowns)) {
+    const deadline = Number(rawValue) || 0;
+    if (deadline > previousTimestamp) player.objectCooldowns[key] = deadline + elapsed;
+  }
   for (const effect of player.timedAccelerationEffects || []) {
-    if (Number(effect.endsAt) <= timestamp) continue;
+    if (Number(effect.endsAt) <= previousTimestamp) continue;
     effect.startedAt = (Number(effect.startedAt) || timestamp) + elapsed;
     effect.endsAt = Number(effect.endsAt) + elapsed;
   }
   for (const field of ["poisonStatus", "burnStatus"]) {
     const status = player[field];
     if (!status) continue;
-    if (Number(status.nextTickAt) > timestamp) status.nextTickAt = Number(status.nextTickAt) + elapsed;
+    if (Number(status.nextTickAt) > previousTimestamp) status.nextTickAt = Number(status.nextTickAt) + elapsed;
   }
   for (const observation of player.botVisibleThrowObservations || []) {
     if (Number(observation.observedAt) > 0) observation.observedAt = Number(observation.observedAt) + elapsed;
-    if (Number(observation.landsAt) > timestamp) observation.landsAt = Number(observation.landsAt) + elapsed;
+    if (Number(observation.landsAt) > previousTimestamp) observation.landsAt = Number(observation.landsAt) + elapsed;
     if (Number(observation.poisonLandingObservedAt) > 0) observation.poisonLandingObservedAt = Number(observation.poisonLandingObservedAt) + elapsed;
-    if (Number(observation.expiresAt) > timestamp) observation.expiresAt = Number(observation.expiresAt) + elapsed;
+    if (Number(observation.expiresAt) > previousTimestamp) observation.expiresAt = Number(observation.expiresAt) + elapsed;
     for (const victim of Object.values(observation.visiblePoisonVictims || {})) {
       if (Number(victim.firstSeenAt) > 0) victim.firstSeenAt = Number(victim.firstSeenAt) + elapsed;
       if (Number(victim.lastSeenAt) > 0) victim.lastSeenAt = Number(victim.lastSeenAt) + elapsed;
@@ -13072,21 +13120,39 @@ function freezePlayerTimeKeeperState(player, elapsedMs, timestamp = now()) {
   }
 }
 
-function advanceAccelerationTime(room, player, elapsedMs, timestamp = now()) {
-  if (room.phase !== "playing" || !player.alive || player.ejected) return;
+function advanceAccelerationTime(room, player, elapsedMs, timestamp = now(), progressMultiplier = playerProgressMultiplier(room, player, timestamp)) {
+  if (room.phase !== "playing" || !player.alive || player.ejected || timeKeeperStops(player, timestamp)) return;
   const elapsed = Math.max(0, Number(elapsedMs) || 0);
-  const desireTimeMultiplier = player?.desireBias === "cognitive-dissonance" && !player.desireRenkiRecovery
-    ? DESIRE_BIAS_TIME_MULTIPLIER
-    : 1;
-  const multiplier = effectiveAccelerationMultiplier(room, player, timestamp) * desireTimeMultiplier;
+  const previousTimestamp = timestamp - elapsed;
+  const multiplier = Math.max(0, Number(progressMultiplier) || 0);
   const adjustment = elapsed * (multiplier - 1);
   if (Math.abs(adjustment) < 0.001) return;
+  const readyDeadlines = Object.fromEntries(Object.entries(player).filter(([key, value]) => key.endsWith("ReadyAt") && Number(value) > previousTimestamp));
+  const objectCooldowns = Object.fromEntries(Object.entries(player.objectCooldowns || {}).filter(([, value]) => Number(value) > previousTimestamp));
+  const gunCadenceAt = Number(player.gunReadyAt) || 0;
+  const particleCadenceAt = Number(player.particleCannonNextAt) || 0;
   if (adjustment > 0) reducePlayerCooldowns(player, adjustment, timestamp);
   else extendPlayerCooldowns(player, -adjustment, timestamp);
+  for (const [field, deadline] of Object.entries(readyDeadlines)) player[field] = Number(deadline) - adjustment;
+  for (const [field, deadline] of Object.entries(objectCooldowns)) player.objectCooldowns[field] = Number(deadline) - adjustment;
   for (const field of ACCELERATED_ACTION_UNTIL_FIELDS) {
     const deadline = Number(player[field]) || 0;
-    if (deadline > timestamp) player[field] = Math.max(timestamp, deadline - adjustment);
+    if (deadline > previousTimestamp) player[field] = deadline - adjustment;
   }
+  for (const field of ACCELERATED_PLAYER_PROGRESS_ANCHOR_FIELDS) {
+    const anchor = Number(player[field]) || 0;
+    if (anchor > 0) player[field] = anchor - adjustment;
+  }
+  for (const field of ["poisonStatus", "burnStatus"]) {
+    const status = player[field];
+    const nextTickAt = Number(status?.nextTickAt) || 0;
+    if (nextTickAt > previousTimestamp) status.nextTickAt = nextTickAt - adjustment;
+  }
+  // Cadence deadlines retain their elapsed excess. Generic cooldown handling
+  // correctly clamps ordinary readiness, but clamping these would discard the
+  // extra shots/beams earned during this actor tick.
+  if (gunCadenceAt > 0) player.gunReadyAt = gunCadenceAt - adjustment;
+  if (particleCadenceAt > 0) player.particleCannonNextAt = particleCadenceAt - adjustment;
 }
 
 function activeMapObjectEffects(room, player) {
@@ -13239,7 +13305,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
 
   const map = getMap(room);
   if (canDash) {
-    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt, room, "ダッシュ");
+    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt * playerProgressMultiplier(room, mover, timestamp), room, "ダッシュ");
     mover.lastDashAt = timestamp;
   }
   const boost = canDash ? DASH_MULTIPLIER : wantsSlow ? SLOW_WALK_MULTIPLIER : 1;
@@ -13280,7 +13346,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   }
   if (player.alive && movementMode !== "dash") {
     const drainRate = movementMode === "slow" ? SLOW_WALK_DRAIN_PER_SECOND : WALK_DRAIN_PER_SECOND;
-    spendStamina(mover, drainRate * dt, room, movementMode === "slow" ? "無音歩行" : "歩行");
+    spendStamina(mover, drainRate * dt * playerProgressMultiplier(room, mover, timestamp), room, movementMode === "slow" ? "無音歩行" : "歩行");
   }
   const soundInterval = movementMode === "dash" ? 210 : 430;
   const silentAssassinStep = hasAssassinSilentStepsAccess(player);
@@ -14239,13 +14305,13 @@ function tickRoom(room) {
   const roomTimeStopped = freezeRoomTimeKeeperState(room, elapsedMs, timestamp);
   if (!roomTimeStopped) advanceGravitySystems(room, timestamp, elapsedMs);
   advanceThrownItems(room, timestamp, elapsedMs);
-  if (!roomTimeStopped) advanceHazards(room, timestamp);
   for (const player of room.players.values()) {
     if (!floraInvisibleActive(player, timestamp)) clearFloraInvisible(room, player, "透明化終了");
     syncFighterInfiniteResources(player);
     syncMentalState(room, player, "資源更新", timestamp);
     syncHackerRootState(room, player);
-    advanceAccelerationTime(room, player, elapsedMs, timestamp);
+    const actorTimeScale = playerProgressMultiplier(room, player, timestamp);
+    advanceAccelerationTime(room, player, elapsedMs, timestamp, actorTimeScale);
     freezePlayerTimeKeeperState(player, elapsedMs, timestamp);
     if (timeKeeperStops(player, timestamp)) {
       player.vx = 0;
@@ -14253,13 +14319,14 @@ function tickRoom(room) {
       player.movementMode = "time-stopped";
       continue;
     }
+    const actorElapsedMs = elapsedMs * actorTimeScale;
     advanceFighterEnergyPassive(room, player, timestamp);
     if (synchronizeSharedLevitationExpiry(room, player, timestamp)) continue;
-    advanceLevitationMana(room, player, elapsedMs);
+    advanceLevitationMana(room, player, actorElapsedMs);
     if (synchronizeSharedLevitationExpiry(room, player, timestamp)) continue;
-    advanceClairvoyanceMana(room, player, elapsedMs);
-    advanceLimitBreak(room, player, elapsedMs);
-    advanceHackerManaGpu(room, player, elapsedMs, timestamp);
+    advanceClairvoyanceMana(room, player, actorElapsedMs);
+    advanceLimitBreak(room, player, actorElapsedMs);
+    advanceHackerManaGpu(room, player, actorElapsedMs, timestamp);
     finishRenki(room, player, timestamp);
     advanceParticleCannon(room, player, timestamp);
     resolveSmartphoneAction(room, player, timestamp);
@@ -14316,8 +14383,8 @@ function tickRoom(room) {
       room,
       naturalRecoveryActive
     );
-    advanceNaturalRecoveryMana(room, player, elapsedMs);
-    advanceNaturalRecoveryHealth(room, player, elapsedMs);
+    advanceNaturalRecoveryMana(room, player, actorElapsedMs);
+    advanceNaturalRecoveryHealth(room, player, actorElapsedMs);
     completeRestAtFullStamina(room, player, timestamp);
     advanceIdeaProgress(room, player, timestamp);
     const hackerBot = player.isBot && isHackerOperator(player);
@@ -14336,6 +14403,7 @@ function tickRoom(room) {
       player.lastPassiveCreditAt = timestamp;
     }
   }
+  if (!roomTimeStopped) advanceHazards(room, timestamp);
   autoClearSabotageAtValidProximity(room, timestamp);
   if (runAutomaticHumanBodyReports(room, timestamp)) return;
   if (!roomTimeStopped) {
@@ -14394,7 +14462,7 @@ function completeTask(room, player, taskId) {
   }
   const timestamp = now();
   const staminaCost = taskStaminaCostFor(player);
-  replenishStamina(player, timestamp, true);
+  replenishStamina(player, timestamp, true, 1, room);
   if (availableStamina(player) < staminaCost) {
     throw new ApiError(400, `タスクの自動実行にはスタミナ ${staminaCost} が必要です。`);
   }
@@ -14486,7 +14554,7 @@ function autoCompleteNearbyTask(room, player) {
     actionBlockedUntil(player) > timestamp ||
     (Number(player.taskAutoReadyAt) || 0) > timestamp
   ) return false;
-  const requiredPresenceMs = AUTO_TASK_PRESENCE_MS / effectiveAccelerationMultiplier(room, player, timestamp);
+  const requiredPresenceMs = AUTO_TASK_PRESENCE_MS;
   if (timestamp - (Number(player.taskPresenceSince) || timestamp) < requiredPresenceMs) return false;
   completeTask(room, player, task.id);
   return true;
@@ -14558,7 +14626,7 @@ function activateDodge(room, player) {
   ensureAbilityAvailable(player);
   const timestamp = now();
   if (player.dodgeActiveUntil > timestamp) throw new ApiError(400, "回避は発動中です。");
-  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01);
+  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01, 1, room);
   if (player.stamina < DODGE_STAMINA_COST - 0.01) {
     throw new ApiError(400, `回避にはスタミナ ${DODGE_STAMINA_COST} が必要です。`);
   }
@@ -16307,7 +16375,7 @@ function useMapObject(room, player, objectId) {
   }
 
   if (object.effectKind === "stamina") {
-    replenishStamina(player, timestamp, true);
+    replenishStamina(player, timestamp, true, 1, room);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || 0), object.label, timestamp);
   } else if (object.effectKind === "credits") {
     player.credits = Math.max(0, Number(player.credits) || 0) + Math.max(1, Number(object.effectAmount) || 1);
@@ -16348,17 +16416,17 @@ function useMapObject(room, player, objectId) {
     setImmediateFeedback(player, object.label, "HP +1");
   } else if (object.effectKind === "healthyMeal") {
     healBodyHits(player, 1);
-    replenishStamina(player, timestamp, true);
+    replenishStamina(player, timestamp, true, 1, room);
     grantStamina(room, player, 120, object.label, timestamp);
     setMana(room, player, (Number(player.mana) || 0) + 1, object.label);
     setImmediateFeedback(player, object.label, "HP +1・スタミナ +120・マナ +1");
   } else if (object.effectKind === "mineralWater") {
-    replenishStamina(player, timestamp, true);
+    replenishStamina(player, timestamp, true, 1, room);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || 100), object.label, timestamp);
   } else if (object.effectKind === "fullRecovery") {
     recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1));
   } else if (object.effectKind === "decoy") {
-    replenishStamina(player, timestamp, true);
+    replenishStamina(player, timestamp, true, 1, room);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || MAX_STAMINA), object.label, timestamp);
     pushSound(room, "dash", object, {
       ownerId: player.id,
@@ -17448,7 +17516,7 @@ function maintainNaturalRecovery(room, player, timestamp = now()) {
 function advanceNaturalRecoveryHealth(room, player, elapsedMs) {
   if (!hasNaturalRecovery(room, player)) return false;
   if (player.hackerRootActive || hasFighterInfiniteResources(player)) return false;
-  const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
+  const elapsedSeconds = Math.max(0, Number(elapsedMs) || 0) / 1000;
   const restMultiplier = player.resting ? SLEEP_REGEN_MULTIPLIER : 1;
   const recovered = NATURAL_RECOVERY_HP_PER_SECOND * restMultiplier * floraAromaMultiplier(room, player) * elapsedSeconds;
   if (recovered <= 0) return false;
@@ -17459,7 +17527,7 @@ function advanceNaturalRecoveryMana(room, player, elapsedMs) {
   if (!hasNaturalRecovery(room, player)) return false;
   if (player.hackerRootActive || hasFighterInfiniteResources(player)) return false;
   const before = Math.max(0, Number(player.mana) || 0);
-  const elapsedSeconds = Math.min(0.25, Math.max(0, Number(elapsedMs) || 0) / 1000);
+  const elapsedSeconds = Math.max(0, Number(elapsedMs) || 0) / 1000;
   const restMultiplier = player.resting ? SLEEP_REGEN_MULTIPLIER : 1;
   const recovered = NATURAL_RECOVERY_MANA_PER_SECOND * restMultiplier * floraAromaMultiplier(room, player) * elapsedSeconds;
   if (recovered <= 0) return false;
@@ -18476,40 +18544,45 @@ function advanceHazards(room, timestamp = now()) {
   for (const target of room.players.values()) {
     maintainNaturalRecovery(room, target, timestamp);
     for (const [field, kind, baseDamage] of [["poisonStatus", "毒", POISON_DAMAGE_PER_TICK], ["burnStatus", "燃焼", BURN_DAMAGE_PER_TICK]]) {
-      const status = target[field];
-      if (!status || !target.alive || target.ejected) continue;
-      if (Number(status.nextTickAt) > timestamp) continue;
-      const source = room.players.get(status.sourceId) || null;
-      // Revalidate delayed Bot damage against the current room faction before
-      // advancing its timer or mutating the recipient.
-      if (botFriendlyTransactionBlocked(source, target)) {
-        target[field] = null;
-        continue;
-      }
-      status.nextTickAt = timestamp + HAZARD_TICK_MS;
-      const damage = baseDamage * Math.max(0.25, Number(status.strength) || 1);
-      if (resolveFighterSlashGuard(room, source, target, {
-        kind: field === "poisonStatus" ? "poison" : "burn",
-        label: kind,
-        physical: false,
-        reflectable: false,
-        damage,
-        hitZone: "body"
-      }, timestamp)) continue;
-      if (absorbPreparationBarrier(room, target, timestamp, source)) continue;
-      if (hasFighterInfiniteResources(target)) {
-        syncFighterInfiniteResources(target);
-        pushHitEffect(room, target, "body", false);
-        continue;
-      }
-      const threshold = 2;
-      target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + damage) * 100) / 100;
-      pushHitEffect(room, target, "body", target.bodyHits >= threshold);
-      if (target.bodyHits >= threshold) {
-        const destroyed = destroyPlayerUnconditionally(room, source, target, kind);
-        if (destroyed) target[field] = null;
-      } else {
-        setImmediateFeedback(target, kind, `${damage.toFixed(2)}継続ダメージ`);
+      // At the maximum current actor scale (ACC18) a bounded 250 ms room tick
+      // can legitimately cross five one-second status pulses. Preserve that
+      // cadence rather than collapsing it into one pulse; eight is above the
+      // reachable maximum and prevents malformed legacy timestamps looping.
+      for (let pulses = 0; pulses < 8; pulses += 1) {
+        const status = target[field];
+        if (!status || !target.alive || target.ejected || Number(status.nextTickAt) > timestamp) break;
+        const source = room.players.get(status.sourceId) || null;
+        // Revalidate delayed Bot damage against the current room faction before
+        // advancing its timer or mutating the recipient.
+        if (botFriendlyTransactionBlocked(source, target)) {
+          target[field] = null;
+          break;
+        }
+        status.nextTickAt = Number(status.nextTickAt) + HAZARD_TICK_MS;
+        const damage = baseDamage * Math.max(0.25, Number(status.strength) || 1);
+        if (resolveFighterSlashGuard(room, source, target, {
+          kind: field === "poisonStatus" ? "poison" : "burn",
+          label: kind,
+          physical: false,
+          reflectable: false,
+          damage,
+          hitZone: "body"
+        }, timestamp)) continue;
+        if (absorbPreparationBarrier(room, target, timestamp, source)) continue;
+        if (hasFighterInfiniteResources(target)) {
+          syncFighterInfiniteResources(target);
+          pushHitEffect(room, target, "body", false);
+          continue;
+        }
+        const threshold = 2;
+        target.bodyHits = Math.round((Math.max(0, Number(target.bodyHits) || 0) + damage) * 100) / 100;
+        pushHitEffect(room, target, "body", target.bodyHits >= threshold);
+        if (target.bodyHits >= threshold) {
+          const destroyed = destroyPlayerUnconditionally(room, source, target, kind);
+          if (destroyed) target[field] = null;
+        } else {
+          setImmediateFeedback(target, kind, `${damage.toFixed(2)}継続ダメージ`);
+        }
       }
     }
   }
@@ -19277,24 +19350,29 @@ function advanceParticleCannon(room, player, timestamp) {
     player.particleCannonPerformanceMultiplier = 1;
     return;
   }
-  if ((Number(player.particleCannonNextAt) || 0) > timestamp) return;
   const performanceMultiplier = Math.max(1, Number(player.particleCannonPerformanceMultiplier) || 1);
-  player.particleCannonNextAt = timestamp + 300 / performanceMultiplier;
-  const particleRange = 1250 * performanceMultiplier;
-  const particlePath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, particleRange, { collisionRadius: 2 });
-  const targets = inventionLineTargets(room, player, particleRange, 70 * performanceMultiplier, true);
-  for (const { target } of targets) {
-    destroyPlayerUnconditionally(room, player, target, "荷電粒子砲", {
-      attackKind: "particle-cannon",
-      attackLabel: "荷電粒子砲",
-      slashGuardPhysical: false,
-      slashGuardReflectable: false,
-      reflectDestroy: true
+  const cadenceMs = 300 / performanceMultiplier;
+  // 250ms world ticks and the current maximum ACC18 can cross 15 normal
+  // cannon cadences. Keep the scheduled deadline, not `timestamp + cadence`.
+  for (let pulses = 0; pulses < 256 && Number(player.particleCannonNextAt) <= timestamp; pulses += 1) {
+    const cadenceAt = Number(player.particleCannonNextAt) || timestamp;
+    player.particleCannonNextAt = cadenceAt + cadenceMs;
+    const particleRange = 1250 * performanceMultiplier;
+    const particlePath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, particleRange, { collisionRadius: 2 });
+    const targets = inventionLineTargets(room, player, particleRange, 70 * performanceMultiplier, true);
+    for (const { target } of targets) {
+      destroyPlayerUnconditionally(room, player, target, "荷電粒子砲", {
+        attackKind: "particle-cannon",
+        attackLabel: "荷電粒子砲",
+        slashGuardPhysical: false,
+        slashGuardReflectable: false,
+        reflectDestroy: true
+      });
+    }
+    pushMagicEffect(room, "alchemy-particle-beam", player, {
+      radius: 140 * Math.sqrt(performanceMultiplier), targetX: particlePath.x, targetY: particlePath.y, playerId: player.id, variant: performanceMultiplier > 1 ? "gbo-tenfold" : "continuous"
     });
   }
-  pushMagicEffect(room, "alchemy-particle-beam", player, {
-    radius: 140 * Math.sqrt(performanceMultiplier), targetX: particlePath.x, targetY: particlePath.y, playerId: player.id, variant: performanceMultiplier > 1 ? "gbo-tenfold" : "continuous"
-  });
 }
 
 function useBorrowedAbility(room, player, type, options = {}) {
@@ -20205,7 +20283,7 @@ function applyShockSpecialRound(room, shooter, target, timestamp = now(), option
   return "shockSlowed";
 }
 
-function fireGunnerRound(room, shooter, weapon, timestamp) {
+function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
   const enhanceLevel = Number(shooter.gunnerBurstEnhanceLevel) > 0 ? 1 : 0;
@@ -20228,7 +20306,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp) {
   recordBotVisibleHumanAttackStart(room, shooter, `gunner-${weapon.id}`, timestamp);
   const specialAmmoType = consumeGunnerSpecialAmmoRound(shooter, weapon.id);
   shooter.gunnerLastShotAt = timestamp;
-  shooter.gunReadyAt = timestamp + effectiveWeapon.cooldownMs;
+  shooter.gunReadyAt = cadenceAt + effectiveWeapon.cooldownMs;
   pushSound(room, "gunshot", shooter, {
     ownerId: shooter.id,
     sourceKind: "player",
@@ -20387,14 +20465,19 @@ function advanceGunnerFire(room, shooter, timestamp = now()) {
     stopGunnerFire(room, shooter, { reason: "中断" });
     return;
   }
-  if ((Number(shooter.gunReadyAt) || 0) > timestamp) return;
-  const fired = fireGunnerRound(room, shooter, weapon, timestamp);
-  if (fired === "friendlyLaneBlocked") return;
-  if (!fired) {
-    const gbo = Boolean(shooter.gunnerBurstGbo && shooter.gunnerBurstGboWeapon === weapon.id);
-    stopGunnerFire(room, shooter, { reason: "弾切れ" });
-    if (!gbo) startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空になったため");
-    return;
+  // Preserve the scheduled cadence across a fast actor tick.  The upper bound
+  // exceeds the current ACC18 × 250ms / 100ms maximum while protecting against
+  // malformed stale deadlines.
+  for (let shots = 0; shots < 512 && shooter.gunFiring && Number(shooter.gunReadyAt) <= timestamp; shots += 1) {
+    const cadenceAt = Number(shooter.gunReadyAt) || timestamp;
+    const fired = fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt);
+    if (fired === "friendlyLaneBlocked") return;
+    if (!fired) {
+      const gbo = Boolean(shooter.gunnerBurstGbo && shooter.gunnerBurstGboWeapon === weapon.id);
+      stopGunnerFire(room, shooter, { reason: "弾切れ" });
+      if (!gbo) startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空になったため");
+      return;
+    }
   }
 }
 
@@ -20875,7 +20958,7 @@ function repair(room, player) {
   ensureConscious(player);
   const map = getMap(room);
   const timestamp = now();
-  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01);
+  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01, 1, room);
 
   const closedDoors = activeDoors(room);
   const closedDoor = closedDoors
@@ -20950,7 +21033,7 @@ function startSmartphoneRepair(room, player) {
   }
   ensureItemStorageAvailable(player, timestamp);
   if (!room.sabotage && !activeDoors(room).length) throw new ApiError(404, "修理対象がありません。");
-  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01);
+  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01, 1, room);
   if (availableStamina(player) < REMOTE_REPAIR_STAMINA_COST) {
     throw new ApiError(400, `スマホ修理にはスタミナ ${REMOTE_REPAIR_STAMINA_COST} が必要です。`);
   }
@@ -21288,6 +21371,7 @@ function serializeMovement(room, player, movementSeq = player.lastMovementSeq, m
     movementMode: player.movementMode,
     speedMultiplier: effectiveMovementMultiplier(room, player, timestamp),
     accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
+    actorTimeScale: playerProgressMultiplier(room, player, timestamp),
     movementAcc: movementAcc.selected,
     movementAccMax: movementAcc.maximum,
     movementAccEnabled: movementAcc.enabled,
@@ -21496,6 +21580,7 @@ function serialize(room, viewer, options = {}) {
       gravityStormSlowMultiplier: player.gravityStormSlowMultiplier,
       speedMultiplier: effectiveMovementMultiplier(room, player),
       accelerationMultiplier: effectiveAccelerationMultiplier(room, player, timestamp),
+    actorTimeScale: playerProgressMultiplier(room, player, timestamp),
       movementAcc: movementAccState(room, player, timestamp).selected,
       movementAccMax: movementAccState(room, player, timestamp).maximum,
       movementAccEnabled: movementAccState(room, player, timestamp).enabled,
@@ -21618,7 +21703,7 @@ function serialize(room, viewer, options = {}) {
       taskAutoReadyAt: Number(viewer.taskAutoReadyAt) || 0,
       taskPresenceTaskId: viewer.taskPresenceTaskId || "",
       taskPresenceSince: Number(viewer.taskPresenceSince) || 0,
-      taskPresenceDurationMs: AUTO_TASK_PRESENCE_MS / effectiveAccelerationMultiplier(room, viewer, timestamp),
+      taskPresenceDurationMs: AUTO_TASK_PRESENCE_MS,
       killReadyAt: viewer.killReadyAt,
       ninjutsuOpeningReady: !viewer.isBot && Number(viewer.ninjutsuOpeningKillReadyAt) > timestamp && Number(viewer.killReadyAt) === Number(viewer.ninjutsuOpeningKillReadyAt),
       killChainCount: Math.max(0, Math.floor(Number(viewer.killChainCount) || 0)),
@@ -21848,6 +21933,7 @@ function serialize(room, viewer, options = {}) {
       restCompletionManaFloor: REST_COMPLETION_MANA_FLOOR,
       speedMultiplier: effectiveMovementMultiplier(room, viewer),
       accelerationMultiplier: effectiveAccelerationMultiplier(room, viewer, timestamp),
+      actorTimeScale: playerProgressMultiplier(room, viewer, timestamp),
       movementAcc: movementAccState(room, viewer, timestamp).selected,
       movementAccMax: movementAccState(room, viewer, timestamp).maximum,
       movementAccEnabled: movementAccState(room, viewer, timestamp).enabled,
@@ -26073,7 +26159,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "pregame-canvas-dodge-shortcuts-v722",
+  version: "actor-time-four-jets-v723",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

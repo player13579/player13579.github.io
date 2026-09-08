@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "pregame-canvas-dodge-shortcuts-v722";
+const DVA_CLIENT_RELEASE = "actor-time-four-jets-v723";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -571,6 +571,7 @@ const state = {
   facing: new Map(),
   walkAnimations: new Map(),
   physicalMotionPhases: new Map(),
+  actorVisualClocks: new Map(),
   characterActions: new Map(),
   renderPlayers: new Map(),
   camera: { x: 0, y: 0, vx: 0, vy: 0, initialized: false, mode: "", frame: -1 },
@@ -903,7 +904,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pregame-canvas-dodge-shortcuts-v722";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "actor-time-four-jets-v723";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -10418,6 +10419,7 @@ function resetLocalSession() {
   state.facing.clear();
   state.walkAnimations.clear();
   state.physicalMotionPhases.clear();
+  state.actorVisualClocks.clear();
   state.characterActions.clear();
   state.renderPlayers.clear();
   state.camera = { x: 0, y: 0, initialized: false, mode: "", frame: -1 };
@@ -18661,36 +18663,36 @@ function drawHoverSprintJetPair(anchorX, anchorY, heading, options = {}) {
 
 function drawHoverSprintActivationJets(effect, progress) {
   const player = state.data?.players?.find((entry) => entry?.id === effect.playerId);
+  const activeUntil = Number(player?.id === state.data?.selfId ? state.data?.self?.hoverSprintUntil : player?.hoverSprintUntil) || 0;
+  // The actor renderer owns all four emitters while HS is active. Event
+  // fallback only covers a missing/expired actor and never doubles the jets.
+  if (player && activeUntil > estimatedServerNow(state.data)) return true;
   const rendered = player ? renderedPlayer(player) : null;
   const x = Number(rendered?.x ?? effect.x) || 0;
   const y = Number(rendered?.y ?? effect.y) || 0;
   const ignition = objectEffectEase(clamp(progress / 0.15, 0, 1));
   const fade = 1 - objectEffectEase(clamp((progress - 0.7) / 0.3, 0, 1));
   const pulse = Math.sin(clamp(progress / 0.42, 0, 1) * Math.PI);
-  return drawHoverSprintJetPair(x, y + 23, hoverSprintTravelHeading(player || effect, state.data), {
-    height: 76 + ignition * 10,
-    alpha: fade * (0.35 + ignition * 0.65),
-    flare: ignition,
-    pulse,
-    reduced: prefersReducedMotion()
-  });
+  const heading = hoverSprintTravelHeading(player || effect, state.data);
+  const options = { alpha: fade * (0.35 + ignition * 0.65), flare: ignition, pulse, reduced: prefersReducedMotion() };
+  const feet = drawHoverSprintJetPair(x, y + 23, heading, { ...options, height: 76 + ignition * 10 });
+  const back = drawHoverSprintJetPair(x, y - 2, heading, { ...options, height: 66 + ignition * 8 });
+  return feet || back;
 }
 
 function drawHoverSprintSustainedJets(player, data) {
   const until = Number(player?.id === data?.selfId ? data?.self?.hoverSprintUntil : player?.hoverSprintUntil) || 0;
   if (until <= estimatedServerNow(data)) return false;
-  const time = (state.frameNow || performance.now()) / 1000;
+  const time = actorVisualTime(player, data) / 1000;
   const reduced = prefersReducedMotion();
   const throttle = reduced ? 0.5 : 0.52 + Math.sin(time * 8.4 + (player.id?.length || 0)) * 0.14;
   // drawHuman() already translates to the current rendered actor position.
-  // This is the backpack-mounted variant: it has no visible pack hardware.
-  return drawHoverSprintJetPair(0, -2, hoverSprintTravelHeading(player, data), {
-    height: 66,
-    alpha: 0.38 + throttle * 0.24,
-    flare: throttle,
-    pulse: reduced ? 0 : 0.18 + throttle * 0.12,
-    reduced
-  });
+  // Two foot nozzles and two upper-back nozzles remain visible together.
+  const heading = hoverSprintTravelHeading(player, data);
+  const options = { alpha: 0.38 + throttle * 0.24, flare: throttle, pulse: reduced ? 0 : 0.18 + throttle * 0.12, reduced };
+  const feet = drawHoverSprintJetPair(0, 23, heading, { ...options, height: 60 });
+  const back = drawHoverSprintJetPair(0, -2, heading, { ...options, height: 66 });
+  return feet || back;
 }
 
 function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize) {
@@ -20561,6 +20563,7 @@ function drawRainbowSpark(x, y, radius, hue, rotation) {
 }
 
 function drawPlayers(data) {
+  syncActorVisualClocks(data);
   const ordered = [...data.players]
     .map((player) => renderedPlayer(player))
     .filter((player) => worldPointVisible(player.x, player.y, 240))
@@ -20631,7 +20634,7 @@ function drawAttackTargets(data) {
 
 function drawLuminousFeathers(player) {
   if (!player.luminousActive || !player.alive || player.ejected) return;
-  const time = (state.frameNow || performance.now()) / 1000;
+  const time = actorVisualTime(player, state.data) / 1000;
   const source = state.textures.luminousMeetingEffect;
   const sprite = source ? transparentSpriteSource(source, "luminous-field-effect-v311", 22) : null;
   if (!sprite) return;
@@ -20668,7 +20671,7 @@ function drawPersistentIdeaState(player, data, ascensionProgress) {
   const source = state.textures.philosophyEffectTextures?.[effectIndex];
   const sprite = source ? transparentSpriteSource(source, `persistent-idea-${effectIndex}`, 24) : null;
   if (!sprite) return;
-  const time = (state.frameNow || performance.now()) / 1000;
+  const time = actorVisualTime(player, state.data) / 1000;
   const size = ascensionProgress > 0 ? 154 + ascensionProgress * 92 : goodActive ? 116 : 86;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -20689,9 +20692,40 @@ function drawPersistentIdeaState(player, data, ascensionProgress) {
   ctx.restore();
 }
 
-function physicalMotionRateFor(player) {
-  const self = player?.id === state.data?.selfId ? state.data?.self : null;
+function displayActorTimeScale(player, data = state.data) {
+  const self = player?.id === data?.selfId ? data?.self : null;
+  const value = Number(self?.actorTimeScale ?? player?.actorTimeScale);
+  if (Number.isFinite(value)) return Math.max(0, value);
   return clamp(Number(self?.accelerationMultiplier ?? player?.accelerationMultiplier) || 1, 0.15, 12);
+}
+
+function syncActorVisualClocks(data = state.data) {
+  const present = new Set((data?.players || []).map((player) => player?.id).filter(Boolean));
+  for (const id of state.actorVisualClocks.keys()) {
+    if (!present.has(id)) state.actorVisualClocks.delete(id);
+  }
+}
+
+function actorVisualTime(player, data = state.data) {
+  const id = String(player?.id || "");
+  const frame = Number(state.frameNow || performance.now()) || 0;
+  const current = state.actorVisualClocks.get(id);
+  if (!current) {
+    const created = { time: frame, frame };
+    state.actorVisualClocks.set(id, created);
+    return created.time;
+  }
+  if (current.frame !== frame) {
+    const elapsed = clamp(Number(state.frameDelta) || 0, 0, 100);
+    current.time += elapsed * displayActorTimeScale(player, data);
+    current.frame = frame;
+  }
+  return current.time;
+}
+
+
+function physicalMotionRateFor(player) {
+  return displayActorTimeScale(player, state.data);
 }
 
 const ACCELERATION_READY_PHYSICAL_KINDS = new Set([
@@ -20827,7 +20861,7 @@ function drawHuman(player, data) {
       ctx.strokeStyle = "#a7f3d0";
       ctx.lineWidth = 4;
       ctx.setLineDash([5, 7]);
-      ctx.lineDashOffset = state.frameNow / 14;
+      ctx.lineDashOffset = actorVisualTime(player, data) / 14;
       ctx.beginPath();
       ctx.arc(0, 0, 35, 0, Math.PI * 2);
       ctx.stroke();
@@ -20922,7 +20956,7 @@ function drawSoloHumanDeathBotAcceleration(player, data) {
   const prepared = transparentSpriteSource(state.textures.accelerationPhaseEffect, "status-marker-acceleration-v376-bot-tenfold", 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "status-marker-acceleration-v376-bot-tenfold", 1, 1, 0, 0) : null;
   if (!sprite) return;
-  const time = (state.frameNow || performance.now()) / 1000;
+  const time = actorVisualTime(player, state.data) / 1000;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha *= 0.78 + Math.sin(time * 8.4) * 0.08;
@@ -20979,7 +21013,7 @@ function drawPreparationBarrierAte(player) {
   const prepared = transparentSpriteSource(state.textures.preparationBarrierEffect, "preparation-barrier-ate-v392", 12);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "preparation-barrier-ate-v392", 1, 1, 0, 0) : null;
   if (!sprite) return;
-  const time = Math.floor(((state.frameNow || performance.now()) / 1000) * 60) / 60;
+  const time = Math.floor((actorVisualTime(player, state.data) / 1000) * 60) / 60;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha *= 0.9;
@@ -21007,7 +21041,7 @@ function enhanceRimLightState(player, data) {
   const stepMs = enhanceStartsAt;
   const maximum = Math.max(1, Number(data?.self?.enhanceMaxLevel) || ENHANCE_MAX_LEVEL_CLIENT);
   const level = Math.min(maximum, Math.floor(charge.elapsedMs / stepMs));
-  const time = (state.frameNow || performance.now()) / 1000;
+  const time = actorVisualTime(player, state.data) / 1000;
   const phase = time * (3.8 + level * 0.32) + (player.id?.length || 0) * 0.41;
   const offsetX = Math.cos(phase) * (1.35 + level * 0.24);
   const offsetY = Math.sin(phase) * (1.15 + level * 0.2);
@@ -21056,7 +21090,7 @@ function drawHackerRootState(player) {
   const prepared = transparentSpriteSource(state.textures.hackerRootMatrix, "hacker-root-matrix-v497", 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "hacker-root-matrix-v497", 1, 1, 0, 0) : null;
   if (!sprite) return;
-  const time = (state.frameNow || performance.now()) / 1000;
+  const time = actorVisualTime(player, state.data) / 1000;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha *= 0.72 + Math.sin(time * 5.2) * 0.06;
@@ -21203,7 +21237,7 @@ function drawFloraInvisibleGeneratedEffect(effect, progress) {
 function drawPersistentStatusAteLayers(player, data) {
   if (!player.alive || player.ejected) return;
   const activeState = persistentStatusAteState(player, data);
-  const time = Math.floor(((state.frameNow || performance.now()) / 1000) * 60) / 60;
+  const time = Math.floor((actorVisualTime(player, data) / 1000) * 60) / 60;
   const now = state.frameNow || performance.now();
   const previousSlot = state.headMarkerSlots.get(player.id) || null;
   const presentation = selectHeadMarkerPresentation(
@@ -23117,7 +23151,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "pregame-canvas-dodge-shortcuts-v722";
+const version = "actor-time-four-jets-v723";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24157,7 +24191,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=pregame-canvas-dodge-shortcuts-v722", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=actor-time-four-jets-v723", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
