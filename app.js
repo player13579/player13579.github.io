@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "renki-dodge-plicy-restored-v715";
+const DVA_CLIENT_RELEASE = "mystery-result-dodge-shortcut-v716";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-dodge-plicy-restored-v715";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mystery-result-dodge-shortcut-v716";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -8440,9 +8440,14 @@ function renderTabletControls(data) {
   els.tabletVendingShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected || data.self.inVent;
   els.tabletVendingShortcut.classList.toggle("active", state.vendingOpen);
   els.tabletVendingShortcut.setAttribute("aria-expanded", String(state.vendingOpen));
-  setTabletShortcutLabel(els.tabletDodgeShortcut, "回避", els.dodgeButton.textContent || "回避");
+  const dodgeShortcutDetail = els.dodgeButton.hidden
+    ? "ディフェンダーまたはファイターが使用できます"
+    : (els.dodgeButton.title || els.dodgeButton.textContent || "回避");
+  setTabletShortcutLabel(els.tabletDodgeShortcut, "回避", dodgeShortcutDetail);
+  // 回避は共通ショートカットの固定枠。権限外は実行不可として残し、
+  // native action button の役割別非表示を tablet の枠へ伝播させない。
   els.tabletDodgeShortcut.disabled = els.dodgeButton.disabled || els.dodgeButton.hidden;
-  els.tabletDodgeShortcut.hidden = els.dodgeButton.hidden;
+  els.tabletDodgeShortcut.hidden = false;
   setTabletShortcutLabel(els.tabletRenkiShortcut, "練気", els.renkiButton.title || els.renkiButton.textContent || "練気");
   els.tabletRenkiShortcut.disabled = els.renkiButton.disabled;
   const donationCost = DVA_ECONOMY.creditIncome.donationCost;
@@ -10825,6 +10830,7 @@ function clearMysteryReveal() {
   els.mysteryReveal.style.animation = "";
   els.mysteryReveal.style.transform = "";
   els.mysteryRevealResult.textContent = "";
+  els.mysteryRevealResult.classList.remove("visually-hidden");
   const title = els.mysteryReveal.querySelector("span");
   if (title) title.textContent = "ミステリー獲得結果";
   els.mysteryReveal.querySelector(".mystery-reveal-box-stage")?.remove();
@@ -10848,7 +10854,10 @@ function showMysteryBoxReveal(reveal) {
   panel.style.boxSizing = "border-box";
   panel.style.maxWidth = "calc(100vw - 32px)";
   panel.style.transform = "translateX(-50%)";
+  // The staged reward card is the visual result. Keep this native live-region
+  // label for assistive technology without painting the same reward text twice.
   els.mysteryRevealResult.textContent = reveal.label || "獲得";
+  els.mysteryRevealResult.classList.add("visually-hidden");
   const stage = document.createElement("div");
   stage.className = "mystery-reveal-box-stage";
   const revealStartedAt = performance.now();
@@ -10910,6 +10919,7 @@ function detectMysteryResult(previous, next) {
     document.documentElement.setAttribute("data-mystery-reveal-nested-result", "merged");
     return;
   }
+  clearMysteryReveal();
   const result = next.self.lastMysteryResult || "効果なし";
   showToast("ミステリー: " + result);
   els.mysteryRevealResult.textContent = result;
@@ -22786,7 +22796,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "renki-dodge-plicy-restored-v715";
+const version = "mystery-result-dodge-shortcut-v716";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23823,7 +23833,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=renki-dodge-plicy-restored-v715", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=mystery-result-dodge-shortcut-v716", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
