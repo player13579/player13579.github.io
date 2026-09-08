@@ -12541,3 +12541,8 @@ body #selectPanel .operator-setting-status[hidden] {
 .preparation-setting-switch { display: grid; grid-template-columns: 34px minmax(0, 1fr) 34px; gap: 6px; align-items: stretch; }
 .preparation-setting-switch > button { min-height: 40px; padding: 0; font-size: 22px; line-height: 1; }
 .preparation-setting-switch > select { min-width: 0; }
+
+/* Preparation values are always readable; only the selected editor opens. */
+.preparation-setting-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.preparation-setting-summary>button{display:grid;gap:4px;text-align:left;min-width:0}.preparation-setting-summary strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}[data-preparation-editor][hidden]{display:none}@media(max-width:680px){.preparation-setting-summary{grid-template-columns:1fr}}
+
+#operatorSelectionSettings.pregame-canvas-settings{grid-template-columns:1fr}#preparationSettingClose{justify-self:end}

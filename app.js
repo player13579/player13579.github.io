@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "stable-viewport-purchased-controls-v724";
+const DVA_CLIENT_RELEASE = "preparation-tap-editors-v725";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -164,6 +164,11 @@ const els = {
   selectPanel: $("#selectPanel"),
   operatorSelectionSettings: $("#operatorSelectionSettings"),
   pregameCanvasSettings: $("#operatorSelectionSettings"),
+  preparationSettingSummary: $("#preparationSettingSummary"),
+  preparationSettingClose: $("#preparationSettingClose"),
+  preparationNameValue: $("#preparationNameValue"),
+  preparationSkinValue: $("#preparationSkinValue"),
+  preparationMapValue: $("#preparationMapValue"),
   operatorSettingStatus: $("#operatorSettingStatus"),
   operatorRetryButton: $("#operatorRetryButton"),
   statusPanel: $("#statusPanel"),
@@ -573,6 +578,7 @@ const state = {
   matchmakingTicket: null,
   operatorSelectionRouteOpen: false,
   operatorSelectionSettingsRequestSeq: 0,
+  preparationEditingField: "",
   offlineTeamChoiceInFlight: false,
   textures: createTextures(),
   motion: new Map(),
@@ -912,7 +918,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "stable-viewport-purchased-controls-v724";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "preparation-tap-editors-v725";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2578,6 +2584,10 @@ function setScreen(screen) {
   if (next === "title") state.operatorSelectionRouteOpen = false;
   if (next !== "game") setSoloNameGuidance(false);
   state.screen = next;
+  if (previous !== next || next !== "game") {
+    setPreparationEditingField("");
+    if (els.pregameCanvasSettings) els.pregameCanvasSettings.hidden = true;
+  }
   state.frameDriver?.sync?.();
   if (previous !== next && (state.activeScrollRegion || state.expandedScrollRegion)) {
     setSelectedScrollRegion(null, { focus: false });
@@ -6468,7 +6478,10 @@ function bindEvents() {
   els.titleMuteButton?.addEventListener("click", toggleGameMuted);
   els.tacticsMuteButton?.addEventListener("click", toggleGameMuted);
   els.gameMuteButton?.addEventListener("click", toggleGameMuted);
-  els.skinSelect.addEventListener("change", () => void syncOperatorSelectionSettings("skin"));
+  els.skinSelect.addEventListener("change", () => {
+    renderPreparationSettingSummary(state.data);
+    void syncOperatorSelectionSettings("skin");
+  });
   els.skinPreviousButton?.addEventListener("click", () => cyclePreparationSelect(els.skinSelect, -1));
   els.skinNextButton?.addEventListener("click", () => cyclePreparationSelect(els.skinSelect, 1));
   els.mapPreviousButton?.addEventListener("click", () => cyclePreparationSelect(els.mapSelect, -1));
@@ -6477,12 +6490,33 @@ function bindEvents() {
     const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
     els.mapSelect.value = mapId;
     localStorage.setItem(storage.map, mapId);
+    renderPreparationSettingSummary(state.data);
     void syncOperatorSelectionSettings("map");
   });
   els.matchmakingButton.addEventListener("click", startMatchmaking);
   els.operatorRetryButton?.addEventListener("click", () => void startMatchmaking({ allowDefaultName: true, source: "selection-retry" }));
+  els.preparationSettingSummary?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-preparation-setting]");
+    if (!button || button.disabled) return;
+    const field = button.dataset.preparationSetting;
+    setPreparationEditingField(state.preparationEditingField === field ? "" : field, { focus: true });
+  });
+  els.preparationSettingClose?.addEventListener("click", () => setPreparationEditingField(""));
+  for (const type of ["pointerdown", "pointerup", "click"]) {
+    els.pregameCanvasSettings?.addEventListener(type, (event) => event.stopPropagation());
+  }
+  els.pregameCanvasSettings?.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !state.preparationEditingField) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setPreparationEditingField("");
+  });
   [els.nameInput].forEach((input) => {
-    input.addEventListener("change", () => void syncOperatorSelectionSettings("name"));
+    input.addEventListener("input", () => renderPreparationSettingSummary(state.data));
+    input.addEventListener("change", () => {
+      renderPreparationSettingSummary(state.data);
+      void syncOperatorSelectionSettings("name");
+    });
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
@@ -10299,6 +10333,7 @@ function setCurrentRoomSession(roomId, playerId) {
   const nextPlayerId = String(playerId || "");
   if (state.roomId !== nextRoomId || state.playerId !== nextPlayerId) {
     state.roomSessionGeneration += 1;
+    setPreparationEditingField("");
   }
   state.roomId = nextRoomId;
   state.playerId = nextPlayerId;
@@ -10447,6 +10482,8 @@ async function recoverRoomInteractionAfterBackground() {
 }
 
 function resetLocalSession() {
+  setPreparationEditingField("");
+  if (els.pregameCanvasSettings) els.pregameCanvasSettings.hidden = true;
   invalidateFocusResync();
   state.roomSessionGeneration += 1;
   state.pollInFlight = false;
@@ -11968,21 +12005,47 @@ function formatSoloMissionHudProgress(mission) {
   return `${objective} / ${progress}`;
 }
 
-function preparationBarrierActive(data = state.data) {
-  return !data?.soloMission && data?.phase === "playing" &&
-    Number(data.preparationEndsAt) > Number(data.serverNow || Date.now());
-}
-
 function preparationPhaseActive(data = state.data) {
-  return !data || ["lobby", "selecting"].includes(data.phase) || preparationBarrierActive(data);
+  return !data?.soloMission && (!data || ["lobby", "selecting"].includes(data.phase));
 }
 
 function preparationSettingsEditable(data = state.data) {
-  return data?.phase === "selecting" || preparationBarrierActive(data);
+  return data?.phase === "selecting";
 }
 
 function preparationOverlayVisible(data = state.data) {
-  return state.screen === "game" && (state.operatorSelectionRouteOpen || preparationPhaseActive(data));
+  return state.screen === "game" && preparationPhaseActive(data);
+}
+
+function preparationSettingValue(select, fallback = "") {
+  return select?.selectedOptions?.[0]?.textContent?.trim() || fallback;
+}
+
+function setPreparationEditingField(field = "", { focus = false } = {}) {
+  const editable = preparationOverlayVisible(state.data) && preparationSettingsEditable(state.data);
+  const next = editable && ["name", "skin", "map"].includes(field) ? field : "";
+  state.preparationEditingField = next;
+  document.querySelectorAll("[data-preparation-editor]").forEach((panel) => {
+    panel.hidden = panel.dataset.preparationEditor !== next;
+    if (panel.hidden && panel.contains(document.activeElement)) document.activeElement?.blur();
+  });
+  document.querySelectorAll("[data-preparation-setting]").forEach((button) => {
+    button.setAttribute("aria-expanded", String(button.dataset.preparationSetting === next));
+  });
+  if (els.preparationSettingClose) els.preparationSettingClose.hidden = !next;
+  if (focus && next) requestAnimationFrame(() => {
+    if (state.preparationEditingField !== next || !preparationOverlayVisible(state.data)) return;
+    ({ name: els.nameInput, skin: els.skinSelect, map: els.mapSelect }[next])?.focus();
+  });
+}
+
+function renderPreparationSettingSummary(data = state.data) {
+  const editable = preparationOverlayVisible(data) && preparationSettingsEditable(data);
+  if (!editable) setPreparationEditingField("");
+  if (els.preparationNameValue) els.preparationNameValue.textContent = els.nameInput.value.trim() || "未設定";
+  if (els.preparationSkinValue) els.preparationSkinValue.textContent = preparationSettingValue(els.skinSelect, "フィリア");
+  if (els.preparationMapValue) els.preparationMapValue.textContent = preparationSettingValue(els.mapSelect, "アウレリア自然共生館");
+  document.querySelectorAll("[data-preparation-setting]").forEach((button) => { button.disabled = !editable; });
 }
 
 function cyclePreparationSelect(select, direction) {
@@ -12048,6 +12111,7 @@ function render() {
   els.pregameCanvasSettings.hidden = !settingsOverlayVisible;
   document.body.classList.toggle("pregame-canvas-open", settingsOverlayVisible);
   els.operatorSettingStatus.hidden = !settingsOverlayVisible;
+  renderPreparationSettingSummary(data);
   els.operatorRetryButton.hidden = !(operatorSelectionVisible && !selecting && !state.matchmakingInFlight);
   if (!selecting && operatorSelectionVisible) {
     els.selectTimer.textContent = "接続中";
@@ -15863,7 +15927,7 @@ function draw() {
   state.markerHitTargets.length = 0;
   ctx.fillStyle = data ? "#91a8b7" : "#25323d";
   ctx.fillRect(0, 0, w, h);
-  const pregameCanvas = preparationPhaseActive(data) || state.operatorSelectionRouteOpen;
+  const pregameCanvas = preparationPhaseActive(data);
   if (pregameCanvas) {
     // Match setup deliberately does not expose a live field.
     const wash = ctx.createLinearGradient(0, 0, w, h);
@@ -23279,7 +23343,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "stable-viewport-purchased-controls-v724";
+const version = "preparation-tap-editors-v725";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24319,7 +24383,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=stable-viewport-purchased-controls-v724", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=preparation-tap-editors-v725", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
