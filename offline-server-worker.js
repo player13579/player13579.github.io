@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "mystery-result-dodge-shortcut-v716",
+    version: "ninjutsu-slow-target-v717",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "mystery-result-dodge-shortcut-v716";
+const PRODUCT_RELEASE = "ninjutsu-slow-target-v717";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -9725,6 +9725,11 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     aimSourceY: 0,
     aimTargetX: 0,
     aimTargetY: 0,
+    aimTargetObservedX: 0,
+    aimTargetObservedY: 0,
+    aimTargetObservedAt: 0,
+    aimTargetRelocationRevision: 0,
+    aimTargetFastMovementAt: 0,
     lastAttackResult: "",
     lastAttackResultAt: 0,
     gunReadyAt: 0,
@@ -13222,6 +13227,10 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   } else if (isWalkable(room, mover.x, ny, radius)) {
     mover.y = ny;
   }
+  const movedDistance = Math.hypot(mover.x - beforeX, mover.y - beforeY);
+  if (movedDistance > 0) {
+    observeNinjutsuTargetMovement(room, mover, beforeX, beforeY, movedDistance, dt, timestamp);
+  }
   if (beforeX === mover.x && beforeY === mover.y) {
     mover.vx = 0;
     mover.vy = 0;
@@ -14224,7 +14233,7 @@ function tickRoom(room) {
       const aimTarget = room.players.get(player.aimTargetId);
       if (room.phase !== "playing" || !aimTarget || !aimTarget.alive || aimTarget.ejected) {
         clearAimState(player);
-      } else if (aimedTargetMoved(player, aimTarget)) {
+      } else if (aimedTargetMoved(room, player, aimTarget, timestamp)) {
         failAimForMovement(room, player, timestamp);
       } else if (player.aimReadyAt && player.aimReadyAt <= timestamp) {
         resolveReadyAim(room, player, timestamp);
@@ -19292,6 +19301,11 @@ function clearAimState(player) {
   player.aimSourceY = 0;
   player.aimTargetX = 0;
   player.aimTargetY = 0;
+  player.aimTargetObservedX = 0;
+  player.aimTargetObservedY = 0;
+  player.aimTargetObservedAt = 0;
+  player.aimTargetRelocationRevision = 0;
+  player.aimTargetFastMovementAt = 0;
 }
 
 function clearPendingAttack(player) {
@@ -19358,6 +19372,11 @@ function startNinjutsu(room, player, targetId) {
   player.aimSourceY = player.y;
   player.aimTargetX = target.x;
   player.aimTargetY = target.y;
+  player.aimTargetObservedX = target.x;
+  player.aimTargetObservedY = target.y;
+  player.aimTargetObservedAt = timestamp;
+  player.aimTargetRelocationRevision = Math.max(0, Number(target.relocationRevision) || 0);
+  player.aimTargetFastMovementAt = 0;
   pushMagicEffect(room, "action-ninjutsu-focus", player, { radius: 115, playerId: player.id, targetId: target.id });
   touch(room);
 }
@@ -19367,11 +19386,51 @@ function setAttackResult(player, result, timestamp = now()) {
   player.lastAttackResultAt = timestamp;
 }
 
-function aimedTargetMoved(player, target) {
+function ninjutsuTargetSpeedLimit(room) {
+  return Math.max(0, Number(getMap(room)?.speed) || 0) * DEFAULT_MOVEMENT_SPEED_MULTIPLIER * NORMAL_MOVEMENT_ACC;
+}
+
+function observeNinjutsuTargetMovement(room, target, beforeX, beforeY, movedDistance, elapsedSeconds, timestamp = now()) {
+  const maximumSpeed = ninjutsuTargetSpeedLimit(room);
+  for (const player of room.players.values()) {
+    if (player.aimTargetId !== target.id) continue;
+    const observedAt = Number(player.aimTargetObservedAt) || Number(player.aimStartedAt) || timestamp;
+    const unrecordedDistance = Math.hypot(beforeX - player.aimTargetObservedX, beforeY - player.aimTargetObservedY);
+    const elapsedSinceObservation = Math.max(0, (timestamp - observedAt) / 1000);
+    // A discontinuity that happened outside movePlayer must be checked before
+    // this authoritative move refreshes the observation point. This keeps a
+    // teleport followed by a normal walk from being laundered as slow motion.
+    if (unrecordedDistance > AIM_TARGET_MOVE_TOLERANCE && (
+      elapsedSinceObservation <= 0 || unrecordedDistance / elapsedSinceObservation > maximumSpeed + 1e-6
+    )) {
+      player.aimTargetFastMovementAt = timestamp;
+    }
+    if (elapsedSeconds > 0 && movedDistance / elapsedSeconds > maximumSpeed + 1e-6) {
+      player.aimTargetFastMovementAt = timestamp;
+    }
+    player.aimTargetObservedX = target.x;
+    player.aimTargetObservedY = target.y;
+    player.aimTargetObservedAt = timestamp;
+  }
+}
+
+function aimedTargetMoved(room, player, target, timestamp = now()) {
   if (!target) return true;
   const sourceMoved = Math.hypot(player.x - player.aimSourceX, player.y - player.aimSourceY) > AIM_TARGET_MOVE_TOLERANCE;
-  const targetMoved = Math.hypot(target.x - player.aimTargetX, target.y - player.aimTargetY) > AIM_TARGET_MOVE_TOLERANCE;
-  return sourceMoved || targetMoved;
+  if (sourceMoved) return true;
+  if (distance(player, target) > room.settings.killRange) return true;
+  if (Math.max(0, Number(target.relocationRevision) || 0) !== Math.max(0, Number(player.aimTargetRelocationRevision) || 0)) return true;
+  if (Number(player.aimTargetFastMovementAt) >= Number(player.aimStartedAt) && Number(player.aimTargetFastMovementAt) > 0) return true;
+  const observedAt = Number(player.aimTargetObservedAt) || Number(player.aimStartedAt) || timestamp;
+  const observedDistance = Math.hypot(target.x - player.aimTargetObservedX, target.y - player.aimTargetObservedY);
+  const elapsedSinceObservation = Math.max(0, (timestamp - observedAt) / 1000);
+  const targetMoved = observedDistance > AIM_TARGET_MOVE_TOLERANCE && (
+    elapsedSinceObservation <= 0 || observedDistance / elapsedSinceObservation > ninjutsuTargetSpeedLimit(room) + 1e-6
+  );
+  player.aimTargetObservedX = target.x;
+  player.aimTargetObservedY = target.y;
+  player.aimTargetObservedAt = timestamp;
+  return targetMoved;
 }
 
 function failAimForMovement(room, player, timestamp = now()) {
@@ -19437,7 +19496,7 @@ function performNinjutsuAttack(room, player, targetId) {
     clearAimState(player);
     throw new ApiError(400, "忍殺の有効時間が切れました。");
   }
-  if (aimedTargetMoved(player, room.players.get(targetId))) {
+  if (aimedTargetMoved(room, player, room.players.get(targetId), timestamp)) {
     failAimForMovement(room, player, timestamp);
     return;
   }
@@ -19450,7 +19509,7 @@ function performNinjutsuAttack(room, player, targetId) {
 function resolveReadyAim(room, player, timestamp = now()) {
   if (!player.aimTargetId || !player.aimReadyAt || player.aimReadyAt > timestamp) return;
   const targetId = player.aimTargetId;
-  if (aimedTargetMoved(player, room.players.get(targetId))) {
+  if (aimedTargetMoved(room, player, room.players.get(targetId), timestamp)) {
     failAimForMovement(room, player, timestamp);
     return;
   }
@@ -25943,5 +26002,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "mystery-result-dodge-shortcut-v716" });
+self.postMessage({ type: "ready", version: "ninjutsu-slow-target-v717" });
 })();

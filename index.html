@@ -14,7 +14,7 @@
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
     <link rel="preload" as="image" href="assets/title-hero-v466.png?v=core-icons-restart-v707" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=mystery-result-dodge-shortcut-v716">
+  <link rel="stylesheet" href="styles.css?v=ninjutsu-slow-target-v717">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
@@ -140,8 +140,8 @@
               <p class="tactics-lead">初期HPは2。回復は不足分を満たし、余剰分だけcurrent/maxを同率で拡張します。確殺は残HPに関係なく倒します。破壊と消滅は同じ強制死亡で、破壊は死体あり、消滅は死体なしです。ボディ攻撃は累積ダメージでHPを削ります。</p>
               <div class="tactics-rule-grid">
                 <section><h4>攻撃</h4><p>通常キルはありません。忍殺は武器と独立した固有アクションです。斬る・射撃・重火器は所持品から使用し、オペ能力も対象と範囲に従って攻撃します。弾丸・ビーム・斬撃波・投擲など空間を進む攻撃は最初の壁で止まり、壁の後ろへ命中しません。心臓転移やHP削除など空間を飛ばない直接効果は別契約です。キルチェインは合法な異陣営キルごとに次回以降のキルCTを基本値から10%ずつ累積短縮し、最短25%で止まります。銃の発射間隔・リロード・能力CTは短縮しません。</p></section>
-                <section><h4>忍殺</h4><p>自分と対象が4秒間静止すると自動発動します。どちらかの移動や対象喪失で失敗し、通常忍殺は成功時に通報可能な死体を残します。死体を残さず消滅させるのはアサシンだけです。</p></section>
-                <section><h4>アサシン</h4><p>共有忍殺は4秒静止後に対象を物質・死体とも残さない「アサシン忍殺による消滅」状態へ移し、通報対象・死体由来マーカーも残しません。歩行・ダッシュ・無音歩行など移動状態を問わず音響イベントを発生させず、敵Botにも足音由来の観測情報を与えません。</p></section>
+                <section><h4>忍殺</h4><p>自分が4秒間静止し、対象が射程内で通常歩行速度以下なら自動発動します。歩行中やディーセラレートで遅くなった走行中も対象になります。自分の移動、対象の高速移動・転移、射程外への移動や対象喪失で失敗し、通常忍殺は成功時に通報可能な死体を残します。死体を残さず消滅させるのはアサシンだけです。</p></section>
+                <section><h4>アサシン</h4><p>共有忍殺と同じく、自分が4秒静止し、対象が射程内で通常歩行速度以下なら、対象を物質・死体とも残さない「アサシン忍殺による消滅」状態へ移し、通報対象・死体由来マーカーも残しません。歩行・ダッシュ・無音歩行など移動状態を問わず音響イベントを発生させず、敵Botにも足音由来の観測情報を与えません。</p></section>
                 <section><h4>防御優先順</h4><p>美は確殺を上書き不能の不殺へ、バリアは次に受ける確殺を1回だけボディダメージへ変換し、発動後もしばらく防護します。バストは通常攻撃時だけ対象のバリアを全無効化し、1回につき使用者へ0.5ダメージを与えます。確殺・破壊・消滅を有する自身の攻撃ではバストを消費せず、対象のバリアもバストでは消しません。</p></section>
                 <section><h4>回避とファイター</h4><p>全員が200SPで回避を1秒展開します。ファイターは確殺を回避した時だけキルカウンターで攻撃者を即時確殺します。陣営は問いません。非確殺攻撃は回避しますが反撃しません。</p></section>
                 <section><h4>ガンナー</h4><p>ARとエイム・特殊弾装填を持ち、HG、SMG、AR、SR、テーザーを切り替えます。射撃は成立した1弾倉ごとに50SPを一度だけ消費し、1タップで現在の弾倉を空まで自動連射します。長押し解放後も同じ1弾倉射撃を開始します。全通常射撃は射手の幸運でHSを一度だけ抽選し、腰撃ちは低確率（1〜21%）です。理知中はダッシュ以外でエイムが幾何光学の可視線と弾道方向を合わせ、最寄りの可視対象へ射撃方向を追尾してHS確率を4〜36%へ上げますが確定にはしません。正規movementModeがダッシュになると即解除され、手動のエイムボタン・キー・追尾移動はありません。</p></section>
@@ -677,11 +677,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-    <script src="economy-catalog-v468.js?v=mystery-result-dodge-shortcut-v716"></script>
-    <script src="game-runtime.js?v=mystery-result-dodge-shortcut-v716"></script>
-    <script src="game-engine.js?v=mystery-result-dodge-shortcut-v716"></script>
-    <script src="offline-runtime.js?v=mystery-result-dodge-shortcut-v716"></script>
-    <script src="config.js?v=mystery-result-dodge-shortcut-v716"></script>
-    <script src="app.js?v=mystery-result-dodge-shortcut-v716"></script>
+    <script src="economy-catalog-v468.js?v=ninjutsu-slow-target-v717"></script>
+    <script src="game-runtime.js?v=ninjutsu-slow-target-v717"></script>
+    <script src="game-engine.js?v=ninjutsu-slow-target-v717"></script>
+    <script src="offline-runtime.js?v=ninjutsu-slow-target-v717"></script>
+    <script src="config.js?v=ninjutsu-slow-target-v717"></script>
+    <script src="app.js?v=ninjutsu-slow-target-v717"></script>
 </body>
 </html>

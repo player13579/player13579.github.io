@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "mystery-result-dodge-shortcut-v716";
+const DVA_CLIENT_RELEASE = "ninjutsu-slow-target-v717";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mystery-result-dodge-shortcut-v716";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ninjutsu-slow-target-v717";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9927,7 +9927,7 @@ async function performNinjutsu() {
   const ok = await api("/api/ninjutsu", { targetId: target.id });
   if (ok) {
     const assassin = state.data?.self?.special === "assassin";
-    showToast(`${target.name}への忍殺準備を開始しました。自分と対象が4秒間静止すると${assassin ? "アサシン忍殺による消滅" : "通常忍殺（死体あり）"}が発動します。`);
+    showToast(`${target.name}への忍殺準備を開始しました。自分が4秒間静止し、対象が射程内で通常歩行速度以下なら${assassin ? "アサシン忍殺による消滅" : "通常忍殺（死体あり）"}が発動します。`);
   }
 }
 
@@ -10795,7 +10795,7 @@ function detectAttackResult(previous, next) {
     blocked: "忍殺は防御されました。",
     body: "胴体に命中しました。もう一度攻撃すればキルできます。",
     miss: "攻撃は外れました。",
-    moved: "自分か対象が動いたため、忍殺に失敗しました。",
+    moved: "自分の移動、対象の高速移動・転移、または射程外への移動により、忍殺に失敗しました。",
     dodged: "攻撃を回避されました。",
     fighterCountered: "ファイターのキルカウンターを受けました。"
   };
@@ -14298,7 +14298,7 @@ function objectiveText(data) {
   }
   if (self.role === "attacker") {
     if (self.aimTargetId && self.aimReadyAt > liveNow) {
-      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分か対象が動くと失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺による消滅となり、死体・通報対象を残しません" : "通常忍殺として通報可能な死体を残します"}。`;
+      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分の移動、対象の高速移動・転移、射程外への移動で失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺による消滅となり、死体・通報対象を残しません" : "通常忍殺として通報可能な死体を残します"}。`;
     }
     const cd = self.ninjutsuOpeningReady ? 0 : Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
@@ -14479,8 +14479,8 @@ function updateActionButtons(data) {
     ? ` キルチェイン${Number(self.killChainCount)}、次回キルCT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒。`
     : " キル成立ごとに次回キルCTを10%短縮（最短25%）。";
   els.ninjutsuButton.title = (self.special === "assassin"
-    ? "忍殺: 自分と対象が4秒間静止するとアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。移動または対象喪失で失敗"
-    : "忍殺: 自分と対象が4秒間静止すると対象を倒し、通報可能な死体を残す。移動または対象喪失で失敗") + killChainSuffix;
+    ? "忍殺: 自分が4秒間静止し、対象が射程内で通常歩行速度以下ならアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。自分の移動、対象の高速移動・転移、射程外または対象喪失で失敗。歩行やディーセラレート中の走行も速度条件を満たせば対象"
+    : "忍殺: 自分が4秒間静止し、対象が射程内で通常歩行速度以下なら対象を倒し、通報可能な死体を残す。自分の移動、対象の高速移動・転移、射程外または対象喪失で失敗。歩行やディーセラレート中の走行も速度条件を満たせば対象") + killChainSuffix;
   els.fireJutsuButton.textContent = `ファイア 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
   const rootProtectionBlocked = Boolean(self.hackerRootActive);
@@ -22796,7 +22796,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mystery-result-dodge-shortcut-v716";
+const version = "ninjutsu-slow-target-v717";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23833,7 +23833,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=mystery-result-dodge-shortcut-v716", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ninjutsu-slow-target-v717", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
