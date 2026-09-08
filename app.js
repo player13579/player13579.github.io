@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ate-task-baseline-restored-v713";
+const DVA_CLIENT_RELEASE = "emp-barrier-plicy-restored-v714";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-task-baseline-restored-v713";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-barrier-plicy-restored-v714";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -17715,6 +17715,10 @@ function drawMagicEffects() {
       entry.playerId === effect.playerId && Math.abs(entry.startedAt - effect.startedAt) <= 80
     ));
     if (concurrentGainMarker) continue;
+    if (effect.type === "emp" || effect.type.startsWith("emp-")) {
+      drawEmpEffect(effect, progress, now);
+      continue;
+    }
     if (drawGunnerSpecialAmmoEffect(effect, progress)) continue;
     if (effect.type === "quantum-electric-discharge") {
       if (!drawQuantumElectricDirectedEffect(effect, progress)) {
@@ -18209,6 +18213,33 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
 
 
 
+function drawPlicyV540PreparationBarrierHit(effect, progress, sprite, defaultSize) {
+  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+  const radiusSize = Number(effect.radius) > 0 ? Number(effect.radius) * 1.9 : defaultSize;
+  const size = Math.min(520, Math.max(defaultSize, radiusSize)) * (0.82 + pulse * 0.28 + progress * 0.14);
+  const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
+  const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
+  const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave", "fighter-energy-release"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
+  const renderHeight = size;
+  const renderWidth = size;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
+  ctx.translate(directed ? (effect.x + targetX) / 2 : effect.x, directed ? (effect.y + targetY) / 2 : effect.y);
+  if (directed) {
+    const sourceAxisOffset = effect.type === "alchemy-excalibur" ? Math.PI / 4 : 0;
+    ctx.rotate(Math.atan2(targetY - effect.y, targetX - effect.x) - sourceAxisOffset);
+  }
+  drawAnimatedTextureBottom(sprite, 0, renderHeight / 2, directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : renderWidth, renderHeight, {
+    mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant),
+    progress,
+    intensity: 0.94,
+    baseAlpha: 0.16
+  });
+  ctx.restore();
+  return true;
+}
+
 function drawGeneratedStandaloneEffect(effect, progress) {
   // Hover Sprint already has the owner-following persistent levitation marker.
   // Consuming its coordinate snapshot here prevents a duplicate icon trail.
@@ -18228,6 +18259,9 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
   if (!sprite) return false;
   const preparationBarrierHit = effect.type === "preparation-barrier-hit";
+  if (effect.type === "preparation-barrier-hit") {
+    return drawPlicyV540PreparationBarrierHit(effect, progress, sprite, defaultSize);
+  }
   if (effect.type === "gravity-time-keeper") {
     const arrive = objectEffectEase(clamp(progress / 0.12, 0, 1));
     const fade = 1 - objectEffectEase(clamp((progress - 0.84) / 0.16, 0, 1));
@@ -19209,71 +19243,9 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   return true;
 }
 
-function drawEmpActivationAte(effect, progress, now) {
-  const rawIntensity = Number(effect?.intensity);
-  const intensity = Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
-  if (intensity <= 0.001) return true;
-  // The approved icon contains intentional dark navy plate and chip detail,
-  // plus an opaque exterior matte. Texture-load prewarming removes only dark
-  // pixels connected to the source edges; activation consumes its cache only.
-  const sprite = state.textures.preparedSprites.get("cell:emp-app-icon-ate-v660-exterior-matte:1:1:0:0") || null;
-  if (!sprite) return false;
 
-  const normalized = clamp(progress, 0, 1);
-  const reduced = prefersReducedMotion();
-  const charge = reduced ? 1 : objectEffectEase(clamp(normalized / 0.22, 0, 1));
-  const snap = reduced ? 0 : Math.sin(clamp((normalized - 0.18) / 0.18, 0, 1) * Math.PI);
-  const settle = reduced ? 1 : objectEffectEase(clamp((normalized - 0.42) / 0.3, 0, 1));
-  const fade = 1 - objectEffectEase(clamp((normalized - 0.74) / 0.26, 0, 1));
-  // Keep the activation ATE at the authoritative EMP effect point. Its 76–96
-  // world-unit size communicates charge → snap → settle without following an actor.
-  const size = 76 + charge * 12 + snap * 8 - settle * 8;
-  const { width, height } = animatedTextureSize(sprite, size, size);
-  if (!(width > 0 && height > 0)) return false;
-
-  ctx.save();
-  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
-  ctx.rotate(snap * 0.035);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha = Math.max(0, (0.48 + charge * 0.52) * fade * intensity);
-  // Existing data/electromagnetic glow stays silhouette-bound and restrained.
-  applyAteGlowContext(ctx, "data-up", reduced ? 0 : now / 1000, reduced ? 0 : normalized, intensity * (reduced ? 0.3 : 0.42));
-  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-
-  // E adds at most three short charge packets before the snap. The raster owns
-  // the chip and its baked ellipse, so no extra circle or continuous orbit is drawn.
-  if (!reduced && normalized < 0.54) {
-    const packet = clamp((normalized - 0.06) / 0.48, 0, 1);
-    ctx.filter = "none";
-    ctx.strokeStyle = "rgba(103, 232, 249, 0.92)";
-    ctx.lineWidth = 1.8;
-    ctx.lineCap = "round";
-    ctx.globalAlpha = Math.max(0, Math.sin(packet * Math.PI) * 0.58 * intensity);
-    for (let index = 0; index < 3; index += 1) {
-      const side = index === 1 ? 1 : -1;
-      const y = (index - 1) * 12;
-      const x = side * (width * (0.35 - packet * 0.12));
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + side * 9, y - 4 + index * 4);
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
-  return true;
-}
 
 function drawEmpEffect(effect, progress, now) {
-  // Only the authoritative EMP activation receives the dedicated ATE. If its
-  // texture is temporarily unavailable, retain the existing full-size EMP ATE
-  // directly; never fall through to a generic compact marker owner.
-  if (effect.type === "emp") {
-    if (drawEmpActivationAte(effect, progress, now)) return;
-    const maxRadius = Math.max(180, Number(effect.radius) || 260);
-    drawPhilosophyAtlasEffect(effect, PHILOSOPHY_EFFECT_CELLS.emp, progress, maxRadius * 0.92);
-    return;
-  }
-  if (drawCommonActionSimpleIcon(effect, progress)) return;
   const maxRadius = Math.max(180, Number(effect.radius) || 260);
   const interactionIndex = effect.type === "emp-resonance" ? 0 : effect.type === "emp-cancel" ? 1 : -1;
   if (interactionIndex >= 0) {
@@ -20678,20 +20650,17 @@ function drawPreparationBarrierAte(player) {
   const sprite = prepared ? normalizedSpriteFrame(prepared, "preparation-barrier-ate-v392", 1, 1, 0, 0) : null;
   if (!sprite) return;
   const time = Math.floor(((state.frameNow || performance.now()) / 1000) * 60) / 60;
-  const phase = (player.id?.length || 0) * 0.17;
   ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha *= 0.72;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= 0.9;
   drawAnimatedTextureCentered(sprite, 0, -8, 116, 132, {
     mode: "shield",
     time,
-    phase,
-    intensity: 0.66,
-    baseAlpha: 0.16,
-    opacityBoost: 1.2,
-    visibilityProfile: "ambient"
+    phase: (player.id?.length || 0) * 0.17,
+    intensity: 0.9,
+    baseAlpha: 0.14,
+    opacityBoost: 3
   });
-  drawPreparationBarrierComplementaryVfx(116, 132, time, phase, 0);
   ctx.restore();
 }
 
@@ -22818,7 +22787,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ate-task-baseline-restored-v713";
+const version = "emp-barrier-plicy-restored-v714";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -22885,7 +22854,6 @@ const version = "ate-task-baseline-restored-v713";
   ]);
   const empResonanceEffect = new Image();
   const empCancelEffect = new Image();
-  const empAppIconActivationEffect = new Image();
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
   const gunnerWeaponsAtlas = new Image();
   const gunnerCombatStateEffects = imageSet([
@@ -23037,15 +23005,6 @@ const version = "ate-task-baseline-restored-v713";
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
-  empAppIconActivationEffect.addEventListener("load", () => {
-    const key = "emp-app-icon-ate-v660-exterior-matte";
-    const isolated = transparentSpriteSource(empAppIconActivationEffect, key, 56);
-    // A readback/CORS failure returns the original opaque image. Do not cache a
-    // square fallback; drawEmpEffect will retain the full-size EMP ATE instead.
-    if (!isolated || isolated === empAppIconActivationEffect) return;
-    normalizedSpriteFrame(isolated, key, 1, 1, 0, 0);
-  }, { once: true });
-  defer(empAppIconActivationEffect, "assets/generated/emp-app-icon-ate-v660.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
@@ -23166,7 +23125,6 @@ const version = "ate-task-baseline-restored-v713";
     alchemyEffectTextures,
     empResonanceEffect,
     empCancelEffect,
-    empAppIconActivationEffect,
     heartTeleportEffect,
     gunnerWeaponsAtlas,
     gunnerCombatStateEffects,
@@ -23866,7 +23824,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ate-task-baseline-restored-v713", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-barrier-plicy-restored-v714", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
