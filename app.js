@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "social-icons-restart-v708";
+const DVA_CLIENT_RELEASE = "context-icons-restart-v709";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "social-icons-restart-v708";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "context-icons-restart-v709";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -9744,6 +9744,10 @@ function recoverAfterRejectedAction() {
 }
 
 async function api(path, extra = {}, options = {}) {
+  const contextTerminalTicket = path === "/api/utility" ? (clearRestartTerminalReceipt(), {
+    serial: state.contextTerminalSerial = (state.contextTerminalSerial || 0) + 1,
+    roomId: String(state.roomId || ''), playerId: String(state.playerId || '')
+  }) : null;
   if (!state.roomId || !state.playerId) {
     showToast("先にマッチングを開始してください。");
     return false;
@@ -9773,6 +9777,7 @@ async function api(path, extra = {}, options = {}) {
     showToast(message);
     return result;
   }
+  if (contextTerminalTicket) acceptRestartTerminalReceipt(result, String(extra?.type || "admin"), contextTerminalTicket);
   let actionKind = CHARACTER_ACTION_BY_API[path];
   const requestedMode = String(extra?.mode || extra?.phase || extra?.conversion || "");
   if (path === "/api/teleport" && requestedMode === "heart") actionKind = "heart-transfer";
@@ -10280,6 +10285,8 @@ async function recoverRoomInteractionAfterBackground() {
 }
 
 function resetLocalSession() {
+  clearRestartTerminalReceipt();
+  state.contextTerminalSerial = (state.contextTerminalSerial || 0) + 1;
   invalidateFocusResync();
   state.roomSessionGeneration += 1;
   state.pollInFlight = false;
@@ -14312,17 +14319,20 @@ function renderUtility(data) {
   const visible = Boolean(data.utility && utilityStation && utilityStation.utility === data.utility.type);
   if (els.utilityPanel.hidden === visible) els.utilityPanel.hidden = !visible;
   if (!visible) {
+    clearRestartTerminalReceipt();
     if (state.utilityRenderKey) els.utilityPanel.innerHTML = "";
     state.utilityRenderKey = "";
     return;
   }
   const renderKey = JSON.stringify([utilityStation.id, data.utility.type, data.utility.title, data.utility.lines || []]);
-  if (state.utilityRenderKey === renderKey) return;
+  if (state.utilityRenderKey === renderKey) { drawRestartTerminalReceipt(data); return; }
   state.utilityRenderKey = renderKey;
   els.utilityPanel.innerHTML = `
+    ${["admin","vitals","doorlog"].includes(data.utility.type) ? '<canvas data-context-terminal width="96" height="96" aria-hidden="true" style="width:96px;height:96px;float:right;pointer-events:none" hidden></canvas>' : ""}
     <h3>${escapeHtml(data.utility.title)}</h3>
     ${(data.utility.lines || []).map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
   `;
+  drawRestartTerminalReceipt(data);
 }
 
 function syncMovementAccControl(data = state.data) {
@@ -17734,6 +17744,7 @@ function drawMagicEffects() {
     if (drawRestartEmpAte(effect, progress, now)) continue;
     // Persistent focus owns only the old transient Ninjutsu focus flash.
     if (effect.type === "action-ninjutsu-focus") continue;
+    if (drawRestartPickupAte(effect, progress)) continue;
     if (drawNativeLocalRepairAte(effect, progress, now)) continue;
     if (drawRestartSocialAte(effect, progress, now) || drawNativeSabotageCommsAte(effect, progress, now) || drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
     if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
@@ -19009,6 +19020,70 @@ const SHORTCUT_ACTION_COMPACT_ATE_PROFILES = Object.freeze({
 const COMMON_ACTION_SIMPLE_ITEM_IDS = new Set(["orichalcum-sword", "mercury", "lead", "uranium", "plutonium", "seawater", "mineral-water", "antidote", "molotov", "ice", "heated-water"]);
 const COMMON_ACTION_SIMPLE_ITEM_ALIASES = Object.freeze({"quantum-mercury": "mercury", "quantum-lead": "lead", "quantum-uranium": "uranium", "quantum-plutonium": "plutonium", "quantum-ice": "ice", "quantum-heated-water": "heated-water"});
 function commonActionItemId(variant) { const raw = String(variant || "").replace(/^(?:flight|impact):/, ""); return COMMON_ACTION_SIMPLE_ITEM_ALIASES[raw] || raw; }
+function restartPickupItemFrame(variant) {
+  const id=commonActionItemId(variant);
+  if(COMMON_ACTION_SIMPLE_ITEM_IDS.has(id))return commonActionSimpleItemSprite(id);
+  const cell=GROUND_FIREARM_ICON_CELLS[id];
+  if(Number.isInteger(cell)){
+    const prepared=transparentSpriteSource(state.textures?.groundFirearmIcons,'common-action-firearm-icons',12);
+    return prepared?normalizedSpriteFrame(prepared,'common-action-firearm-'+id,4,1,0,cell):null;
+  }
+  if(!['taser','excalibur','railgun','particle-cannon','rpg','missile'].includes(id))return null;
+  const key=id==='taser'?'common-action-firearm-taser':'context-pickup-ground-'+id;
+  const prepared=transparentSpriteSource(state.textures?.groundItemTextures?.[id],key,12);
+  return prepared?normalizedSpriteFrame(prepared,key,1,1,0,0):null;
+}
+
+function drawRestartPickupAte(effect,progress) {
+  if(effect?.type!=='action-item-pickup')return false;
+  const image=state.textures?.pickupContextIconRgba,p=clamp(Number(progress)||0,0,1);
+  if(!image?.complete||!image.naturalWidth||!image.naturalHeight||p>=1)return true;
+  const actor=(state.data?.players||[]).find(a=>a.id===effect.playerId);
+  if(effect.playerId&&(!actor||actor.alive===false||actor.ejected||actor.inVent||(actor.invisible&&actor.id!==state.data?.self?.id)))return true;
+  const q=prefersReducedMotion()?.55:p,fade=1-clamp((p-.72)/.28,0,1),size=96,position=actor?renderedPlayer(actor):effect;
+  ctx.save();ctx.translate(Number(position.x)||0,Number(position.y)||0);
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.62*fade;ctx.filter='none';ctx.shadowBlur=0;ctx.shadowColor='transparent';ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+  ctx.drawImage(image,-48,-48,96,96);
+  const item=restartPickupItemFrame(effect.variant);
+  if(item){const scale=30/Math.max(item.width,item.height),w=item.width*scale,h=item.height*scale;ctx.drawImage(item,-w/2,(730/1254-.5)*size-h/2,w,h);}
+  // Independently measured left/right tray contacts. Local seating in sequence.
+  ctx.globalCompositeOperation='lighter';ctx.lineWidth=1.2;ctx.lineCap='round';ctx.strokeStyle='#ffe8aa';ctx.shadowColor='#ffe1a0';ctx.shadowBlur=2;
+  for(const [x,delay] of [[376,0],[877,.2]]){const seat=clamp((q-delay)/.45,0,1);ctx.globalAlpha=fade*(.12+.12*seat);ctx.beginPath();ctx.moveTo((x/1254-.5)*size-1,(752/1254-.5)*size);ctx.lineTo((x/1254-.5)*size+1,(752/1254-.5)*size);ctx.stroke();}
+  ctx.restore();return true;
+}
+
+function clearRestartTerminalReceipt() {
+  state.contextTerminalReceipt=null;
+  if(state.contextTerminalTimer)window.clearTimeout(state.contextTerminalTimer);
+  state.contextTerminalTimer=null;
+  const canvas=els.utilityPanel.querySelector?.('[data-context-terminal]');
+  if(canvas){canvas.getContext('2d')?.clearRect(0,0,96,96);canvas.hidden=true;}
+}
+
+function acceptRestartTerminalReceipt(result,type,owner) {
+  if(!owner||owner.serial!==state.contextTerminalSerial||owner.roomId!==state.roomId||owner.playerId!==state.playerId)return;
+  if((result?.roomId!=null&&String(result.roomId)!==owner.roomId)||(result?.selfId!=null&&String(result.selfId)!==owner.playerId)||(result?.self?.id!=null&&String(result.self.id)!==owner.playerId))return;
+  if(!['admin','vitals','doorlog'].includes(type)||result?.utility?.type!==type||!result.utility.lines?.length)return;
+  state.contextTerminalReceipt={type,endsAt:performance.now()+1800,roomId:owner.roomId,playerId:owner.playerId};
+  state.contextTerminalTimer=window.setTimeout(()=>clearRestartTerminalReceipt(),1800);
+}
+
+function drawRestartTerminalReceipt(data) {
+  const receipt=state.contextTerminalReceipt,canvas=els.utilityPanel.querySelector?.('[data-context-terminal]');
+  const remaining=receipt?receipt.endsAt-performance.now():0;
+  if(!canvas)return;
+  const c=canvas.getContext('2d');if(!c)return;c.clearRect(0,0,96,96);
+  const valid=receipt&&remaining>0&&!els.utilityPanel.hidden&&data?.phase==='playing'&&receipt.roomId===state.roomId&&receipt.playerId===state.playerId&&['admin','vitals','doorlog'].includes(data?.utility?.type)&&receipt.type===data.utility.type&&data.utility.lines?.length;
+  canvas.hidden=!valid;if(!valid){clearRestartTerminalReceipt();return;}
+  const image=state.textures?.terminalContextIconRgba;if(!image?.complete||!image.naturalWidth||!image.naturalHeight){canvas.hidden=true;return;}
+  const q=prefersReducedMotion()?.55:clamp(1-remaining/1800,0,1),fade=clamp(remaining/300,0,1);
+  c.save();c.globalCompositeOperation='source-over';c.globalAlpha=.62*fade;c.filter='none';c.shadowBlur=0;c.shadowColor='transparent';c.shadowOffsetX=0;c.shadowOffsetY=0;c.drawImage(image,0,0,96,96);
+  // Measured lower screen reception origin (601,871), local short settling light.
+  const x=601/1254*96,y=871/1254*96,radius=1.5+q*.6,g=c.createRadialGradient(x,y,0,x,y,radius);
+  g.addColorStop(0,'rgba(165,255,244,.7)');g.addColorStop(1,'rgba(165,255,244,0)');
+  c.globalCompositeOperation='lighter';c.globalAlpha=.24*fade;c.fillStyle=g;c.fillRect(x-radius,y-radius,radius*2,radius*2);c.restore();
+}
+
 function commonActionSimpleItemSprite(itemId) {
   const id = String(itemId || ""); if (!COMMON_ACTION_SIMPLE_ITEM_IDS.has(id)) return null;
   const source = id === "orichalcum-sword" ? state.textures?.groundItemTextures?.[id] : state.textures?.itemTextures?.[id];
@@ -19073,6 +19148,7 @@ function drawCommonActionGlyph(kind, size) {
   } else if (kind === "emp") { ctx.strokeRect(-half*.68,-half*.42,half*1.36,half*.84);ctx.fillStyle="#e6fbff";ctx.font="800 "+Math.max(10,half*.48)+"px Segoe UI, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("EMP",0,0); }
 }
 function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || performance.now()) / 1000) {
+  if (drawRestartPickupAte(effect, progress)) return true;
   const type = String(effect?.type || "");
   const shortcutProfile = SHORTCUT_ACTION_COMPACT_ATE_PROFILES[type];
   if (shortcutProfile) {
@@ -23263,7 +23339,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "social-icons-restart-v708";
+const version = "context-icons-restart-v709";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23430,6 +23506,8 @@ const version = "social-icons-restart-v708";
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const clairvoyanceNativeRgba = new Image();
+  const pickupContextIconRgba = eagerImage("assets/generated/pickup-context-icons-restart-v709.png");
+  const terminalContextIconRgba = eagerImage("assets/generated/terminal-context-icons-restart-v709.png");
   const renkiNormalIconRgba = eagerImage("assets/generated/normal-core-icons-restart-v707.png");
   const renkiTenfoldNativeRgba = eagerImage("assets/generated/tenfold-core-icons-restart-v707.png");
   const renkiDebtIconRgba = eagerImage("assets/generated/desire-core-icons-restart-v707.png");
@@ -23693,6 +23771,7 @@ const version = "social-icons-restart-v708";
     itemHeal,
     itemTextures,
     groundFirearmIcons,
+    pickupContextIconRgba, terminalContextIconRgba,
     groundItemTextures,
     alchemyRailgunFieldEffect,
     alchemyParticleCannonFieldEffect,
@@ -24334,7 +24413,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=social-icons-restart-v708", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=context-icons-restart-v709", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
