@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "ate-emission-glow-v712";
+const DVA_CLIENT_RELEASE = "ate-task-baseline-restored-v713";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-emission-glow-v712";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-task-baseline-restored-v713";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3104,9 +3104,6 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "idea-ascension": "power"
 });
 
-function isFighterJustGuardSuccessEffect(type, variant = "") {
-  return type === "fighter-slash-parry" && /^(?:perfect-reflect|perfect-all-reflect):[^\s:]+$/.test(String(variant || ""));
-}
 
 function magicCharacterActionKind(type, variant = "") {
   // Tasks and Hacker content application intentionally keep the character
@@ -9744,10 +9741,6 @@ function recoverAfterRejectedAction() {
 }
 
 async function api(path, extra = {}, options = {}) {
-  const contextTerminalTicket = path === "/api/utility" ? (clearRestartTerminalReceipt(), {
-    serial: state.contextTerminalSerial = (state.contextTerminalSerial || 0) + 1,
-    roomId: String(state.roomId || ''), playerId: String(state.playerId || '')
-  }) : null;
   if (!state.roomId || !state.playerId) {
     showToast("先にマッチングを開始してください。");
     return false;
@@ -9777,7 +9770,6 @@ async function api(path, extra = {}, options = {}) {
     showToast(message);
     return result;
   }
-  if (contextTerminalTicket) acceptRestartTerminalReceipt(result, String(extra?.type || "admin"), contextTerminalTicket);
   let actionKind = CHARACTER_ACTION_BY_API[path];
   const requestedMode = String(extra?.mode || extra?.phase || extra?.conversion || "");
   if (path === "/api/teleport" && requestedMode === "heart") actionKind = "heart-transfer";
@@ -10285,8 +10277,6 @@ async function recoverRoomInteractionAfterBackground() {
 }
 
 function resetLocalSession() {
-  clearRestartTerminalReceipt();
-  state.contextTerminalSerial = (state.contextTerminalSerial || 0) + 1;
   invalidateFocusResync();
   state.roomSessionGeneration += 1;
   state.pollInFlight = false;
@@ -11055,7 +11045,6 @@ function detectMagicEffects(previous, next) {
       if (object) showToast(`${object.label}: ${object.effectLabel}`);
     }
     const actionKind = magicCharacterActionKind(effect.type, effect.variant);
-    const justGuardSuccess = isFighterJustGuardSuccessEffect(effect.type, effect.variant);
     if (actionKind && effect.playerId) {
       if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
         state.facing.set(
@@ -11070,11 +11059,11 @@ function detectMagicEffects(previous, next) {
       triggerCharacterAction(
         effect.playerId,
         actionKind,
-        justGuardSuccess ? 380 : (CHARACTER_ACTION_DURATION[actionKind] || duration),
+        CHARACTER_ACTION_DURATION[actionKind] || duration,
         startedAt,
         effect.id,
         effect.variant,
-        justGuardSuccess ? "fighter-just-guard" : effect.type
+        effect.type
       );
     }
   }
@@ -14319,20 +14308,17 @@ function renderUtility(data) {
   const visible = Boolean(data.utility && utilityStation && utilityStation.utility === data.utility.type);
   if (els.utilityPanel.hidden === visible) els.utilityPanel.hidden = !visible;
   if (!visible) {
-    clearRestartTerminalReceipt();
     if (state.utilityRenderKey) els.utilityPanel.innerHTML = "";
     state.utilityRenderKey = "";
     return;
   }
   const renderKey = JSON.stringify([utilityStation.id, data.utility.type, data.utility.title, data.utility.lines || []]);
-  if (state.utilityRenderKey === renderKey) { drawRestartTerminalReceipt(data); return; }
+  if (state.utilityRenderKey === renderKey) return;
   state.utilityRenderKey = renderKey;
   els.utilityPanel.innerHTML = `
-    ${["admin","vitals","doorlog"].includes(data.utility.type) ? '<canvas data-context-terminal width="96" height="96" aria-hidden="true" style="width:96px;height:96px;float:right;pointer-events:none" hidden></canvas>' : ""}
     <h3>${escapeHtml(data.utility.title)}</h3>
     ${(data.utility.lines || []).map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
   `;
-  drawRestartTerminalReceipt(data);
 }
 
 function syncMovementAccControl(data = state.data) {
@@ -16909,12 +16895,10 @@ function drawGravityZones(data) {
       const safeX = Number.isFinite(Number(zone.safeX)) ? Number(zone.safeX) : zone.x;
       const safeY = Number.isFinite(Number(zone.safeY)) ? Number(zone.safeY) : zone.y;
       if (!worldPointVisible(safeX, safeY, safeRadius + 70)) continue;
-      const reduced = prefersReducedMotion();
-      const safePulse = reduced ? 1 : 1 + Math.sin(phase * 1.65) * 0.04;
-      const glowPhase = reduced ? 0.5 : phase;
+      const safePulse = 1 + Math.sin(phase * 1.65) * 0.04;
       ctx.save();
       ctx.translate(safeX, safeY);
-      ctx.rotate(reduced ? 0 : -phase * 0.04);
+      ctx.rotate(-phase * 0.04);
       ctx.globalCompositeOperation = "screen";
       ctx.globalAlpha = 0.82;
       ctx.drawImage(
@@ -16924,26 +16908,6 @@ function drawGravityZones(data) {
         safeRadius * safePulse * 2,
         safeRadius * safePulse * 2
       );
-      ctx.globalCompositeOperation = "lighter";
-      const core = ctx.createRadialGradient(0, 0, safeRadius * 0.12, 0, 0, safeRadius * 0.88);
-      core.addColorStop(0, "rgba(236, 254, 255, 0.96)");
-      core.addColorStop(0.34, "rgba(125, 211, 252, 0.72)");
-      core.addColorStop(1, "rgba(59, 130, 246, 0)");
-      ctx.globalAlpha = 0.78;
-      ctx.fillStyle = core;
-      ctx.fillRect(-safeRadius, -safeRadius, safeRadius * 2, safeRadius * 2);
-      ctx.shadowColor = "rgba(147, 197, 253, 0.94)";
-      ctx.shadowBlur = Math.max(12, safeRadius * 0.16);
-      ctx.strokeStyle = "rgba(224, 242, 254, 0.94)";
-      ctx.lineWidth = Math.max(2, safeRadius * 0.028);
-      for (let index = 0; index < 4; index += 1) {
-        const angle = glowPhase * 0.7 + index * Math.PI * 0.5;
-        const arcRadius = safeRadius * 0.66;
-        ctx.globalAlpha = 0.52 + (index % 2) * 0.18;
-        ctx.beginPath();
-        ctx.arc(0, 0, arcRadius, angle - 0.24, angle + 0.24);
-        ctx.stroke();
-      }
       ctx.restore();
     }
   }
@@ -17473,14 +17437,14 @@ function normalizeAteGlowMode(mode = "energy") {
 
 function applyAteGlowContext(targetContext, mode, time = 0, phase = 0, intensity = 1) {
   const profile = ATE_GLOW_PROFILES[normalizeAteGlowMode(mode)];
-  const strength = clamp(Number(intensity) || 0, 0.18, 2.25);
+  const strength = clamp(Number(intensity) || 0, 0.12, 1.6);
   const pulse = 1 + Math.sin(time * (2.1 + profile.pulse * 2.4) + phase * Math.PI * 2) * profile.pulse;
-  const auraBlur = Math.max(10, profile.blur * pulse * strength * 1.18);
-  const outerBlur = Math.max(14, profile.blur * 2.08 * (0.94 + pulse * 0.06) * strength);
+  const auraBlur = Math.max(6, profile.blur * pulse * strength);
+  const outerBlur = Math.max(8, profile.blur * 1.72 * (0.94 + pulse * 0.06) * strength);
   const inheritedFilter = targetContext.filter && targetContext.filter !== "none" ? `${targetContext.filter} ` : "";
   targetContext.filter = `${inheritedFilter}drop-shadow(0 0 ${auraBlur.toFixed(2)}px ${profile.aura})`;
   targetContext.shadowColor = profile.outer;
-  targetContext.shadowBlur = outerBlur * 0.78;
+  targetContext.shadowBlur = outerBlur * 0.46;
   return profile;
 }
 
@@ -17491,7 +17455,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   const normalizedMode = normalizeAteGlowMode(mode);
   const profile = ATE_GLOW_PROFILES[normalizedMode];
   const sampledTime = Math.floor(time * 60) / 60;
-  const strength = clamp(rawIntensity, 0, 1.9);
+  const strength = clamp(rawIntensity, 0, 1.4);
   const count = normalizedMode === "resonance" ? 10 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 7 : 5;
   const direction = normalizedMode === "data-down" ? 1 : -1;
 
@@ -17499,7 +17463,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   targetContext.globalCompositeOperation = "lighter";
   targetContext.filter = "none";
   targetContext.shadowColor = profile.aura;
-  targetContext.shadowBlur = Math.max(8, profile.blur * 0.78 * strength);
+  targetContext.shadowBlur = Math.max(4, profile.blur * 0.42 * strength);
   for (let index = 0; index < count; index += 1) {
     const seed = phase * 7.13 + index * 1.917;
     const cycle = ((sampledTime * (0.34 + index * 0.013) + seed) % 1 + 1) % 1;
@@ -17585,7 +17549,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
     targetContext.save();
     targetContext.translate(x, y);
     targetContext.rotate(rotation);
-    targetContext.globalAlpha = clamp((0.28 + life * 0.62) * strength, 0, 0.98);
+    targetContext.globalAlpha = clamp((0.16 + life * 0.5) * strength, 0, 0.82);
     targetContext.fillStyle = index % 2 ? profile.core : profile.aura;
     targetContext.fillRect(-shardWidth / 2, -shardHeight / 2, shardWidth, shardHeight);
     targetContext.restore();
@@ -17686,11 +17650,8 @@ function drawMagicEffects() {
     return;
   }
   const now = state.frameNow || performance.now();
-  drawNativeDesireRecoveryState(now);
-  drawNativeNinjutsuFocusState(now);
   state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect));
-  const latestStorageLocks = latestEmpStorageLocks(state.magicEffects);
   for (const player of state.data?.players || []) {
     const previousSlot = state.headMarkerSlots.get(player.id) || null;
     const presentation = selectHeadMarkerPresentation(
@@ -17763,14 +17724,7 @@ function drawMagicEffects() {
     }
     if (effect.type === "mystery-box") { drawMysteryBoxRevealEffect(effect, progress, now); continue; }
     // Primary EMP must reach its dedicated ATE before generic compact-icon owners.
-    if (drawRestartEmpAte(effect, progress, now)) continue;
-    // Persistent focus owns only the old transient Ninjutsu focus flash.
-    if (effect.type === "action-ninjutsu-focus") continue;
-    if (drawRestartPickupAte(effect, progress)) continue;
-    if (drawNativeLocalRepairAte(effect, progress, now)) continue;
-    if (drawRestartSocialAte(effect, progress, now) || drawFieldSabotageRestartAte(effect, progress, now) || drawNativeRenkiPhaseAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now) || drawNativeDonationUnjustAte(effect, progress, now)) continue;
-    if (effect.type === "emp-storage-lock") { if (latestStorageLocks.get(effect.playerId) !== effect) continue; if (drawNativeEmpStorageLockAte(effect, progress, now)) continue; }
-    if (drawNativeEmpStateAte(effect, progress, now)) continue;
+    if (effect.type === "emp") { drawEmpEffect(effect, progress, now); continue; }
     if (drawGeneratedStandaloneEffect(effect, progress)) continue;
     if (drawInventionEnergyTexture(effect, progress)) continue;
     if (drawTacticalSystemsEffect(effect, progress)) continue;
@@ -17788,7 +17742,6 @@ function drawMagicEffects() {
     if (effect.type === "flora-invisible") drawFloraInvisibleGeneratedEffect(effect, progress);
     if (effect.type === "alchemy-railgun" || effect.type === "alchemy-particle-beam") drawDirectedEnergyEffect(effect, progress, now);
     if (effect.type.startsWith("gravity-storm-")) drawGravityStormImpactEffect(effect, progress);
-    if (drawNativeEmpStateAte(effect, progress, now)) continue;
     if (effect.type === "emp" || effect.type.startsWith("emp-")) drawEmpEffect(effect, progress, now);
     if (effect.type.startsWith("status-") || effect.type.startsWith("hazard-")) drawStatusAndHazardEffect(effect, progress);
     if (effect.type === "mystery-reveal") drawPhilosophyAtlasEffect(effect, 10, progress, 170);
@@ -17958,9 +17911,8 @@ function drawThrowLandingPreview(data) {
 }
 
 function drawClairvoyanceAte(landing, time) {
-  const x = Number(landing?.x), y = Number(landing?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-  return drawFieldRestartIcon("clairvoyance", x, y - 4, 104, ((Number(time) || 0) * .32) % 1);
+  // Shared view activation only; targeting and movement remain unchanged.
+  drawCommonActionSimpleIcon({ type: "action-clairvoyance", x: landing.x, y: landing.y - 4, radius: 118 }, 0.24, time);
 }
 
 function drawStandaloneClairvoyanceAte(data) {
@@ -18428,24 +18380,6 @@ function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize)
       baseAlpha: 0.14
     });
     ctx.globalCompositeOperation = "lighter";
-    const reduced = prefersReducedMotion();
-    const seat = reduced ? 0.58 : rise;
-    const coreRadius = 32 + seat * 34;
-    const core = ctx.createRadialGradient(0, 28 - seat * 18, coreRadius * 0.08, 0, 28 - seat * 18, coreRadius);
-    core.addColorStop(0, "rgba(255, 250, 210, 0.96)");
-    core.addColorStop(0.34, "rgba(157, 255, 241, 0.7)");
-    core.addColorStop(1, "rgba(103, 232, 249, 0)");
-    ctx.globalAlpha = fade * (0.52 + compression * 0.28);
-    ctx.fillStyle = core;
-    ctx.fillRect(-coreRadius, 28 - seat * 18 - coreRadius, coreRadius * 2, coreRadius * 2);
-    ctx.shadowColor = "rgba(157, 255, 241, 0.96)";
-    ctx.shadowBlur = 14 + seat * 10;
-    ctx.strokeStyle = "rgba(236, 254, 255, 0.98)";
-    ctx.lineWidth = 2.2;
-    ctx.globalAlpha = fade * (0.46 + rebound * 0.32);
-    ctx.beginPath();
-    ctx.arc(0, 28 - seat * 18, 22 + seat * 22, Math.PI * 0.15, Math.PI * 0.85);
-    ctx.stroke();
     for (let index = 0; index < 7; index += 1) {
       const lift = clamp((progress - index * 0.04) / 0.7, 0, 1);
       const offsetX = ((index * 37) % 88) - 44;
@@ -18970,7 +18904,6 @@ function drawShopActivationEffect(effect, progress, now) {
   const opening = objectEffectEase(clamp(progress / 0.34, 0, 1));
   const settle = objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
   const pulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
-  const reduced = prefersReducedMotion();
   const width = 196 * (0.38 + opening * 0.62 - settle * 0.06);
   const height = 128 * (0.82 + opening * 0.18);
 
@@ -18986,16 +18919,10 @@ function drawShopActivationEffect(effect, progress, now) {
     baseAlpha: 0.16,
     opacityBoost: 1.34
   });
-  // E: paired counter handoff rails carry a bright cyan emission from
-  // the kiosk center as its shutters open. This is not a generic pulse and
-  // does not redraw the awning rim or the texture's own neon outline.
-  ctx.strokeStyle = `rgba(104, 255, 239, ${(reduced ? 1 : pulse) * (1 - settle)})`;
-  ctx.globalAlpha = 1 - settle;
-  ctx.lineWidth = 3.2;
+  ctx.strokeStyle = `rgba(104, 255, 239, ${0.5 * pulse * (1 - settle)})`;
+  ctx.lineWidth = 2.2;
   ctx.lineCap = "round";
-  ctx.shadowColor = "rgba(90, 255, 232, 1)";
-  ctx.shadowBlur = reduced ? 15 : 10 + opening * 12;
-  const eLayerTravel = 18 + (reduced ? .5 : opening) * 42;
+  const eLayerTravel = 18 + opening * 42;
   ctx.beginPath();
   ctx.moveTo(effect.x - 7, effect.y - 29);
   ctx.lineTo(effect.x - eLayerTravel, effect.y - 29);
@@ -19028,69 +18955,10 @@ const SHORTCUT_ACTION_COMPACT_ATE_PROFILES = Object.freeze({
 const COMMON_ACTION_SIMPLE_ITEM_IDS = new Set(["orichalcum-sword", "mercury", "lead", "uranium", "plutonium", "seawater", "mineral-water", "antidote", "molotov", "ice", "heated-water"]);
 const COMMON_ACTION_SIMPLE_ITEM_ALIASES = Object.freeze({"quantum-mercury": "mercury", "quantum-lead": "lead", "quantum-uranium": "uranium", "quantum-plutonium": "plutonium", "quantum-ice": "ice", "quantum-heated-water": "heated-water"});
 function commonActionItemId(variant) { const raw = String(variant || "").replace(/^(?:flight|impact):/, ""); return COMMON_ACTION_SIMPLE_ITEM_ALIASES[raw] || raw; }
-function restartPickupItemFrame(variant) {
-  const id=commonActionItemId(variant);
-  if(COMMON_ACTION_SIMPLE_ITEM_IDS.has(id))return commonActionSimpleItemSprite(id);
-  const cell=GROUND_FIREARM_ICON_CELLS[id];
-  if(Number.isInteger(cell)){
-    const prepared=transparentSpriteSource(state.textures?.groundFirearmIcons,'common-action-firearm-icons',12);
-    return prepared?normalizedSpriteFrame(prepared,'common-action-firearm-'+id,4,1,0,cell):null;
-  }
-  if(!['taser','excalibur','railgun','particle-cannon','rpg','missile'].includes(id))return null;
-  const key=id==='taser'?'common-action-firearm-taser':'context-pickup-ground-'+id;
-  const prepared=transparentSpriteSource(state.textures?.groundItemTextures?.[id],key,12);
-  return prepared?normalizedSpriteFrame(prepared,key,1,1,0,0):null;
-}
 
-function drawRestartPickupAte(effect,progress) {
-  if(effect?.type!=='action-item-pickup')return false;
-  const image=state.textures?.pickupContextIconRgba,p=clamp(Number(progress)||0,0,1);
-  if(!image?.complete||!image.naturalWidth||!image.naturalHeight||p>=1)return true;
-  const actor=(state.data?.players||[]).find(a=>a.id===effect.playerId);
-  if(effect.playerId&&(!actor||actor.alive===false||actor.ejected||actor.inVent||(actor.invisible&&actor.id!==state.data?.self?.id)))return true;
-  const q=prefersReducedMotion()?.55:p,fade=1-clamp((p-.72)/.28,0,1),size=96,position=actor?renderedPlayer(actor):effect;
-  ctx.save();ctx.translate(Number(position.x)||0,Number(position.y)||0);
-  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.62*fade;ctx.filter='none';ctx.shadowBlur=0;ctx.shadowColor='transparent';ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
-  ctx.drawImage(image,-48,-48,96,96);
-  const item=restartPickupItemFrame(effect.variant);
-  if(item){const scale=30/Math.max(item.width,item.height),w=item.width*scale,h=item.height*scale;ctx.drawImage(item,-w/2,(730/1254-.5)*size-h/2,w,h);}
-  // Independently measured left/right tray contacts. Local seating in sequence.
-  ctx.globalCompositeOperation='lighter';ctx.lineWidth=1.8;ctx.lineCap='round';ctx.strokeStyle='#fff2cf';ctx.shadowColor='#ffe1a0';ctx.shadowBlur=11;
-  for(const [x,delay] of [[376,0],[877,.2]]){const seat=clamp((q-delay)/.45,0,1);ctx.globalAlpha=fade*(.45+.5*seat);ctx.beginPath();ctx.moveTo((x/1254-.5)*size-2.6,(752/1254-.5)*size);ctx.lineTo((x/1254-.5)*size+2.6,(752/1254-.5)*size);ctx.stroke();}
-  ctx.restore();return true;
-}
 
-function clearRestartTerminalReceipt() {
-  state.contextTerminalReceipt=null;
-  if(state.contextTerminalTimer)window.clearTimeout(state.contextTerminalTimer);
-  state.contextTerminalTimer=null;
-  const canvas=els.utilityPanel.querySelector?.('[data-context-terminal]');
-  if(canvas){canvas.getContext('2d')?.clearRect(0,0,96,96);canvas.hidden=true;}
-}
 
-function acceptRestartTerminalReceipt(result,type,owner) {
-  if(!owner||owner.serial!==state.contextTerminalSerial||owner.roomId!==state.roomId||owner.playerId!==state.playerId)return;
-  if((result?.roomId!=null&&String(result.roomId)!==owner.roomId)||(result?.selfId!=null&&String(result.selfId)!==owner.playerId)||(result?.self?.id!=null&&String(result.self.id)!==owner.playerId))return;
-  if(!['admin','vitals','doorlog'].includes(type)||result?.utility?.type!==type||!result.utility.lines?.length)return;
-  state.contextTerminalReceipt={type,endsAt:performance.now()+1800,roomId:owner.roomId,playerId:owner.playerId};
-  state.contextTerminalTimer=window.setTimeout(()=>clearRestartTerminalReceipt(),1800);
-}
 
-function drawRestartTerminalReceipt(data) {
-  const receipt=state.contextTerminalReceipt,canvas=els.utilityPanel.querySelector?.('[data-context-terminal]');
-  const remaining=receipt?receipt.endsAt-performance.now():0;
-  if(!canvas)return;
-  const c=canvas.getContext('2d');if(!c)return;c.clearRect(0,0,96,96);
-  const valid=receipt&&remaining>0&&!els.utilityPanel.hidden&&data?.phase==='playing'&&receipt.roomId===state.roomId&&receipt.playerId===state.playerId&&['admin','vitals','doorlog'].includes(data?.utility?.type)&&receipt.type===data.utility.type&&data.utility.lines?.length;
-  canvas.hidden=!valid;if(!valid){clearRestartTerminalReceipt();return;}
-  const image=state.textures?.terminalContextIconRgba;if(!image?.complete||!image.naturalWidth||!image.naturalHeight){canvas.hidden=true;return;}
-  const q=prefersReducedMotion()?.55:clamp(1-remaining/1800,0,1),fade=clamp(remaining/300,0,1);
-  c.save();c.globalCompositeOperation='source-over';c.globalAlpha=.62*fade;c.filter='none';c.shadowBlur=0;c.shadowColor='transparent';c.shadowOffsetX=0;c.shadowOffsetY=0;c.drawImage(image,0,0,96,96);
-  // Measured lower screen reception origin (601,871), local short settling light.
-  const x=601/1254*96,y=871/1254*96,radius=6+q*3,g=c.createRadialGradient(x,y,0,x,y,radius);
-  g.addColorStop(0,'rgba(221,255,250,1)');g.addColorStop(.45,'rgba(165,255,244,.65)');g.addColorStop(1,'rgba(165,255,244,0)');
-  c.globalCompositeOperation='lighter';c.globalAlpha=.9*fade;c.fillStyle=g;c.fillRect(x-radius,y-radius,radius*2,radius*2);c.restore();
-}
 
 function commonActionSimpleItemSprite(itemId) {
   const id = String(itemId || ""); if (!COMMON_ACTION_SIMPLE_ITEM_IDS.has(id)) return null;
@@ -19156,7 +19024,6 @@ function drawCommonActionGlyph(kind, size) {
   } else if (kind === "emp") { ctx.strokeRect(-half*.68,-half*.42,half*1.36,half*.84);ctx.fillStyle="#e6fbff";ctx.font="800 "+Math.max(10,half*.48)+"px Segoe UI, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("EMP",0,0); }
 }
 function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || performance.now()) / 1000) {
-  if (drawRestartPickupAte(effect, progress)) return true;
   const type = String(effect?.type || "");
   const shortcutProfile = SHORTCUT_ACTION_COMPACT_ATE_PROFILES[type];
   if (shortcutProfile) {
@@ -19235,350 +19102,25 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
   return false;
 }
 
-// Candidate-only integration helper. It expects the existing app globals
-// ctx, state, clamp, and prefersReducedMotion. Add its call before compact
-// and generic action renderers: if (drawNativeCommonActionAte(effect, progress, now)) continue;
-// Candidate: generation and real-size acceptance are separate gates.
-function drawRestartCoreIcon(kind, position, progress, completion = false, persistent = false) {
-  const slots={repair:'localRepairIconRgba',normal:'renkiNormalIconRgba',tenfold:'renkiTenfoldNativeRgba',desire:'renkiDebtIconRgba',ninjutsu:'ninjutsuFocusIconRgba',dodge:'dodgeIconRgba'};
-  const image=state.textures?.[slots[kind]],p=clamp(Number(progress)||0,0,1);
-  if(!image?.complete||!image.naturalWidth||!image.naturalHeight||p>=1)return false;
-  const q=prefersReducedMotion()?.55:p,size={repair:88,normal:88,tenfold:108,desire:100,ninjutsu:100,dodge:82}[kind];
-  const fade=persistent?1:1-clamp((p-.72)/.28,0,1),at=(x,y)=>[(x/1254-.5)*size,(y/1254-.5)*size];
-  ctx.save();ctx.translate(Number(position.x)||0,Number(position.y)||0);
-  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.62*fade;ctx.filter='none';ctx.shadowBlur=0;ctx.shadowColor='transparent';ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
-  ctx.drawImage(image,-size/2,-size/2,size,size);
-  ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
-  const edge=(a,b,strength=.22,width=1.1,color='#b6efff')=>{
-    ctx.globalAlpha=fade*Math.min(1,strength*3.8);ctx.lineWidth=width*1.5;ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=11;
-    ctx.beginPath();ctx.moveTo(...at(...a));ctx.lineTo(...at(...b));ctx.stroke();
-  };
-  const glow=(point,strength,radius=2.2,color='126,216,255')=>{
-    radius*=3.2;const [x,y]=at(...point),g=ctx.createRadialGradient(x,y,0,x,y,radius);
-    g.addColorStop(0,`rgba(${color},1)`);g.addColorStop(.5,`rgba(${color},.55)`);g.addColorStop(1,`rgba(${color},0)`);
-    ctx.shadowBlur=0;ctx.globalAlpha=fade*Math.min(1,strength*4);ctx.fillStyle=g;ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
-  };
-  // Raw-image contacts, not whole-icon transforms or paths across transparent gaps.
-  if(kind==='repair') {
-    [[475,555],[530,585],[583,610],[613,633],[700,663],[760,680]].forEach((a,i)=>{
-      const seat=clamp(q*7-i,0,1);edge([a[0]-10,a[1]-5],[a[0]+10,a[1]+5],.24*seat,1.1,i===3||i===4?'#ffe1a0':'#a8efff');
-    });
-  }else if(kind==='normal'){
-    const collect=completion?0:1-clamp(q/.6,0,1);
-    edge([335,553],[359,569],.22*collect);edge([894,569],[918,553],.22*collect);
-    glow([626,520],completion?.22*(1-q):.08+.17*clamp(q/.6,0,1));
-  }else if(kind==='tenfold'){
-    const half=42-22*q;
-    for(const y of [429,538])edge([626-half,y],[626+half,y],completion?.24*(1-q):.13+.12*q,1.2,'#c8d6ff');
-    glow([626,538],completion?.15*(1-q):.16*q,2.4,'178,192,255');
-  }else if(kind==='desire'){
-    // Lower recovery outlet during active state; no success burst or completion badge.
-    const opening=completion?1:q;
-    edge([568,808],[583,808],.13+.1*opening,1,'#bcefff');edge([671,808],[686,808],.13+.1*opening,1,'#bcefff');
-    edge([619,925+opening*22],[635,925+opening*22],completion?.22*(1-q):.14*opening,1,'#d1b6ee');
-  }else if(kind==='ninjutsu'){
-    // Mouth restraints hold, never depict an attack result.
-    edge([546,608],[566,618],.16+.08*q,1.1,'#d3b2ff');edge([690,618],[710,608],.16+.08*q,1.1,'#d3b2ff');
-  }else if(kind==='dodge'){
-    edge([444-12*(1-q),640],[444+12*(1-q),640],.23*(1-q),1,'#9cbfff');
-    const a=[910+35*q,760+55*q];edge(a,[a[0]+8,a[1]+13],.22,1.2,'#c6ecff');
-  }
-  ctx.restore();return true;
-}
-
-function drawNativeRenkiPhaseAte(effect, progress, now) {
-  if (drawNativeRenkiDebtEvent(effect, progress)) return true;
-  const startTenfold = effect?.type === 'action-renki' && effect.variant === 'tenfold';
-  const complete = effect?.type === 'action-mana' && effect.variant === 'renki';
-  const desireStart = effect?.type === 'action-renki' && effect.variant === 'desire-recovery-start';
-  const desireComplete = effect?.type === 'action-renki' && effect.variant === 'desire-recovery';
-  const desire = desireStart || desireComplete;
-  if (!startTenfold && !complete && !desire) return false;
-  // Recovery starts are owned by live actor state, preventing stale or duplicate overlays.
-  if (desireStart && effect.playerId) return true;
-  const actor = effect.playerId ? (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id)) : null;
-  if (effect.playerId && !actor) return true;
-  const tenfold = startTenfold || effect.completionKind === 'tenfold';
-  drawRestartCoreIcon(desire ? 'desire' : tenfold ? 'tenfold' : 'normal',actor ? renderedPlayer(actor) : effect,progress,complete || desireComplete);
-  return true;
-}
-
-function drawNativeLocalRepairAte(effect, progress, now) {
-  if(effect?.type !== 'action-repair' || String(effect?.variant || ''))return false;
-  drawRestartCoreIcon('repair',effect,progress);return true;
-}
 
 
-function drawNativeNinjutsuFocusState(now) {
-  const data = state.data;
-  const self = data?.self;
-  if (data?.phase !== "playing") return false;
-  const image = state.textures?.ninjutsuFocusIconRgba;
-  // Dedicated adoption owns this state. A missing image is safely silent.
-  if (!image?.complete || !(image.naturalWidth > 0) || !(image.naturalHeight > 0)) return false;
-  const serverNow = estimatedServerNow(data);
-  let drawn = false;
-  for (const player of data.players || []) {
-    if (!player || player.alive === false || player.ejected || player.inVent) continue;
-    const own = player.id === self?.id;
-    if (!own && player.invisible) continue;
-    let endsAt = 0;
-    if (own) {
-      if (!self?.aimTargetId) continue;
-      const target = (data.players || []).find((entry) => entry?.id === self.aimTargetId);
-      // A self client already has its target id. Do not retain focus after the
-      // authoritative target is no longer a live, visible actor.
-      if (!target || target.alive === false || target.ejected || target.inVent || target.invisible) continue;
-      endsAt = Number(self.aimReadyAt) || 0;
-    } else {
-      endsAt = Number(player.ninjutsuFocusEndsAt) || 0;
-    }
-    const remaining = endsAt - serverNow;
-    if (!(remaining > 0)) continue;
-    const progress = clamp(1 - remaining / 4000, 0, 1);
-    const anchor=renderedPlayer(player);
-    drawRestartCoreIcon('ninjutsu',{x:anchor.x,y:anchor.y-42},progress,false,true);
-    drawn = true;
-  }
-  return drawn;
-}
 
 
-function drawRenkiDebtIconAt(position, progress, completion) {
-  return drawRestartCoreIcon('desire',position,progress,completion,!completion);
-}
 
 
-function drawNativeRenkiDebtEvent(effect, progress) {
-  if (effect?.type !== 'action-renki' || !['desire-recovery-start','desire-recovery'].includes(effect.variant)) return false;
-  // Live state owns every start, so event duplicates cannot stack over it.
-  if (effect.variant === 'desire-recovery-start') return true;
-  const actor = effect.playerId ? (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id)) : null;
-  if (effect.playerId && !actor) return true;
-  if (state.data?.phase !== 'playing') return true;
-  drawRenkiDebtIconAt(actor ? renderedPlayer(actor) : effect, progress, true);
-  return true;
-}
-
-function drawNativeDesireRecoveryState(now) {
-  const data = state.data, self = data?.self;
-  if (data?.phase !== 'playing') return false;
-  const serverNow = estimatedServerNow(data);
-  let drawn = false;
-  for (const player of data.players || []) {
-    if (player.alive === false || player.ejected || player.inVent || (player.invisible && player.id !== self?.id)) continue;
-    const own = player.id === self?.id;
-    const end = own ? (self.desireRecoveryMode === 'renki' ? Number(self.desireRecoveryEndsAt) : 0) : Number(player.desireRenkiRecoveryEndsAt);
-    const remaining = end - serverNow;
-    if (!(remaining > 0)) continue;
-    const duration = Math.max(1, Number(own ? self.desireRenkiRecoveryMs : player.desireRenkiRecoveryMs) || 3000);
-    const phase = clamp(1 - remaining / duration, 0, 1);
-    const anchor = renderedPlayer(player);
-    drawn = drawRenkiDebtIconAt({x:anchor.x,y:anchor.y-38}, phase, false) || drawn;
-  }
-  return drawn;
-}
-
-function drawFieldRestartIcon(kind, x, y, size, phase, fade = 1) {
-  if (![x, y, size, phase, fade].every(Number.isFinite) || size <= 0 || fade <= 0) return true;
-  const source = state.textures?.[`${kind}FieldRestartRgba`];
-  if (!source?.complete || !source.naturalWidth || !source.naturalHeight) return true;
-  const q = prefersReducedMotion() ? 0.5 : clamp(phase, 0, 1);
-  const inherited = clamp(Number(ctx.globalAlpha) || 0, 0, 1);
-  const opacity = clamp(fade, 0, 1) * inherited;
-  const px = n => (n / 1254 - 0.5) * size;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none"; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
-  ctx.globalAlpha = 0.62 * opacity;
-  ctx.drawImage(source, -size / 2, -size / 2, size, size);
-  ctx.globalCompositeOperation = "lighter";
-  ctx.lineCap = "round";
-  const light = (color, alpha) => {
-    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.shadowColor = color;
-    ctx.shadowBlur = size * 0.14; ctx.globalAlpha = Math.min(1, alpha * 1.8) * opacity;
-  };
-  const line = (a,b,width) => { ctx.lineWidth = width * 1.55 * size / 1254; ctx.beginPath(); ctx.moveTo(px(a[0]),px(a[1])); ctx.lineTo(px(b[0]),px(b[1])); ctx.stroke(); };
-  if (kind === "comms") {
-    // Packet stops on the left face of the interruption; no path crosses the right gap.
-    light("#9df8ef", 0.65 * (1-q*0.65));
-    const end = 460 + 160*q;
-    line([end-75,590],[end,590],18);
-    light("#c9a8ff", 0.55*q); line([625,560],[635,610],13);
-  } else if (kind === "reactor") {
-    // Heat accumulates inside the amber thermal boundary, never on the blue supports.
-    light("#ffd29a", 0.32 + 0.4*q);
-    const width = 45+95*q;
-    ctx.beginPath(); ctx.ellipse(px(665),px(500),width*size/1254,12*size/1254,0,0,Math.PI*2); ctx.fill();
-  } else if (kind === "oxygen") {
-    light("#b8edff", 0.55); line([427,575],[438,640],12);
-    light("#b2e7ff", 0.5*(1-0.7*q));
-    ctx.beginPath(); ctx.ellipse(px(460+440*q),px(620+15*q),(15+20*q)*size/1254,(20+90*q)*size/1254,0,0,Math.PI*2); ctx.fill();
-  } else if (kind === "doors") {
-    light("#ffda9d", 0.65);
-    for (const cy of [285,925]) {
-      const d=110*(1-q); line([625-d-28,cy],[625-d,cy],12); line([625+d+28,cy],[625+d,cy],12);
-    }
-  } else if (kind === "clairvoyance") {
-    const stages = [Math.max(0,1-Math.abs(q-.18)/.28),Math.max(0,1-Math.abs(q-.5)/.28),Math.max(0,1-Math.abs(q-.82)/.28)];
-    light("#b2fff2", .5*stages[0]); line([590,620],[637,620],11);
-    light("#b9caff", .5*stages[1]); line([704,598],[704,650],10);
-    light("#fff1bd", .6*stages[2]); line([837,585],[837,655],11);
-  }
-  ctx.restore();
-  return true;
-}
-function drawFieldSabotageRestartAte(effect, progress, now) {
-  if (effect?.type !== "action-sabotage" || !["comms","reactor","oxygen","doors"].includes(effect.variant)) return false;
-  if (!Number.isFinite(progress)) return true;
-  const p = clamp(progress,0,1);
-  return drawFieldRestartIcon(effect.variant,effect.x,effect.y,96,p,1-clamp((p-.72)/.28,0,1));
-}
-
-function drawNativeCommonActionAte(effect, progress, now) {
-  const normal=effect?.type === 'action-renki' && !String(effect?.variant || '');
-  const dodge=effect?.type === 'action-dodge';
-  if(!normal && !dodge)return false;
-  drawRestartCoreIcon(normal?'normal':'dodge',effect,progress);return true;
-}
 
 
-function drawNativeDonationUnjustAte(effect, progress, now) {
-  if (effect?.type !== "action-smartphone" || effect.variant !== "donation-unjust") return false;
-  const sprite = state.textures?.donationUnjustIconRgba;
-  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const reduced = prefersReducedMotion();
-  const fade = reduced ? Math.max(0, 1 - Math.max(0, p - 0.72) / 0.28) : Math.max(0, 1 - p);
-  const resultDelta = Number(effect?.donationResultDelta);
-  const size = 88;
-  const phase = reduced ? 0.45 : p;
-  const point = (x, y) => [(x / 1254 - 0.5) * size, (y / 1254 - 0.5) * size];
-  ctx.save();
-  ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 8);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.globalAlpha = fade * 0.76;
-  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-  // Receipt opens once as a small curved edge, not a copy of the raster sparkle.
-  const receipt = point(782, 420);
-  const receiptLife = reduced ? 0.55 : Math.max(0, 1 - p / 0.62);
-  const receiptRadius = reduced ? 2.0 : 1.1 + Math.min(1, p / 0.62) * 2.3;
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = fade * receiptLife * 0.65;
-  ctx.strokeStyle = "rgba(255, 225, 149, 0.95)";
-  ctx.shadowColor = "rgba(255, 207, 110, 0.9)";
-  ctx.shadowBlur = 3.2;
-  ctx.lineWidth = 1.2;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.arc(receipt[0], receipt[1], receiptRadius, -1.3, 0.6);
-  ctx.stroke();
-  // A real loss folds a small luminous wedge into the measured return endpoint.
-  // Delayed contraction has a different silhouette and timing from receipt.
-  if (Number.isFinite(resultDelta) && resultDelta < 0) {
-    const end = point(642, 930);
-    const lossPhase = reduced ? 0.45 : clamp((p - 0.12) / 0.88, 0, 1);
-    const lossLife = reduced ? 0.6 : (p < 0.12 ? 0 : Math.sin(Math.PI * lossPhase));
-    const span = 3.8 * (1 - lossPhase) + 0.35;
-    ctx.globalAlpha = fade * lossLife * 0.58;
-    ctx.fillStyle = "rgba(255, 170, 232, 0.9)";
-    ctx.shadowColor = "rgba(239, 124, 225, 0.88)";
-    ctx.shadowBlur = 2.8;
-    ctx.beginPath();
-    ctx.moveTo(end[0], end[1]);
-    ctx.lineTo(end[0] - span, end[1] - span * 0.65);
-    ctx.lineTo(end[0] - span * 0.55, end[1] + span * 0.32);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
-  return true;
-}
+
+
+
+
+
 
 // Exact successful smartphone-event owners. T expresses acceptance, never luck outcome.
-function drawRestartSocialAte(effect, progress, now) {
-  const slots = {'donation-rational':'rationalSocialIconRgba','donation-unjust':'unjustSocialIconRgba',emergency:'emergencySocialIconRgba'};
-  if (effect?.type !== 'action-smartphone' || !Object.prototype.hasOwnProperty.call(slots, effect.variant)) return false;
-  const sprite = state.textures?.[slots[effect.variant]], p = clamp(Number(progress) || 0, 0, 1);
-  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0) || p >= 1) return true;
-  const q = prefersReducedMotion() ? .55 : p, fade = 1 - clamp((p - .72) / .28, 0, 1), size = 96;
-  const at = (x,y) => [(x / 1254 - .5) * size, (y / 1254 - .5) * size];
-  ctx.save();
-  try {
-    ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 8);
-    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = .62 * fade;
-    ctx.filter = 'none'; ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-    ctx.drawImage(sprite, -48, -48, 96, 96);
-    ctx.globalCompositeOperation = 'lighter';
-    const light = (px, py, strength, radius, rgb) => {
-      radius *= 3.5; const [x,y] = at(px,py), g = ctx.createRadialGradient(x,y,0,x,y,radius);
-      g.addColorStop(0,`rgba(${rgb},1)`); g.addColorStop(.45,`rgba(${rgb},.6)`); g.addColorStop(1,`rgba(${rgb},0)`);
-      ctx.globalAlpha = fade * Math.min(1,strength * 3.8); ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.fillStyle = g; ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
-    };
-    const band = (px,py,width,strength,rgb) => {
-      width *= 2.2; const [x,y] = at(px,py), g = ctx.createLinearGradient(x-width,y,x+width,y);
-      g.addColorStop(0,`rgba(${rgb},0)`);g.addColorStop(.5,`rgba(${rgb},1)`);g.addColorStop(1,`rgba(${rgb},0)`);
-      ctx.globalAlpha=fade*Math.min(1,strength*4);ctx.fillStyle=g;ctx.shadowColor=`rgb(${rgb})`;ctx.shadowBlur=8;ctx.fillRect(x-width,y-1.1,width*2,2.2);
-    };
-    const delta = effect.donationResultDelta;
-    const realDelta = typeof delta === 'number' && Number.isFinite(delta);
-    if (effect.variant === 'donation-rational') {
-      // Coin/receiver contacts, then a separate response only for actual gain.
-      const seat = clamp(q / .25,0,1);
-      light(420,665,.12+.12*seat,1.6,'142,255,219'); light(830,665,.12+.12*seat,1.6,'142,255,219');
-      if (realDelta && delta > 0) light(840,590-55*q,.2*(1-q*.5),1.7,'175,255,220');
-    } else if (effect.variant === 'donation-unjust') {
-      light(635,555,.16,1.7,'235,194,255');
-      // This endpoint is the payment transfer band, not a fixed luck loss.
-      band(914,873,2.3-1.3*q,.23*(1-q*.6),'159,255,226');
-      if (realDelta && delta < 0) light(790,990+28*q,.22*(1-q),1.8,'186,151,240');
-    } else {
-      // Source request arrives first; empty receiving windows answer locally.
-      light(627,640,.24*(1-.45*q),2.1,'255,185,111');
-      band(291,520,2.7,.24*clamp((q-.16)/.18,0,1),'153,242,255');
-      band(972,520,2.7,.24*clamp((q-.28)/.18,0,1),'153,242,255');
-    }
-  } finally { ctx.restore(); }
-  return true;
-}
 
 
-function drawNativeRationalDonationAte(effect, progress, now) {
-  if (effect?.type !== "action-smartphone" || effect.variant !== "donation-rational") return false;
-  const sprite = state.textures?.donationNativeAte;
-  if (!sprite?.complete || !(sprite.naturalWidth > 0)) return true;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const reveal = Math.min(1, p / 0.12);
-  const fade = Math.min(1, (1 - p) / 0.28);
-  const size = 88;
-  const reduced = prefersReducedMotion();
-  ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-  ctx.filter = "none";
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = "transparent";
-  ctx.translate(Number(effect.x) || 0, (Number(effect.y) || 0) - 8);
-  ctx.globalAlpha = reveal * fade * 0.72;
-  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-  // E follows the receipt seam beneath the coin, not a second coin or glyph.
-  const received = reduced ? 0.5 : Math.min(1, Math.max(0, (p - 0.18) / 0.5));
-  ctx.globalAlpha = reveal * fade * 0.55;
-  ctx.strokeStyle = "#ddfff3";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.18, size * 0.12);
-  ctx.quadraticCurveTo(0, size * (0.16 + received * 0.02), size * 0.18, size * 0.12);
-  ctx.stroke();
-  ctx.restore();
-  return true;
-}
 
 function drawActionEffect(effect, progress, now) {
-  if (drawRestartSocialAte(effect, progress, now) || drawFieldSabotageRestartAte(effect, progress, now) || drawNativeCommonActionAte(effect, progress, now) || drawNativeRationalDonationAte(effect, progress, now)) return;
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
@@ -19641,98 +19183,6 @@ function drawActionEffect(effect, progress, now) {
 
 
 // Fresh restart EMP family. Coordinates below are measured on the five 1254px raws.
-function drawRestartEmpAte(effect, progress, now) {
-  const type = effect?.type;
-  const slots = { emp: "empAppIconActivationEffect", "emp-charge": "empChargeIconRgba", "emp-resonance": "empResonanceNativeRgba", "emp-cancel": "empCancelIconRgba", "emp-storage-lock": "empStorageLockNativeRgba" };
-  if (!Object.prototype.hasOwnProperty.call(slots, type)) return false;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const reduced = prefersReducedMotion();
-  const phase = reduced ? 0.5 : p;
-  let x = Number(effect.x) || 0, y = Number(effect.y) || 0;
-  if (type === "emp-storage-lock") {
-    const latest = latestEmpStorageLocks(state.magicEffects || [effect]).get(effect.playerId);
-    if (latest && latest !== effect) return true;
-    const target = (state.data?.players || []).find(player => player.id === effect.playerId && player.alive !== false && !player.ejected && !player.inVent && (!player.invisible || player.id === state.data?.self?.id));
-    if (!target) return true;
-    const position = renderedPlayer(target); x = position.x; y = position.y - 38;
-  }
-  const sprite = state.textures?.[slots[type]];
-  if (!sprite?.complete || !(sprite.naturalWidth > 0) || !(sprite.naturalHeight > 0)) return true;
-  const rawIntensity = Number(effect.intensity);
-  const intensity = type === "emp" && Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
-  const fadeStart = type === "emp-storage-lock" ? 1 - 300 / 7000 : 0.72;
-  const fade = (1 - clamp((p - fadeStart) / (1 - fadeStart), 0, 1)) * intensity;
-  const size = type === "emp-resonance" ? 124 : type === "emp-cancel" ? 130 : 92;
-  const at = point => [(point[0] / 1254 - 0.5) * size, (point[1] / 1254 - 0.5) * size];
-  ctx.save(); ctx.translate(x, y);
-  ctx.globalCompositeOperation = "source-over"; ctx.filter = "none";
-  ctx.shadowBlur = 0; ctx.shadowColor = "transparent"; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-  ctx.globalAlpha = 0.62 * fade;
-  ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
-  // E alone emits light. T is stationary and already drawn before these settings.
-  ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
-  function packet(points, fraction, span, width, color, gain) {
-    const pos = value => {
-      const f = clamp(value, 0, 1) * (points.length - 1), i = Math.min(points.length - 2, Math.floor(f)), t = f - i;
-      return at([points[i][0] + (points[i + 1][0] - points[i][0]) * t, points[i][1] + (points[i + 1][1] - points[i][1]) * t]);
-    };
-    const a = pos(fraction), b = pos(Math.min(1, fraction + span));
-    ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 12;
-    ctx.lineWidth = width * 1.6; ctx.globalAlpha = fade * Math.min(1, gain * 3.8);
-    ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
-  }
-  function glow(point, radius, color, gain) {
-    radius *= 3.6; const [gx, gy] = at(point), light = ctx.createRadialGradient(gx, gy, 0, gx, gy, radius);
-    light.addColorStop(0, color); light.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.shadowBlur = 0; ctx.shadowColor = "transparent"; ctx.fillStyle = light; ctx.globalAlpha = fade * Math.min(1, gain * 4.5);
-    ctx.fillRect(gx - radius, gy - radius, radius * 2, radius * 2);
-  }
-  if (type === "emp") {
-    // Both phases propagate outward; polarity reverses which measured side leads.
-    const negative = effect.variant === "negative";
-    // Independent correction: [593,724] is support, not the emitting core.
-    // Only local glow at the measured luminous core; packets stay inside each wave.
-    glow([627,680], 2.0, "rgba(166,249,255,0.8)", 0.16);
-    const paths = [[[498,514],[150,480]], [[750,511],[1105,480]]];
-    paths.forEach((path, side) => {
-      const delay = side === (negative ? 1 : 0) ? 0 : 0.1;
-      const travel = reduced ? (side === (negative ? 1 : 0) ? 0.66 : 0.4) : clamp((phase - delay) / 0.75, 0, 1);
-      packet(path, travel * 0.88, 0.1, 1.45, "rgba(105,245,255,0.82)", 0.24);
-    });
-  } else if (type === "emp-charge") {
-    // Stored horizontal band only; never redraw the incoming upper chevron.
-    const fill = reduced ? 0.62 : clamp(phase / 0.8, 0, 1);
-    packet([[410,726],[633,726]], fill * 0.85, 0.14, 1.8, "rgba(148,221,255,0.82)", 0.23);
-    packet([[855,726],[633,726]], fill * 0.85, 0.14, 1.8, "rgba(190,155,255,0.82)", 0.23);
-    glow([633,726], 1.7 + fill * 0.6, "rgba(177,235,255,0.75)", 0.08 + fill * 0.09);
-  } else if (type === "emp-resonance") {
-    const travel = reduced ? 0.45 : clamp(phase / 0.85, 0, 1);
-    packet([[658,611],[800,570],[950,700]], travel * 0.84, 0.14, 1.3 + travel * 1.6, "rgba(220,193,255,0.88)", 0.25);
-    glow([658,611], 2.0, "rgba(183,255,247,0.78)", 0.12);
-  } else if (type === "emp-cancel") {
-    const loss = reduced ? 0.5 : phase;
-    // The two inward ends attenuate in place; neither light enters the gap.
-    packet([[525,514],[525,547]], 0.18, 0.65 * (1 - loss), 1.8 - loss * 0.7, "rgba(127,249,255,0.82)", 0.26 * (1 - loss));
-    packet([[712,580],[712,622]], 0.18, 0.65 * (1 - loss), 1.8 - loss * 0.7, "rgba(255,168,245,0.82)", 0.26 * (1 - loss));
-  } else {
-    // Latch -> nearby restraint-bar segment, slowly held for the lock lifetime.
-    const held = reduced ? 0.5 : clamp(phase / 0.55, 0, 1);
-    glow([1016,680], 1.8, "rgba(218,171,255,0.8)", 0.13);
-    packet([[1016,680],[958,680],[880,680]], held * 0.68, 0.2, 1.5, "rgba(205,148,255,0.8)", 0.16);
-  }
-  ctx.restore(); return true;
-}
-function drawNativeEmpStateAte(effect, progress, now) {
-  if (effect?.type !== "emp-charge" && effect?.type !== "emp-resonance") return false;
-  return drawRestartEmpAte(effect, progress, now);
-}
-function drawNativeEmpCancelAte(effect, progress, now) {
-  return effect?.type === "emp-cancel" ? drawRestartEmpAte(effect, progress, now) : false;
-}
-function latestEmpStorageLocks(effects){const latest=new Map();for(const e of effects)if(e?.type==="emp-storage-lock"&&e.playerId){const p=latest.get(e.playerId);if(!p||Number(e.startedAt)>=Number(p.startedAt))latest.set(e.playerId,e);}return latest;}
-function drawNativeEmpStorageLockAte(effect, progress, now) {
-  return effect?.type === "emp-storage-lock" ? drawRestartEmpAte(effect, progress, now) : false;
-}
 
 function drawEmpInteractionSprite(effect, index, progress, rawSize) {
   const sources = [
@@ -19760,11 +19210,69 @@ function drawEmpInteractionSprite(effect, index, progress, rawSize) {
 }
 
 function drawEmpActivationAte(effect, progress, now) {
-  return effect?.type === "emp" ? drawRestartEmpAte(effect, progress, now) : false;
+  const rawIntensity = Number(effect?.intensity);
+  const intensity = Number.isFinite(rawIntensity) ? clamp(rawIntensity, 0, 1) : 1;
+  if (intensity <= 0.001) return true;
+  // The approved icon contains intentional dark navy plate and chip detail,
+  // plus an opaque exterior matte. Texture-load prewarming removes only dark
+  // pixels connected to the source edges; activation consumes its cache only.
+  const sprite = state.textures.preparedSprites.get("cell:emp-app-icon-ate-v660-exterior-matte:1:1:0:0") || null;
+  if (!sprite) return false;
+
+  const normalized = clamp(progress, 0, 1);
+  const reduced = prefersReducedMotion();
+  const charge = reduced ? 1 : objectEffectEase(clamp(normalized / 0.22, 0, 1));
+  const snap = reduced ? 0 : Math.sin(clamp((normalized - 0.18) / 0.18, 0, 1) * Math.PI);
+  const settle = reduced ? 1 : objectEffectEase(clamp((normalized - 0.42) / 0.3, 0, 1));
+  const fade = 1 - objectEffectEase(clamp((normalized - 0.74) / 0.26, 0, 1));
+  // Keep the activation ATE at the authoritative EMP effect point. Its 76–96
+  // world-unit size communicates charge → snap → settle without following an actor.
+  const size = 76 + charge * 12 + snap * 8 - settle * 8;
+  const { width, height } = animatedTextureSize(sprite, size, size);
+  if (!(width > 0 && height > 0)) return false;
+
+  ctx.save();
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
+  ctx.rotate(snap * 0.035);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = Math.max(0, (0.48 + charge * 0.52) * fade * intensity);
+  // Existing data/electromagnetic glow stays silhouette-bound and restrained.
+  applyAteGlowContext(ctx, "data-up", reduced ? 0 : now / 1000, reduced ? 0 : normalized, intensity * (reduced ? 0.3 : 0.42));
+  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
+
+  // E adds at most three short charge packets before the snap. The raster owns
+  // the chip and its baked ellipse, so no extra circle or continuous orbit is drawn.
+  if (!reduced && normalized < 0.54) {
+    const packet = clamp((normalized - 0.06) / 0.48, 0, 1);
+    ctx.filter = "none";
+    ctx.strokeStyle = "rgba(103, 232, 249, 0.92)";
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = "round";
+    ctx.globalAlpha = Math.max(0, Math.sin(packet * Math.PI) * 0.58 * intensity);
+    for (let index = 0; index < 3; index += 1) {
+      const side = index === 1 ? 1 : -1;
+      const y = (index - 1) * 12;
+      const x = side * (width * (0.35 - packet * 0.12));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + side * 9, y - 4 + index * 4);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  return true;
 }
 
 function drawEmpEffect(effect, progress, now) {
-  if (drawRestartEmpAte(effect, progress, now)) return;
+  // Only the authoritative EMP activation receives the dedicated ATE. If its
+  // texture is temporarily unavailable, retain the existing full-size EMP ATE
+  // directly; never fall through to a generic compact marker owner.
+  if (effect.type === "emp") {
+    if (drawEmpActivationAte(effect, progress, now)) return;
+    const maxRadius = Math.max(180, Number(effect.radius) || 260);
+    drawPhilosophyAtlasEffect(effect, PHILOSOPHY_EFFECT_CELLS.emp, progress, maxRadius * 0.92);
+    return;
+  }
   if (drawCommonActionSimpleIcon(effect, progress)) return;
   const maxRadius = Math.max(180, Number(effect.radius) || 260);
   const interactionIndex = effect.type === "emp-resonance" ? 0 : effect.type === "emp-cancel" ? 1 : -1;
@@ -19817,8 +19325,7 @@ function drawGravityStormImpactEffect(effect, progress) {
     const size = Math.max(170, Number(effect.radius || 140) * 2) * (0.88 + pulse * 0.24);
     ctx.save();
     ctx.translate(effect.x, effect.y);
-    ctx.rotate(prefersReducedMotion() ? 0 : -progress * 0.18);
-    const reduced = prefersReducedMotion();
+    ctx.rotate(-progress * 0.18);
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
     drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
@@ -19828,23 +19335,6 @@ function drawGravityStormImpactEffect(effect, progress) {
       intensity: 0.96,
       baseAlpha: 0.18
     });
-    ctx.globalCompositeOperation = "lighter";
-    const flashRadius = size * (reduced ? 0.34 : 0.28 + pulse * 0.14);
-    const flash = ctx.createRadialGradient(0, 0, flashRadius * 0.08, 0, 0, flashRadius);
-    flash.addColorStop(0, "rgba(255, 255, 255, 0.98)");
-    flash.addColorStop(0.3, "rgba(186, 230, 253, 0.82)");
-    flash.addColorStop(1, "rgba(96, 165, 250, 0)");
-    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.84;
-    ctx.fillStyle = flash;
-    ctx.fillRect(-flashRadius, -flashRadius, flashRadius * 2, flashRadius * 2);
-    ctx.shadowColor = "rgba(186, 230, 253, 0.92)";
-    ctx.shadowBlur = Math.max(12, size * 0.08);
-    ctx.strokeStyle = "rgba(239, 246, 255, 0.96)";
-    ctx.lineWidth = Math.max(2, size * 0.014);
-    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.72;
-    ctx.beginPath();
-    ctx.arc(0, 0, flashRadius * 0.72, reduced ? 0.12 : -progress * 1.3, reduced ? Math.PI * 1.88 : Math.PI * 1.88 - progress * 1.3);
-    ctx.stroke();
     ctx.restore();
     return true;
   }
@@ -21001,12 +20491,6 @@ function currentCharacterAction(player) {
   }
   const action = state.characterActions.get(player.id);
   if (!action) return null;
-  if (action.motionId === "fighter-just-guard" && (
-    state.data?.phase !== "playing" || !player.alive || player.ejected || prefersReducedMotion()
-  )) {
-    state.characterActions.delete(player.id);
-    return null;
-  }
   const lastSampleAt = Number(action.lastSampleAt) || Number(action.startedAt) || timestamp;
   const elapsed = clamp(timestamp - lastSampleAt, 0, 100);
   const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
@@ -21153,34 +20637,32 @@ function drawSoloHumanDeathBotAcceleration(player, data) {
 
 function drawPreparationBarrierComplementaryVfx(width, height, time, phase = 0, impact = 0) {
   if (!(width > 0 && height > 0)) return;
-  const reduced = prefersReducedMotion();
-  const sampledTime = reduced ? 0 : Math.floor(time * 60) / 60;
-  const travel = reduced ? 0.5 : ((sampledTime * 0.42 + phase * 0.31) % 1 + 1) % 1;
+  const sampledTime = Math.floor(time * 60) / 60;
+  const travel = ((sampledTime * 0.42 + phase * 0.31) % 1 + 1) % 1;
   const impactStrength = clamp(Number(impact) || 0, 0, 1);
   const inheritedAlpha = ctx.globalAlpha;
-  const shortSide = Math.min(width, height);
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
+  ctx.globalCompositeOperation = "source-over";
   ctx.filter = "none";
-  ctx.shadowColor = "rgba(103, 232, 249, 0.82)";
-  ctx.shadowBlur = Math.max(8, shortSide * 0.065);
-  ctx.strokeStyle = "rgba(221, 248, 255, 0.98)";
-  ctx.lineWidth = Math.max(2, shortSide * 0.02);
+  ctx.shadowColor = "rgba(103, 232, 249, 0.28)";
+  ctx.shadowBlur = Math.max(2, Math.min(width, height) * 0.025);
+  ctx.strokeStyle = "rgba(186, 230, 253, 0.82)";
+  ctx.lineWidth = Math.max(1, Math.min(width, height) * 0.012);
   for (const side of [-1, 1]) {
     const x = side * width * (0.34 - impactStrength * 0.025);
     const y = -height * 0.24 + travel * height * 0.48;
-    ctx.globalAlpha = inheritedAlpha * (0.38 + impactStrength * 0.26);
+    ctx.globalAlpha = inheritedAlpha * (0.13 + impactStrength * 0.08);
     ctx.beginPath();
-    ctx.moveTo(x - side * width * 0.026, y - height * 0.074);
-    ctx.lineTo(x + side * width * 0.026, y + height * 0.074);
+    ctx.moveTo(x - side * width * 0.018, y - height * 0.055);
+    ctx.lineTo(x + side * width * 0.018, y + height * 0.055);
     ctx.stroke();
   }
   if (impactStrength > 0.01) {
-    const radius = shortSide * (0.38 - impactStrength * 0.04);
-    ctx.globalAlpha = inheritedAlpha * impactStrength * 0.56;
+    const radius = Math.min(width, height) * (0.3 - impactStrength * 0.065);
+    ctx.globalAlpha = inheritedAlpha * impactStrength * 0.16;
     for (let quadrant = 0; quadrant < 4; quadrant += 1) {
       const angle = Math.PI * 0.25 + quadrant * Math.PI * 0.5;
-      const outer = radius + shortSide * 0.075;
+      const outer = radius + Math.min(width, height) * 0.045;
       ctx.beginPath();
       ctx.moveTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
       ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
@@ -21307,7 +20789,7 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
   // second persistent EC-looking overhead marker.  Its durable state remains
   // in Applied Effects; the dedicated milestone owns the field ATE.
   destructionSlash: Object.freeze({ texture: "fighterDestructionSlashMilestoneEffect", mode: "beam", size: 30, alpha: 0.94, phase: 0.76 }),
-  clairvoyance: Object.freeze({ texture: "clairvoyanceFieldRestartRgba", mode: "shimmer", size: 30, alpha: 1, phase: 0.18, nativeAlpha: true, reducedMotion: true })
+  clairvoyance: Object.freeze({ texture: "clairvoyanceThrowAte", mode: "shimmer", size: 30, alpha: 0.92, phase: 0.35 })
 });
 
 function persistentStatusAteState(player, data) {
@@ -21438,30 +20920,12 @@ function drawPersistentStatusAteLayers(player, data) {
   ));
   for (const candidate of candidates) {
     const category = candidate.category;
-    let profile = PERSISTENT_STATUS_ATE_PROFILES[category];
+    const profile = PERSISTENT_STATUS_ATE_PROFILES[category];
     if (!profile) continue;
     const naturalRecoveryGlow = category === "naturalRecovery"
       ? naturalRecoveryMarkerGlow(activeState, player)
       : null;
-    const nativeSource = profile.nativeAlpha ? state.textures[profile.texture] : null;
-    const nativeClairvoyance = Boolean(nativeSource?.complete && nativeSource.naturalWidth > 0 && nativeSource.naturalHeight > 0);
-    if (profile.nativeAlpha && !nativeClairvoyance) {
-      continue;
-    }
-    const source = nativeClairvoyance ? nativeSource : state.textures[profile.texture];
-    if (nativeClairvoyance) {
-      const markerEffect = candidate.sourceEffect || { id: candidate.instanceKey, type: "persistent-status", category, playerId: player.id, persistent: true };
-      const placement = nonCreditHeadMarkerPlacement(markerEffect, presentation);
-      if (!placement.candidate) continue;
-      const marker = headMarkerSlot(placement.baseIndex, placement.total, placement.startRow);
-      const markerX = marker.x;
-      const markerY = marker.y;
-      const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
-      registerMarkerHitTarget(`status:${player.id}:${category}`, markerX, markerY, profile.size * 0.62, explanation[0], explanation[1]);
-      drawFieldRestartIcon("clairvoyance", markerX, markerY, profile.size, (time * .32 + profile.phase) % 1);
-      continue;
-    }
-
+    const source = state.textures[profile.texture];
     const prepared = transparentSpriteSource(source, `persistent-status-${category}`, 18);
     const sprite = prepared ? normalizedSpriteFrame(prepared, `persistent-status-${category}`, 1, 1, 0, 0) : null;
     if (!sprite) continue;
@@ -21559,16 +21023,6 @@ function applyAbilitySpecificPhysicalTransform(kind, progress, facing, motionId,
   const impulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
   const ease = objectEffectEase(clamp(progress, 0, 1));
   const hasId = (...tokens) => tokens.some((token) => id === token || id.includes(token));
-
-  if (hasId("fighter-just-guard")) {
-    const brace = objectEffectEase(clamp(progress / 0.18, 0, 1));
-    const recoil = Math.sin(clamp((progress - 0.15) / 0.32, 0, 1) * Math.PI);
-    const recover = objectEffectEase(clamp((progress - 0.5) / 0.5, 0, 1));
-    ctx.translate(facing * (-4.5 * brace + 8 * recoil + 4.5 * recover) * motionScale, (4 * brace + 2 * recoil - 4 * recover) * motionScale);
-    ctx.rotate(-facing * (0.055 * brace + 0.085 * recoil - 0.055 * recover) * motionScale);
-    ctx.scale(1 - 0.07 * brace + 0.07 * recover, 1 + 0.08 * brace - 0.08 * recover);
-    return true;
-  }
 
   if (kind === "shop" || hasId("action-shop-open")) {
     const approach = objectEffectEase(clamp(progress / 0.3, 0, 1));
@@ -23364,7 +22818,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "ate-emission-glow-v712";
+const version = "ate-task-baseline-restored-v713";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23430,12 +22884,8 @@ const version = "ate-emission-glow-v712";
     "assets/generated/alchemy-effect-reason-v311.png"
   ]);
   const empResonanceEffect = new Image();
-  const empChargeIconRgba = eagerImage("assets/generated/emp-charge-icon-restart-v705.png");
-  const empResonanceNativeRgba = eagerImage("assets/generated/emp-resonance-icon-restart-v705.png");
   const empCancelEffect = new Image();
-  const empStorageLockNativeRgba = eagerImage("assets/generated/emp-storage-icon-restart-v705.png");
-  const empCancelIconRgba = eagerImage("assets/generated/emp-cancel-icon-restart-v705.png");
-  const empAppIconActivationEffect = eagerImage("assets/generated/emp-activation-icon-restart-v705.png");
+  const empAppIconActivationEffect = new Image();
   const heartTeleportEffect = eagerImage("assets/generated/heart-transfer-fist-glow-ate-v468.png");
   const gunnerWeaponsAtlas = new Image();
   const gunnerCombatStateEffects = imageSet([
@@ -23530,22 +22980,6 @@ const version = "ate-emission-glow-v712";
   const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
-  const clairvoyanceFieldRestartRgba = eagerImage("assets/generated/clairvoyance-field-icons-restart-v710.png");
-  const pickupContextIconRgba = eagerImage("assets/generated/pickup-context-icons-restart-v709.png");
-  const terminalContextIconRgba = eagerImage("assets/generated/terminal-context-icons-restart-v709.png");
-  const renkiNormalIconRgba = eagerImage("assets/generated/normal-core-icons-restart-v707.png");
-  const renkiTenfoldNativeRgba = eagerImage("assets/generated/tenfold-core-icons-restart-v707.png");
-  const renkiDebtIconRgba = eagerImage("assets/generated/desire-core-icons-restart-v707.png");
-  const commsFieldRestartRgba = eagerImage("assets/generated/comms-field-icons-restart-v710.png");
-  const reactorFieldRestartRgba = eagerImage("assets/generated/reactor-field-icons-restart-v710.png");
-  const oxygenFieldRestartRgba = eagerImage("assets/generated/oxygen-field-icons-restart-v710.png");
-  const doorsFieldRestartRgba = eagerImage("assets/generated/doors-field-icons-restart-v710.png");
-  const dodgeIconRgba = eagerImage("assets/generated/dodge-core-icons-restart-v707.png");
-  const rationalSocialIconRgba = eagerImage("assets/generated/donation-rational-social-icons-restart-v708.png");
-  const unjustSocialIconRgba = eagerImage("assets/generated/donation-unjust-social-icons-restart-v708.png");
-  const emergencySocialIconRgba = eagerImage("assets/generated/emergency-call-social-icons-restart-v708.png");
-  const ninjutsuFocusIconRgba = eagerImage("assets/generated/ninjutsu-core-icons-restart-v707.png");
-  const localRepairIconRgba = eagerImage("assets/generated/repair-core-icons-restart-v707.png");
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
@@ -23603,6 +23037,15 @@ const version = "ate-emission-glow-v712";
   defer(killCutin60, "assets/kill-cutin-60.webp");
   defer(empResonanceEffect, "assets/generated/emp-resonance-v398.png");
   defer(empCancelEffect, "assets/generated/emp-cancel-v311.png");
+  empAppIconActivationEffect.addEventListener("load", () => {
+    const key = "emp-app-icon-ate-v660-exterior-matte";
+    const isolated = transparentSpriteSource(empAppIconActivationEffect, key, 56);
+    // A readback/CORS failure returns the original opaque image. Do not cache a
+    // square fallback; drawEmpEffect will retain the full-size EMP ATE instead.
+    if (!isolated || isolated === empAppIconActivationEffect) return;
+    normalizedSpriteFrame(isolated, key, 1, 1, 0, 0);
+  }, { once: true });
+  defer(empAppIconActivationEffect, "assets/generated/emp-app-icon-ate-v660.png");
   defer(gunnerWeaponsAtlas, "assets/generated/gunner-weapons-atlas.webp");
   defer(fighterSlashEffect, "assets/generated/fighter-slash-effect.webp");
   defer(fighterEnergyChargeEffect, "assets/generated/fighter-energy-charge-ate-v404.png");
@@ -23722,11 +23165,7 @@ const version = "ate-emission-glow-v712";
     philosophyEffectTextures,
     alchemyEffectTextures,
     empResonanceEffect,
-    empChargeIconRgba,
-    empResonanceNativeRgba,
     empCancelEffect,
-    empStorageLockNativeRgba,
-    empCancelIconRgba,
     empAppIconActivationEffect,
     heartTeleportEffect,
     gunnerWeaponsAtlas,
@@ -23795,7 +23234,6 @@ const version = "ate-emission-glow-v712";
     itemHeal,
     itemTextures,
     groundFirearmIcons,
-    pickupContextIconRgba, terminalContextIconRgba,
     groundItemTextures,
     alchemyRailgunFieldEffect,
     alchemyParticleCannonFieldEffect,
@@ -23808,13 +23246,6 @@ const version = "ate-emission-glow-v712";
     smartphoneRepairIcon,
     throwLandingPreview,
     clairvoyanceThrowAte,
-    clairvoyanceFieldRestartRgba,
-    renkiNormalIconRgba, renkiTenfoldNativeRgba, renkiDebtIconRgba, dodgeIconRgba, commsFieldRestartRgba, reactorFieldRestartRgba, oxygenFieldRestartRgba, doorsFieldRestartRgba,
-    rationalSocialIconRgba,
-    unjustSocialIconRgba,
-    emergencySocialIconRgba,
-    ninjutsuFocusIconRgba,
-    localRepairIconRgba,
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
@@ -24435,7 +23866,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=ate-emission-glow-v712", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ate-task-baseline-restored-v713", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
