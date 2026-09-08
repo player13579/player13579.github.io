@@ -12532,3 +12532,12 @@ body #selectPanel .operator-setting-status[hidden] {
 
 /* Canvas setup has its own responsive three-setting form after leaving the sidebar. */
 #operatorSelectionSettings.pregame-canvas-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0}#operatorSelectionSettings.pregame-canvas-settings>.objective{grid-column:1/-1;margin:0}#operatorSelectionSettings.pregame-canvas-settings>label{min-width:0}@media(max-width:680px){#operatorSelectionSettings.pregame-canvas-settings{grid-template-columns:1fr}}
+
+
+/* Purchased abilities share the existing shortcut rail without a nested grid. */
+.purchased-ability-shortcuts { display: contents; }
+
+/* Canvas preparation switches retain the native selects and their change path. */
+.preparation-setting-switch { display: grid; grid-template-columns: 34px minmax(0, 1fr) 34px; gap: 6px; align-items: stretch; }
+.preparation-setting-switch > button { min-height: 40px; padding: 0; font-size: 22px; line-height: 1; }
+.preparation-setting-switch > select { min-width: 0; }

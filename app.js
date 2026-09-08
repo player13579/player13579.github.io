@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "actor-time-four-jets-v723";
+const DVA_CLIENT_RELEASE = "stable-viewport-purchased-controls-v724";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -130,6 +130,7 @@ const els = {
   tabletNinjutsuShortcut: $("#tabletNinjutsuShortcut"),
   tabletContextShortcut: $("#tabletContextShortcut"),
   tabletAbilityShortcut: $("#tabletAbilityShortcut"),
+  purchasedAbilityShortcuts: $("#purchasedAbilityShortcuts"),
   tabletShootShortcut: $("#tabletShootShortcut"),
   tabletFireShortcut: $("#tabletFireShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
@@ -194,7 +195,11 @@ const els = {
   namePolicy: $("#namePolicy"),
   soloNameGuidance: $("#soloNameGuidance"),
   skinSelect: $("#skinSelect"),
+  skinPreviousButton: $("#skinPreviousButton"),
+  skinNextButton: $("#skinNextButton"),
   mapSelect: $("#mapSelect"),
+  mapPreviousButton: $("#mapPreviousButton"),
+  mapNextButton: $("#mapNextButton"),
   matchmakingButton: $("#matchmakingButton"),
   analyticsPanel: $("#analyticsPanel"),
   analyticsToggleButton: $("#analyticsToggleButton"),
@@ -308,11 +313,13 @@ for (const overlay of [els.inventoryItemDetail]) {
 // scenes are still being painted, which presents as a full-field flash.
 const ctx = els.canvas.getContext("2d", { alpha: false });
 const mapCtx = els.expandedMapCanvas.getContext("2d");
+let gameplayViewportMeasurementsSuspended = false;
 let fieldCanvasCssWidth = 0;
 let fieldCanvasCssHeight = 0;
 let fieldCanvasCssTop = 0;
 let soloMissionHudCssBottom = 0;
 const syncFieldCanvasCssSize = (rect) => {
+  if (document.hidden || gameplayViewportMeasurementsSuspended) return;
   const width = Number(rect?.width);
   const height = Number(rect?.height);
   if (Number.isFinite(width) && width > 0) fieldCanvasCssWidth = width;
@@ -320,6 +327,7 @@ const syncFieldCanvasCssSize = (rect) => {
   if (Number.isFinite(Number(rect?.top))) fieldCanvasCssTop = Number(rect.top);
 };
 const syncSoloMissionHudCssHeight = (rect) => {
+  if (document.hidden || gameplayViewportMeasurementsSuspended) return;
   const height = Number(rect?.height);
   if (Number.isFinite(Number(rect?.bottom))) soloMissionHudCssBottom = Number(rect.bottom);
 };
@@ -904,7 +912,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "actor-time-four-jets-v723";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "stable-viewport-purchased-controls-v724";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3235,9 +3243,11 @@ function shopAbilityOwned(abilityId, self = state.data?.self) {
 }
 
 function activePurchasedShopAbilities(self = state.data?.self) {
+  const seen = new Set();
   return (self?.shopAbilityEntitlements || [])
     .map((id) => DVA_ECONOMY.abilityProduct(id))
-    .filter((ability) => ability && ["active", "active-target-map"].includes(ability.behavior));
+    .filter((ability) => ability && ["active", "active-target-map"].includes(ability.behavior))
+    .filter((ability) => !seen.has(ability.id) && Boolean(seen.add(ability.id)));
 }
 
 function selectedPurchasedShopAbility(self = state.data?.self) {
@@ -3247,10 +3257,13 @@ function selectedPurchasedShopAbility(self = state.data?.self) {
   return ability;
 }
 
-function syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, nativeOptions) {
+function syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, nativeOptions, { showPurchasedChoices = true } = {}) {
   const select = els.teleportModeSelect;
   const self = data?.self;
-  const choices = activePurchasedShopAbilities(self);
+  // Purchased abilities keep their own shortcut buttons. In tablet mode they do
+  // not also occupy the operator-mode selector.
+  const choices = showPurchasedChoices ? activePurchasedShopAbilities(self) : [];
+  if (!showPurchasedChoices && state.selectedShopAbilityId) state.selectedShopAbilityId = "";
   const selected = selectedPurchasedShopAbility(self);
   const fallbackNativeOption = !nativeOptions.length && !rootAbilitySwitchVisible;
   const choiceKey = choices.map((ability) => ability.id).join("|");
@@ -6456,6 +6469,10 @@ function bindEvents() {
   els.tacticsMuteButton?.addEventListener("click", toggleGameMuted);
   els.gameMuteButton?.addEventListener("click", toggleGameMuted);
   els.skinSelect.addEventListener("change", () => void syncOperatorSelectionSettings("skin"));
+  els.skinPreviousButton?.addEventListener("click", () => cyclePreparationSelect(els.skinSelect, -1));
+  els.skinNextButton?.addEventListener("click", () => cyclePreparationSelect(els.skinSelect, 1));
+  els.mapPreviousButton?.addEventListener("click", () => cyclePreparationSelect(els.mapSelect, -1));
+  els.mapNextButton?.addEventListener("click", () => cyclePreparationSelect(els.mapSelect, 1));
   els.mapSelect.addEventListener("change", () => {
     const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
     els.mapSelect.value = mapId;
@@ -6469,7 +6486,7 @@ function bindEvents() {
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
-      if (state.data?.phase === "selecting") void syncOperatorSelectionSettings("name");
+      if (preparationSettingsEditable(state.data)) void syncOperatorSelectionSettings("name");
       else void startMatchmaking();
     });
   });
@@ -7480,6 +7497,7 @@ function bindEvents() {
   }, true);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
+      suspendGameplayViewportMeasurements();
       const availabilityOwner = state.onlineAvailabilityCheckOwner;
       if (availabilityOwner) {
         availabilityOwner.cancelledForBackground = true;
@@ -7962,9 +7980,11 @@ function renderTabletBranchLines() {
 }
 
 function scheduleTabletBranchLayout() {
+  if (!gameplayViewportMeasurementAllowed()) return;
   requestAnimationFrame(() => {
+    if (!gameplayViewportMeasurementAllowed()) return;
     positionTabletBranchTree();
-    requestAnimationFrame(renderTabletBranchLines);
+    requestAnimationFrame(() => { if (gameplayViewportMeasurementAllowed()) renderTabletBranchLines(); });
   });
 }
 
@@ -8440,7 +8460,38 @@ function setTabletShortcutLabel(button, name, detail = "") {
   button.title = detail || name;
 }
 
+function renderPurchasedAbilityShortcuts(data) {
+  const container = els.purchasedAbilityShortcuts;
+  if (!container) return;
+  const self = data?.self;
+  const abilities = activePurchasedShopAbilities(self);
+  const canUse = data?.phase === "playing" && Boolean(self?.alive) && !self?.ejected;
+  const key = abilities.map((ability) => ability.id).join("|");
+  if (container.dataset.abilityKey !== key) {
+    container.replaceChildren();
+    abilities.forEach((ability) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "tablet-quick-action ability purchased-ability-shortcut";
+      button.dataset.shopAbilityShortcut = ability.id;
+      // Shortcut labels deliberately stay free of MP notation.
+      setTabletShortcutLabel(button, ability.label, `${shortcutLabelWithoutMana(ability.label)}を発動`);
+      button.addEventListener("click", () => {
+        const current = activePurchasedShopAbilities(state.data?.self).find((entry) => entry.id === ability.id);
+        if (current) void executePurchasedShopAbility(current);
+      });
+      container.append(button);
+    });
+    container.dataset.abilityKey = key;
+  }
+  container.querySelectorAll("[data-shop-ability-shortcut]").forEach((button) => {
+    button.disabled = !canUse;
+    button.hidden = !abilities.some((ability) => ability.id === button.dataset.shopAbilityShortcut);
+  });
+}
+
 function renderTabletControls(data) {
+  renderPurchasedAbilityShortcuts(data);
   if (!data?.self) return;
   setTabletShortcutLabel(els.tabletNinjutsuShortcut, "忍殺", els.ninjutsuButton.textContent || "忍殺");
   els.tabletNinjutsuShortcut.disabled = els.ninjutsuButton.disabled || els.ninjutsuButton.hidden;
@@ -8518,10 +8569,14 @@ function renderTabletControls(data) {
 }
 
 function portraitTabletRequired() {
+  const sample = gameplayViewportLastVisibleSample;
+  if (sample) return sample.height > sample.width;
+  if (document.hidden) return document.body.classList.contains("portrait-tablet-dock");
   return window.innerHeight > window.innerWidth;
 }
 
 function syncPortraitTabletDock() {
+  if (!gameplayViewportMeasurementAllowed()) return;
   const panel = els.tabletPanel;
   const fieldSlot = document.querySelector(".field-stage-slot");
   const board = fieldSlot?.querySelector(".board-wrap");
@@ -8564,6 +8619,7 @@ function setTabletOpen(open, { persist = true, focus = true } = {}) {
   } else {
     renderTabletControls(state.data);
   }
+  if (state.data?.self) renderTargetOptions(state.data);
   requestAnimationFrame(() => syncKeyboardContext(true));
 }
 
@@ -9376,7 +9432,7 @@ async function syncOperatorSelectionSettings(changedField = "") {
   localStorage.setItem(storage.skin, skinId);
   localStorage.setItem(storage.map, mapId);
 
-  if (data?.phase !== "selecting" || !state.roomId || !state.playerId) {
+  if (!preparationSettingsEditable(data) || !state.roomId || !state.playerId) {
     if (changedField === "skin") await syncSelectedSkin();
     return false;
   }
@@ -11912,6 +11968,33 @@ function formatSoloMissionHudProgress(mission) {
   return `${objective} / ${progress}`;
 }
 
+function preparationBarrierActive(data = state.data) {
+  return !data?.soloMission && data?.phase === "playing" &&
+    Number(data.preparationEndsAt) > Number(data.serverNow || Date.now());
+}
+
+function preparationPhaseActive(data = state.data) {
+  return !data || ["lobby", "selecting"].includes(data.phase) || preparationBarrierActive(data);
+}
+
+function preparationSettingsEditable(data = state.data) {
+  return data?.phase === "selecting" || preparationBarrierActive(data);
+}
+
+function preparationOverlayVisible(data = state.data) {
+  return state.screen === "game" && (state.operatorSelectionRouteOpen || preparationPhaseActive(data));
+}
+
+function cyclePreparationSelect(select, direction) {
+  if (!select) return false;
+  const options = [...select.options].filter((option) => !option.disabled);
+  if (!options.length) return false;
+  const index = Math.max(0, options.findIndex((option) => option.value === select.value));
+  select.value = options[(index + direction + options.length) % options.length].value;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
+}
+
 function render() {
   const pollScrollPositions = capturePollScrollPositions();
   const data = state.data;
@@ -11935,6 +12018,7 @@ function render() {
     state.screen === "game" &&
     (state.operatorSelectionRouteOpen || data?.phase === "selecting")
   );
+  const settingsOverlayVisible = preparationOverlayVisible(data);
   const resetSidebarForPhaseContext = state.phaseUiKey !== phaseUiKey && (
     data?.phase === "selecting" ||
     (data?.phase === "playing" && String(state.phaseUiKey || "").endsWith(":selecting"))
@@ -11961,9 +12045,9 @@ function render() {
   els.joinPanel.hidden = true;
   els.selectPanel.hidden = !operatorSelectionVisible;
   const selecting = data?.phase === "selecting";
-  els.pregameCanvasSettings.hidden = !operatorSelectionVisible;
-  document.body.classList.toggle("pregame-canvas-open", operatorSelectionVisible);
-  els.operatorSettingStatus.hidden = !operatorSelectionVisible;
+  els.pregameCanvasSettings.hidden = !settingsOverlayVisible;
+  document.body.classList.toggle("pregame-canvas-open", settingsOverlayVisible);
+  els.operatorSettingStatus.hidden = !settingsOverlayVisible;
   els.operatorRetryButton.hidden = !(operatorSelectionVisible && !selecting && !state.matchmakingInFlight);
   if (!selecting && operatorSelectionVisible) {
     els.selectTimer.textContent = "接続中";
@@ -12721,12 +12805,21 @@ function renderTargetOptions(data) {
   const alchemyTargetVisible = self.special === "alchemist" &&
     (els.alchemySelect.value === "revive" || els.alchemySelect.value.startsWith("hack-"));
   const purchasedShopAbilities = activePurchasedShopAbilities(self);
-  const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible || purchasedShopAbilities.length > 0) && self.alive && !self.ejected;
+  const showPurchasedAbilityChoices = !(state.tabletOpen || state.tabletResumeAfterMap || portraitTabletRequired());
+  const purchasedChoicesVisible = showPurchasedAbilityChoices && purchasedShopAbilities.length > 0;
+  const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible || purchasedChoicesVisible) && self.alive && !self.ejected;
   els.teleportControl.hidden = !controlVisible;
-  els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length && !purchasedShopAbilities.length;
-  els.abilityAutoActivateControl.hidden = !rootAbilitySwitchVisible && !options.length && !purchasedShopAbilities.length;
+  els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length && !purchasedChoicesVisible;
+  els.abilityAutoActivateControl.hidden = !rootAbilitySwitchVisible && !options.length && !purchasedChoicesVisible;
   els.empPhaseControl.hidden = data.phase !== "playing" || !self.alive || self.ejected;
-  if (!controlVisible && self.special !== "alchemist") return;
+  if (!controlVisible && self.special !== "alchemist") {
+    // Remove a stale selected purchase and its old selector options when the
+    // player switches to tablet mode or loses the entitlement on the next poll.
+    syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, options, {
+      showPurchasedChoices: showPurchasedAbilityChoices
+    });
+    return;
+  }
 
   const modeKey = options.map((option) => option[0]).join("|");
   if (rootAbilitySwitchVisible) {
@@ -12786,7 +12879,9 @@ function renderTargetOptions(data) {
     rememberSelectedOperatorMode();
   }
 
-  const selectedShopAbility = syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, options);
+  const selectedShopAbility = syncPurchasedAbilityModeChoices(data, rootAbilitySwitchVisible, options, {
+    showPurchasedChoices: showPurchasedAbilityChoices
+  });
 
   const currentAbilityMode = rootAbilitySwitchVisible && borrowedOperator
     ? state.borrowedAbilityModes[borrowedOperator] || ""
@@ -13996,6 +14091,31 @@ function visibleGameplayViewportSample() {
   return { width, height, visualWidth, visualHeight };
 }
 
+function gameplayViewportMeasurementAllowed() {
+  if (document.hidden) return false;
+  if (gameplayViewportMeasurementsSuspended) {
+    if (!gameplayViewportStabilityFrame && !gameplayViewportStabilityTimer) scheduleStableGameplayViewportReflow(80);
+    return false;
+  }
+  const sample = visibleGameplayViewportSample();
+  if (!sample) return false;
+  const committed = gameplayViewportLastVisibleSample;
+  return !committed || (Math.abs(sample.width - committed.width) < 1 && Math.abs(sample.height - committed.height) < 1);
+}
+
+function suspendGameplayViewportMeasurements() {
+  gameplayViewportMeasurementsSuspended = true;
+  gameplayViewportStabilityGeneration += 1;
+  for (const frame of [gameplayViewportStabilityFrame, gameplayViewportReflowFrame, activeEffectsLayoutFrame]) {
+    if (frame) cancelAnimationFrame(frame);
+  }
+  gameplayViewportStabilityFrame = gameplayViewportReflowFrame = activeEffectsLayoutFrame = 0;
+  window.clearTimeout(gameplayViewportStabilityTimer);
+  window.clearTimeout(gameplayViewportSettleTimer);
+  gameplayViewportStabilityTimer = gameplayViewportSettleTimer = 0;
+  activeEffectsLayoutCallbacks = [];
+}
+
 function gameplayViewportSampleKey(sample) {
   if (!sample) return "";
   return [sample.width, sample.height, sample.visualWidth, sample.visualHeight]
@@ -14006,6 +14126,7 @@ function gameplayViewportSampleKey(sample) {
 function commitStableGameplayViewportSample(sample) {
   if (!sample || document.hidden) return false;
   gameplayViewportLastVisibleSample = { width: sample.width, height: sample.height };
+  gameplayViewportMeasurementsSuspended = false;
   const widthValue = `${Math.round(sample.width * 10) / 10}px`;
   const heightValue = `${Math.round(sample.height * 10) / 10}px`;
   const rootStyle = document.documentElement.style;
@@ -14019,6 +14140,7 @@ function commitStableGameplayViewportSample(sample) {
 }
 
 function scheduleStableGameplayViewportReflow(delayMs = 80) {
+  gameplayViewportMeasurementsSuspended = true;
   const generation = ++gameplayViewportStabilityGeneration;
   gameplayViewportCandidateKey = "";
   gameplayViewportCandidateFrames = 0;
@@ -14080,10 +14202,12 @@ function gameplayViewportGeometryKey() {
 }
 
 function scheduleGameplayViewportReflow(settle = false) {
+  if (!gameplayViewportMeasurementAllowed()) return;
   if (settle) gameplayViewportReflowPasses = 0;
   if (gameplayViewportReflowFrame) return;
   gameplayViewportReflowFrame = requestAnimationFrame(() => {
     gameplayViewportReflowFrame = 0;
+    if (!gameplayViewportMeasurementAllowed()) return;
     const before = gameplayViewportGeometryKey();
     updateTitleCommandDepthPaths();
     syncPortraitTabletDock();
@@ -14091,6 +14215,8 @@ function scheduleGameplayViewportReflow(settle = false) {
       setTabletOpen(state.tabletOpen, { persist: false, focus: false });
       scheduleTabletBranchLayout();
       scheduleActiveEffectsLayout(() => {
+        syncFieldCanvasCssSize(els.canvas.getBoundingClientRect());
+        syncSoloMissionHudCssHeight(els.soloMissionHud.getBoundingClientRect());
         const after = gameplayViewportGeometryKey();
         if (after !== before && gameplayViewportReflowPasses < GAMEPLAY_VIEWPORT_REFLOW_MAX_PASSES - 1) {
           gameplayViewportReflowPasses += 1;
@@ -14111,6 +14237,7 @@ function scheduleGameplayViewportReflow(settle = false) {
 }
 
 function scheduleActiveEffectsLayout(afterLayout = null) {
+  if (!gameplayViewportMeasurementAllowed()) return;
   if (typeof afterLayout === "function") activeEffectsLayoutCallbacks.push(afterLayout);
   if (activeEffectsLayoutFrame) return;
   activeEffectsLayoutFrame = requestAnimationFrame(layoutActiveEffectsPanel);
@@ -14118,6 +14245,7 @@ function scheduleActiveEffectsLayout(afterLayout = null) {
 
 function layoutActiveEffectsPanel() {
   activeEffectsLayoutFrame = 0;
+  if (!gameplayViewportMeasurementAllowed()) { activeEffectsLayoutCallbacks = []; return; }
   const callbacks = activeEffectsLayoutCallbacks;
   activeEffectsLayoutCallbacks = [];
   const panel = els.activeEffectsPanel;
@@ -14137,7 +14265,7 @@ function layoutActiveEffectsPanel() {
   const measuredFieldRemainder = fieldSlot && board
     ? fieldSlot.getBoundingClientRect().height - board.getBoundingClientRect().height - stageGap - lowerExtras
     : 0;
-  const fallbackHeight = Math.min(360, Math.floor(window.innerHeight * 0.36));
+  const fallbackHeight = Math.min(360, Math.floor((gameplayViewportLastVisibleSample?.height || window.innerHeight) * 0.36));
   const availableHeight = Math.max(116, Math.floor(measuredFieldRemainder > 0 ? measuredFieldRemainder : fallbackHeight));
   const borderHeight = (Number.parseFloat(getComputedStyle(panel).borderTopWidth) || 0) +
     (Number.parseFloat(getComputedStyle(panel).borderBottomWidth) || 0);
@@ -15735,7 +15863,7 @@ function draw() {
   state.markerHitTargets.length = 0;
   ctx.fillStyle = data ? "#91a8b7" : "#25323d";
   ctx.fillRect(0, 0, w, h);
-  const pregameCanvas = !data || state.operatorSelectionRouteOpen || ["lobby", "selecting"].includes(data.phase);
+  const pregameCanvas = preparationPhaseActive(data) || state.operatorSelectionRouteOpen;
   if (pregameCanvas) {
     // Match setup deliberately does not expose a live field.
     const wash = ctx.createLinearGradient(0, 0, w, h);
@@ -23151,7 +23279,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "actor-time-four-jets-v723";
+const version = "stable-viewport-purchased-controls-v724";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24191,7 +24319,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=actor-time-four-jets-v723", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=stable-viewport-purchased-controls-v724", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

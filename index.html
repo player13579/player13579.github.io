@@ -14,7 +14,7 @@
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
     <link rel="preload" as="image" href="assets/title-hero-v466.png?v=core-icons-restart-v707" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=actor-time-four-jets-v723">
+  <link rel="stylesheet" href="styles.css?v=stable-viewport-purchased-controls-v724">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
@@ -251,6 +251,7 @@
               <button id="tabletNinjutsuShortcut" class="tablet-quick-action danger" type="button">忍殺</button>
               <button id="tabletContextShortcut" class="tablet-quick-action context" type="button" hidden>周辺アクション</button>
               <button id="tabletAbilityShortcut" class="tablet-quick-action ability" type="button" title="タップして現在のオペ能力を発動">オペ能力</button>
+              <div id="purchasedAbilityShortcuts" class="purchased-ability-shortcuts"></div>
               <button id="tabletShootShortcut" class="tablet-quick-action danger" type="button" hidden>射撃</button>
               <button id="tabletFireShortcut" class="tablet-quick-action danger" type="button" hidden>ファイア</button>
               <button id="tabletEmpShortcut" class="tablet-quick-action tactical" type="button">EMP</button>
@@ -299,26 +300,34 @@
           </section>
           <canvas id="gameCanvas" width="980" height="620" tabindex="-1" role="img" aria-label="ゲームマップ" aria-describedby="gameCanvasStatusSummary"></canvas>
           <div id="operatorSelectionSettings" class="operator-selection-settings pregame-canvas-settings" aria-label="出撃設定" hidden>
-            <p class="objective">スキンとステージは、ここで切り替えられます。</p>
+            <p class="objective">名前、スキン、ステージは、ここで切り替えられます。</p>
           <label>
             名前
             <input id="nameInput" maxlength="16" autocomplete="nickname" placeholder="プレイヤー" aria-describedby="namePolicy">
             <small id="namePolicy" class="name-policy">名前は出撃準備中に変更できます。</small>
             <small id="soloNameGuidance" class="name-policy solo-name-guidance" aria-live="polite" hidden>名前を入力したら、本のアイコンから「戦術いろは」へ戻り、訓練の「開始」を押してください。</small>
           </label>
-          <label>
+          <label for="skinSelect">
             プレイヤースキン
-            <select id="skinSelect">
-              <option value="hood">フィリア</option>
-              <option value="blue-dress">ソフィア</option>
-            </select>
+            <span class="preparation-setting-switch">
+              <button id="skinPreviousButton" type="button" aria-label="前のスキン">‹</button>
+              <select id="skinSelect">
+                <option value="hood">フィリア</option>
+                <option value="blue-dress">ソフィア</option>
+              </select>
+              <button id="skinNextButton" type="button" aria-label="次のスキン">›</button>
+            </span>
           </label>
-          <label>
+          <label for="mapSelect">
             マップ
-            <select id="mapSelect">
-              <option value="station">アウレリア自然共生館</option>
-              <option value="outpost">ルミナ総合研究・休養棟</option>
-            </select>
+            <span class="preparation-setting-switch">
+              <button id="mapPreviousButton" type="button" aria-label="前のマップ">‹</button>
+              <select id="mapSelect">
+                <option value="station">アウレリア自然共生館</option>
+                <option value="outpost">ルミナ総合研究・休養棟</option>
+              </select>
+              <button id="mapNextButton" type="button" aria-label="次のマップ">›</button>
+            </span>
           </label>
           </div>
           <p id="gameCanvasStatusSummary" class="visually-hidden">ゲーム開始前です。</p>
@@ -681,11 +690,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-    <script src="economy-catalog-v468.js?v=actor-time-four-jets-v723"></script>
-    <script src="game-runtime.js?v=actor-time-four-jets-v723"></script>
-    <script src="game-engine.js?v=actor-time-four-jets-v723"></script>
-    <script src="offline-runtime.js?v=actor-time-four-jets-v723"></script>
-    <script src="config.js?v=actor-time-four-jets-v723"></script>
-    <script src="app.js?v=actor-time-four-jets-v723"></script>
+    <script src="economy-catalog-v468.js?v=stable-viewport-purchased-controls-v724"></script>
+    <script src="game-runtime.js?v=stable-viewport-purchased-controls-v724"></script>
+    <script src="game-engine.js?v=stable-viewport-purchased-controls-v724"></script>
+    <script src="offline-runtime.js?v=stable-viewport-purchased-controls-v724"></script>
+    <script src="config.js?v=stable-viewport-purchased-controls-v724"></script>
+    <script src="app.js?v=stable-viewport-purchased-controls-v724"></script>
 </body>
 </html>

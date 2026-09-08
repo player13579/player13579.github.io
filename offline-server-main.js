@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "actor-time-four-jets-v723",
+    version: "stable-viewport-purchased-controls-v724",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "actor-time-four-jets-v723";
+const PRODUCT_RELEASE = "stable-viewport-purchased-controls-v724";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -8826,6 +8826,40 @@ function renameSelectingPlayerName(rawName, profileId, legacyProfileId = "") {
     savePlayerProfiles();
   }
   return profile.name;
+}
+
+// Stage changes during preparation keep the chosen operators, possessions and
+// preparation deadline. Only geometry-owned state is rebuilt for the new map.
+function rebuildPreparationMapState(room) {
+  const map = getMap(room);
+  for (const key of ["bodies", "hitEffects", "magicEffects", "hazardFields", "thrownItems", "groundItems", "activeEmps", "gravityZones", "alchemyObjects", "mysteryBoxes", "sounds", "doorLog"]) room[key] = [];
+  room.sabotage = null;
+  room.doorState = {};
+  room.utilityViews.clear();
+  for (const player of room.players.values()) {
+    const doneCount = (player.taskList || []).filter((task) => task.done).length;
+    player.taskList = player.role === "defender" ? assignTasks(map, room.settings.taskCount) : [];
+    player.taskList.slice(0, doneCount).forEach((task) => { task.done = true; });
+    player.taskAutoReadyAt = 0;
+    player.taskPresenceTaskId = "";
+    player.taskPresenceSince = 0;
+    player.inVent = false;
+    player.ventId = "";
+    player.movementMode = "idle";
+    player.navPath = [];
+    player.navCalculatedAt = 0;
+    player.botNavigationIntent = null;
+    player.botTarget = null;
+    player.botTargetUntil = 0;
+    player.botTaskTargetId = "";
+    player.botTaskPresenceSince = 0;
+    player.botTaskPresenceLastTickAt = 0;
+    player.botTaskBlockedUntilById = {};
+    player.gunFiring = false;
+    player.gunnerBurstRoundsRemaining = 0;
+    clearAttackState(player);
+  }
+  replenishMysteryBoxes(room);
 }
 
 function relocateSelectingPlayersForMap(room) {
@@ -23411,7 +23445,8 @@ async function handleApi(req, res) {
       const profileId = playerProfileId(req);
       const generatedOffline = isGeneratedOfflineRequest(req) && room.matchmaking?.status === "offline";
       const selectionProfileId = profileId || (generatedOffline ? legacyPlayerProfileId(body.clientId) : "");
-      if (room.phase !== "selecting" || room.soloMission) {
+      const preparing = preparationBarrierActive(room);
+      if ((room.phase !== "selecting" && !preparing) || room.soloMission) {
         throw new ApiError(409, "いまは出撃設定を変更できません。");
       }
       if (player.moderationKey && player.moderationKey !== identityKey) {
@@ -23432,6 +23467,7 @@ async function handleApi(req, res) {
       if (mapChanged) {
         room.settings.mapId = nextMapId;
         relocateSelectingPlayersForMap(room);
+        if (preparing) rebuildPreparationMapState(room);
       }
       touch(room);
       payload = {
@@ -26159,7 +26195,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "actor-time-four-jets-v723",
+  version: "stable-viewport-purchased-controls-v724",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
