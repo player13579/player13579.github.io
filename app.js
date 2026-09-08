@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-icon-restart-v705";
+const DVA_CLIENT_RELEASE = "surveillance-camera-removal-v706";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -232,8 +232,6 @@ const els = {
   empButton: $("#empButton"),
   empPhaseControl: $("#empPhaseControl"),
   empPhaseSelect: $("#empPhaseSelect"),
-  cameraButton: $("#cameraButton"),
-  nextCameraButton: $("#nextCameraButton"),
   vendingButton: $("#vendingButton"),
   healButton: $("#healButton"),
   alchemyButton: $("#alchemyButton"),
@@ -659,7 +657,6 @@ const state = {
   teleportTargetId: "",
   teleportTargetMode: "body",
   instantWarpTargeting: false,
-  cameraViewIndex: -1,
   dashHeld: false,
   slowWalkHeld: false,
   gunTriggerHeld: false,
@@ -896,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-icon-restart-v705";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "surveillance-camera-removal-v706";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2897,7 +2894,6 @@ function drawTacticsIntel(ctx, w, h, time) {
     ctx.arc(centerX, centerY, 22 + Math.sin(time * 8) * 7, 0, Math.PI * 2);
     ctx.fill();
   }
-  drawTacticsSprite(ctx, state.textures.facilityProps[2], "camera", 155, 118, 110, 110);
   tacticsLabel(ctx, samePhase ? "同位相: 共振 / 至近確殺" : "逆位相: 相殺", w / 2, 44, { color: samePhase ? "#f8fafc" : "#f0abfc" });
   tacticsLabel(ctx, "EMP再充填 18秒 / 干渉窓 1200ms", w / 2, h - 52, { font: "800 15px Segoe UI, sans-serif" });
 }
@@ -2940,8 +2936,6 @@ const actionHotkeys = {
   Digit8: "dodgeButton",
   KeyZ: "clairvoyance",
   KeyX: "empButton",
-  KeyB: "cameraButton",
-  KeyN: "nextCameraButton",
   KeyV: "vendingButton",
   KeyH: "operatorAbilityButton",
   KeyC: "renkiButton",
@@ -6822,8 +6816,6 @@ function bindEvents() {
     showToast(state.abilityAutoActivate ? "能力の選択時実行: ON" : "能力の選択時実行: OFF");
   });
   els.abilityAutoActivateControl.dataset.enabled = state.abilityAutoActivate ? "1" : "0";
-  els.cameraButton.addEventListener("click", toggleCameraView);
-  els.nextCameraButton.addEventListener("click", nextCameraView);
   els.healButton.addEventListener("click", () => api("/api/flora-heal"));
   els.alchemyButton.addEventListener("click", () => executeHackerRecipe(els.alchemySelect.value));
   els.operatorAbilityButton.addEventListener("click", triggerOperatorAbility);
@@ -8815,34 +8807,13 @@ function beginInstantWarpTargeting() {
   return true;
 }
 
-function toggleCameraView() {
-  const data = state.data;
-  const available = availableCameraIndices(data);
-  if (!data || data.phase !== "playing" || data.self.role !== "defender" || !available.length) return;
-  state.cameraViewIndex = state.cameraViewIndex >= 0 ? -1 : available[0];
-  clearMovementInput();
-  render();
-}
 
-function nextCameraView() {
-  const available = availableCameraIndices(state.data);
-  if (!available.length || state.cameraViewIndex < 0) return;
-  const position = available.indexOf(state.cameraViewIndex);
-  state.cameraViewIndex = available[(position + 1) % available.length];
-}
 
-function availableCameraIndices(data) {
-  return (data?.map?.cameras || [])
-    .map((camera, index) => ({ camera, index }))
-    .filter(({ camera }) => !camera.destroyed)
-    .map(({ index }) => index);
-}
 
-function currentCamera(data) {
-  if (state.cameraViewIndex < 0) return null;
-  const camera = data?.map?.cameras?.[state.cameraViewIndex];
-  return camera && !camera.destroyed ? camera : null;
-}
+
+
+
+
 
 function triggerTeleportAction() {
   const data = state.data;
@@ -10355,7 +10326,6 @@ function resetLocalSession() {
   state.gunTriggerPointerId = null;
   state.gunFireStartPromise = null;
   els.shootButton.classList.remove("active");
-  state.cameraViewIndex = -1;
   state.operatorRenderKey = "";
   state.resultBoardFingerprint = "";
   if (typeof clearResultSettlementPresentation === "function") clearResultSettlementPresentation();
@@ -10462,10 +10432,6 @@ function applyState(data, options = {}) {
     state.mapPointer = null;
     syncExpandedMapUi();
   }
-  if (state.cameraViewIndex >= 0 && (data.phase !== "playing" || data.self.role !== "defender")) {
-    state.cameraViewIndex = -1;
-  }
-  if (state.cameraViewIndex >= 0 && !currentCamera(data)) state.cameraViewIndex = -1;
   detectGameSounds(state.data, data);
   detectAttackResult(state.data, data);
   detectLuminousResult(state.data, data);
@@ -11235,8 +11201,6 @@ function detectWorldSounds(previous, next) {
 }
 
 function worldSoundListener(data) {
-  const camera = currentCamera(data);
-  if (camera) return camera;
   const self = data.players.find((player) => player.id === data.selfId);
   return self ? renderedPlayer(self) : null;
 }
@@ -14428,7 +14392,6 @@ function updateActionButtons(data) {
   const liveNow = estimatedServerNow(data);
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
   const dodgeStaminaCost = Number(self.dodgeStaminaCost) || 200;
-  const cameraIndices = availableCameraIndices(data);
   const aiming = Boolean(aimed && self.aimTargetId);
   const dodgeAccess = self.role === "defender" || fighterAccess;
 
@@ -14441,7 +14404,6 @@ function updateActionButtons(data) {
     fighterAccess,
     borrowedGunnerAccess,
     canUseKill,
-    state.cameraViewIndex >= 0 && cameraIndices.length >= 2,
     (self.fireJutsuCharges || 0) > 0,
     hasDisplayedOperatorAccess(self, "gravity"),
     hasDisplayedOperatorAccess(self, "flora"),
@@ -14468,8 +14430,6 @@ function updateActionButtons(data) {
       : !["fighter", "teleport", "flora", "quantum", "alchemist"].includes(self.special);
     els.gunnerReloadButton.hidden = true;
     els.empButton.hidden = false;
-    els.cameraButton.hidden = self.role !== "defender";
-    els.nextCameraButton.hidden = self.role !== "defender";
     els.fireJutsuButton.hidden = !(self.fireJutsuCharges > 0);
     els.mapActionButton.hidden = false;
     els.substitutionStatusButton.hidden = true;
@@ -14715,10 +14675,6 @@ function updateActionButtons(data) {
   const empPhaseLabel = els.empPhaseSelect.value === "negative" ? "逆相" : "正相";
   els.empButton.textContent = empSeconds > 0 ? `${empPhaseLabel}EMP ${empSeconds}秒` : `${empPhaseLabel}EMP`;
   els.empButton.disabled = !(canUseAbility && empSeconds === 0);
-  els.cameraButton.textContent = state.cameraViewIndex >= 0 ? "監視終了" : "監視カメラ";
-  els.cameraButton.classList.toggle("active", state.cameraViewIndex >= 0);
-  els.cameraButton.disabled = !(canUseAbility && self.role === "defender" && cameraIndices.length);
-  els.nextCameraButton.disabled = state.cameraViewIndex < 0;
   const renkiSeconds = Math.max(0, ((self.meditatingUntil || 0) - liveNow) / 1000);
   const desireRenkiAvailable = self.desireDebtActive || Number(self.mana) <= -100;
   els.renkiButton.textContent = desireRenkiAvailable
@@ -15136,7 +15092,6 @@ function detectRoomChat(_previous, next) {
 function sendMovement(forceStop = false) {
   const data = state.data;
   if (!data || data.phase !== "playing") return;
-  if (state.cameraViewIndex >= 0 && !forceStop) return;
   const actionLocksMovement = Boolean(state.enhanceHold.kind) || state.throwTargeting.active || state.clairvoyance.active;
   const direction = forceStop || actionLocksMovement ? { dx: 0, dy: 0 } : getDirection();
   const moving = Boolean(direction.dx || direction.dy);
@@ -15645,7 +15600,6 @@ function draw() {
 function worldZoomFor(data = state.data) {
   if (!data) return CAMERA_ZOOM;
   if (throwTargetClairvoyanceActive(data) || state.clairvoyance.active) return CLAIRVOYANCE_ZOOM;
-  if (state.cameraViewIndex >= 0) return CAMERA_ZOOM;
   return CAMERA_ZOOM;
 }
 
@@ -15682,11 +15636,6 @@ function drawModeBanner(data, w) {
     text = "千里眼 / 着地点追従 / 全域投擲";
   } else if (state.clairvoyance.active) {
     text = "千里眼 / 広域観測 / Zで解除";
-  } else if (state.cameraViewIndex >= 0) {
-    const camera = currentCamera(data);
-    const available = availableCameraIndices(data);
-    const position = available.indexOf(state.cameraViewIndex) + 1;
-    text = `監視カメラ / ${camera?.label || "カメラ"} / ${position}-${available.length}`;
   } else if (data.self.aimTargetId) {
     const target = data.players.find((player) => player.id === data.self.aimTargetId);
     const remaining = Math.max(0, data.self.aimReadyAt - estimatedServerNow(data));
@@ -15726,14 +15675,13 @@ function cameraFor(data, w, h, zoom = 1) {
         y: (Number(killCamera.victimY) + Number(killCamera.killerY)) / 2
       }
     : null;
-  const selectedCamera = currentCamera(data);
   const throwTarget = state.throwTargeting.active
     ? { x: state.throwTargeting.targetX, y: state.throwTargeting.targetY }
     : null;
   const clairvoyanceTarget = !throwTarget && state.clairvoyance.active
     ? { x: state.clairvoyance.x, y: state.clairvoyance.y }
     : null;
-  const target = killCameraTarget || throwTarget || clairvoyanceTarget || selectedCamera || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
+  const target = killCameraTarget || throwTarget || clairvoyanceTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
   const viewW = w / zoom;
   const viewH = h / zoom;
   const desiredX = clamp(target.x - viewW / 2, 0, Math.max(0, data.map.width - viewW));
@@ -15744,8 +15692,6 @@ function cameraFor(data, w, h, zoom = 1) {
     ? `throw-target:${throwTargetClairvoyanceActive(data) ? "clairvoyance" : "follow"}:${zoom}`
     : clairvoyanceTarget
       ? `clairvoyance:${zoom}`
-      : selectedCamera
-      ? `camera:${selectedCamera.id}`
       : `player:${data.selfId}:${zoom}`;
   const camera = state.camera;
   if (!camera.initialized || camera.mode !== mode) {
@@ -17041,45 +16987,6 @@ function drawStations(data) {
     }
   });
 
-  data.map.cameras.forEach((camera) => {
-    if (!worldPointVisible(camera.x, camera.y, 100)) return;
-    const integrated = Boolean(roomCompositeForPoint(data, "", camera));
-    if (!integrated && drawGeneratedPropCell(facilityProps, 2, camera.x, camera.y, 76, 56, camera.destroyed ? 0.42 : 1)) {
-      if (camera.destroyed) {
-        ctx.save();
-        ctx.strokeStyle = "#ef4444";
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.moveTo(camera.x - 28, camera.y - 24);
-        ctx.lineTo(camera.x + 28, camera.y + 24);
-        ctx.moveTo(camera.x + 28, camera.y - 24);
-        ctx.lineTo(camera.x - 28, camera.y + 24);
-        ctx.stroke();
-        ctx.restore();
-      }
-      return;
-    }
-    if (integrated && !camera.destroyed) return;
-    ctx.save();
-    ctx.translate(camera.x, camera.y);
-    ctx.fillStyle = camera.destroyed ? "rgba(71,85,105,0.72)" : "#67e8f9";
-    ctx.strokeStyle = camera.destroyed ? "#ef4444" : "#083344";
-    ctx.lineWidth = 3;
-    roundRect(-15, -10, 30, 20, 4, true, true);
-    ctx.beginPath();
-    ctx.arc(5, 0, 5, 0, Math.PI * 2);
-    ctx.stroke();
-    if (camera.destroyed) {
-      ctx.beginPath();
-      ctx.moveTo(-18, -15);
-      ctx.lineTo(18, 15);
-      ctx.moveTo(18, -15);
-      ctx.lineTo(-18, 15);
-      ctx.stroke();
-    }
-    ctx.restore();
-  });
-
 }
 
 function drawFacilityEffects(data) {
@@ -17131,22 +17038,7 @@ function drawFacilityEffects(data) {
     }
   });
 
-  data.map.cameras.forEach((camera, index) => {
-    if (!worldPointVisible(camera.x, camera.y, 100)) return;
-    if (camera.destroyed) return;
-    const angle = time * 0.72 + index * 1.7;
-    const length = 52;
-    ctx.strokeStyle = "rgba(34,211,238,0.34)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(camera.x, camera.y);
-    ctx.lineTo(camera.x + Math.cos(angle) * length, camera.y + Math.sin(angle) * length);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(240,253,255,0.72)";
-    ctx.beginPath();
-    ctx.arc(camera.x + Math.cos(angle) * length, camera.y + Math.sin(angle) * length, 3, 0, Math.PI * 2);
-    ctx.fill();
-  });
+
 
   ctx.restore();
 }
@@ -20931,10 +20823,9 @@ function drawRainbowSpark(x, y, radius, hue, rotation) {
 }
 
 function drawPlayers(data) {
-  const selectedCamera = currentCamera(data);
   const ordered = [...data.players]
     .map((player) => renderedPlayer(player))
-    .filter((player) => (!selectedCamera || dist(player, selectedCamera) <= selectedCamera.range) && worldPointVisible(player.x, player.y, 240))
+    .filter((player) => worldPointVisible(player.x, player.y, 240))
     .sort((a, b) => Number(a.alive) - Number(b.alive));
   ordered.forEach((player) => {
     if (player.inVent || (player.invisible && player.id !== data.selfId)) return;
@@ -23535,7 +23426,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-icon-restart-v705";
+const version = "surveillance-camera-removal-v706";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24600,7 +24491,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-icon-restart-v705", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=surveillance-camera-removal-v706", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

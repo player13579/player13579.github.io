@@ -6292,40 +6292,6 @@ const ADVANCED_STATION_MAP = Object.freeze({
     }
   ],
   "vents": [],
-  "cameras": [
-    {
-      "id": "cam-archive",
-      "label": "記録院",
-      "x": 1026,
-      "y": 299,
-      "room": "archive",
-      "range": 420
-    },
-    {
-      "id": "cam-atrium",
-      "label": "中央アトリウム",
-      "x": 2500,
-      "y": 1145,
-      "room": "atrium",
-      "range": 480
-    },
-    {
-      "id": "cam-engineering",
-      "label": "工学区",
-      "x": 3528,
-      "y": 1274,
-      "room": "engineering",
-      "range": 420
-    },
-    {
-      "id": "cam-south",
-      "label": "南部区画",
-      "x": 2371,
-      "y": 2676,
-      "room": "medical",
-      "range": 420
-    }
-  ],
   "doors": [
     {
       "id": "d-archive-security",
@@ -6900,15 +6866,6 @@ const LABORATORY_MAP = Object.freeze({
       "room": "hub"
     },
     {
-      "id": "cameras",
-      "type": "utility",
-      "utility": "cameras",
-      "label": "観測カメラ卓",
-      "x": 1113,
-      "y": 313,
-      "room": "labs"
-    },
-    {
       "id": "vitals",
       "type": "utility",
       "utility": "vitals",
@@ -7183,36 +7140,6 @@ const LABORATORY_MAP = Object.freeze({
       ]
     }
   ],
-  "cameras": [
-    {
-      "id": "cam-labs",
-      "label": "分析・合成研究室",
-      "x": 1475,
-      "y": 875,
-      "range": 525
-    },
-    {
-      "id": "cam-hub",
-      "label": "研究統合ロビー",
-      "x": 2375,
-      "y": 1075,
-      "range": 575
-    },
-    {
-      "id": "cam-drill",
-      "label": "量子物性研究室",
-      "x": 3275,
-      "y": 875,
-      "range": 525
-    },
-    {
-      "id": "cam-relax",
-      "label": "リラクゼーションラウンジ",
-      "x": 3275,
-      "y": 2213,
-      "range": 525
-    }
-  ],
   "doors": [
     {
       "id": "door-labs",
@@ -7426,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "emp-icon-restart-v705",
+    version: "surveillance-camera-removal-v706",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7448,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "emp-icon-restart-v705";
+const PRODUCT_RELEASE = "surveillance-camera-removal-v706";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -8221,7 +8148,6 @@ const MAPS = {
       { id: "repair-oxygen-a", type: "repair", repair: "oxygen", label: "Atmos Node A", x: 185, y: 290, room: "archive" },
       { id: "repair-oxygen-b", type: "repair", repair: "oxygen", label: "Atmos Node B", x: 1465, y: 1090, room: "comms" },
       { id: "admin", type: "utility", utility: "admin", label: "Census Console", x: 1180, y: 640, room: "meeting" },
-      { id: "cameras", type: "utility", utility: "cameras", label: "Optics", x: 910, y: 180, room: "security" },
       { id: "vitals", type: "utility", utility: "vitals", label: "Biometrics", x: 765, y: 1135, room: "med" },
       { id: "doorlog", type: "utility", utility: "doorlog", label: "Transit Log", x: 1540, y: 915, room: "comms" }
     ],
@@ -8242,12 +8168,7 @@ const MAPS = {
       { id: "vent-comms", x: 1790, y: 1120, links: ["vent-med", "vent-engine"] },
       { id: "vent-engine", x: 1795, y: 690, links: ["vent-reactor", "vent-comms"] }
     ],
-    cameras: [
-      { id: "cam-north", label: "Zenith Walk", x: 1110, y: 240, range: 240 },
-      { id: "cam-west", label: "Vault Walk", x: 470, y: 660, range: 230 },
-      { id: "cam-east", label: "Core Walk", x: 1490, y: 690, range: 230 },
-      { id: "cam-south", label: "Nadir Walk", x: 1030, y: 960, range: 230 }
-    ],
+
     doors: [
       { id: "door-archive", label: "Vault Gate" },
       { id: "door-reactor", label: "Core Gate" },
@@ -8320,7 +8241,6 @@ const MAPS = {
       { id: "repair-oxygen-a", type: "repair", repair: "oxygen", label: "Atmos Node A", x: 1455, y: 905, room: "greenhouse" },
       { id: "repair-oxygen-b", type: "repair", repair: "oxygen", label: "Atmos Node B", x: 305, y: 185, room: "labs" },
       { id: "admin", type: "utility", utility: "admin", label: "Census Console", x: 1080, y: 625, room: "hub" },
-      { id: "cameras", type: "utility", utility: "cameras", label: "Optics", x: 210, y: 335, room: "labs" },
       { id: "vitals", type: "utility", utility: "vitals", label: "Biometrics", x: 470, y: 220, room: "labs" },
       { id: "doorlog", type: "utility", utility: "doorlog", label: "Transit Log", x: 1530, y: 1010, room: "greenhouse" }
     ],
@@ -8342,11 +8262,7 @@ const MAPS = {
       { id: "vent-power", x: 525, y: 1080, links: ["vent-labs", "vent-garden"] },
       { id: "vent-garden", x: 1690, y: 1060, links: ["vent-hub", "vent-power"] }
     ],
-    cameras: [
-      { id: "cam-labs", label: "Synthesis Walk", x: 555, y: 255, range: 230 },
-      { id: "cam-hub", label: "Concourse", x: 955, y: 470, range: 230 },
-      { id: "cam-east", label: "Dome Walk", x: 1275, y: 655, range: 220 }
-    ],
+
     doors: [
       { id: "door-labs", label: "Synthesis Gate" },
       { id: "door-drill", label: "Bore Gate" },
@@ -8379,11 +8295,7 @@ function expandMap(map, scale) {
   scalePoints(map.stations, scale);
   scalePoints(map.objects, scale);
   scalePoints(map.vents, scale);
-  scalePoints(map.cameras, scale);
   scaleRects(map.doors, scale);
-  for (const camera of map.cameras) {
-    camera.range = Math.round(camera.range * scale);
-  }
   map.expandedScale = scale;
 }
 
@@ -9470,7 +9382,6 @@ function createRoom(id) {
     mysteryBoxes: [],
     lastTickAt: now(),
     doorState: {},
-    destroyedCameras: {},
     utilityViews: new Map(),
     doorLog: [],
     matchmaking: null,
@@ -10721,7 +10632,6 @@ function startGame(room) {
   room.sabotage = null;
   room.activeEmps = [];
   room.doorState = {};
-  room.destroyedCameras = {};
   room.utilityViews.clear();
   room.doorLog = [];
 
@@ -16086,15 +15996,8 @@ function applyEmpBodyDamage(room, source, target, timestamp) {
 function resolveStandardEmp(room, pulse, timestamp) {
   const player = room.players.get(pulse.playerId);
   if (!player) return;
-  let cameras = 0;
   let itemLocks = 0;
   let friendlyReflections = 0;
-  const map = getMap(room);
-  for (const camera of map.cameras) {
-    if (room.destroyedCameras[camera.id] || distance(pulse, camera) > EMP_RANGE) continue;
-    room.destroyedCameras[camera.id] = true;
-    cameras += 1;
-  }
   for (const target of room.players.values()) {
     if (target.id !== player.id && target.alive && !target.ejected && distance(pulse, target) <= EMP_RANGE) {
       if (player.role === target.role && ["defender", "attacker"].includes(player.role)) {
@@ -16123,7 +16026,7 @@ function resolveStandardEmp(room, pulse, timestamp) {
     volume: 1
   });
   pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase });
-  pushEvent(room, `${pulse.phase === "positive" ? "正相" : "逆相"}EMP発生: カメラ${cameras}台 / ストレージ遮断${itemLocks}人 / 味方反射${friendlyReflections}件`);
+  pushEvent(room, `${pulse.phase === "positive" ? "正相" : "逆相"}EMP発生: ストレージ遮断${itemLocks}人 / 味方反射${friendlyReflections}件`);
   checkWin(room);
   touch(room);
 }
@@ -20971,7 +20874,8 @@ function doorCenter(door) {
 function makeUtility(room, player, type) {
   if (room.phase !== "playing") throw new ApiError(400, "会議中はUtilityを見られません。");
   if (player.ejected || player.inVent) throw new ApiError(403, "Utilityを見られません。");
-  const utilityType = ["admin", "cameras", "vitals", "doorlog"].includes(type) ? type : "admin";
+  if (type === "cameras") throw new ApiError(404, "監視カメラは利用できません。");
+  const utilityType = ["admin", "vitals", "doorlog"].includes(type) ? type : "admin";
   const map = getMap(room);
   const near = nearestStation(room, player, (station) => station.type === "utility" && station.utility === utilityType, map.taskRange);
   if (!near) throw new ApiError(400, `${nearUtilityLabel(utilityType)} 端末に近づいてください。`);
@@ -21001,16 +20905,7 @@ function makeUtility(room, player, type) {
     };
   }
 
-  if (utilityType === "cameras") {
-    const lines = map.cameras.map((camera) => {
-      if (room.destroyedCameras[camera.id]) return `${camera.label}: OFFLINE (EMP)`;
-      const seen = [...room.players.values()]
-        .filter((other) => other.alive && !other.ejected && !other.inVent && distance(other, camera) <= camera.range)
-        .map((other) => other.name);
-      return `${camera.label}: ${seen.length ? seen.join(", ") : "反応なし"}`;
-    });
-    return { type: utilityType, title: "Optics", lines };
-  }
+
 
   return {
     type: utilityType,
@@ -21022,7 +20917,6 @@ function makeUtility(room, player, type) {
 function nearUtilityLabel(type) {
   return {
     admin: "Census Console",
-    cameras: "Optics",
     vitals: "Biometrics",
     doorlog: "Transit Log"
   }[type] || "Utility";
@@ -21132,7 +21026,6 @@ function operatorState(room) {
 function visibleStations(map) {
   return map.stations.filter((station) => {
     if (station.type === "repair" && station.repair === "lights") return false;
-    if (station.type === "utility" && station.utility === "cameras") return false;
     return station.type !== "task" || station.task === "download" || station.task === "upload";
   });
 }
@@ -21604,7 +21497,6 @@ function serialize(room, viewer, options = {}) {
       alchemyObjects: room.alchemyObjects || [],
       mysteryBoxes: (room.mysteryBoxes || []).map((box) => ({ ...box })),
       vents: map.vents,
-      cameras: map.cameras.map((camera) => ({ ...camera, destroyed: Boolean(room.destroyedCameras[camera.id]) })),
       portals: map.portals,
       doors: map.doors,
       environmentContractVersion: map.environmentContractVersion || ""
@@ -23857,7 +23749,6 @@ async function handleApi(req, res) {
       room.sabotage = null;
       room.activeEmps = [];
       room.doorState = {};
-      room.destroyedCameras = {};
       room.doorLog = [];
       room.utilityViews.clear();
       for (const entry of room.players.values()) {
@@ -26052,5 +25943,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "emp-icon-restart-v705" });
+self.postMessage({ type: "ready", version: "surveillance-camera-removal-v706" });
 })();
