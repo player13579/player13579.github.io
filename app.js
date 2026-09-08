@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "unused-donation-preloads-v711";
+const DVA_CLIENT_RELEASE = "ate-emission-glow-v712";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -893,7 +893,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "unused-donation-preloads-v711";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "ate-emission-glow-v712";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -16909,10 +16909,12 @@ function drawGravityZones(data) {
       const safeX = Number.isFinite(Number(zone.safeX)) ? Number(zone.safeX) : zone.x;
       const safeY = Number.isFinite(Number(zone.safeY)) ? Number(zone.safeY) : zone.y;
       if (!worldPointVisible(safeX, safeY, safeRadius + 70)) continue;
-      const safePulse = 1 + Math.sin(phase * 1.65) * 0.04;
+      const reduced = prefersReducedMotion();
+      const safePulse = reduced ? 1 : 1 + Math.sin(phase * 1.65) * 0.04;
+      const glowPhase = reduced ? 0.5 : phase;
       ctx.save();
       ctx.translate(safeX, safeY);
-      ctx.rotate(-phase * 0.04);
+      ctx.rotate(reduced ? 0 : -phase * 0.04);
       ctx.globalCompositeOperation = "screen";
       ctx.globalAlpha = 0.82;
       ctx.drawImage(
@@ -16922,6 +16924,26 @@ function drawGravityZones(data) {
         safeRadius * safePulse * 2,
         safeRadius * safePulse * 2
       );
+      ctx.globalCompositeOperation = "lighter";
+      const core = ctx.createRadialGradient(0, 0, safeRadius * 0.12, 0, 0, safeRadius * 0.88);
+      core.addColorStop(0, "rgba(236, 254, 255, 0.96)");
+      core.addColorStop(0.34, "rgba(125, 211, 252, 0.72)");
+      core.addColorStop(1, "rgba(59, 130, 246, 0)");
+      ctx.globalAlpha = 0.78;
+      ctx.fillStyle = core;
+      ctx.fillRect(-safeRadius, -safeRadius, safeRadius * 2, safeRadius * 2);
+      ctx.shadowColor = "rgba(147, 197, 253, 0.94)";
+      ctx.shadowBlur = Math.max(12, safeRadius * 0.16);
+      ctx.strokeStyle = "rgba(224, 242, 254, 0.94)";
+      ctx.lineWidth = Math.max(2, safeRadius * 0.028);
+      for (let index = 0; index < 4; index += 1) {
+        const angle = glowPhase * 0.7 + index * Math.PI * 0.5;
+        const arcRadius = safeRadius * 0.66;
+        ctx.globalAlpha = 0.52 + (index % 2) * 0.18;
+        ctx.beginPath();
+        ctx.arc(0, 0, arcRadius, angle - 0.24, angle + 0.24);
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -17451,14 +17473,14 @@ function normalizeAteGlowMode(mode = "energy") {
 
 function applyAteGlowContext(targetContext, mode, time = 0, phase = 0, intensity = 1) {
   const profile = ATE_GLOW_PROFILES[normalizeAteGlowMode(mode)];
-  const strength = clamp(Number(intensity) || 0, 0.12, 1.6);
+  const strength = clamp(Number(intensity) || 0, 0.18, 2.25);
   const pulse = 1 + Math.sin(time * (2.1 + profile.pulse * 2.4) + phase * Math.PI * 2) * profile.pulse;
-  const auraBlur = Math.max(6, profile.blur * pulse * strength);
-  const outerBlur = Math.max(8, profile.blur * 1.72 * (0.94 + pulse * 0.06) * strength);
+  const auraBlur = Math.max(10, profile.blur * pulse * strength * 1.18);
+  const outerBlur = Math.max(14, profile.blur * 2.08 * (0.94 + pulse * 0.06) * strength);
   const inheritedFilter = targetContext.filter && targetContext.filter !== "none" ? `${targetContext.filter} ` : "";
   targetContext.filter = `${inheritedFilter}drop-shadow(0 0 ${auraBlur.toFixed(2)}px ${profile.aura})`;
   targetContext.shadowColor = profile.outer;
-  targetContext.shadowBlur = outerBlur * 0.46;
+  targetContext.shadowBlur = outerBlur * 0.78;
   return profile;
 }
 
@@ -17469,7 +17491,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   const normalizedMode = normalizeAteGlowMode(mode);
   const profile = ATE_GLOW_PROFILES[normalizedMode];
   const sampledTime = Math.floor(time * 60) / 60;
-  const strength = clamp(rawIntensity, 0, 1.4);
+  const strength = clamp(rawIntensity, 0, 1.9);
   const count = normalizedMode === "resonance" ? 10 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 7 : 5;
   const direction = normalizedMode === "data-down" ? 1 : -1;
 
@@ -17477,7 +17499,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   targetContext.globalCompositeOperation = "lighter";
   targetContext.filter = "none";
   targetContext.shadowColor = profile.aura;
-  targetContext.shadowBlur = Math.max(4, profile.blur * 0.42 * strength);
+  targetContext.shadowBlur = Math.max(8, profile.blur * 0.78 * strength);
   for (let index = 0; index < count; index += 1) {
     const seed = phase * 7.13 + index * 1.917;
     const cycle = ((sampledTime * (0.34 + index * 0.013) + seed) % 1 + 1) % 1;
@@ -17563,7 +17585,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
     targetContext.save();
     targetContext.translate(x, y);
     targetContext.rotate(rotation);
-    targetContext.globalAlpha = clamp((0.16 + life * 0.5) * strength, 0, 0.82);
+    targetContext.globalAlpha = clamp((0.28 + life * 0.62) * strength, 0, 0.98);
     targetContext.fillStyle = index % 2 ? profile.core : profile.aura;
     targetContext.fillRect(-shardWidth / 2, -shardHeight / 2, shardWidth, shardHeight);
     targetContext.restore();
@@ -18406,6 +18428,24 @@ function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize)
       baseAlpha: 0.14
     });
     ctx.globalCompositeOperation = "lighter";
+    const reduced = prefersReducedMotion();
+    const seat = reduced ? 0.58 : rise;
+    const coreRadius = 32 + seat * 34;
+    const core = ctx.createRadialGradient(0, 28 - seat * 18, coreRadius * 0.08, 0, 28 - seat * 18, coreRadius);
+    core.addColorStop(0, "rgba(255, 250, 210, 0.96)");
+    core.addColorStop(0.34, "rgba(157, 255, 241, 0.7)");
+    core.addColorStop(1, "rgba(103, 232, 249, 0)");
+    ctx.globalAlpha = fade * (0.52 + compression * 0.28);
+    ctx.fillStyle = core;
+    ctx.fillRect(-coreRadius, 28 - seat * 18 - coreRadius, coreRadius * 2, coreRadius * 2);
+    ctx.shadowColor = "rgba(157, 255, 241, 0.96)";
+    ctx.shadowBlur = 14 + seat * 10;
+    ctx.strokeStyle = "rgba(236, 254, 255, 0.98)";
+    ctx.lineWidth = 2.2;
+    ctx.globalAlpha = fade * (0.46 + rebound * 0.32);
+    ctx.beginPath();
+    ctx.arc(0, 28 - seat * 18, 22 + seat * 22, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
     for (let index = 0; index < 7; index += 1) {
       const lift = clamp((progress - index * 0.04) / 0.7, 0, 1);
       const offsetX = ((index * 37) % 88) - 44;
@@ -18946,15 +18986,16 @@ function drawShopActivationEffect(effect, progress, now) {
     baseAlpha: 0.16,
     opacityBoost: 1.34
   });
-  // E: paired counter handoff rails carry a restrained cyan emission from
+  // E: paired counter handoff rails carry a bright cyan emission from
   // the kiosk center as its shutters open. This is not a generic pulse and
   // does not redraw the awning rim or the texture's own neon outline.
-  ctx.strokeStyle = `rgba(104, 255, 239, ${0.5 * pulse * (1 - settle)})`;
-  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = `rgba(104, 255, 239, ${(reduced ? 1 : pulse) * (1 - settle)})`;
+  ctx.globalAlpha = 1 - settle;
+  ctx.lineWidth = 3.2;
   ctx.lineCap = "round";
-  ctx.shadowColor = "rgba(90, 255, 232, 0.78)";
-  ctx.shadowBlur = reduced ? 2.8 : 1.8 + opening * 3.4 - settle * 1.2;
-  const eLayerTravel = 18 + opening * 42;
+  ctx.shadowColor = "rgba(90, 255, 232, 1)";
+  ctx.shadowBlur = reduced ? 15 : 10 + opening * 12;
+  const eLayerTravel = 18 + (reduced ? .5 : opening) * 42;
   ctx.beginPath();
   ctx.moveTo(effect.x - 7, effect.y - 29);
   ctx.lineTo(effect.x - eLayerTravel, effect.y - 29);
@@ -19014,8 +19055,8 @@ function drawRestartPickupAte(effect,progress) {
   const item=restartPickupItemFrame(effect.variant);
   if(item){const scale=30/Math.max(item.width,item.height),w=item.width*scale,h=item.height*scale;ctx.drawImage(item,-w/2,(730/1254-.5)*size-h/2,w,h);}
   // Independently measured left/right tray contacts. Local seating in sequence.
-  ctx.globalCompositeOperation='lighter';ctx.lineWidth=1.2;ctx.lineCap='round';ctx.strokeStyle='#ffe8aa';ctx.shadowColor='#ffe1a0';ctx.shadowBlur=2;
-  for(const [x,delay] of [[376,0],[877,.2]]){const seat=clamp((q-delay)/.45,0,1);ctx.globalAlpha=fade*(.12+.12*seat);ctx.beginPath();ctx.moveTo((x/1254-.5)*size-1,(752/1254-.5)*size);ctx.lineTo((x/1254-.5)*size+1,(752/1254-.5)*size);ctx.stroke();}
+  ctx.globalCompositeOperation='lighter';ctx.lineWidth=1.8;ctx.lineCap='round';ctx.strokeStyle='#fff2cf';ctx.shadowColor='#ffe1a0';ctx.shadowBlur=11;
+  for(const [x,delay] of [[376,0],[877,.2]]){const seat=clamp((q-delay)/.45,0,1);ctx.globalAlpha=fade*(.45+.5*seat);ctx.beginPath();ctx.moveTo((x/1254-.5)*size-2.6,(752/1254-.5)*size);ctx.lineTo((x/1254-.5)*size+2.6,(752/1254-.5)*size);ctx.stroke();}
   ctx.restore();return true;
 }
 
@@ -19046,9 +19087,9 @@ function drawRestartTerminalReceipt(data) {
   const q=prefersReducedMotion()?.55:clamp(1-remaining/1800,0,1),fade=clamp(remaining/300,0,1);
   c.save();c.globalCompositeOperation='source-over';c.globalAlpha=.62*fade;c.filter='none';c.shadowBlur=0;c.shadowColor='transparent';c.shadowOffsetX=0;c.shadowOffsetY=0;c.drawImage(image,0,0,96,96);
   // Measured lower screen reception origin (601,871), local short settling light.
-  const x=601/1254*96,y=871/1254*96,radius=1.5+q*.6,g=c.createRadialGradient(x,y,0,x,y,radius);
-  g.addColorStop(0,'rgba(165,255,244,.7)');g.addColorStop(1,'rgba(165,255,244,0)');
-  c.globalCompositeOperation='lighter';c.globalAlpha=.24*fade;c.fillStyle=g;c.fillRect(x-radius,y-radius,radius*2,radius*2);c.restore();
+  const x=601/1254*96,y=871/1254*96,radius=6+q*3,g=c.createRadialGradient(x,y,0,x,y,radius);
+  g.addColorStop(0,'rgba(221,255,250,1)');g.addColorStop(.45,'rgba(165,255,244,.65)');g.addColorStop(1,'rgba(165,255,244,0)');
+  c.globalCompositeOperation='lighter';c.globalAlpha=.9*fade;c.fillStyle=g;c.fillRect(x-radius,y-radius,radius*2,radius*2);c.restore();
 }
 
 function commonActionSimpleItemSprite(itemId) {
@@ -19209,13 +19250,13 @@ function drawRestartCoreIcon(kind, position, progress, completion = false, persi
   ctx.drawImage(image,-size/2,-size/2,size,size);
   ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
   const edge=(a,b,strength=.22,width=1.1,color='#b6efff')=>{
-    ctx.globalAlpha=fade*strength;ctx.lineWidth=width;ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=2;
+    ctx.globalAlpha=fade*Math.min(1,strength*3.8);ctx.lineWidth=width*1.5;ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=11;
     ctx.beginPath();ctx.moveTo(...at(...a));ctx.lineTo(...at(...b));ctx.stroke();
   };
   const glow=(point,strength,radius=2.2,color='126,216,255')=>{
-    const [x,y]=at(...point),g=ctx.createRadialGradient(x,y,0,x,y,radius);
-    g.addColorStop(0,`rgba(${color},.65)`);g.addColorStop(.5,`rgba(${color},.2)`);g.addColorStop(1,`rgba(${color},0)`);
-    ctx.shadowBlur=0;ctx.globalAlpha=fade*strength;ctx.fillStyle=g;ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
+    radius*=3.2;const [x,y]=at(...point),g=ctx.createRadialGradient(x,y,0,x,y,radius);
+    g.addColorStop(0,`rgba(${color},1)`);g.addColorStop(.5,`rgba(${color},.55)`);g.addColorStop(1,`rgba(${color},0)`);
+    ctx.shadowBlur=0;ctx.globalAlpha=fade*Math.min(1,strength*4);ctx.fillStyle=g;ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
   };
   // Raw-image contacts, not whole-icon transforms or paths across transparent gaps.
   if(kind==='repair') {
@@ -19356,9 +19397,9 @@ function drawFieldRestartIcon(kind, x, y, size, phase, fade = 1) {
   ctx.lineCap = "round";
   const light = (color, alpha) => {
     ctx.strokeStyle = color; ctx.fillStyle = color; ctx.shadowColor = color;
-    ctx.shadowBlur = size * 0.045; ctx.globalAlpha = alpha * opacity;
+    ctx.shadowBlur = size * 0.14; ctx.globalAlpha = Math.min(1, alpha * 1.8) * opacity;
   };
-  const line = (a,b,width) => { ctx.lineWidth = width * size / 1254; ctx.beginPath(); ctx.moveTo(px(a[0]),px(a[1])); ctx.lineTo(px(b[0]),px(b[1])); ctx.stroke(); };
+  const line = (a,b,width) => { ctx.lineWidth = width * 1.55 * size / 1254; ctx.beginPath(); ctx.moveTo(px(a[0]),px(a[1])); ctx.lineTo(px(b[0]),px(b[1])); ctx.stroke(); };
   if (kind === "comms") {
     // Packet stops on the left face of the interruption; no path crosses the right gap.
     light("#9df8ef", 0.65 * (1-q*0.65));
@@ -19474,14 +19515,14 @@ function drawRestartSocialAte(effect, progress, now) {
     ctx.drawImage(sprite, -48, -48, 96, 96);
     ctx.globalCompositeOperation = 'lighter';
     const light = (px, py, strength, radius, rgb) => {
-      const [x,y] = at(px,py), g = ctx.createRadialGradient(x,y,0,x,y,radius);
-      g.addColorStop(0,`rgba(${rgb},.65)`); g.addColorStop(.45,`rgba(${rgb},.22)`); g.addColorStop(1,`rgba(${rgb},0)`);
-      ctx.globalAlpha = fade * strength; ctx.fillStyle = g; ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
+      radius *= 3.5; const [x,y] = at(px,py), g = ctx.createRadialGradient(x,y,0,x,y,radius);
+      g.addColorStop(0,`rgba(${rgb},1)`); g.addColorStop(.45,`rgba(${rgb},.6)`); g.addColorStop(1,`rgba(${rgb},0)`);
+      ctx.globalAlpha = fade * Math.min(1,strength * 3.8); ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.fillStyle = g; ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
     };
     const band = (px,py,width,strength,rgb) => {
-      const [x,y] = at(px,py), g = ctx.createLinearGradient(x-width,y,x+width,y);
-      g.addColorStop(0,`rgba(${rgb},0)`);g.addColorStop(.5,`rgba(${rgb},.55)`);g.addColorStop(1,`rgba(${rgb},0)`);
-      ctx.globalAlpha=fade*strength;ctx.fillStyle=g;ctx.fillRect(x-width,y-.7,width*2,1.4);
+      width *= 2.2; const [x,y] = at(px,py), g = ctx.createLinearGradient(x-width,y,x+width,y);
+      g.addColorStop(0,`rgba(${rgb},0)`);g.addColorStop(.5,`rgba(${rgb},1)`);g.addColorStop(1,`rgba(${rgb},0)`);
+      ctx.globalAlpha=fade*Math.min(1,strength*4);ctx.fillStyle=g;ctx.shadowColor=`rgb(${rgb})`;ctx.shadowBlur=8;ctx.fillRect(x-width,y-1.1,width*2,2.2);
     };
     const delta = effect.donationResultDelta;
     const realDelta = typeof delta === 'number' && Number.isFinite(delta);
@@ -19636,14 +19677,14 @@ function drawRestartEmpAte(effect, progress, now) {
       return at([points[i][0] + (points[i + 1][0] - points[i][0]) * t, points[i][1] + (points[i + 1][1] - points[i][1]) * t]);
     };
     const a = pos(fraction), b = pos(Math.min(1, fraction + span));
-    ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 2.2;
-    ctx.lineWidth = width; ctx.globalAlpha = fade * gain;
+    ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 12;
+    ctx.lineWidth = width * 1.6; ctx.globalAlpha = fade * Math.min(1, gain * 3.8);
     ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
   }
   function glow(point, radius, color, gain) {
-    const [gx, gy] = at(point), light = ctx.createRadialGradient(gx, gy, 0, gx, gy, radius);
+    radius *= 3.6; const [gx, gy] = at(point), light = ctx.createRadialGradient(gx, gy, 0, gx, gy, radius);
     light.addColorStop(0, color); light.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.shadowBlur = 0; ctx.shadowColor = "transparent"; ctx.fillStyle = light; ctx.globalAlpha = fade * gain;
+    ctx.shadowBlur = 0; ctx.shadowColor = "transparent"; ctx.fillStyle = light; ctx.globalAlpha = fade * Math.min(1, gain * 4.5);
     ctx.fillRect(gx - radius, gy - radius, radius * 2, radius * 2);
   }
   if (type === "emp") {
@@ -19776,7 +19817,8 @@ function drawGravityStormImpactEffect(effect, progress) {
     const size = Math.max(170, Number(effect.radius || 140) * 2) * (0.88 + pulse * 0.24);
     ctx.save();
     ctx.translate(effect.x, effect.y);
-    ctx.rotate(-progress * 0.18);
+    ctx.rotate(prefersReducedMotion() ? 0 : -progress * 0.18);
+    const reduced = prefersReducedMotion();
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
     drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
@@ -19786,6 +19828,23 @@ function drawGravityStormImpactEffect(effect, progress) {
       intensity: 0.96,
       baseAlpha: 0.18
     });
+    ctx.globalCompositeOperation = "lighter";
+    const flashRadius = size * (reduced ? 0.34 : 0.28 + pulse * 0.14);
+    const flash = ctx.createRadialGradient(0, 0, flashRadius * 0.08, 0, 0, flashRadius);
+    flash.addColorStop(0, "rgba(255, 255, 255, 0.98)");
+    flash.addColorStop(0.3, "rgba(186, 230, 253, 0.82)");
+    flash.addColorStop(1, "rgba(96, 165, 250, 0)");
+    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.84;
+    ctx.fillStyle = flash;
+    ctx.fillRect(-flashRadius, -flashRadius, flashRadius * 2, flashRadius * 2);
+    ctx.shadowColor = "rgba(186, 230, 253, 0.92)";
+    ctx.shadowBlur = Math.max(12, size * 0.08);
+    ctx.strokeStyle = "rgba(239, 246, 255, 0.96)";
+    ctx.lineWidth = Math.max(2, size * 0.014);
+    ctx.globalAlpha = Math.max(0, 1 - progress) * 0.72;
+    ctx.beginPath();
+    ctx.arc(0, 0, flashRadius * 0.72, reduced ? 0.12 : -progress * 1.3, reduced ? Math.PI * 1.88 : Math.PI * 1.88 - progress * 1.3);
+    ctx.stroke();
     ctx.restore();
     return true;
   }
@@ -21094,32 +21153,34 @@ function drawSoloHumanDeathBotAcceleration(player, data) {
 
 function drawPreparationBarrierComplementaryVfx(width, height, time, phase = 0, impact = 0) {
   if (!(width > 0 && height > 0)) return;
-  const sampledTime = Math.floor(time * 60) / 60;
-  const travel = ((sampledTime * 0.42 + phase * 0.31) % 1 + 1) % 1;
+  const reduced = prefersReducedMotion();
+  const sampledTime = reduced ? 0 : Math.floor(time * 60) / 60;
+  const travel = reduced ? 0.5 : ((sampledTime * 0.42 + phase * 0.31) % 1 + 1) % 1;
   const impactStrength = clamp(Number(impact) || 0, 0, 1);
   const inheritedAlpha = ctx.globalAlpha;
+  const shortSide = Math.min(width, height);
   ctx.save();
-  ctx.globalCompositeOperation = "source-over";
+  ctx.globalCompositeOperation = "lighter";
   ctx.filter = "none";
-  ctx.shadowColor = "rgba(103, 232, 249, 0.28)";
-  ctx.shadowBlur = Math.max(2, Math.min(width, height) * 0.025);
-  ctx.strokeStyle = "rgba(186, 230, 253, 0.82)";
-  ctx.lineWidth = Math.max(1, Math.min(width, height) * 0.012);
+  ctx.shadowColor = "rgba(103, 232, 249, 0.82)";
+  ctx.shadowBlur = Math.max(8, shortSide * 0.065);
+  ctx.strokeStyle = "rgba(221, 248, 255, 0.98)";
+  ctx.lineWidth = Math.max(2, shortSide * 0.02);
   for (const side of [-1, 1]) {
     const x = side * width * (0.34 - impactStrength * 0.025);
     const y = -height * 0.24 + travel * height * 0.48;
-    ctx.globalAlpha = inheritedAlpha * (0.13 + impactStrength * 0.08);
+    ctx.globalAlpha = inheritedAlpha * (0.38 + impactStrength * 0.26);
     ctx.beginPath();
-    ctx.moveTo(x - side * width * 0.018, y - height * 0.055);
-    ctx.lineTo(x + side * width * 0.018, y + height * 0.055);
+    ctx.moveTo(x - side * width * 0.026, y - height * 0.074);
+    ctx.lineTo(x + side * width * 0.026, y + height * 0.074);
     ctx.stroke();
   }
   if (impactStrength > 0.01) {
-    const radius = Math.min(width, height) * (0.3 - impactStrength * 0.065);
-    ctx.globalAlpha = inheritedAlpha * impactStrength * 0.16;
+    const radius = shortSide * (0.38 - impactStrength * 0.04);
+    ctx.globalAlpha = inheritedAlpha * impactStrength * 0.56;
     for (let quadrant = 0; quadrant < 4; quadrant += 1) {
       const angle = Math.PI * 0.25 + quadrant * Math.PI * 0.5;
-      const outer = radius + Math.min(width, height) * 0.045;
+      const outer = radius + shortSide * 0.075;
       ctx.beginPath();
       ctx.moveTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
       ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
@@ -23303,7 +23364,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "unused-donation-preloads-v711";
+const version = "ate-emission-glow-v712";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24374,7 +24435,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=unused-donation-preloads-v711", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=ate-emission-glow-v712", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
