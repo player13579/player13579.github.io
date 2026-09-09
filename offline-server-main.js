@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "emp-cinematic-v733",
+    version: "emp-finish-v734",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "emp-cinematic-v733";
+const PRODUCT_RELEASE = "emp-finish-v734";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -9661,6 +9661,11 @@ function pushMagicEffect(room, type, source, options = {}) {
     completionKind: String(options.completionKind || ""),
     markerCount: Math.max(1, Math.floor(Number(options.markerCount) || 1)),
     durationMs: Math.max(0, Number(options.durationMs) || 0),
+    ...((type === "emp" || type.startsWith("emp-")) ? {
+      empPulseId: String(options.empPulseId || ""),
+      resolvedEmpPulseIds: (Array.isArray(options.resolvedEmpPulseIds) ? options.resolvedEmpPulseIds : []).filter((id) => typeof id === "string" && id).slice(0, 2),
+      empSourceAxis: Number.isFinite(options.empSourceAxis) ? options.empSourceAxis : 0
+    } : {}),
     ...(type === "action-smartphone" && /^(?:donation-rational|donation-unjust)$/.test(String(options.variant || ""))
       ? { donationResultDelta: Math.round((Number(options.donationResultDelta) || 0) * 100) / 100 }
       : {}),
@@ -16189,7 +16194,7 @@ function resolveStandardEmp(room, pulse, timestamp) {
     maxDistance: 2200,
     volume: 1
   });
-  pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase });
+  pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase, resolvedEmpPulseIds: [pulse.id] });
   pushEvent(room, `${pulse.phase === "positive" ? "正相" : "逆相"}EMP発生: ストレージ遮断${itemLocks}人 / 味方反射${friendlyReflections}件`);
   checkWin(room);
   touch(room);
@@ -16200,6 +16205,7 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   const secondOwner = room.players.get(second.playerId);
   const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
   const samePhase = first.phase === second.phase;
+  const visualSettlement = {resolvedEmpPulseIds: [first.id, second.id], empSourceAxis: Math.atan2(second.y - first.y, second.x - first.x)};
   const soloEmpPractice = room.soloMission?.id === "emp" && [first.playerId, second.playerId].includes(room.soloMission.playerId);
   if (soloEmpPractice) {
     const outcome = samePhase ? "amplify" : "cancel";
@@ -16210,7 +16216,7 @@ function resolveEmpInteraction(room, first, second, timestamp) {
     room.soloMission.empCancelled = outcomes.has("cancel");
   }
   if (!samePhase) {
-    pushMagicEffect(room, "emp-cancel", midpoint, { radius: EMP_INTERACTION_RANGE, variant: "opposite" });
+    pushMagicEffect(room, "emp-cancel", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: "opposite" });
     pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 1800, volume: 0.8 });
     pushEvent(room, soloEmpPractice
       ? "EMP訓練: 逆位相の重ね合わせで打ち消しに成功しました。"
@@ -16221,7 +16227,7 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   }
 
   if (soloEmpPractice) {
-    pushMagicEffect(room, "emp-resonance", midpoint, { radius: EMP_INTERACTION_RANGE, variant: first.phase });
+    pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase });
     pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1 });
     pushEvent(room, "EMP訓練: 同位相の重ね合わせで増強に成功しました。");
     checkWin(room);
@@ -16259,7 +16265,7 @@ function resolveEmpInteraction(room, first, second, timestamp) {
       else if (["body", "overheal"].includes(outcome)) bodyCount += 1;
     }
   }
-  pushMagicEffect(room, "emp-resonance", midpoint, { radius: EMP_INTERACTION_RANGE, variant: first.phase });
+  pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase });
   pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1 });
   pushEvent(room, `同位相EMPが共振しました。キル${lethalCount}人 / ボディダメージ${bodyCount}人。`);
   checkWin(room);
@@ -16307,6 +16313,7 @@ function activateEmp(room, player, rawPhase = "positive") {
       radius: EMP_RANGE,
       playerId: player.id,
       variant: phase,
+      empPulseId: pulse.id,
       durationMs: EMP_PULSE_ATE_DURATION_MS
     });
     pushEvent(room, `${player.name} が${phase === "positive" ? "正相" : "逆相"}EMPを起動しました。`);
@@ -26289,7 +26296,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "emp-cinematic-v733",
+  version: "emp-finish-v734",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

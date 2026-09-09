@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-cinematic-v733";
+const DVA_CLIENT_RELEASE = "emp-finish-v734";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-cinematic-v733";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-finish-v734";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -11289,7 +11289,32 @@ function detectHitEffects(previous, next) {
   }
 }
 
+function settleEmpChargeEffects(next, receivedAt) {
+  if (!["playing", "meeting"].includes(next?.phase)) {
+    state.empChargeSettlements = null;
+    return new Map();
+  }
+  let cache = state.empChargeSettlements;
+  if (!cache || cache.roomId !== next.roomId) {
+    cache = {roomId: next.roomId, ids: new Map()};
+    state.empChargeSettlements = cache;
+  }
+  for (const [id, expiresAt] of cache.ids) if (expiresAt <= receivedAt) cache.ids.delete(id);
+  // Read the entire incoming batch before inserting charges: settlement can
+  // precede its charge in a delayed poll. Only explicit source IDs may settle it.
+  for (const effect of next.magicEffects || []) {
+    if (!["emp", "emp-resonance", "emp-cancel"].includes(effect.type)) continue;
+    for (const id of Array.isArray(effect.resolvedEmpPulseIds) ? effect.resolvedEmpPulseIds : []) {
+      if (typeof id === "string" && id) cache.ids.set(id, receivedAt + 30000);
+    }
+  }
+  while (cache.ids.size > 256) cache.ids.delete(cache.ids.keys().next().value);
+  state.magicEffects = state.magicEffects.filter((effect) => effect.type !== "emp-charge" || !cache.ids.has(effect.empPulseId));
+  return cache.ids;
+}
+
 function detectMagicEffects(previous, next) {
+  const settledEmpIds = settleEmpChargeEffects(next, state.frameNow || performance.now());
   if (!["playing", "meeting"].includes(next?.phase)) {
     state.magicEffects = [];
     state.headMarkerSlots.clear();
@@ -11302,6 +11327,7 @@ function detectMagicEffects(previous, next) {
   const known = new Set((previous.magicEffects || []).map((effect) => effect.id));
   for (const effect of next.magicEffects || []) {
     if (known.has(effect.id)) continue;
+    if (effect.type === "emp-charge" && settledEmpIds.has(effect.empPulseId)) continue;
     const receivedAt = state.frameNow || performance.now();
     const duration = Math.max(magicEffectDuration(effect.type), Number(effect.durationMs) || 0);
     // Network delay must not consume a visual effect before the client can draw it.
@@ -19992,23 +20018,31 @@ function drawActionEffect(effect, progress, now) {
 // EMP cinematic canvas renderer.  It intentionally owns no game state or timing.
 // Required globals: ctx, state, transparentSpriteSource, prefersReducedMotion,
 // clamp, Math.  All geometry is deterministic from effect id/type/progress.
+// EMP materials and motion share normalized event time; no gameplay clock is changed.
 function empVisualEnvelope(effect, progress, now = 0) {
   const p = Number(progress);
   if (!Number.isFinite(p) || p <= 0 || p >= 1) return null;
   const radius = Math.max(80, Math.min(520, Number(effect?.radius) || 260));
   const type = String(effect?.type || "emp");
-  const reduced = Boolean(prefersReducedMotion?.());
-  const id = String(effect?.id || effect?.playerId || type);
+  const reduced = Boolean(prefersReducedMotion());
+  const id = String(effect?.playerId || effect?.id || type);
   let seed = 0;
   for (let i = 0; i < id.length; i += 1) seed = (seed * 31 + id.charCodeAt(i)) % 997;
-  // Relative progress avoids a wall-clock phase jump across clients/replays.
-  const phase = seed / 997 + (reduced ? 0 : p * 0.16);
-  const mode = type === "emp-charge" ? "charge"
-    : type === "emp-resonance" ? "resonance"
-      : type === "emp-cancel" ? "cancel"
-        : type === "emp-storage-lock" ? "storage-lock" : "discharge";
-  const impulse = Math.sin(Math.min(1, p / 0.26) * Math.PI * 0.5);
-  return { p, radius, mode, reduced, phase, impulse, tail: Math.pow(1 - p, 1.35) };
+  const negative = effect.variant === "negative";
+  const direction = negative ? -1 : 1;
+  const phase = seed / 997 + (reduced ? 0 : direction * p * 0.045);
+  const mode = type === "emp-charge" ? "charge" : type === "emp-resonance" ? "resonance"
+    : type === "emp-cancel" ? "cancel" : type === "emp-storage-lock" ? "storage-lock" : "discharge";
+  return { p, radius, mode, reduced, seed: seed / 997, phase, direction, negative,
+    colour: negative ? "139,117,255" : "32,174,255", hot: negative ? "221,214,255" : "187,249,255",
+    axis: Number.isFinite(effect.empSourceAxis) ? effect.empSourceAxis : 0,
+    entry: empEase(p / (mode === "storage-lock" ? 0.035 : reduced ? 0.14 : 0.065)),
+    tail: 1 - empEase(mode === "storage-lock" ? (p - 0.92) / 0.08 : (p - 0.58) / 0.42) };
+}
+
+function empEase(value) {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
 }
 
 function empTexture(effect, env) {
@@ -20019,174 +20053,193 @@ function empTexture(effect, env) {
   return source ? transparentSpriteSource(source, key, 18) : null;
 }
 
-function empStroke(points, color, width, alpha) {
-  if (!Number.isFinite(alpha) || alpha <= 0 || points.length < 2) return;
+function empTextureLayer(effect, env, size, alpha, squash = 1, rotation = 0) {
+  const source = empTexture(effect, env);
+  if (!source || alpha <= 0) return;
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(points[0][0], points[0][1]);
-  for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i][0], points[i][1]);
-  ctx.lineWidth=width*7;ctx.globalAlpha=alpha*0.07;ctx.stroke();
-  ctx.lineWidth=width*2.4;ctx.globalAlpha=alpha*0.26;ctx.stroke();
-  ctx.lineWidth=width;ctx.globalAlpha=alpha;ctx.stroke();
-  ctx.restore();
-}
-
-function empFilament(start, control, end, color, width, alpha) {
-  if (!Number.isFinite(alpha) || alpha <= 0) return;
-  const dx=end[0]-start[0],dy=end[1]-start[1],length=Math.max(1,Math.hypot(dx,dy));
-  const seed=start[0]*0.073+start[1]*0.037;
-  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap="round";ctx.lineJoin="round";
-  ctx.beginPath();ctx.moveTo(start[0],start[1]);
-  for(let i=1;i<=28;i++){
-    const t=i/28,u=1-t;
-    const ripple=(Math.sin(i*2.39+seed)+Math.sin(i*4.71-seed)*0.4)*Math.sin(Math.PI*t)*Math.min(5,length*0.045);
-    ctx.lineTo(u*u*start[0]+2*u*t*control[0]+t*t*end[0]-dy/length*ripple,u*u*start[1]+2*u*t*control[1]+t*t*end[1]+dx/length*ripple);
-  }
-  ctx.strokeStyle=color;ctx.lineWidth=width*5;ctx.globalAlpha=alpha*0.08;ctx.stroke();
-  ctx.lineWidth=width*2.1;ctx.globalAlpha=alpha*0.28;ctx.stroke();
-  ctx.strokeStyle="#e1fcff";ctx.lineWidth=Math.max(0.65,width*0.48);ctx.globalAlpha=alpha;ctx.stroke();ctx.restore();
-}
-
-function empWavefront(effect, env, radius, alpha) {
-  if(alpha<=0)return;
-  const glow=ctx.createRadialGradient(effect.x,effect.y,radius*0.74,effect.x,effect.y,radius*1.08);
-  glow.addColorStop(0,"rgba(12,78,255,0)");glow.addColorStop(0.42,"rgba(21,116,255,0.1)");
-  glow.addColorStop(0.7,"rgba(34,186,255,0.48)");glow.addColorStop(0.78,"rgba(170,250,255,0.96)");
-  glow.addColorStop(0.81,"rgba(237,255,255,0.9)");glow.addColorStop(0.88,"rgba(42,163,255,0.32)");glow.addColorStop(1,"rgba(22,87,255,0)");
-  ctx.save();ctx.globalCompositeOperation="lighter";ctx.globalAlpha=alpha;ctx.fillStyle=glow;
-  ctx.beginPath();ctx.arc(effect.x,effect.y,radius*1.08,0,Math.PI*2);ctx.fill();
-  // Broken conducting arcs ride the expanding front; their envelope is distinct
-  // from the stationary-origin electrical texture beneath them.
-  ctx.beginPath();
-  for(let arc=0;arc<3;arc++){
-    const start=env.phase*Math.PI*2+arc*2.094;
-    for(let j=0;j<=30;j++){
-      const a=start+j/30*1.45;
-      const r=radius*(1+(Math.sin(j*2.3+arc)*0.011+Math.sin(j*0.81)*0.007));
-      const x=effect.x+Math.cos(a)*r,y=effect.y+Math.sin(a)*r;
-      if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-    }
-  }
-  ctx.strokeStyle="#44bbff";ctx.lineWidth=5;ctx.globalAlpha=alpha*0.22;ctx.stroke();
-  ctx.strokeStyle="#e6ffff";ctx.lineWidth=1.1;ctx.globalAlpha=alpha*0.9;ctx.stroke();ctx.restore();
-}
-
-function empTextureLayer(effect, env, scale, alpha) {
-  const texture = empTexture(effect, env);
-  if (!texture || alpha <= 0) return;
-  const size = env.radius * scale;
-  ctx.save();
+  ctx.translate(effect.x, effect.y);
+  ctx.rotate(rotation);
   ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(texture, effect.x - size / 2, effect.y - size / 2, size, size);
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.drawImage(source, -size / 2, -size * squash / 2, size, size * squash);
   ctx.restore();
 }
 
-function empCore(effect, env, intensity = 1) {
-  const build = env.mode === "charge" ? Math.pow(env.p, 0.72) : env.tail;
-  const r = Math.max(10, env.radius * (0.06 + env.impulse * 0.06) * intensity);
-  const glow = ctx.createRadialGradient(effect.x, effect.y, 0, effect.x, effect.y, r * 4.5);
-  glow.addColorStop(0, "rgba(255,255,255,0.98)");
-  glow.addColorStop(0.18, "rgba(196,248,255,0.9)");
-  glow.addColorStop(0.54, "rgba(51,190,255,0.28)");
-  glow.addColorStop(1, "rgba(25,95,255,0)");
+function empGlow(effect, env, radius, alpha, aspect = 1) {
+  if (alpha <= 0 || radius <= 0) return;
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.min(1, (0.42 + env.impulse * 0.5) * build);
+  ctx.translate(effect.x, effect.y);
+  ctx.scale(1, aspect);
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  glow.addColorStop(0, "rgba(255,255,255,0.98)");
+  glow.addColorStop(0.055, `rgba(${env.hot},0.93)`);
+  glow.addColorStop(0.17, `rgba(${env.colour},0.55)`);
+  glow.addColorStop(0.42, `rgba(${env.colour},0.15)`);
+  glow.addColorStop(1, `rgba(${env.colour},0)`);
   ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(effect.x, effect.y, r * 4.5, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+
+function empStroke(points, colour, width, alpha) {
+  if (alpha <= 0 || points.length < 2) return;
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.beginPath(); ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width * 11; ctx.globalAlpha = alpha * 0.035; ctx.stroke();
+  ctx.lineWidth = width * 4.5; ctx.globalAlpha = alpha * 0.13; ctx.stroke();
+  ctx.lineWidth = width * 1.7; ctx.globalAlpha = alpha * 0.42; ctx.stroke();
+  ctx.strokeStyle = "#f1fdff"; ctx.lineWidth = Math.max(0.55, width * 0.55); ctx.globalAlpha = Math.min(1, alpha); ctx.stroke();
   ctx.restore();
+}
+
+function empFilament(start, control, end, env, alpha, width = 1.6, salt = 0) {
+  const dx = end[0] - start[0], dy = end[1] - start[1], length = Math.max(1, Math.hypot(dx, dy));
+  const phase = env.seed * 6.28 + salt + (env.reduced ? 0 : env.p * 2.2);
+  const points = [];
+  for (let i = 0; i <= 28; i += 1) {
+    const t = i / 28, u = 1 - t;
+    // Continuous low-frequency drift preserves the filament between frames.
+    const ripple = (Math.sin(i * 2.39 + phase) + Math.sin(i * 4.71 - phase) * 0.38)
+      * Math.sin(Math.PI * t) * Math.min(4.2, length * 0.038);
+    points.push([u*u*start[0] + 2*u*t*control[0] + t*t*end[0] - dy/length*ripple,
+      u*u*start[1] + 2*u*t*control[1] + t*t*end[1] + dx/length*ripple]);
+  }
+  empStroke(points, `rgb(${env.colour})`, width, alpha);
+}
+
+function empWavefront(effect, env, radius, alpha, width = 12) {
+  if (alpha <= 0 || radius <= 0) return;
+  const breadth = Math.min(radius * 0.45, width);
+  const glow = ctx.createRadialGradient(effect.x, effect.y, Math.max(0, radius - breadth * 2), effect.x, effect.y, radius + breadth);
+  glow.addColorStop(0, `rgba(${env.colour},0)`);
+  glow.addColorStop(0.35, `rgba(${env.colour},0.13)`);
+  glow.addColorStop(0.61, `rgba(${env.colour},0.64)`);
+  glow.addColorStop(0.68, `rgba(${env.hot},0.92)`);
+  glow.addColorStop(0.72, "rgba(248,255,255,0.94)");
+  glow.addColorStop(0.82, `rgba(${env.colour},0.21)`);
+  glow.addColorStop(1, `rgba(${env.colour},0)`);
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = Math.min(1, alpha); ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(effect.x, effect.y, radius + breadth, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  const count = env.reduced ? 2 : 3;
+  for (let arc = 0; arc < count; arc += 1) {
+    const points = [], start = env.phase * 6.28 + arc * 2.094;
+    for (let i = 0; i <= 26; i += 1) {
+      const a = start + i / 26 * 1.12;
+      const r = radius + (Math.sin(i * 2.3 + arc) * 1.25 + Math.sin(i * 0.81) * 0.8) * Math.min(1, radius / 90);
+      points.push([effect.x + Math.cos(a) * r, effect.y + Math.sin(a) * r]);
+    }
+    empStroke(points, `rgb(${env.colour})`, 1.25, alpha * 0.8);
+  }
 }
 
 function drawEmpFieldCharge(effect, env) {
-  const build = Math.pow(env.p, 0.78);
-  const orbit = env.reduced ? 0 : env.phase * Math.PI * 2;
-  empTextureLayer(effect, env, 1.2 - env.p * 0.38, 0.16 + build * 0.58);
-  for (let i = 0; i < 5; i += 1) {
-    const a = orbit + i * Math.PI * 2 / 5;
-    const d = env.radius * (0.98 - env.p * 0.66);
-    const start = [effect.x + Math.cos(a) * d, effect.y + Math.sin(a) * d];
-    const control = [effect.x + Math.cos(a + (i % 2 ? 0.75 : -0.75)) * d * 0.62, effect.y + Math.sin(a + (i % 2 ? 0.75 : -0.75)) * d * 0.62];
-    empFilament(start, control, [effect.x, effect.y], "rgba(126,235,255,0.98)", 1.5 + build * 1.4, 0.18 + build * 0.64);
+  const build = empEase(env.p), entry = env.entry;
+  const reach = env.radius * (env.reduced ? 0.3 : 0.75 - build * 0.46);
+  const material = env.radius * (env.reduced ? 0.76 : 1 - build * 0.3);
+  empTextureLayer(effect, env, material, entry * (0.16 + build * 0.55));
+  for (let i = 0; i < (env.reduced ? 3 : 5); i += 1) {
+    const a = env.phase * 6.28 + i * 1.257;
+    const start = [effect.x + Math.cos(a) * reach, effect.y + Math.sin(a) * reach];
+    const bend = a + env.direction * 0.52;
+    const control = [effect.x + Math.cos(bend) * reach * 0.55, effect.y + Math.sin(bend) * reach * 0.55];
+    empFilament(start, control, [effect.x, effect.y], env, entry * (0.18 + build * 0.57), 1.4 + build * 0.5, i);
   }
-  empCore(effect, env, 1.45);
+  empGlow(effect, env, env.radius * (0.32 + build * 0.2), entry * (0.3 + build * 0.6));
 }
 
 function drawEmpFieldDischarge(effect, env) {
-  const travel=1-Math.pow(1-env.p,3.1),radius=env.radius*(0.12+travel*0.88);
-  const alpha=Math.pow(1-env.p,1.1)*(env.reduced?0.68:1);
-  empTextureLayer(effect,env,0.8+travel*1.8,alpha*0.82);
-  empWavefront(effect,env,radius,alpha*0.94);
-  for(let i=0;i<(env.reduced?2:5);i++){
-    const a=env.phase*6.28+i*1.257;
-    const start=[effect.x+Math.cos(a)*radius*0.59,effect.y+Math.sin(a)*radius*0.59];
-    const end=[effect.x+Math.cos(a+0.15)*radius,effect.y+Math.sin(a+0.15)*radius];
-    const control=[effect.x+Math.cos(a-0.09)*radius*0.81,effect.y+Math.sin(a-0.09)*radius*0.81];
-    empFilament(start,control,end,"#3eb9ff",1.8,alpha*0.6);
+  const travel = env.reduced ? 0.82 : 1 - Math.pow(1 - env.p, 3.1);
+  const radius = env.radius * (0.14 + 0.86 * travel);
+  const alpha = Math.pow(1 - env.p, 0.9) * env.tail;
+  // Core carries charge energy into the first release frame, then yields to the travelling front.
+  const flash = Math.exp(-env.p * (env.reduced ? 4 : 11)) * env.tail;
+  empTextureLayer(effect, env, env.radius * (0.78 + travel * 1.66), alpha * 0.65);
+  empGlow(effect, env, env.radius * 0.52, flash * (env.reduced ? 0.5 : 0.92));
+  empWavefront(effect, env, radius, alpha * (env.reduced ? 0.5 : 0.92), 7 + (1 - travel) * 15);
+  for (let i = 0; i < (env.reduced ? 2 : 4); i += 1) {
+    const a = env.phase * 6.28 + i * Math.PI * 0.5;
+    const start = [effect.x + Math.cos(a - 0.12) * radius * 0.63, effect.y + Math.sin(a - 0.12) * radius * 0.63];
+    const control = [effect.x + Math.cos(a + 0.12) * radius * 0.86, effect.y + Math.sin(a + 0.12) * radius * 0.86];
+    const end = [effect.x + Math.cos(a) * radius, effect.y + Math.sin(a) * radius];
+    empFilament(start, control, end, env, alpha * 0.52, 1.6, i * 0.7);
   }
-  empCore(effect,{...env,tail:Math.exp(-env.p*7)*Math.pow(1-env.p,0.6)},1.5);
 }
 
 function drawEmpFieldResonance(effect, env) {
-  const separation = env.radius * (0.46 - env.p * 0.28);
-  const axis = env.phase * Math.PI * 2;
-  const dx = Math.cos(axis) * separation;
-  const dy = Math.sin(axis) * separation;
-  empTextureLayer(effect, env, 1.14, 0.54 * env.tail);
-  const release=Math.max(0,(env.p-0.12)/0.88);
-  if(release>0)empWavefront(effect,env,env.radius*(0.24+0.66*(1-Math.pow(1-release,2.3))),Math.sin(Math.PI*Math.min(1,release*1.3))*env.tail*0.7);
+  const merge = empEase(env.p / 0.36), release = Math.max(0, (env.p - 0.16) / 0.84);
+  const envelope = env.entry * env.tail;
+  const separation = env.radius * (env.reduced ? 0.15 : 0.32 - 0.22 * merge);
+  const dx = Math.cos(env.axis) * separation, dy = Math.sin(env.axis) * separation;
+  empTextureLayer(effect, env, env.radius * (1.12 + merge * 0.1), envelope * 0.63, 1, env.axis);
   for (const sign of [-1, 1]) {
-    const x = effect.x + dx * sign;
-    const y = effect.y + dy * sign;
-    empFilament([x, y], [effect.x + -dy * sign * 0.34, effect.y + dx * sign * 0.34], [effect.x, effect.y], sign < 0 ? "rgba(158,248,255,0.98)" : "rgba(219,190,255,0.98)", 2.1, 0.72 * env.tail);
-    empFilament([x + dy * 0.16, y - dx * 0.16], [effect.x + dy * sign * 0.28, effect.y - dx * sign * 0.28], [effect.x, effect.y], sign < 0 ? "rgba(66,205,255,0.8)" : "rgba(165,90,255,0.8)", 1.2, 0.5 * env.tail);
+    const pole = {x: effect.x + dx * sign, y: effect.y + dy * sign};
+    empGlow(pole, env, env.radius * 0.22, envelope * (1 - merge) * 0.6);
+    empFilament([pole.x, pole.y], [effect.x - dy * sign * 0.65, effect.y + dx * sign * 0.65], [effect.x, effect.y], env, envelope * 0.8, 2, sign);
   }
-  empCore(effect, env, 1.85);
+  const peak = Math.exp(-Math.pow((env.p - 0.23) / 0.22, 2));
+  empGlow(effect, env, env.radius * 0.64, envelope * peak);
+  if (release > 0) empWavefront(effect, env, env.radius * (env.reduced ? 0.75 : 0.2 + 0.7 * (1 - Math.pow(1 - release, 2.6))),
+    envelope * empEase(release / 0.1) * Math.pow(1 - release, 0.55) * 0.85, 16);
 }
 
 function drawEmpFieldCancel(effect, env) {
-  const squeeze = env.radius * (0.5 * (1 - env.p) + 0.035);
-  const axis = env.phase * Math.PI * 2;
-  const nx = Math.cos(axis), ny = Math.sin(axis), tx = -ny, ty = nx;
-  empTextureLayer(effect, env, 0.98 - env.p * 0.42, 0.5 * env.tail);
+  const collapse = empEase((env.p - 0.16) / 0.55), envelope = env.entry * env.tail;
+  const separation = env.radius * (env.reduced ? 0.2 : 0.4 * (1 - collapse) + 0.035);
+  const nx = Math.cos(env.axis), ny = Math.sin(env.axis), tx = -ny, ty = nx;
+  // The field is squeezed along its source axis; the transverse seam discharges it.
+  ctx.save(); ctx.translate(effect.x, effect.y); ctx.rotate(env.axis);
+  ctx.scale(env.reduced ? 1 : 1 - collapse * 0.87, 1 - collapse * 0.18);
+  empTextureLayer({x: 0, y: 0}, env, env.radius * 1.14, envelope * (1 - collapse * 0.6) * 0.75);
+  ctx.restore();
   for (const sign of [-1, 1]) {
-    const x = effect.x + nx * squeeze * sign, y = effect.y + ny * squeeze * sign;
-    empFilament([x, y], [effect.x + tx * env.radius * 0.2 * sign, effect.y + ty * env.radius * 0.2 * sign], [effect.x, effect.y], sign < 0 ? "rgba(111,236,255,0.98)" : "rgba(203,129,255,0.98)", 2.2, 0.7 * env.tail);
+    const pole = {x: effect.x + nx * separation * sign, y: effect.y + ny * separation * sign};
+    const polarity = {...env, colour: sign < 0 ? "32,174,255" : "145,103,255", hot: sign < 0 ? "187,249,255" : "225,208,255"};
+    empGlow(pole, polarity, env.radius * 0.24, envelope * (1 - collapse) * 0.58);
+    empFilament([pole.x, pole.y], [effect.x + tx * env.radius * 0.15 * sign, effect.y + ty * env.radius * 0.15 * sign], [effect.x, effect.y], polarity,
+      envelope * (1 - collapse * 0.8) * 0.82, 1.8, sign);
   }
-  empStroke([[effect.x - tx * env.radius * 0.22, effect.y - ty * env.radius * 0.22], [effect.x + tx * env.radius * 0.22, effect.y + ty * env.radius * 0.22]], "rgba(245,250,255,0.95)", 2.2, 0.72 * env.tail);
-  empCore(effect, env, 1.15);
+  const peak = Math.exp(-Math.pow((env.p - 0.45) / 0.24, 2));
+  const half = env.radius * (0.16 + peak * 0.17) * (1 - collapse * 0.52);
+  empFilament([effect.x - tx * half, effect.y - ty * half], [effect.x + nx * 5, effect.y + ny * 5], [effect.x + tx * half, effect.y + ty * half],
+    env, envelope * peak, 2.6, 7);
+  empGlow(effect, env, env.radius * 0.38, envelope * peak * (env.reduced ? 0.45 : 0.8));
 }
 
 function drawEmpFieldStorageLock(effect, env) {
-  const ingress = Math.min(1, env.p / 0.16);
-  const hold = ingress * Math.min(1,(1-env.p)/0.12) * (env.reduced?0.42:0.62);
-  const r = Math.min(84, Math.max(26, env.radius * 0.24));
-  empTextureLayer(effect, env, 1.15, hold);
+  const hold = env.entry * env.tail, r = Math.max(25, Math.min(42, env.radius * 0.29));
+  // Small sustained interference carries the disabled state; no rotating badge.
+  empTextureLayer(effect, env, r * 3.1, hold * 0.5, 0.76);
+  const arcEnv = {...env, colour: "123,133,255", hot: "221,228,255"};
   for (let i = 0; i < 3; i += 1) {
-    const a = i * Math.PI * 2 / 3 + env.phase * 0.12;
-    const outer = r * (1.45 - ingress * 0.45);
-    empFilament([effect.x + Math.cos(a) * outer, effect.y + Math.sin(a) * outer], [effect.x + Math.cos(a + 0.6) * r * 1.3, effect.y + Math.sin(a + 0.6) * r * 1.3], [effect.x + Math.cos(a + 0.23) * r, effect.y + Math.sin(a + 0.23) * r], "rgba(150,235,255,0.96)", 1.6, hold);
+    const a = i * 2.094 + 0.32;
+    const start = [effect.x + Math.cos(a - 0.4) * r, effect.y + Math.sin(a - 0.4) * r * 0.76];
+    const end = [effect.x + Math.cos(a + 0.4) * r, effect.y + Math.sin(a + 0.4) * r * 0.76];
+    const control = [effect.x + Math.cos(a) * r * 1.12, effect.y + Math.sin(a) * r * 0.88];
+    empFilament(start, control, end, arcEnv, hold * 0.64, 1.3, i * 2);
   }
-  ctx.save(); ctx.globalCompositeOperation = "screen"; ctx.globalAlpha = hold; ctx.strokeStyle = "rgba(183,144,255,0.9)"; ctx.lineWidth = 1.7;
-  ctx.beginPath(); ctx.arc(effect.x, effect.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  empGlow(effect, arcEnv, r * 1.65, hold * 0.18, 0.76);
 }
 
 function drawEmpEffect(effect, progress, now = 0) {
   const env = empVisualEnvelope(effect, progress, now);
-  if (!env || !Number.isFinite(Number(effect?.x)) || !Number.isFinite(Number(effect?.y))) return false;
-  if (env.mode === "charge") drawEmpFieldCharge(effect, env);
-  else if (env.mode === "resonance") drawEmpFieldResonance(effect, env);
-  else if (env.mode === "cancel") drawEmpFieldCancel(effect, env);
-  else if (env.mode === "storage-lock") drawEmpFieldStorageLock(effect, env);
-  else drawEmpFieldDischarge(effect, env);
+  if (!env || !Number.isFinite(effect?.x) || !Number.isFinite(effect?.y)) return false;
+  let anchor = effect;
+  if (env.mode === "storage-lock" && effect.playerId) {
+    const player = state.data?.players?.find((entry) => entry.id === effect.playerId);
+    if (player && (!player.alive || player.ejected)) return false;
+    if (player?.alive && !player.ejected) {
+      const position = renderedPlayer(player);
+      if (Number.isFinite(position.x) && Number.isFinite(position.y)) anchor = {...effect, x: position.x, y: position.y};
+    }
+  }
+  if (env.mode === "charge") drawEmpFieldCharge(anchor, env);
+  else if (env.mode === "resonance") drawEmpFieldResonance(anchor, env);
+  else if (env.mode === "cancel") drawEmpFieldCancel(anchor, env);
+  else if (env.mode === "storage-lock") drawEmpFieldStorageLock(anchor, env);
+  else drawEmpFieldDischarge(anchor, env);
   return true;
 }
 
@@ -23762,7 +23815,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-cinematic-v733";
+const version = "emp-finish-v734";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24805,7 +24858,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-cinematic-v733", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=emp-finish-v734", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
