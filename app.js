@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "preparation-roster-summon-v726";
+const DVA_CLIENT_RELEASE = "plicy-preparation-canvas-v727";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -579,6 +579,9 @@ const state = {
   operatorSelectionRouteOpen: false,
   // PREPARATION_ROSTER_V726: keyed by room session, never by the current id set.
   preparationRosterEntries: new Map(),
+  // PREPARATION_CANVAS_RESTORE_V727: canvas-coordinate hit targets are rebuilt every frame.
+  preparationCanvasHitTargets: [],
+  preparationCanvasTap: null,
   operatorSelectionSettingsRequestSeq: 0,
   preparationEditingField: "",
   offlineTeamChoiceInFlight: false,
@@ -920,7 +923,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "preparation-roster-summon-v726";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "plicy-preparation-canvas-v727";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -7581,10 +7584,22 @@ function bindEvents() {
     if (!state.expandedMapTap) state.mapPointer = null;
   });
   els.canvas.addEventListener("pointerdown", attackFromCanvas);
-  els.canvas.addEventListener("pointermove", moveClairvoyanceTeleportTap);
-  els.canvas.addEventListener("pointerup", (event) => void finishClairvoyanceTeleportTap(event));
-  els.canvas.addEventListener("pointercancel", (event) => void finishClairvoyanceTeleportTap(event, true));
-  els.canvas.addEventListener("lostpointercapture", (event) => void finishClairvoyanceTeleportTap(event, true));
+  els.canvas.addEventListener("pointermove", (event) => {
+    movePreparationCanvasTap(event);
+    moveClairvoyanceTeleportTap(event);
+  });
+  els.canvas.addEventListener("pointerup", (event) => {
+    finishPreparationCanvasTap(event);
+    void finishClairvoyanceTeleportTap(event);
+  });
+  els.canvas.addEventListener("pointercancel", (event) => {
+    finishPreparationCanvasTap(event, true);
+    void finishClairvoyanceTeleportTap(event, true);
+  });
+  els.canvas.addEventListener("lostpointercapture", (event) => {
+    finishPreparationCanvasTap(event, true);
+    void finishClairvoyanceTeleportTap(event, true);
+  });
 }
 
 function clearPointerInput() {
@@ -10137,6 +10152,10 @@ async function performNinjutsu() {
 async function attackFromCanvas(event) {
   if (!state.data || event.button !== 0) return;
   if (!event.isPrimary) return;
+  if (beginPreparationCanvasTap(event)) {
+    event.preventDefault();
+    return;
+  }
   if (beginClairvoyanceTeleportTap(event)) {
     event.preventDefault();
     return;
@@ -12029,6 +12048,89 @@ function preparationSettingValue(select, fallback = "") {
   return select?.selectedOptions?.[0]?.textContent?.trim() || fallback;
 }
 
+// The published v540 setup screen used the regular field canvas.  The setup
+// controls now attach to the things that are already visible in that canvas.
+function clearPreparationCanvasHitTargets() {
+  state.preparationCanvasHitTargets = [];
+}
+
+function registerPreparationCanvasHitTarget(field, x, y, width, height) {
+  if (!field || !Number.isFinite(x) || !Number.isFinite(y) || width <= 0 || height <= 0) return;
+  state.preparationCanvasHitTargets.push({ field, x, y, width, height });
+}
+
+function drawPreparationCanvasHitTargets(data, camera, zoom, width, height) {
+  if (!preparationPhaseActive(data)) return;
+  const mapBounds = minimapCanvasBounds(width);
+  // The minimap is the visible map control. It remains a real field map,
+  // while taps on other participants do not open local settings.
+  registerPreparationCanvasHitTarget("map", mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
+}
+
+function registerPreparationCanvasLocalBounds(field, x, y, width, height) {
+  const matrix = ctx.getTransform?.();
+  if (!matrix) return;
+  const points = [[x, y], [x + width, y], [x, y + height], [x + width, y + height]]
+    .map(([px, py]) => ({ x: matrix.a * px + matrix.c * py + matrix.e, y: matrix.b * px + matrix.d * py + matrix.f }));
+  const left = Math.min(...points.map((point) => point.x));
+  const top = Math.min(...points.map((point) => point.y));
+  const right = Math.max(...points.map((point) => point.x));
+  const bottom = Math.max(...points.map((point) => point.y));
+  registerPreparationCanvasHitTarget(field, left, top, right - left, bottom - top);
+}
+
+function registerPreparationPlayerCanvasTargets(player, nameplateY, nameplateWidth) {
+  if (!preparationSettingsEditable(state.data) || player?.id !== state.data?.selfId) return;
+  const spriteY = nameplateY <= -60 ? nameplateY + 15 : -42;
+  const spriteHeight = nameplateY <= -60 ? 94 : 80;
+  registerPreparationCanvasLocalBounds("skin", -47, spriteY, 94, spriteHeight);
+  // Target lookup walks newest-first, so the exact nameplate wins even when
+  // the compact fallback body overlaps its lower edge.
+  registerPreparationCanvasLocalBounds("name", -nameplateWidth / 2, nameplateY, nameplateWidth, 14);
+}
+
+function preparationCanvasTargetAt(point) {
+  if (!point) return "";
+  const targets = Array.isArray(state.preparationCanvasHitTargets) ? state.preparationCanvasHitTargets : [];
+  for (let index = targets.length - 1; index >= 0; index -= 1) {
+    const target = targets[index];
+    if (point.x >= target.x && point.x <= target.x + target.width && point.y >= target.y && point.y <= target.y + target.height) {
+      return target.field || "";
+    }
+  }
+  return "";
+}
+
+function beginPreparationCanvasTap(event) {
+  if (!preparationSettingsEditable(state.data) || !preparationOverlayVisible(state.data)) return false;
+  const field = preparationCanvasTargetAt(canvasPointerPosition(event));
+  if (!field) return false;
+  state.preparationCanvasTap = {
+    pointerId: event.pointerId, field, startX: event.clientX, startY: event.clientY, moved: false,
+    roomId: state.roomId, sessionGeneration: state.roomSessionGeneration, screen: state.screen
+  };
+  try { els.canvas.setPointerCapture(event.pointerId); } catch {}
+  return true;
+}
+
+function movePreparationCanvasTap(event) {
+  const tap = state.preparationCanvasTap;
+  if (!tap || tap.pointerId !== event.pointerId) return;
+  tap.moved = tap.moved || Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) > 10;
+}
+
+function finishPreparationCanvasTap(event, cancelled = false) {
+  const tap = state.preparationCanvasTap;
+  if (!tap || tap.pointerId !== event.pointerId) return false;
+  state.preparationCanvasTap = null;
+  const moved = tap.moved || Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) > 10;
+  const sameSession = tap.roomId === state.roomId && tap.sessionGeneration === state.roomSessionGeneration && tap.screen === state.screen;
+  if (cancelled || moved || !sameSession || state.screen !== "game" || !preparationSettingsEditable(state.data)) return false;
+  if (preparationCanvasTargetAt(canvasPointerPosition(event)) !== tap.field) return false;
+  setPreparationEditingField(tap.field, { focus: true });
+  return true;
+}
+
 function setPreparationEditingField(field = "", { focus = false } = {}) {
   const editable = preparationOverlayVisible(state.data) && preparationSettingsEditable(state.data);
   const next = editable && ["name", "skin", "map"].includes(field) ? field : "";
@@ -12041,6 +12143,10 @@ function setPreparationEditingField(field = "", { focus = false } = {}) {
     button.setAttribute("aria-expanded", String(button.dataset.preparationSetting === next));
   });
   if (els.preparationSettingClose) els.preparationSettingClose.hidden = !next;
+  // Pointer-up commits must make the chosen editor visible without waiting
+  // for the next room poll or render frame.
+  if (els.pregameCanvasSettings) els.pregameCanvasSettings.hidden = !next;
+  document.body.classList.toggle("pregame-canvas-open", Boolean(next));
   if (focus && next) requestAnimationFrame(() => {
     if (state.preparationEditingField !== next || !preparationOverlayVisible(state.data)) return;
     ({ name: els.nameInput, skin: els.skinSelect, map: els.mapSelect }[next])?.focus();
@@ -12116,8 +12222,9 @@ function render() {
   els.joinPanel.hidden = true;
   els.selectPanel.hidden = !operatorSelectionVisible;
   const selecting = data?.phase === "selecting";
-  els.pregameCanvasSettings.hidden = !settingsOverlayVisible;
-  document.body.classList.toggle("pregame-canvas-open", settingsOverlayVisible);
+  const preparationEditorOpen = settingsOverlayVisible && Boolean(state.preparationEditingField);
+  els.pregameCanvasSettings.hidden = !preparationEditorOpen;
+  document.body.classList.toggle("pregame-canvas-open", preparationEditorOpen);
   els.operatorSettingStatus.hidden = !settingsOverlayVisible;
   renderPreparationSettingSummary(data);
   els.operatorRetryButton.hidden = !(operatorSelectionVisible && !selecting && !state.matchmakingInFlight);
@@ -12182,7 +12289,7 @@ function formatBattleTime(data) {
 
 function renderOperatorSelect(data) {
   if (data.phase !== "selecting") return;
-  els.pregameCanvasSettings.hidden = false;
+  // Editing panels stay closed until their actual canvas target is tapped.
   els.operatorSettingStatus.hidden = false;
   els.operatorRetryButton.hidden = true;
   els.operatorHoldHint.hidden = false;
@@ -16007,35 +16114,17 @@ function drawPreparationRosterCharacter(sprite, player, size) {
   return true;
 }
 
-function drawPreparationRoster(data, width, height) {
+
+function drawPreparationWorldSummons(data) {
   if (!preparationRosterActive(data)) { clearPreparationRosterEntries(); return; }
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
-  const roster = Array.isArray(data.players) ? data.players.filter((player) => player && !player.ejected) : [];
+  // Bots are present during preparation but never receive a summon effect.
+  const roster = Array.isArray(data.players) ? data.players.filter((player) => player && !player.isBot && !player.ejected) : [];
   const sessionKey = String(data.roomId || "") + ":" + (Number(state.roomSessionGeneration) || 0);
   const ids = new Set(roster.map((player) => String(player.id || "")));
   for (const id of state.preparationRosterEntries.keys()) if (!ids.has(id)) state.preparationRosterEntries.delete(id);
-  if (!roster.length) return;
-
-  const reducedMotion = prefersReducedMotion();
   const nowMs = performance.now();
-  const side = Math.max(42, Math.min(96, width * 0.08));
-  // The roster begins below the three-setting summary overlay and leaves room for it on narrow canvases.
-  const top = Math.max(154, Math.min(height * 0.30, 250));
-  const bottom = Math.max(top + 110, height - Math.max(132, Math.min(210, height * 0.24)));
-  const usableWidth = Math.max(1, width - side * 2);
-  const usableHeight = Math.max(1, bottom - top);
-  let columns = 1;
-  let bestFit = 0;
-  for (let trial = 1; trial <= roster.length; trial += 1) {
-    const fit = Math.min(usableWidth / trial / 132, usableHeight / Math.ceil(roster.length / trial) / 220);
-    if (fit > bestFit) { bestFit = fit; columns = trial; }
-  }
-  const rows = Math.ceil(roster.length / columns);
-  const cellWidth = usableWidth / columns;
-  const cellHeight = usableHeight / rows;
-  const scale = Math.max(0.001, Math.min(1.08, cellWidth / 132, cellHeight / 220));
-
-  roster.forEach((player, index) => {
+  const reducedMotion = prefersReducedMotion();
+  for (const player of roster) {
     const id = String(player.id || "");
     let entry = state.preparationRosterEntries.get(id);
     if (!entry || entry.sessionKey !== sessionKey) {
@@ -16044,26 +16133,29 @@ function drawPreparationRoster(data, width, height) {
     }
     const sprite = preparationRosterSprite(player, data);
     const clock = preparationRosterSummonClock(entry, nowMs, reducedMotion, Boolean(sprite));
+    const position = renderedPlayer(player);
     const t = clock.t;
-    const descent = reducedMotion ? 0 : Math.pow(1 - Math.min(1, t / 0.64), 2) * 78 * scale;
+    const descent = reducedMotion ? 0 : Math.pow(1 - Math.min(1, t / 0.64), 2) * 78;
     const impact = reducedMotion ? 0 : Math.sin(Math.max(0, Math.min(1, (t - 0.54) / 0.30)) * Math.PI);
-    const stanceX = 1 + impact * 0.105;
-    const stanceY = 1 - impact * 0.13;
-    const lean = reducedMotion ? 0 : ((id.length % 2) ? 1 : -1) * impact * 0.035;
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const x = side + cellWidth * (column + 0.5);
-    const footY = top + cellHeight * (row + 0.82);
+    entry.arrival = { active: Boolean(clock.active), descent, stanceX: 1 + impact * 0.105, stanceY: 1 - impact * 0.13, lean: ((id.length % 2) ? 1 : -1) * impact * 0.035 };
+    drawPreparationRosterSummon(entry, position.x, position.y + 30, 0.56, clock);
+  }
+}
 
-    drawPreparationRosterSummon(entry, x, footY, scale, clock);
-    // Preparation owns a stationary, front-facing source frame; it never reads or mutates gameplay motion/effect maps.
-    ctx.save();
-    ctx.translate(x, footY - descent);
-    ctx.rotate(lean);
-    ctx.scale(scale * stanceX, scale * stanceY);
-    drawPreparationRosterCharacter(sprite, player, 94);
-    ctx.restore();
-  });
+function drawPreparationArrivalPlayer(player, data) {
+  const entry = !player?.isBot ? state.preparationRosterEntries.get(String(player?.id || "")) : null;
+  const arrival = entry?.arrival;
+  if (!arrival?.active) { drawHuman(player, data); return; }
+  // Reuse the v726 descent, impact and settle around the live field actor.
+  // This keeps the old map layout and avoids drawing a second roster sprite.
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.translate(0, -arrival.descent);
+  ctx.rotate(arrival.lean);
+  ctx.scale(arrival.stanceX, arrival.stanceY);
+  ctx.translate(-player.x, -player.y);
+  drawHuman(player, data);
+  ctx.restore();
 }
 // PREPARATION_ROSTER_V726_END
 
@@ -16081,18 +16173,16 @@ function draw() {
   ctx.fillStyle = data ? "#91a8b7" : "#25323d";
   ctx.fillRect(0, 0, w, h);
   const pregameCanvas = preparationPhaseActive(data);
+  // PLiCY revision 51 (v540) rendered selection through this same field path.
+  // Keep the map, participants, and minimap visible; only gameplay actions stay phase-gated.
   if (pregameCanvas) {
-    // Match setup deliberately does not expose a live field.
-    const wash = ctx.createLinearGradient(0, 0, w, h);
-    wash.addColorStop(0, "#11242c");
-    wash.addColorStop(1, "#1d3a44");
-    ctx.fillStyle = wash;
-    ctx.fillRect(0, 0, w, h);
-    drawPreparationRoster(data, w, h);
-    return;
+    clearPreparationCanvasHitTargets();
+    drawPreparationCanvasHitTargets(data, null, null, w, h);
+  } else {
+    clearPreparationRosterEntries();
+    clearPreparationCanvasHitTargets();
+    state.preparationCanvasTap = null;
   }
-  // PREPARATION_ROSTER_V726: direct draw() callers also release preparation state.
-  clearPreparationRosterEntries();
   if (data.phase !== "playing") {
     if (state.tabletOpen) setTabletOpen(false, { persist: false, focus: false });
     if (state.operatorBranchesOpen) setOperatorBranchesOpen(false);
@@ -16138,6 +16228,7 @@ function draw() {
       drawBodies(data);
       drawWorldSoundEffects();
       drawThrowLandingPreview(data);
+      if (pregameCanvas) drawPreparationWorldSummons(data);
       // Standalone Clairvoyance follows the selected player without a world marker.
       drawPlayers(data);
       drawGunnerAim(data);
@@ -20918,7 +21009,8 @@ function drawPlayers(data) {
     .sort((a, b) => Number(a.alive) - Number(b.alive));
   ordered.forEach((player) => {
     if (player.inVent || (player.invisible && player.id !== data.selfId)) return;
-    drawHuman(player, data);
+    if (preparationRosterActive(data)) drawPreparationArrivalPlayer(player, data);
+    else drawHuman(player, data);
   });
 }
 
@@ -21284,6 +21376,8 @@ function drawHuman(player, data) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(identityLabel, 0, -32);
+  // Sprite-loading fallback uses the compact -39 nameplate geometry.
+  registerPreparationPlayerCanvasTargets(player, -39, nameplateWidth);
   drawPreparationBarrierAte(player);
   drawHoverSprintSustainedJets(player, data);
   drawLuminousFeathers(player);
@@ -22481,6 +22575,9 @@ function drawNameplate(player, ghost, y) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(identityLabel, 0, y + 7);
+  // This runs under the exact sprite/nameplate transform, including the
+  // preparation descent, settle scale, camera and canvas scaling.
+  registerPreparationPlayerCanvasTargets(player, y, nameplateWidth);
 }
 
 function motionFor(player, data) {
@@ -23499,7 +23596,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "preparation-roster-summon-v726";
+const version = "plicy-preparation-canvas-v727";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24542,7 +24639,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=preparation-roster-summon-v726", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=plicy-preparation-canvas-v727", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
