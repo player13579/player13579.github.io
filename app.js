@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "emp-finish-v734";
+const DVA_CLIENT_RELEASE = "non-emp-te-finish-v735";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "emp-finish-v734";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "non-emp-te-finish-v735";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -18124,7 +18124,7 @@ function normalizeAteGlowMode(mode = "energy") {
 function applyAteGlowContext(targetContext, mode, time = 0, phase = 0, intensity = 1) {
   const profile = ATE_GLOW_PROFILES[normalizeAteGlowMode(mode)];
   const strength = clamp(Number(intensity) || 0, 0.12, 1.6);
-  const pulse = 1 + Math.sin(time * (2.1 + profile.pulse * 2.4) + phase * Math.PI * 2) * profile.pulse;
+  const pulse = prefersReducedMotion() ? 1 : 1 + Math.sin(time * (2.1 + profile.pulse * 2.4) + phase * Math.PI * 2) * profile.pulse;
   const auraBlur = Math.max(6, profile.blur * pulse * strength);
   const outerBlur = Math.max(8, profile.blur * 1.72 * (0.94 + pulse * 0.06) * strength);
   const inheritedFilter = targetContext.filter && targetContext.filter !== "none" ? `${targetContext.filter} ` : "";
@@ -18140,7 +18140,9 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
   if (!Number.isFinite(rawIntensity) || rawIntensity <= 0.001) return;
   const normalizedMode = normalizeAteGlowMode(mode);
   const profile = ATE_GLOW_PROFILES[normalizedMode];
-  const sampledTime = Math.floor(time * 60) / 60;
+  const inheritedAlpha = targetContext.globalAlpha;
+  if (inheritedAlpha <= 0 || prefersReducedMotion()) return;
+  const sampledTime = time;
   const strength = clamp(rawIntensity, 0, 1.4);
   const count = normalizedMode === "resonance" ? 10 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 7 : 5;
   const direction = normalizedMode === "data-down" ? 1 : -1;
@@ -18235,7 +18237,7 @@ function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, p
     targetContext.save();
     targetContext.translate(x, y);
     targetContext.rotate(rotation);
-    targetContext.globalAlpha = clamp((0.16 + life * 0.5) * strength, 0, 0.82);
+    targetContext.globalAlpha = inheritedAlpha * clamp((0.16 + life * 0.5) * strength, 0, 0.82);
     targetContext.fillStyle = index % 2 ? profile.core : profile.aura;
     targetContext.fillRect(-shardWidth / 2, -shardHeight / 2, shardWidth, shardHeight);
     targetContext.restore();
@@ -18614,56 +18616,39 @@ function drawInventionEnergyTexture(effect, progress) {
   const prepared = transparentSpriteSource(state.textures[textureKey], textureKey, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
   if (!sprite) return false;
-  const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x + (railgun ? 5000 : 1250);
-  const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
-  const dx = targetX - effect.x;
-  const dy = targetY - effect.y;
-  const length = Math.max(260, Math.hypot(dx, dy));
-  const sourceAnchor = 0.08;
-  const targetAnchor = 0.92;
+  const sourceX = Number(effect.x) || 0, sourceY = Number(effect.y) || 0;
+  const targetX = Number.isFinite(Number(effect.targetX)) ? Number(effect.targetX) : sourceX;
+  const targetY = Number.isFinite(Number(effect.targetY)) ? Number(effect.targetY) : sourceY;
+  const dx = targetX - sourceX, dy = targetY - sourceY, length = Math.hypot(dx, dy);
+  // No target axis means there is no rail/particle channel to register. Let
+  // the existing caller continue to its ordinary zero-range result instead of
+  // manufacturing the historical 5000/1250-unit ray.
+  if (length <= 0.001) return false;
+  const reduced = prefersReducedMotion(), p = clamp(Number(progress) || 0, 0, 1);
+  const pulse = reduced ? 0 : Math.sin(p * Math.PI);
+  const fade = 1 - objectEffectEase(clamp((p - .76) / .24, 0, 1));
+  const inheritedAlpha = ctx.globalAlpha;
+  if (fade <= .001 || inheritedAlpha <= .001) return true;
+  const sourceAnchor = .08, targetAnchor = .92;
   const renderWidth = length / (targetAnchor - sourceAnchor);
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  const renderHeight = (railgun ? 190 : 310) * (0.92 + pulse * 0.16);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.12, 1 - progress * (railgun ? 0.84 : 0.62));
-  ctx.translate(effect.x, effect.y);
-  ctx.rotate(Math.atan2(dy, dx));
-  drawAnimatedTextureCentered(
-    sprite,
-    (0.5 - sourceAnchor) * renderWidth,
-    0,
-    renderWidth,
-    renderHeight,
-    { mode: "beam", progress, intensity: railgun ? 1 : 0.92, baseAlpha: 0.15 }
-  );
-  const now = (state.frameNow || performance.now()) / 1000;
-  ctx.globalCompositeOperation = "lighter";
-  if (railgun) {
-    const shock = objectEffectEase(clamp(progress / 0.42, 0, 1));
-    for (let index = 0; index < 11; index += 1) {
-      const along = ((index + 0.5) / 11) * length;
-      const spread = (1 - shock) * (18 + (index % 3) * 9);
-      ctx.globalAlpha = (1 - progress) * (0.24 + (index % 4) * 0.055);
-      ctx.fillStyle = index % 3 === 0 ? "#fff4cf" : "#8be9ff";
-      ctx.fillRect(along, (index % 2 ? -1 : 1) * spread, 12 + (index % 4) * 8, 1.4 + (index % 2));
-    }
-  } else {
-    for (let index = 0; index < 18; index += 1) {
-      const along = ((index / 18 + progress * 0.48) % 1) * length;
-      const helix = Math.sin(index * 1.73 + now * 9.2) * renderHeight * 0.26 * (1 - progress * 0.35);
-      const size = 1.4 + (index % 4) * 0.75;
-      ctx.globalAlpha = Math.max(0, 1 - progress) * (0.28 + (index % 5) * 0.06);
-      ctx.fillStyle = index % 2 ? "#e5b7ff" : "#7df4ff";
-      ctx.save();
-      ctx.translate(along, helix);
-      ctx.rotate(Math.PI / 4 + now * 0.7);
-      ctx.fillRect(-size, -size, size * 2, size * 2);
-      ctx.restore();
+  const desiredHeight = (railgun ? 190 : 310) * (.92 + pulse * .16);
+  const naturalShortHeight = Math.max(.5, renderWidth * sprite.height / sprite.width);
+  const renderHeight = Math.min(desiredHeight, naturalShortHeight);
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = inheritedAlpha * fade;
+  ctx.translate(sourceX, sourceY); ctx.rotate(Math.atan2(dy, dx));
+  // Explicit source-anchor registration: x=.08 maps to source and x=.92 maps
+  // exactly to target, independent of source image aspect ratio or distance.
+  ctx.drawImage(sprite, -sourceAnchor * renderWidth, -renderHeight / 2, renderWidth, renderHeight);
+  if (!reduced) {
+    const now = (state.frameNow || performance.now()) / 1000;
+    if (railgun) {
+      const shock = objectEffectEase(clamp(p / .42, 0, 1));
+      for (let i=0;i<11;i+=1) { const along=((i+.5)/11)*length, spread=(1-shock)*(18+(i%3)*9); ctx.globalAlpha=inheritedAlpha*fade*(.24+(i%4)*.055);ctx.fillStyle=i%3===0?'#fff4cf':'#8be9ff';ctx.fillRect(along,(i%2?-1:1)*spread,12+(i%4)*8,1.4+(i%2)); }
+    } else {
+      for (let i=0;i<18;i+=1) { const along=((i/18+p*.48)%1)*length,helix=Math.sin(i*1.73+now*9.2)*renderHeight*.26*(1-p*.35),size=1.4+(i%4)*.75;ctx.globalAlpha=inheritedAlpha*fade*(.28+(i%5)*.06);ctx.fillStyle=i%2?'#e5b7ff':'#7df4ff';ctx.save();ctx.translate(along,helix);ctx.rotate(Math.PI/4+now*.7);ctx.fillRect(-size,-size,size*2,size*2);ctx.restore(); }
     }
   }
-  ctx.restore();
-  return true;
+  ctx.restore(); return true;
 }
 
 const MARKER_OWNED_EFFECT_TYPES = new Set([
@@ -18811,83 +18796,41 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
   const prepared = transparentSpriteSource(state.textures[textureKey], textureKey, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, textureKey, 1, 1, 0, 0) : null;
   if (!sprite) return false;
-
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  const thickness = 138 + pulse * 34;
-  const transform = quantumElectricTextureTransform(effect, thickness);
+  const reduced = prefersReducedMotion();
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const pulse = reduced ? 0 : Math.sin(p * Math.PI);
+  const transform = quantumElectricTextureTransform(effect, 138 + pulse * 34);
   if (!transform) return false;
-
-  // The raster's authored channel is diagonal. The generic beam ATE sweeps
-  // horizontal bands across image-space, so an affine-aligned raster could
-  // still appear to travel sideways. Reveal the accepted texture in the
-  // authoritative source->target direction, like Sunbeam, and keep the
-  // leading dielectric corona in the same world-space frame.
-  const reveal = objectEffectEase(clamp(progress / 0.24, 0, 1));
-  const dx = transform.targetX - transform.sourceX;
-  const dy = transform.targetY - transform.sourceY;
-  const nx = -dy / transform.length;
-  const ny = dx / transform.length;
-  const frontX = transform.sourceX + dx * reveal;
-  const frontY = transform.sourceY + dy * reveal;
-  const halfWidth = thickness * 0.72;
+  const reveal = reduced ? 1 : objectEffectEase(clamp(p / 0.24, 0, 1));
+  const fade = 1 - objectEffectEase(clamp((p - 0.76) / 0.24, 0, 1));
+  const dx = transform.targetX - transform.sourceX, dy = transform.targetY - transform.sourceY;
+  const nx = -dy / transform.length, ny = dx / transform.length;
+  const frontX = transform.sourceX + dx * reveal, frontY = transform.sourceY + dy * reveal;
+  const halfWidth = (138 + pulse * 34) * 0.72;
+  const inheritedAlpha = ctx.globalAlpha;
+  if (fade <= 0.001 || inheritedAlpha <= 0.001) return true;
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
+  ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = inheritedAlpha * fade;
   ctx.beginPath();
   ctx.moveTo(transform.sourceX + nx * halfWidth, transform.sourceY + ny * halfWidth);
   ctx.lineTo(frontX + nx * halfWidth, frontY + ny * halfWidth);
   ctx.lineTo(frontX - nx * halfWidth, frontY - ny * halfWidth);
-  ctx.lineTo(transform.sourceX - nx * halfWidth, transform.sourceY - ny * halfWidth);
-  ctx.closePath();
-  ctx.clip();
+  ctx.lineTo(transform.sourceX - nx * halfWidth, transform.sourceY - ny * halfWidth); ctx.closePath(); ctx.clip();
   ctx.transform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
   ctx.filter = "brightness(1.14) contrast(1.1) saturate(1.12)";
-  applyAteGlowContext(ctx, "beam", (state.frameNow || performance.now()) / 1000, progress, 0.98);
-  ctx.drawImage(sprite, -0.5, -0.5, 1, 1);
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0, 1 - progress) * 0.82;
-  ctx.translate(transform.sourceX, transform.sourceY);
-  ctx.rotate(Math.atan2(dy, dx));
-  applyAteGlowContext(ctx, "beam", (state.frameNow || performance.now()) / 1000, progress + 0.37, 0.72);
-  const coronaLength = Math.min(46, Math.max(22, transform.length * 0.06));
-  for (let branch = -1; branch <= 1; branch += 2) {
-    const branchPhase = progress * 34 + branch * 1.7;
-    const branchY = branch * (10 + Math.sin(branchPhase) * 5);
-    ctx.strokeStyle = branch > 0 ? "rgba(103,232,249,0.78)" : "rgba(196,181,253,0.7)";
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(reveal * transform.length - coronaLength * 0.5, branchY * 0.25);
-    ctx.lineTo(reveal * transform.length - coronaLength * 0.18, branchY);
-    ctx.lineTo(reveal * transform.length + coronaLength * 0.12, branchY * 0.38);
-    ctx.lineTo(reveal * transform.length + coronaLength * 0.46, branchY * 0.72);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  if (IS_VERIFICATION_MODE) {
-    const source = QUANTUM_ELECTRIC_TEXTURE_ANCHORS.source;
-    const target = QUANTUM_ELECTRIC_TEXTURE_ANCHORS.target;
-    const mapAnchor = (anchor) => ({
-      x: transform.a * anchor.x + transform.c * anchor.y + transform.e,
-      y: transform.b * anchor.x + transform.d * anchor.y + transform.f
-    });
-    const mappedSource = mapAnchor(source);
-    const mappedTarget = mapAnchor(target);
-    const renderedDx = mappedTarget.x - mappedSource.x;
-    const renderedDy = mappedTarget.y - mappedSource.y;
-    const renderedLength = Math.max(0.001, Math.hypot(renderedDx, renderedDy));
-    const alignment = (renderedDx * (transform.targetX - transform.sourceX) + renderedDy * (transform.targetY - transform.sourceY)) /
-      (renderedLength * transform.length);
-    const root = document.documentElement;
-    root.setAttribute("data-v554-quantum-electric-rendered", "true");
-    root.setAttribute("data-v561-quantum-electric-renderer", "source-target-reveal");
-    root.setAttribute("data-v562-quantum-electric-reveal", reveal.toFixed(6));
-    root.setAttribute("data-v561-quantum-electric-axis-dot", alignment.toFixed(6));
-    root.setAttribute("data-v561-quantum-electric-source-error", Math.hypot(mappedSource.x - transform.sourceX, mappedSource.y - transform.sourceY).toFixed(6));
-    root.setAttribute("data-v561-quantum-electric-target-error", Math.hypot(mappedTarget.x - transform.targetX, mappedTarget.y - transform.targetY).toFixed(6));
+  applyAteGlowContext(ctx, "beam", (state.frameNow || performance.now()) / 1000, p, 0.98);
+  ctx.drawImage(sprite, -0.5, -0.5, 1, 1); ctx.restore();
+  if (!reduced && fade > 0.001) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = inheritedAlpha * fade * 0.82;
+    ctx.translate(transform.sourceX, transform.sourceY); ctx.rotate(Math.atan2(dy, dx));
+    applyAteGlowContext(ctx, "beam", (state.frameNow || performance.now()) / 1000, p + 0.37, 0.72);
+    const corona = Math.min(46, Math.max(22, transform.length * 0.06));
+    for (const branch of [-1, 1]) {
+      const y = branch * (10 + Math.sin(p * 34 + branch * 1.7) * 5);
+      ctx.strokeStyle = branch > 0 ? "rgba(103,232,249,.78)" : "rgba(196,181,253,.7)"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(reveal * transform.length - corona * .5, y * .25); ctx.lineTo(reveal * transform.length - corona * .18, y); ctx.lineTo(reveal * transform.length + corona * .46, y * .72); ctx.stroke();
+    }
+    ctx.restore();
   }
   return true;
 }
@@ -18896,33 +18839,50 @@ function drawQuantumElectricDirectedEffect(effect, progress) {
 
 
 function drawPlicyV540PreparationBarrierHit(effect, progress, sprite, defaultSize) {
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const pulse = Math.sin(p * Math.PI), enter = objectEffectEase(clamp(p / 0.10, 0, 1));
+  const fade = 1 - objectEffectEase(clamp((p - 0.64) / 0.36, 0, 1));
   const radiusSize = Number(effect.radius) > 0 ? Number(effect.radius) * 1.9 : defaultSize;
-  const size = Math.min(520, Math.max(defaultSize, radiusSize)) * (0.82 + pulse * 0.28 + progress * 0.14);
-  const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
-  const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
+  const size = Math.min(520, Math.max(defaultSize, radiusSize)) * (0.82 + pulse * 0.28 + p * 0.14);
+  const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x, targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
   const directed = ["gunner-missile", "alchemy-excalibur", "action-jump", "fighter-shockwave", "fighter-energy-release"].includes(effect.type) && (targetX !== effect.x || targetY !== effect.y);
-  const renderHeight = size;
-  const renderWidth = size;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84);
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = enter * fade;
   ctx.translate(directed ? (effect.x + targetX) / 2 : effect.x, directed ? (effect.y + targetY) / 2 : effect.y);
-  if (directed) {
-    const sourceAxisOffset = effect.type === "alchemy-excalibur" ? Math.PI / 4 : 0;
-    ctx.rotate(Math.atan2(targetY - effect.y, targetX - effect.x) - sourceAxisOffset);
-  }
-  drawAnimatedTextureBottom(sprite, 0, renderHeight / 2, directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : renderWidth, renderHeight, {
-    mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant),
-    progress,
-    intensity: 0.94,
-    baseAlpha: 0.16
+  if (directed) ctx.rotate(Math.atan2(targetY - effect.y, targetX - effect.x) - (effect.type === "alchemy-excalibur" ? Math.PI / 4 : 0));
+  drawAnimatedTextureBottom(sprite, 0, size / 2, directed ? Math.max(size, Math.hypot(targetX - effect.x, targetY - effect.y)) : size, size, { mode: directed ? "beam" : semanticEffectMotion(effect.type, effect.variant), progress:p, intensity:0.94, baseAlpha:0.16 });
+  ctx.restore(); return true;
+}
+
+function drawGunnerHeadshotEffect(effect, progress) {
+  if (!["action-gunner-headshot", "action-gunner-aim-headshot"].includes(effect.type)) return false;
+  const weaponId = gunnerWeaponIdFromActionVariant(effect.variant);
+  const index = GUNNER_WEAPON_CELLS[weaponId];
+  if (!Number.isInteger(index)) return false;
+  // Cells 0–4 are the authored per-weapon impact strips. They express the
+  // target hit; do not reuse the weapons atlas or shift this to the shooter's
+  // muzzle. Special ammunition owns its separate action-special-ammo-impact
+  // event and deliberately does not enter this renderer.
+  const key = `gunner-headshot-impact-${weaponId}`;
+  const prepared = transparentSpriteSource(state.textures.gunnerCombatStateEffects?.[index], key, 24);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, key, 1, 1, 0, 0) : null;
+  if (!sprite) return false;
+  const p = clamp(Number(progress) || 0, 0, 1), reduced = prefersReducedMotion();
+  const impact = reduced ? 1 : objectEffectEase(clamp(p / .14, 0, 1));
+  const tail = 1 - objectEffectEase(clamp((p - .46) / .54, 0, 1));
+  const inheritedAlpha = ctx.globalAlpha;
+  if (tail <= .001 || inheritedAlpha <= .001) return true;
+  const size = 108 + impact * 34;
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = inheritedAlpha * tail;
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode: "impact", progress: reduced ? .5 : p, intensity: .94, baseAlpha: .2, opacityBoost: 2.1
   });
   ctx.restore();
   return true;
 }
 
 function drawGeneratedStandaloneEffect(effect, progress) {
+  if (effect?.type === "action-gunner-headshot" || effect?.type === "action-gunner-aim-headshot") return drawGunnerHeadshotEffect(effect, progress);
   // The event owns only the ignition kick; sustained jets are state-owned.
   if (effect?.type === "hover-sprint-active") {
     drawHoverSprintActivationJets(effect, progress);
@@ -18993,7 +18953,7 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   const renderWidth = goldTransmutation ? renderHeight * (510 / 141) : size;
   ctx.save();
   ctx.globalCompositeOperation = preparationBarrierHit ? "source-over" : "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.84) * (preparationBarrierHit ? 0.62 : 1);
+  ctx.globalAlpha = (1 - progress * 0.28) * (1 - objectEffectEase(clamp((progress - 0.64) / 0.36, 0, 1))) * (preparationBarrierHit ? 0.62 : 1);
   ctx.translate(directed ? (effect.x + targetX) / 2 : effect.x, directed ? (effect.y + targetY) / 2 : effect.y);
   if (directed) {
     const sourceAxisOffset = effect.type === "alchemy-excalibur" ? Math.PI / 4 : 0;
@@ -19333,7 +19293,7 @@ function drawTransferGeneratedEffect(effect, progress, sprite, defaultSize) {
   const size = defaultSize * (outgoing ? 0.78 + pulse * 0.34 : 1.15 - progress * 0.25 + pulse * 0.18);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.12, outgoing ? 1 - progress * 0.55 : 1 - progress * 0.8);
+  ctx.globalAlpha = (outgoing ? 1 - progress * 0.25 : 1 - progress * 0.4) * (1 - objectEffectEase(clamp((progress - 0.72) / 0.28, 0, 1)));
   ctx.translate(x, y);
   if (outgoing && (targetX !== effect.x || targetY !== effect.y)) {
     ctx.rotate(Math.atan2(targetY - effect.y, targetX - effect.x));
@@ -19376,7 +19336,7 @@ function drawTacticalSystemsEffect(effect, progress) {
   const size = Math.min(index === 6 ? 560 : 390, base * (1.55 + progress * 0.65 + pulse * 0.2));
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
+  ctx.globalAlpha = (1 - progress * 0.3) * (1 - objectEffectEase(clamp((progress - 0.62) / 0.38, 0, 1)));
   ctx.translate(effect.x, effect.y);
   ctx.rotate(index === 5 ? progress * 0.24 : 0);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
@@ -19395,35 +19355,51 @@ function drawFloraGeneratedEffect(effect, progress, sunbeam) {
   const prepared = transparentSpriteSource(source, key, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, key, 1, 1, 0, 0) : null;
   if (!sprite) return false;
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
+  const reduced = prefersReducedMotion();
+  const safeProgress = clamp(Number(progress) || 0, 0, 1);
+  const pulse = reduced ? 0 : Math.sin(safeProgress * Math.PI);
+  const fade = 1 - objectEffectEase(clamp((safeProgress - 0.76) / 0.24, 0, 1));
+  if (fade <= 0.001) return true;
+  const inheritedAlpha = ctx.globalAlpha;
+  if (inheritedAlpha <= 0.001) return true;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.78);
+  ctx.globalAlpha = inheritedAlpha * fade;
   if (sunbeam) {
-    const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x + 900;
-    const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
-    const dx = targetX - effect.x;
-    const dy = targetY - effect.y;
-    const length = Math.max(320, Math.hypot(dx, dy));
-    ctx.translate(effect.x, effect.y);
-    ctx.rotate(Math.atan2(dy, dx));
-    const sourceAnchor = 0.16;
-    const targetAnchor = 0.87;
-    const renderWidth = length / (targetAnchor - sourceAnchor);
-    const renderCenterX = (0.5 - sourceAnchor) * renderWidth;
-    drawAnimatedTextureCentered(sprite, renderCenterX, 0, renderWidth, 390 + pulse * 55, {
-      mode: "beam",
-      progress,
-      intensity: 0.98,
-      baseAlpha: 0.14
-    });
+    const sourceX = Number(effect.x) || 0;
+    const sourceY = Number(effect.y) || 0;
+    const targetX = Number.isFinite(Number(effect.targetX)) ? Number(effect.targetX) : sourceX;
+    const targetY = Number.isFinite(Number(effect.targetY)) ? Number(effect.targetY) : sourceY;
+    const dx = targetX - sourceX;
+    const dy = targetY - sourceY;
+    const length = Math.hypot(dx, dy);
+    // A coincident target has no beam axis. Show the existing texture as a
+    // compact source result instead of inventing a 900-unit ray to the right.
+    if (length <= 0.001) {
+      const size = 164 + pulse * 16;
+      drawAnimatedTextureCentered(sprite, sourceX, sourceY, size, size * 0.58, {
+        mode: "beam", progress: reduced ? 0.5 : safeProgress, intensity: 0.8, baseAlpha: 0.2
+      });
+    } else {
+      const sourceAnchor = 0.16;
+      const targetAnchor = 0.87;
+      const renderWidth = length / (targetAnchor - sourceAnchor);
+      const renderCenterX = (0.5 - sourceAnchor) * renderWidth;
+      ctx.translate(sourceX, sourceY);
+      ctx.rotate(Math.atan2(dy, dx));
+      // This is an anchor registration, not a max-size request. The current
+      // animated helper aspect-fits its source, which can shorten a long beam
+      // and miss targetAnchor. Stretch only this authored directional raster
+      // across its declared source/target channel.
+      const desiredHeight = 390 + pulse * 55;
+      const naturalShortHeight = Math.max(.5, renderWidth * sprite.height / sprite.width);
+      const renderHeight = Math.min(desiredHeight, naturalShortHeight);
+      ctx.drawImage(sprite, renderCenterX - renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+    }
   } else {
     const size = Math.max(190, Number(effect.radius || 110) * 1.9) * (0.9 + pulse * 0.12);
-    drawAnimatedTextureCentered(sprite, effect.x, effect.y - size * 0.03, size, size, {
-      mode: "flow-up",
-      progress,
-      intensity: 0.96,
-      baseAlpha: 0.22
+    drawAnimatedTextureCentered(sprite, Number(effect.x) || 0, (Number(effect.y) || 0) - size * 0.03, size, size, {
+      mode: "flow-up", progress: reduced ? 0.5 : safeProgress, intensity: 0.96, baseAlpha: 0.22
     });
   }
   ctx.restore();
@@ -19431,27 +19407,40 @@ function drawFloraGeneratedEffect(effect, progress, sunbeam) {
 }
 
 function drawDirectedEnergyEffect(effect, progress, now) {
-  const targetX = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
-  const targetY = Number.isFinite(effect.targetY) ? effect.targetY : effect.y - 600;
+  const sourceX = Number(effect.x) || 0;
+  const sourceY = Number(effect.y) || 0;
+  const targetX = Number.isFinite(Number(effect.targetX)) ? Number(effect.targetX) : sourceX;
+  const targetY = Number.isFinite(Number(effect.targetY)) ? Number(effect.targetY) : sourceY;
   const flora = effect.type === "flora-sunbeam";
-  const particle = effect.type.includes("particle");
+  const particle = String(effect.type || "").includes("particle");
+  const reduced = prefersReducedMotion();
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const fade = 1 - objectEffectEase(clamp((p - 0.76) / 0.24, 0, 1));
+  const distance = Math.hypot(targetX - sourceX, targetY - sourceY);
   const width = flora ? 34 : particle ? 42 : 18;
+  const inheritedAlpha = ctx.globalAlpha;
+  if (fade <= 0.001 || inheritedAlpha <= 0.001) return;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
-  const gradient = ctx.createLinearGradient(effect.x, effect.y, targetX, targetY);
-  gradient.addColorStop(0, flora ? "#fef08a" : particle ? "#67e8f9" : "#f8fafc");
-  gradient.addColorStop(0.55, flora ? "#facc15" : particle ? "#38bdf8" : "#c4b5fd");
-  gradient.addColorStop(1, "rgba(255,255,255,0.05)");
-  ctx.strokeStyle = gradient;
-  ctx.lineWidth = width * (0.65 + Math.sin(now / 70) * 0.08);
-  ctx.beginPath();
-  ctx.moveTo(effect.x, effect.y);
-  ctx.lineTo(targetX, targetY);
-  ctx.stroke();
-  ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  ctx.lineWidth = Math.max(2, width * 0.2);
-  ctx.stroke();
+  ctx.globalAlpha = inheritedAlpha * fade;
+  if (distance <= 0.001) {
+    const radius = width * (reduced ? 1.25 : 1.05 + Math.sin(p * Math.PI) * 0.38);
+    const bloom = ctx.createRadialGradient(sourceX, sourceY, 0, sourceX, sourceY, radius * 2.2);
+    bloom.addColorStop(0, flora ? "rgba(254,240,138,.95)" : particle ? "rgba(103,232,249,.92)" : "rgba(248,250,252,.9)");
+    bloom.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = bloom;
+    ctx.beginPath(); ctx.arc(sourceX, sourceY, radius * 2.2, 0, Math.PI * 2); ctx.fill();
+  } else {
+    const gradient = ctx.createLinearGradient(sourceX, sourceY, targetX, targetY);
+    gradient.addColorStop(0, flora ? "#fef08a" : particle ? "#67e8f9" : "#f8fafc");
+    gradient.addColorStop(0.55, flora ? "#facc15" : particle ? "#38bdf8" : "#c4b5fd");
+    gradient.addColorStop(1, "rgba(255,255,255,0.05)");
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = width * (reduced ? 0.72 : 0.65 + Math.sin(Number(now || 0) / 70) * 0.08);
+    ctx.beginPath(); ctx.moveTo(sourceX, sourceY); ctx.lineTo(targetX, targetY); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.lineWidth = Math.max(2, width * 0.2); ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -19464,15 +19453,15 @@ const ACTION_EFFECT_CELLS = {
   "action-teleport": 4,
   "action-heart-teleport": 4,
   "action-warp": 5,
-  "action-ninjutsu-focus": 7,
-  "gunner-passive-aim": 7,
+  "action-ninjutsu-focus": 6,
+  "gunner-passive-aim": 6,
   "action-shoot": 7,
   "action-reason": 7,
   "action-push": 7,
-  "action-sabotage": 8,
-  "action-repair": 9,
-  "action-vent": 10,
-  "action-vending": 11,
+  "action-sabotage": 7,
+  "action-repair": 8,
+  "action-vent": 9,
+  "action-vending": 10,
   "action-renki": 11,
   "action-mana": 11,
   "action-alchemy": 11,
@@ -19493,56 +19482,33 @@ function gunnerWeaponIdFromActionVariant(variant, fallback = "") {
 }
 
 function drawGunnerActionEffect(effect, progress) {
-  const stateEffect = effect.type === "action-shoot";
-  if (!stateEffect) return false;
+  if (effect.type !== "action-shoot") return false;
   const weaponId = gunnerWeaponIdFromActionVariant(effect.variant);
   if (!weaponId) return false;
-  const index = GUNNER_WEAPON_CELLS[weaponId];
-  const sourceIndex = 5 + index;
-  const sprite = transparentSpriteSource(
-    state.textures.gunnerCombatStateEffects?.[sourceIndex],
-    `gunner-combat-state-${sourceIndex}`,
-    24
-  );
+  const sourceIndex = 5 + GUNNER_WEAPON_CELLS[weaponId];
+  const prepared = transparentSpriteSource(state.textures.gunnerCombatStateEffects?.[sourceIndex], `gunner-combat-state-${sourceIndex}`, 24);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, `gunner-combat-state-${sourceIndex}`, 1, 1, 0, 0) : null;
   if (!sprite) return false;
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  ctx.save();
-  const firingEffect = effect.type === "action-shoot";
-  ctx.globalCompositeOperation = firingEffect ? "lighter" : "source-over";
-  ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88);
-  if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
-    const dx = effect.targetX - effect.x;
-    const dy = effect.targetY - effect.y;
-    const direction = cardinalDirectionVector(dx, dy);
-    const unitX = direction.dx;
-    const unitY = direction.dy;
-    const muzzle = ({
-      handgun: { forward: 29, height: -32 },
-      smg: { forward: 37, height: -34 },
-      assault: { forward: 43, height: -36 },
-      sniper: { forward: 57, height: -37 },
-      taser: { forward: 31, height: -32 }
-    })[weaponId] || { forward: 35, height: -34 };
-    const flashLength = ({ handgun: 42, smg: 48, assault: 56, sniper: 72, taser: 40 })[weaponId] || 46;
-    const flashHeight = ({ handgun: 34, smg: 38, assault: 42, sniper: 48, taser: 34 })[weaponId] || 38;
-    const horizontalShot = unitX !== 0;
-    const bodyAnchorX = horizontalShot ? 0 : unitY < 0 ? 8 : -8;
-    const bodyAnchorY = horizontalShot ? muzzle.height : unitY < 0 ? -43 : -10;
-    const startX = effect.x + bodyAnchorX + unitX * muzzle.forward;
-    const startY = effect.y + bodyAnchorY + unitY * muzzle.forward;
-    ctx.translate(startX, startY);
-    ctx.rotate(Math.atan2(unitY, unitX));
-    drawAnimatedTextureCentered(sprite, flashLength / 2, 0, flashLength, flashHeight + pulse * 8, {
-      mode: semanticEffectMotion(effect.type, effect.variant, "beam"), progress, intensity: 0.95, baseAlpha: 0.14
-    });
-  } else {
-    const size = 108 + pulse * 28;
-    drawAnimatedTextureBottom(sprite, effect.x, effect.y - 34 - progress * 28 + size / 2, size * 1.45, size, {
-      mode: "energy", progress, intensity: 0.86, baseAlpha: 0.16
-    });
-  }
-  ctx.restore();
-  return true;
+  const reduced = prefersReducedMotion(), p = clamp(Number(progress) || 0, 0, 1);
+  const pulse = reduced ? 0 : Math.sin(p * Math.PI);
+  const fade = 1 - objectEffectEase(clamp((p - .72) / .28, 0, 1));
+  const dx = Number(effect.targetX) - Number(effect.x), dy = Number(effect.targetY) - Number(effect.y);
+  const hasTargetAxis = Number.isFinite(dx) && Number.isFinite(dy) && Math.hypot(dx, dy) > .001;
+  const direction = hasTargetAxis ? cardinalDirectionVector(dx, dy) : { dx: 1, dy: 0 };
+  const muzzle = ({ handgun:{forward:29,height:-32}, smg:{forward:37,height:-34}, assault:{forward:43,height:-36}, sniper:{forward:57,height:-37}, taser:{forward:31,height:-32} })[weaponId] || {forward:35,height:-34};
+  const length = ({handgun:42,smg:48,assault:56,sniper:72,taser:40})[weaponId] || 46;
+  const height = ({handgun:34,smg:38,assault:42,sniper:48,taser:34})[weaponId] || 38;
+  const horizontal = direction.dx !== 0;
+  const startX = Number(effect.x) + (horizontal ? 0 : direction.dy < 0 ? 8 : -8) + direction.dx * muzzle.forward;
+  const startY = Number(effect.y) + (horizontal ? muzzle.height : direction.dy < 0 ? -43 : -10) + direction.dy * muzzle.forward;
+  const inheritedAlpha = ctx.globalAlpha;
+  if (fade <= 0.001 || inheritedAlpha <= 0.001) return true;
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = inheritedAlpha * fade;
+  ctx.translate(startX, startY); ctx.rotate(Math.atan2(direction.dy, direction.dx));
+  // Cropping the full-canvas authored flash restores its intended muzzle-scale
+  // read; this modest display scale remains local to the weapon hand.
+  drawAnimatedTextureCentered(sprite, length / 2, 0, length * 1.28, (height + pulse * 8) * 1.28, {mode:"beam", progress: reduced ? .5 : p, intensity:.95, baseAlpha:.18});
+  ctx.restore(); return true;
 }
 
 const PHILOSOPHY_EFFECT_CELLS = {
@@ -19550,7 +19516,7 @@ const PHILOSOPHY_EFFECT_CELLS = {
   "action-stand": 4,
   "action-grit": 4,
   "action-push": 5,
-  "action-reason": 5,
+  "action-reason": 3,
   "action-alchemy": 0,
   "action-rational-free": 8,
   "idea-truth": 6,
@@ -19652,9 +19618,9 @@ function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
   const size = rawSize * (0.78 + progress * 0.78 + pulse * 0.22);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
+  ctx.globalAlpha = (1 - progress * 0.32) * (1 - objectEffectEase(clamp((progress - 0.58) / 0.42, 0, 1)));
   ctx.translate(effect.x, effect.y);
-  ctx.rotate((index % 2 ? 1 : -1) * progress * 0.24);
+  ctx.rotate(prefersReducedMotion() ? 0 : (index % 2 ? 1 : -1) * progress * 0.24);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
     mode: semanticEffectMotion(effect.type, effect.variant),
     progress,
@@ -19666,67 +19632,42 @@ function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
 }
 
 function drawFighterDodgeCounterEffect(effect, progress) {
-  const sprite = transparentSpriteSource(state.textures.fighterSlashEffect, "fighter-slash-effect", 28);
+  const prepared = transparentSpriteSource(state.textures.fighterSlashEffect, "fighter-slash-effect", 28);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "fighter-slash-effect", 1, 1, 0, 0) : null;
   if (!sprite) return false;
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  const reach = Math.max(190, Number(effect.radius) * 1.55 || 248) * (0.82 + progress * 0.46 + pulse * 0.12);
-  const thickness = reach * 0.34;
-  const dx = Number.isFinite(effect.targetX) ? effect.targetX - effect.x : 1;
-  const dy = Number.isFinite(effect.targetY) ? effect.targetY - effect.y : 0;
-  const angle = Math.atan2(dy, dx);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.05, 1 - progress * 0.9);
-  ctx.translate(effect.x, effect.y);
-  ctx.rotate(angle - 0.12 + progress * 0.24);
-  // Keep the effect in front of the blade so the character motion stays readable.
-  drawAnimatedTextureBottom(sprite, reach * 0.22, thickness * 0.5, reach, thickness, {
-    mode: "beam", progress, intensity: 1, baseAlpha: 0.12
-  });
-  ctx.restore();
-  return true;
+  const reduced = prefersReducedMotion(), p = clamp(Number(progress) || 0, 0, 1);
+  const pulse = reduced ? 0 : Math.sin(p * Math.PI);
+  const reach = Math.max(190, Number(effect.radius) * 1.55 || 248) * (.88 + p * .48 + pulse * .12);
+  const dx = Number(effect.targetX) - Number(effect.x), dy = Number(effect.targetY) - Number(effect.y);
+  const angle = Number.isFinite(dx) && Number.isFinite(dy) && Math.hypot(dx, dy) > .001 ? Math.atan2(dy, dx) : 0;
+  const fade = 1 - objectEffectEase(clamp((p - .76) / .24, 0, 1));
+  const inheritedAlpha = ctx.globalAlpha;
+  if (fade <= 0.001 || inheritedAlpha <= 0.001) return true;
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = inheritedAlpha * fade;
+  ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0); ctx.rotate(angle - .12 + (reduced ? .12 : p * .24));
+  drawAnimatedTextureBottom(sprite, reach * .22, reach * .22, reach, reach * .42, {mode:"beam", progress: reduced ? .5 : p, intensity:1, baseAlpha:.16});
+  ctx.restore(); return true;
 }
 
 function drawHeartTeleportEffect(effect, progress) {
   const player = state.data?.players?.find((entry) => entry.id === effect.playerId);
   const source = state.textures.heartTeleportEffect;
-  const sprite = source ? transparentSpriteSource(source, "heart-transfer-fist-glow-ate-v468", 18) : null;
-  const position = player ? renderedPlayer(player) : { x: effect.x, y: effect.y };
-  const facing = player
-    ? facingFor(player, motionFor(player, state.data))
-    : state.facing.get(effect.playerId) || "right";
-  const direction = facing === "left" ? -1 : 1;
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  const fistX = position.x + direction * (22 + Math.min(1, progress * 2.4) * 7);
-  const fistY = position.y - 31;
-  const width = 94 + pulse * 24;
-  const height = 72 + pulse * 18;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.34, 1 - progress * 0.5);
-  ctx.translate(fistX, fistY);
-  ctx.scale(direction, 1);
-  if (sprite) {
-    drawAnimatedTextureCentered(sprite, 0, 0, width, height, {
-      mode: "energy", progress, phase: 0.41, intensity: 1, baseAlpha: 0.24, opacityBoost: 2.7
-    });
+  const prepared = source ? transparentSpriteSource(source, "heart-transfer-fist-glow-ate-v468", 18) : null;
+  const sprite = prepared ? normalizedSpriteFrame(prepared, "heart-transfer-fist-glow-ate-v468", 1, 1, 0, 0) : null;
+  const position = player ? renderedPlayer(player) : {x:Number(effect.x) || 0, y:Number(effect.y) || 0};
+  const facing = player ? facingFor(player, motionFor(player, state.data)) : state.facing.get(effect.playerId) || "right";
+  const direction = facing === "left" ? -1 : 1, reduced = prefersReducedMotion(), p = clamp(Number(progress) || 0, 0, 1);
+  const pulse = reduced ? 0 : Math.sin(p * Math.PI), fade = 1 - objectEffectEase(clamp((p - .76) / .24, 0, 1));
+  const fistX = position.x + direction * (22 + (reduced ? 1 : Math.min(1, p * 2.4)) * 7), fistY = position.y - 31;
+  const inheritedAlpha = ctx.globalAlpha;
+  if (fade <= 0.001 || inheritedAlpha <= 0.001) return true;
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = inheritedAlpha * fade; ctx.translate(fistX, fistY); ctx.scale(direction, 1);
+  if (sprite) drawAnimatedTextureCentered(sprite, 0, 0, 112 + pulse * 24, 86 + pulse * 18, {mode:"energy", progress:reduced ? .5 : p, phase:.41, intensity:1, baseAlpha:.26, opacityBoost:2.7});
+  if (!reduced) {
+    ctx.fillStyle = "rgba(255,192,203,.86)";
+    for (let i=0;i<5;i+=1) { const phase=(p*1.8+i/5)%1, angle=-.8+i*.38, travel=14+phase*28, size=1.8+(1-phase)*2.2; ctx.save();ctx.translate(Math.cos(angle)*travel,Math.sin(angle)*travel*.52);ctx.rotate(angle+Math.PI/4);ctx.globalAlpha=(1-phase)*(.36+pulse*.28);ctx.fillRect(-size/2,-size/2,size,size);ctx.restore(); }
   }
-  // E adds sparse detached sparks only; the raster owns the red fist glow.
-  ctx.fillStyle = "rgba(255, 192, 203, 0.86)";
-  for (let index = 0; index < 5; index += 1) {
-    const phase = (progress * 1.8 + index / 5) % 1;
-    const angle = -0.8 + index * 0.38;
-    const travel = 14 + phase * 28;
-    const moteSize = 1.8 + (1 - phase) * 2.2;
-    ctx.save();
-    ctx.translate(Math.cos(angle) * travel, Math.sin(angle) * travel * 0.52);
-    ctx.rotate(angle + Math.PI / 4);
-    ctx.globalAlpha = Math.max(0.06, (1 - phase) * (0.36 + pulse * 0.28));
-    ctx.fillRect(-moteSize / 2, -moteSize / 2, moteSize, moteSize);
-    ctx.restore();
-  }
-  ctx.restore();
-  return true;
+  ctx.restore(); return true;
 }
 
 function drawShopActivationEffect(effect, progress, now) {
@@ -19741,7 +19682,7 @@ function drawShopActivationEffect(effect, progress, now) {
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - settle * 0.88);
+  ctx.globalAlpha = 1 - settle;
   drawAnimatedTextureCentered(sprite, effect.x, effect.y - 30 - opening * 4, width, height, {
     mode: "shimmer",
     time: now / 1000,
@@ -19885,7 +19826,7 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
     ctx.rotate(shortcutProfile.rotation * impulse);
     ctx.scale(shortcutProfile.scaleX * entranceScale, shortcutProfile.scaleY * entranceScale);
     ctx.globalCompositeOperation = empOverlapSafe ? "source-over" : "lighter";
-    ctx.globalAlpha = Math.max(0.08, reveal * fade);
+    ctx.globalAlpha = reveal * fade;
     drawAnimatedTextureCentered(shortcutSprite, 0, 0, iconSize, iconSize, {
       mode: shortcutProfile.motion,
       time: sampledTime,
@@ -19967,7 +19908,7 @@ function drawActionEffect(effect, progress, now) {
     ? ALCHEMY_VARIANT_CELLS[effect.variant] ?? ALCHEMY_EFFECT_CELLS[effect.type]
     : ALCHEMY_EFFECT_CELLS[effect.type];
   if (alchemyIndex != null && drawAlchemyEffect(effect, alchemyIndex, progress)) return;
-  const index = ACTION_EFFECT_CELLS[effect.type] ?? 11;
+  const index = ACTION_EFFECT_CELLS[effect.type];
   const sprite = transparentSpriteSource(
     state.textures.actionEffectTextures?.[index],
     `action-effect-${index}`,
@@ -19993,8 +19934,8 @@ function drawActionEffect(effect, progress, now) {
     const layerSize = size * (0.88 + layer * 0.16);
     ctx.save();
     ctx.translate(effect.x, effect.y);
-    ctx.rotate((index % 2 ? 1 : -1) * (progress * 0.28 + layer * 0.08));
-    ctx.globalAlpha = Math.max(0, 1 - progress * 0.92) * (0.78 - layer * 0.26);
+    ctx.rotate(prefersReducedMotion() ? 0 : (index % 2 ? 1 : -1) * (progress * 0.28 + layer * 0.08));
+    ctx.globalAlpha = (1 - progress * 0.42) * (1 - objectEffectEase(clamp((progress - 0.58) / 0.42, 0, 1))) * (0.78 - layer * 0.26);
     drawAnimatedTextureCentered(sprite, 0, -progress * (8 + layer * 5), layerSize, layerSize, {
       mode: semanticEffectMotion(effect.type, effect.variant, index === 3 || index === 9 ? "flow-up" : "energy"),
       time: now / 1000,
@@ -20255,9 +20196,10 @@ function drawAlchemyEffect(effect, index, progress) {
   const size = maxRadius * (1.2 + progress * 1.05 + pulse * 0.24);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.82);
+  const tail = 1 - objectEffectEase(clamp((progress - 0.64) / 0.36, 0, 1));
+  ctx.globalAlpha = (1 - progress * 0.32) * tail;
   ctx.translate(effect.x, effect.y);
-  ctx.rotate((index % 2 ? 1 : -1) * progress * 0.18);
+  ctx.rotate(prefersReducedMotion() ? 0 : (index % 2 ? 1 : -1) * progress * 0.18);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
     mode: semanticEffectMotion(effect.type, effect.variant, index === 7 ? "combustion" : "energy"),
     progress,
@@ -20278,88 +20220,123 @@ function drawIdeaEffect(effect, progress, now) {
 }
 
 function drawGravityStormImpactEffect(effect, progress) {
-  if (effect.type === "gravity-storm-barrier-hit") {
-    const prepared = transparentSpriteSource(state.textures.gravityStormSafeEye, "gravity-storm-safe-eye-v320-hit", 18);
-    if (!prepared) return false;
-    const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-    const size = Math.max(170, Number(effect.radius || 140) * 2) * (0.88 + pulse * 0.24);
-    ctx.save();
-    ctx.translate(effect.x, effect.y);
-    ctx.rotate(-progress * 0.18);
-    ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86);
-    drawAnimatedTextureCentered(prepared, 0, 0, size, size, {
-      mode: "guard",
-      progress,
-      phase: 0.37,
-      intensity: 0.96,
-      baseAlpha: 0.18
-    });
-    ctx.restore();
-    return true;
-  }
-  const atlas = transparentSpriteSource(state.textures.tacticalSystemsAtlas, "tactical-systems-atlas", 18);
-  const sprite = atlas ? normalizedSpriteFrame(atlas, "gravity-storm-impact", 3, 3, 2, 0) : null;
-  if (!sprite) return false;
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  const variantScale = effect.type === "gravity-storm-blast"
-    ? 1.26
-    : effect.type === "gravity-storm-pull"
-      ? 0.96
-      : effect.type === "gravity-storm-crush"
-        ? 0.82
-        : 1.08;
-  const size = Math.max(180, Number(effect.radius) * 1.8 || 240) * variantScale * (0.82 + pulse * 0.28);
+  const p = clamp(Number(progress) || 0, 0, 1);
+  const radius = Math.max(90, Number(effect.radius) || 140);
+  const reduced = prefersReducedMotion();
+  const texture = effect.type === "gravity-storm-barrier-hit"
+    ? transparentSpriteSource(state.textures.gravityStormSafeEye, "gravity-storm-safe-eye-v320-hit", 18)
+    : transparentSpriteSource(state.textures.tacticalSystemsAtlas, "tactical-systems-atlas", 18);
+  const sprite = effect.type === "gravity-storm-barrier-hit"
+    ? texture
+    : texture ? normalizedSpriteFrame(texture, "gravity-storm-impact", 3, 3, 2, 0) : null;
+  if (!sprite || !Number.isFinite(Number(effect.x)) || !Number.isFinite(Number(effect.y))) return false;
+  const type = String(effect.type || "");
+  const envelope = Math.sin(Math.PI * p);
+  const tail = Math.pow(1 - p, 1.12);
   ctx.save();
   ctx.translate(effect.x, effect.y);
-  ctx.globalCompositeOperation = "lighter";
-  for (let layer = 0; layer < 2; layer += 1) {
-    const direction = effect.type === "gravity-storm-pull" ? -1 : 1;
-    ctx.save();
-    ctx.rotate(direction * (progress * 0.32 + layer * 0.11));
-    ctx.globalAlpha = Math.max(0.06, 1 - progress * 0.88) * (0.78 - layer * 0.28);
-    const layerSize = size * (0.9 + layer * 0.16);
-    drawAnimatedTextureCentered(sprite, 0, 0, layerSize, layerSize, {
-      mode: "gravity",
-      progress,
-      phase: layer * 0.47,
-      intensity: effect.type === "gravity-storm-crush" ? 1 : 0.92,
-      baseAlpha: 0.12
-    });
-    ctx.restore();
+  // The semantic raster is stationary and rendered once.  Only the separate
+  // field geometry moves, so the texture never becomes a duplicated rotor.
+  ctx.globalCompositeOperation = type === "gravity-storm-barrier-hit" ? "screen" : "lighter";
+  ctx.globalAlpha = tail * (type === "gravity-storm-barrier-hit" ? 0.82 : 0.7);
+  drawAnimatedTextureCentered(sprite, 0, 0, radius * 2.05, radius * 2.05, {
+    mode: type === "gravity-storm-barrier-hit" ? "guard" : "gravity",
+    progress: p, phase: 0, intensity: type === "gravity-storm-crush" ? 0.88 : 0.82, baseAlpha: 0.14
+  });
+  if (type === "gravity-storm-barrier-hit") {
+    const r = radius * (0.62 + p * 0.16);
+    ctx.globalAlpha = envelope * tail * 0.7;
+    ctx.strokeStyle = "rgba(229,214,255,0.92)"; ctx.lineWidth = Math.max(1.5, radius * 0.026);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  } else if (type === "gravity-storm-pull") {
+    // Matter falls inward; each trail terminates at the exact authoritative impact point.
+    const count = reduced ? 5 : 11;
+    for (let i = 0; i < count; i += 1) {
+      const angle = i * 2.3999632297 + 0.36;
+      const outer = radius * (0.98 - p * 0.7), inner = radius * (0.1 + p * 0.08);
+      const x0 = Math.cos(angle) * outer, y0 = Math.sin(angle) * outer;
+      const x1 = Math.cos(angle) * inner, y1 = Math.sin(angle) * inner;
+      ctx.globalAlpha = tail * (0.28 + envelope * 0.34);
+      ctx.strokeStyle = i % 3 ? "rgba(190,166,255,0.8)" : "rgba(244,236,255,0.94)";
+      ctx.lineWidth = Math.max(1, radius * 0.018 * (1 - p * 0.45));
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.35);
+    core.addColorStop(0, "rgba(250,246,255,0.75)"); core.addColorStop(0.25, "rgba(171,121,255,0.25)"); core.addColorStop(1, "rgba(99,49,198,0)");
+    ctx.globalAlpha = envelope * tail; ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2); ctx.fill();
+  } else if (type === "gravity-storm-blast") {
+    // A pressure front travels out; no inward-spinning duplicate of the texture.
+    const front = radius * (0.12 + (reduced ? p : 1 - Math.pow(1 - p, 2.7)) * 0.92);
+    ctx.globalAlpha = tail * 0.76;
+    ctx.strokeStyle = "rgba(235,225,255,0.92)"; ctx.lineWidth = Math.max(2, radius * 0.045 * (1 - p * 0.62));
+    ctx.beginPath(); ctx.arc(0, 0, front, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < (reduced ? 4 : 9); i += 1) {
+      const a = i * 2.3999632297 + 0.24, lead = front * (0.72 + (i % 3) * 0.08);
+      ctx.globalAlpha = tail * envelope * 0.54; ctx.strokeStyle = "rgba(172,124,255,0.84)"; ctx.lineWidth = Math.max(1, radius * 0.015);
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * lead, Math.sin(a) * lead); ctx.lineTo(Math.cos(a) * front, Math.sin(a) * front); ctx.stroke();
+    }
+  } else if (type === "gravity-storm-crush") {
+    // Opposing compression planes converge instead of reading as a radial blast.
+    const gap = radius * (0.96 - p * 0.8);
+    ctx.globalAlpha = tail * (0.35 + envelope * 0.42); ctx.fillStyle = "rgba(122,75,218,0.34)";
+    ctx.fillRect(-gap - radius * 0.1, -radius * 0.78, radius * 0.1, radius * 1.56);
+    ctx.fillRect(gap, -radius * 0.78, radius * 0.1, radius * 1.56);
+    ctx.globalAlpha = tail * 0.84; ctx.strokeStyle = "rgba(244,238,255,0.94)"; ctx.lineWidth = Math.max(1.5, radius * 0.025);
+    for (const sign of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sign * gap, -radius * 0.72); ctx.lineTo(sign * gap, radius * 0.72); ctx.stroke(); }
   }
   ctx.restore();
   return true;
 }
 
 function drawStatusAndHazardEffect(effect, progress) {
-  let source = null;
-  if (["status-burning", "hazard-fire"].includes(effect.type)) source = state.textures.hazardFireEffect;
-  else if (["status-poison", "hazard-poison"].includes(effect.type)) source = state.textures.hazardPoisonEffect;
-  else if (["status-burn-cleared", "hazard-water"].includes(effect.type)) source = state.textures.hazardWaterEffect;
-  else if (effect.type === "status-poison-cleared" || effect.type === "hazard-antidote") source = state.textures.itemAntidote;
-  if (!source) return false;
-  const prepared = transparentSpriteSource(source, `status-effect-${effect.type}`, 18);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, `status-effect-${effect.type}`, 1, 1, 0, 0) : null;
+  const type = String(effect.type || "");
+  const family = ["status-burning", "hazard-fire"].includes(type) ? "fire"
+    : ["status-poison", "hazard-poison"].includes(type) ? "poison"
+      : ["status-burn-cleared", "hazard-water"].includes(type) ? "water"
+        : ["status-poison-cleared", "hazard-antidote"].includes(type) ? "antidote" : "";
+  const source = family === "fire" ? state.textures.hazardFireEffect
+    : family === "poison" ? state.textures.hazardPoisonEffect
+      : family === "water" ? state.textures.hazardWaterEffect : state.textures.itemAntidote;
+  if (!family || !source || !Number.isFinite(Number(effect.x)) || !Number.isFinite(Number(effect.y))) return false;
+  const prepared = transparentSpriteSource(source, `status-effect-${type}`, 18);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, `status-effect-${type}`, 1, 1, 0, 0) : null;
   if (!sprite) return false;
-  const pulse = Math.sin(Math.min(1, progress) * Math.PI);
-  const baseSize = Math.max(150, Number(effect.radius) * 2 || 210);
-  ctx.save();
-  ctx.translate(effect.x, effect.y);
-  ctx.globalCompositeOperation = effect.type.includes("water") || effect.type.includes("cleared") ? "source-over" : "lighter";
-  for (let layer = 0; layer < 2; layer += 1) {
-    const size = baseSize * (0.82 + layer * 0.17 + pulse * 0.16);
-    ctx.save();
-    ctx.rotate((layer ? -1 : 1) * progress * 0.18);
-    ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.86) * (0.76 - layer * 0.28);
-    drawAnimatedTextureCentered(sprite, 0, -progress * 12, size, size, {
-      mode: semanticEffectMotion(effect.type, effect.variant, effect.type.includes("water") || effect.type.includes("cleared") ? "ripple" : "flow-up"),
-      progress,
-      phase: layer * 0.39,
-      intensity: 0.9,
-      baseAlpha: 0.14
-    });
-    ctx.restore();
+  const p = clamp(Number(progress) || 0, 0, 1), tail = Math.pow(1 - p, 1.08), envelope = Math.sin(Math.PI * p);
+  const radius = Math.max(70, Number(effect.radius) || 105), reduced = prefersReducedMotion();
+  ctx.save(); ctx.translate(effect.x, effect.y);
+  ctx.globalCompositeOperation = family === "water" || family === "antidote" ? "source-over" : "lighter";
+  const textureY = family === "fire" ? radius * 0.12 : family === "water" ? radius * 0.18 : family === "poison" ? -radius * 0.08 : 0;
+  const textureScale = family === "fire" ? 1.74 : family === "water" ? 2.06 : family === "poison" ? 1.9 : 1.5;
+  ctx.globalAlpha = tail * (family === "water" ? 0.72 : 0.78);
+  drawAnimatedTextureCentered(sprite, 0, textureY, radius * textureScale, radius * textureScale, {
+    mode: family === "fire" ? "flow-up" : family === "water" ? "ripple" : "shimmer",
+    progress: p, phase: 0, intensity: 0.82, baseAlpha: 0.14
+  });
+  if (family === "fire") {
+    // Upward buoyancy starts at the source/ground plane and exhausts into the air.
+    for (let i = 0; i < (reduced ? 4 : 9); i += 1) {
+      const lane = (i / Math.max(1, (reduced ? 3 : 8)) - 0.5) * radius * 1.3;
+      const rise = radius * (0.12 + p * (0.54 + (i % 3) * 0.08));
+      ctx.globalAlpha = tail * envelope * (0.28 + (i % 2) * 0.12); ctx.fillStyle = i % 3 ? "rgba(255,154,45,0.9)" : "rgba(255,238,173,0.96)";
+      ctx.beginPath(); ctx.ellipse(lane + Math.sin(p * 8 + i) * radius * 0.07, radius * 0.38 - rise, Math.max(1.3, radius * 0.035), Math.max(2.4, radius * 0.075), 0, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (family === "poison") {
+    // Suspension diffuses laterally and gently settles; it never mimics a flame column.
+    for (let i = 0; i < (reduced ? 4 : 8); i += 1) {
+      const a = i * 2.3999632297, spread = radius * (0.18 + p * 0.58);
+      const x = Math.cos(a) * spread, y = Math.sin(a) * spread * 0.42 - radius * (0.05 + p * 0.16);
+      ctx.globalAlpha = tail * envelope * 0.19; ctx.fillStyle = i % 2 ? "rgba(178,239,105,0.9)" : "rgba(218,255,157,0.92)";
+      ctx.beginPath(); ctx.arc(x, y, Math.max(2, radius * (0.07 - p * 0.025)), 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (family === "water") {
+    // Water spreads and settles across the ground plane instead of rising or rotating.
+    const spread = radius * (0.28 + p * 0.73);
+    ctx.globalAlpha = tail * 0.52; ctx.strokeStyle = "rgba(201,244,255,0.92)"; ctx.lineWidth = Math.max(1.2, radius * 0.022);
+    ctx.beginPath(); ctx.ellipse(0, radius * 0.22, spread, Math.max(5, spread * 0.33), 0, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < (reduced ? 3 : 6); i += 1) { ctx.globalAlpha = tail * envelope * 0.3; ctx.beginPath(); ctx.arc((i - 2.5) * radius * 0.19, radius * 0.15, radius * (0.08 + i * 0.014), 0, Math.PI * 2); ctx.stroke(); }
+  } else {
+    ctx.globalAlpha = tail * envelope * 0.55; ctx.strokeStyle = "rgba(218,255,229,0.95)"; ctx.lineWidth = Math.max(1.3, radius * 0.022);
+    ctx.beginPath(); ctx.arc(0, 0, radius * (0.36 + p * 0.34), 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
   return true;
@@ -20978,6 +20955,8 @@ function objectEffectFade(progress) {
 
 
 function drawObjectTextureLayer(sprite, size, alpha, options = {}) {
+  if (!sprite || alpha <= 0 || ctx.globalAlpha <= 0) return;
+  const inheritedAlpha = ctx.globalAlpha;
   const {
     x = 0,
     y = 0,
@@ -20995,7 +20974,7 @@ function drawObjectTextureLayer(sprite, size, alpha, options = {}) {
   ctx.rotate(rotation);
   ctx.scale(scaleX, scaleY);
   ctx.globalCompositeOperation = composite;
-  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.globalAlpha = inheritedAlpha * clamp(alpha, 0, 1);
   applyAteGlowContext(ctx, mode, Math.floor(time * 60) / 60, phase, intensity * 0.72);
   drawNormalizedSpriteCentered(sprite, 0, 0, size, size);
   ctx.restore();
@@ -22959,6 +22938,7 @@ const ATE_ANIMATION_PROFILES = Object.freeze({
 
 function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeight, options = {}) {
   if (!sprite?.width || !sprite?.height) return false;
+  if (ctx.globalAlpha <= 0) return true;
   const {
     mode = "energy",
     time = (state.frameNow || performance.now()) / 1000,
@@ -22972,7 +22952,8 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   } = options;
   const { width, height } = animatedTextureSize(sprite, maxWidth, maxHeight);
   if (!(width > 0 && height > 0)) return false;
-  const sampledTime = Math.floor(time * 60) / 60;
+  const reducedMotion = prefersReducedMotion();
+  const sampledTime = reducedMotion ? 0 : Math.floor(time * 60) / 60;
   const animationMode = normalizeAteGlowMode(mode);
   const animationProfile = ATE_ANIMATION_PROFILES[animationMode] || ATE_ANIMATION_PROFILES.energy;
   const clock = sampledTime * animationProfile.tempo + phase * animationProfile.phaseScale + progress * animationProfile.progressScale;
@@ -23002,21 +22983,51 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   ctx.globalAlpha = inheritedAlpha * baseTextureAlpha;
   ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
 
+  // A stable authored silhouette remains visible when motion is reduced.
+  if (reducedMotion) { ctx.restore(); return true; }
+
+  // Reuse one bounded mask surface. Feather light inside the authored silhouette
+  // instead of shifting copies behind hard rectangular clips (visible band seams).
+  const highlightCanvas = state.textures.teHighlightCanvas || (state.textures.teHighlightCanvas = document.createElement("canvas"));
+  if (highlightCanvas.width !== 256 || highlightCanvas.height !== 256) {
+    highlightCanvas.width = 256;
+    highlightCanvas.height = 256;
+  }
+  const highlightContext = highlightCanvas.getContext("2d");
+  highlightContext.setTransform(1, 0, 0, 1, 0, 0);
+  highlightContext.globalCompositeOperation = "source-over";
+  highlightContext.globalAlpha = 1;
+  highlightContext.clearRect(0, 0, 256, 256);
   const drawClippedOverlay = (clipX, clipY, clipWidth, clipHeight, alpha, sourceOffsetX = 0, sourceOffsetY = 0, ellipse = false) => {
     if (!(clipWidth > 0 && clipHeight > 0) || alpha <= 0.004) return;
-    ctx.save();
-    ctx.beginPath();
-    if (ellipse) ctx.ellipse(clipX + clipWidth / 2, clipY + clipHeight / 2, clipWidth / 2, clipHeight / 2, 0, 0, Math.PI * 2);
-    else ctx.rect(clipX, clipY, clipWidth, clipHeight);
-    ctx.clip();
-    const overlayAlpha = clamp(
-        Math.max(visibility.minimumAlpha * 0.72, alpha * intensity * effectiveOpacityBoost * animationProfile.overlayGain),
-      0,
-      1
-    );
-    ctx.globalAlpha = inheritedAlpha * overlayAlpha;
-    ctx.drawImage(sprite, -width / 2 + sourceOffsetX, -height / 2 + sourceOffsetY, width, height);
-    ctx.restore();
+    const x = (clipX / width + 0.5) * 256;
+    const y = (clipY / height + 0.5) * 256;
+    const w = clipWidth / width * 256;
+    const h = clipHeight / height * 256;
+    const strength = clamp(alpha * intensity * effectiveOpacityBoost * animationProfile.overlayGain, 0, 1);
+    highlightContext.save();
+    highlightContext.globalAlpha = strength;
+    let gradient;
+    if (ellipse) {
+      highlightContext.translate(x + w / 2, y + h / 2);
+      highlightContext.scale(w / 2, h / 2);
+      gradient = highlightContext.createRadialGradient(0, 0, 0, 0, 0, 1);
+      gradient.addColorStop(0, "rgba(255,255,255,1)");
+      gradient.addColorStop(0.45, "rgba(255,255,255,0.8)");
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
+      highlightContext.fillStyle = gradient;
+      highlightContext.fillRect(-1, -1, 2, 2);
+    } else {
+      gradient = w < h ? highlightContext.createLinearGradient(x, y, x + w, y) : highlightContext.createLinearGradient(x, y, x, y + h);
+      gradient.addColorStop(0, "rgba(255,255,255,0)");
+      gradient.addColorStop(0.3, "rgba(255,255,255,0.8)");
+      gradient.addColorStop(0.5, "rgba(255,255,255,1)");
+      gradient.addColorStop(0.7, "rgba(255,255,255,0.8)");
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
+      highlightContext.fillStyle = gradient;
+      highlightContext.fillRect(x, y, w, h);
+    }
+    highlightContext.restore();
   };
 
   if (animationMode === "beam") {
@@ -23171,7 +23182,12 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
       drawClippedOverlay(orbitX - moteWidth / 2, orbitY - moteHeight / 2, moteWidth, moteHeight, 0.3 + Math.sin(clock * 2.7 + mote) * 0.08, -orbitX * 0.08, -orbitY * 0.08, true);
     }
   }
+  highlightContext.globalCompositeOperation = "source-in";
+  highlightContext.drawImage(sprite, 0, 0, 256, 256);
+  ctx.globalAlpha = inheritedAlpha;
+  ctx.drawImage(highlightCanvas, -width / 2, -height / 2, width, height);
   if (visibilityProfile !== "ambient") {
+    ctx.globalAlpha = inheritedAlpha;
     drawAteComplementaryVfx(ctx, animationMode, width, height, sampledTime, phase + progress, intensity * 0.82);
   }
   ctx.restore();
@@ -23201,9 +23217,9 @@ function drawWorldKillEffect(effect, camera, zoom = CAMERA_ZOOM) {
   const humanKill = !(effect.killerIsBot || effect.killerSkinId === "operator");
   const blueDress = humanKill && normalizeSkinId(effect.killerSkinId) === "blue-dress";
   ctx.save();
-  ctx.globalAlpha = 1 - progress * 0.72;
+  ctx.globalAlpha = (1 - progress * 0.3) * (1 - objectEffectEase(clamp((progress - 0.6) / 0.4, 0, 1)));
   ctx.translate(sx, sy);
-  const radius = 32 + Math.sin(now / 55) * 5;
+  const radius = 32 + (prefersReducedMotion() ? 0 : Math.sin(now / 55) * 5);
   ctx.strokeStyle = blueDress ? "rgba(186,230,253,0.95)" : humanKill ? "rgba(226,232,240,0.95)" : "rgba(248,113,113,0.90)";
   ctx.lineWidth = 5;
   ctx.beginPath();
@@ -23211,7 +23227,7 @@ function drawWorldKillEffect(effect, camera, zoom = CAMERA_ZOOM) {
   ctx.stroke();
   ctx.fillStyle = blueDress ? "rgba(125,211,252,0.42)" : humanKill ? "rgba(226,232,240,0.42)" : "rgba(239,68,68,0.55)";
   for (let i = 0; i < 7; i += 1) {
-    const angle = (Math.PI * 2 * i) / 7 + now / 180;
+    const angle = (Math.PI * 2 * i) / 7 + (prefersReducedMotion() ? 0 : now / 180);
     ctx.beginPath();
     ctx.moveTo(Math.cos(angle) * 22, Math.sin(angle) * 22);
     ctx.lineTo(Math.cos(angle + 0.16) * 78, Math.sin(angle + 0.16) * 78);
@@ -23815,7 +23831,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "emp-finish-v734";
+const version = "non-emp-te-finish-v735";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24858,7 +24874,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=emp-finish-v734", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=non-emp-te-finish-v735", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
