@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "unified-kill-natural-recovery-v728",
+    version: "luminous-barrier-outcome-v729",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "unified-kill-natural-recovery-v728";
+const PRODUCT_RELEASE = "luminous-barrier-outcome-v729";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -21251,7 +21251,7 @@ function useLuminous(room, player, targetId) {
   player.lastLuminousResultAt = timestamp;
 
   if (target.role === "attacker") {
-    const annihilated = destroyPlayerUnconditionally(room, player, target, "ルミナス", {
+    const luminousOutcome = {
       noBody: true,
       attackType: "kill",
       attackKind: "luminous-annihilation",
@@ -21260,7 +21260,14 @@ function useLuminous(room, player, targetId) {
       slashGuardReflectable: false,
       bypassSlashGuard: true,
       ignorePreparationBarrier: true
-    });
+    };
+    const annihilated = destroyPlayerUnconditionally(room, player, target, "ルミナス", luminousOutcome);
+    if (luminousOutcome.killConvertedToBodyDamage) {
+      player.lastLuminousResult = "body";
+      pushEvent(room, `${player.name} のルミナスはバリアによりボディダメージへ変換されました。`);
+    } else if (!annihilated) {
+      player.lastLuminousResult = "blocked";
+    }
     if (annihilated) {
       target.ejected = true;
       removeDefeatedPlayerFromMeeting(room.meeting, target.id);
@@ -26276,7 +26283,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "unified-kill-natural-recovery-v728",
+  version: "luminous-barrier-outcome-v729",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

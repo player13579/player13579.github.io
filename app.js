@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "unified-kill-natural-recovery-v728";
+const DVA_CLIENT_RELEASE = "luminous-barrier-outcome-v729";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "unified-kill-natural-recovery-v728";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "luminous-barrier-outcome-v729";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -11109,7 +11109,13 @@ function detectAttackResult(previous, next) {
 
 function detectLuminousResult(previous, next) {
   if (!previous || !next.self.lastLuminousResultAt || next.self.lastLuminousResultAt <= (previous.self.lastLuminousResultAt || 0)) return;
-  const resultClass = next.self.lastLuminousResult === "success" ? "is-success" : "is-failure";
+  const result = next.self.lastLuminousResult;
+  if (result === "body" || result === "blocked") {
+    els.luminousEffectStage?.classList.remove("is-success", "is-failure");
+    showToast(result === "body" ? "ルミナスはバリアでボディダメージへ変換されました。" : "ルミナスは防御されました。");
+    return;
+  }
+  const resultClass = result === "success" ? "is-success" : "is-failure";
   els.luminousEffectStage?.classList.remove("is-success", "is-failure");
   void els.luminousEffectStage?.offsetWidth;
   els.luminousEffectStage?.classList.add(resultClass);
@@ -23640,7 +23646,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "unified-kill-natural-recovery-v728";
+const version = "luminous-barrier-outcome-v729";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24683,7 +24689,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=unified-kill-natural-recovery-v728", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=luminous-barrier-outcome-v729", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
