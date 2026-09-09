@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "character-photons-heaven-time-v730";
+const DVA_CLIENT_RELEASE = "gunner-aim-owned-access-v731";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "character-photons-heaven-time-v730";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "gunner-aim-owned-access-v731";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -13874,6 +13874,10 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
       "inline",
       "ammo:refill"
     );
+  }
+
+  // GUNNER_AIM_OWNED_V731: show Aim to every legitimate owner, including shop owners.
+  if (self.gunnerAimOwned) {
     const aimMovementLabel = self.movementMode === "walk"
       ? "通常歩行"
       : self.movementMode === "slow"
@@ -15922,7 +15926,7 @@ function aimedTarget(data = state.data) {
 }
 
 function drawGunnerAim(data = state.data) {
-  if (data?.phase !== "playing" || !data.self?.gunnerSnipingActive || !data.self?.gunnerAimTargetId) return;
+  if (data?.phase !== "playing" || !data.self?.gunnerAimOwned || !data.self?.gunnerSnipingActive || !data.self?.gunnerAimTargetId) return;
   const target = data.players.find((player) => player.id === data.self.gunnerAimTargetId && player.alive && !player.ejected && !player.invisible);
   const self = selfPlayer();
   if (!target || !self) return;
@@ -18405,7 +18409,11 @@ function drawMagicEffects() {
     if (effect.type === "emp" || effect.type.startsWith("emp-")) drawEmpEffect(effect, progress, now);
     if (effect.type.startsWith("status-") || effect.type.startsWith("hazard-")) drawStatusAndHazardEffect(effect, progress);
     if (effect.type === "mystery-reveal") drawPhilosophyAtlasEffect(effect, 10, progress, 170);
-    if (effect.type.startsWith("action-") || effect.type === "gunner-passive-aim") drawActionEffect(effect, progress, now);
+    if (effect.type.startsWith("action-")) drawActionEffect(effect, progress, now);
+    // Preserve remote Gunner acquisition feedback, while dropping only a local stale event.
+    if (effect.type === "gunner-passive-aim" && (effect.playerId !== state.data?.selfId || state.data?.self?.gunnerAimOwned)) {
+      drawActionEffect(effect, progress, now);
+    }
     if (effect.type.startsWith("idea-")) drawIdeaEffect(effect, progress, now);
   }
 }
@@ -23593,7 +23601,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "character-photons-heaven-time-v730";
+const version = "gunner-aim-owned-access-v731";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24636,7 +24644,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=character-photons-heaven-time-v730", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=gunner-aim-owned-access-v731", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

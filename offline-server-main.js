@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "character-photons-heaven-time-v730",
+    version: "gunner-aim-owned-access-v731",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "character-photons-heaven-time-v730";
+const PRODUCT_RELEASE = "gunner-aim-owned-access-v731";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -19068,7 +19068,8 @@ function hasShopGravityTimeLifecycle(player) {
 }
 
 function hasGunnerAimAccess(player) {
-  return hasOperatorAccess(player, "gunner") || ownsShopAbility(player, "gunner-aim");
+  // GUNNER_AIM_OWNED_V731: temporary execution context is not persistent Aim ownership.
+  return player?.special === "gunner" || hackerRootEligible(player) || ownsShopAbility(player, "gunner-aim");
 }
 
 function hasGunnerSpecialAmmoAccess(player) {
@@ -20208,7 +20209,7 @@ function gunnerDamageAtDistance(weapon, distanceToTarget) {
   return Math.round(weapon.damage * multiplier * 100) / 100;
 }
 
-function gunnerHeadshotChance(shooter, aimed = Boolean(shooter?.gunnerSnipingActive)) {
+function gunnerHeadshotChance(shooter, aimed = Boolean(shooter?.gunnerSnipingActive && hasGunnerAimAccess(shooter))) {
   const base = aimed ? GUNNER_AIM_HEADSHOT_BASE_CHANCE : GUNNER_HIP_HEADSHOT_BASE_CHANCE;
   return Math.round(clampNumber(
     base + luckValueFor(shooter) * GUNNER_HEADSHOT_LUCK_INFLUENCE,
@@ -20444,7 +20445,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp
   }
 
   if (targetEntry) {
-    const aimed = Boolean(shooter.gunnerSnipingActive);
+    const aimed = Boolean(shooter.gunnerSnipingActive && hasGunnerAimAccess(shooter));
     const headshotResolution = ["weak", "shock"].includes(specialAmmoType)
       ? null
       : resolveGunnerHeadshot(shooter, aimed);
@@ -20614,6 +20615,9 @@ function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 
   if (availableStamina(shooter) < GUNNER_BURST_STAMINA_COST) {
     throw new ApiError(400, `1弾倉射撃にはスタミナ ${GUNNER_BURST_STAMINA_COST} が必要です。`);
   }
+  // Clear only lost ownership before choosing a tracked direction. Valid Aim
+  // still acquires at its original post-validation point below.
+  if (!hasGunnerAimAccess(shooter)) clearGunnerAim(shooter);
   const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
   const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
   let dx = shooter.gunnerSnipingActive ? fallbackDx : clampNumber(rawDx, -1, 1, fallbackDx);
@@ -21706,7 +21710,7 @@ function serialize(room, viewer, options = {}) {
       levitationActive: canLevitate(player),
       statusAte: persistentStatusAteState(room, player, timestamp),
       hackerRootActive: hackerRootEligible(player),
-      gunnerSnipingActive: Boolean(player.gunnerSnipingActive),
+      gunnerSnipingActive: Boolean(hasGunnerAimAccess(player) && player.gunnerSnipingActive),
       aromaActive: Boolean(aromaSource),
       aromaSource: aromaSource?.id === player.id,
       aromaRegenMultiplier: floraAromaMultiplier(room, player),
@@ -21871,15 +21875,16 @@ function serialize(room, viewer, options = {}) {
       hoverSprintDurationMs: HOVER_SPRINT_BASE_DURATION_MS,
       hoverSprintCooldownMs: HOVER_SPRINT_ACTIVATION_COOLDOWN_MS,
       hoverSprintManaCost: HOVER_SPRINT_BASE_MANA_COST,
-      gunnerSnipingActive: Boolean(viewer.gunnerSnipingActive),
+      gunnerAimOwned: Boolean(hasGunnerAimAccess(viewer)),
+      gunnerSnipingActive: Boolean(hasGunnerAimAccess(viewer) && viewer.gunnerSnipingActive),
       gunnerHipHeadshotChance: gunnerHeadshotChance(viewer, false),
       gunnerAimHeadshotChance: gunnerHeadshotChance(viewer, true),
-      gunnerCurrentHeadshotChance: gunnerHeadshotChance(viewer, Boolean(viewer.gunnerSnipingActive)),
+      gunnerCurrentHeadshotChance: gunnerHeadshotChance(viewer, Boolean(hasGunnerAimAccess(viewer) && viewer.gunnerSnipingActive)),
       gunnerLastHitZone: String(viewer.gunnerLastHitZone || ""),
       gunnerLastHeadshotChance: Math.max(0, Number(viewer.gunnerLastHeadshotChance) || 0),
       gunnerBodyHitObserved: Boolean(viewer.gunnerBodyHitObserved),
       gunnerHeadshotObserved: Boolean(viewer.gunnerHeadshotObserved),
-      gunnerAimTargetId: String(viewer.gunnerAimTargetId || ""),
+      gunnerAimTargetId: hasGunnerAimAccess(viewer) ? String(viewer.gunnerAimTargetId || "") : "",
       gunnerAimAvailable: Boolean(
         room.phase === "playing" &&
         viewer.alive &&
@@ -26284,7 +26289,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "character-photons-heaven-time-v730",
+  version: "gunner-aim-owned-access-v731",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
