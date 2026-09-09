@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "non-emp-te-finish-v735";
-const CACHE_NAME = "dva-static-v735-non-emp-te-finish";
+const RUNTIME_RELEASE = "renki-new-te-v736";
+const CACHE_NAME = "dva-static-v736-renki-new-te";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -100,6 +100,8 @@ const STATIC_ASSETS = [
   "/assets/generated/status-marker-acceleration-v376.png",
   "/assets/generated/status-levitation-v375.png",
   "/assets/generated/hover-sprint-jet-exhaust-v719.png",
+  "/assets/generated/renki-coalescence-v736.png",
+  "/assets/generated/renki-tenfold-release-v736.png",
   "/assets/generated/preparation-summon-circle-v726.png",
   "/assets/generated/status-hp-reduction-v375.png",
   "/assets/generated/status-mana-gpu-ate-v402.png",

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "non-emp-te-finish-v735";
+const DVA_CLIENT_RELEASE = "renki-new-te-v736";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "non-emp-te-finish-v735";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-new-te-v736";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -19893,6 +19893,7 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
 
 
 function drawActionEffect(effect, progress, now) {
+  if (renkiVisualKind(effect) || effect.type === "action-renki") { drawNewRenkiEffect(effect, progress); return; }
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
   // either state creates an unrelated line-like overlay.
@@ -20751,7 +20752,153 @@ function gainEffectPlayer(effect) {
 // Compact grants and EC share one player-attached marker lane.  This keeps
 // concurrent authoritative effects readable without creating a second,
 // normal-action-size copy of an EC texture at the character's feet.
+function isDesireRenkiMarker(effect) {
+  return effect?.type === "gain-mana" && effect.variant === "desire-recovery";
+}
+
+function renkiVisualKind(effect) {
+  if (effect?.type === "action-renki") {
+    if (["desire-recovery-start", "desire-recovery"].includes(effect.variant)) return "";
+    return effect.variant === "tenfold" ? "tenfold" : "normal";
+  }
+  if (effect?.type === "action-mana" && effect.variant === "renki") {
+    if (effect.completionKind === "tenfold") return "tenfold-release";
+    if (effect.completionKind === "normal") return "normal-release";
+  }
+  return "";
+}
+
+function renkiVisualActor(effect) {
+  if (!["playing", "meeting"].includes(state.data?.phase)) return null;
+  const player = state.data.players?.find((entry) => entry.id === effect?.playerId);
+  if (!player || !player.alive || player.ejected || player.inVent || player.invisible) return null;
+  const position = renderedPlayer(player);
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return null;
+  return { player, position };
+}
+
+function drawRenkiTexture(sprite, x, y, width, height, alpha, rotation = 0) {
+  if (!sprite?.width || !sprite?.height || !(alpha > 0) || !(width > 0) || !(height > 0) || ctx.globalAlpha <= 0) return;
+  ctx.save();
+  ctx.translate(x, y);
+  if (rotation) ctx.rotate(rotation);
+  ctx.globalAlpha *= Math.min(1, alpha);
+  // Width and height are independent only for the deliberately elongating plume.
+  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
+  ctx.restore();
+}
+
+function renkiMaterialLayer(sprite, key, kind) {
+  const cache = state.textures.renkiMaterialLayers || (state.textures.renkiMaterialLayers = new WeakMap());
+  let variants = cache.get(sprite);
+  if (!variants) { variants = {}; cache.set(sprite, variants); }
+  const family = kind === "tenfold" ? "tenfold" : "normal";
+  if (!variants[family]) {
+    // Partition the actual raster once. RGB is copied unchanged; smooth alpha
+    // weights add to one, so no layer duplicates the luminous central knot.
+    const size = 256, source = document.createElement("canvas");
+    source.width = source.height = size;
+    const sourceContext = source.getContext("2d", { willReadFrequently: true });
+    sourceContext.drawImage(sprite, 0, 0, size, size);
+    const pixels = sourceContext.getImageData(0, 0, size, size);
+    const names = family === "normal" ? ["core", "wisp0", "wisp1", "wisp2"] : ["core", "upper", "lower"];
+    const layers = names.map(() => {
+      const canvas = document.createElement("canvas"); canvas.width = canvas.height = size;
+      const local = canvas.getContext("2d");
+      return { canvas, local, pixels: local.createImageData(size, size) };
+    });
+    const ease = (v) => { const t = Math.max(0, Math.min(1, v)); return t * t * (3 - 2 * t); };
+    for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
+      const dx = (x + .5) / size - .5, dy = (y + .5) / size - .485;
+      let weights;
+      if (family === "normal") {
+        const core = 1 - ease((Math.hypot(dx, dy) - .045) / .105);
+        const angle = Math.atan2(dy, dx);
+        const sectors = [-2.10, .08, 2.12].map((direction) => Math.exp(6 * Math.cos(angle - direction)));
+        const total = sectors[0] + sectors[1] + sectors[2];
+        weights = [core, ...sectors.map((weight) => (1 - core) * weight / total)];
+      } else {
+        const core = (1 - ease((Math.abs(dx) - .035) / .125)) * (1 - ease((Math.abs(dy) - .145) / .22));
+        const upper = ease((dx - dy + .08) / .16);
+        weights = [core, (1 - core) * upper, (1 - core) * (1 - upper)];
+      }
+      const i = (y * size + x) * 4;
+      for (let layer = 0; layer < layers.length; layer += 1) {
+        const dest = layers[layer].pixels.data;
+        dest[i] = pixels.data[i]; dest[i + 1] = pixels.data[i + 1]; dest[i + 2] = pixels.data[i + 2];
+        dest[i + 3] = Math.round(pixels.data[i + 3] * weights[layer]);
+      }
+    }
+    variants[family] = {};
+    layers.forEach((layer, index) => { layer.local.putImageData(layer.pixels, 0, 0); variants[family][names[index]] = layer.canvas; });
+  }
+  return variants[family][key];
+}
+
+function drawNewRenkiEffect(effect, progress) {
+  const kind = renkiVisualKind(effect);
+  if (!kind) return effect?.type === "action-renki";
+  const p = clamp(Number(progress) || 0, 0, 1);
+  if (p <= 0 || p >= 1 || ctx.globalAlpha <= 0) return true;
+  const actor = renkiVisualActor(effect);
+  if (!actor) return true;
+  const tenfold = kind.startsWith("tenfold"), completion = kind.endsWith("-release");
+  const image = tenfold ? state.textures.renkiTenfoldRelease : state.textures.renkiCoalescence;
+  const sprite = transparentSpriteSource(image, tenfold ? "renki-tenfold-release-v736" : "renki-coalescence-v736", 18);
+  if (!sprite) return true;
+  const ease = (v) => { const t = clamp(v, 0, 1); return t * t * (3 - 2 * t); };
+  const entry = ease(p / .10), tail = 1 - ease((p - (completion ? .30 : .75)) / (completion ? .62 : .25));
+  const alpha = entry * tail;
+  if (alpha <= 0) return true;
+  const base = clamp(Number(effect.radius) || (tenfold ? 150 : 120), 84, 165) * (tenfold ? 1.48 : 1.45);
+  const { x, y } = actor.position;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  if (prefersReducedMotion()) {
+    const size = base * (completion ? .84 : 1);
+    drawRenkiTexture(sprite, x, y, size, size, alpha * (completion ? .72 : 1));
+    ctx.restore(); return true;
+  }
+  const family = tenfold ? "tenfold" : "normal";
+  const core = renkiMaterialLayer(sprite, "core", family);
+  if (completion) {
+    // MP was awarded at activation. Focus completion quietly releases the held
+    // shape outwards rather than replaying the gathering/reward sequence.
+    const release = ease(p), size = base * .84;
+    const parts = tenfold ? ["upper", "lower"] : ["wisp0", "wisp1", "wisp2"];
+    const angles = tenfold ? [-.78, 2.36] : [-2.10, .08, 2.12];
+    parts.forEach((part, index) => {
+      const offset = release * base * .10;
+      drawRenkiTexture(renkiMaterialLayer(sprite, part, family), x + Math.cos(angles[index]) * offset, y + Math.sin(angles[index]) * offset,
+        size, size, alpha * .64);
+    });
+    drawRenkiTexture(core, x, y, size, size, alpha * .84);
+  } else if (!tenfold) {
+    const gather = ease((p - .04) / .57), distance = (1 - gather) * base * .25;
+    [-2.10, .08, 2.12].forEach((direction, index) => {
+      const turn = (1 - gather) * .28, angle = direction + turn;
+      drawRenkiTexture(renkiMaterialLayer(sprite, "wisp" + index, family), x + Math.cos(angle) * distance, y + Math.sin(angle) * distance,
+        base * (1.10 - gather * .12), base * (1.10 - gather * .12), alpha * (1 - gather * .20), -turn * .32);
+    });
+    const coreSize = base * (.96 - gather * .12 + ease((p - .78) / .22) * .18);
+    drawRenkiTexture(core, x, y, coreSize, coreSize, alpha * (.36 + .64 * gather));
+  } else {
+    const compression = ease((p - .04) / .52), release = ease((p - .64) / .34);
+    const recoil = .028 * Math.sin(p * Math.PI * 6) * compression * (1 - compression);
+    const gap = (1 - compression + recoil) * base * .22;
+    for (const [part, direction] of [["upper", -.78], ["lower", 2.36]]) {
+      drawRenkiTexture(renkiMaterialLayer(sprite, part, family), x + Math.cos(direction) * gap, y + Math.sin(direction) * gap,
+        base * (1.06 - compression * .12), base * (1.04 - compression * .06), alpha * (1 - release * .52));
+    }
+    drawRenkiTexture(core, x, y - release * base * .12, base * (.96 - release * .15), base * (1 + release * .76),
+      alpha * (.38 + compression * .62));
+  }
+  ctx.restore();
+  return true;
+}
+
 function isSharedHeadMarkerEffect(effect) {
+  if (isDesireRenkiMarker(effect)) return false;
   return Boolean(effect?.playerId) && (effect.type?.startsWith("gain-") || effect.type === "fighter-energy-charge");
 }
 
@@ -20845,6 +20992,7 @@ function headMarkerLifetimeProgress(effect, now) {
 }
 
 function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) {
+  if (isDesireRenkiMarker(effect)) return;
   const texture = dedicatedMapObjectEffectTexture(effect.effectKind);
   if (!texture?.complete || !texture.naturalWidth) return;
   const prepared = transparentSpriteSource(texture, `gain-ate-${effect.effectKind}`, 14);
@@ -23831,7 +23979,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "non-emp-te-finish-v735";
+const version = "renki-new-te-v736";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -23882,6 +24030,10 @@ const version = "non-emp-te-finish-v735";
     "assets/generated/philosophy-effect-mystery-v311.png",
     "assets/generated/philosophy-effect-emp-v311.png"
   ]);
+  const renkiCoalescence = new Image();
+  const renkiTenfoldRelease = new Image();
+  defer(renkiCoalescence, "assets/generated/renki-coalescence-v736.png");
+  defer(renkiTenfoldRelease, "assets/generated/renki-tenfold-release-v736.png");
   const alchemyEffectTextures = imageSet([
     "assets/generated/alchemy-effect-renki-v311.png",
     "assets/generated/alchemy-effect-desire-v311.png",
@@ -24171,6 +24323,8 @@ const version = "non-emp-te-finish-v735";
     actionEffectTextures,
     philosophyEffectTextures,
     alchemyEffectTextures,
+    renkiCoalescence,
+    renkiTenfoldRelease,
     empResonanceEffect,
     empCancelEffect,
     heartTeleportEffect,
@@ -24874,7 +25028,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=non-emp-te-finish-v735", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=renki-new-te-v736", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
