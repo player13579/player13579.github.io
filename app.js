@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "plicy-preparation-canvas-v727";
+const DVA_CLIENT_RELEASE = "unified-kill-natural-recovery-v728";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -135,6 +135,7 @@ const els = {
   tabletFireShortcut: $("#tabletFireShortcut"),
   tabletEmpShortcut: $("#tabletEmpShortcut"),
   tabletClairvoyanceShortcut: $("#tabletClairvoyanceShortcut"),
+  tabletClairvoyanceModeShortcut: $("#tabletClairvoyanceModeShortcut"),
   tabletClairvoyancePreviousShortcut: $("#tabletClairvoyancePreviousShortcut"),
   tabletClairvoyanceNextShortcut: $("#tabletClairvoyanceNextShortcut"),
   tabletVendingShortcut: $("#tabletVendingShortcut"),
@@ -298,8 +299,6 @@ const els = {
   chatForm: $("#chatForm"),
   chatInput: $("#chatInput"),
   toast: $("#toast"),
-  mysteryReveal: $("#mysteryReveal"),
-  mysteryRevealResult: $("#mysteryRevealResult"),
   endOverlay: $("#endOverlay"),
   endTitle: $("#endTitle"),
   endReason: $("#endReason"),
@@ -562,6 +561,8 @@ const state = {
   },
   mysteryRevealTimer: null,
   mysteryRevealStageTimers: [],
+  // MYSTERY_WORLD_OPENING_V727: box origin survives its authoritative removal.
+  mysteryWorldReveal: null,
   titleArrivalTimer: null,
   fieldFeedOpen: false,
   lastRoomChatId: "",
@@ -654,6 +655,9 @@ const state = {
     x: 0,
     y: 0,
     targetId: "",
+    mode: "follow",
+    acceleration: 5,
+    directionKeys: new Set(),
     lastFrameAt: 0,
     frame: 0,
     serverDesired: false,
@@ -815,13 +819,13 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "fighter-limit-break": "HPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ累積する。HPを使い切ると死亡",
   "gravity-near": "局所重力場で時空曲率を変え、選択対象の近くへ自分を全身転移する",
   "gravity-target": "局所重力場で時空曲率を変え、選択対象をマップ指定地点へ転移する",
-  "gravity-heart": "遠隔の時空作用で対象の心臓へ干渉し、位置を公開せず確殺を試みる",
+  "gravity-heart": "遠隔の時空作用で対象の心臓へ干渉し、位置を公開せずキルを試みる",
   "gravity-accelerate": "対象の時間進行率を8秒間×2.5にし、移動・物理モーション・CT・行動不能・タスクを同率加速する",
   "gravity-decelerate": "対象の時間進行率を8秒間×0.38にし、移動・物理モーション・CT・行動不能・タスクを同率減速する",
   "gravity-time-keeper": "術者以外の時間発展を5秒間停止し、入力・CT・物体運動も同時に止める",
   "gravity-storm": "指定地点へ重力ポテンシャル井戸を作り、全域の敵を12秒間吸引して継続ダメージ・減速・拘束を与える",
   "flora-heal": "生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して12秒間加速する",
-  "flora-sunbeam": "屈折・回折で光路を制御し、壁までの交差対象を確殺する",
+  "flora-sunbeam": "屈折・回折で光路を制御し、壁までの交差対象をキルする",
   "flora-invisible": "光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる",
   "gunner-aim": "幾何光学の可視線と弾道方向を合わせ、理知中・非ダッシュ時に最近接可視対象へ照準を追尾する",
   "gunner-special-ammo": "弾道・材料特性の異なる特殊弾を、理知中18秒ごとに選択中の銃へ1マガジン装填する",
@@ -831,37 +835,37 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "quantum-transmutation": "原子核変換で所持鉛または水銀を金へ変え、100Cへ即時換金する",
   "quantum-fission": "終盤に所持ウランまたはプルトニウムへ核分裂連鎖を起こし、全人間へ作用させる",
   "quantum-fusion": "終盤に所持海水中の重水素へ核融合反応を起こし、全人間へ作用させる",
-  "assassin-annihilation": "成功した忍殺対象を物質・死体とも残さない消滅状態へ移す",
+  "assassin-annihilation": "成功した忍殺対象をキルし、物質・死体を残さない",
   "assassin-silent-steps": "移動による音響イベントを発生させず、敵Botへ足音由来の観測情報を与えない",
   "hacker-vibe-coding": "訓練世界の計算機的な資源・物体・能力・状態をコード操作で生成または変更する",
-  "hacker-root": "自身の生体状態をHP 0.0001へ固定し、確殺無効効果を一時遮断して他オペ能力を借用する",
+  "hacker-root": "自身の生体状態をHP 0.0001へ固定し、キル無効効果を一時遮断して他オペ能力を借用する",
   substitution: "1回分を獲得（最大2回）。次の攻撃を無効化して転移。理知中のみ発動",
-  grit: "1回分を獲得。次の確殺をボディダメージ化。理知中のみ発動",
+  grit: "1回分を獲得。次のキルをボディダメージ化。理知中のみ発動",
   heal: "HP+1。現在上限を超える分は失わず、current/maxを同率で拡張",
   reason: "1回分を獲得。次の攻撃対象のバリアを全削除し、削除1回につき自分へ0.5ダメージ。理知中のみ発動",
   mana: "MP+1",
   stamina: "取得時に即席でSP+350。物理所持品には残らない",
-  railgun: "使用: 使い切り。全遮蔽物を貫通する直線射撃で、命中時は確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
-  "particle-cannon": "使用: 使い切り。6秒間、0.30秒間隔で照準操作できる貫通ビームを放射し、経路上の全対象は命中時に確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
-  excalibur: "使用: 使い切り。前方半面の全対象を確殺（破壊・死体あり）。アタッカー勝利確定時を除き、使用者も確殺（破壊・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
-  exile: "遠隔クローン操作を解禁。全域破壊時はクローン位置へ本体を退避",
+  railgun: "使用: 使い切り。全遮蔽物を貫通する直線射撃で、命中時はキル（死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
+  "particle-cannon": "使用: 使い切り。6秒間、0.30秒間隔で照準操作できる貫通ビームを放射し、経路上の全対象は命中時にキル（死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
+  excalibur: "使用: 使い切り。前方半面の全対象をキル（死体あり）。アタッカー勝利確定時を除き、使用者もキル（死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は実体が残り、誰でも拾える",
+  exile: "遠隔クローン操作を解禁。全域へのキル攻撃時はクローン位置へ本体を退避",
   hack: "取得時に即席で全生存者の位置表示効果へ変換。EMPストレージ遮断中は停止し、解除後に復帰。物理所持品には残らない",
   handgun: "タップで現在の1弾倉（最大12発）を空まで射撃。射程520・通常与ダメージ0.48（最遠0.31）・0.38秒間隔。600〜2999msの単一Enhance（固定1MP）は0.58（最遠0.37）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   smg: "タップで現在の1弾倉（最大30発）を空まで射撃。射程460・通常与ダメージ0.42（最遠0.12）・0.10秒間隔。600〜2999msの単一Enhance（固定1MP）は0.50（最遠0.14）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   assault: "タップで現在の1弾倉（最大18発）を空まで射撃。射程760・通常与ダメージ0.58（最遠0.46）・0.24秒間隔。600〜2999msの単一Enhance（固定1MP）は0.70（最遠0.55）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
-  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhance（固定1MP）は与ダメージ1.62。固有の確殺なし。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
+  sniper: "タップで現在の1弾倉（最大5発）を空まで射撃。射程1200・通常与ダメージ1.35（距離減衰なし）・1.10秒間隔。600〜2999msの単一Enhance（固定1MP）は与ダメージ1.62。固有のキルなし。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   taser: "タップで現在の1弾倉（最大8発）を空まで射撃。射程420・通常与ダメージ0.16（最遠0.12）・0.72秒間隔。600〜2999msの単一Enhance（固定1MP）は0.19（最遠0.14）。HSは射手の幸運で腰撃ち1〜21%、エイム中4〜36%。命中対象を6秒間35%減速。投擲被弾は幸運で0.08〜0.36、接地後は誰でも拾える",
   mercury: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
   lead: "通常使用は自分へ毒。投擲は着地点周囲へ毒と瓶片ダメージ。クオンタムで金へ核変換し、取得時に100Cへ即時換金",
-  uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムの核分裂（2MP）は全域を破壊して死体を残す",
-  plutonium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムの核分裂（2MP）は全域を破壊して死体を残す",
-  "orichalcum-sword": "物理武器。直接斬撃は確殺（死体あり）。斬る: 150SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃なら確殺。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
-  iai: "獲得時に即席として自動装備。次の成功した攻撃を破壊（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま",
+  uranium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムの核分裂（2MP）は全域の対象へキル攻撃を行い、死体を残す",
+  plutonium: "投擲時に空中で容器が開く放射性物質。通常使用は自分へ強毒。投擲は内容物を散布して容器を破壊するため接地回収物を残さない。クオンタムの核分裂（2MP）は全域の対象へキル攻撃を行い、死体を残す",
+  "orichalcum-sword": "物理武器。直接斬撃はキル（死体あり）。斬る: 150SP・CTなし。700ms物理ガード、先頭140msのJGで衝撃を100%反射。EMP・毒・サンビーム等は通常ガード不可。投擲被弾は幸運で柄・腹なら0.12〜0.51、運悪く刃ならキル。接地後は誰でも拾える。EC・衝撃波・EC milestone はファイター能力であり、この剣の効果ではない",
+  iai: "獲得時に即席として自動装備。次の成功した攻撃をキル（死体あり）へ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に死体なしのキルは死体なしのまま",
   ice: "通常使用は自分へ低温ダメージ・減速。投擲は着地点周囲へ低温攻撃と瓶片ダメージ",
   "heated-water": "通常使用は自分を燃焼。投擲は着地点周囲を燃焼し、瓶片が確率ダメージ",
   gold: "ROOTハッカー限定の即席生成。取得時に純金インゴットを100Cへ即時換金し、物理所持品には残らない",
   rpg: "使用: 使い切り。半径300以内にいる自分以外の全員へ与ダメージ1.00の物理攻撃。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える",
-  missile: "使用: 使い切り。最寄りの自分以外1人へ確殺の物理攻撃（HS・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える"
+  missile: "使用: 使い切り。最寄りの自分以外1人へキルの物理攻撃（HS・死体あり）。投擲被弾: 対象の幸運で与ダメージ0.10〜0.60。接地後は誰でも拾える"
 });
 
 const VENDING_PRODUCT_LABELS = DVA_ECONOMY.productLabels;
@@ -923,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "plicy-preparation-canvas-v727";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "unified-kill-natural-recovery-v728";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2939,7 +2943,7 @@ function drawTacticsIntel(ctx, w, h, time) {
     ctx.arc(centerX, centerY, 22 + Math.sin(time * 8) * 7, 0, Math.PI * 2);
     ctx.fill();
   }
-  tacticsLabel(ctx, samePhase ? "同位相: 共振 / 至近確殺" : "逆位相: 相殺", w / 2, 44, { color: samePhase ? "#f8fafc" : "#f0abfc" });
+  tacticsLabel(ctx, samePhase ? "同位相: 共振 / 至近キル" : "逆位相: 相殺", w / 2, 44, { color: samePhase ? "#f8fafc" : "#f0abfc" });
   tacticsLabel(ctx, "EMP再充填 18秒 / 干渉窓 1200ms", w / 2, h - 52, { font: "800 15px Segoe UI, sans-serif" });
 }
 
@@ -4332,6 +4336,8 @@ function releaseThrowTargetMovement(event) {
   return true;
 }
 
+const CLAIRVOYANCE_CAMERA_BASE_SPEED = 108;
+
 function clairvoyanceFollowCandidates(data = state.data) {
   if (!data?.selfId || !Array.isArray(data.players)) return [];
   return data.players
@@ -4349,36 +4355,103 @@ function ensureClairvoyanceFollowTarget(data = state.data) {
   return target;
 }
 
-function cycleClairvoyanceFollowTarget(step = 1, data = state.data) {
-  if (!state.clairvoyance.active) return null;
-  const candidates = clairvoyanceFollowCandidates(data);
-  if (!candidates.length) {
-    toggleClairvoyance(false);
-    return null;
+function clairvoyanceCameraMode() {
+  return state.clairvoyance.mode === "free" ? "free" : "follow";
+}
+
+function clairvoyanceDirection() {
+  const view = state.clairvoyance;
+  let dx = 0;
+  let dy = 0;
+  if (state.tabletOpen && state.tabletStick.pointerId !== null) {
+    dx = Number(state.tabletStick.dx) || 0;
+    dy = Number(state.tabletStick.dy) || 0;
+  } else {
+    dx = Number(view.directionKeys?.has("right")) - Number(view.directionKeys?.has("left"));
+    dy = Number(view.directionKeys?.has("down")) - Number(view.directionKeys?.has("up"));
   }
+  const length = Math.hypot(dx, dy);
+  return length > 1 ? { dx: dx / length, dy: dy / length } : { dx, dy };
+}
+
+function clearClairvoyanceCameraInput() {
+  state.clairvoyance?.directionKeys?.clear?.();
+  if (state.tabletStick) {
+    state.tabletStick.dx = 0;
+    state.tabletStick.dy = 0;
+  }
+}
+
+function setClairvoyanceViewMode(mode, data = state.data) {
+  const view = state.clairvoyance;
+  if (!view.active) return false;
+  const nextMode = mode === "free" ? "free" : "follow";
+  if (nextMode === "follow") {
+    const target = ensureClairvoyanceFollowTarget(data);
+    if (!target) return false;
+    const position = renderedPlayer(target);
+    view.x = position.x;
+    view.y = position.y;
+  } else if (clairvoyanceCameraMode() === "follow") {
+    const target = ensureClairvoyanceFollowTarget(data);
+    if (target) {
+      const position = renderedPlayer(target);
+      view.x = position.x;
+      view.y = position.y;
+    }
+  }
+  view.mode = nextMode;
+  clearClairvoyanceCameraInput();
+  state.camera.initialized = false;
+  updateActionButtons(data);
+  return true;
+}
+
+function toggleClairvoyanceViewMode(data = state.data) {
+  return setClairvoyanceViewMode(clairvoyanceCameraMode() === "follow" ? "free" : "follow", data);
+}
+
+function cycleClairvoyanceFollowTarget(step = 1, data = state.data) {
+  if (!state.clairvoyance.active || clairvoyanceCameraMode() !== "follow") return null;
+  const candidates = clairvoyanceFollowCandidates(data);
+  if (!candidates.length) return setClairvoyanceViewMode("free", data) ? null : null;
   const currentIndex = candidates.findIndex((player) => player.id === state.clairvoyance.targetId);
   const target = candidates[(Math.max(0, currentIndex) + (step < 0 ? -1 : 1) + candidates.length) % candidates.length];
   state.clairvoyance.targetId = target.id;
   state.camera.initialized = false;
   updateActionButtons(data);
-  showToast(`千里眼の追尾先: ${target.name || "プレイヤー"}`);
+  showToast("千里眼の追尾先: " + (target.name || "プレイヤー"));
   return target;
 }
 
 function beginClairvoyanceMovement(event) {
   if (!state.clairvoyance.active || state.throwTargeting.active) return false;
+  if (event.altKey && event.code === "KeyZ") {
+    event.preventDefault();
+    if (!event.repeat) toggleClairvoyanceViewMode();
+    return true;
+  }
   const direction = throwTargetKey(event);
   if (!direction) return false;
   event.preventDefault();
-  if (!event.repeat) cycleClairvoyanceFollowTarget(["up", "left"].includes(direction) ? -1 : 1);
+  if (clairvoyanceCameraMode() === "follow") {
+    if (!event.repeat) cycleClairvoyanceFollowTarget(["up", "left"].includes(direction) ? -1 : 1);
+    return true;
+  }
+  if (!event.repeat) state.clairvoyance.directionKeys.add(direction);
   return true;
 }
 
 function releaseClairvoyanceMovement(event) {
   if (!state.clairvoyance.active || state.throwTargeting.active) return false;
+  if (event.altKey && event.code === "KeyZ") {
+    event.preventDefault();
+    return true;
+  }
   const direction = throwTargetKey(event);
   if (!direction) return false;
   event.preventDefault();
+  if (clairvoyanceCameraMode() === "free") state.clairvoyance.directionKeys.delete(direction);
   return true;
 }
 
@@ -4396,16 +4469,29 @@ function updateClairvoyanceFrame(timestamp) {
     showToast("千里眼はMP切れで終了しました。");
     return;
   }
+  const elapsed = clamp(timestamp - (view.lastFrameAt || timestamp), 0, 40);
   view.lastFrameAt = timestamp;
-  const target = ensureClairvoyanceFollowTarget(data);
-  if (!target) {
-    toggleClairvoyance(false);
-    showToast("千里眼の追尾先がいないため終了しました。");
-    return;
+  if (clairvoyanceCameraMode() === "follow") {
+    const target = ensureClairvoyanceFollowTarget(data);
+    if (target) {
+      const position = renderedPlayer(target);
+      view.x = position.x;
+      view.y = position.y;
+    } else {
+      view.mode = "free";
+      state.camera.initialized = false;
+    }
   }
-  const rendered = renderedPlayer(target);
-  view.x = rendered.x;
-  view.y = rendered.y;
+  if (clairvoyanceCameraMode() === "free") {
+    const direction = clairvoyanceDirection();
+    const acceleration = Math.max(1, Number(view.acceleration) || 5);
+    const distance = CLAIRVOYANCE_CAMERA_BASE_SPEED * acceleration * elapsed / 1000;
+    if (direction.dx || direction.dy) {
+      view.x = clamp(view.x + direction.dx * distance, 0, data.map.width);
+      view.y = clamp(view.y + direction.dy * distance, 0, data.map.height);
+      state.camera.initialized = false;
+    }
+  }
   view.frame = requestAnimationFrame(updateClairvoyanceFrame);
 }
 
@@ -4415,48 +4501,29 @@ function setLocalClairvoyanceActive(shouldEnable, data = state.data) {
   const requestPending = Boolean(view.requestPending);
   const requestSerial = Number(view.requestSerial) || 0;
   if (view.frame) cancelAnimationFrame(view.frame);
+  clearClairvoyanceCameraInput();
   clearMovementInput();
   rotateMovementSession();
   sendMovement(true);
   if (!shouldEnable) {
     state.clairvoyanceTeleportTap = null;
     state.clairvoyanceTeleportRequestSerial += 1;
-    state.clairvoyance = {
-      active: false,
-      x: 0,
-      y: 0,
-      targetId: view.targetId || "",
-      lastFrameAt: 0,
-      frame: 0,
-      serverDesired,
-      requestPending,
-      requestSerial
-    };
+    state.clairvoyance = { active: false, x: 0, y: 0, targetId: view.targetId || "", mode: "follow", acceleration: 5, directionKeys: new Set(), lastFrameAt: 0, frame: 0, serverDesired, requestPending, requestSerial };
     state.camera.initialized = false;
     updateActionButtons(data);
     return true;
   }
+  const self = data.players.find((player) => player.id === data.selfId);
+  if (!self) return false;
   const target = ensureClairvoyanceFollowTarget(data);
-  if (!target) return false;
-  const targetPosition = renderedPlayer(target);
+  const origin = renderedPlayer(target || self);
   const timestamp = performance.now();
-  state.clairvoyance = {
-    active: true,
-    x: targetPosition.x,
-    y: targetPosition.y,
-    targetId: target.id,
-    lastFrameAt: timestamp,
-    frame: 0,
-    serverDesired,
-    requestPending,
-    requestSerial
-  };
+  state.clairvoyance = { active: true, x: origin.x, y: origin.y, targetId: target?.id || "", mode: target ? "follow" : "free", acceleration: 5, directionKeys: new Set(), lastFrameAt: timestamp, frame: 0, serverDesired, requestPending, requestSerial };
   state.clairvoyance.frame = requestAnimationFrame(updateClairvoyanceFrame);
   state.camera.initialized = false;
   updateActionButtons(data);
   return true;
 }
-
 function requestClairvoyanceManaUsage(active) {
   const view = state.clairvoyance;
   const desired = Boolean(active);
@@ -6399,6 +6466,7 @@ function bindEvents() {
   els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
+  els.tabletClairvoyanceModeShortcut.addEventListener("click", () => toggleClairvoyanceViewMode());
   els.tabletClairvoyancePreviousShortcut.addEventListener("click", () => cycleClairvoyanceFollowTarget(-1));
   els.tabletClairvoyanceNextShortcut.addEventListener("click", () => cycleClairvoyanceFollowTarget(1));
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
@@ -7422,6 +7490,7 @@ function bindEvents() {
     cancelEnhanceAction();
     state.continuousActionKeyAt.clear();
     clearMovementInput();
+    clearClairvoyanceCameraInput();
   });
   window.addEventListener("focus", () => void recoverRoomInteractionAfterBackground());
   window.addEventListener("online", () => void flushUsageAnalytics());
@@ -8584,16 +8653,21 @@ function renderTabletControls(data) {
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
-  const clairvoyanceTarget = state.clairvoyance.active ? ensureClairvoyanceFollowTarget(data) : null;
+  const clairvoyanceMode = clairvoyanceCameraMode();
+  const clairvoyanceTarget = state.clairvoyance.active && clairvoyanceMode === "follow" ? ensureClairvoyanceFollowTarget(data) : null;
   setTabletShortcutLabel(els.tabletClairvoyanceShortcut, "千里眼", state.clairvoyance.active
-    ? `千里眼を解除。追尾先: ${clairvoyanceTarget?.name || "なし"}`
+    ? `千里眼を解除。${clairvoyanceMode === "follow" ? `追尾先: ${clairvoyanceTarget?.name || "なし"}` : "自由視点 ACC5"}`
     : `千里眼を発動（${Number(data?.self?.clairvoyanceManaPerSecond ?? 0.25).toFixed(2)}MP/秒）`);
+  els.tabletClairvoyanceModeShortcut.hidden = !state.clairvoyance.active;
+  els.tabletClairvoyanceModeShortcut.disabled = !state.clairvoyance.active || (clairvoyanceMode === "free" && !clairvoyanceFollowCandidates(data).length);
+  els.tabletClairvoyanceModeShortcut.classList.toggle("active", clairvoyanceMode === "free");
+  setTabletShortcutLabel(els.tabletClairvoyanceModeShortcut, clairvoyanceMode === "free" ? "追尾視点" : "自由視点", clairvoyanceMode === "free" ? "追尾視点に戻る" : "自由視点へ切替（ACC5）");
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
   els.tabletClairvoyanceShortcut.setAttribute("aria-pressed", String(state.clairvoyance.active));
   const clairvoyanceCandidates = clairvoyanceFollowCandidates(data);
   const clairvoyanceTargetName = clairvoyanceTarget?.name || "追尾先なし";
-  const clairvoyanceTargetsVisible = state.clairvoyance.active;
+  const clairvoyanceTargetsVisible = state.clairvoyance.active && clairvoyanceMode === "follow";
   els.tabletClairvoyancePreviousShortcut.hidden = !clairvoyanceTargetsVisible;
   els.tabletClairvoyanceNextShortcut.hidden = !clairvoyanceTargetsVisible;
   els.tabletClairvoyancePreviousShortcut.disabled = clairvoyanceCandidates.length < 2;
@@ -9188,7 +9262,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
       const gravityDescriptions = {
         near: "局所重力場で時空曲率を変え、選択対象の近くへ全身転移する",
         target: "局所重力場で時空曲率を変え、選択対象をマップ指定地点へ転移する。味方への誤射は発動者が即死する",
-        heart: "遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる",
+        heart: "遠隔の時空作用で対象の心臓へ干渉し、キルを試みる",
       accelerate: "対象の時間進行率を8秒間×2.5にし、移動・行動不能時間・CT・タスク・物理モーションを同率加速する",
       decelerate: "対象の時間進行率を8秒間×0.38にし、移動・行動不能時間・CT・タスク・物理モーションを同率減速する",
       "time-keeper": "5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する",
@@ -9205,7 +9279,7 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
   } else if (activeType === "flora") {
     const floraDescriptions = {
       heal: "生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して加速を付与する",
-      sunbeam: "屈折・回折による経路制御で選択対象方向へ光線を放ち、交差した全対象を貫通して確殺する",
+      sunbeam: "屈折・回折による経路制御で選択対象方向へ光線を放ち、交差した全対象を貫通してキルする",
       invisible: "光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる"
     };
     const floraModes = new Set(["heal", "sunbeam", "invisible"]);
@@ -10145,7 +10219,7 @@ async function performNinjutsu() {
   const ok = await api("/api/ninjutsu", { targetId: target.id });
   if (ok) {
     const assassin = state.data?.self?.special === "assassin";
-    showToast(`${target.name}への忍殺準備を開始しました。自分が4秒間静止し、対象が射程内で通常歩行速度以下なら${assassin ? "アサシン忍殺による消滅" : "通常忍殺（死体あり）"}が発動します。`);
+    showToast(`${target.name}への忍殺準備を開始しました。自分が4秒間静止し、対象が射程内で通常歩行速度以下なら${assassin ? "アサシン忍殺によるキル（死体なし）" : "通常忍殺（死体あり）"}が発動します。`);
   }
 }
 
@@ -10376,6 +10450,7 @@ function invalidateFocusResync() {
 function cancelTransientGameInputForBackground() {
   invalidateFocusResync();
   clearMovementInput();
+  clearClairvoyanceCameraInput();
   cancelActiveRootShortcutHolds();
   cancelActiveAbilityBatchHolds();
   stopContinuousActionHold();
@@ -11020,10 +11095,10 @@ function detectAttackResult(previous, next) {
   const messages = {
     lethal: "攻撃成功。対象をキルしました。",
     disappeared: next.self.special === "assassin"
-      ? "アサシン忍殺による消滅が成功しました。死体・通報対象は残りません。"
-      : "忍殺成功。対象を倒し、通報可能な死体が残りました。",
+      ? "アサシン忍殺によるキルが成功しました。死体・通報対象は残りません。"
+      : "忍殺成功。対象をキルし、通報可能な死体が残りました。",
     blocked: "忍殺は防御されました。",
-    body: "胴体に命中しました。もう一度攻撃すればキルできます。",
+    body: "ボディダメージを与えました。",
     miss: "攻撃は外れました。",
     moved: "自分の移動、対象の高速移動・転移、または射程外への移動により、忍殺に失敗しました。",
     dodged: "攻撃を回避されました。",
@@ -11055,15 +11130,7 @@ function clearMysteryReveal() {
   }
   for (const timer of state.mysteryRevealStageTimers || []) clearTimeout(timer);
   state.mysteryRevealStageTimers = [];
-  els.mysteryReveal.hidden = true;
-  els.mysteryReveal.getAnimations?.().forEach((animation) => animation.cancel());
-  els.mysteryReveal.style.animation = "";
-  els.mysteryReveal.style.transform = "";
-  els.mysteryRevealResult.textContent = "";
-  els.mysteryRevealResult.classList.remove("visually-hidden");
-  const title = els.mysteryReveal.querySelector("span");
-  if (title) { title.textContent = ""; title.hidden = true; }
-  els.mysteryReveal.querySelector(".mystery-reveal-box-stage")?.remove();
+  state.mysteryWorldReveal = null;
   document.querySelectorAll(".mystery-photon-stream").forEach((entry) => entry.remove());
   document.documentElement.removeAttribute("data-mystery-reveal-phase");
   document.documentElement.removeAttribute("data-mystery-reveal-phase-at");
@@ -11109,19 +11176,17 @@ function mysteryInventoryPhotonTarget(reveal) {
 function emitMysteryInventoryPhotonStream(reveal, source, owner, attempt = 0) {
   if (state.mysteryRevealTimer !== owner || prefersReducedMotion()) return false;
   const target = mysteryInventoryPhotonTarget(reveal);
-  if (!target) {
+  if (!target || !source || !Number.isFinite(source.x) || !Number.isFinite(source.y)) {
     if (attempt < 3) scheduleMysteryRevealStage(() => emitMysteryInventoryPhotonStream(reveal, source, owner, attempt + 1), 90, owner);
     return false;
   }
-  const sourceRect = source.getBoundingClientRect();
-  if (!(sourceRect.width > 0 && sourceRect.height > 0)) return false;
   document.querySelectorAll(".mystery-photon-stream").forEach((entry) => entry.remove());
   const stream = document.createElement("div");
   stream.className = "mystery-photon-stream";
   stream.setAttribute("aria-hidden", "true");
   stream.style.cssText = "position:fixed;inset:0;z-index:207;pointer-events:none;overflow:hidden";
-  const sourceX = sourceRect.left + sourceRect.width / 2;
-  const sourceY = sourceRect.top + sourceRect.height * 0.58;
+  const sourceX = source.x;
+  const sourceY = source.y;
   const count = 26;
   let streamLifetime = 0;
   for (let index = 0; index < count; index += 1) {
@@ -11139,7 +11204,7 @@ function emitMysteryInventoryPhotonStream(reveal, source, owner, attempt = 0) {
     stream.append(photon);
     photon.animate([
       { opacity: 0, transform: "translate3d(0, 0, 0) scale(.35)" },
-      { opacity: 0.94, transform: `translate3d(${bend}px, ${-lift}px, 0) scale(1)` , offset: 0.2 },
+      { opacity: 0.94, transform: `translate3d(${bend}px, ${-lift}px, 0) scale(1)`, offset: 0.2 },
       { opacity: 0.82, transform: `translate3d(${target.x - startX + bend * 0.36}px, ${target.y - startY - lift * 0.24}px, 0) scale(.8)`, offset: 0.78 },
       { opacity: 0, transform: `translate3d(${target.x - startX}px, ${target.y - startY}px, 0) scale(.18)` }
     ], { delay, duration, easing: "cubic-bezier(.18,.78,.22,1)", fill: "both" });
@@ -11149,59 +11214,49 @@ function emitMysteryInventoryPhotonStream(reveal, source, owner, attempt = 0) {
   return true;
 }
 
-function showMysteryBoxReveal(reveal) {
-  const panel = els.mysteryReveal;
-  const title = panel.querySelector("span");
-  if (title) { title.textContent = ""; title.hidden = true; }
-  panel.style.animation = "none";
-  panel.style.boxSizing = "border-box";
-  panel.style.maxWidth = "calc(100vw - 32px)";
-  panel.style.transform = "translateX(-50%)";
-  // The inventory icon and actual destination own the result; no reward text
-  // is painted or announced from this temporary opening presentation.
-  els.mysteryRevealResult.textContent = "";
-  els.mysteryRevealResult.classList.add("visually-hidden");
-  const stage = document.createElement("div");
-  stage.className = "mystery-reveal-box-stage";
-  const revealStartedAt = performance.now();
-  const setRevealQaPhase = (phase, elapsedMs) => {
-    stage.dataset.mysteryRevealPhase = phase;
-    stage.dataset.mysteryRevealElapsedMs = String(elapsedMs);
-    stage.dataset.mysteryRevealStartedAt = String(Math.round(revealStartedAt));
-    document.documentElement.setAttribute("data-mystery-reveal-phase", phase);
-    document.documentElement.setAttribute("data-mystery-reveal-phase-at", String(Math.round(revealStartedAt + elapsedMs)));
+function mysteryWorldPhotonSource() {
+  const opening = state.mysteryWorldReveal;
+  const data = state.data;
+  const viewport = state.drawViewport;
+  const canvas = els.canvas;
+  if (!opening || !data || !viewport || !canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const zoom = worldZoomFor(data);
+  const pixelX = (opening.x - viewport.left) * zoom;
+  const pixelY = (opening.y - viewport.top) * zoom;
+  return {
+    x: rect.left + pixelX * rect.width / canvas.width,
+    // Matches drawMysteryBoxRevealEffect's physical opening mouth, not box center.
+    y: rect.top + (pixelY - 31 * zoom) * rect.height / canvas.height
   };
-  setRevealQaPhase("box", 0);
-  stage.setAttribute("aria-hidden", "true");
-  stage.style.cssText = "position:relative;display:grid;justify-items:center;min-height:116px;overflow:hidden";
-  const box = document.createElement("img");
-  box.alt = ""; box.decoding = "async"; box.src = state.textures?.mysteryBoxOpen?.src || assetUrl("assets/generated/mystery-box-open-v655.png");
-  box.style.cssText = "position:absolute;width:94px;height:94px;object-fit:contain;clip-path:inset(43% 6% 3% 6%);opacity:.18;transform:translateY(14px) scale(.72)";
-  const lid = document.createElement("img");
-  lid.alt = ""; lid.decoding = "async"; lid.src = box.src;
-  lid.style.cssText = "position:absolute;width:94px;height:94px;object-fit:contain;clip-path:polygon(20% 4%,98% 4%,98% 54%,20% 54%);transform-origin:45% 43%;opacity:.18;transform:translateY(14px) rotate(-39deg) scaleY(.38)";
-  const light = document.createElement("div");
-  light.style.cssText = "position:absolute;inset:4px 20%;background:radial-gradient(ellipse at 50% 78%,rgba(255,231,142,.62),rgba(125,211,252,.18) 38%,transparent 70%);opacity:0;filter:blur(5px)";
-  const reward = document.createElement("div");
-  reward.style.cssText = "position:absolute;left:50%;bottom:0;width:42px;height:42px;opacity:0;transform:translateX(-50%) translateY(20px) scale(.82)";
-  reward.innerHTML = '<span class="vending-item-icon" style="width:42px;height:42px;display:block" aria-hidden="true"></span>';
-  applyGeneratedItemTexture(reward, reveal.asset || reveal.rewardId);
-  stage.append(light, box, lid, reward); panel.append(stage); panel.hidden = false;
-  panel.animate([{ opacity: 0, transform: "translate(-50%, -16px) scale(.96)" }, { opacity: 1, transform: "translate(-50%, 0) scale(1)" }], { duration: 260, fill: "forwards", easing: "ease-out" });
+}
+
+function showMysteryBoxReveal(reveal) {
   const owner = state.mysteryRevealTimer;
-  scheduleMysteryRevealStage(() => {
-    box.animate([{ opacity: .18, transform: "translateY(14px) scale(.72)" }, { opacity: 1, transform: "translateY(0) scale(1)" }], { duration: 560, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" });
-    lid.animate([{ opacity: .18, transform: "translateY(14px) rotate(-39deg) scaleY(.38)" }, { opacity: 1, transform: "translateY(0) rotate(0) scaleY(1)" }], { duration: 560, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" });
-  }, 0, owner);
-  scheduleMysteryRevealStage(() => { setRevealQaPhase("spill", 460); light.animate([{ opacity: 0, transform: "scale(.55)" }, { opacity: 1, transform: "scale(1.12)" }, { opacity: .42, transform: "scale(.94)" }], { duration: 820, fill: "forwards", easing: "ease-out" }); }, 460, owner);
-  scheduleMysteryRevealStage(() => { setRevealQaPhase("inventory", 980); reward.animate([{ opacity: 0, transform: "translateX(-50%) translateY(20px) scale(.82)" }, { opacity: 1, transform: "translateX(-50%) translateY(0) scale(1)" }], { duration: 340, fill: "forwards", easing: "cubic-bezier(.18,.8,.2,1)" }); emitMysteryInventoryPhotonStream(reveal, box, owner); }, 980, owner);
+  const emit = (attempt = 0) => {
+    if (state.mysteryRevealTimer !== owner) return;
+    const source = mysteryWorldPhotonSource();
+    if (!source) {
+      if (attempt < 4) scheduleMysteryRevealStage(() => emit(attempt + 1), 90, owner);
+      return;
+    }
+    document.documentElement.setAttribute("data-mystery-reveal-phase", "inventory");
+    emitMysteryInventoryPhotonStream(reveal, source, owner);
+  };
+  scheduleMysteryRevealStage(() => emit(), 980, owner);
 }
 
 function detectMysteryBoxReveal(previous, next) {
   const reveal = next?.self?.lastMysteryReveal;
   if (!previous || !reveal || reveal.at <= Number(previous.self?.lastMysteryReveal?.at || 0)) return;
+  const source = (next.magicEffects || [])
+    .filter((effect) => effect?.type === "mystery-box" && effect?.playerId === next.selfId && Number.isFinite(Number(effect.x)) && Number.isFinite(Number(effect.y)))
+    .sort((a, b) => Number(b.startedAt || b.at || 0) - Number(a.startedAt || a.at || 0))[0];
+  if (!source) return;
   clearMysteryReveal();
-  const owner = setTimeout(() => { if (state.mysteryRevealTimer === owner) { state.mysteryRevealTimer = null; clearMysteryReveal(); } }, 6000);
+  state.mysteryWorldReveal = { id: reveal.id, x: Number(source.x), y: Number(source.y), at: Number(reveal.at) || Date.now() };
+  const owner = setTimeout(() => { if (state.mysteryRevealTimer === owner) { state.mysteryRevealTimer = null; clearMysteryReveal(); } }, 3400);
   state.mysteryRevealTimer = owner;
   showMysteryBoxReveal(reveal);
 }
@@ -11219,19 +11274,8 @@ function detectMysteryResult(previous, next) {
     document.documentElement.setAttribute("data-mystery-reveal-nested-result", "merged");
     return;
   }
-  clearMysteryReveal();
-  const result = next.self.lastMysteryResult || "効果なし";
-  showToast("ミステリー: " + result);
-  els.mysteryRevealResult.textContent = result;
-  els.mysteryReveal.hidden = false;
-  clearTimeout(state.mysteryRevealTimer);
-  const mysteryRevealTimer = setTimeout(() => {
-    if (state.mysteryRevealTimer !== mysteryRevealTimer) return;
-    state.mysteryRevealTimer = null;
-    els.mysteryReveal.hidden = true;
-    els.mysteryRevealResult.textContent = "";
-  }, 6000);
-  state.mysteryRevealTimer = mysteryRevealTimer;
+  // Shop/drink mystery effects keep their ordinary toast; a box owns no UI card.
+  showToast("ミステリー: " + (next.self.lastMysteryResult || "効果なし"));
 }
 
 function isActionBlocked(data = state.data) {
@@ -13161,7 +13205,7 @@ function abilityModeDescription(owner, mode, self) {
     teleport: {
       near: `局所重力場で時空曲率を変え、対象の近くへ全身転移する。`,
       target: `局所重力場で時空曲率を変え、マップ指定地点へ選択対象を転移する。味方への誤射は発動者が即死する。`,
-      heart: `遠隔の時空作用で対象の心臓へ干渉し、確殺を試みる。位置は公開しない。`,
+      heart: `遠隔の時空作用で対象の心臓へ干渉し、キルを試みる。位置は公開しない。`,
       accelerate: `対象の時間進行率を8秒間×2.5にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。`,
       decelerate: `対象の時間進行率を8秒間×0.38にする。移動、行動不能時間、CT、タスク進行、物理モーションへ同倍率を適用。味方への誤射は発動者が即死する。`,
       "time-keeper": `5秒間、術者以外の時間発展・入力・CT・物体運動を完全停止する。`,
@@ -13170,7 +13214,7 @@ function abilityModeDescription(owner, mode, self) {
     gravity: null,
     flora: {
       heal: `生体恒常性を回復し、自分のHP・SP・人体状態異常を修復して12秒間加速する。`,
-      sunbeam: `屈折・回折による経路制御で選択対象方向へ発動し、交差した全対象を貫通して確殺する。壁は貫通しない。`,
+      sunbeam: `屈折・回折による経路制御で選択対象方向へ発動し、交差した全対象を貫通してキルする。壁は貫通しない。`,
       invisible: `光学迷彩で10秒間透明になり、敵Botの直接視認・追跡対象から外れる。自分には半透明で表示する。`
     },
     quantum: {
@@ -13851,7 +13895,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
   const passiveTone = passiveEnabled ? "rational" : "neutral";
 
   if (hasDisplayedOperatorAccess(self, "fighter")) {
-    add("キルカウンター", passiveValue, passiveTone, "確殺を回避した時だけ攻撃者を即時確殺", "inline", "passive:fighter-kill-counter");
+    add("キルカウンター", passiveValue, passiveTone, "キルを回避した時だけ攻撃者を即時キル", "inline", "passive:fighter-kill-counter");
   }
 
   if (hasDisplayedOperatorAccess(self, "gravity")) {
@@ -13916,7 +13960,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
 
   if (hasDisplayedOperatorAccess(self, "assassin")) {
     add("常時無音", "常時有効", "truth", "歩行・ダッシュを含む全移動で足音イベントを発生させず、敵Botにも足音証拠を与えない", "inline", "passive:assassin-silence");
-    add("アサシン忍殺", "消滅へ変換", "truth", "忍殺成功時はアサシン忍殺による消滅となり、死体・通報対象・死体由来markerを残さない", "inline", "passive:assassin-execution");
+    add("アサシン忍殺", "死体なしのキルへ変換", "truth", "忍殺成功時はアサシン忍殺によるキル（死体なし）となり、死体・通報対象・死体由来markerを残さない", "inline", "passive:assassin-execution");
   }
 
   if (self.special === "alchemist") {
@@ -13961,7 +14005,7 @@ function renderActiveEffects(data) {
   if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "加速×1.65。移動・物理モーション・CT・行動不能・タスク速度へ適用", "accel:luminous");
   if (self.limitBreakActive) {
     const limitBreakDetail = self.fighterInfiniteResources
-      ? `HP消費なし / MP・SP・HP・バリア∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被確殺デメリット解除`
+      ? `HP消費なし / MP・SP・HP・バリア∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被キルデメリット解除`
       : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 発動1回1MP・維持消費なし / 即死回避無効`;
     add(abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self), "永続", "truth", limitBreakDetail, "limit-break");
   }
@@ -13987,10 +14031,10 @@ function renderActiveEffects(data) {
       "combat:kill-chain"
     );
   }
-  if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "確殺1回をボディダメージ化し、発動後もしばらく防護", "barrier:charges");
+  if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "キル1回をボディダメージ化し、発動後もしばらく防護", "barrier:charges");
   if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移", "substitution:charges");
   if ((self.pushCharges || 0) > 0) add("バスト", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "バリア全消去。1回につき反動0.5", "push:charges");
-  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃を破壊へ強化。失敗・回避・ガード・準備バリアでは消費しない。既存の消滅は維持", "iai:charges");
+  if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃をキル（死体あり）へ強化。失敗・回避・ガード・準備バリアでは消費しない。既に死体なしのキルは維持", "iai:charges");
   if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `テレポート可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にテレポート権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費", "teleport:map-scroll-charges");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
     const multiplier = Math.max(0, Math.min(1, Number(self.gravityStormSlowMultiplier) || 1));
@@ -14008,10 +14052,10 @@ function renderActiveEffects(data) {
   if (self.gunnerSpecialAmmoType && Number(self.gunnerSpecialAmmoRounds) > 0) {
     const typeLabel = specialAmmoLabels[self.gunnerSpecialAmmoType] || "特殊弾";
     const detail = self.gunnerSpecialAmmoType === "weak"
-      ? "命中した対象を破壊し、対象の死体を残す。射手への代償ダメージなし"
+      ? "命中した対象をキルし、対象の死体を残す。射手への代償ダメージなし"
       : self.gunnerSpecialAmmoType === "penetrate"
         ? "通常の遮蔽物を貫通して射線上の対象へ到達"
-        : "幸運/直観0未満:確殺 / 0以上:6秒間35%減速";
+        : "幸運/直観0未満:キル / 0以上:6秒間35%減速";
     add("装填中の特殊弾", `${typeLabel} / ${specialAmmoWeapon?.shortName || specialAmmoWeapon?.name || self.gunnerSpecialAmmoWeapon} ×${self.gunnerSpecialAmmoRounds}`, "truth", detail, "ammo:loaded");
   }
   if (self.gravityTimeMode) timed(
@@ -14048,7 +14092,7 @@ function renderActiveEffects(data) {
   }
   if (self.mapObjectEffects?.speedBoost) add("加速床", "範囲内", "good", "加速×1.35。移動・物理モーション・CT・行動不能・タスク速度へ適用", "accel:map-floor");
   if (self.mapObjectEffects?.quiet) add("静音フィールド", "範囲内", "rational", "足音なし", "field:quiet");
-  timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "確殺を無効化した時だけキルカウンター" : "効果中に受けた攻撃を無効化する", "dodge:active");
+  timed("回避", self.dodgeActiveUntil, "beauty", self.special === "fighter" ? "キルを無効化した時だけキルカウンター" : "効果中に受けた攻撃を無効化する", "dodge:active");
   const slashPerfectRemaining = Math.max(0, Number(self.slashPerfectUntil) - liveNow);
   const slashGuardRemaining = Math.max(0, Number(self.slashActiveUntil) - liveNow);
   const slashRearmRemaining = Math.max(0, Number(self.slashPerfectReadyAt) - liveNow);
@@ -14081,9 +14125,9 @@ function renderActiveEffects(data) {
   timed("能力封印", self.abilityDisabledUntil, "desire", "固有能力使用不可", "status:ability-disabled");
   timed("EMP機器異常", self.itemDisabledUntil, "desire", "アイテム・装備効果停止（状態異常回復の対象外）", "emp-lock");
   if (self.statusImmunityActive) {
-    const hpRate = Number(self.naturalRecoveryHpPerSecond || 0.05).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    const spRate = Number(self.naturalRecoveryStaminaPerSecond || 19).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-    const mpRate = Number(self.naturalRecoveryManaPerSecond || 0.127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    const hpRate = Number(self.naturalRecoveryHpPerSecond ?? 0.005).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    const spRate = Number(self.naturalRecoveryStaminaPerSecond ?? 1.9).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+    const mpRate = Number(self.naturalRecoveryManaPerSecond ?? 0.0127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は状態異常ではないため回復対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒で独立回復し、満タン後もcurrent/maxを同率で拡張`, "recovery:natural");
   }
   if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・ヒール・理知中の自然回復で解除", "status:poison");
@@ -14808,7 +14852,7 @@ function objectiveText(data) {
   }
   if (self.role === "attacker") {
     if (self.aimTargetId && self.aimReadyAt > liveNow) {
-      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分の移動、対象の高速移動・転移、射程外への移動で失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺による消滅となり、死体・通報対象を残しません" : "通常忍殺として通報可能な死体を残します"}。`;
+      return `忍殺静止中。発動まで${((self.aimReadyAt - liveNow) / 1000).toFixed(1)}秒。自分の移動、対象の高速移動・転移、射程外への移動で失敗し、成功時は${self.special === "assassin" ? "アサシン忍殺によるキル（死体なし）となり、死体・通報対象を残しません" : "通常忍殺として通報可能な死体を残します"}。`;
     }
     const cd = self.ninjutsuOpeningReady ? 0 : Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
@@ -14989,7 +15033,7 @@ function updateActionButtons(data) {
     ? ` キルチェイン${Number(self.killChainCount)}、次回キルCT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒。`
     : " キル成立ごとに次回キルCTを10%短縮（最短25%）。";
   els.ninjutsuButton.title = (self.special === "assassin"
-    ? "忍殺: 自分が4秒間静止し、対象が射程内で通常歩行速度以下ならアサシン忍殺による消滅。死体・通報対象・死体由来マーカーを残さない。自分の移動、対象の高速移動・転移、射程外または対象喪失で失敗。歩行やディーセラレート中の走行も速度条件を満たせば対象"
+    ? "忍殺: 自分が4秒間静止し、対象が射程内で通常歩行速度以下ならアサシン忍殺によるキル（死体なし）。死体・通報対象・死体由来マーカーを残さない。自分の移動、対象の高速移動・転移、射程外または対象喪失で失敗。歩行やディーセラレート中の走行も速度条件を満たせば対象"
     : "忍殺: 自分が4秒間静止し、対象が射程内で通常歩行速度以下なら対象を倒し、通報可能な死体を残す。自分の移動、対象の高速移動・転移、射程外または対象喪失で失敗。歩行やディーセラレート中の走行も速度条件を満たせば対象") + killChainSuffix;
   els.fireJutsuButton.textContent = `ファイア 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
@@ -16292,14 +16336,18 @@ function drawModeBanner(data, w) {
   if (throwTargetClairvoyanceActive(data)) {
     text = "千里眼 / 着地点追従 / 全域投擲";
   } else if (state.clairvoyance.active) {
-    const target = ensureClairvoyanceFollowTarget(data);
-    text = `千里眼 / ${target?.name || "追尾先なし"}を追尾 / ←→で切替 / Zで解除`;
+    if (clairvoyanceCameraMode() === "free") {
+      text = "千里眼 / 自由視点 ACC5 / WASD・矢印で移動 / Alt+Zで追尾 / Zで解除";
+    } else {
+      const target = ensureClairvoyanceFollowTarget(data);
+      text = `千里眼 / ${target?.name || "追尾先なし"}を追尾 / ←→で切替 / Alt+Zで自由視点 / Zで解除`;
+    }
   } else if (data.self.aimTargetId) {
     const target = data.players.find((player) => player.id === data.self.aimTargetId);
     const remaining = Math.max(0, data.self.aimReadyAt - estimatedServerNow(data));
     text = remaining > 0
       ? `忍殺静止中: ${target?.name || "対象"} / 残り ${(remaining / 1000).toFixed(1)}秒`
-      : `${data.self.special === "assassin" ? "忍殺消滅" : "忍殺撃破"}処理中: ${target?.name || "対象"}`;
+      : `${data.self.special === "assassin" ? "忍殺キル（死体なし）" : "忍殺撃破"}処理中: ${target?.name || "対象"}`;
   }
   if (!text) return;
   ctx.save();
@@ -16336,11 +16384,11 @@ function cameraFor(data, w, h, zoom = 1) {
   const throwTarget = state.throwTargeting.active
     ? { x: state.throwTargeting.targetX, y: state.throwTargeting.targetY }
     : null;
-  const clairvoyanceFollowPlayer = !throwTarget && state.clairvoyance.active
+  const clairvoyanceFollowPlayer = !throwTarget && state.clairvoyance.active && clairvoyanceCameraMode() === "follow"
     ? ensureClairvoyanceFollowTarget(data)
     : null;
-  const clairvoyanceTarget = clairvoyanceFollowPlayer
-    ? renderedPlayer(clairvoyanceFollowPlayer)
+  const clairvoyanceTarget = !throwTarget && state.clairvoyance.active
+    ? (clairvoyanceFollowPlayer ? renderedPlayer(clairvoyanceFollowPlayer) : { x: state.clairvoyance.x, y: state.clairvoyance.y })
     : null;
   const target = killCameraTarget || throwTarget || clairvoyanceTarget || (self ? renderedPlayer(self) : { x: data.map.width / 2, y: data.map.height / 2 });
   const viewW = w / zoom;
@@ -16352,7 +16400,7 @@ function cameraFor(data, w, h, zoom = 1) {
     : throwTarget
     ? `throw-target:${throwTargetClairvoyanceActive(data) ? "clairvoyance" : "follow"}:${zoom}`
     : clairvoyanceTarget
-      ? `clairvoyance-follow:${clairvoyanceFollowPlayer.id}:${zoom}`
+      ? `clairvoyance-${clairvoyanceFollowPlayer ? `follow:${clairvoyanceFollowPlayer.id}` : "free"}:${zoom}`
       : `player:${data.selfId}:${zoom}`;
   const camera = state.camera;
   if (!camera.initialized || camera.mode !== mode) {
@@ -19555,28 +19603,24 @@ function drawMysteryBoxRevealEffect(effect, progress, now) {
   const closedPrepared = transparentSpriteSource(state.textures?.mysteryBox, "mystery-box-closed", 14);
   const closedSprite = closedPrepared ? normalizedSpriteFrame(closedPrepared, "mystery-box-closed", 1, 1, 0, 0) : null;
   const opening = objectEffectEase(clamp(progress / 0.34, 0, 1));
-  const emerging = objectEffectEase(clamp((progress - 0.34) / 0.42, 0, 1));
-  const boxSize = animatedTextureSize(sprite, 146, 146);
-  const left = effect.x - boxSize.width / 2;
-  const top = effect.y - 22 - emerging * 12 - boxSize.height / 2;
-  // The authored open sprite has a clearly separate back lid: normalized x=.20-.98,
-  // y=.04-.54 and a left-lower hinge at (.45,.43).  We crop that exact pixel region
-  // and rotate it around its actual hinge; this is never a closed/open cross-fade.
+  // The closed pose exactly matches drawMysteryBoxes: centered x, y-11, 112².
+  const size = 112;
+  const left = effect.x - size / 2;
+  const top = effect.y - 11 - size / 2;
   const lid = Object.freeze({ x: 0.20, y: 0.04, width: 0.78, height: 0.50, hingeX: 0.45, hingeY: 0.43 });
   const body = Object.freeze({ x: 0.06, y: 0.43, width: 0.88, height: 0.54 });
   const drawCrop = (region) => ctx.drawImage(sprite,
     sprite.width * region.x, sprite.height * region.y, sprite.width * region.width, sprite.height * region.height,
-    left + boxSize.width * region.x, top + boxSize.height * region.y, boxSize.width * region.width, boxSize.height * region.height);
+    left + size * region.x, top + size * region.y, size * region.width, size * region.height);
   ctx.save();
   if (opening < 0.15 && closedSprite) {
-    // A brief closed starting pose establishes the before-state.  The following pose
-    // is assembled from the real opened asset's body and independently moving lid.
-    drawAnimatedTextureCentered(closedSprite, effect.x, effect.y - 22, 126, 126, { mode: "shimmer", time: now / 1000, progress, phase: 0.34, intensity: 0.56, baseAlpha: 0.08 });
+    drawNormalizedSpriteCentered(closedSprite, effect.x, effect.y - 11, 112, 112);
   } else if (opening < 0.98) {
+    // The box body stays at its placed anchor throughout; only the real lid turns.
     ctx.globalAlpha = 0.98;
     drawCrop(body);
-    const hingeX = left + boxSize.width * lid.hingeX;
-    const hingeY = top + boxSize.height * lid.hingeY;
+    const hingeX = left + size * lid.hingeX;
+    const hingeY = top + size * lid.hingeY;
     ctx.save();
     ctx.translate(hingeX, hingeY);
     ctx.rotate(-0.68 * (1 - opening));
@@ -19586,29 +19630,29 @@ function drawMysteryBoxRevealEffect(effect, progress, now) {
     ctx.restore();
   } else {
     ctx.globalAlpha = 0.98;
-    ctx.drawImage(sprite, left, top, boxSize.width, boxSize.height);
+    ctx.drawImage(sprite, left, top, size, size);
   }
-  // E begins as a short, broad spill anchored at the real opening. It is not a box-wide shadow or halo.
+  const mouthX = effect.x;
+  const mouthY = effect.y - 31;
   ctx.globalCompositeOperation = "lighter";
   const spillPhase = clamp((progress - 0.2) / 0.48, 0, 1);
   if (spillPhase > 0 && spillPhase < 1) {
     const spillStrength = Math.sin(spillPhase * Math.PI) * 0.24;
-    const spill = ctx.createRadialGradient(effect.x, effect.y - 34, 8, effect.x, effect.y - 54, 76);
+    const spill = ctx.createRadialGradient(mouthX, mouthY, 8, mouthX, mouthY - 20, 76);
     spill.addColorStop(0, "rgba(255, 231, 142, 0.74)");
     spill.addColorStop(0.46, "rgba(186, 230, 253, 0.2)");
     spill.addColorStop(1, "rgba(186, 230, 253, 0)");
     ctx.globalAlpha = spillStrength;
     ctx.fillStyle = spill;
-    ctx.fillRect(effect.x - 78, effect.y - 122, 156, 104);
+    ctx.fillRect(mouthX - 78, mouthY - 88, 156, 104);
   }
-  // Only four detached motes follow the spill. The raster owns lid, ribbon and bow.
   for (let index = 0; index < 4; index += 1) {
     const phase = clamp((progress - 0.22 - index * 0.045) / 0.58, 0, 1);
     if (!phase || phase >= 1) continue;
-    const size = 6 + (1 - phase) * 8;
+    const moteSize = 6 + (1 - phase) * 8;
     ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.34;
     ctx.fillStyle = index % 2 ? "#fde68a" : "#bae6fd";
-    ctx.fillRect(effect.x + (index - 1.5) * 16 - size / 2, effect.y - 26 - phase * 64, size, size);
+    ctx.fillRect(mouthX + (index - 1.5) * 16 - moteSize / 2, mouthY + 5 - phase * 64, moteSize, moteSize);
   }
   ctx.restore();
 }
@@ -20439,15 +20483,15 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   acceleration: ["加速", "移動・物理モーション・CT・行動不能・タスク速度が表示倍率で加速しています。"],
   levitation: ["リビテーション（0.04MP/秒）", "床外移動中に継続消費します。終了時に床がなければ落下死します。"],
   hpReduction: ["HP減少", "現在HPまたはHP上限が低下しています。"],
-  resistanceBreak: ["確殺耐性無効", "リミットブレイク中はバリア・変わり身による確殺回避が無効です。EC1000到達後は解除されます。"],
-  standFirm: ["バリア", "次に受ける確殺を一度だけ防ぎ、発動後もしばらく防護します。"],
+  resistanceBreak: ["キル耐性無効", "リミットブレイク中はバリア・変わり身によるキル回避が無効です。EC1000到達後は解除されます。"],
+  standFirm: ["バリア", "次に受けるキルを一度だけ防ぎ、発動後もしばらく防護します。"],
   push: ["バスト", "対象のバリアを無効化します。無効化数に応じ反動を受けます。"],
-  iai: ["居合・即席", "次の成功攻撃を破壊（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既存の消滅は維持します。"],
+  iai: ["居合・即席", "次の成功攻撃をキル（死体あり）へ自動強化します。失敗・回避・ガード・準備バリアでは消費せず、既に死体なしのキルは維持します。"],
   burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・ヒール・理知中の自然回復で解除できます。"],
   poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・ヒール・理知中の自然回復で解除できます。"],
   manaGpu: ["マナGPU（0.025MP/秒・1MP=20秒）", "短縮クールへ変換し、次のバイブコーディングで必要分を自動消費します。"],
   infiniteResources: ["無限資源", "EC100回到達報酬によりMP・SP・HP・バリアが無限になっています。"],
-  destructionSlash: ["常時消滅斬り", "EC1000回到達後のファイター能力が、所持中の剣による斬るを死体なしの消滅へ強化します。剣自体の効果ではありません。"],
+  destructionSlash: ["常時死体なしキル斬り", "EC1000回到達後のファイター能力が、所持中の剣による斬るを死体なしのキルへ強化します。剣自体の効果ではありません。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
 
@@ -23596,7 +23640,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "plicy-preparation-canvas-v727";
+const version = "unified-kill-natural-recovery-v728";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24639,7 +24683,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=plicy-preparation-canvas-v727", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=unified-kill-natural-recovery-v728", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

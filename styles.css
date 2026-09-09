@@ -303,8 +303,7 @@ body .tablet-joystick.active .tablet-joystick-knob {
 }
 
 body .toast:not([hidden]),
-body .chat-notification:not([hidden]),
-body .mystery-reveal:not([hidden]) {
+body .chat-notification:not([hidden]) {
   animation: ui-toast-enter 240ms var(--ui-ease-out) both;
 }
 
@@ -6528,42 +6527,6 @@ body.tablet-mode-active .hacker-direct-action {
   font-size: 13px;
 }
 
-.mystery-reveal {
-  position: fixed;
-  left: 50%;
-  top: 18%;
-  z-index: 46;
-  width: min(520px, calc(100vw - 32px));
-  transform: translateX(-50%);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 8px;
-  background: rgba(10, 15, 22, 0.96);
-  box-shadow: 0 0 0 2px rgba(103, 232, 249, 0.16), 0 14px 52px rgba(0, 0, 0, 0.62);
-  color: #f8fafc;
-  padding: 14px 18px 17px;
-  text-align: center;
-  pointer-events: none;
-  animation: mystery-reveal-in 260ms ease-out;
-}
-
-.mystery-reveal span {
-  display: block;
-  margin-bottom: 6px;
-  color: #a5f3fc;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.mystery-reveal strong {
-  display: block;
-  font-size: clamp(20px, 3vw, 30px);
-  line-height: 1.25;
-}
-
-@keyframes mystery-reveal-in {
-  from { opacity: 0; transform: translate(-50%, -16px) scale(0.96); }
-  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
-}
 
 @media (max-width: 1040px) {
   .app-shell {
@@ -7500,8 +7463,7 @@ body .active-effects-panel li {
 }
 
 .toast,
-.chat-notification,
-.mystery-reveal {
+.chat-notification {
   border-color: rgba(70, 179, 202, 0.72);
   color: #17334a;
   background: rgba(250, 254, 255, 0.96);

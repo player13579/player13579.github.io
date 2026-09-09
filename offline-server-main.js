@@ -7268,7 +7268,7 @@ const LABORATORY_MAP = Object.freeze({
     ["quantum-transmutation", "核変換", 12, "operator-quantum", "quantum", "nuclear-transmutation", "active", "/api/quantum-control"],
     ["quantum-fission", "核分裂", 24, "operator-quantum", "quantum", "nuclear-fission", "active", "/api/quantum-control"],
     ["quantum-fusion", "核融合", 24, "operator-quantum", "quantum", "nuclear-fusion", "active", "/api/quantum-control"],
-    ["assassin-annihilation", "消滅忍殺", 20, "operator-assassin", "assassin", "annihilation", "passive", "resolveAttack"],
+    ["assassin-annihilation", "アサシン忍殺", 20, "operator-assassin", "assassin", "annihilation", "passive", "resolveAttack"],
     ["assassin-silent-steps", "常時無音", 12, "operator-assassin", "assassin", "silent-steps", "passive", "emitMovementNoise"],
     ["hacker-vibe-coding", "バイブコーディング", 22, "operator-hacker", "hacker", "vibe-coding", "panel", "/api/alchemy"],
     ["hacker-root", "ROOT", 25, "operator-hacker", "hacker", "root", "active", "/api/hacker-root"]
@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "plicy-preparation-canvas-v727",
+    version: "unified-kill-natural-recovery-v728",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "plicy-preparation-canvas-v727";
+const PRODUCT_RELEASE = "unified-kill-natural-recovery-v728";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7503,7 +7503,9 @@ const DASH_MULTIPLIER = 1.75;
 const DASH_DRAIN_PER_SECOND = 84;
 const WALK_DRAIN_PER_SECOND = 18;
 const SLOW_WALK_DRAIN_PER_SECOND = 2.4;
-const STAMINA_REGEN_PER_SECOND = 19;
+// All gradual natural recovery is intentionally one tenth of its former base rate.
+const NATURAL_REGEN_RATE_MULTIPLIER = 0.1;
+const STAMINA_REGEN_PER_SECOND = 19 * NATURAL_REGEN_RATE_MULTIPLIER;
 const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
 // Natural Recovery restores 0.127 MP/s toward the protected two-MP reserve.
 // Clairvoyance must still have a meaningful net cost while leaving Renki and
@@ -7609,7 +7611,7 @@ const HAZARD_FIELD_DURATION_MS = 12_000;
 const HAZARD_TICK_MS = 1_000;
 const POISON_DAMAGE_PER_TICK = 0.2;
 const BURN_DAMAGE_PER_TICK = 0.25;
-const NATURAL_RECOVERY_HP_PER_SECOND = 0.05;
+const NATURAL_RECOVERY_HP_PER_SECOND = 0.05 * NATURAL_REGEN_RATE_MULTIPLIER;
 const TOXIC_THROW_ITEM_IDS = new Set(["mercury", "lead", "uranium", "plutonium"]);
 const GOLD_INSTANT_CREDITS = CREDIT_ECONOMY.goldInstantReward;
 // Credit ATE multiplicity is a presentation unit, not the raw balance delta.
@@ -7641,7 +7643,7 @@ const DEFAULT_MAX_MANA = 2;
 const REST_COMPLETION_MANA_FLOOR = 2;
 const ABILITY_HOLD_MANA_RESERVE = 2;
 const STARTING_MANA = DEFAULT_MAX_MANA;
-const NATURAL_RECOVERY_MANA_PER_SECOND = 0.127;
+const NATURAL_RECOVERY_MANA_PER_SECOND = 0.127 * NATURAL_REGEN_RATE_MULTIPLIER;
 const DONATION_CREDIT_COST = CREDIT_ECONOMY.donationCost;
 const DONATION_LUCK_GAIN = 0.05;
 const DONATION_LUCK_MIN_BONUS = -0.7;
@@ -7861,7 +7863,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "EC、キルカウンター、リミットブレイクと、初期装備のオリハルコン・ソードを併せ持つ。",
-      details: "EC（1MP / 12秒）を自動で1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃を破壊（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に消滅する攻撃は死体なしのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被確殺デメリットが解除され、オリハルコン・ソードの斬るが常時消滅となって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るは確殺で死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避で確殺を無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイク（1MP）は発動ごとにHPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ重ね、永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
+      details: "EC（1MP / 12秒）を自動で1増やす。ECは衝撃波へ放出するエネルギーそのもので、別枠の衝撃波残弾は存在しない。オリハルコン・ソードの使用または投擲で通常衝撃波を1発発生させるたび現在ECを1放出する。衝撃波はオリハルコン・ソードの通常ガード対象だが、ジャストガード判定と反射は発生しない。初めてEC100へ到達した後は現在ECを消費してもMP・SP・HP・バリアが無限になる。初めてEC500へ到達すると即席の居合を1回獲得する。居合はバストの上位に当たる自動効果で、次の成功攻撃をキル（死体あり）へ強化する。失敗・回避・ガード・準備バリア・非攻撃では消費せず、既に死体を残さないキルはそのまま維持する。初めてEC1000へ到達した後は、リミットブレイクの被キルデメリットが解除され、オリハルコン・ソードの斬るが常時死体なしキルとなって敵の死体を残さず、対象となる攻撃へのジャストガード成功時は全攻撃を反射する。斬るはファイターのパッシブではなく、オリハルコン・ソードを所持して使用したときに発動する武器行動である。通常の斬るはキルで死体を残し、斬れそうな物理攻撃をガードし、短いジャストガードで攻撃元へ反射する。ファイターの初期装備「オリハルコン・ソード」の腹は、受けた衝撃を100%そのまま反発させる金属でできており、攻撃へ正確に合わせたとき、この性質によってジャストガード反射が成立する。オリハルコン・ソードは通常使用と投擲ができる武器アイテムで、ファイターは開始時に1振り所持する。100SPの回避でキルを無効化した時だけ、キルカウンターで攻撃者を即時キルする。Hのリミットブレイク（1MP）は発動ごとにHPを生体エネルギー源として1消費し、SPと移動加速を3倍ずつ重ね、永続する。会議中は能力と残り時間が停止し、終了後にそのまま再開する。オーバーヒールはアドレナリン受容体を増やして肉体を強固にするため、HPが残る限り連続発動しても肉体は崩壊しない。"
     },
     {
       id: "defender-teleport",
@@ -7871,7 +7873,7 @@ const OPERATORS = {
       limit: 99,
       asset: "teleport",
       description: "重力と時空を操作し、転移・時間加減速・浮揚・重力嵐を扱う。",
-      details: "重力による時空の曲率を操作するオペレーター。転移（1MP）は他人の付近へ自分を移動する。心臓転移（10MP）は対象を遠隔確殺する。アクセラレート（1MP）とディーセラレート（1MP）は8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストーム（10MP）は指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
+      details: "重力による時空の曲率を操作するオペレーター。転移（1MP）は他人の付近へ自分を移動する。心臓転移（10MP）は対象を遠隔キルする。アクセラレート（1MP）とディーセラレート（1MP）は8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストーム（10MP）は指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
     },
     {
       id: "defender-flora",
@@ -7881,7 +7883,7 @@ const OPERATORS = {
       limit: 99,
       asset: "flora",
       description: "ヒール・サンビーム・インビジブルを切り替え、水・草木・木漏れ日の力を操る。",
-      details: "ヒール（1MP）は自分へHP・スタミナ・状態解除・加速を付与する。サンビーム（10MP）は屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象を確殺する。インビジブル（10MP）は光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
+      details: "ヒール（1MP）は自分へHP・スタミナ・状態解除・加速を付与する。サンビーム（10MP）は屈折・回折による経路制御を使い選択対象方向へ光を放ち、壁に遮られるまでの交差対象をキルする。インビジブル（10MP）は光学迷彩により10秒間透明になり、敵Botの直接視認・追跡対象から外れる。理知中はアロマにより本人のHP・SP・MP自然回復を1.75倍に強化する。"
     },
     {
       id: "operator-quantum-control",
@@ -7903,7 +7905,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "ARとエイム・特殊弾装填を持ち、5種の銃器を扱う。足場のない場所への移動では共通アクションのホバースプリントが自動発動する。",
-      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時確殺はなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。特殊弾装填は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。ホバースプリント（1MP）は全員共通の自動アクションで、足場上から足場のない場所へ進む直前に8秒間の浮揚とACC 1.8を付与する。アイテムの所持やStorageの利用は不要。最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積できない。GBOは全員が所持武具へ使える共通長押しactionである。"
+      details: "HG・SMG・AR・SR・テーザーを使用できる。SR固有の常時キルはなく、通常時は1.35ダメージ。1弾倉射撃は50SPを一度だけ消費し、SP不足時は弾薬を消費しない。全通常射撃は射手の幸運でHSを抽選し、腰撃ちは低確率（1〜21%）。理知中かつダッシュ以外では、パッシブ『エイム』が幾何光学の可視線と弾道方向を合わせて最寄りの可視対象を追尾し、HS確率を4〜36%へ上げるが確定にはしない。正規movementModeがダッシュになるとエイムは即解除され、手動ボタン・追尾移動はない。射撃はマナを消費せず、テーザーは6秒間の移動速度低下を付与する。全攻撃は生成遮蔽物を貫通する。特殊弾装填は理知中に18秒ごと、弾道・材料特性の異なるウィーク・ペネトレイト・ショックのいずれか1マガジンを選択中の銃へ装填し、ペネトレイト弾だけは通常の壁経路も貫通する。非装填分も正規バッファへ保持して武器切替時に再適用する。ホバースプリント（1MP）は全員共通の自動アクションで、足場上から足場のない場所へ進む直前に8秒間の浮揚とACC 1.8を付与する。アイテムの所持やStorageの利用は不要。最後の浮揚が床のない場所で終了すると落下死する。起動から20秒のクールタイム中は再起動・延長・累積できない。GBOは全員が所持武具へ使える共通長押しactionである。"
     },
     {
       id: "attacker-assassin",
@@ -7912,8 +7914,8 @@ const OPERATORS = {
       special: "assassin",
       limit: 99,
       asset: "assassin",
-      description: "共有忍殺を死体の残らない消滅へ変え、移動状態を問わず足音を一切発しない。",
-      details: "忍殺の4秒静止、距離、対象喪失、防御、クールタイムの規則は共有忍殺と同じ。成功時は対象を物質・死体とも残さない「アサシン忍殺による消滅」状態へ移し、通報対象・死体由来マーカーも残さない。歩行、ダッシュ、無音歩行のいずれでも移動による音響イベントを発生させず、敵Botにも足音由来の観測情報を与えない。"
+      description: "共有忍殺を死体の残らないキルへ変え、移動状態を問わず足音を一切発しない。",
+      details: "忍殺の4秒静止、距離、対象喪失、防御、クールタイムの規則は共有忍殺と同じ。成功時は対象を物質・死体とも残さない「アサシン忍殺（死体なし）」状態へ移し、通報対象・死体由来マーカーも残さない。歩行、ダッシュ、無音歩行のいずれでも移動による音響イベントを発生させず、敵Botにも足音由来の観測情報を与えない。"
     },
     {
       id: "attacker-alchemist",
@@ -7923,7 +7925,7 @@ const OPERATORS = {
       limit: 99,
       asset: "hacker",
       description: "仮想訓練世界をバイブコーディングし、資源・物体・能力・状態を書き換える。",
-      details: "バイブコーディングは訓練世界の計算機的な資源・所持品・永続オブジェクト・オペ能力の状態を生成または変更する。共有商品のバイブコーディング（0MP）は最終CTはショップ価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化は自身の生体状態をHP 0.0001へ固定し、バリア・変わり身などの確殺無効アイテムを所持したままROOT中だけ無効化した後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していた確殺無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPU（0.025MP/秒・1MP=20秒）は短縮クールを上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、通常Human Taskとは別の時間経過passiveでタスクを自動完了する。自身のスマホはハッキングされない。"
+      details: "バイブコーディングは訓練世界の計算機的な資源・所持品・永続オブジェクト・オペ能力の状態を生成または変更する。共有商品のバイブコーディング（0MP）は最終CTはショップ価格1Cにつき5秒で名称横へ表示する。対象のクレジット・アイテム・HP・マナは削除または増殖できる。Hのroot化は自身の生体状態をHP 0.0001へ固定し、バリア・変わり身などのキル無効アイテムを所持したままROOT中だけ無効化した後、他オペレーターの能力を借用可能にする。ROOT解除後は保持していたキル無効アイテムが再び有効になる。root化は低HPで自動発動しない。マナGPU（0.025MP/秒・1MP=20秒）は短縮クールを上限なく蓄積して次の生成に使う。ハックで他人の位置を把握し、通常Human Taskとは別の時間経過passiveでタスクを自動完了する。自身のスマホはハッキングされない。"
     }
   ]
 };
@@ -10944,6 +10946,10 @@ function startBattle(room) {
     player.quantumElectricLastAt = 0;
     player.emergenciesLeft = room.settings.emergencyLimit;
     player.lastMoveAt = timestamp;
+    // Every Bot receives an opening decision slot without waiting for a human
+    // movement packet. Stagger only within one normal Bot cadence so this is a
+    // cover/navigation start, never a combat-speed multiplier.
+    if (player.isBot) player.nextBotActionAt = timestamp + stableBotHash(`${player.id}:opening-cover`) % BOT_TICK_MS;
   }
   room.phase = "playing";
   room.canonicalKillVictimIds = new Set();
@@ -11683,7 +11689,7 @@ function toggleLimitBreak(room, player) {
     : limitBreakManaFree
       ? "MP-0 / HP-1"
       : `MP-${LIMIT_BREAK_MANA_COST} / HP-1`;
-  const vulnerabilityDetail = infiniteReward ? "被確殺デメリット解除" : "即死回避無効";
+  const vulnerabilityDetail = infiniteReward ? "被キルデメリット解除" : "即死回避無効";
   pushMagicEffect(room, "limit-break", player, { radius: 150, playerId: player.id, variant: `active-stack-${stacks}` });
   setImmediateFeedback(player, "リミットブレイク", `${costDetail} / 永続 / SP・加速×${multiplier} / ${vulnerabilityDetail}`);
   pushEvent(room, `${player.name} がリミットブレイクを${stacks}回重ねました。${costDetail} / SP・加速${multiplier}倍 / 永続 / ${vulnerabilityDetail}。`);
@@ -11759,7 +11765,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     });
     reward += " / MP・SP・HP・バリア∞";
   }
-  if (reachedApexMilestone) reward += " / リミットブレイク被確殺デメリット解除 / 斬る・常時消滅（死体なし） / ジャストガード・全攻撃反射";
+  if (reachedApexMilestone) reward += " / リミットブレイク被キルデメリット解除 / 斬る・常時死体なしキル（死体なし） / ジャストガード・全攻撃反射";
   const milestoneMotion = reachedIaiMilestone || reachedInfiniteMilestone || reachedApexMilestone;
   pushMagicEffect(room, "fighter-energy-charge", player, {
     radius: 112,
@@ -11767,7 +11773,7 @@ function advanceFighterEnergyPassive(room, player, timestamp = now()) {
     variant: `${next}:ec-${next}:${milestoneMotion ? `milestone-motion-${nextPeak}` : "no-character-motion"}`
   });
   setImmediateFeedback(player, "EC", reward);
-  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC500回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。EC100初回到達報酬によりMP・SP・HP・バリアが無限になりました" : ""}${reachedApexMilestone ? "。EC1000初回到達報酬によりリミットブレイク被確殺デメリット解除、斬る常時消滅、ジャストガード全攻撃反射を獲得しました" : ""}。`);
+  pushEvent(room, `${player.name} のECが1増えました${reachedIaiMilestone ? "。EC500回到達報酬の居合は即席として使用回数へ変換されました" : ""}${reachedInfiniteMilestone ? "。EC100初回到達報酬によりMP・SP・HP・バリアが無限になりました" : ""}${reachedApexMilestone ? "。EC1000初回到達報酬によりリミットブレイク被キルデメリット解除、斬る常時死体なしキル、ジャストガード全攻撃反射を獲得しました" : ""}。`);
   pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "fighter-energy-charge", maxDistance: 900, volume: 0.62 });
   touch(room);
   return true;
@@ -13561,7 +13567,7 @@ function botKillDecisionEvidenceLabels(room, bot, target, timestamp = now()) {
     if (label) labels.push(label);
   }
   if (String(bot.botRetaliationTargetId || "") === target.id && Number(bot.botRetaliationUntil) > timestamp) {
-    labels.push("対象から受けた確殺をバリアで耐え、攻撃者を視認");
+    labels.push("対象から受けたキルをバリアでボディダメージへ変換し、攻撃者を視認");
   }
   if (botCanDirectlyObservePlayer(room, bot, target)) {
     labels.push("通常視界と遮蔽物判定を通して対象を直接視認");
@@ -13630,8 +13636,8 @@ function botKillCameraDecision(room, source, target, details = {}, timestamp = n
   if (actionKind === "fighter-dodge-counter") {
     return {
       code: "visible-certain-kill-dodge-counter",
-      logic: "観測証拠: 自分へ向けられた確殺を視認。判断: 回避が成立したためファイターのキルカウンターを発動。選択: 回避キルカウンター",
-      evidence: ["自分へ向けられた確殺を視認"]
+      logic: "観測証拠: 自分へ向けられたキルを視認。判断: 回避が成立したためファイターのキルカウンターを発動。選択: 回避キルカウンター",
+      evidence: ["自分へ向けられたキルを視認"]
     };
   }
   const evidence = botKillDecisionEvidenceLabels(room, source, target, timestamp);
@@ -14710,7 +14716,8 @@ function applyReflectedSlashAttack(room, defender, source, attack = {}, timestam
     if (attack.destroy) {
       destroyPlayerUnconditionally(room, defender, source, reflectedActionLabel, {
         noKillCutin: false,
-        attackKind: `reflected-${attack.kind || "destruction"}`,
+        attackType: "kill",
+        attackKind: `reflected-${attack.kind || "destruction"}` ,
         attackLabel: reflectedActionLabel,
         ignorePreparationBarrier: true,
         ignoreInfiniteResources: Boolean(attack.ignoreInfiniteResourcesOnReflect),
@@ -14835,7 +14842,7 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
     const destructionGuardOutcome = destructionSlash
       ? resolveFighterSlashGuard(room, player, target, {
           kind: "slash",
-          label: "EC1000回到達後の消滅斬り",
+          label: "EC1000回到達後の死体なしキル斬り",
           physical: true,
           reflectable: true,
           destroy: true,
@@ -14843,9 +14850,10 @@ function fighterSlash(room, player, targetId = "", perfectGuardIntent = false, r
         }, timestamp)
       : "";
     const outcome = destructionSlash
-      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "EC1000回到達後の消滅斬り", {
+      ? destructionGuardOutcome || (destroyPlayerUnconditionally(room, player, target, "EC1000回到達後の死体なしキル斬り", {
           noKillCutin: false,
           noBody: true,
+          attackType: "kill",
           ignorePreparationBarrier: true,
           ignoreInfiniteResources: true,
           bypassSlashGuard: true
@@ -15439,7 +15447,7 @@ function triggerSubstitution(room, player, reason, timestamp = now()) {
     maxDistance: 1800,
     volume: 0.9
   });
-  const reasonLabel = reason === "emp" ? "EMP" : "確殺";
+  const reasonLabel = reason === "emp" ? "EMP" : "キル";
   pushEvent(room, `${player.name} が変わり身の術で${reasonLabel}を無効化しました。`);
   touch(room);
   return true;
@@ -15448,25 +15456,27 @@ function triggerSubstitution(room, player, reason, timestamp = now()) {
 function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   if (resolveFighterSlashGuard(room, source, target, {
     kind: "emp",
-    label: "EMP確殺",
+    label: "EMPキル",
     physical: false,
     reflectable: false,
     destroy: true,
     reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "lethal", timestamp)
   }, timestamp)) return false;
+  const killOutcome = {};
+  if (applyBarrierKillConversion(room, source, target, timestamp, killOutcome)) return "converted";
   if (hasFighterApexPerks(target)) {
     applyEmpDisruption(room, target, timestamp);
     syncFighterInfiniteResources(target);
     pushHitEffect(room, target, "body", false);
-    pushEvent(room, `${target.name} はEC1000回到達報酬により、リミットブレイク中のEMP確殺を無効化しました。`);
+    pushEvent(room, `${target.name} はEC1000回到達報酬により、リミットブレイク中のEMPキルを無効化しました。`);
     return false;
   }
   recordBotMatchElimination(room, target, source);
-  clearFloraInvisible(room, target, "EMP確殺で解除");
+  clearFloraInvisible(room, target, "EMPキルで解除");
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
-    actionLabel: "EMP確殺（リミットブレイク反応）",
+    actionLabel: "EMPキル（リミットブレイク反応）",
     actionKind: "emp-limit-break-lethal",
     sourceLabel: "EMP"
   });
@@ -16008,6 +16018,7 @@ function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now()
   if (mode === "lethal") {
     destroyPlayerUnconditionally(room, defender, source, "反射されたEMP", {
       noKillCutin: false,
+      attackType: "kill",
       attackKind: "reflected-emp-lethal",
       attackLabel: "反射されたEMP",
       ignorePreparationBarrier: true,
@@ -16060,10 +16071,12 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   }, timestamp)) return false;
   if (absorbPreparationBarrier(room, target, timestamp, source)) return false;
   if (hackerEmpOpeningProtected(room, target, timestamp)) return false;
+  const killOutcome = {};
+  if (applyBarrierKillConversion(room, source, target, timestamp, killOutcome)) return "converted";
   applyEmpDisruption(room, target, timestamp);
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
-  clearFloraInvisible(room, target, "EMP確殺で解除");
+  clearFloraInvisible(room, target, "EMPキルで解除");
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
@@ -16136,7 +16149,8 @@ function applyEmpBodyDamage(room, source, target, timestamp) {
     return "overheal";
   }
   if (target.bodyHits >= 1) {
-    return eliminatePlayerWithEmp(room, source, target, timestamp, "EMP共振") ? "lethal" : "substitution";
+    const outcome = eliminatePlayerWithEmp(room, source, target, timestamp, "EMP共振");
+    return outcome === "converted" ? "body" : outcome ? "lethal" : "substitution";
   }
   target.bodyHits += 1;
   pushHitEffect(room, target, "body", false);
@@ -16225,7 +16239,9 @@ function resolveEmpInteraction(room, first, second, timestamp) {
     const source = isFirst ? secondOwner : isSecond ? firstOwner : distance(target, first) <= distance(target, second) ? firstOwner : secondOwner;
     if (isFirst || isSecond) {
       if (pairDistance <= EMP_RESONANCE_LETHAL_RANGE) {
-        if (eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振")) lethalCount += 1;
+        const outcome = eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振");
+        if (outcome === true) lethalCount += 1;
+        else if (outcome === "converted") bodyCount += 1;
       } else {
         const outcome = applyEmpBodyDamage(room, source, target, timestamp);
         if (outcome === "lethal") lethalCount += 1;
@@ -16234,7 +16250,9 @@ function resolveEmpInteraction(room, first, second, timestamp) {
       continue;
     }
     if (pairDistance <= EMP_RESONANCE_LETHAL_RANGE && distance(target, midpoint) <= EMP_RESONANCE_LETHAL_RANGE) {
-      if (eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振の巻き添え")) lethalCount += 1;
+      const outcome = eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振の巻き添え");
+      if (outcome === true) lethalCount += 1;
+      else if (outcome === "converted") bodyCount += 1;
     } else if (Math.min(distance(target, first), distance(target, second)) <= EMP_RESONANCE_BODY_RANGE) {
       const outcome = applyEmpBodyDamage(room, source, target, timestamp);
       if (outcome === "lethal") lethalCount += 1;
@@ -16243,7 +16261,7 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   }
   pushMagicEffect(room, "emp-resonance", midpoint, { radius: EMP_INTERACTION_RANGE, variant: first.phase });
   pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1 });
-  pushEvent(room, `同位相EMPが共振しました。確殺${lethalCount}人 / ボディダメージ${bodyCount}人。`);
+  pushEvent(room, `同位相EMPが共振しました。キル${lethalCount}人 / ボディダメージ${bodyCount}人。`);
   checkWin(room);
   touch(room);
 }
@@ -18001,7 +18019,7 @@ function applyRigidThrownImpact(room, source, thrown, collision, kind) {
     variant: `${gbo ? "gbo:" : ""}${kind}:${profile.contact}:${impactDamage.toFixed(2)}:luck-${profile.luck.toFixed(2)}`
   });
   const resultText = profile.certainKill
-    ? `刃が直撃し確殺判定（${outcome}）`
+    ? `刃が直撃しキル判定（${outcome}）`
     : `${impactDamage.toFixed(2)}ダメージ判定`;
   setImmediateFeedback(target, `${label}被弾`, `${resultText} / 幸運 ${profile.luck.toFixed(2)}`);
   pushEvent(room, `${target.name} に投擲された${label}が被弾し、幸運 ${profile.luck.toFixed(2)}から${resultText}になりました。`);
@@ -18390,6 +18408,7 @@ function executeQuantumGlobalNuclearEffect(room, player, mode, itemId) {
   spendMana(room, player, QUANTUM_NUCLEAR_MANA_COST, label);
   const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.exiled);
   for (const target of targets) destroyPlayerUnconditionally(room, player, target, attackLabel, {
+    attackType: "kill",
     attackKind: mode,
     attackLabel,
     slashGuardPhysical: false,
@@ -19014,7 +19033,7 @@ function deleteHackerTargetHp(room, player, targetId) {
   target.overheal = 0;
   target.bodyHits = 2;
   setImmediateFeedback(target, "HP削除", "HPが0になった");
-  return destroyPlayerUnconditionally(room, player, target, "バイブコーディング: HP削除", { bypassSlashGuard: true });
+  return destroyPlayerUnconditionally(room, player, target, "バイブコーディング: HP削除", { attackType: "kill", bypassSlashGuard: true });
 }
 
 function advanceAlchemyObjects(room, timestamp) {
@@ -19214,20 +19233,49 @@ function consumeIaiChargeForSuccessfulAttack(room, source, target, reason, optio
     variant: options.iaiUpgrade ? "upgraded-to-destruction" : options.noBody ? "existing-disappearance" : "existing-destruction",
     durationMs: 900
   });
-  setImmediateFeedback(source, "居合", `${reason || "攻撃"}を${options.noBody ? "消滅のまま" : "破壊"}へ接続 / 残り${source.iaiCharges}`);
-  pushEvent(room, `${source.name} の居合が次の成功攻撃へ自動発動しました。${options.noBody ? "既存の消滅結果を維持します。" : `${target.name}を破壊します。`}`);
+  setImmediateFeedback(source, "居合", `${reason || "攻撃"}を${options.noBody ? "死体なしキルのまま" : "キル"}へ接続 / 残り${source.iaiCharges}`);
+  pushEvent(room, `${source.name} の居合が次の成功攻撃へ自動発動しました。${options.noBody ? "既存の死体なしキル結果を維持します。" : `${target.name}をキルします。`}`);
   return true;
 }
 
 function resolveIaiDestructionUpgrade(room, source, target, reason, options = {}) {
   if (!target?.alive || target.ejected || !iaiChargeAvailable(source)) return false;
   const exactReason = requireExactKillCameraActionLabel(reason, "iai-upgrade");
-  return destroyPlayerUnconditionally(room, source, target, `居合を帯びた${exactReason}`, {
-    ...options,
-    bypassSlashGuard: true,
-    ignorePreparationBarrier: true,
-    iaiUpgrade: true
-  });
+  const outcome = { ...options, attackType: "kill", bypassSlashGuard: true, ignorePreparationBarrier: true, iaiUpgrade: true };
+  const destroyed = destroyPlayerUnconditionally(room, source, target, `居合を帯びた${exactReason}`, outcome);
+  if (outcome.killConvertedToBodyDamage) {
+    consumeIaiChargeForSuccessfulAttack(room, source, target, reason, outcome);
+    return "converted";
+  }
+  return destroyed;
+}
+
+function applyBarrierKillConversion(room, source, target, timestamp = now(), outcome = {}) {
+  if (!target?.alive || target.ejected || hackerRootEligible(target) || hasLimitBreakDeathVulnerability(target)) return false;
+  if (!itemStorageAvailable(target, timestamp) || !passivesEnabled(target)) return false;
+  if (!hasFighterInfiniteResources(target) && Math.max(0, Number(target.gritCharges) || 0) <= 0) return false;
+  if (!hasFighterInfiniteResources(target)) target.gritCharges -= 1;
+  target.standFirmBarrierUntil = timestamp + STAND_FIRM_BARRIER_DURATION_MS;
+  if (target.isBot && source?.id) {
+    target.botRetaliationTargetId = source.id;
+    const cooldownWaitMs = Math.max(0, Number(target.killReadyAt) - timestamp);
+    target.botRetaliationUntil = timestamp + Math.max(BOT_STAND_FIRM_RETALIATION_MS, cooldownWaitMs + 15_000);
+    target.navPath = [];
+    target.nextBotActionAt = Math.min(Number(target.nextBotActionAt) || timestamp, timestamp);
+  }
+  // The converted layer follows normal one-hit body damage.  Overheal absorbs
+  // it, and a target already at one body hit remains at one rather than dying.
+  if (target.overheal > 0) target.overheal -= 1;
+  else {
+    const nextDamage = Math.round((Math.max(0, Number(target.bodyHits) || 0) + 1) * 100) / 100;
+    target.bodyHits = nextDamage >= 2 ? 1 : nextDamage;
+  }
+  pushMagicEffect(room, "action-stand", target, { radius: 120, playerId: target.id });
+  pushHitEffect(room, target, "body", false);
+  setImmediateFeedback(target, "バリア", "キルをボディダメージへ変換");
+  pushEvent(room, `${target.name} のバリアがキルをボディダメージへ変換し、${STAND_FIRM_BARRIER_DURATION_MS / 1000}秒の防護を展開しました。`);
+  outcome.killConvertedToBodyDamage = true;
+  return true;
 }
 
 function destroyPlayerUnconditionally(room, source, target, reason, options = {}) {
@@ -19253,6 +19301,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     if (source.alive && !source.ejected) applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
     return false;
   }
+  if (options.attackType === "kill" && applyBarrierKillConversion(room, source, target, timestamp, options)) return false;
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
   clearFloraInvisible(room, target, "戦闘不能で解除");
@@ -19288,8 +19337,8 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
     });
   }
   pushEvent(room, options.noBody
-    ? `${target.name} は${reason}で消滅し、死体は残りませんでした。`
-    : `${target.name} は${reason}で破壊され、死体が残りました。`);
+    ? `${target.name} は${reason}でキルされ、死体は残りませんでした。`
+    : `${target.name} は${reason}でキルされ、死体が残りました。`);
   return true;
 }
 
@@ -19338,6 +19387,7 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
   } else if (id === "excalibur") {
     const targets = inventionLineTargets(room, player, Math.max(getMap(room).width, getMap(room).height) * 2 * performanceMultiplier, Math.max(getMap(room).width, getMap(room).height) * performanceMultiplier, true);
     for (const { target } of targets) destroyPlayerUnconditionally(room, player, target, "エクスカリバー", {
+      attackType: "kill",
       attackKind: "excalibur",
       attackLabel: "エクスカリバー",
       slashGuardPhysical: true,
@@ -19353,6 +19403,7 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
     const railgunRange = 5000 * performanceMultiplier;
     const railgunPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, railgunRange, { collisionRadius: 2 });
     for (const { target } of inventionLineTargets(room, player, railgunRange, 38 * performanceMultiplier, false)) destroyPlayerUnconditionally(room, player, target, "レールガン", {
+      attackType: "kill",
       attackKind: "railgun",
       attackLabel: "レールガン弾",
       slashGuardPhysical: true,
@@ -19396,6 +19447,7 @@ function advanceParticleCannon(room, player, timestamp) {
     const targets = inventionLineTargets(room, player, particleRange, 70 * performanceMultiplier, true);
     for (const { target } of targets) {
       destroyPlayerUnconditionally(room, player, target, "荷電粒子砲", {
+        attackType: "kill",
         attackKind: "particle-cannon",
         attackLabel: "荷電粒子砲",
         slashGuardPhysical: false,
@@ -19595,9 +19647,9 @@ function failAimForMovement(room, player, timestamp = now()) {
 function ninjutsuEliminationProfile(player) {
   if (hasAssassinAnnihilationAccess(player)) {
     return {
-      reason: "アサシン忍殺による消滅",
+      reason: "アサシン忍殺（死体なし）",
       attackKind: "assassin-ninjutsu-annihilation",
-      attackLabel: "アサシン忍殺による消滅"
+      attackLabel: "アサシン忍殺（死体なし）"
     };
   }
   return {
@@ -19611,17 +19663,25 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
   const target = room.players.get(targetId);
   if (!target?.alive || target.ejected) return "miss";
   const profile = ninjutsuEliminationProfile(player);
-  const disappeared = destroyPlayerUnconditionally(room, player, target, profile.reason, {
-    // Only Assassin owns the no-corpse annihilation conversion.  Shared
-    // Ninjutsu must retain its ordinary reportable corpse outcome.
+  const disappearanceOutcome = {
+    // Only Assassin owns the no-corpse presentation. Shared Ninjutsu leaves
+    // an ordinary reportable body when the kill is not converted.
     noBody: hasAssassinAnnihilationAccess(player),
+    attackType: "kill",
     attackKind: profile.attackKind,
     attackLabel: profile.attackLabel,
     slashGuardPhysical: true,
     slashGuardReflectable: true,
     reflectDestroy: true
-  });
+  };
+  const disappeared = destroyPlayerUnconditionally(room, player, target, profile.reason, disappearanceOutcome);
   if (!disappeared) {
+    if (disappearanceOutcome.killConvertedToBodyDamage) {
+      player.killReadyAt = timestamp + killCooldownDurationMs(room, player);
+      checkWin(room);
+      touch(room);
+      return "body";
+    }
     checkWin(room);
     touch(room);
     return "blocked";
@@ -19740,20 +19800,26 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   if (absorbPreparationBarrier(room, target, timestamp, killer)) return "preparationBarrier";
 
-  if ((ignoreDodge || Number(target.dodgeActiveUntil) <= timestamp) && resolveIaiDestructionUpgrade(
-    room,
-    killer,
-    target,
-    String(options.attackLabel || (options.attackKind === "slash" ? "斬る" : ranged ? "射撃" : "攻撃")),
-    { ignoreFriendlyFire: true }
-  )) {
-    if (!ranged && !ignoreCooldown && !preserveCooldown) {
+  const iaiOutcome = (ignoreDodge || Number(target.dodgeActiveUntil) <= timestamp)
+    ? resolveIaiDestructionUpgrade(
+        room,
+        killer,
+        target,
+        String(options.attackLabel || (options.attackKind === "slash" ? "斬る" : ranged ? "射撃" : "攻撃")),
+        { ignoreFriendlyFire: true }
+      )
+    : false;
+  if (iaiOutcome) {
+    if (iaiOutcome === "converted") {
+      if (ranged) killer.gunReadyAt = Math.max(Number(killer.gunReadyAt) || 0, timestamp);
+      else if (!ignoreCooldown && !preserveCooldown) killer.killReadyAt = timestamp + QUICK_FOLLOW_UP_COOLDOWN_MS;
+    } else if (!ranged && !ignoreCooldown && !preserveCooldown) {
       killer.killsThisRound += 1;
       killer.killReadyAt = timestamp + killCooldownDurationMs(room, killer);
     }
     checkWin(room);
     touch(room);
-    return "destroyed";
+    return iaiOutcome === "converted" ? "body" : "kill";
   }
 
   if (hasFighterInfiniteResources(target)) {
@@ -19771,7 +19837,7 @@ function killPlayer(room, killer, targetId, options = {}) {
 
   if (lockedAim && killer.special !== "fighter" && mentalStateFor(killer) === "気概") {
     hitZone = "body";
-    setImmediateFeedback(killer, "気概", "忍殺が非確殺攻撃へ変化");
+    setImmediateFeedback(killer, "気概", "忍殺がボディダメージへ変化");
   }
 
   if (hitZone === "body" && resolveBustForNormalBodyAttack(room, killer, target, { ...options, ignorePush }, timestamp) === "pushBacklash") {
@@ -19784,13 +19850,20 @@ function killPlayer(room, killer, targetId, options = {}) {
     target.dodgeActiveUntil = 0;
     const incomingCertainKill = fighterKillCounterTriggerIsCertainKill(hitZone, options);
     if (fighterKillCounterAvailable(target) && incomingCertainKill) {
+      const counterOutcome = {};
+      if (applyBarrierKillConversion(room, target, killer, timestamp, counterOutcome)) {
+        target.killReadyAt = timestamp + killCooldownDurationMs(room, target);
+        checkWin(room);
+        touch(room);
+        return "fighterCountered";
+      }
       recordBotMatchElimination(room, killer, target);
       killer.alive = false;
       recordKillCamera(room, killer, target, {
         timestamp,
         actionLabel: "回避キルカウンター",
         actionKind: "fighter-dodge-counter",
-        sourceLabel: "100SP回避による確殺反撃"
+        sourceLabel: "100SP回避によるキル反撃"
       });
       killer.bodyHits = 0;
       killer.overheal = 0;
@@ -19826,7 +19899,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       });
       pushSound(room, "fighterCounter", target, { ownerId: target.id, maxDistance: 1400, volume: 0.9 });
       pushDoorLog(room, `${whichRoom(map, target)} でファイターのキルカウンター発生`);
-      pushEvent(room, `${target.name} が確殺を回避し、攻撃者 ${killer.name} を返り討ちにしました。`);
+      pushEvent(room, `${target.name} がキルを回避し、攻撃者 ${killer.name} を返り討ちにしました。`);
       checkWin(room);
       touch(room);
       return "fighterCountered";
@@ -19852,7 +19925,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       target.nextBotActionAt = Math.min(Number(target.nextBotActionAt) || timestamp, timestamp);
     }
     pushMagicEffect(room, "action-stand", target, { radius: 120, playerId: target.id });
-    pushEvent(room, `${target.name} のバリアが確殺をボディダメージへ変換し、${STAND_FIRM_BARRIER_DURATION_MS / 1000}秒の防護を展開しました。`);
+    pushEvent(room, `${target.name} のバリアがキルをボディダメージへ変換し、${STAND_FIRM_BARRIER_DURATION_MS / 1000}秒の防護を展開しました。`);
   }
 
   if (hitZone === "body" && target.overheal > 0) {
@@ -20411,6 +20484,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp
         "ウィーク弾",
         {
           noKillCutin: false,
+          attackType: "kill",
           attackKind: "weak-bullet",
           attackLabel: "ウィーク弾",
           slashGuardPhysical: true,
@@ -20419,8 +20493,8 @@ function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp
         }
       );
       pushEvent(room, targetDestroyed
-        ? `${shooter.name} のウィーク弾が命中し、${targetEntry.player.name}を破壊しました。`
-        : `${shooter.name} のウィーク弾は対象側の防御または反射で破壊に至りませんでした。`);
+        ? `${shooter.name} のウィーク弾が命中し、${targetEntry.player.name}をキルしました。`
+        : `${shooter.name} のウィーク弾は対象側の防御または反射でキルに至りませんでした。`);
       finishGunnerBurstRound(room, shooter, weapon, timestamp);
       checkWin(room);
       touch(room);
@@ -21179,6 +21253,7 @@ function useLuminous(room, player, targetId) {
   if (target.role === "attacker") {
     const annihilated = destroyPlayerUnconditionally(room, player, target, "ルミナス", {
       noBody: true,
+      attackType: "kill",
       attackKind: "luminous-annihilation",
       attackLabel: "ルミナス",
       slashGuardPhysical: false,
@@ -21192,7 +21267,7 @@ function useLuminous(room, player, targetId) {
       player.luminousActive = true;
       player.killsThisRound += 1;
       player.lastLuminousResult = "success";
-      pushEvent(room, `${player.name} のルミナスが ${target.name} を消滅させ、キルとして記録しました。`);
+      pushEvent(room, `${player.name} のルミナスが ${target.name} を死体なしでキルしました。`);
     }
   } else {
     recordBotMatchElimination(room, player, player);
@@ -24537,7 +24612,7 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
   try {
     rememberBotKillDecision(room, bot, target, {
       code: "stand-firm-visible-retaliation",
-      actionLabel: "バリア反撃の頭部命中（確殺）",
+      actionLabel: "バリア反撃の頭部命中（キル）",
       reasons: ["バリアで耐えた直前の攻撃者が反撃射程内に入り、反撃クールタイムも完了"]
     }, timestamp);
     killPlayer(room, bot, target.id, {
@@ -24547,7 +24622,7 @@ function runBotStandFirmRetaliation(room, bot, timestamp = now()) {
       targetRole: target.role,
       ignorePush: true,
       attackKind: "stand-firm-retaliation",
-      attackLabel: "バリア反撃の頭部命中（確殺）"
+      attackLabel: "バリア反撃の頭部命中（キル）"
     });
     bot.botRetaliationTargetId = "";
     bot.botRetaliationUntil = 0;
@@ -25936,7 +26011,13 @@ function runPlayingBots(room) {
       // The planner receives only the strict legal-action target above; this
       // fallback runs only when that target is absent, so no attack, item,
       // cooldown or effect can be committed before barrier expiry.
-      const barrierNavigation = !navigation.ownsTick && !opponentTarget
+      // During the opening barrier an Attacker Bot moves under the same
+      // fake-task cover used when no hostile is visible. A direct protected
+      // Defender must not turn an idle human into a role-reveal tether. The
+      // barrier still blocks every combat transaction and expiry resumes the
+      // ordinary visible-target pursuit path.
+      const attackerOpeningCover = bot.role === "attacker" && preparationBarrierActive(room, timestamp);
+      const barrierNavigation = !navigation.ownsTick && !opponentTarget && !attackerOpeningCover
         ? runScheduledBotNavigation(room, bot, botBarrierPursuitTarget(room, bot, timestamp), timestamp)
         : navigation;
       if (plannerHandled || barrierNavigation.ownsTick) continue;
@@ -26195,7 +26276,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "plicy-preparation-canvas-v727",
+  version: "unified-kill-natural-recovery-v728",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

@@ -61,7 +61,7 @@
     ["quantum-transmutation", "核変換", 12, "operator-quantum", "quantum", "nuclear-transmutation", "active", "/api/quantum-control"],
     ["quantum-fission", "核分裂", 24, "operator-quantum", "quantum", "nuclear-fission", "active", "/api/quantum-control"],
     ["quantum-fusion", "核融合", 24, "operator-quantum", "quantum", "nuclear-fusion", "active", "/api/quantum-control"],
-    ["assassin-annihilation", "消滅忍殺", 20, "operator-assassin", "assassin", "annihilation", "passive", "resolveAttack"],
+    ["assassin-annihilation", "アサシン忍殺", 20, "operator-assassin", "assassin", "annihilation", "passive", "resolveAttack"],
     ["assassin-silent-steps", "常時無音", 12, "operator-assassin", "assassin", "silent-steps", "passive", "emitMovementNoise"],
     ["hacker-vibe-coding", "バイブコーディング", 22, "operator-hacker", "hacker", "vibe-coding", "panel", "/api/alchemy"],
     ["hacker-root", "ROOT", 25, "operator-hacker", "hacker", "root", "active", "/api/hacker-root"]
