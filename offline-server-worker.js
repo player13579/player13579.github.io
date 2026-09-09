@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "gunner-aim-owned-access-v731",
+    version: "idea-heaven-clock-repair-v732",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "gunner-aim-owned-access-v731";
+const PRODUCT_RELEASE = "idea-heaven-clock-repair-v732";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -13034,7 +13034,7 @@ const ACCELERATED_ACTION_UNTIL_FIELDS = Object.freeze([
 const ACCELERATED_PLAYER_PROGRESS_ANCHOR_FIELDS = Object.freeze([
   "lastPassiveCreditAt",
   "taskPresenceSince",
-  "ideaProgressUpdatedAt",
+  // Idea uses heavenly elapsed time; never shift its last-update anchor with actor time.
   "desireRestRecoveryStartedAt",
   "enhanceChargeStartedAt"
 ]);
@@ -26294,5 +26294,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "gunner-aim-owned-access-v731" });
+self.postMessage({ type: "ready", version: "idea-heaven-clock-repair-v732" });
 })();
