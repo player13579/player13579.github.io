@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "luminous-barrier-outcome-v729";
+const DVA_CLIENT_RELEASE = "character-photons-heaven-time-v730";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "luminous-barrier-outcome-v729";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "character-photons-heaven-time-v730";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -11150,107 +11150,53 @@ function scheduleMysteryRevealStage(callback, delay, owner) {
   state.mysteryRevealStageTimers.push(timer);
 }
 
-function mysteryInventoryPhotonTarget(reveal) {
-  const visibleCenter = (target) => {
-    if (!target || target.closest?.("[hidden]") || !target.getClientRects?.().length) return null;
-    const rect = target.getBoundingClientRect();
-    const viewportWidth = Math.max(0, Number(window.innerWidth) || 0, Number(document.documentElement.clientWidth) || 0);
-    const viewportHeight = Math.max(0, Number(window.innerHeight) || 0, Number(document.documentElement.clientHeight) || 0);
-    const intersectsViewport = rect.right > 0 && rect.bottom > 0 && rect.left < viewportWidth && rect.top < viewportHeight;
-    return rect.width > 0 && rect.height > 0 && intersectsViewport ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
-  };
-  const abilityReward = reveal?.rewardKind === "ability";
-  if (abilityReward) {
-    const magicTarget = visibleCenter(els.magicInventory);
-    if (magicTarget) return magicTarget;
-    // Ability rewards are catalogued in the shop's carried-ability inventory.
-    // Do not open it just for the presentation; use its established opener.
-    return visibleCenter(els.tabletVendingShortcut) || visibleCenter(els.vendingButton);
-  }
-  const items = [...els.itemInventoryGrid?.querySelectorAll?.("[data-item-choice]") || []];
-  const rewardId = String(reveal?.rewardId || "");
-  const rewardAsset = String(reveal?.asset || rewardId);
-  const target = items.find((item) => item.dataset.itemChoice === rewardId || item.dataset.alchemyAsset === rewardAsset) ||
-    items.find((item) => item.classList.contains("selected")) || items[0] || els.itemInventoryGrid;
-  const itemTarget = visibleCenter(target);
-  if (itemTarget) return itemTarget;
-  // When synchronization has not made the item panel visible yet, the known
-  // inventory/shop opener is an honest destination and avoids opening UI.
-  return visibleCenter(els.tabletVendingShortcut) || visibleCenter(els.vendingButton);
+function showMysteryBoxReveal(reveal) {
+  const owner = state.mysteryRevealTimer;
+  scheduleMysteryRevealStage(() => {
+    if (state.mysteryRevealTimer !== owner || !state.mysteryWorldReveal) return;
+    state.mysteryWorldReveal.photonsStartedAt = Date.now();
+    document.documentElement.setAttribute("data-mystery-reveal-phase", "character");
+  }, 980, owner);
 }
 
-function emitMysteryInventoryPhotonStream(reveal, source, owner, attempt = 0) {
-  if (state.mysteryRevealTimer !== owner || prefersReducedMotion()) return false;
-  const target = mysteryInventoryPhotonTarget(reveal);
-  if (!target || !source || !Number.isFinite(source.x) || !Number.isFinite(source.y)) {
-    if (attempt < 3) scheduleMysteryRevealStage(() => emitMysteryInventoryPhotonStream(reveal, source, owner, attempt + 1), 90, owner);
-    return false;
-  }
-  document.querySelectorAll(".mystery-photon-stream").forEach((entry) => entry.remove());
-  const stream = document.createElement("div");
-  stream.className = "mystery-photon-stream";
-  stream.setAttribute("aria-hidden", "true");
-  stream.style.cssText = "position:fixed;inset:0;z-index:207;pointer-events:none;overflow:hidden";
-  const sourceX = source.x;
-  const sourceY = source.y;
-  const count = 26;
-  let streamLifetime = 0;
-  for (let index = 0; index < count; index += 1) {
-    const photon = document.createElement("i");
+function drawMysteryCharacterPhotonStream(data, now = Date.now()) {
+  const opening = state.mysteryWorldReveal;
+  if (!opening?.photonsStartedAt || state.mysteryRevealTimer === null || prefersReducedMotion()) return;
+  const sourcePlayer = data?.players?.find((player) => player.id === opening.playerId);
+  if (!sourcePlayer || sourcePlayer.inVent || sourcePlayer.ejected) return;
+  const player = renderedPlayer(sourcePlayer);
+  if (!Number.isFinite(player.x) || !Number.isFinite(player.y)) return;
+  const liveNow = estimatedServerNow(data);
+  const ascensionProgress = Number(player.ascensionUntil) > liveNow
+    ? clamp((liveNow - (Number(player.ascensionStartedAt) || 0)) / Math.max(1, Number(player.ascensionUntil) - (Number(player.ascensionStartedAt) || 0)), 0, 1) : 0;
+  const targetX = player.x;
+  const targetY = player.y - ascensionProgress * ascensionProgress * 155;
+  const elapsed = now - opening.photonsStartedAt;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let index = 0; index < 26; index += 1) {
+    const duration = 670 + (index % 6) * 55;
+    const phase = (elapsed - index * 22) / duration;
+    if (phase < 0 || phase >= 1) continue;
     const spread = ((index * 37) % 19 - 9) * 3.1;
     const lift = 18 + ((index * 29) % 7) * 7;
     const bend = (index % 2 ? 1 : -1) * (18 + (index % 5) * 8);
-    const size = 2 + (index % 4) * 0.85;
-    const delay = index * 22;
-    const duration = 670 + (index % 6) * 55;
-    const startX = sourceX + spread;
-    const startY = sourceY + (index % 5 - 2) * 2;
-    streamLifetime = Math.max(streamLifetime, delay + duration);
-    photon.style.cssText = `position:fixed;left:${startX}px;top:${startY}px;width:${size}px;height:${size}px;border-radius:50%;background:${index % 3 === 0 ? "#ffffff" : index % 2 ? "#bae6fd" : "#fde68a"};box-shadow:0 0 ${5 + size * 2}px currentColor;color:${index % 2 ? "#7dd3fc" : "#fde68a"};opacity:0;will-change:transform,opacity`;
-    stream.append(photon);
-    photon.animate([
-      { opacity: 0, transform: "translate3d(0, 0, 0) scale(.35)" },
-      { opacity: 0.94, transform: `translate3d(${bend}px, ${-lift}px, 0) scale(1)`, offset: 0.2 },
-      { opacity: 0.82, transform: `translate3d(${target.x - startX + bend * 0.36}px, ${target.y - startY - lift * 0.24}px, 0) scale(.8)`, offset: 0.78 },
-      { opacity: 0, transform: `translate3d(${target.x - startX}px, ${target.y - startY}px, 0) scale(.18)` }
-    ], { delay, duration, easing: "cubic-bezier(.18,.78,.22,1)", fill: "both" });
+    const startX = opening.x + spread;
+    const startY = opening.y - 31 + (index % 5 - 2) * 2;
+    const travel = phase * phase * (3 - 2 * phase);
+    const arc = Math.sin(Math.PI * phase);
+    const x = startX + (targetX - startX) * travel + bend * arc;
+    const y = startY + (targetY - startY) * travel - lift * arc;
+    const size = (2 + (index % 4) * 0.85) * (1 - phase * 0.65);
+    ctx.globalAlpha = Math.min(1, phase * 8) * Math.min(1, (1 - phase) * 8);
+    ctx.fillStyle = index % 3 === 0 ? "#ffffff" : index % 2 ? "#bae6fd" : "#fde68a";
+    ctx.shadowColor = index % 2 ? "#7dd3fc" : "#fde68a";
+    ctx.shadowBlur = 5 + size * 2;
+    ctx.beginPath();
+    ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+    ctx.fill();
   }
-  document.body.append(stream);
-  scheduleMysteryRevealStage(() => stream.remove(), streamLifetime + 90, owner);
-  return true;
-}
-
-function mysteryWorldPhotonSource() {
-  const opening = state.mysteryWorldReveal;
-  const data = state.data;
-  const viewport = state.drawViewport;
-  const canvas = els.canvas;
-  if (!opening || !data || !viewport || !canvas) return null;
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width || !rect.height) return null;
-  const zoom = worldZoomFor(data);
-  const pixelX = (opening.x - viewport.left) * zoom;
-  const pixelY = (opening.y - viewport.top) * zoom;
-  return {
-    x: rect.left + pixelX * rect.width / canvas.width,
-    // Matches drawMysteryBoxRevealEffect's physical opening mouth, not box center.
-    y: rect.top + (pixelY - 31 * zoom) * rect.height / canvas.height
-  };
-}
-
-function showMysteryBoxReveal(reveal) {
-  const owner = state.mysteryRevealTimer;
-  const emit = (attempt = 0) => {
-    if (state.mysteryRevealTimer !== owner) return;
-    const source = mysteryWorldPhotonSource();
-    if (!source) {
-      if (attempt < 4) scheduleMysteryRevealStage(() => emit(attempt + 1), 90, owner);
-      return;
-    }
-    document.documentElement.setAttribute("data-mystery-reveal-phase", "inventory");
-    emitMysteryInventoryPhotonStream(reveal, source, owner);
-  };
-  scheduleMysteryRevealStage(() => emit(), 980, owner);
+  ctx.restore();
 }
 
 function detectMysteryBoxReveal(previous, next) {
@@ -11261,7 +11207,7 @@ function detectMysteryBoxReveal(previous, next) {
     .sort((a, b) => Number(b.startedAt || b.at || 0) - Number(a.startedAt || a.at || 0))[0];
   if (!source) return;
   clearMysteryReveal();
-  state.mysteryWorldReveal = { id: reveal.id, x: Number(source.x), y: Number(source.y), at: Number(reveal.at) || Date.now() };
+  state.mysteryWorldReveal = { id: reveal.id, playerId: next.selfId, x: Number(source.x), y: Number(source.y), at: Number(reveal.at) || Date.now() };
   const owner = setTimeout(() => { if (state.mysteryRevealTimer === owner) { state.mysteryRevealTimer = null; clearMysteryReveal(); } }, 3400);
   state.mysteryRevealTimer = owner;
   showMysteryBoxReveal(reveal);
@@ -16285,6 +16231,7 @@ function draw() {
       drawKillCameraWorldMarkers(data);
       drawHitEffects();
       drawMagicEffects();
+      drawMysteryCharacterPhotonStream(data);
       drawAttackTargets(data);
     } finally {
       ctx.restore();
@@ -23380,7 +23327,7 @@ function drawHud(data, w, h) {
   if (showIdea) {
     const ideaLabel = ["真/美", "真/美", "善", "善のイデア"][Math.min(3, Number(self.ideaStage) || 0)];
     ctx.fillStyle = "#fde68a";
-    ctx.fillText(`${ideaLabel} ${idea}s`, 27, detailTop + detailLineHeight * 5 + resourceOffset + (showDesire ? desireOffset : 0));
+    ctx.fillText(`${ideaLabel} 天上時間 ${idea}s`, 27, detailTop + detailLineHeight * 5 + resourceOffset + (showDesire ? desireOffset : 0));
   }
   ctx.restore();
 }
@@ -23646,7 +23593,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "luminous-barrier-outcome-v729";
+const version = "character-photons-heaven-time-v730";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24689,7 +24636,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=luminous-barrier-outcome-v729", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=character-photons-heaven-time-v730", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

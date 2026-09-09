@@ -12511,3 +12511,19 @@ body.portrait-tablet-dock .tablet-quick-actions{width:100%;max-height:none;max-w
 .preparation-setting-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.preparation-setting-summary>button{display:grid;gap:4px;text-align:left;min-width:0}.preparation-setting-summary strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}[data-preparation-editor][hidden]{display:none}@media(max-width:680px){.preparation-setting-summary{grid-template-columns:1fr}}
 
 #operatorSelectionSettings.pregame-canvas-settings{grid-template-columns:1fr}#preparationSettingClose{justify-self:end}
+
+/* Unavailable status owns a full row; selection must not suppress it. */
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable {
+  grid-template-rows: auto auto;
+}
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable::after {
+  content: "実行不可" !important;
+  position: static;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: end;
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+}

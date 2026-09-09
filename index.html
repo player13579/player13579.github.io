@@ -14,7 +14,7 @@
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
     <link rel="preload" as="image" href="assets/title-hero-v466.png?v=core-icons-restart-v707" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=luminous-barrier-outcome-v729">
+  <link rel="stylesheet" href="styles.css?v=character-photons-heaven-time-v730">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
@@ -163,7 +163,7 @@
                 <section><h4>心の状態</h4><p>理知はゲームを楽しむ知の快楽。気概は勝敗・劣等感・名誉欲の苦痛と、その緩和による偽の快楽。欲望は肉体的欲望の苦痛と、その緩和・利得による偽の快楽です。他責の念が生じた時はプレイを終了してください。</p></section>
                 <section><h4>練気</h4><p>スタミナ消費なし。通常MPではタップ一回でマナを10獲得して35秒、420ms以上の長押しは反復せず一回でマナを100獲得して350秒の精神統一クールタイムが発生します。欲望のMP−100時はタップ・長押しとも3秒間の回復練気となり、完了時に一度だけMP2へ戻ります。完了前にMPは増えません。どの値もserverが固定します。</p></section>
                 <section><h4>自然回復と募金</h4><p>SP上限時の回復超過をMPへ変換せず、MPをSPへも変換しません。理知中だけSPとMPが独立して漸進増加し、不足中は既存の個人上限まで回復した後も止まらず、current/maxを同じ値へ拡張します。アロマはこの自然回復速度を強化します。スマホ募金は1C単位で長押し連続実行でき、総合理知なら幸運／直観+0.05、気概・欲望なら-0.05です。</p></section>
-                <section><h4>哲学進行</h4><p>心ポイント合計3以上の理知を連続維持して50秒で真または美、2分で残り、3分40秒で善、6分で善のイデア。幸運／直観による短縮は最大1秒だけで、値が最大の時に到達がちょうど1秒早まります。総合理知を外れるか欲望になると、次段階の連続維持時間はリセットされます。</p></section>
+                <section><h4>哲学進行</h4><p>心ポイント合計3以上の理知を連続維持して、天上時間（メタ的ゲームシステムの時間）で50秒に真または美、2分に残り、3分40秒に善、6分に善のイデアへ到達します。天上時間は加速・減速など本人時相の影響を受けません。幸運／直観による短縮は最大1秒だけで、値が最大の時に到達がちょうど1秒早まります。総合理知を外れるか欲望になると、次段階の連続維持時間はリセットされます。</p></section>
                 <section><h4>パッシブ条件</h4><p>ファイターのキルカウンター・EC、グラビティのリビテーション、フローラのアロマ、ガンナーのエイム・特殊弾装填は理知中に作動し、気概・欲望中は進捗とバッファを保持して休止します。ホバースプリントはパッシブや所持品ではない全員共通actionで、支持床から床外へ進む時だけ自動起動します。適用効果には実作動中の8秒間だけ表示し、手動の使用・投擲・譲渡・生成・購入操作はありません。アサシンの常時無音・忍殺の死体なしキル変換と、ハッカーのハック・マナGPUは各固有条件で作動します。GBOは全員共通の能動actionでありパッシブ欄へ混ぜません。クオンタムには現在パッシブを捏造しません。バリア等の状態は頭上の小型マーカーだけで表示し、同じ通常サイズ演出は重ねません。</p></section>
                 <section><h4>真・美・善</h4><p>真でバスト+1、美でバリア+1。善は両方にHP/状態回復・加速・タスクSP軽減を加えます。善のイデア到達者は翼とともに昇天し、同時到達者が複数なら全員が特殊勝利します。</p></section>
                 <section><h4>ショップ</h4><p>Vまたはタブレットから全域で開けます。通常商品に加えて、ファイター、グラビティ、フローラ、ガンナー、クオンタム、アサシン、ハッカーの各ジャンルで能力を購入できます。能力は購入した対戦中だけ解放され、購入時には勝手に発動しません。既存の前後移動・横フリック・Shift+左右に加え、ジャンルとページをselectから直接ジャンプできます。</p></section>
@@ -198,7 +198,7 @@
                 <section><h4>追放結果</h4><p>既定では追放者の陣営を即時開示しません。次ラウンドの人数、行動、勝敗判定から間接的に確かめる必要があります。</p></section>
                 <section><h4>ルミナス</h4><p>ディフェンダーが一試合に一度だけ会議中に指名排除を宣言します。的中なら対象を排除し、キルとして記録されます。会議で外すと発動者が死亡します。戦闘中のキルでは発動しません。</p></section>
                 <section><h4>ランクポイント</h4><p>リザルトの数値はランクポイントだけです。ディフェンダーは正規キル1件ごとに+1、アタッカーは攻撃人数比クオータ（防衛人数÷攻撃人数の切り上げ）を満たすキルごとに+1、勝利は+1、敗北は-1です。MVPはこれらの合計が最も高い一人へ+1され、試合中に獲得した最終合計がプロフィールのランクポイントへそのまま反映されます。善のイデア到達や表示順位には別ポイントを設けません。</p></section>
-                <section><h4>高度な優先順位</h4><p>即時脅威は致命サボ、人数同数、善のイデア6分到達、破壊兵器、SR射線の順に評価します。幸運／直観による最大1秒の短縮はカウントダウンへ反映されます。会議中はリミットブレイク、EC、各効果の残り時間と維持消費が停止し、終了後に再開します。</p></section>
+                <section><h4>高度な優先順位</h4><p>即時脅威は致命サボ、人数同数、善のイデアの天上時間6分到達、破壊兵器、SR射線の順に評価します。イデアのカウントダウンは天上時間で進み、本人時相の加速・減速では変化しません。幸運／直観による最大1秒の短縮はカウントダウンへ反映されます。会議中はリミットブレイク、EC、各効果の残り時間と維持消費が停止し、終了後に再開します。</p></section>
                 <section><h4>操作体系</h4><p>タイトルはPでプレイ、Iで戦術いろは。プレイ後はLまたはEnterでマッチングを開始します。対戦相手がいればオンライン、見つからなければオフラインへ自動で切り替わり、どちらも直接オペレーター選択へ進みます。バトルはWASD、Shiftダッシュ、Ctrl／Alt無音歩行、Hでオペ能力、C練気、数字キーで各戦術アクション、Backspaceで退出です。停止中は自動休息し、移動で即時に止まります。MP能力を長押しすると現在MPから2を残す量を一括消費し、通常MPコストで成立する回数だけ同じ対象・方式へ並列発動します。</p></section>
                 <section><h4>会議チャット規定</h4><p>卑猥・残虐な投稿は他者へ公開せず投稿者を即時退出させ、5回で永久停止します。タイトルから独立した公開チャット機能はありません。</p></section>
               </div>
@@ -215,7 +215,7 @@
                   このブラウザでは動画を再生できません。下の全文テキストをご覧ください。
                 </video>
                 <div class="tactics-novel-video-controls"><button id="tacticsNovelPlay" type="button" aria-pressed="false">動画を再生</button><button id="tacticsNovelReplay" type="button">最初から再生</button></div><p id="tacticsNovelVideoStatus" class="tactics-novel-video-status" role="status" aria-live="polite"></p>
-                <section id="tacticsNovelTranscript" class="tactics-novel-transcript" aria-label="ノベルダイジェスト全文テキスト"><h4>全文テキスト</h4><ol><li><strong>1. ようこそ</strong><span>戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。</span></li><li><strong>2. 試合の流れ</strong><span>まずオペレーター選択。バトル中は、死体を通報するかスマホで緊急会議を起動すると会議へ移ります。会議のあとに次ラウンド、最後にリザルトです。</span></li><li><strong>3. 陣営と勝利</strong><span>Defenderは全タスク完了または全Attacker排除で勝利。AttackerはDefender全滅または致命的サボタージュ完遂で勝利します。善のイデアは最大1秒だけ早まり、定期キルの期限はありません。</span></li><li><strong>4. 移動とSP</strong><span>SPは満タンから開始。歩くだけでも減り、ダッシュはより大きく消費します。止まってからタスクへ入ると、次の判断を落ち着いて選べます。</span></li><li><strong>5. MP・SPと心の状態</strong><span>SP/MPの現在値÷最大値が、欲望・気概・理知を決めます。HPは含みません。回復の余剰分はcurrent/maxを同率で拡張し、消費やダメージで上限は縮みません。</span></li><li><strong>6. 戦闘用語</strong><span>HPは2。攻撃はキル攻撃とボディダメージ攻撃の2種類です。通常のキルは死体を残し、アサシン忍殺によるキルは死体を残しません。結果を見て次の報告と索敵を選びます。</span></li><li><strong>7. ファイターとEC</strong><span>ファイターは剣で物理斬撃、ガード、JG反射を使います。別系統のECは100・500・1000で永続報酬。EC100の斬るには特大の衝撃波があります。</span></li><li><strong>8. アイテムとショップ</strong><span>ショップはどこでも開けます。瓶は着地で割れ、ウラン／プルトニウム容器は空中で開きます。他の物理アイテムは残り、長押しで詳細を読めます。</span></li><li><strong>9. オペレーター</strong><span>ガンナーは銃と特殊弾、グラビティは時空とフルストーム、フローラは回復と光、ハッカーは生成、クオンタムは変成を担当します。</span></li><li><strong>10. 索敵・EMP・サボ</strong><span>千里眼（0.25MP/秒）。同位相EMPは1200ms以内で共振し、逆位相は相殺します。敵Botも千里眼で索敵します。</span></li><li><strong>11. 会議とルミナス</strong><span>会議では匿名投票とテキストチャット。Defenderのルミナスは一試合に一度、的中すればキル1です。</span></li><li><strong>12. 実戦へ</strong><span>複数のイデア到達者は全員勝利。仕様表とソロ訓練から、いつでも次のプレイへ進めます。</span></li></ol></section>
+                <section id="tacticsNovelTranscript" class="tactics-novel-transcript" aria-label="ノベルダイジェスト全文テキスト"><h4>全文テキスト</h4><ol><li><strong>1. ようこそ</strong><span>戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。</span></li><li><strong>2. 試合の流れ</strong><span>まずオペレーター選択。バトル中は、死体を通報するかスマホで緊急会議を起動すると会議へ移ります。会議のあとに次ラウンド、最後にリザルトです。</span></li><li><strong>3. 陣営と勝利</strong><span>Defenderは全タスク完了または全Attacker排除で勝利。AttackerはDefender全滅または致命的サボタージュ完遂で勝利します。善のイデアは天上時間で進み、加速・減速では早まりません。幸運／直観による最大1秒の短縮は維持されます。定期キルの期限はありません。</span></li><li><strong>4. 移動とSP</strong><span>SPは満タンから開始。歩くだけでも減り、ダッシュはより大きく消費します。止まってからタスクへ入ると、次の判断を落ち着いて選べます。</span></li><li><strong>5. MP・SPと心の状態</strong><span>SP/MPの現在値÷最大値が、欲望・気概・理知を決めます。HPは含みません。回復の余剰分はcurrent/maxを同率で拡張し、消費やダメージで上限は縮みません。</span></li><li><strong>6. 戦闘用語</strong><span>HPは2。攻撃はキル攻撃とボディダメージ攻撃の2種類です。通常のキルは死体を残し、アサシン忍殺によるキルは死体を残しません。結果を見て次の報告と索敵を選びます。</span></li><li><strong>7. ファイターとEC</strong><span>ファイターは剣で物理斬撃、ガード、JG反射を使います。別系統のECは100・500・1000で永続報酬。EC100の斬るには特大の衝撃波があります。</span></li><li><strong>8. アイテムとショップ</strong><span>ショップはどこでも開けます。瓶は着地で割れ、ウラン／プルトニウム容器は空中で開きます。他の物理アイテムは残り、長押しで詳細を読めます。</span></li><li><strong>9. オペレーター</strong><span>ガンナーは銃と特殊弾、グラビティは時空とフルストーム、フローラは回復と光、ハッカーは生成、クオンタムは変成を担当します。</span></li><li><strong>10. 索敵・EMP・サボ</strong><span>千里眼（0.25MP/秒）。同位相EMPは1200ms以内で共振し、逆位相は相殺します。敵Botも千里眼で索敵します。</span></li><li><strong>11. 会議とルミナス</strong><span>会議では匿名投票とテキストチャット。Defenderのルミナスは一試合に一度、的中すればキル1です。</span></li><li><strong>12. 実戦へ</strong><span>複数のイデア到達者は全員勝利。仕様表とソロ訓練から、いつでも次のプレイへ進めます。</span></li></ol></section>
               </section>
             </article>
           </div>
@@ -400,9 +400,9 @@
             <header><strong id="operatorBranchTitle">オペレーターコンソール</strong><button id="operatorBranchCloseButton" type="button" aria-label="オペレーターコンソールを閉じる">×</button></header>
             <div id="operatorBranchList" class="operator-branch-list"></div>
           </section>
-          <aside id="hackerAbilityDock" class="hacker-ability-dock" data-scroll-region="ハッカー適用内容" data-scroll-target="hackerAbilityGrid" aria-label="ハッカー適用内容" tabindex="0" hidden>
+          <aside id="hackerAbilityDock" class="hacker-ability-dock" data-scroll-region="バイブコーディング内容" data-scroll-target="hackerAbilityGrid" aria-label="バイブコーディング内容" tabindex="0" hidden>
             <div class="hacker-ability-head">
-              <span class="hacker-console-heading"><strong>ハッカー適用</strong><small>矢印で候補選択・Enterで実行</small></span>
+              <span class="hacker-console-heading"><strong>バイブコーディング</strong><small>矢印で候補選択・Enterで実行</small></span>
               <span class="hacker-console-state" aria-live="polite" aria-atomic="true"><span>選択中</span><strong id="hackerSelectedAction">選択なし</strong></span>
               <div class="hacker-category-control" role="group" aria-label="適用内容の分類">
                 <button id="hackerCategoryPreviousButton" class="hacker-category-step" type="button" aria-label="前の分類">‹</button>
@@ -663,11 +663,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-    <script src="economy-catalog-v468.js?v=luminous-barrier-outcome-v729"></script>
-    <script src="game-runtime.js?v=luminous-barrier-outcome-v729"></script>
-    <script src="game-engine.js?v=luminous-barrier-outcome-v729"></script>
-    <script src="offline-runtime.js?v=luminous-barrier-outcome-v729"></script>
-    <script src="config.js?v=luminous-barrier-outcome-v729"></script>
-    <script src="app.js?v=luminous-barrier-outcome-v729"></script>
+    <script src="economy-catalog-v468.js?v=character-photons-heaven-time-v730"></script>
+    <script src="game-runtime.js?v=character-photons-heaven-time-v730"></script>
+    <script src="game-engine.js?v=character-photons-heaven-time-v730"></script>
+    <script src="offline-runtime.js?v=character-photons-heaven-time-v730"></script>
+    <script src="config.js?v=character-photons-heaven-time-v730"></script>
+    <script src="app.js?v=character-photons-heaven-time-v730"></script>
 </body>
 </html>

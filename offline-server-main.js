@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "luminous-barrier-outcome-v729",
+    version: "character-photons-heaven-time-v730",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "luminous-barrier-outcome-v729";
+const PRODUCT_RELEASE = "character-photons-heaven-time-v730";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -22007,6 +22007,7 @@ function serialize(room, viewer, options = {}) {
       ideaProgressMs: Math.max(0, Number(viewer.ideaProgressMs) || 0),
       ideaProgressUpdatedAt: Number(viewer.ideaProgressUpdatedAt) || 0,
       ideaProgressRate: ideaProgressRateFor(viewer),
+      ideaTimeBasis: "heaven",
       ideaNextThresholdMs: [IDEA_FIRST_ASPECT_MS, IDEA_SECOND_ASPECT_MS, IDEA_GOOD_MS, IDEA_ASCENSION_MS][Math.min(3, Number(viewer.ideaStage) || 0)],
       ideaThresholdsMs: {
         firstAspect: IDEA_FIRST_ASPECT_MS,
@@ -26283,7 +26284,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "luminous-barrier-outcome-v729",
+  version: "character-photons-heaven-time-v730",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
