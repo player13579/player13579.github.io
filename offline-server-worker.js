@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "benefit-emission-fix-v741",
+    version: "benefit-followup-v742",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "benefit-emission-fix-v741";
+const PRODUCT_RELEASE = "benefit-followup-v742";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -16623,14 +16623,23 @@ function applyMysteryDrink(room, player, timestamp = now()) {
     result = `ジャックポット +${CREDIT_ECONOMY.mysteryJackpot}C`;
   } else if (roll < 0.36) {
     grantStamina(room, player, 250, "ミステリー", timestamp);
+    pushGainAte(room, player, "stamina", { variant: "mystery:energy-surge" });
     result = "エナジーサージ スタミナ+250";
   } else if (roll < 0.52) {
-    recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1));
-    clearAdverseStatuses(room, player, "完全活性", timestamp);
+    const healthBefore = healthCapacityFor(player);
+    const recovery = recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1));
+    if (recovery.recovered > 0) pushGainAte(room, player, "heal", { variant: "mystery:full-activation" });
+    if (recovery.maxHealth > healthBefore) pushGainAte(room, player, "overheal", { variant: "mystery:full-activation" });
+    if (clearAdverseStatuses(room, player, "完全活性", timestamp)) {
+      pushGainAte(room, player, "statusRecovery", { variant: "mystery:full-activation" });
+    }
     addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
+    pushGainAte(room, player, "acceleration", { variant: "mystery:full-activation" });
     result = "完全活性 HP回復・上限拡張・速度上昇";
   } else if (roll < 0.64) {
-    setMana(room, player, Math.max(manaCapacityFor(player), Number(player.mana) || 0), "マナ奔流");
+    const manaBefore = Number(player.mana) || 0;
+    const manaAfter = setMana(room, player, Math.max(manaCapacityFor(player), manaBefore), "マナ奔流");
+    if (manaAfter > manaBefore) pushGainAte(room, player, "mana", { variant: "mystery:mana-surge" });
     result = "マナ奔流 理知へ移行";
   } else if (roll < 0.78) {
     if (rejectAdverseStatusDuringNaturalRecovery(room, player, "倦怠", timestamp)) result = "倦怠を理知の自然回復で無効化";
@@ -16994,6 +17003,11 @@ function pushInstantItemAcquisitionAte(room, player, itemId, source = "acquired"
   // generated instant item's acquisition ATE; vending, EC and other grants
   // keep the normal item-specific acquisition feedback.
   if (String(source || "").startsWith("hacker")) return;
+  const benefitKind = { stamina: "stamina", heal: "heal", mana: "mana", speed: "acceleration" }[itemId];
+  if (benefitKind) {
+    pushGainAte(room, player, benefitKind, { variant: `instant:${source}:${itemId}` });
+    return;
+  }
   const effectType = {
     stamina: "instant-stamina-acquired",
     heal: "instant-heal-acquired",
@@ -18811,15 +18825,18 @@ function healFlora(room, player) {
   ensureAbilityAvailable(player);
   const timestamp = now();
   spendOperatorMana(room, player, "ヒール");
-  recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0)));
+  const healthBefore = healthCapacityFor(player);
+  const recovery = recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0)));
   clearAdverseStatuses(room, player, "ヒール", timestamp);
   grantStamina(room, player, MAX_STAMINA, "ヒール", timestamp, { floorAtZero: true });
   addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
   setImmediateFeedback(player, "ヒール", `自分 / HP回復 / SP+${MAX_STAMINA} / 状態解除 / 加速`);
   pushMagicEffect(room, "flora", player, { radius: FLORA_SELF_EFFECT_RADIUS, playerId: player.id });
   pushGainAte(room, player, "heal", { variant: "flora" });
+  if (recovery.maxHealth > healthBefore) pushGainAte(room, player, "overheal", { variant: "flora" });
   pushGainAte(room, player, "stamina", { variant: "flora", durationMs: 1620 });
   pushGainAte(room, player, "statusRecovery", { variant: "flora", durationMs: 1740 });
+  pushGainAte(room, player, "acceleration", { variant: "flora", durationMs: 1860 });
   pushEvent(room, `${player.name} がヒールを発動し、自分へ回復・スタミナ・状態解除・加速を付与しました。`);
   touch(room);
 }
@@ -26435,5 +26452,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "benefit-emission-fix-v741" });
+self.postMessage({ type: "ready", version: "benefit-followup-v742" });
 })();

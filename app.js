@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "benefit-emission-fix-v741";
+const DVA_CLIENT_RELEASE = "benefit-followup-v742";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -667,8 +667,6 @@ const state = {
     x: 0,
     y: 0,
     targetId: "",
-    mode: "follow",
-    acceleration: 5,
     directionKeys: new Set(),
     lastFrameAt: 0,
     frame: 0,
@@ -939,7 +937,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "benefit-emission-fix-v741";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "benefit-followup-v742";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -4362,8 +4360,6 @@ function releaseThrowTargetMovement(event) {
   return true;
 }
 
-const CLAIRVOYANCE_CAMERA_BASE_SPEED = 108;
-
 function clairvoyanceFollowCandidates(data = state.data) {
   if (!data?.selfId || !Array.isArray(data.players)) return [];
   return data.players
@@ -4381,24 +4377,9 @@ function ensureClairvoyanceFollowTarget(data = state.data) {
   return target;
 }
 
-function clairvoyanceCameraMode() {
-  return state.clairvoyance.mode === "free" ? "free" : "follow";
-}
 
-function clairvoyanceDirection() {
-  const view = state.clairvoyance;
-  let dx = 0;
-  let dy = 0;
-  if (state.tabletOpen && state.tabletStick.pointerId !== null) {
-    dx = Number(state.tabletStick.dx) || 0;
-    dy = Number(state.tabletStick.dy) || 0;
-  } else {
-    dx = Number(view.directionKeys?.has("right")) - Number(view.directionKeys?.has("left"));
-    dy = Number(view.directionKeys?.has("down")) - Number(view.directionKeys?.has("up"));
-  }
-  const length = Math.hypot(dx, dy);
-  return length > 1 ? { dx: dx / length, dy: dy / length } : { dx, dy };
-}
+
+
 
 function clearClairvoyanceCameraInput() {
   state.clairvoyance?.directionKeys?.clear?.();
@@ -4408,39 +4389,14 @@ function clearClairvoyanceCameraInput() {
   }
 }
 
-function setClairvoyanceViewMode(mode, data = state.data) {
-  const view = state.clairvoyance;
-  if (!view.active) return false;
-  const nextMode = mode === "free" ? "free" : "follow";
-  if (nextMode === "follow") {
-    const target = ensureClairvoyanceFollowTarget(data);
-    if (!target) return false;
-    const position = renderedPlayer(target);
-    view.x = position.x;
-    view.y = position.y;
-  } else if (clairvoyanceCameraMode() === "follow") {
-    const target = ensureClairvoyanceFollowTarget(data);
-    if (target) {
-      const position = renderedPlayer(target);
-      view.x = position.x;
-      view.y = position.y;
-    }
-  }
-  view.mode = nextMode;
-  clearClairvoyanceCameraInput();
-  state.camera.initialized = false;
-  updateActionButtons(data);
-  return true;
-}
 
-function toggleClairvoyanceViewMode(data = state.data) {
-  return setClairvoyanceViewMode(clairvoyanceCameraMode() === "follow" ? "free" : "follow", data);
-}
+
+
 
 function cycleClairvoyanceFollowTarget(step = 1, data = state.data) {
-  if (!state.clairvoyance.active || clairvoyanceCameraMode() !== "follow") return null;
+  if (!state.clairvoyance.active) return null;
   const candidates = clairvoyanceFollowCandidates(data);
-  if (!candidates.length) return setClairvoyanceViewMode("free", data) ? null : null;
+  if (!candidates.length) return null;
   const currentIndex = candidates.findIndex((player) => player.id === state.clairvoyance.targetId);
   const target = candidates[(Math.max(0, currentIndex) + (step < 0 ? -1 : 1) + candidates.length) % candidates.length];
   state.clairvoyance.targetId = target.id;
@@ -4452,32 +4408,16 @@ function cycleClairvoyanceFollowTarget(step = 1, data = state.data) {
 
 function beginClairvoyanceMovement(event) {
   if (!state.clairvoyance.active || state.throwTargeting.active) return false;
-  if (event.altKey && event.code === "KeyZ") {
-    event.preventDefault();
-    if (!event.repeat) toggleClairvoyanceViewMode();
-    return true;
-  }
   const direction = throwTargetKey(event);
   if (!direction) return false;
   event.preventDefault();
-  if (clairvoyanceCameraMode() === "follow") {
-    if (!event.repeat) cycleClairvoyanceFollowTarget(["up", "left"].includes(direction) ? -1 : 1);
-    return true;
-  }
-  if (!event.repeat) state.clairvoyance.directionKeys.add(direction);
+  if (!event.repeat) cycleClairvoyanceFollowTarget(["up", "left"].includes(direction) ? -1 : 1);
   return true;
 }
 
 function releaseClairvoyanceMovement(event) {
-  if (!state.clairvoyance.active || state.throwTargeting.active) return false;
-  if (event.altKey && event.code === "KeyZ") {
-    event.preventDefault();
-    return true;
-  }
-  const direction = throwTargetKey(event);
-  if (!direction) return false;
+  if (!state.clairvoyance.active || state.throwTargeting.active || !throwTargetKey(event)) return false;
   event.preventDefault();
-  if (clairvoyanceCameraMode() === "free") state.clairvoyance.directionKeys.delete(direction);
   return true;
 }
 
@@ -4495,28 +4435,13 @@ function updateClairvoyanceFrame(timestamp) {
     showToast("千里眼はMP切れで終了しました。");
     return;
   }
-  const elapsed = clamp(timestamp - (view.lastFrameAt || timestamp), 0, 40);
   view.lastFrameAt = timestamp;
-  if (clairvoyanceCameraMode() === "follow") {
-    const target = ensureClairvoyanceFollowTarget(data);
-    if (target) {
-      const position = renderedPlayer(target);
-      view.x = position.x;
-      view.y = position.y;
-    } else {
-      view.mode = "free";
-      state.camera.initialized = false;
-    }
-  }
-  if (clairvoyanceCameraMode() === "free") {
-    const direction = clairvoyanceDirection();
-    const acceleration = Math.max(1, Number(view.acceleration) || 5);
-    const distance = CLAIRVOYANCE_CAMERA_BASE_SPEED * acceleration * elapsed / 1000;
-    if (direction.dx || direction.dy) {
-      view.x = clamp(view.x + direction.dx * distance, 0, data.map.width);
-      view.y = clamp(view.y + direction.dy * distance, 0, data.map.height);
-      state.camera.initialized = false;
-    }
+  const target = ensureClairvoyanceFollowTarget(data);
+  const fallback = data.players.find((player) => player.id === data.selfId);
+  if (target || fallback) {
+    const position = renderedPlayer(target || fallback);
+    view.x = position.x;
+    view.y = position.y;
   }
   view.frame = requestAnimationFrame(updateClairvoyanceFrame);
 }
@@ -4534,7 +4459,7 @@ function setLocalClairvoyanceActive(shouldEnable, data = state.data) {
   if (!shouldEnable) {
     state.clairvoyanceTeleportTap = null;
     state.clairvoyanceTeleportRequestSerial += 1;
-    state.clairvoyance = { active: false, x: 0, y: 0, targetId: view.targetId || "", mode: "follow", acceleration: 5, directionKeys: new Set(), lastFrameAt: 0, frame: 0, serverDesired, requestPending, requestSerial };
+    state.clairvoyance = { active: false, x: 0, y: 0, targetId: view.targetId || "", directionKeys: new Set(), lastFrameAt: 0, frame: 0, serverDesired, requestPending, requestSerial };
     state.camera.initialized = false;
     updateActionButtons(data);
     return true;
@@ -4544,7 +4469,7 @@ function setLocalClairvoyanceActive(shouldEnable, data = state.data) {
   const target = ensureClairvoyanceFollowTarget(data);
   const origin = renderedPlayer(target || self);
   const timestamp = performance.now();
-  state.clairvoyance = { active: true, x: origin.x, y: origin.y, targetId: target?.id || "", mode: target ? "follow" : "free", acceleration: 5, directionKeys: new Set(), lastFrameAt: timestamp, frame: 0, serverDesired, requestPending, requestSerial };
+  state.clairvoyance = { active: true, x: origin.x, y: origin.y, targetId: target?.id || "", directionKeys: new Set(), lastFrameAt: timestamp, frame: 0, serverDesired, requestPending, requestSerial };
   state.clairvoyance.frame = requestAnimationFrame(updateClairvoyanceFrame);
   state.camera.initialized = false;
   updateActionButtons(data);
@@ -6492,7 +6417,6 @@ function bindEvents() {
   els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
-  els.tabletClairvoyanceModeShortcut.addEventListener("click", () => toggleClairvoyanceViewMode());
   els.tabletClairvoyancePreviousShortcut.addEventListener("click", () => cycleClairvoyanceFollowTarget(-1));
   els.tabletClairvoyanceNextShortcut.addEventListener("click", () => cycleClairvoyanceFollowTarget(1));
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
@@ -8679,21 +8603,19 @@ function renderTabletControls(data) {
   els.tabletEmpShortcut.hidden = els.empButton.hidden;
   els.tabletEmpShortcut.dataset.actionDisabled = els.empButton.disabled ? "1" : "0";
   els.tabletEmpShortcut.classList.toggle("action-disabled", els.empButton.disabled);
-  const clairvoyanceMode = clairvoyanceCameraMode();
-  const clairvoyanceTarget = state.clairvoyance.active && clairvoyanceMode === "follow" ? ensureClairvoyanceFollowTarget(data) : null;
+  const clairvoyanceTarget = state.clairvoyance.active ? ensureClairvoyanceFollowTarget(data) : null;
   setTabletShortcutLabel(els.tabletClairvoyanceShortcut, "千里眼", state.clairvoyance.active
-    ? `千里眼を解除。${clairvoyanceMode === "follow" ? `追尾先: ${clairvoyanceTarget?.name || "なし"}` : "自由視点 ACC5"}`
+    ? `千里眼を解除。追尾先: ${clairvoyanceTarget?.name || "なし"}`
     : `千里眼を発動（${Number(data?.self?.clairvoyanceManaPerSecond ?? 0.25).toFixed(2)}MP/秒）`);
-  els.tabletClairvoyanceModeShortcut.hidden = !state.clairvoyance.active;
-  els.tabletClairvoyanceModeShortcut.disabled = !state.clairvoyance.active || (clairvoyanceMode === "free" && !clairvoyanceFollowCandidates(data).length);
-  els.tabletClairvoyanceModeShortcut.classList.toggle("active", clairvoyanceMode === "free");
-  setTabletShortcutLabel(els.tabletClairvoyanceModeShortcut, clairvoyanceMode === "free" ? "追尾視点" : "自由視点", clairvoyanceMode === "free" ? "追尾視点に戻る" : "自由視点へ切替（ACC5）");
+  // Compatibility DOM stays out of layout; Clairvoyance only follows players.
+  els.tabletClairvoyanceModeShortcut.hidden = true;
+  els.tabletClairvoyanceModeShortcut.disabled = true;
   els.tabletClairvoyanceShortcut.disabled = data.phase !== "playing" || !data.self.alive || data.self.ejected;
   els.tabletClairvoyanceShortcut.classList.toggle("active", state.clairvoyance.active);
   els.tabletClairvoyanceShortcut.setAttribute("aria-pressed", String(state.clairvoyance.active));
   const clairvoyanceCandidates = clairvoyanceFollowCandidates(data);
   const clairvoyanceTargetName = clairvoyanceTarget?.name || "追尾先なし";
-  const clairvoyanceTargetsVisible = state.clairvoyance.active && clairvoyanceMode === "follow";
+  const clairvoyanceTargetsVisible = state.clairvoyance.active;
   els.tabletClairvoyancePreviousShortcut.hidden = !clairvoyanceTargetsVisible;
   els.tabletClairvoyanceNextShortcut.hidden = !clairvoyanceTargetsVisible;
   els.tabletClairvoyancePreviousShortcut.disabled = clairvoyanceCandidates.length < 2;
@@ -8940,10 +8862,12 @@ function canvasPointerPosition(event) {
 }
 
 function clairvoyanceTeleportContext(data = state.data) {
-  // Retain this owner as a closed compatibility seam for the old pointer
-  // handlers. Clairvoyance is camera-only, so no canvas state may open a
-  // relocation request. Gravity and scroll moves retain their explicit owners.
-  return null;
+  const self = data?.self;
+  if (!state.clairvoyance.active || state.throwTargeting.active || !self || data.phase !== "playing" || !self.alive || self.ejected || self.inVent) return null;
+  // The endpoint selects and validates native/ROOT Gravity or a held scroll.
+  // Purchased abilities keep their separate entitlement-aware targeting route.
+  if (!hasDisplayedOperatorAccess(self, "gravity") && !(Number(self.warpCharges) > 0)) return null;
+  return { self };
 }
 
 function clairvoyanceCanvasWorldPoint(event) {
@@ -8980,7 +8904,7 @@ async function finishClairvoyanceTeleportTap(event, cancelled = false) {
   const tap = state.clairvoyanceTeleportTap;
   if (!tap || tap.pointerId !== event.pointerId) return false;
   state.clairvoyanceTeleportTap = null;
-  if (cancelled || tap.moved || !clairvoyanceTeleportContext()) return false;
+  if (cancelled || tap.moved || Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) > 10 || !clairvoyanceTeleportContext()) return false;
   const point = clairvoyanceCanvasWorldPoint(event);
   if (!point?.valid) {
     showToast("通行可能な場所を指定してください。");
@@ -11985,7 +11909,7 @@ function accessibleGameStatusSnapshot(data) {
   const maxHealth = Math.max(2, Number(self.maxHealth) || 2, health);
   const stamina = Math.max(0, Number(self.stamina) || 0);
   const mana = displayedManaValue(self.mana);
-  const acceleration = Math.max(1, Number(self.accelerationMultiplier) || 1);
+  const acceleration = self.accelerationMultiplier != null && Number.isFinite(Number(self.accelerationMultiplier)) ? Math.max(0, Number(self.accelerationMultiplier)) : 1;
   const movementAccActive = self.movementAccActive === true || (
     self.movementAccActive == null &&
     self.movementAccEnabled !== false &&
@@ -14900,7 +14824,7 @@ function syncMovementAccControl(data = state.data) {
   const enabled = self.movementAccEnabled !== false;
   const threshold = Math.max(1, Number(self.movementAccThreshold) || 2);
   const fixedAcc = Math.max(1, Number(self.movementAccMax) || 2);
-  const acceleration = Math.max(1, Number(self.accelerationMultiplier) || 1);
+  const acceleration = self.accelerationMultiplier != null && Number.isFinite(Number(self.accelerationMultiplier)) ? Math.max(0, Number(self.accelerationMultiplier)) : 1;
   const active = self.movementAccActive === true || (
     self.movementAccActive == null && enabled && acceleration + 1e-6 >= threshold && Number(self.movementAcc) > 1.5
   );
@@ -16346,12 +16270,8 @@ function drawModeBanner(data, w) {
   if (throwTargetClairvoyanceActive(data)) {
     text = "千里眼 / 着地点追従 / 全域投擲";
   } else if (state.clairvoyance.active) {
-    if (clairvoyanceCameraMode() === "free") {
-      text = "千里眼 / 自由視点 ACC5 / WASD・矢印で移動 / Alt+Zで追尾 / Zで解除";
-    } else {
-      const target = ensureClairvoyanceFollowTarget(data);
-      text = `千里眼 / ${target?.name || "追尾先なし"}を追尾 / ←→で切替 / Alt+Zで自由視点 / Zで解除`;
-    }
+    const target = ensureClairvoyanceFollowTarget(data);
+    text = `千里眼 / ${target?.name || "追尾先なし"}を追尾 / ←→で切替 / Zで解除`;
   } else if (data.self.aimTargetId) {
     const target = data.players.find((player) => player.id === data.self.aimTargetId);
     const remaining = Math.max(0, data.self.aimReadyAt - estimatedServerNow(data));
@@ -16394,7 +16314,7 @@ function cameraFor(data, w, h, zoom = 1) {
   const throwTarget = state.throwTargeting.active
     ? { x: state.throwTargeting.targetX, y: state.throwTargeting.targetY }
     : null;
-  const clairvoyanceFollowPlayer = !throwTarget && state.clairvoyance.active && clairvoyanceCameraMode() === "follow"
+  const clairvoyanceFollowPlayer = !throwTarget && state.clairvoyance.active
     ? ensureClairvoyanceFollowTarget(data)
     : null;
   const clairvoyanceTarget = !throwTarget && state.clairvoyance.active
@@ -16410,7 +16330,7 @@ function cameraFor(data, w, h, zoom = 1) {
     : throwTarget
     ? `throw-target:${throwTargetClairvoyanceActive(data) ? "clairvoyance" : "follow"}:${zoom}`
     : clairvoyanceTarget
-      ? `clairvoyance-${clairvoyanceFollowPlayer ? `follow:${clairvoyanceFollowPlayer.id}` : "free"}:${zoom}`
+      ? `clairvoyance-${clairvoyanceFollowPlayer ? `follow:${clairvoyanceFollowPlayer.id}` : "self"}:${zoom}`
       : `player:${data.selfId}:${zoom}`;
   const camera = state.camera;
   if (!camera.initialized || camera.mode !== mode) {
@@ -23600,7 +23520,7 @@ function drawHud(data, w, h) {
     : 0;
   const maxStamina = Math.max(100, Number(self.maxStoredStamina) || 500);
   const manaGaugeMax = Math.max(2, Number(self.maxMana) || 2);
-  const accelerationMultiplier = Math.max(1, Number(self.accelerationMultiplier) || 1);
+  const accelerationMultiplier = self.accelerationMultiplier != null && Number.isFinite(Number(self.accelerationMultiplier)) ? Math.max(0, Number(self.accelerationMultiplier)) : 1;
   const movementAccEnabled = self.movementAccEnabled !== false;
   const movementAccThreshold = Math.max(1, Number(self.movementAccThreshold) || 2);
   const movementAccMax = Math.max(1, Number(self.movementAccMax) || 2);
@@ -24047,7 +23967,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "benefit-emission-fix-v741";
+const version = "benefit-followup-v742";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25105,7 +25025,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=benefit-emission-fix-v741", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=benefit-followup-v742", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
