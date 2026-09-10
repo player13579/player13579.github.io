@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "shortcut-gap-v739";
-const CACHE_NAME = "dva-static-v739-shortcut-gap";
+const RUNTIME_RELEASE = "benefit-te-v740";
+const CACHE_NAME = "dva-static-v740-benefit-te";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
@@ -100,6 +100,15 @@ const STATIC_ASSETS = [
   "/assets/generated/status-marker-acceleration-v376.png",
   "/assets/generated/status-levitation-v375.png",
   "/assets/generated/hover-sprint-jet-exhaust-v719.png",
+  "/assets/generated/benefit-stamina-v740.png",
+  "/assets/generated/benefit-heal-v740.png",
+  "/assets/generated/benefit-mana-v740.png",
+  "/assets/generated/benefit-overheal-v740.png",
+  "/assets/generated/benefit-acceleration-v740.png",
+  "/assets/generated/benefit-luck-boost-v740.png",
+  "/assets/generated/benefit-status-recovery-v740.png",
+  "/assets/generated/benefit-cooldown-reduction-v740.png",
+  "/assets/generated/benefit-credits-v740.png",
   "/assets/generated/enhance-hold-marker-v737.png",
   "/assets/generated/renki-coalescence-v736.png",
   "/assets/generated/renki-tenfold-release-v736.png",

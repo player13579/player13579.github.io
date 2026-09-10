@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "shortcut-gap-v739";
+const DVA_CLIENT_RELEASE = "benefit-te-v740";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -482,6 +482,18 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
   quantum: QUANTUM_ABILITY_MODE_OPTIONS
 });
 
+const BENEFIT_TE_MATERIALS = Object.freeze({
+  stamina: { file: "benefit-stamina-v740.png", glow: "#b8ff85" },
+  heal: { file: "benefit-heal-v740.png", glow: "#ffb0be" },
+  mana: { file: "benefit-mana-v740.png", glow: "#b5b3ff" },
+  overheal: { file: "benefit-overheal-v740.png", glow: "#ffbddf" },
+  acceleration: { file: "benefit-acceleration-v740.png", glow: "#8aeaff" },
+  luckBoost: { file: "benefit-luck-boost-v740.png", glow: "#ffe5a0" },
+  statusRecovery: { file: "benefit-status-recovery-v740.png", glow: "#befff1" },
+  cooldownReduction: { file: "benefit-cooldown-reduction-v740.png", glow: "#b0ddff" },
+  credits: { file: "benefit-credits-v740.png", glow: "#ffd782" }
+});
+
 const state = {
   screen: "title",
   tacticsReturnScreen: "title",
@@ -927,7 +939,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shortcut-gap-v739";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "benefit-te-v740";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -21008,7 +21020,68 @@ function headMarkerLifetimeProgress(effect, now) {
   return 0.45;
 }
 
+
+function benefitTeMotion(kind, progress, reduced) {
+  if (reduced) return { x: 0, y: 0, angle: 0, sx: 1, sy: 1 };
+  const reveal = objectEffectEase(progress / .24), settle = 1 - reveal;
+  const pulse = Math.sin(Math.min(1, progress / .7) * Math.PI);
+  const transform = { x: 0, y: 0, angle: 0, sx: 1, sy: 1 };
+  switch (kind) {
+    case "stamina": transform.y = 3 * settle - pulse; transform.sy = .82 + .18 * reveal; break;
+    case "heal": transform.sx = 1.16 - .16 * reveal; transform.sy = .94 + .06 * reveal; break;
+    case "mana": transform.sx = transform.sy = 1.12 - .12 * reveal; transform.angle = -.12 * settle; break;
+    case "overheal": transform.sx = .8 + .2 * reveal; transform.sy = .88 + .12 * reveal; transform.y = -pulse; break;
+    case "acceleration": transform.x = -3 * settle; transform.sx = .76 + .24 * reveal; break;
+    case "luckBoost": transform.angle = -.19 * settle + .035 * pulse; transform.sy = .92 + .08 * reveal; break;
+    case "statusRecovery": transform.y = 2 - 4 * reveal; transform.sx = .88 + .12 * reveal; break;
+    case "cooldownReduction": transform.angle = .8 * settle; transform.sx = transform.sy = 1.08 - .08 * reveal; break;
+    case "credits": transform.y = 2 * settle; transform.angle = .16 * settle; transform.sx = .86 + .14 * reveal; break;
+  }
+  return transform;
+}
+
+function drawBenefitGainEffect(effect, progress, now) {
+  if (isDesireRenkiMarker(effect) || !["playing", "meeting"].includes(state.data?.phase) || ctx.globalAlpha <= 0) return;
+  const kind = effect.effectKind, material = BENEFIT_TE_MATERIALS[kind];
+  if (!material) return;
+  const player = gainEffectPlayer(effect);
+  if (!player || !player.alive || player.ejected || player.inVent || player.invisible) return;
+  const texture = state.textures.benefitGainEffects?.[kind];
+  const prepared = transparentSpriteSource(texture, `benefit-${kind}-v740`, 16);
+  const sprite = prepared ? normalizedSpriteFrame(prepared, `benefit-${kind}-v740`, 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  const presentation = headMarkerPresentationForPlayer(player, state.data, now);
+  const credit = isCreditHeadMarkerEffect(effect);
+  const placement = credit ? creditHeadMarkerPlacement(effect, presentation) : nonCreditHeadMarkerPlacement(effect, presentation);
+  if (credit ? !presentation.credits.includes(effect) : !placement.candidate) return;
+  const p = credit ? progress : headMarkerLifetimeProgress(effect, now);
+  if (p <= 0 || p >= 1) return;
+  const reveal = objectEffectEase(p / .2), fade = objectEffectFade(p);
+  const reduced = prefersReducedMotion(), motion = benefitTeMotion(kind, p, reduced);
+  const markerCount = credit ? sharedHeadMarkerCount(effect) : 1;
+  const aggregateCount = credit ? markerCount : Math.max(1, Number(effect._headMarkerAggregateCount) || placement.candidate.aggregateCount || 1);
+  const explanation = GAIN_MARKER_EXPLANATIONS[kind];
+  const size = HEAD_MARKER_LAYOUT.markerSize, scale = size / Math.max(sprite.width, sprite.height);
+  if (credit) recordVerificationMarkerRender(effect, "head-marker", now);
+  for (let i = 0; i < markerCount; i += 1) {
+    const marker = headMarkerSlot(placement.baseIndex + i, placement.total, placement.startRow);
+    ctx.save();
+    ctx.translate(player.x + marker.x + motion.x, player.y + marker.y + motion.y);
+    registerMarkerHitTarget(`gain:${effect._headMarkerInstanceKey || effect.id || effect.createdAt || kind}:${player.id}:${i}`, 0, 0, size * .62,
+      `${explanation[0]}${!credit && aggregateCount > 1 ? ` ×${aggregateCount}` : ""}`, explanation[1]);
+    ctx.globalAlpha *= reveal * fade;
+    ctx.globalCompositeOperation = "screen";
+    ctx.rotate(motion.angle);
+    ctx.scale(motion.sx, motion.sy);
+    ctx.shadowColor = material.glow;
+    ctx.shadowBlur = reduced ? 1.5 : 1.5 + 1.5 * Math.sin(Math.min(1, p / .7) * Math.PI);
+    ctx.drawImage(sprite, -sprite.width * scale / 2, -sprite.height * scale / 2, sprite.width * scale, sprite.height * scale);
+    ctx.restore();
+  }
+}
+
 function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) {
+  if (BENEFIT_TE_MATERIALS[effect.effectKind]) return drawBenefitGainEffect(effect, progress, now);
   if (isDesireRenkiMarker(effect)) return;
   const texture = dedicatedMapObjectEffectTexture(effect.effectKind);
   if (!texture?.complete || !texture.naturalWidth) return;
@@ -23974,7 +24047,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "shortcut-gap-v739";
+const version = "benefit-te-v740";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24025,6 +24098,11 @@ const version = "shortcut-gap-v739";
     "assets/generated/philosophy-effect-mystery-v311.png",
     "assets/generated/philosophy-effect-emp-v311.png"
   ]);
+  const benefitGainEffects = {};
+  for (const [kind, material] of Object.entries(BENEFIT_TE_MATERIALS)) {
+    benefitGainEffects[kind] = new Image();
+    defer(benefitGainEffects[kind], `assets/generated/${material.file}`);
+  }
   const enhanceHoldMarker = new Image();
   defer(enhanceHoldMarker, "assets/generated/enhance-hold-marker-v737.png");
   const renkiCoalescence = new Image();
@@ -24320,6 +24398,7 @@ const version = "shortcut-gap-v739";
     actionEffectTextures,
     philosophyEffectTextures,
     alchemyEffectTextures,
+    benefitGainEffects,
     enhanceHoldMarker,
     renkiCoalescence,
     renkiTenfoldRelease,
@@ -25026,7 +25105,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=shortcut-gap-v739", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=benefit-te-v740", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
