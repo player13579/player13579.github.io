@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "movement-clock-lifecycle-v747",
+    version: "status-movement-boundaries-v748",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "movement-clock-lifecycle-v747";
+const PRODUCT_RELEASE = "status-movement-boundaries-v748";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -13287,12 +13287,12 @@ function activeMapObjectEffects(room, player) {
 function effectiveMovementMultiplier(room, player, timestamp = now(), movementSource = null) {
   if (movementSource ? movementSource.stopped : timeKeeperStops(player, timestamp)) return 0;
   if (movementSource ? movementSource.clairvoyanceActive : player?.clairvoyanceActive) return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * FIXED_MOVEMENT_ACC;
-  const electricSlowMultiplier = Number(player.taserSlowedUntil) > timestamp ||
+  const electricSlowMultiplier = movementSource ? movementSource.electricSlowMultiplier : Number(player.taserSlowedUntil) > timestamp ||
     Number(player.shockSlowedUntil) > timestamp ||
     Number(player.quantumElectricSlowUntil) > timestamp
     ? TASER_MOVEMENT_MULTIPLIER
     : 1;
-  const gravityStormMultiplier = Number(player.gravityStormSlowUntil) > timestamp
+  const gravityStormMultiplier = movementSource ? movementSource.gravityStormMultiplier : Number(player.gravityStormSlowUntil) > timestamp
     ? clampNumber(player.gravityStormSlowMultiplier, GRAVITY_STORM_SLOW_MULTIPLIER_MIN, 1, 1)
     : 1;
   const groupMultiplier = desireBiasGroupActive(room, player) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
@@ -14399,6 +14399,7 @@ function planRoomActorClock(room, from, to) {
     timedAccelerationEffects: (player.timedAccelerationEffects || []).map(effect => ({ ...effect }))
   }]));
   const snapshot = { ...room, players };
+  const movementStatusFields = ["taserSlowedUntil", "shockSlowedUntil", "quantumElectricSlowUntil", "gravityStormSlowUntil"];
   const totals = new Map([...players].map(([id]) => [id, { actorMs: 0, stoppedMs: 0, segments: [] }]));
   const synchronizeStops = (at) => {
     const casters = [...players.values()].filter(player => Number(player.timeKeeperEndsAt) > at);
@@ -14414,10 +14415,25 @@ function planRoomActorClock(room, from, to) {
   while (at < to) {
     const roomStopped = synchronizeStops(at);
     const stopped = new Map([...players].map(([id, player]) => [id, timeKeeperStops(player, at)]));
+    // All rates read the same segment-start source snapshot. No controller
+    // endpoint may shift until every recipient has been sampled.
+    const rates = new Map();
+    const movementSources = new Map();
+    for (const [id, player] of players) {
+      if (stopped.get(id)) { rates.set(id, 0); movementSources.set(id, { stopped: true }); continue; }
+      const allEffects = player.timedAccelerationEffects;
+      player.timedAccelerationEffects = allEffects.filter(effect => !Number.isFinite(Number(effect.startedAt)) || Number(effect.startedAt) <= at);
+      try { rates.set(id, playerProgressMultiplier(snapshot, player, at)); movementSources.set(id, { stopped: false, clairvoyanceActive: Boolean(player.clairvoyanceActive), movementAccEnabled: player.movementAccEnabled !== false, gravityScale: gravityTimeScaleFor(snapshot, player, at), electricSlowMultiplier: [player.taserSlowedUntil, player.shockSlowedUntil, player.quantumElectricSlowUntil].some(end => Number(end) > at) ? TASER_MOVEMENT_MULTIPLIER : 1, gravityStormMultiplier: Number(player.gravityStormSlowUntil) > at ? clampNumber(player.gravityStormSlowMultiplier, GRAVITY_STORM_SLOW_MULTIPLIER_MIN, 1, 1) : 1, accelerationComponents: accelerationMultipliersFor(player, at).map(Number).filter(value => Number.isFinite(value) && value > 1) }); }
+      finally { player.timedAccelerationEffects = allEffects; }
+    }
     let next = to;
     const boundary = (raw) => { const value = Number(raw); if (Number.isFinite(value) && value > at) next = Math.min(next, value); };
     for (const [id, player] of players) {
       boundary(player.timeStoppedUntil);
+      const statusRate = player.alive && !player.ejected ? rates.get(id) : (stopped.get(id) ? 0 : 1);
+      if (statusRate > 0) for (const field of movementStatusFields) {
+        if (Number(player[field]) > at) boundary(at + (Number(player[field]) - at) / statusRate);
+      }
       if (stopped.get(id)) continue;
       // Controller expiries freeze with their caster, not their recipient.
       boundary(player.timeKeeperEndsAt);
@@ -14429,23 +14445,17 @@ function planRoomActorClock(room, from, to) {
     }
     const elapsed = next - at;
     if (roomStopped) roomStoppedMs += elapsed;
-    // All rates read the same segment-start source snapshot. No controller
-    // endpoint may shift until every recipient has been sampled.
-    const rates = new Map();
-    const movementSources = new Map();
-    for (const [id, player] of players) {
-      if (stopped.get(id)) { rates.set(id, 0); movementSources.set(id, { stopped: true }); continue; }
-      const allEffects = player.timedAccelerationEffects;
-      player.timedAccelerationEffects = allEffects.filter(effect => !Number.isFinite(Number(effect.startedAt)) || Number(effect.startedAt) <= at);
-      try { rates.set(id, playerProgressMultiplier(snapshot, player, at)); movementSources.set(id, { stopped: false, clairvoyanceActive: Boolean(player.clairvoyanceActive), movementAccEnabled: player.movementAccEnabled !== false, gravityScale: gravityTimeScaleFor(snapshot, player, at), accelerationComponents: accelerationMultipliersFor(player, at).map(Number).filter(value => Number.isFinite(value) && value > 1) }); }
-      finally { player.timedAccelerationEffects = allEffects; }
-    }
     for (const [id, player] of players) {
       const total = totals.get(id);
       const isStopped = stopped.get(id);
       const actorRate = rates.get(id);
       total.segments.push({ from: at, to: next, actorRate, movementSource: movementSources.get(id), stopped: isStopped });
       total.actorMs += elapsed * actorRate;
+      const statusRate = player.alive && !player.ejected ? actorRate : (isStopped ? 0 : 1);
+      for (const field of movementStatusFields) {
+        const deadline = Number(player[field]);
+        if (deadline > at) player[field] = deadline - at <= elapsed * statusRate + 1e-7 ? next : deadline + elapsed * (1 - statusRate);
+      }
       if (!isStopped) continue;
       total.stoppedMs += elapsed;
       for (const field of ["gravityTimeEndsAt", "timeKeeperEndsAt"]) {
@@ -26654,5 +26664,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "movement-clock-lifecycle-v747" });
+self.postMessage({ type: "ready", version: "status-movement-boundaries-v748" });
 })();
