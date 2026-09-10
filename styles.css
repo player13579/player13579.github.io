@@ -9721,7 +9721,7 @@ body.tablet-mode-active #sidePanel #empPhaseControl > label {
 /* Developer-only paint fragment. Append after public/styles.css in primary-owned integration. */
 #tabletQuickActions .rest-action-spacer,
 #actionCommandRegistry .rest-action-spacer {
-  visibility: hidden;
+  display: none !important;
   pointer-events: none;
   touch-action: none;
 }
