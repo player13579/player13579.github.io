@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "renki-new-te-v736",
+    version: "enhance-hold-te-v737",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "renki-new-te-v736";
+const PRODUCT_RELEASE = "enhance-hold-te-v737";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -9643,7 +9643,54 @@ function pushHitEffect(room, target, hitZone, lethal = false) {
   room.hitEffects = room.hitEffects.slice(-32);
 }
 
+// Presentation-only deduplication, scoped to the synchronous batch transaction.
+// These are the actual activation emitters of the supported batch actions.
+const ABILITY_BATCH_ACTIVATION_EFFECT_TYPES = new Set([
+  "action-teleport", "action-heart-teleport", "gravity-accelerate", "gravity-decelerate", "gravity-storm",
+  "quantum-electric-discharge", "quantum-transmutation", "quantum-temperature-cold", "quantum-temperature-hot",
+  "quantum-nuclear", "quantum-nuclear-fusion", "flora", "flora-sunbeam", "flora-invisible"
+]);
+const abilityBatchPresentationScopes = new WeakMap();
+function batchActivationEffectSuppressed(room, source, type, options = {}) {
+  if (!ABILITY_BATCH_ACTIVATION_EFFECT_TYPES.has(type)) return false;
+  const scope = abilityBatchPresentationScopes.get(room);
+  if (!scope) return false;
+  let owner = room.players.get(String(options.playerId || source.id || ""));
+  // Teleport arrival is emitted with the transported actor as playerId.
+  if (type === "action-teleport" && options.variant === "arrival" &&
+      String(source.id || "") === scope.targetId) owner = room.players.get(scope.playerId);
+  if (!owner || owner.id !== scope.playerId || owner.abilityBatchExecution !== scope.batch) return false;
+  // Coordinates and generated zone IDs are deliberately excluded: they can
+  // change per cast while this remains the same component on the same target.
+  const target = String(options.targetId || (type === "gravity-storm" ? source.targetId : "") ||
+    (type === "action-teleport" && options.variant === "arrival" ? source.id : "") || "");
+  const key = JSON.stringify([type, target, options.variant || "", options.mode || "", options.effectKind || "", options.viewerId || ""]);
+  if (scope.seen.has(key)) return true;
+  scope.seen.add(key);
+  scope.captureNextActivation = true;
+  return false;
+}
+function retainAbilityBatchActivationEffects(room, scope) {
+  // Reuse the accepted objects/IDs; do not emit another activation. Keep room
+  // retention bounded and reserve one slot for the Enhance marker that follows.
+  const effects = scope.activationEffects.slice(0, scope.successfulActivationCount).slice(-47);
+  const ids = new Set(effects.map(effect => effect.id));
+  const remaining = room.magicEffects.filter(effect => !ids.has(effect.id));
+  const remainingSlots = 47 - effects.length;
+  room.magicEffects = [...(remainingSlots > 0 ? remaining.slice(-remainingSlots) : []), ...effects];
+}
+function emitEnhanceActivation(room, player, identity) {
+  if (!player || typeof identity !== "string" || !identity.trim()) return false;
+  player.enhanceActivationIdentities ||= [];
+  if (player.enhanceActivationIdentities.includes(identity)) return false;
+  player.enhanceActivationIdentities.push(identity);
+  player.enhanceActivationIdentities = player.enhanceActivationIdentities.slice(-64);
+  pushMagicEffect(room, "enhance-activation", player, { playerId: player.id, variant: identity, markerCount: 1, durationMs: 1200 });
+  return true;
+}
+
 function pushMagicEffect(room, type, source, options = {}) {
+  if (batchActivationEffectSuppressed(room, source, type, options)) return false;
   room.magicEffects.push({
     id: uid("magic_"),
     type,
@@ -9671,6 +9718,11 @@ function pushMagicEffect(room, type, source, options = {}) {
       : {}),
     at: now()
   });
+  const presentationScope = abilityBatchPresentationScopes.get(room);
+  if (presentationScope?.captureNextActivation) {
+    presentationScope.activationEffects.push(room.magicEffects.at(-1));
+    presentationScope.captureNextActivation = false;
+  }
   room.magicEffects = room.magicEffects.slice(-48);
 }
 
@@ -11307,6 +11359,9 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
     count: parallelCount,
     suppressManaCost: true
   };
+  const previousPresentationScope = abilityBatchPresentationScopes.get(room);
+  const presentationScope = { playerId: player.id, targetId: String(body.targetId || player.id), batch: player.abilityBatchExecution, seen: new Set(), activationEffects: [], successfulActivationCount: 0 };
+  abilityBatchPresentationScopes.set(room, presentationScope);
   let appliedCount = 0;
   let value;
   let partialError = null;
@@ -11318,6 +11373,7 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
         if (result === false) break;
         value = result;
         appliedCount += 1;
+        presentationScope.successfulActivationCount = presentationScope.activationEffects.length;
       } catch (error) {
         if (appliedCount <= 0) throw error;
         partialError = error;
@@ -11326,11 +11382,15 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
     }
   } finally {
     delete player.abilityBatchExecution;
+    if (previousPresentationScope) abilityBatchPresentationScopes.set(room, previousPresentationScope);
+    else abilityBatchPresentationScopes.delete(room);
   }
   if (appliedCount <= 0) {
     return { value, held: true, batch: true, duplicate: false, count: 0, requestedCount: parallelCount, spentMana: 0 };
   }
   setAbilityBatchManaReserve(room, player, "能力一括並列発動");
+  retainAbilityBatchActivationEffects(room, presentationScope);
+  emitEnhanceActivation(room, player, "ability-hold:" + committed.hold.id);
   setImmediateFeedback(
     player,
     `能力一括並列発動（${spendableMana.toFixed(2)}MP）`,
@@ -12128,6 +12188,7 @@ function practiceRenki(room, player, options = {}) {
       clearAttackState(player);
       pushGainAte(room, player, "mana", { variant: "renki-tenfold", durationMs: 1680 });
       pushMagicEffect(room, "action-renki", player, { radius: 150, playerId: player.id, variant: "tenfold" });
+      emitEnhanceActivation(room, player, committed.hold.id);
       setImmediateFeedback(player, "練気・十連", `マナ +${RENKI_HOLD_MANA_GAIN} / CT ${(RENKI_HOLD_FOCUS_DURATION_MS / 1000).toFixed(1)}秒`);
       pushEvent(room, `${player.name} が練気を十連で一括実行しました（マナ +${RENKI_HOLD_MANA_GAIN} / CT ${(RENKI_HOLD_FOCUS_DURATION_MS / 1000).toFixed(1)}秒）。`);
       touch(room);
@@ -17354,6 +17415,19 @@ function spendHeldPowerMana(room, player, amount, label) {
   return true;
 }
 
+function withHeldEnhanceActivation(room, player, action) {
+  if (player.heldEnhanceVisual) return action();
+  const context = { identity: "" };
+  player.heldEnhanceVisual = context;
+  try {
+    const result = action();
+    if (result !== false && context.identity) emitEnhanceActivation(room, player, context.identity);
+    return result;
+  } finally {
+    delete player.heldEnhanceVisual;
+  }
+}
+
 function acceptedEnhanceChargeHoldMs(player, rawHoldMs, timestamp = now()) {
   const startedAt = Number(player?.enhanceChargeStartedAt) || 0;
   if (startedAt <= 0) return 0;
@@ -17397,15 +17471,18 @@ function resolveHeldPowerMode(room, player, rawHoldMs, label, options = {}) {
     throw new ApiError(409, "長押し対象が開始時と一致しないため中止しました。");
   }
   const acceptedHoldMs = acceptedEnhanceChargeHoldMs(player, rawHoldMs);
+  const visualChargeId = String(player.enhanceChargeId || "");
   const gbo = Boolean(options.gboEligible) && acceptedHoldMs >= GBO_HOLD_MS;
   const enhanceLevel = gbo ? 0 : (acceptedHoldMs >= ENHANCE_HOLD_STEP_MS ? 1 : 0);
   clearEnhanceChargeState(player);
   if (gbo) {
     spendHeldPowerMana(room, player, GBO_FIXED_MANA_COST, `${label}・GBO`);
+    if (player.heldEnhanceVisual) player.heldEnhanceVisual.identity = visualChargeId;
     return Object.freeze({ mode: "gbo", enhanceLevel: 0, multiplier: GBO_PERFORMANCE_MULTIPLIER, acceptedHoldMs });
   }
   if (enhanceLevel > 0) {
     spendHeldPowerMana(room, player, ENHANCE_FIXED_MANA_COST, `${label}・エンハンス`);
+    if (player.heldEnhanceVisual) player.heldEnhanceVisual.identity = visualChargeId;
     return Object.freeze({ mode: "enhance", enhanceLevel, multiplier: 1, acceptedHoldMs });
   }
   return Object.freeze({ mode: "normal", enhanceLevel: 0, multiplier: 1, acceptedHoldMs });
@@ -18229,146 +18306,152 @@ function holdBotOutsideOwnToxicField(bot, landing, durationMs) {
 }
 
 function throwInventoryItem(room, player, itemId, rawHoldMs = 0, targetX = Number.NaN, targetY = Number.NaN, chargeId = "") {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
-  ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
-  if (!ITEM_DEFINITIONS[itemId]) throw new ApiError(400, "投擲対象が不正です。");
-  if (ITEM_DEFINITIONS[itemId].throwable === false) throw new ApiError(400, `${ITEM_DEFINITIONS[itemId].label}は投擲できません。`);
-  if (itemCount(player, itemId) < 1) throw new ApiError(400, `${ITEM_DEFINITIONS[itemId].label}を所持していません。`);
-  const landing = safeThrowPoint(room, player, targetX, targetY);
-  // Bottle shards are an authored area transaction. A Bot must not spend the
-  // held bottle or create its throw/effect when the current landing radius
-  // contains any same-faction body.
-  if (player.isBot && BOTTLE_ITEM_IDS.has(itemId)) {
-    const previewEnhanceLevel = acceptedEnhanceChargeHoldMs(player, rawHoldMs) >= ENHANCE_HOLD_STEP_MS ? 1 : 0;
-    const shardRadius = BOTTLE_SHARD_BASE_RADIUS + previewEnhanceLevel * 16;
-    const friendlyInShardRadius = [...room.players.values()].some((target) => (
-      target.id !== player.id &&
-      target.alive &&
-      !target.ejected &&
-      distance(landing, target) <= shardRadius &&
-      botFriendlyTransactionBlocked(player, target)
-    ));
-    if (friendlyInShardRadius) {
-      throw new ApiError(409, "味方が瓶の破片範囲内にいるためBOTは投擲を保留します。");
+  return withHeldEnhanceActivation(room, player, () => {
+    if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
+    ensureAbilityAvailable(player);
+    ensureItemStorageAvailable(player);
+    if (!ITEM_DEFINITIONS[itemId]) throw new ApiError(400, "投擲対象が不正です。");
+    if (ITEM_DEFINITIONS[itemId].throwable === false) throw new ApiError(400, `${ITEM_DEFINITIONS[itemId].label}は投擲できません。`);
+    if (itemCount(player, itemId) < 1) throw new ApiError(400, `${ITEM_DEFINITIONS[itemId].label}を所持していません。`);
+    const landing = safeThrowPoint(room, player, targetX, targetY);
+    // Bottle shards are an authored area transaction. A Bot must not spend the
+    // held bottle or create its throw/effect when the current landing radius
+    // contains any same-faction body.
+    if (player.isBot && BOTTLE_ITEM_IDS.has(itemId)) {
+      const previewEnhanceLevel = acceptedEnhanceChargeHoldMs(player, rawHoldMs) >= ENHANCE_HOLD_STEP_MS ? 1 : 0;
+      const shardRadius = BOTTLE_SHARD_BASE_RADIUS + previewEnhanceLevel * 16;
+      const friendlyInShardRadius = [...room.players.values()].some((target) => (
+        target.id !== player.id &&
+        target.alive &&
+        !target.ejected &&
+        distance(landing, target) <= shardRadius &&
+        botFriendlyTransactionBlocked(player, target)
+      ));
+      if (friendlyInShardRadius) {
+        throw new ApiError(409, "味方が瓶の破片範囲内にいるためBOTは投擲を保留します。");
+      }
     }
-  }
-  // Radioactive containers create a persistent poison field on landing.  The
-  // former Bot planner could select Plutonium at close range, keep chasing its
-  // target during flight, and poison-kill its own authoritative owner. Human
-  // throws retain their intentional self-risk; Bots reject before item/effect
-  // ownership when their resolved landing lacks a safe owner position.
-  if (player.isBot && TOXIC_THROW_ITEM_IDS.has(itemId) && !botToxicThrowLandingIsSafe(room, player, landing, rawHoldMs)) {
-    throw new ApiError(409, "BOTは自分が毒性着地点へ入るため放射性容器の投擲を保留します。");
-  }
-  // A rigid sword resolves against the first physical body it reaches, not
-  // merely the Bot's intended enemy. Reject before any transaction ownership.
-  if (player.isBot && itemId === "orichalcum-sword") {
-    const requestedDx = landing.x - player.x;
-    const requestedDy = landing.y - player.y;
-    const intendedPath = resolveVectorAttackPath(room, player, requestedDx, requestedDy, Math.hypot(requestedDx, requestedDy), { collisionRadius: 2 });
-    const collision = rigidThrownCollision(room, {
-      ownerId: player.id, x: player.x, y: player.y,
-      targetX: intendedPath.x, targetY: intendedPath.y
+    // Radioactive containers create a persistent poison field on landing.  The
+    // former Bot planner could select Plutonium at close range, keep chasing its
+    // target during flight, and poison-kill its own authoritative owner. Human
+    // throws retain their intentional self-risk; Bots reject before item/effect
+    // ownership when their resolved landing lacks a safe owner position.
+    if (player.isBot && TOXIC_THROW_ITEM_IDS.has(itemId) && !botToxicThrowLandingIsSafe(room, player, landing, rawHoldMs)) {
+      throw new ApiError(409, "BOTは自分が毒性着地点へ入るため放射性容器の投擲を保留します。");
+    }
+    // A rigid sword resolves against the first physical body it reaches, not
+    // merely the Bot's intended enemy. Reject before any transaction ownership.
+    if (player.isBot && itemId === "orichalcum-sword") {
+      const requestedDx = landing.x - player.x;
+      const requestedDy = landing.y - player.y;
+      const intendedPath = resolveVectorAttackPath(room, player, requestedDx, requestedDy, Math.hypot(requestedDx, requestedDy), { collisionRadius: 2 });
+      const collision = rigidThrownCollision(room, {
+        ownerId: player.id, x: player.x, y: player.y,
+        targetX: intendedPath.x, targetY: intendedPath.y
+      });
+      if (botFriendlyTransactionBlocked(player, collision?.target)) {
+        throw new ApiError(409, "味方が投擲経路上にいるためBOTは投擲を保留します。");
+      }
+    }
+    const power = resolveHeldPowerMode(room, player, rawHoldMs, ITEM_DEFINITIONS[itemId].label, {
+      kind: "throw",
+      itemId,
+      chargeId,
+      gboEligible: itemId === "orichalcum-sword"
     });
-    if (botFriendlyTransactionBlocked(player, collision?.target)) {
-      throw new ApiError(409, "味方が投擲経路上にいるためBOTは投擲を保留します。");
+    if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
+    consumeItem(player, itemId);
+    queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, power);
+    if (player.isBot && TOXIC_THROW_ITEM_IDS.has(itemId)) {
+      // The accepted safe landing has no movement escape owner. Keep the Bot at
+      // its verified-safe source position until its own poison field expires.
+      holdBotOutsideOwnToxicField(player, landing, itemThrowFlightDuration(landing.distance));
     }
-  }
-  const power = resolveHeldPowerMode(room, player, rawHoldMs, ITEM_DEFINITIONS[itemId].label, {
-    kind: "throw",
-    itemId,
-    chargeId,
-    gboEligible: itemId === "orichalcum-sword"
   });
-  if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
-  consumeItem(player, itemId);
-  queueThrownItem(room, player, itemId, { id: itemId, label: ITEM_DEFINITIONS[itemId].label, kind: "item" }, landing, power);
-  if (player.isBot && TOXIC_THROW_ITEM_IDS.has(itemId)) {
-    // The accepted safe landing has no movement escape owner. Keep the Bot at
-    // its verified-safe source position until its own poison field expires.
-    holdBotOutsideOwnToxicField(player, landing, itemThrowFlightDuration(landing.distance));
-  }
 }
 
 function throwOwnedItem(room, player, itemId, rawHoldMs = 0, targetX = Number.NaN, targetY = Number.NaN, chargeId = "") {
-  if (ITEM_DEFINITIONS[itemId]) return throwInventoryItem(room, player, itemId, rawHoldMs, targetX, targetY, chargeId);
-  if (INSTANT_ITEM_DEFINITIONS[itemId]) throw new ApiError(400, `${INSTANT_ITEM_DEFINITIONS[itemId].label}は即席のため投擲できません。`);
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
-  ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
-  const owned = transferableItemsFor(player).find((entry) => entry.id === itemId);
-  const label = TRANSFERABLE_CHARGES[itemId]?.label || owned?.label || "アイテム";
-  if (!owned && !TRANSFERABLE_CHARGES[itemId]) throw new ApiError(400, "その武具を所持していません。");
-  const power = resolveHeldPowerMode(room, player, rawHoldMs, label, {
-    kind: "throw",
-    itemId,
-    chargeId,
-    gboEligible: isGboEligibleItemId(itemId)
+  return withHeldEnhanceActivation(room, player, () => {
+    if (ITEM_DEFINITIONS[itemId]) return throwInventoryItem(room, player, itemId, rawHoldMs, targetX, targetY, chargeId);
+    if (INSTANT_ITEM_DEFINITIONS[itemId]) throw new ApiError(400, `${INSTANT_ITEM_DEFINITIONS[itemId].label}は即席のため投擲できません。`);
+    if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は投擲できません。");
+    ensureAbilityAvailable(player);
+    ensureItemStorageAvailable(player);
+    const owned = transferableItemsFor(player).find((entry) => entry.id === itemId);
+    const label = TRANSFERABLE_CHARGES[itemId]?.label || owned?.label || "アイテム";
+    if (!owned && !TRANSFERABLE_CHARGES[itemId]) throw new ApiError(400, "その武具を所持していません。");
+    const power = resolveHeldPowerMode(room, player, rawHoldMs, label, {
+      kind: "throw",
+      itemId,
+      chargeId,
+      gboEligible: isGboEligibleItemId(itemId)
+    });
+    const landing = safeThrowPoint(room, player, targetX, targetY);
+    if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
+    const item = removeTransferableItem(room, player, itemId, 1);
+    queueThrownItem(room, player, itemId, item, landing, power);
   });
-  const landing = safeThrowPoint(room, player, targetX, targetY);
-  if (landing.distance > 700) markSoloMissionAction(room, player, "clairvoyance");
-  const item = removeTransferableItem(room, player, itemId, 1);
-  queueThrownItem(room, player, itemId, item, landing, power);
 }
 
 function useInventoryItem(room, player, itemId, rawHoldMs = 0, chargeId = "") {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は使用できません。");
-  ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
-  const definition = ITEM_DEFINITIONS[itemId];
-  if (!definition) throw new ApiError(400, "使用対象が不正です。");
-  if (definition.usable === false) throw new ApiError(400, `${definition.label}は通常使用できません。`);
-  if (itemCount(player, itemId) < 1) throw new ApiError(400, `${definition.label}を所持していません。`);
-  const power = resolveHeldPowerMode(room, player, rawHoldMs, definition.label, {
-    kind: "use",
-    itemId,
-    chargeId,
-    gboEligible: itemId === "orichalcum-sword"
-  });
-  const level = power.enhanceLevel;
-  if (itemId === "orichalcum-sword") {
-    return fighterSlash(room, player, "", true, power);
-  }
-  consumeItem(player, itemId);
-  if (itemId === "mineral-water") {
-    useMineralWater(room, player, player, level, false);
-  } else if (itemId === "seawater") {
-    clearBurning(room, player, "海水");
-    setImmediateFeedback(player, "海水", "燃焼解除");
-  } else if (itemId === "antidote") {
-    useAntidote(room, player, player, level, false);
-  } else if (["mercury", "lead", "uranium", "plutonium"].includes(itemId)) {
-    const strength = {
-      mercury: 1.15,
-      lead: 0.95,
-      uranium: 1.55,
-      plutonium: 1.9
-    }[itemId] + level * 0.35;
-    const applied = applyPersistentStatus(room, player, player, "poison", strength, now(), { ignorePreparationBarrier: true });
-    if (applied) setImmediateFeedback(player, "有害物質曝露", `${definition.label} / 毒強度${strength.toFixed(2)}`);
-  } else if (itemId === "molotov" || itemId === "heated-water") {
-    const strength = 1 + level * 0.4;
-    const applied = applyPersistentStatus(room, player, player, "burn", strength, now(), { ignorePreparationBarrier: true });
-    if (applied) setImmediateFeedback(player, "燃焼", `${definition.label} / 燃焼強度${strength.toFixed(2)}`);
-  } else if (itemId === "ice") {
-    const damage = Math.min(1.75, 0.65 + level * 0.22);
-    player.bodyHits = Math.round((Math.max(0, Number(player.bodyHits) || 0) + damage) * 100) / 100;
-    const timestamp = now();
-    if (!rejectAdverseStatusDuringNaturalRecovery(room, player, "低温減速", timestamp)) {
-      player.taserSlowedUntil = Math.max(Number(player.taserSlowedUntil) || 0, timestamp + 5_000 + level * 1_000);
+  return withHeldEnhanceActivation(room, player, () => {
+    if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) throw new ApiError(403, "現在は使用できません。");
+    ensureAbilityAvailable(player);
+    ensureItemStorageAvailable(player);
+    const definition = ITEM_DEFINITIONS[itemId];
+    if (!definition) throw new ApiError(400, "使用対象が不正です。");
+    if (definition.usable === false) throw new ApiError(400, `${definition.label}は通常使用できません。`);
+    if (itemCount(player, itemId) < 1) throw new ApiError(400, `${definition.label}を所持していません。`);
+    const power = resolveHeldPowerMode(room, player, rawHoldMs, definition.label, {
+      kind: "use",
+      itemId,
+      chargeId,
+      gboEligible: itemId === "orichalcum-sword"
+    });
+    const level = power.enhanceLevel;
+    if (itemId === "orichalcum-sword") {
+      return fighterSlash(room, player, "", true, power);
     }
-    const lethal = player.bodyHits >= 2;
-    pushHitEffect(room, player, "body", lethal);
-    if (lethal) destroyPlayerUnconditionally(room, player, player, "氷結水の直接使用");
-    setImmediateFeedback(player, "低温障害", `${damage.toFixed(2)}ダメージ`);
-  } else {
-    throw new ApiError(400, "この所持品は通常使用できません。");
-  }
-  pushMagicEffect(room, "action-item-use", player, { radius: 90, playerId: player.id, variant: itemId });
-  pushEvent(room, `${player.name} が${definition.label}を使用しました${level ? "（エンハンス）" : ""}。`);
-  checkWin(room);
-  touch(room);
+    consumeItem(player, itemId);
+    if (itemId === "mineral-water") {
+      useMineralWater(room, player, player, level, false);
+    } else if (itemId === "seawater") {
+      clearBurning(room, player, "海水");
+      setImmediateFeedback(player, "海水", "燃焼解除");
+    } else if (itemId === "antidote") {
+      useAntidote(room, player, player, level, false);
+    } else if (["mercury", "lead", "uranium", "plutonium"].includes(itemId)) {
+      const strength = {
+        mercury: 1.15,
+        lead: 0.95,
+        uranium: 1.55,
+        plutonium: 1.9
+      }[itemId] + level * 0.35;
+      const applied = applyPersistentStatus(room, player, player, "poison", strength, now(), { ignorePreparationBarrier: true });
+      if (applied) setImmediateFeedback(player, "有害物質曝露", `${definition.label} / 毒強度${strength.toFixed(2)}`);
+    } else if (itemId === "molotov" || itemId === "heated-water") {
+      const strength = 1 + level * 0.4;
+      const applied = applyPersistentStatus(room, player, player, "burn", strength, now(), { ignorePreparationBarrier: true });
+      if (applied) setImmediateFeedback(player, "燃焼", `${definition.label} / 燃焼強度${strength.toFixed(2)}`);
+    } else if (itemId === "ice") {
+      const damage = Math.min(1.75, 0.65 + level * 0.22);
+      player.bodyHits = Math.round((Math.max(0, Number(player.bodyHits) || 0) + damage) * 100) / 100;
+      const timestamp = now();
+      if (!rejectAdverseStatusDuringNaturalRecovery(room, player, "低温減速", timestamp)) {
+        player.taserSlowedUntil = Math.max(Number(player.taserSlowedUntil) || 0, timestamp + 5_000 + level * 1_000);
+      }
+      const lethal = player.bodyHits >= 2;
+      pushHitEffect(room, player, "body", lethal);
+      if (lethal) destroyPlayerUnconditionally(room, player, player, "氷結水の直接使用");
+      setImmediateFeedback(player, "低温障害", `${damage.toFixed(2)}ダメージ`);
+    } else {
+      throw new ApiError(400, "この所持品は通常使用できません。");
+    }
+    pushMagicEffect(room, "action-item-use", player, { radius: 90, playerId: player.id, variant: itemId });
+    pushEvent(room, `${player.name} が${definition.label}を使用しました${level ? "（エンハンス）" : ""}。`);
+    checkWin(room);
+    touch(room);
+  });
 }
 
 function useOwnedItem(room, player, itemId, rawHoldMs = 0, chargeId = "") {
@@ -18649,34 +18732,36 @@ function advanceHazards(room, timestamp = now()) {
 }
 
 function useFireJutsu(room, player, rawHoldMs = 0, chargeId = "") {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在はファイアを使用できません。");
-  }
-  ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
-  if (player.fireJutsuCharges <= 0) throw new ApiError(400, "ファイアを所持していません。");
-  const enhance = resolveEnhance(room, player, rawHoldMs, "ファイア", {
-    kind: String(player.enhanceChargeKind || "fire"),
-    itemId: "fire-jutsu",
-    chargeId,
-    gboEligible: false
-  });
-  const radius = FIRE_JUTSU_RADIUS + enhance * 75;
-  const origin = { x: player.x, y: player.y, id: player.id };
-  player.fireJutsuCharges -= 1;
-  pushMagicEffect(room, "fire", origin, { radius, playerId: player.id, variant: String(enhance) });
-  pushSound(room, "fireJutsu", origin, {
-    ownerId: player.id,
-    sourceKind: "magic",
-    maxDistance: 2200,
-    volume: 1
-  });
+  return withHeldEnhanceActivation(room, player, () => {
+    if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+      throw new ApiError(403, "現在はファイアを使用できません。");
+    }
+    ensureAbilityAvailable(player);
+    ensureItemStorageAvailable(player);
+    if (player.fireJutsuCharges <= 0) throw new ApiError(400, "ファイアを所持していません。");
+    const enhance = resolveEnhance(room, player, rawHoldMs, "ファイア", {
+      kind: String(player.enhanceChargeKind || "fire"),
+      itemId: "fire-jutsu",
+      chargeId,
+      gboEligible: false
+    });
+    const radius = FIRE_JUTSU_RADIUS + enhance * 75;
+    const origin = { x: player.x, y: player.y, id: player.id };
+    player.fireJutsuCharges -= 1;
+    pushMagicEffect(room, "fire", origin, { radius, playerId: player.id, variant: String(enhance) });
+    pushSound(room, "fireJutsu", origin, {
+      ownerId: player.id,
+      sourceKind: "magic",
+      maxDistance: 2200,
+      volume: 1
+    });
 
-  const fireField = addHazardField(room, player, "fire", origin.x, origin.y, radius, 1 + enhance * 0.35);
-  fireField.excludeSource = true;
-  pushEvent(room, `${player.name} がファイアを使用し、熱放出と浮力対流による燃焼領域を展開しました${enhance ? "（エンハンス）" : ""}。`);
-  checkWin(room);
-  touch(room);
+    const fireField = addHazardField(room, player, "fire", origin.x, origin.y, radius, 1 + enhance * 0.35);
+    fireField.excludeSource = true;
+    pushEvent(room, `${player.name} がファイアを使用し、熱放出と浮力対流による燃焼領域を展開しました${enhance ? "（エンハンス）" : ""}。`);
+    checkWin(room);
+    touch(room);
+  });
 }
 
 function useTeleportMapScroll(room, player, rawX, rawY) {
@@ -19366,75 +19451,77 @@ function inventionLineTargets(room, player, range, width, enemyOnly = false) {
 }
 
 function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId = "") {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は素敵な発明品を使用できません。");
-  }
-  ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
-  const id = String(invention || "");
-  const index = (player.inventions || []).indexOf(id);
-  if (index < 0) throw new ApiError(404, "その素敵な発明品を所持していません。");
-  const power = resolveHeldPowerMode(room, player, rawHoldMs, inventionLabel(id), {
-    kind: "use",
-    itemId: `invention:${id}`,
-    chargeId,
-    gboEligible: Boolean(HACKER_INVENTION_LABELS[id])
-  });
-  const performanceMultiplier = power.mode === "gbo"
-    ? GBO_PERFORMANCE_MULTIPLIER
-    : 1 + power.enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL;
-  player.inventions.splice(index, 1);
-  if (power.mode === "gbo") pushGboOverdriveEffect(room, player, `invention:${id}`, "invention-use");
-  if (id === "hack") {
-    room.utilityViews.set(player.id, {
-      type: "hack", title: "ハック",
-      lines: [...room.players.values()]
-        .filter((target) => target.alive && !target.ejected && target.special !== "alchemist")
-        .map((target) => `${target.name}: ${whichRoom(getMap(room), target)} (${Math.round(target.x)}, ${Math.round(target.y)})`)
-    });
-  } else if (id === "excalibur") {
-    const targets = inventionLineTargets(room, player, Math.max(getMap(room).width, getMap(room).height) * 2 * performanceMultiplier, Math.max(getMap(room).width, getMap(room).height) * performanceMultiplier, true);
-    for (const { target } of targets) destroyPlayerUnconditionally(room, player, target, "エクスカリバー", {
-      attackType: "kill",
-      attackKind: "excalibur",
-      attackLabel: "エクスカリバー",
-      slashGuardPhysical: true,
-      slashGuardReflectable: true,
-      reflectDestroy: true
-    });
-    pushMagicEffect(room, "alchemy-excalibur", player, { radius: 900 * performanceMultiplier, playerId: player.id, variant: power.mode === "gbo" ? "gbo-tenfold" : "forward-half-map" });
-    checkWin(room);
-    if (!(room.phase === "ended" && room.winner === "attackers" && player.role === "attacker")) {
-      destroyPlayerUnconditionally(room, player, player, "エクスカリバーの代償");
+  return withHeldEnhanceActivation(room, player, () => {
+    if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+      throw new ApiError(403, "現在は素敵な発明品を使用できません。");
     }
-  } else if (id === "railgun") {
-    const railgunRange = 5000 * performanceMultiplier;
-    const railgunPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, railgunRange, { collisionRadius: 2 });
-    for (const { target } of inventionLineTargets(room, player, railgunRange, 38 * performanceMultiplier, false)) destroyPlayerUnconditionally(room, player, target, "レールガン", {
-      attackType: "kill",
-      attackKind: "railgun",
-      attackLabel: "レールガン弾",
-      slashGuardPhysical: true,
-      slashGuardReflectable: true,
-      reflectDestroy: true
+    ensureAbilityAvailable(player);
+    ensureItemStorageAvailable(player);
+    const id = String(invention || "");
+    const index = (player.inventions || []).indexOf(id);
+    if (index < 0) throw new ApiError(404, "その素敵な発明品を所持していません。");
+    const power = resolveHeldPowerMode(room, player, rawHoldMs, inventionLabel(id), {
+      kind: "use",
+      itemId: `invention:${id}`,
+      chargeId,
+      gboEligible: Boolean(HACKER_INVENTION_LABELS[id])
     });
-    pushMagicEffect(room, "alchemy-railgun", player, { radius: 100 * Math.sqrt(performanceMultiplier), targetX: railgunPath.x, targetY: railgunPath.y, playerId: player.id, variant: power.mode });
-  } else if (id === "particle-cannon") {
-    player.particleCannonUntil = now() + 6_000 * performanceMultiplier;
-    player.particleCannonNextAt = 0;
-    player.particleCannonPerformanceMultiplier = performanceMultiplier;
-    pushMagicEffect(room, "alchemy-particle-cannon", player, {
-      radius: 150,
-      targetX: player.x + player.aimX * 1250 * performanceMultiplier,
-      targetY: player.y + player.aimY * 1250 * performanceMultiplier,
-      playerId: player.id,
-      variant: power.mode === "gbo" ? "gbo-tenfold" : "continuous"
-    });
-  }
-  pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "alchemy", maxDistance: 3200, volume: 1 });
-  pushEvent(room, `${player.name} が素敵な発明品 ${id} を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
-  checkWin(room);
-  touch(room);
+    const performanceMultiplier = power.mode === "gbo"
+      ? GBO_PERFORMANCE_MULTIPLIER
+      : 1 + power.enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL;
+    player.inventions.splice(index, 1);
+    if (power.mode === "gbo") pushGboOverdriveEffect(room, player, `invention:${id}`, "invention-use");
+    if (id === "hack") {
+      room.utilityViews.set(player.id, {
+        type: "hack", title: "ハック",
+        lines: [...room.players.values()]
+          .filter((target) => target.alive && !target.ejected && target.special !== "alchemist")
+          .map((target) => `${target.name}: ${whichRoom(getMap(room), target)} (${Math.round(target.x)}, ${Math.round(target.y)})`)
+      });
+    } else if (id === "excalibur") {
+      const targets = inventionLineTargets(room, player, Math.max(getMap(room).width, getMap(room).height) * 2 * performanceMultiplier, Math.max(getMap(room).width, getMap(room).height) * performanceMultiplier, true);
+      for (const { target } of targets) destroyPlayerUnconditionally(room, player, target, "エクスカリバー", {
+        attackType: "kill",
+        attackKind: "excalibur",
+        attackLabel: "エクスカリバー",
+        slashGuardPhysical: true,
+        slashGuardReflectable: true,
+        reflectDestroy: true
+      });
+      pushMagicEffect(room, "alchemy-excalibur", player, { radius: 900 * performanceMultiplier, playerId: player.id, variant: power.mode === "gbo" ? "gbo-tenfold" : "forward-half-map" });
+      checkWin(room);
+      if (!(room.phase === "ended" && room.winner === "attackers" && player.role === "attacker")) {
+        destroyPlayerUnconditionally(room, player, player, "エクスカリバーの代償");
+      }
+    } else if (id === "railgun") {
+      const railgunRange = 5000 * performanceMultiplier;
+      const railgunPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, railgunRange, { collisionRadius: 2 });
+      for (const { target } of inventionLineTargets(room, player, railgunRange, 38 * performanceMultiplier, false)) destroyPlayerUnconditionally(room, player, target, "レールガン", {
+        attackType: "kill",
+        attackKind: "railgun",
+        attackLabel: "レールガン弾",
+        slashGuardPhysical: true,
+        slashGuardReflectable: true,
+        reflectDestroy: true
+      });
+      pushMagicEffect(room, "alchemy-railgun", player, { radius: 100 * Math.sqrt(performanceMultiplier), targetX: railgunPath.x, targetY: railgunPath.y, playerId: player.id, variant: power.mode });
+    } else if (id === "particle-cannon") {
+      player.particleCannonUntil = now() + 6_000 * performanceMultiplier;
+      player.particleCannonNextAt = 0;
+      player.particleCannonPerformanceMultiplier = performanceMultiplier;
+      pushMagicEffect(room, "alchemy-particle-cannon", player, {
+        radius: 150,
+        targetX: player.x + player.aimX * 1250 * performanceMultiplier,
+        targetY: player.y + player.aimY * 1250 * performanceMultiplier,
+        playerId: player.id,
+        variant: power.mode === "gbo" ? "gbo-tenfold" : "continuous"
+      });
+    }
+    pushSound(room, "invention", player, { ownerId: player.id, sourceKind: "alchemy", maxDistance: 3200, volume: 1 });
+    pushEvent(room, `${player.name} が素敵な発明品 ${id} を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
+    checkWin(room);
+    touch(room);
+  });
 }
 
 function advanceParticleCannon(room, player, timestamp) {
@@ -20598,77 +20685,79 @@ function advanceGunnerFire(room, shooter, timestamp = now()) {
 }
 
 function shootGunner(room, shooter, rawDx, rawDy, action = "start", rawHoldMs = 0, chargeId = "", serverInternal = false) {
-  if (!hasFirearmAccess(shooter)) throw new ApiError(403, "使用できる銃器を所持していません。");
-  if (action === "stop") {
-    // Trigger release no longer controls firing. One accepted activation owns
-    // the current magazine until it is consumed or an authoritative state
-    // interruption stops it.
-    return;
-  }
-  if (room.phase !== "playing") throw new ApiError(400, "バトル中のみ射撃できます。");
-  if (!shooter.alive || shooter.ejected || shooter.inVent) throw new ApiError(403, "現在は射撃できません。");
-  ensureAbilityAvailable(shooter);
-  ensureItemStorageAvailable(shooter);
-  if (shooter.gunFiring) return;
-  const timestamp = now();
-  const weapon = gunnerWeaponFor(shooter);
-  if (!shooter.gunnerAmmo || typeof shooter.gunnerAmmo !== "object") shooter.gunnerAmmo = createGunnerAmmo();
-  if ((Number(shooter.gunnerReloadUntil) || 0) > timestamp) throw new ApiError(400, "リロード中です。");
-  const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo[weapon.id]) || 0);
-  if (remainingAmmo < weapon.ammoPerShot) {
-    startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空のため");
-    return;
-  }
-  if (availableStamina(shooter) < GUNNER_BURST_STAMINA_COST) {
-    throw new ApiError(400, `1弾倉射撃にはスタミナ ${GUNNER_BURST_STAMINA_COST} が必要です。`);
-  }
-  // Clear only lost ownership before choosing a tracked direction. Valid Aim
-  // still acquires at its original post-validation point below.
-  if (!hasGunnerAimAccess(shooter)) clearGunnerAim(shooter);
-  const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
-  const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
-  let dx = shooter.gunnerSnipingActive ? fallbackDx : clampNumber(rawDx, -1, 1, fallbackDx);
-  let dy = shooter.gunnerSnipingActive ? fallbackDy : clampNumber(rawDy, -1, 1, fallbackDy);
-  const length = Math.hypot(dx, dy) || 1;
-  dx /= length;
-  dy /= length;
-  // The planner may correctly select an enemy while an allied body physically
-  // stands first in the firing lane. Reject before held-power settlement,
-  // stamina spend or burst ownership so the Bot never attacks toward its ally.
-  if (botGunnerFriendlyLaneBlock(room, shooter, weapon, dx, dy)) {
-    throw new ApiError(409, "味方が射線上にいるためBOTは射撃を保留します。");
-  }
-  const power = resolveHeldPowerMode(room, shooter, rawHoldMs, `${weapon.name}ため撃ち`, {
-    kind: "shoot",
-    itemId: `weapon:${weapon.id}`,
-    chargeId,
-    gboEligible: true,
-    allowUnchargedNormal: Boolean(serverInternal)
+  return withHeldEnhanceActivation(room, shooter, () => {
+    if (!hasFirearmAccess(shooter)) throw new ApiError(403, "使用できる銃器を所持していません。");
+    if (action === "stop") {
+      // Trigger release no longer controls firing. One accepted activation owns
+      // the current magazine until it is consumed or an authoritative state
+      // interruption stops it.
+      return;
+    }
+    if (room.phase !== "playing") throw new ApiError(400, "バトル中のみ射撃できます。");
+    if (!shooter.alive || shooter.ejected || shooter.inVent) throw new ApiError(403, "現在は射撃できません。");
+    ensureAbilityAvailable(shooter);
+    ensureItemStorageAvailable(shooter);
+    if (shooter.gunFiring) return;
+    const timestamp = now();
+    const weapon = gunnerWeaponFor(shooter);
+    if (!shooter.gunnerAmmo || typeof shooter.gunnerAmmo !== "object") shooter.gunnerAmmo = createGunnerAmmo();
+    if ((Number(shooter.gunnerReloadUntil) || 0) > timestamp) throw new ApiError(400, "リロード中です。");
+    const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo[weapon.id]) || 0);
+    if (remainingAmmo < weapon.ammoPerShot) {
+      startGunnerReload(room, shooter, weapon.id, timestamp, "弾倉が空のため");
+      return;
+    }
+    if (availableStamina(shooter) < GUNNER_BURST_STAMINA_COST) {
+      throw new ApiError(400, `1弾倉射撃にはスタミナ ${GUNNER_BURST_STAMINA_COST} が必要です。`);
+    }
+    // Clear only lost ownership before choosing a tracked direction. Valid Aim
+    // still acquires at its original post-validation point below.
+    if (!hasGunnerAimAccess(shooter)) clearGunnerAim(shooter);
+    const fallbackDx = Number.isFinite(Number(shooter.aimX)) ? Number(shooter.aimX) : 0;
+    const fallbackDy = Number.isFinite(Number(shooter.aimY)) ? Number(shooter.aimY) : 1;
+    let dx = shooter.gunnerSnipingActive ? fallbackDx : clampNumber(rawDx, -1, 1, fallbackDx);
+    let dy = shooter.gunnerSnipingActive ? fallbackDy : clampNumber(rawDy, -1, 1, fallbackDy);
+    const length = Math.hypot(dx, dy) || 1;
+    dx /= length;
+    dy /= length;
+    // The planner may correctly select an enemy while an allied body physically
+    // stands first in the firing lane. Reject before held-power settlement,
+    // stamina spend or burst ownership so the Bot never attacks toward its ally.
+    if (botGunnerFriendlyLaneBlock(room, shooter, weapon, dx, dy)) {
+      throw new ApiError(409, "味方が射線上にいるためBOTは射撃を保留します。");
+    }
+    const power = resolveHeldPowerMode(room, shooter, rawHoldMs, `${weapon.name}ため撃ち`, {
+      kind: "shoot",
+      itemId: `weapon:${weapon.id}`,
+      chargeId,
+      gboEligible: true,
+      allowUnchargedNormal: Boolean(serverInternal)
+    });
+    const enhanceLevel = power.enhanceLevel;
+    advanceGunnerAimPassive(room, shooter, timestamp);
+    shooter.aimX = dx;
+    shooter.aimY = dy;
+    // Charge once only after all ordinary action validation has succeeded and
+    // before the first projectile can leave the magazine.  Later rounds,
+    // release and duplicate start requests own no additional SP transaction.
+    spendStamina(shooter, GUNNER_BURST_STAMINA_COST, room, "1弾倉射撃");
+    shooter.gunFiring = true;
+    shooter.gunFiringWeapon = weapon.id;
+    shooter.gunFiringSince = timestamp;
+    shooter.gunnerBurstRoundsRemaining = Math.max(1, Math.ceil(remainingAmmo / weapon.ammoPerShot));
+    shooter.gunnerBurstEnhanceLevel = enhanceLevel;
+    shooter.gunnerBurstGbo = power.mode === "gbo";
+    shooter.gunnerBurstGboWeapon = power.mode === "gbo" ? weapon.id : "";
+    shooter.gunReadyAt = timestamp;
+    if (power.mode === "gbo") pushGboOverdriveEffect(room, shooter, `weapon:${weapon.id}`, "magazine-commit");
+    setImmediateFeedback(
+      shooter,
+      power.mode === "gbo" ? "GBO・1弾倉射撃" : enhanceLevel ? "エンハンス射撃" : "1弾倉射撃",
+      `${weapon.name} / 残り${shooter.gunnerBurstRoundsRemaining}発${power.mode === "gbo" ? " / 通常ダメージ・射程・cadence×10 / 完了・中断時に武器破壊" : enhanceLevel ? ` / 与ダメージ×${(1 + enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL).toFixed(1)}` : ""}`
+    );
+    advanceGunnerFire(room, shooter, timestamp);
+    touch(room);
   });
-  const enhanceLevel = power.enhanceLevel;
-  advanceGunnerAimPassive(room, shooter, timestamp);
-  shooter.aimX = dx;
-  shooter.aimY = dy;
-  // Charge once only after all ordinary action validation has succeeded and
-  // before the first projectile can leave the magazine.  Later rounds,
-  // release and duplicate start requests own no additional SP transaction.
-  spendStamina(shooter, GUNNER_BURST_STAMINA_COST, room, "1弾倉射撃");
-  shooter.gunFiring = true;
-  shooter.gunFiringWeapon = weapon.id;
-  shooter.gunFiringSince = timestamp;
-  shooter.gunnerBurstRoundsRemaining = Math.max(1, Math.ceil(remainingAmmo / weapon.ammoPerShot));
-  shooter.gunnerBurstEnhanceLevel = enhanceLevel;
-  shooter.gunnerBurstGbo = power.mode === "gbo";
-  shooter.gunnerBurstGboWeapon = power.mode === "gbo" ? weapon.id : "";
-  shooter.gunReadyAt = timestamp;
-  if (power.mode === "gbo") pushGboOverdriveEffect(room, shooter, `weapon:${weapon.id}`, "magazine-commit");
-  setImmediateFeedback(
-    shooter,
-    power.mode === "gbo" ? "GBO・1弾倉射撃" : enhanceLevel ? "エンハンス射撃" : "1弾倉射撃",
-    `${weapon.name} / 残り${shooter.gunnerBurstRoundsRemaining}発${power.mode === "gbo" ? " / 通常ダメージ・射程・cadence×10 / 完了・中断時に武器破壊" : enhanceLevel ? ` / 与ダメージ×${(1 + enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL).toFixed(1)}` : ""}`
-  );
-  advanceGunnerFire(room, shooter, timestamp);
-  touch(room);
 }
 
 function startGunnerReload(room, player, weaponId = gunnerWeaponFor(player).id, timestamp = now(), reason = "") {
@@ -20867,74 +20956,76 @@ function advanceGunnerAimPassive(room, player, timestamp = now()) {
 }
 
 function useHeavyWeapon(room, player, weaponId, rawHoldMs = 0, chargeId = "") {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
-    throw new ApiError(403, "現在は重火器を使用できません。");
-  }
-  ensureAbilityAvailable(player);
-  ensureItemStorageAvailable(player);
-  const weapon = String(weaponId || "");
-  if (!HEAVY_WEAPON_DEFINITIONS[weapon]) throw new ApiError(400, "重火器の種類が不正です。");
-  const index = (player.heavyWeapons || []).indexOf(weapon);
-  if (index < 0) throw new ApiError(400, "その重火器を所持していません。");
-  const power = resolveHeldPowerMode(room, player, rawHoldMs, HEAVY_WEAPON_DEFINITIONS[weapon].label, {
-    kind: "use",
-    itemId: `heavy:${weapon}`,
-    chargeId,
-    gboEligible: true
+  return withHeldEnhanceActivation(room, player, () => {
+    if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+      throw new ApiError(403, "現在は重火器を使用できません。");
+    }
+    ensureAbilityAvailable(player);
+    ensureItemStorageAvailable(player);
+    const weapon = String(weaponId || "");
+    if (!HEAVY_WEAPON_DEFINITIONS[weapon]) throw new ApiError(400, "重火器の種類が不正です。");
+    const index = (player.heavyWeapons || []).indexOf(weapon);
+    if (index < 0) throw new ApiError(400, "その重火器を所持していません。");
+    const power = resolveHeldPowerMode(room, player, rawHoldMs, HEAVY_WEAPON_DEFINITIONS[weapon].label, {
+      kind: "use",
+      itemId: `heavy:${weapon}`,
+      chargeId,
+      gboEligible: true
+    });
+    const performanceMultiplier = power.mode === "gbo"
+      ? GBO_PERFORMANCE_MULTIPLIER
+      : 1 + power.enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL;
+    player.heavyWeapons.splice(index, 1);
+    if (power.mode === "gbo") pushGboOverdriveEffect(room, player, `heavy:${weapon}`, "heavy-use");
+    const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.inVent);
+    if (weapon === "rpg") {
+      const rpgRange = 300 * performanceMultiplier;
+      const rpgPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, rpgRange, { collisionRadius: 2 });
+      for (const target of targets.filter((candidate) => {
+        if (player.isBot && !botCanAttackTarget(room, player, candidate, now())) return false;
+        const candidateDistance = distance(player, candidate);
+        if (candidateDistance > rpgRange) return false;
+        const dx = (candidate.x - player.x) / Math.max(candidateDistance, 1);
+        const dy = (candidate.y - player.y) / Math.max(candidateDistance, 1);
+        return clearShotPath(room, player, candidate, dx, dy);
+      })) {
+        try {
+          killPlayer(room, player, target.id, {
+            ranged: true, hitZone: "body", damage: 1 * performanceMultiplier, ignoreRange: true,
+            allowAnyKiller: true, targetRole: target.role, magic: false,
+            attackKind: "rpg", attackLabel: "RPG弾", slashGuardPhysical: true
+          });
+        } catch {}
+      }
+      pushMagicEffect(room, "gunner-rpg", player, { radius: rpgRange, playerId: player.id, targetX: rpgPath.x, targetY: rpgPath.y, variant: power.mode });
+    } else if (weapon === "missile") {
+      const target = player.isBot
+        ? botMissileTarget(room, player, now())
+        : targets
+          .filter((candidate) => {
+            if (candidate.role === player.role) return false;
+            const candidateDistance = distance(player, candidate);
+            const dx = (candidate.x - player.x) / Math.max(candidateDistance, 1);
+            const dy = (candidate.y - player.y) / Math.max(candidateDistance, 1);
+            return clearShotPath(room, player, candidate, dx, dy);
+          })
+          .sort((a, b) => distance(player, a) - distance(player, b) || a.id.localeCompare(b.id))[0];
+      if (target) {
+        try {
+          killPlayer(room, player, target.id, {
+            ranged: true, hitZone: "head", damage: performanceMultiplier, ignoreRange: true,
+            allowAnyKiller: true, targetRole: target.role, magic: false,
+            attackKind: "missile", attackLabel: "ミサイル", slashGuardPhysical: true
+          });
+        } catch {}
+        pushMagicEffect(room, "gunner-missile", player, { radius: 150 * performanceMultiplier, playerId: player.id, targetId: target.id, targetX: target.x, targetY: target.y, variant: power.mode });
+      }
+    }
+    pushSound(room, "heavyWeapon", player, { ownerId: player.id, sourceKind: "weapon", maxDistance: 10000, volume: 1.25, variant: weapon });
+    pushEvent(room, `${player.name} が${HEAVY_WEAPON_DEFINITIONS[weapon].label}を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
+    checkWin(room);
+    touch(room);
   });
-  const performanceMultiplier = power.mode === "gbo"
-    ? GBO_PERFORMANCE_MULTIPLIER
-    : 1 + power.enhanceLevel * GUNNER_ENHANCE_DAMAGE_PER_LEVEL;
-  player.heavyWeapons.splice(index, 1);
-  if (power.mode === "gbo") pushGboOverdriveEffect(room, player, `heavy:${weapon}`, "heavy-use");
-  const targets = [...room.players.values()].filter((target) => target.id !== player.id && target.alive && !target.ejected && !target.inVent);
-  if (weapon === "rpg") {
-    const rpgRange = 300 * performanceMultiplier;
-    const rpgPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, rpgRange, { collisionRadius: 2 });
-    for (const target of targets.filter((candidate) => {
-      if (player.isBot && !botCanAttackTarget(room, player, candidate, now())) return false;
-      const candidateDistance = distance(player, candidate);
-      if (candidateDistance > rpgRange) return false;
-      const dx = (candidate.x - player.x) / Math.max(candidateDistance, 1);
-      const dy = (candidate.y - player.y) / Math.max(candidateDistance, 1);
-      return clearShotPath(room, player, candidate, dx, dy);
-    })) {
-      try {
-        killPlayer(room, player, target.id, {
-          ranged: true, hitZone: "body", damage: 1 * performanceMultiplier, ignoreRange: true,
-          allowAnyKiller: true, targetRole: target.role, magic: false,
-          attackKind: "rpg", attackLabel: "RPG弾", slashGuardPhysical: true
-        });
-      } catch {}
-    }
-    pushMagicEffect(room, "gunner-rpg", player, { radius: rpgRange, playerId: player.id, targetX: rpgPath.x, targetY: rpgPath.y, variant: power.mode });
-  } else if (weapon === "missile") {
-    const target = player.isBot
-      ? botMissileTarget(room, player, now())
-      : targets
-        .filter((candidate) => {
-          if (candidate.role === player.role) return false;
-          const candidateDistance = distance(player, candidate);
-          const dx = (candidate.x - player.x) / Math.max(candidateDistance, 1);
-          const dy = (candidate.y - player.y) / Math.max(candidateDistance, 1);
-          return clearShotPath(room, player, candidate, dx, dy);
-        })
-        .sort((a, b) => distance(player, a) - distance(player, b) || a.id.localeCompare(b.id))[0];
-    if (target) {
-      try {
-        killPlayer(room, player, target.id, {
-          ranged: true, hitZone: "head", damage: performanceMultiplier, ignoreRange: true,
-          allowAnyKiller: true, targetRole: target.role, magic: false,
-          attackKind: "missile", attackLabel: "ミサイル", slashGuardPhysical: true
-        });
-      } catch {}
-      pushMagicEffect(room, "gunner-missile", player, { radius: 150 * performanceMultiplier, playerId: player.id, targetId: target.id, targetX: target.x, targetY: target.y, variant: power.mode });
-    }
-  }
-  pushSound(room, "heavyWeapon", player, { ownerId: player.id, sourceKind: "weapon", maxDistance: 10000, volume: 1.25, variant: weapon });
-  pushEvent(room, `${player.name} が${HEAVY_WEAPON_DEFINITIONS[weapon].label}を使用しました${power.mode === "gbo" ? "（GBO・数値性能×10・武具破壊）" : power.enhanceLevel ? "（エンハンス）" : ""}。`);
-  checkWin(room);
-  touch(room);
 }
 
 function reportBody(room, player, bodyId = "") {
@@ -23259,6 +23350,46 @@ async function parseBody(req) {
   });
 }
 
+// Only successful, known gameplay actions can carry this cosmetic gesture.
+// It never changes authorization, costs, repeat cadence, or action arguments.
+const ENHANCE_CONTINUOUS_GAMEPLAY_PATHS = new Set([
+  "/api/donate", "/api/gunner-weapon", "/api/gunner-reload", "/api/dodge", "/api/emp",
+  "/api/fighter-slash", "/api/emergency", "/api/sabotage", "/api/repair", "/api/task",
+  "/api/report", "/api/item-pickup", "/api/purchase", "/api/shop/purchase", "/api/shop/ability",
+  "/api/limit-break", "/api/instant-warp", "/api/teleport", "/api/flora-heal", "/api/alchemist-invention",
+  "/api/borrowed-ability", "/api/quantum-control", "/api/gravity-time", "/api/gravity-storm", "/api/luminous"
+]);
+function beginEnhanceGesturePresentation(body, pathname) {
+  const gesture = body.enhanceGesture;
+  if (!gesture || typeof gesture.id !== "string" || !gesture.id.trim() || gesture.id.length > 160) return null;
+  const supported = gesture.kind === "continuous" ? ENHANCE_CONTINUOUS_GAMEPLAY_PATHS.has(pathname)
+    : gesture.kind === "vending-bulk" ? pathname === "/api/purchase" && body.bulk === true
+    : gesture.kind === "root-shortcut" ? pathname === "/api/hacker-root" : false;
+  if (!supported) return null;
+  const { room, player } = requireRoomPlayer(body);
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) return null;
+  if (gesture.kind === "root-shortcut" && !player.hackerRootActive) return null;
+  return { room, player, identity: "gesture:" + gesture.id, kind: gesture.kind,
+    lastMagicId: room.magicEffects.at(-1)?.id, lastEventId: room.events.at(-1)?.id, phase: room.phase };
+}
+function finishEnhanceGesturePresentation(context, payload) {
+  if (!context || !payload || payload.actionApplied === false || payload.duplicate || payload.shopAbilityResult === false) return;
+  const { room, player } = context;
+  if (context.kind === "root-shortcut" && player.hackerRootActive) return;
+  const priorIndex = room.magicEffects.findIndex(effect => effect.id === context.lastMagicId);
+  const newEffects = room.magicEffects.slice(priorIndex + 1);
+  // Specialized charged/batch actions already own their Enhance marker.
+  if (newEffects.some(effect => effect.type === "enhance-activation" && effect.playerId === player.id)) return;
+  const changed = room.magicEffects.at(-1)?.id !== context.lastMagicId ||
+    room.events.at(-1)?.id !== context.lastEventId || room.phase !== context.phase;
+  if (!changed) return; // Successful HTTP no-op/replay is not a new gameplay action.
+  if (emitEnhanceActivation(room, player, context.identity)) {
+    // serialize happened in the route: refresh only the effect projection so
+    // this response includes its marker while route-specific outcome fields stay intact.
+    payload.magicEffects = room.magicEffects.filter(effect => !effect.viewerId || effect.viewerId === player.id);
+  }
+}
+
 async function handleApi(req, res) {
   const body = req.method === "GET" ? Object.fromEntries(new URL(req.url, `http://${req.headers.host}`).searchParams) : await parseBody(req);
   const pathname = new URL(req.url, `http://${req.headers.host}`).pathname;
@@ -23268,6 +23399,7 @@ async function handleApi(req, res) {
     throw new ApiError(403, "この端末からの参加は永久停止されています。");
   }
   let payload;
+  const enhanceGesturePresentation = beginEnhanceGesturePresentation(body, pathname);
 
   if (body.abilityHoldAutoCommit === true && ABILITY_BATCH_ACTION_PATHS.has(pathname)) {
     const { player } = requireRoomPlayer(body);
@@ -24276,6 +24408,7 @@ async function handleApi(req, res) {
       throw new ApiError(404, "APIが見つかりません。");
   }
 
+  finishEnhanceGesturePresentation(enhanceGesturePresentation, payload);
   sendJson(res, 200, payload);
 }
 
@@ -26296,7 +26429,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "renki-new-te-v736",
+  version: "enhance-hold-te-v737",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

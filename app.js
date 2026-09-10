@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "renki-new-te-v736";
+const DVA_CLIENT_RELEASE = "enhance-hold-te-v737";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "renki-new-te-v736";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "enhance-hold-te-v737";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3365,7 +3365,7 @@ async function executePurchasedShopAbility(ability) {
   });
 }
 
-async function purchaseVendingItem(button, { bulk = false } = {}) {
+async function purchaseVendingItem(button, { bulk = false, enhanceGesture = null } = {}) {
   if (!button || button.disabled || button.dataset.purchasePending === "1") return false;
   if (button.dataset.purchaseDisabled === "1") {
     showToast(button.dataset.purchaseBlockedMessage || "この商品は現在購入できません。");
@@ -3405,7 +3405,8 @@ async function purchaseVendingItem(button, { bulk = false } = {}) {
     const transactionId = bulk ? pendingVendingBulkTransactionId(itemId) : "";
     const result = await api("/api/purchase", {
       itemId,
-      ...(bulk ? { bulk: true, transactionId } : {})
+      ...(bulk ? { bulk: true, transactionId } : {}),
+      ...(enhanceGesture ? { enhanceGesture } : {})
     }, bulk ? { attempts: 2 } : {});
     // Keep the same accepted-intent ID after a lost response, so a bounded
     // retry is a server replay rather than a second all-credit settlement.
@@ -3459,7 +3460,7 @@ function startVendingHold(event, button) {
     } else if (state.vendingBulkPurchase && !button.dataset.shopAbility) {
       // Exactly one request owns the whole all-credit purchase.  The server
       // computes the purchasable count from its current authoritative credits.
-      void purchaseVendingItem(button, { bulk: true });
+      void purchaseVendingItem(button, { bulk: true, enhanceGesture: { id: newAbilityBatchHoldId(), kind: "vending-bulk" } });
     } else {
       showInventoryItemDetail(vendingProductDetail(button), button);
     }
@@ -3722,6 +3723,15 @@ function queueFighterSlashGuardRelease() {
   return true;
 }
 
+// Cosmetic gesture metadata exists only while a post-threshold callback runs.
+// api snapshots it synchronously; async responses cannot leak it into another press.
+let enhanceGestureContext = null;
+function withEnhanceGesture(identity, kind, action) {
+  const previous = enhanceGestureContext;
+  enhanceGestureContext = { id: identity, kind };
+  try { return action(); } finally { enhanceGestureContext = previous; }
+}
+
 function stopContinuousActionKeyHold(code = "") {
   const hold = state.continuousActionKeyHold;
   if (code && hold.code !== code) return false;
@@ -3742,6 +3752,7 @@ function beginContinuousActionKeyHold(code, repeat, repeatInterval = CONTINUOUS_
   const hold = state.continuousActionKeyHold;
   hold.code = code;
   hold.repeat = repeat;
+  const enhanceGestureId = newAbilityBatchHoldId();
   hold.repeatInterval = Math.max(80, Number(repeatInterval) || CONTINUOUS_ACTION_REPEAT_INTERVAL_MS);
   hold.fighterSlash = Boolean(fighterSlash);
   const tick = () => {
@@ -3750,7 +3761,7 @@ function beginContinuousActionKeyHold(code, repeat, repeatInterval = CONTINUOUS_
       stopContinuousActionKeyHold(code);
       return;
     }
-    if (repeat(false) === false) {
+    if (withEnhanceGesture(enhanceGestureId, "continuous", () => repeat(false)) === false) {
       stopContinuousActionKeyHold(code);
       return;
     }
@@ -3815,6 +3826,7 @@ function beginContinuousActionHold(event) {
   hold.fighterSlash = isOrichalcumSwordActionButton(button);
   state.continuousActionSuppressClicks.set(button, Number.POSITIVE_INFINITY);
   try { button.setPointerCapture(event.pointerId); } catch {}
+  const enhanceGestureId = newAbilityBatchHoldId();
   invokeContinuousGameAction(button, { initial: true });
   const repeatInterval = continuousGameActionInterval(button);
   const repeat = () => {
@@ -3823,7 +3835,7 @@ function beginContinuousActionHold(event) {
       stopContinuousActionHold(event.pointerId);
       return;
     }
-    if (!isGameActionUnavailable(button) && !button.hidden && !button.closest("[hidden]")) invokeContinuousGameAction(button, { initial: false });
+    if (!isGameActionUnavailable(button) && !button.hidden && !button.closest("[hidden]")) withEnhanceGesture(enhanceGestureId, "continuous", () => invokeContinuousGameAction(button, { initial: false }));
     hold.timer = window.setTimeout(repeat, repeatInterval);
   };
   hold.timer = window.setTimeout(repeat, Math.max(CONTINUOUS_ACTION_HOLD_DELAY_MS, repeatInterval));
@@ -4115,7 +4127,7 @@ function stopRootShortcutHold(pointerId = null, { cancelled = false, deactivate 
       if (button.hasPointerCapture?.(capturedPointerId)) button.releasePointerCapture(capturedPointerId);
     } catch {}
   }
-  if (deactivate) void api("/api/hacker-root");
+  if (deactivate) void api("/api/hacker-root", { enhanceGesture: { id: hold.enhanceGestureId, kind: "root-shortcut" } });
   else if (!cancelled) triggerSelectedBorrowedAbility();
   return true;
 }
@@ -4128,6 +4140,7 @@ function beginRootShortcutHold(event) {
   if (!localScroll) event.preventDefault();
   stopRootShortcutHold(null, { cancelled: true });
   const hold = state.rootShortcutHold;
+  hold.enhanceGestureId = newAbilityBatchHoldId();
   hold.pointerId = event.pointerId;
   hold.button = button;
   state.continuousActionSuppressClicks.set(button, Number.POSITIVE_INFINITY);
@@ -4154,7 +4167,7 @@ function stopRootShortcutKeyHold(code = "", { cancelled = false, deactivate = fa
   hold.button = null;
   hold.timer = 0;
   if (!button) return false;
-  if (deactivate) void api("/api/hacker-root");
+  if (deactivate) void api("/api/hacker-root", { enhanceGesture: { id: hold.enhanceGestureId, kind: "root-shortcut" } });
   else if (!cancelled) triggerSelectedBorrowedAbility();
   return true;
 }
@@ -4163,6 +4176,7 @@ function beginRootShortcutKeyHold(code, button) {
   if (!code || !rootShortcutHoldEligible(button)) return false;
   stopRootShortcutKeyHold("", { cancelled: true });
   const hold = state.rootShortcutKeyHold;
+  hold.enhanceGestureId = newAbilityBatchHoldId();
   hold.code = code;
   hold.button = button;
   hold.timer = window.setTimeout(() => {
@@ -4586,7 +4600,7 @@ function updateEnhanceReadout() {
   const mana = Math.max(0, Number(state.data?.self?.mana) || 0);
   const gbo = Boolean(hold.kind && clientGboEligibleItemId(hold.itemId) && elapsed >= GBO_HOLD_MS_CLIENT);
   els.enhanceReadout.textContent = !hold.kind
-    ? "長押し: 600msからエンハンス / 武具は3000msでGBO"
+    ? "エンハンス：長押しによる発動 / 武具は3秒でGBO"
     : gbo
       ? mana >= 2 ? "GBO（2MP） / 性能×10 / 使用後に武具破壊" : "GBO（2MP） / MP不足 / 解放時は不成立"
       : requested > 0
@@ -10038,6 +10052,7 @@ function recoverAfterRejectedAction() {
 }
 
 async function api(path, extra = {}, options = {}) {
+  if (enhanceGestureContext) extra = { ...extra, enhanceGesture: { ...enhanceGestureContext } };
   if (!state.roomId || !state.playerId) {
     showToast("先にマッチングを開始してください。");
     return false;
@@ -18375,7 +18390,7 @@ function drawMagicEffects() {
     // A persistent head marker is the sole field presentation for grants that
     // already own one. Do not also flash the same semantic texture at ordinary
     // action size over the character or focus point.
-    if (effect.type === "fighter-energy-charge") {
+    if (effect.type === "fighter-energy-charge" || effect.type === "enhance-activation") {
       const player = gainEffectPlayer(effect);
       const presentation = player ? headMarkerPresentationForPlayer(player, state.data, now) : null;
       const sourceEffect = canonicalNonCreditHeadMarkerSource(
@@ -18389,7 +18404,8 @@ function drawMagicEffects() {
         const effect = sourceEffect;
         const progress = sourceProgress;
         recordVerificationMarkerRender(effect, "head-marker", now);
-        drawFighterEnergyChargeMarker(effect, progress, now);
+        if (effect.type === "enhance-activation") drawEnhanceHeadMarker(effect, progress, now);
+        else drawFighterEnergyChargeMarker(effect, progress, now);
       }
       continue;
     }
@@ -20400,6 +20416,7 @@ function nonCreditHeadMarkerSemanticKey(effect) {
   const playerId = String(effect.playerId || "");
   if (!playerId) return "";
   const type = String(effect.type || "");
+  if (type === "enhance-activation") return "activation:enhance";
   if (type === "fighter-energy-charge") return "gain:fighter-energy-charge";
   if (type.startsWith("gain-")) {
     const effectKind = String(effect.effectKind || type.slice("gain-".length) || "gain");
@@ -20899,7 +20916,7 @@ function drawNewRenkiEffect(effect, progress) {
 
 function isSharedHeadMarkerEffect(effect) {
   if (isDesireRenkiMarker(effect)) return false;
-  return Boolean(effect?.playerId) && (effect.type?.startsWith("gain-") || effect.type === "fighter-energy-charge");
+  return Boolean(effect?.playerId) && (effect.type?.startsWith("gain-") || effect.type === "fighter-energy-charge" || effect.type === "enhance-activation");
 }
 
 function sharedHeadMarkerCount(effect) {
@@ -21046,6 +21063,37 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
     drawAteComplementaryVfx(ctx, profile.motion, size, size, now / 1000, progress, fade * 0.42);
     ctx.restore();
   }
+}
+
+function drawEnhanceHeadMarker(effect, progress, now) {
+  if (!["playing", "meeting"].includes(state.data?.phase) || ctx.globalAlpha <= 0) return;
+  const player = gainEffectPlayer(effect);
+  if (!player || !player.alive || player.ejected || player.inVent || player.invisible) return;
+  const presentation = headMarkerPresentationForPlayer(player, state.data, now);
+  const placement = nonCreditHeadMarkerPlacement(effect, presentation);
+  if (!placement.candidate) return;
+  const p = headMarkerLifetimeProgress(effect, now);
+  if (p <= 0 || p >= 1) return;
+  const material = transparentSpriteSource(state.textures.enhanceHoldMarker, "enhance-hold-marker-v737", 18);
+  const sprite = material ? normalizedSpriteFrame(material, "enhance-hold-marker-v737", 1, 1, 0, 0) : null;
+  if (!sprite) return;
+  const reduced = prefersReducedMotion();
+  const reveal = objectEffectEase(p / .2), fade = 1 - objectEffectEase((p - .70) / .30);
+  const marker = headMarkerSlot(placement.baseIndex, placement.total, placement.startRow);
+  const pulse = reduced ? 0 : Math.sin(Math.min(1, p / .45) * Math.PI);
+  const size = HEAD_MARKER_LAYOUT.markerSize * (reduced ? 1 : .88 + .12 * reveal + .04 * pulse);
+  const scale = size / Math.max(sprite.width, sprite.height), width = sprite.width * scale, height = sprite.height * scale;
+  ctx.save();
+  ctx.translate(player.x + marker.x, player.y + marker.y + (reduced ? 0 : 2 * (1 - reveal)));
+  registerMarkerHitTarget(`enhance:${effect._headMarkerInstanceKey || effect.id}:${player.id}`, 0, 0, HEAD_MARKER_LAYOUT.markerSize * .62,
+    "エンハンス", "長押しによる発動が成立しました。能力の一括発動も含みます。");
+  ctx.globalAlpha *= reveal * fade;
+  ctx.globalCompositeOperation = "screen";
+  // A single rising material pulse with localized radiance; no second body aura.
+  ctx.shadowColor = "#94efff";
+  ctx.shadowBlur = reduced ? 2 : 2 + 2.5 * pulse;
+  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
+  ctx.restore();
 }
 
 function drawFighterEnergyChargeMarker(effect, progress, now) {
@@ -21657,13 +21705,10 @@ function drawHuman(player, data) {
 
   drawPersistentIdeaState(player, data, ascensionProgress);
   drawHackerRootState(player);
-  const enhanceRim = enhanceRimLightState(player, data);
   ctx.save();
-  if (enhanceRim) ctx.filter = enhanceRim.filter;
   const drewPlayerSprite = drawPlayerSprite(player, data, ghost, characterAction);
   ctx.restore();
   if (drewPlayerSprite) {
-    drawEnhanceRimLightGlints(enhanceRim);
     drawPreparationBarrierAte(player);
     drawHoverSprintSustainedJets(player, data);
     drawLuminousFeathers(player);
@@ -21675,7 +21720,6 @@ function drawHuman(player, data) {
 
   const skin = state.textures.skin;
   ctx.save();
-  if (enhanceRim) ctx.filter = enhanceRim.filter;
   ctx.fillStyle = player.color;
   ctx.strokeStyle = "#0f172a";
   ctx.lineWidth = 2;
@@ -21709,7 +21753,6 @@ function drawHuman(player, data) {
   ctx.arc(0, -12, 4, 0.2, Math.PI - 0.2);
   ctx.stroke();
   ctx.restore();
-  drawEnhanceRimLightGlints(enhanceRim);
 
   ctx.font = "800 10px Segoe UI, sans-serif";
   const identityLabel = playerIdentityLabel(player).slice(0, 14);
@@ -21816,62 +21859,7 @@ function drawPreparationBarrierAte(player) {
   ctx.restore();
 }
 
-function enhanceRimLightState(player, data) {
-  if (!player.alive || player.ejected) return null;
-  const charge = displayedEnhanceCharge(player, data);
-  // A held control is not itself an Enhance presentation.  The server has
-  // exactly one Enhance interval: 600 through 2999ms.  Keeping the rim out
-  // of the ordinary press and the GBO interval prevents an unrelated action
-  // (notably Limit Break or an EC milestone in the same poll) from acquiring
-  // the Enhance silhouette/filter merely because another control is held.
-  const enhanceStartsAt = Math.max(1, Number(data?.self?.enhanceHoldStepMs) || ENHANCE_HOLD_STEP_MS_CLIENT);
-  if (!charge.active || charge.elapsedMs < enhanceStartsAt || charge.elapsedMs >= GBO_HOLD_MS_CLIENT) return null;
-  const stepMs = enhanceStartsAt;
-  const maximum = Math.max(1, Number(data?.self?.enhanceMaxLevel) || ENHANCE_MAX_LEVEL_CLIENT);
-  const level = Math.min(maximum, Math.floor(charge.elapsedMs / stepMs));
-  const time = actorVisualTime(player, state.data) / 1000;
-  const phase = time * (3.8 + level * 0.32) + (player.id?.length || 0) * 0.41;
-  const offsetX = Math.cos(phase) * (1.35 + level * 0.24);
-  const offsetY = Math.sin(phase) * (1.15 + level * 0.2);
-  const innerBlur = 1.6 + level * 0.36;
-  const outerBlur = 5.5 + level * 1.15;
-  return {
-    charge,
-    level,
-    time,
-    filter: [
-      `drop-shadow(${offsetX.toFixed(2)}px ${offsetY.toFixed(2)}px ${innerBlur.toFixed(2)}px rgba(240,253,255,.98))`,
-      `drop-shadow(${(-offsetX).toFixed(2)}px ${(-offsetY).toFixed(2)}px ${(innerBlur + 0.8).toFixed(2)}px rgba(34,211,238,.9))`,
-      `drop-shadow(0 0 ${outerBlur.toFixed(2)}px rgba(139,92,246,.72))`
-    ].join(" ")
-  };
-}
 
-function drawEnhanceRimLightGlints(rim) {
-  if (!rim) return;
-  const anchors = [
-    [-29, -54], [25, -44], [-35, -17], [34, 3], [-22, 30], [23, 33]
-  ];
-  const visibleGlints = Math.min(6, 3 + rim.level);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (let index = 0; index < visibleGlints; index += 1) {
-    const [baseX, baseY] = anchors[index];
-    const cycle = ((rim.time * (0.72 + index * 0.035) + index * 0.193) % 1 + 1) % 1;
-    const life = Math.sin(cycle * Math.PI);
-    const size = 2.2 + rim.level * 0.34 + life * 2.1;
-    ctx.save();
-    ctx.translate(baseX + Math.sin(rim.time * 2.1 + index) * 2.4, baseY - cycle * 9);
-    ctx.rotate(Math.PI / 4 + rim.time * 0.18 * (index % 2 ? -1 : 1));
-    ctx.globalAlpha = life * (0.38 + rim.level * 0.1);
-    ctx.fillStyle = index % 2 ? "#e0f2fe" : "#a5f3fc";
-    ctx.shadowColor = index % 2 ? "#c4b5fd" : "#22d3ee";
-    ctx.shadowBlur = 7 + rim.level * 2;
-    ctx.fillRect(-size / 2, -size / 2, size, size);
-    ctx.restore();
-  }
-  ctx.restore();
-}
 
 function drawHackerRootState(player) {
   if (!player.hackerRootActive || !player.alive || player.ejected) return;
@@ -23979,7 +23967,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "renki-new-te-v736";
+const version = "enhance-hold-te-v737";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24030,6 +24018,8 @@ const version = "renki-new-te-v736";
     "assets/generated/philosophy-effect-mystery-v311.png",
     "assets/generated/philosophy-effect-emp-v311.png"
   ]);
+  const enhanceHoldMarker = new Image();
+  defer(enhanceHoldMarker, "assets/generated/enhance-hold-marker-v737.png");
   const renkiCoalescence = new Image();
   const renkiTenfoldRelease = new Image();
   defer(renkiCoalescence, "assets/generated/renki-coalescence-v736.png");
@@ -24323,6 +24313,7 @@ const version = "renki-new-te-v736";
     actionEffectTextures,
     philosophyEffectTextures,
     alchemyEffectTextures,
+    enhanceHoldMarker,
     renkiCoalescence,
     renkiTenfoldRelease,
     empResonanceEffect,
@@ -25028,7 +25019,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=renki-new-te-v736", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=enhance-hold-te-v737", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
