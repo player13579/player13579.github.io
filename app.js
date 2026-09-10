@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "status-movement-boundaries-v748";
+const DVA_CLIENT_RELEASE = "result-audio-lifecycle-v749";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -750,6 +750,8 @@ const state = {
   operatorDetailTimer: 0,
   operatorDetailSource: null,
   resultBoardFingerprint: "",
+  resultAudioIdentity: "",
+  resultRankingTimer: null,
   mapPointer: null,
   expandedMapTap: null,
   actionSelectionId: "",
@@ -975,7 +977,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "status-movement-boundaries-v748";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "result-audio-lifecycle-v749";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2643,6 +2645,7 @@ function setScreen(screen) {
   if (next === "title") state.operatorSelectionRouteOpen = false;
   if (next !== "game") setSoloNameGuidance(false);
   state.screen = next;
+  if (next !== "game") cancelResultRankingAudio();
   if (previous !== next || next !== "game") {
     setPreparationEditingField("");
     if (els.pregameCanvasSettings) els.pregameCanvasSettings.hidden = true;
@@ -10570,6 +10573,7 @@ async function recoverRoomInteractionAfterBackground() {
 }
 
 function resetLocalSession() {
+  cancelResultRankingAudio(true);
   setPreparationEditingField("");
   if (els.pregameCanvasSettings) els.pregameCanvasSettings.hidden = true;
   invalidateFocusResync();
@@ -11428,13 +11432,7 @@ function detectGameSounds(previous, next) {
     if (next.phase === "selecting") playSound("round");
     if (next.phase === "playing") playSound("start");
     if (next.phase === "meeting") playSound("meeting");
-    if (next.phase === "ended") {
-      const ideaWinnerIds = Array.isArray(next.ideaWinnerIds) && next.ideaWinnerIds.length
-        ? next.ideaWinnerIds
-        : [next.ideaWinnerId].filter(Boolean);
-      const wonIdea = next.winner === "idea" && ideaWinnerIds.includes(next.selfId);
-      playSound(wonIdea || next.winner === `${next.self.role}s` ? "win" : "lose");
-    }
+
   }
   if (!previous.self.operatorReady && next.self.operatorReady) playSound("select");
   if (previous.self.gunnerWeapon && next.self.gunnerWeapon && previous.self.gunnerWeapon !== next.self.gunnerWeapon) {
@@ -15470,15 +15468,37 @@ function settleResultPresentation() {
   });
 }
 
+function resultAudioMatchIdentity(data) {
+  return JSON.stringify([String(data?.roomId || ""), Number(data?.round) || 0,
+    Number(data?.battleStartedAt) || 0, String(data?.selfId || ""), Number(state.roomSessionGeneration) || 0]);
+}
+
+function cancelResultRankingAudio(resetIdentity = false) {
+  if (state.resultRankingTimer !== null) window.clearTimeout(state.resultRankingTimer);
+  state.resultRankingTimer = null;
+  if (resetIdentity) state.resultAudioIdentity = "";
+}
+
 function playResultSettlementAudio(data, results) {
+  if (data?.phase !== "ended" || state.screen !== "game") return;
+  const identity = resultAudioMatchIdentity(data);
+  if (state.resultAudioIdentity === identity) return;
+  cancelResultRankingAudio();
+  state.resultAudioIdentity = identity;
   const selfResult = results.find((entry) => entry.id === data.selfId);
-  const ideaWinnerIds = Array.isArray(data.ideaWinnerIds) ? data.ideaWinnerIds : [data.ideaWinnerId];
+  const ideaWinnerIds = Array.isArray(data.ideaWinnerIds) && data.ideaWinnerIds.length ? data.ideaWinnerIds : [data.ideaWinnerId];
+  const selfRole = selfResult?.role || data.self?.role;
   const selfWon = data.winner === "idea"
     ? (selfResult?.ideaWinner || ideaWinnerIds.includes(data.selfId))
-    : (data.winner === "attackers" && selfResult?.role === "attacker") ||
-      (data.winner === "defenders" && selfResult?.role === "defender");
+    : (data.winner === "attackers" && selfRole === "attacker") ||
+      (data.winner === "defenders" && selfRole === "defender");
   playSound(selfWon ? "win" : "lose");
-  window.setTimeout(() => playSound("ranking"), 420);
+  state.resultRankingTimer = window.setTimeout(() => {
+    state.resultRankingTimer = null;
+    if (state.screen !== "game" || state.data?.phase !== "ended" ||
+        state.resultAudioIdentity !== identity || resultAudioMatchIdentity(state.data) !== identity) return;
+    playSound("ranking");
+  }, 420);
 }
 
 function renderEnd(data) {
@@ -15488,6 +15508,7 @@ function renderEnd(data) {
   syncResultTerminalPresentation(data);
   els.resetButton.textContent = data.soloMission ? "戦術いろはへ戻る" : "もう一度マッチング";
   if (!ended) {
+    cancelResultRankingAudio(true);
     els.endTitle.textContent = "";
     els.endReason.textContent = "";
     clearResultSettlementPresentation();
@@ -15557,8 +15578,8 @@ function renderEnd(data) {
     });
     state.resultBoardFingerprint = fingerprint;
     settleResultPresentation();
-    playResultSettlementAudio(data, results);
   }
+  playResultSettlementAudio(data, results);
 }
 
 function syncResultTerminalPresentation(data) {
@@ -24005,7 +24026,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "status-movement-boundaries-v748";
+const version = "result-audio-lifecycle-v749";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25063,7 +25084,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=status-movement-boundaries-v748", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=result-audio-lifecycle-v749", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
