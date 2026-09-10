@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "bot-teleport-intent-v745",
+    version: "actor-clock-boundary-v746",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "bot-teleport-intent-v745";
+const PRODUCT_RELEASE = "actor-clock-boundary-v746";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -12887,12 +12887,14 @@ function grantStamina(room, entity, amount, sourceLabel = "スタミナ獲得", 
   return setStamina(room, entity, current + Math.max(0, Number(amount) || 0), sourceLabel, timestamp);
 }
 
-function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, room = null, expandCapacity = false) {
+function replenishStamina(entity, timestamp, allowRegen = true, multiplier = 1, room = null, expandCapacity = false, plannedActorSeconds = null) {
   const last = entity.staminaUpdatedAt || timestamp;
-  const elapsed = Math.min(0.5, Math.max(0, (timestamp - last) / 1000));
+  const elapsed = plannedActorSeconds == null
+    ? Math.min(0.5, Math.max(0, (timestamp - last) / 1000))
+    : Math.max(0, Number(plannedActorSeconds) || 0);
   if (allowRegen) {
     const desireMultiplier = desireBiasGroupActive(room, entity) ? DESIRE_BIAS_GROUP_MULTIPLIER : 1;
-    const actorTime = room ? playerProgressMultiplier(room, entity, timestamp) : 1;
+    const actorTime = plannedActorSeconds == null && room ? playerProgressMultiplier(room, entity, timestamp) : 1;
     const recovery = STAMINA_REGEN_PER_SECOND * elapsed * Math.max(1, multiplier) * desireMultiplier * actorTime;
     const capacity = staminaCapacityFor(entity);
     // Desire intentionally creates a -100 SP debt.  Clamping that debt to zero
@@ -13169,11 +13171,11 @@ function synchronizeTimeKeeperStops(room, timestamp = now()) {
   }
 }
 
-function freezeRoomTimeKeeperState(room, elapsedMs, timestamp = now()) {
-  if (!roomTimeKeeperActive(room, timestamp)) return false;
+function freezeRoomTimeKeeperState(room, elapsedMs, timestamp = now(), previousTimestamp = timestamp, planned = false) {
+  if (!planned && !roomTimeKeeperActive(room, timestamp)) return false;
   const elapsed = Math.max(0, Number(elapsedMs) || 0);
   for (const zone of room.gravityZones || []) {
-    if (Number(zone.endsAt) <= timestamp) continue;
+    if (Number(zone.endsAt) <= previousTimestamp) continue;
     zone.startedAt = (Number(zone.startedAt) || timestamp) + elapsed;
     zone.barrierUntil = (Number(zone.barrierUntil) || timestamp) + elapsed;
     zone.endsAt = Number(zone.endsAt) + elapsed;
@@ -14379,12 +14381,153 @@ function autoClearSabotageAtValidProximity(room, timestamp = now()) {
   return changed;
 }
 
+// Snapshot adapter only: existing gameplay getters supply rates; no live state
+// is advanced or mutated. Caller must settle input-time source changes first.
+function planRoomActorClock(room, from, to) {
+  if (!room?.players || !Number.isFinite(from) || !Number.isFinite(to) || to < from) throw new RangeError("Invalid room clock interval");
+  const players = new Map([...room.players].map(([id, player]) => [id, {
+    ...player,
+    timedAccelerationEffects: (player.timedAccelerationEffects || []).map(effect => ({ ...effect }))
+  }]));
+  const snapshot = { ...room, players };
+  const totals = new Map([...players].map(([id]) => [id, { actorMs: 0, stoppedMs: 0, segments: [] }]));
+  const synchronizeStops = (at) => {
+    const casters = [...players.values()].filter(player => Number(player.timeKeeperEndsAt) > at);
+    for (const player of players.values()) {
+      if (!player.alive || player.ejected) continue;
+      for (const caster of casters) {
+        if (caster.id !== player.id) player.timeStoppedUntil = Math.max(Number(player.timeStoppedUntil) || 0, Number(caster.timeKeeperEndsAt));
+      }
+    }
+    return casters.length > 0;
+  };
+  let at = from, roomStoppedMs = 0;
+  while (at < to) {
+    const roomStopped = synchronizeStops(at);
+    const stopped = new Map([...players].map(([id, player]) => [id, timeKeeperStops(player, at)]));
+    let next = to;
+    const boundary = (raw) => { const value = Number(raw); if (Number.isFinite(value) && value > at) next = Math.min(next, value); };
+    for (const [id, player] of players) {
+      boundary(player.timeStoppedUntil);
+      if (stopped.get(id)) continue;
+      // Controller expiries freeze with their caster, not their recipient.
+      boundary(player.timeKeeperEndsAt);
+      boundary(player.gravityTimeEndsAt);
+      for (const effect of player.timedAccelerationEffects) {
+        boundary(effect.startedAt);
+        boundary(effect.endsAt);
+      }
+    }
+    const elapsed = next - at;
+    if (roomStopped) roomStoppedMs += elapsed;
+    // All rates read the same segment-start source snapshot. No controller
+    // endpoint may shift until every recipient has been sampled.
+    const rates = new Map();
+    for (const [id, player] of players) {
+      if (stopped.get(id)) { rates.set(id, 0); continue; }
+      const allEffects = player.timedAccelerationEffects;
+      player.timedAccelerationEffects = allEffects.filter(effect => !Number.isFinite(Number(effect.startedAt)) || Number(effect.startedAt) <= at);
+      try { rates.set(id, playerProgressMultiplier(snapshot, player, at)); }
+      finally { player.timedAccelerationEffects = allEffects; }
+    }
+    for (const [id, player] of players) {
+      const total = totals.get(id);
+      const isStopped = stopped.get(id);
+      const actorRate = rates.get(id);
+      total.segments.push({ from: at, to: next, actorRate, stopped: isStopped });
+      total.actorMs += elapsed * actorRate;
+      if (!isStopped) continue;
+      total.stoppedMs += elapsed;
+      for (const field of ["gravityTimeEndsAt", "timeKeeperEndsAt"]) {
+        if (Number(player[field]) > at) player[field] = Number(player[field]) + elapsed;
+      }
+      for (const effect of player.timedAccelerationEffects) {
+        if (Number(effect.endsAt) <= at) continue;
+        effect.startedAt = (Number.isFinite(Number(effect.startedAt)) ? Number(effect.startedAt) : at) + elapsed;
+        effect.endsAt = Number(effect.endsAt) + elapsed;
+      }
+    }
+    at = next;
+  }
+  synchronizeStops(to);
+  return {
+    worldMs: to - from,
+    roomStoppedMs,
+    players: new Map([...players].map(([id, player]) => [id, {
+      ...totals.get(id),
+      timing: {
+        timeStoppedUntil: Number(player.timeStoppedUntil) || 0,
+        timeKeeperEndsAt: Number(player.timeKeeperEndsAt) || 0,
+        gravityTimeEndsAt: Number(player.gravityTimeEndsAt) || 0,
+        timedAccelerationEffects: player.timedAccelerationEffects
+      }
+    }]))
+  };
+}
+
+function applyPlannedActorClock(player, plan, from, to) {
+  const adjustment = player.alive && !player.ejected ? (to - from) - plan.actorMs : plan.stoppedMs;
+  const stopped = plan.stoppedMs;
+  const actorDeadlines = new Set(ACCELERATED_ACTION_UNTIL_FIELDS);
+  for (const key of Object.keys(player)) if (key.endsWith("ReadyAt")) actorDeadlines.add(key);
+  for (const field of new Set([...actorDeadlines, ...TIME_KEEPER_FROZEN_DEADLINE_FIELDS])) {
+    if (field === "gravityTimeEndsAt" || field === "timeKeeperEndsAt") continue;
+    const deadline = Number(player[field]) || 0;
+    // Gun/beam/status cadence retains elapsed excess for the pulse owner.
+    const cadence = field === "gunReadyAt" || field === "particleCannonNextAt";
+    if (deadline > from || (cadence && deadline > 0)) {
+      player[field] = deadline + (actorDeadlines.has(field) ? adjustment : stopped);
+    }
+  }
+  const actorAnchors = new Set(ACCELERATED_PLAYER_PROGRESS_ANCHOR_FIELDS);
+  for (const field of new Set([...actorAnchors, ...TIME_KEEPER_FROZEN_ANCHOR_FIELDS])) {
+    // Stamina owns a separate wall anchor and consumes the planned segments.
+    if (field === "staminaUpdatedAt") continue;
+    const anchor = Number(player[field]) || 0;
+    if (anchor > 0) player[field] = anchor + (actorAnchors.has(field) ? adjustment : stopped);
+  }
+  player.objectCooldowns ||= {};
+  for (const [key, value] of Object.entries(player.objectCooldowns)) {
+    if (Number(value) > from) player.objectCooldowns[key] = Number(value) + adjustment;
+  }
+  for (const field of ["poisonStatus", "burnStatus"]) {
+    const status = player[field];
+    if (Number(status?.nextTickAt) > from) status.nextTickAt = Number(status.nextTickAt) + adjustment;
+  }
+  for (const observation of player.botVisibleThrowObservations || []) {
+    for (const field of ["observedAt", "poisonLandingObservedAt"]) {
+      if (Number(observation[field]) > 0) observation[field] = Number(observation[field]) + stopped;
+    }
+    for (const field of ["landsAt", "expiresAt"]) {
+      if (Number(observation[field]) > from) observation[field] = Number(observation[field]) + stopped;
+    }
+    for (const victim of Object.values(observation.visiblePoisonVictims || {})) {
+      for (const field of ["firstSeenAt", "lastSeenAt"]) if (Number(victim[field]) > 0) victim[field] = Number(victim[field]) + stopped;
+    }
+  }
+  Object.assign(player, plan.timing);
+}
+
+function plannedStaminaElapsed(player, plan, from, to) {
+  const start = Math.max(Number(player.staminaUpdatedAt) || to, to - 500);
+  let actorMs = 0;
+  // Retain the existing 500ms recovery catch-up cap for any pre-room-cap tail.
+  if (start < from) actorMs += (from - start) * (plan.segments?.[0]?.actorRate ?? 1);
+  for (const segment of plan.segments || []) {
+    actorMs += Math.max(0, Math.min(to, segment.to) - Math.max(start, segment.from)) * segment.actorRate;
+  }
+  return actorMs / 1000;
+}
+
 function tickRoom(room) {
   const timestamp = now();
   const elapsedMs = Math.min(250, Math.max(0, timestamp - (Number(room.lastTickAt) || timestamp)));
   room.lastTickAt = timestamp;
-  reconcileBarrierExpiry(room, timestamp);
+  const clockFrom = timestamp - elapsedMs;
+  const actorClock = room.phase === "playing" && elapsedMs > 0 ? planRoomActorClock(room, clockFrom, timestamp) : null;
   advanceBotOperationalTime(room, elapsedMs, timestamp);
+  if (actorClock) for (const player of room.players.values()) applyPlannedActorClock(player, actorClock.players.get(player.id), clockFrom, timestamp);
+  reconcileBarrierExpiry(room, timestamp);
   if (room.phase === "meeting") {
     pauseBattleTimeForMeeting(room, timestamp);
     for (const player of room.players.values()) {
@@ -14408,24 +14551,29 @@ function tickRoom(room) {
     return;
   }
   synchronizeTimeKeeperStops(room, timestamp);
-  const roomTimeStopped = freezeRoomTimeKeeperState(room, elapsedMs, timestamp);
+  const roomTimeStopped = roomTimeKeeperActive(room, timestamp);
+  if (actorClock) freezeRoomTimeKeeperState(room, actorClock.roomStoppedMs, timestamp, clockFrom, true);
+  else freezeRoomTimeKeeperState(room, elapsedMs, timestamp);
   if (!roomTimeStopped) advanceGravitySystems(room, timestamp, elapsedMs);
-  advanceThrownItems(room, timestamp, elapsedMs);
+  advanceThrownItems(room, timestamp, elapsedMs, actorClock?.roomStoppedMs);
   for (const player of room.players.values()) {
     if (!floraInvisibleActive(player, timestamp)) clearFloraInvisible(room, player, "透明化終了");
     syncFighterInfiniteResources(player);
     syncMentalState(room, player, "資源更新", timestamp);
     syncHackerRootState(room, player);
     const actorTimeScale = playerProgressMultiplier(room, player, timestamp);
-    advanceAccelerationTime(room, player, elapsedMs, timestamp, actorTimeScale);
-    freezePlayerTimeKeeperState(player, elapsedMs, timestamp);
+    const playerClock = actorClock?.players.get(player.id);
+    if (!playerClock) {
+      advanceAccelerationTime(room, player, elapsedMs, timestamp, actorTimeScale);
+      freezePlayerTimeKeeperState(player, elapsedMs, timestamp);
+    }
     if (timeKeeperStops(player, timestamp)) {
       player.vx = 0;
       player.vy = 0;
       player.movementMode = "time-stopped";
       continue;
     }
-    const actorElapsedMs = elapsedMs * actorTimeScale;
+    const actorElapsedMs = playerClock ? playerClock.actorMs : elapsedMs * actorTimeScale;
     advanceFighterEnergyPassive(room, player, timestamp);
     if (synchronizeSharedLevitationExpiry(room, player, timestamp)) continue;
     advanceLevitationMana(room, player, actorElapsedMs);
@@ -14487,7 +14635,8 @@ function tickRoom(room) {
       stopped || naturalRecoveryActive,
       (stationaryRestActive ? SLEEP_REGEN_MULTIPLIER : 1) * (naturalRecoveryActive ? floraAromaMultiplier(room, player) : 1),
       room,
-      naturalRecoveryActive
+      naturalRecoveryActive,
+      playerClock ? plannedStaminaElapsed(player, playerClock, clockFrom, timestamp) : null
     );
     advanceNaturalRecoveryMana(room, player, actorElapsedMs);
     advanceNaturalRecoveryHealth(room, player, actorElapsedMs);
@@ -18278,16 +18427,18 @@ function resolveThrownItemLanding(room, thrown) {
   touch(room);
 }
 
-function advanceThrownItems(room, timestamp = now(), elapsedMs = 0) {
+function advanceThrownItems(room, timestamp = now(), elapsedMs = 0, plannedStoppedMs = null) {
   const timeKeeperActive = roomTimeKeeperActive(room, timestamp);
   const pending = [];
   for (const thrown of room.thrownItems || []) {
-    if (timeKeeperActive) {
-      const elapsed = Math.max(0, Number(elapsedMs) || 0);
+    if (plannedStoppedMs != null || timeKeeperActive) {
+      const elapsed = Math.max(0, Number(plannedStoppedMs ?? elapsedMs) || 0);
       thrown.createdAt = (Number(thrown.createdAt) || timestamp) + elapsed;
       thrown.landsAt = (Number(thrown.landsAt) || timestamp) + elapsed;
-      pending.push(thrown);
-      continue;
+      if (timeKeeperActive) {
+        pending.push(thrown);
+        continue;
+      }
     }
     if (Number(thrown.landsAt) > timestamp) pending.push(thrown);
     else resolveThrownItemLanding(room, thrown);
@@ -21540,6 +21691,7 @@ function processMovementInput(room, player, body) {
   const movementClock = Number(body.movementClock);
   const elapsed = movementElapsedSeconds(player, movementClock, receivedAt);
   advanceStoredMovement(room, player, elapsed);
+  if (room.phase === "playing" && Number(room.lastTickAt) < receivedAt) tickRoom(room);
   const input = storeMovementInput(player, body);
   player.lastMovementClock = Number.isFinite(movementClock) ? movementClock : 0;
   player.lastMovementReceivedAt = receivedAt;
@@ -22364,11 +22516,14 @@ function publicRooms() {
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function requireRoomPlayer(body) {
+function requireRoomPlayer(body, settleTime = true) {
   const room = getRoom(body.roomId);
   if (!room) throw new ApiError(404, "ルームが見つかりません。");
   const player = room.players.get(String(body.playerId || ""));
   if (!player) throw new ApiError(404, "プレイヤーが見つかりません。再入室してください。");
+  // The simulation elapsed before this request belongs to the old state.
+  // Action-specific validation still runs after this ordinary room update.
+  if (settleTime && room.phase === "playing" && Number(room.lastTickAt) < now()) tickRoom(room);
   player.lastSeenAt = now();
   return { room, player };
 }
@@ -23421,7 +23576,7 @@ async function handleApi(req, res) {
   const enhanceGesturePresentation = beginEnhanceGesturePresentation(body, pathname);
 
   if (body.abilityHoldAutoCommit === true && ABILITY_BATCH_ACTION_PATHS.has(pathname)) {
-    const { player } = requireRoomPlayer(body);
+    const { player } = requireRoomPlayer(body, false);
     await awaitAbilityHoldAutoCommitThreshold(player, body, pathname);
   }
 
@@ -26448,7 +26603,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "bot-teleport-intent-v745",
+  version: "actor-clock-boundary-v746",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
