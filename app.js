@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "enhance-hold-te-v737";
+const DVA_CLIENT_RELEASE = "hs-no-walk-v738";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -927,7 +927,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "enhance-hold-te-v737";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "hs-no-walk-v738";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -22577,7 +22577,7 @@ function drawPetSprite(player, data, ghost) {
   const direction = { down: "front", left: "left", right: "right", up: "back" }[facing] || "front";
   const movementMode = walkMotionMode(player);
   const frame = ghost ? 0 : walkAnimationFrame(player, motion, movementMode);
-  const moving = !ghost && motion.moving;
+  const moving = !ghost && motion.moving && !isHoverSprintWalkingSuppressed(player, data);
   const walkRowSource = state.textures.playerWalkRows?.[skinId]?.[direction];
   const walkRowKey = `skinWalk3-${skinId}-${direction}-v483`;
   const walkRow = walkRowSource ? transparentSpriteSource(walkRowSource, walkRowKey, 12) : null;
@@ -22614,7 +22614,13 @@ function drawPetSprite(player, data, ghost) {
   return true;
 }
 
+function isHoverSprintWalkingSuppressed(player, data = state.data) {
+  const actor = player?.id === data?.selfId ? data?.self : player;
+  return Number(actor?.hoverSprintUntil) > estimatedServerNow(data);
+}
+
 function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(player)) {
+  const moving = motion.moving && !isHoverSprintWalkingSuppressed(player);
   const now = state.frameNow || performance.now();
   const animation = state.walkAnimations.get(player.id) || {
     frame: 0,
@@ -22625,7 +22631,7 @@ function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(playe
     stepBucket: -1,
     lastStepAt: 0
   };
-  if (motion.moving) {
+  if (moving) {
     if (!animation.moving) {
       animation.frame = 0;
       animation.x = player.x;
@@ -22659,7 +22665,7 @@ function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(playe
     animation.frame = 0;
     animation.stepBucket = -1;
   }
-  animation.moving = motion.moving;
+  animation.moving = moving;
   animation.x = player.x;
   animation.y = player.y;
   animation.lastAt = now;
@@ -22846,6 +22852,7 @@ function drawOperatorWalkSprite(player, data, ghost) {
   const atlas = transparentSpriteSource(state.textures.operatorsWalk, "operatorsWalk", 24);
   if (!atlas) return false;
   const motion = motionFor(player, data);
+  const moving = !ghost && motion.moving && !isHoverSprintWalkingSuppressed(player, data);
   const movementMode = walkMotionMode(player);
   const profile = walkMotionProfile(movementMode);
   const sequence = ghost ? [0] : profile.operatorSequence;
@@ -22860,7 +22867,7 @@ function drawOperatorWalkSprite(player, data, ghost) {
   if (!sprite || !nextSprite) return false;
   const facing = facingFor(player, motion);
   const direction = { down: "front", left: "left", right: "right", up: "back" }[facing] || "front";
-  const body = walkBodyMotion(movementMode, direction, frame, !ghost && motion.moving);
+  const body = walkBodyMotion(movementMode, direction, frame, moving);
   ctx.save();
   ctx.translate(body.sway * 0.75, -body.lift * 0.75);
   ctx.rotate(body.lean * 0.8);
@@ -23967,7 +23974,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "enhance-hold-te-v737";
+const version = "hs-no-walk-v738";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25019,7 +25026,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=enhance-hold-te-v737", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=hs-no-walk-v738", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
