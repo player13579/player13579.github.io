@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "storage-resilience-v743",
+    version: "gravity-storm-validation-v744",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "storage-resilience-v743";
+const PRODUCT_RELEASE = "gravity-storm-validation-v744";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -15308,12 +15308,12 @@ function useGravityStorm(room, player, targetId = "") {
     throw new ApiError(403, "現在はグラビティストームを使用できません。");
   }
   ensureAbilityAvailable(player);
-  spendOperatorMana(room, player, "グラビティストーム", GRAVITY_STORM_MANA_COST);
   const requestedTargetId = String(targetId || player.id);
   const target = room.players.get(requestedTargetId);
   if (!target || !target.alive || target.ejected || target.inVent) {
     throw new ApiError(404, "グラビティストームの対象がいません。");
   }
+  spendOperatorMana(room, player, "グラビティストーム", GRAVITY_STORM_MANA_COST);
   const startedAt = now();
   recordBotVisibleHumanAttackStart(room, player, "gravity-storm", startedAt);
   const endsAt = startedAt + GRAVITY_STORM_DURATION_MS;
@@ -26452,5 +26452,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "storage-resilience-v743" });
+self.postMessage({ type: "ready", version: "gravity-storm-validation-v744" });
 })();
