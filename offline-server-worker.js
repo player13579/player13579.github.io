@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "actor-clock-boundary-v746",
+    version: "movement-clock-lifecycle-v747",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "actor-clock-boundary-v746";
+const PRODUCT_RELEASE = "movement-clock-lifecycle-v747";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -10733,6 +10733,9 @@ function startGame(room) {
     player.heardWaypointUntil = 0;
     player.heardWaypointX = 0;
     player.heardWaypointY = 0;
+    // A new match must not integrate an input interval from the preceding body.
+    // Keep the session/sequence identity so the client's next packet is accepted immediately.
+    clearStoredMovementInput(player, timestamp);
     player.lastMoveAt = timestamp;
   });
 
@@ -10880,6 +10883,9 @@ function startBattle(room) {
     player.taskAutoReadyAt = 0;
     player.taskPresenceTaskId = "";
     player.taskPresenceSince = 0;
+    // Operator selection may have lasted arbitrarily long; discard only the old
+    // elapsed-direction history while preserving the live packet session.
+    clearStoredMovementInput(player, timestamp);
     player.killsThisRound = 0;
     player.killChainCount = 0;
     player.killReadyAt = canUseKill(player) ? timestamp + killCooldownDurationMs(room, player) : 0;
@@ -12990,33 +12996,33 @@ function accelerationTimerMultiplier(player, extraMultipliers = [], timestamp = 
   return additiveAccelerationMultiplier(player, extraMultipliers, timestamp);
 }
 
-function effectiveAccelerationMultiplier(room, player, timestamp = now()) {
-  if (timeKeeperStops(player, timestamp)) return 0;
+function effectiveAccelerationMultiplier(room, player, timestamp = now(), movementSource = null) {
+  if (movementSource ? movementSource.stopped : timeKeeperStops(player, timestamp)) return 0;
   // Clairvoyance owns remote-view traversal. While it is active, its ACC 2
   // replaces every ordinary acceleration/slow source without mutating any of
   // those source states, so ending Clairvoyance restores them intact.
-  if (player?.clairvoyanceActive) return FIXED_MOVEMENT_ACC;
+  if (movementSource ? movementSource.clairvoyanceActive : player?.clairvoyanceActive) return FIXED_MOVEMENT_ACC;
   const passive = activeMapObjectEffects(room, player);
-  const gravityScale = gravityTimeScaleFor(room, player, timestamp);
+  const gravityScale = movementSource ? movementSource.gravityScale : gravityTimeScaleFor(room, player, timestamp);
   const accelerations = passive.speedBoost ? [MAP_OBJECT_SPEED_MULTIPLIER] : [];
-  const accelerated = accelerationTimerMultiplier(player, accelerations, timestamp);
+  const accelerated = movementSource ? [...(movementSource.accelerationComponents || []), ...accelerations].reduce((sum, value) => sum + value, 0) || 1 : accelerationTimerMultiplier(player, accelerations, timestamp);
   return gravityScale < 1 ? gravityScale : accelerated;
 }
 
 // Actor-time is intentionally separate from movement ACC.  ACC Fixed may cap
 // movement at 2, while every personal progression path follows the underlying
 // acceleration source (or a received time slow) without advancing the world.
-function playerProgressMultiplier(room, player, timestamp = now()) {
-  if (timeKeeperStops(player, timestamp)) return 0;
+function playerProgressMultiplier(room, player, timestamp = now(), movementSource = null) {
+  if (movementSource ? movementSource.stopped : timeKeeperStops(player, timestamp)) return 0;
   const desireTimeMultiplier = player?.desireBias === "cognitive-dissonance" && !player.desireRenkiRecovery
     ? DESIRE_BIAS_TIME_MULTIPLIER
     : 1;
-  return Math.max(0, effectiveAccelerationMultiplier(room, player, timestamp) * desireTimeMultiplier);
+  return Math.max(0, effectiveAccelerationMultiplier(room, player, timestamp, movementSource) * desireTimeMultiplier);
 }
 
-function movementAccState(room, player, timestamp = now()) {
-  const enabled = player?.movementAccEnabled !== false;
-  const acceleration = effectiveAccelerationMultiplier(room, player, timestamp);
+function movementAccState(room, player, timestamp = now(), movementSource = null) {
+  const enabled = movementSource ? movementSource.movementAccEnabled !== false : player?.movementAccEnabled !== false;
+  const acceleration = effectiveAccelerationMultiplier(room, player, timestamp, movementSource);
   const available = acceleration + 1e-6 >= MOVEMENT_ACC_ACTIVATION_THRESHOLD;
   const active = enabled && available;
   return {
@@ -13278,9 +13284,9 @@ function activeMapObjectEffects(room, player) {
   };
 }
 
-function effectiveMovementMultiplier(room, player, timestamp = now()) {
-  if (timeKeeperStops(player, timestamp)) return 0;
-  if (player?.clairvoyanceActive) return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * FIXED_MOVEMENT_ACC;
+function effectiveMovementMultiplier(room, player, timestamp = now(), movementSource = null) {
+  if (movementSource ? movementSource.stopped : timeKeeperStops(player, timestamp)) return 0;
+  if (movementSource ? movementSource.clairvoyanceActive : player?.clairvoyanceActive) return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * FIXED_MOVEMENT_ACC;
   const electricSlowMultiplier = Number(player.taserSlowedUntil) > timestamp ||
     Number(player.shockSlowedUntil) > timestamp ||
     Number(player.quantumElectricSlowUntil) > timestamp
@@ -13298,10 +13304,10 @@ function effectiveMovementMultiplier(room, player, timestamp = now()) {
     : 1;
   // ACC Fixed owns the final authoritative movement acceleration only while
   // armed; OFF returns the active source acceleration from movementAccState.
-  const movementState = movementAccState(room, player, timestamp);
+  const movementState = movementAccState(room, player, timestamp, movementSource);
   // ACC OFF already exposes gravity's scale as selected; apply it only when
   // ACC's enabled clamp has substituted NORMAL_MOVEMENT_ACC for a slow.
-  const gravityTimeMultiplier = movementState.enabled ? gravityTimeScaleFor(room, player, timestamp) : 1;
+  const gravityTimeMultiplier = movementState.enabled ? (movementSource ? movementSource.gravityScale : gravityTimeScaleFor(room, player, timestamp)) : 1;
   const movementAcceleration = movementState.selected;
   return DEFAULT_MOVEMENT_SPEED_MULTIPLIER * movementAcceleration * gravityTimeMultiplier * electricSlowMultiplier * gravityStormMultiplier * groupMultiplier * desireTimeMultiplier;
 }
@@ -13341,10 +13347,13 @@ function activateHoverSprintForUnsupportedMovement(room, player, targetX, target
   return true;
 }
 
-function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wantsSlow = false) {
+function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wantsSlow = false, clockSample = null) {
   if (room.phase !== "playing" || player.ejected || player.inVent) return;
   const timestamp = now();
-  if (actionBlockedUntil(player) > timestamp) {
+  const movementBlocked = clockSample
+    ? clockSample.stopped || actionBlockedUntil({ ...player, timeStoppedUntil: 0 }) > timestamp
+    : actionBlockedUntil(player) > timestamp;
+  if (movementBlocked) {
     if (player.isBot) clearBotNavigationIntent(player);
     player.vx = 0;
     player.vy = 0;
@@ -13354,7 +13363,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
         ? "sleep"
         : player.gravityPinnedUntil > timestamp
           ? "gravity-pinned"
-        : timeKeeperStops(player, timestamp)
+        : (clockSample?.stopped || timeKeeperStops(player, timestamp))
           ? "time-stopped"
           : "unconscious";
     return;
@@ -13413,7 +13422,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
 
   const map = getMap(room);
   if (canDash) {
-    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt * playerProgressMultiplier(room, mover, timestamp), room, "ダッシュ");
+    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt * playerProgressMultiplier(room, mover, timestamp, clockSample?.movementSource || null), room, "ダッシュ");
     mover.lastDashAt = timestamp;
   }
   const boost = canDash ? DASH_MULTIPLIER : wantsSlow ? SLOW_WALK_MULTIPLIER : 1;
@@ -13421,7 +13430,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   const passiveEffects = player.alive
     ? activeMapObjectEffects(room, player)
     : { speedBoost: false, quiet: false };
-  const baseSpeed = player.alive ? map.speed * effectiveMovementMultiplier(room, player) : map.ghostSpeed;
+  const baseSpeed = player.alive ? map.speed * effectiveMovementMultiplier(room, player, timestamp, clockSample?.movementSource || null) : map.ghostSpeed;
   const speed = baseSpeed * boost * slowedMultiplier;
   const radius = player.alive ? map.playerRadius : 8;
   const beforeX = mover.x;
@@ -13454,7 +13463,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   }
   if (player.alive && movementMode !== "dash") {
     const drainRate = movementMode === "slow" ? SLOW_WALK_DRAIN_PER_SECOND : WALK_DRAIN_PER_SECOND;
-    spendStamina(mover, drainRate * dt * playerProgressMultiplier(room, mover, timestamp), room, movementMode === "slow" ? "無音歩行" : "歩行");
+    spendStamina(mover, drainRate * dt * playerProgressMultiplier(room, mover, timestamp, clockSample?.movementSource || null), room, movementMode === "slow" ? "無音歩行" : "歩行");
   }
   const soundInterval = movementMode === "dash" ? 210 : 430;
   const silentAssassinStep = hasAssassinSilentStepsAccess(player);
@@ -14423,18 +14432,19 @@ function planRoomActorClock(room, from, to) {
     // All rates read the same segment-start source snapshot. No controller
     // endpoint may shift until every recipient has been sampled.
     const rates = new Map();
+    const movementSources = new Map();
     for (const [id, player] of players) {
-      if (stopped.get(id)) { rates.set(id, 0); continue; }
+      if (stopped.get(id)) { rates.set(id, 0); movementSources.set(id, { stopped: true }); continue; }
       const allEffects = player.timedAccelerationEffects;
       player.timedAccelerationEffects = allEffects.filter(effect => !Number.isFinite(Number(effect.startedAt)) || Number(effect.startedAt) <= at);
-      try { rates.set(id, playerProgressMultiplier(snapshot, player, at)); }
+      try { rates.set(id, playerProgressMultiplier(snapshot, player, at)); movementSources.set(id, { stopped: false, clairvoyanceActive: Boolean(player.clairvoyanceActive), movementAccEnabled: player.movementAccEnabled !== false, gravityScale: gravityTimeScaleFor(snapshot, player, at), accelerationComponents: accelerationMultipliersFor(player, at).map(Number).filter(value => Number.isFinite(value) && value > 1) }); }
       finally { player.timedAccelerationEffects = allEffects; }
     }
     for (const [id, player] of players) {
       const total = totals.get(id);
       const isStopped = stopped.get(id);
       const actorRate = rates.get(id);
-      total.segments.push({ from: at, to: next, actorRate, stopped: isStopped });
+      total.segments.push({ from: at, to: next, actorRate, movementSource: movementSources.get(id), stopped: isStopped });
       total.actorMs += elapsed * actorRate;
       if (!isStopped) continue;
       total.stoppedMs += elapsed;
@@ -14525,6 +14535,7 @@ function tickRoom(room) {
   room.lastTickAt = timestamp;
   const clockFrom = timestamp - elapsedMs;
   const actorClock = room.phase === "playing" && elapsedMs > 0 ? planRoomActorClock(room, clockFrom, timestamp) : null;
+  if (actorClock) rememberMovementClock(room, actorClock, timestamp);
   advanceBotOperationalTime(room, elapsedMs, timestamp);
   if (actorClock) for (const player of room.players.values()) applyPlannedActorClock(player, actorClock.players.get(player.id), clockFrom, timestamp);
   reconcileBarrierExpiry(room, timestamp);
@@ -14609,7 +14620,7 @@ function tickRoom(room) {
     }
     const idleThreshold = player.isBot ? BOT_TICK_MS + 150 : 120;
     const blockedUntil = actionBlockedUntil(player);
-    const movementInputExpired = timestamp - player.lastMoveAt > idleThreshold;
+    const movementInputExpired = timestamp - Math.max(Number(player.lastMoveAt) || 0, Number(player.lastMovementReceivedAt) || 0) > idleThreshold;
     if (blockedUntil > timestamp || movementInputExpired) {
       player.vx = 0;
       player.vy = 0;
@@ -19376,6 +19387,8 @@ function humanTransmutation(room, player, targetId) {
   target.y = spawn.y;
   target.vx = 0;
   target.vy = 0;
+  // Revival relocates a body: prior movement must never integrate at its spawn.
+  clearStoredMovementInput(target, now());
   room.bodies = room.bodies.filter((body) => body.playerId !== target.id);
   player.alchemyReviveUsed = true;
   pushMagicEffect(room, "alchemy-human-transmutation", target, { radius: 180, playerId: player.id, targetId: target.id });
@@ -21640,15 +21653,48 @@ function movementElapsedSeconds(player, movementClock, receivedAt) {
   );
 }
 
+function rememberMovementClock(room, plan, timestamp) {
+  for (const [id, clock] of plan.players) {
+    const player = room.players.get(id);
+    if (!player || player.isBot) continue;
+    const history = (player.movementClockHistory || []).filter(segment => segment.to > timestamp - 2000);
+    for (const segment of clock.segments) {
+      const previous = history.at(-1);
+      if (previous && previous.to >= segment.to) continue;
+      const entry = { ...segment, from: Math.max(segment.from, previous?.to ?? segment.from) };
+      if (previous && previous.to === entry.from && previous.actorRate === entry.actorRate && previous.stopped === entry.stopped && JSON.stringify(previous.movementSource) === JSON.stringify(entry.movementSource)) previous.to = entry.to;
+      else history.push(entry);
+    }
+    player.movementClockHistory = history.slice(-512);
+  }
+}
+
 function advanceStoredMovement(room, player, elapsedSeconds) {
   const dx = Number(player.lastMovementDx) || 0;
   const dy = Number(player.lastMovementDy) || 0;
   if (Math.hypot(dx, dy) <= 0.0001 || elapsedSeconds <= 0) return;
-  let remaining = elapsedSeconds;
-  while (remaining > 0.00001) {
-    const step = Math.min(MOVEMENT_INTEGRATION_STEP_SECONDS, remaining);
-    movePlayer(room, player, dx, dy, step, Boolean(player.lastMovementDash), Boolean(player.lastMovementSlow));
-    remaining -= step;
+  const timestamp = now();
+  const from = timestamp - elapsedSeconds * 1000;
+  const tailFrom = Math.max(Number(room.lastTickAt) || from, from);
+  if (room.phase === "playing" && tailFrom < timestamp) rememberMovementClock(room, planRoomActorClock(room, tailFrom, timestamp), timestamp);
+  const history = player.movementClockHistory || [];
+  let at = from;
+  while (at < timestamp - 0.00001) {
+    const segment = history.find(entry => entry.from <= at && entry.to > at);
+    // The preexisting input clock admits up to50ms jitter beyond wall time.
+    // Only that uncovered leading allowance uses the earliest retained rate.
+    const sample = segment || history.find(entry => entry.to > at) || {
+      actorRate: playerProgressMultiplier(room, player, timestamp),
+      stopped: timeKeeperStops(player, timestamp)
+    };
+    const end = Math.min(timestamp, segment ? segment.to : sample.from > at ? sample.from : timestamp);
+    let remaining = (end - at) / 1000;
+    while (remaining > 0.00001) {
+      const step = Math.min(MOVEMENT_INTEGRATION_STEP_SECONDS, remaining);
+      movePlayer(room, player, dx, dy, step, Boolean(player.lastMovementDash), Boolean(player.lastMovementSlow), sample);
+      remaining -= step;
+    }
+    at = end;
   }
 }
 
@@ -26608,5 +26654,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "actor-clock-boundary-v746" });
+self.postMessage({ type: "ready", version: "movement-clock-lifecycle-v747" });
 })();
