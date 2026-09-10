@@ -1,7 +1,45 @@
+function createClientStorage(getBackend = () => globalThis.localStorage) {
+  const fallback = new Map();
+  const pending = new Set();
+  return {
+    getItem(key) {
+      key = String(key);
+      if (pending.has(key)) return fallback.get(key) ?? null;
+      try {
+        const value = getBackend().getItem(key);
+        fallback.set(key, value);
+        return value;
+      } catch {
+        return fallback.get(key) ?? null;
+      }
+    },
+    setItem(key, value) {
+      key = String(key);
+      value = String(value);
+      fallback.set(key, value);
+      pending.add(key);
+      try {
+        getBackend().setItem(key, value);
+        pending.delete(key);
+      } catch { /* Keep this session usable when persistence is unavailable. */ }
+    },
+    removeItem(key) {
+      key = String(key);
+      fallback.set(key, null);
+      pending.add(key);
+      try {
+        getBackend().removeItem(key);
+        pending.delete(key);
+      } catch { /* A failed removal must not revive the old session locally. */ }
+    }
+  };
+}
+const clientStorage = createClientStorage();
+
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "benefit-followup-v742";
+const DVA_CLIENT_RELEASE = "storage-resilience-v743";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -437,9 +475,9 @@ if (VERIFY_REAL_SCREEN_AUTO_START) {
   // A Pages verification origin is reused across exact routes. Discard only
   // the previous match identity before state is constructed so its poll cannot
   // race the next fixture's deterministic offline session.
-  localStorage.removeItem(storage.room);
-  localStorage.removeItem(storage.player);
-  localStorage.removeItem(storage.offlineSession);
+  clientStorage.removeItem(storage.room);
+  clientStorage.removeItem(storage.player);
+  clientStorage.removeItem(storage.offlineSession);
 }
 
 const GUNNER_WEAPON_MOTION_IDS = Object.freeze(["handgun", "smg", "assault", "sniper", "taser"]);
@@ -501,8 +539,8 @@ const state = {
   data: null,
   soloMissionStarting: false,
   soloNameGuidanceOpen: false,
-  roomId: localStorage.getItem(storage.room) || "",
-  playerId: localStorage.getItem(storage.player) || "",
+  roomId: clientStorage.getItem(storage.room) || "",
+  playerId: clientStorage.getItem(storage.player) || "",
   pendingSkinId: "",
   skinRequestSeq: 0,
   keys: new Set(),
@@ -690,7 +728,7 @@ const state = {
   quantumOperatorBranchStage: "ability",
   rootAbilitySelectStage: "operator",
   rootAbilitySelectWasActive: false,
-  abilityAutoActivate: localStorage.getItem(storage.abilityAutoActivate) !== "0",
+  abilityAutoActivate: clientStorage.getItem(storage.abilityAutoActivate) !== "0",
   arrowRepeatKey: "",
   arrowRepeatAt: 0,
   keybindOpen: false,
@@ -727,12 +765,12 @@ const state = {
   paneExpansionGesture: null,
   keyboardContext: "",
   keyboardElement: null,
-  debugForceEndEnabled: localStorage.getItem(storage.debugForceEnd) === "1",
+  debugForceEndEnabled: clientStorage.getItem(storage.debugForceEnd) === "1",
   checkpointSeen: new Set(),
   analyticsExitReported: false,
   analyticsFlushInFlight: false,
   offlineClient: null,
-  offlineMode: localStorage.getItem(storage.offlineSession) === "1",
+  offlineMode: clientStorage.getItem(storage.offlineSession) === "1",
   onlineAvailable: false,
   onlineAvailabilityChecked: false,
   onlineAvailabilityCheckInFlight: false,
@@ -771,7 +809,7 @@ const state = {
     sfxLoading: null,
     sfxCursor: new Map(),
     unlocked: false,
-    muted: IS_VERIFICATION_MODE || localStorage.getItem(storage.gameMuted) !== "0",
+    muted: IS_VERIFICATION_MODE || clientStorage.getItem(storage.gameMuted) !== "0",
     currentBgm: null,
     titleBgm: createBgmAudio(assetUrl("assets/bgm-title.mp3"), 0.34)
   }
@@ -937,7 +975,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "benefit-followup-v742";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "storage-resilience-v743";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -1621,7 +1659,7 @@ const soloMissionIds = ["movement", "combat", "defense", "intel", "emp", "cpu-gr
 
 function completedSoloMissions() {
   try {
-    const value = JSON.parse(localStorage.getItem(storage.soloMissions) || "[]");
+    const value = JSON.parse(clientStorage.getItem(storage.soloMissions) || "[]");
     return new Set(Array.isArray(value) ? value.filter((id) => soloMissionIds.includes(id)) : []);
   } catch {
     return new Set();
@@ -1642,7 +1680,7 @@ function updateSoloProgressUi() {
     if (launchButton) launchButton.textContent = isCompleted ? "再挑戦" : "開始";
   });
   const hint = $("#cpuGravityHint");
-  if (hint) hint.hidden = localStorage.getItem(storage.cpuGravityHint) !== "1";
+  if (hint) hint.hidden = clientStorage.getItem(storage.cpuGravityHint) !== "1";
 }
 
 function recordSoloMissionCompletion(missionId) {
@@ -1650,7 +1688,7 @@ function recordSoloMissionCompletion(missionId) {
   const completed = completedSoloMissions();
   const added = !completed.has(missionId);
   completed.add(missionId);
-  localStorage.setItem(storage.soloMissions, JSON.stringify([...completed]));
+  clientStorage.setItem(storage.soloMissions, JSON.stringify([...completed]));
   updateSoloProgressUi();
   return added;
 }
@@ -1897,10 +1935,10 @@ function playTitleCommandArrival() {
 function init() {
   applyStartupCommand();
   prepareTitleHero();
-  const savedName = localStorage.getItem(storage.name) || "";
+  const savedName = clientStorage.getItem(storage.name) || "";
   els.nameInput.value = savedName;
-  els.skinSelect.value = normalizeSkinId(localStorage.getItem(storage.skin));
-  els.mapSelect.value = normalizeMatchmakingMapId(localStorage.getItem(storage.map));
+  els.skinSelect.value = normalizeSkinId(clientStorage.getItem(storage.skin));
+  els.mapSelect.value = normalizeMatchmakingMapId(clientStorage.getItem(storage.map));
   syncGameAudioButtons();
   updateSoloProgressUi();
   setScreen("title");
@@ -1936,17 +1974,17 @@ function init() {
 
 async function initializeProfileIdentity() {
   const result = await request("/api/profile", {}, { quiet: true, forceOnline: true });
-  if (result?.profile?.developer) localStorage.setItem(storage.developerIdentity, "1");
+  if (result?.profile?.developer) clientStorage.setItem(storage.developerIdentity, "1");
   const savedName = String(result?.profile?.name || "").trim();
   if (els.namePolicy && result?.policy) els.namePolicy.textContent = String(result.policy);
   if (savedName) {
     els.nameInput.value = savedName;
-    localStorage.setItem(storage.name, savedName);
+    clientStorage.setItem(storage.name, savedName);
   }
   else if (!result?.profile?.developer && els.nameInput.value.trim() === "プレイヤー") {
     els.nameInput.value = "";
     els.nameInput.placeholder = "名前を入力";
-    localStorage.removeItem(storage.name);
+    clientStorage.removeItem(storage.name);
   }
   recordUsageCheckpoint("title_loaded");
 }
@@ -1959,11 +1997,11 @@ function lockPlayerName(name) {
   els.nameInput.setAttribute("aria-readonly", "true");
   els.nameInput.title = "この名前はIPアドレス単位で保存済みのため変更できません。";
   els.namePolicy?.classList.add("locked");
-  localStorage.setItem(storage.name, fixedName);
+  clientStorage.setItem(storage.name, fixedName);
 }
 
 function analyticsUserName() {
-  return String(selfPlayer()?.name || els.nameInput.value || localStorage.getItem(storage.name) || "未設定").trim().slice(0, 16);
+  return String(selfPlayer()?.name || els.nameInput.value || clientStorage.getItem(storage.name) || "未設定").trim().slice(0, 16);
 }
 
 function responsePlayerName(result, fallback = "") {
@@ -1975,32 +2013,32 @@ function responsePlayerName(result, fallback = "") {
 }
 
 function recordUsageCheckpoint(name) {
-  if (localStorage.getItem(storage.analyticsDisabled) === "1") return;
+  if (clientStorage.getItem(storage.analyticsDisabled) === "1") return;
   state.analyticsExitReported = false;
   state.checkpointSeen.add(name);
   enqueueUsageAnalytics({ checkpoint: name, event: "visit" });
 }
 
 function recordUsageExit() {
-  if (localStorage.getItem(storage.analyticsDisabled) === "1" || state.analyticsExitReported) return;
+  if (clientStorage.getItem(storage.analyticsDisabled) === "1" || state.analyticsExitReported) return;
   state.analyticsExitReported = true;
   enqueueUsageAnalytics({ checkpoint: "", event: "leave" }, true);
 }
 
 function recordUsageResume() {
-  if (localStorage.getItem(storage.analyticsDisabled) === "1") return;
+  if (clientStorage.getItem(storage.analyticsDisabled) === "1") return;
   state.analyticsExitReported = false;
   enqueueUsageAnalytics({ checkpoint: "", event: "resume" });
 }
 
 function recordUsageHeartbeat() {
-  if (document.hidden || localStorage.getItem(storage.analyticsDisabled) === "1" || !state.checkpointSeen.size) return;
+  if (document.hidden || clientStorage.getItem(storage.analyticsDisabled) === "1" || !state.checkpointSeen.size) return;
   enqueueUsageAnalytics({ checkpoint: "", event: "heartbeat" });
 }
 
 function analyticsQueue() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(storage.analyticsQueue) || "[]");
+    const parsed = JSON.parse(clientStorage.getItem(storage.analyticsQueue) || "[]");
     return Array.isArray(parsed) ? parsed.slice(-256) : [];
   } catch {
     return [];
@@ -2008,7 +2046,7 @@ function analyticsQueue() {
 }
 
 function saveAnalyticsQueue(queue) {
-  localStorage.setItem(storage.analyticsQueue, JSON.stringify(queue.slice(-256)));
+  clientStorage.setItem(storage.analyticsQueue, JSON.stringify(queue.slice(-256)));
 }
 
 function createAnalyticsEvent(payload) {
@@ -2036,7 +2074,7 @@ function enqueueUsageAnalytics(payload, useBeacon = false) {
 }
 
 async function flushUsageAnalytics() {
-  if (state.analyticsFlushInFlight || localStorage.getItem(storage.analyticsDisabled) === "1") return false;
+  if (state.analyticsFlushInFlight || clientStorage.getItem(storage.analyticsDisabled) === "1") return false;
   const queue = analyticsQueue();
   if (!queue.length) return true;
   state.analyticsFlushInFlight = true;
@@ -2064,8 +2102,8 @@ async function flushUsageAnalytics() {
 }
 
 async function excludeOwnAnalytics() {
-  localStorage.setItem(storage.analyticsDisabled, "1");
-  localStorage.removeItem(storage.analyticsQueue);
+  clientStorage.setItem(storage.analyticsDisabled, "1");
+  clientStorage.removeItem(storage.analyticsQueue);
   state.analyticsExitReported = true;
   // Keep the session on the server so other clients can still see it. The
   // report endpoint excludes this client by id without deleting its history.
@@ -2076,10 +2114,10 @@ function clientId() {
     const runId = String(URL_PARAMETERS.get("verify") || Date.now()).replace(/[^a-z0-9_-]+/gi, "-").slice(0, 80);
     return `verify-${VERIFY_REAL_SCREEN_FIXTURE_KIND || "ordinary"}-${runId}`;
   }
-  let value = localStorage.getItem(storage.clientId);
+  let value = clientStorage.getItem(storage.clientId);
   if (!value) {
     value = globalThis.crypto?.randomUUID?.() || `device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    localStorage.setItem(storage.clientId, value);
+    clientStorage.setItem(storage.clientId, value);
   }
   return value;
 }
@@ -2088,7 +2126,7 @@ function initializeOfflineRuntime() {
   if (!globalThis.DVAOffline?.OfflineApiClient) return;
   state.offlineClient = new DVAOffline.OfflineApiClient({
     clientId,
-    isDeveloper: () => localStorage.getItem(storage.developerIdentity) === "1" || Boolean(
+    isDeveloper: () => clientStorage.getItem(storage.developerIdentity) === "1" || Boolean(
       VERIFY_REAL_SCREEN_FIXTURE_KIND && IS_TRUSTED_REAL_SCREEN_FIXTURE_HOST
     )
   });
@@ -2102,7 +2140,7 @@ function activateOfflineMode(reason = "") {
   if (!state.offlineClient) return false;
   void state.offlineClient.start();
   state.offlineMode = true;
-  localStorage.setItem(storage.offlineSession, "1");
+  clientStorage.setItem(storage.offlineSession, "1");
   state.realtime?.disconnect();
   document.documentElement.dataset.connectionMode = "offline";
   if (reason) showToast(reason);
@@ -2111,7 +2149,7 @@ function activateOfflineMode(reason = "") {
 
 function deactivateOfflineMode() {
   state.offlineMode = false;
-  localStorage.removeItem(storage.offlineSession);
+  clientStorage.removeItem(storage.offlineSession);
   document.documentElement.dataset.connectionMode = "online";
 }
 
@@ -2220,16 +2258,16 @@ function ensureRealtimeConnection() {
 function applyStartupCommand() {
   const command = URL_PARAMETERS.get("command");
   if (command === "force-end") {
-    localStorage.setItem(storage.debugForceEnd, "1");
+    clientStorage.setItem(storage.debugForceEnd, "1");
     state.debugForceEndEnabled = true;
   } else if (command === "hide-force-end") {
-    localStorage.removeItem(storage.debugForceEnd);
+    clientStorage.removeItem(storage.debugForceEnd);
     state.debugForceEndEnabled = false;
   } else if (command === "analytics-off") {
-    localStorage.setItem(storage.analyticsDisabled, "1");
+    clientStorage.setItem(storage.analyticsDisabled, "1");
     void excludeOwnAnalytics();
   } else if (command === "analytics-on") {
-    localStorage.removeItem(storage.analyticsDisabled);
+    clientStorage.removeItem(storage.analyticsDisabled);
   }
   els.debugForceEndButton.hidden = !state.debugForceEndEnabled;
 }
@@ -2653,8 +2691,8 @@ function toggleGameMuted() {
     return;
   }
   state.audio.muted = !state.audio.muted;
-  localStorage.setItem(storage.gameMuted, state.audio.muted ? "1" : "0");
-  localStorage.removeItem(storage.musicMuted);
+  clientStorage.setItem(storage.gameMuted, state.audio.muted ? "1" : "0");
+  clientStorage.removeItem(storage.musicMuted);
   if (state.audio.master && state.audio.context) {
     state.audio.master.gain.cancelScheduledValues(state.audio.context.currentTime);
     state.audio.master.gain.setTargetAtTime(state.audio.muted ? 0 : 0.42, state.audio.context.currentTime, 0.018);
@@ -6514,7 +6552,7 @@ function bindEvents() {
   els.mapSelect.addEventListener("change", () => {
     const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
     els.mapSelect.value = mapId;
-    localStorage.setItem(storage.map, mapId);
+    clientStorage.setItem(storage.map, mapId);
     renderPreparationSettingSummary(state.data);
     void syncOperatorSelectionSettings("map");
   });
@@ -6926,7 +6964,7 @@ function bindEvents() {
   els.abilityAutoActivateToggle.checked = state.abilityAutoActivate;
   els.abilityAutoActivateToggle.addEventListener("change", () => {
     state.abilityAutoActivate = els.abilityAutoActivateToggle.checked;
-    localStorage.setItem(storage.abilityAutoActivate, state.abilityAutoActivate ? "1" : "0");
+    clientStorage.setItem(storage.abilityAutoActivate, state.abilityAutoActivate ? "1" : "0");
     els.abilityAutoActivateControl.dataset.enabled = state.abilityAutoActivate ? "1" : "0";
     els.abilityAutoActivateControl.title = state.abilityAutoActivate
       ? "ON: 能力を選択した時に即実行します"
@@ -8677,7 +8715,7 @@ function setTabletOpen(open, { persist = true, focus = true } = {}) {
   els.tabletButton?.classList.toggle("active", state.tabletOpen);
   document.body.classList.toggle("tablet-mode-active", state.tabletOpen);
   document.documentElement.classList.toggle("tablet-mode-active", state.tabletOpen);
-  if (persist) localStorage.setItem(storage.tabletMode, state.tabletOpen ? "1" : "0");
+  if (persist) clientStorage.setItem(storage.tabletMode, state.tabletOpen ? "1" : "0");
   if (state.tabletOpen) {
     if (state.fieldFeedOpen) setFieldFeedOpen(false);
     document.querySelectorAll(".keyboard-selected").forEach((item) => item.classList.remove("keyboard-selected"));
@@ -8699,7 +8737,7 @@ function setTabletOpen(open, { persist = true, focus = true } = {}) {
 }
 
 function tabletModePreferenceEnabled() {
-  return localStorage.getItem(storage.tabletMode) !== "0";
+  return clientStorage.getItem(storage.tabletMode) !== "0";
 }
 
 function expandedMapFocusTargetAvailable(element) {
@@ -9492,7 +9530,7 @@ async function syncSelectedSkin() {
   const requestSeq = ++state.skinRequestSeq;
   state.pendingSkinId = skinId;
   els.skinSelect.value = skinId;
-  localStorage.setItem(storage.skin, skinId);
+  clientStorage.setItem(storage.skin, skinId);
   if (!state.roomId || !state.playerId) return;
   const ok = await api("/api/skin", { skinId });
   if (requestSeq !== state.skinRequestSeq) return;
@@ -9506,8 +9544,8 @@ async function syncOperatorSelectionSettings(changedField = "") {
   const name = els.nameInput.value.trim();
   els.skinSelect.value = skinId;
   els.mapSelect.value = mapId;
-  localStorage.setItem(storage.skin, skinId);
-  localStorage.setItem(storage.map, mapId);
+  clientStorage.setItem(storage.skin, skinId);
+  clientStorage.setItem(storage.map, mapId);
 
   if (!preparationSettingsEditable(data) || !state.roomId || !state.playerId) {
     if (changedField === "skin") await syncSelectedSkin();
@@ -9528,7 +9566,7 @@ async function syncOperatorSelectionSettings(changedField = "") {
     return false;
   }
   const confirmedName = String(result.profile?.name || nameAtRequest);
-  localStorage.setItem(storage.name, confirmedName);
+  clientStorage.setItem(storage.name, confirmedName);
   if (els.nameInput.value.trim() === nameAtRequest) els.nameInput.value = confirmedName;
   state.pendingSkinId = "";
   applyState(result);
@@ -9547,7 +9585,7 @@ function acceptMatchmakingResult(result, name, offline) {
   else deactivateOfflineMode();
   const confirmedName = result.profile?.name || responsePlayerName(result, name);
   els.nameInput.value = confirmedName;
-  localStorage.setItem(storage.name, confirmedName);
+  clientStorage.setItem(storage.name, confirmedName);
   setCurrentRoomSession(result.roomId, result.playerId);
   applyState(result);
   recordUsageCheckpoint(offline ? "matchmaking_offline" : "matchmaking_online");
@@ -9577,7 +9615,7 @@ async function startMatchmaking(options = {}) {
   if (state.matchmakingInFlight) return;
   loadGameplayTextures();
   const fallbackName = options.allowDefaultName ? "プレイヤー" : "";
-  const name = els.nameInput.value.trim() || localStorage.getItem(storage.name) || fallbackName;
+  const name = els.nameInput.value.trim() || clientStorage.getItem(storage.name) || fallbackName;
   if (!name) {
     showToast("最初に名前を入力してください。");
     els.nameInput.focus();
@@ -9587,9 +9625,9 @@ async function startMatchmaking(options = {}) {
   setSoloNameGuidance(false);
   const skinId = normalizeSkinId(els.skinSelect.value);
   const mapId = normalizeMatchmakingMapId(els.mapSelect.value);
-  localStorage.setItem(storage.name, name);
-  localStorage.setItem(storage.skin, skinId);
-  localStorage.setItem(storage.map, mapId);
+  clientStorage.setItem(storage.name, name);
+  clientStorage.setItem(storage.skin, skinId);
+  clientStorage.setItem(storage.map, mapId);
   const serial = ++state.matchmakingSerial;
   state.matchmakingInFlight = true;
   state.matchmakingTicket = null;
@@ -9656,9 +9694,9 @@ async function startMatchmaking(options = {}) {
 
 async function startSoloMission(missionId) {
   if (!soloMissionIds.includes(missionId) || state.soloMissionStarting) return;
-  const name = localStorage.getItem(storage.name) || els.nameInput.value.trim() || "プレイヤー";
+  const name = clientStorage.getItem(storage.name) || els.nameInput.value.trim() || "プレイヤー";
   els.nameInput.value = name;
-  localStorage.setItem(storage.name, name);
+  clientStorage.setItem(storage.name, name);
   setSoloNameGuidance(false);
   loadGameplayTextures();
   state.soloMissionStarting = true;
@@ -9668,7 +9706,7 @@ async function startSoloMission(missionId) {
     button.disabled = true;
     button.textContent = button.dataset.soloMission === missionId ? "接続中..." : "開始";
   });
-  const skinId = normalizeSkinId(localStorage.getItem(storage.skin) || els.skinSelect.value);
+  const skinId = normalizeSkinId(clientStorage.getItem(storage.skin) || els.skinSelect.value);
   const previousRoomId = state.roomId;
   const previousPlayerId = state.playerId;
   if (previousRoomId && previousPlayerId && !state.offlineMode) {
@@ -9745,7 +9783,7 @@ async function runVerificationRealScreenAutoStart() {
   document.documentElement.setAttribute("data-v533-auto-start-status", "starting");
   try {
     // Pages is the canonical verification origin, so sequential exact-route
-    // fixtures share its localStorage. Never let a previous fixture's room
+    // fixtures share its clientStorage. Never let a previous fixture's room
     // identity short-circuit or contaminate the next deterministic run.
     if (state.roomId || state.playerId) resetLocalSession();
     await state.offlineClient.start();
@@ -10387,8 +10425,8 @@ function setCurrentRoomSession(roomId, playerId) {
   state.roomId = nextRoomId;
   state.playerId = nextPlayerId;
   if (nextRoomId && nextPlayerId) {
-    localStorage.setItem(storage.room, nextRoomId);
-    localStorage.setItem(storage.player, nextPlayerId);
+    clientStorage.setItem(storage.room, nextRoomId);
+    clientStorage.setItem(storage.player, nextPlayerId);
   }
 }
 
@@ -10432,9 +10470,9 @@ function returnExpiredOnlineRoomToMatchmaking(generation, roomId, playerId) {
 
 async function rebuildExpiredOfflineRoom(generation, roomId, playerId) {
   if (!isCurrentRoomSession(roomId, playerId, generation)) return false;
-  const name = els.nameInput.value.trim() || localStorage.getItem(storage.name) || "プレイヤー";
-  const skinId = normalizeSkinId(localStorage.getItem(storage.skin) || els.skinSelect.value);
-  const mapId = normalizeMatchmakingMapId(localStorage.getItem(storage.map) || els.mapSelect.value);
+  const name = els.nameInput.value.trim() || clientStorage.getItem(storage.name) || "プレイヤー";
+  const skinId = normalizeSkinId(clientStorage.getItem(storage.skin) || els.skinSelect.value);
+  const mapId = normalizeMatchmakingMapId(clientStorage.getItem(storage.map) || els.mapSelect.value);
   cancelTransientGameInputForBackground();
   resetLocalSession();
   if (!activateOfflineMode()) {
@@ -10620,9 +10658,9 @@ function resetLocalSession() {
   els.tabletButton?.setAttribute("aria-expanded", "false");
   els.fieldFeedPanel.hidden = true;
   clearMovementInput();
-  localStorage.removeItem(storage.room);
-  localStorage.removeItem(storage.player);
-  localStorage.removeItem(storage.offlineSession);
+  clientStorage.removeItem(storage.room);
+  clientStorage.removeItem(storage.player);
+  clientStorage.removeItem(storage.offlineSession);
   render();
 }
 
@@ -15468,7 +15506,7 @@ function renderEnd(data) {
   els.endTitle.textContent = resultOutcomeTitle(data);
   els.endReason.textContent = data.finishReason || "";
   if (data.soloMission?.id === "cpu-gravity" && data.winner === "attackers") {
-    localStorage.setItem(storage.cpuGravityHint, "1");
+    clientStorage.setItem(storage.cpuGravityHint, "1");
     const hint = $("#cpuGravityHint");
     if (hint) hint.hidden = false;
   }
@@ -23967,7 +24005,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "benefit-followup-v742";
+const version = "storage-resilience-v743";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25025,7 +25063,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=benefit-followup-v742", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=storage-resilience-v743", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
