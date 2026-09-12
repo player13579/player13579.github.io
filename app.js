@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "map-water-light-and-te-opacity-v751";
+const DVA_CLIENT_RELEASE = "philia-authored-front-and-drinking-v752";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -487,7 +487,43 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
   "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
+const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"candidate-v751","activeEntries":["white-hood/front"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"]},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}]}}}});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
+
+const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
+const ITEM_USE_POSE_DIRECTIONS = Object.freeze(["front"]); // First authored rollout is identity-specific front poses.
+function itemUseKeyframes(...timing) { return Object.freeze(timing.map(([key, atMs]) => Object.freeze({ key, atMs }))); }
+function itemUseIdentityPoseAssets(keyframes) { return Object.freeze(Object.fromEntries(ITEM_USE_POSE_SKINS.map((skinId) => [skinId, Object.freeze(Object.fromEntries(ITEM_USE_POSE_DIRECTIONS.map((direction) => [direction, Object.freeze(Object.fromEntries(keyframes.map((frame) => [frame.key, Object.freeze({ assetPath: "", sourceRect: Object.freeze({ x: 0, y: 0, width: 0, height: 0 }), origin: Object.freeze({ x: 128, y: 240 }), ground: Object.freeze({ x: 0, y: 31 }), scale: 98 / 224 })])))])))]))); }
+function itemUseMotionProfileDefinition(itemId, motionId, duration, keyframes) {
+  const genericAssets = itemUseIdentityPoseAssets(keyframes);
+  const assets = itemId === "mineral-water" ? Object.freeze({
+    ...genericAssets,
+    "white-hood": Object.freeze({
+      ...genericAssets["white-hood"],
+      front: Object.freeze(Object.fromEntries(keyframes.map((frame, index) => [frame.key, Object.freeze({
+        assetPath: "assets/generated/philia-drink-four-v752.png",
+        sourceRect: Object.freeze({ x: index * 256, y: 0, width: 256, height: 256 }),
+        origin: Object.freeze({ x: 128, y: 240 }),
+        ground: Object.freeze({ x: 0, y: 31 }),
+        scale: 98 / 224
+      })])))
+    })
+  }) : genericAssets;
+  return Object.freeze({ itemId, motionId, duration, keyframes, assets, assetVersion: "v752" });
+}
+const ITEM_USE_MOTION_PROFILES = Object.freeze({
+  "mineral-water": itemUseMotionProfileDefinition("mineral-water", "item-drink-mineral-water", 1100, itemUseKeyframes(["open", 0], ["raise", 220], ["sip", 540], ["lower", 820])),
+  antidote: itemUseMotionProfileDefinition("antidote", "item-dose-antidote", 780, itemUseKeyframes(["dose", 0], ["recover", 460])),
+  seawater: itemUseMotionProfileDefinition("seawater", "item-douse-seawater", 900, itemUseKeyframes(["prepare", 0], ["tip", 220], ["douse", 470], ["recover", 690])),
+  mercury: itemUseMotionProfileDefinition("mercury", "item-expose-mercury", 820, itemUseKeyframes(["unseal", 0], ["expose", 260], ["recoil", 570])),
+  lead: itemUseMotionProfileDefinition("lead", "item-expose-lead", 820, itemUseKeyframes(["unseal", 0], ["expose", 260], ["recoil", 570])),
+  uranium: itemUseMotionProfileDefinition("uranium", "item-expose-uranium", 900, itemUseKeyframes(["unseal", 0], ["expose", 280], ["recoil", 650])),
+  plutonium: itemUseMotionProfileDefinition("plutonium", "item-expose-plutonium", 940, itemUseKeyframes(["unseal", 0], ["expose", 300], ["recoil", 680])),
+  molotov: itemUseMotionProfileDefinition("molotov", "item-hot-pour-molotov", 880, itemUseKeyframes(["brace", 0], ["pour", 250], ["withdraw", 620])),
+  "heated-water": itemUseMotionProfileDefinition("heated-water", "item-hot-pour-heated-water", 860, itemUseKeyframes(["brace", 0], ["pour", 235], ["withdraw", 610])),
+  ice: itemUseMotionProfileDefinition("ice", "item-cold-contact-ice", 800, itemUseKeyframes(["contact", 0], ["withdraw", 480]))
+});
+const ITEM_USE_MOTION_BY_ID = Object.freeze(Object.fromEntries(Object.values(ITEM_USE_MOTION_PROFILES).map((profile) => [profile.motionId, profile])));
 const HACKER_ROOT_OPERATOR_LABELS = Object.freeze({
   fighter: "ファイター",
   gravity: "グラビティ",
@@ -977,7 +1013,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "map-water-light-and-te-opacity-v751";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "philia-authored-front-and-drinking-v752";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3120,6 +3156,29 @@ const PHYSICAL_ACTION_SEQUENCE = Object.freeze({
   // Throw release has dedicated timing and body mechanics while retaining the empty-hand attack cells.
   throw: 0
 });
+function itemUseMotionProfile(itemId) {
+  return ITEM_USE_MOTION_PROFILES[String(itemId || "")] || null;
+}
+
+function itemUseMotionProfileForMotion(motionId) {
+  return ITEM_USE_MOTION_BY_ID[String(motionId || "")] || null;
+}
+
+function itemUseMotionFrame(profile, progress) {
+  if (!profile?.keyframes?.length) return null;
+  const elapsed = Math.max(0, Math.min(1, Number(progress) || 0)) * profile.duration;
+  let selected = profile.keyframes[0];
+  for (const frame of profile.keyframes) if (elapsed >= frame.atMs) selected = frame;
+  return selected;
+}
+
+function itemUsePoseAsset(profile, skinId, direction, frameKey) { return profile?.assets?.[skinId]?.[direction]?.[frameKey] || null; }
+
+function itemUseCharacterAction(itemId) {
+  const profile = itemUseMotionProfile(itemId);
+  return profile ? { kind: "interact", duration: profile.duration, motionId: profile.motionId, itemId: profile.itemId } : null;
+}
+
 function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURATION[kind] || 700, startedAt = state.frameNow || performance.now(), sourceEffectId = "", variant = "", motionId = kind) {
   if (!playerId || !kind) return;
   state.characterActions.set(playerId, {
@@ -10069,6 +10128,8 @@ async function api(path, extra = {}, options = {}) {
     path === "/api/quantum-control" ||
     (path === "/api/borrowed-ability" && String(extra?.ability || "") === "quantum")
   )) actionKind = "";
+  const itemUseAction = path === "/api/item-use" ? itemUseCharacterAction(extra?.itemId) : null;
+  if (path === "/api/item-use" && (itemUseAction || String(extra?.itemId || "") === "orichalcum-sword")) actionKind = "";
   if (actionKind) {
     const actionVariant = ["/api/shoot", "/api/gunner-weapon"].includes(path)
       ? String(
@@ -10096,7 +10157,9 @@ async function api(path, extra = {}, options = {}) {
             "/api/alchemy"
           ].includes(path)
           ? requestedMode
-          : "";
+          : path === "/api/item-use"
+            ? String(extra?.itemId || "")
+            : "";
     triggerCharacterAction(state.playerId, actionKind, undefined, undefined, "", actionVariant, path);
   }
   if (path === "/api/gunner-weapon") {
@@ -11365,7 +11428,10 @@ function detectMagicEffects(previous, next) {
     // The canvas object-ATE owns the activation acknowledgement.  Do not
     // duplicate its label as an automatic right-bottom toast; durable object
     // states remain in Applied Effects and other action toasts are unchanged.
-    const actionKind = magicCharacterActionKind(effect.type, effect.variant);
+    const itemUseAction = effect.type === "action-item-use"
+      ? itemUseCharacterAction(effect.variant)
+      : null;
+    const actionKind = itemUseAction?.kind || magicCharacterActionKind(effect.type, effect.variant);
     if (actionKind && effect.playerId) {
       if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
         state.facing.set(
@@ -11380,11 +11446,11 @@ function detectMagicEffects(previous, next) {
       triggerCharacterAction(
         effect.playerId,
         actionKind,
-        CHARACTER_ACTION_DURATION[actionKind] || duration,
+        itemUseAction?.duration || CHARACTER_ACTION_DURATION[actionKind] || duration,
         startedAt,
         effect.id,
         effect.variant,
-        effect.type
+        itemUseAction?.motionId || effect.type
       );
     }
   }
@@ -22160,10 +22226,49 @@ function drawPersistentStatusAteLayers(player, data) {
   }
 }
 
+
+// Authored poses use a fixed cell-local origin; undeclared identities and directions retain their established renderer.
+function authoredCharacterIdentity(player,data){return player?.isBot?"male-bot":displayedSkinId(player,data);}
+function authoredDirection(player,motion){const facing=facingFor(player,motion);if(facing==="left")return"left";if(facing==="right")return"right";if(facing==="up")return"back";return"front";}
+function authoredFrameFor(entry,gaitFrame,moving){if(!moving)return entry.idle;const cycle=entry.cycle||[];if(!cycle.length)return entry.idle;let total=0;for(let index=0;index<cycle.length;index+=1)total+=Math.max(0,Number(cycle[index].duration)||0);if(!(total>0))return entry.idle;let remaining=((gaitFrame%60)+60)%60/60*total;for(let index=0;index<cycle.length;index+=1){const frame=cycle[index];remaining-=Math.max(0,Number(frame.duration)||0);if(remaining<0)return frame;}return cycle[cycle.length-1];}
+function authoredFrameGeometryValid(frame, image) {
+  return Boolean(frame) && [frame.x, frame.y, frame.width, frame.height].every(Number.isFinite) &&
+    frame.x >= 0 && frame.y >= 0 && frame.width > 0 && frame.height > 0 &&
+    frame.x + frame.width <= image.naturalWidth && frame.y + frame.height <= image.naturalHeight;
+}
+function authoredEntryReady(entry, image) {
+  if (!image?.complete || !(image.naturalWidth > 0) || !(image.naturalHeight > 0)) return false;
+  const layout = entry?.layout, origin = layout?.sourceOrigin, ground = layout?.ground;
+  if (!origin || !ground || ![origin.x, origin.y, ground.x, ground.y, layout.scale].every(Number.isFinite) || layout.scale <= 0) return false;
+  if (!authoredFrameGeometryValid(entry.idle, image) || !Array.isArray(entry.cycle)) return false;
+  return entry.cycle.every(frame => authoredFrameGeometryValid(frame, image) && Number.isFinite(frame.duration) && frame.duration > 0);
+}
+function resetAuthoredWalkLifecycle(player){const animation=state.walkAnimations.get(player.id);if(!animation)return;animation.frame=0;animation.moving=false;animation.x=player.x;animation.y=player.y;animation.lastDisplacedAt=null;animation.stepBucket=-1;}
+function drawAuthoredCharacterMotion(player,data,ghost){
+  const identity=authoredCharacterIdentity(player,data),configured=AUTHORED_CHARACTER_MOTION_MANIFEST.identities?.[identity],motion=motionFor(player,data),direction=authoredDirection(player,motion),entry=configured?.[direction],image=state.textures.authoredCharacterMotion?.[identity]?.[direction];
+  // Missing assets return before the gait clock, preserving legacy state exactly.
+  if(!entry||!image||!image.complete||!(image.naturalWidth>0)||!authoredEntryReady(entry,image))return false;
+  const hs=isHoverSprintWalkingSuppressed(player,data),inert=ghost||hs||!player.alive;
+  if(inert||ctx.globalAlpha<=0)resetAuthoredWalkLifecycle(player);
+  if(ctx.globalAlpha<=0)return true;
+  const requestedMoving=!inert&&Boolean(motion.moving);if(!requestedMoving)resetAuthoredWalkLifecycle(player);let gaitFrame=0,moving=false;
+  if(requestedMoving){gaitFrame=walkAnimationFrame(player,motion,walkMotionMode(player));const animation=state.walkAnimations.get(player.id);moving=Number.isFinite(animation?.lastDisplacedAt)&&(state.frameNow||performance.now())-animation.lastDisplacedAt<=100;}
+  const frame=authoredFrameFor(entry,gaitFrame,moving);
+  const layout=entry.layout||{},sourceOrigin=layout.sourceOrigin||{},ground=layout.ground||{},scale=Number(layout.scale);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
+  ctx.drawImage(image, frame.x, frame.y, frame.width, frame.height, ground.x - sourceOrigin.x * scale, ground.y - sourceOrigin.y * scale, frame.width * scale, frame.height * scale);
+  drawNameplate(player, ghost, -78);
+  ctx.restore();
+  return true;
+}
+
 function drawPlayerSprite(player, data, ghost, characterAction = null) {
   // Ghosts retain their exact skin/Bot texture owners, but stale action
   // presentation cannot override their stationary spectral pose.
   if (!ghost && characterAction && drawPhysicalActionSprite(player, data, ghost, characterAction)) return true;
+  if (drawAuthoredCharacterMotion(player, data, ghost)) return true;
   if (player.isBot && drawBotWalkSprite(player, data, ghost)) return true;
   if (!player.isBot && drawPetSprite(player, data, ghost)) return true;
   if (!player.isBot && drawOperatorWalkSprite(player, data, ghost)) return true;
@@ -22417,6 +22522,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   const atlasId = player.isBot ? "male-bot" : skinId === "blue-dress" ? "blue-dress" : "white-hood";
 
   const normalizedProgress = clamp(Number(action.progress) || 0, 0, 1);
+  if (drawAuthoredItemUsePose(player, data, ghost, action, atlasId, normalizedProgress)) return true;
   const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
   const rawPhase = physicalActionFramePosition(action.kind, normalizedProgress, action.motionId);
   const phase = 1 + (rawPhase - 1) * dynamics.poseTravel;
@@ -22446,6 +22552,35 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   return true;
 }
 
+function drawAuthoredItemUsePose(player, data, ghost, action, atlasId, progress) {
+  const profile = action?.kind === "interact" ? itemUseMotionProfileForMotion(action.motionId) : null;
+  if (!profile) return false;
+  const facing = facingFor(player, motionFor(player, data));
+  const direction = facing === "down" ? "front" : facing === "up" ? "back" : facing;
+  // Do not switch to legacy art in the middle of an authored sequence.
+  const sequence = profile.keyframes.map((entry) => {
+    const pose = itemUsePoseAsset(profile, atlasId, direction, entry.key);
+    const image = state.textures.itemUseActionMotions?.[atlasId]?.[direction]?.[profile.itemId]?.[entry.key];
+    const rect = pose?.sourceRect, origin = pose?.origin, ground = pose?.ground;
+    const valid = image?.complete && Number(image.naturalWidth) > 0 && Number(image.naturalHeight) > 0 &&
+      rect && Number.isFinite(rect.x) && Number.isFinite(rect.y) && Number.isFinite(rect.width) && Number.isFinite(rect.height) &&
+      rect.x >= 0 && rect.y >= 0 && rect.width > 0 && rect.height > 0 &&
+      rect.x + rect.width <= image.naturalWidth && rect.y + rect.height <= image.naturalHeight &&
+      origin && Number.isFinite(origin.x) && Number.isFinite(origin.y) &&
+      ground && Number.isFinite(ground.x) && Number.isFinite(ground.y) && Number.isFinite(pose.scale) && pose.scale > 0;
+    return valid ? { image, pose, rect, origin, ground } : null;
+  });
+  if (sequence.some((entry) => !entry)) return false;
+  if (ctx.globalAlpha <= 0) return true;
+  const frame = itemUseMotionFrame(profile, progress);
+  const index = profile.keyframes.findIndex((entry) => entry.key === frame?.key);
+  const selected = sequence[index];
+  if (!selected) return false;
+  const { image, pose, rect, origin, ground } = selected;
+  ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
+  ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height, ground.x - origin.x * pose.scale, ground.y - origin.y * pose.scale, rect.width * pose.scale, rect.height * pose.scale);
+  drawNameplate(player, ghost, -78); ctx.restore(); return true;
+}
 function gunnerWeaponMotionSprite(player, data, weaponId, actionId, progress) {
   if (!GUNNER_WEAPON_MOTION_IDS.includes(weaponId)) return null;
   const skinId = player.isBot ? "male-bot" : displayedSkinId(player, data) === "blue-dress" ? "blue-dress" : "white-hood";
@@ -22718,6 +22853,7 @@ function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(playe
     x: player.x,
     y: player.y,
     lastAt: now,
+    lastDisplacedAt: null,
     stepBucket: -1,
     lastStepAt: 0
   };
@@ -22740,8 +22876,10 @@ function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(playe
       // than 42% of a stride between samples, especially under acceleration.
       // Preserve all ordinary displacement and reject only an actual teleport.
       animation.frame = (animation.frame + travelled / strideDistance * 60) % 60;
+      if (travelled > 0) animation.lastDisplacedAt = now;
     } else {
       animation.frame = 0;
+      animation.lastDisplacedAt = null;
     }
     const stepPose = walkMotionPose(movementMode, animation.frame, true);
     if (player.id === state.data?.selfId && player.alive && stepPose > 0 && stepPose !== animation.stepBucket && now - animation.lastStepAt > profile.stepSoundMinInterval) {
@@ -22753,6 +22891,7 @@ function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(playe
     }
   } else {
     animation.frame = 0;
+    animation.lastDisplacedAt = null;
     animation.stepBucket = -1;
   }
   animation.moving = moving;
@@ -24068,7 +24207,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "map-water-light-and-te-opacity-v751";
+const version = "philia-authored-front-and-drinking-v752";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24246,6 +24385,8 @@ const version = "map-water-light-and-te-opacity-v751";
   const shopActivationEffect = new Image();
   // PREPARATION_ROSTER_V726: this first-preparation texture must begin loading immediately.
   const preparationSummonCircle = eagerImage("assets/generated/preparation-summon-circle-v726.png");
+
+  const authoredCharacterMotion = Object.fromEntries(Object.entries(AUTHORED_CHARACTER_MOTION_MANIFEST.identities || {}).map(([identity,directions]) => [identity,Object.fromEntries(Object.entries(directions).map(([direction,entry]) => { const image = new Image(); if (entry?.assetPath) defer(image,entry.assetPath); return [direction,image]; }))]));
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
     skinId,
     Object.fromEntries(["front", "left", "right", "back"].map((direction) => [direction, new Image()]))
@@ -24267,12 +24408,10 @@ const version = "map-water-light-and-te-opacity-v751";
   const physicalActionMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map((skinId) => [
       skinId,
-      Object.assign(
-        Object.fromEntries(PHYSICAL_ACTION_MOTION_KINDS.map((kind) => [kind, new Image()])),
-        { shop: new Image() }
-      )
+      Object.assign(Object.fromEntries(PHYSICAL_ACTION_MOTION_KINDS.map((kind) => [kind, new Image()])), { shop: new Image() })
     ])
   );
+  const itemUseActionMotions = Object.fromEntries(ITEM_USE_POSE_SKINS.map((skinId) => [skinId, Object.fromEntries(ITEM_USE_POSE_DIRECTIONS.map((direction) => [direction, Object.fromEntries(Object.values(ITEM_USE_MOTION_PROFILES).map((profile) => [profile.itemId, Object.fromEntries(profile.keyframes.map((frame) => [frame.key, new Image()]))]))]))]));
   const weaponActionMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map((skinId) => [
       skinId,
@@ -24383,6 +24522,10 @@ const version = "map-water-light-and-te-opacity-v751";
     const shopSourceVersion = skinId === "male-bot" ? "v465" : "v483";
     defer(motions.shop, `assets/generated/physical-motion-${skinId}-interact-${shopSourceVersion}.png`);
   }
+  for (const skinId of ITEM_USE_POSE_SKINS) for (const direction of ITEM_USE_POSE_DIRECTIONS) for (const profile of Object.values(ITEM_USE_MOTION_PROFILES)) for (const frame of profile.keyframes) {
+    const pose = itemUsePoseAsset(profile, skinId, direction, frame.key);
+    if (pose?.assetPath) defer(itemUseActionMotions[skinId][direction][profile.itemId][frame.key], pose.assetPath);
+  }
   for (const [skinId, weapons] of Object.entries(weaponActionMotions)) {
     for (const [weaponId, actions] of Object.entries(weapons)) {
       for (const [actionId, entry] of Object.entries(actions)) {
@@ -24411,6 +24554,7 @@ const version = "map-water-light-and-te-opacity-v751";
     playerSkins,
     playerWalkAtlases: {},
     playerWalkRows,
+    authoredCharacterMotion,
     playerWalk60,
     blueDressMaster,
     killCutinMaster,
@@ -24510,6 +24654,7 @@ const version = "map-water-light-and-te-opacity-v751";
     shopActivationEffect,
     preparationSummonCircle,
     physicalActionMotions,
+    itemUseActionMotions,
     weaponActionMotions,
     fullMapComposites,
     tacticsStoryboard,
@@ -25126,7 +25271,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=map-water-light-and-te-opacity-v751", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=philia-authored-front-and-drinking-v752", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
