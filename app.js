@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "result-audio-lifecycle-v749";
+const DVA_CLIENT_RELEASE = "te-material-light-continuity-v750";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -977,7 +977,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "result-audio-lifecycle-v749";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "te-material-light-continuity-v750";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -18140,115 +18140,28 @@ function applyAteGlowContext(targetContext, mode, time = 0, phase = 0, intensity
   return profile;
 }
 
-function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, phase = 0, intensity = 1) {
-  if (!(width > 0 && height > 0)) return;
+// Candidate replacement for public/app.js:drawAteComplementaryVfx.
+// `maskCanvas` is the existing pooled 256px light canvas from
+// drawAnimatedTextureCentered after it has been source-in masked by `sprite`.
+// This function adds no detached geometry: all E light is constrained to T.
+function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, phase = 0, intensity = 1, options = {}) {
+  if (!(width > 0 && height > 0)) return false;
   const rawIntensity = Number(intensity);
-  if (!Number.isFinite(rawIntensity) || rawIntensity <= 0.001) return;
-  const normalizedMode = normalizeAteGlowMode(mode);
-  const profile = ATE_GLOW_PROFILES[normalizedMode];
+  if (!Number.isFinite(rawIntensity) || rawIntensity <= 0.001) return false;
   const inheritedAlpha = targetContext.globalAlpha;
-  if (inheritedAlpha <= 0 || prefersReducedMotion()) return;
-  const sampledTime = time;
   const strength = clamp(rawIntensity, 0, 1.4);
-  const count = normalizedMode === "resonance" ? 10 : ["data-down", "data-up", "data-accelerate"].includes(normalizedMode) ? 7 : 5;
-  const direction = normalizedMode === "data-down" ? 1 : -1;
-
+  if (inheritedAlpha <= 0 || strength <= 0.001 || prefersReducedMotion()) return false;
+  const maskCanvas = options?.maskCanvas;
+  const sprite = options?.sprite;
+  // Direct legacy callers intentionally receive no unbound generic E. Their
+  // texture owner must supply the pooled source-alpha mask to opt in.
+  if (!sprite?.width || !sprite?.height || !maskCanvas?.width || !maskCanvas?.height) return false;
   targetContext.save();
   targetContext.globalCompositeOperation = "lighter";
-  targetContext.filter = "none";
-  targetContext.shadowColor = profile.aura;
-  targetContext.shadowBlur = Math.max(4, profile.blur * 0.42 * strength);
-  for (let index = 0; index < count; index += 1) {
-    const seed = phase * 7.13 + index * 1.917;
-    const cycle = ((sampledTime * (0.34 + index * 0.013) + seed) % 1 + 1) % 1;
-    let x = 0;
-    let y = 0;
-    let rotation = sampledTime * (0.8 + index * 0.07) + seed;
-    let shardWidth = Math.max(2, Math.min(width, height) * (0.018 + (index % 3) * 0.005));
-    let shardHeight = shardWidth * (1.6 + (index % 2) * 0.7);
-
-    if (normalizedMode === "data-accelerate") {
-      const input = index < 3;
-      const lane = input ? index : index - 3;
-      const laneCount = input ? 3 : 4;
-      const laneY = (-0.24 + lane * (0.48 / Math.max(1, laneCount - 1))) * height;
-      x = input
-        ? -width * 0.44 + cycle * width * 0.34
-        : width * 0.1 + cycle * width * 0.36;
-      y = laneY + Math.sin(sampledTime * 3.2 + seed) * height * 0.018;
-      rotation = 0;
-      shardWidth *= input ? 1.15 : 1.9;
-      shardHeight *= input ? 0.9 : 0.55;
-    } else if (["beam", "recoil", "data-down", "data-up"].includes(normalizedMode)) {
-      x = -width * 0.38 + cycle * width * 0.76;
-      y = (-0.24 + (index % 4) * 0.16) * height;
-      if (normalizedMode === "data-down" || normalizedMode === "data-up") {
-        x = (-0.3 + (index % 5) * 0.15) * width;
-        y = direction * (-height * 0.36 + cycle * height * 0.72);
-        shardWidth *= 1.35;
-        shardHeight *= 0.72;
-      } else {
-        rotation = 0;
-        shardWidth *= 2.1;
-        shardHeight *= 0.55;
-      }
-    } else if (["flow-up", "combustion"].includes(normalizedMode)) {
-      x = (-0.3 + (index % 5) * 0.15) * width + Math.sin(sampledTime * 2.1 + seed) * width * 0.025;
-      y = height * 0.34 - cycle * height * 0.68;
-      rotation *= 0.7;
-    } else if (["orbit", "gravity", "teleport"].includes(normalizedMode)) {
-      const angle = sampledTime * (0.9 + index * 0.04) + seed;
-      x = Math.cos(angle) * width * (0.25 + (index % 2) * 0.06);
-      y = Math.sin(angle) * height * (0.2 + (index % 3) * 0.025);
-      if (normalizedMode === "teleport") y += (cycle - 0.5) * height * 0.24;
-      rotation = angle + Math.PI / 4;
-    } else if (normalizedMode === "resonance") {
-      const side = index % 2 ? -1 : 1;
-      const convergence = Math.min(1, cycle / 0.56);
-      if (cycle < 0.56) {
-        x = side * width * (0.46 - convergence * 0.36);
-        y = Math.sin(seed * 1.9) * height * 0.28 * (1 - convergence);
-        rotation = side > 0 ? Math.PI : 0;
-      } else {
-        const release = (cycle - 0.56) / 0.44;
-        const angle = seed * 0.73 + side * release * 0.34;
-        x = Math.cos(angle) * width * (0.08 + release * 0.34);
-        y = Math.sin(angle) * height * (0.06 + release * 0.3);
-        rotation = angle + Math.PI / 4;
-      }
-      shardWidth *= 0.72;
-      shardHeight *= 1.42;
-    } else if (normalizedMode === "clairvoyance") {
-      const sweep = ((sampledTime * 0.42 + index / Math.max(1, count)) % 1 + 1) % 1;
-      x = (-0.4 + sweep * 0.8) * width;
-      y = Math.sin(sweep * Math.PI * 2 + seed) * height * 0.16;
-      rotation = Math.atan2(Math.cos(sweep * Math.PI * 2 + seed) * height * 0.16, width * 0.8);
-      shardWidth *= 1.7;
-      shardHeight *= 0.56;
-    } else if (normalizedMode === "glitch") {
-      x = (-0.34 + cycle * 0.68) * width;
-      y = (-0.32 + (index % 6) * 0.13) * height;
-      rotation = 0;
-      shardWidth *= 2.4;
-      shardHeight *= 0.5;
-    } else {
-      const angle = seed + cycle * Math.PI * 2;
-      const radius = (0.12 + cycle * 0.22) * Math.min(width, height);
-      x = Math.cos(angle) * radius;
-      y = Math.sin(angle) * radius;
-      rotation = angle + Math.PI / 4;
-    }
-
-    const life = Math.sin(cycle * Math.PI);
-    targetContext.save();
-    targetContext.translate(x, y);
-    targetContext.rotate(rotation);
-    targetContext.globalAlpha = inheritedAlpha * clamp((0.16 + life * 0.5) * strength, 0, 0.82);
-    targetContext.fillStyle = index % 2 ? profile.core : profile.aura;
-    targetContext.fillRect(-shardWidth / 2, -shardHeight / 2, shardWidth, shardHeight);
-    targetContext.restore();
-  }
+  targetContext.globalAlpha = inheritedAlpha;
+  targetContext.drawImage(maskCanvas, -width / 2, -height / 2, width, height);
   targetContext.restore();
+  return true;
 }
 
 function drawGunnerSpecialAmmoEffect(effect, progress) {
@@ -19112,7 +19025,7 @@ function drawHoverSprintActivationJets(effect, progress) {
   const fade = 1 - objectEffectEase(clamp((progress - 0.7) / 0.3, 0, 1));
   const pulse = Math.sin(clamp(progress / 0.42, 0, 1) * Math.PI);
   const heading = hoverSprintTravelHeading(player || effect, state.data);
-  const options = { alpha: fade * (0.35 + ignition * 0.65), flare: ignition, pulse, reduced: prefersReducedMotion() };
+  const options = { alpha: fade * ignition, flare: ignition, pulse, reduced: prefersReducedMotion() };
   const feet = drawHoverSprintJetPair(x, y + 23, heading, { ...options, height: 76 + ignition * 10 });
   const back = drawHoverSprintJetPair(x, y - 2, heading, { ...options, height: 66 + ignition * 8 });
   return feet || back;
@@ -19300,7 +19213,7 @@ function drawTransferGeneratedEffect(effect, progress, sprite, defaultSize) {
   const size = defaultSize * (outgoing ? 0.78 + pulse * 0.34 : 1.15 - progress * 0.25 + pulse * 0.18);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = (outgoing ? 1 - progress * 0.25 : 1 - progress * 0.4) * (1 - objectEffectEase(clamp((progress - 0.72) / 0.28, 0, 1)));
+  ctx.globalAlpha *= objectEffectEase(clamp(progress / (outgoing ? 0.045 : 0.09), 0, 1)) * (outgoing ? 1 - progress * 0.25 : 1 - progress * 0.4) * (1 - objectEffectEase(clamp((progress - 0.72) / 0.28, 0, 1)));
   ctx.translate(x, y);
   if (outgoing && (targetX !== effect.x || targetY !== effect.y)) {
     ctx.rotate(Math.atan2(targetY - effect.y, targetX - effect.x));
@@ -19343,7 +19256,7 @@ function drawTacticalSystemsEffect(effect, progress) {
   const size = Math.min(index === 6 ? 560 : 390, base * (1.55 + progress * 0.65 + pulse * 0.2));
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = (1 - progress * 0.3) * (1 - objectEffectEase(clamp((progress - 0.62) / 0.38, 0, 1)));
+  ctx.globalAlpha *= objectEffectEase(clamp(progress / 0.075, 0, 1)) * (1 - progress * 0.3) * (1 - objectEffectEase(clamp((progress - 0.62) / 0.38, 0, 1)));
   ctx.translate(effect.x, effect.y);
   ctx.rotate(index === 5 ? progress * 0.24 : 0);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
@@ -19625,7 +19538,7 @@ function drawPhilosophyAtlasEffect(effect, index, progress, rawSize) {
   const size = rawSize * (0.78 + progress * 0.78 + pulse * 0.22);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = (1 - progress * 0.32) * (1 - objectEffectEase(clamp((progress - 0.58) / 0.42, 0, 1)));
+  ctx.globalAlpha *= objectEffectEase(clamp(progress / 0.12, 0, 1)) * (1 - progress * 0.32) * (1 - objectEffectEase(clamp((progress - 0.58) / 0.42, 0, 1)));
   ctx.translate(effect.x, effect.y);
   ctx.rotate(prefersReducedMotion() ? 0 : (index % 2 ? 1 : -1) * progress * 0.24);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
@@ -19689,7 +19602,7 @@ function drawShopActivationEffect(effect, progress, now) {
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 1 - settle;
+  ctx.globalAlpha *= objectEffectEase(clamp(progress / 0.08, 0, 1)) * (1 - settle);
   drawAnimatedTextureCentered(sprite, effect.x, effect.y - 30 - opening * 4, width, height, {
     mode: "shimmer",
     time: now / 1000,
@@ -19943,7 +19856,7 @@ function drawActionEffect(effect, progress, now) {
     ctx.save();
     ctx.translate(effect.x, effect.y);
     ctx.rotate(prefersReducedMotion() ? 0 : (index % 2 ? 1 : -1) * (progress * 0.28 + layer * 0.08));
-    ctx.globalAlpha = (1 - progress * 0.42) * (1 - objectEffectEase(clamp((progress - 0.58) / 0.42, 0, 1))) * (0.78 - layer * 0.26);
+    ctx.globalAlpha *= objectEffectEase(clamp(progress / 0.065, 0, 1)) * (1 - progress * 0.42) * (1 - objectEffectEase(clamp((progress - 0.58) / 0.42, 0, 1))) * (0.78 - layer * 0.26);
     drawAnimatedTextureCentered(sprite, 0, -progress * (8 + layer * 5), layerSize, layerSize, {
       mode: semanticEffectMotion(effect.type, effect.variant, index === 3 || index === 9 ? "flow-up" : "energy"),
       time: now / 1000,
@@ -20205,7 +20118,7 @@ function drawAlchemyEffect(effect, index, progress) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   const tail = 1 - objectEffectEase(clamp((progress - 0.64) / 0.36, 0, 1));
-  ctx.globalAlpha = (1 - progress * 0.32) * tail;
+  ctx.globalAlpha *= objectEffectEase(clamp(progress / 0.10, 0, 1)) * (1 - progress * 0.32) * tail;
   ctx.translate(effect.x, effect.y);
   ctx.rotate(prefersReducedMotion() ? 0 : (index % 2 ? 1 : -1) * progress * 0.18);
   drawAnimatedTextureBottom(sprite, 0, size / 2, size, size, {
@@ -21112,7 +21025,6 @@ function drawGainAcquisitionEffect(effect, progress, now, index = 0, total = 1) 
       baseAlpha: 0.16,
       opacityBoost: 3
     });
-    drawAteComplementaryVfx(ctx, profile.motion, size, size, now / 1000, progress, fade * 0.42);
     ctx.restore();
   }
 }
@@ -21185,8 +21097,6 @@ function drawFighterEnergyChargeMarker(effect, progress, now) {
     baseAlpha: 0.16,
     opacityBoost: 3
   });
-  // E is sparse upward motes, distinct from the EC texture silhouette.
-  drawAteComplementaryVfx(ctx, "flow-up", size, size, time, progress, fade * 0.42);
   ctx.restore();
 }
 
@@ -21223,8 +21133,10 @@ function drawObjectTextureLayer(sprite, size, alpha, options = {}) {
   ctx.scale(scaleX, scaleY);
   ctx.globalCompositeOperation = composite;
   ctx.globalAlpha = inheritedAlpha * clamp(alpha, 0, 1);
-  applyAteGlowContext(ctx, mode, Math.floor(time * 60) / 60, phase, intensity * 0.72);
-  drawNormalizedSpriteCentered(sprite, 0, 0, size, size);
+  drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
+    mode, time, phase, intensity: intensity * 0.72,
+    baseAlpha: 1, opacityBoost: 1, visibilityProfile: "object"
+  });
   ctx.restore();
 }
 
@@ -21419,7 +21331,6 @@ function drawSemanticObjectEffect(sprite, effect, progress, now) {
   } else {
     drawLayer(baseSize, fade * 0.82);
   }
-  drawAteComplementaryVfx(ctx, profile.motion, baseSize, baseSize, time, progress, fade * 0.72);
   drawObjectAppearanceCelebration(effect, progress, time, baseSize);
   ctx.restore();
 }
@@ -23195,8 +23106,8 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   highlightContext.clearRect(0, 0, 256, 256);
   const drawClippedOverlay = (clipX, clipY, clipWidth, clipHeight, alpha, sourceOffsetX = 0, sourceOffsetY = 0, ellipse = false) => {
     if (!(clipWidth > 0 && clipHeight > 0) || alpha <= 0.004) return;
-    const x = (clipX / width + 0.5) * 256;
-    const y = (clipY / height + 0.5) * 256;
+    const x = ((clipX + sourceOffsetX) / width + 0.5) * 256;
+    const y = ((clipY + sourceOffsetY) / height + 0.5) * 256;
     const w = clipWidth / width * 256;
     const h = clipHeight / height * 256;
     const strength = clamp(alpha * intensity * effectiveOpacityBoost * animationProfile.overlayGain, 0, 1);
@@ -23318,8 +23229,12 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   } else if (animationMode === "teleport") {
     for (let slice = 0; slice < 6; slice += 1) {
       const x = -width * 0.42 + slice * width * 0.14;
-      const offsetY = Math.sin(clock * 4.2 + slice * 0.92) * height * 0.055;
-      drawClippedOverlay(x, -height * 0.42, width * 0.095, height * 0.84, 0.28 + slice * 0.025, 0, offsetY);
+      // Stagger finite traveling columns inside T; shifting a full-height mask
+      // vertically produced no changing light on the texture's occupied pixels.
+      const travel = ((clock * 0.32 + slice * 0.17) % 1 + 1) % 1;
+      const columnHeight = height * 0.46;
+      const y = height * 0.42 - travel * height * 0.84 - columnHeight / 2;
+      drawClippedOverlay(x, y, width * 0.14, columnHeight, Math.sin(travel * Math.PI) * 0.55, 0, 0, true);
     }
   } else if (animationMode === "gravity") {
     for (let ring = 0; ring < 4; ring += 1) {
@@ -23380,10 +23295,10 @@ function drawAnimatedTextureCentered(sprite, centerX, centerY, maxWidth, maxHeig
   highlightContext.globalCompositeOperation = "source-in";
   highlightContext.drawImage(sprite, 0, 0, 256, 256);
   ctx.globalAlpha = inheritedAlpha;
-  ctx.drawImage(highlightCanvas, -width / 2, -height / 2, width, height);
   if (visibilityProfile !== "ambient") {
-    ctx.globalAlpha = inheritedAlpha;
-    drawAteComplementaryVfx(ctx, animationMode, width, height, sampledTime, phase + progress, intensity * 0.82);
+    drawAteComplementaryVfx(ctx, animationMode, width, height, sampledTime, phase + progress, intensity * 0.82, { sprite, maskCanvas: highlightCanvas });
+  } else {
+    ctx.drawImage(highlightCanvas, -width / 2, -height / 2, width, height);
   }
   ctx.restore();
   return true;
@@ -24026,7 +23941,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "result-audio-lifecycle-v749";
+const version = "te-material-light-continuity-v750";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25084,7 +24999,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=result-audio-lifecycle-v749", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=te-material-light-continuity-v750", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
