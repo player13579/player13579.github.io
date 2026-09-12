@@ -6,7 +6,7 @@
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
 const RUNTIME_RELEASE = "benefit-material-and-sophia-drink-v768";
-const CACHE_NAME = "dva-static-v768-benefit-material-sophia-drink";
+const CACHE_NAME = "dva-static-v768-benefit-material-and-sophia-drink";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/sophia-drink-four-v768.png",
