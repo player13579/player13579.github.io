@@ -43,7 +43,6 @@
 
   const abilityRows = [
     ["fighter-limit-break", "リミットブレイク", 18, "operator-fighter", "fighter", "limit-break", "active", "/api/limit-break"],
-    ["gravity-near", "転移・対象付近", 6, "operator-gravity", "gravity", "near", "active", "/api/teleport"],
     ["gravity-target", "対象転移", 8, "operator-gravity", "gravity", "target", "active-target-map", "/api/teleport"],
     ["gravity-heart", "心臓転移", 22, "operator-gravity", "gravity", "heart", "active", "/api/teleport"],
     ["gravity-accelerate", "アクセラレート", 8, "operator-gravity", "gravity", "accelerate", "active", "/api/gravity-time"],

@@ -7250,7 +7250,6 @@ const LABORATORY_MAP = Object.freeze({
 
   const abilityRows = [
     ["fighter-limit-break", "リミットブレイク", 18, "operator-fighter", "fighter", "limit-break", "active", "/api/limit-break"],
-    ["gravity-near", "転移・対象付近", 6, "operator-gravity", "gravity", "near", "active", "/api/teleport"],
     ["gravity-target", "対象転移", 8, "operator-gravity", "gravity", "target", "active-target-map", "/api/teleport"],
     ["gravity-heart", "心臓転移", 22, "operator-gravity", "gravity", "heart", "active", "/api/teleport"],
     ["gravity-accelerate", "アクセラレート", 8, "operator-gravity", "gravity", "accelerate", "active", "/api/gravity-time"],
@@ -7353,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "background-te-correction-rollback-v773",
+    version: "root-health-and-near-teleport-removal-v774",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "background-te-correction-rollback-v773";
+const PRODUCT_RELEASE = "root-health-and-near-teleport-removal-v774";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7873,7 +7872,7 @@ const OPERATORS = {
       limit: 99,
       asset: "teleport",
       description: "重力と時空を操作し、転移・時間加減速・浮揚・重力嵐を扱う。",
-      details: "重力による時空の曲率を操作するオペレーター。転移（1MP）は他人の付近へ自分を移動する。心臓転移（10MP）は対象を遠隔キルする。アクセラレート（1MP）とディーセラレート（1MP）は8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストーム（10MP）は指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
+      details: "重力による時空の曲率を操作するオペレーター。転移（1MP）は自分を指定地点へ、対象転移は選択対象を指定地点へ移動する。心臓転移（10MP）は対象を遠隔キルする。アクセラレート（1MP）とディーセラレート（1MP）は8秒間、対象の行動時間を相対変化させる。理知中はリビテーションで床のない場所も移動できる。グラビティストーム（10MP）は指定地点へ全域の敵を12秒間吸引して継続ダメージと減速・拘束を与える。発動者には最後の1秒を除いてバリアが発生する。"
     },
     {
       id: "defender-flora",
@@ -11179,8 +11178,8 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
   const mode = normalizeQuantumMode(String(action.mode || ""));
   if (path === "/api/renki") return 0;
   if (path === "/api/teleport") {
-    if (!['near', 'heart'].includes(String(action.mode || ""))) return null;
-    return String(action.mode || "") === "heart" ? HEART_TELEPORT_MANA_COST : TELEPORT_MANA_COST;
+    if (String(action.mode || "") !== "heart") return null;
+    return HEART_TELEPORT_MANA_COST;
   }
   if (path === "/api/gravity-time") {
     return ["accelerate", "decelerate"].includes(String(action.mode || "")) ? ABILITY_MANA_COST : null;
@@ -11214,8 +11213,8 @@ function abilityBatchUnitManaCost(actionPath, rawAction = {}) {
   }
   if (ability !== "gravity") return null;
   const gravityMode = String(action.mode || "");
-  if (["near", "heart"].includes(gravityMode)) {
-    return gravityMode === "heart" ? HEART_TELEPORT_MANA_COST : TELEPORT_MANA_COST;
+  if (gravityMode === "heart") {
+    return HEART_TELEPORT_MANA_COST;
   }
   if (["accelerate", "decelerate"].includes(gravityMode)) return ABILITY_MANA_COST;
   // Time Keeper deliberately has no ability-batch unit: a hold may never
@@ -12863,6 +12862,13 @@ function manaCapacityFor(entity) {
 
 function serializeResourceValue(value) {
   return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+function serializeHealthValue(value) {
+  const health = Number(value) || 0;
+  return Math.abs(health - HACKER_ROOT_HEALTH) < 1e-8
+    ? HACKER_ROOT_HEALTH
+    : serializeResourceValue(health);
 }
 
 function expandManaCapacityFor(entity, requestedMana) {
@@ -15305,7 +15311,7 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   }
   ensureAbilityAvailable(player);
   mode = String(mode || "body");
-  if (!["body", "near", "heart", "target"].includes(mode)) {
+  if (!["body", "heart", "target"].includes(mode)) {
     throw new ApiError(400, "テレポート方式が不正です。");
   }
   const timestamp = now();
@@ -15352,36 +15358,16 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   let x = Number(rawX);
   let y = Number(rawY);
   let movingTarget = target;
-  if (mode === "near") {
-    if (target.id === player.id) throw new ApiError(400, "対象付近転移では自分以外を選択してください。");
-    movingTarget = player;
-    const map = getMap(room);
-    const baseAngle = Math.atan2(player.y - target.y, player.x - target.x) || 0;
-    const candidates = [];
-    for (const radius of [36, 48, 64, 80, 96, 112, 132, 156, 180]) {
-      for (let step = 0; step < 24; step += 1) {
-        const angle = baseAngle + step * Math.PI / 12;
-        candidates.push({ x: target.x + Math.cos(angle) * radius, y: target.y + Math.sin(angle) * radius });
-      }
-    }
-    const destination = candidates.find((point) => isWalkable(room, point.x, point.y, map.playerRadius)) ||
-      (isWalkable(room, target.x, target.y, map.playerRadius) ? { x: target.x, y: target.y } : null);
-    if (!destination) throw new ApiError(400, "対象付近に安全な転移地点がありません。");
-    x = destination.x;
-    y = destination.y;
-  }
   const destination = resolveExpandedMapTeleportDestination(room, x, y);
 
-  const teleportLabel = mode === "near" ? "対象付近転移" : mode === "target" ? "対象転移" : "地点転移";
+  const teleportLabel = mode === "target" ? "対象転移" : "地点転移";
   spendOperatorMana(room, player, teleportLabel);
   const origin = moveByExpandedMapTeleport(movingTarget, destination, timestamp);
   player.teleportReadyAt = 0;
   pushMagicEffect(room, "action-teleport", origin, { radius: 135, playerId: player.id, targetX: destination.x, targetY: destination.y });
   pushMagicEffect(room, "action-teleport", movingTarget, { radius: 135, playerId: movingTarget.id, variant: "arrival" });
-  pushEvent(room, mode === "near"
-    ? `${player.name} が ${target.name} の近くへ転移しました。`
-    : mode === "target"
-      ? `${player.name} が ${movingTarget.name} を指定地点へ対象転移させました。`
+  pushEvent(room, mode === "target"
+    ? `${player.name} が ${movingTarget.name} を指定地点へ対象転移させました。`
       : movingTarget.id === player.id
         ? `${player.name} が転移しました。`
         : `${player.name} が ${movingTarget.name} を転移させました。`);
@@ -16979,7 +16965,7 @@ function useShopAbility(room, player, abilityId, options = {}) {
   try {
     if (product.operator === "fighter") return toggleLimitBreak(room, player);
     if (product.operator === "gravity") {
-      if (["near", "target", "heart"].includes(product.mode)) {
+      if (["target", "heart"].includes(product.mode)) {
         return teleportPlayer(room, player, options.x, options.y, targetId, product.mode);
       }
       if (["accelerate", "decelerate"].includes(product.mode)) return toggleGravityTime(room, player, product.mode, targetId);
@@ -19780,7 +19766,7 @@ function useBorrowedAbility(room, player, type, options = {}) {
   } else if (key === "gravity") {
     const mode = String(options.mode || "storm");
     const targetId = String(options.targetId || player.id);
-    if (["body", "near", "heart", "target"].includes(mode)) {
+    if (["body", "heart", "target"].includes(mode)) {
       teleportPlayer(room, player, options.x, options.y, targetId, mode);
     } else if (mode === "accelerate" || mode === "decelerate") {
       toggleGravityTime(room, player, mode, targetId);
@@ -22294,7 +22280,7 @@ function serialize(room, viewer, options = {}) {
       movementMode: viewer.movementMode,
       bodyHits: viewer.bodyHits,
       overheal: viewer.overheal,
-      health: serializeResourceValue(remainingHealth(viewer)),
+      health: serializeHealthValue(remainingHealth(viewer)),
       maxHealth: serializeResourceValue(healthCapacityFor(viewer)),
       killCamera: viewer.killCamera ? { ...viewer.killCamera } : null,
       credits: viewer.credits,
@@ -26682,5 +26668,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "background-te-correction-rollback-v773" });
+self.postMessage({ type: "ready", version: "root-health-and-near-teleport-removal-v774" });
 })();
