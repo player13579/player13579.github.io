@@ -7353,7 +7353,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "philia-antidote-use-v763",
+    version: "hs-stamina-and-drinking-directions-v764",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7375,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "philia-antidote-use-v763";
+const PRODUCT_RELEASE = "hs-stamina-and-drinking-directions-v764";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -13414,7 +13414,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   // Preserve immediate aiming input without reclassifying physical motion.
   // Explicit zero-direction packets already settle rest in the branch above.
   if (dt <= 0) {
-    if (wantsDash && availableStamina(mover) > 0.5) clearGunnerAim(player);
+    if (wantsDash && (Number(player.hoverSprintUntil) > timestamp || availableStamina(mover) > 0.5)) clearGunnerAim(player);
     if (!player.gunnerSnipingActive) {
       player.aimX = dx;
       player.aimY = dy;
@@ -13423,7 +13423,8 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   }
   const interruptedDesireRestStartedAt = Number(mover.desireRestRecoveryStartedAt) || 0;
   syncAutomaticStationaryRest(room, mover, false, timestamp);
-  const canDash = Boolean(wantsDash && availableStamina(mover) > 0.5);
+  const hoverSprintActiveBeforeMove = Number(player.hoverSprintUntil) > timestamp;
+  const canDash = Boolean(wantsDash && (hoverSprintActiveBeforeMove || availableStamina(mover) > 0.5));
   const movementMode = canDash ? "dash" : wantsSlow ? "slow" : "walk";
   mover.vx = dx;
   mover.vy = dy;
@@ -13435,10 +13436,6 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   }
 
   const map = getMap(room);
-  if (canDash) {
-    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt * playerProgressMultiplier(room, mover, timestamp, clockSample?.movementSource || null), room, "ダッシュ");
-    mover.lastDashAt = timestamp;
-  }
   const boost = canDash ? DASH_MULTIPLIER : wantsSlow ? SLOW_WALK_MULTIPLIER : 1;
   const slowedMultiplier = 1;
   const passiveEffects = player.alive
@@ -13452,6 +13449,13 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
   const nx = mover.x + dx * speed * dt;
   const ny = mover.y + dy * speed * dt;
   if (player.alive) activateHoverSprintForUnsupportedMovement(room, player, nx, ny, timestamp);
+  const hoverSprintActive = Number(player.hoverSprintUntil) > timestamp;
+  // HS grants motion without SP spend from the same movement packet, including
+  // its activation packet. Ordinary sprint spending resumes as soon as HS ends.
+  if (canDash && !hoverSprintActive) {
+    spendStamina(mover, DASH_DRAIN_PER_SECOND * dt * playerProgressMultiplier(room, mover, timestamp, clockSample?.movementSource || null), room, "ダッシュ");
+    mover.lastDashAt = timestamp;
+  }
   if (!player.alive || player.hoverSprintUntil > timestamp || canLevitate(player)) {
     mover.x = clampNumber(nx, radius, map.width - radius, mover.x);
     mover.y = clampNumber(ny, radius, map.height - radius, mover.y);
@@ -13475,7 +13479,7 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
     syncAutomaticStationaryRest(room, mover, true, timestamp);
     return;
   }
-  if (player.alive && movementMode !== "dash") {
+  if (player.alive && movementMode !== "dash" && !hoverSprintActive) {
     const drainRate = movementMode === "slow" ? SLOW_WALK_DRAIN_PER_SECOND : WALK_DRAIN_PER_SECOND;
     spendStamina(mover, drainRate * dt * playerProgressMultiplier(room, mover, timestamp, clockSample?.movementSource || null), room, movementMode === "slow" ? "無音歩行" : "歩行");
   }
@@ -26678,5 +26682,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "philia-antidote-use-v763" });
+self.postMessage({ type: "ready", version: "hs-stamina-and-drinking-directions-v764" });
 })();

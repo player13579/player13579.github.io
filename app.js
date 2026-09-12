@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "philia-antidote-use-v763";
+const DVA_CLIENT_RELEASE = "hs-stamina-and-drinking-directions-v764";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -1020,7 +1020,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "philia-antidote-use-v763";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "hs-stamina-and-drinking-directions-v764";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3201,10 +3201,11 @@ function resolveItemUsePose(profile, skinId, requestedDirection, frameKey) {
   const direction = ITEM_USE_POSE_DIRECTIONS.includes(requestedDirection) ? requestedDirection : "front";
   const exact = itemUsePoseAsset(profile, skinId, direction, frameKey);
   if (itemUsePoseHasRaster(exact)) return { pose: exact, direction, fallback: false };
-  // v763 adds a temporary front-only antidote sequence.  Do not broaden that
-  // fallback to mineral-water or other existing profiles: their missing side
-  // and rear poses must retain the previous rejection behavior.
-  if (profile?.itemId !== "antidote") return null;
+  // Existing front action art may be reused only for the same identity when
+  // mineral-water lacks an exact direction. This is a front-facing drinking
+  // action fallback: it neither rotates/mirrors art nor changes game facing.
+  // Other item profiles and identities retain their existing rejection path.
+  if (profile?.itemId !== "antidote" && profile?.itemId !== "mineral-water") return null;
   const front = itemUsePoseAsset(profile, skinId, "front", frameKey);
   return itemUsePoseHasRaster(front) ? { pose: front, direction: "front", fallback: direction !== "front" } : null;
 }
@@ -11805,7 +11806,8 @@ function advanceRenderPlayers(data) {
       : current.moving;
     const directionX = isSelf ? localDirection.dx : current.moveX;
     const directionY = isSelf ? localDirection.dy : current.moveY;
-    const selfCanDash = isSelf && isDashing() && data.self.stamina > 0.5;
+    const selfHoverSprintActive = isSelf && Number(data.self?.hoverSprintUntil) > estimatedServerNow(data);
+    const selfCanDash = isSelf && isDashing() && (selfHoverSprintActive || data.self.stamina > 0.5);
     const movementMode = isSelf ? (selfCanDash ? "dash" : isSlowWalking() ? "slow" : "walk") : player.movementMode;
     const modeMultiplier = movementMode === "dash" ? 1.75 : movementMode === "slow" ? 0.52 : 1;
     const baseSpeed = player.alive
@@ -24241,7 +24243,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "philia-antidote-use-v763";
+const version = "hs-stamina-and-drinking-directions-v764";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25305,7 +25307,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=philia-antidote-use-v763", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=hs-stamina-and-drinking-directions-v764", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
