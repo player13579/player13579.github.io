@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "sophia-front-slow-gait-v762";
+const DVA_CLIENT_RELEASE = "philia-antidote-use-v763";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -491,9 +491,14 @@ const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"sophia-dist
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
-const ITEM_USE_POSE_DIRECTIONS = Object.freeze(["front"]); // First authored rollout is identity-specific front poses.
+const ITEM_USE_POSE_DIRECTIONS = Object.freeze(["front", "left", "right", "back"]);
+const ITEM_USE_POSE_MANIFEST = Object.freeze({ antidote: { "white-hood": { front: {"unseal":{"assetPath":"assets/generated/philia-front-antidote-v763.png","assetSha256":"FE4FD70757020671B709E6B9D6B8B26326366FA2B90D6E1228A65C2B80477A09","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"raise":{"assetPath":"assets/generated/philia-front-antidote-v763.png","assetSha256":"FE4FD70757020671B709E6B9D6B8B26326366FA2B90D6E1228A65C2B80477A09","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"dose":{"assetPath":"assets/generated/philia-front-antidote-v763.png","assetSha256":"FE4FD70757020671B709E6B9D6B8B26326366FA2B90D6E1228A65C2B80477A09","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/philia-front-antidote-v763.png","assetSha256":"FE4FD70757020671B709E6B9D6B8B26326366FA2B90D6E1228A65C2B80477A09","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}} } } });
 function itemUseKeyframes(...timing) { return Object.freeze(timing.map(([key, atMs]) => Object.freeze({ key, atMs }))); }
 function itemUseIdentityPoseAssets(keyframes) { return Object.freeze(Object.fromEntries(ITEM_USE_POSE_SKINS.map((skinId) => [skinId, Object.freeze(Object.fromEntries(ITEM_USE_POSE_DIRECTIONS.map((direction) => [direction, Object.freeze(Object.fromEntries(keyframes.map((frame) => [frame.key, Object.freeze({ assetPath: "", sourceRect: Object.freeze({ x: 0, y: 0, width: 0, height: 0 }), origin: Object.freeze({ x: 128, y: 240 }), ground: Object.freeze({ x: 0, y: 31 }), scale: 98 / 224 })])))])))]))); }
+function applyItemUsePoseManifest(itemId, baseAssets) {
+  const accepted = ITEM_USE_POSE_MANIFEST[String(itemId || "")] || {};
+  return Object.freeze(Object.fromEntries(ITEM_USE_POSE_SKINS.map((skinId) => [skinId, Object.freeze(Object.fromEntries(ITEM_USE_POSE_DIRECTIONS.map((direction) => [direction, Object.freeze({ ...(baseAssets?.[skinId]?.[direction] || {}), ...(accepted?.[skinId]?.[direction] || {}) })])))])));
+}
 function itemUseMotionProfileDefinition(itemId, motionId, duration, keyframes) {
   const genericAssets = itemUseIdentityPoseAssets(keyframes);
   const assets = itemId === "mineral-water" ? Object.freeze({
@@ -509,11 +514,11 @@ function itemUseMotionProfileDefinition(itemId, motionId, duration, keyframes) {
       })])))
     })
   }) : genericAssets;
-  return Object.freeze({ itemId, motionId, duration, keyframes, assets, assetVersion: "v752" });
+  return Object.freeze({ itemId, motionId, duration, keyframes, assets: applyItemUsePoseManifest(itemId, assets), assetVersion: "v752" });
 }
 const ITEM_USE_MOTION_PROFILES = Object.freeze({
   "mineral-water": itemUseMotionProfileDefinition("mineral-water", "item-drink-mineral-water", 1100, itemUseKeyframes(["open", 0], ["raise", 220], ["sip", 540], ["lower", 820])),
-  antidote: itemUseMotionProfileDefinition("antidote", "item-dose-antidote", 780, itemUseKeyframes(["dose", 0], ["recover", 460])),
+  antidote: itemUseMotionProfileDefinition("antidote", "item-dose-antidote", 780, itemUseKeyframes(["unseal", 0], ["raise", 160], ["dose", 320], ["recover", 580])),
   seawater: itemUseMotionProfileDefinition("seawater", "item-douse-seawater", 900, itemUseKeyframes(["prepare", 0], ["tip", 220], ["douse", 470], ["recover", 690])),
   mercury: itemUseMotionProfileDefinition("mercury", "item-expose-mercury", 820, itemUseKeyframes(["unseal", 0], ["expose", 260], ["recoil", 570])),
   lead: itemUseMotionProfileDefinition("lead", "item-expose-lead", 820, itemUseKeyframes(["unseal", 0], ["expose", 260], ["recoil", 570])),
@@ -1015,7 +1020,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sophia-front-slow-gait-v762";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "philia-antidote-use-v763";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3191,6 +3196,18 @@ function itemUseMotionFrame(profile, progress) {
 }
 
 function itemUsePoseAsset(profile, skinId, direction, frameKey) { return profile?.assets?.[skinId]?.[direction]?.[frameKey] || null; }
+function itemUsePoseHasRaster(pose) { return Boolean(pose?.assetPath && pose?.sourceRect && pose?.origin && pose?.ground && Number(pose?.scale) > 0); }
+function resolveItemUsePose(profile, skinId, requestedDirection, frameKey) {
+  const direction = ITEM_USE_POSE_DIRECTIONS.includes(requestedDirection) ? requestedDirection : "front";
+  const exact = itemUsePoseAsset(profile, skinId, direction, frameKey);
+  if (itemUsePoseHasRaster(exact)) return { pose: exact, direction, fallback: false };
+  // v763 adds a temporary front-only antidote sequence.  Do not broaden that
+  // fallback to mineral-water or other existing profiles: their missing side
+  // and rear poses must retain the previous rejection behavior.
+  if (profile?.itemId !== "antidote") return null;
+  const front = itemUsePoseAsset(profile, skinId, "front", frameKey);
+  return itemUsePoseHasRaster(front) ? { pose: front, direction: "front", fallback: direction !== "front" } : null;
+}
 
 function itemUseCharacterAction(itemId) {
   const profile = itemUseMotionProfile(itemId);
@@ -22573,8 +22590,9 @@ function drawAuthoredItemUsePose(player, data, ghost, action, atlasId, progress)
   const direction = facing === "down" ? "front" : facing === "up" ? "back" : facing;
   // Do not switch to legacy art in the middle of an authored sequence.
   const sequence = profile.keyframes.map((entry) => {
-    const pose = itemUsePoseAsset(profile, atlasId, direction, entry.key);
-    const image = state.textures.itemUseActionMotions?.[atlasId]?.[direction]?.[profile.itemId]?.[entry.key];
+    const resolved = resolveItemUsePose(profile, atlasId, direction, entry.key);
+    const pose = resolved?.pose;
+    const image = state.textures.itemUseActionMotions?.[atlasId]?.[resolved?.direction]?.[profile.itemId]?.[entry.key];
     const rect = pose?.sourceRect, origin = pose?.origin, ground = pose?.ground;
     const valid = image?.complete && Number(image.naturalWidth) > 0 && Number(image.naturalHeight) > 0 &&
       rect && Number.isFinite(rect.x) && Number.isFinite(rect.y) && Number.isFinite(rect.width) && Number.isFinite(rect.height) &&
@@ -24223,7 +24241,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "sophia-front-slow-gait-v762";
+const version = "philia-antidote-use-v763";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25287,7 +25305,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=sophia-front-slow-gait-v762", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=philia-antidote-use-v763", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
