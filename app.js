@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "kill-cutin-parent-opacity-v757";
+const DVA_CLIENT_RELEASE = "safe-default-player-name-v758";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -661,6 +661,8 @@ const state = {
   verificationPreparationBarrierSeen: false,
   verificationPreparationBarrierReleased: false,
   matchmakingInFlight: false,
+  nameInputWasExplicit: false,
+  profileIdentity: { loaded: false, developer: false, name: "" },
   matchmakingSerial: 0,
   matchmakingTicket: null,
   operatorSelectionRouteOpen: false,
@@ -1013,7 +1015,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kill-cutin-parent-opacity-v757";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "safe-default-player-name-v758";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2015,11 +2017,13 @@ async function initializeProfileIdentity() {
   if (result?.profile?.developer) clientStorage.setItem(storage.developerIdentity, "1");
   const savedName = String(result?.profile?.name || "").trim();
   if (els.namePolicy && result?.policy) els.namePolicy.textContent = String(result.policy);
-  if (savedName) {
+  state.profileIdentity = { loaded: Boolean(result), developer: Boolean(result?.profile?.developer), name: savedName };
+  const activeName = String(selfPlayer()?.name || "").trim();
+  if (savedName && !state.nameInputWasExplicit && !activeName && !state.roomId) {
     els.nameInput.value = savedName;
     clientStorage.setItem(storage.name, savedName);
   }
-  else if (!result?.profile?.developer && els.nameInput.value.trim() === "プレイヤー") {
+  else if (!result?.profile?.developer && !state.nameInputWasExplicit && !activeName && !state.roomId && (savedName === "プレイヤー" || els.nameInput.value.trim() === "プレイヤー")) {
     els.nameInput.value = "";
     els.nameInput.placeholder = "名前を入力";
     clientStorage.removeItem(storage.name);
@@ -2158,6 +2162,20 @@ function clientId() {
     clientStorage.setItem(storage.clientId, value);
   }
   return value;
+}
+
+function startPlayerName() {
+  const typedName = els.nameInput.value.trim();
+  const storedName = String(clientStorage.getItem(storage.name) || "").trim();
+  const candidate = typedName || storedName;
+  const verifiedDeveloperName = state.profileIdentity?.loaded && state.profileIdentity.developer && state.profileIdentity.name === "プレイヤー";
+  if (candidate && (candidate !== "プレイヤー" || state.nameInputWasExplicit || verifiedDeveloperName)) return candidate;
+  // 3 Japanese characters plus 12 ASCII characters stays within cleanName's 16-character limit.
+  const suffix = clientId().replace(/[^a-z0-9]/gi, "").slice(-12).toUpperCase() || "PLAYER";
+  const generatedName = `ゲスト${suffix}`;
+  els.nameInput.value = generatedName;
+  clientStorage.setItem(storage.name, generatedName);
+  return generatedName;
 }
 
 function initializeOfflineRuntime() {
@@ -6637,7 +6655,10 @@ function bindEvents() {
     setPreparationEditingField("");
   });
   [els.nameInput].forEach((input) => {
-    input.addEventListener("input", () => renderPreparationSettingSummary(state.data));
+    input.addEventListener("input", () => {
+      state.nameInputWasExplicit = true;
+      renderPreparationSettingSummary(state.data);
+    });
     input.addEventListener("change", () => {
       renderPreparationSettingSummary(state.data);
       void syncOperatorSelectionSettings("name");
@@ -9676,13 +9697,7 @@ async function cancelInstantMatchmaking(ticket) {
 async function startMatchmaking(options = {}) {
   if (state.matchmakingInFlight) return;
   loadGameplayTextures();
-  const fallbackName = options.allowDefaultName ? "プレイヤー" : "";
-  const name = els.nameInput.value.trim() || clientStorage.getItem(storage.name) || fallbackName;
-  if (!name) {
-    showToast("最初に名前を入力してください。");
-    els.nameInput.focus();
-    return;
-  }
+  const name = startPlayerName();
   els.nameInput.value = name;
   setSoloNameGuidance(false);
   const skinId = normalizeSkinId(els.skinSelect.value);
@@ -9756,7 +9771,7 @@ async function startMatchmaking(options = {}) {
 
 async function startSoloMission(missionId) {
   if (!soloMissionIds.includes(missionId) || state.soloMissionStarting) return;
-  const name = clientStorage.getItem(storage.name) || els.nameInput.value.trim() || "プレイヤー";
+  const name = startPlayerName();
   els.nameInput.value = name;
   clientStorage.setItem(storage.name, name);
   setSoloNameGuidance(false);
@@ -10536,7 +10551,7 @@ function returnExpiredOnlineRoomToMatchmaking(generation, roomId, playerId) {
 
 async function rebuildExpiredOfflineRoom(generation, roomId, playerId) {
   if (!isCurrentRoomSession(roomId, playerId, generation)) return false;
-  const name = els.nameInput.value.trim() || clientStorage.getItem(storage.name) || "プレイヤー";
+  const name = startPlayerName();
   const skinId = normalizeSkinId(clientStorage.getItem(storage.skin) || els.skinSelect.value);
   const mapId = normalizeMatchmakingMapId(clientStorage.getItem(storage.map) || els.mapSelect.value);
   cancelTransientGameInputForBackground();
@@ -24239,7 +24254,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "kill-cutin-parent-opacity-v757";
+const version = "safe-default-player-name-v758";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25303,7 +25318,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=kill-cutin-parent-opacity-v757", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=safe-default-player-name-v758", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

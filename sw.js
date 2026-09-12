@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "kill-cutin-parent-opacity-v757";
-const CACHE_NAME = "dva-static-v757-kill-cutin-parent-opacity";
+const RUNTIME_RELEASE = "safe-default-player-name-v758";
+const CACHE_NAME = "dva-static-v758-safe-default-player-name";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",
