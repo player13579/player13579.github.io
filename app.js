@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "sophia-side-walk-shape-v754";
+const DVA_CLIENT_RELEASE = "sophia-rear-overskirt-and-gait-v755";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -487,7 +487,7 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
   "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
-const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"authored-sophia-sides-v754","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"]},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}]}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}]},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}]},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}]}}}});
+const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"authored-sophia-four-directions-v755","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"]},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}]}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}]},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}]},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}]},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}]}}}});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
@@ -1013,7 +1013,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sophia-side-walk-shape-v754";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sophia-rear-overskirt-and-gait-v755";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -22231,7 +22231,27 @@ function drawPersistentStatusAteLayers(player, data) {
 // Authored poses use a fixed cell-local origin; undeclared identities and directions retain their established renderer.
 function authoredCharacterIdentity(player,data){return player?.isBot?"male-bot":displayedSkinId(player,data);}
 function authoredDirection(player,motion){const facing=facingFor(player,motion);if(facing==="left")return"left";if(facing==="right")return"right";if(facing==="up")return"back";return"front";}
-function authoredFrameFor(entry,gaitFrame,moving){if(!moving)return entry.idle;const cycle=entry.cycle||[];if(!cycle.length)return entry.idle;let total=0;for(let index=0;index<cycle.length;index+=1)total+=Math.max(0,Number(cycle[index].duration)||0);if(!(total>0))return entry.idle;let remaining=((gaitFrame%60)+60)%60/60*total;for(let index=0;index<cycle.length;index+=1){const frame=cycle[index];remaining-=Math.max(0,Number(frame.duration)||0);if(remaining<0)return frame;}return cycle[cycle.length-1];}
+function authoredFrameFor(entry,gaitFrame,moving,movementMode="walk"){
+  if(!moving)return entry.idle;
+  const cycle=entry.cycle||[];if(!cycle.length)return entry.idle;
+  let total=0;for(let index=0;index<cycle.length;index+=1)total+=Math.max(0,Number(cycle[index].duration)||0);
+  if(!(total>0))return entry.idle;
+  const phase=((Number(gaitFrame)%60)+60)%60/60;
+  // Every mode is a remapping of the same displacement phase. Slow reserves
+  // long neutral contacts, normal balances contact and alternating poses, and
+  // dash shortens neutral contacts without inventing or blending raster cells.
+  const contact=movementMode==="slow"?0.56:movementMode==="dash"?0.08:0.28;
+  const halfContact=contact/2;
+  const half=Math.floor(phase*2);
+  const local=phase*2-half;
+  if(local<halfContact||local>1-halfContact)return entry.idle;
+  const stridePhase=(local-halfContact)/Math.max(0.0001,1-contact);
+  // Keep the first and second stride halves in their corresponding authored
+  // cycle halves. This visits one ordered cycle per complete gait period.
+  let remaining=(half+stridePhase)/2*total;
+  for(let index=0;index<cycle.length;index+=1){const frame=cycle[index];remaining-=Math.max(0,Number(frame.duration)||0);if(remaining<0)return frame;}
+  return cycle[cycle.length-1];
+}
 function authoredFrameGeometryValid(frame, image) {
   return Boolean(frame) && [frame.x, frame.y, frame.width, frame.height].every(Number.isFinite) &&
     frame.x >= 0 && frame.y >= 0 && frame.width > 0 && frame.height > 0 &&
@@ -22252,15 +22272,24 @@ function drawAuthoredCharacterMotion(player,data,ghost){
   const hs=isHoverSprintWalkingSuppressed(player,data),inert=ghost||hs||!player.alive;
   if(inert||ctx.globalAlpha<=0)resetAuthoredWalkLifecycle(player);
   if(ctx.globalAlpha<=0)return true;
+  const movementMode=walkMotionMode(player);
   const requestedMoving=!inert&&Boolean(motion.moving);if(!requestedMoving)resetAuthoredWalkLifecycle(player);let gaitFrame=0,moving=false;
-  if(requestedMoving){gaitFrame=walkAnimationFrame(player,motion,walkMotionMode(player));const animation=state.walkAnimations.get(player.id);moving=Number.isFinite(animation?.lastDisplacedAt)&&(state.frameNow||performance.now())-animation.lastDisplacedAt<=100;}
-  const frame=authoredFrameFor(entry,gaitFrame,moving);
+  if(requestedMoving){gaitFrame=walkAnimationFrame(player,motion,movementMode);const animation=state.walkAnimations.get(player.id);moving=Number.isFinite(animation?.lastDisplacedAt)&&(state.frameNow||performance.now())-animation.lastDisplacedAt<=100;}
+  const frame=authoredFrameFor(entry,gaitFrame,moving,movementMode);
+  const body=walkBodyMotion(movementMode,direction,gaitFrame,moving);
   const layout=entry.layout||{},sourceOrigin=layout.sourceOrigin||{},ground=layout.ground||{},scale=Number(layout.scale);
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
-  ctx.drawImage(image, frame.x, frame.y, frame.width, frame.height, ground.x - sourceOrigin.x * scale, ground.y - sourceOrigin.y * scale, frame.width * scale, frame.height * scale);
-  drawNameplate(player, ghost, -78);
+  ctx.save();
+  // Translate and rotate the intact raster around its declared foot anchor only.
+  ctx.translate(ground.x,ground.y);
+  ctx.rotate(body.lean);
+  ctx.translate(body.sway,-body.lift);
+  ctx.drawImage(image,frame.x,frame.y,frame.width,frame.height,-sourceOrigin.x*scale,-sourceOrigin.y*scale,frame.width*scale,frame.height*scale);
+  ctx.restore();
+  // Labels are world/UI annotations and must not inherit gait sway, lift, or lean.
+  drawNameplate(player,ghost,-78);
   ctx.restore();
   return true;
 }
@@ -24208,7 +24237,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "sophia-side-walk-shape-v754";
+const version = "sophia-rear-overskirt-and-gait-v755";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25272,7 +25301,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=sophia-side-walk-shape-v754", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=sophia-rear-overskirt-and-gait-v755", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
