@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "philia-left-authored-walk-v756";
-const CACHE_NAME = "dva-static-v756-philia-left-authored-walk";
+const RUNTIME_RELEASE = "kill-cutin-parent-opacity-v757";
+const CACHE_NAME = "dva-static-v757-kill-cutin-parent-opacity";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/",

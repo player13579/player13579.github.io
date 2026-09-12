@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "philia-left-authored-walk-v756";
+const DVA_CLIENT_RELEASE = "kill-cutin-parent-opacity-v757";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -1013,7 +1013,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "philia-left-authored-walk-v756";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "kill-cutin-parent-opacity-v757";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -23622,8 +23622,9 @@ function drawWorldKillEffect(effect, camera, zoom = CAMERA_ZOOM) {
   const sy = (effect.y - camera.y) * zoom;
   const humanKill = !(effect.killerIsBot || effect.killerSkinId === "operator");
   const blueDress = humanKill && normalizeSkinId(effect.killerSkinId) === "blue-dress";
+  const inheritedAlpha = ctx.globalAlpha;
   ctx.save();
-  ctx.globalAlpha = (1 - progress * 0.3) * (1 - objectEffectEase(clamp((progress - 0.6) / 0.4, 0, 1)));
+  ctx.globalAlpha = inheritedAlpha * (1 - progress * 0.3) * (1 - objectEffectEase(clamp((progress - 0.6) / 0.4, 0, 1)));
   ctx.translate(sx, sy);
   const radius = 32 + (prefersReducedMotion() ? 0 : Math.sin(now / 55) * 5);
   ctx.strokeStyle = blueDress ? "rgba(186,230,253,0.95)" : humanKill ? "rgba(226,232,240,0.95)" : "rgba(248,113,113,0.90)";
@@ -23654,8 +23655,9 @@ function drawKillCutin(effect, w, h) {
   const alpha = Math.min(fadeIn, fadeOut);
   const humanKill = !(effect.killerIsBot || effect.killerSkinId === "operator");
   const blueDress = humanKill && normalizeSkinId(effect.killerSkinId) === "blue-dress";
+  const inheritedAlpha = ctx.globalAlpha;
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = inheritedAlpha * alpha;
   ctx.fillStyle = blueDress ? "rgba(20,31,45,0.80)" : humanKill ? "rgba(22,27,34,0.80)" : "rgba(24,10,12,0.74)";
   ctx.fillRect(0, h * 0.16, w, h * 0.34);
   ctx.fillStyle = blueDress ? "rgba(147,197,253,0.94)" : humanKill ? "rgba(226,232,240,0.94)" : "rgba(239,68,68,0.92)";
@@ -24237,7 +24239,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "philia-left-authored-walk-v756";
+const version = "kill-cutin-parent-opacity-v757";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -25301,7 +25303,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=philia-left-authored-walk-v756", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=kill-cutin-parent-opacity-v757", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
