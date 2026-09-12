@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-right-slow-gait-v766";
-const CACHE_NAME = "dva-static-v766-sophia-right-slow-gait";
+const RUNTIME_RELEASE = "sophia-back-slow-gait-v767";
+const CACHE_NAME = "dva-static-v767-sophia-back-slow-gait";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-back-slow-v767.png",
   "/assets/generated/sophia-right-slow-v766.png",
   "/assets/generated/sophia-left-slow-v765.png",
   "/assets/generated/philia-front-antidote-v763.png",
