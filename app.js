@@ -39,7 +39,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "te-material-light-continuity-v750";
+const DVA_CLIENT_RELEASE = "map-water-light-and-te-opacity-v751";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -977,7 +977,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "te-material-light-continuity-v750";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "map-water-light-and-te-opacity-v751";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -16095,6 +16095,7 @@ function drawPreparationRosterSummon(entry, x, footY, scale, clock) {
   const easeOut = 1 - Math.pow(1 - t, 3);
   const ring = state.textures?.preparationSummonCircle;
   const size = Math.max(1, 116 * scale * (0.64 + easeOut * 0.36));
+  const inheritedAlpha = ctx.globalAlpha;
   ctx.save();
   ctx.translate(x, footY);
   ctx.globalCompositeOperation = "lighter";
@@ -16122,7 +16123,7 @@ function drawPreparationRosterSummon(entry, x, footY, scale, clock) {
     const lane = particle - (particleCount - 1) / 2;
     const particleT = Math.max(0, Math.min(1, (t - particle * 0.075) / 0.72));
     const drift = lane * (6 + 12 * particleT) * scale;
-    ctx.globalAlpha = (1 - particleT) * (1 - t * 0.25) * 0.8;
+    ctx.globalAlpha = inheritedAlpha * ((1 - particleT) * (1 - t * 0.25) * 0.8);
     ctx.fillRect(drift - scale, -8 * scale - particleT * beamHeight * 0.72, 2 * scale, 2 * scale);
   }
   ctx.restore();
@@ -16709,11 +16710,13 @@ function mapPlantLayer(data, area) {
 }
 
 function drawMapPlantWind(data, area, time, intensity = 1) {
+  const parentAlpha = ctx.globalAlpha;
+  if (parentAlpha <= 0 || !Number.isFinite(intensity) || intensity <= 0) return false;
   if (area.room && !MAP_PLANT_WIND_ROOM_IDS.has(area.room)) return false;
   if (area.id && data.map.rooms.includes(area) && !MAP_PLANT_WIND_ROOM_IDS.has(area.id)) return false;
   const layer = mapPlantLayer(data, area);
   if (!layer?.clusters?.length) return false;
-  const sampledTime = Math.floor(time * 60) / 60;
+  const sampledTime = prefersReducedMotion() ? 1.2 : Math.floor(time * 60) / 60;
   const seed = [...String(area.id || `${area.x}:${area.y}`)].reduce((value, character) => value + character.charCodeAt(0), 0);
   const coherentWind = Math.sin(sampledTime * Math.PI * 0.42 + seed * 0.017) * 0.62
     + Math.sin(sampledTime * Math.PI * 0.91 + seed * 0.031) * 0.25
@@ -16728,7 +16731,7 @@ function drawMapPlantWind(data, area, time, intensity = 1) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
   ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha = 0.72 * intensity;
+  ctx.globalAlpha = parentAlpha * (0.72 * intensity);
   layer.clusters.forEach((cluster, index) => {
     const localFlutter = coherentWind * 0.76
       + Math.sin(sampledTime * (1.18 + index * 0.017) + seed * 0.021 + index * 1.31) * 0.17
@@ -16767,6 +16770,8 @@ function deterministicLeafUnit(seed, index, salt = 0) {
 }
 
 function drawDriftingMapLeaves(data, area, time, intensity = 1) {
+  const parentAlpha = ctx.globalAlpha;
+  if (parentAlpha <= 0 || !Number.isFinite(intensity) || intensity <= 0) return false;
   const areaIds = MAP_DRIFTING_LEAF_AREA_IDS[data.map.id];
   if (!areaIds?.has(area.id)) return false;
   const layer = mapPlantLayer(data, area);
@@ -16776,7 +16781,7 @@ function drawDriftingMapLeaves(data, area, time, intensity = 1) {
     .reduce((value, character) => value + character.charCodeAt(0), 0);
   const particleCount = Math.max(3, Math.min(7, Math.round(Math.sqrt(area.w * area.h) / 120)));
   const horizontalDirection = data.map.id === "outpost" ? -1 : 1;
-  const sampledTime = Math.floor(time * 60) / 60;
+  const sampledTime = prefersReducedMotion() ? 1.2 : Math.floor(time * 60) / 60;
 
   ctx.save();
   ctx.beginPath();
@@ -16810,7 +16815,7 @@ function drawDriftingMapLeaves(data, area, time, intensity = 1) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rotation);
-    ctx.globalAlpha = fade * (0.42 + deterministicLeafUnit(seed, index, 6) * 0.22) * intensity;
+    ctx.globalAlpha = parentAlpha * (fade * (0.42 + deterministicLeafUnit(seed, index, 6) * 0.22) * intensity);
     ctx.drawImage(
       layer.canvas,
       cluster.x,
@@ -16827,7 +16832,7 @@ function drawDriftingMapLeaves(data, area, time, intensity = 1) {
     // A restrained luminance catch is the complementary E layer; it never
     // redraws the foliage texture or becomes a second leaf silhouette.
     ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = fade * 0.12 * intensity;
+    ctx.globalAlpha = parentAlpha * (fade * 0.12 * intensity);
     ctx.fillStyle = "#f5e7a6";
     ctx.beginPath();
     ctx.ellipse(x - horizontalDirection * 0.8, y - 0.7, 1.15, 0.55, rotation, 0, Math.PI * 2);
@@ -16859,9 +16864,11 @@ function projectedLeafShadowOffset(canopyHeight, angularDeflection, yawDeflectio
 }
 
 function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
+  const parentAlpha = ctx.globalAlpha;
+  if (parentAlpha <= 0 || !Number.isFinite(intensity) || intensity <= 0) return false;
   const shadeMask = mapRoomShadeMask(data, room);
   if (!shadeMask) return false;
-  const sampledTime = Math.floor(time * 60) / 60;
+  const sampledTime = prefersReducedMotion() ? 1.2 : Math.floor(time * 60) / 60;
   const seed = [...String(room.id || "room")].reduce((value, character) => value + character.charCodeAt(0), 0);
   const seedPhase = seed * 0.013;
   const canopyHeight = Math.min(room.w, room.h) * 0.2;
@@ -16876,12 +16883,12 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
   ctx.clip();
   ctx.globalCompositeOperation = "multiply";
   ctx.filter = "blur(0.85px)";
-  ctx.globalAlpha = 0.2 * intensity;
+  ctx.globalAlpha = parentAlpha * (0.2 * intensity);
   ctx.drawImage(shadeMask, room.x + coherentOffset.x, room.y + coherentOffset.y, room.w, room.h);
 
   const penumbraOffset = projectedLeafShadowOffset(canopyHeight, coherentGust * 0.009, coherentGust * 0.004);
   ctx.filter = "blur(1.65px)";
-  ctx.globalAlpha = 0.09 * intensity;
+  ctx.globalAlpha = parentAlpha * (0.09 * intensity);
   ctx.drawImage(shadeMask, room.x + penumbraOffset.x, room.y + penumbraOffset.y, room.w, room.h);
   ctx.filter = "blur(0.65px)";
 
@@ -16905,7 +16912,7 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
     ctx.beginPath();
     ctx.ellipse(centerX, centerY, room.w * 0.19, room.h * 0.235, 0, 0, Math.PI * 2);
     ctx.clip();
-    ctx.globalAlpha = 0.115 * intensity;
+    ctx.globalAlpha = parentAlpha * (0.115 * intensity);
     ctx.drawImage(shadeMask, room.x + localOffset.x, room.y + localOffset.y, room.w, room.h);
     ctx.restore();
   }
@@ -16920,7 +16927,7 @@ function drawAuthoredMapShadeAnimation(data, room, time, intensity = 1) {
     const x = room.x + ((mote * 0.61803398875 + phase * 0.11) % 1) * room.w;
     const y = room.y + (1 - phase) * room.h;
     const alpha = Math.sin(Math.PI * phase) ** 2 * 0.16 * intensity;
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = parentAlpha * (alpha);
     ctx.fillStyle = "#fff0ba";
     const size = 0.8 + (mote % 3) * 0.35;
     ctx.fillRect(x, y, size, size);
@@ -16933,10 +16940,121 @@ function drawKomorebiRoom(data, room, time, intensity = 1) {
   drawAuthoredMapShadeAnimation(data, room, time, intensity);
 }
 
-function drawFootBathAmbient(object, time, intensity = 1) {
+const mapEnvironmentRegionCache = new Map();
+
+const MEDICAL_ENVIRONMENT_TE = Object.freeze({
+  station: Object.freeze({
+    medical: Object.freeze({
+      waterSurface: Object.freeze({ x: 2328, y: 2874, w: 242, h: 232, radius: 25 }),
+      windowLight: Object.freeze({ x: 2670, y: 2842, w: 174, h: 170, radius: 6 })
+    })
+  })
+});
+
+// These rooms already have foliage-derived source-map shade. Medical is
+// deliberately absent: its dark forms are architecture and furniture.
+const FOLIAGE_WOODSUN_STRENGTHS = Object.freeze({ archive: 1, atrium: .92, greenhouse: .72, cafeteria: .42 });
+
+function mapEnvironmentCanvasFactory() {
+  if (globalThis.document && typeof globalThis.document.createElement === "function") return globalThis.document.createElement("canvas");
+  throw new Error("A canvas factory is required for authored map-region caching");
+}
+
+function mapEnvironmentSourceWidth(source) { return source.naturalWidth || source.width || 0; }
+function mapEnvironmentSourceHeight(source) { return source.naturalHeight || source.height || 0; }
+function mapEnvironmentCacheSignature(source, data, region) {
+  return { source, sourceWidth: mapEnvironmentSourceWidth(source), sourceHeight: mapEnvironmentSourceHeight(source), mapWidth: data.map.width, mapHeight: data.map.height, x: region.x, y: region.y, w: region.w, h: region.h };
+}
+function mapEnvironmentSameSignature(a, b) {
+  return !!a && a.source === b.source && a.sourceWidth === b.sourceWidth && a.sourceHeight === b.sourceHeight && a.mapWidth === b.mapWidth && a.mapHeight === b.mapHeight && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
+function mapEnvironmentCachedMapRegion(source, data, region, cache, key) {
+  if (!source?.complete || !mapEnvironmentSourceWidth(source) || !mapEnvironmentSourceHeight(source) || !data?.map?.width || !data.map.height || !cache) return null;
+  const signature = mapEnvironmentCacheSignature(source, data, region), old = cache.get(key);
+  if (old && mapEnvironmentSameSignature(old.signature, signature)) return old.canvas;
+  const canvas = mapEnvironmentCanvasFactory();
+  canvas.width = region.w;
+  canvas.height = region.h;
+  const scaleX = signature.sourceWidth / signature.mapWidth;
+  const scaleY = signature.sourceHeight / signature.mapHeight;
+  canvas.getContext("2d").drawImage(source, region.x * scaleX, region.y * scaleY, region.w * scaleX, region.h * scaleY, 0, 0, region.w, region.h);
+  cache.set(key, { signature, canvas });
+  return canvas;
+}
+
+function mapEnvironmentRoundedClip(ctx, region) {
+  const r = Math.min(region.radius || 0, region.w / 2, region.h / 2);
+  ctx.beginPath();
+  ctx.roundRect(region.x, region.y, region.w, region.h, r);
+  ctx.clip();
+}
+
+function mapEnvironmentStationMedical(data) { return data && data.map && data.map.id === "station" ? MEDICAL_ENVIRONMENT_TE.station.medical : null; }
+
+// Draws a second, source-derived water sample offset by less than two pixels.
+// The clip is the visible inner-water area, so the fixed stone rim stays still.
+function drawMedicalFootBathSurface(ctx, data, source, time, cache, intensity = 1, reducedMotion = false) {
+  const spec = mapEnvironmentStationMedical(data), parentAlpha = ctx.globalAlpha;
+  if (!spec || parentAlpha <= 0 || !Number.isFinite(intensity) || intensity <= 0) return false;
+  const region = spec.waterSurface, surface = mapEnvironmentCachedMapRegion(source, data, region, cache, "station-medical-water");
+  if (!surface) return false;
+  const clock = reducedMotion ? 0 : time || 0;
+  const dx = reducedMotion ? 0 : Math.sin(clock * 2.1) * 1.15;
+  const dy = reducedMotion ? 0 : Math.cos(clock * 1.7) * .72;
+  ctx.save();
+  mapEnvironmentRoundedClip(ctx, region);
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = parentAlpha * intensity * .05;
+  ctx.drawImage(surface, region.x + dx, region.y + dy);
+  ctx.globalAlpha = parentAlpha * intensity * .025;
+  ctx.drawImage(surface, region.x - dx * .65, region.y - dy * .65);
+  ctx.restore();
+  return true;
+}
+
+// Reuses only the visible shoji-lit floor pixels.  It replaces medical's
+// inappropriate foliage shade; reduced motion makes it entirely stationary.
+function drawMedicalWindowLight(ctx, data, source, time, cache, intensity = 1, reducedMotion = false) {
+  const spec = mapEnvironmentStationMedical(data), parentAlpha = ctx.globalAlpha;
+  if (!spec || parentAlpha <= 0 || !Number.isFinite(intensity) || intensity <= 0) return false;
+  const region = spec.windowLight, light = mapEnvironmentCachedMapRegion(source, data, region, cache, "station-medical-window-light");
+  if (!light) return false;
+  const modulation = reducedMotion ? 1 : .92 + Math.sin((time || 0) * .7) * .08;
+  ctx.save();
+  mapEnvironmentRoundedClip(ctx, region);
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = parentAlpha * intensity * .115 * modulation;
+  ctx.drawImage(light, region.x, region.y);
+  ctx.restore();
+  return true;
+}
+
+function drawFoliageWoodsun(data, room, drawAuthoredMapShadeAnimation, time) {
+  const strength = FOLIAGE_WOODSUN_STRENGTHS[room && room.id];
+  if (!strength) return false;
+  drawAuthoredMapShadeAnimation(data, room, time, strength);
+  return true;
+}
+
+
+function drawFootBathAmbient(object, time, intensity = 1, data = state.data) {
+  const parentAlpha = ctx.globalAlpha;
+  if (parentAlpha <= 0 || !Number.isFinite(intensity) || intensity <= 0) return false;
+  const reducedMotion = prefersReducedMotion();
+  const environmentalTime = reducedMotion ? 1.2 : time;
+  // Ambient and activation events share the authored object anchor. The bath
+  // water is in map coordinates and must not inherit the old beam's opacity/filter.
+  const medicalBath = data?.map?.id === "station" && (data.map.objects || []).some(entry =>
+    (entry.type === "footBath" || entry.effectKind === "footBath") && entry.room === "medical" &&
+    Math.abs(entry.x - object.x) < 0.1 && Math.abs(entry.y - object.y) < 0.1);
+  const authoredWater = medicalBath && drawMedicalFootBathSurface(
+    ctx, data, state.textures.fullMapComposites?.station, environmentalTime,
+    mapEnvironmentRegionCache, intensity, reducedMotion
+  );
   const sprite = transparentSpriteSource(state.textures.footBathSparkleEffect, "footbath-hidden-spring-godray-v359", 10);
-  if (!sprite) return;
-  const sampledTime = Math.floor(time * 60) / 60;
+  if (!sprite) return authoredWater;
+  const sampledTime = Math.floor(environmentalTime * 60) / 60;
   const sourceWidth = sprite.width;
   const sourceHeight = sprite.height;
 
@@ -16944,12 +17062,12 @@ function drawFootBathAmbient(object, time, intensity = 1) {
   ctx.translate(object.x, object.y - 6);
   ctx.globalCompositeOperation = "screen";
   ctx.filter = "saturate(0.82) brightness(0.72)";
-  applyAteGlowContext(ctx, "ripple", time, Number(object.x || 0) * 0.001, intensity * 0.34);
+  applyAteGlowContext(ctx, "ripple", environmentalTime, Number(object.x || 0) * 0.001, intensity * 0.34);
 
   // The sun direction is fixed. Steam density changes the beam visibility;
   // the ray itself never rotates or slides away from its canopy opening.
   const godrayBreathing = 0.82 + Math.sin(sampledTime * Math.PI * 0.24) * 0.06;
-  ctx.globalAlpha = intensity * 0.15 * godrayBreathing;
+  ctx.globalAlpha = parentAlpha * (intensity * 0.15 * godrayBreathing);
   ctx.drawImage(
     sprite,
     sourceWidth * 0.015,
@@ -16962,40 +17080,43 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     128
   );
 
-  // The authored bath rim stays in the room texture. Only highlights inside a
-  // fixed ellipse move, so no frame can displace the bath silhouette.
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(0, 8, 118, 31, 0, 0, Math.PI * 2);
-  ctx.clip();
-  const wavePhase = sampledTime * Math.PI * 0.58;
-  const waterDrift = Math.sin(wavePhase) * 4.2;
-  const waterSourceX = clamp(sourceWidth * 0.025 + waterDrift, 0, sourceWidth * 0.055);
-  ctx.globalAlpha = intensity * (0.255 + Math.sin(wavePhase) * 0.032);
-  ctx.drawImage(
-    sprite,
-    waterSourceX,
-    sourceHeight * 0.43,
-    sourceWidth * 0.95,
-    sourceHeight * 0.36,
-    -125,
-    -29,
-    250,
-    82
-  );
-  ctx.globalAlpha = intensity * (0.115 + Math.cos(wavePhase * 0.73) * 0.022);
-  ctx.drawImage(
-    sprite,
-    clamp(sourceWidth * 0.035 - waterDrift * 0.64, 0, sourceWidth * 0.06),
-    sourceHeight * 0.5,
-    sourceWidth * 0.93,
-    sourceHeight * 0.25,
-    -122,
-    -20,
-    244,
-    70
-  );
-  ctx.restore();
+  if (!authoredWater) {
+    // The authored bath rim stays in the room texture. Only highlights inside a
+    // fixed ellipse move, so no frame can displace the bath silhouette.
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, 8, 118, 31, 0, 0, Math.PI * 2);
+    ctx.clip();
+    const wavePhase = sampledTime * Math.PI * 0.58;
+    const waterDrift = Math.sin(wavePhase) * 4.2;
+    const waterSourceX = clamp(sourceWidth * 0.025 + waterDrift, 0, sourceWidth * 0.055);
+    ctx.globalAlpha = parentAlpha * (intensity * (0.255 + Math.sin(wavePhase) * 0.032));
+    ctx.drawImage(
+      sprite,
+      waterSourceX,
+      sourceHeight * 0.43,
+      sourceWidth * 0.95,
+      sourceHeight * 0.36,
+      -125,
+      -29,
+      250,
+      82
+    );
+    ctx.globalAlpha = parentAlpha * (intensity * (0.115 + Math.cos(wavePhase * 0.73) * 0.022));
+    ctx.drawImage(
+      sprite,
+      clamp(sourceWidth * 0.035 - waterDrift * 0.64, 0, sourceWidth * 0.06),
+      sourceHeight * 0.5,
+      sourceWidth * 0.93,
+      sourceHeight * 0.25,
+      -122,
+      -20,
+      244,
+      70
+    );
+    ctx.restore();
+  
+    }
 
   const steamSlices = [
     { sx: 0.12, sw: 0.2, x: -49, delay: 0.04, wind: 0.8 },
@@ -17008,7 +17129,7 @@ function drawFootBathAmbient(object, time, intensity = 1) {
     const lateralDrift = steam.wind * 8 * phase ** 1.35;
     const alpha = Math.sin(phase * Math.PI) ** 1.35 * 0.245 * intensity;
     if (alpha <= 0.005) continue;
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = parentAlpha * (alpha);
     ctx.drawImage(
       sprite,
       sourceWidth * steam.sx,
@@ -17029,7 +17150,7 @@ function drawFootBathAmbient(object, time, intensity = 1) {
   for (const sparkle of sparkleSlices) {
     const alpha = Math.max(0, Math.sin(sampledTime * 3.1 + sparkle.phase)) ** 2 * 0.48 * intensity;
     if (alpha <= 0.005) continue;
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = parentAlpha * (alpha);
     ctx.drawImage(
       sprite,
       sourceWidth * sparkle.sx,
@@ -17112,10 +17233,11 @@ function dedicatedMapObjectEffectTexture(effectKind, type = "") {
 function drawTextureSurfaceAnimation(data) {
   const image = state.textures.fullMapComposites?.[data.map.id];
   if (!image?.complete || !image.naturalWidth) return;
-  const time = (state.frameNow || performance.now()) / 1000;
+  const time = prefersReducedMotion() ? 1.2 : (state.frameNow || performance.now()) / 1000;
+  const parentAlpha = ctx.globalAlpha;
   ctx.save();
   ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = 0.018 + (Math.sin(time * 0.41) * 0.5 + 0.5) * 0.013;
+  ctx.globalAlpha = parentAlpha * (0.018 + (Math.sin(time * 0.41) * 0.5 + 0.5) * 0.013);
   ctx.filter = `brightness(${1.035 + Math.sin(time * 0.31) * 0.008}) saturate(1.025)`;
   // Keep authored doors and object coordinates pixel-stable; animate light only.
   ctx.drawImage(image, 0, 0, data.map.width, data.map.height);
@@ -17123,8 +17245,9 @@ function drawTextureSurfaceAnimation(data) {
 }
 
 function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
-  const time = (state.frameNow || performance.now()) / 1000;
-  const komorebiStrength = { archive: 1, atrium: 0.92, greenhouse: 0.72, cafeteria: 0.42 };
+  const reducedMotion = prefersReducedMotion();
+  const time = reducedMotion ? 1.2 : (state.frameNow || performance.now()) / 1000;
+  const source = state.textures.fullMapComposites?.[data.map.id];
   const footBathRoomIds = new Set(
     (data.map.objects || [])
       .filter((object) => object.type === "footBath" || object.effectKind === "footBath")
@@ -17134,10 +17257,12 @@ function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
   for (const room of visibleRooms) {
     drawMapPlantWind(data, room, time, room.id === "greenhouse" ? 1.08 : 0.94);
     drawDriftingMapLeaves(data, room, time, room.id === "greenhouse" ? 1.06 : 0.88);
-    if (footBathRoomIds.has(room.id)) drawFootBathRoomKomorebi(data, room, time);
-    else {
-      const strength = komorebiStrength[room.id];
-      if (strength) drawKomorebiRoom(data, room, time, strength);
+    if (data.map.id === "station" && room.id === "medical" && footBathRoomIds.has(room.id)) {
+      drawMedicalWindowLight(ctx, data, source, time, mapEnvironmentRegionCache, 1, reducedMotion);
+    } else if (footBathRoomIds.has(room.id)) {
+      drawFootBathRoomKomorebi(data, room, time);
+    } else {
+      drawFoliageWoodsun(data, room, drawAuthoredMapShadeAnimation, time);
     }
   }
   for (const corridor of visibleCorridors.flatMap((entry) => corridorRenderSegments(entry))) {
@@ -17149,7 +17274,7 @@ function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
     if ((object.type !== "footBath" && object.effectKind !== "footBath") || !visibleRoomIds.has(object.room)) continue;
     // The spring, steam, caustics, and fixed-source god rays are environmental
     // ATE. Object benefit bursts remain event-driven in drawObjectActivationEffect.
-    drawFootBathAmbient(object, time, 0.86);
+    drawFootBathAmbient(object, time, 0.86, data);
   }
 }
 
@@ -20224,11 +20349,12 @@ function drawStatusAndHazardEffect(effect, progress) {
   if (!sprite) return false;
   const p = clamp(Number(progress) || 0, 0, 1), tail = Math.pow(1 - p, 1.08), envelope = Math.sin(Math.PI * p);
   const radius = Math.max(70, Number(effect.radius) || 105), reduced = prefersReducedMotion();
+  const inheritedAlpha = ctx.globalAlpha;
   ctx.save(); ctx.translate(effect.x, effect.y);
   ctx.globalCompositeOperation = family === "water" || family === "antidote" ? "source-over" : "lighter";
   const textureY = family === "fire" ? radius * 0.12 : family === "water" ? radius * 0.18 : family === "poison" ? -radius * 0.08 : 0;
   const textureScale = family === "fire" ? 1.74 : family === "water" ? 2.06 : family === "poison" ? 1.9 : 1.5;
-  ctx.globalAlpha = tail * (family === "water" ? 0.72 : 0.78);
+  ctx.globalAlpha = inheritedAlpha * (tail * (family === "water" ? 0.72 : 0.78));
   drawAnimatedTextureCentered(sprite, 0, textureY, radius * textureScale, radius * textureScale, {
     mode: family === "fire" ? "flow-up" : family === "water" ? "ripple" : "shimmer",
     progress: p, phase: 0, intensity: 0.82, baseAlpha: 0.14
@@ -20238,7 +20364,7 @@ function drawStatusAndHazardEffect(effect, progress) {
     for (let i = 0; i < (reduced ? 4 : 9); i += 1) {
       const lane = (i / Math.max(1, (reduced ? 3 : 8)) - 0.5) * radius * 1.3;
       const rise = radius * (0.12 + p * (0.54 + (i % 3) * 0.08));
-      ctx.globalAlpha = tail * envelope * (0.28 + (i % 2) * 0.12); ctx.fillStyle = i % 3 ? "rgba(255,154,45,0.9)" : "rgba(255,238,173,0.96)";
+      ctx.globalAlpha = inheritedAlpha * (tail * envelope * (0.28 + (i % 2) * 0.12)); ctx.fillStyle = i % 3 ? "rgba(255,154,45,0.9)" : "rgba(255,238,173,0.96)";
       ctx.beginPath(); ctx.ellipse(lane + Math.sin(p * 8 + i) * radius * 0.07, radius * 0.38 - rise, Math.max(1.3, radius * 0.035), Math.max(2.4, radius * 0.075), 0, 0, Math.PI * 2); ctx.fill();
     }
   } else if (family === "poison") {
@@ -20246,17 +20372,17 @@ function drawStatusAndHazardEffect(effect, progress) {
     for (let i = 0; i < (reduced ? 4 : 8); i += 1) {
       const a = i * 2.3999632297, spread = radius * (0.18 + p * 0.58);
       const x = Math.cos(a) * spread, y = Math.sin(a) * spread * 0.42 - radius * (0.05 + p * 0.16);
-      ctx.globalAlpha = tail * envelope * 0.19; ctx.fillStyle = i % 2 ? "rgba(178,239,105,0.9)" : "rgba(218,255,157,0.92)";
+      ctx.globalAlpha = inheritedAlpha * (tail * envelope * 0.19); ctx.fillStyle = i % 2 ? "rgba(178,239,105,0.9)" : "rgba(218,255,157,0.92)";
       ctx.beginPath(); ctx.arc(x, y, Math.max(2, radius * (0.07 - p * 0.025)), 0, Math.PI * 2); ctx.fill();
     }
   } else if (family === "water") {
     // Water spreads and settles across the ground plane instead of rising or rotating.
     const spread = radius * (0.28 + p * 0.73);
-    ctx.globalAlpha = tail * 0.52; ctx.strokeStyle = "rgba(201,244,255,0.92)"; ctx.lineWidth = Math.max(1.2, radius * 0.022);
+    ctx.globalAlpha = inheritedAlpha * (tail * 0.52); ctx.strokeStyle = "rgba(201,244,255,0.92)"; ctx.lineWidth = Math.max(1.2, radius * 0.022);
     ctx.beginPath(); ctx.ellipse(0, radius * 0.22, spread, Math.max(5, spread * 0.33), 0, 0, Math.PI * 2); ctx.stroke();
-    for (let i = 0; i < (reduced ? 3 : 6); i += 1) { ctx.globalAlpha = tail * envelope * 0.3; ctx.beginPath(); ctx.arc((i - 2.5) * radius * 0.19, radius * 0.15, radius * (0.08 + i * 0.014), 0, Math.PI * 2); ctx.stroke(); }
+    for (let i = 0; i < (reduced ? 3 : 6); i += 1) { ctx.globalAlpha = inheritedAlpha * (tail * envelope * 0.3); ctx.beginPath(); ctx.arc((i - 2.5) * radius * 0.19, radius * 0.15, radius * (0.08 + i * 0.014), 0, Math.PI * 2); ctx.stroke(); }
   } else {
-    ctx.globalAlpha = tail * envelope * 0.55; ctx.strokeStyle = "rgba(218,255,229,0.95)"; ctx.lineWidth = Math.max(1.3, radius * 0.022);
+    ctx.globalAlpha = inheritedAlpha * (tail * envelope * 0.55); ctx.strokeStyle = "rgba(218,255,229,0.95)"; ctx.lineWidth = Math.max(1.3, radius * 0.022);
     ctx.beginPath(); ctx.arc(0, 0, radius * (0.36 + p * 0.34), 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
@@ -21919,10 +22045,11 @@ function naturalRecoveryMarkerGlow(activeState, player) {
 }
 
 function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeState) {
-  if (!activeState?.naturalRecovery || !activeState?.aroma) return false;
+  if (!activeState?.naturalRecovery || !activeState?.aroma || ctx.globalAlpha <= 0) return false;
   // Five short-lived scent-leaf motes are intentionally complementary to the
   // recovery raster rather than another marker texture or a full-size ATE.
   const particleCount = 5;
+  const inheritedAlpha = ctx.globalAlpha;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (let index = 0; index < particleCount; index += 1) {
@@ -21935,7 +22062,7 @@ function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeStat
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(-0.52 + time * 0.45 + index * 0.77);
-    ctx.globalAlpha = life * (0.28 + (index % 2) * 0.07);
+    ctx.globalAlpha = inheritedAlpha * (life * (0.28 + (index % 2) * 0.07));
     ctx.fillStyle = index % 2 ? "#bbf7d0" : "#d8b4fe";
     ctx.shadowColor = index % 2 ? "#4ade80" : "#c084fc";
     ctx.shadowBlur = 4 + life * 3;
@@ -22012,7 +22139,7 @@ function drawPersistentStatusAteLayers(player, data) {
     if (!placement.candidate) continue;
     const marker = headMarkerSlot(placement.baseIndex, placement.total, placement.startRow);
     const markerX = marker.x;
-    const markerY = marker.y + Math.sin(time * 2.4 + profile.phase * Math.PI * 2) * 1.1;
+    const markerY = marker.y + (prefersReducedMotion() ? 0 : Math.sin(time * 2.4 + profile.phase * Math.PI * 2) * 1.1);
     const explanation = STATUS_MARKER_EXPLANATIONS[category] || ["適用中の効果", "この効果が現在適用されています。"];
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -23941,7 +24068,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "te-material-light-continuity-v750";
+const version = "map-water-light-and-te-opacity-v751";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -24999,7 +25126,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=te-material-light-continuity-v750", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=map-water-light-and-te-opacity-v751", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
