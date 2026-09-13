@@ -5,10 +5,13 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "digital-download-upload-te-v808";
-const CACHE_NAME = "dva-static-v808-digital-download-upload-te";
+const RUNTIME_RELEASE = "philia-antidote-all-directions-v809";
+const CACHE_NAME = "dva-static-v809-philia-antidote-all-directions";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-left-antidote-v809.png",
+  "/assets/generated/philia-right-antidote-v809.png",
+  "/assets/generated/philia-back-antidote-v809.png",
   "/assets/generated/task-download-digital-v808.png",
   "/assets/generated/task-upload-digital-v808.png",
   "/assets/generated/philia-left-dash-v807.png",
