@@ -12527,3 +12527,80 @@ body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable::a
   overflow-wrap: anywhere;
   margin-top: 2px;
 }
+
+#operatorSelectionSettings.preparation-inline-settings{position:absolute;z-index:auto;inset:0;margin:0;display:block;max-height:none;overflow:visible;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;pointer-events:none}#operatorSelectionSettings.preparation-inline-settings [data-preparation-editor="name"]{position:fixed;z-index:25;box-sizing:border-box;pointer-events:auto}#operatorSelectionSettings.preparation-inline-settings #nameInput{box-sizing:border-box;width:100%;height:100%;min-height:32px;margin:0;padding:2px 6px;border:1px solid #34b3be;border-radius:4px;background:rgba(250,252,253,.98);color:#173b48;font:inherit;line-height:1.2}
+
+/* Candidate: Vibe Coding card rhythm and expanded right-rail geometry.
+ * Append after public/styles.css. No input, selection, scroll-owner, or
+ * recipe markup changes are required. */
+
+/* Every Vibe Coding state uses one 64px card rhythm. The inherited global
+ * two-row template otherwise survives in the compact dock, while the later
+ * theme permits content height to grow individual cards. A title and its
+ * cooldown each retain one ellipsized line; the complete label and detail
+ * remain available through the unchanged aria-label and existing hold detail. */
+body #statusPanel #hackerAbilityDock .hacker-ability-grid {
+  grid-template-rows: none;
+  grid-auto-rows: 64px;
+  gap: 8px;
+}
+
+body #statusPanel #hackerAbilityDock .hacker-direct-action {
+  height: 64px;
+  min-height: 64px;
+  overflow: hidden;
+}
+
+body #statusPanel #hackerAbilityDock .hacker-action-copy {
+  min-height: 0;
+  overflow: hidden;
+}
+
+body #statusPanel #hackerAbilityDock .hacker-direct-action :is(strong, small) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* `action-unavailable` previously turned its generated status chip into a
+ * second grid row. Keep that chip as an absolute state marker so availability
+ * never participates in card sizing. */
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable {
+  grid-template-rows: none;
+}
+
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable::after {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  grid-column: auto;
+  grid-row: auto;
+  justify-self: auto;
+  margin-top: 0;
+  max-inline-size: calc(100% - 16px);
+  white-space: nowrap;
+}
+
+/* Reserve the badge's lower lane inside the same fixed card. The title and
+ * cooldown keep their two normal lines above it instead of being painted under
+ * the state chip. */
+body #statusPanel #hackerAbilityDock .hacker-direct-action.action-unavailable .hacker-action-copy {
+  padding-bottom: 18px;
+}
+
+/* Expansion already promotes the selected right pane to the rail's flex owner.
+ * A later two-ID Hacker theme rule then reapplies 46vh/31vh caps and leaves
+ * the old explicit two-row grid in force. Its specificity beats the earlier
+ * generic expansion rule, so the grid remains short and scrolls despite the
+ * empty lower-right area. Match that specificity only while this dock is the
+ * selected expanded pane, then let the existing flex layout allocate its full
+ * available height. Fixed utility controls and their reserved safe endpoint
+ * remain unchanged. */
+body #statusPanel #hackerAbilityDock.scroll-region-expanded {
+  max-height: none;
+}
+
+body #statusPanel #hackerAbilityDock.scroll-region-expanded .hacker-ability-grid {
+  max-height: none;
+  min-height: 0;
+}

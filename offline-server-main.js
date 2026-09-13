@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "sophia-back-water-v805",
+    version: "gameplay-ui-repairs-v806",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "sophia-back-water-v805";
+const PRODUCT_RELEASE = "gameplay-ui-repairs-v806";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -15746,6 +15746,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
     at: timestamp,
     empDefeat: true
   });
+  recordBotKillWitnesses(room, source, target, timestamp);
   applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} でリミットブレイク反応消失`);
   return true;
@@ -16352,6 +16353,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
     at: timestamp,
     empDefeat: true
   });
+  recordBotKillWitnesses(room, source, target, timestamp);
   applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} で${reason}による反応消失`);
   return true;
@@ -19626,6 +19628,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
       noKillCutin: Boolean(options.noKillCutin)
     });
   }
+  recordBotKillWitnesses(room, source, target, timestamp);
   pushEvent(room, options.noBody
     ? `${target.name} は${reason}でキルされ、死体は残りませんでした。`
     : `${target.name} は${reason}でキルされ、死体が残りました。`);
@@ -19966,6 +19969,20 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
     slashGuardReflectable: true,
     reflectDestroy: true
   };
+  // Ninja kills must respect the same active Dodge and Fighter counter as
+  // other lethal attacks. Non-dodge outcomes retain their existing resolver.
+  if (Number(target.dodgeActiveUntil) > timestamp) {
+    const outcome = killPlayer(room, player, targetId, {
+      hitZone: "head", lockedAim: true, ignoreCooldown: true, preserveCooldown: true,
+      noBody: disappearanceOutcome.noBody, attackKind: disappearanceOutcome.attackKind,
+      attackLabel: disappearanceOutcome.attackLabel,
+      slashGuardPhysical: true, slashGuardReflectable: true
+    });
+    if (outcome === "dodged") player.killReadyAt = timestamp + killCooldownDurationMs(room, player);
+    checkWin(room);
+    touch(room);
+    return outcome === "dodged" ? "dodged" : "blocked";
+  }
   const disappeared = destroyPlayerUnconditionally(room, player, target, profile.reason, disappearanceOutcome);
   if (!disappeared) {
     if (disappearanceOutcome.killConvertedToBodyDamage) {
@@ -19980,7 +19997,6 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
   }
   player.killsThisRound += 1;
   player.killReadyAt = timestamp + killCooldownDurationMs(room, player);
-  recordBotKillWitnesses(room, player, target, timestamp);
   evaluateSoloMission(room, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} 付近で${profile.attackLabel}による反応消失`);
   checkWin(room);
@@ -20376,15 +20392,14 @@ function recordBotKillWitnesses(room, killer, target, timestamp = now()) {
   for (const witness of room.players.values()) {
     if (!witness.isBot || !witness.alive || witness.ejected || witness.inVent || witness.id === target.id) continue;
     if (witness.role !== "defender") continue;
-    const separation = distance(witness, killer);
-    if (separation > BOT_KILL_WITNESS_RANGE) continue;
-    const dx = killer.x - witness.x;
-    const dy = killer.y - witness.y;
-    const length = Math.hypot(dx, dy) || 1;
-    if (!clearShotPath(room, witness, killer, dx / length, dy / length)) continue;
+    if (!botCanDirectlyObservePosition(room, witness, killer, BOT_KILL_WITNESS_RANGE)) continue;
+    if (floraInvisibleActive(killer, timestamp)) continue;
+    if (!botCanDirectlyObservePosition(room, witness, target, BOT_KILL_WITNESS_RANGE)) continue;
     witness.botWitnessTargetId = killer.id;
     witness.botWitnessUntil = timestamp + BOT_STAND_FIRM_RETALIATION_MS;
     witness.botWitnessEvidenceKind = "visible-hostile-kill";
+    witness.navPath = [];
+    witness.nextBotActionAt = Math.min(Number(witness.nextBotActionAt) || timestamp, timestamp);
     if (botCanCommitLuminous(room, witness, killer.id, timestamp)) {
       try {
         callEmergency(room, witness, killer.id, "witness");
@@ -26663,7 +26678,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "sophia-back-water-v805",
+  version: "gameplay-ui-repairs-v806",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
