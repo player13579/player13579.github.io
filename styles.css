@@ -4819,6 +4819,14 @@ body .offline-team-choice button[data-offline-team] {
   gap: 10px;
 }
 
+.operator-detail-close {
+  min-width: 64px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
 .operator-detail-head strong {
   color: #ecfeff;
   font-size: 15px;
