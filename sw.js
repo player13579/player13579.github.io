@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "benefit-source-color-v804";
-const CACHE_NAME = "dva-static-v804-benefit-source-color";
+const RUNTIME_RELEASE = "sophia-back-water-v805";
+const CACHE_NAME = "dva-static-v805-sophia-back-water";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-back-water-v803.png",
   "/assets/generated/bot-kill-cutin-frame-0-prepared-v802.png",
   "/assets/generated/bot-kill-cutin-frame-1-prepared-v802.png",
   "/assets/generated/bot-kill-cutin-frame-2-prepared-v802.png",
