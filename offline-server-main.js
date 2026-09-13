@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "sophia-antidote-all-directions-v810",
+    version: "harmful-item-use-disabled-v811",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "sophia-antidote-all-directions-v810";
+const PRODUCT_RELEASE = "harmful-item-use-disabled-v811";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7931,16 +7931,16 @@ const OPERATORS = {
 
 const ITEM_DEFINITIONS = Object.freeze({
   "orichalcum-sword": Object.freeze({ id: "orichalcum-sword", label: "オリハルコン・ソード", asset: "orichalcum-sword", throwable: true, weapon: true, reusable: true }),
-  mercury: Object.freeze({ id: "mercury", label: "水銀瓶", asset: "quantum-mercury", throwable: true }),
-  lead: Object.freeze({ id: "lead", label: "鉛瓶", asset: "quantum-lead", throwable: true }),
-  uranium: Object.freeze({ id: "uranium", label: "ウラン容器", asset: "quantum-uranium", throwable: true }),
-  plutonium: Object.freeze({ id: "plutonium", label: "プルトニウム容器", asset: "quantum-plutonium", throwable: true }),
+  mercury: Object.freeze({ id: "mercury", label: "水銀瓶", asset: "quantum-mercury", throwable: true, usable: false }),
+  lead: Object.freeze({ id: "lead", label: "鉛瓶", asset: "quantum-lead", throwable: true, usable: false }),
+  uranium: Object.freeze({ id: "uranium", label: "ウラン容器", asset: "quantum-uranium", throwable: true, usable: false }),
+  plutonium: Object.freeze({ id: "plutonium", label: "プルトニウム容器", asset: "quantum-plutonium", throwable: true, usable: false }),
   seawater: Object.freeze({ id: "seawater", label: "海水", asset: "seawater", throwable: true, usable: true }),
   "mineral-water": Object.freeze({ id: "mineral-water", label: "ミネラルウォーター", asset: "mineral-water", throwable: true }),
   antidote: Object.freeze({ id: "antidote", label: "解毒剤", asset: "antidote", throwable: true }),
-  molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true }),
-  ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true }),
-  "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true })
+  molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true, usable: false }),
+  ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true, usable: false }),
+  "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true, usable: false })
 });
 
 // Keep every server-side travelling attack in one auditable registry. New
@@ -26679,7 +26679,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "sophia-antidote-all-directions-v810",
+  version: "harmful-item-use-disabled-v811",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
