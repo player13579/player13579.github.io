@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "human-cutin-prepared-v801";
-const CACHE_NAME = "dva-static-v801-human-cutin-prepared";
+const RUNTIME_RELEASE = "sophia-left-water-v802";
+const CACHE_NAME = "dva-static-v802-sophia-left-water";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-left-water-v800.png",
   "/assets/generated/white-hood-kill-cutin-prepared-v801.png",
   "/assets/generated/blue-dress-kill-cutin-prepared-v801.png",
   "/assets/generated/world-kill-residual-v800.png",
