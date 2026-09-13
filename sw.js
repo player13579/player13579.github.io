@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "philia-ninjutsu-focus-v813";
-const CACHE_NAME = "dva-static-v813-philia-ninjutsu-focus";
+const RUNTIME_RELEASE = "sophia-ninjutsu-focus-v814";
+const CACHE_NAME = "dva-static-v814-sophia-ninjutsu-focus";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-front-ninjutsu-focus-v814.png",
+  "/assets/generated/sophia-left-ninjutsu-focus-v814.png",
+  "/assets/generated/sophia-right-ninjutsu-focus-v814.png",
+  "/assets/generated/sophia-back-ninjutsu-focus-v814.png",
   "/assets/generated/philia-front-ninjutsu-focus-v813.png",
   "/assets/generated/philia-left-ninjutsu-focus-v813.png",
   "/assets/generated/philia-right-ninjutsu-focus-v813.png",
