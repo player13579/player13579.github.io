@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "headshot-layer-cost-v816";
-const CACHE_NAME = "dva-static-v816-headshot-layer-cost";
+const RUNTIME_RELEASE = "stamina-recovery-flow-v817";
+const CACHE_NAME = "dva-static-v817-stamina-recovery-flow";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/benefit-stamina-flow-v817.png",
   "/assets/generated/sophia-front-ninjutsu-focus-v814.png",
   "/assets/generated/sophia-left-ninjutsu-focus-v814.png",
   "/assets/generated/sophia-right-ninjutsu-focus-v814.png",
