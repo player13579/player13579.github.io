@@ -5,10 +5,15 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "restorative-benefit-flow-v818";
-const CACHE_NAME = "dva-static-v818-restorative-benefit-flow";
+const RUNTIME_RELEASE = "additional-benefit-flow-v819";
+const CACHE_NAME = "dva-static-v819-additional-benefit-flow";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/benefit-acceleration-stream-v819.png",
+  "/assets/generated/benefit-luck-boost-caustic-v819.png",
+  "/assets/generated/benefit-status-recovery-cleansing-v819.png",
+  "/assets/generated/benefit-cooldown-reduction-release-v819.png",
+  "/assets/generated/benefit-credits-transfer-v819.png",
   "/assets/generated/benefit-heal-membrane-v818.png",
   "/assets/generated/benefit-mana-condensation-v818.png",
   "/assets/generated/benefit-overheal-overflow-v818.png",
