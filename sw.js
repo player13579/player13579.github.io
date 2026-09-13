@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "philia-left-water-v796";
-const CACHE_NAME = "dva-static-v796-philia-left-water";
+const RUNTIME_RELEASE = "ninjutsu-focus-bloom-v797";
+const CACHE_NAME = "dva-static-v797-ninjutsu-focus-bloom";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/philia-left-water-v796.png",
