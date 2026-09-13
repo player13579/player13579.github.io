@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "philia-side-dash-and-readable-details-v807",
+    version: "digital-download-upload-te-v808",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "philia-side-dash-and-readable-details-v807";
+const PRODUCT_RELEASE = "digital-download-upload-te-v808";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -14798,7 +14798,7 @@ function completeTask(room, player, taskId) {
   player.taskPresenceSince = 0;
   player.taskAutoReadyAt = timestamp + AUTO_TASK_INTERVAL_MS;
   grantCredits(room, player, TASK_CREDIT_REWARD, "task");
-  pushMagicEffect(room, "action-task", player, { radius: 105, playerId: player.id });
+  pushMagicEffect(room, "action-task", player, { radius: 105, playerId: player.id, mode: task.type, targetId: station.id, targetX: station.x, targetY: station.y });
   pushEvent(room, `${player.name} が ${task.label} を完了し、${TASK_CREDIT_REWARD}Cを獲得しました。`);
   markSoloMissionAction(room, player, "task");
   checkWin(room);
@@ -14888,7 +14888,8 @@ function autoCompleteHackerTask(room, player, timestamp = now()) {
   player.hackerTaskReadyAt = player.taskList.some((candidate) => !candidate.done)
     ? timestamp + HACKER_AUTO_TASK_INTERVAL_MS
     : 0;
-  pushMagicEffect(room, "action-task", player, { radius: 105, playerId: player.id, variant: "hacker-auto" });
+  const station = findStation(getMap(room), task.stationId);
+  pushMagicEffect(room, "action-task", player, { radius: 105, playerId: player.id, variant: "hacker-auto", mode: task.type, targetId: station?.id, targetX: station?.x, targetY: station?.y });
   pushEvent(room, `${player.name} のハックが ${task.label} を自動完了し、${TASK_CREDIT_REWARD}Cを獲得しました。`);
   markSoloMissionAction(room, player, "task");
   checkWin(room);
@@ -26683,5 +26684,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "philia-side-dash-and-readable-details-v807" });
+self.postMessage({ type: "ready", version: "digital-download-upload-te-v808" });
 })();
