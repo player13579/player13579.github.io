@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-smg-reload-five-phase-v847";
-const CACHE_NAME = "dva-static-v847-sophia-smg-reload-five-phase";
+const RUNTIME_RELEASE = "mystery-box-registered-opening-v848";
+const CACHE_NAME = "dva-static-v848-mystery-box-registered-opening";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/mystery-box-registered-material-v848.png",
   "/assets/generated/sophia-smg-reload-front-v847.png",
   "/assets/generated/sophia-smg-reload-back-v847.png",
   "/assets/generated/sophia-smg-reload-left-v847.png",
