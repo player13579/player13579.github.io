@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "mystery-box-registered-opening-v848";
-const CACHE_NAME = "dva-static-v848-mystery-box-registered-opening";
+const RUNTIME_RELEASE = "task-transfer-source-light-v849";
+const CACHE_NAME = "dva-static-v849-task-transfer-source-light";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/mystery-box-registered-material-v848.png",
