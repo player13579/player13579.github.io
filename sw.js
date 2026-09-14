@@ -5,10 +5,13 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "fire-material-transport-v830";
-const CACHE_NAME = "dva-static-v830-fire-material-transport";
+const RUNTIME_RELEASE = "credit-gold-water-v831";
+const CACHE_NAME = "dva-static-v831-credit-gold-water";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/benefit-credit-gold-coin-v831.png",
+  "/assets/generated/benefit-credit-gold-coin-sheen-atlas-v831.png",
+  "/assets/generated/water-material-transport-v831.png",
   "/assets/generated/fire-material-transport-v830.png",
   "/assets/generated/aroma-scent-transport-atlas-v829.png",
   "/assets/generated/barrier-closed-shell-v827.png",
