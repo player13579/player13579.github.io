@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "antidote-purification-v825",
+    version: "barrier-invulnerability-v826",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "antidote-purification-v825";
+const PRODUCT_RELEASE = "barrier-invulnerability-v826";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -18741,7 +18741,9 @@ function quantumElectricSettlementBlockReason(room, target, timestamp = now()) {
     Number(target.slashPerfectUntil) > timestamp &&
     hasFighterApexPerks(target);
   if (universalPerfectGuard) return "slashPerfectGuarded";
-  if (preparationBarrierProtects(room, target, timestamp)) return "preparationBarrier";
+  if (preparationBarrierProtects(room, target, timestamp) ||
+      standFirmBarrierProtects(target, timestamp) ||
+      activeGravityStormBarrier(room, target, timestamp)) return "preparationBarrier";
   if (hasFighterInfiniteResources(target)) return "infiniteResources";
   if (
     !hackerRootEligible(target) &&
@@ -26684,5 +26686,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "antidote-purification-v825" });
+self.postMessage({ type: "ready", version: "barrier-invulnerability-v826" });
 })();
