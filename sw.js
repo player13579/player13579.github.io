@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "enhance-source-light-propagation-v844";
-const CACHE_NAME = "dva-static-v844-enhance-source-light-propagation";
+const RUNTIME_RELEASE = "philia-smg-reload-five-phase-v845";
+const CACHE_NAME = "dva-static-v845-philia-smg-reload-five-phase";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-smg-reload-front-v845.png",
+  "/assets/generated/philia-smg-reload-back-v845.png",
+  "/assets/generated/philia-smg-reload-left-v845.png",
+  "/assets/generated/philia-smg-reload-right-v845.png",
   "/assets/generated/enhance-source-propagation-v844.png",
   "/assets/generated/enhance-hold-material-prepared-v844.png",
   "/assets/generated/sophia-handgun-reload-front-v843.png",
