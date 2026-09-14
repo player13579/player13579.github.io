@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "barrier-closed-shell-v827";
+const OFFLINE_WORKER_VERSION = "hover-sprint-transport-v828";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.
