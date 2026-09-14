@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "bot-cutin-authored-body-v834";
-const CACHE_NAME = "dva-static-v834-bot-cutin-authored-body";
+const RUNTIME_RELEASE = "heart-transfer-compression-v835";
+const CACHE_NAME = "dva-static-v835-heart-transfer-compression";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/heart-transfer-pressure-v835.png",
   "/assets/generated/bot-kill-cutin-five-phase-v832.png",
   "/assets/generated/poison-marker-membrane-v833.png",
   "/assets/generated/poison-material-transport-v832.png",
