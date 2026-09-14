@@ -5,10 +5,12 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "philia-smg-reload-five-phase-v845";
-const CACHE_NAME = "dva-static-v845-philia-smg-reload-five-phase";
+const RUNTIME_RELEASE = "quantum-electric-conduction-v846";
+const CACHE_NAME = "dva-static-v846-quantum-electric-conduction";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/quantum-electric-material-prepared-v846.png",
+  "/assets/generated/quantum-electric-conduction-v846.png",
   "/assets/generated/philia-smg-reload-front-v845.png",
   "/assets/generated/philia-smg-reload-back-v845.png",
   "/assets/generated/philia-smg-reload-left-v845.png",
