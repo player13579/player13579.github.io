@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "credit-initial-texture-new-effect-v840";
-const CACHE_NAME = "dva-static-v840-credit-initial-texture-new-effect";
+const RUNTIME_RELEASE = "gravity-time-membrane-flow-v841";
+const CACHE_NAME = "dva-static-v841-gravity-time-membrane-flow";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/accelerate-time-membrane-v841.png",
+  "/assets/generated/accelerate-time-caustics-v841.png",
+  "/assets/generated/decelerate-time-membrane-v841.png",
+  "/assets/generated/decelerate-time-caustics-v841.png",
   "/assets/generated/credit-initial-metal-reflection-lossless-v840.png",
   "/assets/generated/world-kill-filament-transport-v839.png",
   "/assets/generated/timekeeper-local-caustics-v838.png",
