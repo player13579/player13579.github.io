@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "barrier-invulnerability-v826";
-const CACHE_NAME = "dva-static-v826-barrier-invulnerability";
+const RUNTIME_RELEASE = "barrier-closed-shell-v827";
+const CACHE_NAME = "dva-static-v827-barrier-closed-shell";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/barrier-closed-shell-v827.png",
   "/assets/generated/antidote-purification-material-v824.png",
   "/assets/generated/philia-front-fire-v824.png",
   "/assets/generated/philia-left-fire-v824.png",
