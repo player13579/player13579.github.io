@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "human-cutin-authored-body-v837";
-const CACHE_NAME = "dva-static-v837-human-cutin-authored-body";
+const RUNTIME_RELEASE = "timekeeper-local-material-lock-v838";
+const CACHE_NAME = "dva-static-v838-timekeeper-local-material-lock";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/timekeeper-local-caustics-v838.png",
   "/assets/generated/human-kill-cutin-white-hood-five-phase-v837.png",
   "/assets/generated/human-kill-cutin-blue-dress-five-phase-v837.png",
   "/assets/generated/gravity-storm-material-packed-v836.png",
