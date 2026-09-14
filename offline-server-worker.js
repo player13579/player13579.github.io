@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "gravity-time-membrane-flow-v841",
+    version: "philia-handgun-reload-five-phase-v842",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "gravity-time-membrane-flow-v841";
+const PRODUCT_RELEASE = "philia-handgun-reload-five-phase-v842";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -22095,6 +22095,10 @@ function serialize(room, viewer, options = {}) {
       serializedPlayer.desireRenkiRecoveryEndsAt = publicDesireRenkiRecovery ? Number(player.meditatingUntil) : 0;
       serializedPlayer.desireRenkiRecoveryMs = publicDesireRenkiRecovery ? DESIRE_RENKI_RECOVERY_MS : 0;
       if (publicNinjutsuFocus) serializedPlayer.ninjutsuFocusEndsAt = Number(player.aimReadyAt);
+      // Only visible Philia handgun body timing; no inventory, ammo, or target data.
+      if (!player.isBot && cleanSkinId(player.skinId) === "hood" && room.phase === "playing" && player.alive && !player.ejected && !player.inVent && player.gunnerReloadWeapon === "handgun" && Number(player.gunnerReloadUntil) > timestamp) {
+        serializedPlayer.handgunReloadBody = { weapon: "handgun", endsAt: Number(player.gunnerReloadUntil), durationMs: GUNNER_RELOAD_MS };
+      }
     }
     return serializedPlayer;
   });
@@ -26686,5 +26690,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "gravity-time-membrane-flow-v841" });
+self.postMessage({ type: "ready", version: "philia-handgun-reload-five-phase-v842" });
 })();
