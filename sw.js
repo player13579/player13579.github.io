@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-assault-reload-five-phase-v853";
-const CACHE_NAME = "dva-static-v853-sophia-assault-reload-five-phase";
+const RUNTIME_RELEASE = "time-marker-only-credit-marker-removed-v854";
+const CACHE_NAME = "dva-static-v854-time-marker-only-credit-marker-removed";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/sophia-assault-reload-front-v853.png",
