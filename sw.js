@@ -5,10 +5,12 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "time-marker-only-credit-marker-removed-v854";
-const CACHE_NAME = "dva-static-v854-time-marker-only-credit-marker-removed";
+const RUNTIME_RELEASE = "taser-contact-conduction-v855";
+const CACHE_NAME = "dva-static-v855-taser-contact-conduction";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/taser-contact-material-20260915.png",
+  "/assets/generated/taser-contact-flow-20260915.png",
   "/assets/generated/sophia-assault-reload-front-v853.png",
   "/assets/generated/sophia-assault-reload-back-v853.png",
   "/assets/generated/sophia-assault-reload-left-v853.png",
