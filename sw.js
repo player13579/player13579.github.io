@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "philia-assault-reload-five-phase-v851";
-const CACHE_NAME = "dva-static-v851-philia-assault-reload-five-phase";
+const RUNTIME_RELEASE = "play-startup-texture-order-v852";
+const CACHE_NAME = "dva-static-v852-play-startup-texture-order";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/philia-assault-reload-front-v851.png",
