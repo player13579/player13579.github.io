@@ -5,10 +5,20 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "human-dodge-v823";
-const CACHE_NAME = "dva-static-v823-human-dodge";
+const RUNTIME_RELEASE = "human-fire-v824";
+const CACHE_NAME = "dva-static-v824-human-fire";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-front-fire-v824.png",
+  "/assets/generated/philia-left-fire-v824.png",
+  "/assets/generated/philia-right-fire-v824.png",
+  "/assets/generated/philia-back-fire-v824.png",
+  "/assets/generated/sophia-front-fire-v824.png",
+  "/assets/generated/sophia-left-fire-v824.png",
+  "/assets/generated/sophia-right-fire-v824.png",
+  "/assets/generated/sophia-back-fire-v824.png",
+  "/assets/generated/renki-normal-material-v824.png",
+  "/assets/generated/renki-tenfold-material-v824.png",
   "/assets/generated/philia-front-dodge-v823.png",
   "/assets/generated/philia-left-dodge-v823.png",
   "/assets/generated/philia-right-dodge-v823.png",
