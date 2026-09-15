@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "bot-sniper-dodge-sabotage-te-v877";
-const CACHE_NAME = "dva-static-v877-bot-sniper-dodge-sabotage-te";
+const RUNTIME_RELEASE = "philia-handgun-authored-switch-v878";
+const CACHE_NAME = "dva-static-v878-philia-handgun-authored-switch";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-handgun-switch-front-source-v1.png",
+  "/assets/generated/philia-handgun-switch-back-source-v1.png",
+  "/assets/generated/philia-handgun-switch-left-source-v1.png",
+  "/assets/generated/philia-handgun-switch-right-source-v1.png",
   "/assets/generated/sniper-reload-male-bot-front-authored-20260915.png",
   "/assets/generated/sniper-reload-male-bot-back-authored-20260915.png",
   "/assets/generated/sniper-reload-male-bot-left-authored-20260915.png",
