@@ -5,10 +5,23 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-smg-palette-registration-v868";
-const CACHE_NAME = "dva-static-v868-sophia-smg-palette-registration";
+const RUNTIME_RELEASE = "philia-longgun-sophia-smg-fire-v869";
+const CACHE_NAME = "dva-static-v869-philia-longgun-sophia-smg-fire";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-assault-fire-back-v867.png",
+  "/assets/generated/philia-assault-fire-front-v867.png",
+  "/assets/generated/philia-assault-fire-left-v867.png",
+  "/assets/generated/philia-assault-fire-right-v867.png",
+  "/assets/generated/philia-assault-reload-back-alpha-repair-v867.png",
+  "/assets/generated/philia-smg-fire-back-v867.png",
+  "/assets/generated/philia-smg-fire-front-v867.png",
+  "/assets/generated/philia-smg-fire-left-v867.png",
+  "/assets/generated/philia-smg-fire-right-v867.png",
+  "/assets/generated/sophia-smg-fire-back-v868.png",
+  "/assets/generated/sophia-smg-fire-front-v868.png",
+  "/assets/generated/sophia-smg-fire-left-v868.png",
+  "/assets/generated/sophia-smg-fire-right-v868.png",
   "/assets/generated/sophia-smg-reload-front-palette-20260915-e585b28d.png",
   "/assets/generated/sophia-smg-reload-back-palette-20260915-ff926a7a.png",
   "/assets/generated/sophia-smg-reload-left-palette-20260915-34f574a2.png",
