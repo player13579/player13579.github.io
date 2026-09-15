@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "pair-warning-conduction-v857";
-const CACHE_NAME = "dva-static-v857-pair-warning-conduction";
+const RUNTIME_RELEASE = "philia-sniper-reload-v858";
+const CACHE_NAME = "dva-static-v858-philia-sniper-reload";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-sniper-reload-front-v857-candidate.png",
+  "/assets/generated/philia-sniper-reload-back-v857-candidate.png",
+  "/assets/generated/philia-sniper-reload-left-v857-candidate.png",
+  "/assets/generated/philia-sniper-reload-right-v857-candidate.png",
   "/assets/generated/pair-warning-material-20260915.png",
   "/assets/generated/pair-warning-flow-20260915.png",
   "/assets/generated/philia-left-dash-eight.png",
