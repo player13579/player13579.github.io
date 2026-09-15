@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "philia-assault-authored-switch-v881";
-const CACHE_NAME = "dva-static-v881-philia-assault-authored-switch";
+const RUNTIME_RELEASE = "sophia-handgun-authored-switch-v882";
+const CACHE_NAME = "dva-static-v882-sophia-handgun-authored-switch";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-handgun-switch-front-source-v1.png",
+  "/assets/generated/sophia-handgun-switch-back-source-v1.png",
+  "/assets/generated/sophia-handgun-switch-left-source-v1.png",
+  "/assets/generated/sophia-handgun-switch-right-source-v1.png",
   "/assets/generated/philia-assault-switch-front-source-v1.png",
   "/assets/generated/philia-assault-switch-back-source-v1.png",
   "/assets/generated/philia-assault-switch-left-source-v1.png",
