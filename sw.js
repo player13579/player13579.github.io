@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-lateral-ten-phase-v860";
-const CACHE_NAME = "dva-static-v860-sophia-lateral-ten-phase";
+const RUNTIME_RELEASE = "smartphone-remote-repair-te-v861";
+const CACHE_NAME = "dva-static-v861-smartphone-remote-repair-te";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/smartphone-remote-repair-material-20260915.png",
+  "/assets/generated/smartphone-remote-repair-screen-20260915.png",
+  "/assets/generated/smartphone-remote-repair-uplink-20260915.png",
+  "/assets/generated/smartphone-remote-repair-ring-20260915.png",
   "/assets/generated/sophia-left-dash-ten.png",
   "/assets/generated/sophia-right-dash-ten.png",
   "/assets/generated/philia-taser-reload-front-v857-candidate.png",
