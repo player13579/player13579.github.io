@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-sniper-reload-v862";
-const CACHE_NAME = "dva-static-v862-sophia-sniper-reload";
+const RUNTIME_RELEASE = "sophia-taser-reload-v863";
+const CACHE_NAME = "dva-static-v863-sophia-taser-reload";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-taser-reload-front-v860-candidate.png",
+  "/assets/generated/sophia-taser-reload-back-v860-candidate.png",
+  "/assets/generated/sophia-taser-reload-left-v860-candidate.png",
+  "/assets/generated/sophia-taser-reload-right-v860-candidate.png",
   "/assets/generated/sophia-sniper-reload-front-candidate.png",
   "/assets/generated/sophia-sniper-reload-back-candidate.png",
   "/assets/generated/sophia-sniper-reload-left-candidate.png",
