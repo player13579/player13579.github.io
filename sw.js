@@ -5,10 +5,12 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "philia-lateral-eight-phase-v856";
-const CACHE_NAME = "dva-static-v856-philia-lateral-eight-phase";
+const RUNTIME_RELEASE = "pair-warning-conduction-v857";
+const CACHE_NAME = "dva-static-v857-pair-warning-conduction";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/pair-warning-material-20260915.png",
+  "/assets/generated/pair-warning-flow-20260915.png",
   "/assets/generated/philia-left-dash-eight.png",
   "/assets/generated/philia-right-dash-eight.png",
   "/assets/generated/taser-contact-material-20260915.png",
