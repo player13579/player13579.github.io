@@ -5,10 +5,22 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-taser-reload-v863";
-const CACHE_NAME = "dva-static-v863-sophia-taser-reload";
+const RUNTIME_RELEASE = "three-identity-handgun-fire-v864";
+const CACHE_NAME = "dva-static-v864-three-identity-handgun-fire";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/handgun-fire-blue-dress-back.png",
+  "/assets/generated/handgun-fire-blue-dress-front.png",
+  "/assets/generated/handgun-fire-blue-dress-left.png",
+  "/assets/generated/handgun-fire-blue-dress-right.png",
+  "/assets/generated/handgun-fire-male-bot-back.png",
+  "/assets/generated/handgun-fire-male-bot-front.png",
+  "/assets/generated/handgun-fire-male-bot-left.png",
+  "/assets/generated/handgun-fire-male-bot-right.png",
+  "/assets/generated/handgun-fire-white-hood-back.png",
+  "/assets/generated/handgun-fire-white-hood-front.png",
+  "/assets/generated/handgun-fire-white-hood-left.png",
+  "/assets/generated/handgun-fire-white-hood-right.png",
   "/assets/generated/sophia-taser-reload-front-v860-candidate.png",
   "/assets/generated/sophia-taser-reload-back-v860-candidate.png",
   "/assets/generated/sophia-taser-reload-left-v860-candidate.png",
