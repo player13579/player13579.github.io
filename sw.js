@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "three-identity-handgun-fire-v864";
-const CACHE_NAME = "dva-static-v864-three-identity-handgun-fire";
+const RUNTIME_RELEASE = "gravity-operator-te-scope-restored-v865";
+const CACHE_NAME = "dva-static-v865-gravity-operator-te-scope-restored";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/handgun-fire-blue-dress-back.png",
