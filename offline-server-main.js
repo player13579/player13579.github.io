@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "bot-handgun-reload-attendance-te-v870",
+    version: "sophia-assault-bot-smg-reload-v871",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "bot-handgun-reload-attendance-te-v870";
+const PRODUCT_RELEASE = "sophia-assault-bot-smg-reload-v871";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -22099,9 +22099,13 @@ function serialize(room, viewer, options = {}) {
       if ((player.isBot || ["hood", "blue-dress"].includes(cleanSkinId(player.skinId))) && room.phase === "playing" && player.alive && !player.ejected && !player.inVent && player.gunnerReloadWeapon === "handgun" && Number(player.gunnerReloadUntil) > timestamp) {
         serializedPlayer.handgunReloadBody = { weapon: "handgun", endsAt: Number(player.gunnerReloadUntil), durationMs: GUNNER_RELOAD_MS };
       }
-      if (!player.isBot && ["hood", "blue-dress"].includes(cleanSkinId(player.skinId)) && room.phase === "playing" && player.alive && !player.ejected && !player.inVent && (((player.gunnerReloadWeapon === "smg" || (cleanSkinId(player.skinId) === "hood" && ["assault", "sniper"].includes(player.gunnerReloadWeapon)) || (cleanSkinId(player.skinId) === "blue-dress" && player.gunnerReloadWeapon === "sniper")) || (cleanSkinId(player.skinId) === "hood" && player.gunnerReloadWeapon === "taser")) || (cleanSkinId(player.skinId) === "blue-dress" && player.gunnerReloadWeapon === "taser")) && Number(player.gunnerReloadUntil) > timestamp) {
+      if (!player.isBot && ["hood", "blue-dress"].includes(cleanSkinId(player.skinId)) && room.phase === "playing" && player.alive && !player.ejected && !player.inVent && (((player.gunnerReloadWeapon === "smg" || (cleanSkinId(player.skinId) === "hood" && ["assault", "sniper"].includes(player.gunnerReloadWeapon)) || (cleanSkinId(player.skinId) === "blue-dress" && ["assault", "sniper"].includes(player.gunnerReloadWeapon))) || (cleanSkinId(player.skinId) === "hood" && player.gunnerReloadWeapon === "taser")) || (cleanSkinId(player.skinId) === "blue-dress" && player.gunnerReloadWeapon === "taser")) && Number(player.gunnerReloadUntil) > timestamp) {
         serializedPlayer.weaponReloadBody = { weapon: player.gunnerReloadWeapon, endsAt: Number(player.gunnerReloadUntil), durationMs: GUNNER_RELOAD_MS };
       }
+      if (player.isBot && room.phase === "playing" && player.alive && !player.ejected && !player.inVent && player.gunnerReloadWeapon === "smg" && Number(player.gunnerReloadUntil) > timestamp) {
+        serializedPlayer.weaponReloadBody = { weapon: player.gunnerReloadWeapon, endsAt: Number(player.gunnerReloadUntil), durationMs: GUNNER_RELOAD_MS };
+      }
+
     }
     return serializedPlayer;
   });
@@ -26688,7 +26692,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "bot-handgun-reload-attendance-te-v870",
+  version: "sophia-assault-bot-smg-reload-v871",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
