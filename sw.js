@@ -5,10 +5,22 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-assault-sniper-taser-fire-v872";
-const CACHE_NAME = "dva-static-v872-sophia-assault-sniper-taser-fire";
+const RUNTIME_RELEASE = "philia-sniper-taser-bot-smg-fire-v873";
+const CACHE_NAME = "dva-static-v873-philia-sniper-taser-bot-smg-fire";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-sniper-fire-front-20260915.png",
+  "/assets/generated/philia-sniper-fire-back-20260915.png",
+  "/assets/generated/philia-sniper-fire-left-20260915.png",
+  "/assets/generated/philia-sniper-fire-right-20260915.png",
+  "/assets/generated/philia-taser-fire-front-20260915.png",
+  "/assets/generated/philia-taser-fire-back-20260915.png",
+  "/assets/generated/philia-taser-fire-left-20260915.png",
+  "/assets/generated/philia-taser-fire-right-20260915.png",
+  "/assets/generated/smg-fire-male-bot-front.png",
+  "/assets/generated/smg-fire-male-bot-back.png",
+  "/assets/generated/smg-fire-male-bot-left.png",
+  "/assets/generated/smg-fire-male-bot-right.png",
   "/assets/generated/sophia-sniper-fire-front-20260915.png",
   "/assets/generated/sophia-sniper-fire-back-20260915.png",
   "/assets/generated/sophia-sniper-fire-left-20260915.png",
