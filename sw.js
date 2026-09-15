@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-handgun-palette-registration-v867";
-const CACHE_NAME = "dva-static-v867-sophia-handgun-palette-registration";
+const RUNTIME_RELEASE = "sophia-smg-palette-registration-v868";
+const CACHE_NAME = "dva-static-v868-sophia-smg-palette-registration";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-smg-reload-front-palette-20260915-e585b28d.png",
+  "/assets/generated/sophia-smg-reload-back-palette-20260915-ff926a7a.png",
+  "/assets/generated/sophia-smg-reload-left-palette-20260915-34f574a2.png",
+  "/assets/generated/sophia-smg-reload-right-palette-20260915-81fff2d2.png",
   "/assets/generated/sophia-handgun-reload-muted-back-20260915.png",
   "/assets/generated/sophia-handgun-reload-muted-front-20260915.png",
   "/assets/generated/sophia-handgun-reload-muted-left-20260915.png",
