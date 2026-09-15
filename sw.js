@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "reload-local-expiry-retained-v874";
-const CACHE_NAME = "dva-static-v874-reload-local-expiry-retained";
+const RUNTIME_RELEASE = "smartphone-source-phases-v875";
+const CACHE_NAME = "dva-static-v875-smartphone-source-phases";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/smartphone-prepared-cell1-source-exact-v874.png",
   "/assets/generated/philia-sniper-fire-front-20260915.png",
   "/assets/generated/philia-sniper-fire-back-20260915.png",
   "/assets/generated/philia-sniper-fire-left-20260915.png",
