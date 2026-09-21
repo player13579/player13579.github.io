@@ -28053,8 +28053,12 @@ function acquisitionDestinationElement(effect, data) {
   const id = String(effect.acquisitionId || effect.variant || '');
   if (kind === 'ability') {
     const exact = document.querySelector(`[data-shop-ability-shortcut="${CSS.escape(id)}"]`);
-    const native = !activePurchasedShopAbilities(data?.self).some(ability => ability.id === id)
-      ? els.tabletAbilityShortcut : null;
+    const product = DVA_ECONOMY.abilityProduct(id);
+    // A passive or panel grant has no active shortcut to illuminate.
+    if (!product || !['active', 'active-target-map'].includes(product.behavior)) return null;
+    const nativeOperator = data?.self?.special === 'teleport' ? 'gravity' : data?.self?.special === 'alchemist' ? 'hacker' : data?.self?.special;
+    const sharedNative = product.operator === nativeOperator || availableBorrowedOperatorTypes(data?.self).includes(product.operator);
+    const native = sharedNative ? els.tabletAbilityShortcut : null;
     return [state.tabletOpen && exact, state.tabletOpen && native, els.teleportModeSelect]
       .find(element => acquisitionVisibleRect(element)) || null;
   }
