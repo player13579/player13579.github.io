@@ -7354,7 +7354,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "sunbeam-hands-passive-and-portrait-v894",
+    version: "golden-flight-and-acquisition-destinations-v895",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7376,7 +7376,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "sunbeam-hands-passive-and-portrait-v894";
+const PRODUCT_RELEASE = "golden-flight-and-acquisition-destinations-v895";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7888,7 +7888,7 @@ const OPERATORS = {
       limit: 99,
       asset: "quantum",
       description: "水の変化、電撃、核変換、核反応を使い分ける。",
-      details: "エレクトリック（1MP／16SP）：見通し内で最も近い敵へ、距離を問わず0.35ダメージと3秒間35%減速。壁・遮蔽物で止まり、連鎖・範囲・貫通はしない。\n\n運動エネルギー制御：所持中の水を高温水または氷へ変える。\n\n核変換：所持中の鉛か水銀を金へ変え、100Cに即時換金する。\n\n核分裂／核融合（各2MP）：終盤に所持中の核素材へ作用する。対象がなければ何も起きない。"
+      details: "エレクトリック（1MP／16SP）：見通し内で最も近い敵へ、距離を問わず0.35ダメージと3秒間35%減速。壁・遮蔽物で止まり、連鎖・範囲・貫通はしない。\n\n運動エネルギー制御（16SP）：所持中の水を高温水または氷へ変える。\n\n核変換（16SP）：所持中の鉛か水銀を金へ変え、100Cに即時換金する。\n\n核分裂／核融合（各16SP・2MP）：終盤に所持中の核素材へ作用する。対象がなければ何も起きない。"
     }
   ],
   attacker: [
@@ -26600,5 +26600,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "sunbeam-hands-passive-and-portrait-v894" });
+self.postMessage({ type: "ready", version: "golden-flight-and-acquisition-destinations-v895" });
 })();
