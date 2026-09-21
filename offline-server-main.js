@@ -3386,7 +3386,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "human-switch-moving-fire-v898",
+    version: "persistent-details-design-v899",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -3408,7 +3408,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "human-switch-moving-fire-v898";
+const PRODUCT_RELEASE = "persistent-details-design-v899";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -3603,7 +3603,6 @@ const MYSTERY_BOX_CLEARANCE = 118;
 const MYSTERY_BOX_MAX_COUNT = 3;
 const MAP_OBJECT_SPEED_MULTIPLIER = 1.35;
 const LIMIT_BREAK_SPEED_MULTIPLIER = 3;
-const LIMIT_BREAK_MANA_COST = 1;
 const FIRE_JUTSU_COST = vendingPrice("fire");
 const FIRE_JUTSU_RADIUS = 240;
 const ENHANCE_HOLD_STEP_MS = 600;
@@ -22451,7 +22450,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "human-switch-moving-fire-v898",
+  version: "persistent-details-design-v899",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

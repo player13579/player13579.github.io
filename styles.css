@@ -12828,3 +12828,138 @@ body.game-open:has(#selectPanel:not([hidden])) #operatorDetail > p {
 body.game-open:has(#selectPanel:not([hidden])) #operatorDetail .operator-detail-kicker {
   color: #c5f6ff;
 }
+
+/* Portrait operator reading surface during pre-match. The existing pre-match
+   route hides .game-area because it normally contains only an unusable board.
+   When an operator detail is open, promote just its existing lower-row beside
+   the selection scroll surface; keep the board hidden and do not alter play. */
+@media (max-width: 680px) and (orientation: portrait) {
+  body.game-open:has(#selectPanel:not([hidden])):has(#operatorDetail:not([hidden])) .app-shell {
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.game-open:has(#selectPanel:not([hidden])):has(#operatorDetail:not([hidden])) .game-area {
+    display: grid;
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-areas: "field";
+    grid-template-rows: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body.game-open:has(#selectPanel:not([hidden])):has(#operatorDetail:not([hidden])) .field-stage-slot {
+    grid-area: field;
+    grid-template-rows: auto auto;
+    width: 100%;
+    min-height: 0;
+    overflow: visible;
+    /* The normal pre-match board is hidden here; release size containment so
+       the existing detail row supplies this compact second grid row. */
+    container-type: normal;
+  }
+
+  body.game-open:has(#selectPanel:not([hidden])):has(#operatorDetail:not([hidden])) .field-stage-slot > .board-wrap {
+    display: none;
+  }
+
+  body.game-open:has(#selectPanel:not([hidden])):has(#operatorDetail:not([hidden])) #fieldLowerRow:not([hidden]) {
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+  }
+
+  body.game-open:has(#selectPanel:not([hidden])):has(#operatorDetail:not([hidden])) #sidePanel {
+    grid-column: 1;
+    grid-row: 1;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+  }
+}
+
+
+/* Item detail: quiet reading hierarchy on the existing translucent canvas route.
+   This styles the shared item/ability detail surface. Marker and operator
+   descriptions use separate containers. */
+body.game-open #inventoryItemDetail.inventory-item-detail:not([hidden]) {
+  color: #dceef0;
+  border: 1px solid rgba(112, 206, 207, 0.50);
+  border-left: 3px solid rgba(121, 223, 213, 0.82);
+  border-radius: 10px;
+  background: linear-gradient(132deg, rgba(10, 34, 46, 0.78), rgba(19, 63, 70, 0.66)) !important;
+  box-shadow: inset 0 1px rgba(231, 255, 255, 0.12), 0 10px 24px rgba(5, 20, 27, 0.20);
+  backdrop-filter: blur(7px);
+  text-shadow: none;
+}
+body.game-open #inventoryItemDetail.inventory-item-detail:not([hidden]) .inventory-item-detail-kicker {
+  color: #92e0d8;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-shadow: none;
+}
+body.game-open #inventoryItemDetail.inventory-item-detail:not([hidden]) strong {
+  color: #f2fcfc;
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 1px rgba(2, 12, 17, 0.42);
+}
+body.game-open #inventoryItemDetail.inventory-item-detail:not([hidden]) small {
+  color: #c6eee9;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: none;
+}
+body.game-open #inventoryItemDetail.inventory-item-detail:not([hidden]) p {
+  color: #d7e9eb;
+  font-size: 12px;
+  line-height: 1.60;
+  text-shadow: none;
+}
+/* Contact details remain a readable translucent surface above the canvas while
+   passing every touch through to the active game control. */
+body.game-open #inventoryItemDetail.inventory-item-detail.pointer-detail-active {
+  background: linear-gradient(132deg, rgba(10, 34, 46, 0.66), rgba(19, 63, 70, 0.54)) !important;
+  box-shadow: inset 0 1px rgba(231, 255, 255, 0.10), 0 8px 18px rgba(5, 20, 27, 0.16);
+  pointer-events: none;
+  backdrop-filter: blur(5px);
+}
+body.game-open #inventoryItemDetail.inventory-item-detail.pointer-detail-active :is(strong, small, p, .inventory-item-detail-kicker) {
+  text-shadow: 0 1px 3px rgba(2, 12, 17, 0.62);
+}
+
+
+
+/* Persistent operator reading surface: it remains below the canvas and never
+   changes canvas geometry or pointer ownership.  This overrides the former
+   opaque white panel and heavy black outline only for operator details. */
+body.game-open #operatorDetail.operator-detail:not([hidden]),
+body.game-open:has(#selectPanel:not([hidden])) #operatorDetail.operator-detail:not([hidden]) {
+  color: #dfeef0;
+  border: 1px solid rgba(111, 196, 204, 0.46);
+  border-top: 2px solid rgba(127, 225, 218, 0.78);
+  border-radius: 10px;
+  background: linear-gradient(132deg, rgba(13, 37, 47, 0.82), rgba(20, 57, 66, 0.70)) !important;
+  box-shadow: inset 0 1px rgba(225, 255, 255, 0.12), 0 8px 20px rgba(7, 22, 29, 0.18);
+  backdrop-filter: blur(7px);
+  text-shadow: none;
+}
+body.game-open #operatorDetail.operator-detail:not([hidden]) .operator-detail-head strong,
+body.game-open:has(#selectPanel:not([hidden])) #operatorDetail.operator-detail:not([hidden]) .operator-detail-head strong {
+  color: #f1fbfb;
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 1px rgba(2, 12, 17, 0.42);
+}
+body.game-open #operatorDetail.operator-detail:not([hidden]) > p,
+body.game-open:has(#selectPanel:not([hidden])) #operatorDetail.operator-detail:not([hidden]) > p {
+  color: #d5e8ea;
+  font-size: 13px;
+  line-height: 1.62;
+  text-shadow: none;
+}
