@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "acquired-target-and-viewport-recovery-v891";
-const CACHE_NAME = "dva-static-v891-acquired-target-and-viewport-recovery";
+const RUNTIME_RELEASE = "complete-weapon-inventory-icons-v892";
+const CACHE_NAME = "dva-static-v892-complete-weapon-inventory-icons";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/gunner-weapon-handgun-crop-v892.png",
+  "/assets/generated/gunner-weapon-smg-crop-v892.png",
+  "/assets/generated/gunner-weapon-assault-crop-v892.png",
+  "/assets/generated/gunner-weapon-sniper-crop-v892.png",
   "/assets/generated/tactics-novel-digest-poster-v890.png",
   "/assets/generated/item-frag-grenade-v889.png",
   "/assets/generated/item-stun-grenade-v889.png",

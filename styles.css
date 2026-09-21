@@ -5452,6 +5452,23 @@ body .offline-team-choice button[data-offline-team] {
 .alchemy-choice[data-alchemy-asset="hack-mana-duplicate"] .alchemy-choice-icon { background-image: url("assets/generated/hack-mana-duplicate.webp?v=hacker-icons-v385"); }
 .alchemy-choice[data-alchemy-asset="hack-status-recover"] .alchemy-choice-icon { background-image: url("assets/generated/flora-self-heal-v336.png"); }
 
+/* v892: the original 2048px firearm source is not a four equal-cell atlas.
+   Use alpha-preserving technical crops with contain sizing for every firearm
+   icon consumer. Taser retains its dedicated asset and all other items keep
+   their existing routes. */
+.field-action-bar .weapon-button[data-weapon="handgun"]::before,
+.vending-item-with-icon[data-vending-weapon="handgun"] .vending-gun-icon,
+.alchemy-choice[data-alchemy-asset="handgun"] .alchemy-choice-icon { background-image: url("assets/generated/gunner-weapon-handgun-crop-v892.png"); background-size: contain; background-position: center; }
+.field-action-bar .weapon-button[data-weapon="smg"]::before,
+.vending-item-with-icon[data-vending-weapon="smg"] .vending-gun-icon,
+.alchemy-choice[data-alchemy-asset="smg"] .alchemy-choice-icon { background-image: url("assets/generated/gunner-weapon-smg-crop-v892.png"); background-size: contain; background-position: center; }
+.field-action-bar .weapon-button[data-weapon="assault"]::before,
+.vending-item-with-icon[data-vending-weapon="assault"] .vending-gun-icon,
+.alchemy-choice[data-alchemy-asset="assault"] .alchemy-choice-icon { background-image: url("assets/generated/gunner-weapon-assault-crop-v892.png"); background-size: contain; background-position: center; }
+.field-action-bar .weapon-button[data-weapon="sniper"]::before,
+.vending-item-with-icon[data-vending-weapon="sniper"] .vending-gun-icon,
+.alchemy-choice[data-alchemy-asset="sniper"] .alchemy-choice-icon { background-image: url("assets/generated/gunner-weapon-sniper-crop-v892.png"); background-size: contain; background-position: center; }
+
 /* Several legacy source images are fully opaque against black. Blend that
    plate into a readable semantic tint instead of presenting a black tile. */
 .alchemy-choice:is(
