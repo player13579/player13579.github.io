@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "persistent-details-design-v899";
-const CACHE_NAME = "dva-static-v899-persistent-details-design";
+const RUNTIME_RELEASE = "viewport-marker-stamina-v900";
+const CACHE_NAME = "dva-static-v900-viewport-marker-stamina";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/philia-sniper-switch-back-source-v1.png",

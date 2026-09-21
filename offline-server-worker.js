@@ -3386,7 +3386,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "persistent-details-design-v899",
+    version: "viewport-marker-stamina-v900",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -3408,7 +3408,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "persistent-details-design-v899";
+const PRODUCT_RELEASE = "viewport-marker-stamina-v900";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -3526,16 +3526,16 @@ const FLORA_SPEED_MULTIPLIER = ACCELERATE_SPEED_MULTIPLIER * 0.72;
 const FLORA_SPEED_DURATION_MS = 12_000;
 const MAX_STAMINA = 100;
 const MAX_STORED_STAMINA = 500;
-const DODGE_STAMINA_COST = 100;
+const DODGE_STAMINA_COST = 60;
 const SLEEP_REGEN_MULTIPLIER = 4;
 const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
 const FIXED_MOVEMENT_ACC = 2;
 const NORMAL_MOVEMENT_ACC = 1;
 const MOVEMENT_ACC_ACTIVATION_THRESHOLD = 2;
 const DASH_MULTIPLIER = 1.75;
-const DASH_DRAIN_PER_SECOND = 84;
-const WALK_DRAIN_PER_SECOND = 18;
-const SLOW_WALK_DRAIN_PER_SECOND = 2.4;
+const DASH_DRAIN_PER_SECOND = 28;
+const WALK_DRAIN_PER_SECOND = 8;
+const SLOW_WALK_DRAIN_PER_SECOND = 1.2;
 // All gradual natural recovery is intentionally one tenth of its former base rate.
 const NATURAL_REGEN_RATE_MULTIPLIER = 0.1;
 const STAMINA_REGEN_PER_SECOND = 19 * NATURAL_REGEN_RATE_MULTIPLIER;
@@ -3569,7 +3569,7 @@ const HEAVY_WEAPON_DEFINITIONS = Object.freeze({
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 const HACKER_ROOT_HEALTH = 0.0001;
 const HACKER_ACTION_STAMINA_COST = 10;
-const FIGHTER_SLASH_STAMINA_COST = 150;
+const FIGHTER_SLASH_STAMINA_COST = 75;
 const FIGHTER_SLASH_GUARD_DURATION_MS = 700;
 const FIGHTER_SLASH_PERFECT_GUARD_MS = 140;
 const FIGHTER_SLASH_PERFECT_REARM_MS = 1_100;
@@ -3649,7 +3649,7 @@ const QUANTUM_ACTION_STAMINA_COST = 16;
 // A committed firearm magazine is one action, not one cost per projectile.
 // It is an authored v528 balance value, deliberately outside the doubled
 // legacy action-cost inventory.
-const GUNNER_BURST_STAMINA_COST = 50;
+const GUNNER_BURST_STAMINA_COST = 25;
 const QUANTUM_NUCLEAR_MANA_COST = 2;
 const QUANTUM_ELECTRIC_MANA_COST = 1;
 const QUANTUM_ELECTRIC_DAMAGE = 0.35;
@@ -3889,7 +3889,7 @@ const OPERATORS = {
       limit: 99,
       asset: "fighter",
       description: "ECをためて強くなる剣士。剣・キルカウンター・リミットブレイクを使う。",
-      details: "EC：12秒ごとに1MPを使い、EC+1。剣の使用・投擲で通常衝撃波を出すたび、現在ECを1使う。衝撃波は剣で防げるが、ジャストガードと反射はできない。\n\nEC100：以後、ECを使ってもMP・SPを補充。HPとバリア耐久の制限は維持する。EC500：居合を1回獲得。次の成功攻撃を死体ありキルにする。失敗・回避・ガード・準備バリア・非攻撃では消費せず、死体なしキルはそのまま。EC1000：リミットブレイク中のキルを防げない不利を解除。剣の斬るは常に死体なしキルになり、対象攻撃へのジャストガードは全攻撃を反射する。\n\nオリハルコン・ソード：開始時に1振り所持。使用・投擲できる。通常の斬るは死体ありキル、物理攻撃のガード、短いジャストガードで攻撃元への反射を行う。EMP・毒・サンビームは通常ガードできない。ファイター以外は物理斬り・物理ガード・投擲だけを使え、ECと衝撃波は使えない。\n\n回避：100SPでキルを無効化した時だけ、攻撃者を即時キルする。\n\nリミットブレイク：パッシブ。現在HPと上限を1にし、被弾で0になると死亡する。会議外の世界時間でACCが増える。手動発動・MP消費・SP倍率はない。"
+      details: "EC：12秒ごとに1MPを使い、EC+1。剣の使用・投擲で通常衝撃波を出すたび、現在ECを1使う。衝撃波は剣で防げるが、ジャストガードと反射はできない。\n\nEC100：以後、ECを使ってもMP・SPを補充。HPとバリア耐久の制限は維持する。EC500：居合を1回獲得。次の成功攻撃を死体ありキルにする。失敗・回避・ガード・準備バリア・非攻撃では消費せず、死体なしキルはそのまま。EC1000：リミットブレイク中のキルを防げない不利を解除。剣の斬るは常に死体なしキルになり、対象攻撃へのジャストガードは全攻撃を反射する。\n\nオリハルコン・ソード：開始時に1振り所持。使用・投擲できる。通常の斬るは死体ありキル、物理攻撃のガード、短いジャストガードで攻撃元への反射を行う。EMP・毒・サンビームは通常ガードできない。ファイター以外は物理斬り・物理ガード・投擲だけを使え、ECと衝撃波は使えない。\n\n回避：60SPでキルを無効化した時だけ、攻撃者を即時キルする。\n\nリミットブレイク：パッシブ。現在HPと上限を1にし、被弾で0になると死亡する。会議外の世界時間でACCが増える。手動発動・MP消費・SP倍率はない。"
     },
     {
       id: "defender-teleport",
@@ -3931,7 +3931,7 @@ const OPERATORS = {
       limit: 99,
       asset: "gunner",
       description: "初期AR、エイム、特殊弾装填を持ち、5種の銃器を扱う。足場のない場所へ進むとホバースプリントが自動発動する。",
-      details: "武器：HG・SMG・AR・SR・テーザーを使用できる。SRは通常1.35ダメージ。1弾倉の射撃は50SPを一度だけ使い、SP不足では弾を使わない。テーザーは6秒間減速。全攻撃は生成遮蔽物を貫通する。\n\nヘッドショット（HS）：通常射撃ごとに幸運で抽選。腰撃ちは1〜21%。理知中かつダッシュ以外ではエイムが最寄りの可視対象を追尾し、4〜36%になるが確定ではない。ダッシュになると即解除。手動ボタンや追尾移動はない。\n\n特殊弾：理知中、18秒ごとに選択中の銃へウィーク・ペネトレイト・ショックのどれか1マガジンを装填する。ウィーク弾は命中対象だけをキルし、射手に反動はない。ペネトレイト弾だけは通常の壁も貫通。未装填分は保管し、武器を替えても再適用する。\n\nホバースプリント（1MP）：全員共通の自動アクション。足場から床のない場所へ進む直前に8秒間浮揚し、ACC 1.8になる。20秒のクールタイム中は再発動・延長・累積できない。最後の浮揚が床のない場所で切れると落下死。所持品は不要。GBO（2MP）は全員共通の武具への長押し。数値性能だけを10倍にして武具を壊し、ヘッドショット・キル・特殊弾など数値でない効果は増えない。"
+      details: "武器：HG・SMG・AR・SR・テーザーを使用できる。SRは通常1.35ダメージ。1弾倉の射撃は25SPを一度だけ使い、SP不足では弾を使わない。テーザーは6秒間減速。全攻撃は生成遮蔽物を貫通する。\n\nヘッドショット（HS）：通常射撃ごとに幸運で抽選。腰撃ちは1〜21%。理知中かつダッシュ以外ではエイムが最寄りの可視対象を追尾し、4〜36%になるが確定ではない。ダッシュになると即解除。手動ボタンや追尾移動はない。\n\n特殊弾：理知中、18秒ごとに選択中の銃へウィーク・ペネトレイト・ショックのどれか1マガジンを装填する。ウィーク弾は命中対象だけをキルし、射手に反動はない。ペネトレイト弾だけは通常の壁も貫通。未装填分は保管し、武器を替えても再適用する。\n\nホバースプリント（1MP）：全員共通の自動アクション。足場から床のない場所へ進む直前に8秒間浮揚し、ACC 1.8になる。20秒のクールタイム中は再発動・延長・累積できない。最後の浮揚が床のない場所で切れると落下死。所持品は不要。GBO（2MP）は全員共通の武具への長押し。数値性能だけを10倍にして武具を壊し、ヘッドショット・キル・特殊弾など数値でない効果は増えない。"
     },
     {
       id: "attacker-assassin",
@@ -22455,5 +22455,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "persistent-details-design-v899" });
+self.postMessage({ type: "ready", version: "viewport-marker-stamina-v900" });
 })();

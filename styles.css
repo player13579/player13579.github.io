@@ -9530,8 +9530,8 @@ body.tablet-mode-active #sidePanel #empPhaseControl > label {
 }
 @media (min-width: 681px) and (orientation: landscape) {
   body.tablet-mode-active:not(.result-presentation) #fieldLowerRow {
-    height: 100%;
-    align-self: stretch;
+    height: auto;
+    align-self: start;
   }
 }
 
@@ -12962,4 +12962,29 @@ body.game-open:has(#selectPanel:not([hidden])) #operatorDetail.operator-detail:n
   font-size: 13px;
   line-height: 1.62;
   text-shadow: none;
+}
+
+/* Native Chromium confirms .effect-copy is display: contents, so the name, value,
+   and detail already participate directly in the named grid. Compact only normal
+   portrait rows into a name/value line plus a full-width detail. Stacked rows keep
+   their established three-line reading order. */
+@media (max-width: 480px) and (orientation: portrait) {
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) li:not(.effect-layout-stacked) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "effect-name effect-value" "effect-detail effect-detail";
+    column-gap: 8px;
+    row-gap: 3px;
+    min-height: 0;
+  }
+
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) li:not(.effect-layout-stacked) .effect-value {
+    align-self: start;
+    justify-self: end;
+    white-space: normal;
+  }
+
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) li:not(.effect-layout-stacked):has(.effect-value:empty) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "effect-name" "effect-detail";
+  }
 }
