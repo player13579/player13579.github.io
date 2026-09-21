@@ -8,8 +8,8 @@
   const COOLDOWN_MS_PER_CREDIT = 5_000;
   const creditIncome = Object.freeze({
     passiveIntervalMs: 10_000,
-    passiveReward: 1,
-    taskReward: 20,
+    passiveReward: 0,
+    taskReward: 10,
     sabotageReward: 2,
     cacheReward: 3,
     quantumMercuryReward: 100,

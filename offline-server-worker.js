@@ -7215,8 +7215,8 @@ const LABORATORY_MAP = Object.freeze({
   const COOLDOWN_MS_PER_CREDIT = 5_000;
   const creditIncome = Object.freeze({
     passiveIntervalMs: 10_000,
-    passiveReward: 1,
-    taskReward: 20,
+    passiveReward: 0,
+    taskReward: 10,
     sabotageReward: 2,
     cacheReward: 3,
     quantumMercuryReward: 100,
@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "sophia-handgun-authored-switch-v882",
+    version: "economy-te-ui-repair-v883",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "sophia-handgun-authored-switch-v882";
+const PRODUCT_RELEASE = "economy-te-ui-repair-v883";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7434,7 +7434,8 @@ const AUTO_REPORT_POST_KILL_GRACE_MS = 4_000;
 const PAIR_ROUTE_RADIUS = 82;
 const PAIR_ROUTE_GRACE_MS = 5_000;
 const PAIR_ROUTE_DAMAGE_INTERVAL_MS = 3_000;
-const TASK_STAMINA_REQUIREMENT = 400;
+// Tasks remain an interaction and progression gate, but no longer consume SP.
+const TASK_STAMINA_REQUIREMENT = 0;
 const AUTO_TASK_INTERVAL_MS = 2_500;
 const AUTO_TASK_PRESENCE_MS = 1800;
 const HACKER_AUTO_TASK_INTERVAL_MS = 60_000;
@@ -7512,8 +7513,6 @@ const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
 const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.25;
 const TASK_CREDIT_REWARD = CREDIT_ECONOMY.taskReward;
 const SABOTAGE_CREDIT_REWARD = CREDIT_ECONOMY.sabotageReward;
-const PASSIVE_CREDIT_INTERVAL_MS = CREDIT_ECONOMY.passiveIntervalMs;
-const PASSIVE_CREDIT_REWARD = CREDIT_ECONOMY.passiveReward;
 const SABOTAGE_COOLDOWN_MS = 45_000;
 const SLOW_WALK_MULTIPLIER = 0.52;
 const EMP_RANGE = 260;
@@ -7672,7 +7671,6 @@ const RENKI_HOLD_FOCUS_DURATION_MS = RENKI_TAP_FOCUS_DURATION_MS * RENKI_HOLD_TA
 // may render the hold locally, but it never gets to declare its duration,
 // mana spend, or repeat count.
 const ABILITY_BATCH_HOLD_MIN_MS = 420;
-const ABILITY_BATCH_MAX_PARALLEL = 256;
 const RATIONAL_FREE_ABILITY_INTERVAL_MS = 30_000;
 const DODGE_MANA_COST = 0;
 const TELEPORT_MANA_COST = 1;
@@ -10883,7 +10881,10 @@ function advanceOperatorTurn(room) {
     startBattle(room);
     return;
   }
-  room.operatorSelectEndsAt = now() + OPERATOR_SELECT_MS;
+  // Offline operator selection is deliberate and has no automatic timeout.
+  room.operatorSelectEndsAt = room.matchmaking?.status === "offline"
+    ? 0
+    : now() + OPERATOR_SELECT_MS;
 }
 
 function startBattle(room) {
@@ -11363,9 +11364,6 @@ function executeAbilityHoldAction(room, player, rawBody, actionPath, action) {
   const parallelCount = Math.floor((spendableMana + 1e-9) / unitManaCost);
   if (parallelCount < 1) {
     throw new ApiError(400, `能力長押し（1回${unitManaCost}MP）には理知維持用2MPとは別に、1回分以上のMPが必要です。`);
-  }
-  if (parallelCount > ABILITY_BATCH_MAX_PARALLEL) {
-    throw new ApiError(400, `一括並列発動は${ABILITY_BATCH_MAX_PARALLEL}回までです。MPを通常発動で調整してから再実行してください。`);
   }
   const capacity = abilityBatchActionCapacity(player, actionPath, body);
   if (capacity < parallelCount) {
@@ -12066,13 +12064,15 @@ function setMana(room, player, rawMana, sourceLabel = "", options = {}) {
     ? Math.round((previous - (previous - rawRequested) * DESIRE_BIAS_COST_MULTIPLIER) * 100) / 100
     : rawRequested;
   const preGainMaxMana = manaCapacityFor(player);
-  const automaticProtection = applyAutomaticSurplusManaProtection(
-    room,
-    player,
-    previousRaw,
-    requested,
-    preGainMaxMana
-  );
+  const automaticProtection = options.skipAutomaticProtection === true
+    ? { mana: requested, converted: 0, reason: 0, grit: 0 }
+    : applyAutomaticSurplusManaProtection(
+      room,
+      player,
+      previousRaw,
+      requested,
+      preGainMaxMana
+    );
   const next = automaticProtection.mana <= 0 ? DESIRE_RESOURCE_DEBT : automaticProtection.mana;
   expandManaCapacityFor(player, next);
   player.mana = next;
@@ -14692,16 +14692,10 @@ function tickRoom(room) {
       autoCompleteNearbyTask(room, player);
     }
     autoUseNearbyMapObject(room, player, timestamp);
-    if (room.phase === "playing" && player.alive && !player.ejected) {
-      const creditAnchor = Number(player.lastPassiveCreditAt) || timestamp;
-      const creditTicks = Math.floor((timestamp - creditAnchor) / PASSIVE_CREDIT_INTERVAL_MS);
-      if (creditTicks > 0) {
-        grantCredits(room, player, creditTicks * PASSIVE_CREDIT_REWARD, "passive");
-        player.lastPassiveCreditAt = creditAnchor + creditTicks * PASSIVE_CREDIT_INTERVAL_MS;
-      }
-    } else {
-      player.lastPassiveCreditAt = timestamp;
-    }
+    // Credits are earned through explicit game events only. Keep the legacy
+    // timestamp current for old saves and time-anchor code, but never turn
+    // elapsed match time into currency.
+    player.lastPassiveCreditAt = timestamp;
   }
   if (!roomTimeStopped) advanceHazards(room, timestamp);
   autoClearSabotageAtValidProximity(room, timestamp);
@@ -19999,6 +19993,12 @@ function resolveNinjutsuDisappearance(room, player, targetId, timestamp = now())
     return "blocked";
   }
   player.killsThisRound += 1;
+  // Award only a completed Ninjutsu elimination. Dodges, barriers, cancelled
+  // aim, duplicate resolution and any rejected disappearance return above.
+  setMana(room, player, (Number(player.mana) || 0) + 100, "忍殺成功", {
+    exact: true,
+    skipAutomaticProtection: true
+  });
   player.killReadyAt = timestamp + killCooldownDurationMs(room, player);
   evaluateSoloMission(room, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} 付近で${profile.attackLabel}による反応消失`);
@@ -22129,9 +22129,14 @@ function serialize(room, viewer, options = {}) {
     soloHumanDeathBotTimeScaleActivatedAt: Number(room.soloHumanDeathBotTimeScaleActivatedAt) || 0,
     hostId: room.hostId,
     settings: room.settings,
-    operatorSelectSecondsLeft: room.phase === "selecting"
-      ? Math.max(0, Math.ceil((room.operatorSelectEndsAt - timestamp) / 1000))
-      : 0,
+    operatorSelectionUnlimited: room.phase === "selecting" &&
+      room.matchmaking?.status === "offline" &&
+      !Number(room.operatorSelectEndsAt),
+    operatorSelectSecondsLeft: room.phase !== "selecting"
+      ? 0
+      : room.matchmaking?.status === "offline" && !Number(room.operatorSelectEndsAt)
+        ? null
+        : Math.max(0, Math.ceil((room.operatorSelectEndsAt - timestamp) / 1000)),
     operatorTurnPlayerId: operatorTurnPlayer?.id || "",
     operatorTurnName: operatorTurnPlayer?.name || "",
     operatorTurnPosition: operatorTurnPlayer ? room.operatorTurnIndex + 1 : 0,
@@ -26697,5 +26702,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "sophia-handgun-authored-switch-v882" });
+self.postMessage({ type: "ready", version: "economy-te-ui-repair-v883" });
 })();
