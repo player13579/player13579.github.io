@@ -42,7 +42,7 @@
   ]);
 
   const abilityRows = [
-    ["fighter-limit-break", "リミットブレイク", 18, "operator-fighter", "fighter", "limit-break", "active", "/api/limit-break"],
+    ["fighter-limit-break", "リミットブレイク", 18, "operator-fighter", "fighter", "limit-break", "passive", "advanceLimitBreak"],
     ["gravity-target", "対象転移", 8, "operator-gravity", "gravity", "target", "active-target-map", "/api/teleport"],
     ["gravity-heart", "心臓転移", 22, "operator-gravity", "gravity", "heart", "active", "/api/teleport"],
     ["gravity-accelerate", "アクセラレート", 8, "operator-gravity", "gravity", "accelerate", "active", "/api/gravity-time"],
@@ -60,6 +60,7 @@
     ["quantum-transmutation", "核変換", 12, "operator-quantum", "quantum", "nuclear-transmutation", "active", "/api/quantum-control"],
     ["quantum-fission", "核分裂", 24, "operator-quantum", "quantum", "nuclear-fission", "active", "/api/quantum-control"],
     ["quantum-fusion", "核融合", 24, "operator-quantum", "quantum", "nuclear-fusion", "active", "/api/quantum-control"],
+    ["assassin-substitution", "変わり身の術", 8, "operator-assassin", "assassin", "substitution", "active", "/api/assassin-substitution"],
     ["assassin-annihilation", "アサシン忍殺", 20, "operator-assassin", "assassin", "annihilation", "passive", "resolveAttack"],
     ["assassin-silent-steps", "常時無音", 12, "operator-assassin", "assassin", "silent-steps", "passive", "emitMovementNoise"],
     ["hacker-vibe-coding", "バイブコーディング", 22, "operator-hacker", "hacker", "vibe-coding", "panel", "/api/alchemy"],
@@ -84,7 +85,7 @@
     ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
     ["mystery", "ミステリー", 4, "instant-item", "vending-mystery", "instant-mystery"],
     ["fire", "ファイア", 8, "instant-item", "fire", "fire"],
-    ["substitution", "変わり身の術", 8, "instant-item", "substitution", "substitution"],
+    ["protect", "プロテクト", 8, "instant-item", "protect", "protect"],
     ["heal", "回復", 4, "instant-item", "heal", "heal"],
     ["mana", "マナポーション", 3, "instant-item", "vending-mana", "mana"],
     ["stamina", "スタミナ", 6, "instant-item", "stamina", "stamina"],

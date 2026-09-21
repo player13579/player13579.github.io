@@ -40,7 +40,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "acquisition-gold-and-startup-v885";
+const DVA_CLIENT_RELEASE = "durable-combat-and-bust-v886";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -94,7 +94,7 @@ const SWITCH_DRAG_HOLD_DELAY_MS = 360;
 const SWITCH_DRAG_MOVE_CANCEL_PX = 14;
 const FIGHTER_SLASH_REPEAT_INTERVAL_MS = 620;
 const TABLET_SCROLL_GESTURE_THRESHOLD_PX = 12;
-const SMARTPHONE_REPAIR_STAMINA_COST = 300;
+const SMARTPHONE_REPAIR_STAMINA_COST = 200;
 const MOVEMENT_IDLE_SESSION_ROTATE_MS = 1_500;
 const ITEM_THROW_BASE_DISTANCE_CLIENT = 220;
 const ITEM_THROW_MAX_CHARGE_MS_CLIENT = 3_000;
@@ -104,6 +104,12 @@ const MARKER_EXPLANATION_DURATION_MS = 1_450;
 const ENHANCE_HOLD_STEP_MS_CLIENT = 600;
 const ENHANCE_MAX_LEVEL_CLIENT = 1;
 const GBO_HOLD_MS_CLIENT = 3_000;
+
+// A common action has one pointer transaction: release is the ordinary action;
+// a settled hold invokes its alternate action exactly once.
+const COMMON_ACTION_HOLD_DELAY_MS = 420;
+const COMMON_ACTION_DRAG_CANCEL_PX = 12;
+const commonActionGestureBindings = new Set();
 
 function apiUrl(path) {
   const normalized = String(path || "").startsWith("/") ? String(path) : `/${path}`;
@@ -488,7 +494,7 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
   "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
-const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"acquisition-gold-and-startup-v885","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
+const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"durable-combat-and-bust-v886","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
@@ -1257,7 +1263,7 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   warp: "獲得時、即席をテレポート権利1回へ変換。最大3回。好きな時に拡大マップで地点を選ぶと1回使う。",
   mystery: "幸運／直観で補正する抽選：6C、SP+250、完全活性、理知化、12秒減速、15秒能力封印、8秒意識消失。",
   fire: "燃焼反応で周囲に継続燃焼領域を展開する1回分。最大2回。エンハンスは強度と範囲だけを強化。",
-  "fighter-limit-break": "HPを1使い、SPと移動加速を各3倍、累積する。HPを使い切ると死亡。",
+  "fighter-limit-break": "パッシブ：HPは1を超えず、会議外の世界経過でACCが増加する。手動発動やMP消費はない。",
   "gravity-target": "選んだ対象を、マップで指定した地点へ転移する。",
   "gravity-heart": "対象を遠隔でキルする。位置は公開しない。",
   "gravity-accelerate": "8秒間、対象の時間進行率を×2.5にする。移動・物理モーション・CT・行動不能・タスクを同率で加速。",
@@ -1279,10 +1285,9 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "assassin-silent-steps": "移動音を出さず、敵Botに足音の観測情報を与えない。",
   "hacker-vibe-coding": "訓練世界の資源・物体・能力・状態を生成または変更する。",
   "hacker-root": "自分のHPを0.0001に固定。キル無効効果を一時停止し、他オペレーター能力を借用する。",
-  substitution: "1回分を獲得。最大2回。次の攻撃を無効化して転移する。理知中のみ発動。",
-  grit: "1回分を獲得。次のキルをボディダメージへ変える。理知中のみ発動。",
-  heal: "不足HPをすべて回復。無傷ならHP+1。回復後の現在HPがこれまでの上限を超えた時だけ、その値を上限にする。",
-  reason: "1回分を獲得。次の攻撃対象のバリアをすべて削除し、削除1回につき自分に0.5ダメージ。理知中のみ発動。",
+  protect: "1回分を獲得。次のキルをボディダメージ1へ変換する。",
+  "assassin-substitution": "アサシン用の1回分。次のキル被弾時だけ転移効果を発動し、ボディダメージでは発動しない。",
+  heal: "不足HPを個人上限まで回復する。HPの上限は増えない。",
   mana: "MP+1。",
   stamina: "獲得時にSP+350へ即時変換。物理所持品には残らない。",
   railgun: "使用：使い切り。全遮蔽物を貫通する直線射撃。命中時は死体ありキル。投擲被弾：対象の幸運で0.10〜0.60ダメージ。接地後は誰でも拾える。",
@@ -1367,7 +1372,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "acquisition-gold-and-startup-v885";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "durable-combat-and-bust-v886";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3447,7 +3452,6 @@ const actionHotkeys = {
   KeyV: "vendingButton",
   KeyH: "operatorAbilityButton",
   KeyC: "renkiButton",
-  KeyL: "sabotageButton",
   KeyU: "utilityButton",
   KeyE: "contextActionButton",
   KeyF: "fireJutsuButton",
@@ -3466,7 +3470,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/gunner-heavy": "shoot",
   "/api/dodge": "evade",
   "/api/fighter-slash": "slash",
-  "/api/limit-break": "power",
   "/api/donate": "interact",
   "/api/teleport": "cast",
   "/api/gravity-time": "cast",
@@ -3486,7 +3489,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/emergency": "interact",
   "/api/luminous": "cast",
   "/api/vote": "interact",
-  "/api/sabotage": "interact",
   "/api/repair": "interact",
   "/api/utility": "interact",
   "/api/transfer": "interact",
@@ -3656,6 +3658,9 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
 
 
 function magicCharacterActionKind(type, variant = "") {
+  if (type === "action-stand" && variant === "durability-created") return "cast";
+  if (type === "action-push" && variant === "timed-bust-start") return "cast";
+  if (type === "action-push" && variant === "timed-bust-break") return null;
   // Tasks and Hacker content application intentionally keep the character
   // physically still; their UI/progress and Vibe Coding ATE own the feedback.
   if (type === "action-task" || type === "action-alchemy" || type === "action-renki") return null;
@@ -3771,7 +3776,7 @@ function activePurchasedShopAbilities(self = state.data?.self) {
   const alreadyAvailable = new Set([nativeOperator, ...availableBorrowedOperatorTypes(self)]);
   return (self?.shopAbilityEntitlements || [])
     .map((id) => DVA_ECONOMY.abilityProduct(id))
-    .filter((ability) => ability && ["active", "active-target-map"].includes(ability.behavior) && !alreadyAvailable.has(ability.operator) && !(ability.id === "hacker-root" && self?.hackerRootActive))
+    .filter((ability) => ability && ["active", "active-target-map"].includes(ability.behavior) && !alreadyAvailable.has(ability.operator) && !(ability.id === "hacker-root" && self?.hackerRootActive) && !(ability.operator === "fighter" || ability.id === "fighter-limit-break"))
     .filter((ability) => !seen.has(ability.id) && Boolean(seen.add(ability.id)));
 }
 
@@ -3860,6 +3865,8 @@ async function executePurchasedShopAbility(ability) {
   }
   if (ability.behavior === "active-target-map") return beginShopGravityTargeting(ability.id);
   const self = state.data?.self;
+  // Purchased abilities stay on the purchase adapter. Only an Assassin's
+  // native ability uses its dedicated substitution route.
   const target = nearestTarget();
   const selectedTargetId = els.teleportTargetSelect.value;
   const heartTransfer = ability.operator === "gravity" && ability.mode === "heart";
@@ -4017,6 +4024,10 @@ const SPECIALIZED_HOLD_ACTION_IDS = new Set([
   "shootButton",
   "tabletShootShortcut",
   "tabletFireShortcut",
+  "ninjutsuButton",
+  "tabletNinjutsuShortcut",
+  "dodgeButton",
+  "tabletDodgeShortcut",
   "dashButton",
   "slowWalkButton",
   "fireJutsuButton",
@@ -4045,11 +4056,7 @@ function isContinuousGameActionButton(button) {
   if (button.id === "tabletAbilityShortcut") {
     return button.dataset.repeatableAbility === "1";
   }
-  if ([
-    "tabletEmpShortcut",
-    "tabletDodgeShortcut",
-    "tabletDonateShortcut"
-  ].includes(button.id)) return true;
+  if (["tabletEmpShortcut", "tabletDonateShortcut"].includes(button.id)) return true;
   if (["ninjutsuButton", "tabletNinjutsuShortcut"].includes(button.id)) {
     return false;
   }
@@ -4562,7 +4569,7 @@ function operatorAbilityAction() {
   const selectedShopAbilityId = String(state.selectedShopAbilityId || "");
   const purchasedShopAbility = selectedPurchasedShopAbility(self);
   if (selectedShopAbilityId || purchasedShopAbility) return null;
-  if (self.special === "fighter") return { path: "/api/limit-break", action: {} };
+  if (self.special === "fighter") return null;
   if (self.special === "teleport") {
     const mode = els.teleportModeSelect.value;
     const targetId = els.teleportTargetSelect.value || self.id;
@@ -6856,7 +6863,148 @@ function handleKillCameraOwnedPointer(event) {
   event.stopImmediatePropagation();
 }
 
+function commonActionTargetId() {
+  const selfId = String(state.data?.self?.id || state.data?.selfId || "");
+  const selected = String(els.teleportTargetSelect?.value || "");
+  const target = (state.data?.players || []).find((player) => player.id === selected && player.alive && !player.ejected && !player.inVent);
+  return target?.id || selfId;
+}
+
+function hideRetiredSabotageControls() {
+  for (const element of [els.sabotageAlert, els.sabotageControl, els.sabotageSelect, els.sabotageButton]) {
+    if (!element) continue;
+    element.hidden = true;
+    if ('disabled' in element) element.disabled = true;
+  }
+}
+
+function commonActionAvailability(data = state.data) {
+  const self = data?.self;
+  const now = estimatedServerNow(data);
+  const canActAlive = Boolean(data?.phase === "playing" && self?.alive && !self?.ejected && !self?.inVent && !isActionBlocked(data));
+  const fighterAccess = hasDisplayedOperatorAccess(self, "fighter");
+  const dodgeCost = Number(self?.dodgeStaminaCost) || 100;
+  const dodge = Boolean(canActAlive && (self?.role === "defender" || fighterAccess) && Number(self?.stamina) >= dodgeCost && Number(self?.dodgeActiveUntil || 0) <= now);
+  const canUseKill = self?.role === "attacker" || isDefenderHunter(self);
+  const ninjutsu = Boolean(canActAlive && canUseKill && !aimedTarget(data) && (Number(self?.killReadyAt || 0) <= now || self?.ninjutsuOpeningReady));
+  const barrier = Boolean(canActAlive && Number(self?.barrierReadyAt || 0) <= now);
+  const bust = Boolean(canActAlive && self?.bustUnlocked && Number(self?.bustReadyAt || 0) <= now);
+  return { dodge, ninjutsu, barrier, bust, dodgeCost };
+}
+
+async function invokeCommonBarrier() {
+  if (!commonActionAvailability().barrier) {
+    showToast("バリアは現在使用できません。");
+    return false;
+  }
+  return api("/api/barrier", { targetId: commonActionTargetId() });
+}
+
+async function invokeCommonBust() {
+  if (!commonActionAvailability().bust) {
+    showToast("バストは未獲得、またはクールタイム中です。");
+    return false;
+  }
+  return api("/api/bust", { targetId: commonActionTargetId() });
+}
+
+async function invokeCommonDodge() {
+  const available = commonActionAvailability();
+  if (!available.dodge) {
+    showToast(`回避には${available.dodgeCost}SPと使用可能状態が必要です。`);
+    return false;
+  }
+  return api("/api/dodge");
+}
+
+function bindCommonActionGesture(button, { tapInvoke, holdInvoke, detail }) {
+  if (!button) return;
+  const gesture = { pointerId: null, startX: 0, startY: 0, moved: false, held: false, timer: 0, suppressClick: false };
+  const clearTimer = () => { if (gesture.timer) window.clearTimeout(gesture.timer); gesture.timer = 0; };
+  const hideDetail = () => { if (state.inventoryItemDetailSource === button) hideInventoryItemDetail(); };
+  const showDetail = () => showInventoryItemDetail(detail, button, { autoClose: false });
+  const finish = (event, { cancelled = false } = {}) => {
+    if (gesture.pointerId === null || (event?.pointerId !== undefined && event.pointerId !== gesture.pointerId)) return false;
+    const shouldTap = !cancelled && !gesture.moved && !gesture.held && !button.disabled;
+    clearTimer();
+    gesture.pointerId = null;
+    gesture.suppressClick = !cancelled;
+    hideDetail();
+    if (shouldTap) void tapInvoke();
+    return true;
+  };
+  const cancel = (event) => finish(event, { cancelled: true });
+  button.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary || button.disabled || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (gesture.pointerId !== null) cancel({ pointerId: gesture.pointerId });
+    event.preventDefault();
+    gesture.pointerId = event.pointerId;
+    gesture.startX = event.clientX;
+    gesture.startY = event.clientY;
+    gesture.moved = false;
+    gesture.held = false;
+    gesture.suppressClick = false;
+    showDetail();
+    clearTimer();
+    gesture.timer = window.setTimeout(() => {
+      if (gesture.pointerId !== event.pointerId || gesture.moved || button.disabled) return;
+      gesture.timer = 0;
+      gesture.held = true;
+      gesture.suppressClick = true;
+      void holdInvoke();
+    }, COMMON_ACTION_HOLD_DELAY_MS);
+  });
+  const move = (event) => {
+    if (event.pointerId !== gesture.pointerId) return;
+    if (!gesture.moved && Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) >= COMMON_ACTION_DRAG_CANCEL_PX) {
+      gesture.moved = true;
+      clearTimer();
+    }
+    if (button.contains(event.target)) showDetail();
+    else hideDetail();
+  };
+  button.addEventListener("pointermove", move);
+  window.addEventListener("pointermove", move, true);
+  button.addEventListener("pointerup", finish);
+  window.addEventListener("pointerup", finish, true);
+  button.addEventListener("pointercancel", cancel);
+  window.addEventListener("pointercancel", cancel, true);
+  button.addEventListener("lostpointercapture", cancel);
+  button.addEventListener("pointerleave", (event) => { if (event.pointerId === gesture.pointerId) hideDetail(); });
+  button.addEventListener("pointerenter", (event) => { if (event.pointerId === gesture.pointerId) showDetail(); });
+  button.addEventListener("click", (event) => {
+    // A pointer release can synthesize a click (detail > 0), but a cancelled
+    // gesture has no click to suppress. Keep keyboard/programmatic click
+    // activation (detail === 0) independent from that pointer cleanup.
+    if (gesture.suppressClick && event.detail !== 0) {
+      gesture.suppressClick = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (!button.disabled && event.detail === 0) void tapInvoke();
+  }, true);
+  commonActionGestureBindings.add({ button, cancel, isActive: () => gesture.pointerId !== null });
+}
+
+function cancelCommonActionGestures({ onlyUnavailable = false } = {}) {
+  commonActionGestureBindings.forEach((binding) => {
+    if (!binding.isActive()) return;
+    if (onlyUnavailable && !binding.button.disabled && !binding.button.hidden && !binding.button.closest("[hidden]")) return;
+    binding.cancel({ pointerId: undefined });
+  });
+}
+
 function bindEvents() {
+  // The tutorial transcript is static HTML, but its resource rule must stay
+  // synchronized with the live HUD: HP/SP stop at their cap; only MP grows.
+  const transcript = document.getElementById("tacticsNovelTranscript");
+  if (transcript?.textContent.includes("回復の余剰分はcurrent/maxを同率で拡張")) {
+    transcript.innerHTML = transcript.innerHTML.replace(
+      "回復の余剰分はcurrent/maxを同率で拡張し、消費やダメージで上限は縮みません。",
+      "HPとSPは個人上限まで回復し、MPだけは余剰回復で現在値と上限を同率で拡張します。"
+    );
+  }
   ensureDynamicVendingChoices();
   ensureDynamicAlchemyChoices();
   document.addEventListener("pointerdown", unlockAudio, { passive: true });
@@ -6916,7 +7064,16 @@ function bindEvents() {
   els.tabletBranchCloseButton.addEventListener("click", () => setTabletBranchGroup(""));
   els.tabletBranchBackButton.addEventListener("click", () => setTabletBranchPath(""));
   els.tabletBranchList.addEventListener("scroll", renderTabletBranchLines, { passive: true });
-  els.tabletNinjutsuShortcut.addEventListener("click", () => els.ninjutsuButton.click());
+  const ninjutsuDetail = {
+    label: "忍殺", output: "共通アクション", badge: "長押し: バスト",
+    detail: "タップで忍殺準備を開始します。射程外または対象なしでも開始後に成否が確定します。長押しは獲得済みのバストを選択対象へ付与します。未選択時は自分が対象です。"
+  };
+  const dodgeDetail = {
+    label: "回避", output: "共通アクション", badge: "長押し: バリア",
+    detail: "タップで100SPを消費して回避します。長押しは自分へ耐久バリアを展開します。"
+  };
+  bindCommonActionGesture(els.ninjutsuButton, { tapInvoke: performNinjutsu, holdInvoke: invokeCommonBust, detail: ninjutsuDetail });
+  bindCommonActionGesture(els.tabletNinjutsuShortcut, { tapInvoke: performNinjutsu, holdInvoke: invokeCommonBust, detail: ninjutsuDetail });
   els.tabletContextShortcut.addEventListener("click", () => els.contextActionButton.click());
   els.tabletEmpShortcut.addEventListener("click", () => els.empButton.click());
   els.tabletClairvoyanceShortcut.addEventListener("click", () => toggleClairvoyance());
@@ -6925,7 +7082,8 @@ function bindEvents() {
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
     opener: els.tabletVendingShortcut
   }));
-  els.tabletDodgeShortcut.addEventListener("click", () => els.dodgeButton.click());
+  bindCommonActionGesture(els.dodgeButton, { tapInvoke: invokeCommonDodge, holdInvoke: invokeCommonBarrier, detail: dodgeDetail });
+  bindCommonActionGesture(els.tabletDodgeShortcut, { tapInvoke: invokeCommonDodge, holdInvoke: invokeCommonBarrier, detail: dodgeDetail });
   els.tabletRenkiShortcut.addEventListener("click", () => els.renkiButton.click());
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
   els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
@@ -7351,7 +7509,6 @@ function bindEvents() {
   });
   els.mapActionButton.addEventListener("click", () => toggleExpandedMapFromAction());
   els.mapCloseButton.addEventListener("click", () => setExpandedMapOpen(false));
-  els.ninjutsuButton.addEventListener("click", performNinjutsu);
   const bindGunTriggerButton = (button) => {
     let suppressClickUntil = 0;
     button.addEventListener("pointerdown", (event) => {
@@ -7386,7 +7543,6 @@ function bindEvents() {
   bindGunTriggerButton(els.tabletShootShortcut);
   els.weaponButton.addEventListener("click", () => api("/api/gunner-weapon", { direction: 1 }));
   els.gunnerReloadButton.addEventListener("click", () => api("/api/gunner-reload"));
-  els.dodgeButton.addEventListener("click", () => api("/api/dodge"));
   els.teleportButton.addEventListener("click", triggerTeleportAction);
   els.empButton.addEventListener("click", () => api("/api/emp", { phase: els.empPhaseSelect.value }));
   [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
@@ -7550,7 +7706,6 @@ function bindEvents() {
     }
   });
   els.emergencyButton.addEventListener("click", () => api("/api/emergency"));
-  els.sabotageButton.addEventListener("click", () => api("/api/sabotage", { type: els.sabotageSelect.value }));
   els.utilityButton.addEventListener("click", () => api("/api/utility", { type: els.utilitySelect.value }));
   bindVendingDetailKeyboard();
   vendingProductButtons().forEach((button) => {
@@ -8762,6 +8917,7 @@ function renderTabletBranch(data, force = false) {
   els.tabletBranchList.replaceChildren();
   const titles = { operator: "オペレーター", context: "周辺設備" };
   const branchTitles = {
+    "common-target": "対象選択",
     "gravity-transfer": "転移",
     "gravity-time": "時空制御",
     "gravity-target": "対象選択",
@@ -8846,7 +9002,14 @@ function renderTabletBranch(data, force = false) {
   });
 
   if (group === "operator") {
-    if (self.special === "teleport") {
+    if (branchPath === "common-target") {
+      [...els.teleportTargetSelect.options].forEach((option) => {
+        appendTabletBranchButton(option.textContent, () => {
+          setSelectValue(els.teleportTargetSelect, option.value);
+          setTabletBranchPath("");
+        }, { kind: "target", selected: option.value === els.teleportTargetSelect.value });
+      });
+    } else if (self.special === "teleport") {
       if (branchPath === "gravity-transfer") {
         addModeAction("地点へ転移", "body");
         addModeAction("対象転移", "target");
@@ -8865,6 +9028,7 @@ function renderTabletBranch(data, force = false) {
           }, { kind: "target", selected: option.value === els.teleportTargetSelect.value });
         });
       } else {
+        addSubmenu("対象を選択", "common-target");
         addSubmenu("転移", "gravity-transfer");
         addSubmenu("時空制御", "gravity-time");
         addModeAction("グラビティストーム", "storm");
@@ -8887,6 +9051,7 @@ function renderTabletBranch(data, force = false) {
         }
         recipesForPath.forEach(addRecipe);
       } else {
+        addSubmenu("対象を選択", "common-target");
         addSubmenu("対象データ", "hacker-resources");
         addSubmenu("戦術物資", "hacker-supplies");
         addSubmenu("武器", "hacker-weapons");
@@ -8901,12 +9066,14 @@ function renderTabletBranch(data, force = false) {
           }, { kind: "target", selected: option.value === els.teleportTargetSelect.value });
         });
       } else {
+        addSubmenu("対象を選択", "common-target");
         addModeAction("ヒール", "heal");
         addModeAction("サンビーム", "sunbeam");
         addModeAction("インビジブル", "invisible");
         if (els.teleportModeSelect.value === "sunbeam") addSubmenu("サンビーム対象を選択", "flora-target");
       }
     } else if (self.special === "quantum") {
+      if (!branchPath) addSubmenu("対象を選択", "common-target");
       if (tabletQuantumKineticTerminalActive(self)) {
         addQuantumModeAction("加速", "kinetic-accelerate");
         addQuantumModeAction("減速", "kinetic-decelerate");
@@ -8918,6 +9085,7 @@ function renderTabletBranch(data, force = false) {
         addQuantumModeAction("核融合", "nuclear-fusion");
       }
     } else {
+      if (!branchPath) addSubmenu("対象を選択", "common-target");
       addSource(els.operatorAbilityButton);
     }
   } else if (group === "context") {
@@ -9802,7 +9970,9 @@ function triggerOperatorAbility() {
     return;
   }
   if (self.special === "fighter") {
-    void api("/api/limit-break");
+    showToast("リミットブレイクはパッシブ能力です。");
+  } else if (self.special === "assassin") {
+    void api("/api/assassin-substitution", { targetId: commonActionTargetId() });
   } else if (self.special === "teleport") {
     triggerTeleportAction();
   } else if (self.special === "flora") {
@@ -10415,6 +10585,7 @@ async function returnToTitle() {
 }
 
 function releaseRejectedActionTransientInput() {
+  cancelCommonActionGestures();
   cancelActiveRootShortcutHolds();
   stopContinuousActionHold();
   stopContinuousActionKeyHold();
@@ -10671,16 +10842,17 @@ function formatAnalyticsDuration(rawSeconds) {
 }
 
 async function performNinjutsu() {
-  const target = nearestTarget();
-  if (!target) {
-    showToast("忍殺できる距離に対象がいません。");
-    return;
+  if (!commonActionAvailability().ninjutsu) {
+    showToast("忍殺は現在使用できません。");
+    return false;
   }
-  const ok = await api("/api/ninjutsu", { targetId: target.id });
-  if (ok) {
-    const assassin = state.data?.self?.special === "assassin";
-    showToast(`${target.name}への忍殺準備を開始しました。自分が4秒間静止し、対象が射程内で通常歩行速度以下なら${assassin ? "アサシン忍殺によるキル（死体なし）" : "通常忍殺（死体あり）"}が発動します。`);
-  }
+  const target = nearestNinjutsuTarget();
+  const ok = await api("/api/ninjutsu", target ? { targetId: target.id } : {});
+  if (ok) showToast(target
+    ? `${target.name}への忍殺準備を開始しました。成否は準備完了時に射程と移動状態で確定します。`
+    : "忍殺の焦点を開始しました。対象がいないため失敗として確定します。"
+  );
+  return ok;
 }
 
 async function attackFromCanvas(event) {
@@ -11043,6 +11215,7 @@ async function recoverRoomInteractionAfterBackground() {
 function resetLocalSession() {
   clearAcquisitionOverlay();
   clearMarkerExplanationDom();
+  cancelCommonActionGestures();
   detectAuthoredBotSmgReload(null);
   detectAuthoredBotSniperReload(null);
   detectAuthoredBotAssaultReload(null);
@@ -11063,6 +11236,9 @@ function resetLocalSession() {
   setKillCameraOpen(false, { focus: false });
   hideInventoryItemDetail();
   state.data = null;
+  state.commonTargetSessionKey = "";
+  els.teleportTargetSelect.dataset.key = "";
+  els.teleportTargetSelect.replaceChildren();
   state.roomId = "";
   state.playerId = "";
   state.lastStateServerNow = 0;
@@ -11773,10 +11949,12 @@ function detectMagicEffects(previous, next) {
   const known = new Set((previous.magicEffects || []).map((effect) => effect.id));
   for (const effect of next.magicEffects || []) {
     if (known.has(effect.id)) continue;
+    if (["instant-stand-firm-acquired", "instant-push-acquired", "fighter-stand-firm-acquired", "fighter-push-acquired"].includes(effect.type)) continue;
     if (effect.type === "action-item-use" && seenItemUseActionIds.has(effect.id)) continue;
     if (effect.type === "emp-charge" && settledEmpIds.has(effect.empPulseId)) continue;
     const receivedAt = state.frameNow || performance.now();
-    const duration = Math.max(magicEffectDuration(effect.type), Number(effect.durationMs) || 0);
+    const durableCombatEvent = /^(durability-|timed-bust-)/.test(String(effect.variant || "")) && ["action-stand", "action-push", "preparation-barrier-hit"].includes(effect.type);
+    const duration = durableCombatEvent && Number(effect.durationMs) > 0 ? Number(effect.durationMs) : Math.max(magicEffectDuration(effect.type), Number(effect.durationMs) || 0);
     // Network delay must not consume a visual effect before the client can draw it.
     const startedAt = receivedAt;
     const localEffect = {
@@ -12400,13 +12578,14 @@ function displayedManaValue(value) {
 function accessibleGameStatusSnapshot(data) {
   const self = data?.self;
   if (!self) return null;
+  const healthFloor = self.limitBreakPassive ? 1 : 2;
   const serializedHealth = Number(self.health);
   const health = self.alive
     ? Math.max(0, Number.isFinite(serializedHealth)
       ? serializedHealth
-      : Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0))
+      : Math.max(0, healthFloor - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0))
     : 0;
-  const maxHealth = Math.max(2, Number(self.maxHealth) || 2, health);
+  const maxHealth = Math.max(healthFloor, Number(self.maxHealth) || healthFloor, health);
   const stamina = Math.max(0, Number(self.stamina) || 0);
   const mana = displayedManaValue(self.mana);
   const acceleration = self.accelerationMultiplier != null && Number.isFinite(Number(self.accelerationMultiplier)) ? Math.max(0, Number(self.accelerationMultiplier)) : 1;
@@ -12439,7 +12618,9 @@ function accessibleGameStatusSnapshot(data) {
 }
 
 function formatAccessibleResource(value) {
-  return Number(value).toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+  const numeric = Number(value);
+  if (numeric > 0 && numeric < 0.001) return numeric.toFixed(4);
+  return numeric.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
 }
 
 function syncAccessibleGameStatus(data) {
@@ -13446,6 +13627,14 @@ function bindQuantumKineticHold(source) {
 
 function renderTargetOptions(data) {
   const self = data.self;
+  const targetSessionKey = `${data.roomId || state.roomId || ""}:${self.id || ""}:${data.phase || ""}`;
+  const targetSessionChanged = state.commonTargetSessionKey !== targetSessionKey;
+  state.commonTargetSessionKey = targetSessionKey;
+  if (data.phase !== "playing" || !self.alive || self.ejected || self.inVent) {
+    els.teleportTargetSelect.dataset.key = "";
+    els.teleportTargetSelect.replaceChildren();
+    return;
+  }
   if (self.special === "quantum" && state.quantumModePlayerId !== self.id) {
     state.quantumModePlayerId = self.id;
     state.quantumAbilityMode = normalizeQuantumClientMode(self.quantumMode);
@@ -13490,7 +13679,8 @@ function renderTargetOptions(data) {
   const purchasedShopAbilities = activePurchasedShopAbilities(self);
   const showPurchasedAbilityChoices = !(state.tabletOpen || state.tabletResumeAfterMap || portraitTabletRequired());
   const purchasedChoicesVisible = showPurchasedAbilityChoices && purchasedShopAbilities.length > 0;
-  const controlVisible = data.phase === "playing" && (rootAbilitySwitchVisible || options.length > 1 || alchemyTargetVisible || purchasedChoicesVisible) && self.alive && !self.ejected;
+  // This is the shared target picker for abilities and common Barrier/Bust.
+  const controlVisible = data.phase === "playing" && self.alive && !self.ejected && !self.inVent;
   els.teleportControl.hidden = !controlVisible;
   els.teleportModeSelect.closest("label").hidden = !rootAbilitySwitchVisible && !options.length && !purchasedChoicesVisible;
   els.abilityAutoActivateControl.hidden = !rootAbilitySwitchVisible && !options.length && !purchasedChoicesVisible;
@@ -13577,16 +13767,16 @@ function renderTargetOptions(data) {
   const gravityTargeting = selectedShopAbility
     ? shopGravityTargeting
     : ["teleport", "gravity"].includes(modeOwner) && currentAbilityMode !== "time-keeper";
-  els.teleportTargetSelect.closest("label").hidden = !alchemyTargetVisible && !gravityTargeting && !floraTargeting;
-  els.teleportTargetSelect.setAttribute("aria-label", floraTargeting ? "サンビーム対象" : "能力対象");
+  els.teleportTargetSelect.closest("label").hidden = false;
+  els.teleportTargetSelect.setAttribute("aria-label", floraTargeting ? "サンビーム対象" : "共通対象");
 
   const includeDead = self.special === "alchemist" && els.alchemySelect.value === "revive";
   const hackerTargeting = self.special === "alchemist" && els.alchemySelect.value.startsWith("hack-");
   const targets = data.players.filter((player) => includeDead
     ? !player.alive && !player.ejected
-    : player.alive && !player.ejected && !player.inVent && !player.invisible && (!(hackerTargeting || floraTargeting) || player.id !== self.id));
-  const previous = els.teleportTargetSelect.value || self.id;
-  const key = `${includeDead ? "dead" : floraTargeting ? "flora" : hackerTargeting ? "hacker" : "living"}:` +
+    : player.alive && !player.ejected && !player.inVent && (!player.invisible || player.id === self.id) && (!(hackerTargeting || floraTargeting) || player.id !== self.id));
+  const previous = targetSessionChanged ? self.id : (els.teleportTargetSelect.value || self.id);
+  const key = `${targetSessionKey}:${includeDead ? "dead" : floraTargeting ? "flora" : hackerTargeting ? "hacker" : "living"}:` +
     targets.map((player) => `${player.id}:${player.name}`).join("|");
   if (els.teleportTargetSelect.dataset.key !== key) {
     els.teleportTargetSelect.dataset.key = key;
@@ -13597,7 +13787,7 @@ function renderTargetOptions(data) {
       option.textContent = player.id === self.id ? `${playerIdentityLabel(player)} (自分)` : playerIdentityLabel(player);
       els.teleportTargetSelect.appendChild(option);
     });
-    const fallback = targets.find((player) => player.id !== self.id)?.id || targets[0]?.id || "";
+    const fallback = targets.find((player) => player.id === self.id)?.id || targets[0]?.id || "";
     els.teleportTargetSelect.value = targets.some((player) => player.id === previous) ? previous : fallback;
   }
   if (
@@ -13632,7 +13822,7 @@ function abilityNameWithMana(label, owner, mode, self) {
   const rationalManaFree = Boolean(self?.rationalFreeAbilityReady);
   const waived = (key) => operatorManaFree || (rationalManaFree && !["heartTeleport", "quantumNuclear", "quantumElectric"].includes(key));
   let presentation = "";
-  if (owner === "fighter" && mode === "limit-break") presentation = operatorManaFree ? "0MP" : `${Number(self?.limitBreakActivationCost ?? 1)}MP`;
+  if (owner === "fighter" && mode === "limit-break") return "リミットブレイク（パッシブ）";
   if (["teleport", "gravity"].includes(owner)) {
     const key = mode === "heart" ? "heartTeleport" : mode === "time-keeper" ? "timeKeeper" : mode === "storm" ? "gravityStorm" : "teleport";
     const fallback = mode === "heart" || mode === "storm" ? 10 : mode === "time-keeper" ? 1000 : 1;
@@ -13660,7 +13850,7 @@ function abilityModeDescription(owner, mode, self) {
   const nuclearReserve = Number(costs.quantumNuclear ?? 2);
   const descriptions = {
     fighter: {
-      "limit-break": "1回ごとに1MPとHP1を使い、SPと移動加速を各3倍、累積する。継続MP消費はない。HPを使い切ると死亡する。"
+      "limit-break": "パッシブ。HPは1を超えず、会議外の世界経過に応じてACCが増加する。手動発動、MP消費、SP倍率はない。"
     },
     teleport: {
       target: `局所重力場で時空曲率を変え、マップ指定地点へ選択対象を転移する。味方への誤射は発動者が即死する。`,
@@ -13755,7 +13945,8 @@ function renderStatus(data) {
 
 function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.data)) {
   const chargeDescriptions = {
-    "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire
+    "fire-jutsu": VENDING_PRODUCT_DESCRIPTIONS.fire,
+    protect: VENDING_PRODUCT_DESCRIPTIONS.protect
   };
   // A stale pre-v650 snapshot must not recreate the retired item card.
   const regularItems = (Array.isArray(self.itemInventory) ? self.itemInventory : []).filter((item) =>
@@ -13766,7 +13957,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
       ...item,
       inventoryKind,
       output: item.kind === "instant" ? "即席" : item.kind === "charge" ? "消耗品" : "所持品",
-      detail: `${chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能"}${item.id === "orichalcum-sword" ? " / UseまたはThrowを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBOは該当数値性能を一回だけ10倍にし、その使用で剣を破壊" : ""}`,
+      detail: `${chargeDescriptions[item.id] || VENDING_PRODUCT_DESCRIPTIONS[item.id] || alchemyRecipes.find((entry) => entry.id === item.id || entry.id === `vending-${item.id}`)?.output || "使用・投擲可能"}${item.id === "orichalcum-sword" ? " / 反復使用できる武器なので、UseまたはThrowを長押しするとEnhance、GBO対象です。GBO成功時はバストを獲得します。" : ""}`,
       badge: `×${Number(item.amount) || 1}`
     };
   });
@@ -13776,9 +13967,20 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
   // gunnerWeapons. Gating only on the native Gunner operator made those owned
   // weapons disappear from a Hacker's inventory even though they were usable.
   const gunnerAccess = hasDisplayedOperatorAccess(self, "gunner") || availableGunnerWeapons.length > 0;
+  const durableWeaponsByItemId = new Map();
+  (Array.isArray(self.durableWeapons) ? self.durableWeapons : []).forEach((weapon) => {
+    if (!weapon?.itemId || !weapon?.instanceId) return;
+    const rows = durableWeaponsByItemId.get(weapon.itemId) || [];
+    rows.push(weapon);
+    durableWeaponsByItemId.set(weapon.itemId, rows);
+  });
   const weaponItems = gunnerAccess
     ? availableGunnerWeapons
       .map((weapon) => {
+        const durableInstances = durableWeaponsByItemId.get(`weapon:${weapon.id}`) || durableWeaponsByItemId.get(weapon.id) || [];
+        const durability = durableInstances.length
+          ? durableInstances.map((entry) => `${Math.max(0, Number(entry.durability) || 0)}/${Math.max(0, Number(entry.maxDurability) || 0)}`).join("・")
+          : "";
         const specialType = weapon.id === self.gunnerSpecialAmmoWeapon && Number(self.gunnerSpecialAmmoRounds) > 0
           ? String(self.gunnerSpecialAmmoType || "")
           : "";
@@ -13789,8 +13991,8 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
           label: weapon.name,
           asset: weapon.id,
           inventoryKind: "weapon",
-          output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
-          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.20 : 0.05)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}・幸運補正済み）${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / Shoot・Use・Throwを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBO射撃は1弾倉の通常数値性能を10倍にし、完了・中断時に銃を破壊`,
+          output: `${Number(weapon.ammo) || 0}/${Number(weapon.maxAmmo) || 0}発${durability ? ` / 耐久 ${durability}` : ""}${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""}`,
+          detail: `${VENDING_PRODUCT_DESCRIPTIONS[weapon.id] || "銃器"} / 現在HS ${Math.round((Number(self.gunnerCurrentHeadshotChance) || (self.gunnerSnipingActive ? 0.20 : 0.05)) * 100)}%（${self.gunnerSnipingActive ? "エイム" : "腰撃ち"}・幸運補正済み）${specialLabel ? ` / ${specialLabel}×${self.gunnerSpecialAmmoRounds}` : ""} / 耐久は被ダメージ時の乱数で低下し、0で破壊。反復使用できる武器だけがGBO対象で、成功時はバストを獲得します。`,
           badge: [weapon.id === self.gunnerWeapon ? "選択中" : "", specialLabel].filter(Boolean).join(" / ")
         };
       })
@@ -13829,7 +14031,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
     asset: id,
     inventoryKind: "invention",
     output: "発明武器",
-    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使用・投擲可能"} / Use・Throwを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBOは該当数値性能を一回だけ10倍にして発明武器を破壊`,
+    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使用・投擲可能"} / 反復使用できる発明武器だけがGBO対象です。GBO成功時はバストを獲得します。`,
     badge: `×${count}`
   }));
   const heavyNames = { rpg: "RPG", missile: "ミサイル" };
@@ -13844,7 +14046,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
     asset: id,
     inventoryKind: "heavy",
     output: "重火器",
-    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器"} / Use・Throwを600ms以上長押しするとEnhance（固定1MP）、3000ms以上でGBO（固定2MP）。GBOは該当数値性能を一回だけ10倍にして重火器を破壊`,
+    detail: `${VENDING_PRODUCT_DESCRIPTIONS[id] || "使い切り重火器"} / 使い切り品はGBO対象外です。`,
     badge: `×${count}`
   }));
   return [...regularItems, ...weaponItems, ...specialAmmoItems, ...inventionItems, ...heavyItems];
@@ -14447,6 +14649,7 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
 }
 
 function renderActiveEffects(data) {
+  hideRetiredSabotageControls();
   const self = data.self;
   const liveNow = estimatedServerNow(data);
   const rational = self.mentalState === "理知";
@@ -14466,14 +14669,11 @@ function renderActiveEffects(data) {
   const passiveState = itemBlocked ? "EMP遮断" : rational ? "有効" : "理知まで休止";
   if (self.goodActive) add("善・全バフ", passiveState, rational ? "good" : "neutral", "バスト+1・バリア+1・HP/状態回復・加速・タスクSP軽減", "buff:good-all");
   if (self.luminousActive) add("ルミナス加速", "適用中", "truth", "加速×1.65。移動・物理モーション・CT・行動不能・タスク速度へ適用", "accel:luminous");
-  if (self.limitBreakActive) {
-    const limitBreakDetail = self.fighterInfiniteResources
-      ? `HP消費なし / MP・SP・HP・バリア∞ / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 被キルデメリット解除`
-      : `HP-1×${Math.max(1, Number(self.limitBreakStacks) || 1)} / SP・加速×${Math.max(3, Number(self.limitBreakMultiplier) || 3)} / 発動1回1MP・維持消費なし / 即死回避無効`;
-    add(abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self), "永続", "truth", limitBreakDetail, "limit-break");
+  if (self.limitBreakPassive) {
+    add("リミットブレイク", "パッシブ", "truth", "HPは1を超えず、会議外の世界経過に応じてACCが増加します。手動発動・MP消費・SP倍率はありません。", "limit-break");
   }
   if (self.hackerRootActive) {
-    add("ROOT", "適用中・Hで解除", "truth", "発動前のHPを保存し、解除時に正確に復元。バリア・変わり身は所持を維持したままROOT中だけ無効。ROOT中は対象オペ能力を借用", "root");
+    add("ROOT", "適用中・Hで解除", "truth", "ROOT中は対象オペ能力を借用します。", "root");
   }
   effects.push(...collectOperatorPassiveEffects(self, liveNow, data.phase));
   if (self.clairvoyanceActive && self.alive && !self.ejected) {
@@ -14494,9 +14694,15 @@ function renderActiveEffects(data) {
       "combat:kill-chain"
     );
   }
-  if ((self.standFirmCharges || 0) > 0) add("バリア", `×${self.standFirmCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "キル1回をボディダメージ化し、発動後もしばらく防護", "barrier:charges");
-  if ((self.substitutionCharges || 0) > 0) add("変わり身の術", `×${self.substitutionCharges} / ${passiveState}`, rational ? "spirit" : "neutral", "次の攻撃を無効化して転移", "substitution:charges");
-  if ((self.pushCharges || 0) > 0) add("バスト", `×${self.pushCharges} / ${passiveState}`, rational ? "truth" : "neutral", "バリア全消去。1回につき反動0.5", "push:charges");
+  const barrierDurability = Math.max(0, Number(self.barrierDurability) || 0);
+  const barrierMaxDurability = Math.max(0, Number(self.barrierMaxDurability) || 0);
+  if (barrierDurability > 0) add("バリア", `耐久 ${barrierDurability}/${barrierMaxDurability || barrierDurability}`, "spirit", "キルとボディダメージをそれぞれ耐久で吸収します。キルをボディダメージへ変換せず、耐久が0になると破壊されます。", "barrier:durability");
+  if (Number(self.barrierReadyAt) > liveNow) timed("バリア", self.barrierReadyAt, "neutral", "再展開のクールタイム中です。", "barrier:cooldown");
+  if (Number(self.protectCharges) > 0) add("プロテクト", `×${Math.max(0, Number(self.protectCharges) || 0)}`, "neutral", "次のキルをボディダメージ1へ変換します。", "protect:charges");
+  if (self.hasAssassinSubstitution) add("変わり身の術", "1回分", "spirit", "次のキル被弾時だけ旧転移効果を発動します。ボディダメージでは発動しません。", "assassin-substitution");
+  if (Number(self.bustUntil) > liveNow) timed("バスト", self.bustUntil, "truth", "通常ボディ攻撃で相手の耐久バリアを破壊します。", "bust:active");
+  else if (self.bustUnlocked && Number(self.bustReadyAt) > liveNow) timed("バスト", self.bustReadyAt, "neutral", "再発動のクールタイム中です。", "bust:cooldown");
+  else if (self.bustUnlocked) add("バスト", "使用可能", "truth", "忍殺ショートカットを長押しすると、選択対象へ8秒間付与します。未選択時は自分が対象です。", "bust:ready");
   if ((self.iaiCharges || 0) > 0) add("居合", `×${self.iaiCharges} / 即席・自動`, rational ? "truth" : "neutral", "次の成功攻撃をキル（死体あり）へ強化。失敗・回避・ガード・準備バリアでは消費しない。既に死体なしのキルは維持", "iai:charges");
   if ((self.warpCharges || 0) > 0) add("テレポートマップスクロール", `テレポート可能回数 ×${self.warpCharges}`, "truth", "巻き紙の獲得時にテレポート権利へ即時変換。任意のタイミングで拡大マップを開き、通行可能地点を選ぶと1回消費", "teleport:map-scroll-charges");
   if ((Number(self.gravityStormSlowUntil) || 0) > liveNow) {
@@ -14591,7 +14797,7 @@ function renderActiveEffects(data) {
     const hpRate = Number(self.naturalRecoveryHpPerSecond ?? 0.005).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     const spRate = Number(self.naturalRecoveryStaminaPerSecond ?? 1.9).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     const mpRate = Number(self.naturalRecoveryManaPerSecond ?? 0.0127).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒を独立回復し、満タン後は現在値と上限を同じ割合で拡張`, "recovery:natural");
+    add("自然回復", "理知", "good", `人体の状態異常を無効化・即時解除。EMP機器異常は対象外。HP ${hpRate}/秒、SP ${spRate}/秒、MP ${mpRate}/秒を独立回復し、MPだけは満タン後も現在値と上限を同じ割合で拡張`, "recovery:natural");
   }
   if (self.poisonStatus) add("中毒", "継続中", "desire", "解毒剤・ヒール・理知中の自然回復で解除", "status:poison");
   if (self.burnStatus) add("燃焼", "継続中", "desire", "水・ヒール・理知中の自然回復で解除", "burn");
@@ -15224,9 +15430,9 @@ function renderVending(data) {
     Number(data.self.credits) || 0,
     Number(data.self.mana) || 0,
     data.self.fireJutsuCharges || 0,
-    data.self.substitutionCharges || 0,
-    data.self.standFirmCharges || 0,
-    data.self.pushCharges || 0,
+    data.self.protectCharges || 0,
+    data.self.barrierDurability || 0,
+    data.self.bustUntil || 0,
     Math.max(0, Math.ceil(((Number(data.self.itemDisabledUntil) || 0) - estimatedServerNow(data)) / 1000)),
     mysteryVisible ? data.self.lastMysteryResult : "",
     Boolean(data.self.hackActive),
@@ -15255,7 +15461,7 @@ function renderVending(data) {
   });
   if (els.magicInventory.hidden) els.magicInventory.hidden = false;
   const carriedItems = (data.self.itemInventory || []).map((item) => `${item.label} ${item.amount}`).join(" / ");
-  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}ファイア ${data.self.fireJutsuCharges || 0} / 変わり身 ${data.self.substitutionCharges || 0} / 銃器 ${(data.self.purchasedWeapons || []).length} / 購入能力 ${(data.self.shopAbilityEntitlements || []).length}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
+  const inventoryText = `所持: ${carriedItems ? `${carriedItems} / ` : ""}ファイア ${data.self.fireJutsuCharges || 0} / プロテクト ${data.self.protectCharges || 0} / 銃器 ${(data.self.durableWeapons || data.self.purchasedWeapons || []).length} / 購入能力 ${(data.self.shopAbilityEntitlements || []).length}${data.self.exiled ? " / 亡命済み" : ""}${mysteryVisible ? ` / ミステリー結果: ${data.self.lastMysteryResult}` : ""}`;
   if (els.magicInventory.textContent !== inventoryText) els.magicInventory.textContent = inventoryText;
   scheduleActiveEffectsLayout();
 }
@@ -15306,7 +15512,7 @@ function objectiveText(data) {
   if (self.role === "defender" && self.alive && self.dodgeActiveUntil > liveNow) {
     return `回避有効 / 残り${((self.dodgeActiveUntil - liveNow) / 1000).toFixed(1)}秒`;
   }
-  const dodgeText = `回避 ${Number(self.dodgeStaminaCost) || 200}SP`;
+  const dodgeText = `回避 ${Number(self.dodgeStaminaCost) || 100}SP`;
   if (self.special === "fighter" && self.alive) {
     return `ファイター / EC・キルカウンター・リミットブレイク / 初期装備: オリハルコン・ソード / ${dodgeText}`;
   }
@@ -15319,15 +15525,14 @@ function objectiveText(data) {
     }
     const cd = self.ninjutsuOpeningReady ? 0 : Math.max(0, Math.ceil((self.killReadyAt - data.serverNow) / 1000));
     const empSeconds = Math.max(0, Math.ceil(((self.empReadyAt || 0) - liveNow) / 1000));
-    const sabotageSeconds = Math.max(0, Math.ceil(((self.sabotageReadyAt || 0) - liveNow) / 1000));
     const assassinStatus = self.special === "assassin" ? "アサシン / 足音常時無音 / " : "";
     const chain = Math.max(0, Number(self.killChainCount) || 0);
     const chainStatus = chain > 0 ? ` / キルチェイン ${chain}（次CT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒）` : "";
-    return `${assassinStatus}ディフェンダーを減らしてください。忍殺 ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"} / サボタージュ ${sabotageSeconds ? `${sabotageSeconds}秒` : "使用可能"}${chainStatus}`;
+    return `${assassinStatus}ディフェンダーを減らしてください。忍殺 ${cd ? `${cd}秒` : "使用可能"} / EMP ${empSeconds ? `${empSeconds}秒` : "使用可能"}${chainStatus}`;
   }
   if (!self.alive) return "死亡中です。残ったタスクは完了扱いです。";
   if (self.chatMuted) return "復活後のため、この試合ではチャットできません。";
-  return `タスクは${self.taskStaminaRequirement || 400}SPを消費し、端末の近くで停止し続けると自動実行。回避は${Number(self.dodgeStaminaCost) || 200}SPを消費します。現在 ${Math.floor(self.stamina || 0)}SP / ${dodgeText}`;
+  return `タスクはSPを消費せず、端末の近くで停止し続けると自動実行。回避は${Number(self.dodgeStaminaCost) || 100}SPを消費します。現在 ${Math.floor(self.stamina || 0)}SP / ${dodgeText}`;
 }
 
 function renderUtility(data) {
@@ -15408,15 +15613,15 @@ function updateActionButtons(data) {
       : self.rationalFreeAbilityReady && rationalWaiverApplies(key)
       ? "FREE"
       : `-${abilityCosts[key] ?? 1}MP`;
-  const target = nearestTarget();
   const aimed = aimedTarget(data);
   const utilityStation = nearestStation((station) => station.type === "utility");
   const groundItem = nearestGroundItem(data);
   const liveNow = estimatedServerNow(data);
   const itemBlocked = (Number(self.itemDisabledUntil) || 0) > liveNow;
-  const dodgeStaminaCost = Number(self.dodgeStaminaCost) || 200;
+  const dodgeStaminaCost = Number(self.dodgeStaminaCost) || 100;
   const aiming = Boolean(aimed && self.aimTargetId);
   const dodgeAccess = self.role === "defender" || fighterAccess;
+  const commonAvailability = commonActionAvailability(data);
 
   const contextSource = !groundItem
     ? (utilityStation ? els.utilityButton : null)
@@ -15440,8 +15645,8 @@ function updateActionButtons(data) {
   if (state.actionLayoutKey !== actionLayoutKey) {
     state.actionLayoutKey = actionLayoutKey;
     els.emergencyButton.hidden = false;
-    els.ninjutsuButton.hidden = !canUseKill;
-    els.dodgeButton.hidden = !dodgeAccess;
+    els.ninjutsuButton.hidden = !(canUseKill || commonAvailability.bust);
+    els.dodgeButton.hidden = !(dodgeAccess || commonAvailability.barrier);
     els.teleportButton.hidden = true;
     els.shootButton.hidden = true;
     els.weaponButton.hidden = true;
@@ -15450,7 +15655,7 @@ function updateActionButtons(data) {
     els.alchemyButton.hidden = true;
     els.operatorAbilityButton.hidden = activeBorrowedOperator
       ? false
-      : !["fighter", "teleport", "flora", "quantum", "alchemist"].includes(self.special);
+      : !["fighter", "teleport", "flora", "quantum", "assassin", "alchemist"].includes(self.special);
     els.gunnerReloadButton.hidden = true;
     els.empButton.hidden = false;
     els.fireJutsuButton.hidden = !(self.fireJutsuCharges > 0);
@@ -15490,39 +15695,26 @@ function updateActionButtons(data) {
     : killSeconds > 0 && !ninjutsuOpeningReady
       ? `忍殺 ${killSeconds}秒`
       : "忍殺";
-  els.ninjutsuButton.disabled = !(canActAlive && canUseKill && !aiming && (self.killReadyAt <= liveNow || ninjutsuOpeningReady) && target);
+  const ninjutsuTapAvailable = canActAlive && canUseKill && !aiming && (self.killReadyAt <= liveNow || ninjutsuOpeningReady);
+  // The button remains reachable while Bust is legal even if the tap route is
+  // cooling down; tap then explains the unavailable ordinary action.
+  els.ninjutsuButton.disabled = !(ninjutsuTapAvailable || commonAvailability.bust);
   els.ninjutsuButton.classList.toggle("active", aiming);
   const killChainSuffix = Number(self.killChainCount) > 0
     ? ` キルチェイン${Number(self.killChainCount)}、次回キルCT ${(Math.max(0, Number(self.killChainCooldownMs) || 0) / 1000).toFixed(1)}秒。`
     : " キル成立ごとに次回キルCTを10%短縮（最短25%）。";
   els.ninjutsuButton.title = (self.special === "assassin"
     ? "忍殺：自分が4秒静止し、射程内の通常歩行以下の対象を死体なしでキル。死体・通報対象・死体由来マーカーを残さない。自分の移動、対象の高速移動・転移、射程外、対象喪失で失敗。ディーセラレート中の走行も対象。"
-    : "忍殺：自分が4秒静止し、射程内の通常歩行以下の対象を倒し、通報可能な死体を残す。自分の移動、対象の高速移動・転移、射程外、対象喪失で失敗。ディーセラレート中の走行も対象。") + killChainSuffix;
+    : "忍殺：自分が4秒静止し、射程内の通常歩行以下の対象を倒し、通報可能な死体を残す。自分の移動、対象の高速移動・転移、射程外、対象喪失で失敗。ディーセラレート中の走行も対象。") + " 射程外・対象なしでも準備を開始でき、長押しは獲得済みならバスト。" + killChainSuffix;
   els.fireJutsuButton.textContent = `ファイア 燃焼 ×${self.fireJutsuCharges || 0}`;
   els.fireJutsuButton.disabled = !(canUseAbility && !itemBlocked && (self.fireJutsuCharges || 0) > 0);
-  const rootProtectionBlocked = Boolean(self.hackerRootActive);
-  els.substitutionStatusButton.textContent = rootProtectionBlocked
-    ? `変わり身 ×${self.substitutionCharges || 0}（ROOT中無効・所持維持）`
-    : itemBlocked
-      ? `変わり身 ×${self.substitutionCharges || 0}（EMP遮断）`
-      : `変わり身 ×${self.substitutionCharges || 0}（自動）`;
-  const standFirmCharges = Number(self.standFirmCharges ?? self.gritCharges) || 0;
-  const pushCharges = Number(self.pushCharges ?? self.reasonCharges) || 0;
-  const philosophy = [
-    (self.ideaStage || 0) >= 1 && (self.ideaFirstAspect === "truth" || (self.ideaStage || 0) >= 2) ? "真" : "",
-    (self.ideaStage || 0) >= 1 && (self.ideaFirstAspect === "beauty" || (self.ideaStage || 0) >= 2) ? "美" : "",
-    self.goodActive ? "善" : ""
-  ].filter(Boolean).join("・");
-  const standFirmMode = self.fighterInfiniteResources
-    ? "EC100到達報酬"
-    : rootProtectionBlocked
-      ? "ROOT中無効・所持維持"
-      : itemBlocked
-        ? "EMP遮断"
-        : "自動";
-  els.gritStatusButton.textContent = `バリア ${self.fighterInfiniteResources ? "∞" : `×${standFirmCharges}`}（${standFirmMode}）${philosophy ? ` / ${philosophy}` : ""}`;
-  els.reasonButton.textContent = `バスト ×${pushCharges}（${itemBlocked ? "EMP遮断" : "自動"}）`;
-  els.reasonButton.disabled = true;
+  // Legacy marker/status controls are retired. Current Barrier, Protect,
+  // substitution and Bust state is presented through active effects instead.
+  [els.substitutionStatusButton, els.gritStatusButton, els.reasonButton].forEach((button) => {
+    button.hidden = true;
+    button.disabled = true;
+    button.textContent = "";
+  });
   const gunnerWeapons = Array.isArray(self.gunnerWeapons) ? self.gunnerWeapons : [];
   const gunnerWeapon = gunnerWeapons.find((weapon) => weapon.id === self.gunnerWeapon) || gunnerWeapons[0] || {
     id: "assault", name: "アサルトライフル", shortName: "AR", ammo: 0, maxAmmo: 0, ammoPerShot: 1, range: 920, damage: 0.34, manaCost: 0
@@ -15571,7 +15763,13 @@ function updateActionButtons(data) {
   els.gunnerReloadButton.textContent = reloadSeconds > 0 ? `リロード ${reloadSeconds.toFixed(1)}秒` : "リロード";
   els.gunnerReloadButton.disabled = !(canActAlive && !itemBlocked && gunnerAccess && Number(gunnerWeapon.ammo) < Number(gunnerWeapon.maxAmmo) && reloadSeconds <= 0);
   els.dodgeButton.textContent = `回避 -${dodgeStaminaCost}SP`;
-  els.dodgeButton.disabled = !(canUseAbility && dodgeAccess && self.stamina >= dodgeStaminaCost && hasMana("dodge") && self.dodgeActiveUntil <= liveNow);
+  const dodgeTapAvailable = canUseAbility && dodgeAccess && self.stamina >= dodgeStaminaCost && self.dodgeActiveUntil <= liveNow;
+  // Barrier costs no SP/MP, so a low-SP player can still hold this same common
+  // action while the ordinary Dodge tap remains unavailable.
+  els.dodgeButton.disabled = !(dodgeTapAvailable || commonAvailability.barrier);
+  els.dodgeButton.title = commonAvailability.barrier
+    ? `タップで回避（${dodgeStaminaCost}SP）。長押しで耐久${Math.max(0, Number(self.barrierMaxDurability) || 2)}のバリアを展開。`
+    : `タップで回避（${dodgeStaminaCost}SP）。バリアはクールタイム中または使用できません。`;
   const teleportMode = els.teleportModeSelect.value === "heart" ? "heart" : "body";
   const teleportTargetIsSelf = (els.teleportTargetSelect.value || self.id) === self.id;
   els.teleportButton.textContent = teleportMode === "heart"
@@ -15597,7 +15795,7 @@ function updateActionButtons(data) {
       ? "floraInvisible"
       : "flora";
   const operatorLabels = {
-    fighter: self.limitBreakActive ? `${abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self)} ×${Math.max(1, Number(self.limitBreakStacks) || 1)} 永続` : abilityNameWithMana("リミットブレイク", "fighter", "limit-break", self),
+    fighter: "リミットブレイク（パッシブ）",
     teleport: operatorMode === "target" ? abilityNameWithMana("対象転移", "gravity", "target", self)
         : operatorMode === "heart" ? abilityNameWithMana("心臓転移", "gravity", "heart", self)
           : operatorMode === "accelerate" ? `${abilityNameWithMana("アクセラレート", "gravity", "accelerate", self)} 8秒`
@@ -15610,7 +15808,7 @@ function updateActionButtons(data) {
         ? abilityNameWithMana("サンビーム", "flora", "sunbeam", self)
         : `${abilityNameWithMana("インビジブル", "flora", "invisible", self)} 10秒`,
     quantum: abilityNameWithMana(quantumModeLabel(selectedQuantumExecutableMode(activeBorrowedOperator === "quantum")), "quantum", selectedQuantumExecutableMode(activeBorrowedOperator === "quantum"), self) + (selectedQuantumExecutableMode(activeBorrowedOperator === "quantum") === "electric-discharge" ? " / -16SP" : ""),
-    assassin: "常時無音（パッシブ）",
+    assassin: "変わり身の術（1MP）",
     alchemist: "Root化"
   };
   const borrowedDisplayedOperator = activeBorrowedOperator === "gravity"
@@ -15619,6 +15817,8 @@ function updateActionButtons(data) {
   const borrowedDisplayedLabel = operatorLabels[borrowedDisplayedOperator] || "能力を選択";
   const rootToggle = self.special === "alchemist" || self.hackerRootActive;
   const displayedOperator = rootToggle ? "alchemist" : self.special;
+  const substitutionAccess = self.special === "assassin" || shopAbilityOwned("assassin-substitution", self);
+  const substitutionReady = substitutionAccess && !self.hasAssassinSubstitution && Number(self.substitutionReadyAt || 0) <= liveNow;
   const quantumEndgameSecondsLeft = Math.max(0, Number(data.quantumEndgameSecondsLeft) || 0);
   const nativeQuantumMode = selectedQuantumExecutableMode(false);
   const borrowedQuantumMode = selectedQuantumExecutableMode(true);
@@ -15655,14 +15855,22 @@ function updateActionButtons(data) {
     ? !(isPlaying && self.alive && !self.ejected) || borrowedGravityUnavailable || borrowedFloraUnavailable || borrowedQuantumManaUnavailable ||
       (borrowedDisplayedOperator === "quantum" && hasCompatibleQuantumItem(self, borrowedQuantumMode) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16))
     : !canUseAbility ||
-      displayedOperator === "assassin" ||
+      (displayedOperator === "assassin" && !substitutionReady) ||
       nativeFloraUnavailable ||
       nativeQuantumManaUnavailable ||
       (displayedOperator === "teleport" && !hasMana(operatorMode === "storm" ? "gravityStorm" : operatorMode === "heart" ? "heartTeleport" : operatorMode === "time-keeper" ? "timeKeeper" : "teleport")) ||
-      (displayedOperator === "fighter" && !operatorManaFree && (Number(self.mana) || 0) < Number(self.limitBreakActivationCost ?? 1)) ||
+      displayedOperator === "fighter" ||
       nativeQuantumEndgameLocked ||
       (displayedOperator === "quantum" && hasCompatibleQuantumItem(self, selectedQuantumExecutableMode(false)) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16));
-  els.operatorAbilityButton.title = self.hackerRootActive && borrowedQuantumEndgameLocked
+  els.operatorAbilityButton.title = displayedOperator === "fighter"
+    ? "リミットブレイクはパッシブです。HPは1を超えず、会議外の世界経過でACCが増加します。"
+    : displayedOperator === "assassin"
+    ? self.hasAssassinSubstitution
+      ? "変わり身の術は次のキル被弾に備えています。ボディダメージでは発動しません。"
+      : Number(self.substitutionReadyAt || 0) > liveNow
+        ? `変わり身の術はクールタイム中です（${Math.ceil((Number(self.substitutionReadyAt) - liveNow) / 1000)}秒）。`
+        : "タップで自分へ変わり身の術を付与します（1MP）。次のキル被弾時だけ転移効果を発動します。"
+    : self.hackerRootActive && borrowedQuantumEndgameLocked
     ? `${borrowedDisplayedLabel}は終盤に解禁されます（残り${quantumEndgameSecondsLeft}秒）。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
     : rootToggle && self.hackerRootActive
     ? `タップで${borrowedDisplayedLabel}を実行。${ROOT_SHORTCUT_HOLD_DELAY_MS}ms長押しでROOT解除`
@@ -15685,8 +15893,7 @@ function updateActionButtons(data) {
       quantumFixedManaUnavailable(selectedShopAbility.mode) ||
       (hasCompatibleQuantumItem(self, selectedShopAbility.mode) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16))
     );
-    const purchasedLimitBreakUnavailable = selectedShopAbility.operator === "fighter" &&
-      !operatorManaFree && (Number(self.mana) || 0) < Number(self.limitBreakActivationCost ?? 1);
+    const purchasedLimitBreakUnavailable = selectedShopAbility.operator === "fighter" || selectedShopAbility.id === "fighter-limit-break";
     els.operatorAbilityButton.hidden = false;
     els.operatorAbilityButton.textContent = abilityNameWithMana(selectedShopAbility.label, selectedShopAbility.operator, selectedShopAbility.mode, self);
     els.operatorAbilityButton.dataset.operator = "shop:" + selectedShopAbility.id;
@@ -15719,12 +15926,11 @@ function updateActionButtons(data) {
   els.slowWalkButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked);
   els.emergencyButton.textContent = `スマホ緊急会議 ${self.emergenciesLeft || 0}回`;
   els.emergencyButton.disabled = !(canActAlive && self.emergenciesLeft > 0);
-  const sabotageSeconds = Math.max(0, Math.ceil(((self.sabotageReadyAt || 0) - liveNow) / 1000));
-  const sabotageName = sabotageLabels[els.sabotageSelect.value] || "サボ";
-  els.sabotageButton.textContent = sabotageSeconds > 0
-    ? `${sabotageName} ${sabotageSeconds}秒 [矢印→Enter]`
-    : `${sabotageName} [矢印→Enter]`;
-  els.sabotageButton.disabled = !(canUseAbility && isAttacker && sabotageSeconds === 0 && hasMana("sabotage"));
+  // Sabotage is removed. The index/style owner will remove this legacy DOM;
+  // until then it must not expose a usable control or stale explanation.
+  els.sabotageButton.hidden = true;
+  els.sabotageButton.disabled = true;
+  els.sabotageSelect.closest("label")?.setAttribute("hidden", "");
   els.utilityControl.hidden = !(isPlaying && self.alive && !self.ejected && utilityStation);
   if (utilityStation) {
     els.utilitySelect.value = utilityStation.utility;
@@ -15738,6 +15944,7 @@ function updateActionButtons(data) {
   els.chatInput.disabled = !(data.phase === "meeting" && self.alive && !self.ejected && !self.chatMuted);
   syncMovementAccControl(data);
   renderTabletControls(data);
+  cancelCommonActionGestures({ onlyUnavailable: true });
 }
 
 function reconcileMeetingActionRows(container, entries, createRow, updateRow) {
@@ -16434,6 +16641,16 @@ function canSelectCombatTarget(viewer, candidate) {
   if (!viewer || !candidate || viewer.id === candidate.id) return false;
   if (candidate.invisible) return false;
   return true;
+}
+
+function nearestNinjutsuTarget() {
+  const data = state.data;
+  const self = selfPlayer();
+  if (!data || !self) return null;
+  return data.players
+    .filter((player) => player.id !== self.id && canSelectCombatTarget(data.self, player) && player.alive && !player.ejected)
+    .map((player) => ({ ...player, dist: dist(self, player) }))
+    .sort((a, b) => a.dist - b.dist)[0] || null;
 }
 
 function nearestTarget() {
@@ -19774,6 +19991,8 @@ function drawTimeKeeperPhenomenon(effect, progress, sprite) {
 function drawGeneratedStandaloneEffect(effect, progress) {
   // Acquisitions share the golden photon renderer; do not stack legacy transfer textures.
   if ((effect.type === "transfer-in" || effect.type === "transfer-out") && effect.acquisitionKind) return true;
+  if (effect?.type === "action-push" && drawTimedBustEvent(effect, progress)) return true;
+  if (effect?.type === "action-stand" && effect.variant === "durability-created") return drawFreshBarrierEvent(effect, progress);
   if (effect?.type === "preparation-barrier-hit") return drawFreshBarrierEvent(effect, progress);
   if (effect?.type === "action-gunner-headshot" || effect?.type === "action-gunner-aim-headshot") return drawGunnerHeadshotEffect(effect, progress);
   // The event owns only the ignition kick; sustained jets are state-owned.
@@ -22033,7 +22252,7 @@ const GAIN_MARKER_EXPLANATIONS = Object.freeze({
   statusRecovery: ["状態異常回復", "燃焼・毒・通常/テーザー/ショック/重力減速・能力封印・重力拘束を解除します。EMP機器異常は状態異常ではないため、この回復では解除できません。"],
   acceleration: ["加速獲得", "移動・物理モーション・CT・行動不能・タスク速度を発動元の倍率・時間で加速します。"],
   luckBoost: ["幸運／直観上昇", "乱数判定とイデア到達時間に有利な補正を得ました。"],
-  overheal: ["HP上限拡張", "現在HPと個人上限を同率で拡張し、拡張分もボディダメージを吸収します。"],
+  overheal: ["体力回復", "体力を個人上限まで回復します。HPの上限は増えません。"],
   relaxation: ["リラックス", "12秒間、加速×1.35を得ました。移動・物理モーション・CT・行動不能・タスク速度へ適用します。"],
   herbalRecovery: ["植物療法", "HP+1。"],
   healthyMeal: ["健康的な食事", "HP+1・SP+120・MP+1。"],
@@ -22055,7 +22274,7 @@ const STATUS_MARKER_EXPLANATIONS = Object.freeze({
   burning: ["燃焼", "解除されるまで継続ダメージを受けます。水・ヒール・理知中の自然回復で解除できます。"],
   poison: ["毒", "解除されるまで継続ダメージを受けます。解毒剤・ヒール・理知中の自然回復で解除できます。"],
   manaGpu: ["マナGPU（0.025MP/秒・1MP=20秒）", "短縮クールへ変換し、次のバイブコーディングで必要分を自動消費します。"],
-  infiniteResources: ["無限資源", "EC100回到達報酬によりMP・SP・HP・バリアが無限になっています。"],
+  infiniteResources: ["無限資源", "EC100到達後はMP・SPが補充されます。HPとバリア耐久の制限は維持されます。"],
   destructionSlash: ["常時死体なしキル斬り", "EC1000回到達後のファイター能力が、所持中の剣による斬るを死体なしのキルへ強化します。剣自体の効果ではありません。"],
   clairvoyance: ["千里眼", "視点を遠隔地点へ移し、現地を観測しています。"]
 });
@@ -23854,6 +24073,12 @@ function preserveBotSniperReloadPriority(playerId,kind,variant){
 }
 
 function currentCharacterAction(player) {
+  const recoil = authoritativeDamageReaction(player);
+  if (recoil) {
+    state.characterActions.delete(player.id);
+    AUTHORED_HANDGUN_FIRE_STATE.owners.delete(player.id);
+    return recoil;
+  }
   const timestamp = state.frameNow || performance.now();
   if (player.id === state.data?.selfId && state.throwTargeting.active) {
     AUTHORED_HANDGUN_FIRE_STATE.owners.delete(player.id);
@@ -23921,12 +24146,14 @@ function drawHuman(player, data) {
     }
   }
 
+  drawDurableBustState(player, data, true);
   drawPersistentIdeaState(player, data, ascensionProgress);
   drawHackerRootState(player);
   ctx.save();
   const drewPlayerSprite = drawPlayerSprite(player, data, ghost, characterAction);
   ctx.restore();
   if (drewPlayerSprite) {
+    drawDurableBustState(player, data, false);
     drawPreparationBarrierAte(player);
     drawHoverSprintSustainedJets(player, data);
     drawLuminousFeathers(player);
@@ -23984,6 +24211,7 @@ function drawHuman(player, data) {
   ctx.fillText(identityLabel, 0, -32);
   // Sprite-loading fallback uses the compact -39 nameplate geometry.
   registerPreparationPlayerCanvasTargets(player, -39, nameplateWidth);
+  drawDurableBustState(player, data, false);
   drawPreparationBarrierAte(player);
   drawHoverSprintSustainedJets(player, data);
   drawLuminousFeathers(player);
@@ -24030,7 +24258,107 @@ function drawPreparationBarrierComplementaryVfx(width, height, time, phase = 0, 
   ctx.restore();
 }
 
-const FRESH_BARRIER_MATERIAL = {"width":800,"height":800,"sourceRect":{"x":249,"y":144,"width":302,"height":512}};
+// Persistent combat phenomena use the actor clock. Their identity and layout
+// do not depend on the map, and they never occupy the shared head-marker slot.
+function combatVisualActor(id) {
+  const player = state.data?.players?.find(entry => entry.id === id);
+  if (!player || !player.alive || player.ejected || player.inVent || (player.invisible && id !== state.data?.selfId)) return null;
+  return renderedPlayer(player);
+}
+
+function durableCombatTexture(key) {
+  const image = state.textures[key];
+  return image?.complete && image.naturalWidth === 1254 && image.naturalHeight === 1254 ? image : null;
+}
+
+function drawDurableBustState(player, data, behind = false) {
+  if (data?.phase !== 'playing' || !combatVisualActor(player.id) || Number(player.bustUntil) <= estimatedServerNow(data)) return;
+  const image = durableCombatTexture('bustCharge');
+  if (!image || ctx.globalAlpha <= 0) return;
+  const reduced = prefersReducedMotion();
+  const phase = reduced ? .65 : actorVisualTime(player, data) / 1000 * 1.5;
+  const isBehind = Math.sin(phase) < 0;
+  if (isBehind !== behind) return;
+  const envelope = reduced ? 1 : .88 + .12 * Math.cos(phase * 2);
+  ctx.save();
+  ctx.translate(Math.cos(phase) * 20, -7 + Math.sin(phase) * 8);
+  ctx.rotate(reduced ? -.2 : -.2 + Math.sin(phase) * .15);
+  ctx.globalAlpha *= envelope * (behind ? .62 : .95);
+  ctx.globalCompositeOperation = 'lighter';
+  // Preserve the source aspect ratio and actual alpha; no keying or tinting.
+  ctx.drawImage(image, 0, 310, 1254, 620, -36, -18, 72, 35.6);
+  ctx.restore();
+}
+
+function drawTimedBustEvent(effect, progress) {
+  if (!['timed-bust-start', 'timed-bust-break'].includes(effect.variant)) return false;
+  if (!(progress >= 0 && progress < 1) || ctx.globalAlpha <= 0) return true;
+  const player = combatVisualActor(effect.targetId || effect.playerId);
+  if (!player) return true;
+  const breaking = effect.variant === 'timed-bust-break';
+  const image = durableCombatTexture(breaking ? 'bustFracture' : 'bustCharge');
+  if (!image) return true;
+  const reduced = prefersReducedMotion();
+  const attack = combatVisualActor(effect.playerId);
+  const side = attack && attack.x > player.x ? -1 : 1;
+  const envelope = Math.min(1, progress / .06) * Math.pow(1 - progress, breaking ? .8 : .6);
+  ctx.save(); ctx.translate(player.x, player.y); ctx.scale(side, 1);
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= envelope;
+  if (breaking) {
+    // Contact arrives first; radiance crosses the torn membrane before its
+    // stored pressure disperses. The tall shell keeps its world orientation.
+    const expand = reduced ? 1 : 1 + .06 * progress;
+    ctx.scale(expand, expand);
+    const scale = 145 / 1010;
+    ctx.drawImage(image, -710 * scale, -8 - 640 * scale, 1254 * scale, 1254 * scale);
+    if (!reduced) {
+      ctx.save(); ctx.beginPath();
+      const front = -12 + 76 * progress;
+      ctx.rect(front - 8, -84, 16, 156); ctx.clip();
+      ctx.globalAlpha *= .7 * (1 - progress);
+      ctx.drawImage(image, -710 * scale, -8 - 640 * scale, 1254 * scale, 1254 * scale);
+      ctx.restore();
+    }
+  } else {
+    const x = reduced ? 0 : -20 + 28 * progress;
+    const scale = reduced ? 1 : .75 + .25 * Math.sin(Math.PI * progress);
+    ctx.translate(x, -8); ctx.scale(scale, scale);
+    ctx.drawImage(image, 0, 310, 1254, 620, -48, -24, 96, 47.5);
+  }
+  ctx.restore(); return true;
+}
+
+function authoritativeDamageReaction(player, data = state.data) {
+  if (data?.phase !== 'playing' || !player?.alive || player.ejected || player.inVent) return null;
+  const duration = Math.max(1, Number(player.damageReactionDurationMs) || 180);
+  const elapsed = Math.max(0, estimatedServerNow(data) - Number(data.serverNow));
+  const remaining = Number(player.damageReactionUntil) - Number(data.serverNow) - elapsed * displayActorTimeScale(player, data);
+  if (!(Number(player.damageReactionStartedAt) > 0 && remaining > 0)) return null;
+  return { kind: 'damage', motionId: 'body-damage-recoil', progress: clamp(1 - remaining / duration, 0, 1), dx: Number(player.damageReactionDx) || 0, dy: Number(player.damageReactionDy) || 0 };
+}
+
+function drawBodyDamageReactionSprite(player, data, ghost, action) {
+  if (ghost || action?.kind !== 'damage') return false;
+  const identity = authoredCharacterIdentity(player, data);
+  const direction = authoredDirection(player, motionFor(player, data));
+  const base = AUTHORED_CHARACTER_MOTION_MANIFEST.identities?.[identity]?.[direction];
+  const entry = authoredModeEntry(base, 'walk');
+  const image = authoredModeImage(state.textures.authoredCharacterMotion?.[identity]?.[direction], 'walk');
+  if (!entry || !authoredEntryReady(entry, image)) return false;
+  resetAuthoredWalkLifecycle(player);
+  const frame = entry.idle, layout = entry.layout, origin = layout.sourceOrigin;
+  const response = prefersReducedMotion() ? .25 : Math.sin(Math.PI * Math.pow(clamp(action.progress, 0, 1), .6));
+  ctx.save(); ctx.translate(layout.ground.x, layout.ground.y);
+  // Collision/24px displacement is authoritative. This is only a planted
+  // recoil and recovery around the feet, never a second positional knockback.
+  ctx.rotate(-action.dx * .12 * response);
+  ctx.translate(0, Math.abs(action.dy) * 2.2 * response);
+  ctx.drawImage(image, frame.x, frame.y, frame.width, frame.height,
+    -origin.x * layout.scale, -origin.y * layout.scale, frame.width * layout.scale, frame.height * layout.scale);
+  ctx.restore(); drawNameplate(player, false, -78); return true;
+}
+
+const FRESH_BARRIER_MATERIAL = {"width":1254,"height":1254,"sourceRect":{"x":355,"y":163,"width":546,"height":910}};
 // Metadata is injected only from the primary-accepted material manifest.
 function freshBarrierReady() {
   const image = state.textures.freshBarrierShell;
@@ -24038,7 +24366,7 @@ function freshBarrierReady() {
   return image?.complete && image.naturalWidth === m.width && image.naturalHeight === m.height ? image : null;
 }
 function freshBarrierActive(player) {
-  return Boolean(player?.alive && !player.ejected && player.preparationBarrierActive);
+  return Boolean(player?.alive && !player.ejected && (Number(player.barrierDurability) > 0 || player.preparationBarrierActive));
 }
 function freshBarrierActor(id) {
   const player = state.data?.players?.find(player => player.id === id);
@@ -24047,6 +24375,7 @@ function freshBarrierActor(id) {
 function drawFreshBarrierSurface(mode, progress, phase, axis, base) {
   const image = freshBarrierReady();
   if (!image || ctx.globalAlpha <= 0) return;
+  ctx.save(); ctx.globalAlpha *= 105 / 253;
   const r = FRESH_BARRIER_MATERIAL.sourceRect;
   const scale = Math.min(116 / r.width, 132 / r.height);
   const width = r.width * scale, height = r.height * scale;
@@ -24101,6 +24430,7 @@ function drawFreshBarrierSurface(mode, progress, phase, axis, base) {
     ctx.globalAlpha = alpha * Math.min(1,remaining);
     ctx.drawImage(cache.source,0,0,w,h,-width/2,-8-height/2,width,height);
   } ctx.restore();
+  ctx.restore();
 }
 function drawPreparationBarrierAte(player) {
   if (!freshBarrierActive(player) || ctx.globalAlpha <= 0 || !freshBarrierReady()) return;
@@ -24109,8 +24439,9 @@ function drawPreparationBarrierAte(player) {
 }
 function drawFreshBarrierEvent(effect, progress) {
   if (!Number.isFinite(progress) || progress <= 0 || progress >= 1 || ctx.globalAlpha <= 0 || !freshBarrierReady()) return true;
-  const player = freshBarrierActor(effect.playerId);
-  if (effect.playerId && !player) return true;
+  const ownerId = effect.variant === "durability-created" ? effect.targetId : effect.playerId;
+  const player = combatVisualActor(ownerId);
+  if (ownerId && !player) return true;
   if (player && (!player.alive || player.ejected)) return true;
   const hit = effect.type === 'preparation-barrier-hit';
   // playerId is defender; targetId is attacker. Never use targetX/Y as owner.
@@ -24125,6 +24456,10 @@ function drawFreshBarrierEvent(effect, progress) {
   const x = player ? player.x : effect.x, y = player ? player.y : effect.y;
   if (!Number.isFinite(x) || !Number.isFinite(y)) return true;
   ctx.save(); ctx.translate(x,y);
+  if (effect.variant === 'durability-broken') {
+    ctx.globalAlpha *= 1 - progress;
+    if (!prefersReducedMotion()) ctx.scale(1 + .06 * progress, 1 + .06 * progress);
+  }
   drawFreshBarrierSurface(hit?'hit':'activation',progress,0,axis,!freshBarrierActive(player));
   ctx.restore(); return true;
 }
@@ -24173,7 +24508,7 @@ const PERSISTENT_STATUS_ATE_PROFILES = Object.freeze({
 
 function persistentStatusAteState(player, data) {
   const selfState = player.id === data.selfId ? data.self?.statusAte : null;
-  const visibleState = player.statusAte || selfState || {};
+  const visibleState = { ...(player.statusAte || selfState || {}), standFirm: false, push: false, resistanceBreak: false };
   const naturalRecovery = Boolean(visibleState.naturalRecovery || (player.id === data.selfId && data.self?.statusImmunityActive));
   const aroma = Boolean(player.aromaActive || (player.id === data.selfId && data.self?.aromaActive));
   if (player.id !== data.selfId) return { ...visibleState, naturalRecovery, aroma };
@@ -24410,6 +24745,7 @@ function drawAuthoredCharacterMotion(player,data,ghost){
 }
 
 function drawPlayerSprite(player, data, ghost, characterAction = null) {
+  if (drawBodyDamageReactionSprite(player, data, ghost, characterAction)) return true;
   // Ghosts retain their exact skin/Bot texture owners, but stale action
   // presentation cannot override their stationary spectral pose.
   if (!ghost && characterAction && drawPhysicalActionSprite(player, data, ghost, characterAction)) return true;
@@ -26022,7 +26358,7 @@ function drawLegacyWorldKillResidual(effect, camera, zoom = CAMERA_ZOOM) {
   const duration = Number(effect.duration);
   const inheritedAlpha = ctx.globalAlpha;
   if (!(duration > 0) || age <= 0 || age >= duration || inheritedAlpha <= 0) return;
-  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "acquisition-gold-and-startup-v885", 12);
+  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "durable-combat-and-bust-v886", 12);
   if (!sprite?.width || !sprite?.height) return;
   const progress = age / duration;
   const reduced = prefersReducedMotion();
@@ -26242,13 +26578,14 @@ function drawHud(data, w, h) {
   const timestamp = estimatedServerNow(data);
   const stamina = Number(self.stamina) || 0;
   const mana = displayedManaValue(self.mana);
+  const healthFloor = self.limitBreakPassive ? 1 : 2;
   const serializedHealth = Number(self.health);
   const health = self.alive
     ? Math.max(0, Number.isFinite(serializedHealth)
       ? serializedHealth
-      : Math.max(0, 2 - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0))
+      : Math.max(0, healthFloor - (Number(self.bodyHits) || 0)) + Math.max(0, Number(self.overheal) || 0))
     : 0;
-  const maxHealth = Math.max(2, Number(self.maxHealth) || 2, health);
+  const maxHealth = Math.max(healthFloor, Number(self.maxHealth) || healthFloor, health);
   const cooldownRemaining = Math.max(0, (Number(self.killReadyAt) || 0) - timestamp);
   const empCooldownRemaining = Math.max(0, (Number(self.empReadyAt) || 0) - timestamp);
   const vibeCodingCooldownRemaining = self.special === "alchemist"
@@ -26706,7 +27043,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "acquisition-gold-and-startup-v885";
+const version = "durable-combat-and-bust-v886";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -26890,7 +27227,11 @@ const version = "acquisition-gold-and-startup-v885";
   const hoverSprintJetEffect = new Image();
   const statusLevitationEffect = new Image();
   const freshBarrierShell = new Image();
-  defer(freshBarrierShell, "assets/generated/barrier-closed-shell-v827.png");
+  defer(freshBarrierShell, "assets/generated/barrier-closed-shell-v886.png");
+  const bustCharge = new Image();
+  defer(bustCharge, "assets/generated/bust-charge-v886.png");
+  const bustFracture = new Image();
+  defer(bustFracture, "assets/generated/bust-fracture-v886.png");
   const preparationBarrierEffect = new Image();
   const humanTransmutationEffect = new Image();
   const statusHpReductionEffect = new Image();
@@ -27317,6 +27658,8 @@ const version = "acquisition-gold-and-startup-v885";
     hoverSprintJetEffect,
     statusLevitationEffect,
     freshBarrierShell,
+    bustCharge,
+    bustFracture,
     preparationBarrierEffect,
     humanTransmutationEffect,
     statusHpReductionEffect,
@@ -28005,7 +28348,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=acquisition-gold-and-startup-v885", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=durable-combat-and-bust-v886", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
