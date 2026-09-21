@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-const OFFLINE_WORKER_VERSION = "complete-weapon-inventory-icons-v892";
+const OFFLINE_WORKER_VERSION = "fresh-sunbeam-and-operator-activation-v893";
 // Generated-worker startup must never turn an instant matchmaking decision
 // into a 40-second stall. Fall back to the generated main-thread bundle after
 // one bounded perceptual beat; initialization is already prewarmed on title.

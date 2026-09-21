@@ -7354,7 +7354,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "complete-weapon-inventory-icons-v892",
+    version: "fresh-sunbeam-and-operator-activation-v893",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7376,7 +7376,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "complete-weapon-inventory-icons-v892";
+const PRODUCT_RELEASE = "fresh-sunbeam-and-operator-activation-v893";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -11786,6 +11786,13 @@ function activateAssassinSubstitution(room, player, targetId = "") {
   spendHeldPowerMana(room, player, DURABLE_COMBAT_BALANCE.substitutionManaCost, "変わり身の術");
   player.substitutionReadyAt = timestamp + DURABLE_COMBAT_BALANCE.substitutionCooldownMs;
   target.substitutionCharges = 1;
+  pushMagicEffect(room, "action-assassin-substitution-grant", player, {
+    playerId: player.id,
+    targetId: target.id,
+    radius: 110,
+    durationMs: 820,
+    variant: target.id === player.id ? "self" : "target"
+  });
   touch(room); return true;
 }
 
@@ -26565,7 +26572,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "complete-weapon-inventory-icons-v892",
+  version: "fresh-sunbeam-and-operator-activation-v893",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
