@@ -79,6 +79,8 @@
     ["seawater", "海水", 2, "generate-supply", "seawater", "seawater"],
     ["antidote", "解毒剤", 2, "generate-supply", "antidote", "antidote"],
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
+    ["frag-grenade", "フラググレネード", 6, "generate-supply", "frag-grenade", "frag-grenade"],
+    ["stun-grenade", "スタングレネード", 5, "generate-supply", "stun-grenade", "stun-grenade"],
     ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
     ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],

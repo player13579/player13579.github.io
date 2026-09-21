@@ -7286,6 +7286,8 @@ const LABORATORY_MAP = Object.freeze({
     ["seawater", "海水", 2, "generate-supply", "seawater", "seawater"],
     ["antidote", "解毒剤", 2, "generate-supply", "antidote", "antidote"],
     ["molotov", "火炎瓶", 4, "generate-supply", "molotov", "molotov"],
+    ["frag-grenade", "フラググレネード", 6, "generate-supply", "frag-grenade", "frag-grenade"],
+    ["stun-grenade", "スタングレネード", 5, "generate-supply", "stun-grenade", "stun-grenade"],
     ["evade", "回避拡張", 4, "instant-item", "vending-evade", "instant-evade"],
     ["speed", "アクセラレート飲料", 5, "instant-item", "vending-speed", "instant-speed"],
     ["warp", "テレポートマップスクロール", 3, "instant-item", "warp", "warp"],
@@ -7352,7 +7354,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "loot-firearm-and-readable-emp-v888",
+    version: "gunner-grenade-physical-effects-v889",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7376,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "loot-firearm-and-readable-emp-v888";
+const PRODUCT_RELEASE = "gunner-grenade-physical-effects-v889";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7594,7 +7596,7 @@ const BOTTLE_ITEM_IDS = new Set(["mercury", "lead", "mineral-water", "seawater",
 // Sealed radioactive containers are physical while carried, but their seal
 // opens on any ordinary throw.  Like authored bottles they resolve their
 // hazard at the first impact/landing and must never become ground pickups.
-const DISPOSABLE_THROW_CONTAINER_ITEM_IDS = new Set([...BOTTLE_ITEM_IDS, "uranium", "plutonium"]);
+const DISPOSABLE_THROW_CONTAINER_ITEM_IDS = new Set([...BOTTLE_ITEM_IDS, "uranium", "plutonium", "frag-grenade", "stun-grenade"]);
 const BOTTLE_SHARD_BASE_RADIUS = 112;
 const BOTTLE_SHARD_HIT_CHANCE = 0.32;
 const BOTTLE_SHARD_MIN_DAMAGE = 0.18;
@@ -7933,6 +7935,8 @@ const ITEM_DEFINITIONS = Object.freeze({
   "mineral-water": Object.freeze({ id: "mineral-water", label: "ミネラルウォーター", asset: "mineral-water", throwable: true }),
   antidote: Object.freeze({ id: "antidote", label: "解毒剤", asset: "antidote", throwable: true }),
   molotov: Object.freeze({ id: "molotov", label: "火炎瓶", asset: "molotov", throwable: true, usable: false }),
+  "frag-grenade": Object.freeze({ id: "frag-grenade", label: "フラググレネード", asset: "frag-grenade", throwable: true, usable: false }),
+  "stun-grenade": Object.freeze({ id: "stun-grenade", label: "スタングレネード", asset: "stun-grenade", throwable: true, usable: false }),
   ice: Object.freeze({ id: "ice", label: "氷結水", asset: "quantum-ice", throwable: true, transformed: true, usable: false }),
   "heated-water": Object.freeze({ id: "heated-water", label: "高温水", asset: "quantum-heated-water", throwable: true, transformed: true, usable: false })
 });
@@ -7960,6 +7964,13 @@ const INSTANT_ITEM_DEFINITIONS = Object.freeze({
 });
 
 const QUANTUM_STARTING_ITEMS = Object.freeze({ mercury: 1, lead: 1, uranium: 1, plutonium: 1, seawater: 1 });
+// Operator loadouts are rebuilt from this authoritative seed at match start,
+// so reconnects and fresh matches cannot append duplicate consumables.
+const GUNNER_STARTING_ITEMS = Object.freeze({ "frag-grenade": 1, "stun-grenade": 1 });
+const GRENADE_BALANCE = Object.freeze({
+  frag: Object.freeze({ damage: 0.75, radius: 132, impactDurationMs: 900 }),
+  stun: Object.freeze({ durationMs: 2_500, radius: 145, impactDurationMs: 720 })
+});
 
 function createItemInventory(seed = {}) {
   const inventory = {};
@@ -10987,7 +10998,9 @@ function startBattle(room) {
     player.staminaUpdatedAt = timestamp;
     player.itemInventory = player.special === "quantum"
       ? createItemInventory(QUANTUM_STARTING_ITEMS)
-      : createItemInventory(player.itemInventory);
+      : player.special === "gunner"
+        ? createItemInventory(GUNNER_STARTING_ITEMS)
+        : createItemInventory(player.itemInventory);
     if (player.special === "fighter" && itemCount(player, "orichalcum-sword") <= 0) {
       addItem(player, "orichalcum-sword");
     }
@@ -18200,6 +18213,26 @@ function pickupGroundItem(room, player, groundItemId = "") {
   return selected.groundItem;
 }
 
+function applyThrownStun(room, source, landing, durationMs, radius) {
+  const timestamp = now();
+  let affected = 0;
+  for (const target of [...room.players.values()]
+    .filter((candidate) => candidate.alive && !candidate.ejected && distance(landing, candidate) <= radius)
+    .sort((left, right) => distance(landing, left) - distance(landing, right))) {
+    if (botFriendlyTransactionBlocked(source, target)) continue;
+    if (source && source.id !== target.id && source.role === target.role && ["defender", "attacker"].includes(source.role)) continue;
+    // Adverse statuses observe both preparation and persistent durable shields
+    // without spending durable points; body damage owns durability settlement.
+    if (durableBarrierActive(target) || absorbPreparationBarrier(room, target, timestamp, source)) continue;
+    target.unconsciousUntil = Math.max(Number(target.unconsciousUntil) || 0, timestamp + durationMs);
+    target.vx = 0;
+    target.vy = 0;
+    target.movementMode = "unconscious";
+    affected += 1;
+  }
+  return affected;
+}
+
 function resolveThrownInventoryLanding(room, source, thrown, landing) {
   const { itemId, level } = thrown;
   const radius = 145 + level * 42;
@@ -18222,6 +18255,20 @@ function resolveThrownInventoryLanding(room, source, thrown, landing) {
   } else if (itemId === "ice") {
     applyThrownImpactDamage(room, source, landing, ITEM_DEFINITIONS[itemId].label, Math.min(1.75, 0.8 + level * 0.24), radius);
     pushMagicEffect(room, "quantum-ice-impact", landing, { radius, playerId: source?.id || "", variant: String(level) });
+  } else if (itemId === "frag-grenade") {
+    applyThrownImpactDamage(room, source, landing, ITEM_DEFINITIONS[itemId].label, GRENADE_BALANCE.frag.damage, GRENADE_BALANCE.frag.radius);
+    pushMagicEffect(room, "grenade-frag-impact", landing, {
+      radius: GRENADE_BALANCE.frag.radius,
+      playerId: source?.id || "",
+      durationMs: GRENADE_BALANCE.frag.impactDurationMs
+    });
+  } else if (itemId === "stun-grenade") {
+    applyThrownStun(room, source, landing, GRENADE_BALANCE.stun.durationMs, GRENADE_BALANCE.stun.radius);
+    pushMagicEffect(room, "grenade-stun-impact", landing, {
+      radius: GRENADE_BALANCE.stun.radius,
+      playerId: source?.id || "",
+      durationMs: GRENADE_BALANCE.stun.impactDurationMs
+    });
   } else {
     applyThrownImpactDamage(room, source, landing, ITEM_DEFINITIONS[itemId]?.label || "アイテム", 0.45 + level * 0.12, 72 + level * 10);
   }
@@ -18282,11 +18329,13 @@ function resolveThrownItemLanding(room, thrown) {
     resolveThrownOwnedLanding(room, source, thrown, landing);
   }
   if (thrown.energyShockwave) releaseThrownEnergyShockwave(room, source, landing);
-  pushMagicEffect(room, "action-item-throw", landing, {
-    radius: 110 + Number(thrown.level || 0) * 14,
-    variant: `impact:${thrown.itemId}`,
-    durationMs: 950
-  });
+  if (!["frag-grenade", "stun-grenade"].includes(thrown.itemId)) {
+    pushMagicEffect(room, "action-item-throw", landing, {
+      radius: 110 + Number(thrown.level || 0) * 14,
+      variant: `impact:${thrown.itemId}`,
+      durationMs: 950
+    });
+  }
   const label = thrown.item?.label || ITEM_DEFINITIONS[thrown.itemId]?.label || "アイテム";
   pushEvent(room, groundItem
     ? `${label}は${collision ? "被弾地点" : "接地点"}へ剛体のまま残りました。誰でも拾えます。`
@@ -19021,6 +19070,8 @@ const ALCHEMY_RECIPE_IMPLEMENTATIONS = {
   seawater: { label: "海水", cost: 0, apply: (_room, player) => addItem(player, "seawater") },
   antidote: { label: "解毒剤", cost: 0, apply: (_room, player) => addItem(player, "antidote") },
   molotov: { label: "火炎瓶", cost: 0, apply: (_room, player) => addItem(player, "molotov") },
+  "frag-grenade": { label: "フラググレネード", cost: 0, apply: (_room, player) => addItem(player, "frag-grenade") },
+  "stun-grenade": { label: "スタングレネード", cost: 0, apply: (_room, player) => addItem(player, "stun-grenade") },
   iai: { label: "居合", cost: 1, apply: (room, player) => grantIaiCharge(room, player, false, "hacker") },
   "vending-evade": { label: "回避拡張", cost: 0, apply: (room, player) => { player.dodgeDurationBonusMs = Math.min(1500, player.dodgeDurationBonusMs + 250); pushInstantItemAcquisitionAte(room, player, "evade", "hacker"); } },
   "vending-speed": { label: "アクセラレート飲料", cost: 0, apply: (room, player) => { player.speedMultiplier = Math.round((player.speedMultiplier + 0.15) * 100) / 100; pushInstantItemAcquisitionAte(room, player, "speed", "hacker"); } },
@@ -26514,7 +26565,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "loot-firearm-and-readable-emp-v888",
+  version: "gunner-grenade-physical-effects-v889",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

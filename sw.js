@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "loot-firearm-and-readable-emp-v888";
-const CACHE_NAME = "dva-static-v888-loot-firearm-and-readable-emp";
+const RUNTIME_RELEASE = "gunner-grenade-physical-effects-v889";
+const CACHE_NAME = "dva-static-v889-gunner-grenade-physical-effects";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/item-frag-grenade-v889.png",
+  "/assets/generated/item-stun-grenade-v889.png",
+  "/assets/generated/grenade-frag-impact-v889.png",
+  "/assets/generated/grenade-stun-impact-v889.png",
   "/assets/generated/bust-charge-v886.png",
   "/assets/generated/bust-fracture-v886.png",
   "/assets/generated/barrier-closed-shell-v886.png",
