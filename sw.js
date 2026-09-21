@@ -5,10 +5,20 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "bot-taser-fire-reload-v897";
-const CACHE_NAME = "dva-static-v897-bot-taser-fire-reload";
+const RUNTIME_RELEASE = "human-switch-moving-fire-v898";
+const CACHE_NAME = "dva-static-v898-human-switch-moving-fire";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-sniper-switch-back-source-v1.png",
+  "/assets/generated/philia-sniper-switch-front-source-v1.png",
+  "/assets/generated/philia-sniper-switch-left-source-v1.png",
+  "/assets/generated/philia-sniper-switch-right-source-v1.png",
+  "/assets/generated/sophia-taser-switch-back-v898.png",
+  "/assets/generated/sophia-taser-switch-front-v898.png",
+  "/assets/generated/sophia-taser-switch-left-v898.png",
+  "/assets/generated/sophia-taser-switch-right-v898.png",
+  "/assets/generated/philia-smg-moving-lower-left-direct-v898-candidate.png",
+  "/assets/generated/philia-smg-moving-lower-right-direct-v898-candidate.png",
   "/assets/generated/taser-fire-male-bot-back-source-v1.png",
   "/assets/generated/taser-fire-male-bot-front-source-v1.png",
   "/assets/generated/taser-fire-male-bot-left-source-v1.png",
