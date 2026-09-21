@@ -12692,3 +12692,46 @@ body.game-open:has(#selectPanel:not([hidden])) #operatorDetail {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Expanded landscape rail: field-level fixed utilities must not cover the
+ * enlarged sidebar. All six are 54px icon targets. A 380px sidebar fits one
+ * 364px row at >=1100px; narrower landscape keeps 8px gaps in two rows. */
+@media (min-width: 1100px) and (orientation: landscape) {
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #sidePanel.scroll-region-expanded-host {
+    padding-bottom: calc(max(18px, env(safe-area-inset-bottom, 0px)) + 54px + 8px);
+  }
+
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#leaveRoomButton, #gameTacticsButton, #tabletButton, #gameMuteButton, #operatorReselectButton, #keybindButton) {
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 54px;
+    min-width: 54px;
+    min-height: 54px;
+    padding-inline: 0;
+  }
+
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #leaveRoomButton { right: max(18px, env(safe-area-inset-right)); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #gameTacticsButton { right: calc(max(18px, env(safe-area-inset-right)) + 62px); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #tabletButton { right: calc(max(18px, env(safe-area-inset-right)) + 124px); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #gameMuteButton { right: calc(max(18px, env(safe-area-inset-right)) + 186px); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #operatorReselectButton { right: calc(max(18px, env(safe-area-inset-right)) + 248px); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #keybindButton { right: calc(max(18px, env(safe-area-inset-right)) + 310px); }
+}
+
+@media (min-width: 681px) and (max-width: 1099px) and (orientation: landscape) {
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) #sidePanel.scroll-region-expanded-host {
+    padding-bottom: calc(max(18px, env(safe-area-inset-bottom, 0px)) + 54px + 8px + 54px + 8px);
+  }
+
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#leaveRoomButton, #gameTacticsButton, #tabletButton, #gameMuteButton, #operatorReselectButton, #keybindButton) {
+    width: 54px;
+    min-width: 54px;
+    min-height: 54px;
+    padding-inline: 0;
+  }
+
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#leaveRoomButton, #gameTacticsButton, #tabletButton) { bottom: max(18px, env(safe-area-inset-bottom)); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#gameMuteButton, #operatorReselectButton, #keybindButton) { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 62px); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#leaveRoomButton, #gameMuteButton) { right: max(18px, env(safe-area-inset-right)); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#gameTacticsButton, #operatorReselectButton) { right: calc(max(18px, env(safe-area-inset-right)) + 62px); }
+  body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#tabletButton, #keybindButton) { right: calc(max(18px, env(safe-area-inset-right)) + 124px); }
+}

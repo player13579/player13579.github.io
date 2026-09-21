@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "pointer-contact-details-novel-still-v890";
-const CACHE_NAME = "dva-static-v890-pointer-contact-details-novel-still";
+const RUNTIME_RELEASE = "acquired-target-and-viewport-recovery-v891";
+const CACHE_NAME = "dva-static-v891-acquired-target-and-viewport-recovery";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/tactics-novel-digest-poster-v890.png",
