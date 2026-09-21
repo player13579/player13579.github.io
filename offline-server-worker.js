@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "bot-counter-and-ability-repair-v884",
+    version: "acquisition-gold-and-startup-v885",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "bot-counter-and-ability-repair-v884";
+const PRODUCT_RELEASE = "acquisition-gold-and-startup-v885";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -9727,6 +9727,13 @@ function pushMagicEffect(room, type, source, options = {}) {
     ...(type === "action-smartphone" && /^(?:donation-rational|donation-unjust)$/.test(String(options.variant || ""))
       ? { donationResultDelta: Math.round((Number(options.donationResultDelta) || 0) * 100) / 100 }
       : {}),
+    ...(["mystery-box", "transfer-in"].includes(type) ? {
+      acquisitionId: String(options.acquisitionId || ""),
+      acquisitionKind: String(options.acquisitionKind || ""),
+      acquisitionCredits: Math.max(0, Number(options.acquisitionCredits) || 0),
+      acquisitionOriginX: Number.isFinite(options.acquisitionOriginX) ? Math.round(options.acquisitionOriginX) : null,
+      acquisitionOriginY: Number.isFinite(options.acquisitionOriginY) ? Math.round(options.acquisitionOriginY) : null
+    } : {}),
     at: now()
   });
   const presentationScope = abilityBatchPresentationScopes.get(room);
@@ -15877,7 +15884,11 @@ function settleCreditedKillLoot(room, source, target) {
       targetX: target.x,
       targetY: target.y,
       variant: "kill-loot",
-      durationMs: 1100
+      acquisitionKind: inventory.length ? "loot" : "credits",
+      acquisitionCredits: credits,
+      acquisitionOriginX: target.x,
+      acquisitionOriginY: target.y,
+      durationMs: 1800
     });
     setImmediateFeedback(source, "戦利品", summary);
   }
@@ -16010,6 +16021,8 @@ function transferOwnedResource(room, player, targetId, itemId, rawAmount, credit
   // 所持品とクレジットはスマホのストレージ経由で譲渡するため距離を問わない。
   const amount = Math.max(1, Math.floor(Number(rawAmount) || 1));
   let transferLabel = "";
+  let acquisitionId = "";
+  let acquisitionKind = "credits";
   if (credits) {
     if (Number(player.credits) < amount) throw new ApiError(400, "クレジットが不足しています。");
     player.credits -= amount;
@@ -16021,6 +16034,8 @@ function transferOwnedResource(room, player, targetId, itemId, rawAmount, credit
     const item = removeTransferableItem(room, player, String(itemId || ""), amount);
     receiveTransferableItem(target, item);
     transferLabel = `${item.label}×${item.amount}`;
+    acquisitionId = item.id;
+    acquisitionKind = item.kind || "item";
     pushEvent(room, `${player.name} が ${target.name} へ ${item.label}×${item.amount}を譲渡しました。`);
   }
   pushMagicEffect(room, "transfer-out", player, {
@@ -16030,7 +16045,8 @@ function transferOwnedResource(room, player, targetId, itemId, rawAmount, credit
     targetX: target.x,
     targetY: target.y,
     variant: credits ? "credits" : "item",
-    durationMs: 1000
+    acquisitionKind,
+    durationMs: 1800
   });
   pushMagicEffect(room, "transfer-in", target, {
     radius: 150,
@@ -16039,7 +16055,11 @@ function transferOwnedResource(room, player, targetId, itemId, rawAmount, credit
     targetX: player.x,
     targetY: player.y,
     variant: credits ? "credits" : "item",
-    durationMs: 1100
+    acquisitionId,
+    acquisitionKind,
+    acquisitionOriginX: player.x,
+    acquisitionOriginY: player.y,
+    durationMs: 1800
   });
   setImmediateFeedback(player, "譲渡", transferLabel);
   setImmediateFeedback(target, "受領", transferLabel);
@@ -16677,7 +16697,7 @@ function useMapObject(room, player, objectId) {
     const reward = awardMysteryBoxReward(room, player, timestamp);
     room.mysteryBoxes.splice(boxIndex, 1);
     markObjectContactUsed(player, object.id);
-    pushMagicEffect(room, "mystery-box", object, { radius: Number(object.radius || 100), playerId: player.id, variant: reward.id, viewerId: player.id, durationMs: 2600 });
+    pushMagicEffect(room, "mystery-box", object, { radius: Number(object.radius || 100), playerId: player.id, variant: reward.id, acquisitionId: reward.id, acquisitionKind: reward.kind, viewerId: player.id, durationMs: 2600 });
     pushEvent(room, `${player.name} がミステリーボックスから${reward.label}を獲得しました。`);
     touch(room);
     return;
@@ -26955,5 +26975,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "bot-counter-and-ability-repair-v884" });
+self.postMessage({ type: "ready", version: "acquisition-gold-and-startup-v885" });
 })();
