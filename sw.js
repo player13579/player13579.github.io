@@ -5,10 +5,18 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-sunbeam-and-single-map-v896";
-const CACHE_NAME = "dva-static-v896-sophia-sunbeam-and-single-map";
+const RUNTIME_RELEASE = "bot-taser-fire-reload-v897";
+const CACHE_NAME = "dva-static-v897-bot-taser-fire-reload";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/taser-fire-male-bot-back-source-v1.png",
+  "/assets/generated/taser-fire-male-bot-front-source-v1.png",
+  "/assets/generated/taser-fire-male-bot-left-source-v1.png",
+  "/assets/generated/taser-fire-male-bot-right-source-v1.png",
+  "/assets/generated/taser-reload-male-bot-back-authored-20260915.png",
+  "/assets/generated/taser-reload-male-bot-front-authored-20260915.png",
+  "/assets/generated/taser-reload-male-bot-left-authored-20260915.png",
+  "/assets/generated/taser-reload-male-bot-right-authored-20260915.png",
   "/assets/generated/sophia-sunbeam-front-v896.png",
   "/assets/generated/sophia-sunbeam-left-v896.png",
   "/assets/generated/sophia-sunbeam-right-v896.png",
