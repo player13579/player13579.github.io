@@ -14,7 +14,7 @@
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
     <link rel="preload" as="image" href="assets/title-hero-v466.png?v=core-icons-restart-v707" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=durable-combat-and-bust-v886">
+  <link rel="stylesheet" href="styles.css?v=sabotage-retired-loot-shop-v887">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
@@ -55,7 +55,7 @@
               <p class="title-kicker">SOLO DRILLS</p>
               <h3 id="soloTrainingTitle">ソロ実戦訓練</h3>
             </div>
-            <p id="soloTrainingProgress" class="solo-training-progress" aria-live="polite">0 / 5 完了</p>
+            <p id="soloTrainingProgress" class="solo-training-progress" aria-live="polite">0 / 6 完了</p>
           </div>
           <div id="soloMissionGrid" class="solo-mission-grid">
             <article class="solo-mission-card" data-solo-card="movement">
@@ -73,25 +73,20 @@
               <div><p>DRILL 03</p><h4>回避・反撃</h4><span>回避を発動し、15秒間生存する。</span></div>
               <button type="button" data-solo-mission="defense" data-hotkey="3">開始</button>
             </article>
-            <article class="solo-mission-card" data-solo-card="intel">
-              <img src="assets/tutorials/poster-intel.webp" alt="索敵訓練のフィールド">
-              <div><p>DRILL 04</p><h4>千里眼・攪乱</h4><span>画面外へ投擲し、サボタージュを起動する。</span></div>
-              <button type="button" data-solo-mission="intel" data-hotkey="4">開始</button>
-            </article>
             <article class="solo-mission-card" data-solo-card="emp">
               <img src="assets/tutorials/poster-intel.webp" alt="EMP打ち消し・増強訓練のフィールド">
-              <div><p>DRILL 05</p><h4>EMP打ち消し・増強</h4><span>停止BotのEMPへ逆位相で打ち消し、同位相で増強する。</span></div>
-              <button type="button" data-solo-mission="emp" data-hotkey="5">開始</button>
+              <div><p>DRILL 04</p><h4>EMP打ち消し・増強</h4><span>停止BotのEMPへ逆位相で打ち消し、同位相で増強する。</span></div>
+              <button type="button" data-solo-mission="emp" data-hotkey="4">開始</button>
             </article>
             <article class="solo-mission-card" data-solo-card="cpu-gravity">
               <img src="assets/tutorials/poster-combat.webp" alt="グラビティCPU戦のフィールド">
               <div><p>CPU 01</p><h4>心臓転移を破れ</h4><span>加速と練気の準備中にグラビティBotをキルして排除する。</span></div>
-              <button type="button" data-solo-mission="cpu-gravity" data-hotkey="6">開始</button>
+              <button type="button" data-solo-mission="cpu-gravity" data-hotkey="5">開始</button>
             </article>
             <article class="solo-mission-card" data-solo-card="cpu-stage2">
               <img src="assets/tutorials/poster-combat.webp" alt="ハッカーCPU戦のフィールド">
               <div><p>CPU 02</p><h4>ハック制圧を破る</h4><span>資源と状態を書き換えるハッカーBOTを排除する。</span></div>
-              <button type="button" data-solo-mission="cpu-stage2" data-hotkey="7">開始</button>
+              <button type="button" data-solo-mission="cpu-stage2" data-hotkey="6">開始</button>
             </article>
           </div>
           <aside id="cpuGravityHint" class="solo-mission-hint" aria-label="CPU 01 攻略ヒント" hidden><strong>CPU 01 攻略ヒント</strong><span>行動パターン: 自己加速→練気1回（+10MP・35秒）→心臓転移。準備中に接近し、忍殺またはオペ能力でグラビティBotを排除してください。</span></aside>
@@ -102,7 +97,7 @@
             <button data-tactics-target="tactics-movement" type="button"><span>二</span>移動・音・タスク</button>
             <button data-tactics-target="tactics-combat" type="button"><span>三</span>戦闘と射撃</button>
             <button data-tactics-target="tactics-resources" type="button"><span>四</span>資源とイデア</button>
-            <button data-tactics-target="tactics-intel" type="button"><span>五</span>索敵・EMP・サボ</button>
+            <button data-tactics-target="tactics-intel" type="button"><span>五</span>索敵・EMP</button>
             <button data-tactics-target="tactics-meeting" type="button"><span>六</span>会議と高度判断</button>
             <button data-tactics-target="tactics-novel" type="button"><span>七</span>ノベルダイジェスト</button>
           </nav>
@@ -113,7 +108,7 @@
               <p class="tactics-lead">本作は非実戦の戦術訓練です。オペレーター選択→バトル→会議→次ラウンド→リザルトの順に進行します。会議は死体通報かスマホの緊急会議で始まります。</p>
               <div class="tactics-rule-grid">
                 <section><h4>ディフェンダー勝利</h4><p>全タスク完了、または全アタッカーの追放・排除で勝利。死亡したディフェンダーの残タスクも自動完了するため、死亡者数だけでタスク勝利はなくならない。</p></section>
-                <section><h4>アタッカー勝利</h4><p>生存アタッカー数が生存ディフェンダー数以上、または致命的サボタージュの時間切れで勝利。人数同数は投票を待たず即時判定。</p></section>
+                <section><h4>アタッカー勝利</h4><p>全ディフェンダーを排除すると勝利。通常キル、各武器、オペレーター能力を使い分ける。</p></section>
                 <section><h4>選択順</h4><p>ホストから参加順に1人ずつオペレーターを確定。陣営を問わず選べ、攻撃は原則として敵陣営へ向く。</p></section>
                 <section><h4>会議初期値</h4><p>既定は討論0秒、投票300秒、匿名投票オン、追放陣営の即時開示オフ、緊急会議1回。Botは会議開始時にスキップへ投票。</p></section>
               </div>
@@ -177,28 +172,27 @@
             </article>
 
             <article id="tactics-intel" class="tactics-article" data-tactics-chapter="4">
-              <header><span>五</span><div><p>INFORMATION WARFARE</p><h3>索敵・EMP・サボタージュ</h3></div></header>
-              <p class="tactics-lead">通常は地図で他プレイヤーを追えません。音、千里眼、サボタージュの反応から居場所を推定します。</p>
+              <header><span>五</span><div><p>INFORMATION WARFARE</p><h3>索敵・EMP</h3></div></header>
+              <p class="tactics-lead">通常は地図で他プレイヤーを追えません。音と千里眼から居場所を推定します。</p>
               <div class="tactics-rule-grid">
                 <section><h4>千里眼（0.25MP/秒）</h4><p>選んだ生存プレイヤーを追尾して、遠隔地の攻撃・キルを含む現場を観測する。←→↑↓で追尾先を切替。発動者は動かず、自由視点はない。追尾中もグラビティの画面タップ転移を使える。秘密の陣営情報は開示しない。観測中は継続消費し、画面外へ投げる時も自動発動。</p></section>
                 <section><h4>Botの視認証拠</h4><p>Botは通常プレイヤーと同じ視界・表示・音だけを使う。投擲者の動作、毒物の軌道と着地点、毒表示中の対象、死亡瞬間を連続して見た時だけ、投擲者を容疑者として追跡・攻撃・会議・ルミナスに使う。内部死因、非表示の所有者・犯人ID、状態異常の付与元、秘密陣営は証拠にしない。Botにキルされた時、キルカメラの「Botの判断」に実際の観測証拠・判断・手段を表示する。</p></section>
                 <section><h4>EMP基本</h4><p>開始15秒後に初回装填。使用後CT18秒。被弾者は7秒間ストレージ遮断となり、全アイテム、バリア、バスト、変わり身、武器、取得済みハック効果が止まる。自然回復では防止・解除できない。所持品とハック効果は失わず、解除後に復旧。人間のオペ能力は封印しない。</p></section>
                 <section><h4>位相干渉</h4><p>1200ms以内に重なった同位相EMPは共振。中心110以内はキル、260以内はボディダメージ。逆位相は相殺。同地点の第三者も共振範囲に入る。</p></section>
-                <section><h4>サボタージュ</h4><p>アタッカーだけに表示。開始時と発動後は45秒CT。成功で8C。遠隔修復はハッカー限定で、600SPを使い、送信完了まで4秒間行動不能。ほかのオペレーターは現地端末で修復。</p></section>
                 <section><h4>地図と公開情報</h4><p>通常マッチング前にアウレリア自然共生館かルミナ総合研究・休養棟を選ぶ。拡大マップは部屋名、未完了タスク、自分の現在地だけを表示。オブジェクトと他者位置は表示しない。銃声は立体音響で聞こえるが、位置情報として公開はされない。</p></section>
               </div>
             </article>
 
             <article id="tactics-meeting" class="tactics-article" data-tactics-chapter="5">
               <header><span>六</span><div><p>DECISION MAKING</p><h3>会議・ルミナス・高度判断</h3></div></header>
-              <p class="tactics-lead">会議では、音の方向、死体位置、修復の時刻、使われた能力を合わせて矛盾を見つけます。</p>
+              <p class="tactics-lead">会議では、音の方向、死体位置、使われた能力を合わせて矛盾を見つけます。</p>
               <p class="tactics-lead">オンライン対戦での外部ボイスチャット連携は禁止です。マイク権限は使わず、ゲーム内テキストチャットだけを使います。</p>
               <div class="tactics-rule-grid">
                 <section><h4>匿名投票</h4><p>既定では誰が誰へ投票したか表示しない。最多票の確定、全員投票済み、スキップ票による結果確定の時点で会議を終了できる。</p></section>
                 <section><h4>追放結果</h4><p>既定では追放者の陣営をすぐに開示しない。次ラウンドの人数、行動、勝敗から確かめる。</p></section>
                 <section><h4>ルミナス</h4><p>ディフェンダーは1試合に1度、会議中に指名排除を宣言できる。的中なら対象を排除し、キルとして記録。外すと発動者が死亡。戦闘中のキルでは発動しない。</p></section>
                 <section><h4>ランクポイント</h4><p>リザルトの数値はランクポイントだけ。ディフェンダーは正規キル1件ごと+1。アタッカーは攻撃人数比クオータ（防衛人数÷攻撃人数の切上げ）を満たすキルごと+1。勝利+1、敗北−1。MVPは合計最高の1人へ+1。最終合計がプロフィールのランクポイントへ反映される。善のイデア到達と表示順位に別ポイントはない。</p></section>
-                <section><h4>高度な優先順位</h4><p>即時脅威は、致命サボ、人数同数、善のイデアの天上時間6分到達、破壊兵器、SR射線の順。イデアは天上時間で進み、加速・減速では変化しない。幸運／直観の短縮は最大1秒。会議中はリミットブレイク、EC、各効果の残り時間と維持消費が止まり、終了後に再開。</p></section>
+                <section><h4>高度な優先順位</h4><p>即時脅威は、人数差、善のイデアの天上時間6分到達、破壊兵器、SR射線の順。イデアは天上時間で進み、加速・減速では変化しない。幸運／直観の短縮は最大1秒。会議中はリミットブレイク、EC、各効果の残り時間と維持消費が止まり、終了後に再開。</p></section>
                 <section><h4>操作体系</h4><p>タイトルはPでプレイ、Iで戦術いろは。プレイ後はLかEnterでマッチング開始。相手がいればオンライン、見つからなければオフラインへ切替。どちらも直接オペレーター選択へ進む。バトルはWASD移動、Shiftダッシュ、Ctrl／Alt無音歩行、Hオペ能力、C錬気、数字キー戦術アクション、Backspace退出。停止中は自動休息し、移動で止まる。MP能力を長押しすると、MPを2残して通常MPコストで成立する回数だけ、同じ対象・方式へ並列発動。</p></section>
                 <section><h4>会議チャット規定</h4><p>卑猥・残虐な投稿は公開せず、投稿者を即時退出。5回で永久停止。タイトルから独立した公開チャット機能はない。</p></section>
               </div>
@@ -215,7 +209,7 @@
                   このブラウザでは動画を再生できません。下の全文テキストをご覧ください。
                 </video>
                 <div class="tactics-novel-video-controls"><button id="tacticsNovelPlay" type="button" aria-pressed="false">動画を再生</button><button id="tacticsNovelReplay" type="button">最初から再生</button></div><p id="tacticsNovelVideoStatus" class="tactics-novel-video-status" role="status" aria-live="polite"></p>
-                <section id="tacticsNovelTranscript" class="tactics-novel-transcript" aria-label="ノベルダイジェスト全文テキスト"><h4>全文テキスト</h4><ol><li><strong>1. ようこそ</strong><span>戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。</span></li><li><strong>2. 試合の流れ</strong><span>まずオペレーター選択。バトル中は、死体を通報するかスマホで緊急会議を起動すると会議へ移ります。会議のあとに次ラウンド、最後にリザルトです。</span></li><li><strong>3. 陣営と勝利</strong><span>Defenderは全タスク完了または全Attacker排除で勝利。AttackerはDefender全滅または致命的サボタージュ完遂で勝利します。善のイデアは天上時間で進み、加速・減速では早まりません。幸運／直観による最大1秒の短縮は維持されます。定期キルの期限はありません。</span></li><li><strong>4. 移動とSP</strong><span>SPは満タンから開始。歩くだけでも減り、ダッシュはより大きく消費します。止まってからタスクへ入ると、次の判断を落ち着いて選べます。</span></li><li><strong>5. MP・SPと心の状態</strong><span>SP/MPの現在値÷最大値が、欲望・気概・理知を決めます。HPは含みません。HPとSPは個人上限まで回復し、MPだけは余剰回復で現在値と上限を同率で拡張します。</span></li><li><strong>6. 戦闘用語</strong><span>HPは2。攻撃はキル攻撃とボディダメージ攻撃の2種類です。通常のキルは死体を残し、アサシン忍殺によるキルは死体を残しません。結果を見て次の報告と索敵を選びます。</span></li><li><strong>7. ファイターとEC</strong><span>ファイターは剣で物理斬撃、ガード、JG反射を使います。別系統のECは100・500・1000で永続報酬。EC100の斬るには特大の衝撃波があります。</span></li><li><strong>8. アイテムとショップ</strong><span>ショップはどこでも開けます。瓶は着地で割れ、ウラン／プルトニウム容器は空中で開きます。他の物理アイテムは残り、長押しで詳細を読めます。</span></li><li><strong>9. オペレーター</strong><span>ガンナーは銃と特殊弾、グラビティは時空とフルストーム、フローラは回復と光、ハッカーは生成、クオンタムは変成を担当します。</span></li><li><strong>10. 索敵・EMP・サボ</strong><span>千里眼（0.25MP/秒）。同位相EMPは1200ms以内で共振し、逆位相は相殺します。敵Botも千里眼で索敵します。</span></li><li><strong>11. 会議とルミナス</strong><span>会議では匿名投票とテキストチャット。Defenderのルミナスは一試合に一度、的中すればキル1です。</span></li><li><strong>12. 実戦へ</strong><span>複数のイデア到達者は全員勝利。仕様表とソロ訓練から、いつでも次のプレイへ進めます。</span></li></ol></section>
+                <section id="tacticsNovelTranscript" class="tactics-novel-transcript" aria-label="ノベルダイジェスト全文テキスト"><h4>全文テキスト</h4><ol><li><strong>1. ようこそ</strong><span>戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。</span></li><li><strong>2. 試合の流れ</strong><span>まずオペレーター選択。バトル中は、死体を通報するかスマホで緊急会議を起動すると会議へ移ります。会議のあとに次ラウンド、最後にリザルトです。</span></li><li><strong>3. 陣営と勝利</strong><span>Defenderは全タスク完了または全Attacker排除で勝利。AttackerはDefender全滅で勝利します。善のイデアは天上時間で進み、加速・減速では早まりません。幸運／直観による最大1秒の短縮は維持されます。定期キルの期限はありません。</span></li><li><strong>4. 移動とSP</strong><span>SPは満タンから開始。歩くだけでも減り、ダッシュはより大きく消費します。止まってからタスクへ入ると、次の判断を落ち着いて選べます。</span></li><li><strong>5. MP・SPと心の状態</strong><span>SP/MPの現在値÷最大値が、欲望・気概・理知を決めます。HPは含みません。HPとSPは個人上限まで回復し、MPだけは余剰回復で現在値と上限を同率で拡張します。</span></li><li><strong>6. 戦闘用語</strong><span>HPは2。攻撃はキル攻撃とボディダメージ攻撃の2種類です。通常のキルは死体を残し、アサシン忍殺によるキルは死体を残しません。結果を見て次の報告と索敵を選びます。</span></li><li><strong>7. ファイターとEC</strong><span>ファイターは剣で物理斬撃、ガード、JG反射を使います。別系統のECは100・500・1000で永続報酬。EC100の斬るには特大の衝撃波があります。</span></li><li><strong>8. アイテムとショップ</strong><span>ショップはどこでも開けます。瓶は着地で割れ、ウラン／プルトニウム容器は空中で開きます。他の物理アイテムは残り、長押しで詳細を読めます。</span></li><li><strong>9. オペレーター</strong><span>ガンナーは銃と特殊弾、グラビティは時空とフルストーム、フローラは回復と光、ハッカーは生成、クオンタムは変成を担当します。</span></li><li><strong>10. 索敵・EMP</strong><span>千里眼（0.25MP/秒）。同位相EMPは1200ms以内で共振し、逆位相は相殺します。敵Botも千里眼で索敵します。</span></li><li><strong>11. 会議とルミナス</strong><span>会議では匿名投票とテキストチャット。Defenderのルミナスは一試合に一度、的中すればキル1です。</span></li><li><strong>12. 実戦へ</strong><span>複数のイデア到達者は全員勝利。仕様表とソロ訓練から、いつでも次のプレイへ進めます。</span></li></ol></section>
               </section>
             </article>
           </div>
@@ -361,7 +355,6 @@
               <ul id="activeEffectsList" class="active-effects-list"></ul>
             </aside>
             <p id="objectiveText" class="objective field-objective" hidden></p>
-            <div id="sabotageAlert" class="sabotage-alert field-sabotage-alert" hidden></div>
           </div>
         </div>
       </section>
@@ -569,15 +562,6 @@
               </select>
             </label>
           </div>
-          <div id="sabotageControl" class="inline-control">
-            <select id="sabotageSelect" aria-label="サボタージュ種別">
-              <option value="comms">通信妨害</option>
-              <option value="reactor">コア異常</option>
-              <option value="oxygen">大気漏れ</option>
-              <option value="doors">区画封鎖</option>
-            </select>
-            <button id="sabotageButton" class="danger" title="キー割り当て表から操作を確認できます">サボタージュを起動</button>
-          </div>
           <div id="utilityControl" class="inline-control" hidden>
             <select id="utilitySelect" hidden aria-hidden="true">
               <option value="admin">人数情報</option>
@@ -647,8 +631,8 @@
         <header><h2 id="keybindTitle">キー割り当て</h2><button id="keybindCloseButton" type="button" title="閉じる" aria-label="キー割り当て表を閉じる">×</button></header>
         <div id="keybindList" class="keybind-list" data-scroll-region="キー割り当て表" tabindex="0" role="region" aria-label="キー操作一覧（スクロール可能）">
           <section><h3>移動</h3><dl><dt>W A S D</dt><dd>移動する。</dd><dt>Shift</dt><dd>ダッシュする。</dd><dt>Ctrl / Alt</dt><dd>無音歩行する。</dd></dl></section>
-          <section><h3>基本操作</h3><dl><dt>L / Enter</dt><dd>マッチングを始める。</dd><dt>\\</dt><dd>ゲーム音をオン／オフ。</dd><dt>@</dt><dd>キー操作一覧を開く。</dd><dt>I</dt><dd>戦術いろはを開く／ゲームへ戻る。</dd><dt>Tab</dt><dd>タブレットを開く。</dd><dt>3 / 4</dt><dd>緊急会議／スマホ修理。</dd><dt>6</dt><dd>忍殺する。</dd><dt>8</dt><dd>回避する。</dd><dt>C</dt><dd>錬気。タップでMP+10・35秒。長押しでMP+100・350秒。MP−100では3秒後にMP2。</dd><dt>停止中</dt><dd>自動休息：毎秒7.6SP。MP−100では5秒連続停止でMP2。移動で経過を取り消す。</dd><dt>G / ' 長押し</dt><dd>スマホ募金。</dd><dt>M</dt><dd>マップを開く。</dd><dt>Backspace</dt><dd>タイトルへ戻る。</dd></dl></section>
-          <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>千里眼／EMP。</dd><dt>千里眼中の←→↑↓</dt><dd>生存プレイヤーの追尾先を切替。自分は動かない。</dd><dt>投擲中の移動キー</dt><dd>着地点を動かす。画面外では千里眼を自動発動。</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動。</dd><dt>矢印 + Enter / Space</dt><dd>サボタージュを選んで起動。</dd><dt>L</dt><dd>選択中のサボタージュを起動。</dd></dl></section>
+          <section><h3>基本操作</h3><dl><dt>L / Enter</dt><dd>マッチングを始める。</dd><dt>\\</dt><dd>ゲーム音をオン／オフ。</dd><dt>@</dt><dd>キー操作一覧を開く。</dd><dt>I</dt><dd>戦術いろはを開く／ゲームへ戻る。</dd><dt>Tab</dt><dd>タブレットを開く。</dd><dt>3</dt><dd>緊急会議。</dd><dt>6</dt><dd>忍殺する。</dd><dt>8</dt><dd>回避する。</dd><dt>C</dt><dd>錬気。タップでMP+10・35秒。長押しでMP+100・350秒。MP−100では3秒後にMP2。</dd><dt>停止中</dt><dd>自動休息：毎秒7.6SP。MP−100では5秒連続停止でMP2。移動で経過を取り消す。</dd><dt>G / ' 長押し</dt><dd>スマホ募金。</dd><dt>M</dt><dd>マップを開く。</dd><dt>Backspace</dt><dd>タイトルへ戻る。</dd></dl></section>
+          <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>千里眼／EMP。</dd><dt>千里眼中の←→↑↓</dt><dd>生存プレイヤーの追尾先を切替。自分は動かない。</dd><dt>投擲中の移動キー</dt><dd>着地点を動かす。画面外では千里眼を自動発動。</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動。</dd></dl></section>
           <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>固有能力。対応MP能力は長押しでMPを2残し、一括並列発動。</dd><dt>能力・対象の切替</dt><dd>能力・対象の欄をタップして選ぶ。続く選択肢は順に選び、最後に確定。</dd><dt>O / P</dt><dd>O：能力方式を切替。P：対象欄がある時に対象を切替。</dd><dt>7</dt><dd>ガンナー射撃。</dd><dt>T / Shift+T</dt><dd>武器を次／前へ切替。</dd><dt>R</dt><dd>リロードする。</dd><dt>所持品欄</dt><dd>武器・発明品・重火器を選んで使用。見切れた欄は、その欄だけをフリックでスクロール。</dd><dt>PageUp / PageDown</dt><dd>操作するUI欄を前／次へ切替。</dd><dt>Shift + ← / →</dt><dd>ハッカー／ショップの分類を切替。</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中のUI内を移動。↑↓は同時にスクロール。</dd><dt>P</dt><dd>ハッカーの対象を切替。</dd><dt>Enter / Space</dt><dd>選択中の内容を実行。</dd></dl></section>
           <section><h3>ショップ・所持品</h3><dl><dt>V</dt><dd>どこでもショップを開く／閉じる。</dd><dt>1〜0 / P</dt><dd>ショップを開いている間、商品を選ぶ。</dd><dt>ジャンル / ページ</dt><dd>上部の選択欄で分類とページを選ぶ。</dd><dt>PageUp / PageDown</dt><dd>ショップ・所持品欄を前後に移動。</dd><dt>↑ ↓ ← →</dt><dd>商品・所持品を選んで移動。</dd><dt>Shift+V / Shift+G</dt><dd>使用／投擲。600msからエンハンス、武具は3000msからGBO。</dd><dt>Alt+V / Alt+C</dt><dd>所持品／設定したCを譲渡。</dd><dt>Alt+1 / 2 / 3 / 5</dt><dd>ショップ表示中はレールガン／荷電粒子砲／エクスカリバー／亡命。</dd><dt>Alt+4</dt><dd>ショップ表示中はハック。</dd><dt>Alt+6 / 7 / 8 / 9 / 0</dt><dd>ショップ表示中はHG／SMG／AR／SR／テーザー。</dd></dl></section>
           <section><h3>選択</h3><dl><dt>↑ ↓ ← →</dt><dd>表示方向の候補を選ぶ。</dd><dt>Shift + ← / →</dt><dd>分類を切替。</dd><dt>Enter / Space</dt><dd>選択を実行。</dd><dt>Shift+F10 / メニューキー</dt><dd>選んだ所持品・ハッカー内容の説明を開く。</dd><dt>オペレーターの説明</dt><dd>名前を長押しして表示。</dd><dt>Escape</dt><dd>閉じる／戻る。</dd></dl></section>
@@ -660,11 +644,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-    <script src="economy-catalog-v468.js?v=durable-combat-and-bust-v886"></script>
-    <script src="game-runtime.js?v=durable-combat-and-bust-v886"></script>
-    <script src="game-engine.js?v=durable-combat-and-bust-v886"></script>
-    <script src="offline-runtime.js?v=durable-combat-and-bust-v886"></script>
-    <script src="config.js?v=durable-combat-and-bust-v886"></script>
-    <script src="app.js?v=durable-combat-and-bust-v886"></script>
+    <script src="economy-catalog-v468.js?v=sabotage-retired-loot-shop-v887"></script>
+    <script src="game-runtime.js?v=sabotage-retired-loot-shop-v887"></script>
+    <script src="game-engine.js?v=sabotage-retired-loot-shop-v887"></script>
+    <script src="offline-runtime.js?v=sabotage-retired-loot-shop-v887"></script>
+    <script src="config.js?v=sabotage-retired-loot-shop-v887"></script>
+    <script src="app.js?v=sabotage-retired-loot-shop-v887"></script>
 </body>
 </html>

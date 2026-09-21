@@ -10,7 +10,6 @@
     passiveIntervalMs: 10_000,
     passiveReward: 0,
     taskReward: 10,
-    sabotageReward: 2,
     cacheReward: 3,
     quantumMercuryReward: 100,
     quantumLeadReward: 100,

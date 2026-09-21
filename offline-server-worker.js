@@ -7217,7 +7217,6 @@ const LABORATORY_MAP = Object.freeze({
     passiveIntervalMs: 10_000,
     passiveReward: 0,
     taskReward: 10,
-    sabotageReward: 2,
     cacheReward: 3,
     quantumMercuryReward: 100,
     quantumLeadReward: 100,
@@ -7353,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "durable-combat-and-bust-v886",
+    version: "sabotage-retired-loot-shop-v887",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7375,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "durable-combat-and-bust-v886";
+const PRODUCT_RELEASE = "sabotage-retired-loot-shop-v887";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -7494,7 +7493,6 @@ const FLORA_SPEED_DURATION_MS = 12_000;
 const MAX_STAMINA = 100;
 const MAX_STORED_STAMINA = 500;
 const DODGE_STAMINA_COST = 100;
-const REMOTE_REPAIR_STAMINA_COST = 200;
 const SLEEP_REGEN_MULTIPLIER = 4;
 const DEFAULT_MOVEMENT_SPEED_MULTIPLIER = 0.48;
 const FIXED_MOVEMENT_ACC = 2;
@@ -7513,8 +7511,6 @@ const LEVITATION_MANA_DRAIN_PER_SECOND = 0.04;
 // field recovery as viable fuel.
 const CLAIRVOYANCE_MANA_DRAIN_PER_SECOND = 0.25;
 const TASK_CREDIT_REWARD = CREDIT_ECONOMY.taskReward;
-const SABOTAGE_CREDIT_REWARD = CREDIT_ECONOMY.sabotageReward;
-const SABOTAGE_COOLDOWN_MS = 45_000;
 const SLOW_WALK_MULTIPLIER = 0.52;
 const EMP_RANGE = 260;
 const EMP_COOLDOWN_MS = 18_000;
@@ -7685,7 +7681,6 @@ const FLORA_SUNBEAM_MANA_COST = 10;
 const FLORA_INVISIBLE_MANA_COST = 10;
 const FLORA_INVISIBLE_DURATION_MS = 10_000;
 const ALCHEMY_MANA_COST = ABILITY_MANA_COST;
-const SABOTAGE_MANA_COST = 0;
 const STAND_FIRM_BARRIER_DURATION_MS = 1_500;
 const HEAL_COST = vendingPrice("heal");
 const PUSH_BACKLASH_DAMAGE_PER_CHARGE = 0.5;
@@ -8033,17 +8028,6 @@ const SOLO_MISSIONS = Object.freeze({
     metric: "defense",
     surviveMs: 15_000
   }),
-  intel: Object.freeze({
-    id: "intel",
-    name: "千里眼・攪乱訓練",
-    objective: "画面外へ投擲し、サボタージュを起動する",
-    team: "attacker",
-    operatorId: "attacker-alchemist",
-    botCount: 3,
-    attackerCount: 1,
-    taskCount: 6,
-    metric: "intel"
-  }),
   emp: Object.freeze({
     id: "emp",
     name: "EMP打ち消し・増強訓練",
@@ -8142,12 +8126,6 @@ const MAPS = {
       { id: "download-e", type: "task", task: "download", label: "Download E", x: 610, y: 715, room: "storage" },
       { id: "upload-e", type: "task", task: "upload", label: "Upload E", x: 1505, y: 990, room: "comms" },
       { id: "meeting-button", type: "emergency", label: "Assembly Call", x: 1048, y: 700, room: "meeting" },
-      { id: "repair-lights", type: "repair", repair: "lights", label: "Grid Reset", x: 415, y: 1010, room: "electrical" },
-      { id: "repair-comms", type: "repair", repair: "comms", label: "Signal Relay", x: 1730, y: 1045, room: "comms" },
-      { id: "repair-reactor-a", type: "repair", repair: "reactor", label: "Flux Node A", x: 1485, y: 180, room: "reactor" },
-      { id: "repair-reactor-b", type: "repair", repair: "reactor", label: "Flux Node B", x: 1790, y: 340, room: "reactor" },
-      { id: "repair-oxygen-a", type: "repair", repair: "oxygen", label: "Atmos Node A", x: 185, y: 290, room: "archive" },
-      { id: "repair-oxygen-b", type: "repair", repair: "oxygen", label: "Atmos Node B", x: 1465, y: 1090, room: "comms" },
       { id: "admin", type: "utility", utility: "admin", label: "Census Console", x: 1180, y: 640, room: "meeting" },
       { id: "vitals", type: "utility", utility: "vitals", label: "Biometrics", x: 765, y: 1135, room: "med" },
       { id: "doorlog", type: "utility", utility: "doorlog", label: "Transit Log", x: 1540, y: 915, room: "comms" }
@@ -8235,12 +8213,6 @@ const MAPS = {
       { id: "download-o-e", type: "task", task: "download", label: "Download E", x: 1450, y: 1030, room: "greenhouse" },
       { id: "upload-o-e", type: "task", task: "upload", label: "Upload E", x: 215, y: 980, room: "power" },
       { id: "meeting-button", type: "emergency", label: "Assembly Call", x: 955, y: 640, room: "hub" },
-      { id: "repair-lights", type: "repair", repair: "lights", label: "Grid Reset", x: 455, y: 1040, room: "power" },
-      { id: "repair-comms", type: "repair", repair: "comms", label: "Signal Relay", x: 1100, y: 545, room: "hub" },
-      { id: "repair-reactor-a", type: "repair", repair: "reactor", label: "Bore Node A", x: 1450, y: 190, room: "drill" },
-      { id: "repair-reactor-b", type: "repair", repair: "reactor", label: "Bore Node B", x: 1690, y: 345, room: "drill" },
-      { id: "repair-oxygen-a", type: "repair", repair: "oxygen", label: "Atmos Node A", x: 1455, y: 905, room: "greenhouse" },
-      { id: "repair-oxygen-b", type: "repair", repair: "oxygen", label: "Atmos Node B", x: 305, y: 185, room: "labs" },
       { id: "admin", type: "utility", utility: "admin", label: "Census Console", x: 1080, y: 625, room: "hub" },
       { id: "vitals", type: "utility", utility: "vitals", label: "Biometrics", x: 470, y: 220, room: "labs" },
       { id: "doorlog", type: "utility", utility: "doorlog", label: "Transit Log", x: 1530, y: 1010, room: "greenhouse" }
@@ -8848,8 +8820,6 @@ function renameSelectingPlayerName(rawName, profileId, legacyProfileId = "") {
 function rebuildPreparationMapState(room) {
   const map = getMap(room);
   for (const key of ["bodies", "hitEffects", "magicEffects", "hazardFields", "thrownItems", "groundItems", "activeEmps", "gravityZones", "alchemyObjects", "mysteryBoxes", "sounds", "doorLog"]) room[key] = [];
-  room.sabotage = null;
-  room.doorState = {};
   room.utilityViews.clear();
   for (const player of room.players.values()) {
     const doneCount = (player.taskList || []).filter((task) => task.done).length;
@@ -9460,7 +9430,6 @@ function createRoom(id) {
     ideaWinnerIds: [],
     ideaVictoryArrivalAt: 0,
     pendingIdeaVictoryAt: 0,
-    sabotage: null,
     activeEmps: [],
     gravityZones: [],
     alchemyObjects: [],
@@ -9469,7 +9438,6 @@ function createRoom(id) {
     groundItems: [],
     mysteryBoxes: [],
     lastTickAt: now(),
-    doorState: {},
     utilityViews: new Map(),
     doorLog: [],
     matchmaking: null,
@@ -9922,7 +9890,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     gunnerAimTargetId: "",
     timedAccelerationEffects: [],
     heavyWeapons: [],
-    sabotageReadyAt: 0,
     dodgeReadyAt: 0,
     dodgeActiveUntil: 0,
     slashActiveUntil: 0,
@@ -10085,7 +10052,6 @@ function addPlayer(room, name, isBot = false, skinId = "hood", profileId = "") {
     // seven-Bot match does not turn one 80ms movement step per Bot into a
     // 560ms start/stop pulse.
     botNavigationIntent: null,
-    nextBotSabotageAt: now() + 12_000 + Math.floor(Math.random() * 6000),
     nextBotVentAt: 0,
     nextBotDefenseDecisionAt: now() + 1800 + Math.floor(Math.random() * 1800),
     botDefensePlannedAt: 0,
@@ -10571,7 +10537,6 @@ function startGame(room) {
     player.gunnerAimTargetId = "";
     player.timedAccelerationEffects = [];
     player.heavyWeapons = [];
-    player.sabotageReadyAt = 0;
     player.dodgeReadyAt = 0;
     player.dodgeActiveUntil = 0;
     player.slashActiveUntil = 0;
@@ -10731,7 +10696,6 @@ function startGame(room) {
     player.navTargetY = 0;
     player.navCalculatedAt = 0;
     player.botNavigationIntent = null;
-    player.nextBotSabotageAt = timestamp + 10_000 + Math.floor(Math.random() * 8000);
     player.nextBotVentAt = 0;
     player.nextBotDefenseDecisionAt = timestamp + 1800 + Math.floor(Math.random() * 1800);
     player.botDefensePlannedAt = 0;
@@ -10799,9 +10763,7 @@ function startGame(room) {
   setIdeaWinnerIds(room, []);
   room.pendingIdeaVictoryAt = 0;
   room.ideaVictoryArrivalAt = 0;
-  room.sabotage = null;
   room.activeEmps = [];
-  room.doorState = {};
   room.utilityViews.clear();
   room.doorLog = [];
 
@@ -10941,9 +10903,6 @@ function startBattle(room) {
     player.gunnerReloadUntil = 0;
     player.gunnerReloadWeapon = "";
     player.unavailableGunnerWeapons = [];
-    player.sabotageReadyAt = player.role === "attacker" && player.alive && !player.ejected
-      ? timestamp + SABOTAGE_COOLDOWN_MS
-      : 0;
     player.dodgeReadyAt = 0;
     player.dodgeActiveUntil = 0;
     player.slashActiveUntil = 0;
@@ -11060,7 +11019,7 @@ function startBattle(room) {
   room.operatorSelectEndsAt = 0;
   room.operatorTurnOrder = [];
   room.operatorTurnIndex = 0;
-  pushEvent(room, "バトルフェーズ開始。ディフェンダーはタスク、アタッカーはキルとサボタージュを狙ってください。");
+  pushEvent(room, "バトルフェーズ開始。ディフェンダーはタスク、アタッカーはキルを狙ってください。");
   touch(room);
 }
 
@@ -11075,8 +11034,6 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
     completed: false,
     taskCount: 0,
     defenseActivatedAt: 0,
-    clairvoyanceUsed: false,
-    sabotageUsed: false,
     empCancelled: false,
     empAmplified: false,
     empTrainingOutcomes: [],
@@ -11121,7 +11078,6 @@ function createSoloMissionRoom(missionId, name, skinId, profileId = "") {
     player.maxStoredStamina = MAX_STORED_STAMINA;
     player.staminaUpdatedAt = now();
   }
-  if (mission.metric === "intel") player.sabotageReadyAt = 0;
   for (const bot of room.players.values()) {
     if (bot.isBot) bot.nextBotActionAt = now() + 30_000;
   }
@@ -12690,19 +12646,13 @@ function pointToSegmentDistance(px, py, ax, ay, bx, by) {
   return Math.hypot(px - (ax + dx * ratio), py - (ay + dy * ratio));
 }
 
-function activeDoors(room) {
-  const map = getMap(room);
-  const timestamp = now();
-  return map.doors.filter((door) => (room.doorState[door.id] || 0) > timestamp);
-}
-
 function isWalkable(room, x, y, radius = 0) {
   const map = getMap(room);
   const insideMap = x >= radius && y >= radius && x <= map.width - radius && y <= map.height - radius;
   if (!insideMap) return false;
   const seamMargin = Math.max(radius, WALKABLE_SEAM_MARGIN);
   if (!map.walkable.some((rect) => rectContains(rect, x, y, -seamMargin))) return false;
-  return !activeDoors(room).some((door) => rectContains(door, x, y, -6));
+  return true;
 }
 
 function isFloorArea(room, x, y, radius = 0) {
@@ -13824,9 +13774,9 @@ function botPlannerSlotsForRoom(room) {
 }
 
 const BOT_OPERATIONAL_DEADLINE_FIELDS = Object.freeze([
-  "nextBotActionAt", "nextBotSabotageAt", "nextBotVentAt", "nextBotDefenseDecisionAt", "nextBotClairvoyanceAt",
+  "nextBotActionAt", "nextBotVentAt", "nextBotDefenseDecisionAt", "nextBotClairvoyanceAt",
   "killReadyAt", "gunReadyAt", "gunnerReloadUntil", "gunnerSpecialAmmoReadyAt", "hoverSprintReadyAt",
-  "sabotageReadyAt", "dodgeReadyAt", "teleportReadyAt", "empReadyAt", "gravityStormReadyAt",
+  "dodgeReadyAt", "teleportReadyAt", "empReadyAt", "gravityStormReadyAt",
   "vibeCodingReadyAt", "fighterEnergyChargeReadyAt", "rationalFreeAbilityReadyAt", "particleCannonNextAt",
   "routeDamageReadyAt", "botTargetUntil", "botDeceptionUntil", "botRetaliationUntil", "botWitnessUntil",
   "botClairvoyanceUntil", "botClairvoyanceObservedUntil", "heardWaypointUntil"
@@ -14061,13 +14011,6 @@ function botMatchHumanEarnedEliminationVictory(room, winnerRole) {
   ));
 }
 
-function botMatchHumanOwnsCriticalSabotage(room) {
-  const humanAttackers = winningHumansInBotMatch(room, "attacker");
-  if (humanAttackers.length === 0) return true;
-  const sourceId = String(room.sabotage?.sourceId || "");
-  return humanAttackers.some((player) => player.id === sourceId);
-}
-
 function botMatchHumanOwnsVictory(room, winner, cause = null) {
   const humans = humanPlayersInBotMatch(room);
   if (humans.length === 0) return true;
@@ -14104,11 +14047,6 @@ function botMatchHumanOwnsVictory(room, winner, cause = null) {
       return human.alive && !human.ejected && tasks.length > 0 && tasks.every((task) => task.done);
     });
   }
-  if (victoryCause.type === "criticalSabotage") {
-    const sourceId = String(victoryCause.sourceId || "");
-    return winnerRole === "attacker" && winningHumans.some((human) => human.id === sourceId);
-  }
-
   return false;
 }
 
@@ -14173,7 +14111,6 @@ function finish(room, winner, reason, cause = {}) {
   room.finishReason = reason;
   updatePlayerProfiles(room);
   room.meeting = null;
-  room.sabotage = null;
   room.pendingIdeaVictoryAt = 0;
   room.ideaVictoryArrivalAt = 0;
   room.players.forEach((player) => {
@@ -14209,7 +14146,6 @@ function forceEnd(room, player) {
   commitResultBoard(room);
   room.finishReason = `${player.name} が試合を強制終了しました。`;
   room.meeting = null;
-  room.sabotage = null;
   room.pendingIdeaVictoryAt = 0;
   room.ideaVictoryArrivalAt = 0;
   room.players.forEach((entry) => {
@@ -14246,9 +14182,6 @@ function soloMissionProgress(room, timestamp = now()) {
     const seconds = Math.min(mission.surviveMs / 1000, Math.max(0, (timestamp - state.defenseActivatedAt) / 1000));
     return `防御後の生存 ${seconds.toFixed(1)} / ${(mission.surviveMs / 1000).toFixed(0)}秒`;
   }
-  if (mission.metric === "intel") {
-    return `千里眼投擲 ${state.clairvoyanceUsed ? "完了" : "未完了"} / サボ ${state.sabotageUsed ? "完了" : "未完了"}`;
-  }
   if (mission.metric === "emp") {
     const outcomes = new Set(Array.isArray(state.empTrainingOutcomes) ? state.empTrainingOutcomes : []);
     return `打ち消し ${outcomes.has("cancel") ? "完了" : "未完了"} / 増強 ${outcomes.has("amplify") ? "完了" : "未完了"}`;
@@ -14280,7 +14213,7 @@ function evaluateSoloMission(room, timestamp = now()) {
   else if (mission.metric === "kill") completed = player.totalKills >= 1;
   else if (mission.metric === "defense") {
     completed = Boolean(state.defenseActivatedAt) && timestamp - state.defenseActivatedAt >= mission.surviveMs;
-  } else if (mission.metric === "intel") completed = state.clairvoyanceUsed && state.sabotageUsed;
+  }
   else if (mission.metric === "emp") {
     const outcomes = new Set(Array.isArray(state.empTrainingOutcomes) ? state.empTrainingOutcomes : []);
     completed = outcomes.has("cancel") && outcomes.has("amplify");
@@ -14297,8 +14230,6 @@ function markSoloMissionAction(room, player, action) {
   if (!state || state.playerId !== player.id || state.completed) return;
   if (action === "task") state.taskCount += 1;
   else if (action === "defense" && !state.defenseActivatedAt) state.defenseActivatedAt = now();
-  else if (action === "clairvoyance") state.clairvoyanceUsed = true;
-  else if (action === "sabotage") state.sabotageUsed = true;
   evaluateSoloMission(room);
 }
 
@@ -14484,9 +14415,6 @@ function pauseBattleTimeForMeeting(room, timestamp = now()) {
   shiftMeetingDeadline(room, "preparationEndsAt", pausedAt, elapsedMs);
   shiftMeetingDeadline(room, "pendingIdeaVictoryAt", pausedAt, elapsedMs);
   for (const player of room.players.values()) pausePlayerBattleTime(player, pausedAt, elapsedMs);
-  for (const key of Object.keys(room.doorState || {})) {
-    shiftMeetingDeadline(room.doorState, key, pausedAt, elapsedMs);
-  }
   for (const pulse of room.activeEmps || []) {
     shiftMeetingAnchor(pulse, "at", elapsedMs);
     shiftMeetingDeadline(pulse, "resolvesAt", pausedAt, elapsedMs);
@@ -14596,7 +14524,6 @@ function tallyMeeting(room) {
   room.phase = "playing";
   room.round += 1;
   room.meeting = null;
-  room.sabotage = null;
   const timestamp = now();
   room.battleStartedAt = timestamp;
   for (const player of room.players.values()) {
@@ -14614,55 +14541,6 @@ function maybeEndMeeting(room) {
   if (now() >= room.meeting.endsAt || voted >= alive.length) {
     tallyMeeting(room);
   }
-}
-
-function clearSabotage(room, text = "サボタージュを修理しました。") {
-  if (!room.sabotage) return;
-  pushEvent(room, text);
-  room.sabotage = null;
-  touch(room);
-}
-
-// Physical repair points are contact triggers.  Reaching a valid point is the
-// whole physical interaction; do not require a second client click that can be
-// lost between movement snapshots.  Critical sabotages retain their two
-// independently tracked points, while every other sabotage clears at its one
-// matching point.
-function autoClearSabotageAtValidProximity(room, timestamp = now()) {
-  if (room.phase !== "playing" || !room.sabotage) return false;
-  const type = room.sabotage.type;
-  const critical = type === "reactor" || type === "oxygen";
-  const repairedPoints = room.sabotage.repairedPoints || (room.sabotage.repairedPoints = {});
-  let changed = false;
-
-  for (const player of room.players.values()) {
-    if (!room.sabotage) break;
-    if (!player.alive || player.ejected || player.inVent || actionBlockedUntil(player) > timestamp) continue;
-    const near = nearestStation(
-      room,
-      player,
-      (station) => station.type === "repair" && station.repair === type && !repairedPoints[station.id],
-      getMap(room).taskRange
-    );
-    if (!near) continue;
-
-    pushMagicEffect(room, "action-repair", player, { radius: 110, playerId: player.id, variant: "proximity" });
-    if (!critical) {
-      clearSabotage(room, `${player.name} が ${sabotageLabel(type)} に到達し自動修復しました。`);
-      return true;
-    }
-
-    repairedPoints[near.station.id] = player.id;
-    changed = true;
-    pushEvent(room, `${player.name} が ${near.station.label || "修復ポイント"} に到達し自動起動しました。`);
-    if (Object.keys(repairedPoints).length >= 2) {
-      clearSabotage(room, `${sabotageLabel(type)} の全修復ポイントが自動起動され、修理しました。`);
-      return true;
-    }
-  }
-
-  if (changed) touch(room);
-  return changed;
 }
 
 // Snapshot adapter only: existing gameplay getters supply rates; no live state
@@ -14952,16 +14830,11 @@ function tickRoom(room) {
     player.lastPassiveCreditAt = timestamp;
   }
   if (!roomTimeStopped) advanceHazards(room, timestamp);
-  autoClearSabotageAtValidProximity(room, timestamp);
   if (runAutomaticHumanBodyReports(room, timestamp)) return;
   if (!roomTimeStopped) {
     advancePairRouteRule(room, timestamp);
     advanceAlchemyObjects(room, timestamp);
     resolvePendingEmps(room, timestamp);
-  }
-  if (room.sabotage?.type === "lights") {
-    room.sabotage = null;
-    touch(room);
   }
   if (room.phase === "selecting") {
     const turnPlayer = currentOperatorPlayer(room);
@@ -14977,24 +14850,6 @@ function tickRoom(room) {
   if (room.phase === "playing") {
     if (evaluateSoloMission(room, timestamp)) return;
     if (resolvePendingIdeaVictory(room, timestamp)) return;
-    if (room.sabotage?.endsAt && now() >= room.sabotage.endsAt) {
-      const type = room.sabotage.type;
-      if (type === "reactor" || type === "oxygen") {
-        if (botMatchHumanOwnsCriticalSabotage(room)) {
-          finish(room, "attackers", `${type === "reactor" ? "Core Breach" : "Atmos Leak"}の修復に失敗しました。`, {
-            type: "criticalSabotage",
-            sourceId: room.sabotage?.sourceId || ""
-          });
-        } else {
-          room.sabotage = null;
-        }
-      } else {
-        room.sabotage = null;
-      }
-    }
-    for (const [doorId, closedUntil] of Object.entries(room.doorState)) {
-      if (closedUntil <= now()) delete room.doorState[doorId];
-    }
     checkWin(room);
   }
   maybeEndMeeting(room);
@@ -17101,6 +16956,9 @@ function useShopAbility(room, player, abilityId, options = {}) {
       });
     }
     if (product.operator === "quantum") return useQuantumControl(room, player, product.mode);
+    if (product.operator === "assassin" && product.mode === "substitution") {
+      return activateAssassinSubstitution(room, player, targetId);
+    }
     if (product.operator === "hacker" && product.mode === "root") return toggleHackerRoot(room, player);
     throw new ApiError(400, "購入能力の実行ownerが不正です。");
   } finally {
@@ -21322,163 +21180,6 @@ function resolveSmartphoneAction(room, player, timestamp) {
     startMeeting(room, `${player.name} がスマホから緊急会議を招集`, player.id, { suspectId, evidenceKind });
     return;
   }
-  if (action === "repair") {
-    for (const door of activeDoors(room)) delete room.doorState[door.id];
-    if (room.sabotage) clearSabotage(room, `${player.name} がスマホから ${sabotageLabel(room.sabotage.type)} を遠隔修復しました。`);
-    pushMagicEffect(room, "action-smartphone-repair", player, { radius: 125, playerId: player.id });
-    pushEvent(room, `${player.name} のスマホ遠隔修復が完了しました。`);
-    touch(room);
-  }
-}
-
-function startSabotage(room, player, type) {
-  if (room.phase !== "playing") throw new ApiError(400, "いまはサボタージュを実行できません。");
-  if (player.role !== "attacker" || !player.alive || player.ejected) throw new ApiError(403, "サボタージュを実行できません。");
-  ensureAbilityAvailable(player);
-  const timestamp = now();
-  if ((Number(player.sabotageReadyAt) || 0) > timestamp) {
-    const remainingSeconds = Math.ceil((player.sabotageReadyAt - timestamp) / 1000);
-    throw new ApiError(400, `サボタージュ再充填中です（残り${remainingSeconds}秒）。`);
-  }
-  const map = getMap(room);
-  const sabotageType = ["comms", "reactor", "oxygen", "doors"].includes(type) ? type : "comms";
-  if (sabotageType !== "doors" && room.sabotage) throw new ApiError(400, "既にサボタージュが発生中です。");
-  if (sabotageType === "doors") {
-    for (const door of map.doors) room.doorState[door.id] = timestamp + 12000;
-    player.sabotageReadyAt = timestamp + SABOTAGE_COOLDOWN_MS;
-    grantCredits(room, player, SABOTAGE_CREDIT_REWARD, "sabotage");
-    pushEvent(room, `${player.name} が全室を封鎖しました。`);
-    pushEvent(room, `${player.name} がサボタージュ報酬 ${SABOTAGE_CREDIT_REWARD}Cを獲得しました。`);
-    pushDoorLog(room, "複数ドアがロック");
-    pushMagicEffect(room, "action-sabotage", player, { radius: 135, playerId: player.id, variant: sabotageType });
-    markSoloMissionAction(room, player, "sabotage");
-    touch(room);
-    return;
-  }
-  const critical = sabotageType === "reactor" || sabotageType === "oxygen";
-  room.sabotage = {
-    type: sabotageType,
-    sourceId: player.id,
-    startedAt: timestamp,
-    endsAt: critical ? timestamp + 45_000 : timestamp + 70_000,
-    repairedPoints: {}
-  };
-  player.sabotageReadyAt = timestamp + SABOTAGE_COOLDOWN_MS;
-  grantCredits(room, player, SABOTAGE_CREDIT_REWARD, "sabotage");
-  pushEvent(room, `${sabotageLabel(sabotageType)} サボタージュ発生。`);
-  pushEvent(room, `${player.name} がサボタージュ報酬 ${SABOTAGE_CREDIT_REWARD}Cを獲得しました。`);
-  pushMagicEffect(room, "action-sabotage", player, { radius: 135, playerId: player.id, variant: sabotageType });
-  markSoloMissionAction(room, player, "sabotage");
-  touch(room);
-}
-
-function sabotageLabel(type) {
-  return {
-    lights: "Grid Blackout",
-    comms: "Signal Jam",
-    reactor: "Core Breach",
-    oxygen: "Atmos Leak",
-    doors: "Lockdown"
-  }[type] || type;
-}
-
-function repair(room, player) {
-  if (room.phase !== "playing") throw new ApiError(400, "いまはRepairできません。");
-  if (player.ejected || player.inVent) throw new ApiError(403, "Repairできません。");
-  ensureConscious(player);
-  const map = getMap(room);
-  const timestamp = now();
-  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01, 1, room);
-
-  const closedDoors = activeDoors(room);
-  const closedDoor = closedDoors
-    .map((door) => ({ door, dist: distance(player, doorCenter(door)) }))
-    .filter((entry) => entry.dist <= map.taskRange)
-    .sort((a, b) => a.dist - b.dist)[0]?.door;
-  if (closedDoor) {
-    delete room.doorState[closedDoor.id];
-    pushMagicEffect(room, "action-repair", player, { radius: 105, playerId: player.id });
-    pushEvent(room, `${player.name} がドア封鎖を解除しました。`);
-    touch(room);
-    return;
-  }
-
-  if (closedDoors.length) {
-    if (player.special !== "alchemist") throw new ApiError(400, "修理地点へ近づいてください。遠隔修復はハッカー専用です。");
-    if (!player.alive) throw new ApiError(403, "遠隔修復は生存中のみ使用できます。");
-    if (player.stamina < REMOTE_REPAIR_STAMINA_COST) {
-      throw new ApiError(400, `遠隔修復にはスタミナ ${REMOTE_REPAIR_STAMINA_COST} が必要です。`);
-    }
-    spendStamina(player, REMOTE_REPAIR_STAMINA_COST, room, "スマホ修復");
-    player.smartphoneAction = "repair";
-    player.smartphoneUntil = timestamp + SMARTPHONE_ACTION_MS;
-    player.vx = 0;
-    player.vy = 0;
-    pushMagicEffect(room, "action-smartphone", player, { radius: 85, playerId: player.id, variant: "repair" });
-    pushEvent(room, `${player.name} がスタミナ ${REMOTE_REPAIR_STAMINA_COST} を消費し、スマホで全ドアを遠隔修復中です。`);
-    touch(room);
-    return;
-  }
-
-  if (!room.sabotage) throw new ApiError(404, "修理対象がありません。");
-  const type = room.sabotage.type;
-  const near = nearestStation(room, player, (station) => station.type === "repair" && station.repair === type, map.taskRange);
-  if (!near) {
-    if (player.special !== "alchemist") throw new ApiError(400, "修理地点へ近づいてください。遠隔修復はハッカー専用です。");
-    if (!player.alive) throw new ApiError(403, "遠隔修復は生存中のみ使用できます。");
-    if (player.stamina < REMOTE_REPAIR_STAMINA_COST) {
-      throw new ApiError(400, `遠隔修復にはスタミナ ${REMOTE_REPAIR_STAMINA_COST} が必要です。`);
-    }
-    spendStamina(player, REMOTE_REPAIR_STAMINA_COST, room, "スマホ修復");
-    player.smartphoneAction = "repair";
-    player.smartphoneUntil = timestamp + SMARTPHONE_ACTION_MS;
-    player.vx = 0;
-    player.vy = 0;
-    pushMagicEffect(room, "action-smartphone", player, { radius: 85, playerId: player.id, variant: "repair" });
-    pushEvent(room, `${player.name} がスマホで ${sabotageLabel(type)} を遠隔修復中です（${SMARTPHONE_ACTION_MS / 1000}秒行動不能）。`);
-    touch(room);
-    return;
-  }
-
-  if (type === "reactor" || type === "oxygen") {
-    room.sabotage.repairedPoints[near.station.id] = player.id;
-    const repaired = Object.keys(room.sabotage.repairedPoints).length;
-    pushEvent(room, `${player.name} が修復ポイントを起動しました。`);
-    if (repaired >= 2) clearSabotage(room, `${sabotageLabel(type)} を修理しました。`);
-  } else {
-    clearSabotage(room, `${player.name} が ${sabotageLabel(type)} を修理しました。`);
-  }
-  pushMagicEffect(room, "action-repair", player, { radius: 110, playerId: player.id });
-  touch(room);
-}
-
-function startSmartphoneRepair(room, player) {
-  if (room.phase !== "playing") throw new ApiError(400, "いまはスマホ修理できません。");
-  if (!player.alive || player.ejected || player.inVent) throw new ApiError(403, "スマホ修理できません。");
-  ensureConscious(player);
-  const timestamp = now();
-  if (player.special !== "alchemist") {
-    repair(room, player);
-    return;
-  }
-  ensureItemStorageAvailable(player, timestamp);
-  if (!room.sabotage && !activeDoors(room).length) throw new ApiError(404, "修理対象がありません。");
-  replenishStamina(player, timestamp, Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) <= 0.01, 1, room);
-  if (availableStamina(player) < REMOTE_REPAIR_STAMINA_COST) {
-    throw new ApiError(400, `スマホ修理にはスタミナ ${REMOTE_REPAIR_STAMINA_COST} が必要です。`);
-  }
-  spendStamina(player, REMOTE_REPAIR_STAMINA_COST, room, "遠隔修復");
-  player.smartphoneAction = "repair";
-  player.smartphoneUntil = timestamp + SMARTPHONE_ACTION_MS;
-  player.vx = 0;
-  player.vy = 0;
-  pushMagicEffect(room, "action-smartphone", player, { radius: 85, playerId: player.id, variant: "repair" });
-  pushEvent(room, `${player.name} がスタミナ ${REMOTE_REPAIR_STAMINA_COST} を消費し、スマホ修理を開始しました。`);
-  touch(room);
-}
-
-function doorCenter(door) {
-  return { x: door.x + door.w / 2, y: door.y + door.h / 2 };
 }
 
 function makeUtility(room, player, type) {
@@ -21642,10 +21343,10 @@ function operatorState(room) {
 }
 
 function visibleStations(map) {
-  return map.stations.filter((station) => {
-    if (station.type === "repair" && station.repair === "lights") return false;
-    return station.type !== "task" || station.task === "download" || station.task === "upload";
-  });
+  return map.stations.filter((station) => (
+    station.type !== "repair" &&
+    (station.type !== "task" || station.task === "download" || station.task === "upload")
+  ));
 }
 
 function visibleBodies(room, viewer) {
@@ -21981,7 +21682,6 @@ function serialize(room, viewer, options = {}) {
   const map = getMap(room);
   const timestamp = now();
   reconcileBarrierExpiry(room, timestamp);
-  const activeDoorIds = new Set(activeDoors(room).map((door) => door.id));
   const revealRoles = room.phase === "ended";
   const meetingVotes = room.meeting
     ? buildVoteSummary(room, viewer)
@@ -22180,7 +21880,6 @@ function serialize(room, viewer, options = {}) {
       doors: map.doors,
       environmentContractVersion: map.environmentContractVersion || ""
     },
-    activeDoorIds: [...activeDoorIds],
     selfId: viewer.id,
     self: {
       id: viewer.id,
@@ -22282,7 +21981,6 @@ function serialize(room, viewer, options = {}) {
       heavyWeapons: [...(viewer.heavyWeapons || [])],
       aimX: viewer.aimX,
       aimY: viewer.aimY,
-      sabotageReadyAt: viewer.sabotageReadyAt,
       dodgeReadyAt: viewer.dodgeReadyAt,
       dodgeActiveUntil: viewer.dodgeActiveUntil,
       slashActiveUntil: Number(viewer.slashActiveUntil) || 0,
@@ -22422,8 +22120,7 @@ function serialize(room, viewer, options = {}) {
         alchemy: ALCHEMY_MANA_COST,
         fighterCharge: FIGHTER_ENERGY_CHARGE_MANA_COST,
         quantumNuclear: QUANTUM_NUCLEAR_MANA_COST,
-        quantumElectric: QUANTUM_ELECTRIC_MANA_COST,
-        sabotage: SABOTAGE_MANA_COST
+        quantumElectric: QUANTUM_ELECTRIC_MANA_COST
       },
       stamina: serializeResourceValue(viewer.stamina),
       maxStamina: MAX_STAMINA,
@@ -22550,12 +22247,6 @@ function serialize(room, viewer, options = {}) {
       } : null
     })),
     gravityZones: room.gravityZones || [],
-    sabotage: room.sabotage
-      ? {
-          ...room.sabotage,
-          secondsLeft: room.sabotage.endsAt ? Math.max(0, Math.ceil((room.sabotage.endsAt - timestamp) / 1000)) : null
-        }
-      : null,
     meeting: room.meeting
       ? {
           id: room.meeting.id,
@@ -22835,8 +22526,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     }
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    pushEvent(room, "実画面検証: 斬る成功時に対象Botの37Cと全譲渡可能所持品を一度だけ戦利品として獲得します。");
+      pushEvent(room, "実画面検証: 斬る成功時に対象Botの37Cと全譲渡可能所持品を一度だけ戦利品として獲得します。");
   } else if (kind === "friendly-attacker-bot-fire-lane") {
     const timestamp = now();
     const map = getMap(room);
@@ -22886,8 +22576,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     }
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-
+  
     const weapon = GUNNER_WEAPONS.handgun;
     const firstBody = findGunnerTarget(room, gunnerBot, weapon, 1, 0, { ignoreCover: true });
     const beforeBlocked = {
@@ -23077,8 +22766,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     player.mana = manaCapacityFor(player);
     player.vibeCodingReadyAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    // Hold the ordinary combat actors outside their decision windows long
+      // Hold the ordinary combat actors outside their decision windows long
     // enough for a bounded hidden-screen pointer transaction. The gesture and
     // its Hacker action route remain the production UI and API paths.
     room.preparationEndsAt = kind === "hacker-flick-tap-no-barrier" ? 0 : timestamp + 120_000;
@@ -23118,8 +22806,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     });
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    pushEvent(room, "実画面検証: サンビーム（合計20MP）を2回連続発動できます。");
+      pushEvent(room, "実画面検証: サンビーム（合計20MP）を2回連続発動できます。");
   } else if (kind === "movement-acc") {
     const timestamp = now();
     Object.assign(player, {
@@ -23206,8 +22893,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     }
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    pushEvent(room, "実画面検証: ROOT借用能力はpointer・keyboard・tabletで同じowner/modeへ委譲します。");
+      pushEvent(room, "実画面検証: ROOT借用能力はpointer・keyboard・tabletで同じowner/modeへ委譲します。");
   } else if (kind.startsWith("enemy-bot-repertoire-")) {
     const timestamp = now();
     const map = getMap(room);
@@ -23251,8 +22937,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    const expectedPrefix = {
+      const expectedPrefix = {
       "enemy-bot-repertoire-heavy": "heavy-rpg",
       "enemy-bot-repertoire-invention": "invention-railgun",
       "enemy-bot-repertoire-quantum": "quantum-nuclear-transmutation",
@@ -23302,8 +22987,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    pushEvent(room, "実画面検証: ショップのクオンタム頁へ直接移動し、エレクトリックを12Cで購入後、同じカードから既存ownerへ発動します。");
+      pushEvent(room, "実画面検証: ショップのクオンタム頁へ直接移動し、エレクトリックを12Cで購入後、同じカードから既存ownerへ発動します。");
   } else if (["quantum-electric-discharge", "quantum-electric-root"].includes(kind)) {
     const timestamp = now();
     const map = getMap(room);
@@ -23350,8 +23034,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    pushEvent(room, `実画面検証: ${rootBorrowed ? "ROOT借用" : "通常"}エレクトリック（1MP / 16SP）は見通し上の最近接敵へ距離を問わず絶縁破壊→電子輸送を一度だけ実行します。`);
+      pushEvent(room, `実画面検証: ${rootBorrowed ? "ROOT借用" : "通常"}エレクトリック（1MP / 16SP）は見通し上の最近接敵へ距離を問わず絶縁破壊→電子輸送を一度だけ実行します。`);
   } else if (["gunner-luck-headshot-aim", "gunner-luck-headshot-hip"].includes(kind)) {
     const timestamp = now();
     const map = getMap(room);
@@ -23390,38 +23073,8 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     bots.slice(1).forEach((entry) => { entry.alive = false; entry.ejected = true; });
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    if (aimed) advanceGunnerAimPassive(room, player, timestamp);
+      if (aimed) advanceGunnerAimPassive(room, player, timestamp);
     pushEvent(room, `実画面検証: ${aimed ? "エイム" : "腰撃ち"}は幸運補正込み確率でbody→HSを一度ずつ解決します。`);
-  } else if (kind === "sabotage-proximity-auto-clear") {
-    const timestamp = now();
-    const map = getMap(room);
-    const station = map.stations.find((entry) => entry.type === "repair" && entry.repair === "comms") ||
-      map.stations.find((entry) => entry.type === "repair" && !["reactor", "oxygen", "lights"].includes(entry.repair));
-    if (!station) throw new ApiError(400, "近接サボ解除実画面fixtureに単一点修復端末がありません。");
-    Object.assign(player, {
-      role: "defender", special: "fighter", operatorId: "operator-fighter", operatorReady: true,
-      alive: true, ejected: false, inVent: false, x: station.x, y: station.y, vx: 0, vy: 0,
-      // Keep the first serialized frame authoritative and still sabotaged. The
-      // next eligible tick proves that proximity—not a repair-button click—owns
-      // the commit and also covers blocked -> retry cleanup.
-      smartphoneUntil: timestamp + 5_000
-    });
-    room.sabotage = {
-      type: station.repair,
-      sourceId: [...room.players.values()].find((entry) => entry.role === "attacker")?.id || "fixture",
-      startedAt: timestamp,
-      endsAt: timestamp + 120_000,
-      repairedPoints: {}
-    };
-    room.preparationEndsAt = timestamp + 120_000;
-    for (const entry of room.players.values()) {
-      if (!entry.isBot) continue;
-      entry.nextBotActionAt = timestamp + 120_000;
-      entry.taskAutoReadyAt = timestamp + 120_000;
-      entry.smartphoneUntil = timestamp + 120_000;
-    }
-    pushEvent(room, `実画面検証: ${station.label || station.repair} への接近だけでサボタージュを解除します。`);
   } else if (kind === "automatic-surplus-mana") {
     Object.assign(player, {
       alive: true, ejected: false, inVent: false,
@@ -23431,8 +23084,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     });
     room.preparationEndsAt = 0;
     room.meeting = null;
-    room.sabotage = null;
-    setMana(room, player, 14, "実画面余剰マナ自動変換fixture");
+      setMana(room, player, 14, "実画面余剰マナ自動変換fixture");
     pushEvent(room, "実画面検証: 上限10MPに対する一度の+4MP余剰を、バスト→バリア交互の2回分ずつへ自動変換しました。");
   } else if (kind === "enemy-bot-combat") {
     const timestamp = now();
@@ -23472,7 +23124,6 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
         mana: 0, maxMana: Math.max(20, Number(bot.maxMana) || 0),
         stamina: Math.max(MAX_STAMINA, Number(bot.stamina) || 0),
         nextBotActionAt: 0, killReadyAt: 0, meditatingUntil: 0,
-        sabotageReadyAt: timestamp + 120_000, nextBotSabotageAt: timestamp + 120_000,
         actionTargetId: "", attackTargetId: "", aimTargetId: "", botCombatPlan: null,
         navPath: [], navTargetId: "", fighterEnergy: 0,
         // This fixture must exercise only the prepared Fighter chase. Bot
@@ -23488,8 +23139,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     // and the hostile Bot must then continue from pursuit into a real kill.
     room.preparationEndsAt = timestamp + 1_500;
     room.meeting = null;
-    room.sabotage = null;
-    room.bodies = [];
+      room.bodies = [];
     room.finishReason = "";
     pushEvent(room, `実画面検証: ${hunter.name} が既知の敵へ接敵し、キルまで継続します。`);
   } else if (kind === "meeting-chat-layout") {
@@ -23574,8 +23224,7 @@ function applyRealScreenRegressionFixture(room, player, rawKind) {
     player.role = "attacker";
     room.preparationEndsAt = timestamp + 30_000;
     room.bodies = [];
-    room.sabotage = null;
-    room.groundItems = [];
+      room.groundItems = [];
     for (const bot of bots) {
       bot.role = "defender";
       bot.alive = true;
@@ -24481,10 +24130,7 @@ async function handleApi(req, res) {
     }
 
     case "/api/repair": {
-      const { room, player } = requireRoomPlayer(body);
-      startSmartphoneRepair(room, player);
-      payload = serialize(room, player);
-      break;
+      throw new ApiError(410, "修理はサボタージュとともに廃止されました。");
     }
 
     case "/api/utility": {
@@ -24523,10 +24169,8 @@ async function handleApi(req, res) {
       setIdeaWinnerIds(room, []);
       room.pendingIdeaVictoryAt = 0;
       room.ideaVictoryArrivalAt = 0;
-      room.sabotage = null;
-      room.activeEmps = [];
-      room.doorState = {};
-      room.doorLog = [];
+          room.activeEmps = [];
+          room.doorLog = [];
       room.utilityViews.clear();
       for (const entry of room.players.values()) {
         entry.role = "unassigned";
@@ -24567,7 +24211,6 @@ async function handleApi(req, res) {
         entry.gunnerReloadUntil = 0;
         entry.gunnerReloadWeapon = "";
         entry.unavailableGunnerWeapons = [];
-        entry.sabotageReadyAt = 0;
         entry.dodgeReadyAt = 0;
         entry.dodgeActiveUntil = 0;
         entry.slashActiveUntil = 0;
@@ -25616,29 +25259,13 @@ function runBotAttackerDeception(room, bot, map, actualTarget, timestamp = now()
   return false;
 }
 
-function useBotSabotage(room, bot, timestamp) {
-  const human = soleHumanBotMatchPlayer(room);
-  if (human && bot.role === human.role) return false;
-  if (bot.sabotageReadyAt > timestamp || bot.nextBotSabotageAt > timestamp || room.sabotage) return false;
-  const maximumStrength = botHasHumanOpponent(room, bot);
-  const types = room.round % 2 === 0 ? ["oxygen", "reactor", "comms"] : ["reactor", "oxygen", "comms"];
-  try {
-    startSabotage(room, bot, maximumStrength ? types[0] : types[Math.floor(Math.random() * types.length)]);
-    bot.nextBotSabotageAt = maximumStrength ? timestamp + BOT_TICK_MS : timestamp + 18_000 + Math.floor(Math.random() * 7000);
-    return true;
-  } catch {
-    bot.nextBotSabotageAt = timestamp + 3000;
-    return false;
-  }
-}
-
 function botManaTarget(bot) {
   if (bot.special === "fighter") return FIGHTER_ENERGY_CHARGE_MANA_COST;
   if (bot.special === "teleport") return TELEPORT_MANA_COST;
   if (bot.special === "flora") return FLORA_MANA_COST;
   if (bot.special === "gunner") return 0;
   if (bot.special === "alchemist") return ALCHEMY_MANA_COST;
-  return bot.role === "attacker" ? SABOTAGE_MANA_COST : DODGE_MANA_COST;
+  return bot.role === "defender" ? DODGE_MANA_COST : 0;
 }
 
 function refillBotMana(room, bot) {
@@ -26669,7 +26296,7 @@ function runPlayingBots(room) {
     // never let it pre-empt an evidence-backed chase.
     // An enemy Defender without public combat evidence has a real objective
     // route.  Do not repeatedly start optional Renki at spawn and starve that
-    // route forever; its later canonical task/sabotage planner owns movement
+    // route forever; its later canonical objective planner owns movement
     // and may still choose a stationary interaction once it reaches a legal
     // station.  Attackers and evidence-backed combat keep the existing
     // recovery-before-search behaviour.
@@ -26805,10 +26432,8 @@ function runPlayingBots(room) {
           startNinjutsu(room, bot, target.id);
         } catch {}
       } else if (target) {
-        if (!attackerUrgency.urgent) useBotSabotage(room, bot, timestamp);
         moveBotToward(room, bot, target);
       } else {
-        if (!attackerUrgency.urgent) useBotSabotage(room, bot, timestamp);
         if (heardWaypoint) {
           moveBotToward(room, bot, heardWaypoint);
         } else {
@@ -26829,20 +26454,6 @@ function runPlayingBots(room) {
       runBotDefenseDecision(room, bot, nearbyAttacker, timestamp);
     }
 
-    if (room.sabotage && bot.alive) {
-      const station = nearestRepairStation(room, bot, room.sabotage.type);
-      if (station) {
-        if (distance(bot, station) <= map.taskRange) {
-          try {
-            repair(room, bot);
-          } catch {}
-        } else if (!teleportBotToward(room, bot, station)) {
-          moveBotToward(room, bot, station);
-        }
-        continue;
-      }
-    }
-
     const defenderEvidenceTarget = botKnownAttackerEvidence(room, bot, timestamp);
     if (
       defenderEvidenceTarget &&
@@ -26856,14 +26467,6 @@ function runPlayingBots(room) {
 
     runEnemyDefenderTask(room, bot, map, timestamp);
   }
-}
-
-function nearestRepairStation(room, player, repairType) {
-  const map = getMap(room);
-  const stations = map.stations.filter((station) => station.type === "repair" && station.repair === repairType);
-  const unrepaired = stations.filter((station) => !room.sabotage?.repairedPoints?.[station.id]);
-  return (unrepaired.length ? unrepaired : stations)
-    .sort((a, b) => distance(player, a) - distance(player, b))[0];
 }
 
 setInterval(botTick, BOT_TICK_MS);
@@ -26916,5 +26519,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "durable-combat-and-bust-v886" });
+self.postMessage({ type: "ready", version: "sabotage-retired-loot-shop-v887" });
 })();

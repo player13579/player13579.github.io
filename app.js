@@ -40,7 +40,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "durable-combat-and-bust-v886";
+const DVA_CLIENT_RELEASE = "sabotage-retired-loot-shop-v887";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -94,7 +94,6 @@ const SWITCH_DRAG_HOLD_DELAY_MS = 360;
 const SWITCH_DRAG_MOVE_CANCEL_PX = 14;
 const FIGHTER_SLASH_REPEAT_INTERVAL_MS = 620;
 const TABLET_SCROLL_GESTURE_THRESHOLD_PX = 12;
-const SMARTPHONE_REPAIR_STAMINA_COST = 200;
 const MOVEMENT_IDLE_SESSION_ROTATE_MS = 1_500;
 const ITEM_THROW_BASE_DISTANCE_CLIENT = 220;
 const ITEM_THROW_MAX_CHARGE_MS_CLIENT = 3_000;
@@ -270,7 +269,6 @@ const els = {
   movementAccControl: $("#movementAccControl"),
   movementAccToggleButton: $("#movementAccToggleButton"),
   objectiveText: $("#objectiveText"),
-  sabotageAlert: $("#sabotageAlert"),
   ninjutsuButton: $("#ninjutsuButton"),
   shootButton: $("#shootButton"),
   weaponButton: $("#weaponButton"),
@@ -325,9 +323,6 @@ const els = {
   vendingCategoryJumpSelect: $("#vendingCategoryJumpSelect"),
   vendingPageJumpSelect: $("#vendingPageJumpSelect"),
   magicInventory: $("#magicInventory"),
-  sabotageControl: $("#sabotageControl"),
-  sabotageSelect: $("#sabotageSelect"),
-  sabotageButton: $("#sabotageButton"),
   utilityControl: $("#utilityControl"),
   utilitySelect: $("#utilitySelect"),
   utilityButton: $("#utilityButton"),
@@ -494,7 +489,7 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
   "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
-const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"durable-combat-and-bust-v886","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
+const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"sabotage-retired-loot-shop-v887","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
@@ -1240,13 +1235,6 @@ specialLabels.alchemist = "ハッカー";
 specialLabels.quantum = "クオンタム";
 specialLabels.assassin = "アサシン";
 
-const sabotageLabels = {
-  comms: "通信妨害",
-  reactor: "コア異常",
-  oxygen: "大気漏れ",
-  doors: "区画封鎖"
-};
-
 const utilityLabels = {
   admin: "人数情報を見る",
   vitals: "生体情報を見る",
@@ -1372,7 +1360,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "durable-combat-and-bust-v886";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sabotage-retired-loot-shop-v887";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -2052,12 +2040,13 @@ function renderHackerAbilityDock(data = state.data, force = false) {
   }
 }
 
-const soloMissionIds = ["movement", "combat", "defense", "intel", "emp", "cpu-gravity", "cpu-stage2"];
+const soloMissionIds = ["movement", "combat", "defense", "emp", "cpu-gravity", "cpu-stage2"];
+const retiredSoloMissionIds = new Set(["intel"]);
 
 function completedSoloMissions() {
   try {
     const value = JSON.parse(clientStorage.getItem(storage.soloMissions) || "[]");
-    return new Set(Array.isArray(value) ? value.filter((id) => soloMissionIds.includes(id)) : []);
+    return new Set(Array.isArray(value) ? value.filter((id) => soloMissionIds.includes(id) || retiredSoloMissionIds.has(id)) : []);
   } catch {
     return new Set();
   }
@@ -2065,7 +2054,7 @@ function completedSoloMissions() {
 
 function updateSoloProgressUi() {
   const completed = completedSoloMissions();
-  const count = completed.size;
+  const count = soloMissionIds.filter((id) => completed.has(id)).length;
   els.titlePlayButton.disabled = false;
   const playMode = state.onlineAvailable ? "オンライン優先マッチング" : "オフライン自動切替";
   els.titlePlayProgress.textContent = `${playMode} / ソロ訓練 ${count}/${soloMissionIds.length}`;
@@ -3443,7 +3432,6 @@ function drawTacticsMeeting(ctx, w, h, time, duration) {
 
 const actionHotkeys = {
   Digit3: "emergencyButton",
-  Digit4: "smartphoneRepair",
   Digit6: "ninjutsuButton",
   Digit7: "shootButton",
   Digit8: "dodgeButton",
@@ -3489,7 +3477,6 @@ const CHARACTER_ACTION_BY_API = Object.freeze({
   "/api/emergency": "interact",
   "/api/luminous": "cast",
   "/api/vote": "interact",
-  "/api/repair": "interact",
   "/api/utility": "interact",
   "/api/transfer": "interact",
   "/api/emp": "cast",
@@ -3606,10 +3593,7 @@ const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
   "action-weapon-switch": "weapon-switch",
   "action-reason": "attack",
   "action-push": "attack",
-  "action-sabotage": "interact",
-  "action-repair": "interact",
   "action-smartphone": "interact",
-  "action-smartphone-repair": "interact",
   "action-vending": "interact",
   "action-shop-open": "shop",
   "action-mana": "focus",
@@ -5187,10 +5171,6 @@ function triggerActionHotkey(event) {
     if (!event.repeat) toggleClairvoyance();
     return true;
   }
-  if (elementKey === "smartphoneRepair") {
-    if (!event.repeat) void triggerSmartphoneRepair();
-    return true;
-  }
   const enhanceKind = enhanceActionForElement(elementKey);
   if (enhanceKind) {
     if (!event.repeat) beginEnhanceAction(enhanceKind);
@@ -5535,7 +5515,6 @@ function activateGameplaySelect(select) {
     [els.teleportModeSelect, els.teleportButton],
     [els.teleportTargetSelect, els.teleportButton],
     [els.empPhaseSelect, els.empButton],
-    [els.sabotageSelect, els.sabotageButton],
     [els.alchemySelect, els.alchemyButton]
   ]);
   const button = actionBySelect.get(select);
@@ -5619,7 +5598,6 @@ function contextKeyboardElements() {
           : els.endOverlay;
   if (phase === "meeting") {
     return keyboardControlsIn(
-      els.sabotageControl,
       els.meetingPanel,
       els.fieldFeedPanel,
       els.statusPanel,
@@ -6637,13 +6615,6 @@ function triggerScreenHotkey(event) {
       return true;
     }
   }
-  if (state.screen === "game" && state.data?.phase === "playing" && event.code === "KeyL") {
-    event.preventDefault();
-    if (!event.repeat && state.data?.self?.role === "attacker") {
-      beginContinuousButtonKeyHold(event.code, () => els.sabotageButton);
-    }
-    return true;
-  }
   if (state.screen === "game" && state.data?.phase === "selecting" && /^Digit[1-9]$/.test(event.code)) {
     const hotkey = event.code.slice(-1);
     const button = els.operatorList.querySelector(`.operator-card[data-hotkey="${hotkey}"][data-selectable="1"]`);
@@ -6868,14 +6839,6 @@ function commonActionTargetId() {
   const selected = String(els.teleportTargetSelect?.value || "");
   const target = (state.data?.players || []).find((player) => player.id === selected && player.alive && !player.ejected && !player.inVent);
   return target?.id || selfId;
-}
-
-function hideRetiredSabotageControls() {
-  for (const element of [els.sabotageAlert, els.sabotageControl, els.sabotageSelect, els.sabotageButton]) {
-    if (!element) continue;
-    element.hidden = true;
-    if ('disabled' in element) element.disabled = true;
-  }
 }
 
 function commonActionAvailability(data = state.data) {
@@ -7104,7 +7067,6 @@ function bindEvents() {
     els.quantumKineticBranchSelect,
     els.teleportTargetSelect,
     els.empPhaseSelect,
-    els.sabotageSelect,
     els.transferTargetSelect,
     els.weaponButton
   ].forEach(bindSwitchDragControl);
@@ -7545,7 +7507,7 @@ function bindEvents() {
   els.gunnerReloadButton.addEventListener("click", () => api("/api/gunner-reload"));
   els.teleportButton.addEventListener("click", triggerTeleportAction);
   els.empButton.addEventListener("click", () => api("/api/emp", { phase: els.empPhaseSelect.value }));
-  [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect].forEach((select) => {
+  [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect].forEach((select) => {
     select.addEventListener("change", () => {
       if (select === els.teleportModeSelect && !String(select.value || "") && state.selectedShopAbilityId) {
         state.selectedShopAbilityId = "";
@@ -7977,9 +7939,8 @@ function bindEvents() {
       (["KeyB", "KeyS", "KeyM", "KeyT", "KeyY"].includes(event.code) ||
         (event.shiftKey && /^Digit[1-9]$/.test(event.code)));
     const gameplayOptionFocused = state.screen === "game" && state.data?.phase === "playing" &&
-      [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect, els.sabotageSelect, els.alchemySelect].includes(activeElement);
+      [els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect, els.empPhaseSelect, els.alchemySelect].includes(activeElement);
     const panelActionHotkey = (activeElement === els.alchemySelect && event.code === "KeyR") ||
-      (activeElement === els.sabotageSelect && event.code === "KeyL") ||
       ([els.teleportModeSelect, els.rootAbilityBranchSelect, els.quantumKineticBranchSelect, els.teleportTargetSelect].includes(activeElement) && ["KeyP", "KeyO", "Digit0"].includes(event.code)) ||
       (activeElement === els.empPhaseSelect && event.code === "Semicolon");
     const contextSelectionKey = event.key.startsWith("Arrow") || event.key === "Enter" || event.code === "Space";
@@ -8900,7 +8861,6 @@ function renderTabletBranch(data, force = false) {
     els.teleportTargetSelect.value,
     els.alchemySelect.value,
     els.empPhaseSelect.value,
-    els.sabotageSelect.value,
     [...document.querySelectorAll(".tablet-action-source button")].map((button) => [button.id, button.hidden])
   ]);
   if (!force && structuralKey === state.tabletBranchRenderKey) {
@@ -9459,72 +9419,6 @@ function setExpandedMapOpen(open, { focus = true } = {}) {
 
 function minimapCanvasBounds(canvasWidth = els.canvas.width) {
   return { x: canvasWidth - 234, y: 70, width: 220, height: 150 };
-}
-
-function smartphoneRepairCanvasBounds(canvasWidth = els.canvas.width) {
-  const size = 76;
-  return { x: canvasWidth - size - 24, y: 236, width: size, height: size };
-}
-
-function smartphoneRepairState(data = state.data) {
-  const self = data?.self;
-  const liveNow = data ? estimatedServerNow(data) : 0;
-  const active = Boolean(data?.phase === "playing" && (data.sabotage || data.activeDoorIds?.length));
-  const remote = self?.special === "alchemist";
-  const taskRange = Number(data?.map?.taskRange) || 70;
-  const nearRepairStation = Boolean(data?.sabotage && data?.map?.stations?.some((station) => (
-    station.type === "repair" &&
-    station.repair === data.sabotage.type &&
-    Math.hypot(Number(self?.x) - Number(station.x), Number(self?.y) - Number(station.y)) <= taskRange
-  )));
-  const activeDoorIds = new Set(data?.activeDoorIds || []);
-  const nearClosedDoor = Boolean(data?.map?.doors?.some((door) => (
-    activeDoorIds.has(door.id) &&
-    Math.hypot(Number(self?.x) - (Number(door.x) + Number(door.w) / 2), Number(self?.y) - (Number(door.y) + Number(door.h) / 2)) <= taskRange
-  )));
-  const inPhysicalRange = nearRepairStation || nearClosedDoor;
-  const itemBlocked = (Number(self?.itemDisabledUntil) || 0) > liveNow;
-  const actionBlocked = self ? Math.max(
-    Number(self.unconsciousUntil) || 0,
-    Number(self.meditatingUntil) || 0,
-    Number(self.smartphoneUntil) || 0,
-    Number(self.gravityPinnedUntil) || 0,
-    Number(self.ascensionUntil) || 0
-  ) > liveNow : true;
-  const enoughStamina = !remote || Number(self?.stamina || 0) >= SMARTPHONE_REPAIR_STAMINA_COST;
-  return {
-    visible: active && (remote || inPhysicalRange),
-    disabled: !active || (!remote && !inPhysicalRange) || !self?.alive || self.ejected || self.inVent || (remote && itemBlocked) || actionBlocked || !enoughStamina,
-    itemBlocked,
-    enoughStamina,
-    remote,
-    inPhysicalRange
-  };
-}
-
-function pointerHitsSmartphoneRepair(event) {
-  const repair = smartphoneRepairState();
-  if (!repair.visible) return false;
-  const point = canvasPointerPosition(event);
-  if (!point) return false;
-  const bounds = smartphoneRepairCanvasBounds();
-  return point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
-    point.y >= bounds.y && point.y <= bounds.y + bounds.height;
-}
-
-async function triggerSmartphoneRepair() {
-  const repair = smartphoneRepairState();
-  if (!repair.visible) return false;
-  if (repair.remote && repair.itemBlocked) {
-    showToast("EMPでスマホを使用できません。");
-    return false;
-  }
-  if (!repair.enoughStamina) {
-    showToast(`スマホ修理には ${SMARTPHONE_REPAIR_STAMINA_COST}SP が必要です。`);
-    return false;
-  }
-  if (repair.disabled) return false;
-  return api("/api/repair");
 }
 
 function canvasPointerPosition(event) {
@@ -10870,11 +10764,6 @@ async function attackFromCanvas(event) {
     event.preventDefault();
     return;
   }
-  if (pointerHitsSmartphoneRepair(event)) {
-    event.preventDefault();
-    void triggerSmartphoneRepair();
-    return;
-  }
   if (pointerHitsMinimap(event)) {
     event.preventDefault();
     openExpandedMapFromMinimap();
@@ -11482,13 +11371,8 @@ function applyState(data, options = {}) {
     root.setAttribute("data-v550-movement-acc-active", self.movementAccActive ? "true" : "false");
     root.setAttribute("data-v550-root-active", self.hackerRootActive ? "true" : "false");
     root.setAttribute("data-v550-task-done-count", String((self.tasks || []).filter((task) => task.done).length));
-    root.setAttribute("data-v550-sabotage-type", String(data.sabotage?.type || ""));
     root.setAttribute("data-v550-last-event", String((data.events || []).at(-1)?.text || ""));
     root.setAttribute("data-v550-magic-types", (data.magicEffects || []).slice(-12).map((effect) => effect.type).join(","));
-    if (data.sabotage?.type) root.setAttribute("data-v550-sabotage-observed", String(data.sabotage.type));
-    if ((data.magicEffects || []).some((effect) => effect.type === "action-repair" && effect.variant === "proximity")) {
-    root.setAttribute("data-v550-proximity-repair-observed", "true");
-    }
     root.setAttribute("data-v561-auto-mana-next-protection", String(self.manaAutoProtectionNext || "reason"));
     root.setAttribute("data-v561-auto-mana-self-mana", String(self.mana ?? ""));
     root.setAttribute("data-v561-auto-mana-self-grit", String(self.gritCharges ?? ""));
@@ -12088,7 +11972,6 @@ function detectGameSounds(previous, next) {
   }
   if (next.self.dodgeActiveUntil > previous.self.dodgeActiveUntil) playSound("dodge");
   if ((next.self.teleportReadyAt || 0) > (previous.self.teleportReadyAt || 0)) playSound("teleport");
-  if (!previous.sabotage && next.sabotage) playSound("alert");
 }
 
 function detectWorldSounds(previous, next) {
@@ -12461,11 +12344,7 @@ function isClientWalkable(data, x, y, radius) {
     y >= rect.y - seam && y <= rect.y + rect.h + seam
   ));
   if (!inArea) return false;
-  return !data.map.doors.some((door) => (
-    data.activeDoorIds.includes(door.id) &&
-    x >= door.x - 6 && x <= door.x + door.w + 6 &&
-    y >= door.y - 6 && y <= door.y + door.h + 6
-  ));
+  return true;
 }
 
 function isClientMovementAllowed(data, player, x, y, radius) {
@@ -12610,7 +12489,6 @@ function accessibleGameStatusSnapshot(data) {
     movementAccActive,
     credits: Math.max(0, Math.floor(Number(self.credits) || 0)),
     mentalState: String(self.mentalState || "気概"),
-    sabotage: String(data.sabotage?.type || ""),
     immediateAt: Number(self.lastImmediateFeedback?.at) || 0,
     immediateLabel: String(self.lastImmediateFeedback?.label || ""),
     immediateDetail: String(self.lastImmediateFeedback?.detail || "")
@@ -12633,14 +12511,11 @@ function syncAccessibleGameStatus(data) {
     return;
   }
   const phaseLabel = current.phase === "playing" ? "対戦中" : current.phase === "meeting" ? "会議中" : current.phase === "ended" ? "試合終了" : "準備中";
-  const sabotageText = current.sabotage
-    ? `、妨害 ${sabotageLabels[current.sabotage] || current.sabotage} 発生中`
-    : "";
   const summary = `${phaseLabel}。${current.name}、${current.role}、${current.operator}、${current.alive ? "生存" : "戦闘不能"}。` +
     `HP ${formatAccessibleResource(current.health)}/${formatAccessibleResource(current.maxHealth)}、` +
     `SP ${Math.round(current.stamina)}、MP ${formatAccessibleResource(current.mana)}、` +
     `ACC ${current.acceleration.toFixed(2)}${current.movementAccActive ? " 移動固定有効" : ""}、` +
-    `${current.credits}クレジット、心状態 ${current.mentalState}${sabotageText}。`;
+    `${current.credits}クレジット、心状態 ${current.mentalState}。`;
   if (els.canvasStatusSummary.textContent !== summary) els.canvasStatusSummary.textContent = summary;
 
   const previous = state.accessibleGameStatus;
@@ -12653,10 +12528,6 @@ function syncAccessibleGameStatus(data) {
     if (previous.alive && !current.alive) criticalAnnouncements.push("戦闘不能になりました。");
     if (criticalAnnouncements.length) {
       announcement = criticalAnnouncements.join(" ");
-    } else if (previous.sabotage !== current.sabotage) {
-      announcement = current.sabotage
-        ? `${sabotageLabels[current.sabotage] || current.sabotage}が発生しました。`
-        : "妨害が終了しました。";
     } else if (current.health + 0.0001 < previous.health) {
       announcement = `ダメージ。HP ${formatAccessibleResource(current.health)}/${formatAccessibleResource(current.maxHealth)}。`;
     } else if (current.immediateAt > previous.immediateAt && current.immediateLabel) {
@@ -13921,18 +13792,6 @@ function renderStatus(data) {
   renderActiveEffects(data);
   els.objectiveText.textContent = objectiveText(data);
 
-  if (data.sabotage) {
-    const time = data.sabotage.secondsLeft == null ? "" : ` / ${data.sabotage.secondsLeft}秒`;
-    els.sabotageAlert.hidden = false;
-    els.sabotageAlert.textContent = `${sabotageLabels[data.sabotage.type] || data.sabotage.type} 発生中${time}`;
-  } else if (data.activeDoorIds?.length) {
-    els.sabotageAlert.hidden = false;
-    els.sabotageAlert.textContent = `閉鎖ドア: ${data.activeDoorIds.length}`;
-  } else {
-    els.sabotageAlert.hidden = true;
-  }
-
-  els.sabotageControl.hidden = data.phase !== "playing" || self.role !== "attacker";
   els.alchemyControl.hidden = true;
   syncAlchemyInventoryChoices(self);
   renderTargetOptions(data);
@@ -14649,7 +14508,6 @@ function collectOperatorPassiveEffects(self, liveNow, phase = "playing") {
 }
 
 function renderActiveEffects(data) {
-  hideRetiredSabotageControls();
   const self = data.self;
   const liveNow = estimatedServerNow(data);
   const rational = self.mentalState === "理知";
@@ -15926,11 +15784,6 @@ function updateActionButtons(data) {
   els.slowWalkButton.disabled = !(isPlaying && !self.ejected && !self.inVent && !actionBlocked);
   els.emergencyButton.textContent = `スマホ緊急会議 ${self.emergenciesLeft || 0}回`;
   els.emergencyButton.disabled = !(canActAlive && self.emergenciesLeft > 0);
-  // Sabotage is removed. The index/style owner will remove this legacy DOM;
-  // until then it must not expose a usable control or stale explanation.
-  els.sabotageButton.hidden = true;
-  els.sabotageButton.disabled = true;
-  els.sabotageSelect.closest("label")?.setAttribute("hidden", "");
   els.utilityControl.hidden = !(isPlaying && self.alive && !self.ejected && utilityStation);
   if (utilityStation) {
     els.utilitySelect.value = utilityStation.utility;
@@ -17000,9 +16853,7 @@ function draw() {
 
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
   if (pregameCanvas && state.preparationEditingField === "name") positionPreparationNameInput();
-  drawCanvasStage("repair-indicators", () => drawSabotageRepairIndicators(data, camera, w, h, worldZoom));
   drawCanvasStage("hud", () => drawHud(data, w, h));
-  drawCanvasStage("smartphone-repair", () => drawSmartphoneRepairControl(data, w));
   drawCanvasStage("minimap", () => drawMinimap(data, w, h));
   drawCanvasStage("mode-banner", () => drawModeBanner(data, w));
   if (state.expandedMapOpen) drawCanvasStage("expanded-map", () => drawExpandedMap(data));
@@ -17202,14 +17053,6 @@ function drawMap(data, camera, w, h) {
     ctx.globalAlpha = 1;
   });
 
-  data.map.doors
-    .filter((door) => data.activeDoorIds.includes(door.id) && worldRectVisible(door, 50))
-    .forEach((door) => {
-    ctx.fillStyle = "#ef4444";
-    ctx.strokeStyle = "#fecaca";
-    ctx.lineWidth = 2;
-    roundRect(door.x, door.y, door.w, door.h, 3, true, true);
-  });
 }
 
 function mapRoomShadeMask(data, room) {
@@ -18605,9 +18448,6 @@ function drawStations(data) {
     if (station.type === "task") {
       color = activeTask ? "#06d6ff" : "#728295";
       symbol = station.task === "download" ? "DL" : station.task === "upload" ? "UP" : "T";
-    } else if (station.type === "repair") {
-      color = data.sabotage?.type === station.repair ? "#f59e0b" : "#8290a0";
-      symbol = "R";
     } else if (station.type === "utility") {
       color = "#38bdf8";
       symbol = "U";
@@ -18676,7 +18516,7 @@ function drawFacilityEffects(data) {
     const seed = stationIndex * 0.173;
     if (station.type === "task") {
       drawTaskTransferStationEffect(station, activeTaskIds.has(station.id), time, seed);
-    } else if (station.type === "utility" || station.type === "repair") {
+    } else if (station.type === "utility") {
       const active = activeTaskIds.has(station.id);
       const strength = active ? 0.92 : 0.2;
       for (let particleIndex = 0; particleIndex < 3; particleIndex += 1) {
@@ -18705,13 +18545,6 @@ function drawFacilityEffects(data) {
       ctx.stroke();
     }
 
-    if (station.type === "repair" && data.sabotage?.type === station.repair) {
-      ctx.strokeStyle = `rgba(245,158,11,${0.54 + Math.sin(time * 8) * 0.24})`;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(station.x, station.y, 31 + Math.sin(time * 6 + seed) * 4, 0, Math.PI * 2);
-      ctx.stroke();
-    }
   });
 
 
@@ -18867,100 +18700,6 @@ function drawTaskEdgeIndicators(data, camera, w, h, zoom = CAMERA_ZOOM) {
     ctx.shadowBlur = 0;
     ctx.restore();
   });
-}
-
-function drawSabotageRepairIndicators(data, camera, w, h, zoom = CAMERA_ZOOM) {
-  if (data.phase !== "playing") return;
-  const stations = sabotageRepairStations(data);
-  if (!stations.length) return;
-  for (const station of stations) {
-    const sx = (station.x - camera.x) * zoom;
-    const sy = (station.y - camera.y) * zoom;
-    const inside = sx >= 38 && sy >= 92 && sx <= w - 38 && sy <= h - 38;
-    if (inside) continue;
-    const x = clamp(sx, 52, w - 52);
-    const y = clamp(sy, 104, h - 52);
-    const pulse = 1 + Math.sin((state.frameNow || 0) / 110) * 0.12;
-    drawSabotageRepairMarker(ctx, x, y, 64, pulse);
-  }
-}
-
-function drawSmartphoneRepairControl(data, w) {
-  const repair = smartphoneRepairState(data);
-  if (!repair.visible) return;
-  const bounds = smartphoneRepairCanvasBounds(w);
-  const texture = repair.remote
-    ? state.textures.smartphoneRepairIcon || state.textures.sabotageRepairMarker
-    : state.textures.sabotageRepairMarker;
-  const time = (state.frameNow || 0) / 1000;
-  const pulse = 1 + Math.sin(time * Math.PI * 2.4) * 0.035;
-  const size = bounds.width * pulse;
-  const centerX = bounds.x + bounds.width / 2;
-  const centerY = bounds.y + bounds.height / 2;
-  ctx.save();
-  ctx.globalAlpha = repair.disabled ? 0.42 : 0.98;
-  ctx.translate(centerX, centerY);
-  ctx.shadowColor = repair.itemBlocked ? "rgba(239, 68, 68, 0.78)" : "rgba(34, 211, 238, 0.72)";
-  ctx.shadowBlur = repair.disabled ? 5 : 15 + Math.sin(time * 5.2) * 3;
-  if (texture?.complete && texture.naturalWidth) {
-    ctx.drawImage(texture, -size / 2, -size / 2, size, size);
-  } else {
-    ctx.fillStyle = repair.itemBlocked ? "#991b1b" : "#0e7490";
-    ctx.fillRect(-size * 0.32, -size * 0.44, size * 0.64, size * 0.88);
-    ctx.fillStyle = "#ecfeff";
-    ctx.fillRect(-size * 0.19, -size * 0.31, size * 0.38, size * 0.47);
-  }
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = repair.itemBlocked ? "#fecaca" : repair.enoughStamina ? "#ecfeff" : "#fde68a";
-  ctx.font = "900 12px Segoe UI, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText(repair.itemBlocked ? "EMP" : "4", 0, size * 0.38);
-  ctx.restore();
-}
-
-function sabotageRepairStations(data) {
-  if (!data?.map) return [];
-  const targets = [];
-  if (data.sabotage) {
-    const repairedPoints = data.sabotage.repairedPoints || {};
-    targets.push(...data.map.stations.filter((station) => (
-      station.type === "repair" &&
-      station.repair === data.sabotage.type &&
-      !repairedPoints[station.id]
-    )));
-  }
-  const activeDoorIds = new Set(Array.isArray(data.activeDoorIds) ? data.activeDoorIds : []);
-  targets.push(...data.map.doors
-    .filter((door) => activeDoorIds.has(door.id))
-    .map((door) => ({
-      id: `door-repair-${door.id}`,
-      x: door.x + door.w / 2,
-      y: door.y + door.h / 2,
-      repair: "doors"
-    })));
-  return targets;
-}
-
-function drawSabotageRepairMarker(targetCtx, x, y, size, pulse = 1) {
-  const texture = state.textures.sabotageRepairMarker;
-  const drawSize = size * pulse;
-  targetCtx.save();
-  targetCtx.translate(x, y);
-  targetCtx.globalAlpha = 0.94;
-  targetCtx.shadowColor = "rgba(245, 158, 11, 0.72)";
-  targetCtx.shadowBlur = Math.max(5, drawSize * 0.13);
-  if (texture?.complete && texture.naturalWidth) {
-    targetCtx.drawImage(texture, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
-  } else {
-    targetCtx.rotate(Math.PI / 4);
-    targetCtx.fillStyle = "#f59e0b";
-    targetCtx.strokeStyle = "#fff7d6";
-    targetCtx.lineWidth = Math.max(2, drawSize * 0.08);
-    targetCtx.fillRect(-drawSize * 0.32, -drawSize * 0.32, drawSize * 0.64, drawSize * 0.64);
-    targetCtx.strokeRect(-drawSize * 0.32, -drawSize * 0.32, drawSize * 0.64, drawSize * 0.64);
-  }
-  targetCtx.restore();
 }
 
 function drawBodies(data) {
@@ -20375,7 +20114,6 @@ function drawTransferGeneratedEffect(effect, progress, sprite, defaultSize) {
 
 const TACTICAL_SYSTEM_EFFECT_CELLS = {
   "action-smartphone": 1,
-  "action-smartphone-repair": 1,
   "pair-route-violation": 2,
   "action-taser": 4,
   "gravity-accelerate": 5,
@@ -20430,24 +20168,6 @@ function drawPairRouteWarningEffect(effect, progress) {
   ctx.restore(); return true;
 }
 
-function drawSmartphoneRepairCompletionEffect(effect, progress) {
-  const material=state.textures?.repairMaterial, screen=state.textures?.repairScreen, uplink=state.textures?.repairUplink, ring=state.textures?.repairRing;
-  if(effect._repairCompletionReady===undefined) effect._repairCompletionReady=[material,screen,uplink,ring].every(im=>im?.complete&&im.naturalWidth>0);
-  if(!effect._repairCompletionReady)return true;
-  const p=clamp(Number(progress)||0,0,1), ease=v=>objectEffectEase(clamp(v,0,1));
-  const fade=ease(p/.07)*(1-ease((p-.80)/.20));if(fade<=0||ctx.globalAlpha<=0)return true;
-  const size=Math.min(390,Math.max(105,Number(effect.radius)||120)*2.075), height=size*material.naturalHeight/material.naturalWidth;
-  ctx.save();ctx.translate(effect.x,effect.y);ctx.globalCompositeOperation="lighter";
-  const alpha=ctx.globalAlpha;const paintRepairLayer=(im,a)=>{ctx.globalAlpha=alpha*a;ctx.drawImage(im,-size/2,-height/2,size,height)};
-  paintRepairLayer(material,fade);
-  if(!prefersReducedMotion()){
-    paintRepairLayer(screen,ease(p/.08)*(1-ease((p-.15)/.17))*.65);
-    if(p>.14&&p<.62){const t=ease((p-.14)/.48), y=226-158*t;ctx.save();ctx.beginPath();ctx.rect(-size/2,-height/2+(y-25)*height/369,size,50*height/369);ctx.clip();paintRepairLayer(uplink,Math.sin(t*Math.PI)*.95);ctx.restore();}
-    paintRepairLayer(ring,ease((p-.51)/.14)*(1-ease((p-.70)/.26))*.65);
-  }
-  ctx.restore();return true;
-}
-
 function drawGravityTimeMembrane(effect, progress) {
   const mode=effect.type==='gravity-accelerate'?'accelerate':effect.type==='gravity-decelerate'?'decelerate':null;
   if(!mode)return false;
@@ -20482,10 +20202,8 @@ function drawGravityTimeMembrane(effect, progress) {
 
 function drawTacticalSystemsEffect(effect, progress) {
   // Smartphone action events remain authoritative input/character-action
-  // carriers. Their world TE is retired for every variant, including repair;
-  // consume them here so neither the phone/drone source nor the legacy atlas
-  // can reach the renderer.
-  if(effect.type === "action-smartphone" || effect.type === "action-smartphone-repair") return true;
+  // carriers. Their world TE is retired, so the legacy atlas cannot reach the renderer.
+  if(effect.type === "action-smartphone") return true;
   if (effect.type === "pair-route-violation") return drawPairRouteWarningEffect(effect, progress);
   if (effect.type === "action-taser") return drawTaserContactEffect(effect, progress);
   // Time-rate changes retain their head markers and actor motion, not field TE.
@@ -20629,10 +20347,8 @@ const ACTION_EFFECT_CELLS = {
   "action-shoot": 7,
   "action-reason": 7,
   "action-push": 7,
-  "action-sabotage": 7,
-  "action-repair": 8,
-  "action-vent": 9,
-  "action-vending": 10,
+  "action-vent": 8,
+  "action-vending": 9,
   "action-renki": 11,
   "action-mana": 11,
   "action-alchemy": 11,
@@ -20796,7 +20512,6 @@ function drawShopActivationEffect(effect, progress, now) {
   if (!sprite) return false;
   const opening = objectEffectEase(clamp(progress / 0.34, 0, 1));
   const settle = objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
-  const pulse = Math.sin(clamp(progress, 0, 1) * Math.PI);
   const width = 196 * (0.38 + opening * 0.62 - settle * 0.06);
   const height = 128 * (0.82 + opening * 0.18);
 
@@ -20812,16 +20527,6 @@ function drawShopActivationEffect(effect, progress, now) {
     baseAlpha: 0.16,
     opacityBoost: 1.34
   });
-  ctx.strokeStyle = `rgba(104, 255, 239, ${0.5 * pulse * (1 - settle)})`;
-  ctx.lineWidth = 2.2;
-  ctx.lineCap = "round";
-  const eLayerTravel = 18 + opening * 42;
-  ctx.beginPath();
-  ctx.moveTo(effect.x - 7, effect.y - 29);
-  ctx.lineTo(effect.x - eLayerTravel, effect.y - 29);
-  ctx.moveTo(effect.x + 7, effect.y - 29);
-  ctx.lineTo(effect.x + eLayerTravel, effect.y - 29);
-  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -20829,7 +20534,7 @@ function drawShopActivationEffect(effect, progress, now) {
 
 
 const COMMON_ACTION_SIMPLE_GLYPHS = Object.freeze({
-  "action-task": "task", "action-grit": "shield", "action-stand": "shield", "action-dodge": "dodge", "action-rest": "rest", "action-warp": "warp", "action-sabotage": "sabotage", "action-repair": "repair", "action-vent": "vent", "action-vending": "shop", "action-renki": "renki", "action-reason": "reason", "action-push": "push", "action-smartphone": "phone", "action-smartphone-repair": "phone", "action-clairvoyance": "eye", fire: "fire", "hover-sprint-active": "hover", emp: "emp", "emp-charge": "emp", "emp-storage-lock": "emp"
+  "action-task": "task", "action-grit": "shield", "action-stand": "shield", "action-dodge": "dodge", "action-rest": "rest", "action-warp": "warp", "action-vent": "vent", "action-vending": "shop", "action-renki": "renki", "action-reason": "reason", "action-push": "push", "action-smartphone": "phone", "action-clairvoyance": "eye", fire: "fire", "hover-sprint-active": "hover", emp: "emp", "emp-charge": "emp", "emp-storage-lock": "emp"
 });
 
 // The withdrawn "all common actions" category is intentionally not used here.
@@ -20983,7 +20688,6 @@ function drawCommonActionGlyph(kind, size) {
   } else if (kind === "dodge") { [-.22,.27].forEach((o)=>{ctx.beginPath();ctx.moveTo(-half*.58,half*o);ctx.lineTo(0,half*(o-.38));ctx.lineTo(half*.58,half*o);ctx.stroke();});
   } else if (kind === "rest") { ctx.strokeRect(-half*.66,-half*.02,half*1.32,half*.36);ctx.beginPath();ctx.moveTo(-half*.66,-half*.02);ctx.lineTo(-half*.66,-half*.42);ctx.lineTo(-half*.25,-half*.42);ctx.quadraticCurveTo(0,-half*.06,half*.66,-half*.02);ctx.stroke();
   } else if (kind === "warp") { ctx.beginPath();ctx.moveTo(-half*.62,-half*.4);ctx.lineTo(0,-half*.7);ctx.lineTo(half*.62,-half*.4);ctx.lineTo(0,half*.7);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(0,-half*.45);ctx.lineTo(0,half*.35);ctx.stroke();
-  } else if (kind === "sabotage" || kind === "repair") { const d=kind==="sabotage"?-1:1;ctx.beginPath();ctx.moveTo(-half*.62,half*.58*d);ctx.lineTo(half*.42,-half*.46*d);ctx.stroke();ctx.beginPath();ctx.arc(half*.47,-half*.5*d,half*.18,0,Math.PI*2);ctx.stroke();
   } else if (kind === "vent") { [-.38,0,.38].forEach((y)=>{ctx.beginPath();ctx.moveTo(-half*.65,half*y);ctx.lineTo(half*.65,half*y);ctx.stroke();});
   } else if (kind === "shop") { ctx.strokeRect(-half*.62,-half*.06,half*1.24,half*.62);ctx.beginPath();ctx.moveTo(-half*.72,-half*.12);ctx.lineTo(-half*.48,-half*.58);ctx.lineTo(half*.48,-half*.58);ctx.lineTo(half*.72,-half*.12);ctx.closePath();ctx.fill();ctx.stroke();
   } else if (kind === "renki") { [-.36,0,.36].forEach((x)=>{ctx.beginPath();ctx.moveTo(half*x,half*.58);ctx.quadraticCurveTo(half*(x-.18),0,half*x,-half*.58);ctx.stroke();});
@@ -21206,69 +20910,6 @@ function drawNinjutsuFocusEffect(effect, progress, now) {
   ctx.restore();
 }
 
-// Dedicated post-success reconstruction for the ordinary action-repair T (cell 8).
-// Uses the existing prepared sprite only; no mechanics, producer data, or texture loading changes.
-function drawOrdinaryRepairCompletionEffect(effect, progress, now) {
-  // Cell 8's current transparent-corner preparation returns this same image.
-  // Reading it directly avoids repeating that cached helper's first-use probe during rendering.
-  const sprite = state.textures.actionEffectTextures?.[8];
-  // Admission is event-owned: a material missing at its first draw may never
-  // appear midway through this completed action. The next event re-evaluates.
-  if (effect._ordinaryRepairReady === undefined) {
-    effect._ordinaryRepairReady = Boolean(sprite && sprite.complete && sprite.naturalWidth);
-  }
-  if (!effect._ordinaryRepairReady) return true;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  if (p <= 0 || p >= 1) return true;
-  const ease = value => objectEffectEase(clamp(value, 0, 1));
-  const entry = ease(p / 0.075);
-  const allFade = 1 - ease((p - 0.80) / 0.20);
-  if (entry <= 0 || allFade <= 0) return true;
-  const radius = Math.max(80, Number(effect.radius) || 110);
-  const size = radius * 2.18;
-  const half = size / 2;
-  const split = prefersReducedMotion() ? 0 : 6 * (1 - ease(p / 0.38));
-  const baseAlpha = ctx.globalAlpha * entry;
-  const drawMasked = (clip, dx, alpha) => {
-    if (alpha <= 0) return;
-    ctx.save(); ctx.beginPath(); clip(); ctx.clip(); ctx.globalAlpha = baseAlpha * alpha;
-    ctx.drawImage(sprite, -half + dx, -half, size, size); ctx.restore();
-  };
-  ctx.save(); ctx.translate(effect.x, effect.y); ctx.globalCompositeOperation = "lighter";
-  // Two original material halves settle to their registered assembly at p=.38.
-  const outerFade = 1 - ease((p - 0.80) / 0.12);
-  if (prefersReducedMotion()) {
-    ctx.save(); ctx.globalAlpha = baseAlpha * 0.78 * outerFade;
-    ctx.drawImage(sprite, -half, -half, size, size); ctx.restore();
-  } else {
-    drawMasked(() => ctx.rect(-half, -half, half, size), -split, 0.78 * outerFade);
-    drawMasked(() => ctx.rect(0, -half, half, size), split, 0.78 * outerFade);
-    // Endpoint-owned beam light travels inward, using source-aligned strips rather than a new glyph.
-    const inward = ease((p - 0.30) / 0.28), travel = half * 0.622 * (1 - inward);
-    const stripW = Math.max(7, size * 0.075), stripH = Math.max(11, size * 0.070);
-    const beamAlpha = ease((p - 0.30) / 0.10) * (1 - ease((p - 0.58) / 0.14)) * 0.65 * outerFade;
-    // Source centerline is y=625/1254, registered at local y≈0. The image
-    // remains fixed while its narrow source-aligned windows travel to the core.
-    drawMasked(() => ctx.rect(-travel - stripW / 2, -stripH / 2, stripW, stripH), 0, beamAlpha);
-    drawMasked(() => ctx.rect(travel - stripW / 2, -stripH / 2, stripW, stripH), 0, beamAlpha);
-    // Original concentric conductive-track pixels resolve outward through local annular traces.
-    const tracks = [
-      { radius:0.447, halfWidth:0.020, alpha:ease((p - 0.55) / 0.10) * (1 - ease((p - 0.69) / 0.14)) }, // 280px source inner track
-      { radius:0.654, halfWidth:0.027, alpha:ease((p - 0.64) / 0.12) * (1 - ease((p - 0.79) / 0.12)) }  // 410px source outer track
-    ];
-    for (const track of tracks) {
-      const r = half * track.radius, width = half * track.halfWidth;
-      drawMasked(() => { ctx.arc(0, 0, r + width, 0, Math.PI * 2); ctx.arc(0, 0, Math.max(0, r - width), 0, Math.PI * 2, true); }, 0, track.alpha * 0.48 * outerFade);
-    }
-  }
-  // The core is retained last during the ordered exit, without transforming the whole source.
-  if (!prefersReducedMotion()) {
-    const coreTail = 1 - ease((p - 0.90) / 0.10);
-    drawMasked(() => ctx.arc(0, 0, size * 0.105, 0, Math.PI * 2), 0, coreTail * 0.50);
-  }
-  ctx.restore(); return true;
-}
-
 function drawBotAttendanceEffect(effect, progress) {
  const sprite=state.textures.actionEffectTextures?.[0];
  if(effect._botAttendanceReady===undefined) effect._botAttendanceReady=Boolean(sprite?.complete&&sprite?.naturalWidth);
@@ -21330,38 +20971,9 @@ function drawDodgeSourceRelease(effect,progress) {
   }
   ctx.restore();
 }
-const SABOTAGE_SOURCE_NODES=Object.freeze([[627,300,115],[350,827,132],[907,827,132]]);
-function sabotageNodePath(node){ctx.moveTo(node[0]+node[2],node[1]);ctx.arc(node[0],node[1],node[2],0,Math.PI*2);}
-function drawSabotageSourceFault(effect,progress) {
-  const sprite=sourcePhaseRaster(effect,7,'_sabotageSourceReady');if(!sprite)return;
-  const p=clamp(Number(progress)||0,0,1),ease=(start,length)=>objectEffectEase(clamp((p-start)/length,0,1)),entry=ease(0,.065),exit=1-ease(.8,.2);
-  if(entry<=0||exit<=0)return;
-  const size=Math.max(80,Number(effect.radius)||135)*1.8;
-  ctx.save();ctx.translate(Number(effect.x)||0,Number(effect.y)||0);ctx.scale(size/1254,size/1254);ctx.translate(-627,-627);ctx.globalCompositeOperation='lighter';ctx.globalAlpha*=entry*exit;
-  if(prefersReducedMotion()){ctx.drawImage(sprite,0,0);ctx.restore();return;}
-  const fault=[627,630,143],front=143+ease(.045,.35)*484;
-  // A short circuit starts centrally and propagates along the original wire.
-  ctx.save();ctx.beginPath();sabotageNodePath(fault);ctx.clip();ctx.globalAlpha*=1-.4*ease(.2,.4);ctx.drawImage(sprite,0,0);ctx.restore();
-  ctx.save();ctx.beginPath();ctx.rect(627-front,498,front*2,233);ctx.clip();ctx.beginPath();ctx.rect(0,0,1254,1254);sabotageNodePath(fault);ctx.clip('evenodd');ctx.drawImage(sprite,0,0);
-  ctx.beginPath();ctx.rect(627-front,498,76,233);ctx.rect(627+front-76,498,76,233);ctx.clip();ctx.globalAlpha*=.6*(1-ease(.45,.15));ctx.drawImage(sprite,0,0);ctx.restore();
-  // The broken ring becomes active after propagation. Sequential clips avoid
-  // XOR overlap holes between the central wire strip and warning-node masks.
-  ctx.save();ctx.beginPath();ctx.rect(0,0,1254,1254);ctx.rect(0,498,1254,233);ctx.clip('evenodd');
-  for(const node of SABOTAGE_SOURCE_NODES){ctx.beginPath();ctx.rect(0,0,1254,1254);sabotageNodePath(node);ctx.clip('evenodd');}
-  ctx.globalAlpha*=ease(.23,.23);ctx.drawImage(sprite,0,0);ctx.restore();
-  const order=({comms:[0,1,2],reactor:[2,0,1],oxygen:[1,2,0],doors:[1,0,2]})[String(effect.variant)]||[0,1,2];
-  for(let i=0;i<3;i++){
-    const node=SABOTAGE_SOURCE_NODES[order[i]],activation=ease(.22+i*.11,.12),settle=1-.23*ease(.44+i*.08,.16);
-    if(!activation)continue;ctx.save();ctx.beginPath();sabotageNodePath(node);ctx.clip();ctx.globalAlpha*=activation*settle;ctx.drawImage(sprite,0,0);ctx.globalAlpha*=.5*(1-ease(.39+i*.1,.12));ctx.drawImage(sprite,0,0);ctx.restore();
-  }
-  ctx.restore();
-}
-
 function drawActionEffect(effect, progress, now) {
   if(effect.type === "action-dodge") { drawDodgeSourceRelease(effect,progress); return; }
-  if(effect.type === "action-sabotage") { drawSabotageSourceFault(effect,progress); return; }
   if(effect.type === "action-task" && effect.variant === "attendance" && !effect.mode){drawBotAttendanceEffect(effect,progress);return;}
-  if (effect.type === "action-repair") { drawOrdinaryRepairCompletionEffect(effect, progress, now); return; }
   if (effect.type === "action-stand" || effect.type === "action-grit") { drawFreshBarrierEvent(effect, progress); return; }
   if (effect.type === "action-task" && drawTaskDigitalCompletionEffect(effect, progress)) return;
   if (effect.type === "action-ninjutsu-focus") { drawNinjutsuFocusEffect(effect, progress, now); return; }
@@ -26358,7 +25970,7 @@ function drawLegacyWorldKillResidual(effect, camera, zoom = CAMERA_ZOOM) {
   const duration = Number(effect.duration);
   const inheritedAlpha = ctx.globalAlpha;
   if (!(duration > 0) || age <= 0 || age >= duration || inheritedAlpha <= 0) return;
-  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "durable-combat-and-bust-v886", 12);
+  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "sabotage-retired-loot-shop-v887", 12);
   if (!sprite?.width || !sprite?.height) return;
   const progress = age / duration;
   const reduced = prefersReducedMotion();
@@ -26810,10 +26422,6 @@ function drawMinimap(data, w, h) {
       ctx.fill();
     }
   });
-  if (data.phase === "playing" && sabotageRepairStations(data).length) {
-    const pulse = 1 + Math.sin((state.frameNow || performance.now()) / 130) * 0.12;
-    sabotageRepairStations(data).forEach((station) => drawSabotageRepairMarker(ctx, station.x, station.y, 250, pulse));
-  }
   ctx.fillStyle = "#ef4444";
   data.bodies.forEach((body) => ctx.fillRect(body.x - 12, body.y - 12, 24, 24));
   state.worldSoundEffects.forEach((effect) => {
@@ -26914,11 +26522,6 @@ function drawExpandedMap(data) {
     mapCtx.fillText(room.label, room.x + room.w / 2, room.y + room.h / 2);
   });
 
-  mapCtx.fillStyle = "#ef4444";
-  map.doors.filter((door) => data.activeDoorIds.includes(door.id)).forEach((door) => {
-    mapCtx.fillRect(door.x, door.y, door.w, door.h);
-  });
-
   mapCtx.fillStyle = "#12a594";
   (data.self.tasks || []).filter((task) => !task.done).forEach((task) => {
     const station = map.stations.find((item) => item.id === task.stationId);
@@ -26927,11 +26530,6 @@ function drawExpandedMap(data) {
     mapCtx.arc(station.x, station.y, 34, 0, Math.PI * 2);
     mapCtx.fill();
   });
-
-  if (data.phase === "playing" && sabotageRepairStations(data).length) {
-    const pulse = 1 + Math.sin((state.frameNow || performance.now()) / 130) * 0.12;
-    sabotageRepairStations(data).forEach((station) => drawSabotageRepairMarker(mapCtx, station.x, station.y, 250, pulse));
-  }
 
 
   mapCtx.fillStyle = "#a31625";
@@ -27043,7 +26641,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "durable-combat-and-bust-v886";
+const version = "sabotage-retired-loot-shop-v887";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -27087,7 +26685,6 @@ const version = "durable-combat-and-bust-v886";
     "assets/generated/action-effect-warp-v311.png",
     "assets/generated/action-effect-aim-v311.png",
     "assets/generated/action-effect-sabotage-v311.png",
-    "assets/generated/action-effect-repair-v311.png",
     "assets/generated/action-effect-vent-v311.png",
     "assets/generated/action-effect-vending-v311.png"
   ]);
@@ -27198,10 +26795,6 @@ const version = "durable-combat-and-bust-v886";
   const gravityaccelerateMaterial = new Image(), gravityaccelerateCaustics = new Image();
   const gravitydecelerateMaterial = new Image(), gravitydecelerateCaustics = new Image();
   const authoredHandgunFire = Object.fromEntries(Object.entries(AUTHORED_HANDGUN_FIRE_PROFILES).map(([identity,dirs])=>[identity,Object.fromEntries(Object.entries(dirs).map(([dir,p])=>{const image=new Image();defer(image,p.assetPath);return [dir,image]}))]));
-  const repairMaterial = new Image();
-  const repairScreen = new Image();
-  const repairUplink = new Image();
-  const repairRing = new Image();
   const pairWarningMaterial = new Image();
   const pairWarningFlow = new Image();
   const taserContactMaterial = new Image();
@@ -27282,8 +26875,6 @@ const version = "durable-combat-and-bust-v886";
   const transferInEffect = new Image();
   const mysteryBox = new Image();
   const mysteryBoxMaterial = new Image();
-  const sabotageRepairMarker = new Image();
-  const smartphoneRepairIcon = new Image();
   const throwLandingPreview = new Image();
   const clairvoyanceThrowAte = new Image();
   const aromaScentTransport = new Image();
@@ -27439,10 +27030,6 @@ const version = "durable-combat-and-bust-v886";
   defer(gravityaccelerateCaustics, "assets/generated/accelerate-time-caustics-v841.png");
   defer(gravitydecelerateMaterial, "assets/generated/decelerate-time-membrane-v841.png");
   defer(gravitydecelerateCaustics, "assets/generated/decelerate-time-caustics-v841.png");
-  defer(repairMaterial, "assets/generated/smartphone-remote-repair-material-20260915.png");
-  defer(repairScreen, "assets/generated/smartphone-remote-repair-screen-20260915.png");
-  defer(repairUplink, "assets/generated/smartphone-remote-repair-uplink-20260915.png");
-  defer(repairRing, "assets/generated/smartphone-remote-repair-ring-20260915.png");
   defer(pairWarningMaterial, "assets/generated/pair-warning-material-20260915.png");
   defer(pairWarningFlow, "assets/generated/pair-warning-flow-20260915.png");
   defer(taserContactMaterial, "assets/generated/taser-contact-material-20260915.png");
@@ -27502,8 +27089,6 @@ const version = "durable-combat-and-bust-v886";
   defer(transferInEffect, "assets/generated/effect-transfer-in.webp");
   defer(mysteryBox, "assets/generated/mystery-box-christmas-v650.png");
   defer(mysteryBoxMaterial, "assets/generated/mystery-box-registered-material-v848.png");
-  defer(sabotageRepairMarker, "assets/generated/sabotage-repair-map-marker.webp");
-  defer(smartphoneRepairIcon, "assets/generated/smartphone-sabotage-repair-v374.png");
   defer(throwLandingPreview, "assets/generated/throw-landing-preview-v384.png");
   defer(clairvoyanceThrowAte, "assets/generated/clairvoyance-throw-ate-v412.png");
   defer(naturalRecoveryEffect, "assets/generated/natural-recovery-ate-v510.png");
@@ -27631,10 +27216,6 @@ const version = "durable-combat-and-bust-v886";
     authoredPhiliaRemainingFire,
     authoredSophiaSmgFire,
     authoredSophiaRemainingFire,
-    repairMaterial,
-    repairScreen,
-    repairUplink,
-    repairRing,
     pairWarningMaterial,
     pairWarningFlow,
     taserContactMaterial,
@@ -27702,8 +27283,6 @@ const version = "durable-combat-and-bust-v886";
     transferInEffect,
     mysteryBox,
     mysteryBoxMaterial,
-    sabotageRepairMarker,
-    smartphoneRepairIcon,
     throwLandingPreview,
     clairvoyanceThrowAte,
     aromaScentTransport,
@@ -28348,7 +27927,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=durable-combat-and-bust-v886", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=sabotage-retired-loot-shop-v887", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

@@ -2835,12 +2835,6 @@ body.tablet-mode-active .field-lower-row .mobile-pad {
   white-space: nowrap;
 }
 
-.field-lower-row .field-sabotage-alert {
-  margin: 0;
-  padding: 6px 10px;
-  white-space: nowrap;
-}
-
 .action-command-registry,
 .action-command-registry[hidden],
 .field-action-bar,
@@ -5075,16 +5069,6 @@ body .offline-team-choice button[data-offline-team] {
   font-size: 11px;
 }
 
-.sabotage-alert {
-  border: 1px solid rgba(245, 158, 11, 0.42);
-  border-radius: 8px;
-  background: rgba(245, 158, 11, 0.12);
-  color: #fde68a;
-  padding: 9px 10px;
-  font-size: 13px;
-  font-weight: 800;
-}
-
 .inline-control {
   margin-top: 8px;
 }
@@ -7102,8 +7086,7 @@ body .field-action-bar > .operator-target-button {
   background-size: 100% 100%, 100% 100%, 174% 146%;
 }
 
-body .field-action-bar > .context-action-button,
-#sabotageButton {
+body .field-action-bar > .context-action-button {
   border-color: rgba(251, 191, 36, 0.72);
   background-image:
     linear-gradient(105deg, rgba(69, 24, 12, 0.5), rgba(7, 16, 22, 0.7)),
@@ -7114,10 +7097,6 @@ body .field-action-bar > .context-action-button,
 
 body .field-action-bar > .context-action-button[data-context="report"] {
   border-color: rgba(251, 113, 133, 0.82);
-}
-
-body .field-action-bar > .context-action-button[data-context="repair"] {
-  border-color: rgba(45, 212, 191, 0.78);
 }
 
 body .field-action-bar > .context-action-button[data-context="vent"],
@@ -7357,8 +7336,7 @@ body .field-action-bar > .operator-target-button {
     url("assets/generated/ui-ability-command-surface.webp?v=pop-bright-v152");
 }
 
-body .field-action-bar > .context-action-button,
-#sabotageButton {
+body .field-action-bar > .context-action-button {
   border-color: rgba(245, 144, 62, 0.74);
   color: #71331d;
   background-image:
@@ -8122,8 +8100,7 @@ body .field-action-bar > .operator-target-button {
   background-image: linear-gradient(180deg, #fbfeff, #deedf2) !important;
 }
 
-body .field-action-bar > .context-action-button,
-body #sabotageButton {
+body .field-action-bar > .context-action-button {
   border-color: #c78342;
   color: #683c1f;
   background-image: linear-gradient(180deg, #fffdf8, #f4e5d5) !important;

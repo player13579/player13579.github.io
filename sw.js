@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "durable-combat-and-bust-v886";
-const CACHE_NAME = "dva-static-v886-durable-combat-and-bust";
+const RUNTIME_RELEASE = "sabotage-retired-loot-shop-v887";
+const CACHE_NAME = "dva-static-v887-sabotage-retired-loot-shop";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/bust-charge-v886.png",
@@ -122,10 +122,6 @@ const STATIC_ASSETS = [
   "/assets/generated/sophia-sniper-reload-back-candidate.png",
   "/assets/generated/sophia-sniper-reload-left-candidate.png",
   "/assets/generated/sophia-sniper-reload-right-candidate.png",
-  "/assets/generated/smartphone-remote-repair-material-20260915.png",
-  "/assets/generated/smartphone-remote-repair-screen-20260915.png",
-  "/assets/generated/smartphone-remote-repair-uplink-20260915.png",
-  "/assets/generated/smartphone-remote-repair-ring-20260915.png",
   "/assets/generated/sophia-left-dash-ten.png",
   "/assets/generated/sophia-right-dash-ten.png",
   "/assets/generated/philia-taser-reload-front-v857-candidate.png",
@@ -358,8 +354,6 @@ const STATIC_ASSETS = [
   "/assets/generated/fighter-shockwave-ate-v393.png",
   "/assets/generated/white-hood-kill-cutin-v404.png",
   "/assets/generated/luminous-meeting-effect-v311.png",
-  "/assets/generated/sabotage-repair-map-marker.webp",
-  "/assets/generated/smartphone-sabotage-repair-v374.png",
   "/assets/generated/fighter-slash-effect.webp",
   "/assets/generated/effect-transfer-out.webp",
   "/assets/generated/effect-transfer-in.webp",
@@ -447,7 +441,6 @@ const STATIC_ASSETS = [
   "/assets/generated/action-effect-drone-v311.png",
   "/assets/generated/action-effect-aim-v311.png",
   "/assets/generated/action-effect-sabotage-v311.png",
-  "/assets/generated/action-effect-repair-v311.png",
   "/assets/generated/action-effect-vent-v311.png",
   "/assets/generated/action-effect-vending-v311.png",
   "/assets/generated/philosophy-effect-renki-v311.png",
