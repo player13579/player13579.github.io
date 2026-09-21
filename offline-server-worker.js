@@ -7352,7 +7352,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "economy-te-ui-repair-v883",
+    version: "bot-counter-and-ability-repair-v884",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7374,7 +7374,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "economy-te-ui-repair-v883";
+const PRODUCT_RELEASE = "bot-counter-and-ability-repair-v884";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -10595,6 +10595,16 @@ function startGame(room) {
     player.overhealSpeedUntil = 0;
     player.floraInvisibleUntil = 0;
     player.floraMode = "heal";
+    // Ability entitlements and grant presentation belong to this match only.
+    player.shopAbilityEntitlements = [];
+    player.shopAbilityPurchaseTransactions = [];
+    player.lastShopPurchaseAbilityId = "";
+    player.lastShopPurchaseSpent = 0;
+    player.lastShopPurchaseAt = 0;
+    player.lastMysteryBoxReward = "";
+    player.lastMysteryBoxRewardAt = 0;
+    player.lastMysteryReveal = null;
+    delete player.shopAbilityExecutionOperator;
     player.lastMysteryResult = "";
     player.lastMysteryResultAt = 0;
     player.movementMode = "idle";
@@ -12086,7 +12096,8 @@ function spendMana(room, player, amount, label) {
   const cost = Math.max(0, Number(amount) || 0);
   if (player?.abilityBatchExecution?.suppressManaCost) return false;
   if (hasFighterInfiniteResources(player)) return false;
-  if (isHackerOperator(player)) return false;
+  // EC retains its native Hacker passive exception; acquired/borrowed spells pay normally.
+  if (isHackerOperator(player) && label === "EC") return false;
   if ((Number(player.mana) || 0) < cost) {
     throw new ApiError(400, `${label}（${cost}MP）を発動するには同量のMPが必要です。`);
   }
@@ -12096,7 +12107,6 @@ function spendMana(room, player, amount, label) {
 function spendOperatorMana(room, player, label, amount = ABILITY_MANA_COST) {
   const timestamp = now();
   if (player?.abilityBatchExecution?.suppressManaCost) return false;
-  if (isHackerOperator(player) && hackerRootEligible(player)) return false;
   if (isRational(player) && (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp) {
     player.rationalFreeAbilityReadyAt = timestamp + RATIONAL_FREE_ABILITY_INTERVAL_MS;
     pushMagicEffect(room, "action-rational-free", player, { radius: 145, playerId: player.id });
@@ -12128,7 +12138,6 @@ function spendQuantumElectricResources(room, player) {
 function canSpendOperatorMana(player, timestamp = now(), amount = ABILITY_MANA_COST) {
   const cost = Math.max(0, Number(amount) || 0);
   if (hasFighterInfiniteResources(player)) return true;
-  if (isHackerOperator(player) && hackerRootEligible(player)) return true;
   const rationalFree = isRational(player) &&
     (Number(player.rationalFreeAbilityReadyAt) || Infinity) <= timestamp;
   return rationalFree || (Number(player.mana) || 0) >= cost;
@@ -13655,7 +13664,8 @@ function requireExactKillCameraActionLabel(value, context = "death") {
 }
 
 const BOT_WITNESS_EVIDENCE_LABELS = Object.freeze({
-  "visible-hostile-kill": "目の前で対象の敵対的なキルを視認",
+  "visible-hostile-kill": "目の前または千里眼の視点で対象のキルを視認",
+  "observed-kill-burst-exceeds-attacker-count": "同時に視認した犠牲者数が公開された攻撃陣営人数を超過",
   "visual-poison-throw-death": "投擲動作・毒物の着地・毒表示中の被害者・死亡瞬間を連続して視認",
   "visible-attack-motion-body-chain": "直接見た攻撃動作と近傍で直接発見した死体の時空間連鎖"
 });
@@ -13712,6 +13722,12 @@ function rememberBotKillDecision(room, bot, target, options = {}, timestamp = no
 
 function botKillCameraDecision(room, source, target, details = {}, timestamp = now()) {
   if (!source?.isBot || !target) return null;
+  // Only the dynamic extent of the actual counter action owns this evidence.
+  // A later unrelated kill must never inherit a stale special counter label.
+  const immediateCounter = source.botImmediateNinjutsuCounter;
+  if (immediateCounter?.targetId === target.id) {
+    return { code: "visible-ninjutsu-self-defense-counter", logic: immediateCounter.logic, evidence: [...immediateCounter.evidence] };
+  }
   const trace = source.botKillDecision;
   if (
     trace &&
@@ -13861,8 +13877,7 @@ function botMatchHumanOwnsVictory(room, winner, cause = null) {
 }
 
 function botIsEnemyOfSoleHuman(room, bot) {
-  const human = soleHumanBotMatchPlayer(room);
-  return !human || bot?.role !== human.role;
+  return Boolean(bot?.isBot && !botSharesTeamWithHuman(room, bot));
 }
 
 function botSharesTeamWithHuman(room, bot) {
@@ -15709,6 +15724,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
   }
   recordBotMatchElimination(room, target, source);
   clearFloraInvisible(room, target, "EMPキルで解除");
+  const botKillWitnesses = captureBotKillWitnesses(room, source, target, timestamp);
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
@@ -15741,7 +15757,7 @@ function eliminateLimitBreakerWithEmp(room, source, target, timestamp) {
     at: timestamp,
     empDefeat: true
   });
-  recordBotKillWitnesses(room, source, target, timestamp);
+  recordBotKillWitnesses(room, source, target, timestamp, botKillWitnesses);
   applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} でリミットブレイク反応消失`);
   return true;
@@ -16314,6 +16330,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
   clearFloraInvisible(room, target, "EMPキルで解除");
+  const botKillWitnesses = captureBotKillWitnesses(room, source, target, timestamp);
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
@@ -16348,7 +16365,7 @@ function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP�
     at: timestamp,
     empDefeat: true
   });
-  recordBotKillWitnesses(room, source, target, timestamp);
+  recordBotKillWitnesses(room, source, target, timestamp, botKillWitnesses);
   applyDefenderFriendlyFirePenalty(room, source, target, timestamp);
   pushDoorLog(room, `${whichRoom(getMap(room), target)} で${reason}による反応消失`);
   return true;
@@ -17568,9 +17585,9 @@ function botKnownAttackerEvidence(room, bot, timestamp = now()) {
   // Hidden role/faction, status source, thrown owner, corpse killer and internal
   // death reason are forbidden inputs here.
   const witnessed = room.players.get(String(bot?.botWitnessTargetId || ""));
-  if (botCanAttackTarget(room, bot, witnessed, timestamp) && Number(bot.botWitnessUntil) > timestamp) return witnessed;
+  if (botDefenderScoutCandidate(bot, witnessed, timestamp) && Number(bot.botWitnessUntil) > timestamp) return witnessed;
   const retaliatingAgainst = room.players.get(String(bot?.botRetaliationTargetId || ""));
-  if (botCanAttackTarget(room, bot, retaliatingAgainst, timestamp) && Number(bot.botRetaliationUntil) > timestamp) {
+  if (botDefenderScoutCandidate(bot, retaliatingAgainst, timestamp) && Number(bot.botRetaliationUntil) > timestamp) {
     return retaliatingAgainst;
   }
   return null;
@@ -19594,6 +19611,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, source);
   clearFloraInvisible(room, target, "戦闘不能で解除");
+  const botKillWitnesses = captureBotKillWitnesses(room, source, target, timestamp);
   target.alive = false;
   recordKillCamera(room, target, source, {
     timestamp,
@@ -19625,7 +19643,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
       noKillCutin: Boolean(options.noKillCutin)
     });
   }
-  recordBotKillWitnesses(room, source, target, timestamp);
+  recordBotKillWitnesses(room, source, target, timestamp, botKillWitnesses);
   pushEvent(room, options.noBody
     ? `${target.name} は${reason}でキルされ、死体は残りませんでした。`
     : `${target.name} は${reason}でキルされ、死体が残りました。`);
@@ -19851,6 +19869,74 @@ function validateAttackStart(room, killer, targetId, options = {}) {
   return { target, timestamp };
 }
 
+const NINJUTSU_IMMEDIATE_COUNTER_CODES = new Set([
+  "gravity-heart-transfer", "gravity-decelerate", "gravity-storm",
+  "flora-sunbeam", "fighter-slash",
+  "hacker-hp-delete", "hacker-items-delete", "hacker-mana-delete",
+  "root-borrowed-gravity-heart-transfer", "root-borrowed-gravity-decelerate",
+  "root-borrowed-gravity-storm", "root-borrowed-flora-sunbeam",
+  "root-borrowed-fighter-slash", "invention-excalibur", "invention-railgun",
+  "invention-particle-cannon", "throw-orichalcum-sword", "throw-molotov",
+  "throw-heated-water", "throw-ice", "gunner-shoot", "ninjutsu"
+]);
+
+const handledNinjutsuCounterEffects = new WeakSet();
+
+function botCanObserveNinjutsuFocusEffect(room, bot, attacker, timestamp = now(), eventId = "") {
+  // Invisible Ninjutsu cannot be inferred from internal effect payloads.
+  return Boolean(bot?.isBot && bot.alive && !bot.ejected && !bot.inVent &&
+    attacker?.alive && !floraInvisibleActive(attacker, timestamp) &&
+    distance(bot, attacker) <= BOT_BODY_NOTICE_RANGE && eventId &&
+    room.magicEffects.some(effect => effect.id === eventId && effect.type === "action-ninjutsu-focus" &&
+      effect.playerId === attacker.id && effect.targetId === bot.id));
+}
+
+function immediateNinjutsuCounterDecision(bot, attacker, code, timestamp) {
+  return {
+    targetId: attacker.id,
+    at: timestamp,
+    code,
+    evidence: ["自分へ向けられた忍殺TEを近距離で視認"],
+    logic: `観測証拠: 自分へ向けられた忍殺TEを近距離で視認。判断: 忍殺の4秒後の成否を待たず、所持・射程・資源・クールダウン・行動可否を満たす反撃手段を即時に選択。選択: ${code}`
+  };
+}
+
+function runImmediateNinjutsuCounter(room, attacker, target, timestamp, eventId = "") {
+  const event = room.magicEffects.find(effect => effect.id === eventId);
+  if (!target?.isBot || !event || handledNinjutsuCounterEffects.has(event)) return false;
+  // Close every start event now, including invisible, blocked and nested casts.
+  // Neither visibility changes nor a replay may turn an old start into a counter.
+  handledNinjutsuCounterEffects.add(event);
+  if (Number(room.ninjutsuCounterDepth) > 0 ||
+      !botCanObserveNinjutsuFocusEffect(room, target, attacker, timestamp, eventId) ||
+      !botCanAttackTarget(room, target, attacker, timestamp)) return false;
+  room.ninjutsuCounterDepth = (Number(room.ninjutsuCounterDepth) || 0) + 1;
+  try {
+    for (const candidate of botCombatCandidates(room, target, attacker, timestamp)) {
+      if (!NINJUTSU_IMMEDIATE_COUNTER_CODES.has(candidate.code)) continue;
+      const decision = immediateNinjutsuCounterDecision(target, attacker, candidate.code, timestamp);
+      const previousTrace = target.botKillDecision;
+      target.botImmediateNinjutsuCounter = decision;
+      rememberBotKillDecision(room, target, attacker, {
+        code: "visible-ninjutsu-self-defense-counter", actionLabel: "忍殺に対する反撃",
+        evidence: decision.evidence, reasons: ["忍殺の完了を待たず所持する合法な攻撃手段で反撃"]
+      }, timestamp);
+      try {
+        if (candidate.run() !== false) return true;
+      } catch {
+        // Candidate legality can change inside an authoritative action. Other
+        // candidates still go through their own ordinary authority checks.
+      } finally {
+        target.botImmediateNinjutsuCounter = null;
+      }
+      target.botKillDecision = previousTrace;
+    }
+  } finally {
+    room.ninjutsuCounterDepth = Math.max(0, (Number(room.ninjutsuCounterDepth) || 1) - 1);
+  }
+  return false;
+}
+
 function startNinjutsu(room, player, targetId) {
   const openingReadyAt = Number(player.ninjutsuOpeningKillReadyAt) || 0;
   const openingReady = !player.isBot && openingReadyAt > now() && Number(player.killReadyAt) === openingReadyAt;
@@ -19871,7 +19957,14 @@ function startNinjutsu(room, player, targetId) {
   player.aimTargetObservedAt = timestamp;
   player.aimTargetRelocationRevision = Math.max(0, Number(target.relocationRevision) || 0);
   player.aimTargetFastMovementAt = 0;
+  const previousMagicEffectId = room.magicEffects.at(-1)?.id;
   pushMagicEffect(room, "action-ninjutsu-focus", player, { radius: 115, playerId: player.id, targetId: target.id });
+  const ninjutsuFocusEventId = String(room.magicEffects.at(-1)?.id || "");
+  // Run in the same authoritative start transaction as the TE producer. A
+  // nested counter Ninjutsu is depth-guarded, so one TE cannot recurse.
+  if (ninjutsuFocusEventId && ninjutsuFocusEventId !== previousMagicEffectId) {
+    runImmediateNinjutsuCounter(room, player, target, timestamp, ninjutsuFocusEventId);
+  }
   touch(room);
 }
 
@@ -20279,6 +20372,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   recordBotVisiblePoisonDeathInference(room, target, timestamp);
   recordBotMatchElimination(room, target, killer);
   clearFloraInvisible(room, target, "戦闘不能で解除");
+  const botKillWitnesses = captureBotKillWitnesses(room, killer, target, timestamp);
   target.alive = false;
   recordKillCamera(room, target, killer, {
     timestamp,
@@ -20315,7 +20409,7 @@ function killPlayer(room, killer, targetId, options = {}) {
       at: timestamp
     });
   }
-  recordBotKillWitnesses(room, killer, target, timestamp);
+  recordBotKillWitnesses(room, killer, target, timestamp, botKillWitnesses);
   if (!options.deferFriendlyFire) applyDefenderFriendlyFirePenalty(room, killer, target, timestamp);
 
   if (!ranged && !ignoreCooldown && !preserveCooldown) {
@@ -20391,19 +20485,22 @@ function resolveVectorAttackPath(room, origin, rawDx, rawDy, rawRange, options =
   };
 }
 
-function recordBotKillWitnesses(room, killer, target, timestamp = now()) {
+function recordBotKillWitnesses(room, killer, target, timestamp = now(), observedWitnessIds = null) {
   for (const witness of room.players.values()) {
     if (!witness.isBot || !witness.alive || witness.ejected || witness.inVent || witness.id === target.id) continue;
     if (witness.role !== "defender") continue;
-    if (!botCanDirectlyObservePosition(room, witness, killer, BOT_KILL_WITNESS_RANGE)) continue;
-    if (floraInvisibleActive(killer, timestamp)) continue;
-    if (!botCanDirectlyObservePosition(room, witness, target, BOT_KILL_WITNESS_RANGE)) continue;
+    const observed = observedWitnessIds instanceof Set
+      ? observedWitnessIds.has(witness.id)
+      : botCanObserveKill(room, witness, killer, target, timestamp);
+    if (witness.id === killer?.id || !observed) continue;
     witness.botWitnessTargetId = killer.id;
     witness.botWitnessUntil = timestamp + BOT_STAND_FIRM_RETALIATION_MS;
     witness.botWitnessEvidenceKind = "visible-hostile-kill";
+    rememberBotObservedKill(room, witness, killer, target, timestamp);
     witness.navPath = [];
     witness.nextBotActionAt = Math.min(Number(witness.nextBotActionAt) || timestamp, timestamp);
-    if (botCanCommitLuminous(room, witness, killer.id, timestamp)) {
+    if (witness.botWitnessEvidenceKind !== "observed-kill-burst-exceeds-attacker-count" &&
+        Number(witness.mana) >= HEART_TELEPORT_MANA_COST && botCanCommitLuminous(room, witness, killer.id, timestamp)) {
       try {
         callEmergency(room, witness, killer.id, "witness");
       } catch {}
@@ -25118,6 +25215,7 @@ function heardMovementWaypoint(room, bot, timestamp = now()) {
 }
 
 function botHasHumanOpponent(room, bot) {
+  if (botSharesTeamWithHuman(room, bot)) return false;
   if (botOpposesLivingHuman(room, bot)) return true;
   // In a sole-human Bot match, death/ejection turns that human into a spectator;
   // it must not silently downgrade the opposing Bots while their match continues.
@@ -25156,12 +25254,13 @@ function clearBotClairvoyanceContact(bot) {
   bot.botClairvoyanceTargetId = "";
   bot.botClairvoyanceTargetX = 0;
   bot.botClairvoyanceTargetY = 0;
+  bot.botClairvoyanceKillWitnessSnapshot = null;
 }
 
 function botClairvoyanceContact(room, bot, timestamp = now()) {
   const hadTarget = Boolean(bot?.botClairvoyanceTargetId);
   const target = room.players.get(String(bot?.botClairvoyanceTargetId || ""));
-  if (!botCanAttackTarget(room, bot, target, timestamp)) {
+  if (!(bot.role === "defender" ? botDefenderScoutCandidate(bot, target, timestamp) : botCanAttackTarget(room, bot, target, timestamp))) {
     clearBotClairvoyanceContact(bot);
     if (hadTarget && bot?.role === "attacker") {
       const scheduled = Number(bot.nextBotClairvoyanceAt) || Infinity;
@@ -25217,13 +25316,14 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
   if (remembered) return remembered;
   if (Number(bot.nextBotClairvoyanceAt) > timestamp) return null;
 
-  const minimumMana = CLAIRVOYANCE_MANA_DRAIN_PER_SECOND * BOT_CLAIRVOYANCE_DURATION_MS / 1000;
+  const minimumMana = CLAIRVOYANCE_MANA_DRAIN_PER_SECOND * BOT_CLAIRVOYANCE_DURATION_MS / 1000 +
+    (bot.role === "defender" ? HEART_TELEPORT_MANA_COST : 0);
   if (Number(bot.mana) + 1e-9 < minimumMana) {
     bot.nextBotClairvoyanceAt = timestamp + 3000;
     return null;
   }
   const observableCandidates = [...room.players.values()].filter((target) => (
-    botCanAttackTarget(room, bot, target, timestamp)
+    bot.role === "defender" ? botDefenderScoutCandidate(bot, target, timestamp) : botCanAttackTarget(room, bot, target, timestamp)
   ));
   if (!observableCandidates.length) {
     bot.nextBotClairvoyanceAt = timestamp + 3000;
@@ -25259,7 +25359,7 @@ function runBotClairvoyanceSearch(room, bot, timestamp = now()) {
     : 0;
   bot.nextBotClairvoyanceAt = bot.botClairvoyanceUntil + intervalMinimum + intervalJitter;
   setClairvoyanceActive(room, bot, true);
-  pushEvent(room, `${bot.name} が千里眼で敵陣営を索敵しました。`);
+  pushEvent(room, `${bot.name} が千里眼で周囲の行動を観測しました。`);
   return target;
 }
 
@@ -25705,12 +25805,22 @@ function runCpuGravityScript(room, bot, timestamp) {
   if (bot.meditatingUntil > timestamp) return true;
   try {
     if (state.cpuPhase === "accelerate-1" || state.cpuPhase === "accelerate-2") {
+      if (Number(bot.mana) < ABILITY_MANA_COST) {
+        state.cpuPhase = "renki-1";
+        state.cpuRenkiCount = 0;
+        return true;
+      }
       toggleGravityTime(room, bot, "accelerate", bot.id);
       state.cpuRenkiCount = 0;
-      state.cpuPhase = "renki-1";
+      state.cpuPhase = state.cpuPhase === "accelerate-1" && Number(bot.mana) >= ABILITY_MANA_COST
+        ? "accelerate-2" : "renki-1";
       return true;
     }
     if (state.cpuPhase === "renki-1" || state.cpuPhase === "renki-2") {
+      if (Number(bot.mana) >= HEART_TELEPORT_MANA_COST) {
+        state.cpuPhase = "heart";
+        return true;
+      }
       if (state.cpuRenkiCount < 1) {
         practiceRenki(room, bot);
         state.cpuRenkiCount += 1;
@@ -26156,7 +26266,14 @@ function botCombatCandidates(room, bot, target, timestamp) {
       : 0;
   // Once the legal visual attack->body chain exists, every owned payoff keeps
   // its own resource/range/LOS/ownership guard but shares one target priority.
-  const add = (code, score, run) => candidates.push({ code, score: score + evidenceBoost, run });
+  const confirmedKillIntent = bot.role === "defender" && bot.botWitnessTargetId === target.id &&
+    Number(bot.botWitnessUntil) > timestamp && bot.botWitnessEvidenceKind === "observed-kill-burst-exceeds-attacker-count";
+  const killCapableActions = new Set(["hacker-hp-delete", "flora-sunbeam", "root-borrowed-flora-sunbeam", "gunner-shoot", "quantum-nuclear-fission", "quantum-nuclear-fusion",
+    "root-borrowed-quantum-fission", "root-borrowed-quantum-fusion", "invention-excalibur", "invention-railgun", "invention-particle-cannon"]);
+  // This affects ranking only after the original ownership/range/resource
+  // predicates accept each candidate. Gunfire retains normal hit probability.
+  const add = (code, score, run) => candidates.push({ code,
+    score: score + evidenceBoost + (confirmedKillIntent && killCapableActions.has(code) ? 3000 : 0), run });
   const nativeGravity = bot.special === "teleport";
   const nativeFlora = bot.special === "flora";
   const nativeQuantum = bot.special === "quantum";
@@ -26364,6 +26481,139 @@ function nextDuePlayingBot(room, timestamp = now()) {
     ))[0] || null;
 }
 
+function syncBotTacticalMode(room, bot, timestamp = now()) {
+  const mode = botSharesTeamWithHuman(room, bot) ? "support" : "enemy";
+  const key = [bot.role, mode, room.battleStartedAt || 0, bot.alive ? "alive" : "dead"].join(":");
+  if (bot.botTacticalModeKey === key) return mode;
+  const hadMode = Boolean(bot.botTacticalModeKey);
+  bot.botTacticalModeKey = key;
+  if (!hadMode) return mode;
+  clearBotCombatPlan(bot);
+  clearBotClairvoyanceContact(bot);
+  if (bot.clairvoyanceActive) setClairvoyanceActive(room, bot, false);
+  bot.botTarget = null;
+  bot.botTargetUntil = 0;
+  bot.botDefensePlannedAt = 0;
+  bot.botDefenseTargetId = "";
+  bot.botDefenseKind = "";
+  bot.botWitnessTargetId = "";
+  bot.botWitnessUntil = 0;
+  bot.botWitnessEvidenceKind = "";
+  bot.botObservedKillBursts = [];
+  bot.botRetaliationTargetId = "";
+  bot.botRetaliationUntil = 0;
+  bot.botVisibleAttackMemories = [];
+  bot.botVisibleThrowObservations = [];
+  bot.navPath = [];
+  clearBotNavigationIntent(bot);
+  if (bot.gunFiring) stopGunnerFire(room, bot, { reason: "戦術役割変更" });
+  return mode;
+}
+
+function botDefenderScoutCandidate(bot, target, timestamp = now()) {
+  // Scout selection cannot use the subject's concealed faction or kill count.
+  return Boolean(target && target.id !== bot.id && target.alive && !target.ejected &&
+    !target.inVent && !floraInvisibleActive(target, timestamp));
+}
+
+function botCanObserveKill(room, bot, killer, victim, timestamp = now()) {
+  if (!killer || !victim?.alive || victim.ejected || victim.inVent || floraInvisibleActive(killer, timestamp)) return false;
+  const direct = botCanDirectlyObservePosition(room, bot, killer, BOT_KILL_WITNESS_RANGE) &&
+    botCanDirectlyObservePosition(room, bot, victim, BOT_KILL_WITNESS_RANGE);
+  if (direct) return true;
+  const eyePosition = botClairvoyanceKillEye(room, bot, killer, timestamp);
+  if (!eyePosition) return false;
+  const eye = { ...bot, x: eyePosition.x, y: eyePosition.y };
+  return botCanDirectlyObservePosition(room, eye, killer, BOT_KILL_WITNESS_RANGE) &&
+    botCanDirectlyObservePosition(room, eye, victim, BOT_KILL_WITNESS_RANGE);
+}
+
+function botClairvoyanceKillEye(room, bot, killer, timestamp = now()) {
+  if (!bot?.clairvoyanceActive || Number(bot.botClairvoyanceUntil) <= timestamp) return null;
+  const focus = room.players.get(String(bot.botClairvoyanceTargetId || ""));
+  if (botDefenderScoutCandidate(bot, focus, timestamp)) {
+    return { x: focus.x, y: focus.y, focusId: focus.id };
+  }
+  // A kill may mark the followed player dead before its observer pass. Keep
+  // only this attack's timestamp and actor, never a reusable dead-player view.
+  const snapshot = bot.botClairvoyanceKillWitnessSnapshot;
+  if (!snapshot || Number(snapshot.at) !== timestamp || String(snapshot.actorId || "") !== String(killer?.id || "") ||
+      String(snapshot.focusId || "") !== String(bot.botClairvoyanceTargetId || "")) return null;
+  return { x: Number(snapshot.x), y: Number(snapshot.y), focusId: snapshot.focusId };
+}
+
+function captureBotKillWitnesses(room, killer, target, timestamp = now()) {
+  const witnesses = new Set();
+  for (const witness of room.players.values()) {
+    if (!witness.isBot || !witness.alive || witness.ejected || witness.inVent || witness.id === target?.id) continue;
+    if (witness.role !== "defender" || witness.id === killer?.id) continue;
+    if (!botCanObserveKill(room, witness, killer, target, timestamp)) continue;
+    witnesses.add(witness.id);
+    if (String(witness.botClairvoyanceTargetId || "") === target.id) {
+      witness.botClairvoyanceKillWitnessSnapshot = {
+        at: timestamp,
+        actorId: String(killer?.id || ""),
+        focusId: target.id,
+        x: Number(target.x),
+        y: Number(target.y)
+      };
+    }
+  }
+  return witnesses;
+}
+
+function rememberBotObservedKill(room, bot, killer, victim, timestamp) {
+  const bursts = (bot.botObservedKillBursts || []).filter(entry => timestamp - entry.at <= 250);
+  let burst = bursts.find(entry => entry.actorId === killer.id);
+  if (!burst) { burst = { actorId: killer.id, at: timestamp, victimIds: [] }; bursts.push(burst); }
+  if (!burst.victimIds.includes(victim.id)) burst.victimIds.push(victim.id);
+  bot.botObservedKillBursts = bursts;
+  const publicAttackerCount = Math.max(1, Number(room.settings.attackerCount) || 1);
+  if (burst.victimIds.length > publicAttackerCount) {
+    bot.botWitnessEvidenceKind = "observed-kill-burst-exceeds-attacker-count";
+    // The first victim may have started an automatic emergency request.
+    // A newly conclusive burst switches that pending decision to combat.
+    if (bot.smartphoneAction === "emergency" && bot.smartphoneSuspectId === killer.id &&
+        bot.smartphoneEvidenceKind === "witness") {
+      bot.smartphoneAction = "";
+      bot.smartphoneUntil = 0;
+      bot.smartphoneSuspectId = "";
+      bot.smartphoneEvidenceKind = "";
+      bot.emergenciesLeft += 1;
+    }
+  }
+}
+
+function runBotWitnessCaution(room, bot, timestamp = now()) {
+  if (bot.role !== "defender" || !bot.alive || bot.botWitnessUntil <= timestamp) return false;
+  if (bot.botWitnessEvidenceKind === "observed-kill-burst-exceeds-attacker-count") return false;
+  const suspect = room.players.get(String(bot.botWitnessTargetId || ""));
+  if (!botDefenderScoutCandidate(bot, suspect, timestamp) || !botCanDirectlyObservePlayer(room, bot, suspect)) return false;
+  // Only own public resources and visible distance influence risk response.
+  if (Number(bot.mana) >= HEART_TELEPORT_MANA_COST && bot.killReadyAt <= timestamp) return false;
+  if (distance(bot, suspect) > room.settings.killRange * 3) return false;
+  const dx = bot.x - suspect.x;
+  const dy = bot.y - suspect.y;
+  const length = Math.hypot(dx, dy) || 1;
+  moveBotToward(room, bot, { x: bot.x + (length === 1 && !dx && !dy ? 1 : dx / length) * 260, y: bot.y + dy / length * 260 });
+  return true;
+}
+
+function runBotConfirmedWitnessResponse(room, bot, timestamp = now()) {
+  if (bot.role !== "defender" || !botHasHumanOpponent(room, bot) ||
+      bot.botWitnessEvidenceKind !== "observed-kill-burst-exceeds-attacker-count") return false;
+  const target = botKnownAttackerEvidence(room, bot, timestamp);
+  if (!target || !botCanDirectlyObservePlayer(room, bot, target)) return false;
+  if (actionBlockedUntil(bot) > timestamp) return false;
+  if (runBotCombatPlanner(room, bot, target, timestamp)) return true;
+  if (distance(bot, target) > room.settings.killRange) {
+    moveBotToward(room, bot, target);
+    return true;
+  }
+  // Certainty grants no weapon, ability, aim result or combat permission.
+  return false;
+}
+
 function runPlayingBots(room) {
   const timestamp = now();
   const map = getMap(room);
@@ -26374,6 +26624,7 @@ function runPlayingBots(room) {
   // advanced. Process exactly one oldest-due Bot per authoritative tick. Bots
   // left due retain their original deadline, so the next tick selects them in
   // stable deadline/id order and no participant can be starved.
+  for (const bot of room.players.values()) if (bot.isBot) syncBotTacticalMode(room, bot, timestamp);
   const scheduledBot = nextDuePlayingBot(room, timestamp);
   if (!scheduledBot) return;
   for (const bot of room.players.values()) {
@@ -26410,6 +26661,8 @@ function runPlayingBots(room) {
       continue;
     }
 
+    if (runBotConfirmedWitnessResponse(room, bot, timestamp)) continue;
+    if (runBotWitnessCaution(room, bot, timestamp)) continue;
     if (!attackerUrgency.urgent && runBotBodyReport(room, bot)) return;
     if (bot.alive && runBotStandFirmRetaliation(room, bot, timestamp)) continue;
     if (!attackerUrgency.urgent && bot.alive && runBotGroundItemPickup(room, bot)) continue;
@@ -26702,5 +26955,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "economy-te-ui-repair-v883" });
+self.postMessage({ type: "ready", version: "bot-counter-and-ability-repair-v884" });
 })();
