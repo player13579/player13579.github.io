@@ -40,7 +40,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "gunner-grenade-physical-effects-v889";
+const DVA_CLIENT_RELEASE = "pointer-contact-details-novel-still-v890";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -100,7 +100,6 @@ const ITEM_THROW_BASE_DISTANCE_CLIENT = 220;
 const ITEM_THROW_MAX_CHARGE_MS_CLIENT = 3_000;
 const ITEM_THROW_TARGET_CURSOR_SPEED = 900;
 const CLAIRVOYANCE_ZOOM = 0.65;
-const MARKER_EXPLANATION_DURATION_MS = 1_450;
 const ENHANCE_HOLD_STEP_MS_CLIENT = 600;
 const ENHANCE_MAX_LEVEL_CLIENT = 1;
 const GBO_HOLD_MS_CLIENT = 3_000;
@@ -490,7 +489,7 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
   "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
-const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"gunner-grenade-physical-effects-v889","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
+const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"pointer-contact-details-novel-still-v890","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
@@ -1109,6 +1108,14 @@ const state = {
   clairvoyanceTeleportRequestSerial: 0,
   markerHitTargets: [],
   markerExplanation: null,
+  markerExplanationPointerId: null,
+  markerExplanationPointerPoint: null,
+  pointerDetailPointerId: null,
+  pointerDetailSource: null,
+  pointerDetailStartedAt: 0,
+  pointerDetailSuppressClick: null,
+  pointerDetailTouchIdentifier: null,
+  pointerDetailTouchPoint: null,
   operatorBranchesOpen: false,
   operatorBranchType: "",
   borrowedOperatorType: "",
@@ -1361,7 +1368,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "gunner-grenade-physical-effects-v889";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "pointer-contact-details-novel-still-v890";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3962,13 +3969,13 @@ function startVendingHold(event, button) {
     vendingHold.suppressClickUntil = performance.now() + 1_200;
     try { button.setPointerCapture(event.pointerId); } catch {}
     if (button.dataset.purchaseDisabled === "1") {
-      showInventoryItemDetail(vendingProductDetail(button), button);
+      showInventoryItemDetail(vendingProductDetail(button), button, { autoClose: false });
     } else if (state.vendingBulkPurchase && !button.dataset.shopAbility) {
       // Exactly one request owns the whole all-credit purchase.  The server
       // computes the purchasable count from its current authoritative credits.
       void purchaseVendingItem(button, { bulk: true, enhanceGesture: { id: newAbilityBatchHoldId(), kind: "vending-bulk" } });
     } else {
-      showInventoryItemDetail(vendingProductDetail(button), button);
+      showInventoryItemDetail(vendingProductDetail(button), button, { autoClose: false });
     }
     if (navigator.vibrate) navigator.vibrate(18);
   }, 520);
@@ -3992,6 +3999,15 @@ function finishVendingHold(event) {
   if (vendingHold.pointerId !== event.pointerId || !vendingHold.button) return;
   const wasHeld = vendingHold.held;
   if (wasHeld || vendingHold.moved) {
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    stopVendingHold({ suppressClick: true });
+    return;
+  }
+  // Pointer detail owns an intermediate hold (260–519 ms). On touch UAs the
+  // TouchEvent remains authoritative until touchend, which occurs after this
+  // pointerup handler, so inspect both the active contact and the click gate.
+  if (consumePointerDetailActionGate(event.currentTarget)) {
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
     stopVendingHold({ suppressClick: true });
@@ -6978,6 +6994,27 @@ function bindEvents() {
   document.addEventListener("pointerdown", beginRootShortcutHold, true);
   document.addEventListener("pointerdown", beginAbilityBatchHold, true);
   document.addEventListener("pointerdown", beginContinuousActionHold, true);
+  // Detail tracking is deliberately capture-only observation. It starts on a
+  // target or enters one during a drag, then clears on leave/release/cancel
+  // without changing the control's existing pointer/default-action path.
+  document.addEventListener("pointerdown", beginPointerDetailFromEvent, true);
+  window.addEventListener("pointermove", updatePointerDetailFromEvent, true);
+  window.addEventListener("pointerup", (event) => {
+    if (event.pointerType !== "touch" || state.pointerDetailTouchIdentifier === null) endPointerDetail(event.pointerId, { suppressClick: true });
+  }, true);
+  window.addEventListener("pointercancel", (event) => {
+    if (event.pointerType !== "touch" || state.pointerDetailTouchIdentifier === null) endPointerDetail(event.pointerId);
+  }, true);
+  window.addEventListener("lostpointercapture", (event) => endPointerDetail(event.pointerId), true);
+  window.addEventListener("pointerout", (event) => {
+    if (event.relatedTarget == null && (event.pointerType !== "touch" || state.pointerDetailTouchIdentifier === null)) endPointerDetail(event.pointerId);
+  }, true);
+  document.addEventListener("click", suppressPointerDetailClick, true);
+  document.addEventListener("touchstart", beginTouchPointerDetail, { capture: true, passive: true });
+  document.addEventListener("touchmove", updateTouchPointerDetail, { capture: true, passive: true });
+  document.addEventListener("touchend", endTouchPointerDetail, { capture: true, passive: true });
+  document.addEventListener("touchcancel", cancelTouchPointerDetail, { capture: true, passive: true });
+  document.addEventListener("scroll", refreshTouchPointerDetail, { capture: true, passive: true });
   document.addEventListener("click", suppressContinuousActionClick, true);
   document.addEventListener("click", suppressSwitchDragClick, true);
   document.addEventListener("click", suppressNativeSelectHoldClick, true);
@@ -7674,6 +7711,7 @@ function bindEvents() {
   els.utilityButton.addEventListener("click", () => api("/api/utility", { type: els.utilitySelect.value }));
   bindVendingDetailKeyboard();
   vendingProductButtons().forEach((button) => {
+    bindPointerDetailTarget(button, () => vendingProductDetail(button));
     button.addEventListener("click", (event) => {
       if (vendingCategoryActionGate.consume() || performance.now() < vendingHold.suppressClickUntil) {
         event.preventDefault();
@@ -8230,22 +8268,30 @@ function bindEvents() {
   els.expandedMapCanvas.addEventListener("pointerleave", () => {
     if (!state.expandedMapTap) state.mapPointer = null;
   });
+  els.canvas.addEventListener("pointerdown", beginMarkerExplanationPointer);
   els.canvas.addEventListener("pointerdown", attackFromCanvas);
   els.canvas.addEventListener("pointermove", (event) => {
+    updateMarkerExplanationFromPointer(event);
     movePreparationCanvasTap(event);
     moveClairvoyanceTeleportTap(event);
   });
   els.canvas.addEventListener("pointerup", (event) => {
+    clearMarkerExplanationPointer(event.pointerId);
     finishPreparationCanvasTap(event);
     void finishClairvoyanceTeleportTap(event);
   });
   els.canvas.addEventListener("pointercancel", (event) => {
+    clearMarkerExplanationPointer(event.pointerId);
     finishPreparationCanvasTap(event, true);
     void finishClairvoyanceTeleportTap(event, true);
   });
   els.canvas.addEventListener("lostpointercapture", (event) => {
+    clearMarkerExplanationPointer(event.pointerId);
     finishPreparationCanvasTap(event, true);
     void finishClairvoyanceTeleportTap(event, true);
+  });
+  els.canvas.addEventListener("pointerleave", (event) => {
+    clearMarkerExplanationDisplay(event.pointerId);
   });
 }
 
@@ -12899,7 +12945,7 @@ function renderOperatorSelect(data) {
     button.dataset.selectable = selectable ? "1" : "0";
     if (operatorIndex < 9) button.dataset.hotkey = String(operatorIndex + 1);
     button.setAttribute("aria-disabled", String(!selectable));
-    button.setAttribute("aria-label", `${operator.name}。長押しで説明`);
+    button.setAttribute("aria-label", `${operator.name}。触れている間は説明を表示`);
     button.innerHTML = `
       ${operator.asset ? `<span class="operator-visual operator-visual-${escapeHtml(operator.asset)}" aria-hidden="true"></span>` : ""}
       <span class="operator-meta">
@@ -12943,6 +12989,7 @@ function hideOperatorDetail() {
   state.operatorDetailSource = null;
   els.operatorList?.querySelectorAll(".operator-card.detail-active").forEach((card) => card.classList.remove("detail-active"));
   els.operatorDetail.hidden = true;
+  els.operatorDetail.classList.remove("pointer-detail-active");
   if (state.data?.phase === "selecting") {
     els.fieldLowerRow.hidden = true;
     syncOperatorDetailFieldLayout();
@@ -12969,6 +13016,7 @@ function showOperatorDetail(operator, sourceButton) {
     if (source?.isConnected) source.focus({ preventScroll: true });
   });
   els.operatorDetail.hidden = false;
+  els.operatorDetail.classList.toggle("pointer-detail-active", state.pointerDetailSource === sourceButton && state.pointerDetailPointerId !== null);
   els.fieldLowerRow.hidden = false;
   requestAnimationFrame(() => {
     syncOperatorDetailFieldLayout();
@@ -12979,63 +13027,21 @@ function showOperatorDetail(operator, sourceButton) {
 }
 
 function bindOperatorDetailHold(button, operator) {
-  const clickGate = createInventoryClickGate();
-  let pointerId = null;
-  let pointerType = "";
   const clearSelection = () => window.getSelection?.()?.removeAllRanges?.();
-  const gesture = createInventoryTouchGesture({
-    onHold: () => {
-      clickGate.arm();
-      clearSelection();
-      try { button.setPointerCapture(pointerId); } catch {}
-      showOperatorDetail(operator, button);
-      if (navigator.vibrate) navigator.vibrate(18);
-    },
-    onClearSelection: clearSelection
-  });
   const suppressNative = (event) => {
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
     clearSelection();
   };
   for (const type of ["contextmenu", "selectstart", "dragstart", "copy"]) button.addEventListener(type, suppressNative);
-  button.addEventListener("pointerdown", (event) => {
-    if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
-    hideOperatorDetail();
-    pointerId = event.pointerId;
-    pointerType = event.pointerType || "mouse";
-    clickGate.reset();
-    gesture.start(pointerId, event.clientX, event.clientY);
-  });
-  button.addEventListener("pointermove", (event) => {
-    if (pointerId !== event.pointerId) return;
-    gesture.move(pointerId, event.clientX, event.clientY);
-  });
-  button.addEventListener("pointerup", (event) => {
-    if (pointerId !== event.pointerId) return;
-    const result = gesture.end(pointerId, event.clientX, event.clientY);
-    if (result !== "tap") {
-      if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
-      clickGate.arm();
-    }
-    pointerId = null;
-    pointerType = "";
-  });
-  const cancel = (event) => {
-    if (pointerId !== event.pointerId) return;
-    gesture.cancel(pointerId);
-    pointerId = null;
-    pointerType = "";
-    clickGate.reset();
-  };
-  button.addEventListener("pointercancel", cancel);
-  button.addEventListener("lostpointercapture", cancel);
-  button.addEventListener("click", (event) => {
-    if (!clickGate.consume()) return;
+  bindPointerDetailTarget(button, { kind: "operator", value: operator });
+  button.setAttribute("aria-description", "触れている間に説明を表示します。メニューキーまたはShift+F10で固定表示します。");
+  button.addEventListener("keydown", (event) => {
+    if (!isDetailKeyboardShortcut(event)) return;
     event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
+    event.stopPropagation();
+    showOperatorDetail(operator, button);
+  });
 }
 
 async function selectOperatorFromCard(operator) {
@@ -13994,6 +14000,147 @@ function hideInventoryItemDetail() {
   state.inventoryItemDetailSource?.removeAttribute("aria-describedby");
   state.inventoryItemDetailSource = null;
   els.inventoryItemDetail.hidden = true;
+  els.inventoryItemDetail.classList.remove("pointer-detail-active");
+}
+
+// Pointer details do not capture or prevent the active contact. Existing action
+// holds and native scrolling keep ownership while the finger crosses targets.
+// Only the generated click from a completed explanatory hold is suppressed.
+function bindPointerDetailTarget(button, detail) {
+  if (!button) return;
+  button.__pointerDetail = detail;
+  button.dataset.pointerDetail = "1";
+}
+
+function pointerDetailTargetAt(clientX, clientY) {
+  const hit = document.elementFromPoint(clientX, clientY);
+  const button = hit instanceof Element ? hit.closest("[data-pointer-detail]") : null;
+  if (!button?.isConnected || button.closest("[hidden]")) return null;
+  return button;
+}
+
+function clearPointerDetailDisplay(pointerId = state.pointerDetailPointerId) {
+  if (pointerId !== null && pointerId !== undefined && state.pointerDetailPointerId !== pointerId) return;
+  const source = state.pointerDetailSource;
+  state.pointerDetailSource = null;
+  if (state.operatorDetailSource === source) hideOperatorDetail();
+  if (state.inventoryItemDetailSource === source) hideInventoryItemDetail();
+}
+
+function endPointerDetail(pointerId = state.pointerDetailPointerId, { suppressClick = false } = {}) {
+  if (pointerId !== null && pointerId !== undefined && state.pointerDetailPointerId !== pointerId) return;
+  const source = state.pointerDetailSource;
+  if (suppressClick && source && performance.now() - state.pointerDetailStartedAt >= 260) {
+    state.pointerDetailSuppressClick = { source, expiresAt: performance.now() + 900 };
+  }
+  clearPointerDetailDisplay(pointerId);
+  state.pointerDetailPointerId = null;
+  state.pointerDetailStartedAt = 0;
+}
+
+function consumePointerDetailActionGate(target) {
+  if (!target?.dataset || target.dataset.pointerDetail !== "1") return false;
+  if (state.pointerDetailSource === target && performance.now() - state.pointerDetailStartedAt >= 260) return true;
+  const gate = state.pointerDetailSuppressClick;
+  if (!gate) return false;
+  if (performance.now() > gate.expiresAt) { state.pointerDetailSuppressClick = null; return false; }
+  if (target !== gate.source) return false;
+  state.pointerDetailSuppressClick = null;
+  return true;
+}
+
+function suppressPointerDetailClick(event) {
+  // Keyboard/programmatic activation has no pointer click count and does not
+  // belong to an earlier explanatory contact.
+  if (event.detail === 0) return;
+  const target = event.target instanceof Element ? event.target.closest("[data-pointer-detail]") : null;
+  if (!consumePointerDetailActionGate(target)) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}
+
+function updatePointerDetailAt(pointerId, clientX, clientY) {
+  if (state.pointerDetailPointerId !== pointerId) return false;
+  const button = pointerDetailTargetAt(clientX, clientY);
+  if (button === state.pointerDetailSource) return Boolean(button);
+  clearPointerDetailDisplay(pointerId);
+  if (!button) return false;
+  const detail = button.__pointerDetail;
+  if (!detail) return false;
+  state.pointerDetailPointerId = pointerId;
+  state.pointerDetailSource = button;
+  if (detail.kind === "operator") showOperatorDetail(detail.value, button);
+  else showInventoryItemDetail(typeof detail === "function" ? detail(button) : detail, button, { autoClose: false });
+  return true;
+}
+
+function updatePointerDetailFromEvent(event) {
+  if (!event.isPrimary || state.pointerDetailPointerId !== event.pointerId) return false;
+  return updatePointerDetailAt(event.pointerId, event.clientX, event.clientY);
+}
+
+function beginPointerDetailFromEvent(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  // touchstart owns the contact across a UA scroll-induced pointercancel.
+  if (event.pointerType === "touch" && state.pointerDetailTouchIdentifier !== null) return;
+  endPointerDetail();
+  // A generated click belongs to the contact that just ended. Once a new
+  // independent contact starts, its eventual click must not consume that gate.
+  state.pointerDetailSuppressClick = null;
+  state.pointerDetailPointerId = event.pointerId;
+  state.pointerDetailStartedAt = performance.now();
+  updatePointerDetailFromEvent(event);
+}
+
+function touchPointerDetailId(identifier) { return `touch:${identifier}`; }
+
+function trackedTouch(event) {
+  const identifier = state.pointerDetailTouchIdentifier;
+  return Array.from(event.changedTouches || []).find((touch) => touch.identifier === identifier) || null;
+}
+
+function beginTouchPointerDetail(event) {
+  if (state.pointerDetailTouchIdentifier !== null || (event.touches?.length || 0) !== 1) return;
+  const touch = event.changedTouches?.[0];
+  if (!touch) return;
+  endPointerDetail();
+  state.pointerDetailSuppressClick = null;
+  state.pointerDetailTouchIdentifier = touch.identifier;
+  state.pointerDetailTouchPoint = { x: touch.clientX, y: touch.clientY };
+  state.pointerDetailPointerId = touchPointerDetailId(touch.identifier);
+  state.pointerDetailStartedAt = performance.now();
+  updatePointerDetailAt(state.pointerDetailPointerId, touch.clientX, touch.clientY);
+}
+
+function updateTouchPointerDetail(event) {
+  const touch = trackedTouch(event);
+  if (!touch) return;
+  state.pointerDetailTouchPoint = { x: touch.clientX, y: touch.clientY };
+  updatePointerDetailAt(touchPointerDetailId(touch.identifier), touch.clientX, touch.clientY);
+}
+
+function refreshTouchPointerDetail() {
+  const touch = state.pointerDetailTouchPoint;
+  const identifier = state.pointerDetailTouchIdentifier;
+  if (!touch || identifier === null) return;
+  updatePointerDetailAt(touchPointerDetailId(identifier), touch.x, touch.y);
+}
+
+function endTouchPointerDetail(event) {
+  const touch = trackedTouch(event);
+  if (!touch) return;
+  const pointerId = touchPointerDetailId(touch.identifier);
+  endPointerDetail(pointerId, { suppressClick: true });
+  state.pointerDetailTouchIdentifier = null;
+  state.pointerDetailTouchPoint = null;
+}
+
+function cancelTouchPointerDetail(event) {
+  const touch = trackedTouch(event);
+  if (!touch) return;
+  endPointerDetail(touchPointerDetailId(touch.identifier));
+  state.pointerDetailTouchIdentifier = null;
+  state.pointerDetailTouchPoint = null;
 }
 
 function showInventoryItemDetail(item, sourceButton, options = {}) {
@@ -14007,6 +14154,7 @@ function showInventoryItemDetail(item, sourceButton, options = {}) {
   els.inventoryItemDetailType.textContent = [item.output || "所持品", item.badge || ""].filter(Boolean).join(" / ");
   els.inventoryItemDetailDescription.textContent = item.detail || "使用・投擲可能";
   els.inventoryItemDetail.hidden = false;
+  els.inventoryItemDetail.classList.toggle("pointer-detail-active", state.pointerDetailSource === sourceButton && state.pointerDetailPointerId !== null);
   positionInventoryItemDetail(sourceButton);
   if (options.autoClose !== false) {
     const detailTimer = window.setTimeout(() => {
@@ -14092,9 +14240,6 @@ function bindVendingDetailKeyboard(panel = els.vendingPanel) {
 
 function bindInventoryDetailHold(button, item, scrollContainer = els.itemInventoryGrid) {
   button.__inventoryDetailItem = item;
-  const clickGate = createInventoryClickGate();
-  let activePointerId = null;
-  let activePointerType = "";
   const clearNativeSelection = () => {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount) selection.removeAllRanges();
@@ -14105,7 +14250,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
     clearNativeSelection();
   };
   button.setAttribute("aria-keyshortcuts", "Shift+F10 ContextMenu");
-  button.setAttribute("aria-description", "説明を開く: 長押し、メニューキー、またはShift+F10。Escapeで閉じる");
+  button.setAttribute("aria-description", "触れている間に説明を表示します。メニューキーまたはShift+F10で固定表示します。Escapeで閉じます。");
   button.addEventListener("keydown", (event) => {
     if (!isDetailKeyboardShortcut(event)) return;
     event.preventDefault();
@@ -14119,53 +14264,7 @@ function bindInventoryDetailHold(button, item, scrollContainer = els.itemInvento
   button.addEventListener("selectstart", suppressNativeLongPress);
   button.addEventListener("dragstart", suppressNativeLongPress);
   button.addEventListener("copy", suppressNativeLongPress);
-  const pointerGesture = createInventoryTouchGesture({
-    onHold: () => {
-      clickGate.arm();
-      clearNativeSelection();
-      try { button.setPointerCapture(activePointerId); } catch {}
-      showInventoryItemDetail(button.__inventoryDetailItem || item, button);
-      if (navigator.vibrate) navigator.vibrate(18);
-    },
-    onClearSelection: clearNativeSelection
-  });
-  button.addEventListener("pointerdown", (event) => {
-    if (!event.isPrimary) return;
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    activePointerId = event.pointerId;
-    activePointerType = event.pointerType || "mouse";
-    clickGate.reset();
-    pointerGesture.start(event.pointerId, event.clientX, event.clientY);
-  });
-  button.addEventListener("pointermove", (event) => {
-    if (activePointerId !== event.pointerId) return;
-    pointerGesture.move(event.pointerId, event.clientX, event.clientY);
-  });
-  button.addEventListener("pointerup", (event) => {
-    if (activePointerId !== event.pointerId) return;
-    const result = pointerGesture.end(event.pointerId, event.clientX, event.clientY);
-    if (result !== "tap") {
-      if (event.cancelable) event.preventDefault();
-      event.stopPropagation();
-      clickGate.arm();
-    }
-    activePointerId = null;
-    activePointerType = "";
-  });
-  const cancelPointerGesture = (event) => {
-    if (activePointerId !== event.pointerId) return;
-    pointerGesture.cancel(event.pointerId);
-    activePointerId = null;
-    activePointerType = "";
-    clickGate.reset();
-  };
-  button.addEventListener("pointercancel", cancelPointerGesture);
-  button.addEventListener("lostpointercapture", cancelPointerGesture);
-  button.addEventListener("click", (event) => {
-    if (!clickGate.consume()) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
+  bindPointerDetailTarget(button, () => button.__inventoryDetailItem || item);
 }
 
 function defaultInventoryItemSelection(items, self, explicitItemId = "") {
@@ -15156,9 +15255,9 @@ function vendingCardAvailability(button, data) {
     purchaseBlockedMessage: itemStorageBlocked
       ? `EMP機器異常中です（残り${itemStorageRemainingSeconds}秒）。解除後に${label}を購入できます。`
       : capReached
-        ? `${label}は購入上限に達しています。長押しで詳細を確認できます。`
+        ? `${label}は購入上限に達しています。触れている間は詳細を確認できます。`
       : insufficientCredits
-        ? `${label}の購入には${cost}C必要です。長押しで詳細を確認できます。`
+        ? `${label}の購入には${cost}C必要です。触れている間は詳細を確認できます。`
         : "",
     bulkPurchaseBlockedMessage: bulkUnavailable
       ? `${label}は現在の全クレジット分を有効に付与できないため一括購入できません。通常購入は利用できます。`
@@ -21953,43 +22052,74 @@ function registerMarkerHitTarget(key, localX, localY, radius, title, detail) {
   });
 }
 
-function showMarkerExplanationFromPointer(event) {
-  const point = canvasPointerPosition(event);
-  if (!point) return false;
-  const target = [...state.markerHitTargets]
+function markerTargetAt(point) {
+  if (!point) return null;
+  return [...state.markerHitTargets]
     .reverse()
     .filter((entry) => Math.hypot(point.x - entry.x, point.y - entry.y) <= entry.radius)
     .sort((a, b) => Math.hypot(point.x - a.x, point.y - a.y) - Math.hypot(point.x - b.x, point.y - b.y))[0];
+}
+
+function showMarkerExplanationFromPointer(event) {
+  const point = canvasPointerPosition(event);
+  const target = markerTargetAt(point);
   if (!target) return false;
-  state.markerExplanation = {
-    key: target.key,
-    title: target.title,
-    detail: target.detail,
-    x: target.x,
-    y: target.y,
-    startedAt: performance.now(),
-    expiresAt: performance.now() + MARKER_EXPLANATION_DURATION_MS
-  };
+  state.markerExplanation = { key: target.key, title: target.title, detail: target.detail,
+    x: target.x, y: target.y, startedAt: performance.now(), pointerId: event.pointerId };
   return true;
+}
+
+function beginMarkerExplanationPointer(event) {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  state.markerExplanationPointerId = event.pointerId;
+  updateMarkerExplanationFromPointer(event);
+}
+
+function clearMarkerExplanationDisplay(pointerId = state.markerExplanationPointerId) {
+  if (pointerId !== null && pointerId !== undefined && state.markerExplanationPointerId !== pointerId) return;
+  state.markerExplanation = null;
+  clearMarkerExplanationDom();
+}
+
+function refreshMarkerExplanationTarget(pointerId = state.markerExplanationPointerId) {
+  if (state.markerExplanationPointerId !== pointerId) return false;
+  const target = markerTargetAt(state.markerExplanationPointerPoint);
+  if (!target) { clearMarkerExplanationDisplay(pointerId); return false; }
+  if (target.key === state.markerExplanation?.key) return true;
+  state.markerExplanation = { key: target.key, title: target.title, detail: target.detail,
+    x: target.x, y: target.y, startedAt: performance.now(), pointerId };
+  return true;
+}
+
+function updateMarkerExplanationFromPointer(event) {
+  if (state.markerExplanationPointerId !== event.pointerId) return false;
+  const point = canvasPointerPosition(event);
+  if (point) state.markerExplanationPointerPoint = point;
+  return refreshMarkerExplanationTarget(event.pointerId);
+}
+
+function clearMarkerExplanationPointer(pointerId) {
+  if (state.markerExplanationPointerId !== pointerId) return;
+  state.markerExplanationPointerId = null;
+  state.markerExplanationPointerPoint = null;
+  clearMarkerExplanationDisplay(null);
 }
 
 function drawMarkerExplanation(width, height) {
   const explanation = state.markerExplanation;
   if (!explanation) { clearMarkerExplanationDom(); return; }
+  // A marker can move or disappear during rendering without delivering a
+  // pointermove. Re-hit-test the retained contact point before drawing.
+  refreshMarkerExplanationTarget(explanation.pointerId);
+  if (state.markerExplanation !== explanation) return;
   const timestamp = performance.now();
-  if (timestamp >= explanation.expiresAt) {
-    state.markerExplanation = null;
-    clearMarkerExplanationDom();
-    return;
-  }
   const liveTarget = state.markerHitTargets.find((entry) => entry.key === explanation.key);
-  const anchorX = liveTarget?.x ?? explanation.x;
-  const anchorY = liveTarget?.y ?? explanation.y;
+  if (!liveTarget) { clearMarkerExplanationDisplay(explanation.pointerId); return; }
+  const anchorX = liveTarget.x;
+  const anchorY = liveTarget.y;
   const elapsed = timestamp - explanation.startedAt;
-  const remaining = explanation.expiresAt - timestamp;
   const reveal = objectEffectEase(Math.min(1, elapsed / 130));
-  const fade = Math.min(1, remaining / 260);
-  const alpha = reveal * fade;
+  const alpha = reveal;
   // Wrap by measured glyph width, retaining every character of the explanation.
   const bubbleWidth = Math.max(1, Math.min(420, width - 20));
   const textWidth = Math.max(1, bubbleWidth - 28);
@@ -26016,7 +26146,7 @@ function drawLegacyWorldKillResidual(effect, camera, zoom = CAMERA_ZOOM) {
   const duration = Number(effect.duration);
   const inheritedAlpha = ctx.globalAlpha;
   if (!(duration > 0) || age <= 0 || age >= duration || inheritedAlpha <= 0) return;
-  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "gunner-grenade-physical-effects-v889", 12);
+  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "pointer-contact-details-novel-still-v890", 12);
   if (!sprite?.width || !sprite?.height) return;
   const progress = age / duration;
   const reduced = prefersReducedMotion();
@@ -26687,7 +26817,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "gunner-grenade-physical-effects-v889";
+const version = "pointer-contact-details-novel-still-v890";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -27979,7 +28109,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=gunner-grenade-physical-effects-v889", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=pointer-contact-details-novel-still-v890", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
@@ -27998,12 +28128,12 @@ function showMarkerExplanationDom(explanation, anchorX, anchorY, width, height) 
   if (!panel) {
     panel = document.createElement("section");
     panel.id = "markerExplanationDetail";
-    panel.className = "inventory-item-detail";
+    panel.className = "inventory-item-detail pointer-detail-active";
     panel.setAttribute("role", "note");
     panel.setAttribute("aria-label", "マーカーの説明");
     document.body.append(panel);
   }
-  const owner = `${explanation.key}:${explanation.expiresAt}`;
+  const owner = `${explanation.key}:${explanation.pointerId}`;
   if (panel.dataset.owner !== owner) {
     panel.dataset.owner = owner;
     const title = document.createElement("strong");
@@ -28011,10 +28141,6 @@ function showMarkerExplanationDom(explanation, anchorX, anchorY, width, height) 
     const body = document.createElement("p");
     body.textContent = explanation.detail;
     panel.replaceChildren(title, body);
-    if (state.markerExplanationDomTimer) window.clearTimeout(state.markerExplanationDomTimer);
-    state.markerExplanationDomTimer = window.setTimeout(() => {
-      if (document.getElementById("markerExplanationDetail")?.dataset.owner === owner) clearMarkerExplanationDom();
-    }, Math.max(0, explanation.expiresAt - performance.now()));
   }
   const canvasRect = els.canvas.getBoundingClientRect();
   const x = canvasRect.left + anchorX * canvasRect.width / Math.max(1, width);

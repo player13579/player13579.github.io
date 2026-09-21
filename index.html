@@ -14,7 +14,7 @@
     <meta property="og:image" content="assets/site-thumbnail-v497.png">
     <link rel="preload" as="image" href="assets/title-hero-v466.png?v=core-icons-restart-v707" fetchpriority="high">
     <style>html,body,.start-screen{background:#17283d}</style>
-  <link rel="stylesheet" href="styles.css?v=gunner-grenade-physical-effects-v889">
+  <link rel="stylesheet" href="styles.css?v=pointer-contact-details-novel-still-v890">
   </head>
   <body>
     <section id="startScreen" class="start-screen" data-ui-region="home-screen" aria-label="ホーム画面">
@@ -118,8 +118,8 @@
               <header><span>二</span><div><p>MOVEMENT & SOUND</p><h3>移動・音響・タスク</h3></div></header>
               <p class="tactics-lead">移動は斜めを含む8方向。速度、音、スタミナ回復の停止が居場所の手掛かりになります。</p>
               <div class="tactics-rule-grid">
-                <section><h4>長押し説明</h4><p>オペレーター、所持品、ショップ商品、ハッカー生成の名前を長押しすると、消費・対象・効果・時間・条件・例外を表示。通常表示は名前と、商品なら価格、生成ならクールタイム。</p></section>
-                <section><h4>タブレットモード</h4><p>実端末向けの標準操作。初期状態はON。仮想スティックの倒し量で移動速度を決め、タッチだけで行動と長押し説明を使える。</p></section>
+                <section><h4>触れている間の説明</h4><p>オペレーター、所持品、ショップ商品、ハッカー生成の名前に触れている間、消費・対象・効果・時間・条件・例外を表示。通常表示は名前と、商品なら価格、生成ならクールタイム。</p></section>
+                <section><h4>タブレットモード</h4><p>実端末向けの標準操作。初期状態はON。仮想スティックの倒し量で移動速度を決め、タッチだけで行動と詳細説明を使える。</p></section>
                 <section><h4>三つの移動と移動ACC</h4><p>通常歩行、SP消費が大きいダッシュ、遅い無音歩行がある。移動ACC 2は初期ON。実加速がACC2以上の時だけ速度をACC2へ固定する。ボタンかQでOFF。</p></section>
                 <section><h4>スタミナ</h4><p>通常のSP回復は完全停止中だけ毎秒1.9。通常上限100、購入・充填で500まで蓄積。タスクは400、回避は200を一括消費。理知の自然回復中は移動中も毎秒1.9を独立して回復。</p></section>
                 <section><h4>自動休息</h4><p>停止中は毎秒7.6SPを自動回復。移動すると即停止。行動不能中も、止まっていれば回復する。通常はSP全快時、MPが2未満なら2へ回復。欲望でMP−100なら、SP全快済みでも5秒連続停止でMP2へ回復し、移動で経過を取り消す。</p></section>
@@ -203,13 +203,13 @@
               <header><span>七</span><div><p>STORY DIGEST</p><h3>ソフィアとフィリアの戦術案内</h3></div></header>
               <p class="tactics-lead">ソフィアとフィリアの動画で、試合の流れ、資源、戦闘、索敵、会議、勝利条件を確認できます。全文テキストも読めます。</p>
               <section id="tacticsNovelStage" class="tactics-novel-video-stage" aria-label="ノベルダイジェスト動画">
-                <video id="tacticsNovelVideo" controls playsinline preload="metadata" muted poster="assets/generated/tactics-novel-digest-poster-v654.png" aria-describedby="tacticsNovelTranscript">
-                  <source src="assets/generated/tactics-novel-digest-v654.mp4" type="video/mp4">
-                  <source src="assets/generated/tactics-novel-digest-v654.webm" type="video/webm">
+                <video id="tacticsNovelVideo" controls playsinline preload="metadata" muted poster="assets/generated/tactics-novel-digest-poster-v890.png" aria-describedby="tacticsNovelTranscript">
+                  <source src="assets/generated/tactics-novel-digest-still-gestures-v890.mp4" type="video/mp4">
+                  <source src="assets/generated/tactics-novel-digest-still-gestures-v890.webm" type="video/webm">
                   このブラウザでは動画を再生できません。下の全文テキストをご覧ください。
                 </video>
                 <div class="tactics-novel-video-controls"><button id="tacticsNovelPlay" type="button" aria-pressed="false">動画を再生</button><button id="tacticsNovelReplay" type="button">最初から再生</button></div><p id="tacticsNovelVideoStatus" class="tactics-novel-video-status" role="status" aria-live="polite"></p>
-                <section id="tacticsNovelTranscript" class="tactics-novel-transcript" aria-label="ノベルダイジェスト全文テキスト"><h4>全文テキスト</h4><ol><li><strong>1. ようこそ</strong><span>戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。</span></li><li><strong>2. 試合の流れ</strong><span>まずオペレーター選択。バトル中は、死体を通報するかスマホで緊急会議を起動すると会議へ移ります。会議のあとに次ラウンド、最後にリザルトです。</span></li><li><strong>3. 陣営と勝利</strong><span>Defenderは全タスク完了または全Attacker排除で勝利。AttackerはDefender全滅で勝利します。善のイデアは天上時間で進み、加速・減速では早まりません。幸運／直観による最大1秒の短縮は維持されます。定期キルの期限はありません。</span></li><li><strong>4. 移動とSP</strong><span>SPは満タンから開始。歩くだけでも減り、ダッシュはより大きく消費します。止まってからタスクへ入ると、次の判断を落ち着いて選べます。</span></li><li><strong>5. MP・SPと心の状態</strong><span>SP/MPの現在値÷最大値が、欲望・気概・理知を決めます。HPは含みません。HPとSPは個人上限まで回復し、MPだけは余剰回復で現在値と上限を同率で拡張します。</span></li><li><strong>6. 戦闘用語</strong><span>HPは2。攻撃はキル攻撃とボディダメージ攻撃の2種類です。通常のキルは死体を残し、アサシン忍殺によるキルは死体を残しません。結果を見て次の報告と索敵を選びます。</span></li><li><strong>7. ファイターとEC</strong><span>ファイターは剣で物理斬撃、ガード、JG反射を使います。別系統のECは100・500・1000で永続報酬。EC100の斬るには特大の衝撃波があります。</span></li><li><strong>8. アイテムとショップ</strong><span>ショップはどこでも開けます。瓶は着地で割れ、ウラン／プルトニウム容器は空中で開きます。他の物理アイテムは残り、長押しで詳細を読めます。</span></li><li><strong>9. オペレーター</strong><span>ガンナーは銃と特殊弾、グラビティは時空とフルストーム、フローラは回復と光、ハッカーは生成、クオンタムは変成を担当します。</span></li><li><strong>10. 索敵・EMP</strong><span>千里眼（0.25MP/秒）。EMPは自分からキャラ横幅約4〜7体分。1.2秒以内に重なると同位相は共振し、逆位相は相殺します。敵Botも千里眼で索敵します。</span></li><li><strong>11. 会議とルミナス</strong><span>会議では匿名投票とテキストチャット。Defenderのルミナスは一試合に一度、的中すればキル1です。</span></li><li><strong>12. 実戦へ</strong><span>複数のイデア到達者は全員勝利。仕様表とソロ訓練から、いつでも次のプレイへ進めます。</span></li></ol></section>
+                <section id="tacticsNovelTranscript" class="tactics-novel-transcript" aria-label="ノベルダイジェスト全文テキスト"><h4>全文テキスト</h4><ol><li><strong>1. ようこそ</strong><span>戦術いろはへようこそ。フィリアと一緒に、試合の大切な流れを身振りとATEで軽やかに案内します。</span></li><li><strong>2. 試合の流れ</strong><span>まずオペレーター選択。バトル中は、死体を通報するかスマホで緊急会議を起動すると会議へ移ります。会議のあとに次ラウンド、最後にリザルトです。</span></li><li><strong>3. 陣営と勝利</strong><span>Defenderは全タスク完了または全Attacker排除で勝利。AttackerはDefender全滅で勝利します。善のイデアは天上時間で進み、加速・減速では早まりません。幸運／直観による最大1秒の短縮は維持されます。定期キルの期限はありません。</span></li><li><strong>4. 移動とSP</strong><span>SPは満タンから開始。歩くだけでも減り、ダッシュはより大きく消費します。止まってからタスクへ入ると、次の判断を落ち着いて選べます。</span></li><li><strong>5. MP・SPと心の状態</strong><span>SP/MPの現在値÷最大値が、欲望・気概・理知を決めます。HPは含みません。HPとSPは個人上限まで回復し、MPだけは余剰回復で現在値と上限を同率で拡張します。</span></li><li><strong>6. 戦闘用語</strong><span>HPは2。攻撃はキル攻撃とボディダメージ攻撃の2種類です。通常のキルは死体を残し、アサシン忍殺によるキルは死体を残しません。結果を見て次の報告と索敵を選びます。</span></li><li><strong>7. ファイターとEC</strong><span>ファイターは剣で物理斬撃、ガード、JG反射を使います。別系統のECは100・500・1000で永続報酬。EC100の斬るには特大の衝撃波があります。</span></li><li><strong>8. アイテムとショップ</strong><span>ショップはどこでも開けます。瓶は着地で割れ、ウラン／プルトニウム容器は空中で開きます。他の物理アイテムは残り、触れている間は詳細を読めます。</span></li><li><strong>9. オペレーター</strong><span>ガンナーは銃と特殊弾、グラビティは時空とフルストーム、フローラは回復と光、ハッカーは生成、クオンタムは変成を担当します。</span></li><li><strong>10. 索敵・EMP</strong><span>千里眼（0.25MP/秒）。EMPは自分からキャラ横幅約4〜7体分。1.2秒以内に重なると同位相は共振し、逆位相は相殺します。敵Botも千里眼で索敵します。</span></li><li><strong>11. 会議とルミナス</strong><span>会議では匿名投票とテキストチャット。Defenderのルミナスは一試合に一度、的中すればキル1です。</span></li><li><strong>12. 実戦へ</strong><span>複数のイデア到達者は全員勝利。仕様表とソロ訓練から、いつでも次のプレイへ進めます。</span></li></ol></section>
               </section>
             </article>
           </div>
@@ -371,7 +371,7 @@
 
           <p id="operatorSettingStatus" class="objective operator-setting-status" aria-live="polite"></p>
           <p id="selectTeamText" class="objective"></p>
-          <p id="operatorHoldHint" class="objective">長押しでオペ詳細説明を表示する</p>
+          <p id="operatorHoldHint" class="objective">名前に触れている間はオペ詳細を表示</p>
           <div id="offlineTeamChoice" class="offline-team-choice" role="group" aria-label="オフライン陣営選択" hidden>
             <button id="offlineDefenderButton" type="button" data-offline-team="defender" aria-pressed="false">防衛</button>
             <button id="offlineAttackerButton" type="button" data-offline-team="attacker" aria-pressed="false">攻撃</button>
@@ -635,7 +635,7 @@
           <section><h3>装備・索敵</h3><dl><dt>Z / X</dt><dd>千里眼／EMP。</dd><dt>千里眼中の←→↑↓</dt><dd>生存プレイヤーの追尾先を切替。自分は動かない。</dd><dt>投擲中の移動キー</dt><dd>着地点を動かす。画面外では千里眼を自動発動。</dd><dt>近接</dt><dd>フィールドオブジェクトを自動起動。</dd></dl></section>
           <section><h3>オペ固有能力</h3><dl><dt>H</dt><dd>固有能力。対応MP能力は長押しでMPを2残し、一括並列発動。</dd><dt>能力・対象の切替</dt><dd>能力・対象の欄をタップして選ぶ。続く選択肢は順に選び、最後に確定。</dd><dt>O / P</dt><dd>O：能力方式を切替。P：対象欄がある時に対象を切替。</dd><dt>7</dt><dd>ガンナー射撃。</dd><dt>T / Shift+T</dt><dd>武器を次／前へ切替。</dd><dt>R</dt><dd>リロードする。</dd><dt>所持品欄</dt><dd>武器・発明品・重火器を選んで使用。見切れた欄は、その欄だけをフリックでスクロール。</dd><dt>PageUp / PageDown</dt><dd>操作するUI欄を前／次へ切替。</dd><dt>Shift + ← / →</dt><dd>ハッカー／ショップの分類を切替。</dd><dt>↑ ↓ ← →（長押し）</dt><dd>選択中のUI内を移動。↑↓は同時にスクロール。</dd><dt>P</dt><dd>ハッカーの対象を切替。</dd><dt>Enter / Space</dt><dd>選択中の内容を実行。</dd></dl></section>
           <section><h3>ショップ・所持品</h3><dl><dt>V</dt><dd>どこでもショップを開く／閉じる。</dd><dt>1〜0 / P</dt><dd>ショップを開いている間、商品を選ぶ。</dd><dt>ジャンル / ページ</dt><dd>上部の選択欄で分類とページを選ぶ。</dd><dt>PageUp / PageDown</dt><dd>ショップ・所持品欄を前後に移動。</dd><dt>↑ ↓ ← →</dt><dd>商品・所持品を選んで移動。</dd><dt>Shift+V / Shift+G</dt><dd>使用／投擲。600msからエンハンス、武具は3000msからGBO。</dd><dt>Alt+V / Alt+C</dt><dd>所持品／設定したCを譲渡。</dd><dt>Alt+1 / 2 / 3 / 5</dt><dd>ショップ表示中はレールガン／荷電粒子砲／エクスカリバー／亡命。</dd><dt>Alt+4</dt><dd>ショップ表示中はハック。</dd><dt>Alt+6 / 7 / 8 / 9 / 0</dt><dd>ショップ表示中はHG／SMG／AR／SR／テーザー。</dd></dl></section>
-          <section><h3>選択</h3><dl><dt>↑ ↓ ← →</dt><dd>表示方向の候補を選ぶ。</dd><dt>Shift + ← / →</dt><dd>分類を切替。</dd><dt>Enter / Space</dt><dd>選択を実行。</dd><dt>Shift+F10 / メニューキー</dt><dd>選んだ所持品・ハッカー内容の説明を開く。</dd><dt>オペレーターの説明</dt><dd>名前を長押しして表示。</dd><dt>Escape</dt><dd>閉じる／戻る。</dd></dl></section>
+          <section><h3>選択</h3><dl><dt>↑ ↓ ← →</dt><dd>表示方向の候補を選ぶ。</dd><dt>Shift + ← / →</dt><dd>分類を切替。</dd><dt>Enter / Space</dt><dd>選択を実行。</dd><dt>Shift+F10 / メニューキー</dt><dd>選んだ所持品・ハッカー内容の説明を開く。</dd><dt>オペレーターの説明</dt><dd>名前に触れている間は表示。</dd><dt>Escape</dt><dd>閉じる／戻る。</dd></dl></section>
         </div>
       </div>
     </section>
@@ -644,11 +644,11 @@
     </div>
     <div id="screenFlash" class="screen-flash" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-    <script src="economy-catalog-v468.js?v=gunner-grenade-physical-effects-v889"></script>
-    <script src="game-runtime.js?v=gunner-grenade-physical-effects-v889"></script>
-    <script src="game-engine.js?v=gunner-grenade-physical-effects-v889"></script>
-    <script src="offline-runtime.js?v=gunner-grenade-physical-effects-v889"></script>
-    <script src="config.js?v=gunner-grenade-physical-effects-v889"></script>
-    <script src="app.js?v=gunner-grenade-physical-effects-v889"></script>
+    <script src="economy-catalog-v468.js?v=pointer-contact-details-novel-still-v890"></script>
+    <script src="game-runtime.js?v=pointer-contact-details-novel-still-v890"></script>
+    <script src="game-engine.js?v=pointer-contact-details-novel-still-v890"></script>
+    <script src="offline-runtime.js?v=pointer-contact-details-novel-still-v890"></script>
+    <script src="config.js?v=pointer-contact-details-novel-still-v890"></script>
+    <script src="app.js?v=pointer-contact-details-novel-still-v890"></script>
 </body>
 </html>
