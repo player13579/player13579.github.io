@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "golden-flight-and-acquisition-destinations-v895";
-const CACHE_NAME = "dva-static-v895-golden-flight-and-acquisition-destinations";
+const RUNTIME_RELEASE = "sophia-sunbeam-and-single-map-v896";
+const CACHE_NAME = "dva-static-v896-sophia-sunbeam-and-single-map";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/sophia-sunbeam-front-v896.png",
+  "/assets/generated/sophia-sunbeam-left-v896.png",
+  "/assets/generated/sophia-sunbeam-right-v896.png",
+  "/assets/generated/sophia-sunbeam-back-v896.png",
   "/assets/generated/acquisition-golden-flight-te-v895.png",
   "/assets/generated/philia-sunbeam-front-v894.png",
   "/assets/generated/philia-sunbeam-left-v894.png",
@@ -374,7 +378,6 @@ const STATIC_ASSETS = [
   "/assets/generated/effect-transfer-in.webp",
   "/assets/generated/effect-bottle-shards.webp",
   "/assets/generated/field-aurelia-corridor-objects-v317.webp",
-  "/assets/generated/field-lumina-laboratory-v458.webp",
   "/assets/generated/effect-footbath-hidden-spring-godray-v359.png",
   "/assets/generated/object-effect-stamina-v327.png",
   "/assets/generated/object-effect-credits-v438.png",
