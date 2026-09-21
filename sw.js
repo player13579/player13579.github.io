@@ -5,10 +5,14 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "fresh-sunbeam-and-operator-activation-v893";
-const CACHE_NAME = "dva-static-v893-fresh-sunbeam-and-operator-activation";
+const RUNTIME_RELEASE = "sunbeam-hands-passive-and-portrait-v894";
+const CACHE_NAME = "dva-static-v894-sunbeam-hands-passive-and-portrait";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/philia-sunbeam-front-v894.png",
+  "/assets/generated/philia-sunbeam-left-v894.png",
+  "/assets/generated/philia-sunbeam-right-v894.png",
+  "/assets/generated/philia-sunbeam-back-v894.png",
   "/assets/generated/flora-sunbeam-fresh-v892.png",
   "/assets/generated/gunner-weapon-handgun-crop-v892.png",
   "/assets/generated/gunner-weapon-smg-crop-v892.png",

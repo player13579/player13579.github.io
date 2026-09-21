@@ -12752,3 +12752,79 @@ body.game-open:has(#selectPanel:not([hidden])) #operatorDetail {
   body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#gameTacticsButton, #operatorReselectButton) { right: calc(max(18px, env(safe-area-inset-right)) + 62px); }
   body.game-open:not(.result-presentation):has(#statusPanel:not([hidden])):has(#sidePanel.scroll-region-expanded-host) :is(#tabletButton, #keybindButton) { right: calc(max(18px, env(safe-area-inset-right)) + 124px); }
 }
+
+/* v894 candidate: portrait Applied Effects must keep each detail in the existing
+ * local scroll surface. The panel remains the scroll owner; descriptions stay
+ * continuously rendered and rows retain their existing values and order. */
+@media (max-width: 480px) and (orientation: portrait) {
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) .active-effects-list {
+    min-width: 0;
+  }
+
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) li {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "effect-name" "effect-value" "effect-detail";
+    min-width: 0;
+  }
+
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) :is(.effect-name, .effect-value, .effect-detail) {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  body.game-open:not(.result-presentation) #activeEffectsPanel:not([hidden]) .effect-value {
+    justify-self: start;
+    text-align: start;
+  }
+
+  /* The scroll mask reserves its own final fade; this padding lets the final
+   * description line scroll above it instead of being visually clipped. */
+  body.game-open:not(.result-presentation) #activeEffectsPanel.effects-scrollable:not([hidden]) .active-effects-list {
+    padding-bottom: 18px;
+  }
+}
+
+/* v894 candidate: pointer-contact and translucent description copy has no fixed
+ * opaque backdrop. Give text its own foreground and dark edge so it remains
+ * readable over both board and HUD colors without changing its visibility,
+ * placement, pointer ownership, or hold lifetime. */
+body #inventoryItemDetail:not(.pointer-detail-active) {
+  color: #102f3b;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.92);
+}
+
+body #inventoryItemDetail:not(.pointer-detail-active) :is(strong, small, p, .inventory-item-detail-kicker) {
+  color: #102f3b;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.92);
+}
+
+body :is(#inventoryItemDetail.pointer-detail-active, #markerExplanationDetail, #operatorDetail:not([hidden])) :is(strong, small, p, .inventory-item-detail-kicker, .operator-detail-kicker) {
+  color: #f8fafc;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.98),
+    1px 0 1px rgba(0, 0, 0, 0.88),
+    -1px 0 1px rgba(0, 0, 0, 0.88),
+    0 -1px 1px rgba(0, 0, 0, 0.82);
+}
+
+body :is(#inventoryItemDetail.pointer-detail-active, #markerExplanationDetail, #operatorDetail:not([hidden])) :is(.inventory-item-detail-kicker, .operator-detail-kicker) {
+  color: #c5f6ff;
+}
+
+/* Match the earlier preparation/visible-panel specificity for operator copy. */
+body #operatorDetail:not([hidden]) .operator-detail-head strong,
+body.game-open:has(#selectPanel:not([hidden])) #operatorDetail .operator-detail-head strong,
+body.game-open:has(#selectPanel:not([hidden])) #operatorDetail > p {
+  color: #f8fafc;
+}
+
+body.game-open:has(#selectPanel:not([hidden])) #operatorDetail .operator-detail-kicker {
+  color: #c5f6ff;
+}

@@ -40,7 +40,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "fresh-sunbeam-and-operator-activation-v893";
+const DVA_CLIENT_RELEASE = "sunbeam-hands-passive-and-portrait-v894";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -489,7 +489,7 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
   "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
-const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"fresh-sunbeam-and-operator-activation-v893","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
+const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"sunbeam-hands-passive-and-portrait-v894","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
@@ -764,6 +764,96 @@ function drawAuthoredHealPose(player, data, ghost, action, atlasId, progress) {
 }
 
 
+const SUNBEAM_AUTHORED_MOTION_IDENTITIES = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
+const SUNBEAM_AUTHORED_MOTION_DIRECTIONS = Object.freeze(["front", "left", "right", "back"]);
+const SUNBEAM_AUTHORED_MOTION_KEYS = Object.freeze([
+  Object.freeze({ key: "gather", at: 0 }), Object.freeze({ key: "aim", at: 0.24 }),
+  Object.freeze({ key: "release", at: 0.56 }), Object.freeze({ key: "recover", at: 0.8 })
+]);
+// This follows the authored-action manifest shape. Entries deliberately remain
+// incomplete until the ChatGPT-produced Sunbeam sheets are registered. Empty
+// entries never load a made-up asset and keep the whole-action generic fallback.
+function pendingSunbeamPoseSet() {
+  const emptyPose = () => Object.freeze({
+    assetPath: "", assetSha256: "", sourceRect: Object.freeze({ x: 0, y: 0, width: 0, height: 0 }),
+    origin: Object.freeze({ x: 128, y: 240 }), ground: Object.freeze({ x: 0, y: 31 }), scale: 0
+  });
+  const emptyDirections = () => Object.freeze(Object.fromEntries(SUNBEAM_AUTHORED_MOTION_DIRECTIONS.map((direction) => [direction,
+    Object.freeze(Object.fromEntries(SUNBEAM_AUTHORED_MOTION_KEYS.map(({ key }) => [key, emptyPose()])))
+  ])));
+  return Object.freeze(Object.fromEntries(SUNBEAM_AUTHORED_MOTION_IDENTITIES.map((identity) => [identity, Object.freeze({
+    accepted: false, identity, actionKind: "cast", motionId: "flora-sunbeam", characterDurationMs: 820,
+    keys: SUNBEAM_AUTHORED_MOTION_KEYS, directions: emptyDirections()
+  })])));
+}
+const AUTHORED_SUNBEAM_PROFILES = Object.freeze({ ...pendingSunbeamPoseSet(), "white-hood": Object.freeze({"accepted":true,"identity":"white-hood","actionKind":"cast","motionId":"flora-sunbeam","characterDurationMs":820,"keys":[{"key":"gather","at":0},{"key":"aim","at":0.24},{"key":"release","at":0.56},{"key":"recover","at":0.8}],"directions":{"front":{"gather":{"assetPath":"assets/generated/philia-sunbeam-front-v894.png","assetSha256":"0A1CCC6313BC877090296E4BFB89980E5008D2E21FC45DA38BF03CF222082739","sourceRect":{"x":151,"y":42,"width":387,"height":579},"origin":{"x":187.5848684541055,"y":571},"ground":{"x":0,"y":31},"scale":0.1745345744680851,"emitters":[{"x":165,"y":268},{"x":220,"y":268}]},"aim":{"assetPath":"assets/generated/philia-sunbeam-front-v894.png","assetSha256":"0A1CCC6313BC877090296E4BFB89980E5008D2E21FC45DA38BF03CF222082739","sourceRect":{"x":710,"y":44,"width":399,"height":578},"origin":{"x":193.942002044334,"y":570},"ground":{"x":0,"y":31},"scale":0.1745345744680851,"emitters":[{"x":129,"y":276},{"x":254,"y":276}]},"release":{"assetPath":"assets/generated/philia-sunbeam-front-v894.png","assetSha256":"0A1CCC6313BC877090296E4BFB89980E5008D2E21FC45DA38BF03CF222082739","sourceRect":{"x":136,"y":641,"width":412,"height":580},"origin":{"x":201.1175105836245,"y":572},"ground":{"x":0,"y":31},"scale":0.1745345744680851,"emitters":[{"x":141,"y":237},{"x":282,"y":237}]},"recover":{"assetPath":"assets/generated/philia-sunbeam-front-v894.png","assetSha256":"0A1CCC6313BC877090296E4BFB89980E5008D2E21FC45DA38BF03CF222082739","sourceRect":{"x":712,"y":644,"width":409,"height":577},"origin":{"x":196.1948236488201,"y":569},"ground":{"x":0,"y":31},"scale":0.1745345744680851,"emitters":[{"x":161,"y":300},{"x":217,"y":300}]}},"left":{"gather":{"assetPath":"assets/generated/philia-sunbeam-left-v894.png","assetSha256":"01EA7C6344EF41BFD00B1DAE5EC8AA6CF62D584AC6E3263C489D56904B1D495D","sourceRect":{"x":192,"y":24,"width":342,"height":599},"origin":{"x":123.5,"y":591},"ground":{"x":0,"y":31},"scale":0.16884648370497427,"emitters":[{"x":65,"y":239}]},"aim":{"assetPath":"assets/generated/philia-sunbeam-left-v894.png","assetSha256":"01EA7C6344EF41BFD00B1DAE5EC8AA6CF62D584AC6E3263C489D56904B1D495D","sourceRect":{"x":740,"y":24,"width":402,"height":599},"origin":{"x":181.75,"y":591},"ground":{"x":0,"y":31},"scale":0.16884648370497427,"emitters":[{"x":31,"y":236}]},"release":{"assetPath":"assets/generated/philia-sunbeam-left-v894.png","assetSha256":"01EA7C6344EF41BFD00B1DAE5EC8AA6CF62D584AC6E3263C489D56904B1D495D","sourceRect":{"x":128,"y":639,"width":450,"height":594},"origin":{"x":198,"y":586},"ground":{"x":0,"y":31},"scale":0.16884648370497427,"emitters":[{"x":41,"y":214}]},"recover":{"assetPath":"assets/generated/philia-sunbeam-left-v894.png","assetSha256":"01EA7C6344EF41BFD00B1DAE5EC8AA6CF62D584AC6E3263C489D56904B1D495D","sourceRect":{"x":799,"y":637,"width":342,"height":596},"origin":{"x":122.25,"y":588},"ground":{"x":0,"y":31},"scale":0.16884648370497427,"emitters":[{"x":61,"y":261}]}},"right":{"gather":{"assetPath":"assets/generated/philia-sunbeam-right-v894.png","assetSha256":"77EE2A9198DA5FD5E6EF4B5208626768B6976FF5C445EAEC3BD6EE0610A030CA","sourceRect":{"x":161,"y":14,"width":310,"height":609},"origin":{"x":195.25,"y":601},"ground":{"x":0,"y":31},"scale":0.16599915682967958,"emitters":[{"x":231,"y":242}]},"aim":{"assetPath":"assets/generated/philia-sunbeam-right-v894.png","assetSha256":"77EE2A9198DA5FD5E6EF4B5208626768B6976FF5C445EAEC3BD6EE0610A030CA","sourceRect":{"x":712,"y":18,"width":396,"height":606},"origin":{"x":224,"y":598},"ground":{"x":0,"y":31},"scale":0.16599915682967958,"emitters":[{"x":373,"y":230}]},"release":{"assetPath":"assets/generated/philia-sunbeam-right-v894.png","assetSha256":"77EE2A9198DA5FD5E6EF4B5208626768B6976FF5C445EAEC3BD6EE0610A030CA","sourceRect":{"x":100,"y":640,"width":473,"height":589},"origin":{"x":237.75,"y":581},"ground":{"x":0,"y":31},"scale":0.16599915682967958,"emitters":[{"x":425,"y":215}]},"recover":{"assetPath":"assets/generated/philia-sunbeam-right-v894.png","assetSha256":"77EE2A9198DA5FD5E6EF4B5208626768B6976FF5C445EAEC3BD6EE0610A030CA","sourceRect":{"x":737,"y":639,"width":320,"height":601},"origin":{"x":186.25,"y":593},"ground":{"x":0,"y":31},"scale":0.16599915682967958,"emitters":[{"x":233,"y":258}]}},"back":{"gather":{"assetPath":"assets/generated/philia-sunbeam-back-v894.png","assetSha256":"9924839F155FF99D793F9E3A770CAC997DF292406A9FDA9785DCA9A59E2B6264","sourceRect":{"x":186,"y":49,"width":302,"height":540},"origin":{"x":151.5,"y":532},"ground":{"x":0,"y":31},"scale":0.18503289473684212,"emitters":[{"x":84,"y":230},{"x":228,"y":230}]},"aim":{"assetPath":"assets/generated/philia-sunbeam-back-v894.png","assetSha256":"9924839F155FF99D793F9E3A770CAC997DF292406A9FDA9785DCA9A59E2B6264","sourceRect":{"x":762,"y":49,"width":316,"height":541},"origin":{"x":153.5,"y":533},"ground":{"x":0,"y":31},"scale":0.18503289473684212,"emitters":[{"x":47,"y":99},{"x":255,"y":99}]},"release":{"assetPath":"assets/generated/philia-sunbeam-back-v894.png","assetSha256":"9924839F155FF99D793F9E3A770CAC997DF292406A9FDA9785DCA9A59E2B6264","sourceRect":{"x":171,"y":656,"width":340,"height":548},"origin":{"x":167,"y":540},"ground":{"x":0,"y":31},"scale":0.18503289473684212,"emitters":[{"x":61,"y":60},{"x":273,"y":60}]},"recover":{"assetPath":"assets/generated/philia-sunbeam-back-v894.png","assetSha256":"9924839F155FF99D793F9E3A770CAC997DF292406A9FDA9785DCA9A59E2B6264","sourceRect":{"x":762,"y":656,"width":310,"height":547},"origin":{"x":153.25,"y":539},"ground":{"x":0,"y":31},"scale":0.18503289473684212,"emitters":[{"x":51,"y":307},{"x":255,"y":307}]}}}}) });
+const AUTHORED_SUNBEAM_LATCHES = new WeakMap();
+
+function sunbeamDirectionFromAuthoritativeFacing(facing) {
+  if (facing === "up") return "back";
+  if (facing === "down") return "front";
+  return ["front", "back", "left", "right"].includes(facing) ? facing : null;
+}
+function authoredSunbeamFrame(profile, progress) {
+  let selected = profile.keys[0];
+  for (const entry of profile.keys) if (progress + 1e-7 >= entry.at) selected = entry;
+  return selected.key;
+}
+function authoredSunbeamPoseReady(pose, image) {
+  const rect = pose?.sourceRect;
+  return Boolean(pose?.assetPath && pose?.assetSha256 && image?.complete && Number(image.naturalWidth) > 0 && Number(image.naturalHeight) > 0
+    && rect && Number.isFinite(rect.x) && Number.isFinite(rect.y) && Number.isFinite(rect.width) && Number.isFinite(rect.height)
+    && rect.x >= 0 && rect.y >= 0 && rect.width > 0 && rect.height > 0
+    && rect.x + rect.width <= image.naturalWidth && rect.y + rect.height <= image.naturalHeight
+    && Number.isFinite(pose?.origin?.x) && Number.isFinite(pose?.origin?.y)
+    && Number.isFinite(pose?.ground?.x) && Number.isFinite(pose?.ground?.y)
+    && Number.isFinite(pose?.scale) && pose.scale > 0
+    && Array.isArray(pose.emitters) && pose.emitters.length > 0
+    && pose.emitters.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)
+      && point.x >= 0 && point.x < rect.width && point.y >= 0 && point.y < rect.height));
+}
+function admitAuthoredSunbeamAction(player, action) {
+  if (action?.kind !== "cast" || action?.motionId !== "flora-sunbeam") return;
+  const atlasId = player?.isBot ? "male-bot" : displayedSkinId(player, state.data) === "blue-dress" ? "blue-dress" : "white-hood";
+  const profile = AUTHORED_SUNBEAM_PROFILES[atlasId];
+  const token = [action.startedAt, action.sourceEffectId, action.motionId, action.kind].join("|");
+  const sequences = profile?.accepted ? Object.fromEntries(SUNBEAM_AUTHORED_MOTION_DIRECTIONS.map((dir) => [dir, SUNBEAM_AUTHORED_MOTION_KEYS.map(({ key }) => {
+    const pose = profile.directions[dir]?.[key];
+    const image = state.textures.authoredSunbeamMotions?.[atlasId]?.[dir]?.[key];
+    return authoredSunbeamPoseReady(pose, image) ? { pose, image } : null;
+  })])) : null;
+  AUTHORED_SUNBEAM_LATCHES.set(action, { token, identity: atlasId, sequences: sequences && Object.values(sequences).every((sequence) => sequence.every(Boolean)) ? sequences : null });
+}
+function drawAuthoredSunbeamPose(player, data, ghost, action, atlasId, progress) {
+  const profile = AUTHORED_SUNBEAM_PROFILES[atlasId];
+  if (!profile?.accepted || action?.kind !== "cast" || action?.motionId !== "flora-sunbeam" || progress >= 1) return false;
+  const direction = sunbeamDirectionFromAuthoritativeFacing(action.authoritativeFacing);
+  if (!direction) return false;
+  const token = [action.startedAt, action.sourceEffectId, action.motionId, action.kind].join("|");
+  const owner = state.characterActions?.get(player.id);
+  if (!owner || [owner.startedAt, owner.sourceEffectId, owner.motionId, owner.kind].join("|") !== token) return false;
+  let latch = AUTHORED_SUNBEAM_LATCHES.get(owner);
+  // Decide every identity direction and every frame once, at action admission.
+  // A late image decode cannot replace the generic action halfway through a cast.
+  // Actions received before this routing hook existed still get one conservative
+  // first-render decision. New Sunbeam actions are latched in triggerCharacterAction.
+  if (!latch) admitAuthoredSunbeamAction(player, owner);
+  latch = AUTHORED_SUNBEAM_LATCHES.get(owner);
+  if (latch.token !== token || latch.identity !== atlasId || !latch.sequences) return false;
+  if (ctx.globalAlpha <= 0) return true;
+  const selected = latch.sequences[direction][SUNBEAM_AUTHORED_MOTION_KEYS.findIndex(({ key }) => key === authoredSunbeamFrame(profile, progress))];
+  if (!selected) return false;
+  const { pose, image } = selected, rect = pose.sourceRect;
+  ctx.save();
+  try {
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = IMAGE_SMOOTHING_QUALITY;
+    ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height,
+      pose.ground.x - pose.origin.x * pose.scale, pose.ground.y - pose.origin.y * pose.scale,
+      rect.width * pose.scale, rect.height * pose.scale);
+  } finally { ctx.restore(); }
+  drawNameplate(player, ghost, -78);
+  return true;
+}
 const AUTHORED_DODGE_PROFILES = Object.freeze({"white-hood":{"accepted":true,"identity":"white-hood","actionKind":"evade","motionId":"action-dodge","keys":[{"key":"guard","at":0},{"key":"slip","at":0.18},{"key":"settle","at":0.46},{"key":"recover","at":0.76}],"directions":{"front":{"guard":{"assetPath":"assets/generated/philia-front-dodge-v823.png","assetSha256":"6AD6DA742B426196653A5EDE1187D4EB5E85E52094AABEA3BC8ED15CBC1F5DF9","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/philia-front-dodge-v823.png","assetSha256":"6AD6DA742B426196653A5EDE1187D4EB5E85E52094AABEA3BC8ED15CBC1F5DF9","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/philia-front-dodge-v823.png","assetSha256":"6AD6DA742B426196653A5EDE1187D4EB5E85E52094AABEA3BC8ED15CBC1F5DF9","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/philia-front-dodge-v823.png","assetSha256":"6AD6DA742B426196653A5EDE1187D4EB5E85E52094AABEA3BC8ED15CBC1F5DF9","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}},"left":{"guard":{"assetPath":"assets/generated/philia-left-dodge-v823.png","assetSha256":"764D206E614EB9BFC061DBBD77F865228A0264A81F078BAB635D9EAF64E71C81","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/philia-left-dodge-v823.png","assetSha256":"764D206E614EB9BFC061DBBD77F865228A0264A81F078BAB635D9EAF64E71C81","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/philia-left-dodge-v823.png","assetSha256":"764D206E614EB9BFC061DBBD77F865228A0264A81F078BAB635D9EAF64E71C81","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/philia-left-dodge-v823.png","assetSha256":"764D206E614EB9BFC061DBBD77F865228A0264A81F078BAB635D9EAF64E71C81","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}},"right":{"guard":{"assetPath":"assets/generated/philia-right-dodge-v823.png","assetSha256":"555116BA593EDF3F7B50AEF119DC17C82A505B97908B27C23DB3A17AB13A14FC","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/philia-right-dodge-v823.png","assetSha256":"555116BA593EDF3F7B50AEF119DC17C82A505B97908B27C23DB3A17AB13A14FC","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/philia-right-dodge-v823.png","assetSha256":"555116BA593EDF3F7B50AEF119DC17C82A505B97908B27C23DB3A17AB13A14FC","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/philia-right-dodge-v823.png","assetSha256":"555116BA593EDF3F7B50AEF119DC17C82A505B97908B27C23DB3A17AB13A14FC","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}},"back":{"guard":{"assetPath":"assets/generated/philia-back-dodge-v823.png","assetSha256":"0ED72583F99D6CB6118E22C60E745C3E11BCBFA92881979A5CEE02E8AA6AA765","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/philia-back-dodge-v823.png","assetSha256":"0ED72583F99D6CB6118E22C60E745C3E11BCBFA92881979A5CEE02E8AA6AA765","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/philia-back-dodge-v823.png","assetSha256":"0ED72583F99D6CB6118E22C60E745C3E11BCBFA92881979A5CEE02E8AA6AA765","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/philia-back-dodge-v823.png","assetSha256":"0ED72583F99D6CB6118E22C60E745C3E11BCBFA92881979A5CEE02E8AA6AA765","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}}},"characterDurationMs":560},"blue-dress":{"accepted":true,"identity":"blue-dress","actionKind":"evade","motionId":"action-dodge","keys":[{"key":"guard","at":0},{"key":"slip","at":0.18},{"key":"settle","at":0.46},{"key":"recover","at":0.76}],"directions":{"front":{"guard":{"assetPath":"assets/generated/sophia-front-dodge-v823.png","assetSha256":"291D33EAFD51C2126EA15EA9DAB222FA31FB11A6BB1FD0D24976D947C7D576A6","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/sophia-front-dodge-v823.png","assetSha256":"291D33EAFD51C2126EA15EA9DAB222FA31FB11A6BB1FD0D24976D947C7D576A6","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/sophia-front-dodge-v823.png","assetSha256":"291D33EAFD51C2126EA15EA9DAB222FA31FB11A6BB1FD0D24976D947C7D576A6","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/sophia-front-dodge-v823.png","assetSha256":"291D33EAFD51C2126EA15EA9DAB222FA31FB11A6BB1FD0D24976D947C7D576A6","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}},"left":{"guard":{"assetPath":"assets/generated/sophia-left-dodge-v823.png","assetSha256":"D9C488EF59EE63F025F2F0A49D3CAE4594D0EBAB8E053970AEA345D1510EB25B","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/sophia-left-dodge-v823.png","assetSha256":"D9C488EF59EE63F025F2F0A49D3CAE4594D0EBAB8E053970AEA345D1510EB25B","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/sophia-left-dodge-v823.png","assetSha256":"D9C488EF59EE63F025F2F0A49D3CAE4594D0EBAB8E053970AEA345D1510EB25B","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/sophia-left-dodge-v823.png","assetSha256":"D9C488EF59EE63F025F2F0A49D3CAE4594D0EBAB8E053970AEA345D1510EB25B","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}},"right":{"guard":{"assetPath":"assets/generated/sophia-right-dodge-v823.png","assetSha256":"7CE3FBF9EBEACD6D00070E394351EBAEBB3B46138E766E1301FCA2C327A210F4","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/sophia-right-dodge-v823.png","assetSha256":"7CE3FBF9EBEACD6D00070E394351EBAEBB3B46138E766E1301FCA2C327A210F4","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/sophia-right-dodge-v823.png","assetSha256":"7CE3FBF9EBEACD6D00070E394351EBAEBB3B46138E766E1301FCA2C327A210F4","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/sophia-right-dodge-v823.png","assetSha256":"7CE3FBF9EBEACD6D00070E394351EBAEBB3B46138E766E1301FCA2C327A210F4","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}},"back":{"guard":{"assetPath":"assets/generated/sophia-back-dodge-v823.png","assetSha256":"30BD49A50B1103EB2679FFF394395F78CEDD0DF10E4F8E3FFD39B724D14D2D83","sourceRect":{"x":0,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"slip":{"assetPath":"assets/generated/sophia-back-dodge-v823.png","assetSha256":"30BD49A50B1103EB2679FFF394395F78CEDD0DF10E4F8E3FFD39B724D14D2D83","sourceRect":{"x":256,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"settle":{"assetPath":"assets/generated/sophia-back-dodge-v823.png","assetSha256":"30BD49A50B1103EB2679FFF394395F78CEDD0DF10E4F8E3FFD39B724D14D2D83","sourceRect":{"x":512,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"recover":{"assetPath":"assets/generated/sophia-back-dodge-v823.png","assetSha256":"30BD49A50B1103EB2679FFF394395F78CEDD0DF10E4F8E3FFD39B724D14D2D83","sourceRect":{"x":768,"y":0,"width":256,"height":256},"origin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375}}},"characterDurationMs":560}});
 const AUTHORED_DODGE_DIRECTIONS = Object.freeze(["front", "left", "right", "back"]);
 const AUTHORED_DODGE_KEYS = Object.freeze(["guard", "slip", "settle", "recover"]);
@@ -1254,6 +1344,8 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   seawater: "重水素を含む海水。使用：自分の燃焼を解除。投擲：着地点に消火水域を作る。クオンタムで高温水・氷へ変換でき、終盤は核融合（2MP）にも使える。",
   antidote: "使用：自分の毒を解除。投擲：着地点半径120の全員に同効果。瓶片は確率でダメージ。",
   molotov: "使用：自分が燃焼。投擲：着地点周囲を継続燃焼させる。瓶片は確率でダメージ。エンハンスは強度と範囲だけを強化。",
+  "frag-grenade": "投擲専用・使い切り。着弾地点の半径132に0.75のボディダメージ。",
+  "stun-grenade": "投擲専用・使い切り。着弾地点の半径145の対象を2.5秒間行動不能にする。",
   evade: "回避受付+0.25秒。累積上限は+1.50秒。回避には100SPを使う。",
   speed: "加速+0.15。累積する。移動・物理モーション・クールタイム・行動不能・タスク速度に適用。",
   warp: "獲得時、即席をテレポート権利1回へ変換。最大3回。好きな時に拡大マップで地点を選ぶと1回使う。",
@@ -1270,13 +1362,13 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   "flora-sunbeam": "壁までの交差対象をキルする光線を放つ。",
   "flora-invisible": "10秒間透明になり、敵Botの直接視認と追跡対象から外れる。",
   "gunner-aim": "理知中かつ非ダッシュ時、最寄りの可視対象へ照準を追尾する。",
-  "gunner-special-ammo": "理知中、18秒ごとに選択中の銃へ特殊弾を1マガジン装填する。ウィーク弾は命中対象だけをキルし、射手に反動はない。",
+  "gunner-special-ammo": "理知中18秒ごとに、ウィーク・ペネトレイト・ショックから1マガジンを獲得する。非装填の弾も保持する。ウィークは最初の命中対象へキルを試み、ペネトレイトは通常のマップ壁を越えて最初の対象を攻撃、ショックは幸運でキルまたは6秒間35%減速となる。",
   "quantum-kinetic-accelerate": "所持中の水を高温水へ変える。",
   "quantum-kinetic-decelerate": "所持中の水を氷へ変える。",
-  "quantum-electric": "見通し内で最も近い敵へ、電子輸送路を作って作用する。",
+  "quantum-electric": "見通し内で最も近い敵だけへ作用する。1MPと16SPで0.35のボディダメージと3秒間35%減速。壁・遮蔽物で止まり、連鎖・範囲・貫通はしない。",
   "quantum-transmutation": "所持中の鉛か水銀を金へ変え、100Cに即時換金する。",
-  "quantum-fission": "終盤に所持中のウランまたはプルトニウムへ核分裂連鎖を起こし、全人間へ作用させる。",
-  "quantum-fusion": "終盤に所持中の海水の重水素へ核融合反応を起こし、全人間へ作用させる。",
+  "quantum-fission": "終盤にウランまたはプルトニウムを消費する。16SPと2MPで自分以外の生存者全員へキルを試み、亡命していなければ自分も倒れる。",
+  "quantum-fusion": "終盤に重水素を含む海水を消費する。16SPと2MPで自分以外の生存者全員へキルを試み、亡命していなければ自分も倒れる。",
   "assassin-annihilation": "成功した忍殺対象をキルし、物質も死体も残さない。",
   "assassin-silent-steps": "移動音を出さず、敵Botに足音の観測情報を与えない。",
   "hacker-vibe-coding": "訓練世界の資源・物体・能力・状態を生成または変更する。",
@@ -1298,8 +1390,8 @@ const VENDING_PRODUCT_DESCRIPTIONS = Object.freeze({
   taser: "タップ：現在の1弾倉（最大8発）を空まで射撃。射程420、通常0.16（最遠0.12）ダメージ、0.72秒間隔。600〜2999msの単一エンハンス（固定1MP）は0.19（最遠0.14）。\nヘッドショット（HS）は腰撃ち1〜21%、エイム中4〜36%。命中対象を6秒間35%減速。投擲被弾は0.08〜0.36。接地後は誰でも拾える。",
   mercury: "使用：自分に毒。投擲：着地点周囲に毒と瓶片ダメージ。クオンタムで金へ変換し、100Cへ即時換金。",
   lead: "使用：自分に毒。投擲：着地点周囲に毒と瓶片ダメージ。クオンタムで金へ変換し、100Cへ即時換金。",
-  uranium: "空中で容器が開く放射性物質。使用：自分に強毒。投擲：内容物を散布して容器を破壊するため、接地回収物は残らない。核分裂（2MP）：全域の対象へ死体ありキル攻撃。",
-  plutonium: "空中で容器が開く放射性物質。使用：自分に強毒。投擲：内容物を散布して容器を破壊するため、接地回収物は残らない。核分裂（2MP）：全域の対象へ死体ありキル攻撃。",
+  uranium: "着弾で容器が開く放射性物質。使用：自分に強毒。投擲：内容物を散布して容器を破壊するため、接地回収物は残らない。核分裂（2MP）：全域の対象へ死体ありキル攻撃。",
+  plutonium: "着弾で容器が開く放射性物質。使用：自分に強毒。投擲：内容物を散布して容器を破壊するため、接地回収物は残らない。核分裂（2MP）：全域の対象へ死体ありキル攻撃。",
   "orichalcum-sword": "物理武器。直接斬撃は死体ありキル。斬る：150SP、CTなし。700ms物理ガード、先頭140msのジャストガードで衝撃を100%反射。EMP・毒・サンビームなどは通常ガード不可。投擲被弾：柄・腹は0.12〜0.51、刃はキル。接地後は誰でも拾える。EC・衝撃波・EC到達報酬はファイター能力で、この剣の効果ではない。",
   iai: "獲得時に即席として自動装備。次の成功攻撃を死体ありキルへ強化して1回分を自動消費。失敗・回避・ガード・準備バリア・非攻撃では消費せず、死体なしキルはそのまま。",
   ice: "使用：自分に低温ダメージと減速。投擲：着地点周囲に低温攻撃と瓶片ダメージ。",
@@ -1368,7 +1460,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "fresh-sunbeam-and-operator-activation-v893";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "sunbeam-hands-passive-and-portrait-v894";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3562,7 +3654,7 @@ function itemUseCharacterAction(itemId) {
   return profile ? { kind: "interact", duration: profile.duration, motionId: profile.motionId, itemId: profile.itemId } : null;
 }
 
-function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURATION[kind] || 700, startedAt = state.frameNow || performance.now(), sourceEffectId = "", variant = "", motionId = kind) {
+function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURATION[kind] || 700, startedAt = state.frameNow || performance.now(), sourceEffectId = "", variant = "", motionId = kind, presentation = null) {
   if (!playerId || !kind) return;
   if(preserveBotSmgReloadPriority(playerId,kind,variant))return;
   if(preserveBotSniperReloadPriority(playerId,kind,variant))return;
@@ -3571,14 +3663,19 @@ function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURA
   const reloadPlayer=state.data?.players?.find(p=>p.id===playerId);
   const existingBody=state.characterActions.get(playerId);
   if(motionId==="action-reload"&&((variant==="handgun:complete"&&authoredHandgunReloadEligible(reloadPlayer,state.data))||(variant==="smg:complete"&&authoredSmgReloadEligible(reloadPlayer,state.data))||(variant==="assault:complete"&&authoredAssaultReloadEligible(reloadPlayer,state.data))||(variant==="taser:complete"&&authoredSophiaTaserReloadEligible(reloadPlayer,state.data))||(variant==="taser:complete"&&authoredTaserReloadEligible(reloadPlayer,state.data))||(variant==="sniper:complete"&&authoredSniperReloadEligible(reloadPlayer,state.data)))&&existingBody&&existingBody.motionId!=="action-reload")return;
-  state.characterActions.set(playerId, {
+  const createdAction = {
     kind,
     startedAt,
     duration: Math.max(120, Number(duration) || 700),
     sourceEffectId,
     variant: String(variant || ""),
-    motionId: String(motionId || kind)
-  });
+    motionId: String(motionId || kind),
+    ...(presentation && typeof presentation === "object" ? presentation : {})
+  };
+  state.characterActions.set(playerId, createdAction);
+  // Decode admission is intentionally one-shot at action start, before render.
+  // Missing art remains the existing generic whole-action presentation.
+  admitAuthoredSunbeamAction(reloadPlayer, createdAction);
 }
 
 const MAGIC_EFFECT_CHARACTER_ACTION = Object.freeze({
@@ -6902,12 +6999,12 @@ async function invokeCommonDodge() {
   return api("/api/dodge");
 }
 
-function bindCommonActionGesture(button, { tapInvoke, holdInvoke, detail }) {
+function bindCommonActionGesture(button, { tapInvoke, holdInvoke, detail, showPointerDetail = true }) {
   if (!button) return;
   const gesture = { pointerId: null, startX: 0, startY: 0, moved: false, held: false, timer: 0, suppressClick: false };
   const clearTimer = () => { if (gesture.timer) window.clearTimeout(gesture.timer); gesture.timer = 0; };
   const hideDetail = () => { if (state.inventoryItemDetailSource === button) hideInventoryItemDetail(); };
-  const showDetail = () => showInventoryItemDetail(detail, button, { autoClose: false });
+  const showDetail = () => { if (showPointerDetail) showInventoryItemDetail(detail, button, { autoClose: false }); };
   const finish = (event, { cancelled = false } = {}) => {
     if (gesture.pointerId === null || (event?.pointerId !== undefined && event.pointerId !== gesture.pointerId)) return false;
     const shouldTap = !cancelled && !gesture.moved && !gesture.held && !button.disabled;
@@ -7088,8 +7185,8 @@ function bindEvents() {
   els.tabletVendingShortcut.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
     opener: els.tabletVendingShortcut
   }));
-  bindCommonActionGesture(els.dodgeButton, { tapInvoke: invokeCommonDodge, holdInvoke: invokeCommonBarrier, detail: dodgeDetail });
-  bindCommonActionGesture(els.tabletDodgeShortcut, { tapInvoke: invokeCommonDodge, holdInvoke: invokeCommonBarrier, detail: dodgeDetail });
+  bindCommonActionGesture(els.dodgeButton, { tapInvoke: invokeCommonDodge, holdInvoke: invokeCommonBarrier, detail: dodgeDetail, showPointerDetail: false });
+  bindCommonActionGesture(els.tabletDodgeShortcut, { tapInvoke: invokeCommonDodge, holdInvoke: invokeCommonBarrier, detail: dodgeDetail, showPointerDetail: false });
   els.tabletRenkiShortcut.addEventListener("click", () => els.renkiButton.click());
   els.tabletDonateShortcut.addEventListener("click", () => void api("/api/donate"));
   els.vendingButton.addEventListener("click", () => setVendingOpen(!state.vendingOpen, {
@@ -11873,6 +11970,7 @@ function detectMagicEffects(previous, next) {
   const settledEmpIds = settleEmpChargeEffects(next, state.frameNow || performance.now());
   if (!["playing", "meeting"].includes(next?.phase)) {
     state.magicEffects = [];
+    clearSunbeamCharacterActions();
     state.headMarkerSlots.clear();
     state.headMarkerPresentationCache.clear();
     state.headMarkerPresentationFrame = -1;
@@ -11884,7 +11982,11 @@ function detectMagicEffects(previous, next) {
     state.itemUseActionEventRoomId = next.roomId;
     state.itemUseActionEventIds = new Set();
   }
-  if (!previous || previous.roomId !== next.roomId) return;
+  if (!previous || previous.roomId !== next.roomId) {
+    state.magicEffects = state.magicEffects.filter((effect) => effect.type !== "flora-sunbeam");
+    clearSunbeamCharacterActions();
+    return;
+  }
   const seenItemUseActionIds = state.itemUseActionEventIds || (state.itemUseActionEventIds = new Set());
   if (isSensoryBlocked(next)) return;
   const known = new Set((previous.magicEffects || []).map((effect) => effect.id));
@@ -11898,10 +12000,18 @@ function detectMagicEffects(previous, next) {
     const duration = durableCombatEvent && Number(effect.durationMs) > 0 ? Number(effect.durationMs) : Math.max(magicEffectDuration(effect.type), Number(effect.durationMs) || 0);
     // Network delay must not consume a visual effect before the client can draw it.
     const startedAt = receivedAt;
+    const sunbeamActor = effect.type === "flora-sunbeam"
+      ? (next.players || []).find((player) => player.id === effect.playerId)
+      : null;
+    const actorClockStartedAt = sunbeamActor ? actorVisualTime(sunbeamActor, next) : null;
     const localEffect = {
       ...effect,
       startedAt,
-      duration
+      duration,
+      ...(Number.isFinite(actorClockStartedAt) ? {
+        actorClockStartedAt,
+        actorClockRoomId: String(next.roomId || "")
+      } : {})
     };
     const nonCreditSemantic = nonCreditHeadMarkerSemanticKey(localEffect);
     if (nonCreditSemantic) {
@@ -11946,7 +12056,10 @@ function detectMagicEffects(previous, next) {
       ? itemUseCharacterAction(effect.variant)
       : null;
     const actionKind = itemUseAction?.kind || magicCharacterActionKind(effect.type, effect.variant);
-    if (actionKind && effect.playerId) {
+    const sunbeamFacing = effect.type === "flora-sunbeam" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)
+      ? facingFromDirection(effect.targetX - effect.x, effect.targetY - effect.y, state.facing.get(effect.playerId) || "down")
+      : null;
+    if (actionKind && effect.playerId && (effect.type !== "flora-sunbeam" || sunbeamActor)) {
       if (effect.type === "action-shoot" && Number.isFinite(effect.targetX) && Number.isFinite(effect.targetY)) {
         state.facing.set(
           effect.playerId,
@@ -11964,8 +12077,18 @@ function detectMagicEffects(previous, next) {
         startedAt,
         effect.id,
         effect.variant,
-        itemUseAction?.motionId || effect.type
+        itemUseAction?.motionId || effect.type,
+        sunbeamFacing ? {
+          authoritativeFacing: sunbeamFacing,
+          actorClockStartedAt,
+          actorClockRoomId: String(next.roomId || ""),
+          actorClockPlayerId: effect.playerId
+        } : null
       );
+      if (sunbeamFacing) {
+        const owner = state.characterActions.get(effect.playerId);
+        if (owner?.sourceEffectId === effect.id && owner.motionId === "flora-sunbeam") localEffect.sunbeamMotionOwner = owner;
+      }
     }
   }
 }
@@ -13760,10 +13883,10 @@ function abilityModeDescription(owner, mode, self) {
       "quantum-kinetic": "選択後、加速か減速へ分岐する。ミネラルウォーターまたは海水を所持していなければ何も起きない。",
       "kinetic-accelerate": "所持しているミネラルウォーターまたは海水の運動・熱エネルギーを増やし、高温水へ相変化させる。対象がなければ何も起きない。",
       "kinetic-decelerate": "所持しているミネラルウォーターまたは海水の運動・熱エネルギーを減らし、氷へ相変化させる。対象がなければ何も起きない。",
-      "electric-discharge": "量子制御で空気を局所絶縁破壊し、見通し上の最近接敵へ距離を問わず一条の電子輸送路を形成する。0.35ダメージと3秒間35%減速。壁・遮蔽物で終端し、連鎖・範囲・貫通はしない。16SP（無料化対象外）。",
+      "electric-discharge": "見通し上の最近接敵だけへ電子輸送路を作る。1MPと16SPで0.35のボディダメージと3秒間35%減速。壁・遮蔽物で止まり、連鎖・範囲・貫通はしない。",
       "nuclear-transmutation": "所持している鉛か水銀を自動選択し、原子核変換で金へ変えて100Cへ即時換金する。どちらもなければ何も起きない。",
-      "nuclear-fission": `終盤解禁後、所持しているウランかプルトニウムを自動選択し、核分裂連鎖で全人間へ作用させる。どちらもなければ何も起きない。発動には${nuclearReserve}MP保有が必要。`,
-      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を自動選択し、核融合反応で全人間へ作用させる。海水がなければ何も起きない。発動には${nuclearReserve}MP保有が必要。`
+      "nuclear-fission": `終盤解禁後、所持するウランかプルトニウムを消費する。16SPと${nuclearReserve}MPで自分以外の生存者全員へキルを試み、亡命していなければ術者も倒れる。所持品がなければ何も起きない。`,
+      "nuclear-fusion": `終盤解禁後、重水素を含む所持海水を消費する。16SPと${nuclearReserve}MPで自分以外の生存者全員へキルを試み、亡命していなければ術者も倒れる。海水がなければ何も起きない。`
     }
   };
   const ownerDescriptions = owner === "gravity" ? descriptions.teleport : descriptions[owner];
@@ -13876,6 +13999,11 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
       })
     : [];
   const specialAmmoLabels = { weak: "ウィーク弾", penetrate: "貫通弾", shock: "ショック弾" };
+  const specialAmmoDetails = {
+    weak: "射線上で最初に命中した対象へキルを試みる。回避、準備バリア、耐久防御、ガード／反射が成立した場合はキルしない。",
+    penetrate: "通常のマップ壁を貫通し、最初の対象だけを通常の頭部命中またはボディ命中判定で攻撃する。複数対象は貫通しない。",
+    shock: "射線上で最初に命中した対象の幸運が0未満ならキル。0以上なら移動速度を6秒間35%低下させる。理知の自然回復は減速を無効化する。"
+  };
   const specialAmmoInventory = self.gunnerSpecialAmmoInventory && typeof self.gunnerSpecialAmmoInventory === "object"
     ? self.gunnerSpecialAmmoInventory
     : {};
@@ -13890,7 +14018,7 @@ function collectInventoryDisplayItems(self, liveNow = estimatedServerNow(state.d
         asset: `gunner-special-ammo-${type}`,
         inventoryKind: "special-ammo",
         output: `所持 ${count}発${loaded ? " / 装填中" : ""}`,
-        detail: `${label}の獲得済み所持弾。現在の選択武器へ適用され、武器を切り替えると新しい選択武器へ追従します。装填中でも追加獲得でき、通常リロードでは失われません。`,
+        detail: `${specialAmmoDetails[type]} 現在の選択武器へ適用され、武器を切り替えると新しい選択武器へ追従します。装填中でも追加獲得でき、通常リロードでは失われません。`,
         badge: `${loaded ? "装填中 / " : ""}×${count}`,
         throwable: false,
         transferable: false
@@ -19176,7 +19304,13 @@ function drawMagicEffects() {
     return;
   }
   const now = state.frameNow || performance.now();
-  state.magicEffects = state.magicEffects.filter((effect) => now - effect.startedAt < effect.duration);
+  state.magicEffects = state.magicEffects.filter((effect) => {
+    if (effect.type !== "flora-sunbeam") return now - effect.startedAt < effect.duration;
+    const actorElapsed = sunbeamActorVisualElapsed(effect, state.data);
+    return actorElapsed == null
+      ? now - effect.startedAt < effect.duration
+      : Number.isFinite(actorElapsed) && actorElapsed < effect.duration;
+  });
   // Retain credit acquisition as semantic evidence for suppressing duplicate
   // object flashes, even though credit head markers themselves are withdrawn.
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect) || isCreditHeadMarkerEffect(effect));
@@ -19193,7 +19327,12 @@ function drawMagicEffects() {
   }
   const renderedNonCreditHeadMarkerInstances = new Set();
   for (const effect of state.magicEffects) {
-    const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
+    const sunbeamElapsed = effect.type === "flora-sunbeam" ? sunbeamActorVisualElapsed(effect, state.data) : null;
+    const progress = clamp(
+      (sunbeamElapsed == null ? now - effect.startedAt : sunbeamElapsed) / effect.duration,
+      0,
+      1
+    );
     if (effect.type.startsWith("gain-")) {
       if (!isCreditHeadMarkerEffect(effect)) {
         const player = gainEffectPlayer(effect);
@@ -20392,14 +20531,25 @@ function freshSunbeamRasterFrame(effect, progress, reduced) {
   const dy = targetY - sourceY;
   const length = Math.hypot(dx, dy);
   const p = clamp(Number(progress) || 0, 0, 1);
-  const onset = freshSunbeamEase(p / 0.15);
-  const finish = 1 - freshSunbeamEase((p - 0.76) / 0.24);
+  const elapsed = p * 1200;
+  const boundaryElapsed = elapsed + 1e-7;
+  const gatherEndsAt = 820 * 0.24;
+  const releaseAt = 820 * 0.56;
+  const recoverAt = 820 * 0.8;
+  const tipAt = 820;
+  const finishAt = 1200;
+  const onset = freshSunbeamEase(elapsed / gatherEndsAt);
+  const launch = freshSunbeamEase((elapsed - releaseAt) / (tipAt - releaseAt));
+  const tail = freshSunbeamEase((elapsed - tipAt) / (finishAt - tipAt));
+  const finish = 1 - tail;
   const opticalVariant = String(effect.variant || "refraction").split(":")[0];
   return {
     sourceX, sourceY, targetX, targetY, dx, dy, length,
     angle: length > 0.001 ? Math.atan2(dy, dx) : 0,
-    progress: p, onset, finish,
-    phase: finish <= 0.001 ? "settled" : onset < 0.999 ? "emerge" : p < 0.76 ? "travel" : "converge",
+    progress: p, elapsed, onset, launch, tail, finish,
+    gatherEndsAt, releaseAt, recoverAt, tipAt, finishAt,
+    released: boundaryElapsed >= releaseAt,
+    phase: finish <= 0.001 ? "settled" : boundaryElapsed < releaseAt ? "charge" : boundaryElapsed < tipAt ? "release" : "afterglow",
     opticalVariant: ["refraction", "scattering", "diffraction"].includes(opticalVariant) ? opticalVariant : "refraction",
     reduced: Boolean(reduced)
   };
@@ -20439,17 +20589,22 @@ function drawFreshSunbeamAlphaField(surfaceEntry, frame) {
   // splits two directed lobes, scattering uses one wide diffuse lobe, and
   // diffraction uses three coherent lobes. These are presentation-only masks;
   // no second damage ray or generic canvas beam is manufactured.
-  const front = -0.12 + 1.26 * freshSunbeamEase((frame.progress - 0.025) / 0.58);
-  const tail = -0.26 + 1.38 * freshSunbeamEase((frame.progress - 0.46) / 0.48);
+  const channel = FLORA_SUNBEAM_FRESH_T.tipAnchor - FLORA_SUNBEAM_FRESH_T.sourceAnchor;
+  const front = FLORA_SUNBEAM_FRESH_T.sourceAnchor + channel * frame.launch;
+  const tail = FLORA_SUNBEAM_FRESH_T.sourceAnchor + channel * frame.tail;
   const sampleCount = 64;
   for (let index = 0; index <= sampleCount; index += 1) {
     const u = index / sampleCount;
     const sourceGlow = packet(u, FLORA_SUNBEAM_FRESH_T.sourceAnchor, 0.095) * (0.70 + frame.onset * 0.30);
     let alpha;
-    if (frame.reduced) {
-      // Reduced motion removes travelling packets, not the endpoint meaning.
-      // Keep the entire registered source→tip texture in one static field;
-      // only its lifecycle onset/finish may change visibility.
+    if (!frame.released) {
+      // Authoritative settlement already happened before this client event.
+      // Until the body reaches its release key, retain only the authored source
+      // glow so the ray never visually leaves before the firing pose.
+      alpha = clamp(frame.onset * frame.finish * sourceGlow, 0, 1);
+    } else if (frame.reduced) {
+      // Reduced motion removes travelling packets. After the release key the
+      // complete measured source→tip field appears statically, then fades.
       const tipGlow = packet(u, FLORA_SUNBEAM_FRESH_T.tipAnchor, 0.085);
       const staticField = 0.76 + sourceGlow * 0.16 + tipGlow * 0.22;
       alpha = clamp(frame.onset * frame.finish * staticField, 0, 1);
@@ -20537,8 +20692,49 @@ function drawFreshSunbeamTexture(effect, progress) {
   return true;
 }
 
+function sunbeamEffectsAtHands(effect, progress, data = state.data) {
+  const owner = effect.sunbeamMotionOwner;
+  const latch = owner && AUTHORED_SUNBEAM_LATCHES.get(owner);
+  // Unconverted identities retain their existing presentation until their own
+  // art and anatomical registrations are accepted. Never borrow Philia's hands.
+  if (!latch?.sequences) return [effect];
+  const direction = sunbeamDirectionFromAuthoritativeFacing(owner.authoritativeFacing);
+  const profile = AUTHORED_SUNBEAM_PROFILES[latch.identity];
+  const elapsed = clamp(Number(progress) || 0, 0, 1) * 1200;
+  const releasedBody = elapsed + 1e-7 >= Number(owner.duration || 820);
+  let points = releasedBody ? effect.sunbeamLastHandPoints : null;
+  if (!points) {
+    const authoritative = (data?.players || []).find((player) => player.id === effect.playerId);
+    if (!authoritative || !direction || !profile) return [];
+    const player = renderedPlayer(authoritative);
+    const bodyProgress = Math.min(1 - 1e-7, elapsed / Number(owner.duration || 820));
+    const key = authoredSunbeamFrame(profile, bodyProgress);
+    const selected = latch.sequences[direction]?.[SUNBEAM_AUTHORED_MOTION_KEYS.findIndex((entry) => entry.key === key)];
+    if (!selected?.pose?.emitters?.length) return [];
+    const pose = selected.pose;
+    const { ascensionRise } = characterAscensionPresentation(player, data);
+    points = pose.emitters.map((point) => ({
+      x: player.x + pose.ground.x + (point.x - pose.origin.x) * pose.scale,
+      y: player.y - ascensionRise + pose.ground.y + (point.y - pose.origin.y) * pose.scale
+    }));
+    // Once the body has finished, the departing light remains at its last
+    // emission points rather than following an unrelated subsequent gesture.
+    if (releasedBody) effect.sunbeamLastHandPoints = points;
+  }
+  return points.map((point) => ({ ...effect, x: point.x, y: point.y }));
+}
+
 function drawFloraGeneratedEffect(effect, progress, sunbeam) {
-  if (sunbeam) return drawFreshSunbeamTexture(effect, progress);
+  if (sunbeam) {
+    const emissions = sunbeamEffectsAtHands(effect, progress);
+    ctx.save();
+    try {
+      ctx.globalAlpha *= emissions.length > 1 ? 0.7 : 1;
+      let drawn = false;
+      for (const emission of emissions) drawn = drawFreshSunbeamTexture(emission, progress) || drawn;
+      return drawn;
+    } finally { ctx.restore(); }
+  }
   const source = state.textures.floraHealV1;
   const key = "flora-heal-v1";
   const prepared = transparentSpriteSource(source, key, 18);
@@ -23671,7 +23867,10 @@ function displayActorTimeScale(player, data = state.data) {
 function syncActorVisualClocks(data = state.data) {
   const present = new Set((data?.players || []).map((player) => player?.id).filter(Boolean));
   for (const id of state.actorVisualClocks.keys()) {
-    if (!present.has(id)) state.actorVisualClocks.delete(id);
+    if (!present.has(id)) {
+      state.actorVisualClocks.delete(id);
+      if (state.characterActions.get(id)?.motionId === "flora-sunbeam") state.characterActions.delete(id);
+    }
   }
 }
 
@@ -23690,6 +23889,21 @@ function actorVisualTime(player, data = state.data) {
     current.frame = frame;
   }
   return current.time;
+}
+
+function clearSunbeamCharacterActions() {
+  for (const [playerId, action] of state.characterActions) {
+    if (action?.motionId === "flora-sunbeam") state.characterActions.delete(playerId);
+  }
+}
+
+function sunbeamActorVisualElapsed(owner, data = state.data) {
+  if (!owner || !Number.isFinite(Number(owner.actorClockStartedAt))) return null;
+  if (!["playing", "meeting"].includes(data?.phase) || String(owner.actorClockRoomId || "") !== String(data?.roomId || "")) return Infinity;
+  const playerId = String(owner.playerId || owner.actorClockPlayerId || "");
+  const player = (data?.players || []).find((entry) => entry.id === playerId);
+  if (!player) return Infinity;
+  return Math.max(0, actorVisualTime(player, data) - Number(owner.actorClockStartedAt));
 }
 
 
@@ -24052,6 +24266,15 @@ function currentCharacterAction(player) {
   const action = state.characterActions.get(player.id);
   if(action?.motionId==="action-shoot"&&["handgun","smg","assault","sniper","taser"].includes(action.variant)&&suppressSyntheticAuthoredHandgunFire(player,state.data)&&AUTHORED_HANDGUN_FIRE_STATE.seen.has(action.sourceEffectId)){state.characterActions.delete(player.id);return authoritativeWeaponReloadBody(player,state.data)??null;}
   if (!action) return null;
+  if (action.motionId === "flora-sunbeam" && Number.isFinite(Number(action.actorClockStartedAt))) {
+    const actorElapsed = sunbeamActorVisualElapsed(action, state.data);
+    const progress = Number.isFinite(actorElapsed) ? actorElapsed / Math.max(1, action.duration) : 1;
+    if (progress >= 1) {
+      state.characterActions.delete(player.id);
+      return authoritativeWeaponReloadBody(player,state.data) ?? null;
+    }
+    return { ...action, progress: clamp(progress, 0, 1) };
+  }
   const lastSampleAt = Number(action.lastSampleAt) || Number(action.startedAt) || timestamp;
   const elapsed = clamp(timestamp - lastSampleAt, 0, 100);
   const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
@@ -24066,9 +24289,7 @@ function currentCharacterAction(player) {
   return { ...action, progress: clamp(progress, 0, 1) };
 }
 
-function drawHuman(player, data) {
-  const ghost = !player.alive && !player.ejected;
-  const self = player.id === data.selfId;
+function characterAscensionPresentation(player, data) {
   const liveNow = estimatedServerNow(data);
   const ascensionStartedAt = Number(player.ascensionStartedAt) || 0;
   const ascensionUntil = Number(player.ascensionUntil) || 0;
@@ -24076,6 +24297,13 @@ function drawHuman(player, data) {
     ? clamp((liveNow - ascensionStartedAt) / Math.max(1, ascensionUntil - ascensionStartedAt), 0, 1)
     : 0;
   const ascensionRise = ascensionProgress * ascensionProgress * 155;
+  return { ascensionProgress, ascensionRise };
+}
+
+function drawHuman(player, data) {
+  const ghost = !player.alive && !player.ejected;
+  const self = player.id === data.selfId;
+  const { ascensionProgress, ascensionRise } = characterAscensionPresentation(player, data);
   ctx.save();
   ctx.translate(player.x, player.y - ascensionRise);
   const characterAction = currentCharacterAction(player);
@@ -24957,6 +25185,7 @@ function drawPhysicalActionSprite(player, data, ghost, action) {
   if (drawAuthoredNinjutsuFocusPose(player, data, ghost, action, atlasId, normalizedProgress)) return true;
   if (drawAuthoredThrowPose(player, data, ghost, action, atlasId, normalizedProgress)) return true;
   if (drawAuthoredHealPose(player, data, ghost, action, atlasId, normalizedProgress)) return true;
+  if (drawAuthoredSunbeamPose(player, data, ghost, action, atlasId, normalizedProgress)) return true;
   if (drawAuthoredDodgePose(player, data, ghost, action, atlasId, normalizedProgress)) return true;
   if (drawAuthoredFirePose(player, data, ghost, action, atlasId, normalizedProgress)) return true;
   const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
@@ -26308,7 +26537,7 @@ function drawLegacyWorldKillResidual(effect, camera, zoom = CAMERA_ZOOM) {
   const duration = Number(effect.duration);
   const inheritedAlpha = ctx.globalAlpha;
   if (!(duration > 0) || age <= 0 || age >= duration || inheritedAlpha <= 0) return;
-  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "fresh-sunbeam-and-operator-activation-v893", 12);
+  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "sunbeam-hands-passive-and-portrait-v894", 12);
   if (!sprite?.width || !sprite?.height) return;
   const progress = age / duration;
   const reduced = prefersReducedMotion();
@@ -26979,7 +27208,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "fresh-sunbeam-and-operator-activation-v893";
+const version = "sunbeam-hands-passive-and-portrait-v894";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -27260,6 +27489,17 @@ const version = "fresh-sunbeam-and-operator-activation-v893";
         const assetPath = profile.directions[direction][key].assetPath;
         let image = authoredHealImages.get(assetPath);
         if (!image) { image = new Image(); defer(image, assetPath); authoredHealImages.set(assetPath, image); }
+        return [key, image];
+      }))
+    ]))
+  ]));
+  const authoredSunbeamImages = new Map();
+  const authoredSunbeamMotions = Object.fromEntries(Object.entries(AUTHORED_SUNBEAM_PROFILES).map(([identity, profile]) => [identity,
+    Object.fromEntries(SUNBEAM_AUTHORED_MOTION_DIRECTIONS.map((direction) => [direction,
+      Object.fromEntries(SUNBEAM_AUTHORED_MOTION_KEYS.map(({ key }) => {
+        const assetPath = profile.directions[direction][key].assetPath;
+        let image = authoredSunbeamImages.get(assetPath);
+        if (!image) { image = new Image(); if (assetPath) defer(image, assetPath); authoredSunbeamImages.set(assetPath, image); }
         return [key, image];
       }))
     ]))
@@ -27640,6 +27880,7 @@ const version = "fresh-sunbeam-and-operator-activation-v893";
     authoredFireMotions,
     authoredDodgeMotions,
     authoredHealMotions,
+    authoredSunbeamMotions,
     itemUseActionMotions,
     weaponActionMotions,
     authoredPhiliaHandgunReload,
@@ -28271,7 +28512,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=fresh-sunbeam-and-operator-activation-v893", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=sunbeam-hands-passive-and-portrait-v894", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
@@ -28341,6 +28582,25 @@ function acquisitionOverlayCanvas() {
   return overlay;
 }
 
+function acquisitionOverlayViewport(overlay) {
+  const observed = overlay.getBoundingClientRect();
+  const width = observed.width > 0 ? observed.width : Math.max(1, Number(window.innerWidth) || 1);
+  const height = observed.height > 0 ? observed.height : Math.max(1, Number(window.innerHeight) || 1);
+  const ratio = Math.max(1, Number(window.devicePixelRatio) || 1);
+  const pixelWidth = Math.max(1, Math.round(width * ratio));
+  const pixelHeight = Math.max(1, Math.round(height * ratio));
+  return { left: Number(observed.left) || 0, top: Number(observed.top) || 0, width, height,
+    pixelWidth, pixelHeight, scaleX: pixelWidth / width, scaleY: pixelHeight / height };
+}
+
+function acquisitionOverlayLocalRect(rect, viewport) {
+  return { ...rect, left: rect.left - viewport.left, top: rect.top - viewport.top };
+}
+
+function acquisitionOverlayLocalPoint(point, viewport) {
+  return { x: point.x - viewport.left, y: point.y - viewport.top };
+}
+
 function clearAcquisitionOverlay() {
   document.querySelector('canvas[data-acquisition-overlay]')?.remove();
 }
@@ -28356,37 +28616,39 @@ function drawAcquisitionPhotonStream(data, camera, worldZoom, now = state.frameN
   const canvasRect = els.canvas.getBoundingClientRect();
   if (!effects.length || !canvasRect.width || !canvasRect.height) { clearAcquisitionOverlay(); return; }
   const reduced = prefersReducedMotion();
-  const overlay = acquisitionOverlayCanvas(), ratio = Math.max(1, Number(window.devicePixelRatio) || 1);
-  const width = Math.max(1, Math.round(window.innerWidth * ratio)), height = Math.max(1, Math.round(window.innerHeight * ratio));
-  if (overlay.width !== width || overlay.height !== height) { overlay.width = width; overlay.height = height; }
+  const overlay = acquisitionOverlayCanvas(), viewport = acquisitionOverlayViewport(overlay);
+  if (overlay.width !== viewport.pixelWidth || overlay.height !== viewport.pixelHeight) {
+    overlay.width = viewport.pixelWidth; overlay.height = viewport.pixelHeight;
+  }
   const paint = overlay.getContext('2d');
-  paint.setTransform(ratio, 0, 0, ratio, 0, 0); paint.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  paint.setTransform(viewport.scaleX, 0, 0, viewport.scaleY, 0, 0);
+  paint.clearRect(0, 0, viewport.width, viewport.height);
   let drew = false;
   for (const effect of effects) {
     const travelElapsed = acquisitionPhotonWindow(effect, now);
     // Missing serialized origins are null, not a world coordinate of zero.
     const ox = Number.isFinite(effect.acquisitionOriginX) ? effect.acquisitionOriginX : Number(effect.x);
     const oy = Number.isFinite(effect.acquisitionOriginY) ? effect.acquisitionOriginY : Number(effect.y) - 30.3;
-    const origin = acquisitionWorldPoint(ox, oy, camera, worldZoom, canvasRect);
+    const origin = acquisitionOverlayLocalPoint(acquisitionWorldPoint(ox, oy, camera, worldZoom, canvasRect), viewport);
     const destinations = [];
     if (effect.playerId === data.selfId) {
       if (effect.acquisitionKind !== 'credits') {
         const rect = acquisitionVisibleRect(acquisitionDestinationElement(effect, data));
-        if (rect) destinations.push(rect);
+        if (rect) destinations.push(acquisitionOverlayLocalRect(rect, viewport));
       }
       if (effect.acquisitionKind === 'credits' || Number(effect.acquisitionCredits) > 0) {
         const rect = state.acquisitionCreditRect;
-        if (rect) destinations.push({left: canvasRect.left + rect.left * canvasRect.width / els.canvas.width,
+        if (rect) destinations.push(acquisitionOverlayLocalRect({left: canvasRect.left + rect.left * canvasRect.width / els.canvas.width,
           top: canvasRect.top + rect.top * canvasRect.height / els.canvas.height,
           width: rect.width * canvasRect.width / els.canvas.width,
-          height: rect.height * canvasRect.height / els.canvas.height, radius: 4});
+          height: rect.height * canvasRect.height / els.canvas.height, radius: 4}, viewport));
       }
     } else {
       // Another viewer sees delivery to the visible recipient, never to their own inventory.
       const recipient = data.players?.find(player => player.id === effect.playerId && player.alive && !player.ejected && !player.inVent && !player.invisible);
       if (recipient && Number.isFinite(recipient.x) && Number.isFinite(recipient.y)) {
         const position = renderedPlayer(recipient);
-        const point = acquisitionWorldPoint(position.x, position.y - 22, camera, worldZoom, canvasRect);
+        const point = acquisitionOverlayLocalPoint(acquisitionWorldPoint(position.x, position.y - 22, camera, worldZoom, canvasRect), viewport);
         destinations.push({left: point.x - 7, top: point.y - 7, width: 14, height: 14, radius: 7, actor: true});
       }
     }

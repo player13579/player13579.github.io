@@ -7354,7 +7354,7 @@ const LABORATORY_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "fresh-sunbeam-and-operator-activation-v893",
+    version: "sunbeam-hands-passive-and-portrait-v894",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -7376,7 +7376,7 @@ const LABORATORY_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "fresh-sunbeam-and-operator-activation-v893";
+const PRODUCT_RELEASE = "sunbeam-hands-passive-and-portrait-v894";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -13627,6 +13627,18 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
       naturalRecoveryActive
     );
     completeRestAtFullStamina(room, mover, timestamp);
+    return;
+  }
+  // SP is the authoritative movement resource for living actors.  Apply the
+  // same gate before walk, slow walk, dash, and automatic Hover Sprint so a
+  // held input cannot advance an actor after its balance reaches zero.  This
+  // deliberately lives in the common movement integrator: Bot navigation
+  // uses it too, while teleports, knockback, and other authoritative position
+  // changes retain their own non-input routes.
+  if (player.alive && availableStamina(mover) <= 0) {
+    mover.vx = 0;
+    mover.vy = 0;
+    mover.movementMode = "idle";
     return;
   }
   // A zero-time packet switches intent after prior movement was integrated.
@@ -20251,14 +20263,19 @@ function killPlayer(room, killer, targetId, options = {}) {
 
 function clearShotPath(room, shooter, target, directionX, directionY, options = {}) {
   const along = (target.x - shooter.x) * directionX + (target.y - shooter.y) * directionY;
-  const path = resolveVectorAttackPath(room, shooter, directionX, directionY, along, { collisionRadius: 2 });
+  // Only the named Penetrate special round opts out of immutable map-wall
+  // clipping. Generated cover remains independently controlled by ignoreCover.
+  const penetrateMapWalls = Boolean(options.penetrateMapWalls);
+  const path = penetrateMapWalls
+    ? { distance: along }
+    : resolveVectorAttackPath(room, shooter, directionX, directionY, along, { collisionRadius: 2 });
   if (path.distance + 0.5 < along) return false;
   const steps = Math.max(1, Math.ceil(along / 18));
   for (let step = 1; step < steps; step += 1) {
     const distanceAlong = along * step / steps;
     const x = shooter.x + directionX * distanceAlong;
     const y = shooter.y + directionY * distanceAlong;
-    if (!isWalkable(room, x, y, 2)) return false;
+    if (!penetrateMapWalls && !isWalkable(room, x, y, 2)) return false;
     if (!options.ignoreCover && (room.alchemyObjects || []).some((object) => object.type === "cover" && (!object.endsAt || object.endsAt > now()) && Math.hypot(x - object.x, y - object.y) <= object.radius)) return false;
   }
   return true;
@@ -20479,7 +20496,10 @@ function findGunnerTarget(room, shooter, weapon, dx, dy, options = {}) {
       return { player, along, perpendicular };
     })
     .filter((entry) => entry.along > 8 && entry.along <= path.distance + 0.5 && entry.perpendicular <= weapon.lineWidth)
-    .filter((entry) => clearShotPath(room, shooter, entry.player, dx, dy, { ignoreCover: Boolean(options.ignoreCover) }))
+    .filter((entry) => clearShotPath(room, shooter, entry.player, dx, dy, {
+      ignoreCover: Boolean(options.ignoreCover),
+      penetrateMapWalls: Boolean(options.penetrate)
+    }))
     .sort((a, b) => a.along - b.along)[0] || null;
 }
 
@@ -22248,7 +22268,10 @@ function serialize(room, viewer, options = {}) {
       levitationManaPerSecond: LEVITATION_MANA_DRAIN_PER_SECOND,
       limitBreakManaPerSecond: 0,
       limitBreakActivationCost: 0,
-      limitBreakPassive: true,
+      limitBreakPassive: Boolean(
+        hasOperatorAccess(viewer, "fighter") ||
+        ownsShopAbility(viewer, "fighter-limit-break")
+      ),
       alchemyReviveUsed: Boolean(viewer.alchemyReviveUsed),
       vibeCodingReadyAt: Number(viewer.vibeCodingReadyAt) || 0,
       vibeCodingCooldownMs: Number(viewer.vibeCodingCooldownMs) || 0,
@@ -26572,7 +26595,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "fresh-sunbeam-and-operator-activation-v893",
+  version: "sunbeam-hands-passive-and-portrait-v894",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
