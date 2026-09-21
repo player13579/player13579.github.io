@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sabotage-retired-loot-shop-v887";
-const CACHE_NAME = "dva-static-v887-sabotage-retired-loot-shop";
+const RUNTIME_RELEASE = "loot-firearm-and-readable-emp-v888";
+const CACHE_NAME = "dva-static-v888-loot-firearm-and-readable-emp";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/bust-charge-v886.png",
