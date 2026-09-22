@@ -5,10 +5,11 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "body-levitation-textureless-gain-v901";
-const CACHE_NAME = "dva-static-v901-body-levitation-textureless-gain";
+const RUNTIME_RELEASE = "body-benefit-hp-v902";
+const CACHE_NAME = "dva-static-v902-body-benefit-hp";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/heal-body-original-v902.png",
   "/assets/generated/stamina-body-original-v897.png",
   "/assets/generated/levitation-support-field-v901.png",
   "/assets/generated/philia-sniper-switch-back-source-v1.png",
