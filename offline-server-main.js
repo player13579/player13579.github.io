@@ -3386,7 +3386,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "viewport-marker-stamina-v900",
+    version: "body-levitation-textureless-gain-v901",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -3408,7 +3408,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "viewport-marker-stamina-v900";
+const PRODUCT_RELEASE = "body-levitation-textureless-gain-v901";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -6173,8 +6173,7 @@ function leaveRoom(room, player) {
     player.movementMode = "idle";
     player.airborneUntil = 0;
     player.falling = false;
-    player.levitationEngaged = false;
-    player.levitationManaCarry = 0;
+    setGravityLevitationEngaged(room, player, false, "leave-reset");
     player.sharedLevitationActive = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
@@ -6451,8 +6450,7 @@ function startGame(room) {
     player.movementAccEnabled = true;
     player.airborneUntil = 0;
     player.falling = false;
-    player.levitationEngaged = false;
-    player.levitationManaCarry = 0;
+    setGravityLevitationEngaged(room, player, false, "battle-reset");
     player.sharedLevitationActive = false;
     player.clairvoyanceActive = false;
     player.clairvoyanceManaCarry = 0;
@@ -8538,19 +8536,40 @@ function isFloorArea(room, x, y, radius = 0) {
   return map.walkable.some((rect) => rectContains(rect, x, y, -seamMargin));
 }
 
+function setGravityLevitationEngaged(room, player, active, reason = "") {
+  if (!player) return false;
+  const next = Boolean(active);
+  if (Boolean(player.levitationEngaged) === next) return false;
+  player.levitationEngaged = next;
+  if (!next) player.levitationManaCarry = 0;
+  pushSound(room, next ? "gravity-levitation-onset" : "gravity-levitation-end", player, {
+    ownerId: player.id,
+    maxDistance: 720,
+    volume: next ? 0.62 : 0.5,
+    sourceKind: "player",
+    variant: String(reason || (next ? "support-engaged" : "support-released"))
+  });
+  return true;
+}
+
 function advanceLevitationMana(room, player, elapsedMs) {
-  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) return;
+  if (room.phase !== "playing" || !player.alive || player.ejected || player.inVent) {
+    setGravityLevitationEngaged(room, player, false, "actor-inactive");
+    return;
+  }
   const radius = getMap(room).playerRadius || 36;
   const offFloor = !isFloorArea(room, player.x, player.y, radius);
   if (!offFloor) {
-    player.levitationEngaged = false;
-    player.levitationManaCarry = 0;
+    setGravityLevitationEngaged(room, player, false, "floor-return");
     return;
   }
-  if (!hasOperatorAccess(player, "gravity")) return;
+  if (!hasOperatorAccess(player, "gravity")) {
+    setGravityLevitationEngaged(room, player, false, "gravity-access-ended");
+    return;
+  }
   if (!player.levitationEngaged) {
-    if (!passivesEnabled(player)) return;
-    player.levitationEngaged = true;
+    if (!passivesEnabled(player) || Number(player.mana) <= 0) return;
+    setGravityLevitationEngaged(room, player, true, "unsupported-floor");
   }
   player.levitationManaCarry = Math.max(0, Number(player.levitationManaCarry) || 0) +
     Math.max(0, elapsedMs) / 1000 * LEVITATION_MANA_DRAIN_PER_SECOND;
@@ -8558,10 +8577,7 @@ function advanceLevitationMana(room, player, elapsedMs) {
   if (drain < 0.01) return;
   player.levitationManaCarry = Math.max(0, player.levitationManaCarry - drain);
   setMana(room, player, Number(player.mana) - drain, "リビテーション");
-  if (Number(player.mana) <= 0) {
-    player.levitationEngaged = false;
-    player.levitationManaCarry = 0;
-  }
+  if (Number(player.mana) <= 0) setGravityLevitationEngaged(room, player, false, "mana-empty");
 }
 
 function setClairvoyanceActive(room, player, active) {
@@ -10391,6 +10407,7 @@ function tallyMeeting(room) {
 
   if (ejected && ejected.alive && !ejected.ejected) {
     recordBotMatchElimination(room, ejected, null);
+    setGravityLevitationEngaged(room, ejected, false, "ejected");
     ejected.alive = false;
     ejected.ejected = true;
     ejected.killCamera = null;
@@ -11996,6 +12013,7 @@ function applyDefenderFriendlyFirePenalty(room, killer, target, timestamp, optio
   if (killer.role !== target.role || !["defender", "attacker"].includes(killer.role) || !killer.alive || killer.ejected) return false;
   if (!options.ignorePreparationBarrier && absorbPreparationBarrier(room, killer, timestamp, target)) return false;
   recordBotMatchElimination(room, killer, killer);
+  setGravityLevitationEngaged(room, killer, false, "friendly-fire-death");
   killer.alive = false;
   recordKillCamera(room, killer, null, {
     timestamp,
@@ -15351,6 +15369,7 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   recordBotMatchElimination(room, target, source);
   clearFloraInvisible(room, target, "戦闘不能で解除");
   const botKillWitnesses = captureBotKillWitnesses(room, source, target, timestamp);
+  setGravityLevitationEngaged(room, target, false, "death");
   target.alive = false;
   stopLimitBreak(room, target, "death");
   recordKillCamera(room, target, source, {
@@ -16066,6 +16085,7 @@ function killPlayer(room, killer, targetId, options = {}) {
   recordBotMatchElimination(room, target, killer);
   clearFloraInvisible(room, target, "戦闘不能で解除");
   const botKillWitnesses = captureBotKillWitnesses(room, killer, target, timestamp);
+  setGravityLevitationEngaged(room, target, false, "death");
   target.alive = false;
   stopLimitBreak(room, target, "death");
   recordKillCamera(room, target, killer, {
@@ -17234,6 +17254,7 @@ function useLuminous(room, player, targetId) {
     }
   } else {
     recordBotMatchElimination(room, player, player);
+    setGravityLevitationEngaged(room, player, false, "luminous-failure-death");
     player.alive = false;
     recordKillCamera(room, player, player, {
       timestamp,
@@ -17701,6 +17722,7 @@ function serialize(room, viewer, options = {}) {
       movementAccAvailable: movementAccState(room, player, timestamp).available,
       movementAccThreshold: movementAccState(room, player, timestamp).threshold,
       levitationActive: canLevitate(player),
+      gravityLevitationActive: Boolean(room.phase === "playing" && player.alive && !player.ejected && !player.inVent && player.levitationEngaged),
       statusAte: persistentStatusAteState(room, player, timestamp),
       hackerRootActive: hackerRootEligible(player),
       gunnerSnipingActive: Boolean(hasGunnerAimAccess(player) && player.gunnerSnipingActive),
@@ -17908,6 +17930,7 @@ function serialize(room, viewer, options = {}) {
         passivesEnabled(viewer) &&
         gunnerAimMovementAllowed(viewer)
       ),
+      gravityLevitationActive: Boolean(room.phase === "playing" && viewer.alive && !viewer.ejected && !viewer.inVent && viewer.levitationEngaged),
       statusAte: persistentStatusAteState(room, viewer, timestamp),
       aromaActive: Boolean(floraAromaSource(room, viewer)),
       aromaRegenMultiplier: floraAromaMultiplier(room, viewer),
@@ -22450,7 +22473,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "viewport-marker-stamina-v900",
+  version: "body-levitation-textureless-gain-v901",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

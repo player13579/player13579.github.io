@@ -5,10 +5,12 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "viewport-marker-stamina-v900";
-const CACHE_NAME = "dva-static-v900-viewport-marker-stamina";
+const RUNTIME_RELEASE = "body-levitation-textureless-gain-v901";
+const CACHE_NAME = "dva-static-v901-body-levitation-textureless-gain";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
+  "/assets/generated/stamina-body-original-v897.png",
+  "/assets/generated/levitation-support-field-v901.png",
   "/assets/generated/philia-sniper-switch-back-source-v1.png",
   "/assets/generated/philia-sniper-switch-front-source-v1.png",
   "/assets/generated/philia-sniper-switch-left-source-v1.png",
@@ -31,7 +33,6 @@ const STATIC_ASSETS = [
   "/assets/generated/sophia-sunbeam-left-v896.png",
   "/assets/generated/sophia-sunbeam-right-v896.png",
   "/assets/generated/sophia-sunbeam-back-v896.png",
-  "/assets/generated/acquisition-golden-flight-te-v895.png",
   "/assets/generated/philia-sunbeam-front-v894.png",
   "/assets/generated/philia-sunbeam-left-v894.png",
   "/assets/generated/philia-sunbeam-right-v894.png",
