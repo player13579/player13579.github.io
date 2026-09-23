@@ -2,25 +2,27 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Medical footbath WebGPU effect trial</title>
+<title>Medical room WebGPU E comparison</title>
 <style>
   :root { color-scheme: dark; font: 14px/1.45 system-ui, sans-serif; }
   body { margin: 0; padding: 16px; background: #111820; color: #eaf2f5; }
   main { width: min(950px, 100%); margin: auto; }
   .stage { width: 100%; aspect-ratio: 950 / 780; background: #202b32; overflow: hidden; }
   canvas { display: block; width: 100%; height: 100%; }
-  .controls { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
+  .controls { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
   input { accent-color: #74d2d5; }
   #status { color: #acd6dc; }
   body.verify .controls { display: none; }
   #error { color: #ffb3a6; white-space: pre-wrap; }
 </style>
 <main>
-  <h1>Footbath water and steam — WebGPU trial</h1>
+  <h1>Medical room E — WebGPU comparison</h1>
   <div class="stage"><canvas id="view" width="950" height="780" aria-label="Medical room with animated WebGPU footbath"></canvas></div>
   <div class="controls">
+    <label>比較モード <select id="mode"><option value="bath">足湯のみ</option><option value="balanced">バランス</option><option value="rich">Eを多めに</option></select></label>
     <button id="toggle" type="button">エフェクトを消す</button>
     <label>強さ <input id="intensity" type="range" min="0" max="100" value="65"></label>
+    <button id="audio" type="button" aria-pressed="false">音を有効にする</button>
     <span id="status">WebGPUを初期化中</span>
   </div>
   <pre id="error" role="alert"></pre>
@@ -35,9 +37,16 @@ if (verify) document.body.classList.add('verify');
 let enabled = true;
 let intensity = 0.65;
 let device;
+const MODES = { bath: 0, balanced: 1, rich: 2 };
+const query = new URLSearchParams(location.search);
+let mode = Object.hasOwn(MODES, query.get('mode')) ? query.get('mode') : 'bath';
+document.querySelector('#mode').value = mode;
+let audioContext = null;
+let audioEnabled = false;
+const lastAudioCycle = new Map();
 
 const shader = /* wgsl */`
-struct Params { time: f32, intensity: f32, width: f32, height: f32 }
+struct Params { time: f32, intensity: f32, width: f32, height: f32, mode: f32, _pad0: f32, _pad1: f32, _pad2: f32 }
 @group(0) @binding(0) var baseImage: texture_2d<f32>;
 @group(0) @binding(1) var<uniform> params: Params;
 struct Out { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32> }
@@ -54,6 +63,13 @@ fn noise(p0: vec2<f32>) -> f32 {
   let i=floor(p0); let f=fract(p0); let u=f*f*(vec2<f32>(3.0)-2.0*f);
   return mix(mix(hash(i),hash(i+vec2<f32>(1.0,0.0)),u.x),mix(hash(i+vec2<f32>(0.0,1.0)),hash(i+vec2<f32>(1.0,1.0)),u.x),u.y);
 }
+fn oval(p: vec2<f32>, center: vec2<f32>, radii: vec2<f32>) -> f32 {
+  return length((p-center)/radii);
+}
+fn pulse(t: f32, period: f32, width: f32) -> f32 {
+  let phase=fract(t/period);
+  return 1.0-smoothstep(0.0,width,phase);
+}
 @fragment fn fs(in: Out) -> @location(0) vec4<f32> {
   let size=vec2<f32>(params.width,params.height);
   let px=vec2<i32>(in.position.xy);
@@ -69,7 +85,7 @@ fn noise(p0: vec2<f32>) -> f32 {
   let n=noise(flow)+0.45*noise(flow*2.1+vec2<f32>(t*0.08,0.0));
   let bands=pow(max(0.0,sin(p.x*0.18+p.y*0.12+t*1.8+n*3.0)),8.0);
   let ripples=pow(max(0.0,sin(length((p-vec2<f32>(224.0,531.0))*vec2<f32>(0.78,1.0))*0.22-t*2.5)),12.0);
-  let shimmer=(0.035+0.16*bands+0.085*ripples)*params.intensity*water;
+  let shimmer=(0.035+0.16*bands+0.085*ripples)*(1.0+0.14*pulse(t,8.0,0.16))*params.intensity*water;
   var color=mix(base.rgb,base.rgb*vec3<f32>(0.78,0.96,1.08)+vec3<f32>(0.0,0.045,0.075),water*params.intensity*0.33);
   color += vec3<f32>(0.26,0.78,0.88)*shimmer;
 
@@ -83,6 +99,48 @@ fn noise(p0: vec2<f32>) -> f32 {
     let fade=(1.0-smoothstep(482.0,489.0,y))*smoothstep(452.0,460.0,y);
     let wisp=exp(-dx*dx/7.5)*exp(-pow((p.y-y)/13.0,2.0))*fade*params.intensity*0.11;
     color += vec3<f32>(0.70,0.90,0.94)*wisp;
+  }
+  if (params.mode >= 1.0 && params.intensity > 0.0) {
+    // Window light is also cast onto two open floor patches at a readable scale.
+    let windowMask=1.0-smoothstep(0.0,3.0,roundedRect(p,vec2<f32>(600.0,32.0),vec2<f32>(195.0,20.0),3.0));
+    let daylight=(0.45+0.45*noise(p*0.031+vec2<f32>(t*0.11,-t*0.07))+0.10*pulse(t,13.0,0.13))*windowMask;
+    color += vec3<f32>(0.17,0.22,0.15)*daylight*params.intensity*0.24;
+    let sill=1.0-smoothstep(0.0,2.5,roundedRect(p,vec2<f32>(600.0,61.0),vec2<f32>(182.0,2.0),1.0));
+    color += vec3<f32>(0.48,0.54,0.35)*sill*(0.35+0.65*daylight)*params.intensity*0.07;
+    let floorPatchA=exp(-pow(oval(p,vec2<f32>(551.0,264.0),vec2<f32>(84.0,57.0)),2.0)*2.2);
+    let floorPatchB=exp(-pow(oval(p,vec2<f32>(735.0,304.0),vec2<f32>(69.0,50.0)),2.0)*2.2);
+    let leafShade=0.42+0.58*noise(p*0.035+vec2<f32>(t*0.13,-t*0.09));
+    let floorLight=(floorPatchA+floorPatchB)*leafShade*(0.82+0.18*pulse(t,13.0,0.13));
+    color += vec3<f32>(0.50,0.32,0.09)*floorLight*params.intensity*0.78;
+
+    // The central monitor glass has a readable sweep and a bounded cyan halo.
+    let monitor=1.0-smoothstep(-1.0,2.0,roundedRect(p,vec2<f32>(469.0,350.0),vec2<f32>(36.0,25.0),2.0));
+    let sweepY=332.0+fract(t/5.5)*35.0;
+    let sweep=exp(-pow((p.y-sweepY)/5.5,2.0))*monitor;
+    let monitorPulse=pulse(t,5.5,0.09)*exp(-pow((p.x-469.0)/23.0,2.0))*monitor;
+    let monitorHalo=exp(-pow(oval(p,vec2<f32>(469.0,351.0),vec2<f32>(48.0,35.0)),2.0)*2.0)*(0.55+0.45*pulse(t,5.5,0.18));
+    color += vec3<f32>(0.15,0.64,0.66)*(sweep*0.38+monitorPulse*0.22+monitorHalo*0.32)*params.intensity;
+  }
+  if (params.mode >= 2.0 && params.intensity > 0.0) {
+    // Scanner: a broad moving light crosses the existing mattress surface.
+    let bedSurface=1.0-smoothstep(-1.0,5.0,roundedRect(p,vec2<f32>(232.0,210.0),vec2<f32>(86.0,37.0),11.0));
+    let scanPhase=fract(t/11.0);
+    let bedScan=exp(-pow((p.x-(149.0+scanPhase*166.0))/15.0,2.0))*bedSurface;
+    color += vec3<f32>(0.28,0.66,0.63)*bedScan*params.intensity*0.48;
+
+    // Shelf equipment and plants share a soft response across their real compartments.
+    let shelfWake=pulse(t+1.5,17.0,0.14);
+    let shelfA=exp(-pow(oval(p,vec2<f32>(650.0,198.0),vec2<f32>(26.0,23.0)),2.0)*2.1);
+    let shelfB=exp(-pow(oval(p,vec2<f32>(731.0,198.0),vec2<f32>(22.0,23.0)),2.0)*2.1);
+    let shelfMask=1.0-smoothstep(-1.0,4.0,roundedRect(p,vec2<f32>(679.0,199.0),vec2<f32>(76.0,34.0),4.0));
+    color += vec3<f32>(0.24,0.58,0.39)*(shelfA+shelfB)*shelfMask*(0.38+0.62*shelfWake)*params.intensity*0.36;
+
+    // Sink sterilization illuminates the basin and its rim without filling the wall.
+    let sinkEvent=pulse(t+3.5,19.0,0.12);
+    let basin=exp(-pow(oval(p,vec2<f32>(852.0,198.0),vec2<f32>(27.0,24.0)),2.0)*1.7);
+    let rim=1.0-smoothstep(-1.0,4.0,roundedRect(p,vec2<f32>(852.0,199.0),vec2<f32>(30.0,29.0),9.0));
+    let sinkGlint=exp(-pow((p.x-(827.0+fract((t+3.5)/19.0)*48.0))/11.0,2.0))*basin;
+    color += vec3<f32>(0.43,0.75,0.76)*(basin*0.38+sinkGlint*0.62)*rim*(0.35+0.65*sinkEvent)*params.intensity*0.40;
   }
   return vec4<f32>(color,1.0);
 }`;
@@ -106,12 +164,12 @@ async function start() {
   const info = await module.getCompilationInfo();
   const errors = info.messages.filter(x => x.type === 'error');
   if (errors.length) throw new Error(errors.map(x => `${x.lineNum}:${x.linePos} ${x.message}`).join('\n'));
-  const uniform = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const uniform = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const pipeline = device.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format }] }, primitive: { topology: 'triangle-list' } });
   const group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: texture.createView() }, { binding: 1, resource: { buffer: uniform } }] });
-  status.textContent = verify ? 'verify: WebGPU ready; audio is muted (no audio stream)' : 'WebGPU稼働中';
+  status.textContent = verify ? 'verify: WebGPU ready; audio forced to zero' : 'WebGPU稼働中';
   function frame(now) {
-    device.queue.writeBuffer(uniform, 0, new Float32Array([now / 1000, enabled ? intensity : 0, 950, 780]));
+    device.queue.writeBuffer(uniform, 0, new Float32Array([now / 1000, enabled ? intensity : 0, 950, 780, MODES[mode], 0, 0, 0]));
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({ colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0,0,0,1] }] });
     pass.setPipeline(pipeline); pass.setBindGroup(0, group); pass.draw(3); pass.end();
@@ -122,6 +180,88 @@ async function start() {
 }
 document.querySelector('#toggle').addEventListener('click', e => { enabled = !enabled; e.currentTarget.textContent = enabled ? 'エフェクトを消す' : 'エフェクトを表示'; });
 document.querySelector('#intensity').addEventListener('input', e => intensity = Number(e.target.value)/100);
+document.querySelector('#mode').addEventListener('change', e => {
+  mode = e.target.value;
+  query.set('mode', mode);
+  history.replaceState(null, '', `${location.pathname}?${query}${location.hash}`);
+  lastAudioCycle.clear();
+});
+
+// Every sound is a quiet, short response to a visible event. No oscillator loops or autoplay.
+function cue(frequency, duration, level, filteredNoise = false) {
+  if (verify || !audioEnabled || !audioContext || !enabled || intensity === 0) return;
+  const at = audioContext.currentTime;
+  const gain = audioContext.createGain();
+  gain.gain.setValueAtTime(0, at);
+  gain.gain.linearRampToValueAtTime(level * intensity, at + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+  gain.connect(audioContext.destination);
+  let source;
+  if (filteredNoise) {
+    const buffer = audioContext.createBuffer(1, Math.ceil(audioContext.sampleRate * duration), audioContext.sampleRate);
+    const samples = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+    source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = frequency;
+    source.connect(filter); filter.connect(gain);
+  } else {
+    source = audioContext.createOscillator();
+    source.type = 'sine'; source.frequency.setValueAtTime(frequency, at);
+    source.frequency.exponentialRampToValueAtTime(Math.max(45, frequency * 0.65), at + duration);
+    source.connect(gain);
+  }
+  source.start(at); source.stop(at + duration);
+  source.onended = () => { source.disconnect(); gain.disconnect(); };
+}
+function pollAudio() {
+  if (verify || !audioEnabled || !enabled || intensity === 0 || !audioContext || audioContext.state !== 'running') return;
+  const t = performance.now() / 1000;
+  const events = [
+    ['bath', 8.0, 0, 180, 0.38, 0.004, true],
+    ...(MODES[mode] >= 1 ? [
+      ['daylight', 13.0, 0, 280, 0.42, 0.002, true],
+      ['monitor', 5.5, 0, 92, 0.11, 0.008, false],
+    ] : []),
+    ...(MODES[mode] >= 2 ? [
+      ['scanner', 11.0, 0, 480, 0.2, 0.003, true],
+      ['shelf', 17.0, 1.5, 145, 0.11, 0.004, false],
+      ['sink', 19.0, 3.5, 760, 0.18, 0.003, true],
+    ] : []),
+  ];
+  for (const [name, period, offset, frequency, duration, level, noise] of events) {
+    const cycle = Math.floor((t + offset) / period);
+    const phase = (t + offset) % period;
+    if (phase < 0.15 && lastAudioCycle.get(name) !== cycle) {
+      lastAudioCycle.set(name, cycle);
+      cue(frequency, duration, level, noise);
+    }
+  }
+}
+setInterval(pollAudio, 80);
+document.querySelector('#audio').addEventListener('click', async e => {
+  if (verify) return; // verify audio remains zero even under scripted UI interaction.
+  if (audioEnabled) {
+    audioEnabled = false;
+    await audioContext?.suspend();
+    e.currentTarget.textContent = '音を有効にする';
+    e.currentTarget.setAttribute('aria-pressed', 'false');
+    return;
+  }
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) throw new Error('Audio API unavailable');
+    audioContext ??= new AudioContextClass();
+    await audioContext.resume();
+    audioEnabled = true;
+    e.currentTarget.textContent = '音を消す';
+    e.currentTarget.setAttribute('aria-pressed', 'true');
+  } catch {
+    e.currentTarget.textContent = '音を利用できません';
+    e.currentTarget.disabled = true;
+  }
+});
 start().catch(error => { errorBox.textContent = `WebGPU preview failed\n${error.stack || error}`; status.textContent = '起動失敗'; canvas.hidden = true; });
 </script>
 </html>
