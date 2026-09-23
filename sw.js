@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "acceleration-body-benefit-v909";
-const CACHE_NAME = "dva-static-v909-acceleration-body-benefit";
+const RUNTIME_RELEASE = "webgpu-body-benefits-v910";
+const CACHE_NAME = "dva-static-v910-webgpu-body-benefits";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/acceleration-body-original-v909.png",
@@ -360,6 +360,7 @@ const STATIC_ASSETS = [
   "/economy-catalog-v468.js",
   "/app.js",
   "/webgpu-acquisition.js",
+  "/webgpu-body-benefits.js",
   "/game-runtime.js",
   "/game-engine.js",
   "/offline-runtime.js",
@@ -728,6 +729,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/economy-catalog-v468.js",
   "/app.js",
   "/webgpu-acquisition.js",
+  "/webgpu-body-benefits.js",
   "/game-runtime.js",
   "/game-engine.js",
   "/offline-runtime.js",
