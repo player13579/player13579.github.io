@@ -365,6 +365,9 @@ let expandedMapGpuDrawing = false;
 let expandedMapGpuFailed = false;
 let expandedMapGpuEpoch = 0;
 let expandedMapGpuPageHidden = false;
+let expandedMapGpuDrawPending = null;
+let expandedMapGpuHandedOff = false;
+let expandedMapGpuHandoffPending = null;
 let gameplayViewportMeasurementsSuspended = false;
 let gameplayViewportRootSizeObserver = null;
 let fieldCanvasCssWidth = 0;
@@ -30995,7 +30998,7 @@ function expandedMapWebGPUScene(data) {
 }
 
 function failExpandedMapGpu(error) {
-  if (expandedMapGpuFailed || expandedMapGpuPageHidden) return;
+  if (expandedMapGpuFailed || expandedMapGpuPageHidden || expandedMapGpuHandedOff) return;
   expandedMapGpuFailed = true;
   document.body.dataset.expandedMapError = error?.message || String(error);
   console.error("WebGPU expanded map failed", error);
@@ -31005,7 +31008,8 @@ function failExpandedMapGpu(error) {
 }
 
 function drawExpandedMap(data) {
-  if (expandedMapGpuFailed || expandedMapGpuPageHidden || expandedMapGpuDrawing) return;
+  if (expandedMapGpuFailed || expandedMapGpuPageHidden || expandedMapGpuDrawing ||
+      expandedMapGpuHandedOff) return;
   if (!expandedMapGpuRuntime) {
     if (!expandedMapGpuPending) {
       const api = window.DvaWebGPUExpandedRuntime;
@@ -31034,15 +31038,42 @@ function drawExpandedMap(data) {
   expandedMapGpuDrawing = true;
   const epoch = expandedMapGpuEpoch;
   const scene = expandedMapWebGPUScene(data);
-  expandedMapGpuRuntime.draw(scene, {
+  const pending = expandedMapGpuRuntime.draw(scene, {
     sample: visibleGameplayViewportSample(), rect,
     dpr: window.devicePixelRatio || 1
   }).catch(error => {
     if (epoch === expandedMapGpuEpoch) failExpandedMapGpu(error);
   }).finally(() => {
     expandedMapGpuDrawing = false;
+    if (expandedMapGpuDrawPending === pending) expandedMapGpuDrawPending = null;
   });
+  expandedMapGpuDrawPending = pending;
 }
+
+// The shared main renderer must await this handoff before registering its
+// expanded-map target. A pending standalone create or frame cannot continue
+// to own the same canvas on a different GPU device after this resolves.
+function handoffExpandedMapToMainRenderer() {
+  if (expandedMapGpuHandoffPending) return expandedMapGpuHandoffPending;
+  if (expandedMapGpuHandedOff) return Promise.resolve(els.expandedMapCanvas);
+  expandedMapGpuHandedOff = true;
+  expandedMapGpuEpoch += 1;
+  const pendingCreate = expandedMapGpuPending;
+  const pendingDraw = expandedMapGpuDrawPending;
+  expandedMapGpuHandoffPending = Promise.allSettled(
+    [pendingCreate, pendingDraw].filter(Boolean)
+  ).then(() => {
+    expandedMapGpuRuntime?.destroy();
+    expandedMapGpuRuntime = null;
+    return els.expandedMapCanvas;
+  });
+  return expandedMapGpuHandoffPending;
+}
+
+window.DvaWebGPUExpandedMapOwnership = Object.freeze({
+  handoffToMainRenderer: handoffExpandedMapToMainRenderer,
+  get handedOff() { return expandedMapGpuHandedOff; }
+});
 
 window.addEventListener("pagehide", () => {
   expandedMapGpuPageHidden = true;
