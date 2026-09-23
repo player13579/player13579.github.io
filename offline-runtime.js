@@ -93,8 +93,11 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
       this.mainThreadPromise = new Promise((resolve) => {
         const staleScript = document.querySelector("script[data-dva-offline-main]");
         if (staleScript && staleScript.dataset.dvaOfflineMain !== OFFLINE_WORKER_VERSION) staleScript.remove();
-        const existing = document.querySelector(`script[data-dva-offline-main="${OFFLINE_WORKER_VERSION}"]`);
-        const script = existing || document.createElement("script");
+        // An active load is owned by mainThreadPromise above. With no promise
+        // or compatible API, every surviving same-version node is orphaned:
+        // its load/error event may already have fired and cannot wake Play.
+        document.querySelector(`script[data-dva-offline-main="${OFFLINE_WORKER_VERSION}"]`)?.remove();
+        const script = document.createElement("script");
         let settled = false;
         const finish = (value) => {
           // A hidden Pages tab can finish parsing the generated main bundle
@@ -117,14 +120,12 @@ const OFFLINE_REQUEST_TIMEOUT_MS = 20_000;
         const timer = setTimeout(() => finish(false), OFFLINE_MAIN_READY_TIMEOUT_MS);
         script.addEventListener("load", () => finish(true), { once: true });
         script.addEventListener("error", () => finish(false), { once: true });
-        if (!existing) {
-          const mainUrl = new URL("offline-server-main.js", document.baseURI);
-          mainUrl.searchParams.set("v", OFFLINE_WORKER_VERSION);
-          script.src = mainUrl.href;
-          script.async = true;
-          script.dataset.dvaOfflineMain = OFFLINE_WORKER_VERSION;
-          document.head.append(script);
-        }
+        const mainUrl = new URL("offline-server-main.js", document.baseURI);
+        mainUrl.searchParams.set("v", OFFLINE_WORKER_VERSION);
+        script.src = mainUrl.href;
+        script.async = true;
+        script.dataset.dvaOfflineMain = OFFLINE_WORKER_VERSION;
+        document.head.append(script);
       }).finally(() => {
         if (!this.mainThreadApi) this.mainThreadPromise = null;
       });
