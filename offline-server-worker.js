@@ -2185,7 +2185,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
       "id": "v302-atrium-sofa-1",
       "type": "conferenceSofa",
       "label": "陽だまりソファ",
-      "effectLabel": "オーバーヒール +1",
+      "effectLabel": "HP回復（最大1・個人上限まで）",
       "effectKind": "overheal",
       "effectAmount": 1,
       "x": 2149,
@@ -3386,7 +3386,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "sophia-smg-side-switch-v906",
+    version: "sophia-sniper-overheal-producer-v907",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -3408,7 +3408,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "sophia-smg-side-switch-v906";
+const PRODUCT_RELEASE = "sophia-sniper-overheal-producer-v907";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -4385,7 +4385,7 @@ function normalizeMapObjectBenefits(map) {
       object.effectLabel = `スタミナ +${Math.max(1, Number(object.effectAmount) || 100)}`;
     }
     if (object.effectKind === "fullRecovery") {
-      object.effectLabel = "HP回復・上限拡張";
+      object.effectLabel = "HP回復（個人上限まで）";
     }
   }
 }
@@ -5611,7 +5611,7 @@ function acquireGoldAsCredits(room, player, source = "gold-acquisition") {
   return grantCredits(room, player, GOLD_INSTANT_CREDITS, source);
 }
 
-function pushMapObjectGainAtes(room, player, effectKind) {
+function pushMapObjectGainAtes(room, player, effectKind, recoveredHealth = null) {
   const categories = {
     stamina: ["stamina"], credits: ["credits"], mana: ["mana"],
     acceleration: ["acceleration"], luckBoost: ["luckBoost"], overheal: ["overheal"],
@@ -5623,10 +5623,13 @@ function pushMapObjectGainAtes(room, player, effectKind) {
     fullRecovery: ["heal", "overheal"],
     decoy: ["stamina"], heal: ["heal"]
   }[effectKind] || [];
-  categories.forEach((category, index) => pushGainAte(room, player, category, {
-    variant: `object:${effectKind}:${index}`,
-    durationMs: 1450 + index * 120
-  }));
+  categories.forEach((category, index) => {
+    if (category === "overheal" && !(recoveredHealth > 0)) return;
+    pushGainAte(room, player, category, {
+      variant: `object:${effectKind}:${index}`,
+      durationMs: 1450 + index * 120
+    });
+  });
 }
 
 function pushDoorLog(room, text) {
@@ -7659,11 +7662,9 @@ function remainingHealth(player) {
 
 function healthCapacityFor(player) { return player?.limitBreakActive ? 1 : 2; }
 
-// The sole positive-HP recovery owner.  It deliberately does not clamp at
-// the historical two-body-layer display threshold: any recovery that would
-// pass the current personal ceiling raises that ceiling atomically.  Damage
-// continues to consume current overheal/body layers only, leaving maxHealth
-// as the player's earned capacity record.
+// The sole positive-HP recovery owner. Recovery stops at the current personal
+// capacity and never increases it; the legacy maxHealth field is normalized
+// to that capacity when recovery occurs.
 function recoverHealth(player, amount = 1) {
   if (!player) return { recovered: 0, health: 0, maxHealth: 2 };
   const capacity = healthCapacityFor(player);
@@ -12550,6 +12551,7 @@ function useMapObject(room, player, objectId) {
     return;
   }
 
+  let recoveredHealth = null;
   if (object.effectKind === "stamina") {
     replenishStamina(player, timestamp, true, 1, room);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || 0), object.label, timestamp);
@@ -12572,7 +12574,7 @@ function useMapObject(room, player, objectId) {
     player.objectLuckUntil = Math.max(Number(player.objectLuckUntil) || 0, timestamp + Math.max(1000, Number(object.effectDurationMs) || 20000));
     player.luck = luckValueFor(player);
   } else if (object.effectKind === "overheal") {
-    recoverHealth(player, Math.max(1, Number(object.effectAmount) || 1));
+    recoveredHealth = recoverHealth(player, Math.max(1, Number(object.effectAmount) || 1)).recovered;
   } else if (object.effectKind === "footBath") {
     healBodyHits(player, 1);
     recoverMapObjectStatuses(room, player, object.label);
@@ -12600,7 +12602,7 @@ function useMapObject(room, player, objectId) {
     replenishStamina(player, timestamp, true, 1, room);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || 100), object.label, timestamp);
   } else if (object.effectKind === "fullRecovery") {
-    recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1));
+    recoveredHealth = recoverHealth(player, Math.max(1, Math.max(0, Number(player.bodyHits) || 0) + 1)).recovered;
   } else if (object.effectKind === "decoy") {
     replenishStamina(player, timestamp, true, 1, room);
     grantStamina(room, player, Math.max(1, Number(object.effectAmount) || MAX_STAMINA), object.label, timestamp);
@@ -12627,7 +12629,7 @@ function useMapObject(room, player, objectId) {
     playerId: player.id,
     effectKind: object.effectKind
   });
-  pushMapObjectGainAtes(room, player, object.effectKind);
+  pushMapObjectGainAtes(room, player, object.effectKind, recoveredHealth);
   pushSound(room, "object", object, {
     ownerId: player.id,
     sourceKind: "facility",
@@ -12691,7 +12693,7 @@ function applyMysteryDrink(room, player, timestamp = now()) {
     }
     addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
     pushGainAte(room, player, "acceleration", { variant: "mystery:full-activation" });
-    result = "完全活性 HP回復・上限拡張・速度上昇";
+    result = "完全活性 HP回復（個人上限まで）・速度上昇";
   } else if (roll < 0.64) {
     const manaBefore = Number(player.mana) || 0;
     const manaAfter = setMana(room, player, Math.max(manaCapacityFor(player), manaBefore), "マナ奔流");
@@ -22478,5 +22480,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "sophia-smg-side-switch-v906" });
+self.postMessage({ type: "ready", version: "sophia-sniper-overheal-producer-v907" });
 })();
