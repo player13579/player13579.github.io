@@ -9289,6 +9289,7 @@ function renderTabletBranch(data, force = false) {
           cycleSelectBy(els.itemSelect, 1);
           renderTabletBranch(state.data, true);
         }, { kind: "cycle", disabled: els.itemSelect.options.length < 2 });
+        appendTabletBranchButton("使用", () => void finishEnhanceActionAfterTablet("use"), { kind: "action", hold: "enhance-use", disabled: els.itemUseButton.disabled });
         appendTabletBranchButton("投擲", () => void finishEnhanceActionAfterTablet("throw"), { kind: "danger", hold: "enhance-throw", disabled: els.itemThrowButton.disabled });
         appendTabletBranchButton(`譲渡先: ${els.transferTargetSelect.options[els.transferTargetSelect.selectedIndex]?.textContent || "なし"}`, () => {
           cycleSelectBy(els.transferTargetSelect, 1);
