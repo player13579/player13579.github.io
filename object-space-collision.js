@@ -71,7 +71,55 @@
       isBlocked(x, y, radius) { return firstIntersection(x, y, radius) !== null; } });
   }
 
-  const api = Object.freeze({ compile, circleIntersectsRect });
+  // The medical prototype has drawn walls at the north/east polygon edges.
+  // Its corridor polygons touch those edges more widely than the visible door
+  // cuts. Keep this index separate from object spaces: floor-bypassing powers
+  // still pass walls while physical furniture remains solid.
+  function compileMedicalWalls(map) {
+    const medical = map?.rooms?.find(room => room.id === 'medical');
+    // Client map snapshots omit authoredGeometry, so the actual polygon and
+    // door records, rather than that server-only flag, identify this room.
+    if (map?.id !== 'station' || !medical) {
+      return Object.freeze({ walls: Object.freeze([]), isBlocked: () => false });
+    }
+    const northDoor = map.doors?.find(door => door.id === 'd-medical-north');
+    const eastDoor = map.doors?.find(door => door.id === 'd-medical-east');
+    if (!northDoor || !eastDoor || northDoor.orientation !== 'horizontal' || eastDoor.orientation !== 'vertical') {
+      throw new Error('Medical wall openings need the north and east authored doors');
+    }
+    const polygon = medical.polygon;
+    if (!Array.isArray(polygon) || polygon.length < 4) throw new Error('Medical room polygon is required');
+    let northEdge = null;
+    let eastEdge = null;
+    for (let i = 0; i < polygon.length; i += 1) {
+      const a = polygon[i];
+      const b = polygon[(i + 1) % polygon.length];
+      if (a[1] === medical.y && b[1] === medical.y) northEdge = [Math.min(a[0], b[0]), Math.max(a[0], b[0])];
+      if (a[0] === medical.x + medical.w && b[0] === medical.x + medical.w) {
+        eastEdge = [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+      }
+    }
+    const northY = medical.y;
+    const eastX = medical.x + medical.w;
+    if (!northEdge || !eastEdge ||
+        Math.abs(northDoor.y + northDoor.h / 2 - northY) > 0.5 ||
+        Math.abs(eastDoor.x + eastDoor.w / 2 - eastX) > 0.5 ||
+        northDoor.x <= northEdge[0] || northDoor.x + northDoor.w >= northEdge[1] ||
+        eastDoor.y <= eastEdge[0] || eastDoor.y + eastDoor.h >= eastEdge[1]) {
+      throw new Error('Medical doors must cut through their authored wall edges');
+    }
+    const walls = Object.freeze([
+      Object.freeze({ x: northEdge[0], y: northY - 0.5, w: northDoor.x - northEdge[0], h: 1 }),
+      Object.freeze({ x: northDoor.x + northDoor.w, y: northY - 0.5, w: northEdge[1] - northDoor.x - northDoor.w, h: 1 }),
+      Object.freeze({ x: eastX - 0.5, y: eastEdge[0], w: 1, h: eastDoor.y - eastEdge[0] }),
+      Object.freeze({ x: eastX - 0.5, y: eastDoor.y + eastDoor.h, w: 1, h: eastEdge[1] - eastDoor.y - eastDoor.h })
+    ]);
+    return Object.freeze({ walls, isBlocked(x, y, radius) {
+      return walls.some(wall => circleIntersectsRect(x, y, radius, wall));
+    } });
+  }
+
+  const api = Object.freeze({ compile, compileMedicalWalls, circleIntersectsRect });
   root.DvaObjectSpaceCollision = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

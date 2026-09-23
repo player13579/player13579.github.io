@@ -12874,6 +12874,7 @@ function smoothDamp(current, target, velocity, smoothTime, deltaSeconds) {
 }
 
 const CLIENT_OBJECT_SPACE_COLLISION_CACHE = new WeakMap();
+const CLIENT_MEDICAL_WALL_COLLISION_CACHE = new WeakMap();
 
 function clientObjectSpaceCollision(data) {
   const map = data?.map;
@@ -12890,6 +12891,17 @@ function isClientObjectSpaceClear(data, x, y, radius) {
   return !clientObjectSpaceCollision(data)?.isBlocked(x, y, radius);
 }
 
+function clientMedicalWallCollision(data) {
+  const map = data?.map;
+  if (!map || map.id !== "station") return null;
+  if (CLIENT_MEDICAL_WALL_COLLISION_CACHE.has(map)) return CLIENT_MEDICAL_WALL_COLLISION_CACHE.get(map);
+  const compiler = globalThis.DvaObjectSpaceCollision?.compileMedicalWalls;
+  if (typeof compiler !== "function") throw new Error("医療室の壁判定を読み込めませんでした。");
+  const index = compiler.call(globalThis.DvaObjectSpaceCollision, map);
+  CLIENT_MEDICAL_WALL_COLLISION_CACHE.set(map, index);
+  return index;
+}
+
 function isClientWalkable(data, x, y, radius) {
   if (x < radius || y < radius || x > data.map.width - radius || y > data.map.height - radius) return false;
   const seam = Math.max(radius, 32);
@@ -12899,6 +12911,7 @@ function isClientWalkable(data, x, y, radius) {
     y >= rect.y - seam && y <= rect.y + rect.h + seam
   ));
   if (!inArea) return false;
+  if (clientMedicalWallCollision(data)?.isBlocked(x, y, radius)) return false;
   if (!isClientObjectSpaceClear(data, x, y, radius)) return false;
   return true;
 }
