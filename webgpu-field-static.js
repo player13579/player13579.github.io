@@ -1,24 +1,51 @@
-/* Integrated static authored field sampled and composited in
- * WGSL. Consume in the existing map stage before Canvas screen/multiply/lighter
- * overlays: a separate lower DOM canvas cannot supply their blend backdrop.
- * Caller owns the image, map identity, clock, RAF, pointer target and fallback. */
+/* Integrated static authored field sampled and composited in WGSL.
+ * Caller owns the image, map identity, clock, RAF and pointer target. */
 (function(root){
   'use strict';
   const finite=x=>typeof x==='number'&&Number.isFinite(x);
   function areas(map){return [...map.rooms,...map.corridors.flatMap(c=>Array.isArray(c.renderSegments)&&c.renderSegments.length?c.renderSegments:[c]),...map.doors];}
-  function createGeometryMask(map,createCanvas=()=>root.document.createElement('canvas')){
+  function createGeometryMask(map){
     if(!Number.isInteger(map.width)||!Number.isInteger(map.height)||map.width<=0||map.height<=0)throw Error('Invalid map geometry');
-    const canvas=createCanvas();canvas.width=map.width;canvas.height=map.height;
-    const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('Geometry mask unavailable');
-    ctx.beginPath();
+    // The old compound Canvas path used the nonzero fill rule. Rasterize that
+    // same rule directly into r8 coverage without creating a 2D context.
+    const width=map.width,height=map.height,samples=16,edges=[];
     for(const a of areas(map)){
-      if(Array.isArray(a.polygon)&&a.polygon.length>=3){ctx.moveTo(a.polygon[0][0],a.polygon[0][1]);for(let i=1;i<a.polygon.length;i++)ctx.lineTo(a.polygon[i][0],a.polygon[i][1]);ctx.closePath();}
-      else ctx.rect(a.x,a.y,a.w,a.h);
+      const points=Array.isArray(a.polygon)&&a.polygon.length>=3?a.polygon:
+        [[a.x,a.y],[a.x+a.w,a.y],[a.x+a.w,a.y+a.h],[a.x,a.y+a.h]];
+      for(let i=0;i<points.length;i++){
+        const p=points[i],q=points[(i+1)%points.length];
+        if(![p[0],p[1],q[0],q[1]].every(finite))throw Error('Invalid map geometry');
+        if(p[1]===q[1])continue;
+        edges.push({x:p[0],y:p[1],minimum:Math.min(p[1],q[1]),maximum:Math.max(p[1],q[1]),slope:(q[0]-p[0])/(q[1]-p[1]),winding:q[1]>p[1]?1:-1});
+      }
     }
-    ctx.fillStyle='#fff';ctx.fill(); // Same nonzero compound path as drawMap's clip.
-    const rgba=ctx.getImageData(0,0,map.width,map.height).data,alpha=new Uint8Array(map.width*map.height);
-    for(let i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3];
-    canvas.width=canvas.height=1;return alpha;
+    const coverage=new Uint16Array(width*height),intersections=[];
+    const addSpan=(row,left,right)=>{
+      // Pixel centers lie at (i + .5)/8. Clamp before converting to indices.
+      let first=Math.max(0,Math.ceil(left*samples-.5));
+      const last=Math.min(width*samples,Math.ceil(right*samples-.5));
+      if(first>=last)return;
+      const firstPixel=Math.floor(first/samples),lastPixel=Math.floor((last-1)/samples);
+      if(firstPixel===lastPixel){coverage[row+firstPixel]+=last-first;return;}
+      coverage[row+firstPixel]+=samples-first%samples;
+      for(let pixel=firstPixel+1;pixel<lastPixel;pixel++)coverage[row+pixel]+=samples;
+      coverage[row+lastPixel]+=((last-1)%samples)+1;
+    };
+    for(let subY=0;subY<height*samples;subY++){
+      const y=(subY+.5)/samples,row=Math.floor(subY/samples)*width;
+      intersections.length=0;
+      for(const edge of edges)if(y>=edge.minimum&&y<edge.maximum)
+        intersections.push({x:edge.x+(y-edge.y)*edge.slope,winding:edge.winding});
+      intersections.sort((a,b)=>a.x-b.x);
+      let winding=0,start=0;
+      for(const crossing of intersections){
+        if(winding!==0)addSpan(row,start,crossing.x);
+        winding+=crossing.winding;start=crossing.x;
+      }
+    }
+    const alpha=new Uint8Array(width*height);
+    for(let i=0;i<coverage.length;i++)alpha[i]=Math.round(coverage[i]*255/(samples*samples));
+    return alpha;
   }
   const shader=/* wgsl */`
 struct Frame { view:vec4f, camera:vec4f, map:vec4f };
@@ -35,7 +62,12 @@ fn gridCoverage(world:f32,pixelWorld:f32)->f32{
   return clamp((.5+pixelWorld*.5-distance)/pixelWorld,0,1);
 }
 @fragment fn fs(@builtin(position) pixel:vec4f)->@location(0) vec4f {
-  let local=pixel.xy/frame.camera.z;let world=frame.camera.xy+local;
+  // The fragment position is in physical backing pixels. Shared frames may
+  // present a 980x620 logical world into a higher-DPR target; the legacy
+  // standalone owner leaves view.zw at zero and thus uses 1:1 coordinates.
+  let backing=select(frame.view.xy,frame.view.zw,all(frame.view.zw>vec2f(0.0)));
+  let logicalPixel=pixel.xy*frame.view.xy/backing;
+  let local=logicalPixel/frame.camera.z;let world=frame.camera.xy+local;
   let outside=vec3f(205,238,250)/255.0;
   if(any(world<vec2f(0))||any(world>=frame.map.xy)){return vec4f(outside,1);}
   let uv=world/frame.map.xy;
@@ -78,7 +110,7 @@ fn gridCoverage(world:f32,pixelWorld:f32)->f32{
       texture=own(device.createTexture({label:'Unchanged 4800x3400 authored map',size:[map.width,map.height],format:'rgba8unorm',usage:0x04|0x02|0x10}));
       mask=own(device.createTexture({label:'Once-created room corridor door coverage',size:[map.width,map.height],format:'r8unorm',usage:0x04|0x02}));
       device.queue.copyExternalImageToTexture({source:image},{texture,premultipliedAlpha:true,colorSpace:'srgb'},[map.width,map.height]);
-      const alpha=options.mask||createGeometryMask(map,options.createCanvas);
+      const alpha=options.mask||createGeometryMask(map);
       if(alpha.byteLength!==map.width*map.height)throw Error('Geometry mask size mismatch');
       device.queue.writeTexture({texture:mask},alpha,{bytesPerRow:map.width},[map.width,map.height]);
       const sampler=device.createSampler({minFilter:'linear',magFilter:'linear',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});

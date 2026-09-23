@@ -27,7 +27,8 @@ struct Vertex { @builtin(position) position: vec4f, @location(0) local: vec2f, @
   let pos = e.rect.xy + uv * e.rect.zw;
   var out: Vertex;
   out.position = vec4f(pos / frame.size.xy * vec2f(2,-2) + vec2f(-1,1), 0, 1);
-  out.local = uv * e.shape.xy; out.index = index; return out;
+   out.local = uv * (e.shape.xy + vec2f(e.shape.w * 2.0)) - vec2f(e.shape.w);
+   out.index = index; return out;
 }
 fn ease(x: f32) -> f32 { let q = 1.0 - clamp(x, 0.0, 1.0); return 1.0 - q*q*q; }
 fn over(bottom: vec4f, top: vec4f) -> vec4f { return top + bottom * (1.0 - top.a); }
@@ -85,14 +86,15 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
   return mix(mix(maskedPixel(e,a,offset,low,high,flow),maskedPixel(e,a+vec2f(1,0),offset,low,high,flow),f.x),
              mix(maskedPixel(e,a+vec2f(0,1),offset,low,high,flow),maskedPixel(e,a+vec2f(1,1),offset,low,high,flow),f.x),f.y);
 }
-@fragment fn fs(in: Vertex) -> @location(0) vec4f {
-  let e = effects[in.index]; let p = e.phase.y; let reduced = e.phase.z > .5; let opacity = e.phase.w;
+ fn materialAt(e: Effect, local: vec2f) -> vec4f {
+   if (any(local < vec2f(0.0)) || any(local > e.shape.xy)) { return vec4f(0.0); }
+   let p = e.phase.y; let reduced = e.phase.z > .5; let opacity = e.phase.w;
   let release = 1.0 - ease((p - .82) / .18);
   if (e.phase.x > 1.5) {
     let appear = ease(p / .14); let gather = ease((p - .03) / .54);
     let flow = ease((p - .02) / select(.60,.70,reduced));
-    var material = baseOriginal(e,in.local);
-    if (flow < .999) { material = maskedOriginal(e,in.local,0.0,0.0,1.0,flow); }
+     var material = baseOriginal(e,local);
+     if (flow < .999) { material = maskedOriginal(e,local,0.0,0.0,1.0,flow); }
     return material * (appear*release*(.84+.16*gather)*opacity);
   }
   let heal = e.phase.x > .5;
@@ -100,7 +102,7 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
   let flow = ease((p - select(.10,.12,heal)) / select(.54,.48,heal));
   let settle = ease((p - select(.56,.58,heal)) / select(.32,.28,heal));
   var color = vec4f(0.0);
-  if (appear*release > .001) { color = baseOriginal(e,in.local) * (appear*release*opacity); }
+   if (appear*release > .001) { color = baseOriginal(e,local) * (appear*release*opacity); }
   let bounds = select(vec4f(.48,.20,.02,.07),vec4f(.52,.22,.02,.08),heal);
   let ends = select(vec4f(1,.78,.47,.35),vec4f(1,.84,.56,.38),heal);
   var offsets = vec4f(10*(1-appear),12*(1-flow),9*(1-flow),-4*settle);
@@ -116,10 +118,46 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
   for (var i=0u; i<4u; i++) {
     let strength = strengths[i]*release;
     if (strength > .001) {
-      color = over(color,maskedOriginal(e,in.local,offsets[i],bounds[i],ends[i],-1.0) * (strength*opacity));
+       color = over(color,maskedOriginal(e,local,offsets[i],bounds[i],ends[i],-1.0) * (strength*opacity));
     }
   }
-  return color;
+   return color;
+ }
+ @fragment fn fs(in: Vertex) -> @location(0) vec4f {
+   let e = effects[in.index];
+   let core = materialAt(e,in.local);
+   // Sample the current revealed material, not a whole-image outline.
+   let directions = array<vec2f,8>(vec2f(1,0),vec2f(-1,0),vec2f(0,1),vec2f(0,-1),
+     vec2f(.707,.707),vec2f(-.707,.707),vec2f(.707,-.707),vec2f(-.707,-.707));
+   var near = 0.0; var far = 0.0;
+   for (var i=0u; i<8u; i++) {
+     near = near + materialAt(e,in.local + directions[i] * 5.0).a;
+     far = far + materialAt(e,in.local + directions[i] * 11.0).a;
+   }
+   let light = clamp((near * .065 + far * .041) * (1.0 - core.a * .72), 0.0, .48);
+   let hue = select(select(vec3f(.56,.94,.39),vec3f(1.0,.50,.68),e.phase.x > .5),
+     vec3f(.55,.54,1.0),e.phase.x > 1.5);
+   return over(vec4f(hue * light,light),core);
+ }`;
+  const sourceShader = /* wgsl */ `
+struct Source { bounds: vec4f };
+@group(0) @binding(0) var<uniform> source: Source;
+@group(0) @binding(1) var originals: texture_2d_array<f32>;
+@group(0) @binding(2) var originalSampler: sampler;
+struct SourceVertex { @builtin(position) position: vec4f, @location(0) uv: vec2f };
+@vertex fn vs(@builtin(vertex_index) index: u32) -> SourceVertex {
+  let corners = array<vec2f,6>(vec2f(0,0),vec2f(1,0),vec2f(0,1),vec2f(0,1),vec2f(1,0),vec2f(1,1));
+  let uv = corners[index];
+  var out: SourceVertex;
+  out.position = vec4f(uv * vec2f(2,-2) + vec2f(-1,1),0,1);
+  out.uv = uv;
+  return out;
+}
+@fragment fn fs(in: SourceVertex) -> @location(0) vec4f {
+  let size = vec2f(textureDimensions(originals));
+  let high = source.bounds.xy - vec2f(.5) / size;
+  let uv = clamp(in.uv * source.bounds.xy,vec2f(.5) / size,high);
+  return textureSampleLevel(originals,originalSampler,uv,i32(source.bounds.z),0.0);
 }`;
 
   const finite = x => typeof x === 'number' && Number.isFinite(x);
@@ -135,9 +173,11 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
       // Lifecycle remains admission-owned: late texture readiness never restarts an event.
       if (effect.elapsed < 0 || effect.elapsed >= duration || alpha <= 0 || effect.variant === 'desire-recovery') continue;
       const height = Math.ceil(profile.height);
-      data.push(effect.x-profile.width*scale/2,effect.y+profile.top*scale,profile.width*scale,height*scale,
-        profile.layer,clamp(effect.elapsed/duration),effect.reduced?1:0,clamp(alpha),
-        profile.width,height,profile.height,0,profile.sourceWidth/TEXTURE_WIDTH,profile.sourceHeight/TEXTURE_HEIGHT,0,0);
+       const glowPad = 14;
+       data.push(effect.x-(profile.width/2+glowPad)*scale,effect.y+(profile.top-glowPad)*scale,
+         (profile.width+glowPad*2)*scale,(height+glowPad*2)*scale,
+         profile.layer,clamp(effect.elapsed/duration),effect.reduced?1:0,clamp(alpha),
+         profile.width,height,profile.height,glowPad,profile.sourceWidth/TEXTURE_WIDTH,profile.sourceHeight/TEXTURE_HEIGHT,0,0);
       kinds.add(effect.kind);
     }
     const packed = new Float32Array(data);
@@ -160,18 +200,18 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
     return {pixelScale:transform.a,pixelOriginX:transform.a*x+transform.e,pixelOriginY:transform.d*y+transform.f};
   }
   async function create(canvas, options = {}) {
-    let device, context, uniform, storage, texture, baseTexture, timer;
+    let device, context, uniform, storage, texture, baseTexture, rawTexture, sourceUniform, timer;
     let state = 'initializing', notified = false, cancelled = false;
     const images = new Map();
-    // Only original material is resized once. Never upload an animated/masked
-    // Canvas TE frame. This matches the canonical native scratch sampling.
+    // Original images are uploaded directly. GPU passes build native and
+    // scale-specific bases; animated masks and emission stay in WGSL.
     const adaptive = options.sourceMode === 'adaptive-prepared';
     const prepared = options.sourceMode === 'native-prepared' || adaptive;
     const textureWidth = prepared ? 104 : TEXTURE_WIDTH;
     const textureHeight = prepared ? 185 : TEXTURE_HEIGHT;
     const cleanup = () => {
       try { device?.removeEventListener?.('uncapturederror',onError); } catch (_) {}
-      for (const resource of [uniform,storage,texture,baseTexture]) { try { resource?.destroy(); } catch (_) {} }
+      for (const resource of [uniform,storage,texture,baseTexture,rawTexture,sourceUniform]) { try { resource?.destroy(); } catch (_) {} }
       try { context?.unconfigure(); } catch (_) {}
       try { device?.destroy(); } catch (_) {}
       images.clear();
@@ -210,6 +250,32 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
       texture = device.createTexture({label:'Original recovery material',size:[textureWidth,textureHeight,3],format:'rgba8unorm',usage:0x04|0x02|0x10});
       if(adaptive)baseTexture=device.createTexture({label:'Scale-specific untouched recovery bases',size:[416,740,3],format:'rgba8unorm',usage:0x04|0x02|0x10});
       const sampler = device.createSampler({minFilter:'linear',magFilter:'linear',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});
+      let sourcePipeline,sourceBindGroup;
+      if(prepared){
+        rawTexture=device.createTexture({label:'Unmodified recovery source images',size:[TEXTURE_WIDTH,TEXTURE_HEIGHT,3],format:'rgba8unorm',usage:0x04|0x02|0x10});
+        sourceUniform=device.createBuffer({size:16,usage:0x40|0x08});
+        const sourceModule=device.createShaderModule({label:'DVA recovery GPU source preparation',code:sourceShader});
+        if(sourceModule.getCompilationInfo){
+          const info=await sourceModule.getCompilationInfo();
+          if(info.messages.some(m=>m.type==='error'))throw new Error('Recovery source WGSL compilation failed: '+info.messages.filter(m=>m.type==='error').map(m=>m.message).join('; '));
+        }
+        sourcePipeline=await device.createRenderPipelineAsync({label:'DVA recovery GPU source resize',layout:'auto',
+          vertex:{module:sourceModule,entryPoint:'vs'},fragment:{module:sourceModule,entryPoint:'fs',targets:[{format:'rgba8unorm'}]},
+          primitive:{topology:'triangle-list'}});
+        sourceBindGroup=device.createBindGroup({layout:sourcePipeline.getBindGroupLayout(0),entries:[
+          {binding:0,resource:{buffer:sourceUniform}},{binding:1,resource:rawTexture.createView({dimension:'2d-array'})},
+          {binding:2,resource:sampler}]});
+      }
+      function prepareSource(p,target,width,height){
+        device.queue.writeBuffer(sourceUniform,0,new Float32Array([p.sourceWidth/TEXTURE_WIDTH,p.sourceHeight/TEXTURE_HEIGHT,p.layer,0]));
+        const encoder=device.createCommandEncoder({label:'DVA recovery source resize'});
+        const pass=encoder.beginRenderPass({colorAttachments:[{view:target.createView({dimension:'2d',baseArrayLayer:p.layer,arrayLayerCount:1}),
+          clearValue:{r:0,g:0,b:0,a:0},loadOp:'clear',storeOp:'store'}]});
+        pass.setViewport(0,0,width,height,0,1);
+        pass.setScissorRect(0,0,Math.ceil(width),Math.ceil(height));
+        pass.setPipeline(sourcePipeline);pass.setBindGroup(0,sourceBindGroup);pass.draw(6);pass.end();
+        device.queue.submit([encoder.finish()]);
+      }
       let capacity=0,bindGroup;
       const ensure = count => {
         if(count<=capacity)return;
@@ -229,11 +295,7 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
           if(state!=='ready'||!stored||!finite(scale)||scale<=0||scale>4)return false;
           if(stored.scale===scale)return true;
           try{
-            const source=options.createSourceCanvas?.()||root.document?.createElement('canvas');
-            source.width=Math.ceil(p.width*scale);source.height=Math.ceil(p.height*scale);
-            const paint=source.getContext('2d');paint.imageSmoothingEnabled=true;paint.imageSmoothingQuality='low';
-            paint.drawImage(stored.image,0,0,p.width*scale,p.height*scale);
-            device.queue.copyExternalImageToTexture({source,flipY:false},{texture:baseTexture,origin:[0,0,p.layer],premultipliedAlpha:true,colorSpace:'srgb'},[source.width,source.height]);
+            prepareSource(p,baseTexture,p.width*scale,p.height*scale);
             stored.scale=scale;return true;
           }catch(error){fail(error.message||String(error));return false;}
         },
@@ -244,16 +306,8 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
           const identity=image.currentSrc||image.src||'';
           if(images.get(kind)?.image===image && images.get(kind)?.identity===identity)return true;
           try {
-            let source=image,width=p.sourceWidth,height=p.sourceHeight;
-            if(prepared){
-              source=options.createSourceCanvas?.()||root.document?.createElement('canvas');
-              if(!source)throw new Error('Native original material preparation unavailable');
-              width=p.width;height=Math.ceil(p.height);source.width=width;source.height=height;
-              const paint=source.getContext('2d');if(!paint)throw new Error('Original material Canvas2D preparation unavailable');
-              paint.imageSmoothingEnabled=true;paint.imageSmoothingQuality='low';
-              paint.drawImage(image,0,0,p.width,p.height);
-            }
-            device.queue.copyExternalImageToTexture({source,flipY:false},{texture,origin:[0,0,p.layer],premultipliedAlpha:true,colorSpace:'srgb'},[width,height]);
+            device.queue.copyExternalImageToTexture({source:image,flipY:false},{texture:prepared?rawTexture:texture,origin:[0,0,p.layer],premultipliedAlpha:true,colorSpace:'srgb'},[p.sourceWidth,p.sourceHeight]);
+            if(prepared)prepareSource(p,texture,p.width,p.height);
             images.set(kind,{image,identity});return true;
           }catch(error){fail(error.message||String(error));return false;}
         },
@@ -308,9 +362,10 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
         // Align the borrowed surface to destination backing pixels. Otherwise
         // Canvas resamples the finished GPU image a second time at fractional
         // actor/camera positions, softening even a high-resolution base.
-        const left=(Math.floor(originX-profile.width*pixelScale/2)-originX)/pixelScale;
-        const top=(Math.floor(originY+profile.top*pixelScale)-originY)/pixelScale;
-        const pixelWidth=Math.ceil(104*pixelScale)+2,pixelHeight=Math.ceil(185*pixelScale)+2;
+         const glowPad=14;
+         const left=(Math.floor(originX-(profile.width/2+glowPad)*pixelScale)-originX)/pixelScale;
+         const top=(Math.floor(originY+(profile.top-glowPad)*pixelScale)-originY)/pixelScale;
+         const pixelWidth=Math.ceil((104+glowPad*2)*pixelScale)+2,pixelHeight=Math.ceil((185+glowPad*2)*pixelScale)+2;
         const width=pixelWidth/pixelScale,tileHeight=pixelHeight/pixelScale;
         const ok=renderer.render({width,height:tileHeight,pixelWidth,pixelHeight,rasterScale:pixelScale,
           effects:[{...effect,x:-left,y:-top,scale:1,duration,alpha}]});

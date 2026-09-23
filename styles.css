@@ -2069,6 +2069,18 @@ select:focus {
   height: 100%;
 }
 
+/* Dedicated WebGPU staging surface. It shares the board's logical dimensions
+   without affecting layout, display, or input while the Canvas 2D path is live. */
+#webgpuMainCanvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .kill-camera-overlay {
   position: absolute;
   z-index: 52;

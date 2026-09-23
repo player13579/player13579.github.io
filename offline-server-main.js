@@ -90,6 +90,14 @@ const ADVANCED_STATION_MAP = Object.freeze({
   "width": 4800,
   "height": 3400,
   "playerRadius": 32,
+  "objectSpaces": [
+    { "id": "v302-medical-diagnosticBed-1", "room": "medical", "x": 2339, "y": 2681, "w": 185, "h": 103 },
+    { "id": "v302-medical-medicalCabinet-2", "room": "medical", "x": 2821, "y": 2681, "w": 149, "h": 88 },
+    { "id": "v302-medical-sterilizer-3", "room": "medical", "x": 2341, "y": 2995, "w": 180, "h": 120 },
+    { "id": "upload-d", "room": "medical", "x": 2621, "y": 2840, "w": 116, "h": 80 },
+    { "id": "medical-handwash-sink-1", "room": "medical", "x": 3001, "y": 2677, "w": 96, "h": 93 },
+    { "id": "medical-patient-chair-1", "room": "medical", "x": 2789, "y": 3035, "w": 84, "h": 90 }
+  ],
   "speed": 460,
   "ghostSpeed": 560,
   "reportRange": 172,
@@ -3236,6 +3244,83 @@ const ADVANCED_STATION_MAP = Object.freeze({
   "sourceTexture": "assets/generated/field-aurelia-corridor-objects-v317.webp",
   "assetRevision": "v340-full-map-world-scale"
 });
+/* Collision against explicitly authored world-space object footprints.
+ * Object spaces are map data, never derived from sprite size or pixels. */
+(function (root) {
+  'use strict';
+
+  const finite = value => typeof value === 'number' && Number.isFinite(value);
+
+  function validateSpace(value, index) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new TypeError(`objectSpaces[${index}] must be an object`);
+    }
+    const { id, room, x, y, w, h } = value;
+    if (typeof id !== 'string' || !id.trim() || id !== id.trim()) {
+      throw new TypeError(`objectSpaces[${index}].id must be a nonempty trimmed string`);
+    }
+    if (typeof room !== 'string' || !room.trim() || room !== room.trim()) {
+      throw new TypeError(`objectSpaces[${index}].room must be a nonempty trimmed string`);
+    }
+    if (![x, y, w, h].every(finite) || w <= 0 || h <= 0 ||
+        !Number.isFinite(x + w) || !Number.isFinite(y + h)) {
+      throw new RangeError(`objectSpaces[${index}] needs finite x/y and positive finite w/h`);
+    }
+    return Object.freeze({ id, room, x, y, w, h });
+  }
+
+  // A point is a radius-zero circle. Tangency with any edge or corner counts
+  // as occupied space, so a movement solver cannot settle on the boundary.
+  function circleIntersectsRect(x, y, radius, rect) {
+    if (![x, y, radius].every(finite) || radius < 0) {
+      throw new RangeError('Circle needs finite x/y and a nonnegative finite radius');
+    }
+    if (!rect || ![rect.x, rect.y, rect.w, rect.h].every(finite) ||
+        rect.w <= 0 || rect.h <= 0 ||
+        !Number.isFinite(rect.x + rect.w) || !Number.isFinite(rect.y + rect.h)) {
+      throw new RangeError('Rectangle needs finite x/y and positive finite w/h');
+    }
+    const nearestX = Math.max(rect.x, Math.min(x, rect.x + rect.w));
+    const nearestY = Math.max(rect.y, Math.min(y, rect.y + rect.h));
+    return Math.hypot(x - nearestX, y - nearestY) <= radius;
+  }
+
+  function compile(map) {
+    if (!map || !Array.isArray(map.objectSpaces)) {
+      throw new TypeError('Map needs an explicit objectSpaces array');
+    }
+    const ids = new Set();
+    const geometry = new Set();
+    const spaces = map.objectSpaces.map((source, index) => {
+      const space = validateSpace(source, index);
+      if (ids.has(space.id)) throw new Error(`Duplicate object-space id: ${space.id}`);
+      // Equivalent occupied rectangles are duplicate records even if a second
+      // author accidentally supplies a different id or room label.
+      const key = JSON.stringify([space.x, space.y, space.w, space.h]);
+      if (geometry.has(key)) throw new Error(`Duplicate object-space rectangle: ${space.id}`);
+      ids.add(space.id);
+      geometry.add(key);
+      return space;
+    });
+    Object.freeze(spaces);
+    function firstIntersection(x, y, radius) {
+      if (![x, y, radius].every(finite) || radius < 0) {
+        throw new RangeError('Circle needs finite x/y and a nonnegative finite radius');
+      }
+      // Input order is preserved so the result is stable across repeated calls.
+      for (const space of spaces) {
+        if (circleIntersectsRect(x, y, radius, space)) return space;
+      }
+      return null;
+    }
+    return Object.freeze({ spaces, firstIntersection,
+      isBlocked(x, y, radius) { return firstIntersection(x, y, radius) !== null; } });
+  }
+
+  const api = Object.freeze({ compile, circleIntersectsRect });
+  root.DvaObjectSpaceCollision = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
 
 (function exposeDvaEconomyCatalog(root, factory) {
   const catalog = factory();
@@ -3386,7 +3471,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "overheal-body-v913",
+    version: "tablet-use-v915",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -3408,7 +3493,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "overheal-body-v913";
+const PRODUCT_RELEASE = "webgpu-body-benefits-v910";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -4117,6 +4202,7 @@ for (const map of Object.values(MAPS)) {
     expandMap(map, MAP_SCALE);
   }
   finalizeMapEnvironment(map);
+  map.objectSpaceCollision = globalThis.DvaObjectSpaceCollision.compile(map);
 }
 
 function expandMap(map, scale) {
@@ -4128,6 +4214,7 @@ function expandMap(map, scale) {
   scaleRects(map.corridors, scale);
   scalePoints(map.stations, scale);
   scalePoints(map.objects, scale);
+  scaleRects(map.objectSpaces, scale);
   scalePoints(map.vents, scale);
   scaleRects(map.doors, scale);
   map.expandedScale = scale;
@@ -5548,6 +5635,7 @@ function pushMagicEffect(room, type, source, options = {}) {
     targetY: Number.isFinite(options.targetY) ? Math.round(options.targetY) : null,
     playerId: String(options.playerId || source.id || ""),
     targetId: String(options.targetId || ""),
+    objectId: String(options.objectId || ""),
     viewerId: String(options.viewerId || ""),
     variant: String(options.variant || ""),
     mode: String(options.mode || ""),
@@ -8526,7 +8614,44 @@ function isWalkable(room, x, y, radius = 0) {
   if (!insideMap) return false;
   const seamMargin = Math.max(radius, WALKABLE_SEAM_MARGIN);
   if (!map.walkable.some((rect) => rectContains(rect, x, y, -seamMargin))) return false;
+  if (map.objectSpaceCollision?.isBlocked(x, y, radius)) return false;
   return true;
+}
+
+function isObjectSpaceClear(map, x, y, radius = 0) {
+  return !map.objectSpaceCollision?.isBlocked(x, y, radius);
+}
+
+function resolveObjectAwareMovementPosition(map, mover, nx, ny, radius) {
+  const clampedX = clampNumber(nx, radius, map.width - radius, mover.x);
+  const clampedY = clampNumber(ny, radius, map.height - radius, mover.y);
+  if (isObjectSpaceClear(map, clampedX, clampedY, radius)) return { x: clampedX, y: clampedY };
+  if (isObjectSpaceClear(map, clampedX, mover.y, radius)) return { x: clampedX, y: mover.y };
+  if (isObjectSpaceClear(map, mover.x, clampedY, radius)) return { x: mover.x, y: clampedY };
+  return { x: mover.x, y: mover.y };
+}
+
+function resolveCollisionAwareMovementPosition(room, map, mover, nx, ny, radius, bypassFloor) {
+  // Bot navigation can advance 120 ms per call. Test the travelled path, not
+  // only its endpoint, so a sprint cannot step across a narrow footprint.
+  const steps = Math.max(1, Math.ceil(Math.hypot(nx - mover.x, ny - mover.y) / 8));
+  const stepX = (nx - mover.x) / steps;
+  const stepY = (ny - mover.y) / steps;
+  let position = { x: mover.x, y: mover.y };
+  for (let step = 0; step < steps; step += 1) {
+    const x = position.x + stepX;
+    const y = position.y + stepY;
+    if (bypassFloor) {
+      position = resolveObjectAwareMovementPosition(map, position, x, y, radius);
+    } else if (isWalkable(room, x, y, radius)) {
+      position = { x, y };
+    } else if (isWalkable(room, x, position.y, radius)) {
+      position = { x, y: position.y };
+    } else if (isWalkable(room, position.x, y, radius)) {
+      position = { x: position.x, y };
+    }
+  }
+  return position;
 }
 
 function isFloorArea(room, x, y, radius = 0) {
@@ -9559,16 +9684,20 @@ function movePlayer(room, player, rawDx, rawDy, forcedDt, wantsDash = false, wan
     spendStamina(mover, DASH_DRAIN_PER_SECOND * dt * playerProgressMultiplier(room, mover, timestamp, clockSample?.movementSource || null), room, "ダッシュ");
     mover.lastDashAt = timestamp;
   }
-  if (!player.alive || player.hoverSprintUntil > timestamp || canLevitate(player)) {
+  if (!player.alive) {
     mover.x = clampNumber(nx, radius, map.width - radius, mover.x);
     mover.y = clampNumber(ny, radius, map.height - radius, mover.y);
-  } else if (isWalkable(room, nx, ny, radius)) {
-    mover.x = nx;
-    mover.y = ny;
-  } else if (isWalkable(room, nx, mover.y, radius)) {
-    mover.x = nx;
-  } else if (isWalkable(room, mover.x, ny, radius)) {
-    mover.y = ny;
+  } else if (player.hoverSprintUntil > timestamp || canLevitate(player)) {
+    // These movement modes may cross map boundaries, but physical furniture
+    // remains solid. Preserve their wall-bypass semantics and slide along an
+    // occupied footprint just like ordinary movement slides along map walls.
+    const position = resolveCollisionAwareMovementPosition(room, map, mover, nx, ny, radius, true);
+    mover.x = position.x;
+    mover.y = position.y;
+  } else {
+    const position = resolveCollisionAwareMovementPosition(room, map, mover, nx, ny, radius, false);
+    mover.x = position.x;
+    mover.y = position.y;
   }
   const movedDistance = Math.hypot(mover.x - beforeX, mover.y - beforeY);
   if (movedDistance > 0) {
@@ -12627,10 +12756,16 @@ function useMapObject(room, player, objectId) {
   pushMagicEffect(room, `object-${object.type}`, object, {
     radius: Number(object.radius || 100),
     playerId: player.id,
+    objectId: object.id,
     effectKind: object.effectKind
   });
   pushMapObjectGainAtes(room, player, object.effectKind, recoveredHealth);
-  pushSound(room, "object", object, {
+  const medicalUseSound = {
+    "v302-medical-diagnosticBed-1": "medicalBedUse",
+    "v302-medical-medicalCabinet-2": "medicalCabinetUse",
+    "v302-medical-sterilizer-3": "medicalFootBathUse"
+  }[object.id];
+  pushSound(room, medicalUseSound || "object", object, {
     ownerId: player.id,
     sourceKind: "facility",
     maxDistance: 720,
@@ -17820,6 +17955,7 @@ function serialize(room, viewer, options = {}) {
       speed: map.speed,
       ghostSpeed: map.ghostSpeed,
       playerRadius: map.playerRadius,
+      objectSpaces: map.objectSpaces || [],
       reportRange: map.reportRange,
       taskRange: map.taskRange,
       ventRange: map.ventRange,
@@ -22475,7 +22611,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "overheal-body-v913",
+  version: "tablet-use-v915",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

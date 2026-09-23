@@ -154,6 +154,7 @@ const els = {
   soloTrainingProgress: $("#soloTrainingProgress"),
   soloMissionGrid: $("#soloMissionGrid"),
   canvas: $("#gameCanvas"),
+  webgpuMainCanvas: $("#webgpuMainCanvas"),
   canvasStatusSummary: $("#gameCanvasStatusSummary"),
   canvasStatusAnnouncement: $("#gameCanvasStatusAnnouncement"),
   killCameraOverlay: $("#killCameraOverlay"),
@@ -356,7 +357,14 @@ for (const overlay of [els.inventoryItemDetail]) {
 // context can expose the cleared or partially drawn frame while prop-heavy
 // scenes are still being painted, which presents as a full-field flash.
 const ctx = els.canvas.getContext("2d", { alpha: false });
-const mapCtx = els.expandedMapCanvas.getContext("2d");
+const MAIN_CANVAS_LOGICAL_SIZE = window.DvaWebGPUViewport?.SIZES?.main || [980, 620];
+const EXPANDED_MAP_LOGICAL_SIZE = window.DvaWebGPUViewport?.SIZES?.expanded || [1200, 760];
+let expandedMapGpuRuntime = null;
+let expandedMapGpuPending = null;
+let expandedMapGpuDrawing = false;
+let expandedMapGpuFailed = false;
+let expandedMapGpuEpoch = 0;
+let expandedMapGpuPageHidden = false;
 let gameplayViewportMeasurementsSuspended = false;
 let gameplayViewportRootSizeObserver = null;
 let fieldCanvasCssWidth = 0;
@@ -619,6 +627,22 @@ const MANA_BODY_RECOVERY_TE = Object.freeze({
   durationMs: 1240
 });
 /* mana-body-v904:profile:end */
+
+// Body-benefit light follows the revealed original's alpha, including its
+// transparent body void. Keep each phenomenon's hue and source RGB intact.
+const BODY_RECOVERY_GLOW = Object.freeze({
+  stamina: Object.freeze({ color: "#9cf36b", blur: 12 }),
+  heal: Object.freeze({ color: "#ff91b7", blur: 12 }),
+  mana: Object.freeze({ color: "#9696ff", blur: 13 })
+});
+function setBodyRecoveryGlow(kind) {
+  const glow = BODY_RECOVERY_GLOW[kind];
+  if (!glow) return;
+  ctx.shadowColor = glow.color;
+  ctx.shadowBlur = glow.blur;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+}
 
 const OVERHEAL_BODY_RECOVERY_TE = Object.freeze({
   file: "overheal-body-original-v913.png",
@@ -1262,6 +1286,7 @@ const state = {
   markerExplanation: null,
   markerExplanationPointerId: null,
   markerExplanationPointerPoint: null,
+  markerExplanationPointerSample: null,
   markerExplanationTimer: 0,
   pointerDetailPointerId: null,
   pointerDetailSource: null,
@@ -1379,6 +1404,12 @@ const PHENOMENON_SOUND_STAGES = Object.freeze({
 // The server retains at most 48 magic effects. Keep an ID through that entire
 // receipt window, including a snapshot where the ID temporarily disappears.
 const PHENOMENON_SOUND_RECEIPTS = { roomId: "", ids: new Set(), order: [], owners: new Map(), frame: 0 };
+// Grenade impact receipts live for the entire room session. A finite visual
+// may expire while its server event ID remains in later snapshots.
+const GRENADE_IMPACT_SOUND_RECEIPTS = { roomId: "", generation: 0, ids: new Map() };
+const ENVIRONMENT_SOUND_OWNERS = new Map();
+const ENVIRONMENT_SFX_BUFFERS = new WeakMap();
+let environmentSoundFrame = 0;
 
 const roleLabels = {
   defender: "ディフェンダー",
@@ -2267,7 +2298,7 @@ function titleDepthGeometryError(message) {
 
 // init() enters setScreen(), which clears the acquisition overlay immediately.
 // Its owner must exist before that synchronous startup call.
-const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false, unavailable: false, generation: 0 };
+const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false, unavailable: false, handedOff: false, generation: 0 };
 init();
 
 function prepareTitleHero() {
@@ -3220,6 +3251,7 @@ function setSoloNameGuidance(open) {
 
 function setScreen(screen) {
   if (screen !== "game") stopAllPhenomenonSounds();
+  if (screen !== "game") stopAllEnvironmentSounds();
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   const previous = state.screen;
   if (previous === "game" && next !== "game") disposeFieldGpu("game screen exited");
@@ -3276,13 +3308,14 @@ function toggleGameMuted() {
   if (IS_VERIFICATION_MODE) {
     state.audio.muted = true;
     stopAllPhenomenonSounds();
+    stopAllEnvironmentSounds();
     if (state.audio.master && state.audio.context) state.audio.master.gain.value = 0;
     syncGameAudioButtons();
     syncBgm();
     return;
   }
   state.audio.muted = !state.audio.muted;
-  if (state.audio.muted) stopAllPhenomenonSounds();
+  if (state.audio.muted) { stopAllPhenomenonSounds(); stopAllEnvironmentSounds(); }
   clientStorage.setItem(storage.gameMuted, state.audio.muted ? "1" : "0");
   clientStorage.removeItem(storage.musicMuted);
   if (state.audio.master && state.audio.context) {
@@ -9597,6 +9630,7 @@ function setExpandedMapOpen(open, { focus = true } = {}) {
   }
   if (suspendTabletForMap) state.tabletResumeAfterMap = true;
   state.expandedMapOpen = willOpen;
+  if (!willOpen) expandedMapGpuRuntime?.suspend();
   if (suspendTabletForMap) setTabletOpen(false, { persist: false, focus: false });
   if (!wasOpen && state.expandedMapOpen) {
     clearMovementInput();
@@ -9652,7 +9686,7 @@ function setExpandedMapOpen(open, { focus = true } = {}) {
   requestAnimationFrame(restoreKeyboardContext);
 }
 
-function minimapCanvasBounds(canvasWidth = els.canvas.width) {
+function minimapCanvasBounds(canvasWidth = MAIN_CANVAS_LOGICAL_SIZE[0]) {
   return { x: canvasWidth - 234, y: 70, width: 220, height: 150 };
 }
 
@@ -9660,8 +9694,8 @@ function canvasPointerPosition(event) {
   const rect = els.canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return null;
   return {
-    x: (event.clientX - rect.left) * (els.canvas.width / rect.width),
-    y: (event.clientY - rect.top) * (els.canvas.height / rect.height)
+    x: (event.clientX - rect.left) * (MAIN_CANVAS_LOGICAL_SIZE[0] / rect.width),
+    y: (event.clientY - rect.top) * (MAIN_CANVAS_LOGICAL_SIZE[1] / rect.height)
   };
 }
 
@@ -10151,8 +10185,10 @@ function expandedMapPoint(event) {
   const rect = els.expandedMapCanvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return null;
   const layout = expandedMapLayout(data);
-  const canvasX = (event.clientX - rect.left) * (els.expandedMapCanvas.width / rect.width);
-  const canvasY = (event.clientY - rect.top) * (els.expandedMapCanvas.height / rect.height);
+  // Pointer geometry uses the map's logical size. The WebGPU canvas backing
+  // can be larger than 1200x760 when DPR increases.
+  const canvasX = (event.clientX - rect.left) * (EXPANDED_MAP_LOGICAL_SIZE[0] / rect.width);
+  const canvasY = (event.clientY - rect.top) * (EXPANDED_MAP_LOGICAL_SIZE[1] / rect.height);
   const x = (canvasX - layout.ox) / layout.scale;
   const y = (canvasY - layout.oy) / layout.scale;
   return {
@@ -11342,6 +11378,10 @@ async function recoverRoomInteractionAfterBackground() {
 }
 
 function resetLocalSession() {
+  stopAllEnvironmentSounds();
+  GRENADE_IMPACT_SOUND_RECEIPTS.roomId = "";
+  GRENADE_IMPACT_SOUND_RECEIPTS.generation = 0;
+  GRENADE_IMPACT_SOUND_RECEIPTS.ids.clear();
   clearAcquisitionOverlay();
   clearMarkerExplanation();
   cancelCommonActionGestures();
@@ -11547,6 +11587,7 @@ function applyState(data, options = {}) {
   state.data = data;
   scheduleFieldGpuFor(data);
   reconcilePhenomenonSounds(data);
+  reconcileEnvironmentSounds(data);
   syncHoverSprintLiveCountdownTicker(data);
   updateManualVerificationBotContinuity(data, options.source || "state");
   if (IS_VERIFICATION_MODE) {
@@ -12194,7 +12235,68 @@ function reconcilePhenomenonSounds(data) {
   }
 }
 
+function isGrenadeImpactSoundEffect(effect) {
+  return effect?.type === "grenade-frag-impact" || effect?.type === "grenade-stun-impact";
+}
+
+function prepareGrenadeImpactSoundReceipts(previous, next) {
+  const receipts = GRENADE_IMPACT_SOUND_RECEIPTS;
+  const newSession = receipts.roomId !== next?.roomId ||
+    receipts.generation !== state.roomSessionGeneration;
+  if (newSession) {
+    receipts.roomId = next?.roomId || "";
+    receipts.generation = state.roomSessionGeneration;
+    receipts.ids.clear();
+  }
+  // A join snapshot or a sensory-blocked/closed phase is history, not a fresh
+  // landing. Consume it now so unmute, rejoin, or a later sparse snapshot
+  // cannot trigger a delayed one-shot.
+  if (newSession || !previous || previous.roomId !== next?.roomId ||
+      !["playing", "meeting"].includes(next?.phase) || isSensoryBlocked(next)) {
+    for (const effect of next?.magicEffects || []) {
+      if (isGrenadeImpactSoundEffect(effect) && effect.id != null)
+        receipts.ids.set(effect.id, null);
+    }
+  }
+  return receipts;
+}
+
+function grenadeImpactSoundMix(effect, data) {
+  const listener = worldSoundListener(data);
+  if (!listener || ![listener.x, listener.y, effect.x, effect.y].every(Number.isFinite))
+    return null;
+  const dx = effect.x - listener.x, dy = effect.y - listener.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance >= 1000) return null;
+  return { volume: (1 - distance / 1000) ** 2,
+    pan: clamp(dx / 420, -1, 1) };
+}
+
+function admitGrenadeImpactSound(effect, data) {
+  if (!isGrenadeImpactSoundEffect(effect) || effect.id == null) return false;
+  const receipts = GRENADE_IMPACT_SOUND_RECEIPTS;
+  if (receipts.ids.has(effect.id)) return false;
+  // Receipt is consumed before any audio gate or WebAudio call. Failed and
+  // suppressed attempts never play later when the context is unlocked.
+  receipts.ids.set(effect.id, effect.startedAt);
+  const mix = grenadeImpactSoundMix(effect, data);
+  if (!mix || document.hidden || state.screen !== "game" ||
+      !state.audio.unlocked || state.audio.muted || IS_VERIFICATION_MODE ||
+      isSensoryBlocked(data) || state.audio.context?.state !== "running" ||
+      !(Number(state.audio.master?.gain?.value) > 0)) return false;
+  try {
+    return Boolean(window.DvaGrenadeImpactSfx?.play?.(
+      state.audio.context, state.audio.master, effect.type,
+      { ...mix, verify: IS_VERIFICATION_MODE, muted: state.audio.muted,
+        sensoryBlocked: isSensoryBlocked(data) }));
+  } catch (error) {
+    console.error("Grenade impact sound failed", error);
+    return false;
+  }
+}
+
 function detectMagicEffects(previous, next) {
+  const grenadeReceipts = prepareGrenadeImpactSoundReceipts(previous, next);
   preparePhenomenonSoundReceipts(previous, next);
   detectAuthoredBotSmgReload(next);
   detectAuthoredBotTaserReload(next);
@@ -12228,9 +12330,12 @@ function detectMagicEffects(previous, next) {
   for (const effect of next.magicEffects || []) {
     const soundKind = phenomenonSoundKind(effect, next);
     if (known.has(effect.id)) {
+      if (isGrenadeImpactSoundEffect(effect) && effect.id != null &&
+          !grenadeReceipts.ids.has(effect.id)) grenadeReceipts.ids.set(effect.id, null);
       if (soundKind) rememberPhenomenonSoundId(effect.id);
       continue;
     }
+    if (isGrenadeImpactSoundEffect(effect) && grenadeReceipts.ids.has(effect.id)) continue;
     if (soundKind && PHENOMENON_SOUND_RECEIPTS.ids.has(effect.id)) continue;
     if (["instant-stand-firm-acquired", "instant-push-acquired", "fighter-stand-firm-acquired", "fighter-push-acquired"].includes(effect.type)) continue;
     if (effect.type === "action-item-use" && seenItemUseActionIds.has(effect.id)) continue;
@@ -12283,6 +12388,7 @@ function detectMagicEffects(previous, next) {
       localEffect.duration = localEffect._headMarkerExpiresAt - receivedAt;
     }
     state.magicEffects.push(localEffect);
+    if (isGrenadeImpactSoundEffect(localEffect)) admitGrenadeImpactSound(localEffect, next);
     if (soundKind) admitPhenomenonSound(effect, next);
     // A real gain receipt is admitted once here, after the network-ID gate.
     // Repeated polls therefore cannot retrigger this one-shot body-TE sound.
@@ -12428,7 +12534,10 @@ function detectWorldSounds(previous, next) {
       fighterCounter: "fighterCounter",
       "gravity-levitation-onset": "gravityLevitationOnset",
       "gravity-levitation-end": "gravityLevitationEnd",
-      object: "object"
+      object: "object",
+      medicalBedUse: "medicalBedUse",
+      medicalCabinetUse: "medicalCabinetUse",
+      medicalFootBathUse: "medicalFootBathUse"
     }[sound.type];
     if (!kind) continue;
     const characterActionKind = {
@@ -12764,6 +12873,23 @@ function smoothDamp(current, target, velocity, smoothTime, deltaSeconds) {
   };
 }
 
+const CLIENT_OBJECT_SPACE_COLLISION_CACHE = new WeakMap();
+
+function clientObjectSpaceCollision(data) {
+  const map = data?.map;
+  if (!map || !Array.isArray(map.objectSpaces) || map.objectSpaces.length === 0) return null;
+  if (CLIENT_OBJECT_SPACE_COLLISION_CACHE.has(map)) return CLIENT_OBJECT_SPACE_COLLISION_CACHE.get(map);
+  const compiler = globalThis.DvaObjectSpaceCollision?.compile;
+  if (typeof compiler !== "function") throw new Error("物体占有判定を読み込めませんでした。");
+  const index = compiler.call(globalThis.DvaObjectSpaceCollision, map);
+  CLIENT_OBJECT_SPACE_COLLISION_CACHE.set(map, index);
+  return index;
+}
+
+function isClientObjectSpaceClear(data, x, y, radius) {
+  return !clientObjectSpaceCollision(data)?.isBlocked(x, y, radius);
+}
+
 function isClientWalkable(data, x, y, radius) {
   if (x < radius || y < radius || x > data.map.width - radius || y > data.map.height - radius) return false;
   const seam = Math.max(radius, 32);
@@ -12773,6 +12899,7 @@ function isClientWalkable(data, x, y, radius) {
     y >= rect.y - seam && y <= rect.y + rect.h + seam
   ));
   if (!inArea) return false;
+  if (!isClientObjectSpaceClear(data, x, y, radius)) return false;
   return true;
 }
 
@@ -12790,7 +12917,9 @@ function isClientMovementAllowed(data, player, x, y, radius) {
       : player?.hoverSprintUntil
   ) || 0;
   const hoverSprinting = hoverSprintUntil > liveNow;
-  return hoverSprinting || levitating || !player?.alive || isClientWalkable(data, x, y, radius);
+  if (!player?.alive) return true;
+  if (!isClientObjectSpaceClear(data, x, y, radius)) return false;
+  return hoverSprinting || levitating || isClientWalkable(data, x, y, radius);
 }
 
 function renderedPlayer(player) {
@@ -12916,6 +13045,8 @@ function accessibleGameStatusSnapshot(data) {
     mana,
     acceleration,
     movementAccActive,
+    burning: Boolean(self.statusAte?.burning),
+    poisoned: Boolean(self.statusAte?.poison),
     credits: Math.max(0, Math.floor(Number(self.credits) || 0)),
     mentalState: String(self.mentalState || "気概"),
     immediateAt: Number(self.lastImmediateFeedback?.at) || 0,
@@ -12940,11 +13071,16 @@ function syncAccessibleGameStatus(data) {
     return;
   }
   const phaseLabel = current.phase === "playing" ? "対戦中" : current.phase === "meeting" ? "会議中" : current.phase === "ended" ? "試合終了" : "準備中";
+  const activeStatusLabels = [];
+  if (current.burning) activeStatusLabels.push("燃焼中");
+  if (current.poisoned) activeStatusLabels.push("毒状態");
+  const statusSummary = activeStatusLabels.length
+    ? `${activeStatusLabels.join("、")}。` : "状態異常なし。";
   const summary = `${phaseLabel}。${current.name}、${current.role}、${current.operator}、${current.alive ? "生存" : "戦闘不能"}。` +
     `HP ${formatAccessibleResource(current.health)}/${formatAccessibleResource(current.maxHealth)}、` +
     `SP ${Math.round(current.stamina)}、MP ${formatAccessibleResource(current.mana)}、` +
     `ACC ${current.acceleration.toFixed(2)}${current.movementAccActive ? " 移動固定有効" : ""}、` +
-    `${current.credits}クレジット、心状態 ${current.mentalState}。`;
+    `${current.credits}クレジット、心状態 ${current.mentalState}。${statusSummary}`;
   if (els.canvasStatusSummary.textContent !== summary) els.canvasStatusSummary.textContent = summary;
 
   const previous = state.accessibleGameStatus;
@@ -12966,6 +13102,14 @@ function syncAccessibleGameStatus(data) {
     } else if (previous.movementAccActive !== current.movementAccActive) {
       announcement = current.movementAccActive ? "移動固定ACCが有効になりました。" : "移動固定ACCが待機に戻りました。";
     }
+    const statusChanges = [];
+    if (previous.burning !== current.burning) {
+      statusChanges.push(current.burning ? "燃焼状態になりました。" : "燃焼状態が解除されました。");
+    }
+    if (previous.poisoned !== current.poisoned) {
+      statusChanges.push(current.poisoned ? "毒状態になりました。" : "毒状態が解除されました。");
+    }
+    if (statusChanges.length) announcement = [announcement, ...statusChanges].filter(Boolean).join(" ");
   }
   // Each non-empty value represents a new semantic event. Reassign even an
   // identical phrase so a later repeated damage/death event creates a fresh
@@ -13033,11 +13177,23 @@ function registerPreparationCanvasLocalBounds(field, x, y, width, height) {
   registerPreparationCanvasHitTarget(field, left, top, right - left, bottom - top);
 }
 
-function registerPreparationPlayerCanvasTargets(player, nameplateY, nameplateWidth) {
+function registerPreparationPlayerCanvasTargets(player, nameplateY, nameplateWidth, options) {
+  options ||= {};
   if (!preparationSettingsEditable(state.data) || player?.id !== state.data?.selfId) return;
   const spriteY = nameplateY <= -60 ? nameplateY + 15 : -42;
   const spriteHeight = nameplateY <= -60 ? 94 : 80;
-  registerPreparationCanvasLocalBounds("skin", -47, spriteY, 94, spriteHeight);
+  if (!options.nameOnly) {
+    // Preserve the full-size tap target while centering it on the resized
+    // sprite. The skin target belongs to the body transform, not the
+    // nameplate transform used to keep text readable.
+    ctx.save();
+    if (options.bodyScaleActive) {
+      cancelCharacterBodyVisualScaleAtY(spriteY + spriteHeight / 2);
+    }
+    registerPreparationCanvasLocalBounds("skin", -47, spriteY, 94, spriteHeight);
+    ctx.restore();
+  }
+  if (options.skinOnly) return;
   // Target lookup walks newest-first, so the exact nameplate wins even when
   // the compact fallback body overlaps its lower edge.
   registerPreparationCanvasLocalBounds("name", -nameplateWidth / 2, nameplateY, nameplateWidth, 14);
@@ -13062,8 +13218,8 @@ function preparationCanvasHitTarget(field) {
 function positionPreparationNameInput() {
   const target = preparationCanvasHitTarget("name"), box = els.canvas?.getBoundingClientRect?.();
   const panel = document.querySelector('[data-preparation-editor="name"]');
-  if (!target || !box || !panel || !els.canvas.width || !els.canvas.height) return false;
-  const sx = box.width / els.canvas.width, sy = box.height / els.canvas.height;
+  if (!target || !box || !panel) return false;
+  const sx = box.width / MAIN_CANVAS_LOGICAL_SIZE[0], sy = box.height / MAIN_CANVAS_LOGICAL_SIZE[1];
   panel.style.left = (box.left + target.x * sx) + "px"; panel.style.top = (box.top + target.y * sy) + "px";
   panel.style.width = Math.max(96, target.width * sx) + "px"; panel.style.height = Math.max(32, target.height * sy) + "px";
   return true;
@@ -15553,9 +15709,7 @@ function layoutActiveEffectsPanel() {
   const viewportHeight = Number(gameplayViewportLastVisibleSample?.height) || window.innerHeight;
   const wideLandscape = viewportWidth >= 681 && viewportWidth > viewportHeight;
   const fieldRect = fieldSlot?.getBoundingClientRect();
-  const canvasAspect = Number(els.canvas?.width) > 0 && Number(els.canvas?.height) > 0
-    ? Number(els.canvas.width) / Number(els.canvas.height)
-    : 98 / 62;
+  const canvasAspect = MAIN_CANVAS_LOGICAL_SIZE[0] / MAIN_CANVAS_LOGICAL_SIZE[1];
   // A previous portrait layout can leave both the board and effect panel at a
   // larger lower-row fixed point. Derive the landscape budget from the parent
   // field box and the board's authored aspect ratio, never from either child.
@@ -17083,14 +17237,44 @@ function aimedTarget(data = state.data) {
   return dist(self, target) <= data.settings.killRange ? target : null;
 }
 
-function drawGunnerAim(data = state.data) {
-  if (data?.phase !== "playing" || !data.self?.gunnerAimOwned || !data.self?.gunnerSnipingActive || !data.self?.gunnerAimTargetId) return;
+function gunnerAimWebGPUScene(data = state.data) {
+  if (data?.phase !== "playing" || !data.self?.gunnerAimOwned || !data.self?.gunnerSnipingActive || !data.self?.gunnerAimTargetId) return null;
   const target = data.players.find((player) => player.id === data.self.gunnerAimTargetId && player.alive && !player.ejected && !player.invisible);
   const self = selfPlayer();
-  if (!target || !self) return;
-  const origin = renderedPlayer(self);
-  const destination = renderedPlayer(target);
-  const frameNow = state.frameNow || performance.now();
+  if (!target || !self) return null;
+  return { origin: renderedPlayer(self), destination: renderedPlayer(target),
+    now: state.frameNow || performance.now() };
+}
+
+// Canvas and the WebGPU candidate share one actor interpolation owner per RAF
+// frame. A second capture or draw of that frame must not integrate movement
+// twice; a replacement data snapshot in the same frame is rejected instead.
+let renderActorFrameOwner = null;
+function ensureRenderPlayersAdvanced(data) {
+  const frame = state.frameNow;
+  if (data !== state.data || !Number.isFinite(frame) || frame <= 0 ||
+      data?.roomId !== state.roomId || !Number.isInteger(state.roomSessionGeneration))
+    throw new Error('Actor render frame needs current room data and a committed frame');
+  const owner = renderActorFrameOwner;
+  if (owner && owner.generation === state.roomSessionGeneration &&
+      owner.roomId === state.roomId && owner.frame === frame) {
+    if (owner.data !== data)
+      throw new Error('Actor render frame changed data inside one frame');
+    return false;
+  }
+  if (owner && owner.generation === state.roomSessionGeneration &&
+      owner.roomId === state.roomId && frame < owner.frame)
+    throw new Error('Actor render frame moved backward inside one session');
+  advanceRenderPlayers(data);
+  renderActorFrameOwner = { data, generation: state.roomSessionGeneration,
+    roomId: state.roomId, frame };
+  return true;
+}
+
+function drawGunnerAim(data = state.data) {
+  const scene = gunnerAimWebGPUScene(data);
+  if (!scene) return;
+  const { origin, destination, now: frameNow } = scene;
   const pulse = 0.72 + Math.sin(frameNow / 110) * 0.18;
   const gradient = ctx.createLinearGradient(origin.x, origin.y, destination.x, destination.y);
   gradient.addColorStop(0, "rgba(34,211,238,0.28)");
@@ -17320,10 +17504,9 @@ function drawPreparationArrivalPlayer(player, data) {
 
 function draw() {
   PHENOMENON_SOUND_RECEIPTS.frame += 1;
+  environmentSoundFrame += 1;
   const data = state.data;
-  const canvas = els.canvas;
-  const w = canvas.width;
-  const h = canvas.height;
+  const [w, h] = MAIN_CANVAS_LOGICAL_SIZE;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -17352,13 +17535,14 @@ function draw() {
 
   if (!data) {
     stopAllPhenomenonSounds();
+    stopAllEnvironmentSounds();
     state.drawViewport = null;
     clearAcquisitionOverlay();
     clearMarkerExplanation();
     return;
   }
   drawCanvasStage("motion", () => {
-    advanceRenderPlayers(data);
+    ensureRenderPlayersAdvanced(data);
   });
   const worldZoom = worldZoomFor(data);
   const camera = cameraFor(data, w, h, worldZoom);
@@ -17380,6 +17564,7 @@ function draw() {
       ctx.restore();
     }
   });
+  sweepEnvironmentSounds();
 
   drawCanvasStage("world", () => {
     ctx.save();
@@ -17422,7 +17607,8 @@ function draw() {
   drawCanvasStage("kill-animation", () => drawKillAnimations(data, camera, w, h, worldZoom));
   drawCanvasStage("sensory", () => drawSensoryBlackout(data, w, h));
   drawCanvasStage("marker-explanation", () => drawMarkerExplanation(w, h));
-  drawCanvasStage("acquisition-photons", () => drawAcquisitionPhotonStream(data, camera, worldZoom));
+  // The acquisition overlay is a separate WebGPU surface above the field and HUD.
+  drawAcquisitionPhotonStream(data, camera, worldZoom);
 }
 
 function worldZoomFor(data = state.data) {
@@ -17436,17 +17622,24 @@ function throwTargetClairvoyanceActive(data = state.data) {
   const self = data.players?.find((player) => player.id === data.selfId);
   if (!self) return false;
   const origin = renderedPlayer(self);
-  const halfWidth = Math.max(120, els.canvas.width / CAMERA_ZOOM / 2 - 72);
-  const halfHeight = Math.max(120, els.canvas.height / CAMERA_ZOOM / 2 - 72);
+  const halfWidth = Math.max(120, MAIN_CANVAS_LOGICAL_SIZE[0] / CAMERA_ZOOM / 2 - 72);
+  const halfHeight = Math.max(120, MAIN_CANVAS_LOGICAL_SIZE[1] / CAMERA_ZOOM / 2 - 72);
   return Math.abs(state.throwTargeting.targetX - origin.x) > halfWidth ||
     Math.abs(state.throwTargeting.targetY - origin.y) > halfHeight;
 }
 
+// Scene adapter for the late WebGPU sensory pass. The Canvas path remains
+// active until the full main-frame cutover preserves all preceding stages.
+function sensoryBlackoutWebGPUScene(data) {
+  return { unconsciousUntil: data.self.unconsciousUntil || 0, now: estimatedServerNow(data) };
+}
+
 function drawSensoryBlackout(data, w, h) {
-  const liveNow = estimatedServerNow(data);
-  const unconscious = (data.self.unconsciousUntil || 0) > liveNow;
+  const scene = sensoryBlackoutWebGPUScene(data);
+  const liveNow = scene.now;
+  const unconscious = scene.unconsciousUntil > liveNow;
   if (!unconscious) return;
-  const endsAt = data.self.unconsciousUntil;
+  const endsAt = scene.unconsciousUntil;
   ctx.save();
   ctx.fillStyle = "#030506";
   ctx.fillRect(0, 0, w, h);
@@ -17458,19 +17651,38 @@ function drawSensoryBlackout(data, w, h) {
   ctx.restore();
 }
 
+// Shared mode-state adapter for the eventual main WebGPU frame. Keep name and
+// timing lookup behind the same priority as the current Canvas banner.
+function modeBannerWebGPUScene(data) {
+  const throwMode = throwTargetClairvoyanceActive(data);
+  const followMode = !throwMode && state.clairvoyance.active;
+  const followTarget = followMode ? ensureClairvoyanceFollowTarget(data) : null;
+  const aimTargetId = !throwMode && !followMode ? data.self.aimTargetId : null;
+  const aimTarget = aimTargetId ? data.players.find(player => player.id === aimTargetId) : null;
+  return {
+    throwTargetClairvoyanceActive: throwMode,
+    clairvoyanceActive: followMode,
+    followTargetName: followTarget?.name || "",
+    aimTargetId,
+    aimTargetName: aimTarget?.name || "",
+    aimReadyAt: Number(data.self.aimReadyAt) || 0,
+    now: aimTargetId ? estimatedServerNow(data) : 0,
+    special: data.self.special
+  };
+}
+
 function drawModeBanner(data, w) {
+  const mode = modeBannerWebGPUScene(data);
   let text = "";
-  if (throwTargetClairvoyanceActive(data)) {
+  if (mode.throwTargetClairvoyanceActive) {
     text = "千里眼 / 着地点追従 / 全域投擲";
-  } else if (state.clairvoyance.active) {
-    const target = ensureClairvoyanceFollowTarget(data);
-    text = `千里眼 / ${target?.name || "追尾先なし"}を追尾 / ←→で切替 / Zで解除`;
-  } else if (data.self.aimTargetId) {
-    const target = data.players.find((player) => player.id === data.self.aimTargetId);
-    const remaining = Math.max(0, data.self.aimReadyAt - estimatedServerNow(data));
+  } else if (mode.clairvoyanceActive) {
+    text = `千里眼 / ${mode.followTargetName || "追尾先なし"}を追尾 / ←→で切替 / Zで解除`;
+  } else if (mode.aimTargetId) {
+    const remaining = Math.max(0, mode.aimReadyAt - mode.now);
     text = remaining > 0
-      ? `忍殺静止中: ${target?.name || "対象"} / 残り ${(remaining / 1000).toFixed(1)}秒`
-      : `${data.self.special === "assassin" ? "忍殺キル（死体なし）" : "忍殺撃破"}処理中: ${target?.name || "対象"}`;
+      ? `忍殺静止中: ${mode.aimTargetName || "対象"} / 残り ${(remaining / 1000).toFixed(1)}秒`
+      : `${mode.special === "assassin" ? "忍殺キル（死体なし）" : "忍殺撃破"}処理中: ${mode.aimTargetName || "対象"}`;
   }
   if (!text) return;
   ctx.save();
@@ -18271,8 +18483,7 @@ function drawMedicalWindowLight(ctx, data, source, time, cache, intensity = 1, r
 function drawFoliageWoodsun(data, room, drawAuthoredMapShadeAnimation, time) {
   const strength = FOLIAGE_WOODSUN_STRENGTHS[room && room.id];
   if (!strength) return false;
-  drawAuthoredMapShadeAnimation(data, room, time, strength);
-  return true;
+  return drawAuthoredMapShadeAnimation(data, room, time, strength);
 }
 
 
@@ -18402,10 +18613,11 @@ function drawFootBathAmbient(object, time, intensity = 1, data = state.data) {
     );
   }
   ctx.restore();
+  return true;
 }
 
 function drawFootBathRoomKomorebi(data, room, time) {
-  drawAuthoredMapShadeAnimation(data, room, time, 1.04);
+  return drawAuthoredMapShadeAnimation(data, room, time, 1.04);
 }
 
 const MAP_OBJECT_EFFECT_TEXTURE_IDS = Object.freeze({
@@ -18498,9 +18710,13 @@ function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
     if (data.map.id === "station" && room.id === "medical" && footBathRoomIds.has(room.id)) {
       drawMedicalWindowLight(ctx, data, source, time, mapEnvironmentRegionCache, 1, reducedMotion);
     } else if (footBathRoomIds.has(room.id)) {
-      drawFootBathRoomKomorebi(data, room, time);
+      if (drawFootBathRoomKomorebi(data, room, time)) {
+        observeEnvironmentSound(data, `komorebi:${room.id}`, "woodsAir", room.x + room.w / 2, room.y + room.h / 2);
+      }
     } else {
-      drawFoliageWoodsun(data, room, drawAuthoredMapShadeAnimation, time);
+      if (drawFoliageWoodsun(data, room, drawAuthoredMapShadeAnimation, time)) {
+        observeEnvironmentSound(data, `komorebi:${room.id}`, "woodsAir", room.x + room.w / 2, room.y + room.h / 2);
+      }
     }
   }
   for (const corridor of visibleCorridors.flatMap((entry) => corridorRenderSegments(entry))) {
@@ -18512,7 +18728,9 @@ function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
     if ((object.type !== "footBath" && object.effectKind !== "footBath") || !visibleRoomIds.has(object.room)) continue;
     // The spring, steam, caustics, and fixed-source god rays are environmental
     // ATE. Object benefit bursts remain event-driven in drawObjectActivationEffect.
-    drawFootBathAmbient(object, time, 0.86, data);
+    if (drawFootBathAmbient(object, time, 0.86, data)) {
+      observeEnvironmentSound(data, `footBath:${object.id || `${object.x}:${object.y}`}`, "bathAmbient", object.x, object.y);
+    }
   }
 }
 
@@ -18788,26 +19006,39 @@ function mapObjectStyle(object) {
   return style;
 }
 
-function drawMapObjects(data) {
+function mapObjectWebGPUScene(data, worldBounds = null) {
   const self = selfPlayer();
   const now = estimatedServerNow(data);
+  // Canvas callers keep their current worldPointVisible ownership. A WebGPU
+  // candidate supplies bounds from its committed viewport, independently of
+  // whether a Canvas frame has run.
+  const visible = worldBounds ? (x, y, padding) =>
+    x >= worldBounds.left - padding && x <= worldBounds.right + padding &&
+    y >= worldBounds.top - padding && y <= worldBounds.bottom + padding
+    : worldPointVisible;
+  return (data.map.objects || [])
+    .filter((object) => visible(object.x, object.y, Number(object.radius || 100) + 110))
+    .map((object) => ({ id: object.id, type: object.type, x: object.x, y: object.y,
+      near: Boolean(self && dist(self, object) <= Number(object.interactive ? object.useRange || data.map.taskRange : object.radius || 100)),
+      ready: !object.interactive || Number(object.readyAt || 0) <= now,
+      label: String(object.label), effectLabel: String(object.effectLabel),
+      color: mapObjectStyle(object).color }));
+}
+
+function drawMapObjects(data) {
   let itemError = "";
-  for (const object of data.map.objects || []) {
-    if (!worldPointVisible(object.x, object.y, Number(object.radius || 100) + 110)) continue;
-    const style = mapObjectStyle(object);
-    const near = Boolean(self && dist(self, object) <= Number(object.interactive ? object.useRange || data.map.taskRange : object.radius || 100));
-    const ready = !object.interactive || Number(object.readyAt || 0) <= now;
+  for (const object of mapObjectWebGPUScene(data)) {
     ctx.save();
     try {
-      if (near) {
+      if (object.near) {
         ctx.fillStyle = "rgba(9,20,28,0.94)";
         roundRect(object.x - 76, object.y + 52, 152, 36, 6, true, false);
-        ctx.fillStyle = ready ? "#f8fafc" : "#94a3b8";
+        ctx.fillStyle = object.ready ? "#f8fafc" : "#94a3b8";
         ctx.font = "900 12px Segoe UI, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(object.label, object.x, object.y + 63);
-        ctx.fillStyle = style.color;
+        ctx.fillStyle = object.color;
         ctx.font = "800 9px Segoe UI, sans-serif";
         ctx.fillText(object.effectLabel, object.x, object.y + 78);
       }
@@ -18857,11 +19088,17 @@ function drawMysteryBoxMaterials(x, y, opening, emission) {
   } finally { ctx.restore(); }
 }
 
+function mysteryBoxWebGPUScene(data) {
+  return {
+    scene: Array.isArray(data.map?.mysteryBoxes) ? data.map.mysteryBoxes : [],
+    self: selfPlayer(), image: state.textures?.mysteryBoxMaterial
+  };
+}
+
 function drawMysteryBoxes(data) {
-  const boxes = Array.isArray(data.map?.mysteryBoxes) ? data.map.mysteryBoxes : [];
-  if (!boxes.length || !mysteryBoxMaterialReady()) return;
-  const self = selfPlayer();
-  for (const box of boxes) {
+  const { scene, self } = mysteryBoxWebGPUScene(data);
+  if (!scene.length || !mysteryBoxMaterialReady()) return;
+  for (const box of scene) {
     if (!worldPointVisible(box.x, box.y, 140)) continue;
     const near = self && Math.hypot(self.x - box.x, self.y - box.y) <= Number(box.useRange || 82);
     ctx.save();
@@ -18870,14 +19107,21 @@ function drawMysteryBoxes(data) {
   }
 }
 
+function alchemyObjectsWebGPUScene(data) {
+  return { scene: data.map.alchemyObjects || [],
+    textures: { facilityProps: state.textures.facilityProps, roomProps: state.textures.roomProps },
+    serverNow: estimatedServerNow(data), frameNow: state.frameNow || performance.now() };
+}
+
 function drawAlchemyObjects(data) {
-  const now = estimatedServerNow(data);
+  const render = alchemyObjectsWebGPUScene(data);
+  const now = render.serverNow;
   const facilityProps = preparedAtlasTexture(state.textures.facilityProps, "facility-props");
   const roomProps = preparedAtlasTexture(state.textures.roomProps, "room-props");
-  for (const object of data.map.alchemyObjects || []) {
+  for (const object of render.scene) {
     if (!worldPointVisible(object.x, object.y, Number(object.radius || 90) + 80)) continue;
     const remaining = Math.max(0, (Number(object.endsAt) || now) - now);
-    const pulse = 0.5 + Math.sin((state.frameNow || performance.now()) / 210) * 0.5;
+    const pulse = 0.5 + Math.sin(render.frameNow / 210) * 0.5;
     const style = object.type === "cover"
       ? { color: "#94a3b8", label: "錬成遮蔽物", symbol: "▰", atlas: facilityProps, cell: 0, width: 92, height: 82 }
       : object.type === "recharge"
@@ -19109,11 +19353,25 @@ function drawGravityZones(data) {
   }
 }
 
+function stationsWebGPUScene(data) {
+  const composite = state.textures.fullMapComposites?.[data.map.id];
+  return {
+    scene: data.map.stations || [],
+    tasks: data.self.tasks || [],
+    rooms: data.map.rooms || [],
+    compositeReady: Boolean(composite?.complete && composite.naturalWidth),
+    facilityProps: state.textures.facilityProps,
+    self: selfPlayer(),
+    taskRange: data.map.taskRange
+  };
+}
+
 function drawStations(data) {
-  const self = selfPlayer();
-  const facilityProps = preparedAtlasTexture(state.textures.facilityProps, "facility-props");
-  const taskIds = new Set((data.self.tasks || []).filter((task) => !task.done).map((task) => task.stationId));
-  data.map.stations.forEach((station) => {
+  const render = stationsWebGPUScene(data);
+  const self = render.self;
+  const facilityProps = preparedAtlasTexture(render.facilityProps, "facility-props");
+  const taskIds = new Set(render.tasks.filter((task) => !task.done).map((task) => task.stationId));
+  render.scene.forEach((station) => {
     if (!worldPointVisible(station.x, station.y, 180)) return;
     let color = "#9aa9b8";
     let symbol = "";
@@ -19394,11 +19652,16 @@ function drawBodies(data) {
   });
 }
 
-function drawWorldSoundEffects() {
+function worldSoundWebGPUScene() {
   const now = state.frameNow || performance.now();
   state.worldSoundEffects = state.worldSoundEffects.filter((effect) => now - effect.startedAt < effect.duration);
-  for (const effect of state.worldSoundEffects) {
-    const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
+  return { now, effects: state.worldSoundEffects };
+}
+
+function drawWorldSoundEffects() {
+  const scene = worldSoundWebGPUScene();
+  for (const effect of scene.effects) {
+    const progress = clamp((scene.now - effect.startedAt) / effect.duration, 0, 1);
     ctx.save();
     ctx.globalAlpha = 1 - progress;
     ctx.strokeStyle = "#ef4444";
@@ -19415,10 +19678,16 @@ function drawWorldSoundEffects() {
   }
 }
 
-function drawHitEffects() {
+function hitEffectsWebGPUScene() {
   const now = state.frameNow || performance.now();
   state.hitEffects = state.hitEffects.filter((effect) => now - effect.startedAt < effect.duration);
-  for (const effect of state.hitEffects) {
+  return { now, effects: state.hitEffects };
+}
+
+function drawHitEffects() {
+  const scene = hitEffectsWebGPUScene();
+  const now = scene.now;
+  for (const effect of scene.effects) {
     const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
     const seed = [...String(effect.id)].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 17);
     ctx.save();
@@ -19451,9 +19720,23 @@ function drawHitEffects() {
   }
 }
 
+function hazardFieldsWebGPUScene(data) {
+  return {
+    hazardFields: Array.isArray(data?.hazardFields) ? data.hazardFields : [],
+    textures: {
+      fireMaterialTransport: state.textures?.fireMaterialTransport,
+      waterMaterialTransport: state.textures?.waterMaterialTransport,
+      poisonMaterialTransport: state.textures?.poisonMaterialTransport
+    },
+    now: state.frameNow || performance.now(),
+    reducedMotion: prefersReducedMotion()
+  };
+}
+
 function drawHazardFields(data) {
-  const fields = Array.isArray(data.hazardFields) ? data.hazardFields : [];
-  const now = state.frameNow || performance.now();
+  const render = hazardFieldsWebGPUScene(data);
+  const fields = render.hazardFields;
+  const now = render.now;
   for (const field of fields) {
     const radius = Math.max(24, Number(field.radius) || 80);
     const kind = String(field.kind || "");
@@ -19555,6 +19838,707 @@ function drawGroundItems(data) {
     }
   }
 }
+
+// Dormant until the ordered WebGPU world pass replaces the surrounding Canvas
+// stages. The existing nearest-item result remains the only pickup selection.
+// view.width/height are logical world-stage pixels; the shared pass owns DPR.
+function buildWebGPUGroundItemCommands(data, view) {
+  const api = window.DvaWebGPUGroundItems;
+  if (!api?.createCommands || !data || !view?.camera) return null;
+  return api.createCommands({
+    groundItems: Array.isArray(data.groundItems) ? data.groundItems : [],
+    nearestId: nearestGroundItem(data)?.id ?? null,
+    textures: state.textures,
+    camera: view.camera,
+    zoom: view.zoom,
+    viewport: { width: view.width, height: view.height },
+    order: view.order ?? 0
+  });
+}
+
+// WEBGPU_MAIN_APP_EARLY_SCENE_ADAPTER_V1_START
+// Dormant until the complete main-frame cutover. Capture only the first twelve
+// ordered world stages; later mandatory stages must never be filled with stubs.
+function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
+  if (!data?.map || viewport?.kind !== "main" ||
+      viewport.width !== MAIN_CANVAS_LOGICAL_SIZE[0] ||
+      viewport.height !== MAIN_CANVAS_LOGICAL_SIZE[1] ||
+      !Number.isInteger(viewport.pixelWidth) || viewport.pixelWidth < 1 ||
+      !Number.isInteger(viewport.pixelHeight) || viewport.pixelHeight < 1) {
+    throw new TypeError("Early main WebGPU scene needs live map data and a committed logical main viewport");
+  }
+  const zoom = worldZoomFor(data);
+  const camera = cameraFor(data, viewport.width, viewport.height, zoom);
+  const matrix = viewport.worldToLogical;
+  if (!Array.isArray(matrix) || matrix.length !== 6 ||
+      Math.abs(matrix[0] - zoom) > 1e-6 || Math.abs(matrix[3] - zoom) > 1e-6 ||
+      Math.abs(matrix[4] + camera.x * zoom) > 1e-4 ||
+      Math.abs(matrix[5] + camera.y * zoom) > 1e-4) {
+    throw new Error("Early main WebGPU camera differs from the committed viewport");
+  }
+  const bounds = { left: camera.x, top: camera.y,
+    right: camera.x + viewport.width / zoom,
+    bottom: camera.y + viewport.height / zoom };
+  const textures = state.textures || {};
+  const mapImage = textures.fullMapComposites?.[data.map.id];
+  const imageReady = (image, width, height) => Boolean(image?.complete &&
+    image.naturalWidth === width && image.naturalHeight === height);
+  const textureGaps = [];
+  if (!imageReady(mapImage, data.map.width, data.map.height))
+    textureGaps.push({ stage: "map", texture: `fullMapComposites.${data.map.id}`, blocking: true });
+  const boxes = mysteryBoxWebGPUScene(data);
+  if (boxes.scene.length && !imageReady(boxes.image, 1548, 516))
+    textureGaps.push({ stage: "mysteryBoxes", texture: "mysteryBoxMaterial", blocking: true });
+  const zones = Array.isArray(data.gravityZones) ? data.gravityZones : [];
+  if (zones.length && !imageReady(textures.gravityLocalMaterialV834, 3940, 3589))
+    textureGaps.push({ stage: "gravityHazards", texture: "gravityLocalMaterialV834", blocking: true });
+  if (zones.length && !imageReady(textures.gravitySafeEyePressure, 2099, 2058))
+    textureGaps.push({ stage: "gravityHazards", texture: "gravitySafeEyePressure", blocking: true });
+  const groundItems = Array.isArray(data.groundItems) ? data.groundItems : [];
+  const view = { camera, zoom, width: viewport.width, height: viewport.height };
+  const commands = buildWebGPUGroundItemCommands(data, view);
+  if (!commands) throw new Error("Ground-item WebGPU command builder unavailable");
+  for (const item of groundItems) {
+    if (!commands.some(command => command.itemId === item.id && command.part === "fallback")) continue;
+    textureGaps.push({ stage: "groundItems", texture: String(item.asset || ""),
+      itemId: item.id, blocking: false });
+  }
+  const now = estimatedServerNow(data);
+  const frameNow = state.frameNow || performance.now();
+  const reducedMotion = prefersReducedMotion();
+  const medicalEnvironmentPresent = data.map.id === "station" &&
+    (data.map.objects || []).some(object => object.room === "medical" &&
+      (object.type === "footBath" || object.effectKind === "footBath"));
+  const medicalEnvironmentApi = window.DvaWebGPUMedicalEnvironmentE;
+  if (medicalEnvironmentPresent && typeof medicalEnvironmentApi?.plan !== "function")
+    throw new Error("Medical environment WebGPU E planner unavailable");
+  const medicalEnvironmentPlanned = medicalEnvironmentPresent
+    ? medicalEnvironmentApi.plan({ camera, zoom, viewport, now: frameNow,
+      mode: "balanced", intensity: .65, reducedMotion }) : null;
+  const medicalFixtureApi = window.DvaWebGPUMedicalFixtureE;
+  const medicalUploadApi = window.DvaWebGPUMedicalUploadConsoleE;
+  const medicalFixturePlans = [];
+  if (medicalEnvironmentPresent) {
+    if (typeof medicalFixtureApi?.plan !== "function" ||
+        typeof medicalUploadApi?.plan !== "function")
+      throw new Error("Medical room object WebGPU E planners unavailable");
+    const players = (data.players || []).filter(player => player &&
+      Number.isFinite(player.x) && Number.isFinite(player.y) &&
+      player.alive && !player.ejected && !player.inVent);
+    for (const fixtureId of Object.keys(medicalFixtureApi.FIXTURES)) {
+      const fixture = medicalFixtureApi.FIXTURES[fixtureId];
+      const nearest = players.reduce((best, player) =>
+        !best || (player.x - fixture.x) ** 2 + (player.y - fixture.y) ** 2 <
+          (best.x - fixture.x) ** 2 + (best.y - fixture.y) ** 2 ? player : best, null);
+      if (nearest) {
+        const planned = medicalFixtureApi.plan({ fixtureId, player: nearest,
+          camera, zoom, viewport, now: frameNow, reducedMotion });
+        if (planned) medicalFixturePlans.push(planned);
+      }
+    }
+  }
+  const facilityStations = Array.isArray(data.map.stations) ? data.map.stations : [];
+  const medicalUploadStation = medicalEnvironmentPresent ? facilityStations.find(station =>
+    station?.id === "upload-d") : null;
+  const medicalUploadPlanned = medicalUploadStation ? medicalUploadApi.plan({
+    station: medicalUploadStation, task: null, activeUpload: null, completion: null,
+    camera, zoom, viewport, now: frameNow, reducedMotion }) : null;
+  const facilityVisible = point => point && Number.isFinite(point.x) && Number.isFinite(point.y) &&
+    point.x >= camera.x - 150 && point.x <= camera.x + viewport.width / zoom + 150 &&
+    point.y >= camera.y - 150 && point.y <= camera.y + viewport.height / zoom + 150;
+  for (const taskKind of ["download", "upload"]) {
+    if (!facilityStations.some(station => station?.type === "task" &&
+        station.task === taskKind && facilityVisible(station))) continue;
+    const texture = taskKind === "download" ? "taskDownloadDigital" : "taskUploadDigital";
+    if (!imageReady(textures[texture], 512, 512))
+      textureGaps.push({ stage: "facilityEffects", texture, blocking: true });
+  }
+  // Canvas suppresses the station material while its completion is drawn later
+  // inside drawMagicEffects. The GPU input does the same; the late adapter owns
+  // each active effect by exact source ID in its ordered event stream.
+  const deferredTaskEffects = (state.magicEffects || []).filter(effect => {
+    if (effect?.type !== "action-task" || !["download", "upload"].includes(effect.mode) ||
+        !Number.isFinite(effect.startedAt) || !Number.isFinite(effect.duration) ||
+        effect.duration <= 0 ||
+        frameNow < effect.startedAt || frameNow >= effect.startedAt + effect.duration) return false;
+    const station = facilityStations.find(item => item?.id === effect.targetId &&
+      item.type === "task" && ["download", "upload"].includes(item.task));
+    return facilityVisible(station) || facilityVisible({
+      x: Number.isFinite(effect.targetX) ? effect.targetX : effect.x,
+      y: Number.isFinite(effect.targetY) ? effect.targetY : effect.y });
+  });
+  const deferredStationIds = new Set(deferredTaskEffects.map(effect => effect.targetId));
+  // The server snapshot already decides which corpses this viewer may see.
+  // Canvas drawBodies uses every supplied body without age fade or culling.
+  const bodyGaps = !Array.isArray(data.bodies)
+    ? [{ stage: "bodies", reason: "body-snapshot-unavailable", blocking: true }]
+    : data.bodies.flatMap((body, index) => body &&
+        Number.isFinite(body.x) && Number.isFinite(body.y) ? [] :
+      [{ stage: "bodies", index, reason: "body-position-invalid", blocking: true }]);
+  // The Canvas sound stage expires events just after bodies. Snapshot the same
+  // frame-time survivors without mutating the still-active Canvas queue.
+  const soundSource = state.worldSoundEffects;
+  const worldSoundGaps = !Array.isArray(soundSource)
+    ? [{ stage: "worldSound", reason: "world-sound-snapshot-unavailable", blocking: true }]
+    : soundSource.flatMap((effect, index) => {
+      if (effect && Number.isFinite(effect.startedAt) &&
+          Number.isFinite(effect.duration) &&
+          frameNow - effect.startedAt >= effect.duration) return [];
+      return effect && [effect.x, effect.y, effect.startedAt, effect.duration]
+          .every(Number.isFinite) && effect.duration > 0 ? [] :
+        [{ stage: "worldSound", index, reason: "world-sound-effect-invalid", blocking: true }];
+    });
+  const worldSoundEffects = Array.isArray(soundSource) ? soundSource.filter(effect =>
+    effect && Number.isFinite(effect.startedAt) && Number.isFinite(effect.duration) &&
+    frameNow - effect.startedAt < effect.duration) : [];
+  // The live Canvas path resolves eligibility and landing through this same
+  // helper. A visible preview cannot become an empty GPU stage because its
+  // source material has not loaded. The Clairvoyance scan remains unsupported
+  // in this early-stage slice and must block the complete-frame cutover.
+  const throwScene = throwLandingWebGPUScene(data);
+  const throwPreviewGaps = [];
+  if (throwScene?.landing && !imageReady(throwScene.image, 1254, 1254))
+    textureGaps.push({ stage: "throwPreview", texture: "throwLandingPreview", blocking: true });
+  if (throwScene?.clairvoyance)
+    throwPreviewGaps.push({ stage: "throwPreview", reason: "clairvoyance-scan-unsupported", blocking: true });
+  // The zone pass reads barrier-hit events to animate the held safe eye.
+  // Gravity impact drawing itself belongs to the later magic-effects slot.
+  const gravityScene = { gravityZones: zones,
+    magicEffects: (state.magicEffects || []).filter(effect =>
+      effect?.type === "gravity-storm-barrier-hit" && effect.variant === "caster-barrier"),
+    now, frameNow, reducedMotion,
+    textures: { gravityLocalMaterialV834: textures.gravityLocalMaterialV834,
+      gravitySafeEyePressure: textures.gravitySafeEyePressure } };
+  const common = { camera, zoom, viewport };
+  const stages = {
+    map: { camera, zoom },
+    environmentE: { planned: medicalEnvironmentPlanned,
+      fixtures: medicalFixturePlans, uploadConsole: medicalUploadPlanned },
+    stations: { ...stationsWebGPUScene(data), ...common },
+    mapObjects: { scene: mapObjectWebGPUScene(data, bounds), ...common },
+    mysteryBoxes: { ...boxes, ...common },
+    alchemyObjects: { ...alchemyObjectsWebGPUScene(data), ...common },
+    gravityHazards: { scene: gravityScene, ...common },
+    groundItems: { commands, textAtlas: null },
+    facilityEffects: { scene: { stations: facilityStations.filter(station =>
+      !deferredStationIds.has(station?.id)), tasks: data.self?.tasks || [],
+      magicEffects: [], selfId: data.selfId, now: frameNow, reducedMotion,
+      textures: { taskDownloadDigital: textures.taskDownloadDigital,
+        taskUploadDigital: textures.taskUploadDigital } }, ...common },
+    bodies: { data: { bodies: Array.isArray(data.bodies) ? data.bodies : [] }, ...common },
+    worldSound: { scene: { now: frameNow, effects: worldSoundEffects }, ...common },
+    throwPreview: { scene: throwScene, image: throwScene?.image || null,
+      clairvoyanceImage: throwScene?.clairvoyanceImage || null, ...common }
+  };
+  return { viewport, camera, zoom, map: data.map, mapImage, stages,
+    textureGaps, bodyGaps, worldSoundGaps, throwPreviewGaps,
+    expiredWorldSoundEffects: Array.isArray(soundSource) ? soundSource.filter(effect =>
+      !worldSoundEffects.includes(effect)) : [],
+    deferredLateEffectIds: deferredTaskEffects.map(effect => String(effect.id ?? "")),
+    blocked: textureGaps.some(gap => gap.blocking) || bodyGaps.length > 0 ||
+      worldSoundGaps.length > 0 || throwPreviewGaps.length > 0,
+    remainingStages: window.DvaWebGPUMainScene?.ORDER?.filter(name => !(name in stages)) || [] };
+}
+
+// Every text upload and per-pass plan finishes before the synchronous recorder.
+async function prepareWebGPUMainAppEarlyScene(capture, passes, textAtlas) {
+  if (!capture?.stages || !passes || !textAtlas?.ensure)
+    throw new TypeError("Early main WebGPU preparation needs captured stages, passes, and GPU text atlas");
+  if (capture.bodyGaps?.length)
+    throw new Error(`Early main WebGPU bodies unavailable: ${capture.bodyGaps
+      .map(gap => `${gap.index ?? "snapshot"}:${gap.reason}`).join(", ")}`);
+  if (capture.worldSoundGaps?.length)
+    throw new Error(`Early main WebGPU world sound unavailable: ${capture.worldSoundGaps
+      .map(gap => `${gap.index ?? "snapshot"}:${gap.reason}`).join(", ")}`);
+  if (capture.throwPreviewGaps?.length)
+    throw new Error(`Early main WebGPU throw preview unavailable: ${capture.throwPreviewGaps
+      .map(gap => gap.reason).join(", ")}`);
+  if (capture.blocked) throw new Error(`Early main WebGPU textures unavailable: ${capture.textureGaps
+    .filter(gap => gap.blocking).map(gap => `${gap.stage}.${gap.texture}`).join(", ")}`);
+  const stages = { ...capture.stages };
+  for (const name of ["stations", "mapObjects", "alchemyObjects", "gravityHazards"]) {
+    if (typeof passes[name]?.prepare !== "function")
+      throw new Error(`Early main WebGPU pass ${name}.prepare unavailable`);
+    stages[name] = { ...stages[name], preparedPlan: await passes[name].prepare(stages[name]) };
+  }
+  const labels = stages.groundItems.commands.filter(command => command.part === "label")
+    .map(command => command.text);
+  if (labels.length) await textAtlas.ensure(labels.join("\n"));
+  stages.groundItems = { ...stages.groundItems, textAtlas };
+  if (stages.throwPreview.scene?.landing) {
+    if (typeof passes.throwPreview?.prepare !== "function")
+      throw new Error("Early main WebGPU pass throwPreview.prepare unavailable");
+    stages.throwPreview = { ...stages.throwPreview,
+      preparedPlan: await passes.throwPreview.prepare(stages.throwPreview) };
+    if (!stages.throwPreview.preparedPlan)
+      throw new Error("Early main WebGPU visible throw preview did not prepare");
+  }
+  return stages;
+}
+// WEBGPU_MAIN_APP_EARLY_SCENE_ADAPTER_V1_END
+
+// WEBGPU_MAIN_APP_LATE_MAGIC_ADAPTER_V1_START
+// Dormant late drawMagicEffects input. Registered shape ports must render the
+// complete TE for their effect type; texture-owned effects have no generic
+// geometric replacement. The caller must reject ready:false before cutover.
+function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera, zoom,
+  shapeProviders = {}, markerSelection = null) {
+  if (!data || viewport?.kind !== "main" || !Array.isArray(viewport.worldToLogical) ||
+      !Number.isFinite(camera?.x) || !Number.isFinite(camera?.y) ||
+      !Number.isFinite(zoom) || zoom <= 0 ||
+      Math.abs(viewport.worldToLogical[0] - zoom) > 1e-6 ||
+      Math.abs(viewport.worldToLogical[3] - zoom) > 1e-6 ||
+      Math.abs(viewport.worldToLogical[4] + camera.x * zoom) > 1e-4 ||
+      Math.abs(viewport.worldToLogical[5] + camera.y * zoom) > 1e-4) {
+    throw new TypeError("Late magic WebGPU scene needs the committed main world camera");
+  }
+  if (!shapeProviders || typeof shapeProviders !== "object" || Array.isArray(shapeProviders))
+    throw new TypeError("Late magic shape ports must be keyed by effect type");
+  const now = state.frameNow || performance.now();
+  const events = [], unsupported = [], omitted = [];
+  const markerCoverage = { visibleRetained: [] };
+  const empCoverage = { visibleEmp: [] };
+  const specialAmmoCoverage = { visibleSpecialAmmo: [] };
+  const effects = Array.isArray(state.magicEffects) ? state.magicEffects : [];
+  if (!["playing", "meeting"].includes(data.phase))
+    return { stage: { camera, zoom, now, phase: data.phase,
+      reducedMotion: prefersReducedMotion(), sourceEffectIds: [], events, omitted,
+      markerCoverage, empCoverage, specialAmmoCoverage,
+      markerGeneration: markerSelection?.generation ?? null },
+      unsupported, expiredEffectIds: effects.map(effect => effect?.id), ready: true };
+  const active = effects.filter(effect => {
+    if (effect?.type === "fire") {
+      // Keep malformed activation records visible to the readiness check.
+      if (!Number.isFinite(effect.startedAt) || effect.duration !== 1500)
+        return true;
+      return now < effect.startedAt || now - effect.startedAt < 1500;
+    }
+    if (effect?.type === "grenade-frag-impact" ||
+        effect?.type === "grenade-stun-impact") {
+      // A malformed visible source must reach the blocker, not disappear in
+      // the generic expiry filter before the GPU event can inspect it.
+      if (![effect.x, effect.y, effect.radius, effect.startedAt,
+            effect.duration].every(Number.isFinite) || effect.duration <= 0)
+        return true;
+      return now - effect.startedAt < effect.duration;
+    }
+    if (['action-special-ammo-load', 'action-special-ammo-shot',
+      'action-special-ammo-impact'].includes(effect?.type)) {
+      if (![effect.x, effect.y, effect.startedAt, effect.duration]
+        .every(Number.isFinite) || effect.duration <= 0) return true;
+      return now - effect.startedAt < effect.duration;
+    }
+    if (!effect || !Number.isFinite(Number(effect.startedAt)) ||
+        !Number.isFinite(Number(effect.duration)) || Number(effect.duration) <= 0) return false;
+    if (isBodyAccelerationGainEffect(effect)) {
+      const elapsed = accelerationBodyActorElapsed(effect, data);
+      return elapsed == null ? now - effect.startedAt < effect.duration :
+        Number.isFinite(elapsed) && elapsed < Math.max(effect.duration, ACCELERATION_BODY_BENEFIT_TE.durationMs);
+    }
+    if (effect.type !== "flora-sunbeam") return now - effect.startedAt < effect.duration;
+    const elapsed = sunbeamActorVisualElapsed(effect, data);
+    return elapsed == null ? now - effect.startedAt < effect.duration :
+      Number.isFinite(elapsed) && elapsed < effect.duration;
+  });
+  const activeGain = active.filter(effect =>
+    isSharedHeadMarkerEffect(effect) || isCreditHeadMarkerEffect(effect));
+  const activeSet = new Set(active);
+  const expiredEffectIds = effects.filter(effect => !activeSet.has(effect))
+    .map(effect => effect?.id);
+  const reducedMotion = prefersReducedMotion();
+  const textures = state.textures || {};
+  const gravityTextures = {
+    gravityLocalMaterialV834: textures.gravityLocalMaterialV834,
+    gravitySafeEyeResidue: textures.gravitySafeEyeResidue,
+    gravityStormSafeEye: textures.gravityStormSafeEye,
+    tacticalSystemsAtlas: textures.tacticalSystemsAtlas
+  };
+  const gravityTypes = new Set(["gravity-storm-pull", "gravity-storm-heavy",
+    "gravity-storm-crush", "gravity-storm-blast", "gravity-storm-impact",
+    "gravity-storm-barrier-hit"]);
+  const worldToLogical = (x, y) => ({ x: (x - camera.x) * zoom,
+    y: (y - camera.y) * zoom });
+  const sourceEffectIds = active.map(effect => effect.id);
+  const routedMarkerInstances = new Set();
+  if (active.some(effect => effect.type !== "fire" &&
+      ((typeof effect.id !== "string" && typeof effect.id !== "number") ||
+        String(effect.id) === "")) ||
+      new Set(active.filter(effect => effect.type !== "fire")
+        .map(effect => String(effect.id))).size !==
+        active.filter(effect => effect.type !== "fire").length)
+    throw new Error("Late magic WebGPU source effects need distinct IDs");
+  for (const [index, effect] of active.entries()) {
+    const type = String(effect.type || "");
+    if (type === 'enhance-activation' || type === 'fighter-energy-charge') {
+      const playerId = String(effect.playerId || '');
+      const scene = markerSelection?.scenes?.get(playerId);
+      const marker = scene?.presentation?.nonCredits?.find(candidate =>
+        candidate.type === type && candidate.sourceEffect?.id ===
+          String(effect._headMarkerInstanceKey || effect.id));
+      const instanceKey = String(marker?.instanceKey || '');
+      if (!scene || !marker || !instanceKey || !playerId ||
+          !scene.player?.alive || scene.player?.ejected || scene.player?.inVent ||
+          (type === 'enhance-activation' && scene.player?.invisible)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'retained-head-marker-source-or-actor-unavailable' });
+        continue;
+      }
+      const routeKey = `${playerId}:${instanceKey}`;
+      if (routedMarkerInstances.has(routeKey)) {
+        omitted.push({ effectId: effect.id,
+          reason: 'retained-marker-coalesced-into-earlier-source' });
+        continue;
+      }
+      routedMarkerInstances.add(routeKey);
+      const sourceEffectId = String(effect.id);
+      markerCoverage.visibleRetained.push({ effectId: sourceEffectId,
+        effectType: type, instanceKey, playerId });
+      events.push({ type: 'headMarker', effectId: sourceEffectId,
+        input: { sourceEffectId, effectType: type, instanceKey,
+          playerId, sourceEffect: effect, candidateMarker: marker } });
+      continue;
+    }
+    if (window.DvaWebGPUEmpEffect?.TYPES?.[type] !== undefined) {
+      const elapsed = now - effect.startedAt;
+      if (elapsed <= 0) {
+        omitted.push({ effectId: effect.id, reason: 'emp-visual-not-started' });
+        continue;
+      }
+      if (elapsed >= effect.duration) {
+        omitted.push({ effectId: effect.id, reason: 'emp-visual-expired' });
+        continue;
+      }
+      const sourceEffectId = String(effect.id);
+      const sourcePlayer = type === 'emp-storage-lock' && effect.playerId
+        ? data.players?.find(player => player.id === effect.playerId) : null;
+      if (sourcePlayer && (!sourcePlayer.alive || sourcePlayer.ejected)) {
+        omitted.push({ effectId: effect.id, reason: 'emp-storage-actor-not-visible' });
+        continue;
+      }
+      const rendered = sourcePlayer ? renderedPlayer(sourcePlayer) : null;
+      const storageActor = rendered ? { id: sourcePlayer.id,
+        alive: sourcePlayer.alive, ejected: sourcePlayer.ejected,
+        renderedX: rendered.x, renderedY: rendered.y } : null;
+      if (![effect.x, effect.y, effect.startedAt, effect.duration].every(Number.isFinite) ||
+          effect.duration <= 0 ||
+          (storageActor && ![storageActor.renderedX, storageActor.renderedY]
+            .every(Number.isFinite))) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'emp-visible-source-or-rendered-actor-invalid' });
+        continue;
+      }
+      empCoverage.visibleEmp.push({ effectId: sourceEffectId, effectType: type });
+      events.push({ type: 'empEffect', effectId: sourceEffectId,
+        input: { sourceEffectId, effect, storageActor } });
+      continue;
+    }
+    if (type === 'emp' || type.startsWith('emp-')) {
+      unsupported.push({ index, type, id: effect.id,
+        reason: 'emp-visible-variant-or-pass-unavailable' });
+      continue;
+    }
+    if (type === 'object-relaxationBed' &&
+        effect.objectId === 'v302-medical-diagnosticBed-1') {
+      const elapsed = now - Number(effect.startedAt);
+      if (Number.isFinite(elapsed) && elapsed >= 900) {
+        omitted.push({ effectId: effect.id, reason: 'medical-bed-activation-finished' });
+        continue;
+      }
+      if (Number.isFinite(elapsed) && elapsed < 0) {
+        omitted.push({ effectId: effect.id, reason: 'medical-bed-activation-not-started' });
+        continue;
+      }
+      let planned = null;
+      try {
+        planned = window.DvaWebGPUMedicalObjectE?.plan?.({ effect, camera, zoom,
+          viewport, now, reducedMotion });
+      } catch (_) { /* A malformed visible event remains a readiness blocker. */ }
+      if (!planned) {
+        const outside = effect.x < camera.x - 150 ||
+          effect.x > camera.x + viewport.width / zoom + 150 ||
+          effect.y < camera.y - 150 ||
+          effect.y > camera.y + viewport.height / zoom + 150;
+        if (outside) omitted.push({ effectId: effect.id,
+          reason: 'medical-bed-activation-outside-viewport' });
+        else unsupported.push({ index, type, id: effect.id,
+          reason: 'medical-bed-activation-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: 'medicalObjectE', effectId: String(effect.id),
+        input: { effect, planned } });
+      continue;
+    }
+    const medicalUseE = type === 'object-herbalCabinet' &&
+      effect.objectId === 'v302-medical-medicalCabinet-2'
+      ? { api: window.DvaWebGPUMedicalCabinetE, eventType: 'medicalCabinetE',
+          reason: 'medical-cabinet' }
+      : type === 'object-footBath' &&
+        effect.objectId === 'v302-medical-sterilizer-3'
+        ? { api: window.DvaWebGPUMedicalFootbathUseE,
+            eventType: 'medicalFootbathUseE', reason: 'medical-footbath' }
+        : null;
+    if (medicalUseE) {
+      const elapsed = now - Number(effect.startedAt);
+      if (Number.isFinite(elapsed) && elapsed >= medicalUseE.api?.DURATION_MS) {
+        omitted.push({ effectId: effect.id,
+          reason: `${medicalUseE.reason}-activation-finished` });
+        continue;
+      }
+      if (Number.isFinite(elapsed) && elapsed < 0) {
+        omitted.push({ effectId: effect.id,
+          reason: `${medicalUseE.reason}-activation-not-started` });
+        continue;
+      }
+      let planned = null;
+      try {
+        planned = medicalUseE.api?.plan?.({ effect, camera, zoom,
+          viewport, now, reducedMotion });
+      } catch (_) { /* Malformed visible source remains a readiness blocker. */ }
+      if (!planned) {
+        const outside = effect.x < camera.x - 150 ||
+          effect.x > camera.x + viewport.width / zoom + 150 ||
+          effect.y < camera.y - 150 ||
+          effect.y > camera.y + viewport.height / zoom + 150;
+        if (outside) omitted.push({ effectId: effect.id,
+          reason: `${medicalUseE.reason}-outside-viewport` });
+        else unsupported.push({ index, type, id: effect.id,
+          reason: `${medicalUseE.reason}-pass-or-source-invalid` });
+        continue;
+      }
+      events.push({ type: medicalUseE.eventType, effectId: String(effect.id),
+        input: { effect, planned } });
+      continue;
+    }
+    if (['action-special-ammo-load', 'action-special-ammo-shot',
+      'action-special-ammo-impact'].includes(type)) {
+      const elapsed = now - Number(effect.startedAt);
+      if (elapsed <= 0) {
+        omitted.push({ effectId: effect.id, reason: 'special-ammo-visual-not-started' });
+        continue;
+      }
+      if (elapsed >= Number(effect.duration)) {
+        omitted.push({ effectId: effect.id, reason: 'special-ammo-visual-expired' });
+        continue;
+      }
+      const variant = String(effect.variant || '').split(':')[0];
+      if (!['weak', 'shock'].includes(variant) ||
+          ![effect.x, effect.y, effect.startedAt, effect.duration]
+            .every(Number.isFinite) || effect.duration <= 0 ||
+          (effect.targetX != null && !Number.isFinite(Number(effect.targetX))) ||
+          (effect.targetY != null && !Number.isFinite(Number(effect.targetY)))) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'special-ammo-visible-variant-or-source-invalid' });
+        continue;
+      }
+      const sourceEffectId = String(effect.id);
+      specialAmmoCoverage.visibleSpecialAmmo.push({ effectId: sourceEffectId,
+        effectType: type, variant });
+      events.push({ type: 'specialAmmoEffect', effectId: sourceEffectId,
+        input: { sourceEffectId, effect } });
+      continue;
+    }
+    if (type === "fire") {
+      const id = effect.id;
+      const validId = (typeof id === "string" && id.trim() !== "") ||
+        (typeof id === "number" && Number.isFinite(id));
+      const validTiming = Number.isFinite(effect.startedAt) &&
+        effect.duration === 1500 && now >= effect.startedAt;
+      if (!validId || sourceEffectIds.filter(other => String(other) === String(id)).length !== 1 ||
+          !Number.isFinite(effect.x) || !Number.isFinite(effect.y) ||
+          !Number.isFinite(effect.radius) || effect.radius <= 0 || !validTiming) {
+        unsupported.push({ index, type, id, reason: "invalid-fire-activation-source" });
+        continue;
+      }
+      events.push({ type: "fireActivation", effectId: String(id),
+        input: { effect, now, phase: data.phase, camera, zoom, reducedMotion, alpha: 1 } });
+      continue;
+    }
+    if (type === "grenade-frag-impact" || type === "grenade-stun-impact") {
+      if (![effect.x, effect.y, effect.radius, effect.startedAt,
+            effect.duration].every(Number.isFinite) || effect.duration <= 0 ||
+          (effect.sourceId != null &&
+            !((typeof effect.sourceId === "string" && effect.sourceId) ||
+              (typeof effect.sourceId === "number" && Number.isFinite(effect.sourceId))))) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: "grenade-impact-source-invalid" });
+        continue;
+      }
+      const scene = { now, reducedMotion, effects: [effect] };
+      const plan = window.DvaWebGPUGrenadeImpact?.plan?.({
+        scene, camera, zoom, viewport });
+      if (!plan || !Array.isArray(plan.commands) ||
+          !Array.isArray(plan.claims) || !Array.isArray(plan.unhandled) ||
+          plan.unhandled.length || plan.claims.length > 1 ||
+          (plan.claims.length === 1 && plan.claims[0].effect !== effect)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: plan?.unhandled?.[0]?.reason || "grenade-impact-pass-unavailable" });
+        continue;
+      }
+      if (!plan.commands.length || !plan.claims.length) {
+        if (!plan.commands.length && !plan.claims.length &&
+            (now - effect.startedAt) / effect.duration >= .95 &&
+            now < effect.startedAt + effect.duration)
+          omitted.push({ effectId: effect.id, reason: "grenade-impact-visual-faded" });
+        else unsupported.push({ index, type, id: effect.id,
+          reason: "grenade-impact-no-draw-commands" });
+        continue;
+      }
+      events.push({ type: "grenadeImpact", effectId: effect.id,
+        scene, camera, zoom });
+      continue;
+    }
+    if (type === "action-task" && ["download", "upload"].includes(effect.mode)) {
+      if (!Number.isFinite(effect.startedAt) ||
+          !Number.isFinite(effect.duration) || effect.duration <= 0) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: "task-completion-timing-invalid" });
+        continue;
+      }
+      const x = Number.isFinite(effect.targetX) ? effect.targetX : effect.x;
+      const y = Number.isFinite(effect.targetY) ? effect.targetY : effect.y;
+      if (now < effect.startedAt) {
+        omitted.push({ effectId: effect.id, reason: "task-completion-not-started" });
+        continue;
+      }
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: "task-completion-position-invalid" });
+        continue;
+      }
+      if (effect.mode === "upload" && effect.targetId === "upload-d") {
+        const medicalStation = (data.map?.stations || []).find(station =>
+          station?.id === "upload-d");
+        let planned = null;
+        try {
+          planned = window.DvaWebGPUMedicalUploadConsoleE?.plan?.({
+            station: medicalStation, task: null, activeUpload: null,
+            completion: effect, camera, zoom, viewport, now, reducedMotion });
+        } catch (_) { /* Invalid canonical source remains a readiness blocker. */ }
+        if (!planned) {
+          const outside = x < camera.x - 150 ||
+            x > camera.x + viewport.width / zoom + 150 ||
+            y < camera.y - 150 ||
+            y > camera.y + viewport.height / zoom + 150;
+          if (outside) omitted.push({ effectId: effect.id,
+            reason: "medical-upload-completion-outside-viewport" });
+          else unsupported.push({ index, type, id: effect.id,
+            reason: "medical-upload-completion-pass-or-source-invalid" });
+          continue;
+        }
+        events.push({ type: "medicalUploadConsoleE", effectId: String(effect.id),
+          input: { effect, planned } });
+        continue;
+      }
+      const stationIndex = Math.max(0, (data.map?.stations || []).findIndex(station =>
+        station?.id === effect.targetId));
+      const station = { id: effect.targetId ?? `task-completion:${String(effect.id)}`,
+        type: "task", task: effect.mode, x, y, sourceIndex: stationIndex,
+        completionEffect: effect };
+      const scene = { stations: [station], tasks: data.self?.tasks || [],
+        magicEffects: [effect], selfId: data.selfId, now, reducedMotion,
+        textures: { taskDownloadDigital: textures.taskDownloadDigital,
+          taskUploadDigital: textures.taskUploadDigital } };
+      const plan = window.DvaWebGPUFacilityEffects?.plan?.({ scene, camera, zoom, viewport });
+      if (!Array.isArray(plan)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: "task-completion-pass-unavailable" });
+        continue;
+      }
+      if (!plan.length) {
+        const outside = x < camera.x - 150 || x > camera.x + viewport.width / zoom + 150 ||
+          y < camera.y - 150 || y > camera.y + viewport.height / zoom + 150;
+        if (outside) omitted.push({ effectId: effect.id,
+          reason: "task-completion-outside-viewport" });
+        else unsupported.push({ index, type, id: effect.id,
+          reason: "task-completion-material-unavailable" });
+        continue;
+      }
+      events.push({ type: "taskCompletion", effectId: effect.id,
+        input: { effect, scene, camera, zoom } });
+      continue;
+    }
+    const sunbeamElapsed = type === "flora-sunbeam" ? sunbeamActorVisualElapsed(effect, data) : null;
+    const elapsed = sunbeamElapsed == null ? now - effect.startedAt : sunbeamElapsed;
+    const progress = clamp(elapsed / effect.duration, 0, 1);
+    if (isBodyStaminaGainEffect(effect) || isBodyHealGainEffect(effect) ||
+        isBodyManaGainEffect(effect)) {
+      const kind = type.slice("gain-".length);
+      const player = gainEffectPlayer(effect);
+      const pass = window.DvaWebGPUBodyBenefitPass;
+      const profile = pass?.PROFILES?.[kind];
+      if (!player || !player.alive || player.ejected || player.inVent || player.invisible) {
+        omitted.push({ effectId: effect.id, reason: "body-benefit-player-not-visible" });
+        continue;
+      }
+      if (now < effect.startedAt) {
+        omitted.push({ effectId: effect.id, reason: "body-benefit-not-started" });
+        continue;
+      }
+      if (now - effect.startedAt >= profile?.duration) {
+        omitted.push({ effectId: effect.id, reason: "body-benefit-visual-expired" });
+        continue;
+      }
+      const input = { effect, player, now, phase: data.phase, camera, zoom,
+        textures, reducedMotion, alpha: 1 };
+      if (!pass?.ready?.(textures[profile?.key], kind) || !pass?.plan?.({ ...input, viewport })) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: "body-benefit-pass-or-authored-texture-unavailable" });
+        continue;
+      }
+      events.push({ type: "bodyBenefit", effectId: effect.id, input });
+      continue;
+    }
+    if (MARKER_OWNED_EFFECT_TYPES.has(type) || type === "action-smartphone" ||
+        type === "gravity-storm" ||
+        (type.startsWith("object-") && activeGain.some(entry =>
+          entry.playerId === effect.playerId && Math.abs(entry.startedAt - effect.startedAt) <= 80))) {
+      omitted.push({ effectId: effect.id, reason: "owned-or-suppressed-field-visual" });
+      continue;
+    }
+    if (gravityTypes.has(type)) {
+      const scene = { effects: [effect], gravityZones: data.gravityZones || [],
+        now: estimatedServerNow(data), frameNow: now, reducedMotion,
+        textures: gravityTextures };
+      const plan = window.DvaWebGPUGravityImpacts?.plan?.({ scene, camera, zoom, viewport });
+      if (!plan || plan.unhandled?.length) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: plan?.unhandled?.[0]?.reason || "gravity-impact-pass-unavailable" });
+        continue;
+      }
+      if (!plan.commands.length) {
+        if (type === "gravity-storm-barrier-hit" &&
+            plan.claims.some(claim => claim.reason === "live-zone")) {
+          omitted.push({ effectId: effect.id,
+            reason: "held-safe-eye-owned-by-gravity-zone" });
+        } else unsupported.push({ index, type, id: effect.id,
+          reason: "gravity-impact-no-draw-commands" });
+        continue;
+      }
+      events.push({ type: "gravityImpact", effectId: effect.id, scene });
+      continue;
+    }
+    const provider = Object.prototype.hasOwnProperty.call(shapeProviders, type)
+      ? shapeProviders[type] : null;
+    if (provider?.complete === true && typeof provider.build === "function") {
+      const commands = provider.build({ effect, progress, now, reducedMotion, camera, zoom,
+        viewport, worldToLogical });
+      if (!Array.isArray(commands) || !commands.length || commands.some(command =>
+        !command || !["circle", "ellipse", "arc", "glow"].includes(command.kind) ||
+        !Number.isFinite(command.x) || !Number.isFinite(command.y))) {
+        throw new TypeError(`Late magic shape port ${type} must return logical WebGPU shape commands`);
+      }
+      events.push({ type: "shapes", effectId: effect.id, commands });
+      continue;
+    }
+    unsupported.push({ index, type, id: effect.id, reason: "no-complete-webgpu-effect-port" });
+  }
+  return { stage: { camera, zoom, now, phase: data.phase,
+    reducedMotion, sourceEffectIds, events, omitted,
+    markerCoverage, empCoverage, specialAmmoCoverage,
+    markerGeneration: markerSelection?.generation ?? null }, unsupported,
+    expiredEffectIds, ready: unsupported.length === 0 };
+}
+// WEBGPU_MAIN_APP_LATE_MAGIC_ADAPTER_V1_END
 
 const ATE_GLOW_PROFILES = Object.freeze({
   energy: Object.freeze({ core: "rgba(245,243,255,.52)", aura: "rgba(167,139,250,.42)", outer: "rgba(34,211,238,.26)", blur: 15, pulse: 0.18 }),
@@ -19957,20 +20941,31 @@ function targetedThrowLanding(data) {
   };
 }
 
-function drawThrowLandingPreview(data) {
+function throwLandingWebGPUScene(data) {
   const hold = state.enhanceHold;
   const targeting = state.throwTargeting.active;
-  if ((!targeting && (hold.kind !== "throw" || !hold.startedAt)) || data.phase !== "playing" || !data.self?.alive) return;
+  if ((!targeting && (hold.kind !== "throw" || !hold.startedAt)) || data.phase !== "playing" || !data.self?.alive) return null;
   const itemId = targeting ? state.throwTargeting.itemId : els.itemSelect?.value || "";
-  if (!itemId) return;
+  if (!itemId) return null;
   const elapsedMs = targeting ? state.throwTargeting.holdMs : Math.max(0, performance.now() - hold.startedAt);
   const landing = targeting ? targetedThrowLanding(data) : predictedThrowLanding(data, elapsedMs);
-  if (!landing) return;
+  if (!landing) return null;
+  return { landing, targeting, now: (state.frameNow || performance.now()) / 1000,
+    mapWidth: Number(data.map.width) || 0, mapHeight: Number(data.map.height) || 0,
+    reducedMotion: prefersReducedMotion(),
+    clairvoyance: targeting && throwTargetClairvoyanceActive(data),
+    image: state.textures.throwLandingPreview,
+    clairvoyanceImage: state.textures.clairvoyanceThrowAte };
+}
+
+function drawThrowLandingPreview(data) {
+  const scene = throwLandingWebGPUScene(data);
+  if (!scene) return;
+  const { landing, targeting, now } = scene;
   const prepared = transparentSpriteSource(state.textures.throwLandingPreview, "throw-landing-preview", 16);
   const sprite = prepared ? normalizedSpriteFrame(prepared, "throw-landing-preview", 1, 1, 0, 0) : null;
   if (!sprite) return;
-  const now = (state.frameNow || performance.now()) / 1000;
-  const mapDiagonal = Math.max(1, Math.hypot(Number(data.map.width) || 0, Number(data.map.height) || 0));
+  const mapDiagonal = Math.max(1, Math.hypot(scene.mapWidth, scene.mapHeight));
   const distanceRatio = clamp(landing.distance / mapDiagonal, 0, 1);
   const markerSize = 92 + distanceRatio * 26;
   const markerX = Math.round(landing.x);
@@ -20639,8 +21634,8 @@ function drawHoverSprintActivationJets(effect, progress) {
   const fade=1-objectEffectEase(clamp((progress-.7)/.3,0,1));
   const heading=hoverSprintTravelHeading(player||effect,state.data);
   const options={alpha:fade*ignition,ignition,transport:progress*1.9,reduced:prefersReducedMotion()};
-  const feet=drawHoverSprintJetPair(x,y+23,heading,{...options,height:86});
-  const back=drawHoverSprintJetPair(x,y-2,heading,{...options,height:74,transport:options.transport+.23});
+  const feet=drawHoverSprintJetPair(x,y+characterBodyVisualY(23),heading,{...options,height:86});
+  const back=drawHoverSprintJetPair(x,y+characterBodyVisualY(-2),heading,{...options,height:74,transport:options.transport+.23});
   return feet||back;
 }
 
@@ -20652,8 +21647,8 @@ function drawHoverSprintSustainedJets(player, data) {
   const heading=hoverSprintTravelHeading(player,data);
   const transport=time*2.1+(player.id?.length||0)*.13;
   const options={alpha:.52,ignition:1,transport,reduced};
-  const feet=drawHoverSprintJetPair(0,23,heading,{...options,height:60});
-  const back=drawHoverSprintJetPair(0,-2,heading,{...options,height:66,transport:transport+.23});
+  const feet=drawHoverSprintJetPair(0,characterBodyVisualY(23),heading,{...options,height:60});
+  const back=drawHoverSprintJetPair(0,characterBodyVisualY(-2),heading,{...options,height:66,transport:transport+.23});
   return feet||back;
 }
 
@@ -20730,7 +21725,7 @@ function drawGravityLevitationField(player, data) {
   const time = reduced ? 0 : actorVisualTime(player, data) / 1000;
   const supportBreath = reduced ? 0 : Math.sin(time * 2.4 + String(player.id || "").length) * 1.4;
   ctx.save();
-  ctx.translate(0, 29);
+  ctx.translate(0, characterBodyVisualY(29));
   ctx.scale(scaleX, scaleY);
   ctx.globalAlpha *= alpha;
   const texture = transparentSpriteSource(state.textures.gravityLevitationSupportField, "gravity-levitation-support-field-v901", 18);
@@ -22898,7 +23893,7 @@ function headMarkerSlot(index, total, startRow = 0) {
   const column = safeIndex - rowStart;
   return {
     x: (column - (rowCount - 1) / 2) * HEAD_MARKER_LAYOUT.columnGap,
-    y: HEAD_MARKER_LAYOUT.firstRowY - (startRow + row) * HEAD_MARKER_LAYOUT.rowGap
+    y: characterBodyVisualY(HEAD_MARKER_LAYOUT.firstRowY - (startRow + row) * HEAD_MARKER_LAYOUT.rowGap)
   };
 }
 
@@ -22965,6 +23960,66 @@ function markerTargetAt(point) {
     .sort((a, b) => Math.hypot(point.x - a.x, point.y - a.y) - Math.hypot(point.x - b.x, point.y - b.y))[0];
 }
 
+// This records input ownership without changing the active Canvas hit test.
+function markerExplanationPointerSample(event, point) {
+  const rect = els.canvas.getBoundingClientRect();
+  if (!point || ![event?.clientX, event?.clientY, rect.left, rect.top,
+      rect.width, rect.height].every(Number.isFinite) ||
+      rect.width <= 0 || rect.height <= 0) return null;
+  return { pointerId: event.pointerId, clientX: event.clientX,
+    clientY: event.clientY, point: { x: point.x, y: point.y },
+    rect: { left: rect.left, top: rect.top,
+      width: rect.width, height: rect.height },
+    generation: state.roomSessionGeneration, roomId: state.roomId,
+    screen: state.screen };
+}
+
+function markerTargetAtWebGPU(point, hitTargets) {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) ||
+      !Array.isArray(hitTargets)) return null;
+  let nearest = null;
+  let distance = Infinity;
+  // Canvas reverses source order before a stable distance sort. A strict
+  // closer-only replacement gives the later draw the exact-distance tie.
+  for (let index = hitTargets.length - 1; index >= 0; index--) {
+    const hit = hitTargets[index];
+    if (!hit || typeof hit.key !== 'string' || !hit.key ||
+        typeof hit.title !== 'string' || !hit.title ||
+        typeof hit.detail !== 'string' || !hit.detail ||
+        ![hit.x, hit.y, hit.radius].every(Number.isFinite) ||
+        hit.radius <= 0)
+      throw new Error('WebGPU marker hit list has an invalid source-owned target');
+    const nextDistance = Math.hypot(point.x - hit.x, point.y - hit.y);
+    if (nextDistance <= hit.radius && nextDistance < distance) {
+      nearest = hit;
+      distance = nextDistance;
+    }
+  }
+  return nearest;
+}
+
+function markerPointerOwnedByWebGPU(sample, point, explanation, viewport) {
+  if (!sample || !point || !explanation ||
+      sample.pointerId !== explanation.pointerId ||
+      sample.generation !== state.roomSessionGeneration ||
+      sample.roomId !== state.roomId || sample.screen !== state.screen ||
+      viewport?.kind !== 'main' || typeof viewport.pointer !== 'function' ||
+      !viewport.rect || ![point.x, point.y].every(Number.isFinite) ||
+      sample.point?.x !== point.x || sample.point?.y !== point.y)
+    return false;
+  const rect = els.canvas.getBoundingClientRect();
+  for (const key of ['left', 'top', 'width', 'height']) {
+    if (!Number.isFinite(sample.rect?.[key]) ||
+        sample.rect[key] !== viewport.rect[key] ||
+        rect[key] !== viewport.rect[key]) return false;
+  }
+  const mapped = viewport.pointer(sample.clientX, sample.clientY);
+  return Boolean(mapped && Number.isFinite(mapped.x) &&
+    Number.isFinite(mapped.y) &&
+    Math.abs(mapped.x - point.x) < 1e-6 &&
+    Math.abs(mapped.y - point.y) < 1e-6);
+}
+
 const MARKER_EXPLANATION_LINGER_MS = 8_000;
 
 function clearMarkerExplanation() {
@@ -22973,6 +24028,7 @@ function clearMarkerExplanation() {
   state.markerExplanation = null;
   state.markerExplanationPointerId = null;
   state.markerExplanationPointerPoint = null;
+  state.markerExplanationPointerSample = null;
   clearMarkerExplanationDom();
 }
 
@@ -22989,6 +24045,7 @@ function retainMarkerExplanation() {
   if (!explanation) return;
   state.markerExplanationPointerId = null;
   state.markerExplanationPointerPoint = null;
+  state.markerExplanationPointerSample = null;
   explanation.pointerId = null;
   explanation.expiresAt = performance.now() + MARKER_EXPLANATION_LINGER_MS;
   if (state.markerExplanationTimer) window.clearTimeout(state.markerExplanationTimer);
@@ -22998,8 +24055,11 @@ function retainMarkerExplanation() {
 }
 
 function showMarkerExplanationFromPointer(event) {
-  const target = markerTargetAt(canvasPointerPosition(event));
+  const point = canvasPointerPosition(event);
+  const target = markerTargetAt(point);
   if (!target) return false;
+  if (state.markerExplanationPointerId === event.pointerId && point)
+    state.markerExplanationPointerSample = markerExplanationPointerSample(event, point);
   setMarkerExplanationTarget(target, event.pointerId);
   return true;
 }
@@ -23011,6 +24071,7 @@ function beginMarkerExplanationPointer(event) {
   if (!target) return;
   state.markerExplanationPointerId = event.pointerId;
   state.markerExplanationPointerPoint = point;
+  state.markerExplanationPointerSample = markerExplanationPointerSample(event, point);
   setMarkerExplanationTarget(target, event.pointerId);
 }
 
@@ -23031,13 +24092,24 @@ function refreshMarkerExplanationTarget(pointerId = state.markerExplanationPoint
 function updateMarkerExplanationFromPointer(event) {
   if (state.markerExplanationPointerId !== event.pointerId) return false;
   const point = canvasPointerPosition(event);
-  if (point) state.markerExplanationPointerPoint = point;
+  if (point) {
+    state.markerExplanationPointerPoint = point;
+    state.markerExplanationPointerSample = markerExplanationPointerSample(event, point);
+  }
   return refreshMarkerExplanationTarget(event.pointerId);
 }
 
 function clearMarkerExplanationPointer(pointerId) {
   if (state.markerExplanationPointerId !== pointerId) return;
   retainMarkerExplanation();
+}
+
+// Snapshot the already-validated marker and live anchor for the final main
+// WebGPU pass. Lifetime and DOM fallback remain owned by the caller.
+function markerExplanationWebGPUScene(explanation, liveTarget, timestamp) {
+  return { title: explanation.title, detail: explanation.detail,
+    x: liveTarget?.x ?? explanation.x, y: liveTarget?.y ?? explanation.y,
+    now: timestamp, startedAt: explanation.startedAt };
 }
 
 function drawMarkerExplanation(width, height) {
@@ -23051,9 +24123,10 @@ function drawMarkerExplanation(width, height) {
   if (state.markerExplanation !== explanation) return;
   const liveTarget = state.markerHitTargets.find((entry) => entry.key === explanation.key);
   if (!liveTarget && explanation.pointerId !== null) { clearMarkerExplanation(); return; }
-  const anchorX = liveTarget?.x ?? explanation.x;
-  const anchorY = liveTarget?.y ?? explanation.y;
-  const elapsed = timestamp - explanation.startedAt;
+  const scene = markerExplanationWebGPUScene(explanation, liveTarget, timestamp);
+  const anchorX = scene.x;
+  const anchorY = scene.y;
+  const elapsed = scene.now - scene.startedAt;
   const reveal = objectEffectEase(Math.min(1, elapsed / 130));
   const alpha = reveal;
   // Wrap by measured glyph width, retaining every character of the explanation.
@@ -23428,6 +24501,7 @@ function tryDrawGpuBodyRecovery(kind, texture, player, elapsed, reduced) {
       ctx.translate(player.x, player.y);
       ctx.globalAlpha = 1; // The inherited alpha is baked into every WGSL layer.
       ctx.globalCompositeOperation = "source-over";
+      // The WebGPU tile already contains its own source-local emitted light.
       ctx.shadowBlur = 0;
       ctx.drawImage(tile.canvas, tile.sourceX, tile.sourceY, tile.sourceWidth, tile.sourceHeight,
         tile.x, tile.y, tile.width, tile.height);
@@ -23484,7 +24558,7 @@ function drawStaminaBodyRecoveryEffect(effect, now) {
   };
   ctx.save();
   try {
-    ctx.shadowBlur = 0;
+    setBodyRecoveryGlow("stamina");
     const appear = objectEffectEase(p / .16);
     const rise = objectEffectEase((p - .10) / .54);
     const converge = objectEffectEase((p - .56) / .32);
@@ -23536,7 +24610,7 @@ function drawHealBodyRecoveryEffect(effect, now) {
   if (tryDrawGpuBodyRecovery("heal", texture, player, bodyBenefitGpuElapsed(effect, now), reduced)) return true;
   const drawBase = alpha => { if (!(alpha > .001)) return; ctx.save();ctx.globalAlpha *= alpha;ctx.globalCompositeOperation = "source-over";ctx.drawImage(texture,left,top,width,height);ctx.restore(); };
   const drawPart = (index, offsetY, alpha) => { if (!(alpha > .001)) return; const layer=state.textures.healBodyRecoveryScratch,mask=state.textures.healBodyRecoveryMasks?.[index]; if(!layer||!mask)return; const local=layer.getContext("2d");if(!local)return;local.setTransform(1,0,0,1,0,0);local.globalAlpha=1;local.globalCompositeOperation="source-over";local.clearRect(0,0,layer.width,layer.height);local.drawImage(texture,0,offsetY,width,height);local.globalCompositeOperation="destination-in";local.drawImage(mask,0,0);ctx.save();ctx.globalAlpha*=alpha;ctx.globalCompositeOperation="source-over";ctx.drawImage(layer,left,top);ctx.restore(); };
-  ctx.save();try {ctx.shadowBlur=0;drawBase(appear*release);if(reduced){drawPart(0,0,.72*(1-settle*.2)*release);drawPart(1,0,.64*flow*release);drawPart(2,0,.52*flow*release);drawPart(3,0,.48*settle*release);}else{drawPart(0,12*(1-appear),.8*appear*(1-settle*.22)*release);drawPart(1,14*(1-flow),.72*flow*(1-settle*.16)*release);drawPart(2,10*(1-flow),.65*flow*release);drawPart(3,-4*settle,.56*settle*release);}return true;}finally{ctx.restore();}
+  ctx.save();try {setBodyRecoveryGlow("heal");drawBase(appear*release);if(reduced){drawPart(0,0,.72*(1-settle*.2)*release);drawPart(1,0,.64*flow*release);drawPart(2,0,.52*flow*release);drawPart(3,0,.48*settle*release);}else{drawPart(0,12*(1-appear),.8*appear*(1-settle*.22)*release);drawPart(1,14*(1-flow),.72*flow*(1-settle*.16)*release);drawPart(2,10*(1-flow),.65*flow*release);drawPart(3,-4*settle,.56*settle*release);}return true;}finally{ctx.restore();}
 }
 
 function isBodyOverhealGainEffect(effect) {
@@ -23718,7 +24792,7 @@ function drawManaBodyRecoveryEffect(effect, now) {
   try {
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha *= alpha;
-    ctx.shadowBlur = 0;
+    setBodyRecoveryGlow("mana");
     // Cumulative soft masks reveal the stationary original along its three
     // authored ribbon curves, from outer tails to the two inward knots. There
     // are no rectangular source splits, hard tile edges, or whole-T motion.
@@ -24826,8 +25900,12 @@ function drawPlayers(data) {
   });
 }
 
+function killCameraWorldWebGPUScene(data) {
+  return { record: activeKillCameraRecord(data) };
+}
+
 function drawKillCameraWorldMarkers(data) {
-  const record = activeKillCameraRecord(data);
+  const { record } = killCameraWorldWebGPUScene(data);
   if (!record) return;
   const victim = { x: Number(record.victimX) || 0, y: Number(record.victimY) || 0 };
   const killer = { x: Number(record.killerX) || victim.x, y: Number(record.killerY) || victim.y };
@@ -24862,26 +25940,28 @@ function drawKillCameraWorldMarkers(data) {
   ctx.restore();
 }
 
-function drawAttackTargets(data) {
+// Game eligibility remains here; the WebGPU world pass receives only the
+// selected rendered position and does not duplicate combat rules.
+function selectedAttackTargetWebGPUScene(data) {
   if (!data.self.aimTargetId) return;
   const self = selfPlayer();
-  data.players
-    .filter((player) => player.id !== data.selfId && canSelectCombatTarget(data.self, player) && player.alive && !player.inVent && self && dist(self, player) <= data.settings.killRange)
-    .map(renderedPlayer)
-    .forEach((player) => {
-      const selected = player.id === data.self.aimTargetId;
-      if (!selected) return;
-      ctx.save();
-      ctx.strokeStyle = selected ? "#22d3ee" : "#ef4444";
-      ctx.lineWidth = selected ? 5 : 3;
-      ctx.strokeRect(player.x - 38, player.y - 70, 76, 104);
-      if (selected) {
-        ctx.beginPath();
-        ctx.arc(player.x, player.y - 18, 48, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.restore();
-    });
+  const target = data.players.find((player) => player.id === data.self.aimTargetId &&
+    player.id !== data.selfId && canSelectCombatTarget(data.self, player) &&
+    player.alive && !player.inVent && self && dist(self, player) <= data.settings.killRange);
+  return target ? renderedPlayer(target) : null;
+}
+
+function drawAttackTargets(data) {
+  const player = selectedAttackTargetWebGPUScene(data);
+  if (!player) return;
+  ctx.save();
+  ctx.strokeStyle = "#22d3ee";
+  ctx.lineWidth = 5;
+  ctx.strokeRect(player.x - 38, player.y - 70, 76, 104);
+  ctx.beginPath();
+  ctx.arc(player.x, player.y - 18, 48, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawLuminousFeathers(player) {
@@ -24894,7 +25974,7 @@ function drawLuminousFeathers(player) {
   ctx.globalCompositeOperation = "lighter";
   for (let layer = 0; layer < 2; layer += 1) {
     ctx.save();
-    ctx.translate(0, -42);
+  ctx.translate(0, characterBodyVisualY(-42));
     ctx.globalAlpha = 0.76 - layer * 0.28;
     const size = 150 * (0.92 + layer * 0.14);
     drawAnimatedTextureCentered(sprite, 0, 0, size, size, {
@@ -24929,7 +26009,7 @@ function drawPersistentIdeaState(player, data, ascensionProgress) {
   ctx.globalCompositeOperation = "lighter";
   for (let layer = 0; layer < 2; layer += 1) {
     ctx.save();
-    ctx.translate(0, -28 - ascensionProgress * 38);
+    ctx.translate(0, characterBodyVisualY(-28 - ascensionProgress * 38));
     ctx.globalAlpha = (ascensionProgress > 0 ? 0.84 : 0.46) - layer * 0.18;
     const layerSize = size * (0.9 + layer * 0.16);
     drawAnimatedTextureCentered(sprite, 0, 0, layerSize, layerSize, {
@@ -25462,6 +26542,36 @@ function characterAscensionPresentation(player, data) {
   return { ascensionProgress, ascensionRise };
 }
 
+const CHARACTER_BODY_VISUAL_SCALE = 0.72;
+const CHARACTER_BODY_FOOT_ANCHOR_Y = 31;
+
+function applyCharacterBodyVisualScale() {
+  ctx.translate(0, CHARACTER_BODY_FOOT_ANCHOR_Y);
+  ctx.scale(CHARACTER_BODY_VISUAL_SCALE, CHARACTER_BODY_VISUAL_SCALE);
+  ctx.translate(0, -CHARACTER_BODY_FOOT_ANCHOR_Y);
+}
+
+function cancelCharacterBodyVisualScaleAtY(y) {
+  ctx.translate(0, y);
+  ctx.scale(1 / CHARACTER_BODY_VISUAL_SCALE, 1 / CHARACTER_BODY_VISUAL_SCALE);
+  ctx.translate(0, -y);
+}
+
+function characterBodyVisualY(y) {
+  return CHARACTER_BODY_FOOT_ANCHOR_Y +
+    (y - CHARACTER_BODY_FOOT_ANCHOR_Y) * CHARACTER_BODY_VISUAL_SCALE;
+}
+
+function characterBodyVisualX(x) {
+  return x * CHARACTER_BODY_VISUAL_SCALE;
+}
+
+function scaledAuthoredCharacterEntry(entry) {
+  if (!entry?.layout || !Number.isFinite(entry.layout.scale)) return entry;
+  return { ...entry, layout: { ...entry.layout,
+    scale: entry.layout.scale * CHARACTER_BODY_VISUAL_SCALE } };
+}
+
 function drawHuman(player, data) {
   const ghost = !player.alive && !player.ejected;
   const self = player.id === data.selfId;
@@ -25491,6 +26601,7 @@ function drawHuman(player, data) {
   drawHackerRootState(player);
   drawGravityLevitationField(player, data);
   ctx.save();
+  applyCharacterBodyVisualScale();
   const drewPlayerSprite = drawPlayerSprite(player, data, ghost, characterAction);
   ctx.restore();
   if (drewPlayerSprite) {
@@ -25503,8 +26614,9 @@ function drawHuman(player, data) {
     return;
   }
 
-  const skin = state.textures.skin;
   ctx.save();
+  applyCharacterBodyVisualScale();
+  const skin = state.textures.skin;
   ctx.fillStyle = player.color;
   ctx.strokeStyle = "#0f172a";
   ctx.lineWidth = 2;
@@ -25539,19 +26651,21 @@ function drawHuman(player, data) {
   ctx.stroke();
   ctx.restore();
 
+  ctx.restore();
   ctx.font = "800 10px Segoe UI, sans-serif";
   const identityLabel = playerIdentityLabel(player).slice(0, 14);
   const nameplateWidth = Math.min(92, Math.max(44, ctx.measureText(identityLabel).width + 12));
   ctx.fillStyle = "#e2e8f0";
   ctx.globalAlpha *= 0.95;
-  roundRect(-nameplateWidth / 2, -39, nameplateWidth, 13, 6, true, false);
+  const fallbackNameplateY = characterBodyVisualY(-39);
+  roundRect(-nameplateWidth / 2, fallbackNameplateY, nameplateWidth, 13, 6, true, false);
   ctx.globalAlpha = ghost ? 0.45 : player.ejected ? 0.22 : 1;
   ctx.fillStyle = "#0f172a";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(identityLabel, 0, -32);
+  ctx.fillText(identityLabel, 0, fallbackNameplateY + 7);
   // Sprite-loading fallback uses the compact -39 nameplate geometry.
-  registerPreparationPlayerCanvasTargets(player, -39, nameplateWidth);
+  registerPreparationPlayerCanvasTargets(player, fallbackNameplateY, nameplateWidth);
   drawDurableBustState(player, data, false);
   drawPreparationBarrierAte(player);
   drawHoverSprintSustainedJets(player, data);
@@ -25622,7 +26736,8 @@ function drawDurableBustState(player, data, behind = false) {
   if (isBehind !== behind) return;
   const envelope = reduced ? 1 : .88 + .12 * Math.cos(phase * 2);
   ctx.save();
-  ctx.translate(Math.cos(phase) * 20, -7 + Math.sin(phase) * 8);
+  ctx.translate(characterBodyVisualX(Math.cos(phase) * 20),
+    characterBodyVisualY(-7 + Math.sin(phase) * 8));
   ctx.rotate(reduced ? -.2 : -.2 + Math.sin(phase) * .15);
   ctx.globalAlpha *= envelope * (behind ? .62 : .95);
   ctx.globalCompositeOperation = 'lighter';
@@ -25776,7 +26891,10 @@ function drawFreshBarrierSurface(mode, progress, phase, axis, base) {
 function drawPreparationBarrierAte(player) {
   if (!freshBarrierActive(player) || ctx.globalAlpha <= 0 || !freshBarrierReady()) return;
   const phase = actorVisualTime(player,state.data) / 1000 * .24 + (player.id?.length || 0)*.17;
+  ctx.save();
+  ctx.translate(0, characterBodyVisualY(0));
   drawFreshBarrierSurface('persistent',.5,phase,0,true);
+  ctx.restore();
 }
 function drawFreshBarrierEvent(effect, progress) {
   if (!Number.isFinite(progress) || progress <= 0 || progress >= 1 || ctx.globalAlpha <= 0 || !freshBarrierReady()) return true;
@@ -25816,8 +26934,8 @@ function drawHackerRootState(player) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha *= 0.72 + Math.sin(time * 5.2) * 0.06;
-  ctx.translate(0, 5);
-  drawAnimatedTextureCentered(sprite, 0, -8, 170, 170, {
+  ctx.translate(0, characterBodyVisualY(-3));
+  drawAnimatedTextureCentered(sprite, 0, 0, 170, 170, {
     mode: "data-down",
     time,
     phase: (player.id?.length || 0) * 0.13,
@@ -26073,7 +27191,7 @@ function authoredEntryReady(entry, image) {
   if (!authoredFrameGeometryValid(entry.idle, image) || !Array.isArray(entry.cycle)) return false;
   return entry.cycle.every(frame => authoredFrameGeometryValid(frame, image) && Number.isFinite(frame.duration) && frame.duration > 0);
 }
-function resetAuthoredWalkLifecycle(player){const animation=state.walkAnimations.get(player.id);if(!animation)return;animation.frame=0;animation.moving=false;animation.x=player.x;animation.y=player.y;animation.lastDisplacedAt=null;animation.stepBucket=-1;}
+function resetAuthoredWalkLifecycle(player){const animation=state.walkAnimations.get(player.id);if(!animation)return;animation.frame=0;animation.moving=false;animation.x=player.x;animation.y=player.y;animation.lastDisplacedAt=null;animation.stepBucket=-1;animation.frameOwner=Number.isFinite(state.frameNow)&&state.frameNow>0?{frame:state.frameNow,generation:state.roomSessionGeneration,data:state.data}:null;}
 function drawAuthoredCharacterMotion(player,data,ghost){
   const identity=authoredCharacterIdentity(player,data),configured=AUTHORED_CHARACTER_MOTION_MANIFEST.identities?.[identity],motion=motionFor(player,data),direction=authoredDirection(player,motion),baseEntry=configured?.[direction],movementMode=walkMotionMode(player);let entry=authoredModeEntry(baseEntry,movementMode),image=authoredModeImage(state.textures.authoredCharacterMotion?.[identity]?.[direction],movementMode);
   if(!entry||!image||!image.complete||!(image.naturalWidth>0)||!authoredEntryReady(entry,image))return false;
@@ -26095,6 +27213,1358 @@ function drawPlayerSprite(player, data, ghost, characterAction = null) {
   if (!player.isBot && drawPetSprite(player, data, ghost)) return true;
   if (!player.isBot && drawOperatorWalkSprite(player, data, ghost)) return true;
   return drawOperatorSprite(player, data, ghost);
+}
+
+// Dormant until the ordered WebGPU world pass owns the surrounding player TE.
+// Call with a real snapshot player and the same camera/zoom used by drawWorld.
+function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
+  const api = window.DvaWebGPUPlayerSprite;
+  if (!api?.createCommand || !sourcePlayer || !data || !view?.camera ||
+      sourcePlayer.inVent || (sourcePlayer.invisible && sourcePlayer.id !== data.selfId)) return null;
+  const player = renderedPlayer(sourcePlayer);
+  const ghost = !player.alive && !player.ejected;
+  const action = currentCharacterAction(player);
+  // Physical actions have their own sprite owners. The locomotion sheet must
+  // not replace those poses merely because it is already available on the GPU.
+  if (action && action.kind !== 'damage') return null;
+  const identity = authoredCharacterIdentity(player, data);
+  const motion = motionFor(player, data);
+  const direction = authoredDirection(player, motion);
+  const baseEntry = AUTHORED_CHARACTER_MOTION_MANIFEST.identities?.[identity]?.[direction];
+  let movementMode = walkMotionMode(player);
+  let entry = authoredModeEntry(baseEntry, movementMode);
+  const images = state.textures.authoredCharacterMotion?.[identity]?.[direction];
+  let image = authoredModeImage(images, movementMode);
+  // A pending mode sheet can temporarily fall back to the loaded walk image.
+  // Pair that image with its own atlas metadata rather than tagging walk pixels
+  // as the requested mode's asset in the GPU cache.
+  if (images?.walk && !images?.[movementMode]) entry = authoredModeEntry(baseEntry, 'walk');
+  if (!entry || !authoredEntryReady(entry, image)) return null;
+  let frame, body;
+  if (action?.kind === 'damage' && !ghost) {
+    entry = authoredModeEntry(baseEntry, 'walk');
+    image = authoredModeImage(state.textures.authoredCharacterMotion?.[identity]?.[direction], 'walk');
+    if (!entry || !authoredEntryReady(entry, image)) return null;
+    movementMode = 'walk';
+    resetAuthoredWalkLifecycle(player);
+    const response = prefersReducedMotion() ? .25 : Math.sin(Math.PI * Math.pow(clamp(action.progress, 0, 1), .6));
+    frame = entry.idle;
+    body = { lean: -action.dx * .12 * response, sway: 0, lift: -Math.abs(action.dy) * 2.2 * response };
+  } else {
+    const inert = ghost || isHoverSprintWalkingSuppressed(player, data) || !player.alive;
+    if (inert) resetAuthoredWalkLifecycle(player);
+    const requestedMoving = !inert && Boolean(motion.moving);
+    if (!requestedMoving) resetAuthoredWalkLifecycle(player);
+    let gaitFrame = 0, moving = false;
+    if (requestedMoving) {
+      gaitFrame = walkAnimationFrame(player, motion, movementMode, authoredStrideDistance(entry, movementMode));
+      const animation = state.walkAnimations.get(player.id);
+      moving = Number.isFinite(animation?.lastDisplacedAt) &&
+        (state.frameNow || performance.now()) - animation.lastDisplacedAt <= 100;
+    }
+    if (!moving && movementMode === 'dash') {
+      const idleEntry = authoredModeEntry(baseEntry, 'walk');
+      const idleImage = authoredModeImage(state.textures.authoredCharacterMotion?.[identity]?.[direction], 'walk');
+      if (!idleEntry || !authoredEntryReady(idleEntry, idleImage)) return null;
+      entry = idleEntry; image = idleImage;
+    }
+    frame = authoredFrameFor(entry, gaitFrame, moving, movementMode, entry.phaseMapping);
+    body = entry.bodyMotion === 'authored' ? { lift: 0, sway: 0, lean: 0 }
+      : walkBodyMotion(movementMode, direction, gaitFrame, moving);
+  }
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  let alpha = ghost ? .45 : player.ejected ? .22 : 1;
+  if (player.id === data.selfId && data.self?.floraInvisibleActive && player.alive && !player.ejected) alpha *= .32;
+  // The ordered WebGPU scene supplies the arrival produced by its summon pass
+  // in this frame. A deliberate null must not fall back to the preceding frame.
+  const arrival = Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival
+    : preparationRosterActive(data) && !player.isBot
+      ? state.preparationRosterEntries.get(String(player.id || ''))?.arrival : null;
+  return api.createCommand({ player: { ...player, y: player.y - ascensionRise }, identity,
+    direction, mode: movementMode, entry: scaledAuthoredCharacterEntry(entry), image, frame, body,
+    camera: view.camera, zoom: view.zoom,
+    alpha, arrival, arrivalAnchor: player,
+    order: view.order ?? 0 });
+}
+
+// WEBGPU_MAIN_APP_PLAYER_STAGE_ADAPTER_V1_START
+// Capture live actor ordering and summon ownership without touching Canvas 2D.
+// This remains dormant until every surrounding ordered stage is ready.
+function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zoom) {
+  if (!data || !Array.isArray(data.players) || viewport?.kind !== 'main' ||
+      !Array.isArray(viewport.worldToLogical) ||
+      !Number.isFinite(viewport.width) || viewport.width <= 0 ||
+      !Number.isFinite(viewport.height) || viewport.height <= 0 ||
+      !Number.isFinite(camera?.x) || !Number.isFinite(camera?.y) ||
+      !Number.isFinite(zoom) || zoom <= 0 ||
+      Math.abs(viewport.worldToLogical[0] - zoom) > 1e-6 ||
+      Math.abs(viewport.worldToLogical[3] - zoom) > 1e-6 ||
+      Math.abs(viewport.worldToLogical[4] + camera.x * zoom) > 1e-4 ||
+      Math.abs(viewport.worldToLogical[5] + camera.y * zoom) > 1e-4) {
+    throw new TypeError('Player WebGPU scene needs a committed main viewport and camera');
+  }
+  const session = { data, generation: state.roomSessionGeneration,
+    roomId: state.roomId, phase: data.phase, snapshotRoomId: data.roomId,
+    screen: state.screen };
+  const assertSession = () => {
+    if (state.data !== session.data || state.roomSessionGeneration !== session.generation ||
+        state.roomId !== session.roomId || data.roomId !== session.snapshotRoomId ||
+        data.phase !== session.phase || state.screen !== session.screen)
+      throw new Error('Player WebGPU scene crossed a room or screen session boundary');
+  };
+  const visible = player => player.x >= camera.x - 240 &&
+    player.x <= camera.x + viewport.width / zoom + 240 &&
+    player.y >= camera.y - 240 &&
+    player.y <= camera.y + viewport.height / zoom + 240;
+  const ordered = data.players.filter(Boolean).map(player => renderedPlayer(player))
+    .filter(player => player && Number.isFinite(player.x) && Number.isFinite(player.y) && visible(player))
+    .sort((a, b) => Number(a.alive) - Number(b.alive));
+  const candidates = ordered.filter(player => !player.inVent &&
+    !(player.invisible && player.id !== data.selfId));
+  const preparation = preparationRosterActive(data);
+  const entries = state.preparationRosterEntries;
+  const spriteReady = player => {
+    const action = currentCharacterAction(player);
+    if (action && action.kind !== 'damage') return false;
+    const identity = authoredCharacterIdentity(player, data);
+    const direction = authoredDirection(player, motionFor(player, data));
+    const base = AUTHORED_CHARACTER_MOTION_MANIFEST.identities?.[identity]?.[direction];
+    const mode = action?.kind === 'damage' ? 'walk' : walkMotionMode(player);
+    const images = state.textures?.authoredCharacterMotion?.[identity]?.[direction];
+    const fallbackMode = images?.walk && !images?.[mode] ? 'walk' : mode;
+    const entry = authoredModeEntry(base, fallbackMode);
+    const image = authoredModeImage(images, fallbackMode);
+    return Boolean(entry && authoredEntryReady(entry, image));
+  };
+  const unsupported = candidates.filter(player => !spriteReady(player)).map(player => {
+    const action = currentCharacterAction(player);
+    return { playerId: String(player.id), reason: action && action.kind !== 'damage'
+      ? 'separate-action-sprite-owner' : 'authored-sprite-unavailable' };
+  });
+  const buildCommands = arrivalFor => {
+    assertSession();
+    if (unsupported.length) throw new Error(`Player WebGPU sprites unavailable: ${unsupported
+      .map(item => `${item.playerId} (${item.reason})`).join(', ')}`);
+    return candidates.map((player, order) => {
+      const command = buildWebGPUAuthoredPlayerSpriteCommand(player, data, {
+        camera, zoom, order,
+        // A post-summon null explicitly prevents stale state-map arrival.
+        ...(arrivalFor ? { arrival: arrivalFor(player) } : {})
+      });
+      if (!command) throw new Error(`Player WebGPU sprite unavailable: ${String(player.id)}`);
+      return command;
+    });
+  };
+  if (!preparation) return { stages: { players: { commands: unsupported.length ? null : buildCommands(null) } },
+    markerActors: candidates, unsupported, blocked: unsupported.length > 0 };
+  if (!(entries instanceof Map)) throw new TypeError('Preparation player WebGPU scene needs roster entries Map');
+  const summonPlayers = data.players.filter(Boolean).map(player => {
+    const rendered = renderedPlayer(player);
+    return { id: player.id, isBot: Boolean(player.isBot), ejected: Boolean(player.ejected),
+      x: player.x, y: player.y, renderedX: rendered.x, renderedY: rendered.y,
+      spriteReady: !player.isBot && !player.ejected && spriteReady(rendered) };
+  });
+  const scene = { active: true, players: summonPlayers, entries,
+    roomId: data.roomId, roomSessionGeneration: session.generation,
+    nowMs: state.frameNow || performance.now(), reducedMotion: prefersReducedMotion(),
+    ringImage: state.textures?.preparationSummonCircle };
+  return { stages: {
+    preparationSummons: { scene, camera, zoom },
+    players: { entries, createCommands({ entries: currentEntries, arrivalFor }) {
+      assertSession();
+      if (currentEntries !== entries || typeof arrivalFor !== 'function')
+        throw new Error('Preparation player WebGPU scene needs same-frame summon arrivals');
+      return buildCommands(arrivalFor);
+    } }
+  }, markerActors: candidates, unsupported, blocked: unsupported.length > 0 };
+}
+// WEBGPU_MAIN_APP_PLAYER_STAGE_ADAPTER_V1_END
+
+// A read-only selection from the same per-actor tail source as Canvas. It
+// carries all non-credit slots, including transient ones, so their row offsets
+// cannot silently collapse when only persistent status rendering is ready.
+function captureWebGPUMainAppHeadMarkerScene(data, markerActors, camera, zoom,
+  viewport) {
+  const now = state.frameNow || performance.now();
+  const scenes = new Map();
+  const unsupported = [];
+  const excluded = window.DvaWebGPUHeadMarkers?.EXCLUDED;
+  if (!Array.isArray(excluded) || !excluded.includes('gain-credits'))
+    throw new Error('WebGPU world candidate withdrawn marker family contract unavailable');
+  const excludedTypes = new Set(excluded);
+  for (const player of markerActors) {
+    const activeState = persistentStatusAteState(player, data);
+    const presentation = selectHeadMarkerPresentation(player, data,
+      headMarkerEffectsForPlayer(player, data).filter(effect =>
+        !excludedTypes.has(String(effect?.type || '')) &&
+        !isCreditHeadMarkerEffect(effect)), now,
+      state.headMarkerSlots.get(player.id) || null);
+    const eligible = player.alive && !player.ejected && !player.inVent &&
+      !(player.invisible && player.id !== data.selfId) &&
+      ['playing', 'meeting'].includes(data.phase);
+    if (eligible) {
+      for (const candidate of presentation.nonCredits) {
+        if (!['persistent-status', 'enhance-activation',
+          'fighter-energy-charge'].includes(candidate.type)) unsupported.push({
+          playerId: String(player.id), sourceId: candidate.instanceKey,
+          type: candidate.type, reason: 'head-marker-family-unported' });
+      }
+    }
+    const { ascensionRise } = characterAscensionPresentation(player, data);
+    const alpha = player.id === data.selfId && data.self?.floraInvisibleActive &&
+      player.alive && !player.ejected ? .32 : 1;
+    scenes.set(String(player.id), { player, presentation, activeState,
+      actor: { id: player.id, isSelf: player.id === data.selfId,
+        visible: true, alive: Boolean(player.alive), ejected: Boolean(player.ejected),
+        inVent: Boolean(player.inVent), invisible: Boolean(player.invisible),
+        resting: Boolean(player.resting), phase: data.phase,
+        transform: [zoom, 0, 0, zoom,
+          (player.x - camera.x) * zoom,
+          (player.y - ascensionRise - camera.y) * zoom] },
+      alpha });
+  }
+  return { scenes, unsupported, generation: state.roomSessionGeneration,
+    now, reducedMotion: prefersReducedMotion(), viewport };
+}
+// WEBGPU_MAIN_APP_HEAD_MARKER_SCENE_V1_END
+
+// WEBGPU_MAIN_APP_COMBINED_WORLD_SNAPSHOT_V1_START
+// A candidate only: later mandatory stages still have to be captured before
+// the shared renderer can accept this frame. Keep every input in source order.
+function captureWebGPUMainAppConditionalTail(data, camera, zoom, providers = {}) {
+  const expandedCanvas = els.expandedMapCanvas;
+  const expandedRect = state.expandedMapOpen
+    ? expandedCanvas?.getBoundingClientRect() : null;
+  const expandedViewport = state.expandedMapOpen
+    ? window.DvaWebGPUViewport?.createSnapshot?.({ kind: 'expanded',
+      rect: expandedRect, dpr: window.devicePixelRatio || 1, map: data.map }) : null;
+  const expandedBlocked = Boolean(state.expandedMapOpen &&
+    (!expandedViewport || expandedCanvas?.closest?.('[hidden]') ||
+      els.expandedMapOverlay?.hidden ||
+      providers.expandedCanvas !== expandedCanvas));
+  const expandedMap = state.expandedMapOpen && !expandedBlocked
+    ? { scene: expandedMapWebGPUScene(data), viewport: expandedViewport,
+      canvas: expandedCanvas, rect: expandedRect,
+      pointer: state.mapPointer, targeting: Boolean(state.teleportTargeting ||
+        state.instantWarpTargeting) } : null;
+
+  const now = state.frameNow || performance.now();
+  const source = state.magicEffects;
+  const effects = Array.isArray(source) && ['playing', 'meeting'].includes(data?.phase) &&
+    state.screen === 'game' && !isSensoryBlocked(data)
+    ? source.filter(effect =>
+      (effect.type === 'mystery-box' || effect.type === 'transfer-in') &&
+      (effect.type !== 'mystery-box' || effect.playerId === data.selfId) &&
+      acquisitionPhotonWindow(effect, now) !== null) : [];
+  const sourceIds = effects.map(effect => String(effect?.id ?? ''));
+  const overlay = providers.acquisitionCanvas || null;
+  const overlayRect = overlay?.getBoundingClientRect?.();
+  const canvasRect = els.canvas?.getBoundingClientRect?.();
+  const overlayStyle = overlay?.style;
+  const overlayReady = Boolean(overlay?.isConnected && overlay?.dataset?.acquisitionGpuOverlay === '1' &&
+    overlayStyle?.pointerEvents === 'none' && Number(overlayStyle?.zIndex) === 71 &&
+    overlayRect?.width > 0 && overlayRect?.height > 0 &&
+    canvasRect?.width > 0 && canvasRect?.height > 0);
+  const viewport = overlayReady ? { ...acquisitionOverlayViewport(overlay),
+    kind: 'acquisition' } : null;
+  const drawn = [];
+  const unsupported = [];
+  if (effects.length && !overlayReady)
+    unsupported.push({ reason: 'acquisition-shared-overlay-target-unavailable' });
+  if (effects.length && (sourceIds.some(id => !id || id === 'undefined') ||
+      new Set(sourceIds).size !== sourceIds.length))
+    unsupported.push({ reason: 'acquisition-source-id-invalid' });
+  if (overlayReady) for (const effect of effects) {
+    const elapsed = acquisitionPhotonWindow(effect, now);
+    const ox = Number.isFinite(effect.acquisitionOriginX) ? effect.acquisitionOriginX : Number(effect.x);
+    const oy = Number.isFinite(effect.acquisitionOriginY) ? effect.acquisitionOriginY : Number(effect.y) - 30.3;
+    const origin = acquisitionOverlayLocalPoint(
+      acquisitionWorldPoint(ox, oy, camera, zoom, canvasRect), viewport);
+    const destinations = [];
+    if (effect.playerId === data.selfId) {
+      const acquisitionId = String(effect.acquisitionId || effect.variant || '');
+      const instantHudProduct = effect.acquisitionKind === 'product' &&
+        Boolean(INSTANT_ACQUISITION_HUD_KEYS[acquisitionId]);
+      if (effect.acquisitionKind !== 'credits' && !instantHudProduct) {
+        const rect = acquisitionVisibleRect(acquisitionDestinationElement(effect, data));
+        if (rect) destinations.push(acquisitionOverlayLocalRect(rect, viewport));
+      }
+      for (const rect of acquisitionCanvasHudRects(effect))
+        destinations.push(acquisitionOverlayLocalRect(
+          acquisitionCanvasHudViewportRect(rect, canvasRect), viewport));
+    } else {
+      const recipient = data.players?.find(player => player.id === effect.playerId &&
+        player.alive && !player.ejected && !player.inVent && !player.invisible);
+      if (recipient && Number.isFinite(recipient.x) && Number.isFinite(recipient.y)) {
+        const position = renderedPlayer(recipient);
+        const point = acquisitionOverlayLocalPoint(acquisitionWorldPoint(
+          position.x, position.y - 22, camera, zoom, canvasRect), viewport);
+        destinations.push({ left: point.x - 7, top: point.y - 7,
+          width: 14, height: 14, radius: 7, actor: true });
+      }
+    }
+    if (!Number.isFinite(origin.x) || !Number.isFinite(origin.y) ||
+        !destinations.length) {
+      unsupported.push({ effectId: String(effect.id),
+        reason: 'acquisition-visible-destination-or-origin-unavailable' });
+      continue;
+    }
+    const reduced = prefersReducedMotion();
+    for (const rect of destinations) {
+      const arrivalStart = reduced ? 680 : 900;
+      drawn.push({ effectId: String(effect.id), source: effect, elapsed,
+        travel: acquisitionPhotonTravelState(origin,
+          { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+          elapsed, reduced), rect, reduced,
+        arrival: objectEffectEase(clamp((elapsed - arrivalStart) / 120, 0, 1)) *
+          (1 - objectEffectEase(clamp((elapsed - (arrivalStart + 360)) / 300, 0, 1))) });
+    }
+  }
+  const drawFrame = viewport ? { width: viewport.width, height: viewport.height,
+    pixelWidth: viewport.pixelWidth, pixelHeight: viewport.pixelHeight,
+    effects: drawn.map(({ effectId, source, ...geometry }) => geometry) } : null;
+  return { expandedMap, expandedBlocked, acquisition: {
+    viewport, canvas: overlay, drawFrame, source, effects, sourceIds, drawn, unsupported,
+    canvasRect, overlayRect, now } };
+}
+function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
+  shapeProviders = {}) {
+  if (data !== state.data)
+    throw new Error('WebGPU world candidate needs the current game data snapshot');
+  ensureRenderPlayersAdvanced(data);
+  const owner = { data, generation: state.roomSessionGeneration,
+    roomId: state.roomId, snapshotRoomId: data?.roomId, phase: data?.phase,
+    screen: state.screen, frameNow: state.frameNow,
+    viewport, viewportSignature: [viewport?.kind, viewport?.width, viewport?.height,
+      viewport?.pixelWidth, viewport?.pixelHeight, ...(viewport?.worldToLogical || [])] };
+  const assertCurrent = () => {
+    const currentViewportSignature = [viewport?.kind, viewport?.width,
+      viewport?.height, viewport?.pixelWidth, viewport?.pixelHeight,
+      ...(viewport?.worldToLogical || [])];
+    if (state.data !== owner.data || state.roomSessionGeneration !== owner.generation ||
+        state.roomId !== owner.roomId || data.roomId !== owner.snapshotRoomId ||
+        data.phase !== owner.phase || state.screen !== owner.screen ||
+        state.frameNow !== owner.frameNow || viewport !== owner.viewport ||
+        currentViewportSignature.length !== owner.viewportSignature.length ||
+        owner.viewportSignature.some((value, index) =>
+          value !== currentViewportSignature[index]))
+      throw new Error('WebGPU world candidate crossed a room, data, frame, or viewport boundary');
+  };
+  const early = captureWebGPUMainAppEarlyScene(data, viewport);
+  assertCurrent();
+  const players = captureWebGPUMainAppPlayerScene(data, viewport, early.camera, early.zoom);
+  assertCurrent();
+  const headMarkers = captureWebGPUMainAppHeadMarkerScene(data,
+    players.markerActors, early.camera, early.zoom, viewport);
+  assertCurrent();
+  const headEffectSource = state.magicEffects;
+  const headEffectOrder = Array.isArray(headEffectSource)
+    ? headEffectSource.slice() : null;
+  // These four Canvas world slots surround the ordered late magic event slot.
+  // Hit expiry is snapshotted, never applied to the active Canvas queue here.
+  const hitSource = state.hitEffects;
+  const hitEffectsGaps = !Array.isArray(hitSource)
+    ? [{ reason: 'hit-effect-snapshot-unavailable', blocking: true }]
+    : hitSource.flatMap((effect, index) => {
+      if (effect && Number.isFinite(effect.startedAt) &&
+          Number.isFinite(effect.duration) &&
+          state.frameNow - effect.startedAt >= effect.duration) return [];
+      return effect && [effect.x, effect.y, effect.startedAt,
+        effect.duration].every(Number.isFinite) && effect.duration > 0 ? [] :
+        [{ index, reason: 'hit-effect-invalid', blocking: true }];
+    });
+  const hitEffects = Array.isArray(hitSource) ? hitSource.filter(effect =>
+    effect && Number.isFinite(effect.startedAt) &&
+    Number.isFinite(effect.duration) &&
+    state.frameNow - effect.startedAt < effect.duration) : [];
+  const common = { camera: early.camera, zoom: early.zoom, viewport };
+  const killSource = state.killEffects;
+  if (!Array.isArray(killSource))
+    throw new Error('WebGPU world candidate kill source unavailable');
+  const killNow = state.frameNow || performance.now();
+  const killEffects = killSource.filter(effect =>
+    killNow - effect.startedAt < effect.duration);
+  const killSourceIds = killEffects.map(effect => String(effect?.id ?? ''));
+  if (killSourceIds.some(id => !id) || new Set(killSourceIds).size !== killSourceIds.length ||
+      killEffects.some(effect => ![effect.x, effect.y, effect.startedAt,
+        effect.duration].every(Number.isFinite) || effect.duration <= 0))
+    throw new Error('WebGPU world candidate live kill effects need distinct valid source IDs');
+  const marker = state.markerExplanation;
+  const markerNow = performance.now();
+  const markerPoint = state.markerExplanationPointerPoint;
+  const markerPointerSample = state.markerExplanationPointerSample;
+  const markerPointerHeld = Boolean(marker && marker.pointerId != null &&
+    (!marker.expiresAt || markerNow < marker.expiresAt));
+  // The pointer's coordinates must belong to this committed presentation.
+  // Its target is resolved later from the current prepared WebGPU hit list.
+  const markerPointerGap = markerPointerHeld &&
+    (state.markerExplanationPointerId !== marker.pointerId ||
+      !markerPointerOwnedByWebGPU(markerPointerSample, markerPoint,
+        marker, viewport));
+  const markerVisible = marker && !markerPointerHeld &&
+    (!marker.expiresAt || markerNow < marker.expiresAt);
+  const markerScene = markerVisible
+    ? markerExplanationWebGPUScene(marker, null, markerNow) : null;
+  const markerSnapshot = marker ? { key: marker.key, title: marker.title,
+    detail: marker.detail, x: marker.x, y: marker.y,
+    startedAt: marker.startedAt, pointerId: marker.pointerId,
+    expiresAt: marker.expiresAt } : null;
+  const late = captureWebGPUMainAppLateMagicScene(data, viewport,
+    early.camera, early.zoom, shapeProviders, headMarkers);
+  assertCurrent();
+  const retainedSources = late.stage.events.filter(event =>
+    event.type === 'headMarker').map(event => {
+    const effect = event.input.sourceEffect;
+    return { effect, id: effect.id, type: effect.type,
+      playerId: effect.playerId,
+      variant: effect.variant, active: effect.active,
+      markerCount: effect.markerCount,
+      instanceKey: effect._headMarkerInstanceKey,
+      startedAt: effect.startedAt, duration: effect.duration,
+      expiresAt: effect._headMarkerExpiresAt,
+      aggregateCount: effect._headMarkerAggregateCount };
+  });
+  const empSources = late.stage.events.filter(event =>
+    event.type === 'empEffect').map(event => {
+    const { effect, storageActor } = event.input;
+    return { effect, storageActor,
+      fields: Object.fromEntries(['id', 'type', 'x', 'y', 'startedAt',
+        'duration', 'radius', 'variant', 'empSourceAxis', 'playerId',
+        'empPulseId'].map(key => [key, effect[key]])),
+      resolvedIds: Array.isArray(effect.resolvedEmpPulseIds)
+        ? [...effect.resolvedEmpPulseIds] : effect.resolvedEmpPulseIds };
+  });
+  const specialAmmoSources = late.stage.events.filter(event =>
+    event.type === 'specialAmmoEffect').map(event => {
+    const effect = event.input.effect;
+    return { effect, fields: Object.fromEntries(['id', 'type', 'variant',
+      'x', 'y', 'targetX', 'targetY', 'startedAt', 'duration']
+      .map(key => [key, effect[key]])) };
+  });
+  const conditional = captureWebGPUMainAppConditionalTail(data,
+    early.camera, early.zoom, shapeProviders);
+  assertCurrent();
+  const sourceIds = late.stage.sourceEffectIds.map(String);
+  const claimedIds = [...late.stage.events.map(event => event.effectId),
+    ...late.stage.omitted.map(omission => omission.effectId),
+    ...late.unsupported.map(item => item.id)].map(String);
+  const eventPositions = late.stage.events.map(event => sourceIds.indexOf(String(event.effectId)));
+  const magicGaps = late.unsupported.map(item => ({ ...item, blocking: true }));
+  if (sourceIds.some(id => !id || id === 'undefined') ||
+      claimedIds.length !== sourceIds.length ||
+      sourceIds.some(id => claimedIds.filter(claim => claim === id).length !== 1) ||
+      eventPositions.some((position, index) => position < 0 ||
+        (index > 0 && position <= eventPositions[index - 1])) ||
+      late.stage.omitted.some(item => !item.reason))
+    magicGaps.push({ reason: 'magic-source-id-or-omission-coverage-invalid', blocking: true });
+  for (const id of early.deferredLateEffectIds) {
+    if (!late.stage.events.some(event => String(event.effectId) === id))
+      magicGaps.push({ effectId: id, reason: 'deferred-task-completion-unowned', blocking: true });
+  }
+  const tail = {
+    gunnerAim: { scene: gunnerAimWebGPUScene(data), ...common },
+    killCamera: { scene: killCameraWorldWebGPUScene(data), ...common },
+    hitEffects: { scene: { now: state.frameNow, effects: hitEffects }, ...common },
+    magicEffects: late.stage,
+    attackTargets: { scene: { selectedTarget:
+      selectedAttackTargetWebGPUScene(data) || null }, ...common },
+    taskIndicators: { data, ...common },
+    hud: { data, scene: hudWebGPUScene(data, viewport.width, viewport.height),
+      ...common },
+    minimap: { scene: minimapWebGPUScene(data, viewport.width), ...common },
+    modeBanner: { scene: modeBannerWebGPUScene(data), ...common },
+    ...(conditional.expandedMap ? { expandedMap: {
+      scene: conditional.expandedMap.scene,
+      viewport: conditional.expandedMap.viewport } } : {}),
+    // drawLighting is a source no-op; keep the ordered boundary without a
+    // fabricated lighting image. The scene registry's no-op pass owns it.
+    lighting: { scene: { sourceNoOp: true }, ...common },
+    killAnimation: { effects: killEffects, sourceEffectIds: killSourceIds,
+      now: killNow, reducedMotion: prefersReducedMotion(), ...common },
+    sensory: { scene: sensoryBlackoutWebGPUScene(data), text: null, ...common },
+    markerExplanation: { scene: markerScene, ...common },
+    ...(conditional.acquisition.drawn.length ? { acquisition: {
+      viewport: conditional.acquisition.viewport,
+      drawFrame: conditional.acquisition.drawFrame } } : {})
+  };
+  assertCurrent();
+  const order = window.DvaWebGPUMainScene?.ORDER;
+  if (!Array.isArray(order) ||
+      order.slice(0, 12).some((name, index) => Object.keys(early.stages)[index] !== name) ||
+      !players.stages.players ||
+      Object.keys(players.stages).some(name => !['preparationSummons', 'players'].includes(name)) ||
+      order.slice(14, 23).some(name => !Object.prototype.hasOwnProperty.call(tail, name)) ||
+      order.slice(24, 28).some(name => !Object.prototype.hasOwnProperty.call(tail, name)) ||
+      order[28] !== 'acquisition' ||
+      (state.expandedMapOpen && order[23] !== 'expandedMap'))
+    throw new Error('WebGPU world candidate stage order or player ownership unavailable');
+  const stages = Object.fromEntries(order.filter(name =>
+    Object.prototype.hasOwnProperty.call(early.stages, name) ||
+    Object.prototype.hasOwnProperty.call(players.stages, name) ||
+    Object.prototype.hasOwnProperty.call(tail, name)).map(name =>
+    [name, Object.prototype.hasOwnProperty.call(early.stages, name)
+      ? early.stages[name] : Object.prototype.hasOwnProperty.call(players.stages, name)
+        ? players.stages[name] : tail[name]]));
+  const assertTailCurrent = () => {
+    assertCurrent();
+    const freshConditional = captureWebGPUMainAppConditionalTail(data,
+      early.camera, early.zoom, shapeProviders);
+    if (state.killEffects !== killSource || state.magicEffects !== headEffectSource ||
+        !Array.isArray(state.magicEffects) ||
+        state.magicEffects.length !== headEffectOrder?.length ||
+        headEffectOrder.some((effect, index) => state.magicEffects[index] !== effect) ||
+        state.markerExplanation !== marker ||
+        (marker && (Object.keys(markerSnapshot).some(key =>
+          marker[key] !== markerSnapshot[key]) ||
+          !markerPointerGap && (
+            (state.markerExplanationPointerId ?? null) !==
+              (markerPointerHeld ? markerSnapshot.pointerId : null) ||
+            state.markerExplanationPointerPoint !== markerPoint ||
+            state.markerExplanationPointerSample !== markerPointerSample ||
+            markerPointerHeld && !markerPointerOwnedByWebGPU(
+              markerPointerSample, markerPoint, marker, viewport)))) ||
+        (marker && marker.expiresAt &&
+          performance.now() >= marker.expiresAt) ||
+        killEffects.some((effect, index) => !state.killEffects.includes(effect) ||
+          String(effect.id) !== killSourceIds[index]) ||
+        Boolean(state.expandedMapOpen) !==
+          Boolean(conditional.expandedMap || conditional.expandedBlocked) ||
+        state.magicEffects !== conditional.acquisition.source ||
+        empSources.some(({ effect, storageActor, fields, resolvedIds }) => {
+          if (!state.magicEffects.includes(effect) ||
+              Object.keys(fields).some(key => effect[key] !== fields[key]) ||
+              (Array.isArray(resolvedIds) ?
+                !Array.isArray(effect.resolvedEmpPulseIds) ||
+                  effect.resolvedEmpPulseIds.length !== resolvedIds.length ||
+                  resolvedIds.some((id, index) =>
+                    effect.resolvedEmpPulseIds[index] !== id) :
+                effect.resolvedEmpPulseIds !== resolvedIds)) return true;
+          if (!storageActor) return false;
+          const player = data.players?.find(entry => entry.id === storageActor.id);
+          const rendered = player && renderedPlayer(player);
+          return !player || !player.alive || player.ejected ||
+            rendered?.x !== storageActor.renderedX ||
+            rendered?.y !== storageActor.renderedY;
+        }) ||
+        specialAmmoSources.some(({ effect, fields }) =>
+          !state.magicEffects.includes(effect) ||
+          Object.keys(fields).some(key => effect[key] !== fields[key])) ||
+        retainedSources.some(({ effect, id, type, playerId, variant, active,
+          markerCount, instanceKey,
+          startedAt, duration, expiresAt, aggregateCount }) =>
+          !state.magicEffects.includes(effect) || effect.id !== id ||
+          effect.type !== type || effect.playerId !== playerId ||
+          effect.variant !== variant || effect.active !== active ||
+          effect.markerCount !== markerCount ||
+          effect._headMarkerInstanceKey !== instanceKey ||
+          effect.startedAt !== startedAt || effect.duration !== duration ||
+          effect._headMarkerExpiresAt !== expiresAt ||
+          effect._headMarkerAggregateCount !== aggregateCount) ||
+        conditional.acquisition.sourceIds.some((id, index) =>
+          freshConditional.acquisition.sourceIds[index] !== id ||
+          freshConditional.acquisition.effects[index] !==
+            conditional.acquisition.effects[index]) ||
+        freshConditional.acquisition.sourceIds.length !==
+          conditional.acquisition.sourceIds.length ||
+        freshConditional.acquisition.unsupported.length !==
+          conditional.acquisition.unsupported.length ||
+        JSON.stringify(freshConditional.acquisition.drawFrame) !==
+          JSON.stringify(conditional.acquisition.drawFrame) ||
+        freshConditional.expandedBlocked !== conditional.expandedBlocked ||
+        Boolean(freshConditional.expandedMap) !== Boolean(conditional.expandedMap) ||
+        (conditional.expandedMap &&
+          JSON.stringify(freshConditional.expandedMap.viewport) !==
+            JSON.stringify(conditional.expandedMap.viewport)) ||
+        (conditional.expandedMap && (
+          els.expandedMapCanvas !== conditional.expandedMap.canvas ||
+          els.expandedMapCanvas.getBoundingClientRect().left !== conditional.expandedMap.rect.left ||
+          els.expandedMapCanvas.getBoundingClientRect().top !== conditional.expandedMap.rect.top ||
+          els.expandedMapCanvas.getBoundingClientRect().width !== conditional.expandedMap.rect.width ||
+          els.expandedMapCanvas.getBoundingClientRect().height !== conditional.expandedMap.rect.height ||
+          state.mapPointer !== conditional.expandedMap.pointer ||
+          Boolean(state.teleportTargeting || state.instantWarpTargeting) !== conditional.expandedMap.targeting)) ||
+        (conditional.acquisition.drawn.length && (
+          !conditional.acquisition.canvas?.isConnected ||
+          conditional.acquisition.canvas.getBoundingClientRect().width !==
+            conditional.acquisition.overlayRect.width ||
+          els.canvas.getBoundingClientRect().width !==
+            conditional.acquisition.canvasRect.width)))
+      throw new Error('WebGPU world candidate kill or marker source changed during preparation');
+  };
+  return { viewport, camera: early.camera, zoom: early.zoom, stages,
+    early, players, headMarkers, late, conditional, hitEffectsGaps, magicGaps,
+    expiredHitEffects: Array.isArray(hitSource) ? hitSource.filter(effect =>
+      !hitEffects.includes(effect)) : [],
+    markerPointerGap,
+    markerPointer: { held: markerPointerHeld, point: markerPoint,
+      sample: markerPointerSample, explanation: marker, now: markerNow },
+    blocked: early.blocked || players.blocked || headMarkers.unsupported.length > 0 ||
+      hitEffectsGaps.length > 0 ||
+      markerPointerGap ||
+      !late.ready || magicGaps.length > 0 || conditional.expandedBlocked ||
+      conditional.acquisition.unsupported.length > 0,
+    remainingStages: order.filter(name => !Object.prototype.hasOwnProperty.call(stages, name)),
+    assertCurrent: assertTailCurrent };
+}
+
+async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
+  tailResources = {}) {
+  if (!candidate?.assertCurrent || !candidate.early || !candidate.players)
+    throw new TypeError('WebGPU world candidate preparation needs a captured frame');
+  candidate.assertCurrent();
+  if (candidate.blocked)
+    throw new Error('WebGPU world candidate blocked by early, player, head-marker, hit, magic, or pointer-owned marker diagnostics');
+  for (const [name, method] of [['taskIndicators', 'draw'], ['hud', 'draw'],
+    ['minimap', 'draw'], ['modeBanner', 'draw'], ['lighting', 'record'],
+    ['killAnimation', 'record'], ['sensory', 'enqueue'],
+    ['markerExplanation', 'draw'],
+    ...(candidate.stages.acquisition ? [['acquisition', 'record']] : [])]) {
+    if (!candidate.stages[name] || typeof passes?.[name]?.[method] !== 'function')
+      throw new Error(`WebGPU world candidate needs ${name}.${method}`);
+  }
+  if (typeof passes?.headMarkers?.record !== 'function')
+    throw new Error('WebGPU world candidate needs headMarkers.record');
+  const empVisible = candidate.stages.magicEffects?.empCoverage?.visibleEmp;
+  if (!Array.isArray(empVisible) ||
+      (empVisible.length && typeof passes?.empEffect?.record !== 'function'))
+    throw new Error('WebGPU world candidate visible EMP needs an explicit shared pass');
+  const specialAmmoVisible = candidate.stages.magicEffects?.specialAmmoCoverage?.visibleSpecialAmmo;
+  if (!Array.isArray(specialAmmoVisible) ||
+      (specialAmmoVisible.length &&
+        typeof passes?.specialAmmoEffect?.record !== 'function'))
+    throw new Error('WebGPU world candidate visible special ammo needs an explicit shared pass');
+  if (typeof textAtlas?.ensure !== 'function')
+    throw new TypeError('WebGPU world candidate needs a GPU text atlas with ensure');
+  const passOwners = ['taskIndicators', 'hud', 'minimap', 'modeBanner',
+    'lighting', 'killAnimation', 'sensory', 'markerExplanation',
+    'headMarkers',
+    ...(empVisible.length ? ['empEffect'] : []),
+    ...(specialAmmoVisible.length ? ['specialAmmoEffect'] : []),
+    ...(candidate.stages.acquisition ? ['acquisition'] : []),
+    ...(candidate.stages.expandedMap ? ['expandedMap'] : [])]
+    .map(name => ({ name, pass: passes[name], device: passes[name].device }));
+  const sharedDevice = passes.headMarkers.device;
+  if (!sharedDevice || passOwners.some(({ device }) => device !== sharedDevice))
+    throw new Error('WebGPU world candidate conditional pass device differs from shared renderer');
+  const assertPassesCurrent = () => {
+    candidate.assertCurrent();
+    if (passOwners.some(({ name, pass, device }) =>
+      passes[name] !== pass || pass.device !== device))
+      throw new Error('WebGPU world candidate pass or device changed during preparation');
+  };
+  const earlyStages = await prepareWebGPUMainAppEarlyScene(candidate.early, passes, textAtlas);
+  assertPassesCurrent();
+  const markerApi = window.DvaWebGPUHeadMarkers;
+  if (!markerApi?.plan || !markerApi.PROFILES ||
+      typeof passes.headMarkers?.record !== 'function')
+    throw new Error('WebGPU world candidate persistent head marker pass unavailable');
+  const head = candidate.headMarkers;
+  const markerDevice = tailResources.headMarkerDevice;
+  if (!markerDevice || !Number.isInteger(head?.generation) ||
+      head.generation !== state.roomSessionGeneration)
+    throw new Error('WebGPU world candidate head marker device or generation unavailable');
+  const markerViewport = { ...candidate.viewport, generation: head.generation };
+  const markerMaterials = tailResources.headMarkerMaterials || {};
+  const preparedMarkerScenes = new Map();
+  for (const [playerId, scene] of head.scenes) {
+    const activeState = { ...scene.activeState };
+    for (const candidateMarker of scene.presentation.nonCredits) {
+      if (candidateMarker.type !== 'persistent-status' ||
+          !activeState[candidateMarker.category]) continue;
+      const key = markerApi.PROFILES[candidateMarker.category]?.[0];
+      if (!key) throw new Error(`WebGPU world candidate head marker category unavailable: ${candidateMarker.category}`);
+      const source = state.textures?.[key];
+      // Match the Canvas source-readiness gate: a pending image is not yet a
+      // visible marker, but remains in the captured row selection.
+      if (!source?.complete || !(Number(source.naturalWidth) > 0)) {
+        activeState[candidateMarker.category] = false;
+        continue;
+      }
+      const material = markerMaterials[key];
+      if (!material?.ready || material.source !== source ||
+          material.device !== markerDevice || material.generation !== head.generation ||
+          material.premultipliedAlpha !== true ||
+          typeof material.texture?.createView !== 'function')
+        throw new Error(`WebGPU world candidate head marker material unavailable or stale: ${key}`);
+    }
+    for (const [key, needed] of [
+      ['fireMaterialTransport', activeState.burning &&
+        state.textures?.fireMaterialTransport?.complete],
+      ['aromaScentTransport', activeState.naturalRecovery && activeState.aroma &&
+        state.textures?.aromaScentTransport?.complete]
+    ]) {
+      if (!needed) continue;
+      const material = markerMaterials[key];
+      if (!material?.ready || material.source !== state.textures[key] ||
+          material.device !== markerDevice || material.generation !== head.generation ||
+          material.premultipliedAlpha !== true ||
+          typeof material.texture?.createView !== 'function')
+        throw new Error(`WebGPU world candidate head marker material unavailable or stale: ${key}`);
+    }
+    preparedMarkerScenes.set(playerId, { ...scene, activeState });
+  }
+  const plans = new Map();
+  const planForCommand = (command, index) => {
+    assertPassesCurrent();
+    if (tailResources.headMarkerDevice !== markerDevice ||
+        !command || String(command.playerId) !== String(head.scenes.get(String(command.playerId))?.player.id))
+      throw new Error('WebGPU world candidate head marker actor or device changed');
+    const scene = preparedMarkerScenes.get(String(command.playerId));
+    if (!scene) throw new Error(`WebGPU world candidate head marker actor missing: ${String(command.playerId)}`);
+    if (head.unsupported.length)
+      throw new Error('WebGPU world candidate visible head marker family unported');
+    const existing = plans.get(String(command.playerId));
+    if (existing) return { playerId: String(command.playerId), planned: existing,
+      unsupported: [] };
+    const planned = markerApi.plan({ actor: scene.actor,
+      presentation: scene.presentation, activeState: scene.activeState,
+      materials: markerMaterials, explanations: STATUS_MARKER_EXPLANATIONS,
+      now: head.now, reducedMotion: head.reducedMotion, generation: head.generation,
+      viewport: markerViewport, alpha: scene.alpha });
+    if (!Array.isArray(planned?.commands) || !Array.isArray(planned?.hitTargets))
+      throw new Error('WebGPU world candidate head marker plan unavailable');
+    if (planned.unsupported?.length)
+      throw new Error('WebGPU world candidate visible head marker family unported');
+    plans.set(String(command.playerId), planned);
+    return { playerId: String(command.playerId), planned, unsupported: [] };
+  };
+  const spriteCommands = candidate.stages.players.commands;
+  if (Array.isArray(spriteCommands)) spriteCommands.forEach((command, index) =>
+    planForCommand(command, index));
+  const playerMarkers = { ...candidate.stages.players,
+    markerGeneration: head.generation,
+    headMarkersForCommand({ command, index, viewport }) {
+      if (viewport?.generation !== head.generation ||
+          viewport.width !== candidate.viewport.width ||
+          viewport.height !== candidate.viewport.height ||
+          viewport.pixelWidth !== candidate.viewport.pixelWidth ||
+          viewport.pixelHeight !== candidate.viewport.pixelHeight ||
+          viewport.worldToLogical !== candidate.viewport.worldToLogical ||
+          viewport.logicalToPixel !== candidate.viewport.logicalToPixel)
+        throw new Error('WebGPU world candidate head marker viewport changed');
+      return planForCommand(command, index);
+    } };
+  const markerHitTargets = Array.isArray(spriteCommands)
+    ? spriteCommands.flatMap(command => plans.get(String(command.playerId))?.hitTargets || [])
+    : [];
+  const magicInput = candidate.stages.magicEffects;
+  if (!Array.isArray(magicInput?.markerCoverage?.visibleRetained) ||
+      magicInput.markerGeneration !== head.generation)
+    throw new Error('WebGPU world candidate retained marker coverage or generation unavailable');
+  const visibleRetained = new Map(magicInput.markerCoverage.visibleRetained.map(item =>
+    [String(item.effectId), item]));
+  const routedRetained = new Set();
+  const visibleEmp = new Map(empVisible.map(item =>
+    [String(item.effectId), item]));
+  if (visibleEmp.size !== empVisible.length)
+    throw new Error('WebGPU world candidate duplicate visible EMP source');
+  const routedEmp = new Set();
+  const visibleSpecialAmmo = new Map(specialAmmoVisible.map(item =>
+    [String(item.effectId), item]));
+  if (visibleSpecialAmmo.size !== specialAmmoVisible.length)
+    throw new Error('WebGPU world candidate duplicate visible special-ammo source');
+  const routedSpecialAmmo = new Set();
+  const magicEffects = { ...magicInput, events: magicInput.events.map(event => {
+    if (event.type === 'specialAmmoEffect') {
+      assertPassesCurrent();
+      const sourceId = String(event.effectId);
+      const input = event.input;
+      const claim = visibleSpecialAmmo.get(sourceId);
+      const effect = input?.effect;
+      if (!claim || routedSpecialAmmo.has(sourceId) ||
+          input.sourceEffectId !== sourceId ||
+          !state.magicEffects.includes(effect) ||
+          String(effect?.id) !== sourceId || effect.type !== claim.effectType ||
+          String(effect.variant || '').split(':')[0] !== claim.variant)
+        throw new Error(`WebGPU world candidate special-ammo source coverage changed: ${sourceId}`);
+      const planned = window.DvaWebGPUSpecialAmmoEffect?.plan?.({ effect,
+        now: magicInput.now, phase: magicInput.phase,
+        camera: candidate.camera, zoom: candidate.zoom,
+        viewport: candidate.viewport,
+        reducedMotion: magicInput.reducedMotion, alpha: 1 });
+      if (!planned || planned.effectId !== sourceId ||
+          planned.type !== claim.effectType || planned.variant !== claim.variant ||
+          !(planned.values instanceof Float32Array) ||
+          planned.values.length !== 16 || !planned.values.every(Number.isFinite) ||
+          !Number.isFinite(planned.progress) || planned.progress <= 0 ||
+          planned.progress >= 1)
+        throw new Error(`WebGPU world candidate special ammo did not plan visible source: ${sourceId}`);
+      routedSpecialAmmo.add(sourceId);
+      return { ...event, input: { ...input, planned } };
+    }
+    if (event.type === 'empEffect') {
+      assertPassesCurrent();
+      const sourceId = String(event.effectId);
+      const input = event.input;
+      const claim = visibleEmp.get(sourceId);
+      const effect = input?.effect;
+      if (!claim || routedEmp.has(sourceId) ||
+          input.sourceEffectId !== sourceId ||
+          !state.magicEffects.includes(effect) ||
+          String(effect?.id) !== sourceId || effect.type !== claim.effectType)
+        throw new Error(`WebGPU world candidate EMP source coverage changed: ${sourceId}`);
+      const planned = window.DvaWebGPUEmpEffect?.plan?.({ effect,
+        now: magicInput.now, phase: magicInput.phase,
+        camera: candidate.camera, zoom: candidate.zoom,
+        viewport: candidate.viewport,
+        reducedMotion: magicInput.reducedMotion, alpha: 1,
+        storageActor: input.storageActor });
+      if (!planned || planned.effectId !== sourceId ||
+          planned.type !== claim.effectType ||
+          !ArrayBuffer.isView(planned.values) ||
+          planned.values.BYTES_PER_ELEMENT !== 4 ||
+          planned.values.length !== 16 ||
+          !planned.values.every(Number.isFinite) ||
+          !Number.isFinite(planned.progress) ||
+          planned.progress <= 0 || planned.progress >= 1)
+        throw new Error(`WebGPU world candidate EMP did not plan visible source: ${sourceId}`);
+      routedEmp.add(sourceId);
+      return { ...event, input: { ...input, planned } };
+    }
+    if (event.type !== 'headMarker') return event;
+    const sourceId = String(event.effectId);
+    const claim = visibleRetained.get(sourceId);
+    const input = event.input;
+    const scene = preparedMarkerScenes.get(String(input?.playerId || ''));
+    const key = input?.effectType === 'enhance-activation'
+      ? 'enhanceHoldMarker' : 'fighterEnergyChargeEffect';
+    const source = state.textures?.[key];
+    const material = markerMaterials[key];
+    if (!claim || routedRetained.has(sourceId) || !scene ||
+        claim.effectType !== input.effectType ||
+        claim.instanceKey !== input.instanceKey ||
+        claim.playerId !== input.playerId ||
+        input.sourceEffectId !== sourceId ||
+        !state.magicEffects.includes(input.sourceEffect) ||
+        String(input.sourceEffect?.id) !== sourceId ||
+        !scene.presentation.nonCredits.includes(input.candidateMarker) ||
+        input.candidateMarker?.sourceEffect?.id !== input.instanceKey ||
+        !source?.complete || !(Number(source.naturalWidth) > 0) ||
+        !(Number(source.naturalHeight) > 0) ||
+        (key === 'enhanceHoldMarker' &&
+          (source.naturalWidth !== 434 || source.naturalHeight !== 1075)) ||
+        (key === 'fighterEnergyChargeEffect' &&
+          (source.naturalWidth !== 1254 || source.naturalHeight !== 1254)) ||
+        !material?.ready || material.source !== source ||
+        material.device !== markerDevice || material.generation !== head.generation ||
+        material.premultipliedAlpha !== true ||
+        typeof material.texture?.createView !== 'function')
+      throw new Error(`WebGPU world candidate retained marker material or source unavailable: ${sourceId}`);
+    if (input.effectType === 'enhance-activation' && !head.reducedMotion &&
+        head.now - input.candidateMarker.startedAt < 920 &&
+        state.textures?.enhancePropagationLight?.complete &&
+        state.textures.enhancePropagationLight.naturalWidth === 1688 &&
+        state.textures.enhancePropagationLight.naturalHeight === 1548) {
+      const propagation = markerMaterials.enhancePropagationLight;
+      if (!propagation?.ready ||
+          propagation.source !== state.textures.enhancePropagationLight ||
+          propagation.device !== markerDevice ||
+          propagation.generation !== head.generation ||
+          propagation.premultipliedAlpha !== true ||
+          typeof propagation.texture?.createView !== 'function')
+        throw new Error(`WebGPU world candidate retained enhance propagation unavailable: ${sourceId}`);
+    }
+    const planned = markerApi.plan({ actor: scene.actor,
+      presentation: scene.presentation, activeState: scene.activeState,
+      materials: markerMaterials, explanations: STATUS_MARKER_EXPLANATIONS,
+      now: head.now, reducedMotion: head.reducedMotion, generation: head.generation,
+      viewport: markerViewport, alpha: scene.alpha,
+      family: 'event', eventInstanceKey: input.instanceKey });
+    const expectedKey = `${input.effectType === 'enhance-activation'
+      ? 'enhance' : 'fighter-ec'}:${input.instanceKey}:${input.playerId}`;
+    if (!Array.isArray(planned?.unsupported) || planned.unsupported.length ||
+        !Array.isArray(planned?.commands) || !planned.commands.some(command =>
+          command.kind === input.effectType) ||
+        !Array.isArray(planned?.hitTargets) || planned.hitTargets.length !== 1 ||
+        planned.hitTargets[0].key !== expectedKey)
+      throw new Error(`WebGPU world candidate retained marker did not plan one exact hit: ${sourceId}`);
+    routedRetained.add(sourceId);
+    markerHitTargets.push(...planned.hitTargets);
+    return { ...event, input: { ...input, planned } };
+  }) };
+  if (routedRetained.size !== visibleRetained.size)
+    throw new Error('WebGPU world candidate visible retained marker was not source-routed');
+  if (routedEmp.size !== visibleEmp.size)
+    throw new Error('WebGPU world candidate visible EMP was not source-routed');
+  if (routedSpecialAmmo.size !== visibleSpecialAmmo.size)
+    throw new Error('WebGPU world candidate visible special ammo was not source-routed');
+  let killCamera = candidate.stages.killCamera;
+  if (killCamera.scene?.record) {
+    if (typeof passes.killCamera?.prepare !== 'function')
+      throw new Error('WebGPU world candidate needs killCamera.prepare for visible text');
+    killCamera = { ...killCamera,
+      preparedPlan: await passes.killCamera.prepare(killCamera) };
+    assertPassesCurrent();
+    if (!killCamera.preparedPlan?.drawn)
+      throw new Error('WebGPU world candidate kill camera material unavailable');
+  }
+  const taskLabels = window.DvaWebGPUTaskIndicators?.plan?.(
+    candidate.stages.taskIndicators);
+  if (!Array.isArray(taskLabels))
+    throw new Error('WebGPU world candidate task indicator plan unavailable');
+  if (taskLabels.length) {
+    await textAtlas.ensure(taskLabels.map(label => label.text).join('\n'));
+    assertPassesCurrent();
+  }
+  const minimapPlan = window.DvaWebGPUMinimap?.plan?.(
+    candidate.stages.minimap.scene, candidate.viewport);
+  if (!Array.isArray(minimapPlan?.shapes) || !minimapPlan.shapes.length)
+    throw new Error('WebGPU world candidate visible minimap geometry unavailable');
+  if (typeof passes.hud.prepare !== 'function')
+    throw new Error('WebGPU world candidate needs hud.prepare');
+  const hud = { ...candidate.stages.hud,
+    preparedPlan: await passes.hud.prepare(candidate.stages.hud) };
+  assertPassesCurrent();
+  if (['playing', 'meeting'].includes(candidate.stages.hud.data?.phase) &&
+      candidate.stages.hud.data?.self && !hud.preparedPlan?.drawn)
+    throw new Error('WebGPU world candidate visible HUD did not prepare');
+  const modeScene = candidate.stages.modeBanner.scene;
+  const modeMessage = window.DvaWebGPUModeBanner?.message?.(modeScene);
+  if (modeMessage === undefined)
+    throw new Error('WebGPU world candidate mode banner planner unavailable');
+  if (modeMessage) {
+    if (typeof passes.modeBanner.prepare !== 'function')
+      throw new Error('WebGPU world candidate needs modeBanner.prepare');
+    const prepared = await passes.modeBanner.prepare(modeScene, textAtlas);
+    assertPassesCurrent();
+    if (prepared !== true)
+      throw new Error('WebGPU world candidate visible mode banner did not prepare');
+  }
+  const killInput = candidate.stages.killAnimation;
+  const liveKills = killInput.effects.filter(effect =>
+    killInput.now - effect.startedAt >= 0);
+  const assets = tailResources.killAssets || {};
+  if (liveKills.length) {
+    const textureSources = state.textures || {};
+    const expected = {
+      filament: textureSources.worldKillFilamentAtlas,
+      residual: textureSources.worldKillResidual,
+      material: textureSources.killCutinPlatinumFrame,
+      whitePose: textureSources.whiteHoodCutinPoseAtlas,
+      bluePose: textureSources.blueDressCutinPoseAtlas,
+      whiteCutin: textureSources.killCutinMaster,
+      blueCutin: textureSources.blueDressKillCutin,
+      botPose: textureSources.botCutinPoseAtlas,
+      botIdle: textureSources.authoredCharacterMotion?.['male-bot']?.front?.walk,
+      legacyHumanAtlas: textureSources.killCutin60
+    };
+    for (const [name, asset] of Object.entries(assets)) {
+      if (!Object.prototype.hasOwnProperty.call(expected, name) ||
+          !asset?.texture || asset.source !== expected[name] ||
+          asset.width !== Number(asset.source?.naturalWidth || asset.source?.width) ||
+          asset.height !== Number(asset.source?.naturalHeight || asset.source?.height))
+        throw new Error(`WebGPU world candidate kill texture ${name} does not match its live source`);
+    }
+    const ready = (image, width, height) => Boolean(image?.complete &&
+      Number(image.naturalWidth) === width && Number(image.naturalHeight) === height);
+    if (ready(expected.filament, 2048, 1940) && !assets.filament)
+      throw new Error('WebGPU world candidate loaded kill filament has no GPU texture');
+    if (!ready(expected.filament, 2048, 1940) && !assets.residual)
+      throw new Error('WebGPU world candidate kill residual has no GPU texture');
+    const cutin = liveKills[liveKills.length - 1];
+    const bot = cutin.killerIsBot || cutin.killerSkinId === 'operator';
+    const blue = !bot && normalizeSkinId(cutin.killerSkinId) === 'blue-dress';
+    const poseKey = bot ? 'botPose' : blue ? 'bluePose' : 'whitePose';
+    const poseImage = expected[poseKey];
+    const poseWidth = bot ? 640 : blue ? 900 : 1100;
+    const poseHeight = bot ? 200 : blue ? 236 : 240;
+    if (ready(poseImage, poseWidth, poseHeight) && !assets[poseKey])
+      throw new Error(`WebGPU world candidate loaded kill ${poseKey} has no GPU texture`);
+  }
+  if (typeof passes.killAnimation.prepare !== 'function')
+    throw new Error('WebGPU world candidate needs killAnimation.prepare');
+  const killAnimation = { ...killInput,
+    preparedPlan: await passes.killAnimation.prepare({ ...killInput, assets,
+      bloomEncoder: tailResources.bloomEncoder,
+      residualRevision: tailResources.residualRevision }) };
+  assertPassesCurrent();
+  if (!Array.isArray(killAnimation.preparedPlan?.unsupported) ||
+      killAnimation.preparedPlan.unsupported.length ||
+      (liveKills.length && !killAnimation.preparedPlan.drawn) ||
+      killAnimation.preparedPlan.liveCount !== killInput.effects.length)
+    throw new Error('WebGPU world candidate kill variant or source coverage unavailable');
+  const sensoryScene = candidate.stages.sensory.scene;
+  const sensoryMessage = window.DvaWebGPUSensoryBlackout?.message?.(sensoryScene);
+  if (sensoryMessage === undefined)
+    throw new Error('WebGPU world candidate sensory planner unavailable');
+  if (sensoryMessage) {
+    if (typeof passes.sensory.prepare !== 'function' ||
+        await passes.sensory.prepare(sensoryScene, textAtlas) !== true)
+      throw new Error('WebGPU world candidate visible sensory text did not prepare');
+    assertPassesCurrent();
+  }
+  let markerInput = candidate.stages.markerExplanation;
+  if (candidate.markerPointer?.held) {
+    candidate.assertCurrent();
+    const pointer = candidate.markerPointer;
+    if (!Array.isArray(candidate.stages.players.commands) ||
+        !markerPointerOwnedByWebGPU(pointer.sample, pointer.point,
+          pointer.explanation, candidate.viewport))
+      throw new Error('WebGPU world candidate held marker pointer has no current frame owner');
+    const target = markerTargetAtWebGPU(pointer.point, markerHitTargets);
+    if (!target)
+      throw new Error('WebGPU world candidate held marker pointer has no prepared target');
+    const explanation = { key: target.key, title: target.title,
+      detail: target.detail, x: target.x, y: target.y,
+      startedAt: pointer.explanation.key === target.key
+        ? pointer.explanation.startedAt : pointer.now };
+    markerInput = { ...markerInput, scene:
+      markerExplanationWebGPUScene(explanation, target, pointer.now) };
+  }
+  if (typeof passes.markerExplanation.prepare !== 'function')
+    throw new Error('WebGPU world candidate needs markerExplanation.prepare');
+  const markerExplanation = { ...markerInput,
+    preparedPlan: await passes.markerExplanation.prepare(markerInput) };
+  assertPassesCurrent();
+  if (markerInput.scene && !markerExplanation.preparedPlan?.drawn &&
+      !markerExplanation.preparedPlan?.domFallback)
+    throw new Error('WebGPU world candidate visible marker explanation unavailable');
+  if (markerExplanation.preparedPlan?.domFallback &&
+      tailResources.markerDomFallbackReady !== true)
+    throw new Error('WebGPU world candidate marker DOM fallback owner unavailable');
+  let expandedMap = candidate.stages.expandedMap;
+  if (expandedMap) {
+    if (typeof passes.expandedMap?.prepare !== 'function' ||
+        typeof passes.expandedMap?.record !== 'function' ||
+        tailResources.expandedCanvas !== candidate.conditional.expandedMap.canvas ||
+        passes.expandedMap.canvas !== candidate.conditional.expandedMap.canvas ||
+        tailResources.expandedTarget !== passes.expandedMap.target ||
+        typeof passes.expandedMap.target !== 'string' ||
+        !passes.expandedMap.target)
+      throw new Error('WebGPU world candidate expanded-map shared target unavailable');
+    expandedMap = { ...expandedMap,
+      preparedPlan: await passes.expandedMap.prepare(expandedMap) };
+    assertPassesCurrent();
+    if (expandedMap.preparedPlan?.scene !== expandedMap.scene ||
+        expandedMap.preparedPlan?.viewport !== expandedMap.viewport)
+      throw new Error('WebGPU world candidate expanded map prepared a different scene');
+  }
+  const acquisitionInput = candidate.stages.acquisition;
+  let acquisition = acquisitionInput;
+  if (acquisitionInput) {
+    if (typeof passes.acquisition.prepare !== 'function' ||
+        !passes.acquisition.target ||
+        tailResources.acquisitionCanvas !== candidate.conditional.acquisition.canvas ||
+        tailResources.acquisitionTarget !== passes.acquisition.target ||
+        acquisitionInput.viewport?.kind !== 'acquisition')
+      throw new Error('WebGPU world candidate acquisition shared overlay target unavailable');
+    acquisition = { ...acquisitionInput,
+      preparedPlan: await passes.acquisition.prepare(acquisitionInput) };
+    assertPassesCurrent();
+    if (acquisition.preparedPlan?.viewport !== acquisitionInput.viewport ||
+        acquisition.preparedPlan?.drawFrame !== acquisitionInput.drawFrame)
+      throw new Error('WebGPU world candidate acquisition prepared a different overlay');
+  }
+  candidate.assertCurrent();
+  return { ...candidate, markerHitTargets, stages: Object.fromEntries(
+    Object.keys(candidate.stages).map(name =>
+      [name, Object.prototype.hasOwnProperty.call(earlyStages, name)
+        ? earlyStages[name] : name === 'players' ? playerMarkers :
+          name === 'killCamera' ? killCamera :
+            name === 'magicEffects' ? magicEffects :
+          name === 'hud' ? hud : name === 'killAnimation' ? killAnimation :
+          name === 'sensory' ? { ...candidate.stages.sensory, text: textAtlas } :
+          name === 'markerExplanation' ? markerExplanation :
+            name === 'expandedMap' ? expandedMap :
+              name === 'acquisition' ? acquisition : candidate.stages[name]])) };
+}
+// WEBGPU_MAIN_APP_COMBINED_WORLD_SNAPSHOT_V1_END
+
+function playMedicalRoomWebGPUCue(cue, data) {
+  if (!environmentSoundAvailable(data) || !cue) return;
+  const mix = environmentSoundMix(data, cue.x, cue.y);
+  if (!mix || mix.volume < .025) return;
+  const from = Number(cue.frequencyFrom ?? cue.frequency);
+  const to = Number(cue.frequencyTo ?? cue.frequency);
+  const duration = Number(cue.duration);
+  if (![from, to, duration].every(Number.isFinite) || from <= 0 || to <= 0 || duration <= 0)
+    return;
+  const gain = clamp(Number(cue.gain) || 0, 0, .025) * mix.volume;
+  if (gain <= .0001) return;
+  playTone(from, to, duration,
+    cue.waveform === "triangle" ? "triangle" : "sine", gain, 0, mix.pan, true);
+}
+
+function tickMedicalRoomWebGPUSfx(data, previousNow, now) {
+  if (!environmentSoundAvailable(data) ||
+      !Number.isFinite(previousNow) || !Number.isFinite(now) ||
+      previousNow < 0 || now <= previousNow || now - previousNow > 250)
+    return;
+  const listener = worldSoundListener(data);
+  if (!listener) return;
+  const audible = true;
+  const roomApi = window.DvaWebGPUMedicalEnvironmentE;
+  const fixtureApi = window.DvaWebGPUMedicalFixtureE;
+  const uploadApi = window.DvaWebGPUMedicalUploadConsoleE;
+  for (const cue of roomApi?.planSfx?.({ previousNow, now, mode: "balanced",
+      audible, listener }) || []) playMedicalRoomWebGPUCue(cue, data);
+  const player = selfPlayer();
+  if (player?.alive && !player.ejected && !player.inVent) {
+    for (const fixtureId of Object.keys(fixtureApi?.FIXTURES || {})) {
+      for (const cue of fixtureApi.planSfx({ fixtureId, player,
+          previousNow, now, audible, listener }))
+        playMedicalRoomWebGPUCue(cue, data);
+    }
+  }
+  for (const effect of state.magicEffects || []) {
+    if (effect?.type !== "action-task" || effect.mode !== "upload" ||
+        effect.targetId !== "upload-d") continue;
+    let cues = [];
+    try { cues = uploadApi?.planSfx?.({ completion: effect,
+      previousNow, now, audible, listener }) || []; }
+    catch (_) { /* The visual readiness gate owns malformed task events. */ }
+    for (const cue of cues) playMedicalRoomWebGPUCue(cue, data);
+  }
+}
+
+// Dormant bridge: the active Canvas draw loop never calls this factory. A
+// future cutover must supply all presentation surfaces and live GPU resources.
+function headMarkerMaterialKeysForWebGPUCandidate(candidate, textures) {
+  const head = candidate?.headMarkers;
+  const profiles = window.DvaWebGPUHeadMarkers?.PROFILES;
+  if (typeof head?.scenes?.values !== 'function' || !profiles ||
+      !Array.isArray(candidate?.stages?.magicEffects?.events))
+    throw new Error('Dormant WebGPU marker material selection needs the captured actor and event sources');
+  const keys = new Set();
+  for (const scene of head.scenes.values()) {
+    for (const marker of scene.presentation.nonCredits) {
+      if (marker.type !== 'persistent-status' ||
+          !scene.activeState[marker.category]) continue;
+      const key = profiles[marker.category]?.[0];
+      if (!key) throw new Error(`Dormant WebGPU marker material category unavailable: ${marker.category}`);
+      if (textures?.[key]?.complete && Number(textures[key].naturalWidth) > 0)
+        keys.add(key);
+    }
+    if (scene.activeState.burning && textures?.fireMaterialTransport?.complete)
+      keys.add('fireMaterialTransport');
+    if (scene.activeState.naturalRecovery && scene.activeState.aroma &&
+        textures?.aromaScentTransport?.complete)
+      keys.add('aromaScentTransport');
+  }
+  for (const event of candidate.stages.magicEffects.events) {
+    if (event.type !== 'headMarker') continue;
+    const key = event.input?.effectType === 'enhance-activation'
+      ? 'enhanceHoldMarker' : event.input?.effectType === 'fighter-energy-charge'
+        ? 'fighterEnergyChargeEffect' : null;
+    if (!key) throw new Error('Dormant WebGPU marker event material family unavailable');
+    keys.add(key);
+    const propagation = textures?.enhancePropagationLight;
+    if (key === 'enhanceHoldMarker' && !head.reducedMotion &&
+        head.now - event.input.candidateMarker?.startedAt < 920 &&
+        propagation?.complete && propagation.naturalWidth === 1688 &&
+        propagation.naturalHeight === 1548)
+      keys.add('enhancePropagationLight');
+  }
+  return [...keys];
+}
+
+async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
+  acquisitionCanvas, map, image, textAtlas, atlasMetrics, gpu,
+  headMarkerMaterials, killAssets = {}, markerDomFallbackReady = false,
+  bloomEncoder, residualRevision, modules, rendererApi,
+  textResourceOptions = {}, onFailure } = {}) {
+  const runtimeApi = window.DvaWebGPUMainRuntime;
+  const registryApi = window.DvaWebGPUMainPassRegistry;
+  const sceneApi = window.DvaWebGPUMainScene;
+  const textOwnerApi = window.DvaWebGPUMainTextResources;
+  const markerOwnerApi = window.DvaWebGPUHeadMarkerMaterials;
+  const ownsText = textAtlas === undefined && atlasMetrics === undefined;
+  const ownsMarkers = headMarkerMaterials === undefined;
+  if (!runtimeApi?.create || !registryApi?.create || !sceneApi?.create ||
+      mainCanvas !== els.webgpuMainCanvas || expandedCanvas !== els.expandedMapCanvas ||
+      !mainCanvas?.getContext || !expandedCanvas?.getContext ||
+      !acquisitionCanvas?.getContext ||
+      new Set([mainCanvas, expandedCanvas, acquisitionCanvas]).size !== 3 ||
+      !map || !image?.complete || !(image.naturalWidth > 0) ||
+      !(image.naturalHeight > 0) ||
+      (ownsText ? !textOwnerApi?.create :
+        !textAtlas?.ensure || !textAtlas?.layout ||
+        !Array.isArray(textAtlas.textures) ||
+        !Number.isFinite(atlasMetrics?.ascent) ||
+        !(atlasMetrics?.pixelSize > 0)) ||
+      (ownsMarkers ? !markerOwnerApi?.create :
+        !headMarkerMaterials || typeof headMarkerMaterials !== 'object') ||
+      !killAssets || typeof killAssets !== 'object' ||
+      typeof onFailure !== 'function')
+    throw new TypeError('Dormant WebGPU main driver needs three owned canvases, map image, atlas, marker resources and failure hook');
+  const target = 'main', expandedTarget = 'main-expanded-map';
+  const acquisitionTarget = 'main-acquisition-overlay';
+  let runtime, registry, scene, textOwner, markerOwner, destroyed = false;
+  let drawGeneration = 0;
+  let lastMedicalSfxFrameAt = null;
+  let notified = false;
+  const notify = error => {
+    if (notified) return;
+    notified = true;
+    try { onFailure(error); } catch (_) { /* Preserve the original failure. */ }
+  };
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    drawGeneration += 1;
+    try { scene?.destroy(); } finally {
+      try { registry?.destroy(); } finally {
+        try { markerOwner?.destroy(); } finally {
+          try { textOwner?.destroy(); } finally { runtime?.destroy(); }
+        }
+      }
+    }
+  };
+  try {
+    runtime = await runtimeApi.create({ canvas: mainCanvas, target, gpu,
+      ...(rendererApi ? { rendererApi } : {}), onFailure: notify });
+    if (runtime.state !== 'ready' || typeof runtime.requestFrame !== 'function' ||
+        !runtime.renderer?.device ||
+        runtime.device !== runtime.renderer.device)
+      throw new Error('Dormant WebGPU main runtime did not own one ready device');
+    if (ownsText) {
+      textOwner = await textOwnerApi.create({ ...textResourceOptions,
+        device: runtime.device });
+      if (textOwner?.device !== runtime.device)
+        throw new Error('Dormant WebGPU text resource owner device differs');
+      textAtlas = textOwner.textAtlas;
+      atlasMetrics = textOwner.atlasMetrics;
+    }
+    if (ownsMarkers) {
+      markerOwner = markerOwnerApi.create({ device: runtime.device });
+      if (markerOwner?.device !== runtime.device ||
+          typeof markerOwner.prepare !== 'function')
+        throw new Error('Dormant WebGPU marker material owner device differs');
+    }
+    if (!textAtlas?.ensure || !textAtlas?.layout ||
+        !Array.isArray(textAtlas.textures) ||
+        !Number.isFinite(atlasMetrics?.ascent) ||
+        !(atlasMetrics?.pixelSize > 0))
+      throw new Error('Dormant WebGPU main text resources incomplete');
+    registry = await registryApi.create({ renderer: runtime.renderer,
+      map, image, textAtlas, atlasMetrics, expandedCanvas, expandedTarget,
+      acquisitionCanvas, acquisitionTarget,
+      ...(modules ? { modules } : {}) });
+    if (registry.device !== runtime.device ||
+        registry.passes.expandedMap?.canvas !== expandedCanvas ||
+        registry.passes.expandedMap?.target !== expandedTarget ||
+        registry.passes.acquisition?.target !== acquisitionTarget)
+      throw new Error('Dormant WebGPU main registry target or device owner differs');
+    registry.assertFullFrameReady();
+    scene = sceneApi.create({ renderer: runtime.renderer,
+      passes: registry.passes });
+    if (scene.device !== runtime.device)
+      throw new Error('Dormant WebGPU main scene device differs');
+  } catch (error) {
+    notify(error);
+    try { destroy(); } catch (_) { /* Preserve creation failure. */ }
+    throw error;
+  }
+  return Object.freeze({
+    get state() { return destroyed ? 'destroyed' : runtime.state; },
+    get device() { return runtime.device; },
+    async draw({ data = state.data, sample, rect, dpr = 1, camera,
+      shapeProviders = {} } = {}) {
+      const requestGeneration = ++drawGeneration;
+      if (destroyed || runtime.state !== 'ready')
+        return Object.freeze({ drawn: false, reason: destroyed ? 'destroyed' : runtime.state });
+      // Hidden frames still reach the scheduler so it cancels active work and
+      // prevents a late frame from publishing marker hit targets.
+      if (sample?.hidden) {
+        const hidden = await runtime.requestFrame({ sample, rect, dpr, camera }, { hidden: true });
+        return Object.freeze({ drawn: false, reason: hidden.status || 'hidden' });
+      }
+      const currentRect = mainCanvas.getBoundingClientRect();
+      if (destroyed || runtime.state !== 'ready' ||
+          data !== state.data || !camera ||
+          ![camera.x, camera.y, camera.zoom].every(Number.isFinite) ||
+          camera.zoom <= 0 ||
+          !rect || ['left', 'top', 'width', 'height'].some(key =>
+            !Number.isFinite(rect[key]) || rect[key] !== currentRect[key]))
+        throw new Error('Dormant WebGPU main driver draw needs the current world and canvas geometry');
+      const providers = { ...shapeProviders, expandedCanvas,
+        acquisitionCanvas };
+      try {
+        const scheduled = await runtime.requestFrame({ sample, rect, dpr, camera,
+          recordClears: true,
+          prepare: async ({ viewport, device, renderer, target: frameTarget }) => {
+            if (device !== registry.device || renderer !== runtime.renderer ||
+                frameTarget !== target)
+              throw new Error('Dormant WebGPU main prepare crossed a device or target');
+            const captured = captureWebGPUMainAppWorldCandidate(data,
+              viewport, providers);
+            if (captured.blocked || captured.remainingStages.some(name =>
+              sceneApi.REQUIRED.includes(name)))
+              throw new Error('Dormant WebGPU main capture has visible or mandatory gaps');
+            const currentMarkerMaterials = markerOwner
+              ? markerOwner.prepare({ textures: state.textures,
+                keys: headMarkerMaterialKeysForWebGPUCandidate(
+                  captured, state.textures),
+                generation: captured.headMarkers.generation })
+              : headMarkerMaterials;
+            captured.assertCurrent();
+            const candidate = await prepareWebGPUMainAppWorldCandidate(
+              captured, registry.passes, textAtlas, {
+                headMarkerDevice: device,
+                headMarkerMaterials: currentMarkerMaterials, killAssets,
+                markerDomFallbackReady, bloomEncoder, residualRevision,
+                expandedCanvas, expandedTarget,
+                acquisitionCanvas, acquisitionTarget });
+            captured.assertCurrent();
+            if (candidate.viewport !== viewport ||
+                candidate.camera.x !== camera.x ||
+                candidate.camera.y !== camera.y ||
+                candidate.zoom !== camera.zoom ||
+                candidate.remainingStages.some(name =>
+                  sceneApi.REQUIRED.includes(name)))
+              throw new Error('Dormant WebGPU main prepared a different world or incomplete frame');
+            const prepared = scene.prepare({ stages: candidate.stages, device });
+            return { candidate, scene: prepared, release: () => prepared.release() };
+          },
+          record: ({ frame, target: frameTarget, viewport, renderer,
+            prepared }) => {
+            prepared.candidate.assertCurrent();
+            if (frameTarget !== target || renderer !== runtime.renderer ||
+                prepared.candidate.viewport !== viewport)
+              throw new Error('Dormant WebGPU main record crossed its prepared frame');
+            const result = scene.record({ frame, target: frameTarget,
+              viewport, renderer, prepared: prepared.scene });
+            const expected = prepared.candidate.markerHitTargets;
+            if (!Array.isArray(result.markerHitTargets) ||
+                result.markerHitTargets.length !== expected.length ||
+                result.markerHitTargets.some((hit, index) => hit !== expected[index]))
+              throw new Error('Dormant WebGPU main marker hits differ from the prepared frame');
+            return result;
+          } });
+        if (scheduled.status === 'error') throw scheduled.error;
+        if (scheduled.status !== 'completed')
+          return Object.freeze({ drawn: false, reason: scheduled.status });
+        const outcome = scheduled.value;
+        if (!outcome || typeof outcome.drawn !== 'boolean')
+          throw new Error('Dormant WebGPU main scheduler returned an invalid frame result');
+        if (requestGeneration !== drawGeneration || destroyed)
+          return Object.freeze({ drawn: false, reason: destroyed ? 'destroyed' : 'superseded' });
+        if (!outcome.drawn) return outcome;
+        const submittedHits = outcome.recordResult?.markerHitTargets;
+        if (!Array.isArray(submittedHits))
+          throw new Error('Dormant WebGPU main submitted without marker hit targets');
+        if (data?.map?.id === 'station' &&
+            (data.map.objects || []).some(object => object.room === 'medical' &&
+              object.effectKind === 'footBath')) {
+          const now = state.frameNow || performance.now();
+          tickMedicalRoomWebGPUSfx(data, lastMedicalSfxFrameAt ?? now, now);
+          lastMedicalSfxFrameAt = now;
+        }
+        return Object.freeze({ ...outcome, markerHitTargets: submittedHits });
+      } catch (error) {
+        notify(error);
+        try { destroy(); } catch (_) { /* Preserve draw failure. */ }
+        throw error;
+      }
+    },
+    suspend() {
+      drawGeneration += 1;
+      lastMedicalSfxFrameAt = null;
+      runtime.suspend();
+    },
+    resume() { return runtime.resume(); },
+    destroy
+  });
 }
 
 function drawBotWalkSprite(player, data, ghost) {
@@ -27008,13 +29478,14 @@ function drawPetSprite(player, data, ghost) {
   const skinWalkSource = state.textures.playerWalkAtlases?.[skinId];
   const skinWalkAtlas = skinWalkSource ? transparentSpriteSource(skinWalkSource, `skinWalk60-${skinId}`, 12) : null;
   if (skinWalkAtlas) {
-    drawBlendedWalkFrame(skinWalkAtlas, direction, frame, -47, -63, 94, 94);
-    drawNameplate(player, ghost, -78);
-    return true;
+    if (drawBlendedWalkFrame(skinWalkAtlas, direction, frame, -47, -63, 94, 94)) {
+      drawNameplate(player, ghost, -78);
+      return true;
+    }
   }
   const atlas = transparentSpriteSource(state.textures.playerWalk60, "playerWalk60", 24);
   if (!atlas) return false;
-  drawBlendedWalkFrame(atlas, direction, frame, -47, -63, 94, 94);
+  if (!drawBlendedWalkFrame(atlas, direction, frame, -47, -63, 94, 94)) return false;
   drawNameplate(player, ghost, -78);
   return true;
 }
@@ -27037,6 +29508,17 @@ function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(playe
     stepBucket: -1,
     lastStepAt: 0
   };
+  const frameOwner = animation.frameOwner;
+  if (frameOwner && Number.isFinite(state.frameNow) && state.frameNow > 0 &&
+      frameOwner.frame === state.frameNow &&
+      frameOwner.generation === state.roomSessionGeneration) {
+    if (frameOwner.data !== state.data)
+      throw new Error('Actor gait changed data inside one frame');
+    return animation.frame;
+  }
+  if (frameOwner && frameOwner.generation === state.roomSessionGeneration &&
+      Number.isFinite(state.frameNow) && state.frameNow < frameOwner.frame)
+    throw new Error('Actor gait frame moved backward inside one session');
   if (moving) {
     if (!animation.moving) {
       animation.frame = 0;
@@ -27078,6 +29560,9 @@ function walkAnimationFrame(player, motion, requestedMode = walkMotionMode(playe
   animation.x = player.x;
   animation.y = player.y;
   animation.lastAt = now;
+  animation.frameOwner = Number.isFinite(state.frameNow) && state.frameNow > 0
+    ? { frame: state.frameNow, generation: state.roomSessionGeneration, data: state.data }
+    : null;
   state.walkAnimations.set(player.id, animation);
   return animation.frame;
 }
@@ -27167,74 +29652,86 @@ function drawMinimalWalkFrame(atlas, key, direction, frame, moving, movementMode
 }
 
 function drawBlendedWalkFrame(atlas, direction, frame, x, y, width, height) {
+  const anchors = playerWalkAnchors(atlas);
+  if (!anchors) return false;
+  const directionIndex = typeof direction === "string"
+    ? { front: 0, left: 1, right: 2, back: 3 }[direction]
+    : direction;
+  if (!Number.isInteger(directionIndex) || directionIndex < 0 || directionIndex > 3) {
+    throw new RangeError("Walk direction is outside the atlas");
+  }
   const index = Math.floor(frame) % 60;
   const cellWidth = spriteWidth(atlas) / 20;
   const cellHeight = spriteHeight(atlas) / 12;
-  const anchor = playerWalkAnchors(atlas)[direction * 60 + index] || { x: 0, y: 0 };
+  const anchor = anchors[directionIndex * 60 + index];
   drawAtlasCell(
     atlas,
     20,
     12,
     index % 20,
-    direction * 3 + Math.floor(index / 20),
+    directionIndex * 3 + Math.floor(index / 20),
     x + anchor.x * (width / cellWidth),
     y + anchor.y * (height / cellHeight),
     width,
     height
   );
+  return true;
 }
 
+const PLAYER_WALK_60_SHA256 = "beb2d2afb7337f559ef146b540b3c6b6b7ff4784d36a359f49f8cf689da0deed";
+const PLAYER_WALK_60_METADATA_SHA256 = "c44e4c878753b9bfb57f391ad52cb7ae53cd4351c7f5de55681564b2513d2381";
+let playerWalkAnchorRegistration = null;
+
 function playerWalkAnchors(atlas) {
-  const key = atlas;
-  const cached = state.textures.spriteMetadata.get(key);
+  const cached = state.textures.spriteMetadata.get(atlas);
   if (cached) return cached;
-  const columns = 20;
-  const rows = 12;
-  const cellWidth = Math.floor(spriteWidth(atlas) / columns);
-  const cellHeight = Math.floor(spriteHeight(atlas) / rows);
-  const canvas = document.createElement("canvas");
-  canvas.width = spriteWidth(atlas);
-  canvas.height = spriteHeight(atlas);
-  const local = canvas.getContext("2d", { willReadFrequently: true });
-  local.drawImage(atlas, 0, 0);
-  const pixels = local.getImageData(0, 0, canvas.width, canvas.height).data;
-  const measurements = [];
-
-  for (let direction = 0; direction < 4; direction += 1) {
-    for (let frame = 0; frame < 60; frame += 1) {
-      const column = frame % columns;
-      const row = direction * 3 + Math.floor(frame / columns);
-      let topWeight = 0;
-      let topX = 0;
-      let bottom = 0;
-      for (let localY = 0; localY < cellHeight; localY += 2) {
-        for (let localX = 0; localX < cellWidth; localX += 2) {
-          const pixel = ((row * cellHeight + localY) * canvas.width + column * cellWidth + localX) * 4;
-          const alpha = pixels[pixel + 3];
-          if (alpha <= 24) continue;
-          bottom = Math.max(bottom, localY);
-          if (localY <= cellHeight * 0.56) {
-            topWeight += alpha;
-            topX += localX * alpha;
-          }
-        }
-      }
-      measurements.push({ x: topWeight ? topX / topWeight : cellWidth / 2, bottom });
-    }
+  // This atlas already has authored, pixel-derived measurements. A different
+  // atlas needs its own verified metadata; zero offsets would change its gait.
+  if (atlas !== state.textures.playerWalk60) {
+    throw new Error("Walk atlas has no verified foot-anchor metadata");
   }
+  if (!playerWalkAnchorRegistration) {
+    playerWalkAnchorRegistration = registerPlayerWalkAnchors(atlas).catch((error) => {
+      console.error("Walk atlas foot anchors unavailable:", error);
+      return null;
+    });
+  }
+  return null;
+}
 
+async function registerPlayerWalkAnchors(atlas) {
+  const metadataUrl = assetUrl("assets/player-walk-60-webgpu-metadata-v1.json");
+  const [metadataResponse, imageResponse] = await Promise.all([fetch(metadataUrl), fetch(atlas.src)]);
+  if (!metadataResponse.ok || !imageResponse.ok) throw new Error("Walk atlas metadata or image failed to load");
+  const [metadataBytes, imageBytes] = await Promise.all([metadataResponse.arrayBuffer(), imageResponse.arrayBuffer()]);
+  const hex = (digest) => Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const [metadataSha256, sha256] = await Promise.all([
+    crypto.subtle.digest("SHA-256", metadataBytes).then(hex),
+    crypto.subtle.digest("SHA-256", imageBytes).then(hex)
+  ]);
+  if (metadataSha256 !== PLAYER_WALK_60_METADATA_SHA256) {
+    throw new Error("Walk atlas metadata bytes do not match the registered source");
+  }
+  const metadata = JSON.parse(new TextDecoder().decode(metadataBytes));
+  const valid = metadata.schemaVersion === 1 &&
+    metadata.runtimeAssetPath === "assets/player-walk-60.webp" &&
+    metadata.runtimeSha256 === PLAYER_WALK_60_SHA256 && sha256 === PLAYER_WALK_60_SHA256 &&
+    metadata.columns === 20 && metadata.rows === 12 &&
+    metadata.size?.[0] === spriteWidth(atlas) && metadata.size?.[1] === spriteHeight(atlas) &&
+    metadata.size[0] === 2560 && metadata.size[1] === 1536 &&
+    Array.isArray(metadata.walkMeasurements) && metadata.walkMeasurements.length === 240 &&
+    metadata.walkMeasurements.every((item) => Number.isFinite(item?.topX) &&
+      item.topX >= 0 && item.topX < 128 && Number.isInteger(item?.bottom) &&
+      item.bottom >= 0 && item.bottom < 128);
+  if (!valid) throw new Error("Walk atlas bytes, dimensions, or measurements do not match the registered source");
   const anchors = [];
   for (let direction = 0; direction < 4; direction += 1) {
-    const start = direction * 60;
-    const frames = measurements.slice(start, start + 60);
-    const referenceX = median(frames.map((item) => item.x));
+    const frames = metadata.walkMeasurements.slice(direction * 60, direction * 60 + 60);
+    const referenceX = median(frames.map((item) => item.topX));
     const referenceBottom = median(frames.map((item) => item.bottom));
-    frames.forEach((item) => anchors.push({
-      x: referenceX - item.x,
-      y: referenceBottom - item.bottom
-    }));
+    frames.forEach((item) => anchors.push({ x: referenceX - item.topX, y: referenceBottom - item.bottom }));
   }
-  state.textures.spriteMetadata.set(key, anchors);
+  state.textures.spriteMetadata.set(atlas, anchors);
   return anchors;
 }
 
@@ -27313,6 +29810,9 @@ function drawOperatorSprite(player, data, ghost) {
 }
 
 function drawNameplate(player, ghost, y) {
+  ctx.save();
+  registerPreparationPlayerCanvasTargets(player, y, 0, { bodyScaleActive: true, skinOnly: true });
+  cancelCharacterBodyVisualScaleAtY(y);
   ctx.font = "800 10px Segoe UI, sans-serif";
   const identityLabel = playerIdentityLabel(player).slice(0, 14);
   const nameplateWidth = Math.min(92, Math.max(44, ctx.measureText(identityLabel).width + 12));
@@ -27327,7 +29827,8 @@ function drawNameplate(player, ghost, y) {
   ctx.fillText(identityLabel, 0, y + 7);
   // This runs under the exact sprite/nameplate transform, including the
   // preparation descent, settle scale, camera and canvas scaling.
-  registerPreparationPlayerCanvasTargets(player, y, nameplateWidth);
+  registerPreparationPlayerCanvasTargets(player, y, nameplateWidth, { nameOnly: true });
+  ctx.restore();
 }
 
 function motionFor(player, data) {
@@ -27956,17 +30457,11 @@ function drawKillCutin(effect, w, h) {
   ctx.restore();
 }
 
-function preparedKillCutinSprite(image, key) {
+function preparedKillCutinSprite(image) {
   if (!image?.complete || !image.naturalWidth) return null;
-  const cache = state.textures.preparedKillCutins || (state.textures.preparedKillCutins = new Map());
-  const cached = cache.get(key);
-  if (cached?.source === image) return cached.canvas;
-  const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
-  canvas.getContext("2d").drawImage(image, 0, 0);
-  cache.set(key, { source: image, canvas });
-  return canvas;
+  // The loaded image is already a drawable source. Copying it through a 2D
+  // canvas changed no pixels and created an unnecessary renderer dependency.
+  return image;
 }
 
 const HUMAN_CUTIN_PHASE_TIMES=Object.freeze([.12,.27,.43,.61,.82]);
@@ -27975,7 +30470,7 @@ function authoredHumanCutinAtlas(skin){const identity=normalizeSkinId(skin)==='b
 function drawCutinPet(x,y,frame,skinId='hood',age=0,duration=1000,reduced=false){if(ctx.globalAlpha<=0||!(duration>0)||age<0||age>=duration)return;const authored=authoredHumanCutinAtlas(skinId);if(authored){const phase=humanCutinPosePhase(age,duration,reduced),{atlas,cell}=authored;ctx.drawImage(atlas,phase*cell.w,0,cell.w,cell.h,x+110-cell.w/2,y+220-cell.feet,cell.w,cell.h);return;}
 
   if (normalizeSkinId(skinId) === "blue-dress") {
-    const sprite = preparedKillCutinSprite(state.textures.blueDressKillCutin, "blue-dress");
+    const sprite = preparedKillCutinSprite(state.textures.blueDressKillCutin);
     if (sprite) {
       const phase = clamp(frame, 0, 59) / 59;
       const impact = Math.sin(Math.min(1, phase * 1.7) * Math.PI / 2);
@@ -27992,7 +30487,7 @@ function drawCutinPet(x,y,frame,skinId='hood',age=0,duration=1000,reduced=false)
       return;
     }
   }
-  const master = preparedKillCutinSprite(state.textures.killCutinMaster, "white-hood");
+  const master = preparedKillCutinSprite(state.textures.killCutinMaster);
   if (master) {
     const sprite = master;
     if (!sprite) return;
@@ -28068,6 +30563,22 @@ function drawScreenLightning(x1, y1, x2, y2, seed = 0) {
   ctx.lineTo(x2, y2);
   ctx.stroke();
   ctx.restore();
+}
+
+// Snapshot the values that the main WebGPU HUD cannot derive from game data.
+// Its hit rectangles must be copied back to state in the same committed frame
+// so acquisition photons still reach the glyph that was actually displayed.
+function hudWebGPUScene(data, w, h) {
+  const self = data?.self || {};
+  return {
+    now: estimatedServerNow(data),
+    mana: displayedManaValue(self.mana),
+    fighterAccess: hasDisplayedOperatorAccess(self, "fighter"),
+    canvasCssWidth: fieldCanvasCssWidth || w,
+    canvasCssHeight: fieldCanvasCssHeight || h,
+    soloMissionHudOverlapCss: Math.max(0, soloMissionHudCssBottom - fieldCanvasCssTop),
+    tabletOpen: state.tabletOpen
+  };
 }
 
 function drawHud(data, w, h) {
@@ -28291,6 +30802,26 @@ function drawHud(data, w, h) {
   ctx.restore();
 }
 
+// Dormant scene adapter for DvaWebGPUMinimap. The shared frame driver owns
+// the main target and committed viewport; input keeps minimapCanvasBounds.
+function minimapWebGPUScene(data, w) {
+  return {
+    bounds: minimapCanvasBounds(w),
+    map: {
+      ...data.map,
+      corridorAreas: data.map.corridors.flatMap((corridor) => corridorRenderSegments(corridor))
+    },
+    selfId: data.selfId,
+    tasks: data.self.tasks || [],
+    bodies: data.bodies,
+    worldSoundEffects: state.worldSoundEffects,
+    now: state.frameNow || performance.now(),
+    hackTracking: data.self.hackTracking,
+    hackEffective: data.self.hackEffective,
+    players: data.players
+  };
+}
+
 function drawMinimap(data, w, h) {
   const map = data.map;
   const bounds = minimapCanvasBounds(w);
@@ -28374,151 +30905,105 @@ function currentAreaLabel(data = state.data) {
 }
 
 function expandedMapLayout(data) {
-  const canvas = els.expandedMapCanvas;
   const padding = 38;
   const scale = Math.min(
-    (canvas.width - padding * 2) / data.map.width,
-    (canvas.height - padding * 2) / data.map.height
+    (EXPANDED_MAP_LOGICAL_SIZE[0] - padding * 2) / data.map.width,
+    (EXPANDED_MAP_LOGICAL_SIZE[1] - padding * 2) / data.map.height
   );
   return {
     scale,
-    ox: (canvas.width - data.map.width * scale) / 2,
-    oy: (canvas.height - data.map.height * scale) / 2
+    ox: (EXPANDED_MAP_LOGICAL_SIZE[0] - data.map.width * scale) / 2,
+    oy: (EXPANDED_MAP_LOGICAL_SIZE[1] - data.map.height * scale) / 2
   };
 }
 
-function drawExpandedMap(data) {
-  const canvas = els.expandedMapCanvas;
-  const map = data.map;
-  const { scale, ox, oy } = expandedMapLayout(data);
-  mapCtx.clearRect(0, 0, canvas.width, canvas.height);
-  mapCtx.fillStyle = "#d7e3e9";
-  mapCtx.fillRect(0, 0, canvas.width, canvas.height);
-
-  mapCtx.save();
-  mapCtx.translate(ox, oy);
-  mapCtx.scale(scale, scale);
-  mapCtx.lineJoin = "round";
-
-  mapCtx.fillStyle = "#a8bbc5";
-  map.corridors.flatMap((corridor) => corridorRenderSegments(corridor))
-    .forEach((rect) => mapCtx.fillRect(rect.x, rect.y, rect.w, rect.h));
-  mapCtx.fillStyle = "#758e9d";
-  mapCtx.strokeStyle = "#425968";
-  mapCtx.lineWidth = 8;
-  map.rooms.forEach((room) => {
-    mapCtx.fillRect(room.x, room.y, room.w, room.h);
-    mapCtx.strokeRect(room.x, room.y, room.w, room.h);
-  });
-
-  mapCtx.fillStyle = "#294454";
-  mapCtx.font = "800 54px Segoe UI, sans-serif";
-  mapCtx.textAlign = "center";
-  mapCtx.textBaseline = "middle";
-  map.rooms.forEach((room) => {
-    mapCtx.fillText(room.label, room.x + room.w / 2, room.y + room.h / 2);
-  });
-
-  mapCtx.fillStyle = "#12a594";
-  (data.self.tasks || []).filter((task) => !task.done).forEach((task) => {
-    const station = map.stations.find((item) => item.id === task.stationId);
-    if (!station) return;
-    mapCtx.beginPath();
-    mapCtx.arc(station.x, station.y, 34, 0, Math.PI * 2);
-    mapCtx.fill();
-  });
-
-
-  mapCtx.fillStyle = "#a31625";
-  data.bodies.forEach((body) => {
-    mapCtx.fillRect(body.x - 22, body.y - 22, 44, 44);
-  });
-
-  state.worldSoundEffects.forEach((effect) => {
-    const progress = clamp(((state.frameNow || performance.now()) - effect.startedAt) / effect.duration, 0, 1);
-    mapCtx.strokeStyle = `rgba(220,38,38,${1 - progress})`;
-    mapCtx.lineWidth = 12;
-    mapCtx.beginPath();
-    mapCtx.arc(effect.x, effect.y, 60 + progress * 130, 0, Math.PI * 2);
-    mapCtx.stroke();
-    mapCtx.fillStyle = `rgba(220,38,38,${0.95 - progress * 0.55})`;
-    mapCtx.beginPath();
-    mapCtx.arc(effect.x, effect.y, 34, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.fillStyle = "#7f1d1d";
-    mapCtx.font = "900 42px Segoe UI, sans-serif";
-    mapCtx.textAlign = "center";
-    mapCtx.fillText("心臓転移", effect.x, effect.y - 62);
-  });
-  if (data.self.hackTracking || data.self.hackEffective) {
-    data.players.filter((player) => player.id !== data.selfId && player.alive && !player.ejected).forEach((player) => {
-      const position = renderedPlayer(player);
-      mapCtx.fillStyle = player.role === "attacker" ? "#fb7185" : "#38bdf8";
-      mapCtx.strokeStyle = "#f8fafc";
-      mapCtx.lineWidth = 10;
-      mapCtx.beginPath();
-      mapCtx.arc(position.x, position.y, 30, 0, Math.PI * 2);
-      mapCtx.fill();
-      mapCtx.stroke();
-      mapCtx.fillStyle = "#102331";
-      mapCtx.font = "900 28px Segoe UI, sans-serif";
-      mapCtx.fillText(playerIdentityLabel(player), position.x, position.y - 48);
-    });
-  }
-
-  data.players.filter((player) => player.id === data.selfId).forEach((player) => {
-    if (player.ejected) return;
-    const position = renderedPlayer(player);
-    const pulse = 0.5 + 0.5 * Math.sin((state.frameNow || performance.now()) / 180);
-    mapCtx.strokeStyle = `rgba(255,255,255,${0.8 - pulse * 0.28})`;
-    mapCtx.lineWidth = 13;
-    mapCtx.beginPath();
-    mapCtx.arc(position.x, position.y, 54 + pulse * 22, 0, Math.PI * 2);
-    mapCtx.stroke();
-    mapCtx.fillStyle = "#fef08a";
-    mapCtx.strokeStyle = "#0e7490";
-    mapCtx.lineWidth = 14;
-    mapCtx.beginPath();
-    mapCtx.arc(position.x, position.y, 38, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.stroke();
-    const directionX = Number(data.self.aimX) || 0;
-    const directionY = Number(data.self.aimY) || 1;
-    const directionLength = Math.hypot(directionX, directionY) || 1;
-    const nx = directionX / directionLength;
-    const ny = directionY / directionLength;
-    mapCtx.fillStyle = "#0e7490";
-    mapCtx.beginPath();
-    mapCtx.moveTo(position.x + nx * 67, position.y + ny * 67);
-    mapCtx.lineTo(position.x + ny * 22 - nx * 18, position.y - nx * 22 - ny * 18);
-    mapCtx.lineTo(position.x - ny * 22 - nx * 18, position.y + nx * 22 - ny * 18);
-    mapCtx.closePath();
-    mapCtx.fill();
-    mapCtx.fillStyle = "#102331";
-    mapCtx.font = "900 36px Segoe UI, sans-serif";
-    mapCtx.textAlign = "center";
-    mapCtx.fillText("現在地", position.x, position.y - 82);
-  });
-
-  if ((state.teleportTargeting || state.instantWarpTargeting) && state.mapPointer) {
-    const point = state.mapPointer;
-    mapCtx.strokeStyle = point.valid ? "#10b981" : "#ef4444";
-    mapCtx.fillStyle = point.valid ? "rgba(16,185,129,0.18)" : "rgba(239,68,68,0.18)";
-    mapCtx.lineWidth = 11;
-    mapCtx.beginPath();
-    mapCtx.arc(point.x, point.y, 58, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.stroke();
-    mapCtx.beginPath();
-    mapCtx.moveTo(point.x - 82, point.y);
-    mapCtx.lineTo(point.x + 82, point.y);
-    mapCtx.moveTo(point.x, point.y - 82);
-    mapCtx.lineTo(point.x, point.y + 82);
-    mapCtx.stroke();
-  }
-
-  mapCtx.restore();
+// Current expanded-map scene adapter. Its WebGPU runtime owns presentation;
+// keeping this beside expandedMapLayout preserves pointer/world geometry.
+function expandedMapWebGPUScene(data) {
+  return {
+    map: data.map,
+    selfId: data.selfId,
+    tasks: data.self.tasks || [],
+    bodies: data.bodies,
+    worldSoundEffects: state.worldSoundEffects,
+    now: state.frameNow || performance.now(),
+    hackTracking: data.self.hackTracking,
+    hackEffective: data.self.hackEffective,
+    aimX: data.self.aimX,
+    aimY: data.self.aimY,
+    players: data.players.map((player) => ({
+      ...renderedPlayer(player),
+      label: playerIdentityLabel(player)
+    })),
+    targeting: state.teleportTargeting || state.instantWarpTargeting,
+    mapPointer: state.mapPointer
+  };
 }
+
+function failExpandedMapGpu(error) {
+  if (expandedMapGpuFailed || expandedMapGpuPageHidden) return;
+  expandedMapGpuFailed = true;
+  document.body.dataset.expandedMapError = error?.message || String(error);
+  console.error("WebGPU expanded map failed", error);
+  showToast("拡大マップの WebGPU 描画を利用できません");
+  try { expandedMapGpuRuntime?.destroy(); } catch (_) {}
+  expandedMapGpuRuntime = null;
+}
+
+function drawExpandedMap(data) {
+  if (expandedMapGpuFailed || expandedMapGpuPageHidden || expandedMapGpuDrawing) return;
+  if (!expandedMapGpuRuntime) {
+    if (!expandedMapGpuPending) {
+      const api = window.DvaWebGPUExpandedRuntime;
+      if (!api?.create || !navigator.gpu || !window.isSecureContext) {
+        failExpandedMapGpu(new Error("WebGPU unavailable"));
+        return;
+      }
+      const epoch = expandedMapGpuEpoch;
+      const pending = api.create({
+        canvas: els.expandedMapCanvas,
+        onFailure: error => { if (epoch === expandedMapGpuEpoch) failExpandedMapGpu(error); }
+      }).then(runtime => {
+        if (epoch !== expandedMapGpuEpoch || expandedMapGpuFailed) { runtime.destroy(); return; }
+        expandedMapGpuRuntime = runtime;
+      }).catch(error => {
+        if (epoch === expandedMapGpuEpoch) failExpandedMapGpu(error);
+      }).finally(() => {
+        if (expandedMapGpuPending === pending) expandedMapGpuPending = null;
+      });
+      expandedMapGpuPending = pending;
+    }
+    return;
+  }
+  const rect = els.expandedMapCanvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  expandedMapGpuDrawing = true;
+  const epoch = expandedMapGpuEpoch;
+  const scene = expandedMapWebGPUScene(data);
+  expandedMapGpuRuntime.draw(scene, {
+    sample: visibleGameplayViewportSample(), rect,
+    dpr: window.devicePixelRatio || 1
+  }).catch(error => {
+    if (epoch === expandedMapGpuEpoch) failExpandedMapGpu(error);
+  }).finally(() => {
+    expandedMapGpuDrawing = false;
+  });
+}
+
+window.addEventListener("pagehide", () => {
+  expandedMapGpuPageHidden = true;
+  expandedMapGpuEpoch += 1;
+  expandedMapGpuRuntime?.destroy();
+  expandedMapGpuRuntime = null;
+});
+window.addEventListener("pageshow", () => {
+  expandedMapGpuPageHidden = false;
+  expandedMapGpuFailed = false;
+  delete document.body.dataset.expandedMapError;
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) expandedMapGpuRuntime?.suspend();
+});
 
 function drawLighting(data, w, h, camera = cameraFor(data, w, h), zoom = 1) {
   return;
@@ -29870,6 +32355,135 @@ function playPhenomenonSfx(context, master, kind, options = {}) {
   };
 }
 
+// These two room beds are finite, authored PCM loops. Each station source owns
+// one voice, regardless of render frames or repeated server snapshots. The
+// bath bed combines close water eddies, fine steam and a faint light-air sheen;
+// woodsAir follows the canopy movement rather than sounding like a UI cue.
+function renderEnvironmentSfx(kind, sampleRate = 48000) {
+  if (!["woodsAir", "bathAmbient"].includes(kind)) throw new RangeError(`Unknown environment SFX: ${kind}`);
+  if (!Number.isFinite(sampleRate) || sampleRate < 22050 || sampleRate > 192000) throw new RangeError("Invalid sample rate");
+  const frames = Math.round(sampleRate * 5), pcm = new Float32Array(frames);
+  const tau = Math.PI * 2;
+  let seed = kind === "woodsAir" ? 0x398eff21 : 0x65f2cb8d;
+  let low = 0, mid = 0, high = 0;
+  const lowStep = 1 - Math.exp(-tau * (kind === "woodsAir" ? 210 : 340) / sampleRate);
+  const midStep = 1 - Math.exp(-tau * (kind === "woodsAir" ? 940 : 1250) / sampleRate);
+  // Warm the filters for a full cycle before recording. Identical circular
+  // input and modulation make the repeat boundary continuous without a splice.
+  for (let pass = 0; pass < 3; pass++) for (let i = 0; i < frames; i++) {
+    // The same deterministic noise cycle is replayed on each filter pass.
+    if (i === 0) seed = kind === "woodsAir" ? 0x398eff21 : 0x65f2cb8d;
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    const white = (seed >>> 0) / 2147483648 - 1;
+    low += lowStep * (white - low);
+    mid += midStep * (white - mid);
+    high = white - mid;
+    if (pass !== 2) continue;
+    const t = i / sampleRate;
+    if (kind === "woodsAir") {
+      const canopy = .58 + .22 * Math.sin(tau * .4 * t + .3) + .13 * Math.sin(tau * 1.2 * t + 1.1);
+      // Filtered broadleaf rustle, with a quiet moving air bed.
+      pcm[i] = canopy * (.27 * (mid - low) + .085 * low + .022 * high);
+    } else {
+      const eddy = .68 + .16 * Math.sin(tau * .6 * t + .8) + .11 * Math.sin(tau * 1.4 * t + 2.0);
+      const steam = .62 + .18 * Math.sin(tau * .4 * t + 1.5);
+      // Water's rounded low flow, steam's diffuse hiss and a barely audible
+      // sunlit-air upper layer share one spatial source at the authored bath.
+      const water = .22 * low + .12 * (mid - low) + .045 * Math.sin(tau * 47.2 * t) * eddy;
+      const vapor = .045 * (mid - low) + .012 * high;
+      const lightAir = .009 * Math.sin(tau * 121.4 * t + .14 * Math.sin(tau * .2 * t));
+      pcm[i] = eddy * water + steam * vapor + lightAir;
+    }
+  }
+  // Residual filter-state error is spread over the final 30 ms; the endpoint
+  // meets the first sample exactly and the correction's slope vanishes there.
+  const seamFrames = Math.max(2, Math.round(sampleRate * .03));
+  const seamError = pcm[0] - pcm[frames - 1];
+  for (let i = 0; i < seamFrames; i++) {
+    const u = i / (seamFrames - 1), smooth = u * u * (3 - 2 * u);
+    pcm[frames - seamFrames + i] += seamError * smooth;
+  }
+  return pcm;
+}
+
+function environmentSoundAvailable(data) {
+  return state.screen === "game" && !IS_VERIFICATION_MODE && !state.audio.muted &&
+    !document.hidden && !isSensoryBlocked(data) && ["playing", "meeting"].includes(data?.phase) &&
+    data?.map?.id === "station" && state.audio.context?.state === "running" &&
+    Number(state.audio.master?.gain?.value) > 0;
+}
+function stopEnvironmentSound(owner) {
+  if (!owner || ENVIRONMENT_SOUND_OWNERS.get(owner.key) !== owner) return;
+  ENVIRONMENT_SOUND_OWNERS.delete(owner.key);
+  const now = owner.context.currentTime;
+  owner.gain.gain.cancelScheduledValues(now);
+  owner.gain.gain.setValueAtTime(owner.gain.gain.value, now);
+  owner.gain.gain.linearRampToValueAtTime(0, now + .07);
+  try { owner.source.stop(now + .075); } catch (_) { owner.disconnect(); }
+}
+function stopAllEnvironmentSounds() {
+  for (const owner of [...ENVIRONMENT_SOUND_OWNERS.values()]) stopEnvironmentSound(owner);
+}
+function environmentSoundMix(data, x, y) {
+  const listener = worldSoundListener(data);
+  if (!listener || !Number.isFinite(listener.x) || !Number.isFinite(listener.y)) return null;
+  const dx = x - listener.x, dy = y - listener.y, distance = Math.hypot(dx, dy);
+  if (distance >= 650) return null;
+  return { volume: (1 - distance / 650) ** 2, pan: clamp(dx / 320, -1, 1) };
+}
+function observeEnvironmentSound(data, sourceId, kind, x, y) {
+  const key = `${data.roomId}:${data.map.id}:${sourceId}`;
+  let owner = ENVIRONMENT_SOUND_OWNERS.get(key);
+  const mix = environmentSoundMix(data, x, y);
+  if (!environmentSoundAvailable(data) || !mix || mix.volume < .025) {
+    if (owner) stopEnvironmentSound(owner);
+    return;
+  }
+  const context = state.audio.context;
+  if (owner && (owner.kind !== kind || owner.context !== context)) { stopEnvironmentSound(owner); owner = null; }
+  if (!owner) {
+    let cache = ENVIRONMENT_SFX_BUFFERS.get(context);
+    if (!cache) { cache = new Map(); ENVIRONMENT_SFX_BUFFERS.set(context, cache); }
+    let buffer = cache.get(kind);
+    if (!buffer) {
+      const pcm = renderEnvironmentSfx(kind, context.sampleRate);
+      buffer = context.createBuffer(1, pcm.length, context.sampleRate);
+      buffer.getChannelData(0).set(pcm);
+      cache.set(kind, buffer);
+    }
+    const source = context.createBufferSource(), gain = context.createGain();
+    const pan = typeof context.createStereoPanner === "function" ? context.createStereoPanner() : null;
+    source.buffer = buffer;
+    source.loop = true;
+    gain.gain.value = 0;
+    source.connect(gain);
+    if (pan) { gain.connect(pan); pan.connect(state.audio.master); }
+    else gain.connect(state.audio.master);
+    owner = { key, kind, context, source, gain, pan, roomId: data.roomId, mapId: data.map.id, frame: -1,
+      disconnect() { source.disconnect(); gain.disconnect(); pan?.disconnect(); } };
+    source.onended = owner.disconnect;
+    ENVIRONMENT_SOUND_OWNERS.set(key, owner);
+    source.start(context.currentTime);
+  }
+  owner.frame = environmentSoundFrame;
+  const now = context.currentTime;
+  const level = (kind === "woodsAir" ? .12 : .16) * mix.volume;
+  owner.gain.gain.setTargetAtTime(level, now, .045);
+  if (owner.pan) owner.pan.pan.setTargetAtTime(mix.pan, now, .06);
+}
+function sweepEnvironmentSounds() {
+  for (const owner of [...ENVIRONMENT_SOUND_OWNERS.values()]) {
+    if (owner.frame !== environmentSoundFrame || !environmentSoundAvailable(state.data)) stopEnvironmentSound(owner);
+  }
+}
+function reconcileEnvironmentSounds(data) {
+  for (const owner of [...ENVIRONMENT_SOUND_OWNERS.values()]) {
+    if (owner.roomId !== data?.roomId || owner.mapId !== data?.map?.id || !environmentSoundAvailable(data)) stopEnvironmentSound(owner);
+  }
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopAllEnvironmentSounds(); });
+window.addEventListener("pagehide", stopAllEnvironmentSounds);
+
 
 
 function playSound(kind, options = {}) {
@@ -29913,6 +32527,18 @@ function playSound(kind, options = {}) {
     [523, 659, 784].forEach((frequency, index) => {
       playTone(frequency, frequency * 1.08, 0.13, "sine", 0.075, index * 0.045);
     });
+  } else if (kind === "medicalBedUse") {
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(190, 430, 0.26, "sine", 0.075 * volume, 0, options.pan, options.spatial);
+    playTone(380, 860, 0.18, "triangle", 0.025 * volume, 0.035, options.pan, options.spatial);
+  } else if (kind === "medicalCabinetUse") {
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(330, 590, 0.29, "triangle", 0.055 * volume, 0, options.pan, options.spatial);
+    playTone(655, 420, 0.17, "sine", 0.016 * volume, 0.045, options.pan, options.spatial);
+  } else if (kind === "medicalFootBathUse") {
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(270, 520, 0.34, "sine", 0.060 * volume, 0, options.pan, options.spatial);
+    playTone(690, 470, 0.14, "triangle", 0.015 * volume, 0.09, options.pan, options.spatial);
   } else if (kind === "object") {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     [360, 540, 810].forEach((frequency, index) => playTone(frequency, frequency * 1.12, 0.16, "triangle", 0.1 * volume, index * 0.055, options.pan, options.spatial));
@@ -30190,24 +32816,15 @@ function acquisitionCanvasHudRects(effect) {
 }
 
 function acquisitionCanvasHudViewportRect(rect, canvasRect) {
-  const scaleX = canvasRect.width / els.canvas.width;
-  const scaleY = canvasRect.height / els.canvas.height;
+  // HUD hit regions stay in logical game coordinates when WebGPU increases
+  // the presentation canvas backing for DPR.
+  const scaleX = canvasRect.width / MAIN_CANVAS_LOGICAL_SIZE[0];
+  const scaleY = canvasRect.height / MAIN_CANVAS_LOGICAL_SIZE[1];
   return { left: canvasRect.left + rect.left * scaleX,
     top: canvasRect.top + rect.top * scaleY,
     width: rect.width * scaleX,
     height: rect.height * scaleY,
     radius: (Number(rect.radius) || 4) * Math.min(scaleX, scaleY) };
-}
-
-function acquisitionOverlayCanvas() {
-  let overlay = document.querySelector('canvas[data-acquisition-overlay]');
-  if (overlay) return overlay;
-  overlay = document.createElement('canvas');
-  overlay.dataset.acquisitionOverlay = '1';
-  overlay.setAttribute('aria-hidden', 'true');
-  overlay.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:70;';
-  document.body.append(overlay);
-  return overlay;
 }
 
 function acquisitionOverlayViewport(overlay) {
@@ -30231,29 +32848,30 @@ function acquisitionOverlayLocalPoint(point, viewport) {
 
 window.addEventListener('pagehide', () => {
   acquisitionGpuOverlay.generation++;
+  acquisitionGpuOverlay.pending = false;
+  if (acquisitionGpuOverlay.handedOff) return;
   acquisitionGpuOverlay.renderer?.destroy();
   acquisitionGpuOverlay.renderer = null;
   acquisitionGpuOverlay.canvas?.remove();
   acquisitionGpuOverlay.canvas = null;
-  acquisitionGpuOverlay.pending = false;
 });
 
 function acquisitionGpuRenderer() {
-  if (acquisitionGpuOverlay.renderer?.state === 'ready') {
-    acquisitionGpuOverlay.canvas.style.display = '';
-    return acquisitionGpuOverlay.renderer;
+  if (acquisitionGpuOverlay.renderer?.state === 'ready') return acquisitionGpuOverlay.renderer;
+  if (acquisitionGpuOverlay.renderer) {
+    acquisitionGpuOverlay.unavailable = true;
+    acquisitionGpuOverlay.renderer = null;
+    acquisitionGpuOverlay.canvas?.remove();
+    acquisitionGpuOverlay.canvas = null;
+    return null;
   }
-  if (acquisitionGpuOverlay.pending || acquisitionGpuOverlay.unavailable) return null;
+  if (acquisitionGpuOverlay.handedOff || acquisitionGpuOverlay.pending || acquisitionGpuOverlay.unavailable) return null;
   if (!window.DvaWebGPUAcquisition || !navigator.gpu || !window.isSecureContext) {
     acquisitionGpuOverlay.unavailable = true;
     return null;
   }
-  const canvas = document.createElement('canvas');
-  canvas.dataset.acquisitionGpuOverlay = '1';
-  canvas.setAttribute('aria-hidden', 'true');
-  canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:71;';
-  document.body.append(canvas);
-  acquisitionGpuOverlay.canvas = canvas;
+  const canvas = createAcquisitionOverlayCanvas();
+  if (!canvas) return null;
   acquisitionGpuOverlay.pending = true;
   const generation = ++acquisitionGpuOverlay.generation;
   window.DvaWebGPUAcquisition.create(canvas, { onFailure: () => {
@@ -30266,13 +32884,13 @@ function acquisitionGpuRenderer() {
   } }).then(renderer => {
     if (generation !== acquisitionGpuOverlay.generation) { renderer?.destroy(); return; }
     acquisitionGpuOverlay.pending = false;
-    if (!renderer) {
+    if (!renderer || renderer.state !== 'ready' || acquisitionGpuOverlay.unavailable) {
+      renderer?.destroy();
       acquisitionGpuOverlay.unavailable = true;
       canvas.remove(); acquisitionGpuOverlay.canvas = null;
       return;
     }
     acquisitionGpuOverlay.renderer = renderer;
-    if (!document.querySelector('canvas[data-acquisition-overlay]')) canvas.style.display = 'none';
   }).catch(() => {
     if (generation !== acquisitionGpuOverlay.generation) return;
     acquisitionGpuOverlay.pending = false;
@@ -30283,11 +32901,7 @@ function acquisitionGpuRenderer() {
 }
 
 function clearAcquisitionOverlay() {
-  document.querySelector('canvas[data-acquisition-overlay]')?.remove();
-  if (acquisitionGpuOverlay.canvas?.style.display !== 'none') {
-    acquisitionGpuOverlay.renderer?.render({ width: 1, height: 1, pixelWidth: 1, pixelHeight: 1, effects: [] });
-    if (acquisitionGpuOverlay.canvas) acquisitionGpuOverlay.canvas.style.display = 'none';
-  }
+  if (acquisitionGpuOverlay.canvas) acquisitionGpuOverlay.canvas.style.display = 'none';
 }
 
 function drawAcquisitionPhotonStream(data, camera, worldZoom, now = state.frameNow || performance.now()) {
@@ -30300,15 +32914,11 @@ function drawAcquisitionPhotonStream(data, camera, worldZoom, now = state.frameN
     acquisitionPhotonWindow(effect, now) !== null);
   const canvasRect = els.canvas.getBoundingClientRect();
   if (!effects.length || !canvasRect.width || !canvasRect.height) { clearAcquisitionOverlay(); return; }
-  const reduced = prefersReducedMotion();
-  const overlay = acquisitionOverlayCanvas(), viewport = acquisitionOverlayViewport(overlay);
-  if (overlay.width !== viewport.pixelWidth || overlay.height !== viewport.pixelHeight) {
-    overlay.width = viewport.pixelWidth; overlay.height = viewport.pixelHeight;
-  }
-  const paint = overlay.getContext('2d');
-  paint.setTransform(viewport.scaleX, 0, 0, viewport.scaleY, 0, 0);
-  paint.clearRect(0, 0, viewport.width, viewport.height);
   const gpu = acquisitionGpuRenderer();
+  const overlay = acquisitionGpuOverlay.canvas;
+  if (!gpu || !overlay) { clearAcquisitionOverlay(); return; }
+  const reduced = prefersReducedMotion();
+  const viewport = acquisitionOverlayViewport(overlay);
   const gpuEffects = [];
   let drew = false;
   for (const effect of effects) {
@@ -30345,33 +32955,19 @@ function drawAcquisitionPhotonStream(data, camera, worldZoom, now = state.frameN
       const arrival = objectEffectEase(clamp((travelElapsed - arrivalStart) / 120, 0, 1)) *
         (1 - objectEffectEase(clamp((travelElapsed - (arrivalStart + 360)) / 300, 0, 1)));
       const travel = acquisitionPhotonTravelState(origin, { x: targetX, y: targetY }, travelElapsed, reduced);
-      if (gpu) {
-        gpuEffects.push({ travel, rect, elapsed: travelElapsed, reduced, arrival });
-        continue;
-      }
-      paint.save();
-      try {
-        paint.globalCompositeOperation = 'lighter'; paint.lineCap = 'round'; paint.lineJoin = 'round';
-        drawAcquisitionPhotonStreamE(paint, travel);
-        if (arrival > 0) {
-          paint.globalAlpha = arrival; paint.strokeStyle = '#ffda74'; paint.lineWidth = 2;
-          paint.shadowColor = '#ffcb55'; paint.shadowBlur = reduced ? 7 : 12;
-          paint.beginPath();
-          paint.roundRect(rect.left + 1, rect.top + 1, Math.max(0, rect.width - 2), Math.max(0, rect.height - 2), rect.radius);
-          paint.stroke();
-        }
-      } finally { paint.restore(); }
+      gpuEffects.push({ travel, rect, elapsed: travelElapsed, reduced, arrival });
     }
   }
-  if (gpu && !gpu.render({ width: viewport.width, height: viewport.height,
+  if (!drew) { clearAcquisitionOverlay(); return; }
+  if (!gpu.render({ width: viewport.width, height: viewport.height,
     pixelWidth: viewport.pixelWidth, pixelHeight: viewport.pixelHeight, effects: gpuEffects })) {
-    // A device loss can happen inside render; the next frame uses the unchanged Canvas E.
     acquisitionGpuOverlay.unavailable = true;
     acquisitionGpuOverlay.renderer = null;
     acquisitionGpuOverlay.canvas?.remove();
     acquisitionGpuOverlay.canvas = null;
+    return;
   }
-  if (!drew) clearAcquisitionOverlay();
+  overlay.style.display = '';
 }
 
 
@@ -30402,70 +32998,6 @@ function acquisitionPhotonTravelState(origin, target, elapsed, reduced) {
   return { origin, target, control, point, heading, width, alpha: appear * fade, tailScale, reduced, progress, elapsed };
 }
 
-function drawAcquisitionPhotonStreamE(paint, travel) {
-  if (!(travel.alpha > 0)) return;
-  const tailFraction = (travel.reduced ? .20 : .34) * travel.tailScale;
-  const tailProgress = Math.max(0, travel.progress - tailFraction);
-  const span = Math.max(.001, travel.progress - tailProgress);
-  const laneCount = travel.reduced ? 1 : 3;
-  const bezierPoint = (t, lane, local) => {
-    const inverse = 1 - t;
-    const x = inverse * inverse * travel.origin.x + 2 * inverse * t * travel.control.x + t * t * travel.target.x;
-    const y = inverse * inverse * travel.origin.y + 2 * inverse * t * travel.control.y + t * t * travel.target.y;
-    const tx = 2 * inverse * (travel.control.x - travel.origin.x) + 2 * t * (travel.target.x - travel.control.x);
-    const ty = 2 * inverse * (travel.control.y - travel.origin.y) + 2 * t * (travel.target.y - travel.control.y);
-    const length = Math.max(.001, Math.hypot(tx, ty));
-    const separation = lane * travel.width * .072 * Math.sin(Math.PI * local) * Math.min(1, span * 8);
-    return { x: x - ty / length * separation, y: y + tx / length * separation };
-  };
-  paint.save();
-  try {
-    paint.globalCompositeOperation = 'lighter'; paint.lineCap = 'round'; paint.lineJoin = 'round';
-    const segments = travel.reduced ? 7 : 12;
-    for (let laneIndex = 0; laneIndex < laneCount; laneIndex++) {
-      const lane = laneIndex - (laneCount - 1) / 2;
-      const laneStrength = lane === 0 ? 1 : .62;
-      for (let step = 0; step < segments; step++) {
-        const local0 = step / segments, local1 = (step + 1) / segments, local = (local0 + local1) / 2;
-        const t0 = tailProgress + span * local0, t1 = tailProgress + span * local1;
-        const p0 = bezierPoint(t0, lane, local0), p1 = bezierPoint(t1, lane, local1);
-        const taper = objectEffectEase(clamp(local / .72, 0, 1));
-        for (let pass = 0; pass < 2; pass++) {
-          const outer = pass === 0;
-          paint.globalAlpha = travel.alpha * laneStrength * taper * (outer ? .20 : .82);
-          paint.strokeStyle = outer ? '#d79a2e' : '#fff1b2';
-          paint.lineWidth = Math.max(outer ? .45 : .3, travel.width * (outer ? .048 : .015) * (.16 + .84 * taper));
-          paint.shadowColor = outer ? '#edb64a' : '#ffe9a0';
-          paint.shadowBlur = travel.width * (outer ? .065 : .018) * taper;
-          paint.beginPath();paint.moveTo(p0.x,p0.y);paint.lineTo(p1.x,p1.y);paint.stroke();
-        }
-      }
-    }
-    if (!travel.reduced && travel.tailScale > .08) {
-      const phase = ((Number(travel.elapsed) || 0) / 150) % 1;
-      for (let mote = 0; mote < 3; mote++) {
-        const local = (phase + mote * .31) % 1;
-        const t = tailProgress + span * (.18 + local * .76);
-        const point = bezierPoint(t, mote - 1, .18 + local * .76);
-        const alpha = Math.sin(Math.PI * local) * travel.alpha * .52 * travel.tailScale;
-        paint.globalAlpha = alpha;paint.fillStyle='#fff6cb';paint.shadowColor='#ffd56b';paint.shadowBlur=Math.max(2,travel.width*.025);
-        paint.beginPath();paint.arc(point.x,point.y,Math.max(.8,travel.width*.010),0,Math.PI*2);paint.fill();
-      }
-    }
-    const absorption = 1 - travel.tailScale;
-    const coreLength = Math.max(4, travel.width * (.055 + .13 * travel.tailScale));
-    const coreRadius = Math.max(1.8, travel.width * (.018 + .027 * travel.tailScale));
-    const coreAlpha = travel.alpha * (.14 + .86 * travel.tailScale);
-    paint.translate(travel.point.x, travel.point.y); paint.rotate(travel.heading);
-    paint.globalAlpha = coreAlpha * .42; paint.shadowColor = '#ffd166'; paint.shadowBlur = coreRadius * (2.6 - absorption);
-    paint.fillStyle = '#e3a63a';paint.beginPath();paint.moveTo(coreLength,0);
-    paint.quadraticCurveTo(-coreLength*.18,-coreRadius*1.35,-coreLength*.82,0);
-    paint.quadraticCurveTo(-coreLength*.18,coreRadius*1.35,coreLength,0);paint.fill();
-    paint.globalAlpha = coreAlpha;paint.shadowBlur=coreRadius*.7;paint.fillStyle='#fff8d9';
-    paint.beginPath();paint.ellipse(coreLength*.34,0,Math.max(1.5,coreLength*.28),Math.max(1,coreRadius*.42),0,0,Math.PI*2);paint.fill();
-  } finally { paint.restore(); }
-}
-
 function acquisitionVisibleRect(element) {
   if (!element?.isConnected || element.hidden || element.closest?.('[hidden]')) return null;
   const style = getComputedStyle(element);
@@ -30486,6 +33018,35 @@ function acquisitionPhotonWindow(effect, now) {
 }
 
 function acquisitionWorldPoint(x, y, camera, zoom, rect) {
-  return { x: rect.left + (x - camera.x) * zoom * rect.width / els.canvas.width,
-    y: rect.top + (y - camera.y) * zoom * rect.height / els.canvas.height };
+  return { x: rect.left + (x - camera.x) * zoom * rect.width / MAIN_CANVAS_LOGICAL_SIZE[0],
+    y: rect.top + (y - camera.y) * zoom * rect.height / MAIN_CANVAS_LOGICAL_SIZE[1] };
 }
+
+function createAcquisitionOverlayCanvas() {
+  if (acquisitionGpuOverlay.canvas) return acquisitionGpuOverlay.canvas;
+  if (acquisitionGpuOverlay.handedOff) return null;
+  const canvas = document.createElement('canvas');
+  canvas.dataset.acquisitionGpuOverlay = '1';
+  canvas.setAttribute('aria-hidden', 'true');
+  canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:71;display:none;';
+  document.body.append(canvas);
+  acquisitionGpuOverlay.canvas = canvas;
+  return canvas;
+}
+
+// Dormant until the shared main renderer explicitly takes ownership. Invalidating
+// the generation makes an in-flight standalone create destroy its late result.
+function handoffAcquisitionOverlayToMainRenderer() {
+  const canvas = createAcquisitionOverlayCanvas();
+  acquisitionGpuOverlay.handedOff = true;
+  acquisitionGpuOverlay.generation++;
+  acquisitionGpuOverlay.pending = false;
+  acquisitionGpuOverlay.renderer?.destroy();
+  acquisitionGpuOverlay.renderer = null;
+  return canvas;
+}
+
+window.DvaWebGPUAcquisitionOverlay = Object.freeze({
+  createCanvas: createAcquisitionOverlayCanvas,
+  handoffToMainRenderer: handoffAcquisitionOverlayToMainRenderer
+});

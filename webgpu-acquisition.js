@@ -186,6 +186,8 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
 
   async function create(canvas, options = {}) {
     let device, context, uniform, storage, renderer, timer;
+    const frameOwner = options.frameOwner || null;
+    const shared = Boolean(frameOwner);
     let state = 'initializing', notified = false, cancelled = false;
     const notify = reason => {
       if (notified) return;
@@ -193,10 +195,17 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
       try { options.onFailure?.(reason); } catch (_) { /* A consumer callback cannot block cleanup. */ }
     };
     const cleanup = () => {
-      try { device?.removeEventListener?.('uncapturederror', onError); } catch (_) {}
-      for (const resource of [storage, uniform]) { try { resource?.destroy(); } catch (_) {} }
-      try { context?.unconfigure(); } catch (_) {}
-      try { device?.destroy(); } catch (_) {}
+      if (!shared) { try { device?.removeEventListener?.('uncapturederror', onError); } catch (_) {} }
+      for (const resource of [storage, uniform]) {
+        // The owner has already destroyed its resources after device loss.
+        // Only a still-registered resource is ours to destroy here.
+        if (!resource || (shared && !frameOwner.release(resource))) continue;
+        try { resource.destroy(); } catch (_) {}
+      }
+      if (!shared) {
+        try { context?.unconfigure(); } catch (_) {}
+        try { device?.destroy(); } catch (_) {}
+      }
     };
     const fail = reason => {
       if (state === 'destroyed' || state === 'failed') return;
@@ -204,33 +213,42 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
     };
     const onError = event => { event.preventDefault?.(); fail(event.error?.message || 'WebGPU validation failure'); };
     const initialize = async () => {
-      const gpu = options.gpu || root.navigator?.gpu;
-      if (!gpu || typeof canvas?.getContext !== 'function') throw new Error('WebGPU unavailable');
-      const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
-      if (cancelled) return null;
-      if (!adapter) throw new Error('WebGPU adapter unavailable');
-      device = await adapter.requestDevice();
-      if (cancelled) { cleanup(); return null; }
-      device.addEventListener?.('uncapturederror', onError);
-      device.lost.then(info => fail(info?.message || 'WebGPU device lost'), error => fail(String(error)));
+      const gpu = shared ? null : (options.gpu || root.navigator?.gpu);
+      if (shared) {
+        if (frameOwner.state !== 'ready' || typeof frameOwner.own !== 'function' ||
+          typeof frameOwner.release !== 'function') throw new Error('WebGPU frame owner unavailable');
+        device = frameOwner.device;
+      } else {
+        if (!gpu || typeof canvas?.getContext !== 'function') throw new Error('WebGPU unavailable');
+        const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
+        if (cancelled) return null;
+        if (!adapter) throw new Error('WebGPU adapter unavailable');
+        device = await adapter.requestDevice();
+        if (cancelled) { cleanup(); return null; }
+        device.addEventListener?.('uncapturederror', onError);
+        device.lost.then(info => fail(info?.message || 'WebGPU device lost'), error => fail(String(error)));
+      }
       const module = device.createShaderModule({ label: 'DVA acquisition WGSL', code: shader });
       if (typeof module.getCompilationInfo === 'function') {
         const info = await module.getCompilationInfo();
         if (info.messages.some(message => message.type === 'error')) throw new Error('Acquisition WGSL compilation failed');
       }
       if (cancelled) { cleanup(); return null; }
-      const format = gpu.getPreferredCanvasFormat();
+      const format = shared ? frameOwner.format : gpu.getPreferredCanvasFormat();
       const pipeline = await device.createRenderPipelineAsync({ label: 'DVA textureless photon E', layout: 'auto',
         vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format,
           blend: { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
             alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' } } }] },
         primitive: { topology: 'triangle-list' } });
       if (cancelled) { cleanup(); return null; }
-      context = canvas.getContext('webgpu');
-      if (!context) throw new Error('WebGPU canvas context unavailable');
-      context.configure({ device, format, alphaMode: 'premultiplied' });
+      if (!shared) {
+        context = canvas.getContext('webgpu');
+        if (!context) throw new Error('WebGPU canvas context unavailable');
+        context.configure({ device, format, alphaMode: 'premultiplied' });
+      }
       // GPUBufferUsage values are stable WebGPU flags, so this module can also run in a Node mock.
       uniform = device.createBuffer({ label: 'DVA acquisition viewport', size: 16, usage: 0x40 | 0x08 });
+      if (shared) frameOwner.own(uniform);
       let capacity = 0, bindGroup;
       const maxStorage = Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize);
       const ensureStorage = count => {
@@ -240,17 +258,22 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
         const bytes = Math.min(maxStorage, Math.max(16 * FLOATS_PER_EFFECT * 4, required * 2));
         const previous = storage;
         storage = device.createBuffer({ label: 'DVA acquisition effects', size: bytes, usage: 0x80 | 0x08 });
+        if (shared) frameOwner.own(storage);
         capacity = Math.floor(bytes / (FLOATS_PER_EFFECT * 4));
         bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
           { binding: 0, resource: { buffer: uniform } }, { binding: 1, resource: { buffer: storage } } ] });
-        previous?.destroy();
+        if (previous && (!shared || frameOwner.release(previous))) previous.destroy();
       };
       ensureStorage(1);
       if (cancelled) { cleanup(); return null; }
       state = 'ready';
+      // A single storage/uniform pair is used by this renderer. Reusing it twice
+      // before one owner.submit would make both passes read the final writeBuffer.
+      const enqueuedFrames = new WeakSet();
       renderer = {
-        get state() { return state; },
+        get state() { return shared && state === 'ready' && frameOwner.state !== 'ready' ? frameOwner.state : state; },
         render(frame) {
+          if (shared) throw new Error('Shared acquisition renderer requires enqueue(frame, target, drawFrame)');
           if (state !== 'ready') return false;
           try {
             const packed = packEffects(frame.effects || []);
@@ -270,6 +293,34 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
             pass.end(); device.queue.submit([encoder.finish()]);
             return true;
           } catch (error) { fail(error.message || String(error)); return false; }
+        },
+        // Enqueue exactly one acquisition pass per shared frame. The caller owns
+        // frame submission and target ordering; drawFrame uses CSS coordinates,
+        // while pixelWidth/pixelHeight (or dpr) must match the target backing size.
+        enqueue(frame, target, drawFrame, passOptions = {}) {
+          if (!shared) throw new Error('Standalone acquisition renderer uses render(drawFrame)');
+          if (renderer.state !== 'ready') return false;
+          if (!frame || typeof frame.add !== 'function' || typeof target !== 'string' || !target) {
+            throw new TypeError('Shared acquisition pass requires a frame and target');
+          }
+          if (enqueuedFrames.has(frame)) throw new Error('Only one acquisition pass may be enqueued per frame');
+          const packed = packEffects(drawFrame.effects || []);
+          const size = sizeForFrame(drawFrame, device.limits.maxTextureDimension2D);
+          if (packed.byteLength > 0) ensureStorage(drawFrame.effects.length);
+          device.queue.writeBuffer(uniform, 0, new Float32Array([drawFrame.width, drawFrame.height, size.width, size.height]));
+          if (packed.byteLength) device.queue.writeBuffer(storage, 0, packed);
+          frame.add({ target, label: passOptions.label || 'DVA acquisition photons', clear: passOptions.clear,
+            encode(pass, info) {
+              if (info.device !== device || info.format !== format ||
+                info.width !== size.width || info.height !== size.height) {
+                throw new Error('Acquisition target device, format or backing size mismatch');
+              }
+              if (!packed.byteLength) return;
+              pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup);
+              pass.draw(6, packed.length / FLOATS_PER_EFFECT * QUADS_PER_EFFECT);
+            } });
+          enqueuedFrames.add(frame);
+          return true;
         },
         destroy() {
           if (state === 'destroyed') return;

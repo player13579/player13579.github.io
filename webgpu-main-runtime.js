@@ -1,0 +1,158 @@
+/* WebGPU-only main presentation lifecycle. The game owns its existing loop and
+ * records ordered passes into this runtime's single shared renderer frame. */
+(function (root) {
+  'use strict';
+  const rendererDefault = root.DvaWebGPURenderer || (typeof require === 'function' ? require('./webgpu-renderer.js') : null);
+  const viewportDefault = root.DvaWebGPUViewport || (typeof require === 'function' ? require('./webgpu-viewport.js') : null);
+  const schedulerDefault = root.DvaWebGPUMainFrameScheduler || (typeof require === 'function' ? require('./webgpu-main-frame-scheduler.js') : null);
+  const DEFAULT_CLEAR = Object.freeze([0, 0, 0, 1]);
+
+  async function create(options = {}) {
+    const { canvas, target = 'main', rendererApi = rendererDefault,
+      viewportApi = viewportDefault, schedulerApi = schedulerDefault, gpu } = options;
+    if (!canvas || typeof canvas.getContext !== 'function' ||
+        !rendererApi?.create || !viewportApi?.createStableGate || !schedulerApi?.create) {
+      throw new TypeError('Main WebGPU canvas and renderer/viewport/scheduler APIs required');
+    }
+    const gate = viewportApi.createStableGate();
+    let renderer = null, handle = null, disposed = false, failure = null;
+    let generation = 0, scheduler = null, hiddenSuspension = false;
+
+    function cleanup() {
+      if (disposed) return;
+      disposed = true;
+      generation += 1;
+      scheduler?.destroy();
+      gate.suspend();
+      try { handle?.unregister(); } catch (_) { /* A failed device may have removed targets. */ }
+      try { renderer?.destroy(); } catch (_) { /* Preserve the original failure. */ }
+    }
+    function fail(error) {
+      if (disposed) return;
+      failure = error instanceof Error ? error : new Error(String(error));
+      cleanup();
+      try { options.onFailure?.(failure); } catch (_) { /* Preserve the GPU failure. */ }
+    }
+    try {
+      renderer = await rendererApi.create({ gpu, onFailure: fail,
+        powerPreference: options.powerPreference, deviceDescriptor: options.deviceDescriptor,
+        format: options.format, maxDraws: options.maxDraws });
+      if (disposed || renderer.state !== 'ready') {
+        try { renderer.destroy(); } catch (_) {}
+        throw failure || renderer.failure || new Error('Main WebGPU renderer unavailable');
+      }
+      // A valid initial backing is required for configuration. The stable gate
+      // supplies the actual DPR-aware size before the first submitted frame.
+      handle = renderer.registerTarget(target, canvas, {
+        width: Math.max(1, canvas.width || 1), height: Math.max(1, canvas.height || 1),
+        logicalWidth: 980, logicalHeight: 620
+      });
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
+
+    async function draw({ sample, rect, dpr = 1, camera, prepare, record,
+      clearColor = DEFAULT_CLEAR, recordClears = false, isCurrent = () => true } = {}) {
+      if (disposed) throw failure || new Error('Main WebGPU runtime destroyed');
+      if (typeof isCurrent !== 'function') throw new TypeError('WebGPU isCurrent must be a function');
+      if (prepare !== undefined && typeof prepare !== 'function') throw new TypeError('WebGPU prepare must be a function');
+      if (record !== undefined && typeof record !== 'function') throw new TypeError('WebGPU record must be a function');
+      if (typeof recordClears !== 'boolean' || (recordClears && !record)) {
+        throw new TypeError('Scene-owned clear requires recordClears: true and a record callback');
+      }
+      // A newer observation supersedes pending async preparation, including an
+      // invalid/hidden observation. It cannot submit an old scene on return.
+      const drawGeneration = ++generation;
+      const viewport = gate.observe(sample, { kind: 'main', rect, dpr, camera,
+        maxTextureDimension2D: renderer.device.limits.maxTextureDimension2D });
+      if (!viewport) return Object.freeze({ drawn: false, reason: 'unstable-layout' });
+      let prepared;
+      let drawError = null;
+      try {
+        prepared = await prepare?.({ viewport, device: renderer.device, renderer, target });
+        if (drawGeneration !== generation || disposed || gate.suspended || !isCurrent()) {
+          return Object.freeze({ drawn: false, reason: 'superseded' });
+        }
+        handle.resize(viewport.pixelWidth, viewport.pixelHeight,
+          { width: viewport.width, height: viewport.height });
+        const frame = renderer.beginFrame('DVA main');
+        try {
+          if (!recordClears) frame.clear(target, clearColor);
+          let sceneCleared = false;
+          // Renderer frames are frozen. A separate facade preserves fluent
+          // recording while observing the scene's first clear without violating
+          // Proxy invariants on non-configurable frame methods.
+          const facade = {};
+          if (recordClears) {
+            for (const name of ['add', 'clear', 'stage', 'rect', 'sprite', 'composite']) {
+              facade[name] = (...args) => {
+                const result = frame[name](...args);
+                if (name === 'clear' || (name === 'add' && args[0]?.clear)) sceneCleared = true;
+                return result === frame ? facade : result;
+              };
+            }
+            Object.freeze(facade);
+          }
+          const recordingFrame = recordClears ? facade : frame;
+          const result = record?.({ frame: recordingFrame, target, viewport, renderer, prepared });
+          if (result && typeof result.then === 'function') {
+            throw new TypeError('WebGPU frame recording must be synchronous');
+          }
+          if (recordClears && !sceneCleared) {
+            throw new Error('Scene record must clear the main target before submission');
+          }
+          // Recording is synchronous but may re-enter lifecycle methods. Check
+          // the scheduler lease again at the last point before GPU submission.
+          if (drawGeneration !== generation || disposed || gate.suspended || !isCurrent()) {
+            frame.discard();
+            return Object.freeze({ drawn: false, reason: 'superseded' });
+          }
+          const passes = frame.submit();
+          // Interaction targets belong to the submitted frame. Never expose a
+          // record result from a discarded or superseded preparation.
+          return Object.freeze({ drawn: true, passes, viewport, recordResult: result });
+        } catch (error) {
+          try { frame.discard(); } catch (_) {}
+          throw error;
+        }
+      } catch (error) {
+        drawError = error;
+        if (drawGeneration !== generation) {
+          return Object.freeze({ drawn: false, reason: 'superseded' });
+        }
+        fail(error);
+        throw error;
+      } finally {
+        try { prepared?.release?.(); } catch (error) {
+          if (!drawError) { fail(error); throw error; }
+        }
+      }
+    }
+    scheduler = schedulerApi.create({ draw: (scene, lease) => draw({ ...scene, isCurrent: lease.isCurrent }) });
+    return Object.freeze({
+      get state() { return failure || renderer.state === 'failed' ? 'failed' : disposed ? 'destroyed' : 'ready'; },
+      get failure() { return failure || renderer.failure || null; },
+      get viewport() { return gate.snapshot; },
+      get device() { if (disposed) throw failure || new Error('Main WebGPU runtime destroyed'); return renderer.device; },
+      get renderer() { if (disposed) throw failure || new Error('Main WebGPU runtime destroyed'); return renderer; },
+      draw,
+      requestFrame(scene, requestOptions = {}) {
+        const hidden = requestOptions.hidden ?? !!scene?.sample?.hidden;
+        if (hidden) hiddenSuspension = true;
+        else if (hiddenSuspension && scheduler.state === 'suspended') {
+          scheduler.resume();
+          hiddenSuspension = false;
+        }
+        return scheduler.request(scene, { hidden });
+      },
+      get scheduler() { return scheduler; },
+      suspend() { if (!disposed) { hiddenSuspension = false; scheduler.suspend(); generation += 1; gate.suspend(); } },
+      resume() { hiddenSuspension = false; return !disposed && scheduler.resume(); },
+      destroy: cleanup
+    });
+  }
+  const api = Object.freeze({ create });
+  root.DvaWebGPUMainRuntime = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
