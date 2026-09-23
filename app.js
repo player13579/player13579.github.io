@@ -40,7 +40,7 @@ const clientStorage = createClientStorage();
 const $ = (selector) => document.querySelector(selector);
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 if (!DVA_ECONOMY) throw new Error("共有商品カタログを読み込めませんでした。");
-const DVA_CLIENT_RELEASE = "mana-body-philia-taser-v904";
+const DVA_CLIENT_RELEASE = "shot-pose-mana-taser-sfx-v905";
 const DVA_ONLINE_PROTOCOL_VERSION = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!DVA_ONLINE_PROTOCOL_VERSION) throw new Error("共有オンライン互換版を読み込めませんでした。");
 const DVA_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -498,7 +498,7 @@ const PHYSICAL_ACTION_MOTION_KINDS = Object.freeze([
   "attack", "slash", "shoot", "reload", "evade", "cast", "heal",
   "power", "heart-transfer", "focus", "rest", "interact", "throw"
 ]);
-const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"mana-body-philia-taser-v904","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
+const AUTHORED_CHARACTER_MOTION_MANIFEST = Object.freeze({"version":"shot-pose-mana-taser-sfx-v905","activeEntries":["white-hood/front","blue-dress/front","blue-dress/left","blue-dress/right","blue-dress/back","white-hood/left","white-hood/right","white-hood/back","male-bot/front","male-bot/left","male-bot/right","male-bot/back"],"schema":{"identity":"male-bot for bots; otherwise displayedSkinId(player, data)","directions":["front","left","right","back"],"modes":["slow","walk","dash"],"modeFallback":"Only same identity and direction; unfinished slow/dash explicitly fall back to walk. Authored phaseMapping never inserts idle during motion."},"identities":{"white-hood":{"front":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-front-nine-v752.png","assetSha256":"4F1901DFD275BFEC01B6F4FD7DA66F190E0B2396320DE2FB36CC20A5E36490A3","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-front-slow-v761.png","assetSha256":"8234FD393815BB120C70267374B57C92209EE22FBA20F4A2142F38C186E6831D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-front-dash-v761.png","assetSha256":"135AFA7B7CE985DAB80D16785CE6BC169FEE2723326CD00FDA21F22FCBA1E4EE","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-left-nine-v756.png","assetSha256":"DE5505558694820399C4D1F38A02038D9AF0C2F6548F631BB58495D0CAF27855","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-left-slow-v775.png","assetSha256":"3E5D2C4ADBF6AEB362994B23A3AE60506517B6B7FCC987E49852E7A12F372377","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-left-dash-eight.png","assetSha256":"B67E756C63640B6AFA261F3AB9EDF662B999C01E8EE4671A7F37191B79484C26","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-right-nine-v759.png","assetSha256":"E04A39A8A4B16D13C9C7BB1B2505725EF36FEAEB249CB58F521975F36BC3F61B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-right-slow-v776.png","assetSha256":"0210760BF8812017F624A5A45AEF47298C10E07C5CF8D087EADF1AB6D3ABCD68","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-right-dash-eight.png","assetSha256":"C61A3B28E91D3ACA701C9E93AA00BB86B3954E137BD7DFBEAE31905466417FE4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":166,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/philia-back-nine-v760.png","assetSha256":"4B8EED669DE6914972449B093837BACC886E00AA4A5517367D80385E91EA1BD9","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/philia-back-slow-v777.png","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/philia-back-dash-v782.png","assetSha256":"FE6221936280555FBC2A19E3E640749731E58FEAF09C31BFB2D2617E8A777C97","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"blue-dress":{"front":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-front-five-v753.png","assetSha256":"CF3DF51D88129AD51E175DD894EF2C269626A2D60FEC912289789E099D8FCB8F","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-front-slow-v762.png","assetSha256":"F04620FD6F52389CDCAD835093BBE59198DA7DC69B410C00A337429FEC90C93B","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-front-dash-v786.png","assetSha256":"85E8E067AC1B4FBDEE0F65DACF083D822F5EB5086DB89302F29D07F375F26B67","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1.1},{"x":512,"y":256,"width":256,"height":256,"duration":0.9},{"x":0,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-left-five-v754.png","assetSha256":"1B20923A479285CCA385E2F409F76A63C490A56459F7E40D9F53E58BFDFDE52A","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-left-slow-v765.png","assetSha256":"F9396948681540B493F7F6403E1EF5603DE4527765AD10D198F36E0D297ABAFD","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-left-dash-ten.png","assetSha256":"4BF0D7F4FFAFEF8FC62FF5BA7771F48F545103349E54C540B5CDB7DDBFAF1709","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.037571255830022444},{"x":512,"y":0,"width":256,"height":256,"duration":0.12618759716704092},{"x":768,"y":0,"width":256,"height":256,"duration":0.12916738642252548},{"x":0,"y":256,"width":256,"height":256,"duration":0.04055104508550699},{"x":256,"y":256,"width":256,"height":256,"duration":0.16652271549490416},{"x":512,"y":256,"width":256,"height":256,"duration":0.06205735014683021},{"x":768,"y":256,"width":256,"height":256,"duration":0.13059250302297462},{"x":0,"y":512,"width":256,"height":256,"duration":0.1531352565209881},{"x":256,"y":512,"width":256,"height":256,"duration":0.08460010364484369},{"x":512,"y":512,"width":256,"height":256,"duration":0.06961478666436338}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-right-five-v754.png","assetSha256":"27D17D06E71D48BE1E5C3D39A3C0EEC2606C744DFFEBC94DFABF6CA126896690","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-right-slow-v766.png","assetSha256":"3E74E1D8D55CD8A073BDABFA27EC68CCA96EAD58FB2913D8D55AFB57D1C1613D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-right-dash-ten.png","assetSha256":"10874A8ED3A5F144BE7BDEDD8A5A49529008749A2210A2A433B58487AEE7C630","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":0.036923475557091044},{"x":512,"y":0,"width":256,"height":256,"duration":0.11569355674555191},{"x":768,"y":0,"width":256,"height":256,"duration":0.14121609949904992},{"x":0,"y":256,"width":256,"height":256,"duration":0.06244601831058906},{"x":256,"y":256,"width":256,"height":256,"duration":0.14372084988771805},{"x":512,"y":256,"width":256,"height":256,"duration":0.056227327690447415},{"x":768,"y":256,"width":256,"height":256,"duration":0.12346692002072898},{"x":0,"y":512,"width":256,"height":256,"duration":0.13370184833304544},{"x":256,"y":512,"width":256,"height":256,"duration":0.06646225600276386},{"x":512,"y":512,"width":256,"height":256,"duration":0.1201416479530143}],"strideDistance":172.3466241360978,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"modes":{"walk":{"assetPath":"assets/generated/sophia-back-five-v755.png","assetSha256":"2F99944991A301BCE48E811848209C4F8F2FBED86AF56AFE9571E205BE6CF3C4","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":78},"slow":{"assetPath":"assets/generated/sophia-back-slow-v767.png","assetSha256":"8F48678DDDFB1F22D4C7FD7948F87105A9FA70E0E33AF6B0639D654E289805D6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/sophia-back-dash-v771.png","assetSha256":"2AE54DEE55D9B77E7B4DC6BCF2B9562961575957B374D66BFBAC08A8E061FDE1","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.4375},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.1},{"x":512,"y":0,"width":256,"height":256,"duration":0.9},{"x":768,"y":0,"width":256,"height":256,"duration":1},{"x":1024,"y":0,"width":256,"height":256,"duration":1.1},{"x":1280,"y":0,"width":256,"height":256,"duration":0.9},{"x":1536,"y":0,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}},"male-bot":{"front":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-front-walk-v783.png","assetSha256":"E486D28962941D14CF9C126A6ED0AD5C1F044293FE265A8510F28134D086281C","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-front-slow-v784.png","assetSha256":"EE62C71918ECAA681CFABF19B3F0BBD4455E0823A6CE4E721E87D688F3611069","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-front-dash-v784.png","assetSha256":"33947D766F4FE45EB0235C7C606BCA1D2D20D776F3AC30325F03E206E10709CF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":0,"y":0,"width":256,"height":256,"duration":1.1},{"x":256,"y":0,"width":256,"height":256,"duration":0.9},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.1},{"x":256,"y":256,"width":256,"height":256,"duration":0.9},{"x":512,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"left":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-left-walk-v785.png","assetSha256":"2554AA3992FEEB49ED78C5831F456347FB9DF1A390E89974AEA5FF4AFAF0EB48","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-left-slow-v788.png","assetSha256":"EDDCB6BD4A72C6B94EB92CBAFD9BB5D51E005B7749A93B2739356E1AB04E5162","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.6},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.6},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-left-dash-v789.png","assetSha256":"FC358C408B3149CC824A93AAD1B97F358AF80F3D18986AD545334BAA86BDD067","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"right":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-right-walk-v790.png","assetSha256":"D707879E5EF7172DC92C4E2B31F24718CFC01CE68552B7F08BA3BC086EC030A6","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-right-slow-v791.png","assetSha256":"687AEB592DA7718EC44BF554CA97F4CDA39D541A39838575B56D08442DC16B32","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-right-dash-v792.png","assetSha256":"C0FFDE86D39AC48975286B1E43F8F5F64352A49D1D483B1A264949F11F502F89","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}},"back":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored","modes":{"walk":{"assetPath":"assets/generated/male-back-walk-v793.png","assetSha256":"ED1716DB3E2DB5E3388D949EDC2C1536EB059AC8CB63884201A4454AE66BF4D2","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1},{"x":256,"y":256,"width":256,"height":256,"duration":1},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":1},{"x":256,"y":512,"width":256,"height":256,"duration":1},{"x":512,"y":512,"width":256,"height":256,"duration":1}],"strideDistance":78,"bodyMotion":"authored","phaseMapping":"authored"},"slow":{"assetPath":"assets/generated/male-back-slow-v794.png","assetSha256":"39B2930285910B8DBDB6B6210ECBB788CBCCC540B7327BFBA093183C10D9ABBF","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.7},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":1.7},{"x":256,"y":256,"width":256,"height":256,"duration":1}],"strideDistance":59,"bodyMotion":"authored","phaseMapping":"authored"},"dash":{"assetPath":"assets/generated/male-back-dash-v795.png","assetSha256":"26229914DA26AE6385277F8854A375338A5763781720BAD7A649F6D138E2B40D","layout":{"sourceOrigin":{"x":128,"y":240},"ground":{"x":0,"y":31},"scale":0.41964285714285715},"idle":{"x":0,"y":0,"width":256,"height":256},"cycle":[{"x":256,"y":0,"width":256,"height":256,"duration":1.4},{"x":512,"y":0,"width":256,"height":256,"duration":1},{"x":0,"y":256,"width":256,"height":256,"duration":0.7},{"x":256,"y":256,"width":256,"height":256,"duration":1.4},{"x":512,"y":256,"width":256,"height":256,"duration":1},{"x":0,"y":512,"width":256,"height":256,"duration":0.7}],"strideDistance":94,"bodyMotion":"authored","phaseMapping":"authored"}}}}}});
 const HACKER_ROOT_OPERATOR_TYPES = Object.freeze(["fighter", "gravity", "flora", "gunner", "quantum"]);
 
 const ITEM_USE_POSE_SKINS = Object.freeze(["white-hood", "blue-dress", "male-bot"]);
@@ -1353,6 +1353,14 @@ const state = {
   }
 };
 
+const PHENOMENON_SOUND_STAGES = Object.freeze({
+  mana: [[0, "manaGather"], [.57, "manaSettle"]],
+  philiaTaser: [[0, "philiaTaserDraw"], [.32, "philiaTaserLatch"], [.72, "philiaTaserReady"]]
+});
+// The server retains at most 48 magic effects. Keep an ID through that entire
+// receipt window, including a snapshot where the ID temporarily disappears.
+const PHENOMENON_SOUND_RECEIPTS = { roomId: "", ids: new Set(), order: [], owners: new Map(), frame: 0 };
+
 const roleLabels = {
   defender: "ディフェンダー",
   attacker: "アタッカー",
@@ -1506,7 +1514,7 @@ function hackerRecipeNameMarkup(recipe) {
   return `<strong>${escapeHtml(recipe.label)}</strong><small class="item-name-meta">${escapeHtml(hackerRecipeCooldownLabel(recipe))}</small>`;
 }
 
-const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "mana-body-philia-taser-v904";
+const GENERATED_ITEM_TEXTURE_CACHE_VERSION = "shot-pose-mana-taser-sfx-v905";
 
 const generatedItemTextureFiles = new Map([
   ["gold", { file: "item-gold-ingot-v436.png" }],
@@ -3189,6 +3197,7 @@ function setSoloNameGuidance(open) {
 }
 
 function setScreen(screen) {
+  if (screen !== "game") stopAllPhenomenonSounds();
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   const previous = state.screen;
   if (previous !== next) clearTitleCommandTransition();
@@ -3242,12 +3251,14 @@ function setScreen(screen) {
 function toggleGameMuted() {
   if (IS_VERIFICATION_MODE) {
     state.audio.muted = true;
+    stopAllPhenomenonSounds();
     if (state.audio.master && state.audio.context) state.audio.master.gain.value = 0;
     syncGameAudioButtons();
     syncBgm();
     return;
   }
   state.audio.muted = !state.audio.muted;
+  if (state.audio.muted) stopAllPhenomenonSounds();
   clientStorage.setItem(storage.gameMuted, state.audio.muted ? "1" : "0");
   clientStorage.removeItem(storage.musicMuted);
   if (state.audio.master && state.audio.context) {
@@ -11506,6 +11517,7 @@ function applyState(data, options = {}) {
     state.lastStateReceivedAt = performance.now();
   }
   state.data = data;
+  reconcilePhenomenonSounds(data);
   syncHoverSprintLiveCountdownTicker(data);
   updateManualVerificationBotContinuity(data, options.source || "state");
   if (IS_VERIFICATION_MODE) {
@@ -12020,7 +12032,123 @@ function settleEmpChargeEffects(next, receivedAt) {
   return cache.ids;
 }
 
+function phenomenonSoundKind(effect, data) {
+  if (isBodyManaGainEffect(effect)) return "mana";
+  if (effect?.type !== "action-weapon-switch" || effect.variant !== "taser") return "";
+  const player = data?.players?.find((entry) => entry.id === effect.playerId);
+  return authoredPhiliaTaserSwitchEligible(player, data) ? "philiaTaser" : "";
+}
+function stopPhenomenonSoundOwner(owner) {
+  for (const handle of owner.handles) handle?.stop?.();
+  owner.handles.length = 0;
+  PHENOMENON_SOUND_RECEIPTS.owners.delete(owner.key);
+}
+function stopAllPhenomenonSounds() {
+  for (const owner of [...PHENOMENON_SOUND_RECEIPTS.owners.values()]) stopPhenomenonSoundOwner(owner);
+}
+function rememberPhenomenonSoundId(id) {
+  const cache = PHENOMENON_SOUND_RECEIPTS;
+  if (!id || cache.ids.has(id)) return false;
+  cache.ids.add(id);
+  cache.order.push(id);
+  while (cache.order.length > 48) cache.ids.delete(cache.order.shift());
+  return true;
+}
+function preparePhenomenonSoundReceipts(previous, next) {
+  const cache = PHENOMENON_SOUND_RECEIPTS;
+  if (cache.roomId !== next?.roomId || !["playing", "meeting"].includes(next?.phase)) {
+    stopAllPhenomenonSounds();
+    cache.roomId = String(next?.roomId || "");
+    cache.ids.clear();
+    cache.order.length = 0;
+  }
+  if (!previous || previous.roomId !== next?.roomId || isSensoryBlocked(next)) {
+    for (const effect of next?.magicEffects || []) {
+      if (phenomenonSoundKind(effect, next)) rememberPhenomenonSoundId(effect.id);
+    }
+  }
+}
+function admitPhenomenonSound(effect, data) {
+  const kind = phenomenonSoundKind(effect, data);
+  if (!kind || !rememberPhenomenonSoundId(effect.id)) return false;
+  const key = `${data.roomId}:${effect.id}`;
+  PHENOMENON_SOUND_RECEIPTS.owners.set(key, {
+    key, kind, effectId: effect.id, playerId: effect.playerId,
+    consumed: 0, handles: [], frame: -1
+  });
+  return true;
+}
+function phenomenonSoundMix(player, data) {
+  if (!player || !player.alive || player.ejected || player.inVent || player.invisible) return null;
+  const position = renderedPlayer(player), viewport = state.drawViewport;
+  if (!viewport || position.x < viewport.left || position.x > viewport.right ||
+      position.y < viewport.top || position.y > viewport.bottom) return null;
+  if (player.id === data.selfId) return { volume: 1, pan: 0 };
+  const listener = worldSoundListener(data);
+  if (!listener || !Number.isFinite(listener.x) || !Number.isFinite(listener.y)) return null;
+  const dx = position.x - listener.x, dy = position.y - listener.y;
+  const distance = Math.hypot(dx, dy);
+  if (!(distance < 640)) return null;
+  return { volume: .58 * (1 - distance / 640) ** 2, pan: clamp(dx / 288, -1, 1) };
+}
+function phenomenonSoundAvailable() {
+  const context = state.audio.context, master = state.audio.master;
+  return state.screen === "game" && !IS_VERIFICATION_MODE && !state.audio.muted &&
+    !isSensoryBlocked() && context?.state === "running" && master &&
+    Number(master.gain?.value) > 0;
+}
+function advancePhenomenonSound(effectId, kind, progress, player) {
+  const cache = PHENOMENON_SOUND_RECEIPTS;
+  const owner = cache.owners.get(`${state.data?.roomId}:${effectId}`);
+  if (!owner || owner.kind !== kind) return;
+  owner.frame = cache.frame;
+  if (progress < 0) return;
+  const mix = phenomenonSoundMix(player, state.data);
+  if (!mix || !phenomenonSoundAvailable() || progress >= 1) {
+    stopPhenomenonSoundOwner(owner);
+    return;
+  }
+  const stages = PHENOMENON_SOUND_STAGES[kind];
+  while (owner.consumed < stages.length && progress >= stages[owner.consumed][0]) {
+    const [start, clip] = stages[owner.consumed++];
+    if (progress - start <= .08) {
+      const handle = playSound(clip, mix);
+      if (handle) owner.handles.push(handle);
+    }
+  }
+}
+function sweepPhenomenonSounds() {
+  const cache = PHENOMENON_SOUND_RECEIPTS;
+  for (const owner of [...cache.owners.values()]) {
+    if (owner.frame !== cache.frame) stopPhenomenonSoundOwner(owner);
+  }
+}
+function reconcilePhenomenonSounds(data) {
+  for (const owner of [...PHENOMENON_SOUND_RECEIPTS.owners.values()]) {
+    const player = data?.players?.find((entry) => entry.id === owner.playerId);
+    if (!player || !player.alive || player.ejected || player.inVent || player.invisible ||
+        !phenomenonSoundAvailable()) {
+      stopPhenomenonSoundOwner(owner);
+      continue;
+    }
+    if (owner.kind === "mana") {
+      if (!manaBodyTextureReady() || !["playing", "meeting"].includes(data.phase) ||
+          !state.magicEffects.some((effect) => effect.id === owner.effectId && isBodyManaGainEffect(effect))) {
+        stopPhenomenonSoundOwner(owner);
+      }
+    } else {
+      const action = state.characterActions.get(owner.playerId);
+      if (data.phase !== "playing" || action?.sourceEffectId !== owner.effectId ||
+          action.kind !== "weapon-switch" || action.variant !== "taser" ||
+          action.philiaTaserSwitch?.roomId !== data.roomId ||
+          action.philiaTaserSwitch?.token !== philiaTaserSwitchToken(action) ||
+          !action.philiaTaserSwitch.ready) stopPhenomenonSoundOwner(owner);
+    }
+  }
+}
+
 function detectMagicEffects(previous, next) {
+  preparePhenomenonSoundReceipts(previous, next);
   detectAuthoredBotSmgReload(next);
   detectAuthoredBotTaserReload(next);
   detectAuthoredBotSniperReload(next);
@@ -12051,7 +12179,12 @@ function detectMagicEffects(previous, next) {
   if (isSensoryBlocked(next)) return;
   const known = new Set((previous.magicEffects || []).map((effect) => effect.id));
   for (const effect of next.magicEffects || []) {
-    if (known.has(effect.id)) continue;
+    const soundKind = phenomenonSoundKind(effect, next);
+    if (known.has(effect.id)) {
+      if (soundKind) rememberPhenomenonSoundId(effect.id);
+      continue;
+    }
+    if (soundKind && PHENOMENON_SOUND_RECEIPTS.ids.has(effect.id)) continue;
     if (["instant-stand-firm-acquired", "instant-push-acquired", "fighter-stand-firm-acquired", "fighter-push-acquired"].includes(effect.type)) continue;
     if (effect.type === "action-item-use" && seenItemUseActionIds.has(effect.id)) continue;
     if (effect.type === "emp-charge" && settledEmpIds.has(effect.empPulseId)) continue;
@@ -12103,6 +12236,7 @@ function detectMagicEffects(previous, next) {
       localEffect.duration = localEffect._headMarkerExpiresAt - receivedAt;
     }
     state.magicEffects.push(localEffect);
+    if (soundKind) admitPhenomenonSound(effect, next);
     // A real gain receipt is admitted once here, after the network-ID gate.
     // Repeated polls therefore cannot retrigger this one-shot body-TE sound.
     if (isBodyStaminaGainEffect(localEffect)) playSound("staminaGain");
@@ -12207,7 +12341,8 @@ function detectGameSounds(previous, next) {
   if (!previous.self.operatorReady && next.self.operatorReady) playSound("select");
   if (previous.self.gunnerWeapon && next.self.gunnerWeapon && previous.self.gunnerWeapon !== next.self.gunnerWeapon) {
     const weapon = (next.self.gunnerWeapons || []).find((entry) => entry.id === next.self.gunnerWeapon);
-    playSound("select");
+    const selfPlayer = next.players?.find((entry) => entry.id === next.selfId);
+    if (!(next.self.gunnerWeapon === "taser" && authoredPhiliaTaserSwitchEligible(selfPlayer, next))) playSound("select");
     showToast(`武器切替: ${weapon?.shortName || weapon?.name || next.self.gunnerWeapon}`);
   }
   const previousDone = (previous.self.tasks || []).filter((task) => task.done).length;
@@ -17137,6 +17272,7 @@ function drawPreparationArrivalPlayer(player, data) {
 // PREPARATION_ROSTER_V726_END
 
 function draw() {
+  PHENOMENON_SOUND_RECEIPTS.frame += 1;
   const data = state.data;
   const canvas = els.canvas;
   const w = canvas.width;
@@ -17168,6 +17304,7 @@ function draw() {
   }
 
   if (!data) {
+    stopAllPhenomenonSounds();
     state.drawViewport = null;
     clearAcquisitionOverlay();
     clearMarkerExplanation();
@@ -17226,6 +17363,7 @@ function draw() {
       ctx.restore();
     }
   });
+  sweepPhenomenonSounds();
 
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
   if (pregameCanvas && state.preparationEditingField === "name") positionPreparationNameInput();
@@ -19465,7 +19603,11 @@ function drawMagicEffects() {
       }
       /* mana-body-v904:top-draw:start */
       if (isBodyManaGainEffect(effect)) {
-        drawManaBodyRecoveryEffect(effect, now);
+        if (drawManaBodyRecoveryEffect(effect, now)) {
+          advancePhenomenonSound(effect.id, "mana",
+            (now - effect.startedAt) / MANA_BODY_RECOVERY_TE.durationMs,
+            state.data.players?.find((player) => player.id === effect.playerId));
+        }
         continue;
       }
       /* mana-body-v904:top-draw:end */
@@ -24428,13 +24570,16 @@ function accelerationReadyMotionDynamics(player, kind, motionId = kind) {
   };
 }
 
-function loopedPhysicalMotionProgress(player, kind, cycleMs, motionId = kind) {
+function heldPhysicalMotionProgress(player, kind, windupMs, token, motionId = kind) {
   const timestamp = state.frameNow || performance.now();
   const key = `${player.id}:${kind}:${motionId}`;
-  const phase = state.physicalMotionPhases.get(key) || { progress: 0, lastAt: timestamp };
+  const previous = state.physicalMotionPhases.get(key);
+  const phase = previous?.token === token ? previous : { progress: 0, lastAt: timestamp, token };
   const elapsed = clamp(timestamp - phase.lastAt, 0, 50);
   const dynamics = accelerationReadyMotionDynamics(player, kind, motionId);
-  phase.progress = (phase.progress + elapsed * dynamics.rate / Math.max(1, cycleMs)) % 1;
+  // The middle fire frame is the held firing pose. A magazine may last several
+  // seconds; cycling through the final frame would lower the gun between rounds.
+  phase.progress = Math.min(0.5, phase.progress + elapsed * dynamics.rate / Math.max(1, windupMs));
   phase.lastAt = timestamp;
   state.physicalMotionPhases.set(key, phase);
   return phase.progress;
@@ -24448,6 +24593,7 @@ function displayedGunnerState(player, data = state.data) {
   const reloadWeapon = String(authoritative?.gunnerReloadWeapon || player?.gunnerReloadWeapon || selectedWeapon);
   return {
     firing: Boolean(authoritative?.gunFiring || player?.gunFiring || (isSelf && state.gunTriggerHeld)),
+    firingSince: Number(authoritative?.gunFiringSince || player?.gunFiringSince) || 0,
     selectedWeapon,
     firingWeapon,
     reloadWeapon
@@ -24527,9 +24673,19 @@ function detectAuthoredHandgunFire(previous,next) {
     cache.owners.set(p.id,{id:effect.id,identity,weapon:effect.variant,roomId:next.roomId,actorStartedAt:actorVisualTime(p,next),ready:authoredHandgunFireReady(identity,effect.variant),direction:facing==="down"?"front":facing==="up"?"back":facing});
   }
 }
+function authoredMagazineHoldBody(player,data) {
+  const gunner=displayedGunnerState(player,data),identity=authoredHandgunFireIdentity(player,data);
+  if(!gunner.firing||!identity||!authoredHandgunFireVisible(player,data)||!authoredHandgunFireReady(identity,gunner.firingWeapon))return undefined;
+  const actor=player.id===data.selfId?data.self:player;
+  const facing=facingFromDirection(Number(actor?.aimX??player.aimX),Number(actor?.aimY??player.aimY),state.facing.get(player.id)||'down');
+  // Keep the already authored aimed frame between authoritative round effects.
+  // The following reload or idle state owns the one final weapon lowering.
+  return {kind:'shoot',motionId:'magazine-hold',variant:gunner.firingWeapon,
+    authoredHandgunShot:{identity,weapon:gunner.firingWeapon,roomId:data.roomId,ready:true,direction:facing==='down'?'front':facing==='up'?'back':facing},progress:0.5};
+}
 function authoredHandgunFireBody(player,data) {
   const cache=AUTHORED_HANDGUN_FIRE_STATE,owner=cache.owners.get(player.id);
-  if(!owner)return undefined;
+  if(!owner)return authoredMagazineHoldBody(player,data);
   if(owner.roomId!==data?.roomId||!authoredHandgunFireVisible(player,data)){cache.owners.delete(player.id);return undefined;}
   const action=state.characterActions.get(player.id);
   if(action&&!["shoot","reload","focus"].includes(action.kind)){
@@ -24538,7 +24694,7 @@ function authoredHandgunFireBody(player,data) {
     if(progress<1){cache.owners.delete(player.id);return undefined;}
   }
   const progress=(actorVisualTime(player,data)-owner.actorStartedAt)/260;
-  if(progress>=1){cache.owners.delete(player.id);return undefined;}
+  if(progress>=1){cache.owners.delete(player.id);return authoredMagazineHoldBody(player,data);}
   if(!owner.ready)return undefined;
   return {kind:"shoot",motionId:"action-shoot",variant:owner.weapon||"handgun",sourceEffectId:owner.id,authoredHandgunShot:owner,progress:clamp(progress,0,1)};
 }
@@ -24578,7 +24734,7 @@ function drawAuthoredHandgunFire(player,data,ghost,action) {
   const profile=authoredFireProfiles(owner.identity,owner.weapon)?.[owner.direction],im=authoredFireTextures(owner.identity,owner.weapon)?.[owner.direction];
   if(!owner.ready||!profile||!im?.complete||im.naturalWidth!==profile.size[0]||im.naturalHeight!==profile.size[1])return true;
   if(ctx.globalAlpha<=0)return true;
-  const p=clamp(Number(action.progress)||0,0,1),frame=prefersReducedMotion()?0:p<40/260?0:p<120/260?1:2,s=profile.runtimeScale,c=profile.cell;
+  const p=clamp(Number(action.progress)||0,0,1),frame=displayedGunnerState(player,data).firing?1:prefersReducedMotion()?0:p<40/260?0:p<120/260?1:2,s=profile.runtimeScale,c=profile.cell;
   if(drawPhiliaSmgMovingFire(player,data,owner,profile,im,frame)){drawNameplate(player,ghost,-78);return true;}
   ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality=IMAGE_SMOOTHING_QUALITY;
   ctx.drawImage(im,frame*c,0,c,c,-profile.origin[0]*s,31-profile.origin[1]*s,c*s,c*s);
@@ -24814,11 +24970,11 @@ function currentCharacterAction(player) {
   if((!priorityAction||(authoredBotTaserReloadOwner(player)&&authoredReload?.variant==="taser:active"&&priorityAction.kind==="focus")||(authoredBotSniperReloadOwner(player)&&authoredReload?.variant==="sniper:active"&&priorityAction.kind==="focus")||(authoredBotAssaultReloadOwner(player)&&authoredReload?.variant==="assault:active"&&priorityAction.kind==="focus")||(authoredBotSmgReloadOwner(player)&&authoredReload?.variant==="smg:active"&&priorityAction.kind==="focus")||priorityAction.motionId==="action-reload"||(["handgun:active","smg:active","assault:active","sniper:active","taser:active"].includes(authoredReload?.variant)&&authoredHandgunFireReady(authoredHandgunFireIdentity(player,state.data),String(authoredReload?.variant).split(":")[0])&&["shoot","focus"].includes(priorityAction.kind)))&&authoredReload!==undefined)return authoredReload;
   const gunnerState = displayedGunnerState(player);
   if (gunnerState.firing && !suppressSyntheticAuthoredHandgunFire(player,state.data)) {
-    const cycle = loopedPhysicalMotionProgress(player, "shoot", 360);
+    const progress = heldPhysicalMotionProgress(player, "shoot", 360, gunnerState.firingSince);
     // Weapon animation is shooter-local. Never fall back to another player's
     // selected weapon, otherwise one switch would visually affect everyone.
     const variant = gunnerState.firingWeapon;
-    return { kind: "shoot", progress: cycle <= 0.5 ? cycle * 2 : (1 - cycle) * 2, variant };
+    return { kind: "shoot", progress, variant };
   }
   const action = state.characterActions.get(player.id);
   if(action?.motionId==="action-shoot"&&["handgun","smg","assault","sniper","taser"].includes(action.variant)&&suppressSyntheticAuthoredHandgunFire(player,state.data)&&AUTHORED_HANDGUN_FIRE_STATE.seen.has(action.sourceEffectId)){state.characterActions.delete(player.id);return authoritativeWeaponReloadBody(player,state.data)??null;}
@@ -26147,8 +26303,11 @@ function drawAuthoredPhiliaTaserSwitch(player,data,ghost,action){
  if(!authoredHandgunFireVisible(player,data)){owner.ready=false;return false;}
  const p=AUTHORED_PHILIA_TASER_SWITCH[owner.direction],im=state.textures.authoredPhiliaTaserSwitch?.[owner.direction];
  if(!im?.complete||im.naturalWidth!==p.size[0]||im.naturalHeight!==p.size[1]){owner.ready=false;return false;}
+ if(ctx.globalAlpha<=0)return true;
  const progress=clamp(Number(action.progress)||0,0,1),frame=prefersReducedMotion()?2:progress<.32?0:progress<.72?1:2;
- ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality=IMAGE_SMOOTHING_QUALITY;ctx.drawImage(im,frame*p.cell,0,p.cell,p.cell,-p.origin[0]*p.runtimeScale,31-p.origin[1]*p.runtimeScale,p.cell*p.runtimeScale,p.cell*p.runtimeScale);ctx.restore();drawNameplate(player,ghost,-78);return true;
+ ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality=IMAGE_SMOOTHING_QUALITY;ctx.drawImage(im,frame*p.cell,0,p.cell,p.cell,-p.origin[0]*p.runtimeScale,31-p.origin[1]*p.runtimeScale,p.cell*p.runtimeScale,p.cell*p.runtimeScale);ctx.restore();drawNameplate(player,ghost,-78);
+ advancePhenomenonSound(action.sourceEffectId,"philiaTaser",Number(action.progress),player);
+ return true;
 }
 
 function drawWeaponSwitchMotion(player, data, ghost, action) {
@@ -27199,7 +27358,7 @@ function drawLegacyWorldKillResidual(effect, camera, zoom = CAMERA_ZOOM) {
   const duration = Number(effect.duration);
   const inheritedAlpha = ctx.globalAlpha;
   if (!(duration > 0) || age <= 0 || age >= duration || inheritedAlpha <= 0) return;
-  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "mana-body-philia-taser-v904", 12);
+  const sprite = transparentSpriteSource(state.textures.worldKillResidual, "shot-pose-mana-taser-sfx-v905", 12);
   if (!sprite?.width || !sprite?.height) return;
   const progress = age / duration;
   const reduced = prefersReducedMotion();
@@ -27880,7 +28039,7 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 function createTextures() {
-const version = "mana-body-philia-taser-v904";
+const version = "shot-pose-mana-taser-sfx-v905";
   const pendingSources = [];
   const defer = (entry, path) => {
     pendingSources.push([entry, assetUrl(`${path}?v=${version}`)]);
@@ -29062,10 +29221,125 @@ function playFootstep(options = {}) {
   playTone(thumpFrequency, dash ? 42 : 48, dash ? 0.13 : 0.09, "sine", (dash ? 0.075 : 0.045) * volume, 0, pan, spatial);
 }
 
+
+// Standalone candidate. No device output, DOM access, timers, or game mutations.
+// Phase clips are started by the authoritative presentation clock, not setTimeout.
+const PHENOMENON_SFX = Object.freeze({
+  manaGather: { duration: .72, gain: .30, phase: 0 },
+  manaSettle: { duration: .40, gain: .30, phase: .57 },
+  philiaTaserDraw: { duration: .17, gain: .30, phase: 0 },
+  philiaTaserLatch: { duration: .12, gain: .30, phase: .32 },
+  philiaTaserReady: { duration: .14, gain: .30, phase: .72 }
+});
+const PHENOMENON_SFX_BUFFERS = new WeakMap();
+
+function renderPhenomenonSfx(kind, sampleRate = 48000) {
+  const profile = PHENOMENON_SFX[kind];
+  if (!profile) throw new RangeError(`Unknown phenomenon SFX: ${kind}`);
+  if (!Number.isFinite(sampleRate) || sampleRate < 22050 || sampleRate > 192000) throw new RangeError("Invalid sample rate");
+  const pcm = new Float32Array(Math.ceil(profile.duration * sampleRate));
+  const tau = Math.PI * 2;
+  const smooth = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  const env = (t, attack, decay, end) => smooth(t / attack) * Math.exp(-t / decay) * smooth((end - t) / .018);
+  // Repeatable, non-periodic noise. Sample-rate-adjusted filters preserve color.
+  let seed = 0x51a7c093, low = 0, slow = 0, phase1 = 0, phase2 = 0;
+  const alpha = 1 - Math.exp(-tau * 2800 / sampleRate);
+  const beta = 1 - Math.exp(-tau * 520 / sampleRate);
+  for (let i = 0; i < pcm.length; i++) {
+    const t = i / sampleRate, p = t / profile.duration;
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    const white = (seed >>> 0) / 2147483648 - 1;
+    low += alpha * (white - low); slow += beta * (low - slow);
+    const air = low - slow;
+    let value = 0;
+    if (kind === "manaGather") {
+      // Three authored ribbons condense: opposing glides converge at 392 Hz,
+      // with quiet airy friction and a non-arpeggiated upper ribbon.
+      const converge = smooth(t / .67);
+      phase1 += tau * (245 + 147 * converge) / sampleRate;
+      phase2 += tau * (610 - 218 * converge) / sampleRate;
+      const body = smooth(t / .095) * smooth((profile.duration - t) / .13);
+      const swell = .35 + .65 * smooth(t / .55);
+      value = body * swell * (.11 * Math.sin(phase1) + .075 * Math.sin(phase2)
+        + .033 * Math.sin(phase1 * 2 + .25 * Math.sin(tau * 1.8 * t)) + .05 * air);
+    } else if (kind === "manaSettle") {
+      // A soft fused knot, slightly inharmonic upper partial losing energy first.
+      value = env(t, .014, .16, profile.duration) * (.14 * Math.sin(tau * 392 * t)
+        + .07 * Math.exp(-t / .11) * Math.sin(tau * 784 * t)
+        + .034 * Math.exp(-t / .06) * Math.sin(tau * 1201 * t));
+    } else if (kind === "philiaTaserDraw") {
+      // Cloth/holster drag with a muted polymer body, no electrical discharge.
+      value = env(t, .015, .065, profile.duration) * (.19 * air
+        + .065 * Math.sin(tau * (175 * t - 190 * t * t)));
+    } else if (kind === "philiaTaserLatch") {
+      // One rounded mechanical detent and short damped case resonances.
+      value = env(t, .0025, .025, profile.duration) * (.20 * air
+        + .115 * Math.sin(tau * 620 * t) + .055 * Math.sin(tau * 1375 * t));
+    } else {
+      // Brief capacitor readiness; low-index FM, no firing crack or looping buzz.
+      value = env(t, .009, .045, profile.duration) * (.105 * Math.sin(tau * (810 * t + 210 * t * t)
+        + .32 * Math.sin(tau * 1620 * t)) + .035 * Math.sin(tau * 405 * t) + .023 * air);
+    }
+    pcm[i] = value;
+  }
+  pcm[0] = 0; pcm[pcm.length - 1] = 0;
+  return pcm;
+}
+
+// Integration seam: call only through the game's playSound gate, and pass its
+// verification flag explicitly. Returns a cancellable finite voice or null.
+function playPhenomenonSfx(context, master, kind, options = {}) {
+  const profile = PHENOMENON_SFX[kind];
+  const rawVolume = options.volume === undefined ? 1 : Number(options.volume);
+  const volume = Number.isFinite(rawVolume) ? Math.max(0, Math.min(1, rawVolume)) : 0;
+  if (!profile || !context || !master || context.state !== "running" || options.verify || options.muted || volume === 0) return null;
+  let cache = PHENOMENON_SFX_BUFFERS.get(context);
+  if (!cache) { cache = new Map(); PHENOMENON_SFX_BUFFERS.set(context, cache); }
+  let buffer = cache.get(kind);
+  if (!buffer) {
+    const pcm = renderPhenomenonSfx(kind, context.sampleRate);
+    buffer = context.createBuffer(1, pcm.length, context.sampleRate);
+    buffer.getChannelData(0).set(pcm); cache.set(kind, buffer);
+  }
+  const source = context.createBufferSource(), gain = context.createGain();
+  const pan = typeof context.createStereoPanner === "function" ? context.createStereoPanner() : null;
+  source.buffer = buffer;
+  gain.gain.setValueAtTime(profile.gain * volume, context.currentTime);
+  source.connect(gain);
+  if (pan) { pan.pan.value = Math.max(-1, Math.min(1, Number(options.pan) || 0)); gain.connect(pan); pan.connect(master); }
+  else gain.connect(master);
+  let done = false, stopping = false;
+  const disconnect = () => { if (done) return; done = true; source.disconnect(); gain.disconnect(); if (pan) pan.disconnect(); };
+  source.onended = disconnect;
+  source.start(context.currentTime);
+  return {
+    kind,
+    stop() {
+      if (done || stopping) return;
+      stopping = true;
+      const now = context.currentTime;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(0, now + .012);
+      try { source.stop(now + .014); } catch (_) { disconnect(); }
+    }
+  };
+}
+
+
+
 function playSound(kind, options = {}) {
-  if (state.audio.muted || isSensoryBlocked()) return;
+  if (state.audio.muted || IS_VERIFICATION_MODE || isSensoryBlocked()) return null;
   const context = state.audio.context;
-  if (!context || context.state === "closed") return;
+  if (!context || context.state === "closed") return null;
+  if (PHENOMENON_SFX[kind]) {
+    // Event-owned clips never wake a suspended context or wait for a later
+    // unlock. The renderer consumes their phase even when sound is unavailable.
+    if (!(Number(state.audio.master?.gain?.value) > 0)) return null;
+    return playPhenomenonSfx(context, state.audio.master, kind, {
+      ...options, verify: IS_VERIFICATION_MODE, muted: state.audio.muted
+    });
+  }
   if (context.state === "suspended") context.resume().catch(() => {});
   const buffered = playBufferedSfx(kind, options);
   const layeredFootstep = ["step", "dashStep", "worldStep", "worldDash"].includes(kind);
@@ -29254,7 +29528,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=mana-body-philia-taser-v904", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=shot-pose-mana-taser-sfx-v905", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

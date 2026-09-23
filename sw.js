@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "mana-body-philia-taser-v904";
-const CACHE_NAME = "dva-static-v904-mana-body-philia-taser";
+const RUNTIME_RELEASE = "shot-pose-mana-taser-sfx-v905";
+const CACHE_NAME = "dva-static-v905-shot-pose-mana-taser-sfx";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/mana-body-original-v903.png",
