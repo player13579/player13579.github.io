@@ -28283,6 +28283,47 @@ function playMedicalRoomWebGPUCue(cue, data) {
   if (gain <= .0001) return;
   playTone(from, to, duration,
     cue.waveform === "triangle" ? "triangle" : "sine", gain, 0, mix.pan, true);
+  const character = String(cue.character || cue.kind || "");
+  const noiseMix = Number.isFinite(cue.noiseMix) ? cue.noiseMix :
+    cue.noise ? .32 : character === "linen-herbal-rustle" ? .28 : 0;
+  if (noiseMix <= 0) return;
+  const context = state.audio.context;
+  if (context?.state !== "running") return;
+  const frameCount = Math.max(1, Math.ceil(duration * context.sampleRate));
+  const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+  const pcm = buffer.getChannelData(0);
+  let seed = 2166136261;
+  for (const characterCode of String(cue.id || character)) {
+    seed ^= characterCode.charCodeAt(0);
+    seed = Math.imul(seed, 16777619);
+  }
+  for (let i = 0; i < frameCount; i++) {
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    pcm[i] = ((seed >>> 0) / 2147483648 - 1) *
+      (.64 + .36 * Math.sin(i / context.sampleRate * 64));
+  }
+  const source = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const level = context.createGain();
+  const pan = typeof context.createStereoPanner === "function"
+    ? context.createStereoPanner() : null;
+  const at = context.currentTime;
+  filter.type = "bandpass";
+  filter.frequency.value = character === "chair-upholstery-settle" ? 340 :
+    character === "linen-herbal-rustle" ? 1050 :
+    character === "porcelain-water-beads" ? 1650 : 620;
+  filter.Q.value = character === "porcelain-water-beads" ? 1.4 : .75;
+  level.gain.setValueAtTime(.0001, at);
+  level.gain.linearRampToValueAtTime(gain * Math.min(1, noiseMix),
+    at + Math.min(.05, Math.max(.009, Number(cue.attack) || .025)));
+  level.gain.exponentialRampToValueAtTime(.0001, at + duration);
+  source.buffer = buffer;
+  source.connect(filter); filter.connect(level);
+  if (pan) { level.connect(pan); pan.pan.value = mix.pan; pan.connect(state.audio.master); }
+  else level.connect(state.audio.master);
+  source.start(at); source.stop(at + duration);
+  source.onended = () => { source.disconnect(); filter.disconnect();
+    level.disconnect(); pan?.disconnect(); };
 }
 
 function tickMedicalRoomWebGPUSfx(data, previousNow, now) {
