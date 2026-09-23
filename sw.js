@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "sophia-sniper-overheal-producer-v907";
-const CACHE_NAME = "dva-static-v907-sophia-sniper-overheal-producer";
+const RUNTIME_RELEASE = "webgpu-acquisition-v908";
+const CACHE_NAME = "dva-static-v908-webgpu-acquisition";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/mana-body-original-v903.png",
@@ -358,6 +358,7 @@ const STATIC_ASSETS = [
   "/styles.css",
   "/economy-catalog-v468.js",
   "/app.js",
+  "/webgpu-acquisition.js",
   "/game-runtime.js",
   "/game-engine.js",
   "/offline-runtime.js",
@@ -725,6 +726,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/styles.css",
   "/economy-catalog-v468.js",
   "/app.js",
+  "/webgpu-acquisition.js",
   "/game-runtime.js",
   "/game-engine.js",
   "/offline-runtime.js",

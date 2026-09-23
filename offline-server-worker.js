@@ -3386,7 +3386,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "sophia-sniper-overheal-producer-v907",
+    version: "webgpu-acquisition-v908",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -3408,7 +3408,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
 const DVA_ECONOMY = globalThis.DVAEconomyCatalog;
 const CREDIT_ECONOMY = DVA_ECONOMY.creditIncome;
 const SHOP_ABILITY_PRODUCTS = DVA_ECONOMY.abilityProducts;
-const PRODUCT_RELEASE = "sophia-sniper-overheal-producer-v907";
+const PRODUCT_RELEASE = "webgpu-acquisition-v908";
 const ONLINE_CLIENT_RELEASE = String(DVA_ECONOMY.onlineProtocolVersion || "");
 if (!ONLINE_CLIENT_RELEASE) throw new Error("Shared online protocol version is required.");
 const ONLINE_CLIENT_RELEASE_HEADER = "x-dva-client-release";
@@ -22480,5 +22480,5 @@ self.addEventListener("message", async (event) => {
   const result = await offlineApiRequest(String(message.path || "/"), message.body || {});
   self.postMessage({ type: "response", id: message.id, result });
 });
-self.postMessage({ type: "ready", version: "sophia-sniper-overheal-producer-v907" });
+self.postMessage({ type: "ready", version: "webgpu-acquisition-v908" });
 })();
