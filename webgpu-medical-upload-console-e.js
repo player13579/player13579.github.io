@@ -32,6 +32,8 @@ fn visual(q:vec2f)->vec4f {
  let age=p.state.w;
  let reduced=p.shade.y;
  let face=1.-smoothstep(-1.,1.,box(q,vec2f(479.5,330.5),vec2f(38.5,4.5)));
+ let glass=1.-smoothstep(-1.,2.,box(q,vec2f(479.5,339.),vec2f(38.,14.)));
+ let bezel=exp(-pow((q.x-479.5)/48.,4.)-pow((q.y-339.)/24.,4.));
  let track=1.-smoothstep(-.5,1.5,box(q,vec2f(469.,330.),vec2f(27.,2.)));
  let fill=track*(1.-smoothstep(-1.,1.,q.x-(442.+54.*progress)));
  let span=smoothstep(325.,327.,q.y)*(1.-smoothstep(333.,335.,q.y));
@@ -40,8 +42,11 @@ fn visual(q:vec2f)->vec4f {
  let idle=band(q.y,330.,1.0)*centerSpan*face;
  let success=band(q.y,330.,2.0)*centerSpan*face;
  let release=1.-smoothstep(.30,.75,age);
- let core=face*(idle*.11*(1.-uploading)*(1.-complete)+fill*.72*uploading+carriage*.51*uploading+success*.70*complete*release);
- let halo=exp(-pow((q.x-469.)/46.,2.)-pow((q.y-330.)/11.,2.))*(uploading*.085+complete*.18*release);
+ let flash=complete*release;
+ let scan=exp(-pow((q.x-(447.+65.*clamp(age/.34,0.,1.)))/5.,2.))*glass*flash;
+ let screenPulse=glass*(uploading*(.11+.10*progress)+flash*.22);
+ let core=face*(idle*.11*(1.-uploading)*(1.-complete)+fill*.72*uploading+carriage*.51*uploading+success*.86*flash)+scan*.82+screenPulse;
+ let halo=bezel*(uploading*.12+flash*.36)+exp(-pow((q.x-469.)/46.,2.)-pow((q.y-330.)/11.,2.))*(uploading*.085+flash*.18);
  let flicker=select(.94+.06*sin(p.world.w*6.),1.,reduced>.5);
  let color=mix(vec3f(.24,.62,.66),vec3f(.73,1.,.78),complete);
  return vec4f(color*(core*flicker+halo)*p.shade.x,0.);

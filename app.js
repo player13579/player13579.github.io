@@ -19993,14 +19993,14 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
     frameNow - effect.startedAt < effect.duration) : [];
   // The live Canvas path resolves eligibility and landing through this same
   // helper. A visible preview cannot become an empty GPU stage because its
-  // source material has not loaded. The Clairvoyance scan remains unsupported
-  // in this early-stage slice and must block the complete-frame cutover.
+  // source material has not loaded. The same applies to the Clairvoyance scan
+  // layered over an active target preview.
   const throwScene = throwLandingWebGPUScene(data);
   const throwPreviewGaps = [];
   if (throwScene?.landing && !imageReady(throwScene.image, 1254, 1254))
     textureGaps.push({ stage: "throwPreview", texture: "throwLandingPreview", blocking: true });
-  if (throwScene?.clairvoyance)
-    throwPreviewGaps.push({ stage: "throwPreview", reason: "clairvoyance-scan-unsupported", blocking: true });
+  if (throwScene?.clairvoyance && !imageReady(throwScene.clairvoyanceImage, 1213, 1213))
+    textureGaps.push({ stage: "throwPreview", texture: "clairvoyanceThrowAte", blocking: true });
   // The zone pass reads barrier-hit events to animate the held safe eye.
   // Gravity impact drawing itself belongs to the later magic-effects slot.
   const gravityScene = { gravityZones: zones,

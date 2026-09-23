@@ -37,6 +37,34 @@ fn rr(p:vec2f,c:vec2f,h:vec2f,r:f32)->f32 {
 fn gate(t:f32,a:f32,b:f32,c:f32,d:f32)->f32 {
   return smoothstep(a,b,t)*(1.0-smoothstep(c,d,t));
 }
+@fragment fn fsContrast(input:Vertex)->@location(0) vec4f {
+  let p=input.local;
+  let t=params.world.w;
+  let reduced=params.effect.z>0.5;
+  if (params.effect.x<0.5) {
+    // A short wet crescent gives the bright porcelain a readable water edge.
+    let arc=exp(-sq(rr(p,vec2f(59,53),vec2f(31,25),12)/3.8))*
+      smoothstep(48.0,57.0,p.y)*gate(t,0.28,0.43,0.85,0.98);
+    let travel=select(smoothstep(0.12,0.73,t),0.58,reduced);
+    let a=vec2f(38.0+travel*15.0,35.0+travel*16.0);
+    let b=vec2f(80.0-travel*15.0,44.0+travel*9.0);
+    let drops=(exp(-sq(length(p-a)/7.5))+exp(-sq(length(p-b)/7.5)))*
+      gate(t,0.06,0.22,0.80,0.96);
+    return vec4f(vec3f(0.04,0.24,0.31),
+      clamp((arc*0.82+drops*0.54)*params.effect.y,0.0,0.84));
+  }
+  // A moving upholstery edge sits under the emissive seam; it does not
+  // outline the entire chair or suggest that the chair has been occupied.
+  let travel=select(smoothstep(0.07,0.72,t),0.55,reduced);
+  let edge=exp(-sq(rr(p,vec2f(54,38),vec2f(27,25),10)/4.2))*
+    exp(-sq((p.y-(16.0+travel*43.0))/24.0))*
+    gate(t,0.06,0.22,0.77,0.96);
+  let seat=exp(-sq((p.y-75.0)/4.2))*
+    (1.0-smoothstep(-1.0,3.0,rr(p,vec2f(54,76),vec2f(30,17),9)))*
+    gate(t,0.43,0.60,0.90,0.99);
+  return vec4f(vec3f(0.20,0.13,0.08),
+    clamp((edge*0.84+seat*0.54)*params.effect.y,0.0,0.86));
+}
 @fragment fn fs(input:Vertex)->@location(0) vec4f {
   let p=input.local;
   let t=params.world.w;
@@ -52,8 +80,8 @@ fn gate(t:f32,a:f32,b:f32,c:f32,d:f32)->f32 {
     let beadA=exp(-sq((p.x-beadCenterA.x)/4.7)-sq((p.y-beadCenterA.y)/5.4));
     let beadB=exp(-sq((p.x-beadCenterB.x)/4.7)-sq((p.y-beadCenterB.y)/5.4));
     let beads=(beadA+beadB)*gate(t,0.04,0.23,0.83,1.05)*basin;
-    let beadRim=(exp(-sq((length(p-beadCenterA)-5.5)/1.6))+
-      exp(-sq((length(p-beadCenterB)-5.5)/1.6)))*
+    let beadRim=(exp(-sq((length(p-beadCenterA)-5.5)/2.3))+
+      exp(-sq((length(p-beadCenterB)-5.5)/2.3)))*
       gate(t,0.04,0.23,0.83,1.05)*basin;
     let wash=exp(-sq((p.x-(37.0+travel*43.0))/19.0)-sq((p.y-55.0)/16.0)) *
       gate(t,0.34,0.56,0.90,1.0)*basin;
@@ -72,8 +100,8 @@ fn gate(t:f32,a:f32,b:f32,c:f32,d:f32)->f32 {
     let seat=1.0-smoothstep(-1.0,3.0,rr(p,vec2f(54,76),vec2f(30,17),9));
     let backSeam=exp(-sq((p.y-(29.0+select(t*25.0,13.0,reduced)))/5.0))*back;
     let edgeProgress=select(smoothstep(0.07,0.72,t),0.55,reduced);
-    let backEdge=exp(-sq(rr(p,vec2f(54,38),vec2f(27,25),10)/2.3))*
-      exp(-sq((p.y-(16.0+edgeProgress*43.0))/14.0))*
+    let backEdge=exp(-sq(rr(p,vec2f(54,38),vec2f(27,25),10)/3.2))*
+      exp(-sq((p.y-(16.0+edgeProgress*43.0))/21.0))*
       gate(t,0.06,0.25,0.77,0.96);
     let seatSeam=exp(-sq((p.y-75.0)/5.5))*seat;
     let side=exp(-sq((abs(p.x-54.0)-25.0)/5.0))*seat;
@@ -148,6 +176,12 @@ fn gate(t:f32,a:f32,b:f32,c:f32,d:f32)->f32 {
       !device?.queue?.writeBuffer || typeof format!=='string' || !format)
       throw new TypeError('Medical fixture E needs shared WebGPU device and format');
     const module=device.createShaderModule({label:'DVA medical fixture E',code:shader});
+    const contrast=device.createRenderPipeline({label:'DVA medical fixture material contrast',
+      layout:'auto', vertex:{module,entryPoint:'vs'},
+      fragment:{module,entryPoint:'fsContrast',targets:[{format,blend:{
+        color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},
+        alpha:{srcFactor:'zero',dstFactor:'one',operation:'add'}
+      }}]}, primitive:{topology:'triangle-list'} });
     const pipeline=device.createRenderPipeline({label:'DVA medical fixture localized emissive',
       layout:'auto', vertex:{module,entryPoint:'vs'},
       fragment:{module,entryPoint:'fs',targets:[{format,blend:{
@@ -159,9 +193,11 @@ fn gate(t:f32,a:f32,b:f32,c:f32,d:f32)->f32 {
     const resources=Object.values(FIXTURES).map(item=>{
       const uniform=device.createBuffer({label:`DVA ${item.id} E state`,
         size:48,usage:0x40|0x08});
+      const bindContrast=device.createBindGroup({layout:contrast.getBindGroupLayout(0),
+        entries:[{binding:0,resource:{buffer:uniform}}]});
       const bind=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),
         entries:[{binding:0,resource:{buffer:uniform}}]});
-      return {uniform,bind};
+      return {uniform,bindContrast,bind};
     });
     let destroyed=false;
     return Object.freeze({device,get ready(){return !destroyed;},
@@ -185,7 +221,13 @@ fn gate(t:f32,a:f32,b:f32,c:f32,d:f32)->f32 {
           item.kind,planned.intensity,planned.reducedMotion?1:0,0
         ]));
         frame.stage(`world:medical-fixture-e:${item.id}`);
-        frame.add({target,label:`world:medical-fixture-e:${item.id}`,
+        frame.add({target,label:`world:medical-fixture-e:${item.id}:material`,
+          encode(pass,info) {
+            if (info.width!==viewport.pixelWidth || info.height!==viewport.pixelHeight)
+              throw new Error('Medical fixture E backing dimensions differ from shared target');
+            pass.setPipeline(contrast); pass.setBindGroup(0,resource.bindContrast); pass.draw(6);
+          }});
+        frame.add({target,label:`world:medical-fixture-e:${item.id}:light`,
           encode(pass,info) {
             if (info.width!==viewport.pixelWidth || info.height!==viewport.pixelHeight)
               throw new Error('Medical fixture E backing dimensions differ from shared target');
