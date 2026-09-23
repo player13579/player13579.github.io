@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "shot-pose-mana-taser-sfx-v905";
-const CACHE_NAME = "dva-static-v905-shot-pose-mana-taser-sfx";
+const RUNTIME_RELEASE = "sophia-smg-side-switch-v906";
+const CACHE_NAME = "dva-static-v906-sophia-smg-side-switch";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/mana-body-original-v903.png",
@@ -18,6 +18,8 @@ const STATIC_ASSETS = [
   "/assets/generated/sophia-assault-switch-back-20260922.png",
   "/assets/generated/sophia-assault-switch-left-20260922.png",
   "/assets/generated/sophia-assault-switch-right-20260922.png",
+  "/assets/generated/sophia-smg-switch-left-v906.png",
+  "/assets/generated/sophia-smg-switch-right-v906.png",
   "/assets/generated/heal-body-original-v902.png",
   "/assets/generated/stamina-body-original-v897.png",
   "/assets/generated/levitation-support-field-v901.png",
