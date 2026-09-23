@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-field-static-v911";
-const CACHE_NAME = "dva-static-v911-webgpu-field-static";
+const RUNTIME_RELEASE = "acquisition-startup-v912";
+const CACHE_NAME = "dva-static-v912-acquisition-startup";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/acceleration-body-original-v909.png",
