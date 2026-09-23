@@ -28282,7 +28282,7 @@ function playMedicalRoomWebGPUCue(cue, data) {
   const gain = clamp(Number(cue.gain) || 0, 0, .025) * mix.volume;
   if (gain <= .0001) return;
   playTone(from, to, duration,
-    cue.waveform === "triangle" ? "triangle" : "sine", gain, 0, mix.pan, true);
+    cue.waveform === "triangle" ? "triangle" : "sine", gain, 0, mix.pan);
   const character = String(cue.character || cue.kind || "");
   const noiseMix = Number.isFinite(cue.noiseMix) ? cue.noiseMix :
     cue.noise ? .32 : character === "linen-herbal-rustle" ? .28 : 0;
