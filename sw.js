@@ -5,11 +5,12 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "acquisition-startup-v912";
-const CACHE_NAME = "dva-static-v912-acquisition-startup";
+const RUNTIME_RELEASE = "overheal-body-v913";
+const CACHE_NAME = "dva-static-v913-overheal-body";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/acceleration-body-original-v909.png",
+  "/assets/generated/overheal-body-original-v913.png",
   "/assets/generated/mana-body-original-v903.png",
   "/assets/generated/philia-taser-switch-front-20260922.png",
   "/assets/generated/philia-taser-switch-back-20260922.png",
