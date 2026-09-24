@@ -9,6 +9,52 @@
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const align = value => Math.ceil(value / 256) * 256;
 
+  function validatePatches(patches, map, device) {
+    if (patches === undefined) return [];
+    if (!Array.isArray(patches)) throw new TypeError('Field patches must be an array');
+    const ids = new Set();
+    const rects = [];
+    for (const patch of patches) {
+      if (!patch || typeof patch.id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(patch.id) || ids.has(patch.id)) {
+        throw new TypeError('Field patch ids must be unique non-empty identifiers');
+      }
+      ids.add(patch.id);
+      const { x, y, w, h, image: source } = patch;
+      if (![x, y, w, h].every(finite) || !Number.isInteger(x) || !Number.isInteger(y) ||
+          !Number.isInteger(w) || !Number.isInteger(h) || x < 0 || y < 0 || w < 1 || h < 1 ||
+          x + w > map.width || y + h > map.height) {
+        throw new RangeError(`Field patch ${patch.id} has an invalid world rectangle`);
+      }
+      const sw = Number(source?.naturalWidth ?? source?.width);
+      const sh = Number(source?.naturalHeight ?? source?.height);
+      if (!source || source.complete === false || !Number.isInteger(sw) || !Number.isInteger(sh) || sw < 1 || sh < 1) {
+        throw new TypeError(`Field patch ${patch.id} has invalid source dimensions`);
+      }
+      if (Math.max(sw, sh) > device.limits.maxTextureDimension2D) {
+        throw new RangeError(`Field patch ${patch.id} exceeds WebGPU texture limit`);
+      }
+      const rect = { x, y, w, h, id: patch.id, image: source, sw, sh };
+      for (const other of rects) {
+        if (x < other.x + other.w && x + w > other.x && y < other.y + other.h && y + h > other.y) {
+          throw new RangeError(`Field patches ${other.id} and ${patch.id} overlap`);
+        }
+      }
+      rects.push(rect);
+    }
+    return rects;
+  }
+
+  const patchShader = /* wgsl */`@group(0) @binding(0) var sourceTexture:texture_2d<f32>;
+@group(0) @binding(1) var sourceSampler:sampler;
+struct VertexOut { @builtin(position) position:vec4f, @location(0) uv:vec2f };
+@vertex fn vs(@builtin(vertex_index) id:u32)->VertexOut {
+ let p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));let q=p[id];
+ var out:VertexOut;out.position=vec4f(q,0,1);out.uv=vec2f(q.x*.5+.5,.5-q.y*.5);return out;
+}
+@fragment fn fs(input:VertexOut)->@location(0) vec4f {
+ return textureSampleLevel(sourceTexture,sourceSampler,input.uv,0);
+}`;
+
   async function create(options = {}) {
     const { owner, map, image } = options;
     if (!field?.createGeometryMask || !field?.shader) throw new Error('WebGPU authored field module unavailable');
@@ -27,6 +73,7 @@
     const own = resource => { resources.push(resource); return resource; };
     let destroyed = false;
     try {
+      const patches = validatePatches(options.patches, map, device);
       const module = device.createShaderModule({ label: 'DVA shared authored field shader', code: field.shader });
       if (typeof module.getCompilationInfo === 'function') {
         const info = await module.getCompilationInfo();
@@ -48,6 +95,39 @@
         size: [map.width, map.height], format: 'r8unorm', usage: 0x04 | 0x02 }));
       device.queue.copyExternalImageToTexture({ source: image },
         { texture: material, premultipliedAlpha: true, colorSpace: 'srgb' }, [map.width, map.height]);
+      if (patches.length) {
+        const patchModule = device.createShaderModule({ label: 'DVA authored field patch compositor', code: patchShader });
+        if (typeof patchModule.getCompilationInfo === 'function') {
+          const info = await patchModule.getCompilationInfo();
+          const errors = info.messages.filter(message => message.type === 'error');
+          if (errors.length) throw new Error(errors.map(message => message.message).join('; '));
+        }
+        const patchPipeline = typeof device.createRenderPipelineAsync === 'function'
+          ? await device.createRenderPipelineAsync({ layout: 'auto', vertex: { module: patchModule, entryPoint: 'vs' },
+            fragment: { module: patchModule, entryPoint: 'fs', targets: [{ format: 'rgba8unorm', blend: {
+              color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+              alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+            } }] }, primitive: { topology: 'triangle-list' } })
+          : device.createRenderPipeline({ layout: 'auto', vertex: { module: patchModule, entryPoint: 'vs' },
+            fragment: { module: patchModule, entryPoint: 'fs', targets: [{ format: 'rgba8unorm', blend: {
+              color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+              alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+            } }] }, primitive: { topology: 'triangle-list' } });
+        const patchSampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+        for (const patch of patches) {
+          const texture = own(device.createTexture({ label: `DVA field patch ${patch.id}`, size: [patch.sw, patch.sh],
+            format: 'rgba8unorm', usage: textureUsage.COPY_DST | textureUsage.TEXTURE_BINDING | textureUsage.RENDER_ATTACHMENT }));
+          device.queue.copyExternalImageToTexture({ source: patch.image }, { texture, premultipliedAlpha: true, colorSpace: 'srgb' }, [patch.sw, patch.sh]);
+          const patchBind = device.createBindGroup({ layout: patchPipeline.getBindGroupLayout(0), entries: [
+            { binding: 0, resource: texture.createView() }, { binding: 1, resource: patchSampler }
+          ] });
+          const encoder = device.createCommandEncoder({ label: `DVA field patch ${patch.id}` });
+          const pass = encoder.beginRenderPass({ colorAttachments: [{ view: material.createView(), loadOp: 'load', storeOp: 'store' }] });
+          pass.setPipeline(patchPipeline); pass.setBindGroup(0, patchBind);
+          pass.setViewport(patch.x, patch.y, patch.w, patch.h, 0, 1); pass.draw(3); pass.end();
+          device.queue.submit([encoder.finish()]);
+        }
+      }
       const alpha = options.mask || field.createGeometryMask(map);
       if (!(alpha instanceof Uint8Array) || alpha.byteLength !== map.width * map.height) {
         throw new Error('Authored field coverage has invalid dimensions');

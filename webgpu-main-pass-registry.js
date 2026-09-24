@@ -73,7 +73,7 @@
       fullFrameReady: unsupported.length === 0 });
   }
 
-  async function create({ renderer, map, image, textAtlas, atlasMetrics,
+  async function create({ renderer, map, image, patches, textAtlas, atlasMetrics,
     expandedCanvas = null, expandedTarget = 'main-expanded-map',
     acquisitionCanvas = null, acquisitionTarget = 'main-acquisition-overlay',
     modules = defaults } = {}) {
@@ -137,7 +137,7 @@
       // context or obtains a second adapter. The authored field is async.
       add('shapes', modules.shapes.create({ device: renderer.device,
         format: renderer.format }), 'enqueue');
-      add('map', await modules.field.create({ owner: renderer, map, image }), 'enqueue');
+      add('map', await modules.field.create({ owner: renderer, map, image, patches }), 'enqueue');
       add('environmentE', modules.environmentE.create({ device: renderer.device,
         format: renderer.format }), 'record');
       if (needsCorridorA01E)
