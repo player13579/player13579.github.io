@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-special-ammo-penetrate-v49";
-const CACHE_NAME = "dva-static-webgpu-special-ammo-penetrate-v49";
+const RUNTIME_RELEASE = "object-use-receipts-v51";
+const CACHE_NAME = "dva-static-object-use-receipts-v51";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",

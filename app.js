@@ -12972,6 +12972,63 @@ function detectGameSounds(previous, next) {
   if ((next.self.teleportReadyAt || 0) > (previous.self.teleportReadyAt || 0)) playSound("teleport");
 }
 
+const OBJECT_USE_SOUND_TYPES = new Set([
+  'object', 'medicalBedUse', 'medicalCabinetUse', 'medicalFootBathUse',
+  'a01ReaderUse', 'cableSpoolUse', 'archiveCabinetUse'
+]);
+const OBJECT_USE_SPECIAL_SOUNDS = Object.freeze({
+  'v302-medical-diagnosticBed-1': 'medicalBedUse',
+  'v302-medical-medicalCabinet-2': 'medicalCabinetUse',
+  'v302-medical-sterilizer-3': 'medicalFootBathUse',
+  'v317-corridor-a01-1': 'a01ReaderUse',
+  'v302-power-cableSpool-2': 'cableSpoolUse',
+  'v302-archive-archiveCabinet-2': 'archiveCabinetUse'
+});
+const OBJECT_USE_SOUND_RECEIPTS = { roomKey: '', causes: new Set(), order: [] };
+
+function matchingObjectUseSound(sound, data) {
+  const cause = sound?.objectCausalId;
+  const objectId = sound?.objectId;
+  if (typeof cause !== 'string' || !cause ||
+      typeof objectId !== 'string' || !objectId ||
+      typeof sound.ownerId !== 'string' || !sound.ownerId ||
+      data?.phase !== 'playing' || !Array.isArray(data.magicEffects) ||
+      !Array.isArray(data.map?.objects)) return false;
+  const object = data.map.objects.find(entry => entry?.id === objectId);
+  const owner = data.players?.find(player => player?.id === sound.ownerId);
+  if (!object?.interactive || !owner ||
+      sound.type !== (OBJECT_USE_SPECIAL_SOUNDS[objectId] || 'object') ||
+      sound.sourceKind !== 'facility' ||
+      (owner.invisible && owner.id !== data.selfId) ||
+      !Number.isFinite(object.x) || !Number.isFinite(object.y) ||
+      sound.x !== object.x || sound.y !== object.y) return false;
+  return data.magicEffects.some(effect =>
+    effect?.objectCausalId === cause && effect.objectId === objectId &&
+    effect.playerId === sound.ownerId &&
+    effect.type === `object-${object.type}` &&
+    effect.effectKind === object.effectKind &&
+    effect.x === object.x && effect.y === object.y &&
+    Number.isFinite(effect.at) && Number.isFinite(effect.durationMs) &&
+    effect.durationMs >= 0);
+}
+
+function consumeObjectUseSoundReceipt(sound, data) {
+  const roomKey = `${String(data?.roomId || '')}:${state.roomSessionGeneration}`;
+  if (OBJECT_USE_SOUND_RECEIPTS.roomKey !== roomKey) {
+    OBJECT_USE_SOUND_RECEIPTS.roomKey = roomKey;
+    OBJECT_USE_SOUND_RECEIPTS.causes.clear();
+    OBJECT_USE_SOUND_RECEIPTS.order.length = 0;
+  }
+  const cause = sound?.objectCausalId;
+  if (typeof cause !== 'string' || !cause ||
+      OBJECT_USE_SOUND_RECEIPTS.causes.has(cause)) return false;
+  OBJECT_USE_SOUND_RECEIPTS.causes.add(cause);
+  OBJECT_USE_SOUND_RECEIPTS.order.push(cause);
+  while (OBJECT_USE_SOUND_RECEIPTS.order.length > 512)
+    OBJECT_USE_SOUND_RECEIPTS.causes.delete(OBJECT_USE_SOUND_RECEIPTS.order.shift());
+  return matchingObjectUseSound(sound, data);
+}
+
 function detectWorldSounds(previous, next) {
   if (!previous || previous.roomId !== next.roomId) return;
   const sensoryBlocked = isSensoryBlocked(next);
@@ -12984,6 +13041,15 @@ function detectWorldSounds(previous, next) {
   }
   for (const sound of next.sounds || []) {
     if (known.has(sound.id)) continue;
+    const objectUseSound = OBJECT_USE_SOUND_TYPES.has(sound.type);
+    if (objectUseSound) {
+      if (!consumeObjectUseSoundReceipt(sound, next)) continue;
+      // Consume before audio gates so hidden, muted or suspended receipts
+      // cannot fire after the tab resumes or the user unmutes.
+      if (state.screen !== 'game' || document.hidden || state.audio.muted || !state.audio.unlocked ||
+          state.audio.context?.state !== 'running' ||
+          !(Number(state.audio.master?.gain?.value) > 0)) continue;
+    }
     const boundedWorldKind = ['sunbeam', 'heavyWeapon', 'gravityStorm'].includes(sound.type);
     if (!boundedWorldKind && sensoryBlocked) continue;
     if (boundedWorldKind) {

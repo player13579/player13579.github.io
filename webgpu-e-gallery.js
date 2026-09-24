@@ -12,6 +12,9 @@
     { id: 'cafeteria', title: '実りの食堂', detail: '室内設備と環境EのWebGPU試作。採用原画が未配信のため背景との合成は確認待ち。', status: 'E試作・原画待ち', source: 'webgpu-map-cafeteria-e.js', page: 'cafeteria-webgpu-preview.html', node: '#cafeteria', aspect: '930 / 860' },
     { id: 'emp', title: 'EMP 放電', detail: 'サーバーの通常EMP確定イベント形を使った単独フィクスチャ。発動・干渉・音声・本編実寸の受入は別途確認が必要です。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-emp-effect.js', kind: 'integrated' },
     { id: 'barrier', title: 'バリア被弾', detail: 'サーバーの耐久バリア被弾イベント形と所有者・攻撃者を使った単独フィクスチャ。画質・SFX・本編実イベントの受入は未完了です。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-barrier-e.js', kind: 'integrated' },
+    { id: 'dodge', title: '回避', detail: '通常の回避発動イベントと現在の身体位置を使う単独フィクスチャ。実移動・無敵判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-dodge-e.js', kind: 'integrated' },
+    { id: 'renki', title: '錬気', detail: '通常の錬気発動イベントと現在の身体位置を使う単独フィクスチャ。ゲーム本編の発動・画質・SFXの受入は未完了です。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-renki-e.js', kind: 'integrated' },
+    { id: 'idea-truth', title: 'イデア・真', detail: '真の獲得イベントと現在の身体位置を使う単独フィクスチャ。美・善・昇天や本編実イベントの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-idea-e.js', kind: 'integrated' },
     { id: 'corridor-a03-sconce', objectId: 'v317-corridor-a03-1', title: 'A03 壁灯', detail: '左側のガラス開口から壁面へ広がる光。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a03-sconce', kind: 'corridor' },
     { id: 'corridor-a07-sconce', objectId: 'v317-corridor-a07-1', title: 'A07 壁灯', detail: '交差する真鍮羽根が開き、屈折光を菱形へ集める。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a07-sconce', kind: 'corridor' },
     { id: 'corridor-a09-sconce', objectId: 'v317-corridor-a09-1', title: 'A09 壁灯', detail: '三枚のガラス面へ順に光を渡す。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a09-sconce', kind: 'corridor' },
@@ -113,12 +116,18 @@
       if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
       target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
       const isEmp = entry.id === 'emp';
-      const api = isEmp ? window.DvaWebGPUEmpEffect : window.DvaWebGPUBarrierE;
+      const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
+        dodge: window.DvaWebGPUDodgeE, renki: window.DvaWebGPURenkiE,
+        'idea-truth': window.DvaWebGPIdeaE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
       effect = isEmp ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
-      const duration = isEmp ? api.DURATIONS.emp : api.EVENT_MAP['preparation-barrier-hit:durability-hit'].duration;
+      const duration = ({ emp: api.DURATIONS?.emp,
+        barrier: api.EVENT_MAP?.['preparation-barrier-hit:durability-hit']?.duration,
+        dodge: api.VISUAL_MS, renki: api.VISUAL_MS,
+        'idea-truth': 1800 })[entry.id];
+      if (!Number.isFinite(duration) || duration <= 0) throw new Error('現在のE寿命がありません');
       const cycleLength = duration + 350, startedAt = performance.now();
       const draw = now => {
         if (disposed || runId !== corridorRun || active !== entry.id) { dispose(); return; }
@@ -137,7 +146,7 @@
                 camera, zoom, viewport, reducedMotion: false, alpha: 1 });
               if (!planned) throw new Error('EMPイベントを計画できません');
               effect.record({ frame, target: targetId, viewport, planned });
-            } else {
+            } else if (entry.id === 'barrier') {
               // apply barrier damage in offline-server-main.js emits this hit event.
               const source = { id: `gallery-barrier-${cycle}`, type: 'preparation-barrier-hit',
                 variant: 'durability-hit', playerId: 'gallery-defender', targetId: 'gallery-attacker',
@@ -148,6 +157,22 @@
               ] };
               const result = effect.record({ frame, target: targetId, viewport, scene, camera, zoom });
               if (result.drawn !== 1) throw new Error('バリア被弾イベントを描画できません');
+            } else {
+              // combatScene in app.js supplies both event arrays and current bodyWorld.
+              const type = entry.id === 'dodge' ? 'action-dodge' :
+                entry.id === 'renki' ? 'action-renki' : 'idea-truth';
+              const source = { id: `gallery-${entry.id}-${cycle}`, type,
+                variant: '', playerId: 'gallery-operator', x: 490, y: 310,
+                radius: entry.id === 'dodge' ? 115 : entry.id === 'renki' ? 120 : 135,
+                startedAt: 0, duration: entry.id === 'idea-truth' ? 1800 : 1200 };
+              const body = entry.id === 'dodge' ? { x: 514, y: 310 } : { x: 490, y: 310 };
+              const scene = { nowMs: elapsed, serverNow: elapsed, reducedMotion: false,
+                effects: [source], events: [source], self: null, players: [
+                  { id: source.playerId, x: body.x, y: body.y, bodyWorld: body,
+                    alive: true, ejected: false, inVent: false, invisible: false }
+                ] };
+              const result = effect.record({ frame, target: targetId, viewport, scene, camera, zoom });
+              if (result.drawn !== 1) throw new Error(`${entry.title}イベントを描画できません`);
             }
           }
           frame.submit();

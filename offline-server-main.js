@@ -5580,6 +5580,7 @@ function pushSound(room, type, source, options = {}) {
     volume: Number(options.volume || 1),
     sourceKind: String(options.sourceKind || "player"),
     variant: String(options.variant || ""),
+    objectId: String(options.objectId || ""),
     ...(typeof options.objectCausalId === "string" && options.objectCausalId
       ? { objectCausalId: options.objectCausalId }
       : {}),
@@ -12846,17 +12847,13 @@ function useMapObject(room, player, objectId) {
 
   markObjectContactUsed(player, object.id);
   player.objectCooldowns[object.id] = timestamp + Number(object.cooldownMs || 15000);
-  const objectCausalId = [
-    "v302-reactor-reactorGauge-1",
-    "v302-reactor-coolingUnit-2",
-    "v302-reactor-powerCabinet-3"
-  ].includes(object.id) ? `map-object:${object.id}:${uid("object_use_")}` : "";
+  const objectCausalId = `map-object:${object.id}:${uid("object_use_")}`;
   pushMagicEffect(room, `object-${object.type}`, object, {
     radius: Number(object.radius || 100),
     playerId: player.id,
     objectId: object.id,
     effectKind: object.effectKind,
-    ...(objectCausalId ? { objectCausalId } : {})
+    objectCausalId
   });
   pushMapObjectGainAtes(room, player, object.effectKind, recoveredHealth);
   const medicalUseSound = {
@@ -12872,7 +12869,8 @@ function useMapObject(room, player, objectId) {
     sourceKind: "facility",
     maxDistance: 720,
     volume: 0.7,
-    ...(objectCausalId ? { objectCausalId } : {})
+    objectId: object.id,
+    objectCausalId
   });
   pushEvent(room, `${player.name} が ${object.label} を使用: ${object.effectLabel}`);
   touch(room);
