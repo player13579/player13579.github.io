@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "fighter-slash-main-v54";
-const CACHE_NAME = "dva-static-fighter-slash-main-v54";
+const RUNTIME_RELEASE = "heal-canvas-gallery-v55";
+const CACHE_NAME = "dva-static-heal-canvas-gallery-v55";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -294,7 +294,6 @@ const STATIC_ASSETS = [
   "/assets/generated/benefit-status-recovery-cleansing-v819.png",
   "/assets/generated/benefit-cooldown-reduction-release-v819.png",
   "/assets/generated/benefit-credits-transfer-v819.png",
-  "/assets/generated/benefit-heal-membrane-v818.png",
   "/assets/generated/benefit-mana-condensation-v818.png",
   "/assets/generated/benefit-overheal-overflow-v818.png",
   "/assets/generated/benefit-stamina-flow-v817.png",

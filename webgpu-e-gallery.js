@@ -21,6 +21,7 @@
     { id: 'medical-bed', title: '診療ベッド使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-object-e.js', kind: 'integrated' },
     { id: 'medical-cabinet', title: '薬草とリネンの棚', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-cabinet-e.js', kind: 'integrated' },
     { id: 'medical-footbath', title: '足湯使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-footbath-use-e.js', kind: 'integrated' },
+    { id: 'medical-ambient', title: '医療室の環境光', detail: '足湯の水面、窓光、床の木漏れ日を既存のWebGPU環境Eで再生。本編の視覚品質とSFXは未受入です。', status: '単独E・本編品質/SFX未受入', source: 'webgpu-medical-environment-e.js', kind: 'integrated' },
     { id: 'room-cooling-unit', objectId: 'v302-reactor-coolingUnit-2', title: '冷却ユニット使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
     { id: 'room-command-desk', objectId: 'v302-observatory-commandDesk-3', title: '観測デスク使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
     { id: 'room-pallet-jack', objectId: 'v302-storage-palletJack-2', title: 'パレットジャッキ使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
@@ -130,6 +131,7 @@
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
       const isMedical = Boolean(medicalEffectKind);
+      const isMedicalAmbient = entry.id === 'medical-ambient';
       const isRoomObject = entry.id.startsWith('room-');
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
         dodge: window.DvaWebGPUDodgeE, renki: window.DvaWebGPURenkiE,
@@ -139,6 +141,7 @@
         'medical-bed': window.DvaWebGPUMedicalObjectE,
         'medical-cabinet': window.DvaWebGPUMedicalCabinetE,
         'medical-footbath': window.DvaWebGPUMedicalFootbathUseE,
+        'medical-ambient': window.DvaWebGPUMedicalEnvironmentE,
         'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
         'room-command-desk': window.DvaWebGPURoomObjectUseE,
         'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
@@ -146,7 +149,7 @@
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
       effect = isRoomObject ? api.create({ renderer, frameOwner: renderer }) :
-        isMedical ? api.create({ device: renderer.device, format: renderer.format }) :
+        isMedical || isMedicalAmbient ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
@@ -156,7 +159,8 @@
         'idea-truth': 1800, bust: api.EVENT_DURATION?.[api.START_EVENT],
         'gravity-keeper': 5000, 'hacker-status': Math.min(1200, api.DURATION_MS || 1200),
         'medical-bed': api.DURATION_MS, 'medical-cabinet': api.DURATION_MS,
-        'medical-footbath': api.DURATION_MS, 'room-cooling-unit': api.DURATION_MS,
+        'medical-footbath': api.DURATION_MS, 'medical-ambient': 8000,
+        'room-cooling-unit': api.DURATION_MS,
         'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
         'room-restorative-mist': api.DURATION_MS,
         'room-herb-preparation-table': api.DURATION_MS })[entry.id];
@@ -170,7 +174,21 @@
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (elapsed > 0 && elapsed < duration) {
-            if (isRoomObject) {
+            if (isMedicalAmbient) {
+              const ambientZoom = .78;
+              const ambientCamera = {
+                x: api.ROOM.x - (viewport.width - api.ROOM.width * ambientZoom) / (2 * ambientZoom),
+                y: api.ROOM.y - (viewport.height - api.ROOM.height * ambientZoom) / (2 * ambientZoom)
+              };
+              const now = elapsed;
+              const planned = api.plan({ camera: ambientCamera, zoom: ambientZoom,
+                viewport, now, mode: 'balanced', intensity: .72, reducedMotion: false });
+              if (!planned) throw new Error('医療室の環境Eを計画できません');
+              const result = effect.record({ frame, target: targetId, viewport,
+                camera: ambientCamera, zoom: ambientZoom, now, mode: 'balanced',
+                intensity: .72, reducedMotion: false, planned });
+              if (!result.drawn) throw new Error('医療室の環境Eを描画できません');
+            } else if (isRoomObject) {
               const authored = api.OBJECTS[entry.objectId];
               if (!authored) throw new Error('著者済みオブジェクトの設計データがありません');
               const map = { id: api.MAP_ID, objects: [{ id: authored.id,

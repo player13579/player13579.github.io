@@ -593,7 +593,6 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
 
 const BENEFIT_TE_MATERIALS = Object.freeze({
   stamina: { file: "benefit-stamina-flow-v817.png", glow: "#b8ff85" },
-  heal: { file: "benefit-heal-membrane-v818.png", glow: "#ffb0be" },
   mana: { file: "benefit-mana-condensation-v818.png", glow: "#b5b3ff" },
   luckBoost: { file: "benefit-luck-boost-caustic-v819.png", glow: "#ffe5a0" },
   statusRecovery: { file: "benefit-status-recovery-cleansing-v819.png", glow: "#befff1" },
@@ -633,7 +632,6 @@ const MANA_BODY_RECOVERY_TE = Object.freeze({
 // transparent body void. Keep each phenomenon's hue and source RGB intact.
 const BODY_RECOVERY_GLOW = Object.freeze({
   stamina: Object.freeze({ color: "#9cf36b", blur: 12 }),
-  heal: Object.freeze({ color: "#ff91b7", blur: 12 }),
   mana: Object.freeze({ color: "#9696ff", blur: 13 })
 });
 function setBodyRecoveryGlow(kind) {
@@ -22718,7 +22716,8 @@ function drawMagicEffects() {
         continue;
       }
       if (isBodyHealGainEffect(effect)) {
-        drawHealBodyRecoveryEffect(effect, now);
+        // The shared WebGPU body-benefit pass owns this effect. The legacy
+        // Canvas frame must not draw a second Heal surround.
         continue;
       }
       /* mana-body-v904:top-draw:start */
@@ -26331,28 +26330,6 @@ function drawStaminaBodyRecoveryEffect(effect, now) {
 }
 function isBodyHealGainEffect(effect) {
   return String(effect?.type || "") === "gain-heal" && String(effect?.effectKind || "heal") === "heal";
-}
-function healBodyTextureReady() {
-  const texture = state.textures?.healBodyRecovery;
-  return Boolean(texture?.complete && Number(texture.naturalWidth) === HEAL_BODY_RECOVERY_TE.sourceWidth && Number(texture.naturalHeight) === HEAL_BODY_RECOVERY_TE.sourceHeight);
-}
-function healBodyPhase(effect, now) {
-  const admittedAt = Number(effect?.startedAt);
-  return clamp((Number(now) - (Number.isFinite(admittedAt) ? admittedAt : Number(now))) / HEAL_BODY_RECOVERY_TE.durationMs, 0, 1);
-}
-function drawHealBodyRecoveryEffect(effect, now) {
-  if (!isBodyHealGainEffect(effect) || !["playing", "meeting"].includes(state.data?.phase) || ctx.globalAlpha <= 0) return false;
-  const player = gainEffectPlayer(effect);
-  if (!player || !player.alive || player.ejected || player.inVent || player.invisible || !healBodyTextureReady()) return false;
-  const texture = state.textures.healBodyRecovery, scale = HEAL_BODY_RECOVERY_TE.displayWidth / HEAL_BODY_RECOVERY_TE.sourceWidth;
-  const width = HEAL_BODY_RECOVERY_TE.displayWidth, height = HEAL_BODY_RECOVERY_TE.sourceHeight * scale;
-  const left = player.x - width / 2, top = player.y + 31 - HEAL_BODY_RECOVERY_TE.sourceAlphaBottom * scale;
-  const p = healBodyPhase(effect, now); if (p >= 1) return false;
-  const reduced = prefersReducedMotion(), appear = objectEffectEase(p / .18), flow = objectEffectEase((p - .12) / .48), settle = objectEffectEase((p - .58) / .28), release = 1 - objectEffectEase((p - .82) / .18);
-  if (tryDrawGpuBodyRecovery("heal", texture, player, bodyBenefitGpuElapsed(effect, now), reduced)) return true;
-  const drawBase = alpha => { if (!(alpha > .001)) return; ctx.save();ctx.globalAlpha *= alpha;ctx.globalCompositeOperation = "source-over";ctx.drawImage(texture,left,top,width,height);ctx.restore(); };
-  const drawPart = (index, offsetY, alpha) => { if (!(alpha > .001)) return; const layer=state.textures.healBodyRecoveryScratch,mask=state.textures.healBodyRecoveryMasks?.[index]; if(!layer||!mask)return; const local=layer.getContext("2d");if(!local)return;local.setTransform(1,0,0,1,0,0);local.globalAlpha=1;local.globalCompositeOperation="source-over";local.clearRect(0,0,layer.width,layer.height);local.drawImage(texture,0,offsetY,width,height);local.globalCompositeOperation="destination-in";local.drawImage(mask,0,0);ctx.save();ctx.globalAlpha*=alpha;ctx.globalCompositeOperation="source-over";ctx.drawImage(layer,left,top);ctx.restore(); };
-  ctx.save();try {setBodyRecoveryGlow("heal");drawBase(appear*release);if(reduced){drawPart(0,0,.72*(1-settle*.2)*release);drawPart(1,0,.64*flow*release);drawPart(2,0,.52*flow*release);drawPart(3,0,.48*settle*release);}else{drawPart(0,12*(1-appear),.8*appear*(1-settle*.22)*release);drawPart(1,14*(1-flow),.72*flow*(1-settle*.16)*release);drawPart(2,10*(1-flow),.65*flow*release);drawPart(3,-4*settle,.56*settle*release);}return true;}finally{ctx.restore();}
 }
 
 function isBodyOverhealGainEffect(effect) {
