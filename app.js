@@ -17368,6 +17368,8 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   webgpuMainApp.generation += 1;
   webgpuMainApp.submittedHits = null;
   webgpuMainApp.visible = false;
+  if (document.documentElement?.dataset)
+    document.documentElement.dataset.fieldRenderer = "canvas2d";
   if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
   if (els.canvas) els.canvas.style.opacity = "1";
   if (webgpuMainApp.acquisitionCanvas) webgpuMainApp.acquisitionCanvas.style.display = "none";
@@ -17469,6 +17471,8 @@ function pumpWebGPUMainAppDriver() {
     // actually selected as the visible game surface.
     webgpuMainApp.submittedHits = receipt.markerHitTargets;
     webgpuMainApp.visible = true;
+    if (document.documentElement?.dataset)
+      document.documentElement.dataset.fieldRenderer = "webgpu";
   }).catch(error => {
     webgpuMainApp.failed = true;
     document.body.dataset.webgpuMainError = error?.message || String(error);
