@@ -18047,6 +18047,9 @@ function serialize(room, viewer, options = {}) {
       levitationActive: canLevitate(player),
       gravityLevitationActive: Boolean(room.phase === "playing" && player.alive && !player.ejected && !player.inVent && player.levitationEngaged),
       statusAte: persistentStatusAteState(room, player, timestamp),
+      floraAccelerationEndsAt: !concealedFromViewer && player.alive &&
+        !player.ejected && !player.inVent
+        ? Number(timedAccelerationSummary(player, timestamp).bySource.flora?.endsAt) || 0 : 0,
       hackerRootActive: hackerRootEligible(player),
       gunnerSnipingActive: Boolean(hasGunnerAimAccess(player) && player.gunnerSnipingActive),
       aromaActive: Boolean(aromaSource),

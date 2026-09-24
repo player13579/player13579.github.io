@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mystery Box WebGPU E Preview</title>
+<style>
+  body { margin: 0; background: #17283d; color: #e8f6ff; font: 15px system-ui, sans-serif; }
+  main { width: min(980px, 96vw); margin: 18px auto; }
+  canvas { display: block; width: 100%; aspect-ratio: 98 / 62; background: #17283d; }
+  label { margin-right: 12px; }
+  input[type=range] { width: min(430px, 55vw); vertical-align: middle; }
+  #status { white-space: pre-wrap; }
+</style>
+<main>
+  <h1>Mystery Box E</h1>
+  <p>設置位置で開く箱のWebGPU単体確認。報酬の飛翔は含みません。</p>
+  <div><label>報酬 <select id="kind"><option value="product">商品</option><option value="ability">能力</option></select></label>
+  <label>経過 <input id="time" type="range" min="0" max="2599" value="700"><output id="timeValue">700 ms</output></label>
+  <label><input id="reduced" type="checkbox">動きを抑える</label></div>
+  <canvas id="scene" width="980" height="620"></canvas>
+  <p id="status" role="status">初期化中</p>
+</main>
+<script src="webgpu-mystery-box-reveal-e.js?v=webgpu-main-bootstrap-v24"></script>
+<script>
+(async () => {
+  const status = document.querySelector('#status'), canvas = document.querySelector('#scene');
+  try {
+    if (!navigator.gpu) throw new Error('このブラウザではWebGPUを使用できません');
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) throw new Error('GPU adapterを取得できません');
+    const device = await adapter.requestDevice();
+    const context = canvas.getContext('webgpu');
+    const format = navigator.gpu.getPreferredCanvasFormat();
+    context.configure({ device, format, alphaMode: 'opaque' });
+    const api = window.DvaWebGPUMysteryBoxRevealE;
+    const shaderModule = device.createShaderModule({ code: api.shader });
+    const compilation = await shaderModule.getCompilationInfo();
+    const errors = compilation.messages.filter(message => message.type === 'error');
+    if (errors.length) throw new Error(errors.map(message => `${message.lineNum}:${message.linePos} ${message.message}`).join('\n'));
+    const owner = { state: 'ready', device, format, own: value => value, release: () => true };
+    const pass = api.create({ frameOwner: owner });
+    const kind = document.querySelector('#kind'), time = document.querySelector('#time');
+    const reduced = document.querySelector('#reduced'), output = document.querySelector('#timeValue');
+    function render() {
+      const elapsed = Number(time.value); output.value = `${elapsed} ms`;
+      const effect = { id: 'preview-box', type: 'mystery-box', viewerId: 'self',
+        playerId: 'self', x: 490, y: 310, radius: 100, startedAt: 0,
+        durationMs: 2600, variant: kind.value, acquisitionId: kind.value,
+        acquisitionKind: kind.value };
+      const viewport = { kind: 'main', width: 980, height: 620,
+        pixelWidth: canvas.width, pixelHeight: canvas.height };
+      const planned = api.plan({ effect, now: elapsed, viewerId: 'self', selfId: 'self',
+        camera: { x: 0, y: 0 }, zoom: 1, viewport, reducedMotion: reduced.checked });
+      if (!planned) throw new Error('有効な開封計画がありません');
+      const commands = [], frame = { stage() {}, add(command) { commands.push(command); } };
+      pass.record({ frame, target: 'main', viewport, planned });
+      const encoder = device.createCommandEncoder();
+      const renderPass = encoder.beginRenderPass({ colorAttachments: [{
+        view: context.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store',
+        clearValue: { r: 0.09, g: 0.16, b: 0.24, a: 1 }
+      }] });
+      for (const command of commands) command.encode(renderPass, {
+        device, format, width: canvas.width, height: canvas.height });
+      renderPass.end(); device.queue.submit([encoder.finish()]);
+      status.textContent = `WebGPU描画成功 / ${kind.value} / ${elapsed} ms`;
+      document.documentElement.dataset.gpuReady = '1';
+    }
+    for (const input of [kind, time, reduced]) input.addEventListener('input', render);
+    device.addEventListener('uncapturederror', event => {
+      status.textContent = `GPU error: ${event.error.message}`;
+      document.documentElement.dataset.gpuReady = '0';
+    });
+    render();
+  } catch (error) {
+    status.textContent = `WebGPU失敗: ${error.message}`;
+    document.documentElement.dataset.gpuReady = '0';
+  }
+})();
+</script>
+</html>

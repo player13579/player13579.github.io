@@ -2069,6 +2069,29 @@ select:focus {
   height: 100%;
 }
 
+/* During the WebGPU main-owner route the original field keeps pointer capture
+   and geometry, but can never expose stale Canvas 2D pixels as a fallback. */
+body[data-webgpu-main-owner="1"] #gameCanvas {
+  opacity: 0;
+}
+
+html:not([data-field-renderer="webgpu"]) body.game-open[data-webgpu-main-owner="1"] .board-wrap::after {
+  content: "描画を準備中…";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: #17283d;
+  color: #e8f6ff;
+  font: 600 clamp(13px, 2.1cqw, 20px)/1.4 system-ui, sans-serif;
+  pointer-events: none;
+}
+
+html:not([data-field-renderer="webgpu"]) body.game-open[data-webgpu-main-error] .board-wrap::after {
+  content: "WebGPU描画を開始できませんでした";
+}
+
 /* Dedicated WebGPU staging surface. It shares the board's logical dimensions
    without affecting layout, display, or input while the Canvas 2D path is live. */
 #webgpuMainCanvas {

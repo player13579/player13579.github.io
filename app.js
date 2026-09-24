@@ -1454,6 +1454,18 @@ let HEAL_E_SFX_PLAYER = null;
 function playHealESfx(effect, data, receivedAt) {
   if (effect.type !== 'flora' || String(effect.playerId) !== String(data.selfId) ||
       !window.DvaHealESfx?.createPlayer) return;
+  const source = (data.players || []).find(player => String(player.id) === String(effect.playerId));
+  const actorTimeScale = source ? displayActorTimeScale(source, data) : 1;
+  const clockStart = Number(effect.actorClockStartedAt);
+  const sameClockRoom = String(effect.actorClockRoomId || '') === String(data.roomId || '');
+  // Reuse the cast clock already attached when the network effect was admitted;
+  // subtracting its origin once avoids adding the same wall elapsed twice.
+  const visualElapsedMs = source && effect.actorClockStartedAt != null &&
+    Number.isFinite(clockStart) && sameClockRoom
+    ? Math.max(0, actorVisualTime(source, data) - clockStart)
+    // Admission stamps startedAt at receipt. This fallback therefore starts at
+    // zero and only advances when a genuine post-receipt interval is available.
+    : Math.max(0, receivedAt - (Number(effect.startedAt) || receivedAt)) * actorTimeScale;
   HEAL_E_SFX_PLAYER ||= window.DvaHealESfx.createPlayer({
     getAudioContext: () => state.audio.context,
     getMasterGain: () => state.audio.master,
@@ -1463,6 +1475,7 @@ function playHealESfx(effect, data, receivedAt) {
     eventId: String(effect.id), roomId: String(data.roomId),
     roomGeneration: state.roomSessionGeneration, eventAtMs: receivedAt }, {
     nowMs: receivedAt, hidden: document.hidden, muted: state.audio.muted,
+    actorTimeScale, visualElapsedMs,
     sensory: isSensoryBlocked(data),
     available: state.audio.unlocked && state.audio.context?.state === 'running' &&
       Number(state.audio.master?.gain?.value) > 0,
@@ -12642,7 +12655,7 @@ function detectMagicEffects(previous, next) {
     state.itemUseActionEventIds = new Set();
   }
   if (!previous || previous.roomId !== next.roomId) {
-    state.magicEffects = state.magicEffects.filter((effect) => effect.type !== "flora-sunbeam" && /* mana-body-v904:room-reset */ !isBodyManaGainEffect(effect) && !isBodyAccelerationGainEffect(effect) && !isBodyOverhealGainEffect(effect));
+    state.magicEffects = state.magicEffects.filter((effect) => effect.type !== "flora-sunbeam" && effect.type !== "flora" && /* mana-body-v904:room-reset */ !isBodyManaGainEffect(effect) && !isBodyAccelerationGainEffect(effect) && !isBodyOverhealGainEffect(effect));
     clearSunbeamCharacterActions();
     return;
   }
@@ -12669,7 +12682,7 @@ function detectMagicEffects(previous, next) {
     const duration = durableCombatEvent && Number(effect.durationMs) > 0 ? Number(effect.durationMs) : Math.max(magicEffectDuration(effect.type), Number(effect.durationMs) || 0);
     // Network delay must not consume a visual effect before the client can draw it.
     const startedAt = receivedAt;
-    const visualClockActor = (effect.type === "flora-sunbeam" || isBodyAccelerationGainEffect(effect))
+    const visualClockActor = (effect.type === "flora-sunbeam" || effect.type === "flora" || isBodyAccelerationGainEffect(effect))
       ? (next.players || []).find((player) => player.id === effect.playerId)
       : null;
     const actorClockStartedAt = visualClockActor ? actorVisualTime(visualClockActor, next) : null;
@@ -20883,6 +20896,20 @@ async function prepareWebGPUMainAppEarlyScene(capture, passes, textAtlas) {
 // Dormant late drawMagicEffects input. Registered shape ports must render the
 // complete TE for their effect type; texture-owned effects have no generic
 // geometric replacement. The caller must reject ready:false before cutover.
+function healEOutsideViewport(player, camera, zoom, viewport) {
+  // Match webgpu-heal-e.js BODY's logical envelope. Invalid geometry must
+  // continue into plan() and block the frame instead of being silently omitted.
+  if (![player?.x, player?.y, camera?.x, camera?.y, zoom,
+        viewport?.width, viewport?.height].every(Number.isFinite) ||
+      zoom <= 0 || viewport.width <= 0 || viewport.height <= 0) return false;
+  const centerX = (player.x - camera.x) * zoom;
+  const centerY = (player.y - 4 - camera.y) * zoom;
+  const width = 52 * zoom, height = 55 * zoom, pad = 18 * zoom;
+  const rect = { x: centerX - width / 2 - pad, y: centerY - height / 2 - pad,
+    width: width + 2 * pad, height: height + 2 * pad };
+  return rect.x + rect.width <= 0 || rect.y + rect.height <= 0 ||
+    rect.x >= viewport.width || rect.y >= viewport.height;
+}
 function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera, zoom,
   shapeProviders = {}, markerSelection = null) {
   if (!data || viewport?.kind !== "main" || !Array.isArray(viewport.worldToLogical) ||
@@ -21202,14 +21229,38 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         omitted.push({ effectId: effect.id, reason: 'heal-owner-not-visible' });
         continue;
       }
+      if (effect.actorClockRoomId &&
+          String(effect.actorClockRoomId) !== String(data.roomId || '')) {
+        omitted.push({ effectId: effect.id, reason: 'heal-previous-room' });
+        continue;
+      }
+      if (Number.isFinite(effect.startedAt) && Number.isFinite(effect.duration) &&
+          effect.duration > 0 &&
+          healEOutsideViewport(player, camera, zoom, viewport)) {
+        omitted.push({ effectId: effect.id, reason: 'heal-outside-viewport' });
+        continue;
+      }
       const elapsed = now - effect.startedAt;
       const serverNow = estimatedServerNow(data);
-      const selfStack = String(player.id) === String(data.selfId)
-        ? data.self?.timedAccelerationStacks?.flora : null;
-      const accelerationActive = selfStack
-        ? Number(selfStack.endsAt) > serverNow : elapsed < Math.min(effect.duration, 12000);
+      const selfOwner = String(player.id) === String(data.selfId);
+      const accelerationActive = selfOwner
+        ? Number(data.self?.timedAccelerationStacks?.flora?.endsAt) > serverNow
+        : Number(player.floraAccelerationEndsAt) > serverNow &&
+          elapsed < Math.min(effect.duration, 12000);
+      if (!accelerationActive && elapsed >= 1860) {
+        omitted.push({ effectId: effect.id, reason: 'heal-guide-inactive' });
+        continue;
+      }
+      // The restoration cast follows the owner's physical time. The acceleration
+      // guide still uses wall time, matching the authoritative 12-second buff.
+      const clockStart = Number(effect.actorClockStartedAt);
+      const sameClockRoom = String(effect.actorClockRoomId || "") === String(data.roomId || "");
+      const visualElapsedMs = effect.actorClockStartedAt != null && Number.isFinite(clockStart) && sameClockRoom
+        ? Math.max(0, actorVisualTime(source, data) - clockStart)
+        : Math.max(0, elapsed * displayActorTimeScale(source, data));
       const planned = module?.plan?.({ effect, player, now, camera, zoom, viewport,
-        reducedMotion, accelerationUntil: accelerationActive ? now + 1 : 0 });
+        reducedMotion, visualElapsedMs,
+        accelerationUntil: accelerationActive ? now + 1 : 0 });
       if (!planned) {
         unsupported.push({ index, type, id: effect.id, reason: 'heal-plan-unavailable' });
         continue;
@@ -28602,6 +28653,51 @@ function buildWebGPUSunbeamActionCommand(player, data, view, action) {
     sunbeamPose: Object.freeze({ origin: pose.origin, scale: pose.scale,
       emitters: pose.emitters }), name: playerIdentityLabel(player).slice(0, 14) });
 }
+function buildWebGPUHealActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const owner = state.characterActions.get(player.id);
+  if (!api?.createCommand || player.isBot || !player.alive || player.ejected ||
+      action?.kind !== 'heal' || !['flora', '/api/flora-heal'].includes(action.motionId) ||
+      owner?.kind !== 'heal' || owner.motionId !== action.motionId ||
+      owner.startedAt !== action.startedAt ||
+      String(owner.sourceEffectId || '') !== String(action.sourceEffectId || '') ||
+      !Number.isFinite(action.progress) || action.progress < 0 || action.progress >= 1)
+    return null;
+  const identity = authoredCharacterIdentity(player, data);
+  const profile = AUTHORED_HEAL_PROFILES[identity];
+  const direction = authoredDirection(player, motionFor(player, data));
+  if (!profile?.accepted || !AUTHORED_HEAL_DIRECTIONS.includes(direction)) return null;
+  const token = [owner.startedAt, owner.sourceEffectId, owner.motionId, owner.kind].join('|');
+  let latch = AUTHORED_HEAL_LATCHES.get(owner);
+  if (!latch) {
+    const sequences = Object.fromEntries(AUTHORED_HEAL_DIRECTIONS.map(dir => [dir,
+      AUTHORED_HEAL_KEYS.map(key => {
+        const pose = profile.directions[dir]?.[key];
+        const image = state.textures.authoredHealMotions?.[identity]?.[dir]?.[key];
+        return authoredHealPoseReady(pose, image) ? { pose, image } : null;
+      })]));
+    latch = { token, identity, sequences: Object.values(sequences)
+      .every(sequence => sequence.every(Boolean)) ? sequences : null };
+    AUTHORED_HEAL_LATCHES.set(owner, latch);
+  }
+  if (latch.token !== token || latch.identity !== identity || !latch.sequences) return null;
+  const poseKey = authoredHealFrame(profile, action, action.progress);
+  const selected = latch.sequences[direction][AUTHORED_HEAL_KEYS.indexOf(poseKey)];
+  if (!selected || !authoredHealPoseReady(selected.pose, selected.image)) return null;
+  const { pose, image } = selected;
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const alpha = player.id === data.selfId && data.self?.floraInvisibleActive ? .32 : 1;
+  const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise },
+    identity, direction, mode: 'flora-heal',
+    entry: { assetPath: pose.assetPath, layout: { sourceOrigin: pose.origin,
+      ground: pose.ground, scale: pose.scale * CHARACTER_BODY_VISUAL_SCALE } },
+    image, frame: pose.sourceRect, body: { lean: 0, sway: 0, lift: 0 },
+    camera: view.camera, zoom: view.zoom, alpha,
+    arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  return command && Object.freeze({ ...command, poseKey,
+    assetSha256: pose.assetSha256, name: playerIdentityLabel(player).slice(0, 14) });
+}
 function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const api = window.DvaWebGPUPlayerSprite;
   if (!api?.createCommand || !sourcePlayer || !data || !view?.camera ||
@@ -28611,6 +28707,8 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const action = currentCharacterAction(player);
   if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
     return buildWebGPUSunbeamActionCommand(player, data, view, action);
+  if (action?.kind === 'heal' && ['flora', '/api/flora-heal'].includes(action.motionId))
+    return buildWebGPUHealActionCommand(player, data, view, action);
   // Physical actions have their own sprite owners. The locomotion sheet must
   // not replace those poses merely because it is already available on the GPU.
   if (action && action.kind !== 'damage') return null;
@@ -28716,6 +28814,9 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
     const action = currentCharacterAction(player);
     if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
       return Boolean(buildWebGPUSunbeamActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
+    if (action?.kind === 'heal' && ['flora', '/api/flora-heal'].includes(action.motionId))
+      return Boolean(buildWebGPUHealActionCommand(player, data,
         { camera, zoom, order: 0, arrival: null }, action));
     if (action && action.kind !== 'damage') return false;
     const identity = authoredCharacterIdentity(player, data);
