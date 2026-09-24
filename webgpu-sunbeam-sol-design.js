@@ -31,10 +31,10 @@
     if (![actorMs, duration].every(Number.isFinite) || duration <= 0 || duration > 1200) return null;
     const t = actorMs / duration;
     if (t < 0 || t >= 1) return null;
-    const supply = ease(0, .105, t) * (1 - ease(.855, 1, t));
-    const extension = reducedMotion ? 1 : ease(.045, .22, t);
-    const carrier = ease(.105, .23, t) * (1 - ease(.875, 1, t));
-    const boundary = ease(.16, .31, t) * (1 - ease(.90, 1, t));
+    const supply = ease(0, .07, t) * (1 - ease(.855, 1, t));
+    const extension = reducedMotion ? 1 : ease(.035, .20, t);
+    const carrier = ease(.065, .18, t) * (1 - ease(.875, 1, t));
+    const boundary = ease(.10, .24, t) * (1 - ease(.90, 1, t));
     const scatter = ease(.20, .37, t) * (1 - ease(.79, .95, t));
     return Object.freeze({ t, supply, extension, carrier, boundary, scatter, reducedMotion: !!reducedMotion });
   }
@@ -44,7 +44,7 @@
     const shortFactor = clamp(rangeWorld / 200, .72, 1);
     const launched = ease(0, .085, u);
     const shoulder = 17 + 12 * Math.sin(Math.PI * Math.pow(u, .76));
-    const terminal = 1 - .48 * ease(.76, 1, u);
+    const terminal = 1 - .20 * ease(.76, 1, u);
     return (8 + launched * shoulder * terminal) * shortFactor;
   }
   function plan({ effect, actorElapsedMs, camera, zoom, viewport, reducedMotion = false } = {}) {

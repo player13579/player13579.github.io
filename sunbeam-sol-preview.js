@@ -9,11 +9,21 @@
   const range=bounded('range',520,70,950),zoom=bounded('zoom',.75,.35,1.7);
   const dpr=bounded('dpr',Math.min(window.devicePixelRatio||1,2),1,2);
   const angle=bounded('angle',0,-180,180)*Math.PI/180;
-  const hands=p.get('hands')==='2'?[{x:14,y:-27},{x:14,y:-3}]:[{x:23,y:-24}];
+  const pose=p.get('hands')==='2'?{
+    asset:'assets/generated/philia-sunbeam-front-v894.png',crop:[136,641,412,580],
+    origin:{x:201.1175105836245,y:572},scale:.1745345744680851,
+    emitters:[{x:141,y:237},{x:282,y:237}]
+  }:{
+    asset:'assets/generated/philia-sunbeam-right-v894.png',crop:[100,640,473,589],
+    origin:{x:237.75,y:581},scale:.16599915682967958,
+    emitters:[{x:425,y:215}]
+  };
+  const hands=pose.emitters.map(h=>({x:(h.x-pose.origin.x)*pose.scale,
+    y:(h.y-pose.origin.y)*pose.scale}));
   const reducedMotion=p.get('reduced')==='1';
   const layerMask=Math.round(bounded('layers',15,0,15));
   const fixed=p.has('phaseMs')&&p.has('verify');
-  let elapsed=bounded('phaseMs',0,0,1199),renderer,handle,e,raf=0,last=0,cycle=0;
+  let elapsed=bounded('phaseMs',0,0,1199),renderer,handle,e,spriteTexture,spriteImage,raf=0,last=0,cycle=0;
   let audioContext,audioPlayer,audioUnlocked=false;
   function fixture(){
     const facing={x:Math.cos(angle),y:Math.sin(angle)};
@@ -29,16 +39,15 @@
     const effect=fixture(),frame=renderer.beginFrame('Sunbeam Sol preview');
     try{
       frame.clear('sol-preview',[.055,.078,.105,1]);
-      // A deliberately plain stand-in keeps the palm attachment legible;
-      // accepted sprite registration is a separate live-game gate.
+      // This accepted release pose and its palm share one source transform.
+      // The live game must still submit the actual pose for every E frame.
       const bodyX=(SOURCE.x-camera.x)*zoom,bodyY=(SOURCE.y-camera.y)*zoom;
       frame.stage('diagnostic-actor');
-      frame.rect('sol-preview',{x:bodyX-19,y:bodyY-57,w:38,h:55,color:[.19,.27,.35,1]});
-      frame.rect('sol-preview',{x:bodyX-14,y:bodyY-80,w:28,h:24,color:[.30,.37,.43,1]});
-      frame.rect('sol-preview',{x:bodyX+13,y:bodyY-42,w:23,h:9,
-        rotation:-.32,color:[.35,.40,.45,1]});
-      frame.rect('sol-preview',{x:bodyX-15,y:bodyY-2,w:11,h:35,color:[.16,.22,.30,1]});
-      frame.rect('sol-preview',{x:bodyX+4,y:bodyY-2,w:11,h:35,color:[.16,.22,.30,1]});
+      frame.sprite('sol-preview',{x:bodyX-pose.origin.x*pose.scale*zoom,
+        y:bodyY-pose.origin.y*pose.scale*zoom,
+        w:pose.crop[2]*pose.scale*zoom,h:pose.crop[3]*pose.scale*zoom,
+        crop:pose.crop,sourceSize:[spriteImage.naturalWidth,spriteImage.naturalHeight],
+        texture:spriteTexture,color:[1,1,1,1]});
       const result=e.record({frame,target:'sol-preview',effect,actorElapsedMs:elapsed,camera,zoom,
         viewport,reducedMotion,layerMask});
       frame.submit();
@@ -65,6 +74,13 @@
     renderer=await window.DvaWebGPURenderer.create({gpu:navigator.gpu});
     handle=renderer.registerTarget('sol-preview',canvas,{width:Math.round(W*dpr),height:Math.round(H*dpr),
       logicalWidth:W,logicalHeight:H});
+    spriteImage=new Image();spriteImage.src=pose.asset;await spriteImage.decode();
+    spriteTexture=renderer.device.createTexture({label:'Sunbeam Sol accepted release pose',
+      size:[spriteImage.naturalWidth,spriteImage.naturalHeight],format:'rgba8unorm',
+      usage:0x02|0x04|0x10});
+    renderer.device.queue.copyExternalImageToTexture({source:spriteImage},
+      {texture:spriteTexture,premultipliedAlpha:true},
+      [spriteImage.naturalWidth,spriteImage.naturalHeight]);
     e=window.DvaSunbeamSolE.create({renderer,frameOwner:renderer});
     await e.ready;
     render();
@@ -81,6 +97,6 @@
   document.addEventListener('visibilitychange',()=>{if(document.hidden)audioPlayer?.stop(0);});
   window.addEventListener('beforeunload',()=>{
     if(raf)cancelAnimationFrame(raf);audioPlayer?.destroy();void audioContext?.close();
-    e?.destroy();handle?.unregister();renderer?.destroy();
+    e?.destroy();spriteTexture?.destroy();handle?.unregister();renderer?.destroy();
   },{once:true});
 })();
