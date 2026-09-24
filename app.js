@@ -9541,8 +9541,14 @@ function renderTabletControls(data) {
     conciseTabletAbilityName(data),
     `${els.operatorAbilityButton.title || els.operatorAbilityButton.textContent || "現在の能力を発動"}。能力切替は専用選択欄をタップまたは長押し`
   );
-  els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.hidden;
-  els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden;
+  const selectedPurchasedId = String(els.operatorAbilityButton.dataset.operator || "").startsWith("shop:")
+    ? String(els.operatorAbilityButton.dataset.operator).slice("shop:".length)
+    : "";
+  const duplicatesPurchasedShortcut = Boolean(selectedPurchasedId &&
+    Array.from(els.purchasedAbilityShortcuts?.querySelectorAll("[data-shop-ability-shortcut]") || [])
+      .some((button) => button.dataset.shopAbilityShortcut === selectedPurchasedId && !button.hidden));
+  els.tabletAbilityShortcut.disabled = els.operatorAbilityButton.hidden || duplicatesPurchasedShortcut;
+  els.tabletAbilityShortcut.hidden = els.operatorAbilityButton.hidden || duplicatesPurchasedShortcut;
   els.tabletAbilityShortcut.dataset.operator = els.operatorAbilityButton.dataset.operator || "none";
   els.tabletAbilityShortcut.dataset.repeatableAbility = els.operatorAbilityButton.dataset.repeatableAbility || "0";
   els.tabletAbilityShortcut.dataset.actionDisabled = els.operatorAbilityButton.disabled ? "1" : "0";
@@ -18442,7 +18448,8 @@ function pumpWebGPUMainAppDriver() {
       setWebGPUMainPendingDiagnostic(`frame:${reason}`);
       return;
     }
-    if (!receipt?.drawn || generation !== webgpuMainApp.generation ||
+    if (!receipt?.drawn || data !== state.data ||
+        generation !== webgpuMainApp.generation ||
         state.screen !== "game" || document.hidden ||
         roomId !== state.roomId ||
         sessionGeneration !== state.roomSessionGeneration ||
@@ -22640,13 +22647,6 @@ function drawMagicEffects() {
         }
         continue;
       }
-      if (isBodyOverhealGainEffect(effect)) {
-        if (drawOverhealBodyRecoveryEffect(effect, now)) {
-          state.phenomenonSoundVisualReceipts?.push({ roomId: state.data.roomId, effectId: effect.id,
-            kind: "overheal", playerId: effect.playerId });
-        }
-        continue;
-      }
       if (!isCreditHeadMarkerEffect(effect)) {
         const player = gainEffectPlayer(effect);
         const presentation = player ? headMarkerPresentationForPlayer(player, state.data, now) : null;
@@ -26274,78 +26274,6 @@ function overhealBodyPhase(effect, now) {
   return clamp((Number(now) - (Number.isFinite(admittedAt) ? admittedAt : Number(now))) /
     OVERHEAL_BODY_RECOVERY_TE.durationMs, 0, 1);
 }
-function drawOverhealBodyRecoveryEffect(effect, now) {
-  if (!isBodyOverhealGainEffect(effect) || !["playing", "meeting"].includes(state.data?.phase) ||
-      ctx.globalAlpha <= 0 || !overhealBodyTextureReady()) return false;
-  const player = gainEffectPlayer(effect);
-  if (!player || !player.alive || player.ejected || player.inVent || player.invisible) return false;
-  const p = overhealBodyPhase(effect, now);
-  if (p >= 1) return false;
-  const texture = state.textures.overhealBodyRecovery;
-  const width = OVERHEAL_BODY_RECOVERY_TE.displayWidth;
-  const height = width * OVERHEAL_BODY_RECOVERY_TE.sourceHeight / OVERHEAL_BODY_RECOVERY_TE.sourceWidth;
-  const left = player.x - width / 2;
-  // At native actor size, the source's visible top reaches the shoulder and
-  // its lower petal rests before the feet; the empty middle stays transparent.
-  const top = player.y + 31 - OVERHEAL_BODY_RECOVERY_TE.sourceAlphaBottom * width / OVERHEAL_BODY_RECOVERY_TE.sourceWidth;
-  const appear = objectEffectEase(p / .144);
-  const release = 1 - objectEffectEase((p - .696) / .304);
-  const alpha = appear * release;
-  if (!(alpha > 0)) return true;
-  ctx.save();
-  try {
-    ctx.globalCompositeOperation = "source-over";
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha *= alpha;
-    // The accepted RGBA material is always a single fixed, untrimmed T.
-    ctx.drawImage(texture, left, top, width, height);
-    if (p >= .92) return true;
-    const reduced = prefersReducedMotion();
-    const seam = (u, v, tilt, strength) => {
-      if (!(strength > .005)) return;
-      const x = left + u * width, y = top + v * height;
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha *= strength;
-      const radius = 5.2;
-      const halo = ctx.createRadialGradient(x, y, .4, x, y, radius);
-      halo.addColorStop(0, "rgba(255,250,247,.95)");
-      halo.addColorStop(.32, "rgba(255,207,230,.72)");
-      halo.addColorStop(1, "rgba(249,107,183,0)");
-      ctx.fillStyle = halo;
-      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#fff2e8";
-      ctx.lineWidth = 1.75;
-      ctx.lineCap = "round";
-      ctx.shadowColor = "#ff8bc7";
-      ctx.shadowBlur = 5;
-      ctx.beginPath();
-      ctx.moveTo(x - 3.8, y - tilt * 3.8);
-      ctx.quadraticCurveTo(x, y + tilt * 1.1, x + 3.8, y + tilt * 3.8);
-      ctx.stroke();
-      ctx.restore();
-    };
-    if (reduced) {
-      // Accessibility retains a finite stationary seam, without travelling
-      // fronts or whole-material motion.
-      seam(.313, .378, -.22, .34);
-      seam(.801, .599, .24, .34);
-      seam(.515, .806, 0, .14);
-    } else {
-      const leftJoin = objectEffectEase((p - .144) / .105) *
-        (1 - objectEffectEase((p - .44) / .26));
-      const rightJoin = objectEffectEase((p - .2) / .105) *
-        (1 - objectEffectEase((p - .50) / .24));
-      const lowerSettle = objectEffectEase((p - .416) / .18) *
-        (1 - objectEffectEase((p - .72) / .18));
-      seam(.313, .378, -.22, leftJoin);
-      seam(.801, .599, .24, rightJoin);
-      seam(.515, .806, 0, lowerSettle * .6);
-    }
-    return true;
-  } finally { ctx.restore(); }
-}
-
 /* mana-body-v904:helper:start */
 function createManaBodyRecoveryFlowMasks(width, height, count = 24) {
   const paths = [
@@ -29347,7 +29275,7 @@ function captureWebGPUMainAppConditionalTail(data, camera, zoom, providers = {})
 }
 function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
   shapeProviders = {}) {
-  if (data?.roomId !== state.data?.roomId ||
+  if (data !== state.data || data?.roomId !== state.data?.roomId ||
       data?.phase !== state.data?.phase ||
       data?.map?.id !== state.data?.map?.id)
     throw Object.assign(new Error('WebGPU world candidate needs the current game data snapshot'),
@@ -29362,7 +29290,8 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
     const currentViewportSignature = [viewport?.kind, viewport?.width,
       viewport?.height, viewport?.pixelWidth, viewport?.pixelHeight,
       ...(viewport?.worldToLogical || [])];
-    if (state.data?.roomId !== owner.snapshotRoomId ||
+    if (state.data !== owner.data ||
+        state.data?.roomId !== owner.snapshotRoomId ||
         state.data?.phase !== owner.phase ||
         state.data?.map?.id !== owner.data?.map?.id ||
         state.roomSessionGeneration !== owner.generation ||
@@ -30456,7 +30385,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         return Object.freeze({ drawn: false, reason: hidden.status || 'hidden' });
       }
       const currentRect = mainCanvas.getBoundingClientRect();
-      if (data.roomId !== state.data?.roomId ||
+      if (data !== state.data || data.roomId !== state.data?.roomId ||
           data.phase !== state.data?.phase ||
           data.map?.id !== state.data?.map?.id)
         return Object.freeze({ drawn: false, reason: 'stale-scene' });

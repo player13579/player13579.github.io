@@ -15,6 +15,9 @@
     { id: 'dodge', title: '回避', detail: '通常の回避発動イベントと現在の身体位置を使う単独フィクスチャ。実移動・無敵判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-dodge-e.js', kind: 'integrated' },
     { id: 'renki', title: '錬気', detail: '通常の錬気発動イベントと現在の身体位置を使う単独フィクスチャ。ゲーム本編の発動・画質・SFXの受入は未完了です。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-renki-e.js', kind: 'integrated' },
     { id: 'idea-truth', title: 'イデア・真', detail: '真の獲得イベントと現在の身体位置を使う単独フィクスチャ。美・善・昇天や本編実イベントの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-idea-e.js', kind: 'integrated' },
+    { id: 'bust', title: 'バスト発動', detail: '対象への時限バスト付与イベントを使う単独フィクスチャ。持続状態・衝突判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-bust-e.js', kind: 'integrated' },
+    { id: 'gravity-keeper', title: '時の番人フィールド', detail: '時の番人の発動イベント・半径・寿命を使う単独フィクスチャ。グラビティストームや本編判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-gravity-field-e.js', kind: 'integrated' },
+    { id: 'hacker-status', title: 'ハッカー状態回復', detail: '状態異常の解除が成立したイベントと対象位置を使う単独フィクスチャ。異常なしの結果や本編実イベント・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-hacker-status-recovery-e.js', kind: 'integrated' },
     { id: 'corridor-a03-sconce', objectId: 'v317-corridor-a03-1', title: 'A03 壁灯', detail: '左側のガラス開口から壁面へ広がる光。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a03-sconce', kind: 'corridor' },
     { id: 'corridor-a07-sconce', objectId: 'v317-corridor-a07-1', title: 'A07 壁灯', detail: '交差する真鍮羽根が開き、屈折光を菱形へ集める。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a07-sconce', kind: 'corridor' },
     { id: 'corridor-a09-sconce', objectId: 'v317-corridor-a09-1', title: 'A09 壁灯', detail: '三枚のガラス面へ順に光を渡す。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a09-sconce', kind: 'corridor' },
@@ -115,18 +118,21 @@
       renderer = await window.DvaWebGPURenderer.create({ gpu: navigator.gpu });
       if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
       target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
-      const isEmp = entry.id === 'emp';
+      const isEmp = entry.id === 'emp', isHacker = entry.id === 'hacker-status';
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
         dodge: window.DvaWebGPUDodgeE, renki: window.DvaWebGPURenkiE,
-        'idea-truth': window.DvaWebGPIdeaE })[entry.id];
+        'idea-truth': window.DvaWebGPIdeaE, bust: window.DvaWebGPUBustE,
+        'gravity-keeper': window.DvaWebGPUGravityFieldE,
+        'hacker-status': window.DvaWebGPUHackerStatusRecoveryE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isEmp ? api.create({ renderer, frameOwner: renderer }) : api.create();
+      effect = isEmp || isHacker ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
       const duration = ({ emp: api.DURATIONS?.emp,
         barrier: api.EVENT_MAP?.['preparation-barrier-hit:durability-hit']?.duration,
         dodge: api.VISUAL_MS, renki: api.VISUAL_MS,
-        'idea-truth': 1800 })[entry.id];
+        'idea-truth': 1800, bust: api.EVENT_DURATION?.[api.START_EVENT],
+        'gravity-keeper': 5000, 'hacker-status': Math.min(1200, api.DURATION_MS || 1200) })[entry.id];
       if (!Number.isFinite(duration) || duration <= 0) throw new Error('現在のE寿命がありません');
       const cycleLength = duration + 350, startedAt = performance.now();
       const draw = now => {
@@ -146,6 +152,17 @@
                 camera, zoom, viewport, reducedMotion: false, alpha: 1 });
               if (!planned) throw new Error('EMPイベントを計画できません');
               effect.record({ frame, target: targetId, viewport, planned });
+            } else if (isHacker) {
+              // recoverHackerTargetStatus emits a clear visual only for "cleared".
+              const source = { id: `gallery-hacker-status-${cycle}`, type: api.EVENT_TYPE,
+                variant: api.OUTCOMES.cleared, playerId: 'gallery-hacker', targetId: 'gallery-target',
+                x: 490, y: 310, radius: 145, startedAt: 0, duration };
+              const player = { id: source.targetId, x: 490, y: 310, alive: true,
+                ejected: false, inVent: false, invisible: false };
+              const planned = api.plan({ effect: source, player, now: elapsed,
+                phase: 'playing', camera, zoom, viewport, reducedMotion: false, alpha: 1 });
+              if (!planned) throw new Error('状態回復イベントを計画できません');
+              effect.record({ frame, target: targetId, viewport, planned });
             } else if (entry.id === 'barrier') {
               // apply barrier damage in offline-server-main.js emits this hit event.
               const source = { id: `gallery-barrier-${cycle}`, type: 'preparation-barrier-hit',
@@ -157,6 +174,26 @@
               ] };
               const result = effect.record({ frame, target: targetId, viewport, scene, camera, zoom });
               if (result.drawn !== 1) throw new Error('バリア被弾イベントを描画できません');
+            } else if (entry.id === 'bust' || entry.id === 'gravity-keeper') {
+              const source = entry.id === 'bust'
+                ? { id: `gallery-bust-${cycle}`, type: 'action-push', variant: 'timed-bust-start',
+                    playerId: 'gallery-attacker', targetId: 'gallery-holder', x: 490, y: 310,
+                    radius: 125, startedAt: 0, duration }
+                : { id: `gallery-gravity-keeper-${cycle}`, type: api.TYPES.keeper,
+                    variant: 'total-stop', playerId: 'gallery-keeper', x: 490, y: 310,
+                    radius: 155, startedAt: 0, durationMs: duration };
+              const scene = entry.id === 'bust'
+                ? { nowMs: elapsed, serverNow: elapsed, reducedMotion: false, effects: [source],
+                    players: [
+                      { id: 'gallery-holder', x: 490, y: 310, bodyWorld: { x: 490, y: 310 },
+                        alive: true, bustUntil: 0 },
+                      { id: 'gallery-attacker', x: 630, y: 310, bodyWorld: { x: 630, y: 310 },
+                        alive: true, bustUntil: 0 }
+                    ] }
+                : { nowMs: elapsed, serverNow: elapsed, reducedMotion: false,
+                    effects: [source], gravityZones: [] };
+              const result = effect.record({ frame, target: targetId, viewport, scene, camera, zoom });
+              if (result.drawn !== 1) throw new Error(`${entry.title}イベントを描画できません`);
             } else {
               // combatScene in app.js supplies both event arrays and current bodyWorld.
               const type = entry.id === 'dodge' ? 'action-dodge' :
