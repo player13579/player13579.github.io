@@ -17582,6 +17582,7 @@ function prepareMainFrameBookkeeping() {
   const data = state.data;
   const [w, h] = MAIN_CANVAS_LOGICAL_SIZE;
   reconcileMainFrameUiState(data);
+  prepareMarkerExplanationFrame(performance.now());
   state.markerHitTargets.length = 0;
   state.acquisitionCreditRect = null;
   state.acquisitionHudRects = null;
@@ -24198,6 +24199,12 @@ function markerPointerOwnedByWebGPU(sample, point, explanation, viewport) {
 
 const MARKER_EXPLANATION_LINGER_MS = 8_000;
 
+function prepareMarkerExplanationFrame(now) {
+  const explanation = state.markerExplanation;
+  if (!explanation) { clearMarkerExplanationDom(); return; }
+  if (explanation.expiresAt && now >= explanation.expiresAt) clearMarkerExplanation();
+}
+
 function clearMarkerExplanation() {
   if (state.markerExplanationTimer) window.clearTimeout(state.markerExplanationTimer);
   state.markerExplanationTimer = 0;
@@ -24290,9 +24297,8 @@ function markerExplanationWebGPUScene(explanation, liveTarget, timestamp) {
 
 function drawMarkerExplanation(width, height) {
   const explanation = state.markerExplanation;
-  if (!explanation) { clearMarkerExplanationDom(); return; }
+  if (!explanation) return;
   const timestamp = performance.now();
-  if (explanation.expiresAt && timestamp >= explanation.expiresAt) { clearMarkerExplanation(); return; }
   // While contact remains, movement may switch markers. Once released, retain
   // this snapshot so the explanation can be read without a live hit target.
   if (explanation.pointerId !== null) refreshMarkerExplanationTarget(explanation.pointerId);
@@ -27648,6 +27654,7 @@ function captureWebGPUMainAppConditionalTail(data, camera, zoom, providers = {})
   const viewport = overlayReady ? { ...acquisitionOverlayViewport(overlay),
     kind: 'acquisition' } : null;
   const drawn = [];
+  const requests = [];
   const unsupported = [];
   if (effects.length && !overlayReady)
     unsupported.push({ reason: 'acquisition-shared-overlay-target-unavailable' });
@@ -27661,17 +27668,17 @@ function captureWebGPUMainAppConditionalTail(data, camera, zoom, providers = {})
     const origin = acquisitionOverlayLocalPoint(
       acquisitionWorldPoint(ox, oy, camera, zoom, canvasRect), viewport);
     const destinations = [];
+    let hudKeys = [];
     if (effect.playerId === data.selfId) {
       const acquisitionId = String(effect.acquisitionId || effect.variant || '');
       const instantHudProduct = effect.acquisitionKind === 'product' &&
         Boolean(INSTANT_ACQUISITION_HUD_KEYS[acquisitionId]);
-      if (effect.acquisitionKind !== 'credits' && !instantHudProduct) {
+      const normalDestination = effect.acquisitionKind !== 'credits' && !instantHudProduct;
+      hudKeys = acquisitionCanvasHudKeys(effect);
+      if (normalDestination) {
         const rect = acquisitionVisibleRect(acquisitionDestinationElement(effect, data));
         if (rect) destinations.push(acquisitionOverlayLocalRect(rect, viewport));
       }
-      for (const rect of acquisitionCanvasHudRects(effect))
-        destinations.push(acquisitionOverlayLocalRect(
-          acquisitionCanvasHudViewportRect(rect, canvasRect), viewport));
     } else {
       const recipient = data.players?.find(player => player.id === effect.playerId &&
         player.alive && !player.ejected && !player.inVent && !player.invisible);
@@ -27683,29 +27690,19 @@ function captureWebGPUMainAppConditionalTail(data, camera, zoom, providers = {})
           width: 14, height: 14, radius: 7, actor: true });
       }
     }
-    if (!Number.isFinite(origin.x) || !Number.isFinite(origin.y) ||
-        !destinations.length) {
-      unsupported.push({ effectId: String(effect.id),
-        reason: 'acquisition-visible-destination-or-origin-unavailable' });
+    if (!Number.isFinite(origin.x) || !Number.isFinite(origin.y)) {
+      unsupported.push({ effectId: String(effect.id), reason: 'acquisition-origin-unavailable' });
       continue;
     }
-    const reduced = prefersReducedMotion();
-    for (const rect of destinations) {
-      const arrivalStart = reduced ? 680 : 900;
-      drawn.push({ effectId: String(effect.id), source: effect, elapsed,
-        travel: acquisitionPhotonTravelState(origin,
-          { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
-          elapsed, reduced), rect, reduced,
-        arrival: objectEffectEase(clamp((elapsed - arrivalStart) / 120, 0, 1)) *
-          (1 - objectEffectEase(clamp((elapsed - (arrivalStart + 360)) / 300, 0, 1))) });
-    }
+    requests.push({ effectId: String(effect.id), source: effect, elapsed, origin,
+      destinations, hudKeys });
   }
   const drawFrame = viewport ? { width: viewport.width, height: viewport.height,
     pixelWidth: viewport.pixelWidth, pixelHeight: viewport.pixelHeight,
     effects: drawn.map(({ effectId, source, ...geometry }) => geometry) } : null;
   return { expandedMap, expandedBlocked, acquisition: {
-    viewport, canvas: overlay, drawFrame, source, effects, sourceIds, drawn, unsupported,
-    canvasRect, overlayRect, now } };
+    viewport, canvas: overlay, drawFrame, source, effects, sourceIds, drawn,
+    requests, unsupported, canvasRect, overlayRect, now } };
 }
 function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
   shapeProviders = {}) {
@@ -27865,7 +27862,7 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
       now: killNow, reducedMotion: prefersReducedMotion(), ...common },
     sensory: { scene: sensoryBlackoutWebGPUScene(data), text: null, ...common },
     markerExplanation: { scene: markerScene, ...common },
-    ...(conditional.acquisition.drawn.length ? { acquisition: {
+    ...(conditional.acquisition.effects.length ? { acquisition: {
       viewport: conditional.acquisition.viewport,
       drawFrame: conditional.acquisition.drawFrame } } : {})
   };
@@ -27887,10 +27884,12 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
     [name, Object.prototype.hasOwnProperty.call(early.stages, name)
       ? early.stages[name] : Object.prototype.hasOwnProperty.call(players.stages, name)
         ? players.stages[name] : tail[name]]));
+  const candidate = {};
   const assertTailCurrent = () => {
     assertCurrent();
     const freshConditional = captureWebGPUMainAppConditionalTail(data,
       early.camera, early.zoom, shapeProviders);
+    assertWebGPUAcquisitionCandidateGeometry(candidate, conditional.acquisition);
     if (state.killEffects !== killSource || state.magicEffects !== headEffectSource ||
         !Array.isArray(state.magicEffects) ||
         state.magicEffects.length !== headEffectOrder?.length ||
@@ -27952,6 +27951,13 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
           conditional.acquisition.unsupported.length ||
         JSON.stringify(freshConditional.acquisition.drawFrame) !==
           JSON.stringify(conditional.acquisition.drawFrame) ||
+        JSON.stringify(freshConditional.acquisition.requests.map(request => ({
+          effectId: request.effectId, elapsed: request.elapsed, origin: request.origin,
+          destinations: request.destinations, hudKeys: request.hudKeys
+        }))) !== JSON.stringify(conditional.acquisition.requests.map(request => ({
+          effectId: request.effectId, elapsed: request.elapsed, origin: request.origin,
+          destinations: request.destinations, hudKeys: request.hudKeys
+        }))) ||
         freshConditional.expandedBlocked !== conditional.expandedBlocked ||
         Boolean(freshConditional.expandedMap) !== Boolean(conditional.expandedMap) ||
         (conditional.expandedMap &&
@@ -27964,17 +27970,11 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
           els.expandedMapCanvas.getBoundingClientRect().width !== conditional.expandedMap.rect.width ||
           els.expandedMapCanvas.getBoundingClientRect().height !== conditional.expandedMap.rect.height ||
           state.mapPointer !== conditional.expandedMap.pointer ||
-          Boolean(state.teleportTargeting || state.instantWarpTargeting) !== conditional.expandedMap.targeting)) ||
-        (conditional.acquisition.drawn.length && (
-          !conditional.acquisition.canvas?.isConnected ||
-          conditional.acquisition.canvas.getBoundingClientRect().width !==
-            conditional.acquisition.overlayRect.width ||
-          els.canvas.getBoundingClientRect().width !==
-            conditional.acquisition.canvasRect.width)))
+          Boolean(state.teleportTargeting || state.instantWarpTargeting) !== conditional.expandedMap.targeting)))
       throw Object.assign(new Error('WebGPU world candidate kill or marker source changed during preparation'),
         { code: 'DVA_WEBGPU_STALE_SCENE' });
   };
-  return { viewport, camera: early.camera, zoom: early.zoom, stages,
+  return Object.assign(candidate, { viewport, camera: early.camera, zoom: early.zoom, stages,
     early, players, headMarkers, late, conditional, hitEffectsGaps, magicGaps,
     expiredHitEffects: Array.isArray(hitSource) ? hitSource.filter(effect =>
       !hitEffects.includes(effect)) : [],
@@ -27987,7 +27987,72 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
       !late.ready || magicGaps.length > 0 || conditional.expandedBlocked ||
       conditional.acquisition.unsupported.length > 0,
     remainingStages: order.filter(name => !Object.prototype.hasOwnProperty.call(stages, name)),
-    assertCurrent: assertTailCurrent };
+    assertCurrent: assertTailCurrent });
+}
+
+function resolveWebGPUMainAcquisitionHud(candidate, acquisitionInput, hudPlan) {
+  if (!candidate || candidate.acquisitionHudPlan !== hudPlan ||
+      candidate.stages?.hud?.preparedPlan !== hudPlan || !hudPlan?.drawn ||
+      !hudPlan.acquisitionHudRects || !acquisitionInput?.drawFrame)
+    throw new Error('WebGPU acquisition needs the same candidate HUD prepared hit regions');
+  const snapshot = candidate.conditional.acquisition;
+  const hudRects = hudPlan.acquisitionHudRects;
+  const drawn = [];
+  for (const request of snapshot.requests) {
+    const destinations = request.destinations.slice();
+    for (const key of request.hudKeys) {
+      const rect = hudRects[key];
+      if (!rect || ![rect.left, rect.top, rect.width, rect.height].every(Number.isFinite) ||
+          rect.width <= 0 || rect.height <= 0)
+        throw new Error(`WebGPU acquisition HUD destination unavailable: ${key}`);
+      destinations.push(acquisitionOverlayLocalRect(
+        acquisitionCanvasHudViewportRect(rect, snapshot.canvasRect), snapshot.viewport));
+    }
+    if (!destinations.length)
+      throw new Error(`WebGPU acquisition visible destination unavailable: ${request.effectId}`);
+    const reduced = prefersReducedMotion();
+    for (const rect of destinations) {
+      const arrivalStart = reduced ? 680 : 900;
+      drawn.push({ effectId: request.effectId, source: request.source,
+        elapsed: request.elapsed,
+        travel: acquisitionPhotonTravelState(request.origin,
+          { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+          request.elapsed, reduced), rect, reduced,
+        arrival: objectEffectEase(clamp((request.elapsed - arrivalStart) / 120, 0, 1)) *
+          (1 - objectEffectEase(clamp((request.elapsed - (arrivalStart + 360)) / 300, 0, 1))) });
+    }
+  }
+  const drawFrame = { ...acquisitionInput.drawFrame,
+    effects: drawn.map(({ effectId, source, ...geometry }) => geometry) };
+  candidate.conditional = { ...candidate.conditional,
+    acquisition: { ...snapshot, drawn, drawFrame } };
+  candidate.acquisitionResolved.drawFrame = drawFrame;
+  return { ...acquisitionInput, drawFrame,
+    acquisitionHudPlan: hudPlan, acquisitionCandidate: candidate };
+}
+
+function assertWebGPUAcquisitionCandidateGeometry(candidate, acquisition) {
+  const rectMatches = (element, expected) => Boolean(element?.getBoundingClientRect &&
+    ['left', 'top', 'width', 'height'].every(key =>
+      element.getBoundingClientRect()[key] === expected?.[key]));
+  if (acquisition?.effects?.length &&
+      (!acquisition.canvas?.isConnected ||
+       !rectMatches(acquisition.canvas, acquisition.overlayRect) ||
+       !rectMatches(els.canvas, acquisition.canvasRect)))
+    throw Object.assign(new Error('WebGPU acquisition overlay or source DOM geometry changed'),
+      { code: 'DVA_WEBGPU_STALE_SCENE' });
+  if (candidate?.acquisitionHudPlan &&
+      (candidate.acquisitionHudPlan !== candidate.stages.hud?.preparedPlan ||
+       !candidate.acquisitionResolved ||
+       !rectMatches(acquisition.canvas, candidate.acquisitionResolved.overlayRect) ||
+       !rectMatches(els.canvas, candidate.acquisitionResolved.canvasRect) ||
+       JSON.stringify(candidate.acquisitionResolved.hudRects) !==
+         JSON.stringify(candidate.acquisitionHudPlan.acquisitionHudRects) ||
+       (candidate.acquisitionResolved.drawFrame &&
+        JSON.stringify(candidate.conditional.acquisition.drawFrame) !==
+         JSON.stringify(candidate.acquisitionResolved.drawFrame))))
+    throw Object.assign(new Error('WebGPU acquisition prepared HUD or resolved geometry changed'),
+      { code: 'DVA_WEBGPU_STALE_SCENE' });
 }
 
 async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
@@ -28297,6 +28362,16 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
     throw new Error('WebGPU world candidate needs hud.prepare');
   const hud = { ...candidate.stages.hud,
     preparedPlan: await passes.hud.prepare(candidate.stages.hud) };
+  if (candidate.stages.acquisition) {
+    const hudRects = hud.preparedPlan?.acquisitionHudRects;
+    if (!hud.preparedPlan?.drawn || !hudRects || typeof hudRects !== 'object')
+      throw new Error('WebGPU acquisition needs the same candidate HUD prepared hit regions');
+    candidate.acquisitionHudPlan = hud.preparedPlan;
+    candidate.acquisitionResolved = { hudRects: structuredClone(hudRects),
+      overlayRect: { ...candidate.conditional.acquisition.overlayRect },
+      canvasRect: { ...candidate.conditional.acquisition.canvasRect } };
+    candidate.stages.hud = hud;
+  }
   assertPassesCurrent();
   if (['playing', 'meeting'].includes(candidate.stages.hud.data?.phase) &&
       candidate.stages.hud.data?.self && !hud.preparedPlan?.drawn)
@@ -28422,7 +28497,10 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
         expandedMap.preparedPlan?.viewport !== expandedMap.viewport)
       throw new Error('WebGPU world candidate expanded map prepared a different scene');
   }
-  const acquisitionInput = candidate.stages.acquisition;
+  let acquisitionInput = candidate.stages.acquisition;
+  if (acquisitionInput)
+    acquisitionInput = resolveWebGPUMainAcquisitionHud(candidate,
+      acquisitionInput, hud.preparedPlan);
   let acquisition = acquisitionInput;
   if (acquisitionInput) {
     if (typeof passes.acquisition.prepare !== 'function' ||
@@ -28434,6 +28512,10 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
     acquisition = { ...acquisitionInput,
       preparedPlan: await passes.acquisition.prepare(acquisitionInput) };
     assertPassesCurrent();
+    if (acquisitionInput.acquisitionCandidate !== candidate ||
+        acquisitionInput.acquisitionHudPlan !== hud.preparedPlan ||
+        candidate.acquisitionHudPlan !== hud.preparedPlan)
+      throw new Error('WebGPU acquisition HUD plan crossed candidate identity');
     if (acquisition.preparedPlan?.viewport !== acquisitionInput.viewport ||
         acquisition.preparedPlan?.drawFrame !== acquisitionInput.drawFrame)
       throw new Error('WebGPU world candidate acquisition prepared a different overlay');
@@ -33073,6 +33155,10 @@ function acquisitionDestinationElement(effect, data) {
 }
 
 function acquisitionCanvasHudRects(effect) {
+  return acquisitionCanvasHudKeys(effect).map(key => state.acquisitionHudRects?.[key]).filter(Boolean);
+}
+
+function acquisitionCanvasHudKeys(effect) {
   const id = String(effect.acquisitionId || effect.variant || '');
   const keys = [];
   if (effect.acquisitionKind === 'credits' || Number(effect.acquisitionCredits) > 0) keys.push('credits');
@@ -33082,7 +33168,7 @@ function acquisitionCanvasHudRects(effect) {
       keys.push(INSTANT_ACQUISITION_HUD_KEYS[id]);
     }
   }
-  return [...new Set(keys)].map(key => state.acquisitionHudRects?.[key]).filter(Boolean);
+  return [...new Set(keys)];
 }
 
 function acquisitionCanvasHudViewportRect(rect, canvasRect) {
