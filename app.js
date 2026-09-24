@@ -1382,6 +1382,7 @@ const state = {
   lastUiRenderAt: 0,
   uiRenderTimer: 0,
   drawViewport: null,
+  preparedMainFrame: null,
   minimapFrameCache: null,
   minimapLastDrawAt: 0,
   audio: {
@@ -17499,7 +17500,7 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
       // Keep the staged GPU frame independent of a Canvas draw failure. A
       // Canvas exception still reaches the outer error handler, but it must
       // not suppress the WebGPU submission attempt for this frame.
-      try { draw(); } finally { pumpWebGPUMainAppDriver(); }
+      try { prepareMainFrameBookkeeping(); draw(); } finally { pumpWebGPUMainAppDriver(); }
     }
     publishManualVerificationBotContinuity(state.frameNow);
     const drawMode = state.data ? state.data.phase : "idle";
@@ -17509,6 +17510,35 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
     document.body.dataset.drawError = error?.message || String(error);
     console.error("Canvas draw failed", error);
   }
+}
+
+function prepareMainFrameBookkeeping() {
+  PHENOMENON_SOUND_RECEIPTS.frame += 1;
+  environmentSoundFrame += 1;
+  const data = state.data;
+  const [w, h] = MAIN_CANVAS_LOGICAL_SIZE;
+  state.markerHitTargets.length = 0;
+  state.acquisitionCreditRect = null;
+  state.acquisitionHudRects = null;
+  if (!data) {
+    state.drawViewport = null;
+    state.preparedMainFrame = { data, w, h };
+    return;
+  }
+  drawCanvasStage("motion", () => {
+    ensureRenderPlayersAdvanced(data);
+  });
+  const worldZoom = worldZoomFor(data);
+  const camera = cameraFor(data, w, h, worldZoom);
+  const viewW = w / worldZoom;
+  const viewH = h / worldZoom;
+  state.drawViewport = {
+    left: camera.x,
+    top: camera.y,
+    right: camera.x + viewW,
+    bottom: camera.y + viewH
+  };
+  state.preparedMainFrame = { data, w, h, worldZoom, camera, viewW, viewH };
 }
 
 function drawCanvasStage(name, callback) {
@@ -17658,18 +17688,12 @@ function drawPreparationArrivalPlayer(player, data) {
 // PREPARATION_ROSTER_V726_END
 
 function draw() {
-  PHENOMENON_SOUND_RECEIPTS.frame += 1;
-  environmentSoundFrame += 1;
-  const data = state.data;
-  const [w, h] = MAIN_CANVAS_LOGICAL_SIZE;
+  const { data, w, h, worldZoom, camera, viewW, viewH } = state.preparedMainFrame;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
   ctx.filter = "none";
   ctx.setLineDash([]);
-  state.markerHitTargets.length = 0;
-  state.acquisitionCreditRect = null;
-  state.acquisitionHudRects = null;
   ctx.fillStyle = data ? "#91a8b7" : "#25323d";
   ctx.fillRect(0, 0, w, h);
   const pregameCanvas = preparationPhaseActive(data);
@@ -17691,24 +17715,10 @@ function draw() {
   if (!data) {
     stopAllPhenomenonSounds();
     stopAllEnvironmentSounds();
-    state.drawViewport = null;
     clearAcquisitionOverlay();
     clearMarkerExplanation();
     return;
   }
-  drawCanvasStage("motion", () => {
-    ensureRenderPlayersAdvanced(data);
-  });
-  const worldZoom = worldZoomFor(data);
-  const camera = cameraFor(data, w, h, worldZoom);
-  const viewW = w / worldZoom;
-  const viewH = h / worldZoom;
-  state.drawViewport = {
-    left: camera.x,
-    top: camera.y,
-    right: camera.x + viewW,
-    bottom: camera.y + viewH
-  };
   drawCanvasStage("map", () => {
     ctx.save();
     try {
