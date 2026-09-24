@@ -8,6 +8,7 @@
     scene: root.DvaWebGPUMainScene || (typeof require === 'function' ? require('./webgpu-main-scene.js') : null),
     field: root.DvaWebGPUFieldPass || (typeof require === 'function' ? require('./webgpu-field-pass.js') : null),
     environmentE: root.DvaWebGPUMedicalEnvironmentE || (typeof require === 'function' ? require('./webgpu-medical-environment-e.js') : null),
+    corridorA01E: root.DvaWebGPUCorridorA01E || (typeof require === 'function' ? require('./webgpu-corridor-a01-e.js') : null),
     medicalObjectE: root.DvaWebGPUMedicalObjectE || (typeof require === 'function' ? require('./webgpu-medical-object-e.js') : null),
     medicalCabinetE: root.DvaWebGPUMedicalCabinetE || (typeof require === 'function' ? require('./webgpu-medical-cabinet-e.js') : null),
     medicalFootbathUseE: root.DvaWebGPUMedicalFootbathUseE || (typeof require === 'function' ? require('./webgpu-medical-footbath-use-e.js') : null),
@@ -56,7 +57,8 @@
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
     'bodyBenefit', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'medicalObjectE',
-    'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'taskCompletion', 'headMarker']);
+    'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E',
+    'taskCompletion', 'headMarker']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
   function coverage(scene, passes) {
@@ -90,7 +92,12 @@
           typeof acquisitionTarget !== 'string' || !acquisitionTarget ||
           acquisitionTarget === expandedTarget || acquisitionTarget === 'main'))
       throw new TypeError('Acquisition overlay needs a distinct shared renderer target name');
-    const methods = { field: 'create', environmentE: 'create', medicalObjectE: 'create',
+    const needsCorridorA01E = map?.objects?.some(object =>
+      object?.id === 'v317-corridor-a01-1' &&
+      object.type === 'airlockGasketReader') === true;
+    const methods = { field: 'create', environmentE: 'create',
+      ...(needsCorridorA01E ? { corridorA01E: 'create' } : {}),
+      medicalObjectE: 'create',
       medicalCabinetE: 'create', medicalFootbathUseE: 'create', medicalUploadConsoleE: 'create',
       medicalFixtureE: 'create', shapes: 'create', stations: 'create',
       mapObjects: 'create', mysteryBoxes: 'create', alchemyObjects: 'create',
@@ -133,6 +140,9 @@
       add('map', await modules.field.create({ owner: renderer, map, image }), 'enqueue');
       add('environmentE', modules.environmentE.create({ device: renderer.device,
         format: renderer.format }), 'record');
+      if (needsCorridorA01E)
+        add('corridorA01E', modules.corridorA01E.create({ device: renderer.device,
+          format: renderer.format }), 'record');
       add('medicalFixtureE', modules.medicalFixtureE.create({ device: renderer.device,
         format: renderer.format }), 'record');
       add('medicalUploadConsoleE', modules.medicalUploadConsoleE.create({ device: renderer.device,

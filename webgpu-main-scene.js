@@ -222,6 +222,20 @@
               event.input.effect?.type !== 'fire' ||
               String(event.input.effect?.id ?? '') !== id)
             throw new TypeError(`Magic event ${index} needs one standalone fire effect`);
+        } else if (event?.type === 'corridorA01E') {
+          const effect = event.input?.effect, source = event.input?.event;
+          const planned = event.input?.planned;
+          if (typeof passes.corridorA01E?.record !== 'function' ||
+              effect?.type !== 'object-airlockGasketReader' ||
+              effect.objectId !== 'v317-corridor-a01-1' ||
+              String(effect.id ?? '') !== id || source?.id !== id ||
+              source.kind !== 'reader-use' ||
+              source.objectId !== effect.objectId ||
+              source.atMs !== effect.startedAt ||
+              planned?.eventId !== id || planned.kind !== 'reader-use' ||
+              !Number.isFinite(planned.elapsed) || planned.elapsed < 0 ||
+              planned.elapsed >= 760)
+            throw new TypeError(`Magic event ${index} needs one owned a01 reader E`);
         } else if (event?.type === 'medicalObjectE') {
           const effect = event.input?.effect, planned = event.input?.planned;
           if (typeof passes.medicalObjectE?.record !== 'function' ||
@@ -467,6 +481,12 @@
                 outcome.type !== event.input.effect.type ||
                 outcome.variant !== event.input.planned.variant || outcome.drawn !== true)
               throw new Error(`Magic special ammo ${event.effectId} was not fully claimed and drawn`);
+          } else if (event.type === 'corridorA01E') {
+            const outcome = need('corridorA01E', 'record').record({ frame, target,
+              viewport, planned: event.input.planned });
+            if (outcome?.eventId !== event.effectId ||
+                outcome.kind !== 'reader-use' || outcome.drawn !== true)
+              throw new Error(`a01 reader E ${event.effectId} was not drawn`);
           } else if (event.type === 'medicalObjectE') {
             const outcome = need('medicalObjectE', 'record').record({ frame, target,
               viewport, planned: event.input.planned });

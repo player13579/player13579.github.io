@@ -20376,6 +20376,48 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         reason: 'emp-visible-variant-or-pass-unavailable' });
       continue;
     }
+    // The a01 shader depicts the re-authored ceramic reader. Its old wall
+    // sconce artwork and Luck behavior must not trigger that visual early.
+    if (type === 'object-airlockGasketReader' &&
+        effect.objectId === 'v317-corridor-a01-1') {
+      const api = window.DvaWebGPUCorridorA01E;
+      const object = data.map?.objects?.find(entry =>
+        entry.id === effect.objectId && entry.type === 'airlockGasketReader');
+      const duration = api?.KINDS?.['reader-use']?.durationMs;
+      const elapsed = now - Number(effect.startedAt);
+      if (!object || !Number.isFinite(effect.x) || !Number.isFinite(effect.y) ||
+          effect.x !== object.x || effect.y !== object.y ||
+          !Number.isFinite(effect.startedAt) ||
+          !Number.isFinite(duration) || duration <= 0) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'a01-reader-authoritative-source-or-pass-invalid' });
+        continue;
+      }
+      if (elapsed < 0 || elapsed >= duration) {
+        omitted.push({ effectId: effect.id,
+          reason: 'a01-reader-activation-outside-lifetime' });
+        continue;
+      }
+      const event = { id: String(effect.id), kind: 'reader-use',
+        objectId: effect.objectId, atMs: effect.startedAt };
+      let planned = null;
+      try { planned = api.plan({ event, camera, zoom, viewport, now,
+        reducedMotion }); } catch (_) { /* Visible malformed source blocks readiness. */ }
+      if (!planned) {
+        const region = api.KINDS['reader-use'];
+        const outside = region.x + region.width <= camera.x ||
+          region.y + region.height <= camera.y ||
+          region.x >= camera.x + viewport.width / zoom ||
+          region.y >= camera.y + viewport.height / zoom;
+        (outside ? omitted : unsupported).push({ effectId: effect.id,
+          reason: outside ? 'a01-reader-outside-viewport' :
+            'a01-reader-visible-plan-invalid' });
+        continue;
+      }
+      events.push({ type: 'corridorA01E', effectId: String(effect.id),
+        input: { effect, event, planned } });
+      continue;
+    }
     if (type === 'object-relaxationBed' &&
         effect.objectId === 'v302-medical-diagnosticBed-1') {
       const elapsed = now - Number(effect.startedAt);

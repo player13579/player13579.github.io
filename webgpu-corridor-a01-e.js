@@ -10,8 +10,8 @@
   const KINDS = Object.freeze({
     'door-cycle': Object.freeze({ index: 0, x: 1180, y: 715, width: 200, height: 88,
       durationMs: 1050, sourceX: 1180, sourceY: 740, sound: 'airseal-pressure-release' }),
-    'reader-use': Object.freeze({ index: 1, x: 1226, y: 651, width: 56, height: 62,
-      durationMs: 760, sourceX: 1252, sourceY: 684, sound: 'ceramic-gasket-clasp' }),
+    'reader-use': Object.freeze({ index: 1, x: 1212, y: 641, width: 56, height: 62,
+      durationMs: 760, sourceX: 1240, sourceY: 672, sound: 'ceramic-gasket-clasp' }),
     'reader-luck-crossing': Object.freeze({ index: 2, x: 1180, y: 710, width: 54, height: 88,
       durationMs: 680, sourceX: 1192, sourceY: 748, sound: 'amber-luck-facet' })
   });
