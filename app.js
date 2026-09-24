@@ -10136,10 +10136,9 @@ function setOperatorBranchesOpen(open, operatorType = "", focusFirst = true) {
 function triggerOperatorAbility() {
   const self = state.data?.self;
   if (!self) return;
-  const selectedShopAbilityId = String(state.selectedShopAbilityId || "");
   const purchased = selectedPurchasedShopAbility(self);
-  if (selectedShopAbilityId) {
-    if (purchased) void executePurchasedShopAbility(purchased);
+  if (purchased) {
+    void executePurchasedShopAbility(purchased);
     return;
   }
   if (self.hackerRootActive) {
@@ -17582,6 +17581,7 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
 function prepareMainFrameBookkeeping() {
   const data = state.data;
   const [w, h] = MAIN_CANVAS_LOGICAL_SIZE;
+  reconcileMainFrameUiState(data);
   state.markerHitTargets.length = 0;
   state.acquisitionCreditRect = null;
   state.acquisitionHudRects = null;
@@ -17606,6 +17606,24 @@ function prepareMainFrameBookkeeping() {
     bottom: camera.y + viewH
   };
   state.preparedMainFrame = { data, w, h, worldZoom, camera, viewW, viewH };
+}
+
+function reconcileMainFrameUiState(data) {
+  if (!preparationPhaseActive(data)) {
+    clearPreparationRosterEntries();
+    clearPreparationCanvasHitTargets();
+    state.preparationCanvasTap = null;
+  }
+  if (data?.phase !== "playing") {
+    if (state.tabletOpen) setTabletOpen(false, { persist: false, focus: false });
+    if (state.operatorBranchesOpen) setOperatorBranchesOpen(false);
+  }
+  if (!data) {
+    stopAllPhenomenonSounds();
+    stopAllEnvironmentSounds();
+    clearAcquisitionOverlay();
+    clearMarkerExplanation();
+  }
 }
 
 function prepareMagicEffectsForMainFrame(data, now) {
@@ -17800,22 +17818,10 @@ function draw() {
   if (pregameCanvas) {
     clearPreparationCanvasHitTargets();
     drawPreparationCanvasHitTargets(data, null, null, w, h);
-  } else {
-    clearPreparationRosterEntries();
-    clearPreparationCanvasHitTargets();
-    state.preparationCanvasTap = null;
-  }
-  if (data?.phase !== "playing") {
-    if (state.tabletOpen) setTabletOpen(false, { persist: false, focus: false });
-    if (state.operatorBranchesOpen) setOperatorBranchesOpen(false);
   }
 
   if (!data) {
-    stopAllPhenomenonSounds();
-    stopAllEnvironmentSounds();
     commitPhenomenonSoundVisualFrame(data, phenomenonVisualReceipts);
-    clearAcquisitionOverlay();
-    clearMarkerExplanation();
     return;
   }
   const environmentSoundReceipts = [];
