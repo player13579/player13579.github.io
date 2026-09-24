@@ -25015,9 +25015,12 @@ function registerMarkerHitTarget(key, localX, localY, radius, title, detail) {
 
 function markerTargetAt(point) {
   if (!point) return null;
-  const targets = webgpuMainApp.visible && els.webgpuMainCanvas?.isConnected &&
-    els.webgpuMainCanvas.style.opacity === "1" &&
-    els.webgpuMainCanvas.style.display !== "none"
+  // A visible GPU surface owns marker input even while its submitted receipt
+  // is stale. Never let the hidden Canvas hit cache bridge that gap.
+  if (webgpuMainApp.visible) {
+    if (!webgpuMainSubmittedFrameCurrent()) return null;
+  }
+  const targets = webgpuMainApp.visible
     ? webgpuMainApp.submittedHits : state.markerHitTargets;
   return [...(targets || [])]
     .reverse()
@@ -25191,10 +25194,9 @@ function drawMarkerExplanation(width, height) {
   // this snapshot so the explanation can be read without a live hit target.
   if (explanation.pointerId !== null) refreshMarkerExplanationTarget(explanation.pointerId);
   if (state.markerExplanation !== explanation) return;
-  const activeHits = webgpuMainApp.visible && els.webgpuMainCanvas?.isConnected &&
-    els.webgpuMainCanvas.style.opacity === "1" &&
-    els.webgpuMainCanvas.style.display !== "none"
-    ? webgpuMainApp.submittedHits : state.markerHitTargets;
+  const activeHits = webgpuMainApp.visible
+    ? (webgpuMainSubmittedFrameCurrent() ? webgpuMainApp.submittedHits : null)
+    : state.markerHitTargets;
   const liveTarget = activeHits?.find((entry) => entry.key === explanation.key);
   if (!liveTarget && explanation.pointerId !== null) { clearMarkerExplanation(); return; }
   const scene = markerExplanationWebGPUScene(explanation, liveTarget, timestamp);
