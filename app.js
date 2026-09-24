@@ -1450,37 +1450,54 @@ const WEBGPU_E_CUES = { roomKey: '', player: null, events: null,
   combat: null, defense: null };
 const WORLD_EVENT_SOUND_IDS = { roomKey: '', ids: new Set(), order: [] };
 let HEAL_E_SFX_PLAYER = null;
+let HEAL_E_SFX_CONTEXT = null;
+let HEAL_E_SFX_ACTIVE = null;
+let healESfxSequence = 0;
 
-function playHealESfx(effect, data, receivedAt) {
-  if (effect.type !== 'flora' || String(effect.playerId) !== String(data.selfId) ||
-      !window.DvaHealESfx?.createPlayer) return;
-  const source = (data.players || []).find(player => String(player.id) === String(effect.playerId));
-  const actorTimeScale = source ? displayActorTimeScale(source, data) : 1;
-  const clockStart = Number(effect.actorClockStartedAt);
-  const sameClockRoom = String(effect.actorClockRoomId || '') === String(data.roomId || '');
-  // Reuse the cast clock already attached when the network effect was admitted;
-  // subtracting its origin once avoids adding the same wall elapsed twice.
-  const visualElapsedMs = source && effect.actorClockStartedAt != null &&
-    Number.isFinite(clockStart) && sameClockRoom
-    ? Math.max(0, actorVisualTime(source, data) - clockStart)
-    // Admission stamps startedAt at receipt. This fallback therefore starts at
-    // zero and only advances when a genuine post-receipt interval is available.
-    : Math.max(0, receivedAt - (Number(effect.startedAt) || receivedAt)) * actorTimeScale;
-  HEAL_E_SFX_PLAYER ||= window.DvaHealESfx.createPlayer({
-    getAudioContext: () => state.audio.context,
-    getMasterGain: () => state.audio.master,
-    nowMs: () => state.frameNow || performance.now()
-  });
-  HEAL_E_SFX_PLAYER.play({ kind: 'self-restoration', self: true,
-    eventId: String(effect.id), roomId: String(data.roomId),
-    roomGeneration: state.roomSessionGeneration, eventAtMs: receivedAt }, {
-    nowMs: receivedAt, hidden: document.hidden, muted: state.audio.muted,
-    actorTimeScale, visualElapsedMs,
-    sensory: isSensoryBlocked(data),
-    available: state.audio.unlocked && state.audio.context?.state === 'running' &&
-      Number(state.audio.master?.gain?.value) > 0,
-    volume: 1
-  });
+function stopHealESfx() {
+  HEAL_E_SFX_PLAYER?.stop();
+  HEAL_E_SFX_ACTIVE = null;
+}
+function healESfxSource(data, id, nowMs = state.frameNow || performance.now()) {
+  const effect = state.magicEffects.find(item => item.type === 'flora' &&
+    String(item.id) === id && String(item.playerId) === String(data?.selfId));
+  const owner = data?.players?.find(player => String(player.id) === String(data.selfId));
+  const elapsed = nowMs - effect?.startedAt;
+  if (!effect || effect.cancelled || !owner?.alive || owner.ejected || owner.inVent || owner.invisible ||
+      owner.visible === false ||
+      data.phase !== 'playing' || !(elapsed >= 0 && elapsed < Math.min(12000, effect.duration)) ||
+      (effect.actorClockRoomId && String(effect.actorClockRoomId) !== String(data.roomId)) ||
+      (elapsed >= 1860 && !(Number(data.self?.timedAccelerationStacks?.flora?.endsAt) > estimatedServerNow(data)))) return null;
+  return { effect, phaseSeconds: elapsed / 1000 };
+}
+function commitHealESfxVisualFrame(data, receipts) {
+  // Only a submitted, selected visible main frame authorizes the adopted sound.
+  if (state.screen !== 'game' || document.hidden || state.audio.muted ||
+      isSensoryBlocked(data) || !state.audio.unlocked ||
+      state.audio.context?.state !== 'running' || !(state.audio.master?.gain?.value > 0) ||
+      !window.DvaHealAstraSfx?.createPlayer) { stopHealESfx(); return; }
+  const receipt = [...(receipts || [])].reverse().find(item => String(item.playerId) === String(data.selfId));
+  const source = receipt && healESfxSource(data, receipt.effectId);
+  if (!source) { stopHealESfx(); return; }
+  const key = `${data.roomId}:${state.roomSessionGeneration}:${receipt.effectId}`;
+  if (HEAL_E_SFX_ACTIVE?.key === key) {
+    HEAL_E_SFX_PLAYER.update({ actorElapsedSeconds: receipt.actorSeconds });
+    return;
+  }
+  if (HEAL_E_SFX_CONTEXT !== state.audio.context) {
+    HEAL_E_SFX_PLAYER?.destroy();
+    HEAL_E_SFX_CONTEXT = state.audio.context;
+    HEAL_E_SFX_PLAYER = window.DvaHealAstraSfx.createPlayer({
+      context: HEAL_E_SFX_CONTEXT, destination: state.audio.master, syncActorClock: true });
+  }
+  // Resume after hiding/muting joins the current phase rather than replaying onset.
+  // First-use synthesis can take time; read wall time after it, not before it.
+  const currentSource = healESfxSource(data, receipt.effectId, performance.now());
+  if (!currentSource) { stopHealESfx(); return; }
+  if (HEAL_E_SFX_PLAYER.start({ eventId: `${key}:${++healESfxSequence}`,
+      phaseSeconds: currentSource.phaseSeconds, actorElapsedSeconds: receipt.actorSeconds, volume: 1 }))
+    HEAL_E_SFX_ACTIVE = { key, effectId: receipt.effectId, roomId: String(data.roomId),
+      generation: state.roomSessionGeneration };
 }
 const ENVIRONMENT_SOUND_OWNERS = new Map();
 const ENVIRONMENT_SFX_BUFFERS = new WeakMap();
@@ -12208,6 +12225,7 @@ function stopPhenomenonSoundOwner(owner) {
   PHENOMENON_SOUND_RECEIPTS.owners.delete(owner.key);
 }
 function stopAllPhenomenonSounds() {
+  stopHealESfx();
   for (const owner of [...PHENOMENON_SOUND_RECEIPTS.owners.values()]) stopPhenomenonSoundOwner(owner);
 }
 function rememberPhenomenonSoundId(id) {
@@ -12625,11 +12643,14 @@ function floraInvisibleSelfVisibility(effect, data) {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) WEBGPU_E_CUES.player?.stopAll();
+  if (document.hidden) { WEBGPU_E_CUES.player?.stopAll(); stopHealESfx(); }
 });
-window.addEventListener('pagehide', () => WEBGPU_E_CUES.player?.stopAll());
+window.addEventListener('pagehide', () => { WEBGPU_E_CUES.player?.stopAll(); stopHealESfx(); });
 
 function detectMagicEffects(previous, next) {
+  if (HEAL_E_SFX_ACTIVE && (HEAL_E_SFX_ACTIVE.roomId !== String(next.roomId) ||
+      HEAL_E_SFX_ACTIVE.generation !== state.roomSessionGeneration ||
+      !healESfxSource(next, HEAL_E_SFX_ACTIVE.effectId))) stopHealESfx();
   syncWebGPUECueSession(next);
   const grenadeReceipts = prepareGrenadeImpactSoundReceipts(previous, next);
   preparePhenomenonSoundReceipts(previous, next);
@@ -12726,7 +12747,6 @@ function detectMagicEffects(previous, next) {
       localEffect.duration = localEffect._headMarkerExpiresAt - receivedAt;
     }
     state.magicEffects.push(localEffect);
-    if (effect.type === 'flora') playHealESfx(localEffect, next, receivedAt);
     if (isGrenadeImpactSoundEffect(localEffect)) admitGrenadeImpactSound(localEffect, next);
     if (soundKind) admitPhenomenonSound(effect, next);
     // A real gain receipt is admitted once here, after the network-ID gate.
@@ -18174,6 +18194,7 @@ function pumpWebGPUMainAppDriver() {
     }
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
     flushLiveSunbeamSounds(receipt.recordResult.sunbeamHandReceipts, requestSerial);
+    commitHealESfxVisualFrame(data, receipt.recordResult.healSoundVisualReceipts);
     commitVisibleVisualSoundFrame(data,
       receipt.recordResult.phenomenonSoundVisualReceipts,
       receipt.recordResult.environmentSoundReceipts, true);
@@ -20897,18 +20918,15 @@ async function prepareWebGPUMainAppEarlyScene(capture, passes, textAtlas) {
 // complete TE for their effect type; texture-owned effects have no generic
 // geometric replacement. The caller must reject ready:false before cutover.
 function healEOutsideViewport(player, camera, zoom, viewport) {
-  // Match webgpu-heal-e.js BODY's logical envelope. Invalid geometry must
+  // Match the adopted Astra plan's conservative world envelope. Invalid geometry must
   // continue into plan() and block the frame instead of being silently omitted.
   if (![player?.x, player?.y, camera?.x, camera?.y, zoom,
         viewport?.width, viewport?.height].every(Number.isFinite) ||
       zoom <= 0 || viewport.width <= 0 || viewport.height <= 0) return false;
   const centerX = (player.x - camera.x) * zoom;
-  const centerY = (player.y - 4 - camera.y) * zoom;
-  const width = 52 * zoom, height = 55 * zoom, pad = 18 * zoom;
-  const rect = { x: centerX - width / 2 - pad, y: centerY - height / 2 - pad,
-    width: width + 2 * pad, height: height + 2 * pad };
-  return rect.x + rect.width <= 0 || rect.y + rect.height <= 0 ||
-    rect.x >= viewport.width || rect.y >= viewport.height;
+  const centerY = (player.y - camera.y) * zoom;
+  return centerX + 58 * zoom < 0 || centerX - 58 * zoom > viewport.width ||
+    centerY + 60 * zoom < 0 || centerY - 50 * zoom > viewport.height;
 }
 function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera, zoom,
   shapeProviders = {}, markerSelection = null) {
@@ -20937,6 +20955,11 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       markerGeneration: markerSelection?.generation ?? null },
       unsupported, expiredEffectIds: effects.map(effect => effect?.id), ready: true };
   const active = effects.filter(effect => {
+    if (effect?.type === 'flora') {
+      if (![effect.startedAt, effect.duration].every(Number.isFinite) || effect.duration <= 0)
+        return true;
+      return now < effect.startedAt || now - effect.startedAt < Math.min(effect.duration, 12000);
+    }
     if (effect?.type === "fire") {
       // Keep malformed activation records visible to the readiness check.
       if (!Number.isFinite(effect.startedAt) || effect.duration !== 1500)
@@ -21223,8 +21246,9 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     if (type === 'flora') {
       const source = data.players?.find(player => String(player.id) === String(effect.playerId));
       const player = source ? renderedPlayer(source) : null;
-      const module = window.DvaWebGPUHealE;
-      if (!player || !player.alive || player.ejected || player.inVent ||
+      const module = window.DvaHealAstraE;
+      if (!player || !player.alive || player.ejected || player.inVent || player.invisible ||
+          player.visible === false || effect.cancelled ||
           data.phase !== 'playing') {
         omitted.push({ effectId: effect.id, reason: 'heal-owner-not-visible' });
         continue;
@@ -21241,6 +21265,10 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         continue;
       }
       const elapsed = now - effect.startedAt;
+      if (Number.isFinite(elapsed) && elapsed < 0) {
+        omitted.push({ effectId: effect.id, reason: 'heal-not-started' });
+        continue;
+      }
       const serverNow = estimatedServerNow(data);
       const selfOwner = String(player.id) === String(data.selfId);
       const accelerationActive = selfOwner
@@ -21258,9 +21286,11 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       const visualElapsedMs = effect.actorClockStartedAt != null && Number.isFinite(clockStart) && sameClockRoom
         ? Math.max(0, actorVisualTime(source, data) - clockStart)
         : Math.max(0, elapsed * displayActorTimeScale(source, data));
-      const planned = module?.plan?.({ effect, player, now, camera, zoom, viewport,
-        reducedMotion, visualElapsedMs,
-        accelerationUntil: accelerationActive ? now + 1 : 0 });
+      const planned = Number.isFinite(effect.duration) && effect.duration > 0 &&
+        module?.plan?.({ effect: { ...effect, ownerId: String(effect.playerId),
+          expiresAt: effect.startedAt + Math.min(effect.duration, 12000) },
+          owner: player, nowMs: now, camera, zoom, viewport,
+          reducedMotion, actorElapsedSeconds: visualElapsedMs / 1000 });
       if (!planned) {
         unsupported.push({ index, type, id: effect.id, reason: 'heal-plan-unavailable' });
         continue;

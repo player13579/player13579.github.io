@@ -315,10 +315,11 @@
         } else if (event?.type === 'healE') {
           const effect = event.input?.effect, planned = event.input?.planned;
           if (typeof passes.healE?.record !== 'function' || effect?.type !== 'flora' ||
-              String(effect.id ?? '') !== id || String(planned?.effectId ?? '') !== id ||
-              planned?.sourceKind !== 'flora-heal' ||
-              !Number.isFinite(planned?.elapsedMs) || planned.elapsedMs < 0 ||
-              !Number.isFinite(planned.rect?.width) || planned.rect.width <= 0)
+              String(effect.id ?? '') !== id || String(planned?.id ?? '') !== id ||
+              String(planned?.ownerId ?? '') !== String(effect.playerId ?? '') ||
+              !Number.isFinite(planned?.phase?.wall) || planned.phase.wall < 0 ||
+              planned.phase.wall >= 12 || !Number.isFinite(planned.phase.actor) ||
+              !Number.isFinite(planned?.zoom) || planned.zoom <= 0)
             throw new TypeError(`Magic event ${index} needs one owned Heal plan`);
         } else if (['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE'].includes(event?.type)) {
           const effect = event.input?.effect, planned = event.input?.planned;
@@ -499,6 +500,10 @@
       const phenomenonSoundVisualReceipts = [];
       const environmentSoundReceipts = [];
       const mysteryOpeningSoundReceipts = [];
+      const healSoundVisualReceipts = [];
+      const healEvents = (stages.magicEffects?.events || []).filter(event => event.type === 'healE');
+      const healRecorded = new Set();
+      passes.healE?.reconcile?.(healEvents.map(event => String(event.effectId)));
       const sunbeamHands = new Map();
       const run = (name, callback) => {
         const input = stages[name];
@@ -614,7 +619,28 @@
         frame.stage('world:players:sprite');
         const markerViewport = Object.freeze({ ...viewport, generation: input.markerGeneration });
         commands.forEach((command, index) => {
+          const ownerHeals = healEvents.filter(event =>
+            event.input.planned.ownerId === String(command.playerId));
+          const recordHealSide = side => {
+            for (const event of ownerHeals) {
+              const outcome = need('healE', 'record').record({ frame, target,
+                viewport, planned: event.input.planned, side });
+              if (outcome?.drawn !== true || outcome.eventId !== String(event.effectId) ||
+                  outcome.side !== side)
+                throw new Error(`Heal ${event.effectId} ${side} was not drawn`);
+            }
+          };
+          recordHealSide('back');
           cache.record(frame, target, command);
+          recordHealSide('front');
+          for (const event of ownerHeals) {
+            if (healRecorded.has(String(event.effectId)))
+              throw new Error(`Heal ${event.effectId} owner was submitted twice`);
+            healRecorded.add(String(event.effectId));
+            healSoundVisualReceipts.push(Object.freeze({ effectId: String(event.effectId),
+              playerId: String(command.playerId), wallSeconds: event.input.planned.phase.wall,
+              actorSeconds: event.input.planned.phase.actor }));
+          }
           if (command.movementMode === 'flora-sunbeam') {
             const hands = root.DvaWebGPUPlayerSprite?.sunbeamHandsForCommand?.(
               command, input.camera, input.zoom);
@@ -850,11 +876,8 @@
             if (outcome?.drawn !== 1 || outcome.effects?.[0]?.id !== String(event.effectId))
               throw new Error(`Magic Sunbeam ${event.effectId} was not drawn from its hands`);
           } else if (event.type === 'healE') {
-            const outcome = need('healE', 'record').record({ frame, target, viewport,
-              planned: event.input.planned });
-            if (outcome?.drawn !== 1 ||
-                outcome.effects?.[0]?.effectId !== event.effectId)
-              throw new Error(`Magic Heal ${event.effectId} was not drawn once`);
+            if (!healRecorded.has(String(event.effectId)))
+              throw new Error(`Magic Heal ${event.effectId} lacks its same-frame actor and both sides`);
           } else if (['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE'].includes(event.type)) {
             const outcome = need(event.type, 'record').record({ frame, target, viewport,
               ...(event.type === 'alchemyE' ? { scene: event.input.scene,
@@ -932,6 +955,7 @@
         phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()),
         environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()),
         mysteryOpeningSoundReceipts: Object.freeze(mysteryOpeningSoundReceipts.slice()),
+        healSoundVisualReceipts: Object.freeze(healSoundVisualReceipts.slice()),
         sunbeamHandReceipts: Object.freeze([...sunbeamHands.values()]) });
     }
     return Object.freeze({ prepare, record, get device() { return device; }, destroy() { destroyed = true; } });

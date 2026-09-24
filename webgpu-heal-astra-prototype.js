@@ -222,7 +222,8 @@ if (require.main===module) {
     })();
     function slot(id) {
       if(slots.has(id)) return slots.get(id);
-      if(slots.size>=32) throw new RangeError('Heal Astra slot limit; release ended event ids');
+      // The caller reconciles authoritative live event IDs each frame. An
+      // arbitrary 32-event cap would reject valid overlapping server events.
       const vertex=renderer.own(device.createBuffer({label:`Heal Astra ${id} mesh`,size:VERTICES*FLOATS*4,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST}));
       const uniforms=[0,1].map(side=>renderer.own(device.createBuffer({label:`Heal Astra ${id} side ${side}`,size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})));
       const groups=uniforms.map(buffer=>device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer}}]}));

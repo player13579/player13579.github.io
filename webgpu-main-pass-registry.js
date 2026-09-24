@@ -48,7 +48,7 @@
     hackerRootE: root.DvaWebGPUHackerRootE || (typeof require === 'function' ? require('./webgpu-hacker-root-e.js') : null),
     hackerStatusRecoveryE: root.DvaWebGPUHackerStatusRecoveryE || (typeof require === 'function' ? require('./webgpu-hacker-status-recovery-e.js') : null),
     floraE: root.DvaWebGPUFloraE || (typeof require === 'function' ? require('./webgpu-flora-e.js') : null),
-    healE: root.DvaWebGPUHealE || (typeof require === 'function' ? require('./webgpu-heal-e.js') : null),
+    healE: root.DvaHealAstraE || (typeof require === 'function' ? require('./webgpu-heal-astra-prototype.js') : null),
     sunbeamE: root.DvaWebGPUSunbeamE || (typeof require === 'function' ? require('./webgpu-sunbeam-e.js') : null),
     gravityFieldE: root.DvaWebGPUGravityFieldE || (typeof require === 'function' ? require('./webgpu-gravity-field-e.js') : null),
     rigidItemImpactE: root.DvaWebGPURigidItemImpactE || (typeof require === 'function' ? require('./webgpu-rigid-item-impact-e.js') : null),
@@ -235,7 +235,13 @@
       }
       for (const name of ['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE']) {
         const pass = modules[name].create({ renderer, frameOwner: renderer });
+        const liveHealIds = new Set();
         add(name, Object.freeze({ device: renderer.device,
+          ...(name === 'healE' ? { reconcile(ids) {
+            const next = new Set(ids);
+            for (const id of liveHealIds) if (!next.has(id)) pass.release(id);
+            liveHealIds.clear(); for (const id of next) liveHealIds.add(id);
+          } } : {}),
           record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
       for (const name of ['gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',

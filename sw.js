@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-main-bootstrap-v29";
-const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v29";
+const RUNTIME_RELEASE = "webgpu-main-bootstrap-v30";
+const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v30";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -420,8 +420,8 @@ const STATIC_ASSETS = [
   "/webgpu-hacker-root-e.js",
   "/webgpu-hacker-status-recovery-e.js",
   "/webgpu-flora-e.js",
-  "/webgpu-heal-e.js",
-  "/webgpu-heal-e-sfx.js",
+  "/webgpu-heal-astra-prototype.js",
+  "/webgpu-heal-astra-sfx.js",
   "/webgpu-sunbeam-e.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",
@@ -884,8 +884,8 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-hacker-root-e.js",
   "/webgpu-hacker-status-recovery-e.js",
   "/webgpu-flora-e.js",
-  "/webgpu-heal-e.js",
-  "/webgpu-heal-e-sfx.js",
+  "/webgpu-heal-astra-prototype.js",
+  "/webgpu-heal-astra-sfx.js",
   "/webgpu-sunbeam-e.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",
