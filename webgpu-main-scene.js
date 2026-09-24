@@ -338,6 +338,7 @@
       const stages = prepared.stages, results = {}, recorded = [];
       const markerHitTargets = [];
       const phenomenonSoundVisualReceipts = [];
+      const environmentSoundReceipts = [];
       const run = (name, callback) => {
         const input = stages[name];
         if (input == null) return;
@@ -390,6 +391,19 @@
             frame, target, viewport, planned: input.uploadConsole });
           if (!outcome?.drawn || outcome.phase !== input.uploadConsole.phase)
             throw new Error('Medical upload console idle E was not drawn');
+        }
+        const source = input.soundSource;
+        if (input.planned && result?.drawn === true && source != null) {
+          if (source.mapId !== 'station' || source.roomId !== input.roomId ||
+              source.mapId !== input.mapId || typeof source.roomId !== 'string' ||
+              !source.roomId || typeof source.sourceId !== 'string' ||
+              !/^footBath:.+$/.test(source.sourceId) ||
+              source.kind !== 'bathAmbient' ||
+              !Number.isFinite(source.x) || !Number.isFinite(source.y))
+            throw new TypeError('Medical environment sound source identity or coordinates are invalid');
+          environmentSoundReceipts.push(Object.freeze({ roomId: source.roomId,
+            mapId: source.mapId, sourceId: source.sourceId, kind: source.kind,
+            x: source.x, y: source.y }));
         }
         return result;
       });
@@ -591,7 +605,8 @@
       });
       return Object.freeze({ recorded: Object.freeze(recorded), gaps: prepared.gaps,
         markerHitTargets: Object.freeze(markerHitTargets.slice()), results: Object.freeze(results),
-        phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()) });
+        phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()),
+        environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()) });
     }
     return Object.freeze({ prepare, record, get device() { return device; }, destroy() { destroyed = true; } });
   }

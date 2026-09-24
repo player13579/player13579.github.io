@@ -12233,6 +12233,34 @@ function commitPhenomenonSoundVisualFrame(data, receipts) {
     sweepPhenomenonSounds();
   }
 }
+function commitEnvironmentSoundVisualFrame(data, receipts, submitted = false) {
+  environmentSoundFrame += 1;
+  try {
+    let accepted = receipts;
+    if (submitted) {
+      const roomId = String(data?.roomId || ''), mapId = String(data?.map?.id || '');
+      accepted = data === state.data && roomId && mapId === 'station' && Array.isArray(receipts)
+        ? receipts.filter(receipt => receipt && receipt.roomId === roomId &&
+          receipt.mapId === mapId && receipt.kind === 'bathAmbient' &&
+          typeof receipt.sourceId === 'string' && /^footBath:.+$/.test(receipt.sourceId) &&
+          Number.isFinite(receipt.x) && Number.isFinite(receipt.y))
+          .map(({ sourceId, kind, x, y }) => ({ sourceId, kind, x, y }))
+        : [];
+    }
+    applyEnvironmentSoundReceipts(data, Array.isArray(accepted) ? accepted : []);
+  } finally {
+    sweepEnvironmentSounds();
+  }
+}
+function commitVisibleVisualSoundFrame(data, phenomenonReceipts, environmentReceipts,
+  submittedEnvironment = false) {
+  let firstError;
+  try { commitPhenomenonSoundVisualFrame(data, phenomenonReceipts); }
+  catch (error) { firstError = error; }
+  try { commitEnvironmentSoundVisualFrame(data, environmentReceipts, submittedEnvironment); }
+  catch (error) { firstError ||= error; }
+  if (firstError) throw firstError;
+}
 function sweepPhenomenonSounds() {
   const cache = PHENOMENON_SOUND_RECEIPTS;
   for (const owner of [...cache.owners.values()]) {
@@ -17496,6 +17524,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error("WebGPU main submitted without pointer marker hits");
     if (!Array.isArray(receipt.recordResult?.phenomenonSoundVisualReceipts))
       throw new Error("WebGPU main submitted without phenomenon sound receipts");
+    if (!Array.isArray(receipt.recordResult?.environmentSoundReceipts))
+      throw new Error("WebGPU main submitted without environment sound receipts");
     if (!mainCanvas.isConnected || mainCanvas.style.display === "none") return;
     mainCanvas.style.opacity = "1";
     els.canvas.style.opacity = "0";
@@ -17505,8 +17535,9 @@ function pumpWebGPUMainAppDriver() {
     webgpuMainApp.submittedHits = receipt.markerHitTargets;
     webgpuMainApp.visible = true;
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
-    commitPhenomenonSoundVisualFrame(data,
-      receipt.recordResult?.phenomenonSoundVisualReceipts);
+    commitVisibleVisualSoundFrame(data,
+      receipt.recordResult.phenomenonSoundVisualReceipts,
+      receipt.recordResult.environmentSoundReceipts, true);
     if (document.documentElement?.dataset)
       document.documentElement.dataset.fieldRenderer = "webgpu";
   }).catch(error => {
@@ -17549,7 +17580,6 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
 }
 
 function prepareMainFrameBookkeeping() {
-  environmentSoundFrame += 1;
   const data = state.data;
   const [w, h] = MAIN_CANVAS_LOGICAL_SIZE;
   state.markerHitTargets.length = 0;
@@ -17799,9 +17829,6 @@ function draw() {
       ctx.restore();
     }
   });
-  applyEnvironmentSoundReceipts(data, environmentSoundReceipts);
-  sweepEnvironmentSounds();
-
   state.phenomenonSoundVisualReceipts = phenomenonVisualReceipts;
   drawCanvasStage("world", () => {
     ctx.save();
@@ -17836,7 +17863,8 @@ function draw() {
     // While WebGPU owns the visible game surface, this hidden Canvas draw is
     // only a compatibility/input producer and cannot age sound owners.
     if (!webgpuMainApp.visible)
-      commitPhenomenonSoundVisualFrame(data, phenomenonVisualReceipts);
+      commitVisibleVisualSoundFrame(data, phenomenonVisualReceipts,
+        environmentSoundReceipts);
   } finally {
     state.phenomenonSoundVisualReceipts = null;
   }
@@ -18988,129 +19016,6 @@ function drawCanonicalPortalOpenings(data, camera, w, h) {
   return;
 }
 
-function transparentEdgeBackgroundSource(image) {
-  if (!image?.complete || !image.naturalWidth) return image;
-  const cache = state.textures.compositeSources;
-  const cached = cache?.get(image);
-  if (cached) return cached;
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const local = canvas.getContext("2d", { willReadFrequently: true });
-    local.drawImage(image, 0, 0);
-    const imageData = local.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-    const width = canvas.width;
-    const height = canvas.height;
-    const cornerIndices = [0, width - 1, (height - 1) * width, height * width - 1];
-    const backgroundColors = cornerIndices.map((index) => {
-      const offset = index * 4;
-      return [pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]];
-    }).filter(([r, g, b, a]) => {
-      if (a < 8) return true;
-      const luminance = (r + g + b) / 3;
-      const spread = Math.max(r, g, b) - Math.min(r, g, b);
-      return spread <= 24 && (luminance <= 34 || luminance >= 218);
-    });
-    if (!backgroundColors.length) {
-      cache?.set(image, image);
-      return image;
-    }
-    const visited = new Uint8Array(width * height);
-    const queue = new Int32Array(width * height);
-    let head = 0;
-    let tail = 0;
-    const isEdgeBackground = (index) => {
-      const offset = index * 4;
-      const r = pixels[offset];
-      const g = pixels[offset + 1];
-      const b = pixels[offset + 2];
-      const a = pixels[offset + 3];
-      if (a < 8) return true;
-      return backgroundColors.some(([br, bg, bb, ba]) => {
-        if (ba < 8) return false;
-        const distance = Math.hypot(r - br, g - bg, b - bb);
-        const backgroundLuminance = (br + bg + bb) / 3;
-        const tolerance = backgroundLuminance >= 128 ? 24 : 32;
-        return distance <= tolerance;
-      });
-    };
-    const enqueue = (x, y) => {
-      if (x < 0 || y < 0 || x >= width || y >= height) return;
-      const index = y * width + x;
-      if (visited[index] || !isEdgeBackground(index)) return;
-      visited[index] = 1;
-      queue[tail++] = index;
-    };
-    for (let x = 0; x < width; x += 1) {
-      enqueue(x, 0);
-      enqueue(x, height - 1);
-    }
-    for (let y = 0; y < height; y += 1) {
-      enqueue(0, y);
-      enqueue(width - 1, y);
-    }
-    while (head < tail) {
-      const index = queue[head++];
-      const x = index % width;
-      const y = Math.floor(index / width);
-      enqueue(x + 1, y);
-      enqueue(x - 1, y);
-      enqueue(x, y + 1);
-      enqueue(x, y - 1);
-    }
-    if (!tail) {
-      cache?.set(image, image);
-      return image;
-    }
-    for (let index = 0; index < visited.length; index += 1) {
-      if (visited[index]) pixels[index * 4 + 3] = 0;
-    }
-    const fringe = new Uint8Array(visited);
-    for (let pass = 0; pass < 3; pass += 1) {
-      const next = new Uint8Array(fringe);
-      for (let index = 0; index < fringe.length; index += 1) {
-        if (!fringe[index]) continue;
-        const x = index % width;
-        const y = Math.floor(index / width);
-        const neighbors = [
-          x > 0 ? index - 1 : -1,
-          x + 1 < width ? index + 1 : -1,
-          y > 0 ? index - width : -1,
-          y + 1 < height ? index + width : -1
-        ];
-        for (const neighbor of neighbors) {
-          if (neighbor < 0 || fringe[neighbor]) continue;
-          const offset = neighbor * 4;
-          const distances = backgroundColors
-            .filter((color) => color[3] >= 8)
-            .map(([br, bg, bb]) => Math.hypot(
-              pixels[offset] - br,
-              pixels[offset + 1] - bg,
-              pixels[offset + 2] - bb
-            ));
-          const distance = distances.length ? Math.min(...distances) : Number.POSITIVE_INFINITY;
-          const limit = pass === 0 ? 46 : pass === 1 ? 36 : 30;
-          if (distance > limit) continue;
-          pixels[offset + 3] = Math.min(
-            pixels[offset + 3],
-            Math.round(255 * Math.max(0, distance - 12) / Math.max(1, limit - 12))
-          );
-          next[neighbor] = 1;
-        }
-      }
-      fringe.set(next);
-    }
-    local.putImageData(imageData, 0, 0);
-    cache?.set(image, canvas);
-    return canvas;
-  } catch {
-    cache?.set(image, image);
-    return image;
-  }
-}
-
 function drawFloor(data, camera, w, h, includeGrid = true) {
   ctx.fillStyle = "#c8d9e1";
   ctx.fillRect(camera.x, camera.y, w, h);
@@ -20087,6 +19992,18 @@ function buildWebGPUGroundItemCommands(data, view) {
 // WEBGPU_MAIN_APP_EARLY_SCENE_ADAPTER_V1_START
 // Dormant until the complete main-frame cutover. Capture only the first twelve
 // ordered world stages; later mandatory stages must never be filled with stubs.
+function medicalFootBathEnvironmentSoundSource(data, planned) {
+  if (!planned || data?.map?.id !== 'station' || !String(data.roomId || '')) return null;
+  const baths = (data.map.objects || []).filter(object => object?.room === 'medical' &&
+    (object.type === 'footBath' || object.effectKind === 'footBath'));
+  if (baths.length !== 1) return null;
+  const bath = baths[0];
+  if (typeof bath.id !== 'string' || !bath.id ||
+      !Number.isFinite(bath.x) || !Number.isFinite(bath.y)) return null;
+  return Object.freeze({ roomId: String(data.roomId), mapId: data.map.id,
+    sourceId: `footBath:${bath.id}`, kind: 'bathAmbient', x: bath.x, y: bath.y });
+}
+
 function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
   if (!data?.map || viewport?.kind !== "main" ||
       viewport.width !== MAIN_CANVAS_LOGICAL_SIZE[0] ||
@@ -20143,6 +20060,8 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
   const medicalEnvironmentPlanned = medicalEnvironmentPresent
     ? medicalEnvironmentApi.plan({ camera, zoom, viewport, now: frameNow,
       mode: "balanced", intensity: .65, reducedMotion }) : null;
+  const medicalFootBathSoundSource =
+    medicalFootBathEnvironmentSoundSource(data, medicalEnvironmentPlanned);
   const medicalFixtureApi = window.DvaWebGPUMedicalFixtureE;
   const medicalUploadApi = window.DvaWebGPUMedicalUploadConsoleE;
   const medicalFixturePlans = [];
@@ -20241,6 +20160,8 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
   const stages = {
     map: { camera, zoom },
     environmentE: { planned: medicalEnvironmentPlanned,
+      roomId: String(data.roomId || ''), mapId: data.map.id,
+      soundSource: medicalFootBathSoundSource,
       fixtures: medicalFixturePlans, uploadConsole: medicalUploadPlanned },
     stations: { ...stationsWebGPUScene(data), ...common },
     mapObjects: { scene: mapObjectWebGPUScene(data, bounds), ...common },
@@ -32120,7 +32041,6 @@ const version = "overheal-body-v913";
     gameplayLoaded: false,
     preparedSprites: new Map(),
     spriteMetadata: new Map(),
-    compositeSources: new WeakMap(),
     mapShadowMasks: new Map(),
     mapPlantLayers: new Map()
   };
