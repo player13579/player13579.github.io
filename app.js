@@ -2310,6 +2310,7 @@ const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false,
 const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("webgpuMain") === "1";
 const webgpuMainApp = { driver: null, startPending: null, mapId: null,
   generation: 0, visible: false, submittedHits: null, failed: false,
+  requestSerial: 0, lastSoundRequestSerial: 0,
   acquisitionCanvas: null };
 init();
 
@@ -12224,6 +12225,14 @@ function applyPhenomenonSoundVisualReceipts(data, receipts) {
     advancePhenomenonSound(receipt.effectId, receipt.kind, receipt.progress, player);
   }
 }
+function commitPhenomenonSoundVisualFrame(data, receipts) {
+  PHENOMENON_SOUND_RECEIPTS.frame += 1;
+  try {
+    applyPhenomenonSoundVisualReceipts(data, receipts);
+  } finally {
+    sweepPhenomenonSounds();
+  }
+}
 function sweepPhenomenonSounds() {
   const cache = PHENOMENON_SOUND_RECEIPTS;
   for (const owner of [...cache.owners.values()]) {
@@ -17383,6 +17392,7 @@ function dist(a, b) {
 function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   if (!WEBGPU_MAIN_VERIFY_ROUTE) return;
   webgpuMainApp.generation += 1;
+  webgpuMainApp.lastSoundRequestSerial = webgpuMainApp.requestSerial;
   webgpuMainApp.submittedHits = null;
   webgpuMainApp.visible = false;
   if (document.documentElement?.dataset)
@@ -17469,6 +17479,8 @@ function pumpWebGPUMainAppDriver() {
     return;
   }
   const generation = webgpuMainApp.generation;
+  const requestSerial = ++webgpuMainApp.requestSerial;
+  const connectionMode = document.documentElement?.dataset?.connectionMode || "";
   const camera = { ...cameraFor(data, 980, 620, worldZoomFor(data)),
     zoom: worldZoomFor(data) };
   void webgpuMainApp.driver.draw({ data, sample, rect, camera,
@@ -17476,10 +17488,14 @@ function pumpWebGPUMainAppDriver() {
     if (receipt?.reason === "incomplete-scene")
       document.body.dataset.webgpuMainPending = receipt.reason;
     if (!receipt?.drawn || generation !== webgpuMainApp.generation ||
-        state.data !== data || state.screen !== "game" || document.hidden) return;
+        state.data !== data || state.screen !== "game" || document.hidden ||
+        connectionMode !== (document.documentElement?.dataset?.connectionMode || "") ||
+        requestSerial < webgpuMainApp.lastSoundRequestSerial) return;
     delete document.body.dataset.webgpuMainPending;
     if (!Array.isArray(receipt.markerHitTargets))
       throw new Error("WebGPU main submitted without pointer marker hits");
+    if (!Array.isArray(receipt.recordResult?.phenomenonSoundVisualReceipts))
+      throw new Error("WebGPU main submitted without phenomenon sound receipts");
     if (!mainCanvas.isConnected || mainCanvas.style.display === "none") return;
     mainCanvas.style.opacity = "1";
     els.canvas.style.opacity = "0";
@@ -17488,6 +17504,9 @@ function pumpWebGPUMainAppDriver() {
     // actually selected as the visible game surface.
     webgpuMainApp.submittedHits = receipt.markerHitTargets;
     webgpuMainApp.visible = true;
+    webgpuMainApp.lastSoundRequestSerial = requestSerial;
+    commitPhenomenonSoundVisualFrame(data,
+      receipt.recordResult?.phenomenonSoundVisualReceipts);
     if (document.documentElement?.dataset)
       document.documentElement.dataset.fieldRenderer = "webgpu";
   }).catch(error => {
@@ -17530,7 +17549,6 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
 }
 
 function prepareMainFrameBookkeeping() {
-  PHENOMENON_SOUND_RECEIPTS.frame += 1;
   environmentSoundFrame += 1;
   const data = state.data;
   const [w, h] = MAIN_CANVAS_LOGICAL_SIZE;
@@ -17765,6 +17783,7 @@ function draw() {
   if (!data) {
     stopAllPhenomenonSounds();
     stopAllEnvironmentSounds();
+    commitPhenomenonSoundVisualFrame(data, phenomenonVisualReceipts);
     clearAcquisitionOverlay();
     clearMarkerExplanation();
     return;
@@ -17814,10 +17833,12 @@ function draw() {
     }
   });
   try {
-    applyPhenomenonSoundVisualReceipts(data, phenomenonVisualReceipts);
+    // While WebGPU owns the visible game surface, this hidden Canvas draw is
+    // only a compatibility/input producer and cannot age sound owners.
+    if (!webgpuMainApp.visible)
+      commitPhenomenonSoundVisualFrame(data, phenomenonVisualReceipts);
   } finally {
     state.phenomenonSoundVisualReceipts = null;
-    sweepPhenomenonSounds();
   }
 
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
@@ -20308,7 +20329,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   const specialAmmoCoverage = { visibleSpecialAmmo: [] };
   const effects = Array.isArray(state.magicEffects) ? state.magicEffects : [];
   if (!["playing", "meeting"].includes(data.phase))
-    return { stage: { camera, zoom, now, phase: data.phase,
+    return { stage: { camera, zoom, now, roomId: String(data.roomId || ''), phase: data.phase,
       reducedMotion: prefersReducedMotion(), sourceEffectIds: [], events, omitted,
       markerCoverage, empCoverage, specialAmmoCoverage,
       markerGeneration: markerSelection?.generation ?? null },
@@ -20728,7 +20749,9 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         continue;
       }
       const input = { effect, player, now, phase: data.phase, camera, zoom,
-        textures, reducedMotion, alpha: 1 };
+        textures, reducedMotion, alpha: 1,
+        soundDurationMs: type === 'gain-mana' ? MANA_BODY_RECOVERY_TE.durationMs :
+          type === 'gain-overheal' ? OVERHEAL_BODY_RECOVERY_TE.durationMs : null };
       if (!pass?.ready?.(textures[profile?.key], kind) || !pass?.plan?.({ ...input, viewport })) {
         unsupported.push({ index, type, id: effect.id,
           reason: "body-benefit-pass-or-authored-texture-unavailable" });
@@ -20781,7 +20804,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     }
     unsupported.push({ index, type, id: effect.id, reason: "no-complete-webgpu-effect-port" });
   }
-  return { stage: { camera, zoom, now, phase: data.phase,
+  return { stage: { camera, zoom, now, roomId: String(data.roomId || ''), phase: data.phase,
     reducedMotion, sourceEffectIds, events, omitted,
     markerCoverage, empCoverage, specialAmmoCoverage,
     markerGeneration: markerSelection?.generation ?? null }, unsupported,

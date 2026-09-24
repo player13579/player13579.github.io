@@ -337,6 +337,7 @@
       prepared.markRecorded();
       const stages = prepared.stages, results = {}, recorded = [];
       const markerHitTargets = [];
+      const phenomenonSoundVisualReceipts = [];
       const run = (name, callback) => {
         const input = stages[name];
         if (input == null) return;
@@ -536,6 +537,24 @@
             });
             if (outcome !== true)
               throw new Error(`Magic body benefit ${event.effectId} was not drawn`);
+            const effect = event.input?.effect;
+            if (['gain-mana', 'gain-overheal'].includes(effect?.type)) {
+              const effectId = effect.id, playerId = effect.playerId;
+              const roomId = stages.magicEffects?.roomId ??
+                stages.magicEffects?.data?.roomId ?? '';
+              const now = event.input?.now;
+              const duration = Number(event.input?.soundDurationMs);
+              if ((typeof effectId !== 'string' && typeof effectId !== 'number') ||
+                  String(effectId) === '' || playerId == null || String(playerId) === '' ||
+                  !roomId || !Number.isFinite(now) || !Number.isFinite(effect.startedAt) ||
+                  !(duration > 0))
+                throw new TypeError(`Magic body benefit ${event.effectId} has invalid sound receipt identity or progress`);
+              phenomenonSoundVisualReceipts.push(Object.freeze({
+                roomId: String(roomId), effectId, playerId,
+                kind: effect.type === 'gain-mana' ? 'mana' : 'overheal',
+                progress: (now - effect.startedAt) / duration
+              }));
+            }
           } else if (event.type === 'fireActivation') {
             const outcome = need('fireActivation', 'record').record({
               ...event.input, frame, target, viewport
@@ -571,7 +590,8 @@
           viewport: input.preparedPlan?.viewport || input.viewport || viewport });
       });
       return Object.freeze({ recorded: Object.freeze(recorded), gaps: prepared.gaps,
-        markerHitTargets: Object.freeze(markerHitTargets.slice()), results: Object.freeze(results) });
+        markerHitTargets: Object.freeze(markerHitTargets.slice()), results: Object.freeze(results),
+        phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()) });
     }
     return Object.freeze({ prepare, record, get device() { return device; }, destroy() { destroyed = true; } });
   }
