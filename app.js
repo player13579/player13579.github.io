@@ -18198,10 +18198,38 @@ function setWebGPUMainPendingDiagnostic(reason) {
   const value = String(reason || 'unknown').slice(0, 96);
   if (document.body?.dataset && document.body.dataset.webgpuMainPending !== value)
     document.body.dataset.webgpuMainPending = value;
+  if (value !== 'frame:incomplete-scene' && document.body?.dataset)
+    delete document.body.dataset.webgpuMainIncomplete;
 }
 
 function clearWebGPUMainPendingDiagnostic() {
   if (document.body?.dataset) delete document.body.dataset.webgpuMainPending;
+  if (document.body?.dataset) delete document.body.dataset.webgpuMainIncomplete;
+}
+
+function webgpuMainIncompleteReason(captured, requiredStages) {
+  const reasons = [
+    ...(captured.early?.textureGaps || []).filter(gap => gap.blocking)
+      .map(gap => `${gap.stage}:${gap.reason || gap.texture || 'texture'}`),
+    ...(captured.early?.bodyGaps || []).map(gap => `bodies:${gap.reason}`),
+    ...(captured.early?.worldSoundGaps || []).map(gap => `worldSound:${gap.reason}`),
+    ...(captured.early?.throwPreviewGaps || []).map(gap => `throwPreview:${gap.reason}`),
+    ...(captured.players?.unsupported || []).map(gap =>
+      `players:${gap.reason}${gap.motionId ? `:${gap.motionId}` : ''}`),
+    ...(captured.headMarkers?.unsupported || []).map(gap => `headMarkers:${gap.reason}`),
+    ...(captured.hitEffectsGaps || []).map(gap => `hitEffects:${gap.reason}`),
+    ...(captured.magicGaps || []).map(gap =>
+      `magicEffects:${gap.type || 'unknown'}:${gap.reason}`),
+    ...(captured.late?.unsupported || []).map(gap =>
+      `magicEffects:${gap.type || 'unknown'}:${gap.reason}`),
+    ...(captured.remainingStages || []).filter(name => requiredStages.includes(name))
+      .map(name => `stage:${name}`),
+    ...(captured.markerPointerGap ? ['markerPointer:source-invalid'] : []),
+    ...(captured.conditional?.acquisition?.unsupported || [])
+      .map(gap => `acquisition:${gap.reason || 'source-invalid'}`),
+    ...(captured.conditional?.expandedBlocked ? ['expandedMap:source-invalid'] : [])
+  ];
+  return [...new Set(reasons)].slice(0, 12).join(',').slice(0, 400) || 'unknown';
 }
 
 function setWebGPUMainFailure(error) {
@@ -21275,6 +21303,29 @@ function healEOutsideViewport(player, camera, zoom, viewport) {
   return centerX + 58 * zoom < 0 || centerX - 58 * zoom > viewport.width ||
     centerY + 60 * zoom < 0 || centerY - 50 * zoom > viewport.height;
 }
+function bodyBenefitExtraOutsideViewport(effect, player, camera, zoom, viewport, profile) {
+  const kind = String(effect?.type || '').replace(/^gain-/, '');
+  if (!profile || effect?.type !== profile.type || effect.effectKind !== kind ||
+      !Number.isFinite(effect.startedAt) ||
+      (effect.playerId != null && String(effect.playerId) !== String(player?.id)) ||
+      ![player?.x, player?.y, camera?.x, camera?.y, zoom,
+        viewport?.width, viewport?.height, viewport?.pixelWidth,
+        viewport?.pixelHeight, profile.radiusX, profile.radiusY,
+        profile.anchorY].every(Number.isFinite) ||
+      zoom <= 0 || viewport.width <= 0 || viewport.height <= 0 ||
+      !Number.isInteger(viewport.pixelWidth) ||
+      !Number.isInteger(viewport.pixelHeight) ||
+      viewport.pixelWidth <= 0 || viewport.pixelHeight <= 0) return false;
+  const sx = zoom * viewport.pixelWidth / viewport.width;
+  const sy = zoom * viewport.pixelHeight / viewport.height;
+  const centerX = (player.x - camera.x) * sx;
+  const centerY = (player.y - profile.anchorY - camera.y) * sy;
+  const paddingX = profile.radiusX * sx * 1.12;
+  const paddingY = profile.radiusY * sy * 1.12;
+  return centerX + paddingX < 0 || centerX - paddingX > viewport.pixelWidth ||
+    centerY + paddingY < 0 || centerY - paddingY > viewport.pixelHeight;
+}
+
 function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera, zoom,
   shapeProviders = {}, markerSelection = null) {
   if (!data || viewport?.kind !== "main" || !Array.isArray(viewport.worldToLogical) ||
@@ -22343,6 +22394,12 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       const planned = pass?.plan?.({ effect, player, now, phase: data.phase,
         camera, zoom, viewport, reducedMotion });
       if (!planned) {
+        if (bodyBenefitExtraOutsideViewport(effect, player, camera, zoom,
+          viewport, profile)) {
+          omitted.push({ effectId: effect.id,
+            reason: 'body-benefit-extra-outside-viewport' });
+          continue;
+        }
         unsupported.push({ index, type, id: effect.id,
           reason: 'body-benefit-extra-pass-or-source-invalid' });
         continue;
@@ -29059,7 +29116,8 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   const unsupported = candidates.filter(player => !spriteReady(player)).map(player => {
     const action = currentCharacterAction(player);
     return { playerId: String(player.id), reason: action && action.kind !== 'damage'
-      ? 'separate-action-sprite-owner' : 'authored-sprite-unavailable' };
+      ? 'separate-action-sprite-owner' : 'authored-sprite-unavailable',
+      motionId: action?.motionId || '' };
   });
   const buildCommands = arrivalFor => {
     assertSession();
@@ -30408,6 +30466,9 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
               viewport, providers);
             if (captured.blocked || captured.remainingStages.some(name =>
               sceneApi.REQUIRED.includes(name))) {
+              if (document.body?.dataset)
+                document.body.dataset.webgpuMainIncomplete =
+                  webgpuMainIncompleteReason(captured, sceneApi.REQUIRED);
               throw Object.assign(new Error('Dormant WebGPU main capture has visible or mandatory gaps'),
                 { code: 'DVA_WEBGPU_INCOMPLETE_SCENE' });
             }
