@@ -1,4 +1,4 @@
-/* Source-space E for the eight observed corridor object uses. The caller owns
+/* Source-space E for the authored corridor object uses. The caller owns
  * the authoritative event, shared WebGPU frame and sound playback. */
 (function(root){
  'use strict';
@@ -17,14 +17,22 @@
   ['v317-corridor-a12-1','corridorPlanter','luckBoost',2434,2386,42,42,'a12','planter-cross-leaf-luck','cross-leaf-brush'],
   ['v317-corridor-a13-1','corridorPlanter','stamina',1900,2180,42,42,'a13','planter-upright-stamina','upright-leaf-tap'],
   ['v317-corridor-a18-2','corridorPlanter','heal',3233,3130,42,42,'a18','planter-canopy-heal','canopy-water-rustle'],
-  ['v317-corridor-a14-1','wallSconce','luckBoost',1085,2802,24,24,'a14','sconce-bounded-luck-halo','glass-shutter-luck-tone']
+  ['v317-corridor-a14-1','wallSconce','luckBoost',1085,2802,24,24,'a14','sconce-bounded-luck-halo','glass-shutter-luck-tone'],
+  ['v317-corridor-a03-1','wallSconce','luckBoost',2005,632,24,24,'a03','sconce-offset-glass-window','offset-glass-aperture-tone'],
+  ['v317-corridor-a07-1','wallSconce','luckBoost',3235,1422,24,24,'a07','sconce-crossed-vane-focus','crossed-vane-glass-tone'],
+  ['v317-corridor-a09-1','wallSconce','luckBoost',3928,1061,24,24,'a09','sconce-stacked-glass-transfer','stacked-glass-transfer-tone'],
+  ['v317-corridor-a10-1','wallSconce','luckBoost',3928,1861,24,24,'a10','footlight-lateral-ground-wash','ground-wash-brass-tone'],
+  ['v317-corridor-a11-1','wallSconce','luckBoost',3928,2671,24,24,'a11','footlight-chevron-threshold','threshold-glass-chime'],
+  ['v317-corridor-a16-1','wallSconce','mana',1815,1742,24,24,'a16','sconce-glass-reservoir-charge','reservoir-filament-tone']
  ];
  const OBJECTS=Object.freeze(Object.fromEntries(raw.map((r,index)=>[r[0],Object.freeze({
   id:r[0],type:r[1],effectKind:r[2],x:r[3],y:r[4],width:r[5],height:r[6],corridor:r[7],
   code:index,design:r[8],soundProfile:r[9],sound:Object.freeze({profile:r[9],sourceX:r[3],sourceY:r[4],
-   edge:'accepted-use-once',durationMs:[185,230,270,160,205,215,245,190,220,215,230,205,225,185][index],
+   edge:'accepted-use-once',durationMs:[185,230,270,160,205,215,245,190,220,215,230,205,225,185,
+    210,205,230,180,195,240][index],
    material:['brass-glass','clay-leaf','ceramic-canopy','timber','steel-spring','hinge','glass-wood','endrail',
-    'paired-leaf','root-clay','cross-leaf','upright-leaf','water-canopy','brass-glass'][index]})
+    'paired-leaf','root-clay','cross-leaf','upright-leaf','water-canopy','brass-glass',
+    'offset-glass','crossed-brass','stacked-glass','floor-brass','threshold-glass','mana-glass'][index]})
  })])));
  const finite=Number.isFinite;
  const WALL_SCONCE_EXTENT=Object.freeze({halfWidth:58,halfHeight:46});
@@ -177,12 +185,67 @@ fn over(dst:vec4f,color:vec3f,coverage:f32)->vec4f{
   let canopy=line(q.y+.24+.31*q.x*q.x,.09)*band(q.x,-.72,.72);
   mark=canopy*line(q.x-(sweep*1.45-.73),.20);
   highlight=line(q.y-.52,.07)*band(q.x,-.52,.52)*.33;color=vec3f(.45,1.0,.81);
- }else{
+ }else if(code<13.5){
   // A14: brass shutters admit a bounded warm luck halo around the lamp glass.
   let lamp=line(length(q*vec2f(.93,1.05))-.37,.075);
   let shutter=line(abs(q.x)-(.12+.22*sweep),.07)*band(q.y,-.46,.46);
   mark=lamp*(.38+.62*sweep)+shutter*.58;
   highlight=line(length(q)-(.24+.43*sweep),.12)*.36;color=vec3f(1.0,.82,.41);
+ }else if(code<14.5){
+  // A03: offset glass aperture opens from the left; a bounded wedge then illuminates the wall.
+  let aperture=band(q.x,-.50,-.17)*band(q.y,-.48,.48);
+  let opening=band(q.x,-.45,-.45+.68*sweep)*band(q.y,-.36,.36);
+  let wedge=band(q.x,-.36,.58)*band(q.y,-.28-.17*(q.x+.36),.28+.17*(q.x+.36));
+  mark=aperture*.38+opening*.62+wedge*smoothstep(.12,.52,sweep)*.38;
+  highlight=line(q.x+.26,.045)*band(q.y,-.31,.31)*.43;
+  color=vec3f(.95,.79,.39);
+ }else if(code<15.5){
+  // A07: crossed brass vanes separate first, then focus a diamond of refracted light.
+  let vaneA=line(q.y-q.x*.57+(.24-.24*sweep),.085)*band(q.x,-.65,.65);
+  let vaneB=line(q.y+q.x*.57-(.24-.24*sweep),.085)*band(q.x,-.65,.65);
+  let diamond=abs(q.x)*.78+abs(q.y);
+  let aperture=band(diamond,.17,.66)*smoothstep(.20,.58,sweep);
+  mark=(vaneA+vaneB)*.45+aperture*.50;
+  highlight=line(diamond-.34,.07)*smoothstep(.32,.72,sweep)*.55;
+  color=vec3f(.80,.94,.63);
+ }else if(code<16.5){
+  // A09: three stacked panes hand illumination downward, one pane after another.
+  let paneTop=band(q.x,-.43,.43)*band(q.y,-.70,-.30);
+  let paneMid=band(q.x,-.43,.43)*band(q.y,-.20,.20);
+  let paneLow=band(q.x,-.43,.43)*band(q.y,.30,.70);
+  let chargeTop=smoothstep(.04,.27,sweep)*(1.0-smoothstep(.45,.72,sweep));
+  let chargeMid=smoothstep(.27,.51,sweep)*(1.0-smoothstep(.72,.95,sweep));
+  let chargeLow=smoothstep(.52,.79,sweep);
+  mark=paneTop*(.20+.52*chargeTop)+paneMid*(.20+.52*chargeMid)+paneLow*(.20+.52*chargeLow);
+  highlight=line(q.y-(-.5+sweep),.075)*band(q.x,-.36,.36)*.40;
+  color=vec3f(.73,.88,1.0);
+ }else if(code<17.5){
+  // A10: low footlight sends a broad, horizontal wash along the floor from its source.
+  let fixture=band(q.x,-.22,.22)*band(q.y,-.60,-.37);
+  let floor=band(q.y,-.12,.60)*band(q.x,-.80,.80);
+  let front=line(abs(q.x)-(.12+.62*sweep),.17)*floor;
+  let shelf=band(q.y,-.38,-.29)*band(q.x,-.54,.54);
+  mark=fixture*.39+front*.72+shelf*.24;
+  highlight=line(q.y+.34,.065)*band(q.x,-.45,.45)*.55;
+  color=vec3f(1.0,.71,.35);
+ }else if(code<18.5){
+  // A11: a paired chevron footlight meets at the threshold, then fades toward the floor.
+  let left=line(q.y+.36-.53*(q.x+.55),.09)*band(q.x,-.71,0.0);
+  let right=line(q.y+.36+.53*(q.x-.55),.09)*band(q.x,0.0,.71);
+  let threshold=band(q.y,.37,.50)*band(q.x,-.75,.75);
+  let meet=line(q.x,.17)*smoothstep(.25,.66,sweep);
+  mark=(left+right)*line(abs(q.x)-(.72-.72*sweep),.22)+threshold*.35+meet*threshold*.43;
+  highlight=line(q.y-.42,.06)*band(q.x,-.64,.64)*.50;
+  color=vec3f(.98,.81,.52);
+ }else{
+  // A16: mana remains inside glass; a reservoir charges radially into one filament core.
+  let vessel=length(q*vec2f(1.06,.85));
+  let rim=line(vessel-.58,.065);
+  let fill=band(q.y,.39-.83*sweep,.48)*band(q.x,-.43,.43);
+  let filament=line(q.x-.12*sin(q.y*6.0),.055)*band(q.y,-.43,.35);
+  mark=rim*.41+fill*.55+filament*smoothstep(.25,.73,sweep)*.75;
+  highlight=line(vessel-.33,.13)*smoothstep(.38,.80,sweep)*.43;
+  color=vec3f(.54,.89,1.0);
  }
  let a=clamp((mark+highlight)*envelope*.75,0.0,.82);
  return vec4f(color*a,a);
