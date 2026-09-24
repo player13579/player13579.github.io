@@ -9,7 +9,13 @@
     { id: 'mana', title: 'マナ恩恵', detail: '三面の光が身体へ折り込まれる現在のWebGPU実装。', status: '本編接続', source: 'webgpu-mana-benefit-e.js', page: 'webgpu-e-gallery.html?stage=mana', node: '#mana-stage', aspect: '620 / 460' },
     { id: 'fire', title: 'ファイア', detail: '単独で受入済みの第二案。ゲーム本編への統合は未完了。', status: '単独E・統合待ち', source: 'webgpu-fire-ultra.js', page: 'fire-webgpu-ultra-preview.html', node: '#fire' },
     { id: 'mystery', title: 'ミステリーボックス', detail: '箱の開封E。報酬が表示先へ飛ぶ部分はこの単独プレビューに含まれません。', status: '部分プレビュー', source: 'webgpu-mystery-box-reveal-e.js', page: 'mystery-box-webgpu-preview.html', node: '#scene' },
-    { id: 'cafeteria', title: '実りの食堂', detail: '室内設備と環境EのWebGPU試作。採用原画が未配信のため背景との合成は確認待ち。', status: 'E試作・原画待ち', source: 'webgpu-map-cafeteria-e.js', page: 'cafeteria-webgpu-preview.html', node: '#cafeteria', aspect: '930 / 860' }
+    { id: 'cafeteria', title: '実りの食堂', detail: '室内設備と環境EのWebGPU試作。採用原画が未配信のため背景との合成は確認待ち。', status: 'E試作・原画待ち', source: 'webgpu-map-cafeteria-e.js', page: 'cafeteria-webgpu-preview.html', node: '#cafeteria', aspect: '930 / 860' },
+    { id: 'corridor-a03-sconce', objectId: 'v317-corridor-a03-1', title: 'A03 壁灯', detail: '左側のガラス開口から壁面へ広がる光。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a03-sconce', kind: 'corridor' },
+    { id: 'corridor-a07-sconce', objectId: 'v317-corridor-a07-1', title: 'A07 壁灯', detail: '交差する真鍮羽根が開き、屈折光を菱形へ集める。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a07-sconce', kind: 'corridor' },
+    { id: 'corridor-a09-sconce', objectId: 'v317-corridor-a09-1', title: 'A09 壁灯', detail: '三枚のガラス面へ順に光を渡す。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a09-sconce', kind: 'corridor' },
+    { id: 'corridor-a10-footlight', objectId: 'v317-corridor-a10-1', title: 'A10 足元灯', detail: '器具から床へ横方向の光を送る。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a10-footlight', kind: 'corridor' },
+    { id: 'corridor-a11-footlight', objectId: 'v317-corridor-a11-1', title: 'A11 足元灯', detail: '対の光が敷居で合流して床へ抜ける。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a11-footlight', kind: 'corridor' },
+    { id: 'corridor-a16-sconce', objectId: 'v317-corridor-a16-1', title: 'A16 壁灯', detail: 'ガラス内の光が満ち、一本のフィラメントへ集まる。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a16-sconce', kind: 'corridor' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
@@ -69,12 +75,92 @@
   const stage = document.getElementById('stage');
   const notice = document.getElementById('notice');
   const catalog = document.getElementById('catalog');
-  let active = null, monitor = 0, mysteryTimer = 0;
+  let active = null, monitor = 0, mysteryTimer = 0, corridorRun = 0, activeCleanup = null;
   const clearActive = () => {
+    corridorRun++;
     clearInterval(monitor); clearInterval(mysteryTimer);
+    if (activeCleanup) { activeCleanup(); activeCleanup = null; }
     const old = stage.querySelector('iframe');
     if (old) old.remove();
+    const oldCanvas = stage.querySelector('canvas[data-corridor-gallery]');
+    if (oldCanvas) oldCanvas.remove();
   };
+  async function startCorridor(entry, runId) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 980; canvas.height = 620; canvas.dataset.corridorGallery = '1';
+    canvas.setAttribute('aria-label', `${entry.title} WebGPU E 自動再生`);
+    canvas.style.cssText = 'display:block;width:100%;height:100%;';
+    stage.append(canvas);
+    notice.hidden = true;
+    let renderer = null, target = null, effect = null, raf = 0, disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      if (raf) cancelAnimationFrame(raf);
+      try { effect?.destroy(); } catch (_) {}
+      try { target?.unregister(); } catch (_) {}
+      try { renderer?.destroy(); } catch (_) {}
+      canvas.remove();
+    };
+    activeCleanup = dispose;
+    try {
+      if (!navigator.gpu) throw new Error('このブラウザーでは WebGPU を使用できません');
+      for (const src of ['webgpu-frame-core.js', 'webgpu-primitives.js', 'webgpu-compositing.js', 'webgpu-renderer.js', 'webgpu-corridor-object-use-e.js']) await loadScript(src);
+      if (disposed || runId !== corridorRun || active !== entry.id) return;
+      renderer = await window.DvaWebGPURenderer.create({ gpu: navigator.gpu });
+      if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
+      target = renderer.registerTarget(`corridor-gallery-${runId}`, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
+      const api = window.DvaWebGPUCorridorObjectUseE;
+      const authored = api.OBJECTS[entry.objectId];
+      if (!authored) throw new Error('廊下オブジェクトの設計データがありません');
+      effect = api.create({ renderer, frameOwner: renderer });
+      const map = { id: api.MAP_ID, objects: [{
+        id: authored.id, type: authored.type, effectKind: authored.effectKind,
+        x: authored.x, y: authored.y, visualWidth: authored.width, visualHeight: authored.height,
+        corridor: authored.corridor
+      }] };
+      const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
+      const camera = { x: authored.x - viewport.width / 2, y: authored.y - viewport.height / 2 };
+      const duration = api.DURATION_MS, cycleLength = duration + 350;
+      const startedAt = performance.now();
+      const draw = now => {
+        if (disposed || runId !== corridorRun || active !== entry.id) { dispose(); return; }
+        const cycleElapsed = (now - startedAt) % cycleLength;
+        const cycle = Math.floor((now - startedAt) / cycleLength);
+        const frame = renderer.beginFrame(`${entry.id} corridor E gallery`);
+        try {
+          frame.clear(targetId, [.035, .052, .067, 1]);
+          if (cycleElapsed < duration) {
+            const event = {
+              id: `gallery-use:${entry.objectId}:${cycle}`, type: `object-${authored.type}`,
+              objectId: authored.id, effectKind: authored.effectKind,
+              x: authored.x, y: authored.y, radius: 100, playerId: 'gallery-preview',
+              startedAt: 0, duration
+            };
+            const planned = api.plan({ map, event, now: cycleElapsed, phase: 'playing', camera, zoom: 1, viewport });
+            if (planned) effect.record({ frame, target: targetId, viewport, planned });
+          }
+          frame.submit();
+          document.documentElement.dataset.gpuReady = '1';
+          notice.hidden = true;
+        } catch (error) {
+          try { frame.discard(); } catch (_) {}
+          notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+          document.documentElement.dataset.gpuReady = '0';
+          dispose(); return;
+        }
+        raf = requestAnimationFrame(draw);
+      };
+      const targetId = `corridor-gallery-${runId}`;
+      raf = requestAnimationFrame(draw);
+    } catch (error) {
+      if (!disposed && runId === corridorRun && active === entry.id) {
+        notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+        document.documentElement.dataset.gpuReady = '0';
+      }
+      dispose();
+    }
+  }
   function styleChild(doc, entry) {
     const css = document.createElement('style');
     css.textContent = `html,body{margin:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#101820!important}body{display:block!important}main{margin:0!important;padding:0!important;width:100%!important;max-width:none!important;height:100%!important}main>h1,main>p,.eyebrow,.controls,main>div:not(.stage):not(.scroll),#status{display:none!important}.scroll{width:100%!important;height:100%!important;overflow:hidden!important}.stage{width:100%!important;height:100%!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important}canvas{display:block!important;width:100%!important;height:100%!important;max-width:none!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important}#error:not(:empty){display:block!important;position:fixed!important;z-index:10!important;inset:auto 8px 8px!important;color:#ffd3ca!important;background:#321d23!important;padding:8px!important}`;
@@ -110,6 +196,11 @@
     document.getElementById('selected-link').href = address(entry.page);
     document.querySelectorAll('.item').forEach(button => button.setAttribute('aria-current', String(button.dataset.id === entry.id)));
     history.replaceState(null, '', `${location.pathname}${location.search}#${entry.id}`);
+    if (entry.kind === 'corridor') {
+      notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
+      startCorridor(entry, corridorRun);
+      return;
+    }
     if (!navigator.gpu) { notice.hidden = false; notice.textContent = 'このブラウザーでは WebGPU を使用できません。WebGPU 対応環境で開いてください。'; return; }
     notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
     const iframe = document.createElement('iframe');
