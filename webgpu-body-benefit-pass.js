@@ -1,4 +1,4 @@
-/* Stamina, heal, and mana gain TEs in the ordered main WebGPU frame.
+/* Body gain effects in the ordered main WebGPU frame.
  * The caller records each admitted magic event at its original position in
  * the event stream. This pass owns source GPU copies and draw buffers only. */
 (function (root) {
@@ -9,7 +9,8 @@
     heal: Object.freeze({ type: 'gain-heal', key: 'healBodyRecovery', layer: 1,
       sourceWidth: 941, sourceHeight: 1672, duration: 1180 }),
     mana: Object.freeze({ type: 'gain-mana', key: 'manaBodyRecovery', layer: 2,
-      sourceWidth: 1024, sourceHeight: 1536, duration: 1240 })
+      sourceWidth: 1024, sourceHeight: 1536, duration: 1240 }),
+    overheal: Object.freeze({ type: 'gain-overheal', key: null, layer: 3, duration: 1250 })
   });
   const TEXTURE_WIDTH = 1024, TEXTURE_HEIGHT = 1672;
   const FLOATS_PER_EFFECT = 16;
@@ -87,7 +88,38 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
   return mix(mix(maskedPixel(e,a,offset,low,high,flow),maskedPixel(e,a+vec2f(1,0),offset,low,high,flow),f.x),
              mix(maskedPixel(e,a+vec2f(0,1),offset,low,high,flow),maskedPixel(e,a+vec2f(1,1),offset,low,high,flow),f.x),f.y);
 }
+fn overhealAt(e: Effect, local: vec2f) -> vec4f {
+  // Surplus health crests above the body, then forms a thin outer reservoir.
+  let uv = local / e.shape.xy;
+  if (any(uv < vec2f(0)) || any(uv > vec2f(1))) { return vec4f(0); }
+  let p = e.phase.y;
+  let reduced = e.phase.z > .5;
+  let arrive = ease(p / .28);
+  let spread = ease((p - .18) / .38);
+  let depart = 1.0 - ease((p - .76) / .24);
+  let drift = select(p * .24, 0.0, reduced);
+  let side = abs(uv.x - .5);
+  let body = .18 + .075 * smoothstep(.29,.65,uv.y);
+  let shell = abs(side - body - .075 * spread);
+  let sheetWindow = smoothstep(.25,.37,uv.y) * (1.0 - smoothstep(.79,.91,uv.y));
+  let sheet = (1.0 - smoothstep(.008,.028,shell)) * sheetWindow * spread;
+  let sheetGlow = (1.0 - smoothstep(.018,.075,shell)) * sheetWindow * spread * .27;
+  let crestY = .25 - .075 * arrive + .012 * sin((uv.x * 2.0 + drift) * 6.28318);
+  let crest = (1.0 - smoothstep(.007,.027,abs(uv.y - crestY))) *
+    (1.0 - smoothstep(.18,.43,side)) * arrive;
+  let crestGlow = (1.0 - smoothstep(.018,.09,abs(uv.y - crestY))) *
+    (1.0 - smoothstep(.24,.49,side)) * arrive * .25;
+  let spillX = .34 + .10 * spread + .018 * sin((uv.y * 2.0 + drift) * 6.28318);
+  let spill = (1.0 - smoothstep(.006,.026,abs(side - spillX))) *
+    smoothstep(.19,.31,uv.y) * (1.0 - smoothstep(.49,.68,uv.y)) * spread;
+  let core = max(crest * .86, max(sheet * .72, spill * .62));
+  let halo = max(crestGlow, sheetGlow);
+  let alpha = clamp((core + halo) * depart * e.phase.w, 0.0, .86);
+  let hue = mix(vec3f(.20,.67,.81), vec3f(.75,1.0,.94), clamp(core,0.0,1.0));
+  return vec4f(hue * alpha, alpha);
+}
  fn materialAt(e: Effect, local: vec2f) -> vec4f {
+   if (e.phase.x > 2.5) { return overhealAt(e,local); }
    if (any(local < vec2f(0.0)) || any(local > e.shape.xy)) { return vec4f(0.0); }
    let p = e.phase.y; let reduced = e.phase.z > .5; let opacity = e.phase.w;
   let release = 1.0 - ease((p - .82) / .18);
@@ -127,6 +159,7 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
  @fragment fn fs(in: Vertex) -> @location(0) vec4f {
    let e = effects[in.index];
    let core = materialAt(e,in.local);
+   if (e.phase.x > 2.5) { return core; }
    // Sample the current revealed material, not a whole-image outline.
    let directions = array<vec2f,8>(vec2f(1,0),vec2f(-1,0),vec2f(0,1),vec2f(0,-1),
      vec2f(.707,.707),vec2f(-.707,.707),vec2f(.707,-.707),vec2f(-.707,-.707));
@@ -143,6 +176,7 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
   const finite = Number.isFinite;
   function ready(image, kind) {
     const p = PROFILES[kind];
+    if (kind === 'overheal') return true;
     return Boolean(p && image?.complete && Number(image.naturalWidth) === p.sourceWidth &&
       Number(image.naturalHeight) === p.sourceHeight);
   }
@@ -173,7 +207,7 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
     if (!p) throw new TypeError('Unknown body benefit');
     const width = kind === 'stamina' ? 88 : 104;
     const height = kind === 'stamina' ? 132 : kind === 'heal' ? 1672 * 104 / 941 : 156;
-    const top = kind === 'stamina' ? -94 : kind === 'heal' ? 31 - 1400 * 104 / 941 :
+    const top = kind === 'overheal' ? -113 : kind === 'stamina' ? -94 : kind === 'heal' ? 31 - 1400 * 104 / 941 :
       31 - 1386 * 104 / 1024;
     const pad = 14, visibleHeight = Math.ceil(height);
     const data = new Float32Array([
@@ -184,7 +218,8 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
       p.layer, Math.max(0, Math.min(1, command.elapsed / p.duration)),
       command.reduced ? 1 : 0, command.alpha,
       width, visibleHeight, height, pad,
-      p.sourceWidth / TEXTURE_WIDTH, p.sourceHeight / TEXTURE_HEIGHT, 0, 0
+      kind === 'overheal' ? 0 : p.sourceWidth / TEXTURE_WIDTH,
+      kind === 'overheal' ? 0 : p.sourceHeight / TEXTURE_HEIGHT, 0, 0
     ]);
     if (!data.every(finite)) throw new RangeError('Body benefit exceeds float32 range');
     return data;
@@ -222,6 +257,7 @@ fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flo
       return (slots[index] = { uniform, storage, bindGroup });
     }
     function upload(kind, image) {
+      if (kind === 'overheal') return true;
       if (!ready(image, kind)) return false;
       const identity = image.currentSrc || image.src || '';
       const previous = images.get(kind);

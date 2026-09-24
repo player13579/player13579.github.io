@@ -20615,7 +20615,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     const elapsed = sunbeamElapsed == null ? now - effect.startedAt : sunbeamElapsed;
     const progress = clamp(elapsed / effect.duration, 0, 1);
     if (isBodyStaminaGainEffect(effect) || isBodyHealGainEffect(effect) ||
-        isBodyManaGainEffect(effect)) {
+        isBodyManaGainEffect(effect) || isBodyOverhealGainEffect(effect)) {
       const kind = type.slice("gain-".length);
       const player = gainEffectPlayer(effect);
       const pass = window.DvaWebGPUBodyBenefitPass;

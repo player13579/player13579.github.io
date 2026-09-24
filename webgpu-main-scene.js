@@ -212,7 +212,7 @@
           if (typeof passes.bodyBenefits?.record !== 'function')
             throw new Error('Magic body benefit needs WebGPU bodyBenefits.record');
           if (!event.input || typeof event.input !== 'object' ||
-              !['gain-stamina', 'gain-heal', 'gain-mana'].includes(event.input.effect?.type) ||
+              !['gain-stamina', 'gain-heal', 'gain-mana', 'gain-overheal'].includes(event.input.effect?.type) ||
               String(event.input.effect?.id ?? '') !== id)
             throw new TypeError(`Magic event ${index} needs one supported body benefit effect`);
         } else if (event?.type === 'fireActivation') {
