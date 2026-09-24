@@ -6,6 +6,7 @@
   const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
   const MAX_ACTIVE = 16;
   const MAX_EMITTERS_PER_EVENT = 2;
+  const MAX_PRIMITIVES_PER_RAY = 32;
   const MAX_DURATION_MS = 1200;
   const MAX_WORLD_RANGE = 950;
   const RANGE_TOLERANCE = 2;
@@ -82,7 +83,7 @@
       const progress = clamp(elapsed / effect.duration);
       const reducedMotion = Boolean(scene.reducedMotion);
       const extension = reducedMotion ? 1 : smooth(progress / .19);
-      const tail = 1 - smooth((progress - .82) / .18);
+      const tail = 1 - smooth((progress - .86) / .14);
       const pulse = reducedMotion ? .94 : .9 + .1 * Math.sin(progress * Math.PI * 8);
       const alpha = clamp(tail * pulse);
       const facingAngle = Math.atan2(facing.y, facing.x);
@@ -99,40 +100,92 @@
         const arrival = !reducedMotion && progress >= .19 && progress <= .31
           ? Math.sin(Math.PI * (progress - .19) / .12) : 0;
         const flashAlpha = clamp(arrival * tail);
+        const impactAlpha = clamp(reducedMotion ? .26 * tail : Math.max(flashAlpha, .16 * alpha));
         const ribbons = distance > 0.05 ? [
-          { width: 46 * zoom, color: color(58, 190, 255, alpha * .11) },
-          { width: 25 * zoom, color: color(102, 220, 255, alpha * .25) },
-          { width: 11 * zoom, color: color(230, 252, 255, alpha * .92) }
+          { width: 72 * zoom, color: color(255, 151, 25, alpha * .11) },
+          { width: 42 * zoom, color: color(255, 204, 69, alpha * .25) },
+          { width: 15 * zoom, color: color(255, 250, 215, alpha * .97) }
         ] : [];
-        const emitter = [
-          { angle: facingAngle, length: 11 * zoom, width: 2.2 * zoom,
-            color: color(220, 249, 255, alpha * .95) },
-          { angle: facingAngle + Math.PI / 2, length: 7 * zoom, width: 1.5 * zoom,
-            color: color(133, 224, 255, alpha * .78) }
-        ];
+        const beamSegments = [];
+        if (distance > .05) {
+          const nx = -Math.sin(angle), ny = Math.cos(angle);
+          const flow = progress * Math.PI * 2;
+          const strands = [
+            { side: 0, width: 72 * zoom, rgb: [255, 146, 24], opacity: .105, phase: 0 },
+            { side: 0, width: 42 * zoom, rgb: [255, 191, 52], opacity: .22, phase: 1.1 },
+            { side: 0, width: 15 * zoom, rgb: [255, 250, 221], opacity: .96, phase: 2.3 },
+            { side: -1, width: 13 * zoom, rgb: [255, 197, 54], opacity: .54, phase: .8 },
+            { side: 1, width: 13 * zoom, rgb: [255, 218, 92], opacity: .48, phase: 2.1 }
+          ];
+          for (const strand of strands) {
+            const points = [0, .34, .68, 1].map(t => {
+              const splay = strand.side * 24 * zoom * Math.sin(Math.PI * t);
+              const drift = strand.side === 0
+                ? 3.8 * zoom * Math.sin(flow * 1.7 + t * Math.PI * 2.3 + strand.phase) * Math.sin(Math.PI * t)
+                : 3.2 * zoom * Math.sin(flow + t * Math.PI * 2 + strand.phase) * Math.sin(Math.PI * t);
+              return { x: handX + dx * t + nx * (splay + drift),
+                y: handY + dy * t + ny * (splay + drift) };
+            });
+            for (let index = 0; index < points.length - 1; index++) {
+              const taper = index === 0 ? .68 : index === 2 ? .8 : 1;
+              beamSegments.push({ x0: points[index].x, y0: points[index].y,
+                x1: points[index + 1].x, y1: points[index + 1].y,
+                width: strand.width * taper,
+                color: color(...strand.rgb, alpha * strand.opacity * (index === 1 ? 1 : .84)) });
+            }
+          }
+        }
+        const corona = [];
+        const coronaStrength = alpha * (reducedMotion ? 1 : .58 + .42 * smooth(progress / .06));
+        if (coronaStrength > 0) {
+          for (const [offset, length, width, rgb, opacity] of [
+            [-.72, 15, 2.4, [255, 184, 35], .72],
+            [-.35, 10, 2, [255, 228, 106], .82],
+            [0, 19, 4, [255, 249, 214], .98],
+            [.35, 10, 2, [255, 228, 106], .82],
+            [.72, 15, 2.4, [255, 184, 35], .72]
+          ]) {
+            const rayAngle = facingAngle + offset;
+            corona.push({ angle: rayAngle, length: length * zoom, width: width * zoom,
+              color: color(...rgb, coronaStrength * opacity) });
+          }
+          corona.push({ angle: facingAngle + Math.PI / 2, length: 8 * zoom,
+            width: 2.3 * zoom, color: color(255, 219, 91, coronaStrength * .78) });
+        }
         const flashRays = [];
         if (flashAlpha > 0) {
-          const radius = (12 + 19 * arrival) * zoom;
-          for (let index = 0; index < 6; index++) {
-            const rayAngle = index * Math.PI / 3 + facingAngle;
-            const inner = radius * .24, outer = radius * (index % 2 ? .74 : 1);
+          const radius = (18 + 27 * arrival) * zoom;
+          for (let index = 0; index < 8; index++) {
+            const rayAngle = facingAngle + index * Math.PI / 4 + (index % 2 ? .1 : 0);
+            const inner = radius * (index % 2 ? .28 : .18);
+            const outer = radius * (index % 2 ? .78 : 1);
             flashRays.push({ x0: targetX + Math.cos(rayAngle) * inner,
               y0: targetY + Math.sin(rayAngle) * inner,
               x1: targetX + Math.cos(rayAngle) * outer,
               y1: targetY + Math.sin(rayAngle) * outer,
-              width: Math.max(1, 1.8 * zoom),
-              color: color(248, 254, 255, flashAlpha * (index % 2 ? .62 : .9)) });
+              width: Math.max(1, (index % 2 ? 2.1 : 3.4) * zoom),
+              color: color(255, index % 2 ? 191 : 235, index % 2 ? 61 : 160,
+                impactAlpha * (index % 2 ? .66 : .92)) });
           }
         }
+        const bloom = impactAlpha > 0 ? [
+          { angle: facingAngle, length: (28 + 14 * arrival) * zoom,
+            width: (10 + 4 * arrival) * zoom, color: color(255, 191, 45, impactAlpha * .58) },
+          { angle: facingAngle + Math.PI / 2, length: (19 + 10 * arrival) * zoom,
+            width: (7 + 3 * arrival) * zoom, color: color(255, 246, 202, impactAlpha * .9) }
+        ] : [];
         return { hand: { x: handX, y: handY }, target: { x: targetX, y: targetY },
-          angle, distance, flashAlpha, ribbons, emitter, flashRays };
+          angle, distance, flashAlpha, impactAlpha, ribbons, beamSegments,
+          emitter: corona, flashRays, bloom };
       });
       const firstRay = rays[0];
       return { id, playerId: String(effect.playerId ?? ''), progress,
         reducedMotion, hand: firstRay.hand, target: firstRay.target,
         angle: firstRay.angle, facingAngle, distance: firstRay.distance,
-        alpha, flashAlpha: firstRay.flashAlpha, ribbons: firstRay.ribbons,
-        emitter: firstRay.emitter, flashRays: firstRay.flashRays, rays,
+        alpha, flashAlpha: firstRay.flashAlpha, impactAlpha: firstRay.impactAlpha,
+        ribbons: firstRay.ribbons, beamSegments: firstRay.beamSegments,
+        emitter: firstRay.emitter, flashRays: firstRay.flashRays,
+        bloom: firstRay.bloom, rays,
         handWorlds: hands.map(hand => ({ x: hand.x, y: hand.y })),
         sourceWorld: { x: source.x, y: source.y }, targetWorld: { x: target.x, y: target.y },
         serverDistance, duration: effect.duration, startedAt: effect.startedAt };
@@ -151,9 +204,9 @@
   }
   function recordPlan(frame, target, effect, commands) {
     for (const beam of effect.rays) {
-      for (const ribbon of beam.ribbons) {
-        const command = segmentRect(beam.hand.x, beam.hand.y,
-          beam.target.x, beam.target.y, ribbon.width, ribbon.color);
+      for (const segment of beam.beamSegments) {
+        const command = segmentRect(segment.x0, segment.y0,
+          segment.x1, segment.y1, segment.width, segment.color);
         if (command) commands.push(command);
       }
       for (const ray of beam.emitter) {
@@ -166,6 +219,14 @@
       }
       for (const ray of beam.flashRays) {
         const command = segmentRect(ray.x0, ray.y0, ray.x1, ray.y1,
+          ray.width, ray.color);
+        if (command) commands.push(command);
+      }
+      for (const ray of beam.bloom) {
+        const command = segmentRect(beam.target.x - Math.cos(ray.angle) * ray.length / 2,
+          beam.target.y - Math.sin(ray.angle) * ray.length / 2,
+          beam.target.x + Math.cos(ray.angle) * ray.length / 2,
+          beam.target.y + Math.sin(ray.angle) * ray.length / 2,
           ray.width, ray.color);
         if (command) commands.push(command);
       }
@@ -183,7 +244,7 @@
       if (!effects.length) return { drawn: 0, effects, commands: [] };
       const commands = [];
       for (const effect of effects) recordPlan(frame, target, effect, commands);
-      if (commands.length > MAX_ACTIVE * MAX_EMITTERS_PER_EVENT * 15)
+      if (commands.length > MAX_ACTIVE * MAX_EMITTERS_PER_EVENT * MAX_PRIMITIVES_PER_RAY)
         throw new RangeError('Sunbeam E geometry exceeded its bounded primitive budget');
       frame.stage('flora-sunbeam-e');
       for (const command of commands) frame.rect(target, command);
@@ -192,7 +253,8 @@
     return Object.freeze({ record, destroy() { destroyed = true; } });
   }
 
-  const api = Object.freeze({ TYPE, MAX_ACTIVE, MAX_EMITTERS_PER_EVENT, MAX_DURATION_MS,
+  const api = Object.freeze({ TYPE, MAX_ACTIVE, MAX_EMITTERS_PER_EVENT,
+    MAX_PRIMITIVES_PER_RAY, MAX_DURATION_MS,
     MAX_WORLD_RANGE, RANGE_TOLERANCE, plan, create });
   root.DvaWebGPUSunbeamE = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
