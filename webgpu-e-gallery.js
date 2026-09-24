@@ -10,6 +10,8 @@
     { id: 'fire', title: 'ファイア', detail: '単独で受入済みの第二案。ゲーム本編への統合は未完了。', status: '単独E・統合待ち', source: 'webgpu-fire-ultra.js', page: 'fire-webgpu-ultra-preview.html', node: '#fire' },
     { id: 'mystery', title: 'ミステリーボックス', detail: '箱の開封E。報酬が表示先へ飛ぶ部分はこの単独プレビューに含まれません。', status: '部分プレビュー', source: 'webgpu-mystery-box-reveal-e.js', page: 'mystery-box-webgpu-preview.html', node: '#scene' },
     { id: 'cafeteria', title: '実りの食堂', detail: '室内設備と環境EのWebGPU試作。採用原画が未配信のため背景との合成は確認待ち。', status: 'E試作・原画待ち', source: 'webgpu-map-cafeteria-e.js', page: 'cafeteria-webgpu-preview.html', node: '#cafeteria', aspect: '930 / 860' },
+    { id: 'emp', title: 'EMP 放電', detail: 'サーバーの通常EMP確定イベント形を使った単独フィクスチャ。発動・干渉・音声・本編実寸の受入は別途確認が必要です。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-emp-effect.js', kind: 'integrated' },
+    { id: 'barrier', title: 'バリア被弾', detail: 'サーバーの耐久バリア被弾イベント形と所有者・攻撃者を使った単独フィクスチャ。画質・SFX・本編実イベントの受入は未完了です。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-barrier-e.js', kind: 'integrated' },
     { id: 'corridor-a03-sconce', objectId: 'v317-corridor-a03-1', title: 'A03 壁灯', detail: '左側のガラス開口から壁面へ広がる光。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a03-sconce', kind: 'corridor' },
     { id: 'corridor-a07-sconce', objectId: 'v317-corridor-a07-1', title: 'A07 壁灯', detail: '交差する真鍮羽根が開き、屈折光を菱形へ集める。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a07-sconce', kind: 'corridor' },
     { id: 'corridor-a09-sconce', objectId: 'v317-corridor-a09-1', title: 'A09 壁灯', detail: '三枚のガラス面へ順に光を渡す。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a09-sconce', kind: 'corridor' },
@@ -83,12 +85,94 @@
     if (activeCleanup) { activeCleanup(); activeCleanup = null; }
     const old = stage.querySelector('iframe');
     if (old) old.remove();
-    const oldCanvas = stage.querySelector('canvas[data-corridor-gallery]');
+    const oldCanvas = stage.querySelector('canvas[data-gallery-native]');
     if (oldCanvas) oldCanvas.remove();
   };
+  async function startIntegrated(entry, runId) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 980; canvas.height = 620; canvas.dataset.galleryNative = '1';
+    canvas.setAttribute('aria-label', `${entry.title} WebGPU E 単独フィクスチャ自動再生`);
+    stage.append(canvas);
+    let renderer = null, target = null, effect = null, raf = 0, disposed = false;
+    const targetId = `integrated-gallery-${runId}`;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      if (raf) cancelAnimationFrame(raf);
+      try { effect?.destroy(); } catch (_) {}
+      try { target?.unregister(); } catch (_) {}
+      try { renderer?.destroy(); } catch (_) {}
+      canvas.remove();
+    };
+    activeCleanup = dispose;
+    try {
+      if (!navigator.gpu) throw new Error('このブラウザーでは WebGPU を使用できません');
+      for (const src of ['webgpu-frame-core.js', 'webgpu-primitives.js', 'webgpu-compositing.js', 'webgpu-renderer.js', entry.source]) await loadScript(src);
+      if (disposed || runId !== corridorRun || active !== entry.id) return;
+      renderer = await window.DvaWebGPURenderer.create({ gpu: navigator.gpu });
+      if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
+      target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
+      const isEmp = entry.id === 'emp';
+      const api = isEmp ? window.DvaWebGPUEmpEffect : window.DvaWebGPUBarrierE;
+      if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
+      effect = isEmp ? api.create({ renderer, frameOwner: renderer }) : api.create();
+      const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
+      const camera = { x: 0, y: 0 }, zoom = 1;
+      const duration = isEmp ? api.DURATIONS.emp : api.EVENT_MAP['preparation-barrier-hit:durability-hit'].duration;
+      const cycleLength = duration + 350, startedAt = performance.now();
+      const draw = now => {
+        if (disposed || runId !== corridorRun || active !== entry.id) { dispose(); return; }
+        const total = now - startedAt, elapsed = total % cycleLength;
+        const cycle = Math.floor(total / cycleLength);
+        const frame = renderer.beginFrame(`${entry.id} E gallery fixture`);
+        try {
+          frame.clear(targetId, [.035, .052, .067, 1]);
+          if (elapsed > 0 && elapsed < duration) {
+            if (isEmp) {
+              // resolveStandardEmp in offline-server-main.js emits this event family.
+              const source = { id: `gallery-emp-${cycle}`, type: 'emp', variant: 'positive',
+                playerId: 'gallery-operator', x: 490, y: 310, radius: 260,
+                startedAt: 0, duration, resolvedEmpPulseIds: [`gallery-pulse-${cycle}`] };
+              const planned = api.plan({ effect: source, now: elapsed, phase: 'playing',
+                camera, zoom, viewport, reducedMotion: false, alpha: 1 });
+              if (!planned) throw new Error('EMPイベントを計画できません');
+              effect.record({ frame, target: targetId, viewport, planned });
+            } else {
+              // apply barrier damage in offline-server-main.js emits this hit event.
+              const source = { id: `gallery-barrier-${cycle}`, type: 'preparation-barrier-hit',
+                variant: 'durability-hit', playerId: 'gallery-defender', targetId: 'gallery-attacker',
+                x: 490, y: 310, radius: 110, startedAt: 0, duration };
+              const scene = { nowMs: elapsed, reducedMotion: false, effects: [source], players: [
+                { id: 'gallery-defender', x: 490, y: 310, barrierDurability: 4 },
+                { id: 'gallery-attacker', x: 630, y: 310, barrierDurability: 0 }
+              ] };
+              const result = effect.record({ frame, target: targetId, viewport, scene, camera, zoom });
+              if (result.drawn !== 1) throw new Error('バリア被弾イベントを描画できません');
+            }
+          }
+          frame.submit();
+          document.documentElement.dataset.gpuReady = '1';
+          notice.hidden = true;
+        } catch (error) {
+          try { frame.discard(); } catch (_) {}
+          notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+          document.documentElement.dataset.gpuReady = '0';
+          dispose(); return;
+        }
+        raf = requestAnimationFrame(draw);
+      };
+      raf = requestAnimationFrame(draw);
+    } catch (error) {
+      if (!disposed && runId === corridorRun && active === entry.id) {
+        notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+        document.documentElement.dataset.gpuReady = '0';
+      }
+      dispose();
+    }
+  }
   async function startCorridor(entry, runId) {
     const canvas = document.createElement('canvas');
-    canvas.width = 980; canvas.height = 620; canvas.dataset.corridorGallery = '1';
+    canvas.width = 980; canvas.height = 620; canvas.dataset.galleryNative = '1';
     canvas.setAttribute('aria-label', `${entry.title} WebGPU E 自動再生`);
     canvas.style.cssText = 'display:block;width:100%;height:100%;';
     stage.append(canvas);
@@ -195,13 +279,18 @@
     document.getElementById('selected-status').textContent = entry.status;
     document.getElementById('selected-source').textContent = `WebGPU: ${entry.source}`;
     const sourceLink = document.getElementById('selected-link');
-    sourceLink.href = address(entry.page);
-    sourceLink.hidden = entry.kind === 'corridor';
+    sourceLink.href = address(entry.page || `webgpu-e-gallery.html#${entry.id}`);
+    sourceLink.hidden = entry.kind === 'corridor' || entry.kind === 'integrated';
     document.querySelectorAll('.item').forEach(button => button.setAttribute('aria-current', String(button.dataset.id === entry.id)));
     history.replaceState(null, '', `${location.pathname}${location.search}#${entry.id}`);
     if (entry.kind === 'corridor') {
       notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
       startCorridor(entry, corridorRun);
+      return;
+    }
+    if (entry.kind === 'integrated') {
+      notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
+      startIntegrated(entry, corridorRun);
       return;
     }
     if (!navigator.gpu) { notice.hidden = false; notice.textContent = 'このブラウザーでは WebGPU を使用できません。WebGPU 対応環境で開いてください。'; return; }
