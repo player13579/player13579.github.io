@@ -18232,6 +18232,7 @@ async function startWebGPUMainAppDriver(data, image) {
   setWebGPUMainPendingDiagnostic('startup:driver-creation');
   const driver = await createDormantWebGPUMainAppDriver({ mainCanvas,
     expandedCanvas, acquisitionCanvas, map, image,
+    onProgress(stage) { setWebGPUMainPendingDiagnostic(`startup:${stage}`); },
     onFailure(error) {
       setWebGPUMainFailure(error);
     } });
@@ -18299,7 +18300,7 @@ function pumpWebGPUMainAppDriver() {
         .catch(error => {
           setWebGPUMainFailure(error);
         }).finally(() => { webgpuMainApp.startPending = null; });
-    } else setWebGPUMainPendingDiagnostic('startup:driver');
+    }
     return;
   }
   webgpuMainApp.driver.resume();
@@ -30410,7 +30411,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
   acquisitionCanvas, map, image, textAtlas, atlasMetrics, gpu,
   headMarkerMaterials, killAssets = {}, markerDomFallbackReady = false,
   bloomEncoder, residualRevision, modules, rendererApi,
-  textResourceOptions = {}, onFailure } = {}) {
+  textResourceOptions = {}, onFailure, onProgress } = {}) {
   const runtimeApi = window.DvaWebGPUMainRuntime;
   const registryApi = window.DvaWebGPUMainPassRegistry;
   const sceneApi = window.DvaWebGPUMainScene;
@@ -30459,6 +30460,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
     }
   };
   try {
+    onProgress?.('gpu-runtime');
     runtime = await runtimeApi.create({ canvas: mainCanvas, target, gpu,
       ...(rendererApi ? { rendererApi } : {}), onFailure: notify });
     if (runtime.state !== 'ready' || typeof runtime.requestFrame !== 'function' ||
@@ -30466,6 +30468,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         runtime.device !== runtime.renderer.device)
       throw new Error('Dormant WebGPU main runtime did not own one ready device');
     if (ownsText) {
+      onProgress?.('text-resources');
       textOwner = await textOwnerApi.create({ ...textResourceOptions,
         device: runtime.device });
       if (textOwner?.device !== runtime.device)
@@ -30474,6 +30477,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
       atlasMetrics = textOwner.atlasMetrics;
     }
     if (ownsMarkers) {
+      onProgress?.('marker-materials');
       markerOwner = markerOwnerApi.create({ device: runtime.device });
       if (markerOwner?.device !== runtime.device ||
           typeof markerOwner.prepare !== 'function')
@@ -30484,6 +30488,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         !Number.isFinite(atlasMetrics?.ascent) ||
         !(atlasMetrics?.pixelSize > 0))
       throw new Error('Dormant WebGPU main text resources incomplete');
+    onProgress?.('pass-registry');
     registry = await registryApi.create({ renderer: runtime.renderer,
       map, image, textAtlas, atlasMetrics, expandedCanvas, expandedTarget,
       acquisitionCanvas, acquisitionTarget,
@@ -30494,6 +30499,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         registry.passes.acquisition?.target !== acquisitionTarget)
       throw new Error('Dormant WebGPU main registry target or device owner differs');
     registry.assertFullFrameReady();
+    onProgress?.('scene');
     scene = sceneApi.create({ renderer: runtime.renderer,
       passes: registry.passes });
     if (scene.device !== runtime.device)
