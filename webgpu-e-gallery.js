@@ -24,6 +24,7 @@
     { id: 'medical-ambient', title: '医療室の環境光', detail: '足湯の水面、窓光、床の木漏れ日を既存のWebGPU環境Eで再生。本編の視覚品質とSFXは未受入です。', status: '単独E・本編品質/SFX未受入', source: 'webgpu-medical-environment-e.js', kind: 'integrated' },
     { id: 'fighter-slash', title: 'ファイター斬撃', detail: '現在の fighter-slash イベント形を使う単独WebGPUフィクスチャ。ゲーム本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-fighter-energy-e.js', kind: 'integrated' },
     { id: 'flora-invisible', title: 'フローラ インビジブル', detail: '本人だけへ届く flora-invisible イベントと不可視の本人を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-flora-e.js', kind: 'integrated' },
+    { id: 'alchemy-transmutation', title: '錬金術 人体生成', detail: '人体生成の成功イベントで術者と復活対象を結んだWebGPUフィクスチャ。他の錬金術Eは未収録。本編視覚品質/SFXは未受入です。', status: '人体生成のみ・本編画質/SFX未受入', source: 'webgpu-alchemy-e.js', kind: 'integrated' },
     { id: 'room-cooling-unit', objectId: 'v302-reactor-coolingUnit-2', title: '冷却ユニット使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
     { id: 'room-command-desk', objectId: 'v302-observatory-commandDesk-3', title: '観測デスク使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
     { id: 'room-pallet-jack', objectId: 'v302-storage-palletJack-2', title: 'パレットジャッキ使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
@@ -130,6 +131,7 @@
       if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
       target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
       const isEmp = entry.id === 'emp', isHacker = entry.id === 'hacker-status';
+      const isAlchemyTransmutation = entry.id === 'alchemy-transmutation';
       const isFighterSlash = entry.id === 'fighter-slash';
       const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
@@ -138,6 +140,7 @@
       const isMedicalAmbient = entry.id === 'medical-ambient';
       const isRoomObject = entry.id.startsWith('room-');
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
+        'alchemy-transmutation': window.DvaWebGPUAlchemyE,
         'fighter-slash': window.DvaWebGPUFighterEnergyE,
         'flora-invisible': window.DvaWebGPUFloraE,
         dodge: window.DvaWebGPUDodgeE, renki: window.DvaWebGPURenkiE,
@@ -160,6 +163,7 @@
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
       const duration = ({ emp: api.DURATIONS?.emp,
+        'alchemy-transmutation': api.DEFAULT_MS?.['alchemy-human-transmutation'],
         'fighter-slash': api.DURATIONS?.['fighter-slash'],
         'flora-invisible': api.DURATION_MS?.['flora-invisible'],
         barrier: api.EVENT_MAP?.['preparation-barrier-hit:durability-hit']?.duration,
@@ -182,7 +186,30 @@
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (elapsed > 0 && elapsed < duration) {
-            if (isMedicalAmbient) {
+            if (isAlchemyTransmutation) {
+              // The server emits this event at the revived target with the
+              // alchemist as playerId and targetId naming the revived actor.
+              const source = { id: `gallery-alchemy-transmutation-${cycle}`,
+                type: 'alchemy-human-transmutation', x: 630, y: 310, radius: 180,
+                playerId: 'gallery-alchemist', targetId: 'gallery-revived',
+                variant: '', durationMs: 0, startedAt: 0 };
+              const scene = { nowMs: elapsed, reducedMotion: false, effects: [source], players: [
+                { id: source.playerId, x: 355, y: 310,
+                  bodyWorld: { x: 355, y: 310 }, alive: true, ejected: false,
+                  inVent: false, invisible: false },
+                { id: source.targetId, x: 630, y: 310,
+                  bodyWorld: { x: 630, y: 310 }, alive: true, ejected: false,
+                  inVent: false, invisible: false }
+              ] };
+              const input = { scene, camera, zoom, viewport };
+              const planned = api.plan(input);
+              if (planned.length !== 1 || planned[0].kind !== 'transmutation' ||
+                  planned[0].playerId !== source.playerId || planned[0].targetId !== source.targetId)
+                throw new Error('人体生成イベントと術者/復活対象を結べません');
+              const result = effect.record({ frame, target: targetId, viewport, ...input });
+              if (result.drawn !== 1 || result.effects?.[0]?.id !== source.id)
+                throw new Error('人体生成イベントを描画できません');
+            } else if (isMedicalAmbient) {
               const ambientZoom = .78;
               const ambientCamera = {
                 x: api.ROOM.x - (viewport.width - api.ROOM.width * ambientZoom) / (2 * ambientZoom),
