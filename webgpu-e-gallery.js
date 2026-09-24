@@ -18,6 +18,9 @@
     { id: 'bust', title: 'バスト発動', detail: '対象への時限バスト付与イベントを使う単独フィクスチャ。持続状態・衝突判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-bust-e.js', kind: 'integrated' },
     { id: 'gravity-keeper', title: '時の番人フィールド', detail: '時の番人の発動イベント・半径・寿命を使う単独フィクスチャ。グラビティストームや本編判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-gravity-field-e.js', kind: 'integrated' },
     { id: 'hacker-status', title: 'ハッカー状態回復', detail: '状態異常の解除が成立したイベントと対象位置を使う単独フィクスチャ。異常なしの結果や本編実イベント・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-hacker-status-recovery-e.js', kind: 'integrated' },
+    { id: 'medical-bed', title: '診療ベッド使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-object-e.js', kind: 'integrated' },
+    { id: 'medical-cabinet', title: '薬草とリネンの棚', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-cabinet-e.js', kind: 'integrated' },
+    { id: 'medical-footbath', title: '足湯使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-footbath-use-e.js', kind: 'integrated' },
     { id: 'corridor-a03-sconce', objectId: 'v317-corridor-a03-1', title: 'A03 壁灯', detail: '左側のガラス開口から壁面へ広がる光。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a03-sconce', kind: 'corridor' },
     { id: 'corridor-a07-sconce', objectId: 'v317-corridor-a07-1', title: 'A07 壁灯', detail: '交差する真鍮羽根が開き、屈折光を菱形へ集める。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a07-sconce', kind: 'corridor' },
     { id: 'corridor-a09-sconce', objectId: 'v317-corridor-a09-1', title: 'A09 壁灯', detail: '三枚のガラス面へ順に光を渡す。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a09-sconce', kind: 'corridor' },
@@ -119,20 +122,29 @@
       if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
       target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
       const isEmp = entry.id === 'emp', isHacker = entry.id === 'hacker-status';
+      const medicalEffectKind = ({ 'medical-bed': 'acceleration',
+        'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
+      const isMedical = Boolean(medicalEffectKind);
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
         dodge: window.DvaWebGPUDodgeE, renki: window.DvaWebGPURenkiE,
         'idea-truth': window.DvaWebGPIdeaE, bust: window.DvaWebGPUBustE,
         'gravity-keeper': window.DvaWebGPUGravityFieldE,
-        'hacker-status': window.DvaWebGPUHackerStatusRecoveryE })[entry.id];
+        'hacker-status': window.DvaWebGPUHackerStatusRecoveryE,
+        'medical-bed': window.DvaWebGPUMedicalObjectE,
+        'medical-cabinet': window.DvaWebGPUMedicalCabinetE,
+        'medical-footbath': window.DvaWebGPUMedicalFootbathUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isEmp || isHacker ? api.create({ renderer, frameOwner: renderer }) : api.create();
+      effect = isMedical ? api.create({ device: renderer.device, format: renderer.format }) :
+        isEmp || isHacker ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
       const duration = ({ emp: api.DURATIONS?.emp,
         barrier: api.EVENT_MAP?.['preparation-barrier-hit:durability-hit']?.duration,
         dodge: api.VISUAL_MS, renki: api.VISUAL_MS,
         'idea-truth': 1800, bust: api.EVENT_DURATION?.[api.START_EVENT],
-        'gravity-keeper': 5000, 'hacker-status': Math.min(1200, api.DURATION_MS || 1200) })[entry.id];
+        'gravity-keeper': 5000, 'hacker-status': Math.min(1200, api.DURATION_MS || 1200),
+        'medical-bed': api.DURATION_MS, 'medical-cabinet': api.DURATION_MS,
+        'medical-footbath': api.DURATION_MS })[entry.id];
       if (!Number.isFinite(duration) || duration <= 0) throw new Error('現在のE寿命がありません');
       const cycleLength = duration + 350, startedAt = performance.now();
       const draw = now => {
@@ -143,7 +155,29 @@
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (elapsed > 0 && elapsed < duration) {
-            if (isEmp) {
+            if (isMedical) {
+              const object = api.OBJECT, room = api.ROOM, zone = api.ZONE, medicalZoom = 1;
+              const medicalCamera = {
+                x: room.x + zone.x + zone.width / 2 - viewport.width / (2 * medicalZoom),
+                y: room.y + zone.y + zone.height / 2 - viewport.height / (2 * medicalZoom)
+              };
+              // Match pushMagicEffect's successful object-use payload. The
+              // client-local start clock is added after network receipt.
+              const source = { id: `magic_gallery_${entry.id}_${cycle}`,
+                type: `object-${object.type}`, x: Math.round(object.x), y: Math.round(object.y),
+                radius: 0, targetX: null, targetY: null, playerId: 'gallery-operator',
+                targetId: '', objectId: object.id, viewerId: '', variant: '', mode: '',
+                effectKind: medicalEffectKind, completionKind: '', markerCount: 1,
+                objectCausalId: `map-object:${object.id}:object_use_gallery_${cycle}`,
+                durationMs: 0, startedAt: 0, duration: 2200 };
+              const planned = api.plan({ camera: medicalCamera, zoom: medicalZoom,
+                viewport, now: elapsed, effect: source, intensity: 1, reducedMotion: false });
+              if (!planned) throw new Error('成功使用イベントを計画できません');
+              const result = effect.record({ frame, target: targetId, viewport,
+                camera: medicalCamera, zoom: medicalZoom, now: elapsed, effect: source,
+                intensity: 1, reducedMotion: false, planned });
+              if (!result.drawn) throw new Error('成功使用イベントを描画できません');
+            } else if (isEmp) {
               // resolveStandardEmp in offline-server-main.js emits this event family.
               const source = { id: `gallery-emp-${cycle}`, type: 'emp', variant: 'positive',
                 playerId: 'gallery-operator', x: 490, y: 310, radius: 260,
