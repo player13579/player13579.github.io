@@ -1,4 +1,4 @@
-/* Body gain effects in the ordered main WebGPU frame.
+/* Remaining source-based heal and procedural overheal in the ordered main WebGPU frame.
  * The caller records each admitted magic event at its original position in
  * the event stream. This pass owns source GPU copies and draw buffers only. */
 (function (root) {
@@ -6,8 +6,6 @@
   const PROFILES = Object.freeze({
     heal: Object.freeze({ type: 'gain-heal', key: 'healBodyRecovery', layer: 0, code: 1,
       sourceWidth: 941, sourceHeight: 1672, duration: 1180 }),
-    mana: Object.freeze({ type: 'gain-mana', key: 'manaBodyRecovery', layer: 1, code: 2,
-      sourceWidth: 1024, sourceHeight: 1536, duration: 1240 }),
     overheal: Object.freeze({ type: 'gain-overheal', key: null, layer: null, code: 3,
       duration: 1250 })
   });
@@ -50,42 +48,17 @@ fn verticalMask(e: Effect, y: f32, low: f32, high: f32) -> f32 {
   let feather = min(13.0, max(4.0, (end - start) * 0.24));
   return clamp((y - start + feather) / feather, 0.0, 1.0) * clamp((end + feather - y) / feather, 0.0, 1.0);
 }
-fn manaMask(e: Effect, local: vec2f, flow: f32) -> f32 {
-  // Same 24 phase fronts and authored source-local curves as the Canvas path.
-  let points = array<vec2f,18>(
-    vec2f(.16,.29),vec2f(.15,.35),vec2f(.22,.39),vec2f(.31,.42),vec2f(.38,.45),vec2f(.43,.475),
-    vec2f(.90,.50),vec2f(.86,.46),vec2f(.79,.45),vec2f(.73,.49),vec2f(.68,.55),vec2f(.64,.605),
-    vec2f(.10,.57),vec2f(.14,.66),vec2f(.25,.72),vec2f(.39,.75),vec2f(.54,.72),vec2f(.64,.605));
-  let progress = min(23.0, floor(flow * 24.0)) / 23.0;
-  let last = min(5u, u32(floor(progress * 6.0)));
-  var alpha = 0.0;
-  for (var i = 0u; i < 18u; i++) {
-    let pointIndex = i % 6u;
-    let leading = clamp((progress - f32(pointIndex) / 5.0 + .20) / .20, 0.0, 1.0);
-    if (pointIndex <= last && leading > 0.0) {
-      let radius = e.shape.x * (.23 + .05 * leading);
-      let d = length(local - points[i] * e.shape.xy) / radius;
-      let a = select(mix(leading * .84, 0.0, clamp((d-.58)/.42,0.0,1.0)), mix(leading,leading*.84,clamp(d/.58,0.0,1.0)), d <= .58);
-      alpha = min(1.0, alpha + a);
-    }
-  }
-  let t = clamp((progress - .72) / .28, 0.0, 1.0);
-  let ambient = t*t*(3.0-2.0*t);
-  return ambient + alpha * (1.0 - ambient);
-}
-fn maskedPixel(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flow: f32) -> vec4f {
+fn maskedPixel(e: Effect, local: vec2f, offset: f32, low: f32, high: f32) -> vec4f {
   if (any(local < vec2f(0)) || any(local > e.shape.xy)) { return vec4f(0); }
-  var mask = verticalMask(e,local.y,low,high);
-  if (flow >= 0.0) { mask = manaMask(e,local,flow); }
-  return original(e,local,offset) * mask;
+  return original(e,local,offset) * verticalMask(e,local.y,low,high);
 }
-fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32, flow: f32) -> vec4f {
+fn maskedOriginal(e: Effect, local: vec2f, offset: f32, low: f32, high: f32) -> vec4f {
   // Canonical masks and animated scratch layers are native-sized. Interpolate
   // the masked native texels, not a high-resolution analytical mask, on zoom.
-  if (e.source.z < 1.5) { return maskedPixel(e,local,offset,low,high,flow); }
+  if (e.source.z < 1.5) { return maskedPixel(e,local,offset,low,high); }
   let a = floor(local - .5) + .5; let f = fract(local - .5);
-  return mix(mix(maskedPixel(e,a,offset,low,high,flow),maskedPixel(e,a+vec2f(1,0),offset,low,high,flow),f.x),
-             mix(maskedPixel(e,a+vec2f(0,1),offset,low,high,flow),maskedPixel(e,a+vec2f(1,1),offset,low,high,flow),f.x),f.y);
+  return mix(mix(maskedPixel(e,a,offset,low,high),maskedPixel(e,a+vec2f(1,0),offset,low,high),f.x),
+             mix(maskedPixel(e,a+vec2f(0,1),offset,low,high),maskedPixel(e,a+vec2f(1,1),offset,low,high),f.x),f.y);
 }
 fn overhealAt(e: Effect, local: vec2f) -> vec4f {
   // Surplus health crests above the body, then forms a thin outer reservoir.
@@ -122,35 +95,23 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
    if (any(local < vec2f(0.0)) || any(local > e.shape.xy)) { return vec4f(0.0); }
    let p = e.phase.y; let reduced = e.phase.z > .5; let opacity = e.phase.w;
   let release = 1.0 - ease((p - .82) / .18);
-  if (e.phase.x > 1.5) {
-    let appear = ease(p / .14); let gather = ease((p - .03) / .54);
-    let flow = ease((p - .02) / select(.60,.70,reduced));
-     var material = baseOriginal(e,local);
-     if (flow < .999) { material = maskedOriginal(e,local,0.0,0.0,1.0,flow); }
-    return material * (appear*release*(.84+.16*gather)*opacity);
-  }
-  let heal = e.phase.x > .5;
-  let appear = ease(p / select(.16,.18,heal));
-  let flow = ease((p - select(.10,.12,heal)) / select(.54,.48,heal));
-  let settle = ease((p - select(.56,.58,heal)) / select(.32,.28,heal));
+  let appear = ease(p / .18);
+  let flow = ease((p - .12) / .48);
+  let settle = ease((p - .58) / .28);
   var color = vec4f(0.0);
    if (appear*release > .001) { color = baseOriginal(e,local) * (appear*release*opacity); }
-  let bounds = select(vec4f(.48,.20,.02,.07),vec4f(.52,.22,.02,.08),heal);
-  let ends = select(vec4f(1,.78,.47,.35),vec4f(1,.84,.56,.38),heal);
-  var offsets = vec4f(10*(1-appear),12*(1-flow),9*(1-flow),-4*settle);
-  var strengths = vec4f(.84*appear*(1-settle*.28),.78*flow*(1-settle*.18),.72*flow,.64*settle);
-  if (heal) {
-    offsets = vec4f(12*(1-appear),14*(1-flow),10*(1-flow),-4*settle);
-    strengths = vec4f(.8*appear*(1-settle*.22),.72*flow*(1-settle*.16),.65*flow,.56*settle);
-  }
+  let bounds = vec4f(.52,.22,.02,.08);
+  let ends = vec4f(1,.84,.56,.38);
+  var offsets = vec4f(12*(1-appear),14*(1-flow),10*(1-flow),-4*settle);
+  var strengths = vec4f(.8*appear*(1-settle*.22),.72*flow*(1-settle*.16),.65*flow,.56*settle);
   if (reduced) {
     offsets = vec4f(0.0);
-    strengths = select(vec4f(.78*appear*(1-settle*.28),.70*flow,.58*flow,.55*settle),vec4f(.72*(1-settle*.2),.64*flow,.52*flow,.48*settle),heal);
+    strengths = vec4f(.72*(1-settle*.2),.64*flow,.52*flow,.48*settle);
   }
   for (var i=0u; i<4u; i++) {
     let strength = strengths[i]*release;
     if (strength > .001) {
-       color = over(color,maskedOriginal(e,local,offsets[i],bounds[i],ends[i],-1.0) * (strength*opacity));
+       color = over(color,maskedOriginal(e,local,offsets[i],bounds[i],ends[i]) * (strength*opacity));
     }
   }
    return color;
@@ -168,8 +129,7 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
      far = far + materialAt(e,in.local + directions[i] * 11.0).a;
    }
    let light = clamp((near * .065 + far * .041) * (1.0 - core.a * .72), 0.0, .48);
-   let hue = select(select(vec3f(.56,.94,.39),vec3f(1.0,.50,.68),e.phase.x > .5),
-     vec3f(.55,.54,1.0),e.phase.x > 1.5);
+   let hue = vec3f(1.0,.50,.68);
    return over(vec4f(hue * light,light),core);
  }`;
   const finite = Number.isFinite;
@@ -186,8 +146,7 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
     const kind = String(effect.type || '').replace(/^gain-/, '');
     const profile = PROFILES[kind];
     if (!profile || effect.type !== profile.type ||
-        String(effect.effectKind || kind) !== kind ||
-        (kind === 'mana' && effect.variant === 'desire-recovery')) return null;
+        String(effect.effectKind || kind) !== kind) return null;
     const image = textures?.[profile.key];
     if (!ready(image, kind)) return null;
     if (!camera || !viewport || ![player.x, player.y, camera.x, camera.y, zoom,
@@ -206,8 +165,7 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
     if (!p) throw new TypeError('Unknown body benefit');
     const width = 104;
     const height = kind === 'heal' ? 1672 * 104 / 941 : 156;
-    const top = kind === 'overheal' ? -113 : kind === 'heal' ? 31 - 1400 * 104 / 941 :
-      31 - 1386 * 104 / 1024;
+    const top = kind === 'overheal' ? -113 : 31 - 1400 * 104 / 941;
     const pad = 14, visibleHeight = Math.ceil(height);
     const data = new Float32Array([
       command.x - (width / 2 + pad) * command.scale,
@@ -234,7 +192,7 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
           alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' } } }] },
       primitive: { topology: 'triangle-list' } });
     const texture = frameOwner.own(device.createTexture({ label: 'DVA authored body benefit sources',
-      size: [TEXTURE_WIDTH, TEXTURE_HEIGHT, 2], format: 'rgba8unorm', usage: 0x04 | 0x02 | 0x10 }));
+      size: [TEXTURE_WIDTH, TEXTURE_HEIGHT, 1], format: 'rgba8unorm', usage: 0x04 | 0x02 | 0x10 }));
     const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear',
       addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
     const images = new Map(), slots = [];

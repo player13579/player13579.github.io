@@ -12233,7 +12233,6 @@ function settleEmpChargeEffects(next, receivedAt) {
 }
 
 function phenomenonSoundKind(effect, data) {
-  if (isBodyManaGainEffect(effect)) return "mana";
   if (isBodyAccelerationGainEffect(effect)) return "accelerationBenefit";
   if (isBodyOverhealGainEffect(effect)) return "overheal";
   if (effect?.type !== "action-weapon-switch" || effect.variant !== "taser") return "";
@@ -12249,6 +12248,8 @@ function stopAllPhenomenonSounds() {
   stopHealESfx();
   for (const entry of staminaBenefitLive.players.values()) entry.player.destroy();
   staminaBenefitLive.players.clear();
+  for (const entry of manaBenefitLive.players.values()) entry.player.destroy();
+  manaBenefitLive.players.clear();
   for (const owner of [...PHENOMENON_SOUND_RECEIPTS.owners.values()]) stopPhenomenonSoundOwner(owner);
 }
 function rememberPhenomenonSoundId(id) {
@@ -12335,6 +12336,52 @@ function commitStaminaBenefitSoundFrame(data, receipts) {
     if (!mix) continue;
     try {
       const player = window.DvaStaminaBenefitSfx.createPlayer({
+        context: state.audio.context, destination: state.audio.master });
+      player.enterRoom(roomId, generation);
+      if (player.start({ causeId, roomId, roomGeneration: generation,
+        phaseSeconds: receipt.actorElapsedMs / 1000,
+        actorRate: displayETimeScale(actor, data), volume: mix.volume,
+        frameSubmitted: true, visible: true, muted: false })) {
+        live.played.add(causeId);
+        while (live.played.size > 256) live.played.delete(live.played.values().next().value);
+        live.players.set(id, { player, playerId: String(actor.id) });
+      } else player.destroy();
+    } catch (_) { /* Audio may still be locked by the browser. */ }
+  }
+}
+const manaBenefitLive = { roomId: '', generation: -1, players: new Map(), played: new Set() };
+function commitManaBenefitSoundFrame(data, receipts) {
+  const live = manaBenefitLive;
+  const roomId = String(data?.roomId || '');
+  const generation = state.roomSessionGeneration;
+  if (live.roomId !== roomId || live.generation !== generation) {
+    for (const entry of live.players.values()) entry.player.destroy();
+    live.players.clear();
+    live.played.clear();
+    live.roomId = roomId;
+    live.generation = generation;
+  }
+  const current = new Set((state.magicEffects || [])
+    .filter(effect => isBodyManaGainEffect(effect)).map(effect => String(effect.id)));
+  for (const [id, entry] of live.players) {
+    const actor = data?.players?.find(player => String(player.id) === entry.playerId);
+    if (!current.has(id) || !actor?.alive || actor.ejected || actor.inVent || actor.invisible) {
+      entry.player.destroy();
+      live.players.delete(id);
+    } else entry.player.setActorRate(displayETimeScale(actor, data));
+  }
+  if (!Array.isArray(receipts) || !phenomenonSoundAvailable() ||
+      IS_VERIFICATION_MODE || document.hidden || !window.DvaManaBenefitSfx?.createPlayer)
+    return;
+  for (const receipt of receipts) {
+    const id = String(receipt?.effectId ?? '');
+    const causeId = String(receipt?.causeId ?? '');
+    const actor = data?.players?.find(player => String(player.id) === String(receipt?.playerId));
+    if (!id || !causeId || !current.has(id) || !actor || live.played.has(causeId)) continue;
+    const mix = phenomenonSoundMix(actor, data);
+    if (!mix) continue;
+    try {
+      const player = window.DvaManaBenefitSfx.createPlayer({
         context: state.audio.context, destination: state.audio.master });
       player.enterRoom(roomId, generation);
       if (player.start({ causeId, roomId, roomGeneration: generation,
@@ -18259,6 +18306,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error("WebGPU main submitted without phenomenon sound receipts");
     if (!Array.isArray(receipt.recordResult?.staminaBenefitSoundReceipts))
       throw new Error('WebGPU main submitted without stamina benefit sound receipts');
+    if (!Array.isArray(receipt.recordResult?.manaBenefitSoundReceipts))
+      throw new Error('WebGPU main submitted without mana benefit sound receipts');
     if (!Array.isArray(receipt.recordResult?.environmentSoundReceipts))
       throw new Error("WebGPU main submitted without environment sound receipts");
     if (!Array.isArray(receipt.recordResult?.sunbeamHandReceipts))
@@ -18313,6 +18362,7 @@ function pumpWebGPUMainAppDriver() {
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
     flushLiveSunbeamSounds(receipt.recordResult.sunbeamHandReceipts, requestSerial);
     commitStaminaBenefitSoundFrame(data, receipt.recordResult.staminaBenefitSoundReceipts);
+    commitManaBenefitSoundFrame(data, receipt.recordResult.manaBenefitSoundReceipts);
     commitHealESfxVisualFrame(data, receipt.recordResult.healSoundVisualReceipts);
     commitVisibleVisualSoundFrame(data,
       receipt.recordResult.phenomenonSoundVisualReceipts,
@@ -21976,8 +22026,37 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
           actorElapsedMs, camera, zoom, reducedMotion } });
       continue;
     }
-    if (isBodyStaminaGainEffect(effect) || isBodyHealGainEffect(effect) ||
-        isBodyManaGainEffect(effect) || isBodyOverhealGainEffect(effect)) {
+    if (isBodyManaGainEffect(effect)) {
+      const manaE = window.DvaManaBenefitE;
+      const manaDurationMs = Number(manaE?.DURATION_MS);
+      const player = gainEffectPlayer(effect);
+      if (!player || !player.alive || player.ejected || player.inVent || player.invisible) {
+        omitted.push({ effectId: effect.id, reason: 'mana-benefit-player-not-visible' });
+        continue;
+      }
+      const actorElapsedMs = now - effect.startedAt;
+      if (actorElapsedMs < 0 || Number.isFinite(manaDurationMs) && actorElapsedMs >= manaDurationMs) {
+        omitted.push({ effectId: effect.id, reason: 'mana-benefit-outside-visible-lifetime' });
+        continue;
+      }
+      if (player.x < camera.x - 180 || player.x > camera.x + viewport.width / zoom + 180 ||
+          player.y < camera.y - 180 || player.y > camera.y + viewport.height / zoom + 180) {
+        omitted.push({ effectId: effect.id, reason: 'mana-benefit-outside-viewport' });
+        continue;
+      }
+      if (typeof manaE?.create !== 'function' || !Number.isFinite(manaDurationMs) ||
+          manaDurationMs <= 0) {
+        unsupported.push({ index, type, id: effect.id, reason: 'mana-benefit-e-unavailable' });
+        continue;
+      }
+      events.push({ type: 'manaBenefitE', effectId: effect.id,
+        input: { effect: { ...effect, causeId: String(effect.id),
+          actorWorld: { x: player.x, y: player.y },
+          duration: manaDurationMs },
+          actorElapsedMs, camera, zoom, reducedMotion } });
+      continue;
+    }
+    if (isBodyHealGainEffect(effect) || isBodyOverhealGainEffect(effect)) {
       const kind = type.slice("gain-".length);
       const player = gainEffectPlayer(effect);
       const pass = window.DvaWebGPUBodyBenefitPass;
@@ -21996,8 +22075,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       }
       const input = { effect, player, now, phase: data.phase, camera, zoom,
         textures, reducedMotion, alpha: 1,
-        soundDurationMs: type === 'gain-mana' ? MANA_BODY_RECOVERY_TE.durationMs :
-          type === 'gain-overheal' ? OVERHEAL_BODY_RECOVERY_TE.durationMs : null };
+        soundDurationMs: type === 'gain-overheal' ? OVERHEAL_BODY_RECOVERY_TE.durationMs : null };
       if (!pass?.ready?.(textures[profile?.key], kind) || !pass?.plan?.({ ...input, viewport })) {
         unsupported.push({ index, type, id: effect.id,
           reason: "body-benefit-pass-or-authored-texture-unavailable" });
