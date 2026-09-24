@@ -21355,6 +21355,12 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       unsupported, expiredEffectIds: effects.map(effect => effect?.id), ready: true };
   const active = effects.filter(effect => {
     const now = eEffectNow(effect, data, wallNow);
+    if (effect?.type === 'fighter-slash') {
+      if (![effect.x, effect.y, effect.targetX, effect.targetY,
+        effect.startedAt, effect.duration].every(Number.isFinite) || effect.duration <= 0)
+        return true;
+      return now < effect.startedAt || now - effect.startedAt < effect.duration;
+    }
     if (effect?.type === 'flora') {
       if (![effect.startedAt, effect.duration].every(Number.isFinite) || effect.duration <= 0)
         return true;
@@ -21453,6 +21459,37 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   for (const [index, effect] of active.entries()) {
     const now = eEffectNow(effect, data, wallNow);
     const type = String(effect.type || "");
+    if (type === 'fighter-slash') {
+      const duration = window.DvaWebGPUFighterEnergyE?.DURATIONS?.['fighter-slash'];
+      const elapsed = now - Number(effect.startedAt);
+      if (!Number.isFinite(duration) || duration <= 0 ||
+          !Number.isFinite(elapsed) || !Number.isFinite(effect.duration) ||
+          effect.duration <= 0 || !String(effect.playerId || '') ||
+          ![effect.x, effect.y, effect.targetX, effect.targetY].every(Number.isFinite) ||
+          !combatActors.some(player => String(player.id) === String(effect.playerId))) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'fighter-slash-source-or-pass-invalid' });
+        continue;
+      }
+      if (elapsed < 0 || elapsed >= duration) {
+        omitted.push({ effectId: effect.id, playerId: String(effect.playerId),
+          reason: 'fighter-slash-visual-outside-lifetime' });
+        continue;
+      }
+      const scene = combatScene(effect, now);
+      let planned = null;
+      try { planned = window.DvaWebGPUFighterEnergyE.plan({ scene,
+        camera, zoom, viewport }); } catch (_) { /* A malformed visible source blocks the frame. */ }
+      if (!Array.isArray(planned) || planned.length !== 1 ||
+          planned[0]?.id !== String(effect.id) || planned[0]?.kind !== 'slash') {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'fighter-slash-visible-plan-invalid' });
+        continue;
+      }
+      events.push({ type: 'fighterEnergyE', effectId: String(effect.id),
+        input: { scene, camera, zoom } });
+      continue;
+    }
     // The credit gain marker TE was withdrawn. Claim its source explicitly so
     // it cannot block the WebGPU frame or reappear as an unowned field visual.
     if (type === 'gain-credits' ||
@@ -28982,6 +29019,59 @@ function buildWebGPUHealActionCommand(player, data, view, action) {
   return command && Object.freeze({ ...command, poseKey,
     assetSha256: pose.assetSha256, name: playerIdentityLabel(player).slice(0, 14) });
 }
+const WEBGPU_FIGHTER_SLASH_SHEETS = Object.freeze({
+  'white-hood': Object.freeze({ width: 1684, height: 934, version: 'v483',
+    frames: Object.freeze([[29,144,532,729],[561,145,561,646],[1122,145,543,648]]) }),
+  'blue-dress': Object.freeze({ width: 1695, height: 928, version: 'v483',
+    frames: Object.freeze([[22,126,543,698],[565,129,554,696],[1234,128,399,702]]) }),
+  'male-bot': Object.freeze({ width: 1774, height: 887, version: 'v465',
+    frames: Object.freeze([[121,98,357,688],[628,151,554,631],[1182,106,467,681]]) })
+});
+function buildWebGPUFighterSlashActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const id = String(action?.sourceEffectId ?? '');
+  const effect = state.magicEffects?.find(entry => String(entry?.id ?? '') === id &&
+    entry.type === 'fighter-slash' && String(entry.playerId ?? '') === String(player?.id ?? ''));
+  if (!api?.createCommand || !player?.alive || player.ejected || player.inVent ||
+      (player.invisible && player.id !== data.selfId) ||
+      action?.kind !== 'slash' || action.motionId !== 'fighter-slash' || !id || !effect ||
+      !Number.isFinite(action.progress) || action.progress < 0 || action.progress >= 1) return null;
+  const identity = authoredCharacterIdentity(player, data);
+  const sheet = WEBGPU_FIGHTER_SLASH_SHEETS[identity];
+  const image = state.textures?.fighterSlashWebGPUMotions?.[identity];
+  if (!sheet || !image?.complete || image.naturalWidth !== sheet.width ||
+      image.naturalHeight !== sheet.height) return null;
+  const phase = physicalActionFramePosition('slash', action.progress, action.motionId);
+  const frameIndex = Math.min(2, Math.max(0, Math.round(phase)));
+  const [x, y, width, height] = sheet.frames[frameIndex];
+  const scale = Math.min(98 / width, 98 / height) * CHARACTER_BODY_VISUAL_SCALE;
+  const direction = authoredDirection(player, motionFor(player, data));
+  const facing = direction === 'left' ? -1 : 1;
+  const dynamics = accelerationReadyMotionDynamics(player, action.kind, action.motionId);
+  const strike = Math.sin(clamp((action.progress - 0.2) / 0.55, 0, 1) * Math.PI);
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const alpha = player.id === data.selfId && data.self?.floraInvisibleActive ? .32 : 1;
+  const assetPath = `assets/generated/physical-motion-${identity}-slash-${sheet.version}-webgpu-alpha-v1.png`;
+  const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise },
+    identity, direction, mode: 'fighter-slash',
+    entry: { assetPath, layout: { sourceOrigin: { x: width / 2, y: height },
+      ground: { x: 0, y: CHARACTER_BODY_FOOT_ANCHOR_Y }, scale } },
+    image, frame: { x, y, width, height },
+    body: { lean: facing * strike * .065 * dynamics.spatialScale,
+      sway: facing * strike * 10 * dynamics.spatialScale,
+      lift: strike * 2.5 * dynamics.spatialScale },
+    camera: view.camera, zoom: view.zoom, alpha,
+    arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  if (!command) return null;
+  // The source atlas faces right. Mirror only the action body, preserving the
+  // player/nameplate anchor used by the rest of the ordered scene.
+  const sprite = direction === 'left' ? Object.freeze({ ...command.sprite,
+    transform: Object.freeze(command.sprite.transform.map((value, index) =>
+      index < 2 ? -value : value)) }) : command.sprite;
+  return Object.freeze({ ...command, sprite, sourceEffectId: id,
+    poseKey: `slash-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
+}
 function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const api = window.DvaWebGPUPlayerSprite;
   if (!api?.createCommand || !sourcePlayer || !data || !view?.camera ||
@@ -28989,6 +29079,8 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const player = renderedPlayer(sourcePlayer);
   const ghost = !player.alive && !player.ejected;
   const action = currentCharacterAction(player);
+  if (action?.kind === 'slash' && action.motionId === 'fighter-slash')
+    return buildWebGPUFighterSlashActionCommand(player, data, view, action);
   if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
     return buildWebGPUSunbeamActionCommand(player, data, view, action);
   if (action?.kind === 'heal' && ['flora', '/api/flora-heal'].includes(action.motionId))
@@ -29096,6 +29188,9 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   const entries = state.preparationRosterEntries;
   const spriteReady = player => {
     const action = currentCharacterAction(player);
+    if (action?.kind === 'slash' && action.motionId === 'fighter-slash')
+      return Boolean(buildWebGPUFighterSlashActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
     if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
       return Boolean(buildWebGPUSunbeamActionCommand(player, data,
         { camera, zoom, order: 0, arrival: null }, action));
@@ -33361,6 +33456,9 @@ const version = "overheal-body-v913";
       Object.assign(Object.fromEntries(PHYSICAL_ACTION_MOTION_KINDS.map((kind) => [kind, new Image()])), { shop: new Image() })
     ])
   );
+  // Exact offline alpha extraction of the authored slash sheets for GPU upload.
+  const fighterSlashWebGPUMotions = Object.fromEntries(
+    ["white-hood", "blue-dress", "male-bot"].map(skinId => [skinId, new Image()]));
 
   const authoredHealImages = new Map();
   const authoredHealMotions = Object.fromEntries(Object.entries(AUTHORED_HEAL_PROFILES).map(([identity, profile]) => [identity,
@@ -33569,6 +33667,10 @@ const version = "overheal-body-v913";
     const shopSourceVersion = skinId === "male-bot" ? "v465" : "v483";
     defer(motions.shop, `assets/generated/physical-motion-${skinId}-interact-${shopSourceVersion}.png`);
   }
+  for (const [skinId, motion] of Object.entries(fighterSlashWebGPUMotions)) {
+    const version = skinId === 'male-bot' ? 'v465' : 'v483';
+    defer(motion, `assets/generated/physical-motion-${skinId}-slash-${version}-webgpu-alpha-v1.png`);
+  }
   for (const skinId of ITEM_USE_POSE_SKINS) for (const direction of ITEM_USE_POSE_DIRECTIONS) for (const profile of Object.values(ITEM_USE_MOTION_PROFILES)) for (const frame of profile.keyframes) {
     const pose = itemUsePoseAsset(profile, skinId, direction, frame.key);
     if (pose?.assetPath) defer(itemUseActionMotions[skinId][direction][profile.itemId][frame.key], pose.assetPath);
@@ -33768,6 +33870,7 @@ const version = "overheal-body-v913";
     shopActivationEffect,
     preparationSummonCircle,
     physicalActionMotions,
+    fighterSlashWebGPUMotions,
     authoredNinjutsuFocusMotions,
     authoredThrowMotions,
     authoredFireMotions,

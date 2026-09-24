@@ -21,6 +21,11 @@
     { id: 'medical-bed', title: '診療ベッド使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-object-e.js', kind: 'integrated' },
     { id: 'medical-cabinet', title: '薬草とリネンの棚', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-cabinet-e.js', kind: 'integrated' },
     { id: 'medical-footbath', title: '足湯使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-footbath-use-e.js', kind: 'integrated' },
+    { id: 'room-cooling-unit', objectId: 'v302-reactor-coolingUnit-2', title: '冷却ユニット使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
+    { id: 'room-command-desk', objectId: 'v302-observatory-commandDesk-3', title: '観測デスク使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
+    { id: 'room-pallet-jack', objectId: 'v302-storage-palletJack-2', title: 'パレットジャッキ使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
+    { id: 'room-restorative-mist', objectId: 'v302-greenhouse-mistSprayer-2', title: '薬草ミスト使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
+    { id: 'room-herb-preparation-table', objectId: 'v302-greenhouse-compostUnit-3', title: '薬草調合台使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
     { id: 'corridor-a03-sconce', objectId: 'v317-corridor-a03-1', title: 'A03 壁灯', detail: '左側のガラス開口から壁面へ広がる光。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a03-sconce', kind: 'corridor' },
     { id: 'corridor-a07-sconce', objectId: 'v317-corridor-a07-1', title: 'A07 壁灯', detail: '交差する真鍮羽根が開き、屈折光を菱形へ集める。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a07-sconce', kind: 'corridor' },
     { id: 'corridor-a09-sconce', objectId: 'v317-corridor-a09-1', title: 'A09 壁灯', detail: '三枚のガラス面へ順に光を渡す。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a09-sconce', kind: 'corridor' },
@@ -125,6 +130,7 @@
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
       const isMedical = Boolean(medicalEffectKind);
+      const isRoomObject = entry.id.startsWith('room-');
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
         dodge: window.DvaWebGPUDodgeE, renki: window.DvaWebGPURenkiE,
         'idea-truth': window.DvaWebGPIdeaE, bust: window.DvaWebGPUBustE,
@@ -132,9 +138,15 @@
         'hacker-status': window.DvaWebGPUHackerStatusRecoveryE,
         'medical-bed': window.DvaWebGPUMedicalObjectE,
         'medical-cabinet': window.DvaWebGPUMedicalCabinetE,
-        'medical-footbath': window.DvaWebGPUMedicalFootbathUseE })[entry.id];
+        'medical-footbath': window.DvaWebGPUMedicalFootbathUseE,
+        'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
+        'room-command-desk': window.DvaWebGPURoomObjectUseE,
+        'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
+        'room-restorative-mist': window.DvaWebGPURoomObjectUseE,
+        'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isMedical ? api.create({ device: renderer.device, format: renderer.format }) :
+      effect = isRoomObject ? api.create({ renderer, frameOwner: renderer }) :
+        isMedical ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
@@ -144,7 +156,10 @@
         'idea-truth': 1800, bust: api.EVENT_DURATION?.[api.START_EVENT],
         'gravity-keeper': 5000, 'hacker-status': Math.min(1200, api.DURATION_MS || 1200),
         'medical-bed': api.DURATION_MS, 'medical-cabinet': api.DURATION_MS,
-        'medical-footbath': api.DURATION_MS })[entry.id];
+        'medical-footbath': api.DURATION_MS, 'room-cooling-unit': api.DURATION_MS,
+        'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
+        'room-restorative-mist': api.DURATION_MS,
+        'room-herb-preparation-table': api.DURATION_MS })[entry.id];
       if (!Number.isFinite(duration) || duration <= 0) throw new Error('現在のE寿命がありません');
       const cycleLength = duration + 350, startedAt = performance.now();
       const draw = now => {
@@ -155,7 +170,32 @@
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (elapsed > 0 && elapsed < duration) {
-            if (isMedical) {
+            if (isRoomObject) {
+              const authored = api.OBJECTS[entry.objectId];
+              if (!authored) throw new Error('著者済みオブジェクトの設計データがありません');
+              const map = { id: api.MAP_ID, objects: [{ id: authored.id,
+                type: authored.type, effectKind: authored.effectKind,
+                x: authored.x, y: authored.y, room: authored.room,
+                visualWidth: authored.width, visualHeight: authored.height }] };
+              const roomCamera = { x: authored.x - viewport.width / 2,
+                y: authored.y - viewport.height / 2 };
+              // Mirror the current successful-use event payload. Only the
+              // selected authored object is passed to the real planner.
+              const source = { id: `magic_gallery_room_${cycle}`,
+                type: `object-${authored.type}`, x: authored.x, y: authored.y,
+                radius: 100, targetX: null, targetY: null,
+                playerId: 'gallery-preview-player', targetId: '',
+                objectId: authored.id, viewerId: '', variant: '', mode: '',
+                effectKind: authored.effectKind, completionKind: '',
+                objectCausalId: `map-object:${authored.id}:object_use_gallery_${cycle}`,
+                markerCount: 1, durationMs: 0, startedAt: 0, duration };
+              const planned = api.plan({ map, event: source, now: elapsed,
+                phase: 'playing', camera: roomCamera, zoom: 1, viewport,
+                reducedMotion: false });
+              if (!planned) throw new Error('成功使用イベントを計画できません');
+              const result = effect.record({ frame, target: targetId, viewport, planned });
+              if (!result.drawn) throw new Error('成功使用イベントを描画できません');
+            } else if (isMedical) {
               const object = api.OBJECT, room = api.ROOM, zone = api.ZONE, medicalZoom = 1;
               const medicalCamera = {
                 x: room.x + zone.x + zone.width / 2 - viewport.width / (2 * medicalZoom),

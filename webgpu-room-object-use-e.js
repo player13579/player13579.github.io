@@ -17,11 +17,22 @@
   ['v302-storage-cargoCrate-1','cargoCrate','credits',1203,1696,'storage','crate-hinged-credit-retrieval','crate-hinge-knock','timber-hinge'],
   ['v302-fabrication-workbench-1','workbench','stamina',3642,2102,'fabrication','fabrication-bench-tool-run','bench-tool-chime','machined-steel'],
   ['v302-engineering-workbench-1','workbench','stamina',3619,1316,'engineering','engineering-bench-pressure-release','bench-pressure-hiss','composite-worktop'],
-  ['v302-atrium-airPlant-3','indoorGarden','luckBoost',2162,1899,'atrium','garden-root-to-canopy-luck-current','atrium-leaf-cup-rustle','leaf-and-clay']
+  ['v302-atrium-airPlant-3','indoorGarden','luckBoost',2162,1899,'atrium','garden-root-to-canopy-luck-current','atrium-leaf-cup-rustle','leaf-and-clay'],
+  ['v302-reactor-coolingUnit-2','coolingUnit','stamina',4388,388,'reactor','stone-basin-cold-current','basin-water-turn','water-over-carved-stone',[
+   ['basin-opens',0,.14],['water-rises',.14,.39],['cool-current-crosses',.39,.72],['surface-settles',.72,.88],['stone-dim',.88,1]]],
+  ['v302-observatory-commandDesk-3','commandDesk','luckBoost',2240,636,'observatory','survey-desk-sight-alignment','brass-sight-index','brushed-brass-and-glass',[
+   ['desk-wakes',0,.14],['sight-sweeps',.14,.43],['reading-aligns',.43,.68],['bearing-holds',.68,.85],['instrument-rests',.85,1]]],
+  ['v302-storage-palletJack-2','palletJack','acceleration',1600,1696,'storage','wicker-carrier-lift-and-roll','woven-cradle-wheel-roll','rubber-wheel-and-braided-wicker',[
+   ['forks-engage',0,.16],['load-lifts',.16,.39],['rollers-drive',.39,.72],['forward-release',.72,.88],['wheel-stop',.88,1]]],
+  ['v302-greenhouse-mistSprayer-2','restorativeMist','luckBoost',817,2652,'greenhouse','herbal-mist-canopy-bloom','ceramic-mist-leaf-tone','ceramic-bowl-and-herbal-vapor',[
+   ['bowl-condenses',0,.16],['herbal-vapor-rises',.16,.43],['canopy-unfurls',.43,.72],['mist-carries',.72,.88],['dew-dissolves',.88,1]]],
+  ['v302-greenhouse-compostUnit-3','herbPreparationTable','heal',313,3057,'greenhouse','mortar-press-infusion-return','stone-mortar-infusion-drop','stone-mortar-and-timber',[
+   ['table-and-mortar',0,.15],['herbs-are-pressed',.15,.42],['infusion-forms',.42,.66],['remedy-returns',.66,.86],['surface-clears',.86,1]]]
  ];
  const OBJECTS=Object.freeze(Object.fromEntries(raw.map((r,code)=>[r[0],Object.freeze({
   id:r[0],type:r[1],effectKind:r[2],x:r[3],y:r[4],room:r[5],width:110,height:76,code,
-  design:r[6],soundProfile:r[7],sound:Object.freeze({profile:r[7],material:r[8],durationMs:180+code*7,
+  design:r[6],soundProfile:r[7],visualSequence:r[9]?Object.freeze(r[9].map(([name,from,to])=>Object.freeze({name,from,to}))):null,
+  sound:Object.freeze({profile:r[7],material:r[8],durationMs:180+code*7,
    edge:'accepted-use-once',playbackByCandidate:false})
  })])));
  const SFX_POLICY=Object.freeze({owner:'external-world-sound-player',edge:'one-per-accepted-object-use-event-id',
@@ -36,8 +47,11 @@
  ])});
  const finite=Number.isFinite;
  function visualPhase(code,progress){
-  if(code!==0||!finite(progress)||progress<0||progress>=1)return '';
-  const phase=SERVER_RACK_VISUAL.sequence.find(item=>progress>=item.from&&progress<item.to);
+  if(!finite(progress)||progress<0||progress>=1)return '';
+  const profile=Object.values(OBJECTS).find(item=>item.code===code);
+  const sequence=code===0?SERVER_RACK_VISUAL.sequence:profile?.visualSequence;
+  if(!sequence)return '';
+  const phase=sequence.find(item=>progress>=item.from&&progress<item.to);
   return phase?.name||'';
  }
  const shader=/* wgsl */`
@@ -51,7 +65,8 @@ fn band(v:f32,a:f32,b:f32)->f32{return smoothstep(a,a+.035,v)*(1.0-smoothstep(b-
  let px=vec2f((i.clip.x+1.0)*.5*p.shape.x,(1.0-i.clip.y)*.5*p.shape.y);
  let world=p.view.xy+px/p.view.zw;let q=(world-p.source.xy)/p.source.zw*2.0-vec2f(1.0);
  if(any(abs(q)>vec2f(1.0))){discard;}let t=p.state.x;let k=p.state.y;let reduced=p.state.z>.5;
- let u=select(t,.55,reduced);let env=smoothstep(0.0,.10,t)*(1.0-smoothstep(.76,1.0,t));
+ let u=select(t,.55,reduced);let fadeStart=select(.76,.88,k>=13.5);
+ let env=smoothstep(0.0,.10,t)*(1.0-smoothstep(fadeStart,1.0,t));
  var m=0.0;var h=0.0;var c=vec3f(.8,.8,.8);
  if(k<.5){
   // Powered rack: enclosure opens, a broad scanner crosses ordered bays, a
@@ -94,8 +109,8 @@ fn band(v:f32,a:f32,b:f32)->f32{return smoothstep(a,a+.035,v)*(1.0-smoothstep(b-
  }else if(k<9.5){c=vec3f(.38,.89,1.0);let bolt=line(q.x-.49,.05)*band(q.y,-.55,.55)+line(q.x+.49,.05)*band(q.y,-.55,.55);let bar=line(q.y-(.55-u*1.1),.065)*band(q.x,-.74,.74);m=bolt*.55+bar;h=bar*.55;
  }else if(k<10.5){c=vec3f(1.0,.56,.30);let lid=line(q.y-(.42-u*.75),.065)*band(q.x,-.72,.72);let box=line(abs(q.x)-.7,.04)*band(q.y,-.55,.38);m=lid+box*.45;h=lid*.6;
  }else if(k<11.5){c=vec3f(.72,.93,.43);let tool=line(q.y-(.48-.96*u),.055)*band(q.x,-.68,.68);let bench=line(q.y+.35,.06)*band(q.x,-.72,.72);let spark=(line(q.x-.42,.055)+line(q.x+.37,.05))*line(q.y-(.05+.24*sin(u*12.0)),.09);m=tool*.62+bench*.38+spark*.55;h=spark*.65;
-  }else if(k<12.5){c=vec3f(.93,.72,.42);let platen=line(q.y+.28,.06)*band(q.x,-.68,.68);let pressure=line(q.x-(u*1.4-.7),.07)*band(q.y,-.60,.35);let release=line(q.y-(.05+.52*u),.055)*band(q.x,-.42,.42);m=platen*.42+pressure*.62+release*.6;h=release*.52;
-  }else{
+ }else if(k<12.5){c=vec3f(.93,.72,.42);let platen=line(q.y+.28,.06)*band(q.x,-.68,.68);let pressure=line(q.x-(u*1.4-.7),.07)*band(q.y,-.60,.35);let release=line(q.y-(.05+.52*u),.055)*band(q.x,-.42,.42);m=platen*.42+pressure*.62+release*.6;h=release*.52;
+  }else if(k<13.5){
    // Atrium garden: a contained clay cup feeds three broad leaves in order;
    // the accepted luck event lights each midrib from the root outward.
    c=vec3f(.55,.91,.45);let cup=line(q.y-.57,.065)*band(q.x,-.48,.48);
@@ -106,6 +121,110 @@ fn band(v:f32,a:f32,b:f32)->f32{return smoothstep(a,a+.035,v)*(1.0-smoothstep(b-
    let front=line(q.y-(.50-u*1.25),.14);
    m=cup*.42+root*.38+(left+right+crown)*front*.84;
    h=(left+right+crown)*front*.42;
+  }else if(k<14.5){
+   // Cooling basin: the carved lip contains a rising water plane. A broad
+   // cross-current folds over the bowl, then inward ripples leave a cool pool.
+   let open=smoothstep(0.0,.16,t);let fill=smoothstep(.10,.36,t);
+   let lip=line(q.y+.40,.055)*band(q.x,-.72,.72);
+   let bowlLeft=line(q.x+.58-.20*q.y,.055)*band(q.y,-.34,.69);
+   let bowlRight=line(q.x-.58+.20*q.y,.055)*band(q.y,-.34,.69);
+   let base=line(q.y-.66,.06)*band(q.x,-.42,.42);
+   let waterline=.18-.38*fill+.035*sin(q.x*4.2-u*7.0);
+   let water=band(q.y,waterline,waterline+.54)*band(q.x,-.55,.55)*fill;
+   let current=line(q.y-(waterline+.16+.13*sin(q.x*3.3-u*5.4)),.075)*band(q.x,-.48,.48)*smoothstep(.28,.45,t);
+   let inward=.15+.42*clamp((u-.38)/.34,0.0,1.0);
+   let ripple=(line(length(vec2f(q.x*.94,(q.y-waterline-.18)*1.3))-inward,.045)+
+    line(length(vec2f(q.x*.94,(q.y-waterline-.18)*1.3))-(inward+.16),.035))*smoothstep(.42,.58,t)*(1.0-smoothstep(.74,.86,t));
+   c=vec3f(.35,.83,.88);
+   m=(lip*(.48+.52*open)+(bowlLeft+bowlRight)*.58+base*.72)+water*.33+current*.76+ripple*.7;
+   h=(bowlLeft+bowlRight)*.12+current*.25+ripple*.35;
+  }else if(k<15.5){
+   // Observatory desk: a hinged sight sweeps across a broad instrument face,
+   // meets a glass index, and holds one measured bearing before going dark.
+   let wake=smoothstep(0.0,.16,t);let sweep=smoothstep(.12,.27,t)*(1.0-smoothstep(.43,.55,t));
+   let alignment=smoothstep(.39,.53,t)*(1.0-smoothstep(.68,.79,t));
+   let slab=line(q.y-.48,.07)*band(q.x,-.78,.78);
+   let front=line(q.y-.69,.045)*band(q.x,-.66,.66);
+   let sideL=line(q.x+.68-.10*q.y,.055)*band(q.y,-.34,.62);
+   let sideR=line(q.x-.68+.10*q.y,.055)*band(q.y,-.34,.62);
+   let indexX=.58-1.16*clamp((u-.13)/.31,0.0,1.0);
+   let index=line(q.x-indexX,.045)*band(q.y,-.24,.38)*sweep;
+   let indexHead=line(length(vec2f(q.x-indexX,q.y+.23))-.12,.04)*sweep;
+   let pivot=line(length(q-vec2f(.30,-.15))-.105,.045);
+   let needleAngle=mix(-.60,.64,clamp((u-.16)/.37,0.0,1.0));
+   let needleTip=vec2f(.30+cos(needleAngle)*.48,-.15+sin(needleAngle)*.48);
+   let needle=line(q.x-(.30+(needleTip.x-.30)*clamp((u-.16)/.37,0.0,1.0)),.038)*
+    band(q.y,-.68,.25)*sweep;
+   let bearing=line(q.x-(.30+cos(.64)*.48),.045)*band(q.y,-.55,.22)*alignment;
+   let glassIndex=line(length(vec2f((q.x-.30)*.83,(q.y+.15)*1.15))-.38,.035)*alignment;
+   c=vec3f(.93,.66,.30);
+   m=slab*.52+front*.55+(sideL+sideR)*.42+(pivot+needle*.8+index*.65+indexHead*.42)*wake+bearing*.9+glassIndex*.48;
+   h=(needle*.35+indexHead*.28+bearing*.48+glassIndex*.25)*wake;
+  }else if(k<16.5){
+   // Wicker carrier: a raised cradle, exposed forks and paired rollers show
+   // the load transfer; the roller turn then drives two broad forward wakes.
+   let engage=smoothstep(0.0,.17,t);let lift=smoothstep(.15,.39,t);
+   let drive=smoothstep(.36,.51,t)*(1.0-smoothstep(.72,.84,t));
+   let forkY=.44-.16*lift;
+   let cradle=band(q.y,-.48,-.12)*band(q.x,-.55,.55);
+   let weaveA=line(q.x-.22*sin(q.y*3.2),.045)*band(q.y,-.44,-.15)*cradle;
+   let weaveB=line(q.y+.30,.045)*band(q.x,-.50,.50)*cradle;
+   let rail=line(q.y-forkY,.055)*band(q.x,-.75,.72);
+   let forkL=line(q.y-(forkY+.11),.035)*band(q.x,-.74,.42);
+   let forkR=line(q.y-(forkY-.11),.035)*band(q.x,-.74,.42);
+   let handle=line(q.x+.62-.12*q.y,.055)*band(q.y,-.24,.62);
+   let grip=line(q.y+.27,.055)*band(q.x,-.78,-.48);
+   let wheelAngle=u*7.0;
+   let wheelL=line(length(q-vec2f(-.56,.60))-.12,.045)+line(q.y-.60-.09*sin(wheelAngle),.03)*band(q.x,-.68,-.43);
+   let wheelR=line(length(q-vec2f(.51,.60))-.12,.045)+line(q.y-.60-.09*sin(wheelAngle+1.0),.03)*band(q.x,.40,.64);
+   let wakeY=.02+.23*sin(u*12.0);
+   let wake=(line(q.x-(.32+.42*clamp((u-.39)/.35,0.0,1.0)),.055)+
+    line(q.x-(.20+.39*clamp((u-.39)/.35,0.0,1.0)),.045))*band(q.y,wakeY-.16,wakeY+.16)*drive;
+   c=vec3f(.77,.60,.93);
+   m=cradle*.35+weaveA*.28+weaveB*.30+(rail+forkL+forkR)*engage*.72+(handle+grip)*.56+
+    (wheelL+wheelR)*(.62+.30*drive)+wake*.82;
+   h=wake*.46+(wheelL+wheelR)*drive*.18+rail*lift*.17;
+  }else if(k<17.5){
+   // Herbal mist: vapor rises from a ceramic bowl as three broad, staggered
+   // ribbons; their upper arcs open into a canopy and dissolve as dew.
+   let bowl=line(q.y-.53,.06)*band(q.x,-.50,.50);
+   let bowlSideL=line(q.x+.45+.12*q.y,.055)*band(q.y,-.34,.58);
+   let bowlSideR=line(q.x-.45-.12*q.y,.055)*band(q.y,-.34,.58);
+   let rim=line(q.y+.27,.05)*band(q.x,-.57,.57);
+   let rise=smoothstep(.11,.27,t)*(1.0-smoothstep(.72,.88,t));
+   let travel=clamp((u-.14)/.68,0.0,1.0);
+   let y1=.18-travel*.88;
+   let vapor1=line(q.y-y1-.11*sin(q.x*3.0-u*4.0),.105)*band(q.x,-.36,.36)*rise;
+   let vapor2=line(q.y-(y1+.10)-.12*sin(q.x*2.8-u*4.0+1.7),.09)*band(q.x,-.40,.40)*rise;
+   let vapor3=line(q.y-(y1-.08)-.10*sin(q.x*3.2-u*4.0+3.1),.08)*band(q.x,-.31,.31)*rise;
+   let canopyL=line(q.x+.33+.35*(q.y+.12),.07)*band(q.y,-.80,-.15)*smoothstep(.4,.62,t);
+   let canopyR=line(q.x-.33-.35*(q.y+.12),.07)*band(q.y,-.80,-.15)*smoothstep(.4,.62,t);
+   let dew=band(q.y,-.84,-.72)*band(q.x,-.64,.64)*smoothstep(.62,.76,t)*(1.0-smoothstep(.82,.92,t));
+   c=vec3f(.38,.88,.70);
+   m=(bowl*.38+(bowlSideL+bowlSideR)*.50+rim*.65)+vapor1*.62+vapor2*.52+vapor3*.40+
+    (canopyL+canopyR)*.62+dew*.28;
+   h=(vapor1*.28+vapor2*.25+vapor3*.20)+(canopyL+canopyR)*.24+dew*.10;
+  }else{
+   // Herb table: a pestle compresses a broad leaf bed into one infusion;
+   // the formed remedy settles back into the mortar in a single clear drop.
+   let table=line(q.y-.65,.07)*band(q.x,-.76,.76);
+   let tableFront=line(q.y-.76,.04)*band(q.x,-.64,.64);
+   let bowl=abs(length(vec2f(q.x*.92,(q.y-.18)*1.18))-.40);
+   let mortar=line(bowl,.052)*band(q.y,-.12,.58);
+   let herbs=line(q.y-(.25+.055*sin(q.x*4.0)),.085)*band(q.x,-.29,.29)*smoothstep(.05,.24,t)*(1.0-smoothstep(.32,.44,t));
+   let press=smoothstep(.15,.30,t)*(1.0-smoothstep(.43,.53,t));
+   let pestleX=.05+.18*sin(u*4.2);
+   let pestleTip=vec2f(pestleX,.05+.22*(1.0-press));
+   let pestle=line(q.x-pestleX-.10*(q.y+.19),.055)*band(q.y,-.52,.30);
+   let pressContact=line(q.y-pestleTip.y,.045)*band(q.x,pestleX-.17,pestleX+.17)*press;
+   let infusion=smoothstep(.39,.54,t)*(1.0-smoothstep(.76,.88,t));
+   let dropY=mix(-.33,.20,clamp((u-.42)/.19,0.0,1.0));
+   let drop=line(length(vec2f((q.x-.02)*.78,q.y-dropY))-.105,.045)*infusion;
+   let remedy=line(q.y-(.47-.05*sin(u*6.0)),.065)*band(q.x,-.25,.25)*smoothstep(.58,.72,t);
+   let wash=line(q.y-(.37+.07*sin(q.x*4.0-u*3.0)),.06)*band(q.x,-.31,.31)*smoothstep(.70,.82,t)*(1.0-smoothstep(.86,.95,t));
+   c=vec3f(.64,.88,.44);
+   m=table*.44+tableFront*.46+mortar*.66+herbs*.70+pestle*.55+pressContact*.42+drop*.9+remedy*.58+wash*.68;
+   h=pressContact*.24+drop*.54+remedy*.24+wash*.32;
   }
  let a=clamp((m+h*.58)*env*.78,0.0,.84);return vec4f(c*a,a);
 }`;

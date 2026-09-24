@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-incomplete-diagnostics-v53";
-const CACHE_NAME = "dva-static-webgpu-incomplete-diagnostics-v53";
+const RUNTIME_RELEASE = "fighter-slash-main-v54";
+const CACHE_NAME = "dva-static-fighter-slash-main-v54";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -18,6 +18,9 @@ const STATIC_ASSETS = [
   "/assets/generated/acceleration-body-original-v909.png",
   "/assets/generated/overheal-body-original-v913.png",
   "/assets/generated/mana-body-original-v903.png",
+  "/assets/generated/physical-motion-white-hood-slash-v483-webgpu-alpha-v1.png",
+  "/assets/generated/physical-motion-blue-dress-slash-v483-webgpu-alpha-v1.png",
+  "/assets/generated/physical-motion-male-bot-slash-v465-webgpu-alpha-v1.png",
   "/assets/generated/philia-taser-switch-front-20260922.png",
   "/assets/generated/philia-taser-switch-back-20260922.png",
   "/assets/generated/philia-taser-switch-left-20260922.png",
@@ -429,6 +432,7 @@ const STATIC_ASSETS = [
   "/webgpu-sunbeam-e.js",
   "/webgpu-sunbeam-sol-design.js",
   "/webgpu-sunbeam-sol-e.js",
+  "/webgpu-fighter-energy-e.js",
   "/webgpu-sunbeam-sol-sfx.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",
@@ -892,6 +896,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-sunbeam-e.js",
   "/webgpu-sunbeam-sol-design.js",
   "/webgpu-sunbeam-sol-e.js",
+  "/webgpu-fighter-energy-e.js",
   "/webgpu-sunbeam-sol-sfx.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",

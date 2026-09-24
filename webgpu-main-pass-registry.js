@@ -52,6 +52,7 @@
     floraE: root.DvaWebGPUFloraE || (typeof require === 'function' ? require('./webgpu-flora-e.js') : null),
     healE: root.DvaHealAstraE || (typeof require === 'function' ? require('./webgpu-heal-astra-prototype.js') : null),
     sunbeamE: root.DvaSunbeamSolE || (typeof require === 'function' ? require('./webgpu-sunbeam-sol-e.js') : null),
+    fighterEnergyE: root.DvaWebGPUFighterEnergyE || (typeof require === 'function' ? require('./webgpu-fighter-energy-e.js') : null),
     gravityFieldE: root.DvaWebGPUGravityFieldE || (typeof require === 'function' ? require('./webgpu-gravity-field-e.js') : null),
     rigidItemImpactE: root.DvaWebGPURigidItemImpactE || (typeof require === 'function' ? require('./webgpu-rigid-item-impact-e.js') : null),
     bottleShardsE: root.DvaWebGPUBottleShardsE || (typeof require === 'function' ? require('./webgpu-bottle-shards-e.js') : null),
@@ -81,7 +82,7 @@
     'hud', 'minimap', 'modeBanner', 'lighting', 'killAnimation', 'sensory',
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
-    'bodyBenefit', 'staminaBenefitE', 'manaBenefitE', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
+    'bodyBenefit', 'staminaBenefitE', 'manaBenefitE', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'fighterEnergyE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
     'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E', 'corridorObjectUseE', 'roomObjectUseE',
     'taskCompletion', 'headMarker', 'mysteryBoxRevealE']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -158,7 +159,7 @@
       preparationSummons: 'create', players: 'createTextureCache',
       playerNameplates: 'create', headMarkers: 'create',
       gunnerAim: 'create', killCamera: 'create', hitEffects: 'record',
-      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', staminaBenefitE: 'create', manaBenefitE: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
+      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', staminaBenefitE: 'create', manaBenefitE: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', fighterEnergyE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
       attackTargets: 'record', taskIndicators: 'create', hud: 'create',
       minimap: 'create', modeBanner: 'create', killBloom: 'create',
       killAnimation: 'create', sensory: 'enqueue', markerExplanation: 'create',
@@ -286,6 +287,7 @@
           } } : {}),
           record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
+      add('fighterEnergyE', modules.fighterEnergyE.create(), 'record');
       for (const name of ['gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
         'archiveCabinetE', 'cableSpoolE']) {
         const pass = modules[name].create({ renderer, frameOwner: renderer });

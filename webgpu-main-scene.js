@@ -331,6 +331,19 @@
                 (!Array.isArray(event.input.submittedHands) ||
                   !event.input.submittedHands.length)))
             throw new TypeError(`Magic event ${index} needs one event-bound Sunbeam path`);
+        } else if (event?.type === 'fighterEnergyE') {
+          const source = event.input?.scene?.events?.[0];
+          const actor = event.input?.scene?.players?.find(player =>
+            String(player?.id ?? '') === String(source?.playerId ?? ''));
+          const elapsed = Number(event.input?.scene?.nowMs) - Number(source?.startedAt);
+          if (typeof passes.fighterEnergyE?.record !== 'function' ||
+              event.input?.scene?.events?.length !== 1 || source?.type !== 'fighter-slash' ||
+              String(source.id ?? '') !== id || !String(source.playerId ?? '') || !actor ||
+              ![source.x, source.y, source.targetX, source.targetY, source.startedAt,
+                event.input.scene.nowMs, event.input.camera?.x, event.input.camera?.y,
+                event.input.zoom].every(Number.isFinite) ||
+              !(event.input.zoom > 0) || elapsed < 0 || elapsed >= 440)
+            throw new TypeError(`Magic Fighter slash ${id} needs one live source-owned path`);
         } else if (event?.type === 'healE') {
           const effect = event.input?.effect, planned = event.input?.planned;
           if (typeof passes.healE?.record !== 'function' || effect?.type !== 'flora' ||
@@ -637,6 +650,21 @@
         const commands = summonInput ? input.createCommands({ entries, arrivalFor,
           summonResult: results.preparationSummons, viewport }) : input.commands;
         if (!Array.isArray(commands)) throw new TypeError('Synchronous player commands required');
+        const slashOwners = new Set();
+        for (const command of commands) if (command?.movementMode === 'fighter-slash') {
+          const id = String(command.sourceEffectId ?? '');
+          const event = stages.magicEffects.events.find(item =>
+            item.type === 'fighterEnergyE' && String(item.effectId) === id);
+          const expired = stages.magicEffects.omitted.some(item =>
+            String(item.effectId) === id && item.reason === 'fighter-slash-visual-outside-lifetime' &&
+            String(item.playerId) === String(command.playerId));
+          const source = event?.input?.scene?.events?.[0];
+          if (!id || slashOwners.has(id) ||
+              !stages.magicEffects.sourceEffectIds.some(sourceId => String(sourceId) === id) ||
+              !(event && String(source?.playerId) === String(command.playerId) || expired))
+            throw new Error(`Fighter slash pose lacks its same-frame source: ${id}`);
+          slashOwners.add(id);
+        }
         frame.stage('world:players:sprite');
         const markerViewport = Object.freeze({ ...viewport, generation: input.markerGeneration });
         commands.forEach((command, index) => {
@@ -937,6 +965,14 @@
                 outcome.plan?.causeId !== effect.sunbeamCausalId ||
                 outcome.plan?.actorElapsedMs !== input.elapsed)
               throw new Error(`Magic Sunbeam ${event.effectId} was not drawn from its hands`);
+          } else if (event.type === 'fighterEnergyE') {
+            const outcome = need('fighterEnergyE', 'record').record({ frame, target,
+              viewport, ...event.input });
+            if (outcome?.drawn !== 1 || outcome.effects?.length !== 1 ||
+                outcome.effects[0]?.id !== String(event.effectId) ||
+                outcome.effects[0]?.kind !== 'slash' ||
+                !Array.isArray(outcome.commands) || !outcome.commands.length)
+              throw new Error(`Magic Fighter slash ${event.effectId} was not drawn once`);
           } else if (event.type === 'healE') {
             if (!healRecorded.has(String(event.effectId)))
               throw new Error(`Magic Heal ${event.effectId} lacks its same-frame actor and both sides`);
