@@ -955,7 +955,8 @@ function drawAuthoredSunbeamPose(player, data, ghost, action, atlasId, progress)
         Math.hypot(directionX, directionY) > 1e-3) {
       sunbeamLive.poseReceipts.set(String(source.id), Object.freeze({
         effect: Object.freeze({ id: String(source.id), type: 'flora-sunbeam',
-          playerId: String(player.id), startedAt: source.startedAt,
+          playerId: String(player.id), variant: source.variant,
+          sunbeamCausalId: source.sunbeamCausalId, startedAt: source.startedAt,
           duration: source.duration, handWorlds,
           sourceWorld: { x: source.x, y: source.y },
           targetWorld: { x: source.targetX, y: source.targetY },

@@ -140,33 +140,43 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   let lateral = dot(pixel - a, vec2f(-tangent.y, tangent.x));
   let scale = max(0.25, p.energy.w) * (p.viewport.z + p.viewport.w) * 0.5;
   let motion = select(time, 0.35, p.control.z > 0.5);
-  let movingEnergy = select(0.88 + 0.12 * cos(6.28318 * (1.15 * t - 0.55 * motion)),
-    1.0, p.control.z > 0.5);
-  // World-space PH geometry: a short palm supply, broad continuous carrier,
-  // and two broad in-face shoulders. Widths are scaled once into physical px.
-  let sourceWidth = 9.0 * exp(-max(along, 0.0) / (42.0 * scale));
-  let width = (19.0 + 2.0 * (1.0 - t) * (1.0 - t)) * scale + sourceWidth * scale;
+  let worldLength = max(rayLength / scale, 0.001);
+  let visibleWorld = worldLength;
+  let visiblePhysical = visibleWorld * scale;
+  let visibleT = clamp(along / max(visiblePhysical, 1.0), 0.0, 1.0);
+  // One connected PH silhouette: palm throat, broadening, shallow waist,
+  // broad body, then finite taper at the currently visible transport front.
+  let throatLength = min(46.0, 0.16 * worldLength) * scale;
+  let throat = smoothstep(0.0, max(throatLength, 1.0), along);
+  let broadWorld = 20.5 + 4.0 * exp(-pow((t - 0.15) / 0.13, 2.0))
+    - 2.0 * exp(-pow((t - 0.38) / 0.13, 2.0))
+    + 3.0 * exp(-pow((t - 0.62) / 0.20, 2.0));
+  let tip = 1.0 - 0.68 * smoothstep(0.78, 0.99, visibleT);
+  let width = mix(9.0, broadWorld, throat) * tip * scale;
   let edgeAA = max(fwidth(abs(lateral)), 1.0);
-  let bodySection = 1.0 - smoothstep(width - 3.0 * scale - edgeAA,
-    width + 2.0 * scale + edgeAA, abs(lateral));
-  let sourceGate = smoothstep(-12.0 * scale, 8.0 * scale, along);
-  let endSpan = min(55.0 * scale, 0.28 * rayLength);
-  let terminusGate = 1.0 - smoothstep(rayLength - endSpan,
-    rayLength + 2.0 * scale, along);
-  let carrier = sourceGate * terminusGate * bodySection * p.energy.z;
-  let flatCore = 1.0 - smoothstep(7.0 * scale, 12.0 * scale, abs(lateral));
-  let shoulder = exp(-pow((abs(lateral) - 0.64 * width) / max(0.30 * width, 1.0), 2.0)) * bodySection;
-  let ovalDistance = length(vec2f((along - 19.0 * scale) / (43.0 * scale), lateral / (27.0 * scale)));
-  let sourceOval = 1.0 - smoothstep(0.78, 1.08, ovalDistance);
-  let supplyEnd = min(64.0 * scale, rayLength * 0.45);
-  let supply = sourceOval * (1.0 - smoothstep(37.0 * scale, max(37.1 * scale, supplyEnd), along)) * p.energy.y;
-  let coverage = max(carrier * (0.55 + 0.28 * flatCore + 0.17 * shoulder * movingEnergy), 0.72 * supply);
-  // OBS glow remains subordinate to the authored source and column masks.
-  let localGlow = 0.11 * carrier * exp(-pow(abs(lateral) / (width + 15.0 * scale), 2.0)) +
-    0.12 * supply * exp(-pow(abs(lateral) / (38.0 * scale), 2.0));
-  let alpha = clamp(coverage + localGlow, 0.0, 0.88);
-  let straightColor = mix(vec3f(1.0,0.58,0.12), vec3f(1.0,0.99,0.76),
-    clamp(0.25 + 0.55 * flatCore + 0.20 * shoulder, 0.0, 1.0));
+  let cross = 1.0 - smoothstep(width - 5.0 * scale - edgeAA,
+    width + 5.0 * scale + edgeAA, abs(lateral));
+  let sourceGate = smoothstep(-7.0 * scale, 5.0 * scale, along);
+  let tailSpan = min(95.0 * scale, 0.25 * visiblePhysical);
+  let attenuation = 1.0 - smoothstep(visiblePhysical - tailSpan,
+    visiblePhysical + 3.0 * scale, along);
+  let transportGate = select(0.0, 1.0, along <= visiblePhysical + 3.0 * scale);
+  let ph = sourceGate * attenuation * cross * transportGate * p.energy.z;
+  let s = lateral / max(width, 1.0);
+  let phaseDrift = select(0.23 * sin(6.28318 * (0.82 * t - 0.20 * motion)) * sin(3.14159 * t),
+    0.0, p.control.z > 0.5);
+  let broadHeart = exp(-pow((s - phaseDrift) / 0.62, 2.0));
+  let oblique = 0.5 + 0.5 * cos(6.28318 * (0.68 * t + 0.28 * s - 0.18 * motion));
+  let radiance = 0.62 + 0.25 * broadHeart + 0.13 * oblique;
+  let phAlpha = ph * radiance;
+  // OBS shares the PH longitudinal masks and fades softly beyond its edge.
+  let obsRadius = width + 17.0 * scale;
+  let observation = sourceGate * attenuation * transportGate * p.energy.z * 0.14
+    * exp(-pow(abs(lateral) / max(obsRadius, 1.0), 2.0));
+  let alpha = clamp(phAlpha * p.energy.x + observation * p.energy.x, 0.0, 0.87);
+  let warm = vec3f(1.0,0.68,0.25);
+  let white = vec3f(1.0,0.985,0.79);
+  let straightColor = mix(warm, white, clamp(0.28 + 0.55 * broadHeart + 0.17 * oblique, 0.0, 1.0));
   return vec4f(straightColor * alpha, alpha);
 }
 fn unionPremultiplied(a: vec4f, b: vec4f) -> vec4f {
@@ -177,10 +187,9 @@ fn unionPremultiplied(a: vec4f, b: vec4f) -> vec4f {
   if (p.control.x > 1.5) {
     light = unionPremultiplied(light, rayLight(position.xy, p.ray1, p.control.y));
   }
-  let alpha = clamp(light.a * p.energy.x, 0.0, 0.97);
-  // The transparent live overlay uses premultiplied-alpha presentation.
-  let rgb = light.rgb * p.energy.x;
-  return vec4f(rgb, alpha);
+  // rayLight already applies the single lifetime envelope and premultiplies
+  // each source. A second fade here would dim onset and decay quadratically.
+  return light;
 }
 `;
 

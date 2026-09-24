@@ -251,6 +251,9 @@
           if (typeof passes.sunbeamE?.record !== 'function' ||
               effect?.type !== 'flora-sunbeam' || String(effect?.id ?? '') !== id ||
               String(effect.playerId ?? '') !== event.input.playerId ||
+              typeof effect.variant !== 'string' || !effect.variant ||
+              (effect.sunbeamCausalId != null &&
+                (typeof effect.sunbeamCausalId !== 'string' || !effect.sunbeamCausalId)) ||
               ![effect.targetX, effect.targetY, effect.x, effect.y,
                 event.input.elapsed, event.input.now].every(Number.isFinite) ||
               !(effect.duration > 0) ||
@@ -736,7 +739,8 @@
             const scene = { nowMs: input.now, reducedMotion: input.reducedMotion,
               effects: [{
                 id: String(event.effectId), type: 'flora-sunbeam',
-                playerId: input.playerId, handWorlds: hands,
+                playerId: input.playerId, variant: effect.variant,
+                sunbeamCausalId: effect.sunbeamCausalId, handWorlds: hands,
                 sourceWorld: { x: effect.x, y: effect.y }, facing,
                 targetWorld: { x: effect.targetX, y: effect.targetY },
                 startedAt: input.now - input.elapsed, duration: effect.duration }] };
