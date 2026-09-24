@@ -32777,7 +32777,7 @@ const version = "overheal-body-v913";
     ])
   );
   const fullMapComposites = {
-    station: image("assets/generated/field-aurelia-corridor-objects-v317.webp")
+    station: image("assets/generated/field-aurelia-corridor-objects-v318.webp")
   };
   const tacticsStoryboard = new Image();
   const tacticsPlayerHood = new Image();

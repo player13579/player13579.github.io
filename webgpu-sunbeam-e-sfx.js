@@ -3,15 +3,20 @@
   const MAX_GAIN = 0.085, MAX_CUE_MS = 600, MAX_LATE_MS = 180;
   const RETENTION_MS = 30000, MAX_ENTRIES = 1024, MAX_CUES_PER_SECOND = 5;
   const VARIANTS = Object.freeze(['refraction:piercing', 'scattering:piercing', 'diffraction:piercing']);
+  // The 1200ms visual model is represented in a compressed 600ms sound
+  // envelope: supply 0-114ms, arrival 114-186ms, carrier 186-516ms, and
+  // non-impact dissipation/supply-stop 516-600ms. Nothing asserts a hit.
+  const ENVELOPE = Object.freeze({ supplyEndMs: 114, arrivalEndMs: 186,
+    carrierEndMs: 516, dissipationEndMs: 600 });
   const LAYERS = Object.freeze([
-    { shape: 'sine', frequencyHz: 118, endFrequencyHz: 164, amplitude: .040, offsetMs: 0, durationMs: 200, layer: 'hand-charge-low' },
-    { shape: 'triangle', frequencyHz: 354, endFrequencyHz: 528, amplitude: .027, offsetMs: 18, durationMs: 176, layer: 'paired-hand-optical-rise' },
-    { shape: 'noise', frequencyHz: 1100, endFrequencyHz: 700, amplitude: .009, offsetMs: 0, durationMs: 44, layer: 'soft-focus-air' },
-    { shape: 'noise', frequencyHz: 1480, endFrequencyHz: 980, amplitude: .014, offsetMs: 128, durationMs: 48, layer: 'single-emission-edge' },
-    { shape: 'sine', frequencyHz: 196, endFrequencyHz: 247, amplitude: .025, offsetMs: 152, durationMs: 330, layer: 'finite-optical-body' },
-    { shape: 'triangle', frequencyHz: 588, endFrequencyHz: 784, amplitude: .028, offsetMs: 174, durationMs: 280, layer: 'refracted-glass-core' },
-    { shape: 'sine', frequencyHz: 988, endFrequencyHz: 740, amplitude: .021, offsetMs: 390, durationMs: 155, layer: 'beam-convergence' },
-    { shape: 'triangle', frequencyHz: 494, endFrequencyHz: 392, amplitude: .018, offsetMs: 420, durationMs: 160, layer: 'soft-optical-release' }
+    { shape: 'sine', frequencyHz: 118, endFrequencyHz: 164, amplitude: .040, offsetMs: 0, durationMs: 88, layer: 'hand-charge-low' },
+    { shape: 'triangle', frequencyHz: 354, endFrequencyHz: 528, amplitude: .027, offsetMs: 18, durationMs: 84, layer: 'hand-supply-rise' },
+    { shape: 'noise', frequencyHz: 1100, endFrequencyHz: 700, amplitude: .009, offsetMs: 32, durationMs: 30, layer: 'carrier-front-soft-edge' },
+    { shape: 'noise', frequencyHz: 1480, endFrequencyHz: 980, amplitude: .014, offsetMs: 94, durationMs: 34, layer: 'single-emission-edge' },
+    { shape: 'sine', frequencyHz: 196, endFrequencyHz: 247, amplitude: .025, offsetMs: 114, durationMs: 72, layer: 'carrier-arrival-tone' },
+    { shape: 'triangle', frequencyHz: 588, endFrequencyHz: 392, amplitude: .028, offsetMs: 186, durationMs: 330, layer: 'finite-carrier-body' },
+    { shape: 'sine', frequencyHz: 988, endFrequencyHz: 620, amplitude: .012, offsetMs: 516, durationMs: 84, layer: 'terminal-dissipation-tail' },
+    { shape: 'triangle', frequencyHz: 494, endFrequencyHz: 392, amplitude: .018, offsetMs: 522, durationMs: 78, layer: 'source-supply-stop' }
   ].map(Object.freeze));
   function createPlanner({ maxEntries = MAX_ENTRIES, retentionMs = RETENTION_MS,
     maxLateMs = MAX_LATE_MS, maxCuesPerSecond = MAX_CUES_PER_SECOND } = {}) {
@@ -107,7 +112,7 @@
     return Object.freeze({ admit, enterRoom, has: id => consumed.has(`sunbeam:${id}`),
       size: () => consumed.size, rateSize: () => admittedAt.length });
   }
-  const api = Object.freeze({ MAX_GAIN, MAX_CUE_MS, MAX_LATE_MS, RETENTION_MS,
+  const api = Object.freeze({ MAX_GAIN, MAX_CUE_MS, MAX_LATE_MS, RETENTION_MS, ENVELOPE,
     MAX_ENTRIES, MAX_CUES_PER_SECOND, VARIANTS, LAYERS, createPlanner });
   root.DvaWebGPUSunbeamESfx = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

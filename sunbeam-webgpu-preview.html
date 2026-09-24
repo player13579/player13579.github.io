@@ -37,7 +37,7 @@
 <main>
   <div class="eyebrow">DEFENDERS VS ATTACKERS · SHARED WEBGPU E</div>
   <h1>Sunbeam / サンビーム</h1>
-  <p>ゲームと同じ <code>DvaWebGPUSunbeamE</code> を実GPUで描画します。源点は採用姿勢から登録された手位置、終点は上限内のプレビュー用座標です（ゲーム本編では壁判定後のサーバー座標を使います）。演出は始動・到達フラッシュ・持続・収束を確認できます。</p>
+  <p>ゲームと同じ <code>DvaWebGPUSunbeamE</code> を実GPUで描画します。源点は採用姿勢から登録された手位置、終点は上限内のプレビュー用座標です（ゲーム本編では壁判定後のサーバー座標を使います）。手元の供給・光束の伝搬・終点での減衰・収束を確認できます。</p>
   <div class="stage-wrap"><div class="stage">
     <canvas id="sunbeam" aria-label="WebGPU Sunbeam E preview"></canvas>
     <div class="tag">980 × 620 logical gameplay surface · source hand(s) → bounded preview endpoint</div>
@@ -60,8 +60,8 @@
 <script src="webgpu-primitives.js?v=sunbeam-preview-v1"></script>
 <script src="webgpu-compositing.js?v=sunbeam-preview-v1"></script>
 <script src="webgpu-renderer.js?v=sunbeam-preview-v1"></script>
-<script src="webgpu-sunbeam-e.js?v=sunbeam-preview-v4"></script>
-<script src="webgpu-sunbeam-e-sfx.js?v=sunbeam-preview-v1"></script>
+<script src="webgpu-sunbeam-e.js?v=sunbeam-preview-v5"></script>
+<script src="webgpu-sunbeam-e-sfx.js?v=sunbeam-preview-v2"></script>
 <script src="webgpu-e-cue-player.js?v=sunbeam-preview-v1"></script>
 <script src="webgpu-sunbeam-cue-adapter.js?v=sunbeam-preview-v1"></script>
 <script src="sunbeam-webgpu-preview.js?v=sunbeam-preview-v2"></script>

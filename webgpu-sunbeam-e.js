@@ -82,12 +82,11 @@
       const reducedMotion = Boolean(scene.reducedMotion);
       const extension = reducedMotion ? 1 : smooth(progress / .19);
       const tail = 1 - smooth((progress - .86) / .14);
-      const pulse = reducedMotion ? .94 : .9 + .1 * Math.sin(progress * Math.PI * 8);
-      const alpha = clamp(tail * pulse);
-      const arrival = !reducedMotion && progress >= .19 && progress <= .31
-        ? Math.sin(Math.PI * (progress - .19) / .12) : 0;
-      const flashAlpha = clamp(arrival * tail);
-      const impactAlpha = clamp(reducedMotion ? .26 * tail : Math.max(flashAlpha, .16 * alpha));
+      // PH supply, propagation and dispersal use one source clock. The
+      // server's endpoint has no wall/target classification, so it cannot flash.
+      const supply = reducedMotion ? .94 : .22 + .78 * smooth(progress / .08);
+      const transport = reducedMotion ? 1 : smooth(progress / .19);
+      const alpha = clamp(tail);
       const rays = hands.map(hand => {
         const dxWorld = target.x - hand.x, dyWorld = target.y - hand.y;
         const handX = (hand.x - camera.x) * zoom;
@@ -105,7 +104,7 @@
       return { id, playerId: String(effect.playerId ?? ''), progress,
         reducedMotion, hand: firstRay.hand, target: firstRay.target,
         angle: firstRay.angle, distance: firstRay.distance,
-        alpha, flashAlpha, impactAlpha, rays,
+        alpha, supply, transport, dispersal: 1 - tail, rays,
         handWorlds: hands.map(hand => ({ x: hand.x, y: hand.y })),
         sourceWorld: { x: source.x, y: source.y }, targetWorld: { x: target.x, y: target.y },
         serverDistance, duration: effect.duration, startedAt: effect.startedAt };
@@ -119,7 +118,7 @@ struct Params {
   viewport: vec4f, // physical width, height, logical-to-physical x, y
   ray0: vec4f,     // measured hand x/y, extended endpoint x/y
   ray1: vec4f,
-  energy: vec4f,   // alpha, arrival, impact, logical zoom
+  energy: vec4f,   // PH envelope, supply, transport, logical zoom
   control: vec4f,  // hand count, progress, reduced motion, reserved
 };
 @group(0) @binding(0) var<uniform> p: Params;
@@ -140,41 +139,39 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   let axis = b - a;
   let rayLength = max(length(axis), 0.001);
   let tangent = axis / rayLength;
-  let normal = vec2f(-tangent.y, tangent.x);
   let along = dot(pixel - a, tangent);
   let t = clamp(along / rayLength, 0.0, 1.0);
-  let lateral = dot(pixel - a, normal);
+  let lateral = dot(pixel - a, vec2f(-tangent.y, tangent.x));
   let scale = max(0.25, p.energy.w) * (p.viewport.z + p.viewport.w) * 0.5;
-  let motion = select(time, 0.38, p.control.z > 0.5);
-  // Analytic curves are continuous from source to target; there are no joints.
-  let drift = sin(3.14159265 * t) * sin(6.2831853 * t - motion * 5.1) * 3.2 * scale;
-  let flow = sin(3.14159265 * t) * sin(11.7 * t - motion * 8.3) * 8.0 * scale;
-  let endGate = smoothstep(-9.0 * scale, 5.0 * scale, along) *
-    (1.0 - smoothstep(rayLength - 9.0 * scale, rayLength + 10.0 * scale, along));
-  let broad = bell(lateral - drift, 40.0 * scale) * endGate;
-  let gold = bell(lateral - drift, 22.0 * scale) * endGate;
-  let core = bell(lateral - drift * 0.30, 7.3 * scale) * endGate;
-  let current = bell(lateral - flow - 15.0 * scale, 5.7 * scale) *
-    bell(t - 0.51, 0.43) * endGate;
-  let sourceDistance = length(pixel - a);
-  let endDistance = length(pixel - b);
-  let corona = bell(sourceDistance, 35.0 * scale) * 0.32 +
-    bell(sourceDistance, 13.0 * scale) * 0.42;
-  let arrival = p.energy.y;
-  let impact = (bell(endDistance, 37.0 * scale) * 0.22 +
-    bell(endDistance, 13.0 * scale) * (0.25 + 0.30 * arrival)) * p.energy.z;
-  let warm = vec3f(1.0, 0.49, 0.095) * broad * 0.21 +
-    vec3f(1.0, 0.77, 0.25) * gold * 0.46;
-  let white = vec3f(1.0, 0.985, 0.86) * core * 0.96;
-  let flowColor = vec3f(1.0, 0.76, 0.33) * current * 0.22;
-  let blooms = vec3f(1.0, 0.72, 0.22) * (corona + impact);
-  let intensity = broad * 0.14 + gold * 0.33 + core * 0.77 +
-    current * 0.13 + corona * 0.48 + impact * 0.56;
-  return vec4f(warm + white + flowColor + blooms, intensity);
+  let motion = select(time, 0.35, p.control.z > 0.5);
+  let movingEnergy = select(0.92 + 0.08 * sin(7.85 * t - motion * 5.0),
+    1.0, p.control.z > 0.5);
+  // PH1: emission supplied at the measured hand, transported along one
+  // continuous axis, then dispersed at the authoritative finite terminus.
+  let sourceGate = smoothstep(-7.0 * scale, 7.0 * scale, along);
+  let terminusGate = 1.0 - smoothstep(rayLength - 31.0 * scale,
+    rayLength + 4.0 * scale, along);
+  let column = sourceGate * terminusGate * p.energy.z * movingEnergy;
+  let inner = bell(lateral, 7.0 * scale) * column;
+  let body = bell(lateral, 24.0 * scale) * column;
+  let supplyCore = bell(length(pixel - a), 12.0 * scale) * p.energy.y;
+  let worldRgb = vec3f(1.0, 0.985, 0.79) * inner * 0.86 +
+    vec3f(1.0, 0.72, 0.19) * body * 0.48 +
+    vec3f(1.0, 0.88, 0.47) * supplyCore * 0.67;
+  let worldCoverage = inner * 0.66 + body * 0.31 + supplyCore * 0.48;
+  // OBS1: low local glow is bound to PH1's actual source/column mask. It
+  // cannot create an endpoint impact or replace the column silhouette.
+  let sourceGlow = bell(length(pixel - a), 37.0 * scale) * p.energy.y * 0.14;
+  let columnGlow = bell(lateral, 51.0 * scale) * column * 0.095;
+  let observation = sourceGlow + columnGlow;
+  let rgb = worldRgb + vec3f(1.0, 0.68, 0.17) * observation;
+  return vec4f(rgb, worldCoverage + observation);
 }
 @fragment fn sunbeamFragment(@builtin(position) position: vec4f) -> @location(0) vec4f {
   var light = rayLight(position.xy, p.ray0, p.control.y);
-  if (p.control.x > 1.5) { light += rayLight(position.xy, p.ray1, p.control.y); }
+  if (p.control.x > 1.5) {
+    light = max(light, rayLight(position.xy, p.ray1, p.control.y));
+  }
   let alpha = clamp(light.a * p.energy.x, 0.0, 0.97);
   // The transparent live overlay uses premultiplied-alpha presentation.
   let rgb = min(light.rgb * p.energy.x, vec3f(alpha));
@@ -238,7 +235,7 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
         const values = new Float32Array([
           viewport.pixelWidth, viewport.pixelHeight, sx, sy,
           ...point(rays[0]), ...(rays[1] ? point(rays[1]) : point(rays[0])),
-          effect.alpha, effect.flashAlpha, effect.impactAlpha, zoom,
+          effect.alpha, effect.supply, effect.transport, zoom,
           rays.length, effect.progress, effect.reducedMotion ? 1 : 0, 0
         ]);
         if (!values.every(finite)) throw new Error('Sunbeam E shader values are not finite');
