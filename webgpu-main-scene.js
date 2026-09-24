@@ -269,6 +269,15 @@
               !['gain-stamina', 'gain-heal', 'gain-mana', 'gain-overheal'].includes(event.input.effect?.type) ||
               String(event.input.effect?.id ?? '') !== id)
             throw new TypeError(`Magic event ${index} needs one supported body benefit effect`);
+        } else if (event?.type === 'staminaBenefitE') {
+          const input = event.input, effect = input?.effect;
+          if (typeof passes.staminaBenefitE?.record !== 'function' ||
+              effect?.type !== 'gain-stamina' || String(effect.id ?? '') !== id ||
+              !Number.isFinite(input?.actorElapsedMs) || input.actorElapsedMs < 0 ||
+              ![effect.actorWorld?.x, effect.actorWorld?.y, input?.camera?.x,
+                input?.camera?.y, input?.zoom].every(Number.isFinite) ||
+              input.zoom <= 0 || !String(effect.causeId ?? ''))
+            throw new TypeError(`Magic stamina benefit ${id} needs one live body event`);
         } else if (event?.type === 'bodyBenefitExtra' || event?.type === 'statusTempo') {
           const extra = event.type === 'bodyBenefitExtra';
           const pass = extra ? passes.bodyBenefitExtra : passes.statusTempo;
@@ -497,6 +506,7 @@
       const markerHitTargets = [];
       const preparationHitTargets = [];
       const phenomenonSoundVisualReceipts = [];
+      const staminaBenefitSoundReceipts = [];
       const environmentSoundReceipts = [];
       const mysteryOpeningSoundReceipts = [];
       const healSoundVisualReceipts = [];
@@ -837,6 +847,20 @@
                 progress: (now - effect.startedAt) / duration
               }));
             }
+          } else if (event.type === 'staminaBenefitE') {
+            const outcome = need('staminaBenefitE', 'record').record({
+              ...event.input, frame, target, viewport
+            });
+            if (outcome?.drawn !== 1)
+              throw new Error(`Magic stamina benefit ${event.effectId} was not drawn`);
+            staminaBenefitSoundReceipts.push(Object.freeze({
+              effectId: event.effectId,
+              causeId: event.input.effect.causeId,
+              playerId: event.input.effect.playerId,
+              actorElapsedMs: event.input.actorElapsedMs,
+              x: event.input.effect.actorWorld.x,
+              y: event.input.effect.actorWorld.y
+            }));
           } else if (event.type === 'bodyBenefitExtra' || event.type === 'statusTempo') {
             const pass = event.type === 'bodyBenefitExtra' ? 'bodyBenefitExtra' : 'statusTempo';
             const outcome = need(pass, 'record').record({ frame, target, viewport,
@@ -953,6 +977,7 @@
         preparationHitTargets: Object.freeze(preparationHitTargets.slice()),
         minimapBounds: Object.freeze({ ...stages.minimap.scene.bounds }),
         phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()),
+        staminaBenefitSoundReceipts: Object.freeze(staminaBenefitSoundReceipts.slice()),
         environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()),
         mysteryOpeningSoundReceipts: Object.freeze(mysteryOpeningSoundReceipts.slice()),
         healSoundVisualReceipts: Object.freeze(healSoundVisualReceipts.slice()),

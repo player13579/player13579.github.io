@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-main-bootstrap-v33";
-const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v33";
+const RUNTIME_RELEASE = "webgpu-main-bootstrap-v35";
+const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v35";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -409,6 +409,8 @@ const STATIC_ASSETS = [
   "/webgpu-gravity-impacts.js",
   "/webgpu-grenade-impact.js",
   "/webgpu-body-benefit-pass.js",
+  "/webgpu-stamina-benefit-e.js",
+  "/webgpu-stamina-benefit-sfx.js",
   "/webgpu-body-benefit-extra.js",
   "/webgpu-status-tempo-e.js",
   "/webgpu-barrier-e.js",
@@ -550,15 +552,6 @@ const STATIC_ASSETS = [
   "/assets/generated/sophia-front-five-v753.png",
   "/assets/generated/philia-front-nine-v752.png",
   "/assets/generated/philia-drink-four-v752.png",
-  "/assets/generated/benefit-stamina-v740.png",
-  "/assets/generated/benefit-heal-v740.png",
-  "/assets/generated/benefit-mana-v740.png",
-  "/assets/generated/benefit-overheal-v740.png",
-  "/assets/generated/benefit-acceleration-v740.png",
-  "/assets/generated/benefit-luck-boost-v740.png",
-  "/assets/generated/benefit-status-recovery-v740.png",
-  "/assets/generated/benefit-cooldown-reduction-v740.png",
-  "/assets/generated/benefit-credits-v740.png",
   "/assets/generated/enhance-hold-marker-v737.png",
   "/assets/generated/renki-coalescence-v736.png",
   "/assets/generated/renki-tenfold-release-v736.png",
@@ -876,6 +869,8 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-gravity-impacts.js",
   "/webgpu-grenade-impact.js",
   "/webgpu-body-benefit-pass.js",
+  "/webgpu-stamina-benefit-e.js",
+  "/webgpu-stamina-benefit-sfx.js",
   "/webgpu-body-benefit-extra.js",
   "/webgpu-status-tempo-e.js",
   "/webgpu-barrier-e.js",

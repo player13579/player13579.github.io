@@ -12247,6 +12247,8 @@ function stopPhenomenonSoundOwner(owner) {
 }
 function stopAllPhenomenonSounds() {
   stopHealESfx();
+  for (const entry of staminaBenefitLive.players.values()) entry.player.destroy();
+  staminaBenefitLive.players.clear();
   for (const owner of [...PHENOMENON_SOUND_RECEIPTS.owners.values()]) stopPhenomenonSoundOwner(owner);
 }
 function rememberPhenomenonSoundId(id) {
@@ -12299,6 +12301,52 @@ function phenomenonSoundAvailable() {
   return state.screen === "game" && !state.audio.muted &&
     !isSensoryBlocked() && context?.state === "running" && master &&
     Number(master.gain?.value) > 0;
+}
+const staminaBenefitLive = { roomId: '', generation: -1, players: new Map(), played: new Set() };
+function commitStaminaBenefitSoundFrame(data, receipts) {
+  const live = staminaBenefitLive;
+  const roomId = String(data?.roomId || '');
+  const generation = state.roomSessionGeneration;
+  if (live.roomId !== roomId || live.generation !== generation) {
+    for (const entry of live.players.values()) entry.player.destroy();
+    live.players.clear();
+    live.played.clear();
+    live.roomId = roomId;
+    live.generation = generation;
+  }
+  const current = new Set((state.magicEffects || [])
+    .filter(effect => isBodyStaminaGainEffect(effect)).map(effect => String(effect.id)));
+  for (const [id, entry] of live.players) {
+    const actor = data?.players?.find(player => String(player.id) === entry.playerId);
+    if (!current.has(id) || !actor?.alive || actor.ejected || actor.inVent || actor.invisible) {
+      entry.player.destroy();
+      live.players.delete(id);
+    } else entry.player.setActorRate(displayETimeScale(actor, data));
+  }
+  if (!Array.isArray(receipts) || !phenomenonSoundAvailable() ||
+      IS_VERIFICATION_MODE || document.hidden || !window.DvaStaminaBenefitSfx?.createPlayer)
+    return;
+  for (const receipt of receipts) {
+    const id = String(receipt?.effectId ?? '');
+    const causeId = String(receipt?.causeId ?? '');
+    const actor = data?.players?.find(player => String(player.id) === String(receipt?.playerId));
+    if (!id || !causeId || !current.has(id) || !actor || live.played.has(causeId)) continue;
+    const mix = phenomenonSoundMix(actor, data);
+    if (!mix) continue;
+    try {
+      const player = window.DvaStaminaBenefitSfx.createPlayer({
+        context: state.audio.context, destination: state.audio.master });
+      player.enterRoom(roomId, generation);
+      if (player.start({ causeId, roomId, roomGeneration: generation,
+        phaseSeconds: receipt.actorElapsedMs / 1000,
+        actorRate: displayETimeScale(actor, data), volume: mix.volume,
+        frameSubmitted: true, visible: true, muted: false })) {
+        live.played.add(causeId);
+        while (live.played.size > 256) live.played.delete(live.played.values().next().value);
+        live.players.set(id, { player, playerId: String(actor.id) });
+      } else player.destroy();
+    } catch (_) { /* Audio may still be locked by the browser. */ }
+  }
 }
 function advancePhenomenonSound(effectId, kind, progress, player) {
   const cache = PHENOMENON_SOUND_RECEIPTS;
@@ -18209,6 +18257,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error('WebGPU main submitted without preparation pointer geometry');
     if (!Array.isArray(receipt.recordResult?.phenomenonSoundVisualReceipts))
       throw new Error("WebGPU main submitted without phenomenon sound receipts");
+    if (!Array.isArray(receipt.recordResult?.staminaBenefitSoundReceipts))
+      throw new Error('WebGPU main submitted without stamina benefit sound receipts');
     if (!Array.isArray(receipt.recordResult?.environmentSoundReceipts))
       throw new Error("WebGPU main submitted without environment sound receipts");
     if (!Array.isArray(receipt.recordResult?.sunbeamHandReceipts))
@@ -18262,6 +18312,7 @@ function pumpWebGPUMainAppDriver() {
     }
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
     flushLiveSunbeamSounds(receipt.recordResult.sunbeamHandReceipts, requestSerial);
+    commitStaminaBenefitSoundFrame(data, receipt.recordResult.staminaBenefitSoundReceipts);
     commitHealESfxVisualFrame(data, receipt.recordResult.healSoundVisualReceipts);
     commitVisibleVisualSoundFrame(data,
       receipt.recordResult.phenomenonSoundVisualReceipts,
@@ -21891,6 +21942,40 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     const sunbeamElapsed = type === "flora-sunbeam" ? sunbeamActorVisualElapsed(effect, data) : null;
     const elapsed = sunbeamElapsed == null ? now - effect.startedAt : sunbeamElapsed;
     const progress = clamp(elapsed / effect.duration, 0, 1);
+    if (type === 'gain-heal' && effect.variant === 'flora') {
+      omitted.push({ effectId: effect.id, reason: 'flora-heal-owned-by-heal-e' });
+      continue;
+    }
+    if (isBodyStaminaGainEffect(effect)) {
+      const staminaE = window.DvaStaminaBenefitE;
+      const staminaDurationMs = Number(staminaE?.DURATION_MS);
+      const player = gainEffectPlayer(effect);
+      if (!player || !player.alive || player.ejected || player.inVent || player.invisible) {
+        omitted.push({ effectId: effect.id, reason: 'stamina-benefit-player-not-visible' });
+        continue;
+      }
+      const actorElapsedMs = now - effect.startedAt;
+      if (actorElapsedMs < 0 || Number.isFinite(staminaDurationMs) && actorElapsedMs >= staminaDurationMs) {
+        omitted.push({ effectId: effect.id, reason: 'stamina-benefit-outside-visible-lifetime' });
+        continue;
+      }
+      if (player.x < camera.x - 180 || player.x > camera.x + viewport.width / zoom + 180 ||
+          player.y < camera.y - 180 || player.y > camera.y + viewport.height / zoom + 180) {
+        omitted.push({ effectId: effect.id, reason: 'stamina-benefit-outside-viewport' });
+        continue;
+      }
+      if (typeof staminaE?.create !== 'function' || !Number.isFinite(staminaDurationMs) ||
+          staminaDurationMs <= 0) {
+        unsupported.push({ index, type, id: effect.id, reason: 'stamina-benefit-e-unavailable' });
+        continue;
+      }
+      events.push({ type: 'staminaBenefitE', effectId: effect.id,
+        input: { effect: { ...effect, causeId: String(effect.id),
+          actorWorld: { x: player.x, y: player.y },
+          duration: staminaDurationMs },
+          actorElapsedMs, camera, zoom, reducedMotion } });
+      continue;
+    }
     if (isBodyStaminaGainEffect(effect) || isBodyHealGainEffect(effect) ||
         isBodyManaGainEffect(effect) || isBodyOverhealGainEffect(effect)) {
       const kind = type.slice("gain-".length);
@@ -22215,6 +22300,7 @@ function drawMagicEffects() {
   for (const effect of state.magicEffects) {
     if (effect?.type === 'flora-invisible' &&
         !floraInvisibleSelfVisibility(effect, state.data)) continue;
+    if (effect?.type === 'gain-heal' && effect.variant === 'flora') continue;
     const sunbeamElapsed = effect.type === "flora-sunbeam" ? sunbeamActorVisualElapsed(effect, state.data) : null;
     const progress = clamp(
       (sunbeamElapsed == null ? now - effect.startedAt : sunbeamElapsed) / effect.duration,

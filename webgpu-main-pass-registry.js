@@ -37,6 +37,7 @@
     gravityImpacts: root.DvaWebGPUGravityImpacts || (typeof require === 'function' ? require('./webgpu-gravity-impacts.js') : null),
     grenadeImpacts: root.DvaWebGPUGrenadeImpact || (typeof require === 'function' ? require('./webgpu-grenade-impact.js') : null),
     bodyBenefits: root.DvaWebGPUBodyBenefitPass || (typeof require === 'function' ? require('./webgpu-body-benefit-pass.js') : null),
+    staminaBenefitE: root.DvaStaminaBenefitE || (typeof require === 'function' ? require('./webgpu-stamina-benefit-e.js') : null),
     bodyBenefitExtra: root.DvaWebGPUBodyBenefitExtra || (typeof require === 'function' ? require('./webgpu-body-benefit-extra.js') : null),
     statusTempo: root.DvaWebGPUStatusTempoE || (typeof require === 'function' ? require('./webgpu-status-tempo-e.js') : null),
     barrierE: root.DvaWebGPUBarrierE || (typeof require === 'function' ? require('./webgpu-barrier-e.js') : null),
@@ -79,7 +80,7 @@
     'hud', 'minimap', 'modeBanner', 'lighting', 'killAnimation', 'sensory',
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
-    'bodyBenefit', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'cableSpoolE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
+    'bodyBenefit', 'staminaBenefitE', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'cableSpoolE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
     'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E', 'corridorObjectUseE', 'roomObjectUseE',
     'taskCompletion', 'headMarker', 'mysteryBoxRevealE']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -133,7 +134,7 @@
       preparationSummons: 'create', players: 'createTextureCache',
       playerNameplates: 'create', headMarkers: 'create',
       gunnerAim: 'create', killCamera: 'create', hitEffects: 'record',
-      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', cableSpoolE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
+      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', staminaBenefitE: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', cableSpoolE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
       attackTargets: 'record', taskIndicators: 'create', hud: 'create',
       minimap: 'create', modeBanner: 'create', killBloom: 'create',
       killAnimation: 'create', sensory: 'enqueue', markerExplanation: 'create',
@@ -226,6 +227,7 @@
         device: renderer.device }), 'record');
       borrow('grenadeImpacts', modules.grenadeImpacts);
       add('bodyBenefits', modules.bodyBenefits.create({ renderer }), 'record');
+      add('staminaBenefitE', modules.staminaBenefitE.create({ renderer, frameOwner: renderer }), 'record');
       add('bodyBenefitExtra', modules.bodyBenefitExtra.create({ frameOwner: renderer }), 'record');
       add('statusTempo', modules.statusTempo.create({ frameOwner: renderer }), 'record');
       for (const name of ['barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE']) {

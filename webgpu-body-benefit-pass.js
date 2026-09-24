@@ -4,13 +4,12 @@
 (function (root) {
   'use strict';
   const PROFILES = Object.freeze({
-    stamina: Object.freeze({ type: 'gain-stamina', key: 'staminaBodyRecovery', layer: 0,
-      sourceWidth: 1024, sourceHeight: 1536, duration: 1180 }),
-    heal: Object.freeze({ type: 'gain-heal', key: 'healBodyRecovery', layer: 1,
+    heal: Object.freeze({ type: 'gain-heal', key: 'healBodyRecovery', layer: 0, code: 1,
       sourceWidth: 941, sourceHeight: 1672, duration: 1180 }),
-    mana: Object.freeze({ type: 'gain-mana', key: 'manaBodyRecovery', layer: 2,
+    mana: Object.freeze({ type: 'gain-mana', key: 'manaBodyRecovery', layer: 1, code: 2,
       sourceWidth: 1024, sourceHeight: 1536, duration: 1240 }),
-    overheal: Object.freeze({ type: 'gain-overheal', key: null, layer: 3, duration: 1250 })
+    overheal: Object.freeze({ type: 'gain-overheal', key: null, layer: null, code: 3,
+      duration: 1250 })
   });
   const TEXTURE_WIDTH = 1024, TEXTURE_HEIGHT = 1672;
   const FLOATS_PER_EFFECT = 16;
@@ -37,14 +36,14 @@ fn over(bottom: vec4f, top: vec4f) -> vec4f { return top + bottom * (1.0 - top.a
 fn original(e: Effect, local: vec2f, offset: f32) -> vec4f {
   let sampleHeight = select(e.shape.z, e.shape.y, e.source.z > .5);
   let uv = vec2f(local.x / e.shape.x, (local.y - offset) / sampleHeight);
-  let value = textureSampleLevel(sources, sourceSampler, uv * e.source.xy, i32(e.phase.x), 0.0);
+  let value = textureSampleLevel(sources, sourceSampler, uv * e.source.xy, i32(e.phase.x) - 1, 0.0);
   if (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0))) { return vec4f(0.0); }
   return value;
 }
 fn baseOriginal(e: Effect, local: vec2f) -> vec4f {
   if (e.source.z < 1.5) { return original(e,local,0.0); }
   if (any(local < vec2f(0)) || local.x > e.shape.x || local.y > e.shape.z) { return vec4f(0); }
-  return textureSampleLevel(bases,sourceSampler,local * e.source.w / vec2f(textureDimensions(bases)),i32(e.phase.x),0.0);
+  return textureSampleLevel(bases,sourceSampler,local * e.source.w / vec2f(textureDimensions(bases)),i32(e.phase.x) - 1,0.0);
 }
 fn verticalMask(e: Effect, y: f32, low: f32, high: f32) -> f32 {
   let start = low * e.shape.y; let end = high * e.shape.y;
@@ -205,9 +204,9 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
     const kind = command.kind;
     const p = PROFILES[kind];
     if (!p) throw new TypeError('Unknown body benefit');
-    const width = kind === 'stamina' ? 88 : 104;
-    const height = kind === 'stamina' ? 132 : kind === 'heal' ? 1672 * 104 / 941 : 156;
-    const top = kind === 'overheal' ? -113 : kind === 'stamina' ? -94 : kind === 'heal' ? 31 - 1400 * 104 / 941 :
+    const width = 104;
+    const height = kind === 'heal' ? 1672 * 104 / 941 : 156;
+    const top = kind === 'overheal' ? -113 : kind === 'heal' ? 31 - 1400 * 104 / 941 :
       31 - 1386 * 104 / 1024;
     const pad = 14, visibleHeight = Math.ceil(height);
     const data = new Float32Array([
@@ -215,7 +214,7 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
       command.y + (top - pad) * command.scale,
       (width + pad * 2) * command.scale,
       (visibleHeight + pad * 2) * command.scale,
-      p.layer, Math.max(0, Math.min(1, command.elapsed / p.duration)),
+      p.code, Math.max(0, Math.min(1, command.elapsed / p.duration)),
       command.reduced ? 1 : 0, command.alpha,
       width, visibleHeight, height, pad,
       kind === 'overheal' ? 0 : p.sourceWidth / TEXTURE_WIDTH,
@@ -235,7 +234,7 @@ fn overhealAt(e: Effect, local: vec2f) -> vec4f {
           alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' } } }] },
       primitive: { topology: 'triangle-list' } });
     const texture = frameOwner.own(device.createTexture({ label: 'DVA authored body benefit sources',
-      size: [TEXTURE_WIDTH, TEXTURE_HEIGHT, 3], format: 'rgba8unorm', usage: 0x04 | 0x02 | 0x10 }));
+      size: [TEXTURE_WIDTH, TEXTURE_HEIGHT, 2], format: 'rgba8unorm', usage: 0x04 | 0x02 | 0x10 }));
     const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear',
       addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
     const images = new Map(), slots = [];
