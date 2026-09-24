@@ -4,8 +4,8 @@
   const MAX_LATE_MS = 180;
   const MAX_VOICES = 5;
   const MAX_GAIN = 0.075;
-  const CUE_DURATION_MS = 900;
-  const LAST_VOICE_END_MS = 810;
+  const CUE_DURATION_MS = 810;
+  const LAST_VOICE_END_MS = CUE_DURATION_MS;
   const MIN_AUDIBLE_TAIL_MS = 30;
   const EVENT_KIND = 'self-restoration';
 
@@ -65,7 +65,7 @@
       ? Math.min(8, Math.max(0.125, policy.actorTimeScale)) : 1;
     const visualElapsedMs = synchronized ? policy.visualElapsedMs : 0;
     // Avoid firing a residual fragment too short to hear at the current wall rate.
-    if (synchronized && (LAST_VOICE_END_MS - visualElapsedMs) / actorTimeScale < MIN_AUDIBLE_TAIL_MS) return null;
+    if (synchronized && (CUE_DURATION_MS - visualElapsedMs) / actorTimeScale < MIN_AUDIBLE_TAIL_MS) return null;
     if (nowMs < event.eventAtMs || (!synchronized && nowMs - event.eventAtMs > MAX_LATE_MS)) return null;
     // verify marks a route; it is intentionally not an audio suppression policy.
     return makePlan(event, synchronized ? nowMs : event.eventAtMs, actorTimeScale, visualElapsedMs);
@@ -212,7 +212,7 @@
       size() { return consumed.size; } });
   }
 
-  const api = Object.freeze({ MAX_LATE_MS, MAX_VOICES, MIN_AUDIBLE_TAIL_MS,
+  const api = Object.freeze({ MAX_LATE_MS, MAX_VOICES, CUE_DURATION_MS, MIN_AUDIBLE_TAIL_MS,
     LAST_VOICE_END_MS, EVENT_KIND, plan, createPlayer });
   root.DvaHealESfx = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

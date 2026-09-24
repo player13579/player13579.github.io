@@ -89,9 +89,20 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   // PH-H1: a translucent restoration field grows within a body-shaped domain.
   // Shoulder and waist changes in width keep it spatial, never a square gauge.
   let bodyWidth = 0.40 + 0.15 * (1.0 - smoothstep(-0.48, 0.72, p.y));
-  let bodyHeight = 1.0 - smoothstep(0.66, 0.81, abs(p.y));
+  // The top follows the raised center of the shoulders instead of cutting a
+  // horizontal edge across the actor. A softer curved hem keeps the flow on
+  // the body without exposing the scissored quad's rectangular footprint.
+  let shoulderRise = 0.58 + 0.18 *
+    (1.0 - smoothstep(0.16, 0.52, abs(p.x)));
+  let hemDrop = 0.61 + 0.10 *
+    (1.0 - smoothstep(0.18, 0.55, abs(p.x)));
+  let bodyHeight = (1.0 - smoothstep(shoulderRise - 0.10,
+    shoulderRise + 0.08, -p.y)) *
+    (1.0 - smoothstep(hemDrop - 0.12, hemDrop + 0.08, p.y));
   let bodyMask = (1.0 - smoothstep(bodyWidth - 0.08, bodyWidth + 0.08, abs(p.x))) * bodyHeight;
-  let fieldRise = window(t, 0.0, 0.65, 1.55) * castFade;
+  // Keep the restored body present while the front climbs. The earlier bell
+  // window erased the whole field halfway through the cast.
+  let fieldRise = smoothstep(0.0, 0.28, t) * castFade;
 
   // PH-H2: the active boundary travels from pelvis toward shoulders.
   // Its curved front is spatially uneven, so no horizontal level bar appears.
@@ -113,12 +124,16 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let joinBC = 1.0 - smoothstep(0.06, 0.16,
     capsule(p, vec2f(0.24, -0.05), vec2f(-0.25, -0.43)));
   let joined = reached * fieldRise * clamp(joinAB + joinBC, 0.0, 1.0);
-  let inward = smoothstep(0.89, 1.53, t);
-  let inwardMask = 1.0 - smoothstep(0.18, 0.48, abs(p.x));
-  let absorption = mix(1.0, inwardMask, inward);
+  let inward = smoothstep(1.15, 1.72, t);
+  let inwardMask = 1.0 - smoothstep(0.34, 0.66, abs(p.x));
+  let absorption = mix(1.0, 0.72 + 0.28 * inwardMask, inward);
+  let restoredEnvelope = reached * fieldRise *
+    (0.55 + 0.35 * smoothstep(0.38, 1.05, t)) * absorption;
+  result = over(result, ink(vec3f(0.07, 0.52, 0.43), restoredEnvelope * 0.34,
+    restoredEnvelope * 0.10));
   let livingDensity = reached * fieldRise *
-    (0.40 + 0.36 * clamp(lobeA + lobeB + lobeC, 0.0, 1.0)) * absorption;
-  result = over(result, ink(vec3f(0.03, 0.47, 0.40), livingDensity * 0.48,
+    (0.48 + 0.28 * clamp(lobeA + lobeB + lobeC, 0.0, 1.0)) * absorption;
+  result = over(result, ink(vec3f(0.03, 0.47, 0.40), livingDensity * 0.56,
     livingDensity * 0.20));
   result = over(result, ink(vec3f(0.11, 0.69, 0.55), joined * absorption * 0.34,
     joined * absorption * 0.29));
@@ -144,10 +159,23 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   result = over(result, ink(vec3f(0.25, 0.83, 0.66), skinEdge * 0.28,
     skinEdge * 0.17));
 
-  // PH-H3: acceleration is a succession of short side currents, not a barrier.
+  // PH-H3: a body-bound circulation persists through the confirmed acceleration
+  // window; short side currents show its outward motion without making a shell.
   if (u.state.x > 0.5) {
     let fade = 1.0 - smoothstep(10.7, 12.0, wall);
     let guideRise = smoothstep(1.18, 1.82, t);
+    let flowClock = select(t, 2.4, reduced);
+    let resident = bodyMask * guideRise * fade;
+    let circulatingY = 0.22 * sin(flowClock * 0.90) + 0.18 * p.x +
+      0.10 * sin(3.1 * p.x + flowClock * 0.56);
+    let circulatingSheet = (1.0 - smoothstep(0.18, 0.52,
+      abs(p.y - circulatingY))) * resident;
+    let residentDensity = resident *
+      (0.48 + 0.14 * sin(flowClock * 0.75 - p.y * 3.4));
+    result = over(result, ink(vec3f(0.07, 0.58, 0.46), residentDensity * 0.34,
+      residentDensity * 0.22));
+    result = over(result, ink(vec3f(0.19, 0.83, 0.64), circulatingSheet * 0.21,
+      circulatingSheet * 0.19));
     let sideX = bodyWidth + 0.10 - 0.10 * p.y +
       0.026 * sin(p.y * 6.2 + t * 1.3);
     let reach = (1.0 - smoothstep(0.57, 0.78, abs(p.y))) * fade * guideRise;
