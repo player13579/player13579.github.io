@@ -9,7 +9,7 @@
     { id: 'mana', title: 'マナ恩恵', detail: '三面の光が身体へ折り込まれる現在のWebGPU実装。', status: '本編接続', source: 'webgpu-mana-benefit-e.js', page: 'webgpu-e-gallery.html?stage=mana', node: '#mana-stage', aspect: '620 / 460' },
     { id: 'fire', title: 'ファイア', detail: '単独で受入済みの第二案。ゲーム本編への統合は未完了。', status: '単独E・統合待ち', source: 'webgpu-fire-ultra.js', page: 'fire-webgpu-ultra-preview.html', node: '#fire' },
     { id: 'mystery', title: 'ミステリーボックス', detail: '箱の開封E。報酬が表示先へ飛ぶ部分はこの単独プレビューに含まれません。', status: '部分プレビュー', source: 'webgpu-mystery-box-reveal-e.js', page: 'mystery-box-webgpu-preview.html', node: '#scene' },
-    { id: 'cafeteria', title: '実りの食堂', detail: '室内設備と環境Eを原画の上で順番に自動再生。', status: '環境Eプレビュー', source: 'webgpu-map-cafeteria-e.js', page: 'cafeteria-webgpu-preview.html', node: '#cafeteria', aspect: '930 / 860' }
+    { id: 'cafeteria', title: '実りの食堂', detail: '室内設備と環境EのWebGPU試作。採用原画が未配信のため背景との合成は確認待ち。', status: 'E試作・原画待ち', source: 'webgpu-map-cafeteria-e.js', page: 'cafeteria-webgpu-preview.html', node: '#cafeteria', aspect: '930 / 860' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
