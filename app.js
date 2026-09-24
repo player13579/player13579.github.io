@@ -17521,6 +17521,7 @@ function prepareMainFrameBookkeeping() {
   state.acquisitionCreditRect = null;
   state.acquisitionHudRects = null;
   if (!data) {
+    prepareMagicEffectsForMainFrame(data, state.frameNow || performance.now());
     state.drawViewport = null;
     state.preparedMainFrame = { data, w, h };
     return;
@@ -17528,6 +17529,7 @@ function prepareMainFrameBookkeeping() {
   drawCanvasStage("motion", () => {
     ensureRenderPlayersAdvanced(data);
   });
+  prepareMagicEffectsForMainFrame(data, state.frameNow || performance.now());
   const worldZoom = worldZoomFor(data);
   const camera = cameraFor(data, w, h, worldZoom);
   const viewW = w / worldZoom;
@@ -17539,6 +17541,36 @@ function prepareMainFrameBookkeeping() {
     bottom: camera.y + viewH
   };
   state.preparedMainFrame = { data, w, h, worldZoom, camera, viewW, viewH };
+}
+
+function prepareMagicEffectsForMainFrame(data, now) {
+  if (!data || !["playing", "meeting"].includes(data.phase)) {
+    state.magicEffects = [];
+    return;
+  }
+  state.magicEffects = state.magicEffects.filter((effect) => {
+    if (isBodyAccelerationGainEffect(effect)) {
+      const actorElapsed = accelerationBodyActorElapsed(effect, data);
+      return actorElapsed == null ? now - effect.startedAt < effect.duration :
+        Number.isFinite(actorElapsed) && actorElapsed < Math.max(effect.duration, ACCELERATION_BODY_BENEFIT_TE.durationMs);
+    }
+    if (effect.type !== "flora-sunbeam") return now - effect.startedAt < effect.duration;
+    const actorElapsed = sunbeamActorVisualElapsed(effect, data);
+    return actorElapsed == null
+      ? now - effect.startedAt < effect.duration
+      : Number.isFinite(actorElapsed) && actorElapsed < effect.duration;
+  });
+  for (const player of data.players || []) {
+    const previousSlot = state.headMarkerSlots.get(player.id) || null;
+    const presentation = selectHeadMarkerPresentation(
+      player,
+      data,
+      headMarkerEffectsForPlayer(player, data),
+      now,
+      previousSlot
+    );
+    rememberHeadMarkerPresentation(player.id, presentation, now);
+  }
 }
 
 function drawCanvasStage(name, callback) {
@@ -20898,37 +20930,10 @@ function drawGunnerSpecialAmmoEffect(effect, progress) {
 }
 
 function drawMagicEffects() {
-  if (!["playing", "meeting"].includes(state.data?.phase)) {
-    state.magicEffects = [];
-    return;
-  }
   const now = state.frameNow || performance.now();
-  state.magicEffects = state.magicEffects.filter((effect) => {
-    if (isBodyAccelerationGainEffect(effect)) {
-      const actorElapsed = accelerationBodyActorElapsed(effect, state.data);
-      return actorElapsed == null ? now - effect.startedAt < effect.duration :
-        Number.isFinite(actorElapsed) && actorElapsed < Math.max(effect.duration, ACCELERATION_BODY_BENEFIT_TE.durationMs);
-    }
-    if (effect.type !== "flora-sunbeam") return now - effect.startedAt < effect.duration;
-    const actorElapsed = sunbeamActorVisualElapsed(effect, state.data);
-    return actorElapsed == null
-      ? now - effect.startedAt < effect.duration
-      : Number.isFinite(actorElapsed) && actorElapsed < effect.duration;
-  });
   // Retain credit acquisition as semantic evidence for suppressing duplicate
   // object flashes, even though credit head markers themselves are withdrawn.
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect) || isCreditHeadMarkerEffect(effect));
-  for (const player of state.data?.players || []) {
-    const previousSlot = state.headMarkerSlots.get(player.id) || null;
-    const presentation = selectHeadMarkerPresentation(
-      player,
-      state.data,
-      headMarkerEffectsForPlayer(player, state.data),
-      now,
-      previousSlot
-    );
-    rememberHeadMarkerPresentation(player.id, presentation, now);
-  }
   const renderedNonCreditHeadMarkerInstances = new Set();
   for (const effect of state.magicEffects) {
     const sunbeamElapsed = effect.type === "flora-sunbeam" ? sunbeamActorVisualElapsed(effect, state.data) : null;
