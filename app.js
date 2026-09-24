@@ -27688,7 +27688,8 @@ function captureWebGPUMainAppConditionalTail(data, camera, zoom, providers = {})
 function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
   shapeProviders = {}) {
   if (data !== state.data)
-    throw new Error('WebGPU world candidate needs the current game data snapshot');
+    throw Object.assign(new Error('WebGPU world candidate needs the current game data snapshot'),
+      { code: 'DVA_WEBGPU_STALE_SCENE' });
   ensureRenderPlayersAdvanced(data);
   const owner = { data, generation: state.roomSessionGeneration,
     roomId: state.roomId, snapshotRoomId: data?.roomId, phase: data?.phase,
