@@ -17498,8 +17498,10 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
   }
   try {
     if (state.screen === "game") {
-      draw();
-      pumpWebGPUMainAppDriver();
+      // Keep the staged GPU frame independent of a Canvas draw failure. A
+      // Canvas exception still reaches the outer error handler, but it must
+      // not suppress the WebGPU submission attempt for this frame.
+      try { draw(); } finally { pumpWebGPUMainAppDriver(); }
     }
     publishManualVerificationBotContinuity(state.frameNow);
     const drawMode = state.data ? state.data.phase : "idle";
