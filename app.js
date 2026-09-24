@@ -2301,7 +2301,9 @@ function titleDepthGeometryError(message) {
 
 // init() enters setScreen(), which clears the acquisition overlay immediately.
 // Its owner must exist before that synchronous startup call.
-const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false, unavailable: false, handedOff: false, generation: 0 };
+const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false,
+  pendingPromise: null, handoffPromise: null, unavailable: false,
+  handedOff: false, generation: 0 };
 init();
 
 function prepareTitleHero() {
@@ -28447,7 +28449,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
   const target = 'main', expandedTarget = 'main-expanded-map';
   const acquisitionTarget = 'main-acquisition-overlay';
   let runtime, registry, scene, textOwner, markerOwner, destroyed = false;
-  let drawGeneration = 0;
+  let lifecycleGeneration = 0;
   let lastMedicalSfxFrameAt = null;
   let notified = false;
   const notify = error => {
@@ -28458,7 +28460,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
   const destroy = () => {
     if (destroyed) return;
     destroyed = true;
-    drawGeneration += 1;
+    lifecycleGeneration += 1;
     try { scene?.destroy(); } finally {
       try { registry?.destroy(); } finally {
         try { markerOwner?.destroy(); } finally {
@@ -28517,12 +28519,13 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
     get device() { return runtime.device; },
     async draw({ data = state.data, sample, rect, dpr = 1, camera,
       shapeProviders = {} } = {}) {
-      const requestGeneration = ++drawGeneration;
+      const requestGeneration = lifecycleGeneration;
       if (destroyed || runtime.state !== 'ready')
         return Object.freeze({ drawn: false, reason: destroyed ? 'destroyed' : runtime.state });
       // Hidden frames still reach the scheduler so it cancels active work and
       // prevents a late frame from publishing marker hit targets.
       if (sample?.hidden) {
+        lifecycleGeneration += 1;
         const hidden = await runtime.requestFrame({ sample, rect, dpr, camera }, { hidden: true });
         return Object.freeze({ drawn: false, reason: hidden.status || 'hidden' });
       }
@@ -28594,7 +28597,11 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         const outcome = scheduled.value;
         if (!outcome || typeof outcome.drawn !== 'boolean')
           throw new Error('Dormant WebGPU main scheduler returned an invalid frame result');
-        if (requestGeneration !== drawGeneration || destroyed)
+        // A newer request may be queued while this frame is the last one
+        // actually submitted. Its hits belong to the visible frame until a
+        // later submission replaces them; only lifecycle invalidation retires
+        // this receipt.
+        if (requestGeneration !== lifecycleGeneration || destroyed)
           return Object.freeze({ drawn: false, reason: destroyed ? 'destroyed' : 'superseded' });
         if (!outcome.drawn) return outcome;
         const submittedHits = outcome.recordResult?.markerHitTargets;
@@ -28615,7 +28622,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
       }
     },
     suspend() {
-      drawGeneration += 1;
+      lifecycleGeneration += 1;
       lastMedicalSfxFrameAt = null;
       runtime.suspend();
     },
@@ -32783,7 +32790,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=overheal-body-v913", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=webgpu-main-bootstrap-v5", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.
@@ -32942,6 +32949,7 @@ window.addEventListener('pagehide', () => {
 });
 
 function acquisitionGpuRenderer() {
+  if (acquisitionGpuOverlay.handedOff) return null;
   if (acquisitionGpuOverlay.renderer?.state === 'ready') return acquisitionGpuOverlay.renderer;
   if (acquisitionGpuOverlay.renderer) {
     acquisitionGpuOverlay.unavailable = true;
@@ -32959,7 +32967,7 @@ function acquisitionGpuRenderer() {
   if (!canvas) return null;
   acquisitionGpuOverlay.pending = true;
   const generation = ++acquisitionGpuOverlay.generation;
-  window.DvaWebGPUAcquisition.create(canvas, { onFailure: () => {
+  const pending = window.DvaWebGPUAcquisition.create(canvas, { onFailure: () => {
     if (generation !== acquisitionGpuOverlay.generation) return;
     acquisitionGpuOverlay.unavailable = true;
     acquisitionGpuOverlay.renderer = null;
@@ -32981,15 +32989,21 @@ function acquisitionGpuRenderer() {
     acquisitionGpuOverlay.pending = false;
     acquisitionGpuOverlay.unavailable = true;
     canvas.remove(); acquisitionGpuOverlay.canvas = null;
+  }).finally(() => {
+    if (acquisitionGpuOverlay.pendingPromise === pending)
+      acquisitionGpuOverlay.pendingPromise = null;
   });
+  acquisitionGpuOverlay.pendingPromise = pending;
   return null;
 }
 
 function clearAcquisitionOverlay() {
+  if (acquisitionGpuOverlay.handedOff) return;
   if (acquisitionGpuOverlay.canvas) acquisitionGpuOverlay.canvas.style.display = 'none';
 }
 
 function drawAcquisitionPhotonStream(data, camera, worldZoom, now = state.frameNow || performance.now()) {
+  if (acquisitionGpuOverlay.handedOff) return;
   if (!['playing', 'meeting'].includes(data?.phase) || state.screen !== 'game' || isSensoryBlocked(data)) {
     clearAcquisitionOverlay(); return;
   }
@@ -33119,16 +33133,23 @@ function createAcquisitionOverlayCanvas() {
   return canvas;
 }
 
-// Dormant until the shared main renderer explicitly takes ownership. Invalidating
-// the generation makes an in-flight standalone create destroy its late result.
+// The shared renderer awaits this lease before registering the same canvas.
+// Invalidating generation retires a late standalone creation; waiting for its
+// promise ensures it cannot configure that canvas on another device afterward.
 function handoffAcquisitionOverlayToMainRenderer() {
+  if (acquisitionGpuOverlay.handoffPromise) return acquisitionGpuOverlay.handoffPromise;
   const canvas = createAcquisitionOverlayCanvas();
   acquisitionGpuOverlay.handedOff = true;
   acquisitionGpuOverlay.generation++;
   acquisitionGpuOverlay.pending = false;
-  acquisitionGpuOverlay.renderer?.destroy();
-  acquisitionGpuOverlay.renderer = null;
-  return canvas;
+  const pendingCreate = acquisitionGpuOverlay.pendingPromise;
+  acquisitionGpuOverlay.handoffPromise = Promise.resolve(pendingCreate).catch(() => {}).then(() => {
+    acquisitionGpuOverlay.renderer?.destroy();
+    acquisitionGpuOverlay.renderer = null;
+    canvas.style.display = 'none';
+    return canvas;
+  });
+  return acquisitionGpuOverlay.handoffPromise;
 }
 
 window.DvaWebGPUAcquisitionOverlay = Object.freeze({
