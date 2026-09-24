@@ -9,26 +9,28 @@
   const TYPE = 'cafeteria-object-e';
   const AMBIENT_TYPE = 'cafeteria-service-transition';
   const MAX_FRAME_EVENTS = 12;
+  const ANCHOR_STATUS = 'provisional-before-approved-raster';
+  const ANCHOR_SOURCE = 'outputs/request-20260924/map-next-room/integration-plan.coordinates.json';
   const OBJECTS = Object.freeze({
     'v302-cafeteria-nutritionStation-1': Object.freeze({
       id: 'v302-cafeteria-nutritionStation-1', type: 'healthyMealTable', effectKind: 'healthyMeal',
       x: 1334, y: 2661, kind: 0, durationMs: 1320, width: 104, height: 58,
-      design: 'four-well plate delivery', soundProfile: 'ceramic-slide-contact'
+      design: 'four-bay service tray', soundProfile: 'four-bay-service-sequence'
     }),
     'v302-cafeteria-hydration-2': Object.freeze({
       id: 'v302-cafeteria-hydration-2', type: 'mineralWaterBar', effectKind: 'stamina',
       x: 1827, y: 2661, kind: 1, durationMs: 820, width: 82, height: 104,
-      design: 'measured culture pour', soundProfile: 'measured-pour-glass-contact'
+      design: 'culture dose calibration', soundProfile: 'culture-dose-calibration'
     }),
     'v302-cafeteria-sofa-3': Object.freeze({
       id: 'v302-cafeteria-sofa-3', type: 'relaxationSalon', effectKind: 'acceleration',
       x: 1343, y: 3048, kind: 2, durationMs: 1060, width: 112, height: 112,
-      design: 'centered communal-platter resonance', soundProfile: 'quiet-cutlery-settle'
+      design: 'centered communal-platter resonance', soundProfile: 'communal-platter-settle'
     })
   });
   const AMBIENT = Object.freeze({
     id: 'cafeteria-service-light', x: 1450, y: 2474, width: 260, height: 72,
-    durationMs: 1460, soundProfile: 'ceiling-baffle-shift'
+    durationMs: 1460, soundProfile: 'upper-louver-servos'
   });
   const SFX_POLICY = Object.freeze({ owner: 'webgpu-map-cafeteria-e-sfx adapter',
     required: true, edge: 'one-shot-per-accepted-event-id-or-service-revision',
@@ -97,8 +99,9 @@
     if (!Object.values(screen).every(finite) || screen.x >= viewport.pixelWidth ||
         screen.y >= viewport.pixelHeight || screen.x + screen.width <= 0 ||
         screen.y + screen.height <= 0) return null;
-    return Object.freeze({ type: AMBIENT_TYPE, eventId: event.revision, design: 'aisle-clipped ceiling-baffle sweep',
-      kind: 3, progress: clamp((now - event.startedAt) / AMBIENT.durationMs, 0, 1),
+    const progress = clamp((now - event.startedAt) / AMBIENT.durationMs, 0, 1);
+    return Object.freeze({ type: AMBIENT_TYPE, eventId: event.revision, design: 'upper-wall louver sequence',
+      kind: 3, phase: progress < 0.82 ? 'ordered-louver-rotation' : 'upper-wall-aperture-settle', progress,
       durationMs: AMBIENT.durationMs, source: Object.freeze({ x: AMBIENT.x, y: AMBIENT.y,
         width: AMBIENT.width, height: AMBIENT.height }), screen: Object.freeze(screen),
       pixelWidth: viewport.pixelWidth, pixelHeight: viewport.pixelHeight,
@@ -126,71 +129,93 @@ struct V { @builtin(position) position: vec4f, @location(0) clip: vec2f };
 }
 fn line(d:f32,w:f32)->f32 { return exp(-(d*d)/max(w*w,0.0001)); }
 fn band(v:f32,a:f32,b:f32)->f32 { return smoothstep(a,a+0.035,v)*(1.0-smoothstep(b-0.035,b,v)); }
-fn capsule(p0:vec2f,a:vec2f,b:vec2f,w:f32)->f32 {
- let v=b-a; let q=p0-a; let t=clamp(dot(q,v)/max(dot(v,v),0.0001),0.0,1.0);
- return line(length(q-v*t),w);
-}
 @fragment fn fs(i:V)->@location(0) vec4f {
  let px=vec2f((i.clip.x+1.0)*0.5*p.view.z,(1.0-i.clip.y)*0.5*p.view.w);
  let world=p.view.xy+px/p.scale.xy;
  let q=(world-p.source.xy)/p.source.zw*2.0-vec2f(1.0);
  if(any(abs(q)>vec2f(1.0))){discard;}
- let t=p.state.x; let k=p.state.y; let reduced=p.state.w>0.5;
+ let t=p.state.x; let k=p.state.y; let reduced=p.state.z>0.5;
  let u=select(t,0.52,reduced); var m=0.0; var h=0.0; var c=vec3f(0.82,0.92,0.80);
  if(k<0.5){
-   // Service counter: four broad well notes, a fixed bay response, and one
-   // shallow plate edge moving outward. Warmth ends before the settle tail.
-   let warm=smoothstep(0.0,0.12,t)*(1.0-smoothstep(0.20,0.29,t));
-   let travel=smoothstep(0.22,0.31,t)*(1.0-smoothstep(0.61,0.70,t));
-   let settle=smoothstep(0.62,0.70,t)*(1.0-smoothstep(0.90,1.0,t));
-   let wells=line(q.y+0.50,0.045)+line(q.y+0.17,0.045)+line(q.y-0.17,0.045)+line(q.y-0.50,0.045);
-   let bay=line(q.x-0.62,0.045)*band(q.y,-0.42,0.42);
-   let plateX=mix(-0.50,0.55,clamp((t-0.22)/0.39,0.0,1.0));
-   let plate= line(length(vec2f((q.x-plateX)*1.12,q.y*1.35))-0.19,0.045)+
-     line(length(vec2f((q.x-plateX)*1.12,q.y*1.35))-0.27,0.025);
-   m=wells*warm*0.24+bay*warm*0.55+plate*travel+line(q.x-0.62,0.10)*settle;
-   h=bay*warm*0.25+plate*travel*0.70+line(q.x-0.62,0.12)*settle*0.3;
-   c=vec3f(0.96,0.70,0.34);
+   // Replacement meal-service cause: four separate service wells resolve in
+   // place, then a broad stationary tray/platter contour forms at the output.
+   // It has no warm single-bay flare or travelling plate silhouette.
+   let wa=line(q.y+0.61,0.065)*band(q.x,-0.80,-0.15)*
+     (smoothstep(0.00,0.025,t)*(1.0-smoothstep(0.075,0.10,t)));
+   let wb=line(q.y+0.20,0.065)*band(q.x,-0.80,-0.15)*
+     (smoothstep(0.09,0.115,t)*(1.0-smoothstep(0.165,0.19,t)));
+   let wc=line(q.y-0.20,0.065)*band(q.x,-0.80,-0.15)*
+     (smoothstep(0.18,0.205,t)*(1.0-smoothstep(0.255,0.28,t)));
+   let wd=line(q.y-0.61,0.065)*band(q.x,-0.80,-0.15)*
+     (smoothstep(0.27,0.295,t)*(1.0-smoothstep(0.345,0.37,t)));
+   let trayIn=smoothstep(0.34,0.48,t);
+   let trayHold=1.0-smoothstep(0.90,1.0,t);
+   let trayRound=length(vec2f((q.x-0.38)*1.20,q.y*1.80));
+   let trayRim=line(trayRound-(0.10+0.50*trayIn),0.055);
+   let trayInner=line(trayRound-(0.03+0.42*trayIn),0.026);
+   let serviceSpine=line(q.x+0.02,0.035)*band(q.y,-0.62,0.62)*trayIn;
+   let resolve=(wa+wb+wc+wd)*0.82;
+   m=resolve+trayRim*trayHold+trayInner*trayHold*0.74+serviceSpine*trayHold*0.44;
+   h=(wa+wb+wc+wd)*0.78+trayRim*trayHold*0.62+trayInner*trayHold*0.46;
+   c=vec3f(0.36,0.98,0.68);
  } else if(k<1.5){
-   // Hydration column: one descending meniscus, one measured curved ribbon,
-   // then a single cup contact. No bubbles, idle refrigeration, or sparkle.
-   let drain=smoothstep(0.0,0.08,t)*(1.0-smoothstep(0.33,0.43,t));
-   let pour=smoothstep(0.35,0.45,t)*(1.0-smoothstep(0.75,0.84,t));
-   let contact=smoothstep(0.76,0.84,t)*(1.0-smoothstep(0.92,1.0,t));
-   let meniscusY=mix(-0.48,0.40,clamp(t/0.39,0.0,1.0));
-   let vessel=line(abs(q.x)-0.48,0.045)*band(q.y,-0.68,0.70)+line(q.y+0.68,0.04)*band(q.x,-0.48,0.48);
-   let surface=line(q.y-meniscusY,0.052)*band(q.x,-0.40,0.40);
-   let stream=capsule(q,vec2f(0.36,-0.30),vec2f(0.20,0.30),0.055)*pour+
-     line(q.y-(0.55+0.10*sin(u*8.0+q.x*3.0)),0.052)*band(q.x,0.11,0.31)*pour;
-   let cup=line(abs(q.x-0.18)-0.16,0.04)*band(q.y,0.44,0.77)+line(q.y-0.77,0.035)*band(q.x,0.02,0.34);
-   m=vessel*0.20+surface*drain+stream+cup*contact;
-   h=surface*drain*0.35+stream*0.58+cup*contact*0.25;
-   c=vec3f(0.30,0.78,0.86);
+   // Precision dose presentation, not a pour: etch marks resolve, a single
+   // measured rectangular segment appears between fixed graduations, and a
+   // two-sided bracket closes and holds on that exact quantity. No fluid flow.
+   let etch=smoothstep(0.02,0.20,t);
+   let dose=smoothstep(0.24,0.42,t);
+   let lock=smoothstep(0.60,0.74,t);
+   let glassSides=(line(abs(q.x)-0.33,0.035)+line(abs(q.y)-0.75,0.035))*band(q.x,-0.34,0.34);
+   let ticks=(line(q.y+0.54,0.024)+line(q.y+0.35,0.024)+line(q.y+0.16,0.024)+
+     line(q.y+0.03,0.024)+line(q.y-0.35,0.024)+line(q.y-0.54,0.024))*band(q.x,0.39,0.77)*etch;
+   let doseBody=band(q.y,-0.12,0.12)*band(q.x,-0.26,0.26)*dose;
+   let doseEdge=(line(q.y-0.12,0.028)+line(q.y+0.12,0.028))*band(q.x,-0.24,0.24)*dose;
+   let bracket=(line(q.x+0.43,0.04)+line(q.x-0.43,0.04))*band(q.y,-0.17,0.17)*lock;
+   let bracketEnds=(line(q.y-0.17,0.035)+line(q.y+0.17,0.035))*
+     (band(q.x,-0.51,-0.38)+band(q.x,0.38,0.51))*lock;
+   let stop=1.0-smoothstep(0.0,0.18,abs(u-0.86));
+   m=glassSides*0.20+ticks*0.68+doseBody*0.78+doseEdge*0.72+bracket*0.84+bracketEnds*0.56;
+   h=ticks*0.32+doseBody*0.70+doseEdge*0.58+bracket*0.54+bracketEnds*0.38+stop*doseBody*0.20;
+   c=vec3f(0.96,0.42,0.68);
  } else if(k<2.5){
-   // Rest table: the only moving feature is a thin reflection traveling from
-   // the plate-setting edge along one leaf-shaped contour to its rounded tip.
-   let travel=smoothstep(0.0,0.08,t)*(1.0-smoothstep(0.66,0.74,t));
-   let fade=smoothstep(0.66,0.76,t)*(1.0-smoothstep(0.92,1.0,t));
-   let leafY=0.14*sin(q.x*2.4)-0.05;
-   let rim=line(q.y-leafY,0.035)*band(q.x,-0.82,0.82);
-   let front=clamp(u/0.68,0.0,1.0);
-   let glint=line(q.x-(-0.74+front*1.40),0.075)*line(q.y-(leafY+0.04),0.10);
-   m=rim*travel*0.12+glint*travel+glint*fade*0.34;
-   h=glint*travel*0.68+glint*fade*0.25;
-   c=vec3f(0.74,0.93,0.62);
+   // Successful communal rest produces a centered platter-settle resonance:
+   // nested, slightly elliptical rings and a broad center dish form in place.
+   // No botanical contour, perimeter trace, or seat-to-seat travel.
+   let build=smoothstep(0.04,0.50,t);
+   let settle=smoothstep(0.62,0.78,t)*(1.0-smoothstep(0.92,1.0,t));
+   let radius=0.12+0.72*build;
+   let ellipse=length(vec2f(q.x*0.92,q.y*1.08));
+   let outer=line(ellipse-radius,0.050);
+   let middle=line(ellipse-(radius*0.72),0.034);
+   let inner=line(ellipse-(radius*0.44),0.026);
+   let dish=1.0-smoothstep(0.12,0.32,ellipse);
+   let core=line(ellipse-0.11,0.045);
+   let layered=outer*0.78+middle*0.58+inner*0.40;
+   m=layered+core*settle*0.72+dish*settle*0.18;
+   h=outer*0.62+middle*0.42+inner*0.34+core*settle*0.52;
+   c=vec3f(0.50,0.58,1.0);
  } else {
-   // Architectural ceiling-baffle change reflected only on clear aisle floor;
-   // the central upload task anchor has a quiet circular exclusion.
-   let sweep=smoothstep(0.0,0.13,t)*(1.0-smoothstep(0.78,1.0,t));
-   let y=-0.72+1.44*clamp(u,0.0,1.0);
-   let aisle=band(q.x,-0.78,0.78)*band(q.y,-0.92,0.92);
-   // upload-f sits at world (1604,2850), offset from this source by (4,20).
-   let taskQ=(q-vec2f(4.0/170.0,20.0/82.0))*vec2f(1.85,1.72);
-   let taskGap=1.0-smoothstep(0.22,0.34,length(taskQ));
-   let ribbon=line(q.y-y+0.07*sin(q.x*3.2),0.18)*aisle*(1.0-taskGap)*sweep;
-   let broad=line(q.y-y+0.07*sin(q.x*3.2),0.42)*aisle*(1.0-taskGap)*sweep;
-   m=ribbon*0.16+broad*0.09; h=ribbon*0.32;
-   c=vec3f(0.70,0.84,0.77);
+   // Room service change is expressed on three upper-wall baffle louvers.
+   // Each broad blade rotates in sequence; a recessed aperture and rim layers
+   // appear behind it. This is architectural geometry, not a floor-light field.
+   let a0=smoothstep(0.03,0.20,t)*(1.0-smoothstep(0.30,0.42,t));
+   let a1=smoothstep(0.28,0.45,t)*(1.0-smoothstep(0.55,0.67,t));
+   let a2=smoothstep(0.53,0.70,t)*(1.0-smoothstep(0.80,0.92,t));
+   let fade=1.0-smoothstep(0.88,1.0,t);
+   let open0=smoothstep(0.06,0.32,t);
+   let open1=smoothstep(0.31,0.57,t);
+   let open2=smoothstep(0.56,0.82,t);
+   let x0=q.x+0.58; let x1=q.x; let x2=q.x-0.58;
+   let blade0=line(q.y-(0.25*x0*(0.20+0.80*open0)),0.115)*band(x0,-0.27,0.27);
+   let blade1=line(q.y-(0.25*x1*(0.20+0.80*open1)),0.115)*band(x1,-0.27,0.27);
+   let blade2=line(q.y-(0.25*x2*(0.20+0.80*open2)),0.115)*band(x2,-0.27,0.27);
+   let apertures=(band(q.x,-0.84,-0.32)*a0+band(q.x,-0.27,0.27)*a1+band(q.x,0.32,0.84)*a2);
+   let rim=line(abs(q.y)-0.55,0.04)*band(q.x,-0.94,0.94);
+   let deep=(blade0*a0+blade1*a1+blade2*a2);
+   let core=(blade0*open0+blade1*open1+blade2*open2)*fade;
+   m=apertures*0.18+rim*0.52+deep*0.68+core*0.78;
+   h=apertures*0.26+rim*0.40+deep*0.54+core*0.72;
+   c=vec3f(0.76,0.58,1.0);
  }
  let pulse=select(1.0,0.82+0.18*cos(t*6.2831853),!reduced);
  let a=clamp((m+h*0.46)*pulse*0.66,0.0,0.48);
@@ -257,7 +282,7 @@ fn capsule(p0:vec2f,a:vec2f,b:vec2f,w:f32)->f32 {
       destroy() { if (destroyed) return; destroyed = true;
         for (const item of slots) if (frameOwner.release(item.buffer)) item.buffer.destroy(); slots.length = 0; } });
   }
-  const api = Object.freeze({ MAP_ID, ROOM_ID, TYPE, AMBIENT_TYPE, MAX_FRAME_EVENTS,
+  const api = Object.freeze({ MAP_ID, ROOM_ID, TYPE, AMBIENT_TYPE, MAX_FRAME_EVENTS, ANCHOR_STATUS, ANCHOR_SOURCE,
     OBJECTS, AMBIENT, SFX_POLICY, shader, objectPhase, planObject, planAmbient, planAll, pack, create });
   root.DvaWebGPUMapCafeteriaE = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

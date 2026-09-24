@@ -4,43 +4,54 @@
 (function (root) {
   'use strict';
   const MAX_GAIN = 0.075;
-  const MAX_CUE_MS = 1200;
+  const MAX_CUE_MS = 1500;
   const RETENTION_MS = 30000;
   const MAX_EVENTS_PER_SECOND = 6;
   const FIXTURES = Object.freeze({
     'v302-cafeteria-nutritionStation-1': Object.freeze({
-      type: 'healthyMealTable', effectKind: 'healthyMeal', cue: 'ceramic-slide-contact', durationMs: 900,
+      type: 'healthyMealTable', effectKind: 'healthyMeal', cue: 'four-bay-service-sequence', durationMs: 1320,
+      design: 'Four separated, smooth carrier sweeps across the service rail, followed by a broad inharmonic tray seat; no pitched chime sequence.',
       layers: Object.freeze([
-        Object.freeze({ shape: 'noise', startHz: 1650, endHz: 620, gain: .012, delayMs: 0, durationMs: 190, role: 'soft ceramic tray contact' }),
-        Object.freeze({ shape: 'sine', startHz: 392, endHz: 349, gain: .034, delayMs: 35, durationMs: 260, role: 'warm table resonance' }),
-        Object.freeze({ shape: 'triangle', startHz: 784, endHz: 587, gain: .019, delayMs: 70, durationMs: 185, role: 'thin glazed rim response' }),
-        Object.freeze({ shape: 'sine', startHz: 523, endHz: 440, gain: .015, delayMs: 420, durationMs: 430, role: 'settled nourishment tone' })
+        Object.freeze({ shape: 'bandNoise', startHz: 430, endHz: 570, gain: .024, delayMs: 0, durationMs: 152, role: 'bay-one carrier movement' }),
+        Object.freeze({ shape: 'bandNoise', startHz: 540, endHz: 690, gain: .022, delayMs: 248, durationMs: 158, role: 'bay-two carrier movement' }),
+        Object.freeze({ shape: 'bandNoise', startHz: 665, endHz: 835, gain: .021, delayMs: 526, durationMs: 164, role: 'bay-three carrier movement' }),
+        Object.freeze({ shape: 'bandNoise', startHz: 790, endHz: 1010, gain: .020, delayMs: 810, durationMs: 172, role: 'bay-four carrier movement' }),
+        Object.freeze({ shape: 'inharmonic', startHz: 278, endHz: 205, gain: .031, delayMs: 1015, durationMs: 265,
+          partials: Object.freeze([[1, 1], [2.31, .38], [3.82, .17]]), role: 'wide tray seats after portions arrive' })
       ])
     }),
     'v302-cafeteria-hydration-2': Object.freeze({
-      type: 'mineralWaterBar', effectKind: 'stamina', cue: 'measured-pour-glass-contact', durationMs: 1150,
+      type: 'mineralWaterBar', effectKind: 'stamina', cue: 'culture-dose-calibration', durationMs: 820,
+      design: 'One descending, nonharmonic sensor scan resolves at a single measured-level detent; no liquid stream or glass note.',
       layers: Object.freeze([
-        Object.freeze({ shape: 'noise', startHz: 1180, endHz: 410, gain: .018, delayMs: 0, durationMs: 310, role: 'narrow water pour' }),
-        Object.freeze({ shape: 'sine', startHz: 494, endHz: 659, gain: .026, delayMs: 35, durationMs: 410, role: 'clear glass fill resonance' }),
-        Object.freeze({ shape: 'triangle', startHz: 988, endHz: 784, gain: .016, delayMs: 330, durationMs: 150, role: 'single glass lip touch' }),
-        Object.freeze({ shape: 'sine', startHz: 659, endHz: 523, gain: .014, delayMs: 600, durationMs: 500, role: 'short liquid settle' })
+        Object.freeze({ shape: 'inharmonic', startHz: 1260, endHz: 730, gain: .020, delayMs: 28, durationMs: 455,
+          partials: Object.freeze([[1, 1], [1.414, .24], [2.37, .09]]), role: 'one descending level-calibration sweep' }),
+        Object.freeze({ shape: 'bandNoise', startHz: 1630, endHz: 1080, gain: .013, delayMs: 75, durationMs: 280, role: 'narrow sensor scan texture, no liquid flow' }),
+        Object.freeze({ shape: 'inharmonic', startHz: 570, endHz: 440, gain: .018, delayMs: 552, durationMs: 226,
+          partials: Object.freeze([[1, 1], [1.77, .20]]), role: 'single measured-level stop' })
       ])
     }),
     'v302-cafeteria-sofa-3': Object.freeze({
-      type: 'relaxationSalon', effectKind: 'acceleration', cue: 'quiet-cutlery-settle', durationMs: 950,
+      type: 'relaxationSalon', effectKind: 'acceleration', cue: 'communal-platter-settle', durationMs: 1060,
+      design: 'A single cushioned center contact unfolds into a broad low inharmonic tabletop response; no edge scrape or repeated impact.',
       layers: Object.freeze([
-        Object.freeze({ shape: 'triangle', startHz: 246, endHz: 220, gain: .028, delayMs: 0, durationMs: 105, role: 'muted seat cushion contact' }),
-        Object.freeze({ shape: 'sine', startHz: 330, endHz: 392, gain: .020, delayMs: 55, durationMs: 310, role: 'soft lounge resonance' }),
-        Object.freeze({ shape: 'triangle', startHz: 1174, endHz: 880, gain: .010, delayMs: 135, durationMs: 54, role: 'distant cutlery settle' }),
-        Object.freeze({ shape: 'sine', startHz: 392, endHz: 330, gain: .012, delayMs: 390, durationMs: 520, role: 'calm rest tone' })
+        Object.freeze({ shape: 'bandNoise', startHz: 960, endHz: 370, gain: .018, delayMs: 0, durationMs: 126, role: 'muted centered platter contact' }),
+        Object.freeze({ shape: 'inharmonic', startHz: 236, endHz: 146, gain: .031, delayMs: 18, durationMs: 325,
+          partials: Object.freeze([[1, 1], [1.63, .25], [2.41, .12]]), role: 'round tabletop body response' }),
+        Object.freeze({ shape: 'inharmonic', startHz: 347, endHz: 268, gain: .016, delayMs: 238, durationMs: 752,
+          partials: Object.freeze([[1, 1], [2.08, .16]]), role: 'broad centered radial settle, no perimeter scrape' })
       ])
     })
   });
   const AMBIENT = Object.freeze({
-    type: 'cafeteria-service-transition', cue: 'ceiling-baffle-shift', durationMs: 750,
+    type: 'cafeteria-service-transition', cue: 'upper-louver-servos', durationMs: 1460,
+    design: 'Three low servo travels move the upper louvers in order, then stop into a dry inharmonic hold; silent at steady state.',
     layers: Object.freeze([
-      Object.freeze({ shape: 'noise', startHz: 760, endHz: 290, gain: .008, delayMs: 0, durationMs: 230, role: 'brief diffused air movement' }),
-      Object.freeze({ shape: 'sine', startHz: 294, endHz: 330, gain: .011, delayMs: 300, durationMs: 400, role: 'quiet room resonance change' })
+      Object.freeze({ shape: 'bandNoise', startHz: 365, endHz: 270, gain: .012, delayMs: 0, durationMs: 328, role: 'first upper-louver servo travel' }),
+      Object.freeze({ shape: 'bandNoise', startHz: 420, endHz: 312, gain: .011, delayMs: 365, durationMs: 346, role: 'second upper-louver servo travel' }),
+      Object.freeze({ shape: 'bandNoise', startHz: 492, endHz: 354, gain: .010, delayMs: 755, durationMs: 365, role: 'third upper-louver servo travel' }),
+      Object.freeze({ shape: 'inharmonic', startHz: 320, endHz: 244, gain: .014, delayMs: 1124, durationMs: 292,
+        partials: Object.freeze([[1, 1], [2.28, .22]]), role: 'upper aperture holds at new state' })
     ])
   });
   const finite = Number.isFinite;
@@ -106,7 +117,7 @@
       return Object.freeze({ status: 'candidate', id: event.id, revision: isAmbient ? event.revision : null,
         roomId, roomGeneration, objectId: isAmbient ? null : event.objectId,
         cue: spec.cue, loop: false, startsAtMs: event.startedAt, durationMs: spec.durationMs,
-        maxGain: MAX_GAIN, reducedMotion: reduced, layers: Object.freeze(layers),
+        maxGain: MAX_GAIN, reducedMotion: reduced, design: spec.design, layers: Object.freeze(layers),
         replaceGenericSound: false });
     }
     return Object.freeze({ admit, enterRoom, has: (id, ambient = false) => consumed.has(`${ambient ? 'ambient' : 'fixture'}:${id}`),
@@ -119,23 +130,44 @@
     if (!finite(sampleRate) || sampleRate < 22050 || sampleRate > 96000) throw new RangeError('Sample rate must be 22050–96000 Hz');
     if (!finite(durationMs) || durationMs <= 0 || durationMs > MAX_CUE_MS || !Array.isArray(layers)) throw new TypeError('Unknown cafeteria sound profile');
     const pcm = new Float32Array(Math.ceil(sampleRate * durationMs / 1000));
-    let seed = hash(typeof planOrCue === 'string' ? planOrCue : planOrCue.cue) || 1;
-    let low = 0;
+    const cue = typeof planOrCue === 'string' ? planOrCue : planOrCue.cue;
+    const states = layers.map((layer, index) => ({
+      seed: hash(`${cue}:${layer.role}:${index}`) || 1,
+      lower: 0,
+      upper: 0,
+      phases: layer.partials?.map(() => 0) || [0]
+    }));
     for (let i = 0; i < pcm.length; i++) {
       const tMs = i * 1000 / sampleRate;
       let value = 0;
-      for (const layer of layers) {
+      for (let j = 0; j < layers.length; j++) {
+        const layer = layers[j], state = states[j];
         const localMs = tMs - layer.delayMs;
         if (localMs < 0 || localMs >= layer.durationMs) continue;
         const p = localMs / layer.durationMs;
         const env = smooth(localMs / Math.min(14, layer.durationMs * .25)) * smooth((1 - p) / .22);
         const hz = layer.startHz + (layer.endHz - layer.startHz) * smooth(p);
         let sample;
-        if (layer.shape === 'noise') {
-          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-          const white = seed / 2147483648 - 1;
-          low += .13 * (white - low);
-          sample = low * .72 + (white - low) * .28;
+        if (layer.shape === 'bandNoise' || layer.shape === 'noise') {
+          state.seed = (Math.imul(state.seed, 1664525) + 1013904223) >>> 0;
+          const white = state.seed / 2147483648 - 1;
+          const lowerHz = Math.max(45, hz * .68), upperHz = Math.min(sampleRate * .44, hz * 1.48);
+          const lowerA = 1 - Math.exp(-2 * Math.PI * lowerHz / sampleRate);
+          const upperA = 1 - Math.exp(-2 * Math.PI * upperHz / sampleRate);
+          state.lower += lowerA * (white - state.lower);
+          state.upper += upperA * (white - state.upper);
+          sample = (state.upper - state.lower) * 2.1;
+        } else if (layer.shape === 'inharmonic') {
+          const partials = layer.partials || [[1, 1], [1.73, .24], [2.67, .08]];
+          let totalWeight = 0;
+          sample = 0;
+          for (let k = 0; k < partials.length; k++) {
+            const [ratio, weight] = partials[k];
+            state.phases[k] += 2 * Math.PI * Math.min(sampleRate * .42, hz * ratio) / sampleRate;
+            sample += Math.sin(state.phases[k]) * weight;
+            totalWeight += Math.abs(weight);
+          }
+          sample /= Math.max(.001, totalWeight);
         } else {
           sample = Math.sin(2 * Math.PI * hz * localMs / 1000);
           if (layer.shape === 'triangle') sample = (2 / Math.PI) * Math.asin(sample);
