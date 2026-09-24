@@ -1428,7 +1428,7 @@ const state = {
     sfxLoading: null,
     sfxCursor: new Map(),
     unlocked: false,
-    muted: clientStorage.getItem(storage.gameMuted) === "1",
+    muted: IS_VERIFICATION_MODE || clientStorage.getItem(storage.gameMuted) === "1",
     currentBgm: null,
     titleBgm: createBgmAudio(assetUrl("assets/bgm-title.mp3"), 0.34)
   }
@@ -3418,6 +3418,7 @@ function setScreen(screen) {
 }
 
 function toggleGameMuted() {
+  if (IS_VERIFICATION_MODE) return;
   state.audio.muted = !state.audio.muted;
   if (state.audio.muted) { stopAllPhenomenonSounds(); stopAllEnvironmentSounds(); }
   clientStorage.setItem(storage.gameMuted, state.audio.muted ? "1" : "0");

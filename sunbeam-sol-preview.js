@@ -1,15 +1,17 @@
 (async function(){
   'use strict';
   const p=new URLSearchParams(location.search),canvas=document.getElementById('stage');
+  const verify=p.has('verify');
   const error=document.getElementById('error');
   const W=980,H=620,SOURCE={x:2000,y:1600};
   const bounded=(key,defaultValue,min,max)=>{
     const v=Number(p.get(key));return p.has(key)&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):defaultValue;
   };
-  const range=bounded('range',520,70,950),zoom=bounded('zoom',.75,.35,1.7);
+  const dual=p.get('hands')==='2';
+  const range=bounded('range',dual?350:520,70,950),zoom=bounded('zoom',.75,.35,1.7);
   const dpr=bounded('dpr',Math.min(window.devicePixelRatio||1,2),1,2);
-  const angle=bounded('angle',0,-180,180)*Math.PI/180;
-  const pose=p.get('hands')==='2'?{
+  const angle=bounded('angle',dual?90:0,-180,180)*Math.PI/180;
+  const pose=dual?{
     asset:'assets/generated/philia-sunbeam-front-v894.png',crop:[136,641,412,580],
     origin:{x:201.1175105836245,y:572},scale:.1745345744680851,
     emitters:[{x:141,y:237},{x:282,y:237}]
@@ -57,7 +59,7 @@
     }catch(ex){try{frame.discard();}catch(_){}throw ex;}
   }
   function playSound(){
-    if(!audioUnlocked||!audioPlayer||!audioContext||audioContext.state!=='running')return;
+    if(verify||!audioUnlocked||!audioPlayer||!audioContext||audioContext.state!=='running')return;
     audioPlayer.start({eventId:`sol-preview-${cycle}`,causeId:`sol-cause-${cycle}`,
       roomId:'sol-preview',roomGeneration:0,phaseSeconds:elapsed/1000,
       volume:.65,frameSubmitted:true,visible:!document.hidden,muted:false});
@@ -87,6 +89,7 @@
     if(!fixed){last=performance.now();raf=requestAnimationFrame(tick);}
   }catch(ex){window.__sunbeamSolPreviewError=String(ex?.stack||ex);error.textContent=`WebGPU: ${String(ex)}`;}
   canvas.addEventListener('pointerdown',async()=>{
+    if(verify)return;
     try{
       audioContext ||=new (window.AudioContext||window.webkitAudioContext)();
       await audioContext.resume();
