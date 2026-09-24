@@ -79,6 +79,7 @@
   const clearActive = () => {
     corridorRun++;
     clearInterval(monitor); clearInterval(mysteryTimer);
+    document.documentElement.dataset.gpuReady = '0';
     if (activeCleanup) { activeCleanup(); activeCleanup = null; }
     const old = stage.querySelector('iframe');
     if (old) old.remove();
@@ -193,7 +194,9 @@
     document.getElementById('selected-description').textContent = entry.detail;
     document.getElementById('selected-status').textContent = entry.status;
     document.getElementById('selected-source').textContent = `WebGPU: ${entry.source}`;
-    document.getElementById('selected-link').href = address(entry.page);
+    const sourceLink = document.getElementById('selected-link');
+    sourceLink.href = address(entry.page);
+    sourceLink.hidden = entry.kind === 'corridor';
     document.querySelectorAll('.item').forEach(button => button.setAttribute('aria-current', String(button.dataset.id === entry.id)));
     history.replaceState(null, '', `${location.pathname}${location.search}#${entry.id}`);
     if (entry.kind === 'corridor') {

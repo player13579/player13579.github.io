@@ -130,7 +130,7 @@
         const id = String(item?.effectId ?? '');
         if (!positions.has(id) || visibleSpecialAmmo.has(id) ||
             !SPECIAL_AMMO_TYPES.has(item?.effectType) ||
-            !['weak', 'shock'].includes(item?.variant))
+            !['weak', 'penetrate', 'shock'].includes(item?.variant))
           throw new TypeError(`Invalid visible special-ammo source: ${id}`);
         visibleSpecialAmmo.set(id, item);
       }
