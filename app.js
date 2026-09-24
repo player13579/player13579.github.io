@@ -27552,7 +27552,7 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
   ensureRenderPlayersAdvanced(data);
   const owner = { data, generation: state.roomSessionGeneration,
     roomId: state.roomId, snapshotRoomId: data?.roomId, phase: data?.phase,
-    screen: state.screen, frameNow: state.frameNow,
+    screen: state.screen,
     viewport, viewportSignature: [viewport?.kind, viewport?.width, viewport?.height,
       viewport?.pixelWidth, viewport?.pixelHeight, ...(viewport?.worldToLogical || [])] };
   const assertCurrent = () => {
@@ -27562,11 +27562,11 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
     if (state.data !== owner.data || state.roomSessionGeneration !== owner.generation ||
         state.roomId !== owner.roomId || data.roomId !== owner.snapshotRoomId ||
         data.phase !== owner.phase || state.screen !== owner.screen ||
-        state.frameNow !== owner.frameNow || viewport !== owner.viewport ||
+        viewport !== owner.viewport ||
         currentViewportSignature.length !== owner.viewportSignature.length ||
         owner.viewportSignature.some((value, index) =>
           value !== currentViewportSignature[index]))
-      throw new Error('WebGPU world candidate crossed a room, data, frame, or viewport boundary');
+      throw new Error('WebGPU world candidate crossed a room, data, or viewport boundary');
   };
   const early = captureWebGPUMainAppEarlyScene(data, viewport);
   assertCurrent();
