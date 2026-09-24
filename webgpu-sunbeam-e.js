@@ -180,19 +180,19 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   // PH transport: broad, offset streams pass through the one carrier.
   // Their staggered waves and the intervening dim channel give direction and
   // depth, while the carrier beneath them remains connected.
-  let streamAPath = width * (0.28 + 0.15 * sin(6.28318 * (0.90 * t - 0.15 * motion)));
-  let streamBPath = -width * (0.32 + 0.13 * sin(6.28318 * (0.63 * t - 0.22 * motion)));
-  let waveA = 0.48 + 0.52 * pow(0.5 + 0.5 * cos(6.28318 * (u / 126.0 - 1.55 * motion)), 2.0);
-  let waveB = 0.42 + 0.58 * pow(0.5 + 0.5 * cos(6.28318 * (u / 164.0 - 1.10 * motion + 0.27)), 2.0);
-  let streamA = exp(-pow((cross - streamAPath) / max(5.0, 0.35 * width), 2.0)) * waveA;
-  let streamB = exp(-pow((cross - streamBPath) / max(5.0, 0.30 * width), 2.0)) * waveB;
+  let streamAPath = width * (0.19 + 0.43 * sin(6.28318 * (1.04 * t - 0.36 * motion)));
+  let streamBPath = -width * (0.19 + 0.37 * sin(6.28318 * (0.78 * t - 0.27 * motion + 0.29)));
+  let waveA = 0.12 + 0.88 * pow(0.5 + 0.5 * cos(6.28318 * (u / 126.0 - 1.55 * motion)), 2.0);
+  let waveB = 0.16 + 0.84 * pow(0.5 + 0.5 * cos(6.28318 * (u / 164.0 - 1.10 * motion + 0.27)), 2.0);
+  let streamA = exp(-pow((cross - streamAPath) / max(5.0, 0.25 * width), 2.0)) * waveA;
+  let streamB = exp(-pow((cross - streamBPath) / max(5.0, 0.24 * width), 2.0)) * waveB;
   let heart = exp(-pow((cross + 0.05 * width) / max(4.0, 0.23 * width), 2.0))
     * (0.56 + 0.44 * waveA);
   let channel = exp(-pow((cross - width * 0.15) / max(2.0, 0.10 * width), 2.0))
     * (0.38 + 0.22 * waveB);
-  let transport = carrier * (0.36 * streamA + 0.30 * streamB + 0.28 * heart);
-  let bodyAlpha = carrier * clamp(0.20 + 0.31 * streamA + 0.25 * streamB
-    + 0.30 * heart - 0.31 * channel, 0.12, 0.78);
+  let transport = carrier * (0.50 * streamA + 0.43 * streamB + 0.16 * heart);
+  let bodyAlpha = carrier * clamp(0.18 + 0.15 * streamA + 0.13 * streamB
+    + 0.20 * heart - 0.24 * channel, 0.10, 0.63);
 
   // Broad asymmetric solar tongues are displaced plasma, not copies of the
   // carrier outline. Their two loci and lifetimes differ from the streams.
@@ -226,7 +226,7 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   let haloWidth = width + 15.0 * shortScale;
   let observation = p.energy.z * sourceGate * frontGate * 0.06
     * exp(-pow(abs(cross) / max(8.0, haloWidth), 2.0));
-  let flowTerm = 0.42 * transport;
+  let flowTerm = 0.88 * transport;
   let supplyTerm = 0.70 * supply;
   let density = bodyAlpha + flowTerm + boundary + plasmaTongues
     + terminal + observation + supplyTerm;

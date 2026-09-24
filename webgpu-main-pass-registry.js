@@ -134,7 +134,7 @@
     if (!Array.isArray(modules?.scene?.ORDER) ||
         !Array.isArray(modules.scene.REQUIRED)) absent.unshift('scene');
     if (absent.length) throw new Error(`Missing main pass modules: ${absent.join(', ')}`);
-    const owned = [], passes = Object.create(null);
+    const owned = [], readiness = [], passes = Object.create(null);
     const add = (name, value, method) => {
       if (!value || typeof value[method] !== 'function' ||
           typeof value.destroy !== 'function' ||
@@ -143,6 +143,19 @@
         throw new TypeError(`Invalid shared-device WebGPU ${name} pass`);
       }
       owned.push(value);
+      try {
+        // Wait for asynchronously compiled GPU passes before the first frame.
+        const ready = value.ready;
+        if (ready && typeof ready.then === 'function') {
+          const promise = Promise.resolve(ready);
+          promise.catch(() => {});
+          readiness.push(promise);
+        }
+      } catch (error) {
+        try { value.destroy(); } catch (_) { /* Preserve readiness error. */ }
+        owned.pop();
+        throw error;
+      }
       passes[name] = value;
     };
     const borrow = (name, value, method = 'record') => {
@@ -204,7 +217,7 @@
       for (const name of ['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'sunbeamE']) {
         const pass = modules[name].create({ renderer, frameOwner: renderer });
         add(name, Object.freeze({ device: renderer.device,
-          record: pass.record, destroy: pass.destroy }), 'record');
+          record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
       for (const name of ['gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
         'archiveCabinetE', 'cableSpoolE']) {
@@ -373,6 +386,7 @@
           if (error) throw error;
         }
       }), 'record');
+      await Promise.all(readiness);
       let destroyed = false;
       const status = coverage(modules.scene, passes);
       return Object.freeze({
