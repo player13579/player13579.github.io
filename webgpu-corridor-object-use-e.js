@@ -11,13 +11,20 @@
   ['v317-corridor-a06-1','corridorBench','acceleration',1828,1170,40,100,'a06','bench-vertical-spine-release','upright-rail-spring'],
   ['v317-corridor-a13-2','corridorBench','acceleration',1718,2385,100,40,'a13','bench-corner-hinge-release','corner-hinge-clack'],
   ['v317-corridor-a17-1','corridorBench','acceleration',1150,968,100,40,'a17','bench-window-reflection-release','window-seat-glass-tick'],
-  ['v317-corridor-a18-1','corridorBench','acceleration',3401,2918,100,40,'a18','bench-endrail-release','endrail-resonant-knock']
+  ['v317-corridor-a18-1','corridorBench','acceleration',3401,2918,100,40,'a18','bench-endrail-release','endrail-resonant-knock'],
+  ['v317-corridor-a05-1','corridorPlanter','heal',2414,885,42,42,'a05','planter-paired-leaf-heal-wash','paired-leaf-water-drop'],
+  ['v317-corridor-a08-1','corridorPlanter','stamina',3182,1992,42,42,'a08','planter-root-rise-stamina','root-pot-pulse'],
+  ['v317-corridor-a12-1','corridorPlanter','luckBoost',2434,2386,42,42,'a12','planter-cross-leaf-luck','cross-leaf-brush'],
+  ['v317-corridor-a13-1','corridorPlanter','stamina',1900,2180,42,42,'a13','planter-upright-stamina','upright-leaf-tap'],
+  ['v317-corridor-a18-2','corridorPlanter','heal',3233,3130,42,42,'a18','planter-canopy-heal','canopy-water-rustle'],
+  ['v317-corridor-a14-1','wallSconce','luckBoost',1085,2802,24,24,'a14','sconce-bounded-luck-halo','glass-shutter-luck-tone']
  ];
  const OBJECTS=Object.freeze(Object.fromEntries(raw.map((r,index)=>[r[0],Object.freeze({
   id:r[0],type:r[1],effectKind:r[2],x:r[3],y:r[4],width:r[5],height:r[6],corridor:r[7],
   code:index,design:r[8],soundProfile:r[9],sound:Object.freeze({profile:r[9],sourceX:r[3],sourceY:r[4],
-   edge:'accepted-use-once',durationMs:[185,230,270,160,205,215,245,190][index],
-   material:['brass-glass','clay-leaf','ceramic-canopy','timber','steel-spring','hinge','glass-wood','endrail'][index]})
+   edge:'accepted-use-once',durationMs:[185,230,270,160,205,215,245,190,220,215,230,205,225,185][index],
+   material:['brass-glass','clay-leaf','ceramic-canopy','timber','steel-spring','hinge','glass-wood','endrail',
+    'paired-leaf','root-clay','cross-leaf','upright-leaf','water-canopy','brass-glass'][index]})
  })])));
  const finite=Number.isFinite;
  const WALL_SCONCE_EXTENT=Object.freeze({halfWidth:58,halfHeight:46});
@@ -138,13 +145,44 @@ fn over(dst:vec4f,color:vec3f,coverage:f32)->vec4f{
   let pane=line(q.x+q.y*.31-(sweep*1.6-.8),.12)*band(q.y,-.77,-.18);
   mark=rail*.48+pane*.80;highlight=line(q.y+.22,.06)*band(q.x,-.68,.68)*.23;
   color=vec3f(.66,.87,.99);
- }else{
+ }else if(code<7.5){
   // A18: two endrail contacts answer in sequence across the bench length.
   let left=line(q.x+.66,.08)*band(q.y,-.65,.65);
   let right=line(q.x-.66,.08)*band(q.y,-.65,.65);
   mark=left*line(sweep-.30,.18)+right*line(sweep-.67,.18);
   highlight=line(q.y-.46,.06)*band(q.x,-.68,.68)*.25;
   color=vec3f(.93,.50,.40);
+ }else if(code<8.5){
+  // A05: two broad leaves carry a clean healing wash from clay to tips.
+  let leaves=line(q.x+.32+.20*q.y,.10)+line(q.x-.32-.20*q.y,.10);
+  mark=leaves*band(q.y,-.68,.45)*line(q.y-(.62-sweep*1.34),.18);
+  highlight=line(q.y-.51,.07)*band(q.x,-.54,.54)*.35;color=vec3f(.47,1.0,.82);
+ }else if(code<9.5){
+  // A08: a central root stores force and releases one rising vertical front.
+  let root=line(q.x,.10)*band(q.y,-.74,.58);
+  mark=root*line(q.y-(.72-sweep*1.45),.20);
+  highlight=line(q.y-.47,.08)*band(q.x,-.52,.52)*.32;color=vec3f(.55,.93,.48);
+ }else if(code<10.5){
+  // A12: crossing midribs pass a restrained luck glint between two leaves.
+  let crossed=line(q.x+.48*q.y,.085)+line(q.x-.48*q.y,.085);
+  mark=crossed*band(q.y,-.72,.49)*line(q.x-(sweep*1.25-.63),.20);
+  highlight=line(q.y-.52,.07)*band(q.x,-.51,.51)*.30;color=vec3f(.84,.93,.41);
+ }else if(code<11.5){
+  // A13: upright leaf seams lift a stamina pulse without scattering fragments.
+  let upright=line(q.x-.23,.075)+line(q.x+.23,.075);
+  mark=upright*band(q.y,-.69,.48)*line(q.y-(.69-sweep*1.36),.17);
+  highlight=line(q.y-.47,.08)*band(q.x,-.46,.46)*.32;color=vec3f(.39,.91,.72);
+ }else if(code<12.5){
+  // A18: canopy's lower edge sends one healing sweep through the leaf fan.
+  let canopy=line(q.y+.24+.31*q.x*q.x,.09)*band(q.x,-.72,.72);
+  mark=canopy*line(q.x-(sweep*1.45-.73),.20);
+  highlight=line(q.y-.52,.07)*band(q.x,-.52,.52)*.33;color=vec3f(.45,1.0,.81);
+ }else{
+  // A14: brass shutters admit a bounded warm luck halo around the lamp glass.
+  let lamp=line(length(q*vec2f(.93,1.05))-.37,.075);
+  let shutter=line(abs(q.x)-(.12+.22*sweep),.07)*band(q.y,-.46,.46);
+  mark=lamp*(.38+.62*sweep)+shutter*.58;
+  highlight=line(length(q)-(.24+.43*sweep),.12)*.36;color=vec3f(1.0,.82,.41);
  }
  let a=clamp((mark+highlight)*envelope*.75,0.0,.82);
  return vec4f(color*a,a);

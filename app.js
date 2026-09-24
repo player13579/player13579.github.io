@@ -21329,6 +21329,13 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   for (const [index, effect] of active.entries()) {
     const now = eEffectNow(effect, data, wallNow);
     const type = String(effect.type || "");
+    // The credit gain marker TE was withdrawn. Claim its source explicitly so
+    // it cannot block the WebGPU frame or reappear as an unowned field visual.
+    if (type === 'gain-credits' ||
+        (type.startsWith('gain-') && effect.effectKind === 'credits')) {
+      omitted.push({ effectId: effect.id, reason: 'withdrawn-credit-marker' });
+      continue;
+    }
     if (type === 'mystery-box') {
       if (String(effect.viewerId ?? '') !== String(data.selfId ?? '') ||
           String(effect.playerId ?? '') !== String(data.selfId ?? '')) {
@@ -21709,6 +21716,20 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     }
     if (type === 'enhance-activation' || type === 'fighter-energy-charge') {
       const playerId = String(effect.playerId || '');
+      const sourcePlayer = data.players?.find(entry => String(entry?.id || '') === playerId);
+      const rendered = sourcePlayer && renderedPlayer(sourcePlayer);
+      const outside = rendered && (rendered.x < camera.x - 240 ||
+        rendered.x > camera.x + viewport.width / zoom + 240 ||
+        rendered.y < camera.y - 240 ||
+        rendered.y > camera.y + viewport.height / zoom + 240);
+      if (sourcePlayer && (!sourcePlayer.alive || sourcePlayer.ejected ||
+          sourcePlayer.inVent ||
+          (sourcePlayer.invisible && playerId !== String(data.selfId || '')) ||
+          outside)) {
+        omitted.push({ effectId: effect.id,
+          reason: 'retained-marker-actor-not-visible' });
+        continue;
+      }
       const scene = markerSelection?.scenes?.get(playerId);
       const marker = scene?.presentation?.nonCredits?.find(candidate =>
         candidate.type === type && candidate.sourceEffect?.id ===
@@ -21863,9 +21884,10 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
            objectUseProfile.x - halfW >= camera.x + viewport.width / zoom ||
            objectUseProfile.y + halfH <= camera.y ||
            objectUseProfile.y - halfH >= camera.y + viewport.height / zoom);
-        (outside ? omitted : unsupported).push({ index, type, id: effect.id,
-          reason: outside ? 'object-use-outside-viewport' :
-            'object-use-source-or-pass-invalid' });
+        if (outside) omitted.push({ effectId: effect.id,
+          reason: 'object-use-outside-viewport' });
+        else unsupported.push({ index, type, id: effect.id,
+          reason: 'object-use-source-or-pass-invalid' });
         continue;
       }
       events.push({ type: objectUseType, effectId: String(effect.id),
@@ -22164,6 +22186,15 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       const player = gainEffectPlayer(effect);
       if (!player || !player.alive || player.ejected || player.inVent || player.invisible) {
         omitted.push({ effectId: effect.id, reason: 'acceleration-benefit-player-not-visible' });
+        continue;
+      }
+      const profile = pass?.PROFILES?.acceleration;
+      if (profile && (player.x + profile.radiusX * 1.12 < camera.x ||
+          player.x - profile.radiusX * 1.12 > camera.x + viewport.width / zoom ||
+          player.y - profile.anchorY + profile.radiusY * 1.12 < camera.y ||
+          player.y - profile.anchorY - profile.radiusY * 1.12 >
+            camera.y + viewport.height / zoom)) {
+        omitted.push({ effectId: effect.id, reason: 'acceleration-benefit-outside-viewport' });
         continue;
       }
       const actorElapsed = accelerationBodyActorElapsed(effect, data);

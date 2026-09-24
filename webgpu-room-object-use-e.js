@@ -16,7 +16,8 @@
   ['v302-security-equipmentLocker-3','equipmentLocker','stamina',1458,965,'security','security-locker-release','security-locker-bolt','armored-steel'],
   ['v302-storage-cargoCrate-1','cargoCrate','credits',1203,1696,'storage','crate-hinged-credit-retrieval','crate-hinge-knock','timber-hinge'],
   ['v302-fabrication-workbench-1','workbench','stamina',3642,2102,'fabrication','fabrication-bench-tool-run','bench-tool-chime','machined-steel'],
-  ['v302-engineering-workbench-1','workbench','stamina',3619,1316,'engineering','engineering-bench-pressure-release','bench-pressure-hiss','composite-worktop']
+  ['v302-engineering-workbench-1','workbench','stamina',3619,1316,'engineering','engineering-bench-pressure-release','bench-pressure-hiss','composite-worktop'],
+  ['v302-atrium-airPlant-3','indoorGarden','luckBoost',2162,1899,'atrium','garden-root-to-canopy-luck-current','atrium-leaf-cup-rustle','leaf-and-clay']
  ];
  const OBJECTS=Object.freeze(Object.fromEntries(raw.map((r,code)=>[r[0],Object.freeze({
   id:r[0],type:r[1],effectKind:r[2],x:r[3],y:r[4],room:r[5],width:110,height:76,code,
@@ -93,7 +94,19 @@ fn band(v:f32,a:f32,b:f32)->f32{return smoothstep(a,a+.035,v)*(1.0-smoothstep(b-
  }else if(k<9.5){c=vec3f(.38,.89,1.0);let bolt=line(q.x-.49,.05)*band(q.y,-.55,.55)+line(q.x+.49,.05)*band(q.y,-.55,.55);let bar=line(q.y-(.55-u*1.1),.065)*band(q.x,-.74,.74);m=bolt*.55+bar;h=bar*.55;
  }else if(k<10.5){c=vec3f(1.0,.56,.30);let lid=line(q.y-(.42-u*.75),.065)*band(q.x,-.72,.72);let box=line(abs(q.x)-.7,.04)*band(q.y,-.55,.38);m=lid+box*.45;h=lid*.6;
  }else if(k<11.5){c=vec3f(.72,.93,.43);let tool=line(q.y-(.48-.96*u),.055)*band(q.x,-.68,.68);let bench=line(q.y+.35,.06)*band(q.x,-.72,.72);let spark=(line(q.x-.42,.055)+line(q.x+.37,.05))*line(q.y-(.05+.24*sin(u*12.0)),.09);m=tool*.62+bench*.38+spark*.55;h=spark*.65;
- }else{c=vec3f(.93,.72,.42);let platen=line(q.y+.28,.06)*band(q.x,-.68,.68);let pressure=line(q.x-(u*1.4-.7),.07)*band(q.y,-.60,.35);let release=line(q.y-(.05+.52*u),.055)*band(q.x,-.42,.42);m=platen*.42+pressure*.62+release*.6;h=release*.52;}
+  }else if(k<12.5){c=vec3f(.93,.72,.42);let platen=line(q.y+.28,.06)*band(q.x,-.68,.68);let pressure=line(q.x-(u*1.4-.7),.07)*band(q.y,-.60,.35);let release=line(q.y-(.05+.52*u),.055)*band(q.x,-.42,.42);m=platen*.42+pressure*.62+release*.6;h=release*.52;
+  }else{
+   // Atrium garden: a contained clay cup feeds three broad leaves in order;
+   // the accepted luck event lights each midrib from the root outward.
+   c=vec3f(.55,.91,.45);let cup=line(q.y-.57,.065)*band(q.x,-.48,.48);
+   let root=line(q.x,.045)*band(q.y,.22,.55);
+   let left=line(q.x+.34+.24*q.y,.075)*band(q.y,-.64,.24);
+   let right=line(q.x-.34-.24*q.y,.075)*band(q.y,-.64,.24);
+   let crown=line(q.x,.06)*band(q.y,-.82,.20);
+   let front=line(q.y-(.50-u*1.25),.14);
+   m=cup*.42+root*.38+(left+right+crown)*front*.84;
+   h=(left+right+crown)*front*.42;
+  }
  let a=clamp((m+h*.58)*env*.78,0.0,.84);return vec4f(c*a,a);
 }`;
  function supported(e){const s=OBJECTS[e?.objectId];return Boolean(s&&e.type===`object-${s.type}`&&e.effectKind===s.effectKind);}
