@@ -89,6 +89,7 @@
       const alpha = clamp(tail);
       const rays = hands.map(hand => {
         const dxWorld = target.x - hand.x, dyWorld = target.y - hand.y;
+        const fullWorldLength = Math.hypot(dxWorld, dyWorld);
         const handX = (hand.x - camera.x) * zoom;
         const handY = (hand.y - camera.y) * zoom;
         const targetX = (hand.x + dxWorld * extension - camera.x) * zoom;
@@ -98,7 +99,7 @@
         if (![handX, handY, targetX, targetY, distance, angle].every(finite))
           throw new Error(`Sunbeam E ${id} rejected: transformed beam geometry is not finite`);
         return { hand: { x: handX, y: handY }, target: { x: targetX, y: targetY },
-          angle, distance };
+          angle, distance, fullWorldLength };
       });
       const firstRay = rays[0];
       return { id, playerId: String(effect.playerId ?? ''), progress,
@@ -119,7 +120,7 @@ struct Params {
   ray0: vec4f,     // measured hand x/y, extended endpoint x/y
   ray1: vec4f,
   energy: vec4f,   // PH envelope, supply, transport, logical zoom
-  control: vec4f,  // hand count, progress, reduced motion, reserved
+  control: vec4f,  // hand count, progress, reduced motion, minimum full hand-to-target world length
 };
 @group(0) @binding(0) var<uniform> p: Params;
 struct VertexOut { @builtin(position) position: vec4f };
@@ -152,7 +153,8 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
     - 2.0 * exp(-pow((t - 0.38) / 0.13, 2.0))
     + 3.0 * exp(-pow((t - 0.62) / 0.20, 2.0));
   let tip = 1.0 - 0.68 * smoothstep(0.78, 0.99, visibleT);
-  let width = mix(9.0, broadWorld, throat) * tip * scale;
+  let shortScale = mix(0.52, 1.0, smoothstep(100.0, 320.0, worldLength));
+  let width = mix(9.0, broadWorld, throat) * tip * shortScale * scale;
   let edgeAA = max(fwidth(abs(lateral)), 1.0);
   let cross = 1.0 - smoothstep(width - 5.0 * scale - edgeAA,
     width + 5.0 * scale + edgeAA, abs(lateral));
@@ -170,7 +172,7 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   let radiance = 0.62 + 0.25 * broadHeart + 0.13 * oblique;
   let phAlpha = ph * radiance;
   // OBS shares the PH longitudinal masks and fades softly beyond its edge.
-  let obsRadius = width + 17.0 * scale;
+  let obsRadius = width + 17.0 * shortScale * scale;
   let observation = sourceGate * attenuation * transportGate * p.energy.z * 0.14
     * exp(-pow(abs(lateral) / max(obsRadius, 1.0), 2.0));
   let alpha = clamp(phAlpha * p.energy.x + observation * p.energy.x, 0.0, 0.87);
@@ -182,10 +184,19 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
 fn unionPremultiplied(a: vec4f, b: vec4f) -> vec4f {
   return a + b * (1.0 - a.a);
 }
+fn shortRangeUnion(a: vec4f, b: vec4f) -> vec4f {
+  let sourceOver = unionPremultiplied(a, b);
+  let alphaOld = sourceOver.a;
+  let alphaShort = max(a.a, b.a) + 0.10 * min(a.a, b.a) * (1.0 - max(a.a, b.a));
+  let shortMix = 1.0 - smoothstep(180.0, 360.0, p.control.w);
+  let alphaNew = clamp(mix(alphaOld, alphaShort, shortMix), 0.0, 1.0);
+  let rgbScale = alphaNew / max(alphaOld, 0.000001);
+  return vec4f(sourceOver.rgb * rgbScale, alphaNew);
+}
 @fragment fn sunbeamFragment(@builtin(position) position: vec4f) -> @location(0) vec4f {
   var light = rayLight(position.xy, p.ray0, p.control.y);
   if (p.control.x > 1.5) {
-    light = unionPremultiplied(light, rayLight(position.xy, p.ray1, p.control.y));
+    light = shortRangeUnion(light, rayLight(position.xy, p.ray1, p.control.y));
   }
   // rayLight already applies the single lifetime envelope and premultiplies
   // each source. A second fade here would dim onset and decay quadratically.
@@ -250,7 +261,8 @@ fn unionPremultiplied(a: vec4f, b: vec4f) -> vec4f {
           viewport.pixelWidth, viewport.pixelHeight, sx, sy,
           ...point(rays[0]), ...(rays[1] ? point(rays[1]) : point(rays[0])),
           effect.alpha, effect.supply, effect.transport, zoom,
-          rays.length, effect.progress, effect.reducedMotion ? 1 : 0, 0
+          rays.length, effect.progress, effect.reducedMotion ? 1 : 0,
+          Math.min(...rays.map(ray => ray.fullWorldLength))
         ]);
         if (!values.every(finite)) throw new Error('Sunbeam E shader values are not finite');
         device.queue.writeBuffer(uniform, 0, values);
