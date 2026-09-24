@@ -17719,16 +17719,18 @@ function draw() {
     clearMarkerExplanation();
     return;
   }
+  const environmentSoundReceipts = [];
   drawCanvasStage("map", () => {
     ctx.save();
     try {
       ctx.scale(worldZoom, worldZoom);
       ctx.translate(-camera.x, -camera.y);
-      drawMap(data, camera, viewW, viewH);
+      drawMap(data, camera, viewW, viewH, environmentSoundReceipts);
     } finally {
       ctx.restore();
     }
   });
+  applyEnvironmentSoundReceipts(data, environmentSoundReceipts);
   sweepEnvironmentSounds();
 
   drawCanvasStage("world", () => {
@@ -18072,7 +18074,7 @@ function tryDrawGpuStaticField(data, camera, w, h) {
   }
 }
 
-function drawMap(data, camera, w, h) {
+function drawMap(data, camera, w, h, environmentSoundReceipts = []) {
   const map = data.map;
   const visibleRooms = map.rooms.filter((rect) => worldRectVisible(rect, 80));
   const visibleCorridors = map.corridors.filter((rect) => worldRectVisible(rect, 80));
@@ -18096,7 +18098,7 @@ function drawMap(data, camera, w, h) {
     ctx.restore();
   }
   drawTextureSurfaceAnimation(data);
-  drawAmbientMapAnimations(data, visibleRooms, visibleCorridors);
+  drawAmbientMapAnimations(data, visibleRooms, visibleCorridors, environmentSoundReceipts);
 
   visibleRooms.forEach((room) => {
     ctx.fillStyle = "#183448";
@@ -18107,6 +18109,7 @@ function drawMap(data, camera, w, h) {
     ctx.globalAlpha = 1;
   });
 
+  return environmentSoundReceipts;
 }
 
 function mapRoomShadeMask(data, room) {
@@ -18841,7 +18844,7 @@ function drawTextureSurfaceAnimation(data) {
   ctx.restore();
 }
 
-function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
+function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = [], environmentSoundReceipts = []) {
   const reducedMotion = prefersReducedMotion();
   const time = reducedMotion ? 1.2 : (state.frameNow || performance.now()) / 1000;
   const source = state.textures.fullMapComposites?.[data.map.id];
@@ -18858,11 +18861,11 @@ function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
       drawMedicalWindowLight(ctx, data, source, time, mapEnvironmentRegionCache, 1, reducedMotion);
     } else if (footBathRoomIds.has(room.id)) {
       if (drawFootBathRoomKomorebi(data, room, time)) {
-        observeEnvironmentSound(data, `komorebi:${room.id}`, "woodsAir", room.x + room.w / 2, room.y + room.h / 2);
+        environmentSoundReceipts.push({ sourceId: `komorebi:${room.id}`, kind: "woodsAir", x: room.x + room.w / 2, y: room.y + room.h / 2 });
       }
     } else {
       if (drawFoliageWoodsun(data, room, drawAuthoredMapShadeAnimation, time)) {
-        observeEnvironmentSound(data, `komorebi:${room.id}`, "woodsAir", room.x + room.w / 2, room.y + room.h / 2);
+        environmentSoundReceipts.push({ sourceId: `komorebi:${room.id}`, kind: "woodsAir", x: room.x + room.w / 2, y: room.y + room.h / 2 });
       }
     }
   }
@@ -18876,9 +18879,10 @@ function drawAmbientMapAnimations(data, visibleRooms, visibleCorridors = []) {
     // The spring, steam, caustics, and fixed-source god rays are environmental
     // ATE. Object benefit bursts remain event-driven in drawObjectActivationEffect.
     if (drawFootBathAmbient(object, time, 0.86, data)) {
-      observeEnvironmentSound(data, `footBath:${object.id || `${object.x}:${object.y}`}`, "bathAmbient", object.x, object.y);
+      environmentSoundReceipts.push({ sourceId: `footBath:${object.id || `${object.x}:${object.y}`}`, kind: "bathAmbient", x: object.x, y: object.y });
     }
   }
+  return environmentSoundReceipts;
 }
 
 function drawFieldEnvironment(data, visibleRooms = data.map.rooms, visibleCorridors = data.map.corridors) {
@@ -32708,6 +32712,9 @@ function environmentSoundMix(data, x, y) {
   const dx = x - listener.x, dy = y - listener.y, distance = Math.hypot(dx, dy);
   if (distance >= 650) return null;
   return { volume: (1 - distance / 650) ** 2, pan: clamp(dx / 320, -1, 1) };
+}
+function applyEnvironmentSoundReceipts(data, receipts) {
+  for (const { sourceId, kind, x, y } of receipts) observeEnvironmentSound(data, sourceId, kind, x, y);
 }
 function observeEnvironmentSound(data, sourceId, kind, x, y) {
   const key = `${data.roomId}:${data.map.id}:${sourceId}`;
