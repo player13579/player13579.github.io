@@ -930,6 +930,40 @@ function drawAuthoredSunbeamPose(player, data, ghost, action, atlasId, progress)
       pose.ground.x - pose.origin.x * pose.scale, pose.ground.y - pose.origin.y * pose.scale,
       rect.width * pose.scale, rect.height * pose.scale);
   } finally { ctx.restore(); }
+  const source = state.magicEffects.find(effect =>
+    effect.type === 'flora-sunbeam' &&
+    String(effect.id) === String(owner.sourceEffectId) &&
+    String(effect.playerId) === String(player.id));
+  if (source && pose.emitters.length &&
+      [source.x, source.y, source.targetX, source.targetY,
+        source.startedAt, source.duration].every(Number.isFinite) &&
+      source.duration > 0 && data.phase === 'playing' && player.alive &&
+      !player.ejected && !player.inVent &&
+      (!player.invisible || player.id === data.selfId)) {
+    const rise = characterAscensionPresentation(player, data).ascensionRise;
+    const handWorlds = pose.emitters.map(point => {
+      const localX = pose.ground.x + (point.x - pose.origin.x) * pose.scale;
+      const localY = pose.ground.y + (point.y - pose.origin.y) * pose.scale;
+      return { x: player.x + characterBodyVisualX(localX),
+        y: player.y - rise + characterBodyVisualY(localY) };
+    });
+    const directionX = source.targetX - source.x;
+    const directionY = source.targetY - source.y;
+    if (handWorlds.length <= 2 &&
+        handWorlds.every(point => [point.x, point.y].every(Number.isFinite) &&
+          Math.hypot(source.targetX - point.x, source.targetY - point.y) > 1e-3) &&
+        Math.hypot(directionX, directionY) > 1e-3) {
+      sunbeamLive.poseReceipts.set(String(source.id), Object.freeze({
+        effect: Object.freeze({ id: String(source.id), type: 'flora-sunbeam',
+          playerId: String(player.id), startedAt: source.startedAt,
+          duration: source.duration, handWorlds,
+          sourceWorld: { x: source.x, y: source.y },
+          targetWorld: { x: source.targetX, y: source.targetY },
+          facing: { x: directionX, y: directionY } }),
+        identity: atlasId, direction, poseKey: authoredSunbeamFrame(profile, progress)
+      }));
+    }
+  }
   drawNameplate(player, ghost, -78);
   return true;
 }
@@ -1413,6 +1447,7 @@ const PHENOMENON_SOUND_RECEIPTS = { roomId: "", ids: new Set(), order: [], owner
 const GRENADE_IMPACT_SOUND_RECEIPTS = { roomId: "", generation: 0, ids: new Map() };
 const WEBGPU_E_CUES = { roomKey: '', player: null, events: null,
   combat: null, defense: null };
+const WORLD_EVENT_SOUND_IDS = { roomKey: '', ids: new Set(), order: [] };
 const ENVIRONMENT_SOUND_OWNERS = new Map();
 const ENVIRONMENT_SFX_BUFFERS = new WeakMap();
 let environmentSoundFrame = 0;
@@ -2316,6 +2351,10 @@ const webgpuMainApp = { driver: null, startPending: null, mapId: null,
   submittedFrame: null, submittedSunbeamHands: new Map(),
   requestSerial: 0, lastSoundRequestSerial: 0,
   acquisitionCanvas: null };
+const sunbeamLive = { renderer: null, pending: null, generation: 0,
+  nextRetryAt: 0, poseReceipts: new Map(), drawnIds: new Set(),
+  submitted: new Map(), frameId: 0, pendingSounds: new Map(),
+  soundPlanner: null, soundPlayer: null, soundAdapter: null };
 init();
 
 function prepareTitleHero() {
@@ -3279,6 +3318,7 @@ function setScreen(screen) {
   if (next !== "game") setSoloNameGuidance(false);
   state.screen = next;
   if (next !== "game") suspendWebGPUMainAppDriver();
+  if (next !== "game") suspendLiveSunbeamOverlay({ destroy: true });
   if (next === "game" && previous !== "game") scheduleFieldGpuFor(state.data);
   if (next !== "game") clearMarkerExplanation();
   if (next !== "game") clearAcquisitionOverlay();
@@ -12461,6 +12501,43 @@ function admitWebGPUECue(effect, data, receivedAt, volumeOverride = null) {
       ? volumeOverride : webgpuECueVolume(effect, data) });
 }
 
+function admitSubmittedAcquisitionCue(data, receipt) {
+  const source = receipt?.source;
+  const nowMs = state.frameNow || performance.now();
+  if (data !== state.data || state.screen !== 'game' ||
+      receipt?.roomId !== String(data?.roomId || '') ||
+      receipt.roomGeneration !== state.roomSessionGeneration ||
+      !['playing', 'meeting'].includes(data.phase) ||
+      !Number.isFinite(receipt.arrival) || receipt.arrival <= 0 ||
+      !state.magicEffects.includes(source) ||
+      String(source?.id || '') !== receipt.effectId ||
+      !['mystery-box', 'transfer-in'].includes(source?.type) ||
+      !Number.isFinite(source.startedAt) || !(source.duration > 0) ||
+      !source.acquisitionKind ||
+      (source.type === 'mystery-box' && source.playerId !== data.selfId)) return null;
+  if (source.playerId !== data.selfId) {
+    const recipient = data.players?.find(player => player.id === source.playerId);
+    if (!recipient?.alive || recipient.ejected || recipient.inVent ||
+        recipient.invisible) return null;
+  }
+  if (!syncWebGPUECueSession(data)) return null;
+  const audible = !document.hidden && !IS_VERIFICATION_MODE &&
+    !state.audio.muted && state.audio.unlocked && !isSensoryBlocked(data) &&
+    state.audio.context?.state === 'running' &&
+    Number(state.audio.master?.gain?.value) > 0;
+  const cue = WEBGPU_E_CUES.events.admit({ kind: 'acquisition',
+    roomId: receipt.roomId, roomGeneration: receipt.roomGeneration,
+    eventId: receipt.effectId, eventAtMs: source.startedAt,
+    nowMs, startedAtMs: source.startedAt, durationMs: source.duration,
+    effectType: source.type, acquisitionKind: source.acquisitionKind,
+    sourceId: String(source.playerId || ''),
+    reducedMotion: prefersReducedMotion() }, { audible });
+  if (!cue) return null;
+  return WEBGPU_E_CUES.player.play(cue, { nowMs,
+    muted: !audible, verify: IS_VERIFICATION_MODE,
+    volume: clamp(webgpuECueVolume(source, data), 0, .75) });
+}
+
 function pairedEmpMagicEffect(sound, data) {
   const causalId = sound?.empCausalId;
   if (sound?.type !== 'emp' || typeof causalId !== 'string' || !causalId)
@@ -12708,10 +12785,34 @@ function detectGameSounds(previous, next) {
 
 function detectWorldSounds(previous, next) {
   if (!previous || previous.roomId !== next.roomId) return;
-  if (isSensoryBlocked(next)) return;
+  const sensoryBlocked = isSensoryBlocked(next);
   const known = new Set((previous.sounds || []).map((sound) => sound.id));
+  const receiptRoom = `${String(next.roomId || '')}:${state.roomSessionGeneration}`;
+  if (WORLD_EVENT_SOUND_IDS.roomKey !== receiptRoom) {
+    WORLD_EVENT_SOUND_IDS.roomKey = receiptRoom;
+    WORLD_EVENT_SOUND_IDS.ids.clear();
+    WORLD_EVENT_SOUND_IDS.order.length = 0;
+  }
   for (const sound of next.sounds || []) {
     if (known.has(sound.id)) continue;
+    const boundedWorldKind = ['sunbeam', 'heavyWeapon', 'gravityStorm'].includes(sound.type);
+    if (!boundedWorldKind && sensoryBlocked) continue;
+    if (boundedWorldKind) {
+      const id = String(sound.id || '');
+      if (!id || WORLD_EVENT_SOUND_IDS.ids.has(id)) continue;
+      WORLD_EVENT_SOUND_IDS.ids.add(id);
+      WORLD_EVENT_SOUND_IDS.order.push(id);
+      while (WORLD_EVENT_SOUND_IDS.order.length > 512)
+        WORLD_EVENT_SOUND_IDS.ids.delete(WORLD_EVENT_SOUND_IDS.order.shift());
+      const sourceActor = next.players?.find(player =>
+        String(player.id) === String(sound.ownerId || ''));
+      // These server-owned one-shots are consumed even while inaudible. A
+      // hidden or suspended tab cannot replay a stale blast on resume.
+      if ((sourceActor?.invisible && String(sourceActor.id) !== String(next.selfId)) ||
+          document.hidden || sensoryBlocked || !state.audio.unlocked ||
+          state.audio.context?.state !== 'running' ||
+          !(Number(state.audio.master?.gain?.value) > 0)) continue;
+    }
     if (["walk", "dash"].includes(sound.type) && sound.ownerId === next.selfId) continue;
     const listener = worldSoundListener(next);
     const dx = listener ? sound.x - listener.x : 0;
@@ -12750,7 +12851,10 @@ function detectWorldSounds(previous, next) {
       a01ReaderUse: "a01ReaderUse",
       cableSpoolUse: "cableSpoolUse",
       archiveCabinetUse: "archiveCabinetUse",
-      invention: "invention"
+      invention: "invention",
+      sunbeam: "sunbeam",
+      heavyWeapon: "heavyWeapon",
+      gravityStorm: "gravityStorm"
     }[sound.type];
     if (!kind) continue;
     const characterActionKind = {
@@ -12773,7 +12877,7 @@ function detectWorldSounds(previous, next) {
         `sound:${sound.type}`
       );
     }
-    playSound(kind, {
+    const soundOptions = {
       pan: clamp(dx / Math.max(240, maxDistance * 0.45), -1, 1),
       volume,
       variant: sound.variant || "",
@@ -12782,7 +12886,20 @@ function detectWorldSounds(previous, next) {
         y: 0,
         z: clamp(dy / maxDistance, -1, 1) * 4
       }
-    });
+    };
+    const pairedSunbeam = kind === 'sunbeam' &&
+      typeof sound.sunbeamCausalId === 'string' && sound.sunbeamCausalId &&
+      (next.magicEffects || []).find(effect => effect.type === 'flora-sunbeam' &&
+        effect.sunbeamCausalId === sound.sunbeamCausalId &&
+        String(effect.playerId) === String(sound.ownerId));
+    if (pairedSunbeam && !WEBGPU_MAIN_VERIFY_ROUTE) {
+      sunbeamLive.pendingSounds.set(String(sound.id), Object.freeze({
+        roomId: String(next.roomId || ''),
+        roomGeneration: state.roomSessionGeneration,
+        sound, effectId: String(pairedSunbeam.id), soundOptions }));
+      continue;
+    }
+    playSound(kind, soundOptions);
   }
 }
 
@@ -17573,6 +17690,179 @@ function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function suspendLiveSunbeamOverlay({ destroy = false } = {}) {
+  sunbeamLive.drawnIds.clear();
+  sunbeamLive.poseReceipts.clear();
+  sunbeamLive.submitted.clear();
+  if (els.webgpuMainCanvas && !WEBGPU_MAIN_VERIFY_ROUTE)
+    els.webgpuMainCanvas.style.opacity = '0';
+  if (destroy) {
+    sunbeamLive.generation += 1;
+    sunbeamLive.pendingSounds.clear();
+    sunbeamLive.soundPlayer?.stopAll?.();
+    sunbeamLive.renderer?.destroy();
+    sunbeamLive.renderer = null;
+    sunbeamLive.pending = null;
+  }
+}
+
+function pumpLiveSunbeamOverlay(data, camera, zoom) {
+  sunbeamLive.drawnIds.clear();
+  sunbeamLive.submitted.clear();
+  if (WEBGPU_MAIN_VERIFY_ROUTE || state.screen !== 'game' ||
+      data !== state.data || data?.phase !== 'playing' || document.hidden ||
+      !els.webgpuMainCanvas?.isConnected || !els.canvas?.isConnected) {
+    suspendLiveSunbeamOverlay();
+    return;
+  }
+  const receipts = [...sunbeamLive.poseReceipts.values()];
+  const canvas = els.webgpuMainCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const fieldRect = els.canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  if (![rect.left, rect.top, rect.width, rect.height, dpr].every(Number.isFinite) ||
+      rect.width <= 0 || rect.height <= 0 || dpr <= 0 ||
+      ['left', 'top', 'width', 'height'].some(key =>
+        Math.abs(rect[key] - fieldRect[key]) > 1)) {
+    suspendLiveSunbeamOverlay();
+    return;
+  }
+  if (!sunbeamLive.renderer) {
+    if (!sunbeamLive.pending && window.DvaWebGPUSunbeamLiveOverlay?.create &&
+        performance.now() >= sunbeamLive.nextRetryAt) {
+      const generation = sunbeamLive.generation;
+      let pending;
+      pending = window.DvaWebGPUSunbeamLiveOverlay.create({ canvas,
+        onFailure() {
+          if (generation !== sunbeamLive.generation) return;
+          sunbeamLive.renderer = null;
+          sunbeamLive.nextRetryAt = performance.now() + 3000;
+          suspendLiveSunbeamOverlay();
+        } }).then(renderer => {
+        if (generation !== sunbeamLive.generation || state.screen !== 'game' ||
+            document.hidden || WEBGPU_MAIN_VERIFY_ROUTE) {
+          renderer.destroy();
+          return;
+        }
+        if (renderer.state !== 'ready') {
+          renderer.destroy();
+          throw new Error('Sunbeam overlay became unavailable during creation');
+        }
+        sunbeamLive.renderer = renderer;
+      }).catch(() => {
+        if (generation !== sunbeamLive.generation) return;
+        sunbeamLive.nextRetryAt = performance.now() + 3000;
+        suspendLiveSunbeamOverlay();
+      }).finally(() => {
+        if (sunbeamLive.pending === pending) sunbeamLive.pending = null;
+      });
+      sunbeamLive.pending = pending;
+    }
+    canvas.style.opacity = '0';
+    return;
+  }
+  if (!receipts.length) {
+    suspendLiveSunbeamOverlay();
+    return;
+  }
+  const effects = receipts.map(item => item.effect);
+  try {
+    const result = sunbeamLive.renderer.draw({ effects, camera, zoom, rect,
+      dpr, nowMs: state.frameNow || performance.now(),
+      reducedMotion: prefersReducedMotion() });
+    if (!result.drawn || result.ids.length !== receipts.length ||
+        result.ids.some((id, index) => id !== receipts[index].effect.id)) {
+      canvas.style.opacity = '0';
+      return;
+    }
+    const frameId = ++sunbeamLive.frameId;
+    for (const [index, id] of result.ids.entries()) {
+      sunbeamLive.drawnIds.add(id);
+      const receipt = receipts[index];
+      const source = state.magicEffects.find(effect => String(effect.id) === id);
+      sunbeamLive.submitted.set(id, Object.freeze({ eventId: id,
+        sunbeamCausalId: String(source?.sunbeamCausalId || ''),
+        frameId, roomGeneration: state.roomSessionGeneration,
+        submitted: true, mainFrameVisible: true, drawn: true,
+        visibleToListener: true, sourceVisibleToListener: true,
+        listenerId: String(data.selfId || ''),
+        sourcePlayerId: String(receipt.effect.playerId),
+        handCount: receipt.effect.handWorlds.length }));
+    }
+    canvas.style.opacity = '1';
+  } catch (_) {
+    suspendLiveSunbeamOverlay({ destroy: true });
+    sunbeamLive.nextRetryAt = performance.now() + 3000;
+  }
+}
+
+function flushLiveSunbeamSounds() {
+  if (!sunbeamLive.pendingSounds.size) return;
+  const pending = [...sunbeamLive.pendingSounds.values()];
+  sunbeamLive.pendingSounds.clear();
+  const data = state.data;
+  if (state.screen !== 'game' || document.hidden || !data) return;
+  for (const receipt of pending) {
+    if (receipt.roomId !== String(data.roomId || '') ||
+        receipt.roomGeneration !== state.roomSessionGeneration) continue;
+    const effect = state.magicEffects.find(item =>
+      String(item.id) === receipt.effectId &&
+      item.sunbeamCausalId === receipt.sound.sunbeamCausalId);
+    const frame = sunbeamLive.submitted.get(receipt.effectId);
+    let scheduled = false;
+    if (effect && frame?.sunbeamCausalId &&
+        window.DvaWebGPUSunbeamESfx?.createPlanner &&
+        window.DvaWebGPUSunbeamCueAdapter?.createAdapter &&
+        window.DvaWebGPUECuePlayer?.createPlayer) {
+      try {
+        sunbeamLive.soundPlanner ||= window.DvaWebGPUSunbeamESfx.createPlanner();
+        sunbeamLive.soundPlayer ||= window.DvaWebGPUECuePlayer.createPlayer({
+          getContext: () => state.audio.context,
+          getMaster: () => state.audio.master,
+          isMuted: () => state.audio.muted || document.hidden || isSensoryBlocked(),
+          isVerify: () => IS_VERIFICATION_MODE
+        });
+        sunbeamLive.soundAdapter ||= window.DvaWebGPUSunbeamCueAdapter.createAdapter({
+          planner: sunbeamLive.soundPlanner, player: sunbeamLive.soundPlayer,
+          isVerify: () => IS_VERIFICATION_MODE });
+        const nowMs = state.frameNow || performance.now();
+        const actor = data.players?.find(player =>
+          String(player.id) === String(effect.playerId));
+        const roomId = String(data.roomId || '');
+        const generation = state.roomSessionGeneration;
+        sunbeamLive.soundPlanner.enterRoom(roomId, generation);
+        sunbeamLive.soundPlayer.enterRoom(roomId, generation);
+        const result = sunbeamLive.soundAdapter.submitGameplay({
+          eventId: String(effect.id), roomId, roomGeneration: generation,
+          frameId: frame.frameId, eventAtMs: effect.startedAt, nowMs,
+          volume: clamp(receipt.soundOptions.volume, 0, 1),
+          type: effect.type, variant: effect.variant,
+          sunbeamCausalId: effect.sunbeamCausalId,
+          sourcePlayerId: String(effect.playerId), listenerId: String(data.selfId || ''),
+          sourceInvisible: Boolean(actor?.invisible), phase: data.phase,
+          effectReceipt: { eventId: String(effect.id), type: effect.type,
+            variant: effect.variant, sunbeamCausalId: effect.sunbeamCausalId,
+            sourcePlayerId: String(effect.playerId) },
+          visibleSubmittedReceipt: frame,
+          soundReceipt: { soundId: String(receipt.sound.id),
+            type: receipt.sound.type,
+            sunbeamCausalId: receipt.sound.sunbeamCausalId,
+            ownerId: String(receipt.sound.ownerId),
+            sourceKind: receipt.sound.sourceKind }
+        }, { pageHidden: document.hidden, muted: state.audio.muted,
+          verify: IS_VERIFICATION_MODE, sensoryBlocked: isSensoryBlocked(data),
+          audible: state.audio.unlocked &&
+            state.audio.context?.state === 'running' &&
+            Number(state.audio.master?.gain?.value) > 0,
+          reducedMotion: prefersReducedMotion() });
+        scheduled = result.replaceFallback === true &&
+          result.fallbackSoundId === String(receipt.sound.id);
+      } catch (_) { /* The server sound remains the bounded fallback. */ }
+    }
+    if (!scheduled) playSound('sunbeam', receipt.soundOptions);
+  }
+}
+
 function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   if (!WEBGPU_MAIN_VERIFY_ROUTE) return;
   webgpuMainApp.generation += 1;
@@ -17736,6 +18026,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error("WebGPU main submitted without environment sound receipts");
     if (!Array.isArray(receipt.recordResult?.sunbeamHandReceipts))
       throw new Error('WebGPU main submitted without Sunbeam hand receipts');
+    if (!Array.isArray(receipt.recordResult?.acquisitionSoundVisualReceipts))
+      throw new Error('WebGPU main submitted without acquisition sound receipts');
     if (!mainCanvas.isConnected || mainCanvas.style.display === "none") return;
     mainCanvas.style.opacity = "1";
     els.canvas.style.opacity = "0";
@@ -17768,6 +18060,8 @@ function pumpWebGPUMainAppDriver() {
     commitVisibleVisualSoundFrame(data,
       receipt.recordResult.phenomenonSoundVisualReceipts,
       receipt.recordResult.environmentSoundReceipts, true);
+    for (const acquisitionReceipt of receipt.recordResult.acquisitionSoundVisualReceipts)
+      admitSubmittedAcquisitionCue(data, acquisitionReceipt);
     if (document.documentElement?.dataset)
       document.documentElement.dataset.fieldRenderer = "webgpu";
   }).catch(error => {
@@ -17783,9 +18077,18 @@ if (WEBGPU_MAIN_VERIFY_ROUTE) {
   });
   window.addEventListener("pagehide", () => suspendWebGPUMainAppDriver({ destroy: true }));
 }
+if (!WEBGPU_MAIN_VERIFY_ROUTE) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) suspendLiveSunbeamOverlay({ destroy: true });
+  });
+  window.addEventListener('pagehide', () =>
+    suspendLiveSunbeamOverlay({ destroy: true }));
+}
 
 function drawLoop(timestamp = 0, engineDelta = 0) {
   state.frameNow = timestamp || performance.now();
+  sunbeamLive.submitted.clear();
+  sunbeamLive.drawnIds.clear();
   state.frameDelta = engineDelta || (state.lastFrameAt ? Math.min(100, state.frameNow - state.lastFrameAt) : 16.67);
   state.lastFrameAt = state.frameNow;
   if (state.frameNow - state.lastMovementPumpAt >= MOVEMENT_SEND_INTERVAL_MS) {
@@ -17797,7 +18100,8 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
       // Keep the staged GPU frame independent of a Canvas draw failure. A
       // Canvas exception still reaches the outer error handler, but it must
       // not suppress the WebGPU submission attempt for this frame.
-      try { prepareMainFrameBookkeeping(); draw(); } finally { pumpWebGPUMainAppDriver(); }
+      try { prepareMainFrameBookkeeping(); draw(); }
+      finally { flushLiveSunbeamSounds(); pumpWebGPUMainAppDriver(); }
     }
     publishManualVerificationBotContinuity(state.frameNow);
     const drawMode = state.data ? state.data.phase : "idle";
@@ -18037,6 +18341,8 @@ function drawPreparationArrivalPlayer(player, data) {
 function draw() {
   const { data, w, h, worldZoom, camera, viewW, viewH } = state.preparedMainFrame;
   const phenomenonVisualReceipts = [];
+  sunbeamLive.poseReceipts.clear();
+  sunbeamLive.drawnIds.clear();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -18053,6 +18359,7 @@ function draw() {
   }
 
   if (!data) {
+    suspendLiveSunbeamOverlay();
     commitPhenomenonSoundVisualFrame(data, phenomenonVisualReceipts);
     return;
   }
@@ -18087,6 +18394,7 @@ function draw() {
       if (pregameCanvas) drawPreparationWorldSummons(data);
       // Standalone Clairvoyance follows the selected player without a world marker.
       drawPlayers(data);
+      pumpLiveSunbeamOverlay(data, camera, worldZoom);
       drawGunnerAim(data);
       drawKillCameraWorldMarkers(data);
       drawHitEffects();
@@ -21608,7 +21916,8 @@ function drawMagicEffects() {
     if (effect.type === "flora-sunbeam") {
       // Sunbeam has one authored T. If it has not loaded, skip this visual layer
       // rather than replacing it with a generic canvas ray.
-      drawFloraGeneratedEffect(effect, progress, true);
+      if (!sunbeamLive.drawnIds.has(String(effect.id)))
+        drawFloraGeneratedEffect(effect, progress, true);
     }
     if (effect.type === "flora-invisible") drawFloraInvisibleGeneratedEffect(effect, progress);
     if (effect.type === "alchemy-railgun" || effect.type === "alchemy-particle-beam") drawDirectedEnergyEffect(effect, progress, now);
@@ -29513,7 +29822,28 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
                 result.markerHitTargets.length !== expected.length ||
                 result.markerHitTargets.some((hit, index) => hit !== expected[index]))
               throw new Error('Dormant WebGPU main marker hits differ from the prepared frame');
+            const acquisitionSoundVisualReceipts = [];
+            if (prepared.candidate.stages.acquisition) {
+              if (result.results.acquisition !== true ||
+                  !Array.isArray(prepared.candidate.conditional.acquisition.drawn))
+                throw new Error('Dormant WebGPU main acquisition did not record its visual frame');
+              const seen = new Set();
+              for (const drawn of prepared.candidate.conditional.acquisition.drawn) {
+                const source = drawn.source;
+                const id = String(drawn.effectId || '');
+                if (!(drawn.arrival > 0) || seen.has(id)) continue;
+                if (!id || source?.id !== id ||
+                    !['mystery-box', 'transfer-in'].includes(source.type))
+                  throw new Error('Dormant WebGPU main acquisition source ID changed');
+                seen.add(id);
+                acquisitionSoundVisualReceipts.push(Object.freeze({
+                  effectId: id, source, arrival: drawn.arrival,
+                  roomId: String(data.roomId || ''),
+                  roomGeneration: state.roomSessionGeneration }));
+              }
+            }
             return { ...result,
+              acquisitionSoundVisualReceipts: Object.freeze(acquisitionSoundVisualReceipts),
               acquisitionActive: Boolean(prepared.candidate.stages.acquisition) };
           } });
         if (scheduled.status === 'error') throw scheduled.error;
@@ -33587,6 +33917,27 @@ function playSound(kind, options = {}) {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     playTone(290, 435, 0.16, "triangle", 0.042 * volume, 0, options.pan, options.spatial);
     playTone(580, 870, 0.19, "sine", 0.026 * volume, 0.06, options.pan, options.spatial);
+  } else if (kind === "sunbeam") {
+    // The server sound receipt is the fallback owner until it carries the
+    // magic event's causal ID. A narrow glass onset and sustained optical
+    // core identify the ray without repeating a generic weapon shot.
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(680, 1420, 0.15, "sine", 0.085 * volume, 0, options.pan, options.spatial);
+    playTone(1160, 940, 0.32, "triangle", 0.055 * volume, 0.04, options.pan, options.spatial);
+  } else if (kind === "heavyWeapon") {
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    const missile = options.variant === "missile";
+    playTone(missile ? 138 : 94, missile ? 312 : 48,
+      missile ? 0.32 : 0.43, "sawtooth", 0.14 * volume, 0,
+      options.pan, options.spatial);
+    playTone(missile ? 560 : 380, missile ? 1120 : 125,
+      missile ? 0.22 : 0.34, "triangle", 0.085 * volume, 0.045,
+      options.pan, options.spatial);
+  } else if (kind === "gravityStorm") {
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(154, 62, 0.52, "sine", 0.12 * volume, 0, options.pan, options.spatial);
+    playTone(308, 128, 0.43, "triangle", 0.058 * volume, 0.07,
+      options.pan, options.spatial);
   } else if (kind === "object") {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     [360, 540, 810].forEach((frequency, index) => playTone(frequency, frequency * 1.12, 0.16, "triangle", 0.1 * volume, index * 0.055, options.pan, options.spatial));
@@ -33746,7 +34097,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=webgpu-main-bootstrap-v5", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=webgpu-main-bootstrap-v16", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

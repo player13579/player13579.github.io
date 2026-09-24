@@ -734,16 +734,15 @@
             const effect = input.effect;
             const facing = { x: effect.targetX - effect.x, y: effect.targetY - effect.y };
             const scene = { nowMs: input.now, reducedMotion: input.reducedMotion,
-              effects: hands.map((hand, handIndex) => ({
-                id: `${event.effectId}:hand:${handIndex}`, type: 'flora-sunbeam',
-                playerId: input.playerId, handWorld: hand, facing,
+              effects: [{
+                id: String(event.effectId), type: 'flora-sunbeam',
+                playerId: input.playerId, handWorlds: hands,
+                sourceWorld: { x: effect.x, y: effect.y }, facing,
                 targetWorld: { x: effect.targetX, y: effect.targetY },
-                startedAt: input.now - input.elapsed, duration: effect.duration })) };
+                startedAt: input.now - input.elapsed, duration: effect.duration }] };
             const outcome = need('sunbeamE', 'record').record({ frame, target,
               viewport, scene, camera: input.camera, zoom: input.zoom });
-            if (outcome?.drawn !== hands.length ||
-                outcome.effects?.some((entry, index) =>
-                  entry.id !== `${event.effectId}:hand:${index}`))
+            if (outcome?.drawn !== 1 || outcome.effects?.[0]?.id !== String(event.effectId))
               throw new Error(`Magic Sunbeam ${event.effectId} was not drawn from its hands`);
           } else if (['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE'].includes(event.type)) {
             const outcome = need(event.type, 'record').record({ frame, target, viewport,

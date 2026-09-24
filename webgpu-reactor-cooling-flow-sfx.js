@@ -17,7 +17,7 @@
   const MAX_FRAME_GAP_MS = 320;
   const ATTACK_MS = 520;
   const RELEASE_MS = 440;
-  const MAX_ENTRIES = 64;
+  const MAX_ENTRIES = 2048;
 
   // Water circulation has a quiet 65–950 Hz body with a soft, non-tonal
   // filtered-noise band. Every partial is an integer cycle in LOOP_MS, making
@@ -74,7 +74,6 @@
       const scale = .28 / peak;
       for (let i = 0; i < data.length; i += 1) data[i] *= scale;
     }
-    data[0] = data[0];
     return data;
   }
 
@@ -85,7 +84,7 @@
         !Number.isFinite(maxFrameGapMs) || maxFrameGapMs < ATTACK_MS / 2)
       throw new TypeError('Invalid reactor cooling-flow planner bounds');
     let activeKey = '';
-    let lastFrameId = -1, lastPresentedAtMs = -1, lastGain = 0, lastReceiptId = '';
+    let lastSessionKey = '', lastFrameId = -1, lastPresentedAtMs = -1, lastGain = 0;
     const receipts = new Map();
     let watermark = 0;
 
@@ -100,7 +99,7 @@
         reason, atMs: nowMs, fromGain: lastGain, targetGain: 0,
         releaseMs: RELEASE_MS, releaseDeadlineMs: nowMs + RELEASE_MS,
         finite: true, loop: true });
-      activeKey = ''; lastGain = 0; lastReceiptId = '';
+      activeKey = ''; lastGain = 0;
       return stop;
     }
     function validFrame(frame) {
@@ -123,8 +122,9 @@
         throw new TypeError('reactorCoolingFlow requires a current submitted-frame observation');
       prune(frame.nowMs);
       const actions = [];
-      const receiptId = String(frame.sourceReceipt?.receiptId ||
-        `${frame.roomId || ''}:${frame.roomGeneration ?? ''}:${frame.frameId ?? ''}:${SOURCE_ID}`);
+      // Key by the submitted frame identity even when the source receipt is
+      // absent on its first observation; a later poll cannot backfill that frame.
+      const receiptId = `${frame.roomId || ''}:${frame.roomGeneration ?? ''}:${frame.sessionId || ''}:${frame.frameId ?? ''}:${SOURCE_ID}`;
       if (receipts.has(receiptId))
         return Object.freeze({ actions: Object.freeze([]), ignored: 'duplicate-receipt', owner: LOOP_PROFILE.owner });
       if (receipts.size >= maxEntries)
@@ -134,15 +134,18 @@
       const policyBlocked = policy.pageHidden === true || policy.muted === true ||
         policy.verify === true || policy.sensoryBlocked === true;
       const identityValid = validFrame(frame);
+      const nextKey = identityValid
+        ? `${frame.roomId}:${frame.roomGeneration}:${frame.sessionId}:${frame.mapId}:${frame.mapRoomId}:${SOURCE_ID}`
+        : '';
       if (!identityValid || policyBlocked || frame.nowMs - frame.submittedAtMs > maxFrameAgeMs) {
         const stop = emitStop(policyBlocked ? 'audio-policy' : identityValid ? 'stale-frame' : 'receipt-invalid', frame.nowMs);
         if (stop) actions.push(stop);
         return Object.freeze({ actions: Object.freeze(actions), ignored: stop ? '' :
-          (policyBlocked ? 'audio-policy' : 'receipt-invalid'), owner: LOOP_PROFILE.owner });
+          (policyBlocked ? 'audio-policy' : identityValid ? 'stale-frame' : 'receipt-invalid'), owner: LOOP_PROFILE.owner });
       }
 
-      const nextKey = `${frame.roomId}:${frame.roomGeneration}:${frame.sessionId}:${frame.mapId}:${frame.mapRoomId}:${SOURCE_ID}`;
-      const replay = frame.frameId <= lastFrameId || frame.submittedAtMs < lastPresentedAtMs;
+      const replay = nextKey === lastSessionKey &&
+        (frame.frameId <= lastFrameId || frame.submittedAtMs < lastPresentedAtMs);
       const staleGap = Boolean(activeKey) && frame.nowMs - lastPresentedAtMs > maxFrameGapMs;
       if (activeKey && (activeKey !== nextKey || replay || staleGap)) {
         const stop = emitStop(activeKey !== nextKey ? 'session-or-room-change' : replay ? 'stale-frame-order' : 'frame-lease-expired', frame.nowMs);
@@ -168,10 +171,10 @@
           reducedMotion: Boolean(frame.reducedMotion), modulationScale: frame.reducedMotion ? .33 : 1,
           restartLoop: false }));
       }
+      lastSessionKey = nextKey;
       lastFrameId = frame.frameId;
       lastPresentedAtMs = frame.submittedAtMs;
       lastGain = targetGain;
-      lastReceiptId = receiptId;
       return Object.freeze({ actions: Object.freeze(actions), ignored: '', owner: LOOP_PROFILE.owner });
     }
     function stop(reason = 'explicit-stop', nowMs = watermark) {

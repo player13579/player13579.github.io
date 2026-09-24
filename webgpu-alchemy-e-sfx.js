@@ -32,6 +32,36 @@
     'alchemy-particle-cannon:gbo-tenfold': 'invention-world-sound'
   });
 
+  function hasVisibleTransmutationReceipt(event) {
+    if (event?.type !== 'alchemy-human-transmutation' || event.variant !== '' ||
+        !Object.hasOwn(event, 'serverSoundReceipt') || event.serverSoundReceipt !== null)
+      return false;
+    const effect = event.effectReceipt, snapshot = event.viewerSnapshot, frame = event.visibleFrameReceipt;
+    const viewerId = String(event.listenerId || ''), sourceId = String(effect?.playerId || ''),
+      targetId = String(effect?.targetId || '');
+    if (!effect || effect.id !== event.eventId || effect.type !== event.type ||
+        effect.variant !== event.variant || !sourceId || !targetId || sourceId === targetId ||
+        !Number.isFinite(effect.at) || event.eventAtMs !== effect.at ||
+        !snapshot || snapshot.roomId !== event.roomId || snapshot.selfId !== viewerId ||
+        !Array.isArray(snapshot.magicEffects) || !Array.isArray(snapshot.players) ||
+        !snapshot.magicEffects.some(candidate => candidate?.id === event.eventId &&
+          candidate.type === event.type && candidate.playerId === sourceId &&
+          candidate.targetId === targetId && String(candidate.variant || '') === event.variant))
+      return false;
+    const source = snapshot.players.find(player => String(player?.id || '') === sourceId);
+    const target = snapshot.players.find(player => String(player?.id || '') === targetId);
+    if (!source || !target || source.alive !== true || target.alive !== true ||
+        source.ejected || target.ejected || source.inVent || target.inVent ||
+        source.invisible || target.invisible ||
+        ![source.x, source.y, target.x, target.y].every(Number.isFinite))
+      return false;
+    return Boolean(frame && frame.eventId === event.eventId && frame.type === event.type &&
+      frame.roomId === event.roomId && frame.roomGeneration === event.roomGeneration &&
+      frame.listenerId === viewerId && frame.sourcePlayerId === sourceId &&
+      frame.targetId === targetId && frame.submitted === true &&
+      frame.mainFrameVisible === true && frame.drawn === true && frame.visibleToListener === true);
+  }
+
   function createLedger({ maxEntries = 2048, retentionMs = 30000, maxLateMs = 180 } = {}) {
     if (!Number.isInteger(maxEntries) || maxEntries < 16 || !Number.isFinite(retentionMs) ||
         !Number.isFinite(maxLateMs) || maxLateMs < 0 || retentionMs < maxLateMs)
@@ -66,6 +96,9 @@
       const key = `${event.type}:${event.variant}`;
       const meta = { eventId: event.eventId, type: event.type, variant: event.variant,
         roomId: event.roomId, roomGeneration: event.roomGeneration };
+      if (key === 'alchemy-human-transmutation:' && !hasVisibleTransmutationReceipt(event))
+        return Object.freeze({ ...meta, suppressed: true,
+          reason: 'no-matching-authoritative-visible-vfx-receipt-or-server-sound-ownership-unknown' });
       if (SHARED[key]) return Object.freeze({ ...meta, suppressed: true,
         reason: 'shared-existing-world-sound-owner', sharedSfxKind: SHARED[key] });
       const profile = PROFILES[key];
@@ -88,7 +121,7 @@
     }
     return Object.freeze({ admit, enterRoom, has: id => consumed.has(`alchemy:${id}`), size: () => consumed.size });
   }
-  const api = Object.freeze({ PROFILES, SHARED, createLedger });
+  const api = Object.freeze({ PROFILES, SHARED, hasVisibleTransmutationReceipt, createLedger });
   root.DvaWebGPUAlchemyESfx = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

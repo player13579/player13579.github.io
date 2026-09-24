@@ -5583,6 +5583,12 @@ function pushSound(room, type, source, options = {}) {
     ...(typeof options.objectCausalId === "string" && options.objectCausalId
       ? { objectCausalId: options.objectCausalId }
       : {}),
+    ...(type === "sunbeam" && typeof options.sunbeamCausalId === "string" && options.sunbeamCausalId
+      ? { sunbeamCausalId: options.sunbeamCausalId }
+      : {}),
+    ...(type === "gravityStorm" && typeof options.gravityStormCausalId === "string" && options.gravityStormCausalId
+      ? { gravityStormCausalId: options.gravityStormCausalId }
+      : {}),
     ...(type === "emp" && typeof options.empCausalId === "string" && options.empCausalId
       ? { empCausalId: options.empCausalId }
       : {}),
@@ -5653,7 +5659,10 @@ function batchActivationEffectSuppressed(room, source, type, options = {}) {
   // change per cast while this remains the same component on the same target.
   const target = String(options.targetId || (type === "gravity-storm" ? source.targetId : "") ||
     (type === "action-teleport" && options.variant === "arrival" ? source.id : "") || "");
-  const key = JSON.stringify([type, target, options.variant || "", options.mode || "", options.effectKind || "", options.viewerId || ""]);
+  // Departure targetId is visibility metadata; preserve the old batch key so
+  // adding it cannot change which teleport effects a synchronous cast keeps.
+  const presentationTarget = type === "action-teleport" && options.variant !== "arrival" ? "" : target;
+  const key = JSON.stringify([type, presentationTarget, options.variant || "", options.mode || "", options.effectKind || "", options.viewerId || ""]);
   if (scope.seen.has(key)) return true;
   scope.seen.add(key);
   scope.captureNextActivation = true;
@@ -5698,6 +5707,12 @@ function pushMagicEffect(room, type, source, options = {}) {
     completionKind: String(options.completionKind || ""),
     ...(typeof options.objectCausalId === "string" && options.objectCausalId
       ? { objectCausalId: options.objectCausalId }
+      : {}),
+    ...(type === "flora-sunbeam" && typeof options.sunbeamCausalId === "string" && options.sunbeamCausalId
+      ? { sunbeamCausalId: options.sunbeamCausalId }
+      : {}),
+    ...(type === "gravity-storm" && typeof options.gravityStormCausalId === "string" && options.gravityStormCausalId
+      ? { gravityStormCausalId: options.gravityStormCausalId }
       : {}),
     markerCount: Math.max(1, Math.floor(Number(options.markerCount) || 1)),
     durationMs: Math.max(0, Number(options.durationMs) || 0),
@@ -11572,7 +11587,7 @@ function teleportPlayer(room, player, rawX, rawY, targetId = "", mode = "body") 
   spendOperatorMana(room, player, teleportLabel);
   const origin = moveByExpandedMapTeleport(movingTarget, destination, timestamp);
   player.teleportReadyAt = 0;
-  pushMagicEffect(room, "action-teleport", origin, { radius: 135, playerId: player.id, targetX: destination.x, targetY: destination.y });
+  pushMagicEffect(room, "action-teleport", origin, { radius: 135, playerId: player.id, targetId: movingTarget.id, targetX: destination.x, targetY: destination.y });
   pushMagicEffect(room, "action-teleport", movingTarget, { radius: 135, playerId: movingTarget.id, variant: "arrival" });
   pushEvent(room, mode === "target"
     ? `${player.name} が ${movingTarget.name} を指定地点へ対象転移させました。`
@@ -11714,10 +11729,12 @@ function useGravityStorm(room, player, targetId = "") {
     endsAt,
     lastPulseAt: 0
   };
+  const gravityStormCausalId = `gravity-storm:${zone.id}`;
+  zone.gravityStormCausalId = gravityStormCausalId;
   room.gravityZones ||= [];
   room.gravityZones.push(zone);
-  pushMagicEffect(room, "gravity-storm", zone, { radius: zone.radius, playerId: player.id, variant: "debris-dent" });
-  pushSound(room, "gravityStorm", zone, { ownerId: player.id, sourceKind: "magic", maxDistance: 2600, volume: 1 });
+  pushMagicEffect(room, "gravity-storm", zone, { radius: zone.radius, playerId: player.id, variant: "debris-dent", gravityStormCausalId });
+  pushSound(room, "gravityStorm", zone, { ownerId: player.id, sourceKind: "magic", maxDistance: 2600, volume: 1, gravityStormCausalId });
   pushEvent(room, `${player.name} が ${target.name} の位置へグラビティストームを展開しました。全域の敵を吸引し、最後の1秒だけ発動者のバリアが消失します。`);
   touch(room);
 }
@@ -15079,14 +15096,16 @@ function floraSunbeam(room, player, targetId = "", direction = {}) {
     hits += 1;
   }
   const end = { x: sunbeamPath.x, y: sunbeamPath.y };
+  const sunbeamCausalId = `sunbeam:${uid("cast_")}`;
   pushMagicEffect(room, "flora-sunbeam", player, {
     radius: SUNBEAM_WIDTH * 2,
     targetX: end.x,
     targetY: end.y,
     playerId: player.id,
-    variant: `${opticalVariant}:piercing`
+    variant: `${opticalVariant}:piercing`,
+    sunbeamCausalId
   });
-  pushSound(room, "sunbeam", player, { ownerId: player.id, sourceKind: "magic", maxDistance: 2100, volume: 0.9 });
+  pushSound(room, "sunbeam", player, { ownerId: player.id, sourceKind: "magic", maxDistance: 2100, volume: 0.9, sunbeamCausalId });
   pushEvent(room, `${player.name} がサンビームを発動しました（${opticalVariant}・判定${hits}人）。`);
   checkWin(room);
   touch(room);
@@ -17886,7 +17905,15 @@ function resultBoard(room) {
 function magicEffectsForViewer(room, viewer, timestamp = now()) {
   return (room.magicEffects || []).flatMap((effect) => {
     if (effect.viewerId && effect.viewerId !== viewer.id) return [];
-    if (!(effect.type === "transfer-in" || effect.type === "transfer-out" || effect.type === "action-warp")) {
+    if (effect.type === "flora-sunbeam") {
+      const owner = room.players.get(String(effect.playerId || ""));
+      if (
+        room.phase === "playing" && owner && owner.id !== viewer.id &&
+        floraInvisibleActive(owner, timestamp)
+      ) return [];
+      return [effect];
+    }
+    if (!(effect.type === "transfer-in" || effect.type === "transfer-out" || effect.type === "action-warp" || effect.type === "action-teleport")) {
       return [effect];
     }
     const owner = room.players.get(String(effect.playerId || ""));
@@ -17902,6 +17929,10 @@ function magicEffectsForViewer(room, viewer, timestamp = now()) {
     );
     if (!targetConcealed) return [effect];
 
+    // Departure x/y is the transported actor's origin, not a caster-local
+    // point. Keeping it would still disclose a concealed target's position.
+    if (effect.type === "action-teleport") return [];
+
     // Keep the visible actor's local presentation while applying the same
     // concealment boundary as serialized player positions to remote endpoints.
     const redacted = { ...effect, targetId: "", targetX: null, targetY: null };
@@ -17910,6 +17941,16 @@ function magicEffectsForViewer(room, viewer, timestamp = now()) {
       redacted.acquisitionOriginY = null;
     }
     return [redacted];
+  });
+}
+
+function soundsForViewer(room, viewer, timestamp = now()) {
+  return (room.sounds || []).filter((sound) => {
+    if (sound.type !== "sunbeam" || room.phase !== "playing") return true;
+    const ownerId = String(sound.ownerId || "");
+    if (ownerId === viewer.id) return true;
+    const owner = room.players.get(ownerId);
+    return !owner || !floraInvisibleActive(owner, timestamp);
   });
 }
 
@@ -18501,7 +18542,7 @@ function serialize(room, viewer, options = {}) {
       : null,
     chat: room.chat,
     events: room.events,
-    sounds: room.sounds,
+    sounds: soundsForViewer(room, viewer, timestamp),
     utility: room.utilityViews.get(viewer.id) || null,
     soloMission: (() => {
       const mission = soloMissionDefinition(room);
