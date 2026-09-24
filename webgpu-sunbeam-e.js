@@ -112,8 +112,8 @@
     });
   }
 
-  // A continuous optical field replaces the old segmented-rectangle geometry.
-  // Values are physical pixels; the same shader is used by game and preview.
+  // Distinct PH supply, carrier, transport, boundary and terminal fields feed
+  // one budgeted OBS response. Values are physical pixels in game and preview.
   const shader = /* wgsl */ `
 struct Params {
   viewport: vec4f, // physical width, height, logical-to-physical x, y
@@ -137,48 +137,110 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   let rayLength = max(length(axis), 0.001);
   let tangent = axis / rayLength;
   let along = dot(pixel - a, tangent);
-  let t = clamp(along / rayLength, 0.0, 1.0);
   let lateral = dot(pixel - a, vec2f(-tangent.y, tangent.x));
   let scale = max(0.25, p.energy.w) * (p.viewport.z + p.viewport.w) * 0.5;
-  let motion = select(time, 0.35, p.control.z > 0.5);
   let worldLength = max(rayLength / scale, 0.001);
-  let visibleWorld = worldLength;
-  let visiblePhysical = visibleWorld * scale;
-  let visibleT = clamp(along / max(visiblePhysical, 1.0), 0.0, 1.0);
-  // One connected PH silhouette: palm throat, broadening, shallow waist,
-  // broad body, then finite taper at the currently visible transport front.
-  let throatLength = min(46.0, 0.16 * worldLength) * scale;
-  let throat = smoothstep(0.0, max(throatLength, 1.0), along);
-  let broadWorld = 20.5 + 4.0 * exp(-pow((t - 0.15) / 0.13, 2.0))
-    - 2.0 * exp(-pow((t - 0.38) / 0.13, 2.0))
-    + 3.0 * exp(-pow((t - 0.62) / 0.20, 2.0));
-  let tip = 1.0 - 0.68 * smoothstep(0.78, 0.99, visibleT);
-  let shortScale = mix(0.52, 1.0, smoothstep(100.0, 320.0, worldLength));
-  let width = mix(9.0, broadWorld, throat) * tip * shortScale * scale;
-  let edgeAA = max(fwidth(abs(lateral)), 1.0);
-  let cross = 1.0 - smoothstep(width - 5.0 * scale - edgeAA,
-    width + 5.0 * scale + edgeAA, abs(lateral));
-  let sourceGate = smoothstep(-7.0 * scale, 5.0 * scale, along);
-  let tailSpan = min(95.0 * scale, 0.25 * visiblePhysical);
-  let attenuation = 1.0 - smoothstep(visiblePhysical - tailSpan,
-    visiblePhysical + 3.0 * scale, along);
-  let transportGate = select(0.0, 1.0, along <= visiblePhysical + 3.0 * scale);
-  let ph = sourceGate * attenuation * cross * transportGate * p.energy.z;
-  let s = lateral / max(width, 1.0);
-  let phaseDrift = select(0.23 * sin(6.28318 * (0.82 * t - 0.20 * motion)) * sin(3.14159 * t),
-    0.0, p.control.z > 0.5);
-  let broadHeart = exp(-pow((s - phaseDrift) / 0.62, 2.0));
-  let oblique = 0.5 + 0.5 * cos(6.28318 * (0.68 * t + 0.28 * s - 0.18 * motion));
-  let radiance = 0.62 + 0.25 * broadHeart + 0.13 * oblique;
-  let phAlpha = ph * radiance;
-  // OBS shares the PH longitudinal masks and fades softly beyond its edge.
-  let obsRadius = width + 17.0 * shortScale * scale;
-  let observation = sourceGate * attenuation * transportGate * p.energy.z * 0.14
-    * exp(-pow(abs(lateral) / max(obsRadius, 1.0), 2.0));
-  let alpha = clamp(phAlpha * p.energy.x + observation * p.energy.x, 0.0, 0.87);
-  let warm = vec3f(1.0,0.68,0.25);
-  let white = vec3f(1.0,0.985,0.79);
-  let straightColor = mix(warm, white, clamp(0.28 + 0.55 * broadHeart + 0.17 * oblique, 0.0, 1.0));
+  let u = along / scale;
+  let v = lateral / scale;
+  let t = clamp(u / worldLength, 0.0, 1.0);
+  let motion = select(time, 0.36, p.control.z > 0.5);
+  let shortScale = mix(0.57, 1.0, smoothstep(100.0, 320.0, worldLength));
+
+  // PH carrier: one broad, nonuniform solar plasma volume. Macro pinches and
+  // a displaced axis are large enough to read at the smallest preview zoom.
+  let throat = smoothstep(0.0, min(42.0, 0.18 * worldLength), u);
+  let swell = 18.0 + 24.0 * exp(-pow((t - 0.23) / 0.19, 2.0))
+    - 4.0 * exp(-pow((t - 0.51) / 0.10, 2.0))
+    + 6.0 * exp(-pow((t - 0.73) / 0.18, 2.0));
+  let capSpan = min(28.0, 0.18 * worldLength);
+  let capStart = worldLength - capSpan;
+  let tip = 1.0 - 0.70 * smoothstep(capStart, worldLength + 2.0, u);
+  let width = mix(8.0, swell, throat) * tip * shortScale;
+  let axisBend = (3.8 * sin(6.28318 * (0.72 * t + 0.13 * motion))
+    + 2.3 * sin(6.28318 * (1.43 * t - 0.09 * motion))) * sin(3.14159 * t);
+  let cross = v - axisBend;
+  let shear = 4.2 * sin(6.28318 * (2.2 * t - 0.48 * motion + 0.10 * sign(cross)))
+    * sin(3.14159 * t);
+  let edgePosition = abs(cross) - width - shear;
+  let bodyCross = 1.0 - smoothstep(-2.0, 2.0, edgePosition);
+  let sourceGate = smoothstep(-5.0, 3.0, u);
+  let frontGate = 1.0 - smoothstep(worldLength - max(8.0, capSpan * 0.55),
+    worldLength + 3.0, u);
+  let carrier = sourceGate * frontGate * bodyCross * p.energy.z;
+
+  // PH palm supply precedes full propagation. It is spatially local to the
+  // measured emitter and narrows into the carrier instead of copying its rim.
+  let palmRadius = length(vec2f((u - 3.0) * 0.64, v * 0.93));
+  let palm = (1.0 - smoothstep(9.0, 18.0, palmRadius))
+    * (1.0 - smoothstep(19.0, 34.0, u)) * p.energy.y;
+  let supplyTongue = (1.0 - smoothstep(5.0, 10.0, abs(v)))
+    * smoothstep(-3.0, 8.0, u) * (1.0 - smoothstep(24.0, 42.0, u)) * p.energy.y;
+  let supply = max(palm, 0.65 * supplyTongue);
+
+  // PH transport: broad, offset streams pass through the one carrier.
+  // Their staggered waves and the intervening dim channel give direction and
+  // depth, while the carrier beneath them remains connected.
+  let streamAPath = width * (0.28 + 0.15 * sin(6.28318 * (0.90 * t - 0.15 * motion)));
+  let streamBPath = -width * (0.32 + 0.13 * sin(6.28318 * (0.63 * t - 0.22 * motion)));
+  let waveA = 0.48 + 0.52 * pow(0.5 + 0.5 * cos(6.28318 * (u / 126.0 - 1.55 * motion)), 2.0);
+  let waveB = 0.42 + 0.58 * pow(0.5 + 0.5 * cos(6.28318 * (u / 164.0 - 1.10 * motion + 0.27)), 2.0);
+  let streamA = exp(-pow((cross - streamAPath) / max(5.0, 0.35 * width), 2.0)) * waveA;
+  let streamB = exp(-pow((cross - streamBPath) / max(5.0, 0.30 * width), 2.0)) * waveB;
+  let heart = exp(-pow((cross + 0.05 * width) / max(4.0, 0.23 * width), 2.0))
+    * (0.56 + 0.44 * waveA);
+  let channel = exp(-pow((cross - width * 0.15) / max(2.0, 0.10 * width), 2.0))
+    * (0.38 + 0.22 * waveB);
+  let transport = carrier * (0.36 * streamA + 0.30 * streamB + 0.28 * heart);
+  let bodyAlpha = carrier * clamp(0.20 + 0.31 * streamA + 0.25 * streamB
+    + 0.30 * heart - 0.31 * channel, 0.12, 0.78);
+
+  // Broad asymmetric solar tongues are displaced plasma, not copies of the
+  // carrier outline. Their two loci and lifetimes differ from the streams.
+  let tongueScale = smoothstep(120.0, 340.0, worldLength);
+  let upperReach = (4.0 + 24.0 * tongueScale)
+    * (1.0 - smoothstep(0.0, 0.19, abs(t - 0.25 - 0.025 * motion)));
+  let lowerReach = (3.0 + 17.0 * tongueScale)
+    * (1.0 - smoothstep(0.0, 0.21, abs(t - 0.63 + 0.035 * motion)));
+  let upperTongue = smoothstep(width - 4.0, width + 2.0, cross)
+    * (1.0 - smoothstep(width + upperReach - 2.0, width + upperReach + 3.0, cross));
+  let lowerTongue = smoothstep(width - 4.0, width + 2.0, -cross)
+    * (1.0 - smoothstep(width + lowerReach - 2.0, width + lowerReach + 3.0, -cross));
+  let plasmaTongues = sourceGate * frontGate * p.energy.z
+    * (0.32 * upperTongue * smoothstep(0.0, 6.0, upperReach)
+    + 0.25 * lowerTongue * smoothstep(0.0, 6.0, lowerReach));
+
+  // PH boundary: a delayed, feathered shear outside the carrier. Its spatial
+  // support differs from the internal streams and follows the moving contour.
+  let edgeLobe = exp(-pow((edgePosition - 2.8) / 5.6, 2.0));
+  let edgeRhythm = 0.58 + 0.42 * sin(6.28318 * (1.72 * t - 0.62 * motion))
+    * sin(6.28318 * (0.66 * t - 0.37 * motion));
+  let boundary = sourceGate * frontGate * p.energy.z * 0.26
+    * edgeLobe * edgeRhythm;
+
+  // PH endpoint: a finite, narrow propagation front, not a hit flash.
+  let terminal = p.energy.z * 0.14 * exp(-pow((u - worldLength) / 11.0, 2.0))
+    * exp(-pow(cross / max(5.0, width * 0.78), 2.0));
+
+  // OBS: a separately budgeted low-opacity response to the PH source/body.
+  // It cannot fill the dim internal channel or turn the silhouette white.
+  let haloWidth = width + 15.0 * shortScale;
+  let observation = p.energy.z * sourceGate * frontGate * 0.06
+    * exp(-pow(abs(cross) / max(8.0, haloWidth), 2.0));
+  let flowTerm = 0.42 * transport;
+  let supplyTerm = 0.70 * supply;
+  let density = bodyAlpha + flowTerm + boundary + plasmaTongues
+    + terminal + observation + supplyTerm;
+  let alpha = clamp(p.energy.x * density, 0.0, 0.91);
+  // Different PH and OBS layers retain their own radiance. A single mixed
+  // orange for every field flattened the motion into a uniform baton.
+  let radiance = bodyAlpha * vec3f(1.0, 0.44, 0.12)
+    + flowTerm * vec3f(1.0, 0.97, 0.76)
+    + boundary * vec3f(1.0, 0.64, 0.20)
+    + plasmaTongues * vec3f(1.0, 0.55, 0.16)
+    + terminal * vec3f(1.0, 0.86, 0.53)
+    + observation * vec3f(0.89, 0.40, 0.13)
+    + supplyTerm * vec3f(1.0, 0.98, 0.84);
+  let straightColor = radiance / max(density, 0.0001);
   return vec4f(straightColor * alpha, alpha);
 }
 fn unionPremultiplied(a: vec4f, b: vec4f) -> vec4f {
