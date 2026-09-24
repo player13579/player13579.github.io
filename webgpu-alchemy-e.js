@@ -44,6 +44,13 @@
       const id = String(effect.id || ''), playerId = String(effect.playerId || ''), kind = TYPE[effect.type];
       if (!id || ids.has(id)) throw new Error('Alchemy E requires distinct server event IDs');
       ids.add(id);
+      const allowedVariants = {
+        transmutation: [''], excalibur: ['forward-half-map', 'gbo-tenfold'],
+        railgun: ['normal', 'enhance', 'gbo'], cannon: ['continuous', 'gbo-tenfold'],
+        'particle-beam': ['continuous', 'gbo-tenfold']
+      }[kind];
+      if (!allowedVariants.includes(String(effect.variant || '')))
+        throw new Error(`Alchemy E ${id} rejected: unsupported ${kind} event variant`);
       if (!playerId || !finite(effect.startedAt))
         throw new Error(`Alchemy E ${id} rejected: playerId and local event start time required`);
       const duration = Number(effect.duration || effect.durationMs || DEFAULT_MS[effect.type]);
@@ -144,7 +151,7 @@
       const dx = t.x - s.x, dy = t.y - s.y, length = Math.hypot(dx, dy), nx = dx / length, ny = dy / length;
       const width = e.radius * (e.variant === 'gbo-tenfold' ? 0.12 : 0.075) * (0.55 + 0.45 * Math.sin(Math.PI * p));
       const side = { x: -d.y, y: d.x };
-      for (const offset of [-0.32, 0, 0.32]) {
+      for (const offset of [-0.4, -0.2, 0, 0.2, 0.4]) {
         const a0 = { x: s.x + side.x * width * offset, y: s.y + side.y * width * offset };
         const a1 = { x: t.x + side.x * width * offset, y: t.y + side.y * width * offset };
         const blade = segment(a0, a1, Math.max(2, width * (offset === 0 ? 0.22 : 0.075)),

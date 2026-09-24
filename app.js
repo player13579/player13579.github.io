@@ -2313,7 +2313,7 @@ const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("web
 const webgpuMainApp = { driver: null, startPending: null, mapId: null,
   generation: 0, visible: false, submittedHits: null, failed: false,
   submittedPreparationHits: null, submittedMinimapBounds: null,
-  submittedFrame: null,
+  submittedFrame: null, submittedSunbeamHands: new Map(),
   requestSerial: 0, lastSoundRequestSerial: 0,
   acquisitionCanvas: null };
 init();
@@ -12748,7 +12748,9 @@ function detectWorldSounds(previous, next) {
       medicalCabinetUse: "medicalCabinetUse",
       medicalFootBathUse: "medicalFootBathUse",
       a01ReaderUse: "a01ReaderUse",
-      cableSpoolUse: "cableSpoolUse"
+      cableSpoolUse: "cableSpoolUse",
+      archiveCabinetUse: "archiveCabinetUse",
+      invention: "invention"
     }[sound.type];
     if (!kind) continue;
     const characterActionKind = {
@@ -17579,6 +17581,7 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   webgpuMainApp.submittedPreparationHits = null;
   webgpuMainApp.submittedMinimapBounds = null;
   webgpuMainApp.submittedFrame = null;
+  webgpuMainApp.submittedSunbeamHands.clear();
   webgpuMainApp.visible = false;
   if (document.documentElement?.dataset)
     document.documentElement.dataset.fieldRenderer = "canvas2d";
@@ -17731,6 +17734,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error("WebGPU main submitted without phenomenon sound receipts");
     if (!Array.isArray(receipt.recordResult?.environmentSoundReceipts))
       throw new Error("WebGPU main submitted without environment sound receipts");
+    if (!Array.isArray(receipt.recordResult?.sunbeamHandReceipts))
+      throw new Error('WebGPU main submitted without Sunbeam hand receipts');
     if (!mainCanvas.isConnected || mainCanvas.style.display === "none") return;
     mainCanvas.style.opacity = "1";
     els.canvas.style.opacity = "0";
@@ -17749,6 +17754,16 @@ function pumpWebGPUMainAppDriver() {
       rect: Object.freeze({ left: rect.left, top: rect.top,
         width: rect.width, height: rect.height }) });
     webgpuMainApp.visible = true;
+    const activeSunbeams = new Set((state.magicEffects || [])
+      .filter(effect => effect.type === 'flora-sunbeam').map(effect => String(effect.id)));
+    for (const id of webgpuMainApp.submittedSunbeamHands.keys())
+      if (!activeSunbeams.has(id)) webgpuMainApp.submittedSunbeamHands.delete(id);
+    for (const hand of receipt.recordResult.sunbeamHandReceipts) {
+      if (!activeSunbeams.has(hand.effectId)) continue;
+      if (!Array.isArray(hand.hands) || !hand.hands.length)
+        throw new Error('WebGPU main submitted invalid Sunbeam hands');
+      webgpuMainApp.submittedSunbeamHands.set(hand.effectId, hand);
+    }
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
     commitVisibleVisualSoundFrame(data,
       receipt.recordResult.phenomenonSoundVisualReceipts,
@@ -20379,6 +20394,17 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
     now, frameNow, reducedMotion,
     textures: { gravityLocalMaterialV834: textures.gravityLocalMaterialV834,
       gravitySafeEyePressure: textures.gravitySafeEyePressure } };
+  const gravityFieldScene = { effects: [], gravityZones: zones,
+    nowMs: frameNow, serverNow: now, reducedMotion };
+  try {
+    if (zones.length && !Array.isArray(window.DvaWebGPUGravityFieldE?.plan?.({
+      scene: gravityFieldScene, camera, zoom, viewport })))
+      textureGaps.push({ stage: 'gravityHazards',
+        reason: 'gravity-field-state-pass-unavailable', blocking: true });
+  } catch (_) {
+    textureGaps.push({ stage: 'gravityHazards',
+      reason: 'gravity-field-state-invalid', blocking: true });
+  }
   const common = { camera, zoom, viewport };
   const stages = {
     map: { camera, zoom },
@@ -20390,7 +20416,7 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
     mapObjects: { scene: mapObjectWebGPUScene(data, bounds), ...common },
     mysteryBoxes: { ...boxes, ...common },
     alchemyObjects: { ...alchemyObjectsWebGPUScene(data), ...common },
-    gravityHazards: { scene: gravityScene, ...common },
+    gravityHazards: { scene: gravityScene, fieldScene: gravityFieldScene, ...common },
     groundItems: { commands, textAtlas: null },
     facilityEffects: { scene: { stations: facilityStations.filter(station =>
       !deferredStationIds.has(station?.id)), tasks: data.self?.tasks || [],
@@ -20474,6 +20500,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   const effects = Array.isArray(state.magicEffects) ? state.magicEffects : [];
   if (!["playing", "meeting"].includes(data.phase))
     return { stage: { camera, zoom, now, roomId: String(data.roomId || ''), phase: data.phase,
+      viewerId: String(data.selfId || ''),
       reducedMotion: prefersReducedMotion(), sourceEffectIds: [], events, omitted,
       markerCoverage, empCoverage, specialAmmoCoverage,
       markerGeneration: markerSelection?.generation ?? null },
@@ -20538,6 +20565,14 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     y: (y - camera.y) * zoom });
   const sourceEffectIds = active.map(effect => effect.id);
   const routedMarkerInstances = new Set();
+  const combatActors = (data.players || []).filter(Boolean).map(source => {
+    const player = renderedPlayer(source);
+    return { ...player, bodyWorld: { x: player.x, y: player.y } };
+  });
+  const combatScene = effect => ({ players: effect.type === 'action-push'
+      ? combatActors.map(player => ({ ...player, bustUntil: 0 })) : combatActors,
+    effects: [effect], events: [effect], self: null, nowMs: now,
+    serverNow: estimatedServerNow(data), reducedMotion });
   if (active.some(effect => effect.type !== "fire" &&
       ((typeof effect.id !== "string" && typeof effect.id !== "number") ||
         String(effect.id) === "")) ||
@@ -20547,6 +20582,252 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     throw new Error("Late magic WebGPU source effects need distinct IDs");
   for (const [index, effect] of active.entries()) {
     const type = String(effect.type || "");
+    if (type === 'gravity-storm') {
+      const zone = (data.gravityZones || []).find(item =>
+        item.ownerId === effect.playerId &&
+        Math.round(item.x) === effect.x && Math.round(item.y) === effect.y &&
+        item.radius === effect.radius);
+      if (zone) omitted.push({ effectId: effect.id,
+        reason: 'gravity-storm-owned-by-authoritative-zone' });
+      else unsupported.push({ index, type, id: effect.id,
+        reason: 'gravity-storm-zone-source-unavailable' });
+      continue;
+    }
+    if (['gravity-time-keeper', 'rigid-item-impact', 'bottle-shards',
+      'object-archiveCabinet', 'object-cableSpool'].includes(type)) {
+      const passName = type === 'gravity-time-keeper' ? 'gravityFieldE' :
+        type === 'rigid-item-impact' ? 'rigidItemImpactE' :
+        type === 'bottle-shards' ? 'bottleShardsE' :
+        type === 'object-archiveCabinet' ? 'archiveCabinetE' : 'cableSpoolE';
+      const module = window[{
+        gravityFieldE: 'DvaWebGPUGravityFieldE',
+        rigidItemImpactE: 'DvaWebGPURigidItemImpactE',
+        bottleShardsE: 'DvaWebGPUBottleShardsE',
+        archiveCabinetE: 'DvaWebGPUArchiveCabinetE',
+        cableSpoolE: 'DvaWebGPUCableSpoolE'
+      }[passName]];
+      const durationMs = type === 'gravity-time-keeper'
+        ? Number(effect.durationMs) : Number(module?.DURATION_MS);
+      if (Number.isFinite(effect.startedAt) && Number.isFinite(durationMs) &&
+          (now < effect.startedAt || now - effect.startedAt >= durationMs)) {
+        omitted.push({ effectId: effect.id, reason: 'field-or-impact-visual-outside-lifetime' });
+        continue;
+      }
+      if (data.phase !== 'playing') {
+        omitted.push({ effectId: effect.id, reason: 'field-or-impact-phase-not-playing' });
+        continue;
+      }
+      const outside = Number.isFinite(effect.x) && Number.isFinite(effect.y) &&
+        (effect.x < camera.x - 240 || effect.x > camera.x + viewport.width / zoom + 240 ||
+         effect.y < camera.y - 240 || effect.y > camera.y + viewport.height / zoom + 240);
+      if (outside) {
+        omitted.push({ effectId: effect.id, reason: 'field-or-impact-outside-viewport' });
+        continue;
+      }
+      const players = data.players || [];
+      const owner = players.find(player => player.id === effect.playerId);
+      const target = players.find(player => player.id === effect.targetId);
+      if ((type === 'rigid-item-impact' &&
+            (!owner || !target || owner.invisible || target.invisible ||
+              owner.ejected || target.ejected || target.inVent)) ||
+          (type === 'bottle-shards' &&
+            (!owner || owner.invisible || owner.ejected))) {
+        omitted.push({ effectId: effect.id, reason: 'impact-source-concealed' });
+        continue;
+      }
+      let planned;
+      const fieldScene = { effects: [effect], gravityZones: [],
+        nowMs: now, serverNow: estimatedServerNow(data), reducedMotion };
+      try {
+        planned = passName === 'gravityFieldE'
+          ? module?.plan?.({ scene: fieldScene, camera, zoom, viewport })?.[0]
+          : module?.plan?.({ effect, players, viewerId: String(data.selfId || ''),
+            now, phase: data.phase, camera, zoom, viewport, reducedMotion });
+      } catch (_) { /* Visible invalid source stays a readiness blocker. */ }
+      if (!planned || String(planned.effectId || planned.id) !== String(effect.id)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'field-or-impact-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: passName, effectId: effect.id,
+        input: { effect, planned, ...(passName === 'gravityFieldE'
+          ? { scene: fieldScene, camera, zoom } :
+          { now, phase: data.phase, camera, zoom, reducedMotion }) } });
+      continue;
+    }
+    if (type === 'hacker-status-recover' && effect.variant === 'unchanged') {
+      omitted.push({ effectId: effect.id, reason: 'hacker-status-unchanged-has-no-clear-visual' });
+      continue;
+    }
+    if (type === 'flora-sunbeam') {
+      const source = data.players?.find(player => String(player.id) === String(effect.playerId));
+      const actor = source && renderedPlayer(source);
+      if (!actor || !actor.alive || actor.ejected || actor.inVent ||
+          (actor.invisible && String(actor.id) !== String(data.selfId)) ||
+          data.phase !== 'playing') {
+        omitted.push({ effectId: effect.id, reason: 'sunbeam-owner-not-visible' });
+        continue;
+      }
+      if (now < effect.startedAt) {
+        omitted.push({ effectId: effect.id, reason: 'sunbeam-not-started' });
+        continue;
+      }
+      const owner = state.characterActions.get(actor.id);
+      const actionElapsed = owner && sunbeamActorVisualElapsed(owner, data);
+      const actionActive = owner?.kind === 'cast' &&
+        owner.motionId === 'flora-sunbeam' &&
+        String(owner.sourceEffectId ?? '') === String(effect.id) &&
+        Number.isFinite(actionElapsed) && actionElapsed < owner.duration;
+      const submitted = webgpuMainApp.submittedSunbeamHands.get(String(effect.id));
+      if (!actionActive && (!submitted || submitted.playerId !== String(actor.id))) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'sunbeam-same-frame-or-submitted-hand-unavailable' });
+        continue;
+      }
+      if (!window.DvaWebGPUSunbeamE?.create ||
+          ![effect.targetX, effect.targetY, effect.x, effect.y,
+            effect.startedAt, effect.duration].every(Number.isFinite) ||
+          effect.duration <= 0 ||
+          Math.hypot(effect.targetX - effect.x, effect.targetY - effect.y) < 1e-3) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'sunbeam-server-path-or-pass-unavailable' });
+        continue;
+      }
+      events.push({ type: 'sunbeamE', effectId: effect.id,
+        input: { effect, playerId: String(actor.id),
+          activeAction: Boolean(actionActive),
+          submittedHands: actionActive ? null : submitted.hands,
+          elapsed, camera, zoom, now, reducedMotion } });
+      continue;
+    }
+    if (['alchemy-excalibur', 'alchemy-railgun', 'alchemy-particle-cannon',
+      'alchemy-particle-beam'].includes(type)) {
+      unsupported.push({ index, type, id: effect.id,
+        reason: 'alchemy-event-bound-hand-world-unavailable' });
+      continue;
+    }
+    const nextPass = type === 'alchemy-human-transmutation'
+      ? ['alchemyE', window.DvaWebGPUAlchemyE] :
+      type === 'hacker-root' ? ['hackerRootE', window.DvaWebGPUHackerRootE] :
+      type === 'hacker-status-recover' && effect.variant === 'cleared'
+        ? ['hackerStatusRecoveryE', window.DvaWebGPUHackerStatusRecoveryE] :
+      type === 'flora' || type === 'flora-invisible'
+        ? ['floraE', window.DvaWebGPUFloraE] : null;
+    if (nextPass) {
+      const [passName, module] = nextPass;
+      const targetId = passName === 'hackerStatusRecoveryE'
+        ? String(effect.targetId || '') : String(effect.playerId || '');
+      const source = data.players?.find(player => String(player.id) === targetId);
+      const player = source ? renderedPlayer(source) : null;
+      if (type === 'flora-invisible' && !floraInvisibleSelfVisibility(effect, data)) {
+        omitted.push({ effectId: effect.id, reason: 'flora-invisible-self-only' });
+        continue;
+      }
+      if (!player || !player.alive || player.ejected || player.inVent ||
+          (player.invisible && (passName !== 'floraE' ||
+            String(player.id) !== String(data.selfId)))) {
+        omitted.push({ effectId: effect.id, reason: 'next-e-owner-not-visible' });
+        continue;
+      }
+      if (data.phase !== 'playing') {
+        omitted.push({ effectId: effect.id, reason: 'next-e-phase-not-playing' });
+        continue;
+      }
+      if (Number.isFinite(effect.startedAt) && now < effect.startedAt) {
+        omitted.push({ effectId: effect.id, reason: 'next-e-not-started' });
+        continue;
+      }
+      const visualMs = passName === 'hackerRootE' ? module?.EVENT_DURATION_MS :
+        passName === 'hackerStatusRecoveryE' ? module?.DURATION_MS :
+        passName === 'floraE' ? module?.DURATION_MS?.[type] : null;
+      if (Number.isFinite(visualMs) && now - effect.startedAt >=
+          Math.min(effect.duration, visualMs)) {
+        omitted.push({ effectId: effect.id, reason: 'next-e-visual-expired' });
+        continue;
+      }
+      if (passName === 'hackerRootE' && effect.variant === 'all-operators' &&
+          !player.hackerRootActive) {
+        omitted.push({ effectId: effect.id, reason: 'hacker-root-activation-superseded' });
+        continue;
+      }
+      let planned;
+      try {
+        planned = passName === 'alchemyE'
+          ? module?.plan?.({ scene: { effects: [effect], players: (data.players || [])
+            .map(actor => { const rendered = renderedPlayer(actor); return {
+              ...rendered, bodyWorld: { x: rendered.x, y: rendered.y } }; }),
+            nowMs: now, reducedMotion }, camera, zoom, viewport })?.[0]
+          : module?.plan?.({ effect, player, viewerId: String(data.selfId || ''),
+            now, actorTime: actorVisualTime(player, data), phase: data.phase,
+            camera, zoom, viewport, reducedMotion });
+      } catch (_) { /* Invalid canonical source remains a blocker. */ }
+      if (!planned || String(planned.effectId || planned.id) !== String(effect.id)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'next-e-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: passName, effectId: effect.id,
+        input: { effect, planned, ...(passName === 'alchemyE'
+          ? { scene: { effects: [effect], players: (data.players || [])
+            .map(actor => { const rendered = renderedPlayer(actor); return {
+              ...rendered, bodyWorld: { x: rendered.x, y: rendered.y } }; }),
+            nowMs: now, reducedMotion }, camera, zoom } : {}) } });
+      continue;
+    }
+    const barrier = window.DvaWebGPUBarrierE?.resolveEvent?.(effect);
+    const combatPass = barrier ? ['barrierE', window.DvaWebGPUBarrierE] :
+      type === 'action-push' && effect.variant === 'timed-bust-start'
+        ? ['bustE', window.DvaWebGPUBustE] :
+      type === 'action-dodge' && !effect.variant
+        ? ['dodgeE', window.DvaWebGPUDodgeE] :
+      type === 'action-renki' && (!effect.variant || effect.variant === 'tenfold')
+        ? ['renkiE', window.DvaWebGPURenkiE] :
+      ['idea-truth', 'idea-beauty', 'idea-good', 'idea-ascension'].includes(type)
+        ? ['ideaE', window.DvaWebGPIdeaE] : null;
+    if (combatPass) {
+      const [passName, module] = combatPass;
+      const scene = combatScene(effect);
+      const ownerId = barrier ? String(effect[barrier.owner] || '') :
+        String(effect.playerId || '');
+      const owner = combatActors.find(player => String(player.id) === ownerId);
+      if (!owner || owner.alive === false || owner.ejected || owner.inVent ||
+          (owner.invisible && owner.id !== data.selfId)) {
+        omitted.push({ effectId: effect.id, reason: 'combat-e-owner-not-visible' });
+        continue;
+      }
+      if (owner.x < camera.x - 260 || owner.x > camera.x + viewport.width / zoom + 260 ||
+          owner.y < camera.y - 260 || owner.y > camera.y + viewport.height / zoom + 260) {
+        omitted.push({ effectId: effect.id, reason: 'combat-e-outside-viewport' });
+        continue;
+      }
+      if (now < effect.startedAt) {
+        omitted.push({ effectId: effect.id, reason: 'combat-e-not-started' });
+        continue;
+      }
+      const visualDuration = passName === 'dodgeE' || passName === 'renkiE'
+        ? Math.min(effect.duration, Number(module?.VISUAL_MS) || effect.duration)
+        : effect.duration;
+      if (now - effect.startedAt >= visualDuration ||
+          (type === 'idea-ascension' && Number.isFinite(owner.ascensionStartedAt) &&
+            Number.isFinite(owner.ascensionUntil) &&
+            owner.ascensionUntil > owner.ascensionStartedAt &&
+            scene.serverNow >= owner.ascensionUntil)) {
+        omitted.push({ effectId: effect.id, reason: 'combat-e-visual-expired' });
+        continue;
+      }
+      let planned;
+      try { planned = module?.plan?.({ scene, camera, zoom, viewport }); }
+      catch (_) { /* Keep invalid authoritative data as a readiness blocker. */ }
+      if (!Array.isArray(planned) || planned.length !== 1 ||
+          String(planned[0].id) !== String(effect.id)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'combat-e-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: passName, effectId: effect.id,
+        input: { scene, camera, zoom } });
+      continue;
+    }
     if (type === 'flora-invisible' && !floraInvisibleSelfVisibility(effect, data)) {
       omitted.push({ effectId: effect.id, reason: 'flora-invisible-self-only' });
       continue;
@@ -21028,6 +21309,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     unsupported.push({ index, type, id: effect.id, reason: "no-complete-webgpu-effect-port" });
   }
   return { stage: { camera, zoom, now, roomId: String(data.roomId || ''), phase: data.phase,
+    viewerId: String(data.selfId || ''),
     reducedMotion, sourceEffectIds, events, omitted,
     markerCoverage, empCoverage, specialAmmoCoverage,
     markerGeneration: markerSelection?.generation ?? null }, unsupported,
@@ -27701,6 +27983,48 @@ function drawPlayerSprite(player, data, ghost, characterAction = null) {
 
 // Dormant until the ordered WebGPU world pass owns the surrounding player TE.
 // Call with a real snapshot player and the same camera/zoom used by drawWorld.
+function buildWebGPUSunbeamActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const owner = state.characterActions.get(player.id);
+  const sourceId = String(owner?.sourceEffectId ?? '');
+  if (!player.alive || player.ejected || player.inVent ||
+      (player.invisible && player.id !== data.selfId) ||
+      action?.kind !== 'cast' || action.motionId !== 'flora-sunbeam' ||
+      owner?.kind !== 'cast' || owner.motionId !== 'flora-sunbeam' ||
+      !sourceId || sourceId !== String(action.sourceEffectId ?? '') ||
+      !state.magicEffects.some(effect => effect.type === 'flora-sunbeam' &&
+        String(effect.id) === sourceId &&
+        String(effect.playerId) === String(player.id))) return null;
+  const identity = authoredCharacterIdentity(player, data);
+  const profile = AUTHORED_SUNBEAM_PROFILES[identity];
+  const direction = sunbeamDirectionFromAuthoritativeFacing(owner.authoritativeFacing);
+  const latch = AUTHORED_SUNBEAM_LATCHES.get(owner);
+  const token = [owner.startedAt, sourceId, owner.motionId, owner.kind].join('|');
+  if (!profile?.accepted || !direction || latch?.token !== token ||
+      latch.identity !== identity || !latch.sequences ||
+      !Number.isFinite(action.progress) || action.progress < 0 ||
+      action.progress >= 1) return null;
+  const poseKey = authoredSunbeamFrame(profile, action.progress);
+  const selected = latch.sequences[direction]?.[
+    SUNBEAM_AUTHORED_MOTION_KEYS.findIndex(entry => entry.key === poseKey)];
+  if (!selected || !authoredSunbeamPoseReady(selected.pose, selected.image)) return null;
+  const pose = selected.pose;
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  let alpha = 1;
+  if (player.id === data.selfId && data.self?.floraInvisibleActive) alpha *= .32;
+  const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise },
+    identity, direction, mode: 'flora-sunbeam',
+    entry: { assetPath: pose.assetPath, layout: { sourceOrigin: pose.origin,
+      ground: pose.ground, scale: pose.scale } }, image: selected.image,
+    frame: pose.sourceRect, body: { lean: 0, sway: 0, lift: 0 },
+    camera: view.camera, zoom: view.zoom, alpha,
+    arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  return command && Object.freeze({ ...command, sourceEffectId: sourceId,
+    poseKey, assetSha256: pose.assetSha256,
+    sunbeamPose: Object.freeze({ origin: pose.origin, scale: pose.scale,
+      emitters: pose.emitters }), name: playerIdentityLabel(player).slice(0, 14) });
+}
 function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const api = window.DvaWebGPUPlayerSprite;
   if (!api?.createCommand || !sourcePlayer || !data || !view?.camera ||
@@ -27708,6 +28032,8 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const player = renderedPlayer(sourcePlayer);
   const ghost = !player.alive && !player.ejected;
   const action = currentCharacterAction(player);
+  if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
+    return buildWebGPUSunbeamActionCommand(player, data, view, action);
   // Physical actions have their own sprite owners. The locomotion sheet must
   // not replace those poses merely because it is already available on the GPU.
   if (action && action.kind !== 'damage') return null;
@@ -27811,6 +28137,9 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   const entries = state.preparationRosterEntries;
   const spriteReady = player => {
     const action = currentCharacterAction(player);
+    if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
+      return Boolean(buildWebGPUSunbeamActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
     if (action && action.kind !== 'damage') return false;
     const identity = authoredCharacterIdentity(player, data);
     const direction = authoredDirection(player, motionFor(player, data));
@@ -27843,8 +28172,40 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   };
   const playerIdentity = { selfPlayerId: String(data.selfId || ''),
     preparation: data.phase === 'selecting' && !data.soloMission };
+  const bustScene = data.phase === 'playing' || data.phase === 'meeting'
+    ? { players: candidates.filter(player => player.alive && !player.ejected &&
+        Number(player.bustUntil) > estimatedServerNow(data)).map(player =>
+        ({ ...player, bodyWorld: { x: player.x, y: player.y } })),
+      effects: [], nowMs: state.frameNow || performance.now(),
+      serverNow: estimatedServerNow(data), reducedMotion: prefersReducedMotion() }
+    : null;
+  const playerEffects = { bustScene, camera, zoom };
+  const rootPlans = [];
+  if (data.phase === 'playing') for (const player of candidates) {
+    if (!player.hackerRootActive || !player.alive || player.ejected ||
+        player.inVent || player.invisible) continue;
+    const frameNow = state.frameNow || performance.now();
+    if ((state.magicEffects || []).some(effect => effect.type === 'hacker-root' &&
+        effect.variant === 'all-operators' && effect.playerId === player.id &&
+        Number.isFinite(effect.startedAt) &&
+        frameNow >= effect.startedAt &&
+        frameNow - effect.startedAt < Math.min(Number(effect.duration) || 1200,
+          Number(window.DvaWebGPUHackerRootE?.EVENT_DURATION_MS) || 1200))) continue;
+    if (player.x < camera.x - 160 ||
+        player.x > camera.x + viewport.width / zoom + 160 ||
+        player.y < camera.y - 160 ||
+        player.y > camera.y + viewport.height / zoom + 160) continue;
+    const planned = window.DvaWebGPUHackerRootE?.plan?.({ player,
+      now: frameNow, actorTime: actorVisualTime(player, data),
+      phase: data.phase, camera, zoom, viewport,
+      reducedMotion: prefersReducedMotion() });
+    if (planned) rootPlans.push(planned);
+    else unsupported.push({ playerId: String(player.id),
+      reason: 'hacker-root-state-pass-unavailable' });
+  }
+  playerEffects.rootPlans = rootPlans;
   if (!preparation) return { stages: { players: { ...playerIdentity,
-    commands: unsupported.length ? null : buildCommands(null) } },
+    ...playerEffects, commands: unsupported.length ? null : buildCommands(null) } },
     markerActors: candidates, unsupported, blocked: unsupported.length > 0 };
   if (!(entries instanceof Map)) throw new TypeError('Preparation player WebGPU scene needs roster entries Map');
   const summonPlayers = data.players.filter(Boolean).map(player => {
@@ -27859,7 +28220,7 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
     ringImage: state.textures?.preparationSummonCircle };
   return { stages: {
     preparationSummons: { scene, camera, zoom },
-    players: { ...playerIdentity, entries, createCommands({ entries: currentEntries, arrivalFor }) {
+    players: { ...playerIdentity, ...playerEffects, entries, createCommands({ entries: currentEntries, arrivalFor }) {
       assertSession();
       if (currentEntries !== entries || typeof arrivalFor !== 'function')
         throw new Error('Preparation player WebGPU scene needs same-frame summon arrivals');
@@ -28389,6 +28750,10 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
   const passOwners = ['taskIndicators', 'hud', 'minimap', 'modeBanner',
     'lighting', 'killAnimation', 'sensory', 'markerExplanation',
     'headMarkers', 'bodyBenefitExtra', 'statusTempo',
+    'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE',
+    'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'sunbeamE',
+    'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
+    'archiveCabinetE', 'cableSpoolE',
     ...(empVisible.length ? ['empEffect'] : []),
     ...(specialAmmoVisible.length ? ['specialAmmoEffect'] : []),
     ...(candidate.stages.acquisition ? ['acquisition'] : []),
@@ -33213,6 +33578,15 @@ function playSound(kind, options = {}) {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     playTone(730, 470, 0.065, "square", 0.021 * volume, 0, options.pan, options.spatial);
     playTone(310, 145, 0.21, "triangle", 0.049 * volume, 0.035, options.pan, options.spatial);
+  } else if (kind === "archiveCabinetUse") {
+    // One drawer detent and a short indexed scan for the accepted archive use.
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(410, 245, 0.105, "triangle", 0.039 * volume, 0, options.pan, options.spatial);
+    playTone(690, 1030, 0.12, "sine", 0.019 * volume, 0.07, options.pan, options.spatial);
+  } else if (kind === "invention") {
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(290, 435, 0.16, "triangle", 0.042 * volume, 0, options.pan, options.spatial);
+    playTone(580, 870, 0.19, "sine", 0.026 * volume, 0.06, options.pan, options.spatial);
   } else if (kind === "object") {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     [360, 540, 810].forEach((frequency, index) => playTone(frequency, frequency * 1.12, 0.16, "triangle", 0.1 * volume, index * 0.055, options.pan, options.spatial));

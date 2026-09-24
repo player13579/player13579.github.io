@@ -5580,6 +5580,9 @@ function pushSound(room, type, source, options = {}) {
     volume: Number(options.volume || 1),
     sourceKind: String(options.sourceKind || "player"),
     variant: String(options.variant || ""),
+    ...(typeof options.objectCausalId === "string" && options.objectCausalId
+      ? { objectCausalId: options.objectCausalId }
+      : {}),
     ...(type === "emp" && typeof options.empCausalId === "string" && options.empCausalId
       ? { empCausalId: options.empCausalId }
       : {}),
@@ -5693,6 +5696,9 @@ function pushMagicEffect(room, type, source, options = {}) {
     mode: String(options.mode || ""),
     effectKind: String(options.effectKind || ""),
     completionKind: String(options.completionKind || ""),
+    ...(typeof options.objectCausalId === "string" && options.objectCausalId
+      ? { objectCausalId: options.objectCausalId }
+      : {}),
     markerCount: Math.max(1, Math.floor(Number(options.markerCount) || 1)),
     durationMs: Math.max(0, Number(options.durationMs) || 0),
     ...((type === "emp" || type.startsWith("emp-")) ? {
@@ -5703,6 +5709,14 @@ function pushMagicEffect(room, type, source, options = {}) {
         ? { empCausalId: options.empCausalId }
         : {})
     } : {}),
+    ...(type === "alchemy-excalibur" && options.directionWorld &&
+      Number.isFinite(options.directionWorld.x) && Number.isFinite(options.directionWorld.y) &&
+      options.pathEndWorld && Number.isFinite(options.pathEndWorld.x) && Number.isFinite(options.pathEndWorld.y)
+      ? {
+          directionWorld: { x: options.directionWorld.x, y: options.directionWorld.y },
+          pathEndWorld: { x: options.pathEndWorld.x, y: options.pathEndWorld.y }
+        }
+      : {}),
     ...(type === "action-smartphone" && /^(?:donation-rational|donation-unjust)$/.test(String(options.variant || ""))
       ? { donationResultDelta: Math.round((Number(options.donationResultDelta) || 0) * 100) / 100 }
       : {}),
@@ -12369,7 +12383,7 @@ function absorbPreparationBarrier(room, target, timestamp = now(), source = null
   return false;
 }
 
-function applyEmpDisruption(room, target, timestamp = now()) {
+function applyEmpDisruption(room, target, timestamp = now(), empCausalId = "") {
   if (!target?.alive || target.ejected) return 0;
   // EMP is an equipment anomaly, never a status abnormality or debuff. No
   // status-recovery route may reject, shorten, clear, or repair this timer.
@@ -12382,15 +12396,16 @@ function applyEmpDisruption(room, target, timestamp = now()) {
     radius: 105,
     playerId: target.id,
     durationMs: EMP_ITEM_LOCK_MS,
-    variant: "storage"
+    variant: "storage",
+    ...(typeof empCausalId === "string" && empCausalId ? { empCausalId } : {})
   });
   setImmediateFeedback(target, "EMP機器異常", `${Math.ceil(EMP_ITEM_LOCK_MS / 1000)}秒間、全アイテム使用・効果停止`);
   return 1;
 }
 
-function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now()) {
+function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now(), empCausalId = "") {
   if (!source?.alive || source.ejected || source.id === defender?.id) return false;
-  applyEmpDisruption(room, source, timestamp);
+  applyEmpDisruption(room, source, timestamp, empCausalId);
   if (mode === "disruption") return true;
   if (mode === "lethal") {
     destroyPlayerUnconditionally(room, defender, source, "反射されたEMP", {
@@ -12430,21 +12445,21 @@ function applyReflectedEmpAttack(room, defender, source, mode, timestamp = now()
   }
 }
 
-function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP共振") {
+function eliminatePlayerWithEmp(room, source, target, timestamp, reason = "EMP共振", empCausalId = "") {
   if (!target?.alive || target.ejected || botFriendlyTransactionBlocked(source, target)) return false;
-  if (source?.id !== target.id && sharesCombatFaction(source, target)) { applyEmpDisruption(room, source, timestamp); return false; }
+  if (source?.id !== target.id && sharesCombatFaction(source, target)) { applyEmpDisruption(room, source, timestamp, empCausalId); return false; }
   if (hackerEmpOpeningProtected(room, target, timestamp)) return false;
   const outcome = {attackType: "kill", attackKind: String(reason).includes("反射") ? "reflected-emp-lethal" : "emp-resonance-lethal", attackLabel: reason, slashGuardPhysical: false, slashGuardReflectable: false};
   const killed = destroyPlayerUnconditionally(room, source, target, reason, outcome);
-  if (outcome.defenseOutcome?.defense !== "barrier" && target.alive) applyEmpDisruption(room, target, timestamp);
+  if (outcome.defenseOutcome?.defense !== "barrier" && target.alive) applyEmpDisruption(room, target, timestamp, empCausalId);
   return outcome.killConvertedToBodyDamage ? "converted" : killed;
 }
 
-function applyEmpBodyDamage(room, source, target, timestamp) {
+function applyEmpBodyDamage(room, source, target, timestamp, empCausalId = "") {
   if (!target?.alive || target.ejected) return "none";
   if (botFriendlyTransactionBlocked(source, target)) return "none";
   if (source?.role === target.role && ["defender", "attacker"].includes(source.role) && source.id !== target.id) {
-    applyEmpDisruption(room, source, timestamp);
+    applyEmpDisruption(room, source, timestamp, empCausalId);
     pushEvent(room, `${source.name} の味方EMPが反射され、発動者のアイテムストレージを遮断しました。${target.name} は無傷です。`);
     return "friendlyFireReflected";
   }
@@ -12455,26 +12470,27 @@ function applyEmpBodyDamage(room, source, target, timestamp) {
     reflectable: false,
     damage: 1,
     hitZone: "body",
-    reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "body", timestamp)
+    reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "body", timestamp, empCausalId)
   }, timestamp);
   if (slashGuardOutcome) return slashGuardOutcome;
   if (absorbPreparationBarrier(room, target, timestamp, source)) return "preparationBarrier";
   if (hackerEmpOpeningProtected(room, target, timestamp)) return "openingProtection";
   const result = settleDurableBodyDamage(room, source, target, 1, "EMP共振", {timestamp, attackKind: "emp-resonance-body"});
-  if (result.defense !== "barrier" && target.alive) applyEmpDisruption(room, target, timestamp);
+  if (result.defense !== "barrier" && target.alive) applyEmpDisruption(room, target, timestamp, empCausalId);
   return result.killed ? "lethal" : result.absorbed ? result.defense : "body";
 }
 
 function resolveStandardEmp(room, pulse, timestamp) {
   const player = room.players.get(pulse.playerId);
   if (!player) return;
+  const empCausalId = `pulse:${pulse.id}`;
   let itemLocks = 0;
   let friendlyReflections = 0;
   for (const target of room.players.values()) {
     if (target.id !== player.id && target.alive && !target.ejected && distance(pulse, target) <= EMP_RANGE) {
       if (player.role === target.role && ["defender", "attacker"].includes(player.role)) {
         if (durableBarrierActive(target) || absorbPreparationBarrier(room, target, timestamp, player)) continue;
-        itemLocks += applyEmpDisruption(room, player, timestamp);
+        itemLocks += applyEmpDisruption(room, player, timestamp, empCausalId);
         friendlyReflections += 1;
       } else {
         const slashGuardOutcome = resolveFighterSlashGuard(room, player, target, {
@@ -12482,12 +12498,12 @@ function resolveStandardEmp(room, pulse, timestamp) {
           label: `${pulse.phase === "positive" ? "正相" : "逆相"}EMP`,
           physical: false,
           reflectable: false,
-          reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "disruption", timestamp)
+          reflectEffect: ({ defender, source: reflectedTarget }) => applyReflectedEmpAttack(room, defender, reflectedTarget, "disruption", timestamp, empCausalId)
         }, timestamp);
         if (slashGuardOutcome) continue;
         if (durableBarrierActive(target) || absorbPreparationBarrier(room, target, timestamp, player)) continue;
         if (hackerEmpOpeningProtected(room, target, timestamp)) continue;
-        itemLocks += applyEmpDisruption(room, target, timestamp);
+        itemLocks += applyEmpDisruption(room, target, timestamp, empCausalId);
       }
     }
   }
@@ -12496,9 +12512,9 @@ function resolveStandardEmp(room, pulse, timestamp) {
     sourceKind: "player",
     maxDistance: 2200,
     volume: 1,
-    empCausalId: `pulse:${pulse.id}`
+    empCausalId
   });
-  pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase, resolvedEmpPulseIds: [pulse.id], empCausalId: `pulse:${pulse.id}` });
+  pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase, resolvedEmpPulseIds: [pulse.id], empCausalId });
   pushEvent(room, `${pulse.phase === "positive" ? "正相" : "逆相"}EMP発生: ストレージ遮断${itemLocks}人 / 味方反射${friendlyReflections}件`);
   checkWin(room);
   touch(room);
@@ -12510,6 +12526,7 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
   const samePhase = first.phase === second.phase;
   const pulseIds = [String(first.id), String(second.id)].sort();
+  const empCausalId = `interaction:${samePhase ? "resonance" : "cancel"}:${pulseIds[0]}:${pulseIds[1]}`;
   const visualSettlement = {resolvedEmpPulseIds: [first.id, second.id], empSourceAxis: Math.atan2(second.y - first.y, second.x - first.x)};
   const soloEmpPractice = room.soloMission?.id === "emp" && [first.playerId, second.playerId].includes(room.soloMission.playerId);
   if (soloEmpPractice) {
@@ -12521,7 +12538,6 @@ function resolveEmpInteraction(room, first, second, timestamp) {
     room.soloMission.empCancelled = outcomes.has("cancel");
   }
   if (!samePhase) {
-    const empCausalId = `interaction:cancel:${pulseIds[0]}:${pulseIds[1]}`;
     pushMagicEffect(room, "emp-cancel", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: "opposite", empCausalId });
     pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 1800, volume: 0.8, empCausalId });
     pushEvent(room, soloEmpPractice
@@ -12533,7 +12549,6 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   }
 
   if (soloEmpPractice) {
-    const empCausalId = `interaction:resonance:${pulseIds[0]}:${pulseIds[1]}`;
     pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase, empCausalId });
     pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1, empCausalId });
     pushEvent(room, "EMP訓練: 同位相の重ね合わせで増強に成功しました。");
@@ -12552,27 +12567,26 @@ function resolveEmpInteraction(room, first, second, timestamp) {
     const source = isFirst ? secondOwner : isSecond ? firstOwner : distance(target, first) <= distance(target, second) ? firstOwner : secondOwner;
     if (isFirst || isSecond) {
       if (pairDistance <= EMP_RESONANCE_LETHAL_RANGE) {
-        const outcome = eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振");
+        const outcome = eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振", empCausalId);
         if (outcome === true) lethalCount += 1;
         else if (outcome === "converted") bodyCount += 1;
       } else {
-        const outcome = applyEmpBodyDamage(room, source, target, timestamp);
+        const outcome = applyEmpBodyDamage(room, source, target, timestamp, empCausalId);
         if (outcome === "lethal") lethalCount += 1;
         else if (["body", "overheal"].includes(outcome)) bodyCount += 1;
       }
       continue;
     }
     if (pairDistance <= EMP_RESONANCE_LETHAL_RANGE && distance(target, midpoint) <= EMP_RESONANCE_LETHAL_RANGE) {
-      const outcome = eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振の巻き添え");
+      const outcome = eliminatePlayerWithEmp(room, source, target, timestamp, "同位相EMP共振の巻き添え", empCausalId);
       if (outcome === true) lethalCount += 1;
       else if (outcome === "converted") bodyCount += 1;
     } else if (Math.min(distance(target, first), distance(target, second)) <= EMP_RESONANCE_BODY_RANGE) {
-      const outcome = applyEmpBodyDamage(room, source, target, timestamp);
+      const outcome = applyEmpBodyDamage(room, source, target, timestamp, empCausalId);
       if (outcome === "lethal") lethalCount += 1;
       else if (["body", "overheal"].includes(outcome)) bodyCount += 1;
     }
   }
-  const empCausalId = `interaction:resonance:${pulseIds[0]}:${pulseIds[1]}`;
   pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase, empCausalId });
   pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1, empCausalId });
   pushEvent(room, `同位相EMPが共振しました。キル${lethalCount}人 / ボディダメージ${bodyCount}人。`);
@@ -12622,6 +12636,7 @@ function activateEmp(room, player, rawPhase = "positive") {
       playerId: player.id,
       variant: phase,
       empPulseId: pulse.id,
+      empCausalId: `pulse:${pulse.id}`,
       durationMs: EMP_PULSE_ATE_DURATION_MS
     });
     pushEvent(room, `${player.name} が${phase === "positive" ? "正相" : "逆相"}EMPを起動しました。`);
@@ -12814,11 +12829,17 @@ function useMapObject(room, player, objectId) {
 
   markObjectContactUsed(player, object.id);
   player.objectCooldowns[object.id] = timestamp + Number(object.cooldownMs || 15000);
+  const objectCausalId = [
+    "v302-reactor-reactorGauge-1",
+    "v302-reactor-coolingUnit-2",
+    "v302-reactor-powerCabinet-3"
+  ].includes(object.id) ? `map-object:${object.id}:${uid("object_use_")}` : "";
   pushMagicEffect(room, `object-${object.type}`, object, {
     radius: Number(object.radius || 100),
     playerId: player.id,
     objectId: object.id,
-    effectKind: object.effectKind
+    effectKind: object.effectKind,
+    ...(objectCausalId ? { objectCausalId } : {})
   });
   pushMapObjectGainAtes(room, player, object.effectKind, recoveredHealth);
   const medicalUseSound = {
@@ -12826,13 +12847,15 @@ function useMapObject(room, player, objectId) {
     "v302-medical-medicalCabinet-2": "medicalCabinetUse",
     "v302-medical-sterilizer-3": "medicalFootBathUse",
     "v317-corridor-a01-1": "a01ReaderUse",
-    "v302-power-cableSpool-2": "cableSpoolUse"
+    "v302-power-cableSpool-2": "cableSpoolUse",
+    "v302-archive-archiveCabinet-2": "archiveCabinetUse"
   }[object.id];
   pushSound(room, medicalUseSound || "object", object, {
     ownerId: player.id,
     sourceKind: "facility",
     maxDistance: 720,
-    volume: 0.7
+    volume: 0.7,
+    ...(objectCausalId ? { objectCausalId } : {})
   });
   pushEvent(room, `${player.name} が ${object.label} を使用: ${object.effectLabel}`);
   touch(room);
@@ -15611,8 +15634,8 @@ function destroyPlayerUnconditionally(room, source, target, reason, options = {}
   return true;
 }
 
-function inventionLineTargets(room, player, range, width, enemyOnly = false) {
-  const path = resolveVectorAttackPath(room, player, player.aimX, player.aimY, range, { collisionRadius: 2 });
+function inventionLineTargets(room, player, range, width, enemyOnly = false, resolvedPath = null) {
+  const path = resolvedPath || resolveVectorAttackPath(room, player, player.aimX, player.aimY, range, { collisionRadius: 2 });
   const { dx, dy } = path;
   return [...room.players.values()]
     .filter((target) => target.id !== player.id && target.alive && !target.ejected && (!enemyOnly || target.role === attackTargetRole(player)))
@@ -15655,7 +15678,9 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
           .map((target) => `${target.name}: ${whichRoom(getMap(room), target)} (${Math.round(target.x)}, ${Math.round(target.y)})`)
       });
     } else if (id === "excalibur") {
-      const targets = inventionLineTargets(room, player, Math.max(getMap(room).width, getMap(room).height) * 2 * performanceMultiplier, Math.max(getMap(room).width, getMap(room).height) * performanceMultiplier, true);
+      const excaliburRange = Math.max(getMap(room).width, getMap(room).height) * 2 * performanceMultiplier;
+      const excaliburPath = resolveVectorAttackPath(room, player, player.aimX, player.aimY, excaliburRange, { collisionRadius: 2 });
+      const targets = inventionLineTargets(room, player, excaliburRange, Math.max(getMap(room).width, getMap(room).height) * performanceMultiplier, true, excaliburPath);
       for (const { target } of targets) destroyPlayerUnconditionally(room, player, target, "エクスカリバー", {
         attackType: "kill",
         attackKind: "excalibur",
@@ -15664,7 +15689,13 @@ function useAlchemistInvention(room, player, invention, rawHoldMs = 0, chargeId 
         slashGuardReflectable: true,
         reflectDestroy: true
       });
-      pushMagicEffect(room, "alchemy-excalibur", player, { radius: 900 * performanceMultiplier, playerId: player.id, variant: power.mode === "gbo" ? "gbo-tenfold" : "forward-half-map" });
+      pushMagicEffect(room, "alchemy-excalibur", player, {
+        radius: 900 * performanceMultiplier,
+        playerId: player.id,
+        variant: power.mode === "gbo" ? "gbo-tenfold" : "forward-half-map",
+        directionWorld: { x: excaliburPath.dx, y: excaliburPath.dy },
+        pathEndWorld: { x: excaliburPath.x, y: excaliburPath.y }
+      });
       checkWin(room);
       if (!(room.phase === "ended" && room.winner === "attackers" && player.role === "attacker")) {
         destroyPlayerUnconditionally(room, player, player, "エクスカリバーの代償");
@@ -17852,6 +17883,36 @@ function resultBoard(room) {
   return resultBoardEntries(room);
 }
 
+function magicEffectsForViewer(room, viewer, timestamp = now()) {
+  return (room.magicEffects || []).flatMap((effect) => {
+    if (effect.viewerId && effect.viewerId !== viewer.id) return [];
+    if (!(effect.type === "transfer-in" || effect.type === "transfer-out" || effect.type === "action-warp")) {
+      return [effect];
+    }
+    const owner = room.players.get(String(effect.playerId || ""));
+    if (
+      room.phase === "playing" && owner && owner.id !== viewer.id &&
+      floraInvisibleActive(owner, timestamp)
+    ) return [];
+
+    const target = room.players.get(String(effect.targetId || ""));
+    const targetConcealed = Boolean(
+      room.phase === "playing" && target && target.id !== viewer.id &&
+      floraInvisibleActive(target, timestamp)
+    );
+    if (!targetConcealed) return [effect];
+
+    // Keep the visible actor's local presentation while applying the same
+    // concealment boundary as serialized player positions to remote endpoints.
+    const redacted = { ...effect, targetId: "", targetX: null, targetY: null };
+    if (effect.type === "transfer-in") {
+      redacted.acquisitionOriginX = null;
+      redacted.acquisitionOriginY = null;
+    }
+    return [redacted];
+  });
+}
+
 function serialize(room, viewer, options = {}) {
   if (!options.skipTick) tickRoom(room);
   const map = getMap(room);
@@ -18404,7 +18465,7 @@ function serialize(room, viewer, options = {}) {
     players,
     bodies: visibleBodies(room, viewer),
     hitEffects: room.hitEffects,
-    magicEffects: room.magicEffects.filter((effect) => !effect.viewerId || effect.viewerId === viewer.id),
+    magicEffects: magicEffectsForViewer(room, viewer, timestamp),
     hazardFields: (room.hazardFields || []).map((field) => ({ ...field })),
     groundItems: (room.groundItems || []).map((groundItem) => ({
       id: groundItem.id,

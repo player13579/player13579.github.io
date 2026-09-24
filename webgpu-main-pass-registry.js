@@ -36,6 +36,21 @@
     bodyBenefits: root.DvaWebGPUBodyBenefitPass || (typeof require === 'function' ? require('./webgpu-body-benefit-pass.js') : null),
     bodyBenefitExtra: root.DvaWebGPUBodyBenefitExtra || (typeof require === 'function' ? require('./webgpu-body-benefit-extra.js') : null),
     statusTempo: root.DvaWebGPUStatusTempoE || (typeof require === 'function' ? require('./webgpu-status-tempo-e.js') : null),
+    barrierE: root.DvaWebGPUBarrierE || (typeof require === 'function' ? require('./webgpu-barrier-e.js') : null),
+    bustE: root.DvaWebGPUBustE || (typeof require === 'function' ? require('./webgpu-bust-e.js') : null),
+    dodgeE: root.DvaWebGPUDodgeE || (typeof require === 'function' ? require('./webgpu-dodge-e.js') : null),
+    renkiE: root.DvaWebGPURenkiE || (typeof require === 'function' ? require('./webgpu-renki-e.js') : null),
+    ideaE: root.DvaWebGPIdeaE || (typeof require === 'function' ? require('./webgpu-idea-e.js') : null),
+    alchemyE: root.DvaWebGPUAlchemyE || (typeof require === 'function' ? require('./webgpu-alchemy-e.js') : null),
+    hackerRootE: root.DvaWebGPUHackerRootE || (typeof require === 'function' ? require('./webgpu-hacker-root-e.js') : null),
+    hackerStatusRecoveryE: root.DvaWebGPUHackerStatusRecoveryE || (typeof require === 'function' ? require('./webgpu-hacker-status-recovery-e.js') : null),
+    floraE: root.DvaWebGPUFloraE || (typeof require === 'function' ? require('./webgpu-flora-e.js') : null),
+    sunbeamE: root.DvaWebGPUSunbeamE || (typeof require === 'function' ? require('./webgpu-sunbeam-e.js') : null),
+    gravityFieldE: root.DvaWebGPUGravityFieldE || (typeof require === 'function' ? require('./webgpu-gravity-field-e.js') : null),
+    rigidItemImpactE: root.DvaWebGPURigidItemImpactE || (typeof require === 'function' ? require('./webgpu-rigid-item-impact-e.js') : null),
+    bottleShardsE: root.DvaWebGPUBottleShardsE || (typeof require === 'function' ? require('./webgpu-bottle-shards-e.js') : null),
+    archiveCabinetE: root.DvaWebGPUArchiveCabinetE || (typeof require === 'function' ? require('./webgpu-archive-cabinet-e.js') : null),
+    cableSpoolE: root.DvaWebGPUCableSpoolE || (typeof require === 'function' ? require('./webgpu-cable-spool-e.js') : null),
     fireActivation: root.DvaWebGPUFireActivation || (typeof require === 'function' ? require('./webgpu-fire-activation.js') : null),
     empEffect: root.DvaWebGPUEmpEffect || (typeof require === 'function' ? require('./webgpu-emp-effect.js') : null),
     specialAmmoEffect: root.DvaWebGPUSpecialAmmoEffect || (typeof require === 'function' ? require('./webgpu-special-ammo-effect.js') : null),
@@ -59,7 +74,7 @@
     'hud', 'minimap', 'modeBanner', 'lighting', 'killAnimation', 'sensory',
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
-    'bodyBenefit', 'bodyBenefitExtra', 'statusTempo', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'medicalObjectE',
+    'bodyBenefit', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'cableSpoolE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'medicalObjectE',
     'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E',
     'taskCompletion', 'headMarker']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -109,7 +124,7 @@
       preparationSummons: 'create', players: 'createTextureCache',
       playerNameplates: 'create', headMarkers: 'create',
       gunnerAim: 'create', killCamera: 'create', hitEffects: 'record',
-      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
+      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', cableSpoolE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
       attackTargets: 'record', taskIndicators: 'create', hud: 'create',
       minimap: 'create', modeBanner: 'create', killBloom: 'create',
       killAnimation: 'create', sensory: 'enqueue', markerExplanation: 'create',
@@ -181,6 +196,22 @@
       add('bodyBenefits', modules.bodyBenefits.create({ renderer }), 'record');
       add('bodyBenefitExtra', modules.bodyBenefitExtra.create({ frameOwner: renderer }), 'record');
       add('statusTempo', modules.statusTempo.create({ frameOwner: renderer }), 'record');
+      for (const name of ['barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE']) {
+        const pass = modules[name].create();
+        add(name, Object.freeze({ device: renderer.device,
+          record: pass.record, destroy: pass.destroy }), 'record');
+      }
+      for (const name of ['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'sunbeamE']) {
+        const pass = modules[name].create({ renderer, frameOwner: renderer });
+        add(name, Object.freeze({ device: renderer.device,
+          record: pass.record, destroy: pass.destroy }), 'record');
+      }
+      for (const name of ['gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
+        'archiveCabinetE', 'cableSpoolE']) {
+        const pass = modules[name].create({ renderer, frameOwner: renderer });
+        add(name, Object.freeze({ device: renderer.device,
+          record: pass.record, destroy: pass.destroy }), 'record');
+      }
       add('fireActivation', modules.fireActivation.create({ renderer }), 'record');
       add('empEffect', modules.empEffect.create({ frameOwner: renderer }), 'record');
       add('specialAmmoEffect', modules.specialAmmoEffect.create({ frameOwner: renderer }), 'record');

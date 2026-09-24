@@ -58,6 +58,31 @@
       identity: actorIdentity, direction, movementMode: mode, assetPath: entry.assetPath,
       image, sprite, anchorTransform });
   }
+  // A hand receipt is derived only from the exact authored sprite command
+  // queued into the shared frame. Points are local to its cropped pose.
+  function sunbeamHandsForCommand(command, camera, zoom) {
+    const pose = command?.sunbeamPose;
+    const sprite = command?.sprite;
+    if (!pose || !sprite || !Array.isArray(pose.emitters) || !pose.emitters.length ||
+        !Number.isFinite(camera?.x) || !Number.isFinite(camera?.y) ||
+        !finite(zoom) || zoom <= 0 || !Array.isArray(sprite.transform) ||
+        sprite.transform.length !== 6 || !sprite.transform.every(finite) ||
+        !finite(pose.scale) || pose.scale <= 0 ||
+        !finite(pose.origin?.x) || !finite(pose.origin?.y) ||
+        !command.sourceEffectId || command.movementMode !== 'flora-sunbeam') return null;
+    const [a, b, c, d, tx, ty] = sprite.transform;
+    const hands = pose.emitters.map(point => {
+      if (!finite(point?.x) || !finite(point?.y) ||
+          point.x < 0 || point.y < 0 || point.x >= sprite.crop[2] ||
+          point.y >= sprite.crop[3]) return null;
+      const x = (point.x - pose.origin.x) * pose.scale;
+      const y = (point.y - pose.origin.y) * pose.scale;
+      return { x: (a * x + c * y + tx) / zoom + camera.x,
+        y: (b * x + d * y + ty) / zoom + camera.y };
+    });
+    return hands.every(point => point && finite(point.x) && finite(point.y))
+      ? Object.freeze(hands.map(point => Object.freeze(point))) : null;
+  }
   function createTextureCache(device) {
     if (!device?.createTexture || !device?.queue?.copyExternalImageToTexture) {
       throw new TypeError('The shared WebGPU device and queue are required');
@@ -91,7 +116,7 @@
       destroy() { for (const texture of ownedTextures) texture.destroy(); ownedTextures.clear(); textures.clear(); }
     });
   }
-  const api = Object.freeze({ createCommand, createTextureCache });
+  const api = Object.freeze({ createCommand, createTextureCache, sunbeamHandsForCommand });
   root.DvaWebGPUPlayerSprite = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

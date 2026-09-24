@@ -233,6 +233,73 @@
               !Number.isFinite(planned.progress) || planned.progress < 0 ||
               planned.progress >= 1)
             throw new TypeError(`Magic event ${index} needs one owned ${event.type} plan`);
+        } else if (['barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE'].includes(event?.type)) {
+          const source = event.input?.scene?.effects?.[0];
+          const pass = passes[event.type];
+          if (typeof pass?.record !== 'function' ||
+              !Array.isArray(event.input?.scene?.effects) ||
+              event.input.scene.effects.length !== 1 ||
+              String(source?.id ?? '') !== id ||
+              !Array.isArray(event.input.scene.players) ||
+              !Number.isFinite(event.input.scene.nowMs) ||
+              !Number.isFinite(event.input.camera?.x) ||
+              !Number.isFinite(event.input.camera?.y) ||
+              !(event.input.zoom > 0))
+            throw new TypeError(`Magic event ${index} needs one owned ${event.type} source`);
+        } else if (event?.type === 'sunbeamE') {
+          const effect = event.input?.effect;
+          if (typeof passes.sunbeamE?.record !== 'function' ||
+              effect?.type !== 'flora-sunbeam' || String(effect?.id ?? '') !== id ||
+              String(effect.playerId ?? '') !== event.input.playerId ||
+              ![effect.targetX, effect.targetY, effect.x, effect.y,
+                event.input.elapsed, event.input.now].every(Number.isFinite) ||
+              !(effect.duration > 0) ||
+              (event.input.activeAction && event.input.submittedHands != null) ||
+              (!event.input.activeAction &&
+                (!Array.isArray(event.input.submittedHands) ||
+                  !event.input.submittedHands.length)))
+            throw new TypeError(`Magic event ${index} needs one event-bound Sunbeam path`);
+        } else if (['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE'].includes(event?.type)) {
+          const effect = event.input?.effect, planned = event.input?.planned;
+          if (typeof passes[event.type]?.record !== 'function' ||
+              String(effect?.id ?? '') !== id ||
+              String(planned?.effectId ?? planned?.id ?? '') !== id ||
+              !Number.isFinite(planned?.progress) || planned.progress < 0 ||
+              planned.progress >= 1 ||
+              !(event.type === 'alchemyE'
+                ? effect.type === 'alchemy-human-transmutation' &&
+                  event.input.scene?.effects?.length === 1 &&
+                  event.input.scene.effects[0] === effect
+                : event.type === 'hackerRootE'
+                  ? effect.type === 'hacker-root' &&
+                    ['all-operators', 'release'].includes(effect.variant)
+                  : event.type === 'hackerStatusRecoveryE'
+                    ? effect.type === 'hacker-status-recover' &&
+                      effect.variant === 'cleared'
+                    : ['flora', 'flora-invisible'].includes(effect.type) &&
+                      planned.type === effect.type &&
+                      (effect.type !== 'flora-invisible' ||
+                        String(effect.viewerId || '') === String(effect.playerId || '') &&
+                        String(effect.viewerId || '') === String(magic.viewerId || ''))))
+            throw new TypeError(`Magic event ${index} needs one owned ${event.type} plan`);
+        } else if (['gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
+          'archiveCabinetE', 'cableSpoolE'].includes(event?.type)) {
+          const effect = event.input?.effect, planned = event.input?.planned;
+          const expectedType = { gravityFieldE: 'gravity-time-keeper',
+            rigidItemImpactE: 'rigid-item-impact', bottleShardsE: 'bottle-shards',
+            archiveCabinetE: 'object-archiveCabinet',
+            cableSpoolE: 'object-cableSpool' }[event.type];
+          if (typeof passes[event.type]?.record !== 'function' ||
+              effect?.type !== expectedType || String(effect?.id ?? '') !== id ||
+              String(planned?.effectId ?? planned?.id ?? '') !== id ||
+              (event.type === 'gravityFieldE'
+                ? planned.kind !== 'time-keeper' ||
+                  event.input.scene?.effects?.length !== 1 ||
+                  event.input.scene.effects[0] !== effect
+                : !Number.isFinite(planned?.progress ?? planned?.elapsed)) ||
+              (event.type === 'archiveCabinetE' || event.type === 'cableSpoolE') &&
+                planned.objectId !== effect.objectId)
+            throw new TypeError(`Magic event ${index} needs one owned ${event.type} plan`);
         } else if (event?.type === 'fireActivation') {
           if (typeof passes.fireActivation?.record !== 'function')
             throw new Error('Magic fire activation needs WebGPU fireActivation.record');
@@ -358,6 +425,7 @@
       const preparationHitTargets = [];
       const phenomenonSoundVisualReceipts = [];
       const environmentSoundReceipts = [];
+      const sunbeamHands = new Map();
       const run = (name, callback) => {
         const input = stages[name];
         if (input == null) return;
@@ -430,7 +498,17 @@
       run('mapObjects', input => need('mapObjects', 'draw').draw(common(input)));
       run('mysteryBoxes', input => need('mysteryBoxes', 'record').record(common(input)));
       run('alchemyObjects', input => need('alchemyObjects', 'record').record({ ...common(input), shapes: need('shapes', 'enqueue') }));
-      run('gravityHazards', input => need('gravityHazards', 'record').record(common(input)));
+      run('gravityHazards', input => {
+        const outcome = need('gravityHazards', 'record').record(common(input));
+        if (input.fieldScene?.gravityZones?.length) {
+          const field = need('gravityFieldE', 'record').record({ frame, target,
+            viewport, scene: input.fieldScene, camera: input.camera, zoom: input.zoom });
+          if (!Array.isArray(field?.fields) ||
+              field.fields.some(item => item.kind !== 'storm'))
+            throw new Error('Gravity field state pass drew an event-owned source');
+        }
+        return outcome;
+      });
       run('groundItems', input => {
         const pass = need('groundItems', 'record');
         if (!Array.isArray(input.commands)) throw new TypeError('Prepared ground-item commands required');
@@ -461,6 +539,17 @@
         const markerViewport = Object.freeze({ ...viewport, generation: input.markerGeneration });
         commands.forEach((command, index) => {
           cache.record(frame, target, command);
+          if (command.movementMode === 'flora-sunbeam') {
+            const hands = root.DvaWebGPUPlayerSprite?.sunbeamHandsForCommand?.(
+              command, input.camera, input.zoom);
+            const id = String(command.sourceEffectId ?? '');
+            if (!id || !hands?.length || sunbeamHands.has(id))
+              throw new Error(`Sunbeam player ${String(command.playerId)} lacks distinct submitted hands`);
+            sunbeamHands.set(id, Object.freeze({ effectId: id,
+              playerId: String(command.playerId), poseKey: command.poseKey,
+              assetPath: command.assetPath, assetSha256: command.assetSha256,
+              hands }));
+          }
           const tail = input.headMarkersForCommand({ command, index, viewport: markerViewport });
           if (!tail || typeof tail.then === 'function' ||
               String(tail.playerId || '') !== String(command.playerId || '') ||
@@ -475,6 +564,26 @@
             throw new Error(`Player ${String(command.playerId)} head-marker targets differ from recorded plan`);
           markerHitTargets.push(...hits);
         });
+        if (input.bustScene) {
+          const outcome = need('bustE', 'record').record({ frame, target, viewport,
+            scene: input.bustScene, camera: input.camera, zoom: input.zoom });
+          if (!Array.isArray(outcome?.effects) ||
+              outcome.effects.some(effect => effect.kind !== 'sustain'))
+            throw new Error('Player bust state pass drew an event-owned source');
+        }
+        if (input.rootPlans) {
+          if (!Array.isArray(input.rootPlans))
+            throw new TypeError('Player ROOT state plans must be an array');
+          for (const planned of input.rootPlans) {
+            if (planned.mode !== 1 ||
+                !String(planned.effectId || '').startsWith('hacker-root-state:'))
+              throw new TypeError('Player ROOT state pass needs sustained state ownership');
+            const outcome = need('hackerRootE', 'record').record({ frame, target,
+              viewport, planned });
+            if (outcome?.drawn !== true || outcome.effectId !== planned.effectId)
+              throw new Error('Player ROOT state pass did not draw its plan');
+          }
+        }
         const nameplates = need('playerNameplates', 'record').record({
           frame, target, commands, selfPlayerId: input.selfPlayerId,
           preparation: input.preparation });
@@ -605,6 +714,63 @@
               planned: event.input.planned });
             if (outcome?.effectId !== event.effectId || outcome.drawn !== true)
               throw new Error(`Magic ${pass} ${event.effectId} was not drawn`);
+          } else if (['barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE'].includes(event.type)) {
+            const outcome = need(event.type, 'record').record({ frame, target, viewport,
+              ...event.input });
+            const entries = outcome?.events || outcome?.effects;
+            if (!Array.isArray(entries) || entries.length !== 1 ||
+                String(entries[0].id) !== String(event.effectId) ||
+                outcome.drawn !== 1 || !Array.isArray(outcome.commands) ||
+                !outcome.commands.length)
+              throw new Error(`Magic ${event.type} ${event.effectId} was not drawn once`);
+          } else if (event.type === 'sunbeamE') {
+            const input = event.input;
+            const receipt = sunbeamHands.get(String(event.effectId));
+            const hands = input.activeAction ? receipt?.hands : input.submittedHands;
+            if (!Array.isArray(hands) || !hands.length ||
+                (input.activeAction && receipt.playerId !== input.playerId) ||
+                hands.some(hand => !Number.isFinite(hand.x) || !Number.isFinite(hand.y)))
+              throw new Error(`Magic Sunbeam ${event.effectId} has no matching submitted hand`);
+            const effect = input.effect;
+            const facing = { x: effect.targetX - effect.x, y: effect.targetY - effect.y };
+            const scene = { nowMs: input.now, reducedMotion: input.reducedMotion,
+              effects: hands.map((hand, handIndex) => ({
+                id: `${event.effectId}:hand:${handIndex}`, type: 'flora-sunbeam',
+                playerId: input.playerId, handWorld: hand, facing,
+                targetWorld: { x: effect.targetX, y: effect.targetY },
+                startedAt: input.now - input.elapsed, duration: effect.duration })) };
+            const outcome = need('sunbeamE', 'record').record({ frame, target,
+              viewport, scene, camera: input.camera, zoom: input.zoom });
+            if (outcome?.drawn !== hands.length ||
+                outcome.effects?.some((entry, index) =>
+                  entry.id !== `${event.effectId}:hand:${index}`))
+              throw new Error(`Magic Sunbeam ${event.effectId} was not drawn from its hands`);
+          } else if (['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE'].includes(event.type)) {
+            const outcome = need(event.type, 'record').record({ frame, target, viewport,
+              ...(event.type === 'alchemyE' ? { scene: event.input.scene,
+                camera: event.input.camera, zoom: event.input.zoom } :
+                { planned: event.input.planned }) });
+            if (event.type === 'alchemyE'
+              ? outcome?.drawn !== 1 || outcome.effects?.[0]?.id !== event.effectId
+              : outcome?.drawn !== true || outcome.effectId !== event.effectId)
+              throw new Error(`Magic ${event.type} ${event.effectId} was not drawn once`);
+          } else if (['gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
+            'archiveCabinetE', 'cableSpoolE'].includes(event.type)) {
+            const outcome = need(event.type, 'record').record({ frame, target, viewport,
+              ...(event.type === 'gravityFieldE'
+                ? { scene: event.input.scene, camera: event.input.camera,
+                  zoom: event.input.zoom }
+                : event.type === 'archiveCabinetE' || event.type === 'cableSpoolE'
+                  ? { effect: event.input.effect, now: event.input.now,
+                    phase: event.input.phase, camera: event.input.camera,
+                    zoom: event.input.zoom, reducedMotion: event.input.reducedMotion }
+                  : { planned: event.input.planned }) });
+            if (event.type === 'gravityFieldE'
+              ? outcome?.drawn !== 1 || outcome.fields?.[0]?.id !== event.effectId
+              : event.type === 'archiveCabinetE' || event.type === 'cableSpoolE'
+                ? outcome !== true
+                : outcome?.drawn !== true || outcome.effectId !== event.effectId)
+              throw new Error(`Magic ${event.type} ${event.effectId} was not drawn once`);
           } else if (event.type === 'fireActivation') {
             const outcome = need('fireActivation', 'record').record({
               ...event.input, frame, target, viewport
@@ -654,7 +820,8 @@
         preparationHitTargets: Object.freeze(preparationHitTargets.slice()),
         minimapBounds: Object.freeze({ ...stages.minimap.scene.bounds }),
         phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()),
-        environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()) });
+        environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()),
+        sunbeamHandReceipts: Object.freeze([...sunbeamHands.values()]) });
     }
     return Object.freeze({ prepare, record, get device() { return device; }, destroy() { destroyed = true; } });
   }

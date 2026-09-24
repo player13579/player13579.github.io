@@ -22,11 +22,6 @@
       ['sine', 220, 165, .052, 0, 175, 'beauty-low-settle'],
       ['triangle', 440, 330, .032, 26, 140, 'beauty-mid-settle']
     ] }),
-    'idea-good:': Object.freeze({ cue: 'idea-good', layers: [
-      ['sine', 147, 220, .055, 0, 185, 'good-low-rise'],
-      ['triangle', 294, 440, .034, 26, 148, 'good-mid-rise'],
-      ['noise', 520, 300, .01, 5, 38, 'brief-good-air']
-    ] }),
     'idea-ascension:': Object.freeze({ cue: 'idea-ascension', layers: [
       ['sine', 110, 165, .062, 0, 230, 'ascension-low-rise'],
       ['triangle', 330, 495, .037, 38, 185, 'ascension-mid-rise'],
@@ -36,6 +31,7 @@
   const SHARED = Object.freeze({
     'hacker-root:all-operators': 'root-health-impact',
     'flora:': 'flora-heal-body-gain',
+    'idea-good:': 'idea-good-stamina-gain',
     'action-renki:': 'defense-movement-e-sfx',
     'action-renki:tenfold': 'defense-movement-e-sfx'
   });
@@ -100,7 +96,7 @@
       return Object.freeze({ family: 'operator-e', cue: profile.cue, ...meta,
         startsAtMs: event.eventAtMs, endsAtMs, layers: Object.freeze(layers),
         // Deliberately no spatial fields: private invisibility must reveal no position.
-        completionReceipt: Object.freeze({ eventId: identity, roomId: event.roomId,
+        completionReceipt: Object.freeze({ eventId: event.eventId, roomId: event.roomId,
           roomGeneration: event.roomGeneration, endsAtMs }) });
     }
     return Object.freeze({ admit, enterRoom, has: id => consumed.has(`operator:${id}`), size: () => consumed.size });
