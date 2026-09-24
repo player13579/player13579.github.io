@@ -2411,6 +2411,7 @@ const WEBGPU_MAIN_OWNER = true;
 const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("webgpuMain") === "1";
 const webgpuMainApp = { driver: null, startPending: null, mapId: null,
   generation: 0, visible: false, submittedHits: null, failed: false,
+  preDriverPendingAt: 0,
   submittedPreparationHits: null, submittedMinimapBounds: null,
   submittedFrame: null, submittedSunbeamHands: new Map(),
   requestSerial: 0, lastSoundRequestSerial: 0,
@@ -16022,12 +16023,15 @@ const GAMEPLAY_VIEWPORT_REFLOW_MAX_PASSES = 4;
 const GAMEPLAY_VIEWPORT_STABLE_SAMPLE_FRAMES = 2;
 const GAMEPLAY_VIEWPORT_MIN_DIMENSION = 120;
 const GAMEPLAY_VIEWPORT_INVALID_RETRY_DELAY = 160;
+const GAMEPLAY_VISUAL_INSET_STABLE_MS = 250;
 let gameplayViewportStabilityFrame = 0;
 let gameplayViewportStabilityTimer = 0;
 let gameplayViewportStabilityGeneration = 0;
 let gameplayViewportCandidateKey = "";
 let gameplayViewportCandidateFrames = 0;
 let gameplayViewportLastVisibleSample = null;
+let gameplayVisualInsetCandidateKey = "";
+let gameplayVisualInsetCandidateSince = 0;
 
 function independentGameplayViewportRootSize() {
   const root = document.documentElement;
@@ -16043,7 +16047,11 @@ function independentGameplayViewportRootSize() {
 }
 
 function visibleGameplayViewportSample() {
-  if (document.hidden) return null;
+  if (document.hidden) {
+    gameplayVisualInsetCandidateKey = "";
+    gameplayVisualInsetCandidateSince = 0;
+    return null;
+  }
   const width = Number(window.innerWidth);
   const height = Number(window.innerHeight);
   const visualWidth = Number(window.visualViewport?.width ?? width);
@@ -16051,20 +16059,33 @@ function visibleGameplayViewportSample() {
   const rootSize = independentGameplayViewportRootSize();
   const rootWidth = Number(rootSize.width);
   const rootHeight = Number(rootSize.height);
-  if (![width, height, visualWidth, visualHeight, rootWidth, rootHeight].every(Number.isFinite)) return null;
-  if (width < GAMEPLAY_VIEWPORT_MIN_DIMENSION || height < GAMEPLAY_VIEWPORT_MIN_DIMENSION) return null;
-  if (visualWidth < GAMEPLAY_VIEWPORT_MIN_DIMENSION || visualHeight < GAMEPLAY_VIEWPORT_MIN_DIMENSION) return null;
-  if (rootWidth < GAMEPLAY_VIEWPORT_MIN_DIMENSION || rootHeight < GAMEPLAY_VIEWPORT_MIN_DIMENSION) return null;
-  // A background resume can expose a finite but partial visual viewport for a
-  // few frames (keyboard/browser-chrome restoration and stale compositor
-  // dimensions are common examples).  It must be rejected just like a zero
-  // viewport: committing `innerWidth`/`innerHeight` during that disagreement
-  // pins the fixed game shell to a stretched Canvas until the next lifecycle
-  // event.  Small scrollbar/sub-pixel differences remain legitimate.
-  const viewportMismatch = (layout, visual) => Math.abs(layout - visual) > Math.max(2, layout * 0.03);
-  if (viewportMismatch(width, visualWidth) || viewportMismatch(height, visualHeight)) return null;
-  if (viewportMismatch(width, rootWidth) || viewportMismatch(height, rootHeight)) return null;
-  return { width, height, visualWidth, visualHeight, rootWidth, rootHeight };
+  const visualViewportScale = Number(window.visualViewport?.scale ?? 1);
+  const focused = document.activeElement;
+  const editableViewportFocus = Boolean(focused?.matches?.(
+    'input, textarea, select, [contenteditable="true"]'));
+  const candidate = { width, height, visualWidth, visualHeight,
+    rootWidth, rootHeight, visualViewportScale, editableViewportFocus };
+  const mismatch = Math.abs(height - visualHeight) > Math.max(2, height * 0.03);
+  // A persistent Safari browser toolbar may shorten the visible viewport
+  // without changing the layout/root dimensions used by the game shell. Do
+  // not mistake a transient background-resume or keyboard size for chrome.
+  const insetEligible = mismatch && visualHeight < height &&
+    window.DvaWebGPUViewport?.validSample?.({ ...candidate, visualInsetReady: true });
+  if (insetEligible) {
+    const key = [width, height, visualWidth, visualHeight, rootWidth, rootHeight]
+      .map(value => Math.round(value / 4)).join(':');
+    if (key !== gameplayVisualInsetCandidateKey) {
+      gameplayVisualInsetCandidateKey = key;
+      gameplayVisualInsetCandidateSince = performance.now();
+    }
+  } else {
+    gameplayVisualInsetCandidateKey = "";
+    gameplayVisualInsetCandidateSince = 0;
+  }
+  const visualInsetReady = Boolean(insetEligible &&
+    performance.now() - gameplayVisualInsetCandidateSince >= GAMEPLAY_VISUAL_INSET_STABLE_MS);
+  const sample = { ...candidate, visualInsetReady };
+  return window.DvaWebGPUViewport?.validSample?.(sample) ? sample : null;
 }
 
 function handleGameplayViewportRootResize() {
@@ -18267,11 +18288,22 @@ function pumpWebGPUMainAppDriver() {
   const sample = visibleGameplayViewportSample();
   const image = webgpuMainReadyImage(data);
   if (state.screen !== "game") {
+    webgpuMainApp.preDriverPendingAt = 0;
     setWebGPUMainPendingDiagnostic('waiting:game-screen');
     if (webgpuMainApp.visible || webgpuMainApp.driver)
       suspendWebGPUMainAppDriver();
     return;
   }
+  if (document.hidden) webgpuMainApp.preDriverPendingAt = 0;
+  else if (!webgpuMainApp.driver && !webgpuMainApp.startPending) {
+    const now = performance.now();
+    if (!webgpuMainApp.preDriverPendingAt) webgpuMainApp.preDriverPendingAt = now;
+    else if (now - webgpuMainApp.preDriverPendingAt >= 75000) {
+      setWebGPUMainFailure(new Error(`WebGPU waiting timed out at ${
+        document.body?.dataset?.webgpuMainPending || 'unknown'}`));
+      return;
+    }
+  } else webgpuMainApp.preDriverPendingAt = 0;
   if (!sample) {
     setWebGPUMainPendingDiagnostic('waiting:viewport-sample');
     if (webgpuMainApp.visible || webgpuMainApp.driver)

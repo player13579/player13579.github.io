@@ -69,8 +69,18 @@
       sample.rootWidth, sample.rootHeight];
     if (!values.every(value => finite(value) && value >= 120)) return false;
     const mismatch = (a, b) => Math.abs(a - b) > Math.max(2, a * 0.03);
-    return !mismatch(sample.width, sample.visualWidth) && !mismatch(sample.height, sample.visualHeight) &&
-      !mismatch(sample.width, sample.rootWidth) && !mismatch(sample.height, sample.rootHeight);
+    if (mismatch(sample.width, sample.visualWidth) ||
+        mismatch(sample.width, sample.rootWidth) ||
+        mismatch(sample.height, sample.rootHeight)) return false;
+    if (!mismatch(sample.height, sample.visualHeight)) return true;
+    // Safari's persistent browser chrome can shorten only the visual viewport.
+    // The app marks this inset ready after observing a stable foreground sample;
+    // a transient resume or keyboard sample must not reach the canvas gate.
+    const scale = sample.visualViewportScale ?? 1;
+    const deficit = sample.height - sample.visualHeight;
+    return sample.visualInsetReady === true && sample.editableViewportFocus !== true &&
+      finite(scale) && Math.abs(scale - 1) <= 0.01 &&
+      deficit > 0 && deficit <= Math.min(160, sample.height * 0.25);
   }
 
   function sampleKey(sample) {
