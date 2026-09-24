@@ -23,6 +23,7 @@
     { id: 'medical-footbath', title: '足湯使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-footbath-use-e.js', kind: 'integrated' },
     { id: 'medical-ambient', title: '医療室の環境光', detail: '足湯の水面、窓光、床の木漏れ日を既存のWebGPU環境Eで再生。本編の視覚品質とSFXは未受入です。', status: '単独E・本編品質/SFX未受入', source: 'webgpu-medical-environment-e.js', kind: 'integrated' },
     { id: 'fighter-slash', title: 'ファイター斬撃', detail: '現在の fighter-slash イベント形を使う単独WebGPUフィクスチャ。ゲーム本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-fighter-energy-e.js', kind: 'integrated' },
+    { id: 'flora-invisible', title: 'フローラ インビジブル', detail: '本人だけへ届く flora-invisible イベントと不可視の本人を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-flora-e.js', kind: 'integrated' },
     { id: 'room-cooling-unit', objectId: 'v302-reactor-coolingUnit-2', title: '冷却ユニット使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
     { id: 'room-command-desk', objectId: 'v302-observatory-commandDesk-3', title: '観測デスク使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
     { id: 'room-pallet-jack', objectId: 'v302-storage-palletJack-2', title: 'パレットジャッキ使用', detail: '現行の成功使用イベントと著者済みオブジェクトIDを使うWebGPU候補。実GPU/本編の品質受入とSFX受入は未完了です。', status: '視覚/SFX候補・品質受入待ち', source: 'webgpu-room-object-use-e.js', kind: 'integrated' },
@@ -130,6 +131,7 @@
       target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
       const isEmp = entry.id === 'emp', isHacker = entry.id === 'hacker-status';
       const isFighterSlash = entry.id === 'fighter-slash';
+      const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
       const isMedical = Boolean(medicalEffectKind);
@@ -137,6 +139,7 @@
       const isRoomObject = entry.id.startsWith('room-');
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
         'fighter-slash': window.DvaWebGPUFighterEnergyE,
+        'flora-invisible': window.DvaWebGPUFloraE,
         dodge: window.DvaWebGPUDodgeE, renki: window.DvaWebGPURenkiE,
         'idea-truth': window.DvaWebGPIdeaE, bust: window.DvaWebGPUBustE,
         'gravity-keeper': window.DvaWebGPUGravityFieldE,
@@ -151,13 +154,14 @@
         'room-restorative-mist': window.DvaWebGPURoomObjectUseE,
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isRoomObject ? api.create({ renderer, frameOwner: renderer }) :
+      effect = isRoomObject || isFloraInvisible ? api.create({ renderer, frameOwner: renderer }) :
         isMedical || isMedicalAmbient ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
       const duration = ({ emp: api.DURATIONS?.emp,
         'fighter-slash': api.DURATIONS?.['fighter-slash'],
+        'flora-invisible': api.DURATION_MS?.['flora-invisible'],
         barrier: api.EVENT_MAP?.['preparation-barrier-hit:durability-hit']?.duration,
         dodge: api.VISUAL_MS, renki: api.VISUAL_MS,
         'idea-truth': 1800, bust: api.EVENT_DURATION?.[api.START_EVENT],
@@ -254,6 +258,24 @@
                 scene, camera, zoom });
               if (result.drawn !== 1 || result.effects?.[0]?.kind !== 'slash')
                 throw new Error('ファイター斬撃イベントを描画できません');
+            } else if (isFloraInvisible) {
+              // The server serializes this event only to its owner. Keep the
+              // event audience, viewer and invisible actor bound to one ID.
+              const source = { id: `gallery-flora-invisible-${cycle}`,
+                type: api.TYPES.invisible, playerId: 'gallery-flora',
+                viewerId: 'gallery-flora', x: 490, y: 310, radius: 120, startedAt: 0,
+                duration, durationMs: duration };
+              const player = { id: source.playerId, x: 490, y: 310,
+                alive: true, ejected: false, inVent: false, invisible: true };
+              const planned = api.plan({ effect: source, player,
+                viewerId: source.viewerId, now: elapsed, phase: 'playing',
+                camera, zoom, viewport, reducedMotion: false, alpha: 1 });
+              if (!planned || planned.type !== api.TYPES.invisible || !planned.privateCue ||
+                  planned.actorId !== source.viewerId)
+                throw new Error('本人限定インビジブルイベントを計画できません');
+              const result = effect.record({ frame, target: targetId, viewport, planned });
+              if (!result.drawn || result.effectId !== source.id)
+                throw new Error('インビジブルイベントを描画できません');
             } else if (isEmp) {
               // resolveStandardEmp in offline-server-main.js emits this event family.
               const source = { id: `gallery-emp-${cycle}`, type: 'emp', variant: 'positive',
