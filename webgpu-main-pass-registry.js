@@ -81,7 +81,7 @@
     'hud', 'minimap', 'modeBanner', 'lighting', 'killAnimation', 'sensory',
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
-    'bodyBenefit', 'staminaBenefitE', 'manaBenefitE', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'cableSpoolE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
+    'bodyBenefit', 'staminaBenefitE', 'manaBenefitE', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
     'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E', 'corridorObjectUseE', 'roomObjectUseE',
     'taskCompletion', 'headMarker', 'mysteryBoxRevealE']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -96,6 +96,29 @@
       unsupported: Object.freeze(unsupported),
       missingRequired: Object.freeze(missingRequired),
       fullFrameReady: unsupported.length === 0 });
+  }
+
+  function loadOptionalRoomPatchImage(source, { ImageCtor = root.Image,
+    timeoutMs = 4000, schedule = root.setTimeout || setTimeout,
+    cancel = root.clearTimeout || clearTimeout } = {}) {
+    if (typeof ImageCtor !== 'function') return Promise.resolve(null);
+    return new Promise(resolve => {
+      const image = new ImageCtor();
+      let settled = false;
+      const finish = result => {
+        if (settled) return;
+        settled = true;
+        cancel(timer);
+        image.onload = null;
+        image.onerror = null;
+        resolve(result);
+      };
+      const timer = schedule(() => finish(null), timeoutMs);
+      image.onload = () => finish(image.naturalWidth > 0 ? image : null);
+      image.onerror = () => finish(null);
+      image.fetchPriority = 'high';
+      try { image.src = source; } catch (_) { finish(null); }
+    });
   }
 
   async function create({ renderer, map, image, patches, textAtlas, atlasMetrics,
@@ -135,7 +158,7 @@
       preparationSummons: 'create', players: 'createTextureCache',
       playerNameplates: 'create', headMarkers: 'create',
       gunnerAim: 'create', killCamera: 'create', hitEffects: 'record',
-      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', staminaBenefitE: 'create', manaBenefitE: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', cableSpoolE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
+      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', staminaBenefitE: 'create', manaBenefitE: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
       attackTargets: 'record', taskIndicators: 'create', hud: 'create',
       minimap: 'create', modeBanner: 'create', killBloom: 'create',
       killAnimation: 'create', sensory: 'enqueue', markerExplanation: 'create',
@@ -177,12 +200,27 @@
         throw new TypeError(`Invalid shared-device WebGPU ${name} module`);
       passes[name] = value;
     };
+    // This room source is optional until its authored original passes review.
+    // A missing file leaves the accepted full-map texture untouched.
+    let roomPatches = patches;
+    if (roomPatches === undefined && map?.id === 'station' &&
+        typeof root.Image === 'function' && root.document) {
+      const loaded = await loadOptionalRoomPatchImage(
+        'assets/generated/cafeteria-review-source-v2.png');
+      if (loaded) {
+        const room = root.DvaWebGPURoomOverlay?.CAFETERIA;
+        if (!room) throw new Error('Cafeteria WebGPU room overlay module unavailable');
+        roomPatches = [{ id: 'cafeteria-review-v2', x: room.x, y: room.y,
+          w: room.w, h: room.h, room, image: loaded }];
+      }
+    }
     try {
       // Every constructor is given the same renderer/device; none opens a new
       // context or obtains a second adapter. The authored field is async.
       add('shapes', modules.shapes.create({ device: renderer.device,
         format: renderer.format }), 'enqueue');
-      add('map', await modules.field.create({ owner: renderer, map, image, patches }), 'enqueue');
+      add('map', await modules.field.create({ owner: renderer, map, image,
+        patches: roomPatches }), 'enqueue');
       add('environmentE', modules.environmentE.create({ device: renderer.device,
         format: renderer.format }), 'record');
       if (needsCorridorA01E)
@@ -452,7 +490,7 @@
     }
   }
 
-  const api = Object.freeze({ create, BUILT });
+  const api = Object.freeze({ create, BUILT, loadOptionalRoomPatchImage });
   root.DvaWebGPUMainPassRegistry = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

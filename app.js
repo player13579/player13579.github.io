@@ -18246,6 +18246,17 @@ async function startWebGPUMainAppDriver(data, image) {
   return driver;
 }
 
+function startWebGPUMainAppDriverWithDeadline(data, image, timeoutMs = 45000) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error(
+      `WebGPU startup timed out at ${document.body?.dataset?.webgpuMainPending || 'unknown'}`)),
+    timeoutMs);
+  });
+  return Promise.race([startWebGPUMainAppDriver(data, image), deadline])
+    .finally(() => window.clearTimeout(timer));
+}
+
 function pumpWebGPUMainAppDriver() {
   if (!WEBGPU_MAIN_OWNER) return;
   if (webgpuMainApp.failed) {
@@ -18296,7 +18307,7 @@ function pumpWebGPUMainAppDriver() {
   if (!webgpuMainApp.driver) {
     if (!webgpuMainApp.startPending) {
       setWebGPUMainPendingDiagnostic('startup:driver');
-      webgpuMainApp.startPending = startWebGPUMainAppDriver(data, image)
+      webgpuMainApp.startPending = startWebGPUMainAppDriverWithDeadline(data, image)
         .catch(error => {
           setWebGPUMainFailure(error);
         }).finally(() => { webgpuMainApp.startPending = null; });
