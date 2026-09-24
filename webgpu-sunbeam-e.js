@@ -129,10 +129,6 @@ struct VertexOut { @builtin(position) position: vec4f };
   out.position = vec4f(corners[id], 0.0, 1.0);
   return out;
 }
-fn bell(value: f32, width: f32) -> f32 {
-  let u = value / max(width, 0.001);
-  return exp(-u * u);
-}
 fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   let a = ray.xy;
   let b = ray.zw;
@@ -144,37 +140,46 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
   let lateral = dot(pixel - a, vec2f(-tangent.y, tangent.x));
   let scale = max(0.25, p.energy.w) * (p.viewport.z + p.viewport.w) * 0.5;
   let motion = select(time, 0.35, p.control.z > 0.5);
-  let movingEnergy = select(0.92 + 0.08 * sin(7.85 * t - motion * 5.0),
+  let movingEnergy = select(0.88 + 0.12 * cos(6.28318 * (1.15 * t - 0.55 * motion)),
     1.0, p.control.z > 0.5);
-  // PH1: emission supplied at the measured hand, transported along one
-  // continuous axis, then dispersed at the authoritative finite terminus.
-  let sourceGate = smoothstep(-7.0 * scale, 7.0 * scale, along);
-  let terminusGate = 1.0 - smoothstep(rayLength - 31.0 * scale,
-    rayLength + 4.0 * scale, along);
-  let column = sourceGate * terminusGate * p.energy.z * movingEnergy;
-  let inner = bell(lateral, 7.0 * scale) * column;
-  let body = bell(lateral, 24.0 * scale) * column;
-  let supplyCore = bell(length(pixel - a), 12.0 * scale) * p.energy.y;
-  let worldRgb = vec3f(1.0, 0.985, 0.79) * inner * 0.86 +
-    vec3f(1.0, 0.72, 0.19) * body * 0.48 +
-    vec3f(1.0, 0.88, 0.47) * supplyCore * 0.67;
-  let worldCoverage = inner * 0.66 + body * 0.31 + supplyCore * 0.48;
-  // OBS1: low local glow is bound to PH1's actual source/column mask. It
-  // cannot create an endpoint impact or replace the column silhouette.
-  let sourceGlow = bell(length(pixel - a), 37.0 * scale) * p.energy.y * 0.14;
-  let columnGlow = bell(lateral, 51.0 * scale) * column * 0.095;
-  let observation = sourceGlow + columnGlow;
-  let rgb = worldRgb + vec3f(1.0, 0.68, 0.17) * observation;
-  return vec4f(rgb, worldCoverage + observation);
+  // World-space PH geometry: a short palm supply, broad continuous carrier,
+  // and two broad in-face shoulders. Widths are scaled once into physical px.
+  let sourceWidth = 9.0 * exp(-max(along, 0.0) / (42.0 * scale));
+  let width = (19.0 + 2.0 * (1.0 - t) * (1.0 - t)) * scale + sourceWidth * scale;
+  let edgeAA = max(fwidth(abs(lateral)), 1.0);
+  let bodySection = 1.0 - smoothstep(width - 3.0 * scale - edgeAA,
+    width + 2.0 * scale + edgeAA, abs(lateral));
+  let sourceGate = smoothstep(-12.0 * scale, 8.0 * scale, along);
+  let endSpan = min(55.0 * scale, 0.28 * rayLength);
+  let terminusGate = 1.0 - smoothstep(rayLength - endSpan,
+    rayLength + 2.0 * scale, along);
+  let carrier = sourceGate * terminusGate * bodySection * p.energy.z;
+  let flatCore = 1.0 - smoothstep(7.0 * scale, 12.0 * scale, abs(lateral));
+  let shoulder = exp(-pow((abs(lateral) - 0.64 * width) / max(0.30 * width, 1.0), 2.0)) * bodySection;
+  let ovalDistance = length(vec2f((along - 19.0 * scale) / (43.0 * scale), lateral / (27.0 * scale)));
+  let sourceOval = 1.0 - smoothstep(0.78, 1.08, ovalDistance);
+  let supplyEnd = min(64.0 * scale, rayLength * 0.45);
+  let supply = sourceOval * (1.0 - smoothstep(37.0 * scale, max(37.1 * scale, supplyEnd), along)) * p.energy.y;
+  let coverage = max(carrier * (0.55 + 0.28 * flatCore + 0.17 * shoulder * movingEnergy), 0.72 * supply);
+  // OBS glow remains subordinate to the authored source and column masks.
+  let localGlow = 0.11 * carrier * exp(-pow(abs(lateral) / (width + 15.0 * scale), 2.0)) +
+    0.12 * supply * exp(-pow(abs(lateral) / (38.0 * scale), 2.0));
+  let alpha = clamp(coverage + localGlow, 0.0, 0.88);
+  let straightColor = mix(vec3f(1.0,0.58,0.12), vec3f(1.0,0.99,0.76),
+    clamp(0.25 + 0.55 * flatCore + 0.20 * shoulder, 0.0, 1.0));
+  return vec4f(straightColor * alpha, alpha);
+}
+fn unionPremultiplied(a: vec4f, b: vec4f) -> vec4f {
+  return a + b * (1.0 - a.a);
 }
 @fragment fn sunbeamFragment(@builtin(position) position: vec4f) -> @location(0) vec4f {
   var light = rayLight(position.xy, p.ray0, p.control.y);
   if (p.control.x > 1.5) {
-    light = max(light, rayLight(position.xy, p.ray1, p.control.y));
+    light = unionPremultiplied(light, rayLight(position.xy, p.ray1, p.control.y));
   }
   let alpha = clamp(light.a * p.energy.x, 0.0, 0.97);
   // The transparent live overlay uses premultiplied-alpha presentation.
-  let rgb = min(light.rgb * p.energy.x, vec3f(alpha));
+  let rgb = light.rgb * p.energy.x;
   return vec4f(rgb, alpha);
 }
 `;
@@ -240,7 +245,7 @@ fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
         ]);
         if (!values.every(finite)) throw new Error('Sunbeam E shader values are not finite');
         device.queue.writeBuffer(uniform, 0, values);
-        const paddingX = 105 * zoom * sx, paddingY = 105 * zoom * sy;
+        const paddingX = 70 * zoom * sx, paddingY = 70 * zoom * sy;
         const xs = rays.flatMap(ray => [ray.hand.x * sx, ray.target.x * sx]);
         const ys = rays.flatMap(ray => [ray.hand.y * sy, ray.target.y * sy]);
         const left = clamp(Math.floor(Math.min(...xs) - paddingX), 0, viewport.pixelWidth);
