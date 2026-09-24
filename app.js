@@ -22651,15 +22651,7 @@ function drawMagicEffects() {
       drawObjectActivationEffect(effect, progress, now);
       continue;
     }
-    if (effect.type === "flora") {
-      drawFloraGeneratedEffect(effect, progress, false);
-    }
-    if (effect.type === "flora-sunbeam") {
-      // Sunbeam has one authored T. If it has not loaded, skip this visual layer
-      // rather than replacing it with a generic canvas ray.
-      if (!sunbeamLive.drawnIds.has(String(effect.id)))
-        drawFloraGeneratedEffect(effect, progress, true);
-    }
+    if (effect.type === "flora") drawFloraGeneratedEffect(effect, progress);
     if (effect.type === "flora-invisible") drawFloraInvisibleGeneratedEffect(effect, progress);
     if (effect.type === "alchemy-railgun" || effect.type === "alchemy-particle-beam") drawDirectedEnergyEffect(effect, progress, now);
     if (effect.type.startsWith("gravity-storm-")) drawGravityStormImpactEffect(effect, progress);
@@ -23847,234 +23839,7 @@ function drawTacticalSystemsEffect(effect, progress) {
   return true;
 }
 
-const FLORA_SUNBEAM_FRESH_T = Object.freeze({
-  // Measured from the authored 1774px RGBA original's two luminous centers.
-  // The transparent outer margins remain part of the texture, but are not
-  // registered as gameplay points.
-  key: "flora-sunbeam-fresh-v892",
-  path: "assets/generated/flora-sunbeam-fresh-v892.png",
-  width: 1774,
-  height: 887,
-  sourcePixelX: 203,
-  tipPixelX: 1629,
-  sourceAnchor: 203 / 1774,
-  tipAnchor: 1629 / 1774
-});
-
-function freshSunbeamEase(value) {
-  const safe = clamp(Number(value) || 0, 0, 1);
-  return safe * safe * (3 - 2 * safe);
-}
-
-function freshSunbeamRasterFrame(effect, progress, reduced) {
-  const sourceX = Number(effect.x) || 0;
-  const sourceY = Number(effect.y) || 0;
-  const targetX = Number.isFinite(Number(effect.targetX)) ? Number(effect.targetX) : sourceX;
-  const targetY = Number.isFinite(Number(effect.targetY)) ? Number(effect.targetY) : sourceY;
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const length = Math.hypot(dx, dy);
-  const p = clamp(Number(progress) || 0, 0, 1);
-  const elapsed = p * 1200;
-  const boundaryElapsed = elapsed + 1e-7;
-  const gatherEndsAt = 820 * 0.24;
-  const releaseAt = 820 * 0.56;
-  const recoverAt = 820 * 0.8;
-  const tipAt = 820;
-  const finishAt = 1200;
-  const onset = freshSunbeamEase(elapsed / gatherEndsAt);
-  const launch = freshSunbeamEase((elapsed - releaseAt) / (tipAt - releaseAt));
-  const tail = freshSunbeamEase((elapsed - tipAt) / (finishAt - tipAt));
-  const finish = 1 - tail;
-  const opticalVariant = String(effect.variant || "refraction").split(":")[0];
-  return {
-    sourceX, sourceY, targetX, targetY, dx, dy, length,
-    angle: length > 0.001 ? Math.atan2(dy, dx) : 0,
-    progress: p, elapsed, onset, launch, tail, finish,
-    gatherEndsAt, releaseAt, recoverAt, tipAt, finishAt,
-    released: boundaryElapsed >= releaseAt,
-    phase: finish <= 0.001 ? "settled" : boundaryElapsed < releaseAt ? "charge" : boundaryElapsed < tipAt ? "release" : "afterglow",
-    opticalVariant: ["refraction", "scattering", "diffraction"].includes(opticalVariant) ? opticalVariant : "refraction",
-    reduced: Boolean(reduced)
-  };
-}
-
-function freshSunbeamSurface(source, sourceWidth, sourceHeight) {
-  const cacheKey = FLORA_SUNBEAM_FRESH_T.key + ":raw-rgba-surface";
-  const cached = state.textures.preparedSprites.get(cacheKey);
-  if (cached?.source === source && cached.width === sourceWidth && cached.height === sourceHeight) return cached;
-  const width = 768;
-  const height = Math.max(1, Math.round(width * sourceHeight / sourceWidth));
-  const material = document.createElement("canvas");
-  material.width = width;
-  material.height = height;
-  material.getContext("2d").drawImage(source, 0, 0, width, height);
-  const surface = document.createElement("canvas");
-  surface.width = width;
-  surface.height = height;
-  const entry = { source, width: sourceWidth, height: sourceHeight, material, surface };
-  state.textures.preparedSprites.set(cacheKey, entry);
-  return entry;
-}
-
-function drawFreshSunbeamAlphaField(surfaceEntry, frame) {
-  const { material, surface } = surfaceEntry;
-  const local = surface.getContext("2d");
-  local.globalCompositeOperation = "source-over";
-  local.clearRect(0, 0, surface.width, surface.height);
-  local.drawImage(material, 0, 0);
-  if (frame.onset <= 0.001 || frame.finish <= 0.001) {
-    local.clearRect(0, 0, surface.width, surface.height);
-    return false;
-  }
-  const mask = local.createLinearGradient(0, 0, surface.width, 0);
-  const packet = (u, center, spread) => Math.exp(-Math.pow((u - center) / spread, 2));
-  // The same registered T receives broad, continuous alpha packets. Refraction
-  // splits two directed lobes, scattering uses one wide diffuse lobe, and
-  // diffraction uses three coherent lobes. These are presentation-only masks;
-  // no second damage ray or generic canvas beam is manufactured.
-  const channel = FLORA_SUNBEAM_FRESH_T.tipAnchor - FLORA_SUNBEAM_FRESH_T.sourceAnchor;
-  const front = FLORA_SUNBEAM_FRESH_T.sourceAnchor + channel * frame.launch;
-  const tail = FLORA_SUNBEAM_FRESH_T.sourceAnchor + channel * frame.tail;
-  const sampleCount = 64;
-  for (let index = 0; index <= sampleCount; index += 1) {
-    const u = index / sampleCount;
-    const sourceGlow = packet(u, FLORA_SUNBEAM_FRESH_T.sourceAnchor, 0.095) * (0.70 + frame.onset * 0.30);
-    let alpha;
-    if (!frame.released) {
-      // Authoritative settlement already happened before this client event.
-      // Until the body reaches its release key, retain only the authored source
-      // glow so the ray never visually leaves before the firing pose.
-      alpha = clamp(frame.onset * frame.finish * sourceGlow, 0, 1);
-    } else if (frame.reduced) {
-      // Reduced motion removes travelling packets. After the release key the
-      // complete measured source→tip field appears statically, then fades.
-      const tipGlow = packet(u, FLORA_SUNBEAM_FRESH_T.tipAnchor, 0.085);
-      const staticField = 0.76 + sourceGlow * 0.16 + tipGlow * 0.22;
-      alpha = clamp(frame.onset * frame.finish * staticField, 0, 1);
-    } else {
-      const frontGate = freshSunbeamEase((front - u + 0.12) / 0.22);
-      const tailGate = 1 - freshSunbeamEase((tail - u + 0.10) / 0.20);
-      let optical = 0;
-      if (frame.opticalVariant === "scattering") {
-        optical = 0.50 * packet(u, front - 0.05, 0.22) + 0.28 * packet(u, front - 0.31, 0.30);
-      } else if (frame.opticalVariant === "diffraction") {
-        optical = 0.70 * packet(u, front, 0.075) + 0.48 * packet(u, front - 0.18, 0.07) + 0.31 * packet(u, front - 0.36, 0.08);
-      } else {
-        optical = 0.72 * packet(u, front, 0.11) + 0.44 * packet(u, front - 0.23, 0.13);
-      }
-      const field = clamp(0.07 + sourceGlow + optical, 0, 1);
-      alpha = clamp(frame.onset * frame.finish * field * Math.max(frontGate, sourceGlow * 0.76) * tailGate, 0, 1);
-    }
-    mask.addColorStop(u, "rgba(255,255,255," + alpha.toFixed(4) + ")");
-  }
-  local.globalCompositeOperation = "destination-in";
-  local.fillStyle = mask;
-  local.fillRect(0, 0, surface.width, surface.height);
-  local.globalCompositeOperation = "source-over";
-  return true;
-}
-
-function drawFreshSunbeamTexture(effect, progress) {
-  const source = state.textures.floraSunbeamFreshV892;
-  const sourceWidth = Number(source?.naturalWidth || source?.width) || 0;
-  const sourceHeight = Number(source?.naturalHeight || source?.height) || 0;
-  // This source is an RGBA code-to-image original. Do not pass it through the
-  // opaque/matte sprite pipeline: its faint edge pixels already have alpha.
-  if (!source || source.complete === false || !(sourceWidth > 0) || !(sourceHeight > 0)) return false;
-  const frame = freshSunbeamRasterFrame(effect, progress, prefersReducedMotion());
-  if (frame.onset <= 0.001 || frame.finish <= 0.001 || ctx.globalAlpha <= 0.001) return true;
-  const surfaceEntry = freshSunbeamSurface(source, sourceWidth, sourceHeight);
-  if (!drawFreshSunbeamAlphaField(surfaceEntry, frame)) return true;
-  const { surface } = surfaceEntry;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.translate(frame.sourceX, frame.sourceY);
-  if (frame.length <= 0.001) {
-    // No axis exists when server source and wall-clipped tip coincide. Keep a
-    // compact crop surrounding the authored source glow, so no arbitrary ray
-    // points right/up/elsewhere.
-    const sourceU = FLORA_SUNBEAM_FRESH_T.sourceAnchor;
-    const sourceHalf = 0.18;
-    const cropLeft = clamp(sourceU - sourceHalf, 0, 1);
-    const cropRight = clamp(sourceU + sourceHalf, 0, 1);
-    const cropWidth = cropRight - cropLeft;
-    const compactWidth = 136;
-    const compactHeight = compactWidth * (surface.height / (surface.width * cropWidth));
-    const sourceLocal = (sourceU - cropLeft) / cropWidth;
-    // The source neighborhood is still the authored T. A continuous edge mask
-    // only fades its crop boundary, avoiding a hard vertical cut when no ray
-    // axis exists.
-    const compact = document.createElement("canvas");
-    compact.width = Math.max(1, Math.round(cropWidth * surface.width));
-    compact.height = surface.height;
-    const compactContext = compact.getContext("2d");
-    compactContext.drawImage(surface, cropLeft * surface.width, 0, cropWidth * surface.width, surface.height,
-      0, 0, compact.width, compact.height);
-    const edgeFade = compactContext.createLinearGradient(0, 0, compact.width, 0);
-    edgeFade.addColorStop(0, "rgba(255,255,255,0)");
-    edgeFade.addColorStop(0.17, "rgba(255,255,255,1)");
-    edgeFade.addColorStop(0.83, "rgba(255,255,255,1)");
-    edgeFade.addColorStop(1, "rgba(255,255,255,0)");
-    compactContext.globalCompositeOperation = "destination-in";
-    compactContext.fillStyle = edgeFade;
-    compactContext.fillRect(0, 0, compact.width, compact.height);
-    compactContext.globalCompositeOperation = "source-over";
-    ctx.drawImage(compact, -sourceLocal * compactWidth, -compactHeight / 2, compactWidth, compactHeight);
-  } else {
-    const channel = FLORA_SUNBEAM_FRESH_T.tipAnchor - FLORA_SUNBEAM_FRESH_T.sourceAnchor;
-    const renderWidth = frame.length / channel;
-    const left = -FLORA_SUNBEAM_FRESH_T.sourceAnchor * renderWidth;
-    const authoredHeight = renderWidth * surface.height / surface.width;
-    const renderHeight = Math.max(1, Math.min(240, authoredHeight));
-    ctx.rotate(frame.angle);
-    // Measured anchor registration: sourcePixelX maps to (0,0), and
-    // tipPixelX maps to the actual server-produced targetX/targetY.
-    ctx.drawImage(surface, left, -renderHeight / 2, renderWidth, renderHeight);
-  }
-  ctx.restore();
-  return true;
-}
-
-function sunbeamEffectsAtHands(effect, progress, data = state.data) {
-  const owner = effect.sunbeamMotionOwner;
-  const latch = owner && AUTHORED_SUNBEAM_LATCHES.get(owner);
-  // Unconverted identities retain their existing presentation until their own
-  // art and anatomical registrations are accepted. Never borrow Philia's hands.
-  if (!latch?.sequences) return [effect];
-  const direction = sunbeamDirectionFromAuthoritativeFacing(owner.authoritativeFacing);
-  const profile = AUTHORED_SUNBEAM_PROFILES[latch.identity];
-  const elapsed = clamp(Number(progress) || 0, 0, 1) * Number(effect.duration || 1200);
-  let points = null;
-  if (!points) {
-    const authoritative = (data?.players || []).find((player) => player.id === effect.playerId);
-    if (!authoritative || !direction || !profile) return [];
-    const player = renderedPlayer(authoritative);
-    const key = sunbeamPoseKeyAtActorTime(profile, elapsed,
-      Number(owner.sunbeamEffectDurationMs) || 1200);
-    const selected = latch.sequences[direction]?.[SUNBEAM_AUTHORED_MOTION_KEYS.findIndex((entry) => entry.key === key)];
-    if (!selected?.pose?.emitters?.length) return [];
-    const pose = selected.pose;
-    const { ascensionRise } = characterAscensionPresentation(player, data);
-    points = pose.emitters.map((point) => ({
-      x: player.x + pose.ground.x + (point.x - pose.origin.x) * pose.scale,
-      y: player.y - ascensionRise + pose.ground.y + (point.y - pose.origin.y) * pose.scale
-    }));
-  }
-  return points.map((point) => ({ ...effect, x: point.x, y: point.y }));
-}
-
-function drawFloraGeneratedEffect(effect, progress, sunbeam) {
-  if (sunbeam) {
-    const emissions = sunbeamEffectsAtHands(effect, progress);
-    ctx.save();
-    try {
-      ctx.globalAlpha *= emissions.length > 1 ? 0.7 : 1;
-      let drawn = false;
-      for (const emission of emissions) drawn = drawFreshSunbeamTexture(emission, progress) || drawn;
-      return drawn;
-    } finally { ctx.restore(); }
-  }
+function drawFloraGeneratedEffect(effect, progress) {
   const source = state.textures.floraHealV1;
   const key = "flora-heal-v1";
   const prepared = transparentSpriteSource(source, key, 18);
@@ -33390,7 +33155,6 @@ const version = "overheal-body-v913";
   const standFirmMarkerEffect = instantStandFirmTexture;
   const pushMarkerEffect = instantPushTexture;
   const floraHealV1 = new Image();
-  const floraSunbeamFreshV892 = new Image();
   const floraInvisibleV527 = new Image();
   const authoredBotHandgunReload=Object.fromEntries(Object.entries(AUTHORED_BOT_HANDGUN_RELOAD).map(([dir,p])=>{const image=new Image();defer(image,p.assetPath);return [dir,image]}));
   const authoredBotSmgReload=Object.fromEntries(Object.entries(AUTHORED_BOT_SMG_RELOAD).map(([dir,p])=>{const image=new Image();defer(image,p.assetPath);return [dir,image]}));
@@ -33663,7 +33427,6 @@ const version = "overheal-body-v913";
   defer(fighterEnergyImpactEffect, "assets/generated/fighter-energy-impact-ate-v404.png");
   defer(fighterShockwaveEffect, "assets/generated/fighter-shockwave-ate-v393.png");
   defer(floraHealV1, "assets/generated/flora-self-heal-v336.png");
-  defer(floraSunbeamFreshV892, "assets/generated/flora-sunbeam-fresh-v892.png");
   defer(floraInvisibleV527, "assets/generated/flora-invisible-ate-v527.png");
   defer(tacticalSystemsAtlas, "assets/generated/tactical-systems-atlas.webp");
   defer(smartphonePreparedCell, "assets/generated/smartphone-prepared-cell1-source-exact-v874.png");
@@ -33841,7 +33604,6 @@ const version = "overheal-body-v913";
     standFirmMarkerEffect,
     pushMarkerEffect,
     floraHealV1,
-    floraSunbeamFreshV892,
     floraInvisibleV527,
     tacticalSystemsAtlas,
     authoredPhiliaSniperSwitch,
