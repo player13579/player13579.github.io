@@ -18560,32 +18560,14 @@ const MEDICAL_ENVIRONMENT_TE = Object.freeze({
 // deliberately absent: its dark forms are architecture and furniture.
 const FOLIAGE_WOODSUN_STRENGTHS = Object.freeze({ archive: 1, atrium: .92, greenhouse: .72, cafeteria: .42 });
 
-function mapEnvironmentCanvasFactory() {
-  if (globalThis.document && typeof globalThis.document.createElement === "function") return globalThis.document.createElement("canvas");
-  throw new Error("A canvas factory is required for authored map-region caching");
-}
-
 function mapEnvironmentSourceWidth(source) { return source.naturalWidth || source.width || 0; }
 function mapEnvironmentSourceHeight(source) { return source.naturalHeight || source.height || 0; }
-function mapEnvironmentCacheSignature(source, data, region) {
-  return { source, sourceWidth: mapEnvironmentSourceWidth(source), sourceHeight: mapEnvironmentSourceHeight(source), mapWidth: data.map.width, mapHeight: data.map.height, x: region.x, y: region.y, w: region.w, h: region.h };
-}
-function mapEnvironmentSameSignature(a, b) {
-  return !!a && a.source === b.source && a.sourceWidth === b.sourceWidth && a.sourceHeight === b.sourceHeight && a.mapWidth === b.mapWidth && a.mapHeight === b.mapHeight && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
-}
 
 function mapEnvironmentCachedMapRegion(source, data, region, cache, key) {
-  if (!source?.complete || !mapEnvironmentSourceWidth(source) || !mapEnvironmentSourceHeight(source) || !data?.map?.width || !data.map.height || !cache) return null;
-  const signature = mapEnvironmentCacheSignature(source, data, region), old = cache.get(key);
-  if (old && mapEnvironmentSameSignature(old.signature, signature)) return old.canvas;
-  const canvas = mapEnvironmentCanvasFactory();
-  canvas.width = region.w;
-  canvas.height = region.h;
-  const scaleX = signature.sourceWidth / signature.mapWidth;
-  const scaleY = signature.sourceHeight / signature.mapHeight;
-  canvas.getContext("2d").drawImage(source, region.x * scaleX, region.y * scaleY, region.w * scaleX, region.h * scaleY, 0, 0, region.w, region.h);
-  cache.set(key, { signature, canvas });
-  return canvas;
+  const sourceWidth = mapEnvironmentSourceWidth(source), sourceHeight = mapEnvironmentSourceHeight(source);
+  if (!source?.complete || !sourceWidth || !sourceHeight || !data?.map?.width || !data.map.height || !cache) return null;
+  const scaleX = sourceWidth / data.map.width, scaleY = sourceHeight / data.map.height;
+  return { source, x: region.x * scaleX, y: region.y * scaleY, w: region.w * scaleX, h: region.h * scaleY };
 }
 
 function mapEnvironmentRoundedClip(ctx, region) {
@@ -18611,9 +18593,9 @@ function drawMedicalFootBathSurface(ctx, data, source, time, cache, intensity = 
   mapEnvironmentRoundedClip(ctx, region);
   ctx.globalCompositeOperation = "screen";
   ctx.globalAlpha = parentAlpha * intensity * .05;
-  ctx.drawImage(surface, region.x + dx, region.y + dy);
+  ctx.drawImage(surface.source, surface.x, surface.y, surface.w, surface.h, region.x + dx, region.y + dy, region.w, region.h);
   ctx.globalAlpha = parentAlpha * intensity * .025;
-  ctx.drawImage(surface, region.x - dx * .65, region.y - dy * .65);
+  ctx.drawImage(surface.source, surface.x, surface.y, surface.w, surface.h, region.x - dx * .65, region.y - dy * .65, region.w, region.h);
   ctx.restore();
   return true;
 }
@@ -18630,7 +18612,7 @@ function drawMedicalWindowLight(ctx, data, source, time, cache, intensity = 1, r
   mapEnvironmentRoundedClip(ctx, region);
   ctx.globalCompositeOperation = "screen";
   ctx.globalAlpha = parentAlpha * intensity * .115 * modulation;
-  ctx.drawImage(light, region.x, region.y);
+  ctx.drawImage(light.source, light.x, light.y, light.w, light.h, region.x, region.y, region.w, region.h);
   ctx.restore();
   return true;
 }
