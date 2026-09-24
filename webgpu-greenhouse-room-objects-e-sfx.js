@@ -2,7 +2,7 @@
  * not integrated into app.js: current server receipts lack a shared causal ID. */
 (function(root){
  'use strict';
- const DURATION_MS=1000;
+ const DURATION_MS=1000,EFFECT_DURATION_MS=2200;
  const PROFILES=Object.freeze({
   'v302-greenhouse-greenhousePlanter-1':Object.freeze({objectId:'v302-greenhouse-greenhousePlanter-1',
    effectType:'object-aromaticGarden',effectKind:'luckBoost',x:303,y:2652,profile:'compound-leaf-luck-tone',durationMs:820,
@@ -23,7 +23,7 @@
   const spec=PROFILES[String(effect.objectId||'')];
   if(!spec||effect.type!==spec.effectType||effect.effectKind!==spec.effectKind||effect.x!==spec.x||effect.y!==spec.y||
    typeof effect.id!=='string'||!effect.id||typeof effect.playerId!=='string'||!effect.playerId||
-   !finite(effect.startedAt)||!finite(effect.duration)||effect.duration<=0||effect.duration>DURATION_MS||
+   !finite(effect.startedAt)||!finite(effect.duration)||effect.duration<=0||effect.duration>EFFECT_DURATION_MS||
    now<effect.startedAt||now>=effect.startedAt+effect.duration)return Object.freeze({...base,reason:'exact-object-effect-or-time-mismatch'});
   if(sound.type!=='object'||sound.sourceKind!=='facility'||sound.ownerId!==effect.playerId||sound.x!==spec.x||sound.y!==spec.y||
    typeof sound.id!=='string'||!sound.id||sound.id===effect.id||
@@ -103,6 +103,6 @@
    reason:replaced?'explicit-replacement-started':'replacement-not-proven'});
  }
  function contains(list,value){return list instanceof Set?list.has(value):Array.isArray(list)&&list.includes(value);}
- const api=Object.freeze({DURATION_MS,PROFILES,plan,renderPcm,play,genericFallbackDecision});
+ const api=Object.freeze({DURATION_MS,EFFECT_DURATION_MS,PROFILES,plan,renderPcm,play,genericFallbackDecision});
  root.DvaWebGPUGreenhouseRoomObjectsESfx=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:window);

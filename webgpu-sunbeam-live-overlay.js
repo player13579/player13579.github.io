@@ -22,8 +22,12 @@
       target = renderer.registerTarget(TARGET, canvas, { width: Math.max(1, canvas.width || 1),
         height: Math.max(1, canvas.height || 1), logicalWidth: 980,
         logicalHeight: 620, alphaMode: 'premultiplied' });
-      effect = effectApi.create();
+      effect = effectApi.create({ renderer, frameOwner: renderer });
+      if (effect.ready) await effect.ready;
+      if (effect.state !== undefined && effect.state !== 'ready')
+        throw new Error('Sunbeam WGSL pass unavailable');
     } catch (error) {
+      try { effect?.destroy(); } catch (_) {}
       try { target?.unregister(); } catch (_) {}
       renderer.destroy();
       throw error;
@@ -54,7 +58,7 @@
         frame.clear(TARGET, [0, 0, 0, 0]);
         const result = effect.record({ frame, target: TARGET, viewport,
           scene, camera, zoom });
-        if (result.drawn !== planned.length || result.commands.length === 0)
+        if (result.drawn !== planned.length || result.passes !== planned.length)
           throw new Error('Sunbeam live E did not record its planned effects');
         frame.submit();
         return Object.freeze({ drawn: true, ids: Object.freeze(planned.map(item => item.id)),

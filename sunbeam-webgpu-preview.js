@@ -88,7 +88,7 @@
       window.__sunbeamPreviewSnapshot = Object.freeze({ ready: true, frameId,
         phaseMs, zoom, dpr: backing, pose: ui.pose.value, emitterCount: handPoints.length,
         sourceWorld: SOURCE, serverRangeWorld: distance, targetWorld,
-        rayCount: plan.rays.length, rectangleCount: outcome.commands.length,
+        rayCount: plan.rays.length, shaderPassCount: outcome.passes,
         hands: handPoints, reducedMotion: scene.reducedMotion,
         clippedByCanvas: plan.rays.some(ray => ray.target.x < 0 || ray.target.x > WIDTH ||
           ray.target.y < 0 || ray.target.y > HEIGHT) });
@@ -163,11 +163,15 @@
     renderer = await window.DvaWebGPURenderer.create({ gpu: navigator.gpu });
     targetHandle = renderer.registerTarget('sunbeam-preview', ui.sunbeam,
       { width: WIDTH, height: HEIGHT, logicalWidth: WIDTH, logicalHeight: HEIGHT });
-    sunbeamPass = window.DvaWebGPUSunbeamE.create();
+    sunbeamPass = window.DvaWebGPUSunbeamE.create({ renderer, frameOwner: renderer });
+    await sunbeamPass.ready;
     resizeTarget();
     render();
     window.__sunbeamPreviewReady = true;
   } catch (error) {
+    try { sunbeamPass?.destroy(); } catch (_) {}
+    try { targetHandle?.unregister(); } catch (_) {}
+    try { renderer?.destroy(); } catch (_) {}
     window.__sunbeamPreviewReady = false;
     window.__sunbeamPreviewError = String(error?.stack || error);
     ui.status.textContent = `WebGPU unavailable: ${String(error)}`;
