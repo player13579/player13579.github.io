@@ -1538,17 +1538,11 @@ body.tactics-open {
   font-size: 14px;
 }
 
-.tactics-rule-grid p,
-.tactics-credits {
+.tactics-rule-grid p {
   margin: 0;
   color: #344a54;
   font-size: 13px;
   line-height: 1.78;
-}
-
-.tactics-credits {
-  margin-top: 18px;
-  text-align: right;
 }
 
 .tactics-novel-article {

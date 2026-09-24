@@ -481,7 +481,6 @@ const storage = {
   skin: "dva_skin",
   map: "dva_map",
   debugForceEnd: "dva_debug_force_end",
-  musicMuted: "dva_music_muted",
   gameMuted: "dva_game_muted",
   clientId: "dva_client_id",
   soloMissions: "dva_solo_missions_v1",
@@ -1440,9 +1439,7 @@ const state = {
     sfxLoading: null,
     sfxCursor: new Map(),
     unlocked: false,
-    muted: IS_VERIFICATION_MODE || clientStorage.getItem(storage.gameMuted) === "1",
-    currentBgm: null,
-    titleBgm: createBgmAudio(assetUrl("assets/bgm-title.mp3"), 0.34)
+    muted: IS_VERIFICATION_MODE || clientStorage.getItem(storage.gameMuted) === "1"
   }
 };
 
@@ -3294,14 +3291,6 @@ function restoreVendingFocus({ focus = false, opener = null } = {}) {
   });
 }
 
-function createBgmAudio(src, volume) {
-  const audio = new Audio(src);
-  audio.loop = true;
-  audio.preload = "auto";
-  audio.volume = volume;
-  return audio;
-}
-
 function switchScreenWithEffect(next) {
   const flashClass = next === "tactics" ? "tactics-flash" : next === "game" ? "game-flash" : "";
   els.screenFlash.classList.remove("active", "tactics-flash", "game-flash");
@@ -3433,7 +3422,6 @@ function setScreen(screen) {
   else syncTacticsNovelVideo();
   if (next !== "game") clearMovementInput();
   window.scrollTo(0, 0);
-  syncBgm();
   requestAnimationFrame(() => syncKeyboardContext(true));
 }
 
@@ -3442,13 +3430,11 @@ function toggleGameMuted() {
   state.audio.muted = !state.audio.muted;
   if (state.audio.muted) { stopAllPhenomenonSounds(); stopAllEnvironmentSounds(); }
   clientStorage.setItem(storage.gameMuted, state.audio.muted ? "1" : "0");
-  clientStorage.removeItem(storage.musicMuted);
   if (state.audio.master && state.audio.context) {
     state.audio.master.gain.cancelScheduledValues(state.audio.context.currentTime);
     state.audio.master.gain.setTargetAtTime(state.audio.muted ? 0 : 0.42, state.audio.context.currentTime, 0.018);
   }
   syncGameAudioButtons();
-  syncBgm();
 }
 
 function syncGameAudioButtons() {
@@ -3459,27 +3445,6 @@ function syncGameAudioButtons() {
     button.setAttribute("aria-label", muted ? "ゲーム音をオン" : "ゲーム音をオフ");
     button.title = muted ? "ゲーム音をオン" : "ゲーム音をオフ";
   }
-}
-
-function desiredBgm() {
-  if (state.audio.muted || document.hidden) return null;
-  if (state.screen === "title" || state.screen === "tactics") return state.audio.titleBgm;
-  if (state.screen === "game" && (!state.data || state.data.phase === "lobby" || state.data.phase === "selecting")) {
-    return state.audio.titleBgm;
-  }
-  return null;
-}
-
-function syncBgm() {
-  const target = desiredBgm();
-  document.body.dataset.bgm = target === state.audio.titleBgm ? "title" : "off";
-  document.body.dataset.musicMuted = String(state.audio.muted);
-  if (state.audio.currentBgm && state.audio.currentBgm !== target) {
-    state.audio.currentBgm.pause();
-  }
-  state.audio.currentBgm = target;
-  if (!target || !state.audio.unlocked) return;
-  target.play().catch(() => {});
 }
 
 function initializeTacticsPanel() {
@@ -8603,7 +8568,6 @@ function bindEvents() {
       void flushUsageAnalytics();
       void checkOnlineAvailability();
     }
-    syncBgm();
   });
 
   els.expandedMapCanvas.addEventListener("pointerdown", beginExpandedMapTap);
@@ -11989,7 +11953,6 @@ function applyState(data, options = {}) {
     showToast(`訓練完了: ${data.soloMission.name}`);
   }
   ensureRealtimeConnection();
-  syncBgm();
   scheduleUiRender();
   return true;
 }
@@ -34062,7 +34025,6 @@ function escapeHtml(value) {
 
 function unlockAudio() {
   state.audio.unlocked = true;
-  syncBgm();
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return;
   if (!state.audio.context) {
