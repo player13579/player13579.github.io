@@ -53,6 +53,7 @@
         if (!finite(scene.serverNow) || !finite(player.ascensionStartedAt) || !finite(player.ascensionUntil) ||
             player.ascensionUntil <= player.ascensionStartedAt)
           throw new Error(`Idea E ${id} rejected: authoritative ascension clock required`);
+        if (scene.serverNow >= player.ascensionUntil) continue;
         progress = clamp((scene.serverNow - player.ascensionStartedAt) /
           (player.ascensionUntil - player.ascensionStartedAt));
         stateStartedAt = player.ascensionStartedAt;

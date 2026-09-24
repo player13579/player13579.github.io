@@ -12473,6 +12473,18 @@ function pairedEmpMagicEffect(sound, data) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+function floraInvisibleSelfVisibility(effect, data) {
+  if (effect?.type !== 'flora-invisible' || !data) return null;
+  const viewerId = String(data.selfId || '');
+  const subjectId = String(effect.playerId || '');
+  if (!viewerId || !subjectId || viewerId !== subjectId ||
+      (effect.viewerId && String(effect.viewerId) !== viewerId) ||
+      (effect.targetId && String(effect.targetId) !== subjectId) ||
+      !data.players?.some(player => String(player?.id || '') === subjectId))
+    return null;
+  return Object.freeze({ viewerId, subjectId, scope: 'self-only' });
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) WEBGPU_E_CUES.player?.stopAll();
 });
@@ -12512,6 +12524,8 @@ function detectMagicEffects(previous, next) {
   if (isSensoryBlocked(next)) return;
   const known = new Set((previous.magicEffects || []).map((effect) => effect.id));
   for (const effect of next.magicEffects || []) {
+    if (effect?.type === 'flora-invisible' &&
+        !floraInvisibleSelfVisibility(effect, next)) continue;
     const soundKind = phenomenonSoundKind(effect, next);
     if (known.has(effect.id)) {
       if (isGrenadeImpactSoundEffect(effect) && effect.id != null &&
@@ -20533,6 +20547,10 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     throw new Error("Late magic WebGPU source effects need distinct IDs");
   for (const [index, effect] of active.entries()) {
     const type = String(effect.type || "");
+    if (type === 'flora-invisible' && !floraInvisibleSelfVisibility(effect, data)) {
+      omitted.push({ effectId: effect.id, reason: 'flora-invisible-self-only' });
+      continue;
+    }
     if (type === 'enhance-activation' || type === 'fighter-energy-charge') {
       const playerId = String(effect.playerId || '');
       const scene = markerSelection?.scenes?.get(playerId);
@@ -21188,6 +21206,8 @@ function drawMagicEffects() {
   const activeGainEffects = state.magicEffects.filter((effect) => isSharedHeadMarkerEffect(effect) || isCreditHeadMarkerEffect(effect));
   const renderedNonCreditHeadMarkerInstances = new Set();
   for (const effect of state.magicEffects) {
+    if (effect?.type === 'flora-invisible' &&
+        !floraInvisibleSelfVisibility(effect, state.data)) continue;
     const sunbeamElapsed = effect.type === "flora-sunbeam" ? sunbeamActorVisualElapsed(effect, state.data) : null;
     const progress = clamp(
       (sunbeamElapsed == null ? now - effect.startedAt : sunbeamElapsed) / effect.duration,
@@ -27502,6 +27522,7 @@ function drawAromaNaturalRecoveryMarkerEffect(markerX, markerY, time, activeStat
 }
 
 function drawFloraInvisibleGeneratedEffect(effect, progress) {
+  if (!floraInvisibleSelfVisibility(effect, state.data)) return false;
   const key = "flora-invisible-ate-v527";
   const prepared = transparentSpriteSource(state.textures.floraInvisibleV527, key, 18);
   const sprite = prepared ? normalizedSpriteFrame(prepared, key, 1, 1, 0, 0) : null;

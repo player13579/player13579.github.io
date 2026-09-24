@@ -1,12 +1,16 @@
 /* Textureless Flora cast phenomena for the shared WebGPU frame.
  * Heal cast and invisibility have separate choreography. Invisible actors are
- * always owner-only: the caller must provide an explicit self-visibility grant. */
+ * owner-only, authorized by the server event's exact viewerId. */
 (function(root){
   'use strict';
   const TYPES=Object.freeze({heal:'flora','invisible':'flora-invisible'});
   const MODES=Object.freeze({heal:0,invisible:1});
   const DURATION_MS=Object.freeze({flora:1200,'flora-invisible':1600});
-  const RADIUS_X=70,RADIUS_Y=84,ANCHOR_Y=48,FLOATS=16,finite=Number.isFinite;
+  const PROFILES=Object.freeze({
+    flora:Object.freeze({radiusX:72,radiusY:42,anchorY:-12}),
+    'flora-invisible':Object.freeze({radiusX:59,radiusY:77,anchorY:48})
+  });
+  const FLOATS=16,finite=Number.isFinite;
 
   const shader=/* wgsl */`
 struct Params{view:vec4f,geometry:vec4f,state:vec4f,extra:vec4f};
@@ -26,8 +30,8 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
  let alpha=p.state.w;let quietT=select(t,.52,reduced);var core=0.0;var glow=0.0;
  var rgb=vec3f(.33,1.0,.67);
  if(mode<.5){
-   // The heal cast is an opening botanical helix: two broad petal arcs rise
-   // around the torso and meet a single bright stem at the center.
+   // The heal cast is a floor-root aperture, below the torso benefit E: two
+   // broad petal arcs open across the ground and meet at a luminous stem.
    let angle=atan2(q.y,q.x);let r=length(vec2f(q.x,q.y*.87));
    let turn=quietT*6.28318;let petalA=gap(angle,turn+.72*sin(quietT*3.14159));
    let petalB=gap(angle,turn+3.14159-.72*sin(quietT*3.14159));
@@ -60,7 +64,7 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
  return vec4f(rgb*(source+halo*.45),clamp(source+halo*.55,0.0,.98));
 }`;
 
-  function plan({effect,player,viewerId,selfVisibilityGrant=null,now,phase,camera,zoom,viewport,
+  function plan({effect,player,viewerId,now,phase,camera,zoom,viewport,
     reducedMotion=false,alpha=1}={}){
     if(!effect||!player||phase!=='playing'||!['flora','flora-invisible'].includes(effect.type)||
       !effect.id||!effect.playerId||String(effect.playerId)!==String(player.id)||
@@ -69,17 +73,17 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
       !finite(now)||!finite(alpha)||alpha<=0||alpha>1||!viewerId)return null;
     const actorId=String(player.id),viewer=String(viewerId);
     const privateCue=effect.type==='flora-invisible'||player.invisible===true;
-    if(privateCue&&(viewer!==actorId||selfVisibilityGrant?.viewerId!==viewer||
-      selfVisibilityGrant?.subjectId!==actorId||selfVisibilityGrant?.scope!=='self-only'))return null;
+    if(privateCue&&(viewer!==actorId||String(effect.viewerId||'')!==viewer))return null;
     if(!camera||viewport?.kind!=='main'||
       ![camera.x,camera.y,zoom,viewport.width,viewport.height,viewport.pixelWidth,viewport.pixelHeight].every(finite)||
       zoom<=0||viewport.width<=0||viewport.height<=0||!Number.isInteger(viewport.pixelWidth)||
       !Number.isInteger(viewport.pixelHeight)||viewport.pixelWidth<=0||viewport.pixelHeight<=0)return null;
     const durationMs=Math.min(DURATION_MS[effect.type],effect.duration),elapsed=now-effect.startedAt;
     if(elapsed<0||elapsed>=durationMs)return null;
+    const profile=PROFILES[effect.type];
     const sx=zoom*viewport.pixelWidth/viewport.width,sy=zoom*viewport.pixelHeight/viewport.height;
-    const centerX=(player.x-camera.x)*sx,centerY=(player.y-ANCHOR_Y-camera.y)*sy;
-    const radiusX=RADIUS_X*sx,radiusY=RADIUS_Y*sy;
+    const centerX=(player.x-camera.x)*sx,centerY=(player.y-profile.anchorY-camera.y)*sy;
+    const radiusX=profile.radiusX*sx,radiusY=profile.radiusY*sy;
     if(![centerX,centerY,radiusX,radiusY].every(finite)||radiusX<=0||radiusY<=0||
       centerX+radiusX*1.25<0||centerX-radiusX*1.25>viewport.pixelWidth||
       centerY+radiusY*1.25<0||centerY-radiusY*1.25>viewport.pixelHeight)return null;
@@ -89,7 +93,7 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
       centerX,centerY,radiusX,radiusY,pixelWidth:viewport.pixelWidth,pixelHeight:viewport.pixelHeight});
   }
 
-  function planBatch({effects,players,viewerId,visibilityFor,now,phase,camera,zoom,viewport,
+  function planBatch({effects,players,viewerId,now,phase,camera,zoom,viewport,
     reducedMotion=false,alpha=1}={}){
     if(!Array.isArray(effects)||!Array.isArray(players))throw new TypeError('Flora E needs event and player arrays');
     const byId=new Map(players.filter(p=>p?.id).map(p=>[String(p.id),p]));
@@ -97,8 +101,7 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
     for(const effect of effects){const id=String(effect?.id||'');if(!id||seen.has(id))continue;seen.add(id);
       if(!Object.values(TYPES).includes(effect.type))continue;
       const player=byId.get(String(effect.playerId||''));
-      const grant=typeof visibilityFor==='function'?visibilityFor(effect,viewerId,player):null;
-      const result=plan({effect,player,viewerId,selfVisibilityGrant:grant,now,phase,camera,zoom,viewport,reducedMotion,alpha});
+      const result=plan({effect,player,viewerId,now,phase,camera,zoom,viewport,reducedMotion,alpha});
       if(result)out.push(result);
     }
     return Object.freeze(out);

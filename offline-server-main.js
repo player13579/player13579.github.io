@@ -15128,6 +15128,7 @@ function useFloraInvisible(room, player) {
   pushMagicEffect(room, "flora-invisible", player, {
     radius: 120,
     playerId: player.id,
+    viewerId: player.id,
     durationMs: 1_600
   });
   pushEvent(room, `${player.name} がインビジブルを発動しました。`);
@@ -15276,7 +15277,8 @@ function recoverHackerTargetStatus(room, player, targetId) {
   pushMagicEffect(room, "hacker-status-recover", target, {
     radius: 145,
     playerId: player.id,
-    targetId: target.id
+    targetId: target.id,
+    variant: cleared ? "cleared" : "unchanged"
   });
   setImmediateFeedback(target, "状態異常回復", cleared ? "解除完了" : "異常なし");
 }
