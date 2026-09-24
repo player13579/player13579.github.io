@@ -3266,6 +3266,7 @@ function setScreen(screen) {
   if (next === "title") state.operatorSelectionRouteOpen = false;
   if (next !== "game") setSoloNameGuidance(false);
   state.screen = next;
+  if (next !== "game") suspendWebGPUMainAppDriver();
   if (next === "game" && previous !== "game") scheduleFieldGpuFor(state.data);
   if (next !== "game") clearMarkerExplanation();
   if (next !== "game") clearAcquisitionOverlay();
@@ -17354,6 +17355,134 @@ function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+// This temporary verify route exercises the production main-frame inputs and
+// ownership handoff without replacing the shipped Canvas presentation before
+// a real GPU frame and pointer acceptance pass. It uses the existing RAF.
+const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("webgpuMain") === "1";
+const webgpuMainApp = { driver: null, startPending: null, mapId: null,
+  generation: 0, visible: false, submittedHits: null, failed: false,
+  acquisitionCanvas: null };
+
+function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
+  if (!WEBGPU_MAIN_VERIFY_ROUTE) return;
+  webgpuMainApp.generation += 1;
+  webgpuMainApp.submittedHits = null;
+  webgpuMainApp.visible = false;
+  if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
+  if (els.canvas) els.canvas.style.opacity = "1";
+  if (webgpuMainApp.acquisitionCanvas) webgpuMainApp.acquisitionCanvas.style.display = "none";
+  if (destroy) {
+    webgpuMainApp.driver?.destroy();
+    webgpuMainApp.driver = null;
+    webgpuMainApp.mapId = null;
+  } else webgpuMainApp.driver?.suspend();
+}
+
+function webgpuMainReadyImage(data) {
+  const map = data?.map;
+  const image = map && state.textures?.fullMapComposites?.[map.id];
+  return image?.complete && image.naturalWidth === map.width &&
+    image.naturalHeight === map.height ? image : null;
+}
+
+async function startWebGPUMainAppDriver(data, image) {
+  const generation = webgpuMainApp.generation;
+  const map = data.map;
+  const mainCanvas = els.webgpuMainCanvas;
+  if (!WEBGPU_MAIN_VERIFY_ROUTE || !mainCanvas?.isConnected ||
+      !els.expandedMapCanvas?.isConnected || !image || !map ||
+      state.data !== data || state.screen !== "game" || document.hidden) return null;
+  // The old renderers may still have a creation or draw in flight. They must
+  // retire before the shared device registers either target.
+  const expandedCanvas = await window.DvaWebGPUExpandedMapOwnership.handoffToMainRenderer();
+  const acquisitionCanvas = await window.DvaWebGPUAcquisitionOverlay.handoffToMainRenderer();
+  if (generation !== webgpuMainApp.generation || state.data !== data ||
+      state.screen !== "game" || document.hidden) return null;
+  const driver = await createDormantWebGPUMainAppDriver({ mainCanvas,
+    expandedCanvas, acquisitionCanvas, map, image,
+    onFailure(error) {
+      webgpuMainApp.failed = true;
+      document.body.dataset.webgpuMainError = error?.message || String(error);
+      suspendWebGPUMainAppDriver({ destroy: true });
+    } });
+  if (generation !== webgpuMainApp.generation || state.data !== data ||
+      state.screen !== "game" || document.hidden) {
+    driver.destroy();
+    return null;
+  }
+  webgpuMainApp.driver = driver;
+  webgpuMainApp.mapId = map.id;
+  webgpuMainApp.acquisitionCanvas = acquisitionCanvas;
+  return driver;
+}
+
+function pumpWebGPUMainAppDriver() {
+  if (!WEBGPU_MAIN_VERIFY_ROUTE || webgpuMainApp.failed) return;
+  const data = state.data;
+  const sample = visibleGameplayViewportSample();
+  const image = webgpuMainReadyImage(data);
+  if (state.screen !== "game" || !sample || !image ||
+      !window.DvaWebGPUViewport?.validSample?.(sample)) {
+    if (webgpuMainApp.visible || webgpuMainApp.driver)
+      suspendWebGPUMainAppDriver();
+    return;
+  }
+  if (webgpuMainApp.driver && webgpuMainApp.mapId !== data.map.id)
+    suspendWebGPUMainAppDriver({ destroy: true });
+  if (!webgpuMainApp.driver) {
+    if (!webgpuMainApp.startPending) {
+      webgpuMainApp.startPending = startWebGPUMainAppDriver(data, image)
+        .catch(error => {
+          webgpuMainApp.failed = true;
+          document.body.dataset.webgpuMainError = error?.message || String(error);
+        }).finally(() => { webgpuMainApp.startPending = null; });
+    }
+    return;
+  }
+  webgpuMainApp.driver.resume();
+  const mainCanvas = els.webgpuMainCanvas;
+  const rect = mainCanvas.getBoundingClientRect();
+  const canvasRect = els.canvas.getBoundingClientRect();
+  if (![rect.width, rect.height].every(value => Number.isFinite(value) && value > 0) ||
+      ["left", "top", "width", "height"].some(key =>
+        Math.abs(rect[key] - canvasRect[key]) > 1)) {
+    suspendWebGPUMainAppDriver();
+    return;
+  }
+  const generation = webgpuMainApp.generation;
+  const camera = { ...cameraFor(data, 980, 620, worldZoomFor(data)),
+    zoom: worldZoomFor(data) };
+  void webgpuMainApp.driver.draw({ data, sample, rect, camera,
+    dpr: window.devicePixelRatio || 1 }).then(receipt => {
+    if (receipt?.reason === "incomplete-scene")
+      document.body.dataset.webgpuMainPending = receipt.reason;
+    if (!receipt?.drawn || generation !== webgpuMainApp.generation ||
+        state.data !== data || state.screen !== "game" || document.hidden) return;
+    delete document.body.dataset.webgpuMainPending;
+    if (!Array.isArray(receipt.markerHitTargets))
+      throw new Error("WebGPU main submitted without pointer marker hits");
+    if (!mainCanvas.isConnected || mainCanvas.style.display === "none") return;
+    mainCanvas.style.opacity = "1";
+    els.canvas.style.opacity = "0";
+    webgpuMainApp.acquisitionCanvas.style.display = receipt.acquisitionActive ? "block" : "none";
+    // The pointer receipt becomes active only after the submitted pixels are
+    // actually selected as the visible game surface.
+    webgpuMainApp.submittedHits = receipt.markerHitTargets;
+    webgpuMainApp.visible = true;
+  }).catch(error => {
+    webgpuMainApp.failed = true;
+    document.body.dataset.webgpuMainError = error?.message || String(error);
+    suspendWebGPUMainAppDriver({ destroy: true });
+  });
+}
+
+if (WEBGPU_MAIN_VERIFY_ROUTE) {
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) suspendWebGPUMainAppDriver();
+  });
+  window.addEventListener("pagehide", () => suspendWebGPUMainAppDriver({ destroy: true }));
+}
+
 function drawLoop(timestamp = 0, engineDelta = 0) {
   state.frameNow = timestamp || performance.now();
   state.frameDelta = engineDelta || (state.lastFrameAt ? Math.min(100, state.frameNow - state.lastFrameAt) : 16.67);
@@ -17363,7 +17492,10 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
     sendMovement();
   }
   try {
-    if (state.screen === "game") draw();
+    if (state.screen === "game") {
+      draw();
+      pumpWebGPUMainAppDriver();
+    }
     publishManualVerificationBotContinuity(state.frameNow);
     const drawMode = state.data ? state.data.phase : "idle";
     if (document.body.dataset.drawMode !== drawMode) document.body.dataset.drawMode = drawMode;
@@ -23972,7 +24104,11 @@ function registerMarkerHitTarget(key, localX, localY, radius, title, detail) {
 
 function markerTargetAt(point) {
   if (!point) return null;
-  return [...state.markerHitTargets]
+  const targets = webgpuMainApp.visible && els.webgpuMainCanvas?.isConnected &&
+    els.webgpuMainCanvas.style.opacity === "1" &&
+    els.webgpuMainCanvas.style.display !== "none"
+    ? webgpuMainApp.submittedHits : state.markerHitTargets;
+  return [...(targets || [])]
     .reverse()
     .filter((entry) => Math.hypot(point.x - entry.x, point.y - entry.y) <= entry.radius)
     .sort((a, b) => Math.hypot(point.x - a.x, point.y - a.y) - Math.hypot(point.x - b.x, point.y - b.y))[0];
@@ -24139,7 +24275,11 @@ function drawMarkerExplanation(width, height) {
   // this snapshot so the explanation can be read without a live hit target.
   if (explanation.pointerId !== null) refreshMarkerExplanationTarget(explanation.pointerId);
   if (state.markerExplanation !== explanation) return;
-  const liveTarget = state.markerHitTargets.find((entry) => entry.key === explanation.key);
+  const activeHits = webgpuMainApp.visible && els.webgpuMainCanvas?.isConnected &&
+    els.webgpuMainCanvas.style.opacity === "1" &&
+    els.webgpuMainCanvas.style.display !== "none"
+    ? webgpuMainApp.submittedHits : state.markerHitTargets;
+  const liveTarget = activeHits?.find((entry) => entry.key === explanation.key);
   if (!liveTarget && explanation.pointerId !== null) { clearMarkerExplanation(); return; }
   const scene = markerExplanationWebGPUScene(explanation, liveTarget, timestamp);
   const anchorX = scene.x;
@@ -27566,7 +27706,8 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
         currentViewportSignature.length !== owner.viewportSignature.length ||
         owner.viewportSignature.some((value, index) =>
           value !== currentViewportSignature[index]))
-      throw new Error('WebGPU world candidate crossed a room, data, or viewport boundary');
+      throw Object.assign(new Error('WebGPU world candidate crossed a room, data, or viewport boundary'),
+        { code: 'DVA_WEBGPU_STALE_SCENE' });
   };
   const early = captureWebGPUMainAppEarlyScene(data, viewport);
   assertCurrent();
@@ -27807,7 +27948,8 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
             conditional.acquisition.overlayRect.width ||
           els.canvas.getBoundingClientRect().width !==
             conditional.acquisition.canvasRect.width)))
-      throw new Error('WebGPU world candidate kill or marker source changed during preparation');
+      throw Object.assign(new Error('WebGPU world candidate kill or marker source changed during preparation'),
+        { code: 'DVA_WEBGPU_STALE_SCENE' });
   };
   return { viewport, camera: early.camera, zoom: early.zoom, stages,
     early, players, headMarkers, late, conditional, hitEffectsGaps, magicGaps,
@@ -28530,8 +28672,9 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         return Object.freeze({ drawn: false, reason: hidden.status || 'hidden' });
       }
       const currentRect = mainCanvas.getBoundingClientRect();
-      if (destroyed || runtime.state !== 'ready' ||
-          data !== state.data || !camera ||
+      if (data !== state.data)
+        return Object.freeze({ drawn: false, reason: 'stale-scene' });
+      if (destroyed || runtime.state !== 'ready' || !camera ||
           ![camera.x, camera.y, camera.zoom].every(Number.isFinite) ||
           camera.zoom <= 0 ||
           !rect || ['left', 'top', 'width', 'height'].some(key =>
@@ -28550,7 +28693,8 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
               viewport, providers);
             if (captured.blocked || captured.remainingStages.some(name =>
               sceneApi.REQUIRED.includes(name)))
-              throw new Error('Dormant WebGPU main capture has visible or mandatory gaps');
+              throw Object.assign(new Error('Dormant WebGPU main capture has visible or mandatory gaps'),
+                { code: 'DVA_WEBGPU_INCOMPLETE_SCENE' });
             const currentMarkerMaterials = markerOwner
               ? markerOwner.prepare({ textures: state.textures,
                 keys: headMarkerMaterialKeysForWebGPUCandidate(
@@ -28589,7 +28733,8 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
                 result.markerHitTargets.length !== expected.length ||
                 result.markerHitTargets.some((hit, index) => hit !== expected[index]))
               throw new Error('Dormant WebGPU main marker hits differ from the prepared frame');
-            return result;
+            return { ...result,
+              acquisitionActive: Boolean(prepared.candidate.stages.acquisition) };
           } });
         if (scheduled.status === 'error') throw scheduled.error;
         if (scheduled.status !== 'completed')
@@ -28614,7 +28759,8 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
           tickMedicalRoomWebGPUSfx(data, lastMedicalSfxFrameAt ?? now, now);
           lastMedicalSfxFrameAt = now;
         }
-        return Object.freeze({ ...outcome, markerHitTargets: submittedHits });
+        return Object.freeze({ ...outcome, markerHitTargets: submittedHits,
+          acquisitionActive: Boolean(outcome.recordResult.acquisitionActive) });
       } catch (error) {
         notify(error);
         try { destroy(); } catch (_) { /* Preserve draw failure. */ }

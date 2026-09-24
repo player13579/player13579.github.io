@@ -121,6 +121,15 @@
         if (drawGeneration !== generation) {
           return Object.freeze({ drawn: false, reason: 'superseded' });
         }
+        // Polls and marker lifetimes may change while GPU assets prepare.
+        // Discard that candidate without destroying the shared device; the
+        // next RAF will capture current data. Other preparation errors remain fatal.
+        if (error?.code === 'DVA_WEBGPU_STALE_SCENE') {
+          return Object.freeze({ drawn: false, reason: 'stale-scene' });
+        }
+        if (error?.code === 'DVA_WEBGPU_INCOMPLETE_SCENE') {
+          return Object.freeze({ drawn: false, reason: 'incomplete-scene' });
+        }
         fail(error);
         throw error;
       } finally {
