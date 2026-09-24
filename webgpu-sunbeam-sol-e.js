@@ -37,7 +37,7 @@ fn segment(px:vec2f, a:vec2f, b:vec2f) -> vec2f {
   let growth=p.phase.y;
   let endU=max(0.015,growth);
   let range=max(1.0,p.state.w);
-  let shortFactor=clamp(range/200.0,0.72,1.0);
+  let shortFactor=clamp(range/240.0,0.32,1.0);
   let launched=smoothstep(0.0,0.085,clamp(u,0.0,1.0));
   let shoulder=17.0+12.0*sin(3.14159265*pow(clamp(u,0.0,1.0),0.76));
   let terminal=1.0-0.20*smoothstep(0.76,1.0,u);
@@ -106,7 +106,7 @@ fn segment(px:vec2f, a:vec2f, b:vec2f) -> vec2f {
       if(errors.length)throw new Error(errors.map(m=>m.message).join('\n'));
     }) : Promise.resolve();
     void ready.catch(()=>{});
-    const slots=[];
+    const slots=[],indices=new WeakMap();
     let destroyed=false;
     function slot(index){
       if(slots[index])return slots[index];
@@ -123,8 +123,9 @@ fn segment(px:vec2f, a:vec2f, b:vec2f) -> vec2f {
       if(!Number.isInteger(layerMask)||layerMask<0||layerMask>15)throw new RangeError('Invalid layer mask');
       frame.stage('flora-sunbeam-sol-e');
       const sx=viewport.pixelWidth/viewport.width,sy=viewport.pixelHeight/viewport.height;
+      const baseIndex=indices.get(frame)||0;
       planned.rays.forEach((ray,i)=>{
-        const {buffer,bind}=slot(i);
+        const {buffer,bind}=slot(baseIndex+i);
         const v=new Float32Array([
           viewport.pixelWidth,viewport.pixelHeight,sx,sy,
           ray.handX*sx,ray.handY*sy,ray.endX*sx,ray.endY*sy,
@@ -140,6 +141,7 @@ fn segment(px:vec2f, a:vec2f, b:vec2f) -> vec2f {
           pass.setPipeline(pipeline);pass.setBindGroup(0,bind);pass.draw(3);
         }});
       });
+      indices.set(frame,baseIndex+planned.rays.length);
       return {drawn:planned.rays.length,plan:planned};
     }
     return Object.freeze({ready,record,shader,destroy(){

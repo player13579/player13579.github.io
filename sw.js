@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-main-bootstrap-v31";
-const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v31";
+const RUNTIME_RELEASE = "webgpu-main-bootstrap-v33";
+const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v33";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -423,6 +423,9 @@ const STATIC_ASSETS = [
   "/webgpu-heal-astra-prototype.js",
   "/webgpu-heal-astra-sfx.js",
   "/webgpu-sunbeam-e.js",
+  "/webgpu-sunbeam-sol-design.js",
+  "/webgpu-sunbeam-sol-e.js",
+  "/webgpu-sunbeam-sol-sfx.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",
   "/webgpu-sunbeam-cue-adapter.js",
@@ -887,6 +890,9 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-heal-astra-prototype.js",
   "/webgpu-heal-astra-sfx.js",
   "/webgpu-sunbeam-e.js",
+  "/webgpu-sunbeam-sol-design.js",
+  "/webgpu-sunbeam-sol-e.js",
+  "/webgpu-sunbeam-sol-sfx.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",
   "/webgpu-sunbeam-cue-adapter.js",

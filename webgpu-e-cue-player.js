@@ -19,7 +19,7 @@
       throw new TypeError('Invalid E cue player limits');
     let roomKey = '';
     let monitoredContext = null, contextStateHandler = null;
-    const consumed = new Map(), voices = new Set();
+    const consumed = new Map(), voices = new Set(), actorVoices = new Map();
     let watermark = 0;
 
     function prune(nowMs) {
@@ -35,6 +35,7 @@
 
     function stopAll() {
       for (const voice of [...voices]) voice.stop();
+      actorVoices.clear();
     }
     function enterRoom(roomId, roomGeneration) {
       if (typeof roomId !== 'string' || !roomId || !Number.isInteger(roomGeneration) || roomGeneration < 0)
@@ -42,13 +43,15 @@
       const next = `${roomId}:${roomGeneration}`;
       if (roomKey !== next) { stopAll(); consumed.clear(); watermark = 0; roomKey = next; }
     }
-    function play(cue, { nowMs, muted = false, verify = false, volume = 1 } = {}) {
+    function play(cue, { nowMs, muted = false, verify = false, volume = 1,
+      actorRate = null } = {}) {
       // `verify` remains accepted for compatibility and is intentionally ignored.
       if (!cue || typeof cue.eventId !== 'string' || !cue.eventId ||
           typeof cue.roomId !== 'string' || !cue.roomId || !Number.isInteger(cue.roomGeneration) ||
           cue.roomGeneration < 0 || !Number.isFinite(cue.startsAtMs) ||
           !Number.isFinite(cue.endsAtMs) || !Array.isArray(cue.layers) ||
-          !Number.isFinite(nowMs) || !Number.isFinite(volume))
+          !Number.isFinite(nowMs) || !Number.isFinite(volume) ||
+          (actorRate != null && (!Number.isFinite(actorRate) || actorRate < 0 || actorRate > 12)))
         throw new TypeError('E cue player requires a finite cue, event identity, room generation and nowMs');
       enterRoom(cue.roomId, cue.roomGeneration);
       const id = cue.eventId;
@@ -70,6 +73,30 @@
       if (!context || !master || context.state !== 'running' ||
           !(Number(master.gain?.value) > 0)) return receipt(cue, 'suppressed', 0, 'audio-unavailable');
       monitorContext(context);
+
+      if (actorRate != null) {
+        try {
+          if (cue.layers.some(layer => !validLayer(layer, maxLayerMs)))
+            throw new TypeError('Invalid finite E cue layer');
+          const buffer = synthesizeActorCue(context, cue,
+            Math.max(0, cue.startsAtMs - nowMs));
+          const source = context.createBufferSource(), gain = context.createGain();
+          source.buffer = buffer;
+          source.playbackRate.setValueAtTime(actorRate, context.currentTime);
+          gain.gain.value = clamp(volume, 0, 1) * (maxVolume / 0.22);
+          source.connect(gain); gain.connect(master);
+          const voice = createVoice(source, [source, gain], context, voices,
+            () => actorVoices.delete(id));
+          actorVoices.set(id, { source, voice, context });
+          source.start(context.currentTime,
+            clamp((nowMs - cue.startsAtMs) * actorRate / 1000,
+              0, buffer.duration - 1 / buffer.sampleRate));
+          return receipt(cue, 'scheduled', cue.layers.length, '');
+        } catch (error) {
+          actorVoices.get(id)?.voice.stop();
+          return receipt(cue, 'failed', 0, String(error?.message || error));
+        }
+      }
 
       const scheduled = [];
       try {
@@ -133,8 +160,72 @@
       contextStateHandler = () => { if (context.state !== 'running') stopAll(); };
       context.addEventListener('statechange', contextStateHandler);
     }
-    return Object.freeze({ play, enterRoom, stopAll,
+    function setEventRate(eventId, rate) {
+      if (!Number.isFinite(rate) || rate < 0 || rate > 12) return false;
+      const entry = actorVoices.get(eventId);
+      if (!entry) return false;
+      entry.source.playbackRate.setValueAtTime(rate, entry.context.currentTime);
+      return true;
+    }
+    function stopEvent(eventId) {
+      const entry = actorVoices.get(eventId);
+      if (!entry) return false;
+      entry.voice.stop();
+      return true;
+    }
+    return Object.freeze({ play, enterRoom, stopAll, setEventRate, stopEvent,
       has: id => consumed.has(id), size: () => consumed.size });
+  }
+
+  // Actor-owned one-shots are rendered to one finite buffer so a mid-cast
+  // ACC switch changes the complete cue clock without re-triggering layers.
+  function synthesizeActorCue(context, cue, preDelayMs = 0) {
+    const rate = Math.max(8000, Math.min(48000, Number(context.sampleRate) || 44100));
+    const ranges = cue.layers.map(layer => {
+      const start = (layer.startAtMs == null ? layer.offsetMs :
+        layer.startAtMs - cue.startsAtMs) / 1000;
+      return { layer, start: Math.max(0, start + preDelayMs / 1000),
+        duration: layer.durationMs / 1000 };
+    });
+    const end = Math.max(...ranges.map(item => item.start + item.duration));
+    if (!(end > 0 && end <= 8)) throw new RangeError('Actor cue duration out of range');
+    const buffer = context.createBuffer(1, Math.ceil((end + .015) * rate), rate);
+    const output = buffer.getChannelData(0);
+    for (const { layer, start, duration } of ranges) {
+      let phase = 0, seed = (Math.round(layer.frequencyHz * 1000) ^
+        Math.round(layer.endFrequencyHz * 100) ^ Math.ceil(duration * rate)) >>> 0;
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      const begin = Math.floor(start * rate), count = Math.ceil(duration * rate);
+      for (let i = 0; i < count && begin + i < output.length; i += 1) {
+        const u = i / Math.max(1, count - 1);
+        const frequency = clamp(layer.frequencyHz +
+          (layer.endFrequencyHz - layer.frequencyHz) * u, 20, 12000);
+        const age = i / rate;
+        const attack = Math.min(1, age / Math.min(.008, duration / 3));
+        const envelope = attack * Math.pow(.000625,
+          Math.max(0, age - Math.min(.008, duration / 3)) /
+          Math.max(.001, duration - Math.min(.008, duration / 3)));
+        let sample;
+        if (layer.shape === 'noise') {
+          seed = (1664525 * seed + 1013904223) >>> 0;
+          const white = ((seed / 4294967296) * 2 - 1) * .65;
+          const omega = 2 * Math.PI * clamp(frequency, 80, rate * .45) / rate;
+          const alpha = Math.sin(omega) / 1.6;
+          const norm = 1 + alpha;
+          sample = (alpha * white - alpha * x2 +
+            2 * Math.cos(omega) * y1 - (1 - alpha) * y2) / norm;
+          x2 = x1; x1 = white; y2 = y1; y1 = sample;
+        } else {
+          phase += 2 * Math.PI * frequency / rate;
+          sample = layer.shape === 'triangle'
+            ? 2 / Math.PI * Math.asin(Math.sin(phase)) : Math.sin(phase);
+        }
+        output[begin + i] += sample * layer.amplitude * envelope;
+      }
+    }
+    for (let i = 0; i < output.length; i += 1)
+      output[i] = clamp(output[i], -.7, .7);
+    return buffer;
   }
 
   function createNoise(context, layer, durationMs) {
@@ -163,12 +254,13 @@
     return filter;
   }
 
-  function createVoice(source, nodes, context, voices) {
+  function createVoice(source, nodes, context, voices, onDone = null) {
     let done = false;
     const cleanup = () => {
       if (done) return;
       done = true;
       voices.delete(voice);
+      onDone?.();
       for (const node of nodes) { try { node.disconnect(); } catch (_) {} }
       source.onended = null;
     };

@@ -41,7 +41,7 @@
   function width(u, rangeWorld) {
     u = clamp(u);
     if (!Number.isFinite(rangeWorld) || rangeWorld <= 0 || rangeWorld > 952) return NaN;
-    const shortFactor = clamp(rangeWorld / 200, .72, 1);
+    const shortFactor = clamp(rangeWorld / 240, .32, 1);
     const launched = ease(0, .085, u);
     const shoulder = 17 + 12 * Math.sin(Math.PI * Math.pow(u, .76));
     const terminal = 1 - .20 * ease(.76, 1, u);

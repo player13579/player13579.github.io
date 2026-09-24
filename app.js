@@ -878,6 +878,15 @@ function authoredSunbeamFrame(profile, progress) {
   for (const entry of profile.keys) if (progress + 1e-7 >= entry.at) selected = entry;
   return selected.key;
 }
+const SUNBEAM_RECOVER_MS = 180;
+function sunbeamPoseKeyAtActorTime(profile, actorElapsedMs, effectDurationMs = 1200) {
+  const elapsed = Math.max(0, Number(actorElapsedMs) || 0);
+  const authoredMs = Math.max(1, Number(profile?.characterDurationMs) || 820);
+  const releaseAt = (profile?.keys || []).find(entry => entry.key === 'release')?.at ?? .56;
+  if (elapsed >= effectDurationMs) return 'recover';
+  if (elapsed >= releaseAt * authoredMs) return 'release';
+  return authoredSunbeamFrame(profile, elapsed / authoredMs);
+}
 function authoredSunbeamPoseReady(pose, image) {
   const rect = pose?.sourceRect;
   return Boolean(pose?.assetPath && pose?.assetSha256 && image?.complete && Number(image.naturalWidth) > 0 && Number(image.naturalHeight) > 0
@@ -920,7 +929,9 @@ function drawAuthoredSunbeamPose(player, data, ghost, action, atlasId, progress)
   latch = AUTHORED_SUNBEAM_LATCHES.get(owner);
   if (latch.token !== token || latch.identity !== atlasId || !latch.sequences) return false;
   if (ctx.globalAlpha <= 0) return true;
-  const selected = latch.sequences[direction][SUNBEAM_AUTHORED_MOTION_KEYS.findIndex(({ key }) => key === authoredSunbeamFrame(profile, progress))];
+  const poseKey = sunbeamPoseKeyAtActorTime(profile,
+    sunbeamActorVisualElapsed(owner, data), Number(owner.sunbeamEffectDurationMs) || 1200);
+  const selected = latch.sequences[direction][SUNBEAM_AUTHORED_MOTION_KEYS.findIndex(({ key }) => key === poseKey)];
   if (!selected) return false;
   const { pose, image } = selected, rect = pose.sourceRect;
   ctx.save();
@@ -1248,6 +1259,7 @@ const state = {
   gravityLevitationRoomId: "",
   physicalMotionPhases: new Map(),
   actorVisualClocks: new Map(),
+  eVisualClocks: new Map(),
   characterActions: new Map(),
   renderPlayers: new Map(),
   camera: { x: 0, y: 0, vx: 0, vy: 0, initialized: false, mode: "", frame: -1 },
@@ -1447,7 +1459,7 @@ const PHENOMENON_SOUND_RECEIPTS = { roomId: "", ids: new Set(), order: [], owner
 // may expire while its server event ID remains in later snapshots.
 const GRENADE_IMPACT_SOUND_RECEIPTS = { roomId: "", generation: 0, ids: new Map() };
 const WEBGPU_E_CUES = { roomKey: '', player: null, events: null,
-  combat: null, defense: null };
+  combat: null, defense: null, actorOwners: new Map() };
 const WORLD_EVENT_SOUND_IDS = { roomKey: '', ids: new Set(), order: [] };
 let HEAL_E_SFX_PLAYER = null;
 let HEAL_E_SFX_CONTEXT = null;
@@ -1480,8 +1492,10 @@ function commitHealESfxVisualFrame(data, receipts) {
   const source = receipt && healESfxSource(data, receipt.effectId);
   if (!source) { stopHealESfx(); return; }
   const key = `${data.roomId}:${state.roomSessionGeneration}:${receipt.effectId}`;
+  const actor = data.players?.find(player => String(player.id) === String(receipt.playerId));
+  const actorRate = actor ? displayETimeScale(actor, data) : 1;
   if (HEAL_E_SFX_ACTIVE?.key === key) {
-    HEAL_E_SFX_PLAYER.update({ actorElapsedSeconds: receipt.actorSeconds });
+    HEAL_E_SFX_PLAYER.update({ actorElapsedSeconds: receipt.actorSeconds, actorRate });
     return;
   }
   if (HEAL_E_SFX_CONTEXT !== state.audio.context) {
@@ -1495,7 +1509,8 @@ function commitHealESfxVisualFrame(data, receipts) {
   const currentSource = healESfxSource(data, receipt.effectId, performance.now());
   if (!currentSource) { stopHealESfx(); return; }
   if (HEAL_E_SFX_PLAYER.start({ eventId: `${key}:${++healESfxSequence}`,
-      phaseSeconds: currentSource.phaseSeconds, actorElapsedSeconds: receipt.actorSeconds, volume: 1 }))
+      phaseSeconds: currentSource.phaseSeconds, actorElapsedSeconds: receipt.actorSeconds,
+      actorRate, volume: 1 }))
     HEAL_E_SFX_ACTIVE = { key, effectId: receipt.effectId, roomId: String(data.roomId),
       generation: state.roomSessionGeneration };
 }
@@ -2406,7 +2421,7 @@ const webgpuMainApp = { driver: null, startPending: null, mapId: null,
 const sunbeamLive = { renderer: null, pending: null, generation: 0,
   nextRetryAt: 0, poseReceipts: new Map(), drawnIds: new Set(),
   submitted: new Map(), frameId: 0, pendingSounds: new Map(),
-  soundPlanner: null, soundPlayer: null, soundAdapter: null };
+  soundPlayers: new Map(), playedCauses: new Set() };
 document.body.dataset.webgpuMainOwner = "1";
 if (els.canvas) els.canvas.style.opacity = "0";
 if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
@@ -3885,6 +3900,10 @@ function triggerCharacterAction(playerId, kind, duration = CHARACTER_ACTION_DURA
   if(preserveAuthoredHandgunPriority(playerId,kind,variant))return;
   const reloadPlayer=state.data?.players?.find(p=>p.id===playerId);
   const existingBody=state.characterActions.get(playerId);
+  if (existingBody?.motionId === 'flora-sunbeam' && motionId !== 'flora-sunbeam' &&
+      Number.isFinite(sunbeamActorVisualElapsed(existingBody, state.data)) &&
+      sunbeamActorVisualElapsed(existingBody, state.data) <
+        Number(existingBody.sunbeamEffectDurationMs || 1200)) return;
   if(motionId==="action-reload"&&((variant==="handgun:complete"&&authoredHandgunReloadEligible(reloadPlayer,state.data))||(variant==="smg:complete"&&authoredSmgReloadEligible(reloadPlayer,state.data))||(variant==="assault:complete"&&authoredAssaultReloadEligible(reloadPlayer,state.data))||(variant==="taser:complete"&&authoredSophiaTaserReloadEligible(reloadPlayer,state.data))||(variant==="taser:complete"&&authoredTaserReloadEligible(reloadPlayer,state.data))||(variant==="sniper:complete"&&authoredSniperReloadEligible(reloadPlayer,state.data)))&&existingBody&&existingBody.motionId!=="action-reload")return;
   const createdAction = {
     kind,
@@ -11541,6 +11560,7 @@ function resetLocalSession() {
   state.gravityLevitationRoomId = "";
   state.physicalMotionPhases.clear();
   state.actorVisualClocks.clear();
+  state.eVisualClocks.clear();
   state.characterActions.clear();
   state.renderPlayers.clear();
   state.camera = { x: 0, y: 0, initialized: false, mode: "", frame: -1 };
@@ -12291,16 +12311,14 @@ function advancePhenomenonSound(effectId, kind, progress, player) {
     stopPhenomenonSoundOwner(owner);
     return;
   }
-  const actorRate = kind === "accelerationBenefit" ? displayActorTimeScale(player, state.data) : 1;
-  if (kind === "accelerationBenefit") {
-    for (const handle of owner.handles) handle?.setPlaybackRate?.(actorRate);
-    if (actorRate <= 0) return;
-  }
+  const actorRate = displayETimeScale(player, state.data);
+  for (const handle of owner.handles) handle?.setPlaybackRate?.(actorRate);
+  if (actorRate <= 0) return;
   const stages = PHENOMENON_SOUND_STAGES[kind];
   while (owner.consumed < stages.length && progress >= stages[owner.consumed][0]) {
     const [start, clip] = stages[owner.consumed++];
     if (progress - start <= .08) {
-      const handle = playSound(clip, kind === "accelerationBenefit" ? { ...mix, playbackRate: actorRate } : mix);
+      const handle = playSound(clip, { ...mix, playbackRate: actorRate });
       if (handle) owner.handles.push(handle);
     }
   }
@@ -12385,7 +12403,7 @@ function reconcilePhenomenonSounds(data) {
         // draw(); later frames merely keep or retire this event-owned voice.
         const effect = state.magicEffects.find((entry) => entry.id === owner.effectId);
         advancePhenomenonSound(effect.id, "overheal",
-          (Number(state.frameNow || performance.now()) - Number(effect.startedAt)) / OVERHEAL_BODY_RECOVERY_TE.durationMs,
+          (eEffectNow(effect, data, state.frameNow || performance.now()) - Number(effect.startedAt)) / OVERHEAL_BODY_RECOVERY_TE.durationMs,
           player);
       }
     } else {
@@ -12487,6 +12505,7 @@ function syncWebGPUECueSession(data) {
   }
   if (owner.roomKey !== key) {
     owner.roomKey = key;
+    owner.actorOwners.clear();
     for (const ledger of [owner.events, owner.combat, owner.defense, owner.player])
       ledger.enterRoom(roomId, generation);
   }
@@ -12500,6 +12519,13 @@ function webgpuECueVolume(effect, data) {
     return 0;
   const distance = Math.hypot(effect.x - listener.x, effect.y - listener.y);
   return distance < 900 ? 0.55 * (1 - distance / 900) ** 2 : 0;
+}
+function trackActorOwnedECue(cue, effect, actor, data, played) {
+  if (played?.status === 'scheduled' && actor)
+    WEBGPU_E_CUES.actorOwners.set(String(cue.eventId), {
+      effectId: String(effect.id), playerId: String(actor.id),
+      roomId: String(data.roomId), generation: state.roomSessionGeneration });
+  return played;
 }
 
 function admitWebGPUECue(effect, data, receivedAt, volumeOverride = null) {
@@ -12544,10 +12570,30 @@ function admitWebGPUECue(effect, data, receivedAt, volumeOverride = null) {
     }
   }
   if (!cue || cue.suppressed) return cue;
-  return owner.player.play(cue, { nowMs: receivedAt,
+  const actor = data.players?.find(player =>
+    String(player.id) === String(effect.playerId));
+  const played = owner.player.play(cue, { nowMs: receivedAt,
     muted: state.audio.muted || document.hidden || isSensoryBlocked(data),
+    actorRate: actor ? displayETimeScale(actor, data) : null,
     verify: false, volume: Number.isFinite(volumeOverride)
       ? volumeOverride : webgpuECueVolume(effect, data) });
+  return trackActorOwnedECue(cue, effect, actor, data, played);
+}
+function advanceActorOwnedECues(data) {
+  for (const [eventId, entry] of WEBGPU_E_CUES.actorOwners) {
+    const actor = data.players?.find(player => String(player.id) === entry.playerId);
+    if (entry.roomId !== String(data.roomId) ||
+        entry.generation !== state.roomSessionGeneration ||
+        !actor?.alive || actor.ejected || actor.inVent ||
+        (actor.invisible && String(actor.id) !== String(data.selfId)) ||
+        !(state.magicEffects || []).some(effect => String(effect.id) === entry.effectId)) {
+      WEBGPU_E_CUES.player?.stopEvent?.(eventId);
+      WEBGPU_E_CUES.actorOwners.delete(eventId);
+      continue;
+    }
+    if (!WEBGPU_E_CUES.player?.setEventRate?.(eventId,
+        displayETimeScale(actor, data))) WEBGPU_E_CUES.actorOwners.delete(eventId);
+  }
 }
 
 function admitSubmittedAcquisitionCue(data, receipt) {
@@ -12582,9 +12628,20 @@ function admitSubmittedAcquisitionCue(data, receipt) {
     sourceId: String(source.playerId || ''),
     reducedMotion: prefersReducedMotion() }, { audible });
   if (!cue) return null;
-  return WEBGPU_E_CUES.player.play(cue, { nowMs,
+  const actor = data.players?.find(player => String(player.id) === String(source.playerId));
+  // The receipt marks the arrival visible on this submitted frame. Rebase
+  // the authored layer offsets to that frame before actor-rate transport.
+  const shift = actor ? nowMs - cue.startsAtMs : 0;
+  const audibleCue = actor ? { ...cue, startsAtMs: nowMs,
+    endsAtMs: cue.endsAtMs + shift,
+    layers: cue.layers.map(layer => ({ ...layer,
+      startAtMs: layer.startAtMs + shift,
+      endAtMs: layer.endAtMs + shift })) } : cue;
+  const played = WEBGPU_E_CUES.player.play(audibleCue, { nowMs,
+    actorRate: actor ? displayETimeScale(actor, data) : null,
     muted: !audible, verify: false,
     volume: clamp(webgpuECueVolume(source, data), 0, .75) });
+  return trackActorOwnedECue(cue, source, actor, data, played);
 }
 
 function admitSubmittedMysteryOpeningCue(data, receipt) {
@@ -12614,9 +12671,18 @@ function admitSubmittedMysteryOpeningCue(data, receipt) {
     sourceId: String(source.playerId), reducedMotion: prefersReducedMotion()
   }, { audible });
   if (!cue) return null;
-  return WEBGPU_E_CUES.player.play(cue, { nowMs,
+  const actor = data.players?.find(player => String(player.id) === String(source.playerId));
+  const shift = actor ? nowMs - cue.startsAtMs : 0;
+  const audibleCue = actor ? { ...cue, startsAtMs: nowMs,
+    endsAtMs: cue.endsAtMs + shift,
+    layers: cue.layers.map(layer => ({ ...layer,
+      startAtMs: layer.startAtMs + shift,
+      endAtMs: layer.endAtMs + shift })) } : cue;
+  const played = WEBGPU_E_CUES.player.play(audibleCue, { nowMs,
+    actorRate: actor ? displayETimeScale(actor, data) : null,
     muted: !audible, verify: false,
     volume: clamp(webgpuECueVolume(source, data), 0, .75) });
+  return trackActorOwnedECue(cue, source, actor, data, played);
 }
 
 function pairedEmpMagicEffect(sound, data) {
@@ -12704,14 +12770,17 @@ function detectMagicEffects(previous, next) {
     const duration = durableCombatEvent && Number(effect.durationMs) > 0 ? Number(effect.durationMs) : Math.max(magicEffectDuration(effect.type), Number(effect.durationMs) || 0);
     // Network delay must not consume a visual effect before the client can draw it.
     const startedAt = receivedAt;
-    const visualClockActor = (effect.type === "flora-sunbeam" || effect.type === "flora" || isBodyAccelerationGainEffect(effect))
-      ? (next.players || []).find((player) => player.id === effect.playerId)
-      : null;
-    const actorClockStartedAt = visualClockActor ? actorVisualTime(visualClockActor, next) : null;
+    const visualClockActor = (next.players || []).find((player) => player.id === effect.playerId);
+    const eClockStartedAt = visualClockActor ? eVisualTime(visualClockActor, next) : null;
+    const actorClockStartedAt = effect.type === "flora-sunbeam" || effect.type === "flora" ||
+      isBodyAccelerationGainEffect(effect) ? eClockStartedAt : null;
     const localEffect = {
       ...effect,
       startedAt,
       duration,
+      ...(Number.isFinite(eClockStartedAt) ? {
+        eClockStartedAt, eClockRoomId: String(next.roomId || "")
+      } : {}),
       ...(Number.isFinite(actorClockStartedAt) ? {
         actorClockStartedAt,
         actorClockRoomId: String(next.roomId || "")
@@ -12783,7 +12852,8 @@ function detectMagicEffects(previous, next) {
       triggerCharacterAction(
         effect.playerId,
         actionKind,
-        itemUseAction?.duration || CHARACTER_ACTION_DURATION[actionKind] || duration,
+        effect.type === "flora-sunbeam" ? duration + SUNBEAM_RECOVER_MS :
+          itemUseAction?.duration || CHARACTER_ACTION_DURATION[actionKind] || duration,
         startedAt,
         effect.id,
         effect.variant,
@@ -12792,7 +12862,8 @@ function detectMagicEffects(previous, next) {
           authoritativeFacing: sunbeamFacing,
           actorClockStartedAt,
           actorClockRoomId: String(next.roomId || ""),
-          actorClockPlayerId: effect.playerId
+          actorClockPlayerId: effect.playerId,
+          sunbeamEffectDurationMs: duration
         } : null
       );
       if (sunbeamFacing) {
@@ -12990,6 +13061,7 @@ function detectWorldSounds(previous, next) {
         sunbeamLive.pendingSounds.delete(sunbeamLive.pendingSounds.keys().next().value);
       continue;
     }
+    if (kind === 'sunbeam') continue;
     playSound(kind, soundOptions);
   }
 }
@@ -17553,6 +17625,12 @@ function applyMovementAck(result) {
         : 1;
   data.self.speedMultiplier = authoritativeSpeed;
   data.self.accelerationMultiplier = authoritativeAcceleration;
+  // Keep the source actor rate current when ACC Fixed is toggled through a
+  // movement ACK; the E override returns to this value as soon as fixed ends.
+  if (Number.isFinite(result.actorTimeScale) && result.actorTimeScale >= 0) {
+    data.self.actorTimeScale = result.actorTimeScale;
+    player.actorTimeScale = result.actorTimeScale;
+  }
   data.self.movementAcc = authoritativeMovementAcc;
   data.self.movementAccMax = authoritativeMovementAccMax;
   data.self.movementAccEnabled = authoritativeMovementAccEnabled;
@@ -17792,7 +17870,9 @@ function suspendLiveSunbeamOverlay({ destroy = false } = {}) {
   if (destroy) {
     sunbeamLive.generation += 1;
     sunbeamLive.pendingSounds.clear();
-    sunbeamLive.soundPlayer?.stopAll?.();
+      for (const entry of sunbeamLive.soundPlayers?.values() || []) entry.player.destroy();
+      sunbeamLive.soundPlayers?.clear();
+      sunbeamLive.playedCauses?.clear();
     sunbeamLive.renderer?.destroy();
     sunbeamLive.renderer = null;
     sunbeamLive.pending = null;
@@ -17900,7 +17980,7 @@ function flushLiveSunbeamSounds(submittedHands = null, frameId = 0) {
     return;
   }
   const nowMs = state.frameNow || performance.now();
-  const lateMs = window.DvaWebGPUSunbeamESfx?.MAX_LATE_MS ?? 180;
+  const lateMs = 180;
   const mainFrameVisible = WEBGPU_MAIN_OWNER &&
     Array.isArray(submittedHands) && Number.isSafeInteger(frameId) && frameId >= 0 &&
     webgpuMainSubmittedFrameCurrent();
@@ -17925,65 +18005,35 @@ function flushLiveSunbeamSounds(submittedHands = null, frameId = 0) {
       String(item.id) === receipt.effectId &&
       item.sunbeamCausalId === receipt.sound.sunbeamCausalId);
     if (!effect || String(effect.playerId) !== String(receipt.sound.ownerId)) continue;
-    const frame = WEBGPU_MAIN_OWNER ? Object.freeze({
-      eventId: receipt.effectId, sunbeamCausalId: effect?.sunbeamCausalId,
-      frameId, roomGeneration: receipt.roomGeneration,
-      submitted: true, mainFrameVisible: true, drawn: true,
-      visibleToListener: true, sourceVisibleToListener: true,
-      listenerId: String(data.selfId || ''), sourcePlayerId: hand.playerId,
-      handCount: hand.hands.length
-    }) : sunbeamLive.submitted.get(receipt.effectId);
-    let scheduled = false;
-    if (frame?.sunbeamCausalId &&
-        String(effect.playerId) === String(frame.sourcePlayerId) &&
-        window.DvaWebGPUSunbeamESfx?.createPlanner &&
-        window.DvaWebGPUSunbeamCueAdapter?.createAdapter &&
-        window.DvaWebGPUECuePlayer?.createPlayer) {
-      try {
-        sunbeamLive.soundPlanner ||= window.DvaWebGPUSunbeamESfx.createPlanner();
-        sunbeamLive.soundPlayer ||= window.DvaWebGPUECuePlayer.createPlayer({
-          getContext: () => state.audio.context,
-          getMaster: () => state.audio.master,
-          isMuted: () => state.audio.muted || document.hidden || isSensoryBlocked(),
-          isVerify: () => false
-        });
-        sunbeamLive.soundAdapter ||= window.DvaWebGPUSunbeamCueAdapter.createAdapter({
-          planner: sunbeamLive.soundPlanner, player: sunbeamLive.soundPlayer,
-          isVerify: () => false });
-        const actor = data.players?.find(player =>
-          String(player.id) === String(effect.playerId));
-        const roomId = String(data.roomId || '');
-        const generation = state.roomSessionGeneration;
-        sunbeamLive.soundPlanner.enterRoom(roomId, generation);
-        sunbeamLive.soundPlayer.enterRoom(roomId, generation);
-        const result = sunbeamLive.soundAdapter.submitGameplay({
-          eventId: String(effect.id), roomId, roomGeneration: generation,
-          frameId: frame.frameId, eventAtMs: effect.startedAt, nowMs,
-          volume: clamp(receipt.soundOptions.volume, 0, 1),
-          type: effect.type, variant: effect.variant,
-          sunbeamCausalId: effect.sunbeamCausalId,
-          sourcePlayerId: String(effect.playerId), listenerId: String(data.selfId || ''),
-          sourceInvisible: Boolean(actor?.invisible), phase: data.phase,
-          effectReceipt: { eventId: String(effect.id), type: effect.type,
-            variant: effect.variant, sunbeamCausalId: effect.sunbeamCausalId,
-            sourcePlayerId: String(effect.playerId) },
-          visibleSubmittedReceipt: frame,
-          soundReceipt: { soundId: String(receipt.sound.id),
-            type: receipt.sound.type,
-            sunbeamCausalId: receipt.sound.sunbeamCausalId,
-            ownerId: String(receipt.sound.ownerId),
-            sourceKind: receipt.sound.sourceKind }
-        }, { pageHidden: document.hidden, muted: state.audio.muted,
-          verify: false, sensoryBlocked: isSensoryBlocked(data),
-          audible: state.audio.unlocked &&
-            state.audio.context?.state === 'running' &&
-            Number(state.audio.master?.gain?.value) > 0,
-          reducedMotion: prefersReducedMotion() });
-        scheduled = result.replaceFallback === true &&
-          result.fallbackSoundId === String(receipt.sound.id);
-      } catch (_) { /* The server sound remains the bounded fallback. */ }
-    }
-    if (!scheduled) playSound('sunbeam', receipt.soundOptions);
+    const causeId = String(effect.sunbeamCausalId || '');
+    const causeKey = `${receipt.roomId}:${receipt.roomGeneration}:${causeId}`;
+    if (!mainFrameVisible || !causeId || sunbeamLive.playedCauses.has(causeKey) ||
+        IS_VERIFICATION_MODE || !window.DvaSunbeamSolSfx?.createPlayer) continue;
+    const actorElapsed = sunbeamActorVisualElapsed(effect, data);
+    if (!Number.isFinite(actorElapsed) || actorElapsed >= effect.duration) continue;
+    const actor = data.players?.find(player =>
+      String(player.id) === String(effect.playerId));
+    if (!actor) continue;
+    try {
+      const player = window.DvaSunbeamSolSfx.createPlayer({
+        context: state.audio.context, destination: state.audio.master });
+      player.enterRoom(receipt.roomId, receipt.roomGeneration);
+      const started = player.start({ eventId: String(effect.id), causeId,
+        roomId: receipt.roomId, roomGeneration: receipt.roomGeneration,
+        phaseSeconds: actorElapsed / 1000,
+        actorRate: displayETimeScale(actor, data),
+        volume: clamp(receipt.soundOptions.volume, 0, 1),
+        frameSubmitted: true, visible: true,
+        muted: state.audio.muted || document.hidden || isSensoryBlocked(data) });
+      if (started) {
+        sunbeamLive.playedCauses.add(causeKey);
+        while (sunbeamLive.playedCauses.size > 256)
+          sunbeamLive.playedCauses.delete(sunbeamLive.playedCauses.values().next().value);
+        sunbeamLive.soundPlayers.set(causeKey, { player,
+          effectId: String(effect.id), roomId: receipt.roomId,
+          roomGeneration: receipt.roomGeneration });
+      } else player.destroy();
+    } catch (_) { /* A failed new cue must not duplicate the server sound. */ }
   }
 }
 
@@ -18005,7 +18055,9 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   sunbeamLive.pendingSounds.clear();
   sunbeamLive.submitted.clear();
   sunbeamLive.poseReceipts.clear();
-  sunbeamLive.soundPlayer?.stopAll?.();
+  for (const entry of sunbeamLive.soundPlayers?.values() || []) entry.player.destroy();
+  sunbeamLive.soundPlayers?.clear();
+  sunbeamLive.playedCauses?.clear();
   stopAllPhenomenonSounds();
   stopAllEnvironmentSounds();
   if (destroy) {
@@ -18183,8 +18235,23 @@ function pumpWebGPUMainAppDriver() {
       rect: Object.freeze({ left: rect.left, top: rect.top,
         width: rect.width, height: rect.height }) });
     webgpuMainApp.visible = true;
+    advanceActorOwnedECues(data);
     const activeSunbeams = new Set((state.magicEffects || [])
       .filter(effect => effect.type === 'flora-sunbeam').map(effect => String(effect.id)));
+    for (const [causeKey, entry] of sunbeamLive.soundPlayers || []) {
+      const effect = state.magicEffects.find(item => String(item.id) === entry.effectId);
+      const owner = effect && data.players?.find(player =>
+        String(player.id) === String(effect.playerId));
+      if (entry.roomId === String(data.roomId || '') &&
+          entry.roomGeneration === state.roomSessionGeneration &&
+          activeSunbeams.has(entry.effectId) && owner?.alive && !owner.ejected &&
+          !owner.inVent && (!owner.invisible || String(owner.id) === String(data.selfId))) {
+        entry.player.setActorRate(displayETimeScale(owner, data));
+        continue;
+      }
+      entry.player.destroy();
+      sunbeamLive.soundPlayers.delete(causeKey);
+    }
     for (const id of webgpuMainApp.submittedSunbeamHands.keys())
       if (!activeSunbeams.has(id)) webgpuMainApp.submittedSunbeamHands.delete(id);
     for (const hand of receipt.recordResult.sunbeamHandReceipts) {
@@ -18304,7 +18371,8 @@ function prepareMagicEffectsForMainFrame(data, now) {
       return actorElapsed == null ? now - effect.startedAt < effect.duration :
         Number.isFinite(actorElapsed) && actorElapsed < Math.max(effect.duration, ACCELERATION_BODY_BENEFIT_TE.durationMs);
     }
-    if (effect.type !== "flora-sunbeam") return now - effect.startedAt < effect.duration;
+    if (effect.type !== "flora-sunbeam")
+      return eEffectNow(effect, data, now) - effect.startedAt < effect.duration;
     const actorElapsed = sunbeamActorVisualElapsed(effect, data);
     return actorElapsed == null
       ? now - effect.startedAt < effect.duration
@@ -20784,7 +20852,8 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
     if (effect?.type !== "action-task" || !["download", "upload"].includes(effect.mode) ||
         !Number.isFinite(effect.startedAt) || !Number.isFinite(effect.duration) ||
         effect.duration <= 0 ||
-        frameNow < effect.startedAt || frameNow >= effect.startedAt + effect.duration) return false;
+        eEffectNow(effect, data, frameNow) < effect.startedAt ||
+        eEffectNow(effect, data, frameNow) >= effect.startedAt + effect.duration) return false;
     const station = facilityStations.find(item => item?.id === effect.targetId &&
       item.type === "task" && ["download", "upload"].includes(item.task));
     return facilityVisible(station) || facilityVisible({
@@ -20943,6 +21012,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   if (!shapeProviders || typeof shapeProviders !== "object" || Array.isArray(shapeProviders))
     throw new TypeError("Late magic shape ports must be keyed by effect type");
   const now = state.frameNow || performance.now();
+  const wallNow = now;
   const events = [], unsupported = [], omitted = [];
   const markerCoverage = { visibleRetained: [] };
   const empCoverage = { visibleEmp: [] };
@@ -20956,6 +21026,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       markerGeneration: markerSelection?.generation ?? null },
       unsupported, expiredEffectIds: effects.map(effect => effect?.id), ready: true };
   const active = effects.filter(effect => {
+    const now = eEffectNow(effect, data, wallNow);
     if (effect?.type === 'flora') {
       if (![effect.startedAt, effect.duration].every(Number.isFinite) || effect.duration <= 0)
         return true;
@@ -21040,9 +21111,9 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     const player = renderedPlayer(source);
     return { ...player, bodyWorld: { x: player.x, y: player.y } };
   });
-  const combatScene = effect => ({ players: effect.type === 'action-push'
+  const combatScene = (effect, effectNow) => ({ players: effect.type === 'action-push'
       ? combatActors.map(player => ({ ...player, bustUntil: 0 })) : combatActors,
-    effects: [effect], events: [effect], self: null, nowMs: now,
+    effects: [effect], events: [effect], self: null, nowMs: effectNow,
     serverNow: estimatedServerNow(data), reducedMotion });
   if (active.some(effect => effect.type !== "fire" &&
       ((typeof effect.id !== "string" && typeof effect.id !== "number") ||
@@ -21052,6 +21123,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         active.filter(effect => effect.type !== "fire").length)
     throw new Error("Late magic WebGPU source effects need distinct IDs");
   for (const [index, effect] of active.entries()) {
+    const now = eEffectNow(effect, data, wallNow);
     const type = String(effect.type || "");
     if (type === 'mystery-box') {
       if (String(effect.viewerId ?? '') !== String(data.selfId ?? '') ||
@@ -21222,7 +21294,8 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
           reason: 'sunbeam-same-frame-or-submitted-hand-unavailable' });
         continue;
       }
-      if (!window.DvaWebGPUSunbeamE?.create ||
+      if (!window.DvaSunbeamSolE?.create || !window.DvaSunbeamSolDesign?.plan ||
+          typeof effect.sunbeamCausalId !== 'string' || !effect.sunbeamCausalId ||
           ![effect.targetX, effect.targetY, effect.x, effect.y,
             effect.startedAt, effect.duration].every(Number.isFinite) ||
           effect.duration <= 0 ||
@@ -21285,8 +21358,8 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       const clockStart = Number(effect.actorClockStartedAt);
       const sameClockRoom = String(effect.actorClockRoomId || "") === String(data.roomId || "");
       const visualElapsedMs = effect.actorClockStartedAt != null && Number.isFinite(clockStart) && sameClockRoom
-        ? Math.max(0, actorVisualTime(source, data) - clockStart)
-        : Math.max(0, elapsed * displayActorTimeScale(source, data));
+        ? Math.max(0, eVisualTime(source, data) - clockStart)
+        : Math.max(0, elapsed * displayETimeScale(source, data));
       const planned = Number.isFinite(effect.duration) && effect.duration > 0 &&
         module?.plan?.({ effect: { ...effect, ownerId: String(effect.playerId),
           expiresAt: effect.startedAt + Math.min(effect.duration, 12000) },
@@ -21356,7 +21429,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
               ...rendered, bodyWorld: { x: rendered.x, y: rendered.y } }; }),
             nowMs: now, reducedMotion }, camera, zoom, viewport })?.[0]
           : module?.plan?.({ effect, player, viewerId: String(data.selfId || ''),
-            now, actorTime: actorVisualTime(player, data), phase: data.phase,
+            now, actorTime: eVisualTime(player, data), phase: data.phase,
             camera, zoom, viewport, reducedMotion });
       } catch (_) { /* Invalid canonical source remains a blocker. */ }
       if (!planned || String(planned.effectId || planned.id) !== String(effect.id)) {
@@ -21384,7 +21457,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         ? ['ideaE', window.DvaWebGPIdeaE] : null;
     if (combatPass) {
       const [passName, module] = combatPass;
-      const scene = combatScene(effect);
+      const scene = combatScene(effect, now);
       const ownerId = barrier ? String(effect[barrier.owner] || '') :
         String(effect.playerId || '');
       const owner = combatActors.find(player => String(player.id) === ownerId);
@@ -23647,15 +23720,14 @@ function sunbeamEffectsAtHands(effect, progress, data = state.data) {
   if (!latch?.sequences) return [effect];
   const direction = sunbeamDirectionFromAuthoritativeFacing(owner.authoritativeFacing);
   const profile = AUTHORED_SUNBEAM_PROFILES[latch.identity];
-  const elapsed = clamp(Number(progress) || 0, 0, 1) * 1200;
-  const releasedBody = elapsed + 1e-7 >= Number(owner.duration || 820);
-  let points = releasedBody ? effect.sunbeamLastHandPoints : null;
+  const elapsed = clamp(Number(progress) || 0, 0, 1) * Number(effect.duration || 1200);
+  let points = null;
   if (!points) {
     const authoritative = (data?.players || []).find((player) => player.id === effect.playerId);
     if (!authoritative || !direction || !profile) return [];
     const player = renderedPlayer(authoritative);
-    const bodyProgress = Math.min(1 - 1e-7, elapsed / Number(owner.duration || 820));
-    const key = authoredSunbeamFrame(profile, bodyProgress);
+    const key = sunbeamPoseKeyAtActorTime(profile, elapsed,
+      Number(owner.sunbeamEffectDurationMs) || 1200);
     const selected = latch.sequences[direction]?.[SUNBEAM_AUTHORED_MOTION_KEYS.findIndex((entry) => entry.key === key)];
     if (!selected?.pose?.emitters?.length) return [];
     const pose = selected.pose;
@@ -23664,9 +23736,6 @@ function sunbeamEffectsAtHands(effect, progress, data = state.data) {
       x: player.x + pose.ground.x + (point.x - pose.origin.x) * pose.scale,
       y: player.y - ascensionRise + pose.ground.y + (point.y - pose.origin.y) * pose.scale
     }));
-    // Once the body has finished, the departing light remains at its last
-    // emission points rather than following an unrelated subsequent gesture.
-    if (releasedBody) effect.sunbeamLastHandPoints = points;
   }
   return points.map((point) => ({ ...effect, x: point.x, y: point.y }));
 }
@@ -26247,7 +26316,7 @@ function accelerationBodyActorElapsed(effect, data = state.data) {
   if (!Number.isFinite(Number(effect?.actorClockStartedAt))) return null;
   if (!["playing", "meeting"].includes(data?.phase) || String(effect.actorClockRoomId || "") !== String(data?.roomId || "")) return Infinity;
   const actor = (data?.players || []).find((player) => player.id === effect.playerId);
-  return actor ? Math.max(0, actorVisualTime(actor, data) - Number(effect.actorClockStartedAt)) : Infinity;
+  return actor ? Math.max(0, eVisualTime(actor, data) - Number(effect.actorClockStartedAt)) : Infinity;
 }
 function accelerationBodyPhase(effect, now) {
   const actorElapsed = accelerationBodyActorElapsed(effect, state.data);
@@ -27455,6 +27524,50 @@ function displayActorTimeScale(player, data = state.data) {
   return clamp(Number(self?.accelerationMultiplier ?? player?.accelerationMultiplier) || 1, 0.15, 12);
 }
 
+// ACC Fixed caps movement at 2 without changing the server's actor progression.
+// Only authored E transport/cast clocks take this presentation override.
+function movementAcc2FixedForE(player, data = state.data) {
+  const own = String(player?.id || '') === String(data?.selfId || '') ? data?.self : null;
+  if (!player || (own?.movementAccEnabled ?? player.movementAccEnabled) === false) return false;
+  const active = own?.movementAccActive ?? player.movementAccActive;
+  if (active != null) return active === true;
+  const maximum = Number(own?.movementAccMax ?? player.movementAccMax);
+  const selected = Number(own?.movementAcc ?? player.movementAcc);
+  const threshold = Math.max(1, Number(own?.movementAccThreshold ?? player.movementAccThreshold) || 2);
+  const acceleration = Number(own?.accelerationMultiplier ?? player.accelerationMultiplier);
+  return maximum === 2 && selected === 2 &&
+    ((own?.movementAccAvailable ?? player.movementAccAvailable) === true ||
+      Number.isFinite(acceleration) && acceleration + 1e-6 >= threshold);
+}
+function displayETimeScale(player, data = state.data) {
+  return movementAcc2FixedForE(player, data) ? 2 : displayActorTimeScale(player, data);
+}
+function eVisualTime(player, data = state.data) {
+  const id = String(player?.id || '');
+  const frame = Number(state.frameNow || performance.now()) || 0;
+  const current = state.eVisualClocks.get(id);
+  if (!current) {
+    const created = { time: frame, frame };
+    state.eVisualClocks.set(id, created);
+    return created.time;
+  }
+  if (current.frame !== frame) {
+    const elapsed = clamp(Number(state.frameDelta) || 0, 0, 100);
+    current.time += elapsed * displayETimeScale(player, data);
+    current.frame = frame;
+  }
+  return current.time;
+}
+function eEffectNow(effect, data = state.data, wallNow = state.frameNow || performance.now()) {
+  if (effect?.type === 'flora' || effect?.type === 'flora-sunbeam' ||
+      !Number.isFinite(effect?.eClockStartedAt) ||
+      String(effect.eClockRoomId || '') !== String(data?.roomId || '')) return wallNow;
+  const owner = (data?.players || []).find(player =>
+    String(player.id) === String(effect.playerId));
+  if (!owner || !Number.isFinite(effect.startedAt)) return wallNow;
+  return effect.startedAt + Math.max(0, eVisualTime(owner, data) - effect.eClockStartedAt);
+}
+
 function syncActorVisualClocks(data = state.data) {
   const present = new Set((data?.players || []).map((player) => player?.id).filter(Boolean));
   for (const id of state.actorVisualClocks.keys()) {
@@ -27494,7 +27607,7 @@ function sunbeamActorVisualElapsed(owner, data = state.data) {
   const playerId = String(owner.playerId || owner.actorClockPlayerId || "");
   const player = (data?.players || []).find((entry) => entry.id === playerId);
   if (!player) return Infinity;
-  return Math.max(0, actorVisualTime(player, data) - Number(owner.actorClockStartedAt));
+  return Math.max(0, eVisualTime(player, data) - Number(owner.actorClockStartedAt));
 }
 
 
@@ -28651,9 +28764,7 @@ function buildWebGPUSunbeamActionCommand(player, data, view, action) {
       action?.kind !== 'cast' || action.motionId !== 'flora-sunbeam' ||
       owner?.kind !== 'cast' || owner.motionId !== 'flora-sunbeam' ||
       !sourceId || sourceId !== String(action.sourceEffectId ?? '') ||
-      !state.magicEffects.some(effect => effect.type === 'flora-sunbeam' &&
-        String(effect.id) === sourceId &&
-        String(effect.playerId) === String(player.id))) return null;
+      !Number.isFinite(sunbeamActorVisualElapsed(owner, data))) return null;
   const identity = authoredCharacterIdentity(player, data);
   const profile = AUTHORED_SUNBEAM_PROFILES[identity];
   const direction = sunbeamDirectionFromAuthoritativeFacing(owner.authoritativeFacing);
@@ -28663,7 +28774,9 @@ function buildWebGPUSunbeamActionCommand(player, data, view, action) {
       latch.identity !== identity || !latch.sequences ||
       !Number.isFinite(action.progress) || action.progress < 0 ||
       action.progress >= 1) return null;
-  const poseKey = authoredSunbeamFrame(profile, action.progress);
+  const poseKey = sunbeamPoseKeyAtActorTime(profile,
+    sunbeamActorVisualElapsed(owner, data),
+    Number(owner.sunbeamEffectDurationMs) || 1200);
   const selected = latch.sequences[direction]?.[
     SUNBEAM_AUTHORED_MOTION_KEYS.findIndex(entry => entry.key === poseKey)];
   if (!selected || !authoredSunbeamPoseReady(selected.pose, selected.image)) return null;
@@ -28897,15 +29010,15 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
     if ((state.magicEffects || []).some(effect => effect.type === 'hacker-root' &&
         effect.variant === 'all-operators' && effect.playerId === player.id &&
         Number.isFinite(effect.startedAt) &&
-        frameNow >= effect.startedAt &&
-        frameNow - effect.startedAt < Math.min(Number(effect.duration) || 1200,
+        eEffectNow(effect, data, frameNow) >= effect.startedAt &&
+        eEffectNow(effect, data, frameNow) - effect.startedAt < Math.min(Number(effect.duration) || 1200,
           Number(window.DvaWebGPUHackerRootE?.EVENT_DURATION_MS) || 1200))) continue;
     if (player.x < camera.x - 160 ||
         player.x > camera.x + viewport.width / zoom + 160 ||
         player.y < camera.y - 160 ||
         player.y > camera.y + viewport.height / zoom + 160) continue;
     const planned = window.DvaWebGPUHackerRootE?.plan?.({ player,
-      now: frameNow, actorTime: actorVisualTime(player, data),
+      now: frameNow, actorTime: eVisualTime(player, data),
       phase: data.phase, camera, zoom, viewport,
       reducedMotion: prefersReducedMotion() });
     if (planned) rootPlans.push(planned);
@@ -29630,7 +29743,7 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
           String(effect.variant || '').split(':')[0] !== claim.variant)
         throw new Error(`WebGPU world candidate special-ammo source coverage changed: ${sourceId}`);
       const planned = window.DvaWebGPUSpecialAmmoEffect?.plan?.({ effect,
-        now: magicInput.now, phase: magicInput.phase,
+        now: eEffectNow(effect, state.data, magicInput.now), phase: magicInput.phase,
         camera: candidate.camera, zoom: candidate.zoom,
         viewport: candidate.viewport,
         reducedMotion: magicInput.reducedMotion, alpha: 1 });
@@ -29656,7 +29769,7 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
           String(effect?.id) !== sourceId || effect.type !== claim.effectType)
         throw new Error(`WebGPU world candidate EMP source coverage changed: ${sourceId}`);
       const planned = window.DvaWebGPUEmpEffect?.plan?.({ effect,
-        now: magicInput.now, phase: magicInput.phase,
+        now: eEffectNow(effect, state.data, magicInput.now), phase: magicInput.phase,
         camera: candidate.camera, zoom: candidate.zoom,
         viewport: candidate.viewport,
         reducedMotion: magicInput.reducedMotion, alpha: 1,
@@ -30025,6 +30138,8 @@ function tickMedicalRoomWebGPUSfx(data, previousNow, now) {
     catch (_) { /* The visual readiness gate owns malformed task events. */ }
     for (const cue of cues) playMedicalRoomWebGPUCue(cue, data);
   }
+  for (const id of state.eVisualClocks.keys())
+    if (!present.has(id)) state.eVisualClocks.delete(id);
 }
 
 // Dormant bridge: the active Canvas draw loop never calls this factory. A
@@ -34104,7 +34219,7 @@ function playPhenomenonSfx(context, master, kind, options = {}) {
   const source = context.createBufferSource(), gain = context.createGain();
   const pan = typeof context.createStereoPanner === "function" ? context.createStereoPanner() : null;
   source.buffer = buffer;
-  if (kind === "accelerationBenefitAir") source.playbackRate.value = clamp(Number(options.playbackRate) || 1, .15, 12);
+  source.playbackRate.value = clamp(Number(options.playbackRate) || 1, .15, 12);
   gain.gain.setValueAtTime(profile.gain * volume, context.currentTime);
   source.connect(gain);
   if (pan) { pan.pan.value = Math.max(-1, Math.min(1, Number(options.pan) || 0)); gain.connect(pan); pan.connect(master); }
@@ -34116,7 +34231,7 @@ function playPhenomenonSfx(context, master, kind, options = {}) {
   return {
     kind,
     setPlaybackRate(rate) {
-      if (done || stopping || kind !== "accelerationBenefitAir") return;
+      if (done || stopping) return;
       const next = clamp(Number(rate) || 0, 0, 12);
       source.playbackRate.setTargetAtTime(next, context.currentTime, .025);
       gain.gain.setTargetAtTime(next > 0 ? profile.gain * volume : 0, context.currentTime, .025);

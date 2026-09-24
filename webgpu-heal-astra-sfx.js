@@ -69,18 +69,21 @@
       old.gain.gain.linearRampToValueAtTime(0,t+Math.max(0,fade));
       for(const source of old.sources)try{source.stop(t+Math.max(0,fade)+.01);}catch(_){}
     }
-    function update({actorElapsedSeconds}={}) {
+    function update({actorElapsedSeconds,actorRate}={}) {
       if(!current?.castGain || !Number.isFinite(actorElapsedSeconds)||actorElapsedSeconds<0)return false;
+      if(Number.isFinite(actorRate) && actorRate>=0 && actorRate<=12)
+        current.sources[1].playbackRate.setValueAtTime(actorRate,context.currentTime);
       const param=current.castGain.gain,t=context.currentTime;
       const level=Math.exp(-Math.pow((actorElapsedSeconds-1.62)/.72,2));
       param.cancelScheduledValues(t);param.setValueAtTime(param.value,t);
       param.linearRampToValueAtTime(level,t+.015);
       return true;
     }
-    function start({eventId,phaseSeconds=0,actorElapsedSeconds=phaseSeconds*1.8,loop=false,volume=1}={}) {
+    function start({eventId,phaseSeconds=0,actorElapsedSeconds=phaseSeconds*1.8,actorRate=1,loop=false,volume=1}={}) {
       if(disposed)throw new Error('Heal Astra sound disposed');
       if(!eventId||!Number.isFinite(phaseSeconds)||phaseSeconds<0||phaseSeconds>=12||
-        !Number.isFinite(actorElapsedSeconds)||actorElapsedSeconds<0)return false;
+        !Number.isFinite(actorElapsedSeconds)||actorElapsedSeconds<0||
+        !Number.isFinite(actorRate)||actorRate<0||actorRate>12)return false;
       if(seen.has(eventId))return false;
       seen.add(eventId);if(seen.size>256)seen.delete(seen.values().next().value);
       stop();const source=context.createBufferSource(),gain=context.createGain();
@@ -92,6 +95,7 @@
       if(castBuffer) {
         const castSource=context.createBufferSource();castGain=context.createGain();
         castSource.buffer=castBuffer;castSource.loop=Boolean(loop);castSource.loopStart=0;castSource.loopEnd=12;
+        castSource.playbackRate.setValueAtTime(actorRate,context.currentTime);
         castGain.gain.setValueAtTime(Math.exp(-Math.pow((actorElapsedSeconds-1.62)/.72,2)),context.currentTime);
         castSource.connect(castGain);castGain.connect(gain);sources.push(castSource);
         castSource.onended=()=>{castSource.disconnect();castGain.disconnect();};
@@ -99,7 +103,7 @@
       const entry={id:eventId,source,sources,gain,castGain};current=entry;
       source.onended=()=>{source.disconnect();gain.disconnect();if(current===entry)current=null;};
       source.start(context.currentTime,phaseSeconds);
-      if(sources[1])sources[1].start(context.currentTime,phaseSeconds);
+      if(sources[1])sources[1].start(context.currentTime,Math.min(actorElapsedSeconds,11.999));
       return true;
     }
     return {start,update,stop,peak:samples.peak,destroy(){if(disposed)return;stop(0);disposed=true;}};

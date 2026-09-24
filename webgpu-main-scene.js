@@ -302,8 +302,7 @@
               effect?.type !== 'flora-sunbeam' || String(effect?.id ?? '') !== id ||
               String(effect.playerId ?? '') !== event.input.playerId ||
               typeof effect.variant !== 'string' || !effect.variant ||
-              (effect.sunbeamCausalId != null &&
-                (typeof effect.sunbeamCausalId !== 'string' || !effect.sunbeamCausalId)) ||
+              typeof effect.sunbeamCausalId !== 'string' || !effect.sunbeamCausalId ||
               ![effect.targetX, effect.targetY, effect.x, effect.y,
                 event.input.elapsed, event.input.now].every(Number.isFinite) ||
               !(effect.duration > 0) ||
@@ -863,17 +862,18 @@
               throw new Error(`Magic Sunbeam ${event.effectId} has no matching submitted hand`);
             const effect = input.effect;
             const facing = { x: effect.targetX - effect.x, y: effect.targetY - effect.y };
-            const scene = { nowMs: input.now, reducedMotion: input.reducedMotion,
-              effects: [{
-                id: String(event.effectId), type: 'flora-sunbeam',
-                playerId: input.playerId, variant: effect.variant,
+            const outcome = need('sunbeamE', 'record').record({ frame, target,
+              viewport, camera: input.camera, zoom: input.zoom,
+              actorElapsedMs: input.elapsed, reducedMotion: input.reducedMotion,
+              effect: { id: String(event.effectId), type: 'flora-sunbeam',
                 sunbeamCausalId: effect.sunbeamCausalId, handWorlds: hands,
                 sourceWorld: { x: effect.x, y: effect.y }, facing,
                 targetWorld: { x: effect.targetX, y: effect.targetY },
-                startedAt: input.now - input.elapsed, duration: effect.duration }] };
-            const outcome = need('sunbeamE', 'record').record({ frame, target,
-              viewport, scene, camera: input.camera, zoom: input.zoom });
-            if (outcome?.drawn !== 1 || outcome.effects?.[0]?.id !== String(event.effectId))
+                duration: effect.duration } });
+            if (outcome?.drawn !== hands.length ||
+                outcome.plan?.id !== String(event.effectId) ||
+                outcome.plan?.causeId !== effect.sunbeamCausalId ||
+                outcome.plan?.actorElapsedMs !== input.elapsed)
               throw new Error(`Magic Sunbeam ${event.effectId} was not drawn from its hands`);
           } else if (event.type === 'healE') {
             if (!healRecorded.has(String(event.effectId)))

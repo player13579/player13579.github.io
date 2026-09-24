@@ -49,7 +49,7 @@
     hackerStatusRecoveryE: root.DvaWebGPUHackerStatusRecoveryE || (typeof require === 'function' ? require('./webgpu-hacker-status-recovery-e.js') : null),
     floraE: root.DvaWebGPUFloraE || (typeof require === 'function' ? require('./webgpu-flora-e.js') : null),
     healE: root.DvaHealAstraE || (typeof require === 'function' ? require('./webgpu-heal-astra-prototype.js') : null),
-    sunbeamE: root.DvaWebGPUSunbeamE || (typeof require === 'function' ? require('./webgpu-sunbeam-e.js') : null),
+    sunbeamE: root.DvaSunbeamSolE || (typeof require === 'function' ? require('./webgpu-sunbeam-sol-e.js') : null),
     gravityFieldE: root.DvaWebGPUGravityFieldE || (typeof require === 'function' ? require('./webgpu-gravity-field-e.js') : null),
     rigidItemImpactE: root.DvaWebGPURigidItemImpactE || (typeof require === 'function' ? require('./webgpu-rigid-item-impact-e.js') : null),
     bottleShardsE: root.DvaWebGPUBottleShardsE || (typeof require === 'function' ? require('./webgpu-bottle-shards-e.js') : null),

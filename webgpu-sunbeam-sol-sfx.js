@@ -53,10 +53,22 @@
       if(!id||!Number.isSafeInteger(nextGeneration))throw new TypeError('Room identity required');
       if(room!==id||generation!==nextGeneration){stop(0);seen.clear();room=id;generation=nextGeneration;}
     }
-    function start({eventId,causeId,roomId,roomGeneration,phaseSeconds=0,volume=.6,
+    function setSourceRate(source,rate){
+      if(source.playbackRate?.setValueAtTime)
+        source.playbackRate.setValueAtTime(rate,context.currentTime);
+      else if(source.playbackRate)source.playbackRate.value=rate;
+      else source.playbackRate={value:rate};
+    }
+    function setActorRate(rate){
+      if(!Number.isFinite(rate)||rate<0||rate>12)return false;
+      if(current)setSourceRate(current.source,rate);
+      return true;
+    }
+    function start({eventId,causeId,roomId,roomGeneration,phaseSeconds=0,volume=.6,actorRate=1,
       frameSubmitted=false,visible=true,muted=false}={}){
       if(disposed||!eventId||!causeId||!frameSubmitted||!visible||muted||
          !Number.isFinite(phaseSeconds)||phaseSeconds<0||phaseSeconds>=1.2||
+         !Number.isFinite(actorRate)||actorRate<0||actorRate>12||
          room!==roomId||generation!==roomGeneration||context.state!=='running')return false;
       const key=`${room}:${generation}:${causeId}`;
       if(seen.has(key))return false;
@@ -65,6 +77,7 @@
       stop(0);
       const source=context.createBufferSource(),gain=context.createGain();
       source.buffer=buffer;
+      setSourceRate(source,actorRate);
       gain.gain.value=clamp(volume,0,1);
       source.connect(gain);gain.connect(destination);
       const entry={source,gain};current=entry;
@@ -72,7 +85,7 @@
       source.start(context.currentTime,phaseSeconds);
       return true;
     }
-    return Object.freeze({enterRoom,start,stop,destroy(){if(disposed)return;disposed=true;stop(0);},peak:pcm.peak});
+    return Object.freeze({enterRoom,start,setActorRate,stop,destroy(){if(disposed)return;disposed=true;stop(0);},peak:pcm.peak});
   }
   const api=Object.freeze({synthesize,createPlayer});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
