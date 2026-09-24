@@ -2425,7 +2425,6 @@ const sunbeamLive = { renderer: null, pending: null, generation: 0,
 document.body.dataset.webgpuMainOwner = "1";
 if (els.canvas) els.canvas.style.opacity = "0";
 if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
-init();
 
 function prepareTitleHero() {
   const reveal = () => {
@@ -35208,3 +35207,7 @@ window.DvaWebGPUAcquisitionOverlay = Object.freeze({
   createCanvas: createAcquisitionOverlayCanvas,
   handoffToMainRenderer: handoffAcquisitionOverlayToMainRenderer
 });
+
+// Run startup only after every top-level owner has been initialized. Title
+// transitions clear effect/sound owners, including benefit E players.
+init();
