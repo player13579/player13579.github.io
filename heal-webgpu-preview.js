@@ -12,14 +12,17 @@
   const reducedMotion = params.get('reduced') === '1';
   const previewId = globalThis.crypto?.randomUUID?.() || String(Date.now());
   let renderer, targetHandle, healPass, audioContext, audioPlayer;
+  let audioEnabled = false, soundIndex = 0;
   let phaseMs = fixedPhase ?? 0, lastFrame = 0, rafId = 0, frameId = 0;
   function render() {
     const viewport = { kind: 'main', width: WIDTH, height: HEIGHT,
       pixelWidth: targetHandle.width, pixelHeight: targetHandle.height };
     const effect = { id: `heal-preview:${previewId}`, type: 'flora', playerId: player.id,
       startedAt: 0, duration: DURATION };
+    const zoom = 2.2;
     const planned = window.DvaWebGPUHealE.plan({ effect, player, now: phaseMs,
-      camera: { x: 0, y: 0 }, zoom: 1, viewport, reducedMotion,
+      camera: { x: player.x - WIDTH / (2 * zoom),
+        y: player.y - 28 - HEIGHT / (2 * zoom) }, zoom, viewport, reducedMotion,
       accelerationUntil: DURATION });
     const frame = renderer.beginFrame(`Heal preview ${++frameId}`);
     try {
@@ -37,9 +40,11 @@
   }
   function tick(now) {
     rafId = 0;
+    const previousPhase = phaseMs;
     phaseMs = (phaseMs + Math.min(50, Math.max(0, now - lastFrame))) % DURATION;
     lastFrame = now;
     render();
+    if (audioEnabled && phaseMs < previousPhase) void playPreviewSound();
     rafId = requestAnimationFrame(tick);
   }
   async function playPreviewSound() {
@@ -58,7 +63,7 @@
       if (audioContext.state === 'suspended') await audioContext.resume();
       const nowMs = performance.now();
       const event = { kind: 'self-restoration', self: true,
-        eventId: `heal-preview-sound:${previewId}`, roomId: 'heal-preview',
+        eventId: `heal-preview-sound:${previewId}:${++soundIndex}`, roomId: 'heal-preview',
         roomGeneration: 0, eventAtMs: nowMs };
       const cue = audioPlayer.play(event, { nowMs, verify, volume: 0.58 });
       window.__healPreviewAudio = Object.freeze({ status: cue ? 'scheduled' : 'suppressed',
@@ -90,7 +95,10 @@
     window.__healPreviewError = String(error?.stack || error);
     status.textContent = `WebGPU unavailable: ${String(error)}`;
   }
-  canvas.addEventListener('pointerdown', () => { void playPreviewSound(); }, { once: true });
+  canvas.addEventListener('pointerdown', () => {
+    audioEnabled = true;
+    void playPreviewSound();
+  }, { once: true });
   window.addEventListener('beforeunload', () => {
     if (rafId) cancelAnimationFrame(rafId);
     healPass?.destroy(); renderer?.destroy();

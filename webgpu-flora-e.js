@@ -12,6 +12,22 @@
   });
   const FLOATS=16,finite=Number.isFinite;
 
+  // Admission uses the same projected bounds as plan(). Invalid geometry must
+  // stay in the planner's blocker path rather than being classified offscreen.
+  function outsideViewport({type,player,camera,zoom,viewport}={}){
+    const profile=PROFILES[type];
+    if(!profile||!player||!camera||viewport?.kind!=='main'||
+      ![player.x,player.y,camera.x,camera.y,zoom,viewport.width,viewport.height,
+        viewport.pixelWidth,viewport.pixelHeight].every(finite)||zoom<=0||
+      viewport.width<=0||viewport.height<=0||viewport.pixelWidth<=0||viewport.pixelHeight<=0)return false;
+    const sx=zoom*viewport.pixelWidth/viewport.width,sy=zoom*viewport.pixelHeight/viewport.height;
+    const centerX=(player.x-camera.x)*sx,centerY=(player.y-profile.anchorY-camera.y)*sy;
+    const radiusX=profile.radiusX*sx,radiusY=profile.radiusY*sy;
+    return [centerX,centerY,radiusX,radiusY].every(finite)&&
+      (centerX+radiusX*1.25<0||centerX-radiusX*1.25>viewport.pixelWidth||
+       centerY+radiusY*1.25<0||centerY-radiusY*1.25>viewport.pixelHeight);
+  }
+
   const shader=/* wgsl */`
 struct Params{view:vec4f,geometry:vec4f,state:vec4f,extra:vec4f};
 @group(0) @binding(0)var<uniform> p:Params;
@@ -85,8 +101,7 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
     const centerX=(player.x-camera.x)*sx,centerY=(player.y-profile.anchorY-camera.y)*sy;
     const radiusX=profile.radiusX*sx,radiusY=profile.radiusY*sy;
     if(![centerX,centerY,radiusX,radiusY].every(finite)||radiusX<=0||radiusY<=0||
-      centerX+radiusX*1.25<0||centerX-radiusX*1.25>viewport.pixelWidth||
-      centerY+radiusY*1.25<0||centerY-radiusY*1.25>viewport.pixelHeight)return null;
+      outsideViewport({type:effect.type,player,camera,zoom,viewport}))return null;
     return Object.freeze({effectId:String(effect.id),actorId,type:effect.type,
       mode:MODES[effect.type==='flora'?'heal':'invisible'],privateCue,
       progress:elapsed/durationMs,durationMs,reducedMotion:Boolean(reducedMotion),alpha,
@@ -141,6 +156,6 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
     return Object.freeze({plan,planBatch,record,shader,get state(){return destroyed?'destroyed':frameOwner.state;},
       destroy(){if(destroyed)return;destroyed=true;for(const s of slots)if(frameOwner.release(s.uniform))s.uniform.destroy();slots.length=0;}});
   }
-  const api=Object.freeze({TYPES,MODES,DURATION_MS,shader,plan,planBatch,pack,create});
+  const api=Object.freeze({TYPES,MODES,DURATION_MS,outsideViewport,shader,plan,planBatch,pack,create});
   root.DvaWebGPUFloraE=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:window);

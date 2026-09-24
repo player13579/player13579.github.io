@@ -105,7 +105,7 @@
       if (!profile) throw new TypeError(`Unsupported alchemy E SFX event: ${key}`);
       if (event.visibleToListener !== true)
         return Object.freeze({ ...meta, suppressed: true, reason: 'outside-observation-scope' });
-      if (!audible || verify || event.nowMs > event.eventAtMs + maxLateMs) return null;
+      if (!audible || event.nowMs > event.eventAtMs + maxLateMs) return null;
       const scale = reducedMotion ? .72 : 1;
       const layers = profile.layers.map(([shape, frequencyHz, endFrequencyHz, amplitude, offsetMs, durationMs, layer]) => {
         const offset = Math.round(offsetMs * scale), duration = Math.max(28, Math.round(durationMs * scale));

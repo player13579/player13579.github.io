@@ -83,7 +83,7 @@
     const volume = options.volume === undefined ? 1 : Number(options.volume);
     const panValue = options.pan === undefined ? 0 : Number(options.pan);
     if (!Number.isFinite(volume) || !Number.isFinite(panValue)) return null;
-    if (options.verify || options.muted || options.sensoryBlocked ||
+    if (options.muted || options.sensoryBlocked ||
         !context || !master || context.state !== 'running' ||
         !(Number(master.gain?.value) > 0) || volume <= 0 ||
         !Number.isFinite(context.sampleRate) || context.sampleRate < 22050 ||

@@ -65,9 +65,10 @@ fn over(back: vec4f, front: vec4f) -> vec4f {
   return front + back * (1.0 - front.a);
 }
 fn ink(color: vec3f, opacity: f32, emission: f32) -> vec4f {
-  let a = clamp(opacity, 0.0, 0.88);
-  // Premultiplied linear-light output. Emission is bounded by the shared budget.
-  return vec4f(min(color * (a + emission), vec3f(a)), a);
+  let a = clamp(opacity, 0.0, 0.90);
+  // The E must emit light. Allow the lit core above its alpha while keeping
+  // the wide halo translucent, so its source is visible at gameplay size.
+  return vec4f(color * min(a + emission, 1.35), a);
 }
 fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let q = p - a;
@@ -92,7 +93,19 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let seam = band(abs(p.x - branch) - seamX, 0.020, 0.013) * torso * lateral;
   let seamPhase = window(t, 0.0, 0.34, 0.94);
   let seamA = seam * seamPhase * (1.0 - 0.23 * smoothstep(0.6, 0.9, t));
-  if (casting) { result = over(result, ink(vec3f(0.18,0.78,0.62), seamA * 0.61, seamA * 0.11)); }
+  if (casting) { result = over(result, ink(vec3f(0.24,0.94,0.68), seamA * 0.82, seamA * 0.30)); }
+
+  // Two broad, staggered contour currents visibly wrap the healing body.
+  let currentA = abs(p.x - (0.56 + 0.09 * sin(p.y * 2.8 + t * 4.0)));
+  let currentB = abs(p.x + (0.56 + 0.09 * sin(p.y * 2.8 - t * 3.4 + 1.0)));
+  let currents = (1.0 - smoothstep(0.032, 0.073, min(currentA, currentB))) *
+    (1.0 - smoothstep(0.70, 0.82, abs(p.y))) * window(t, 0.04, 0.56, 1.48);
+  if (casting) {
+    result = over(result, ink(vec3f(0.07,0.49,0.36), currents * 0.35, currents * 0.11));
+    let currentCore = (1.0 - smoothstep(0.009, 0.028, min(currentA, currentB))) *
+      (1.0 - smoothstep(0.65, 0.78, abs(p.y))) * window(t, 0.08, 0.55, 1.38);
+    result = over(result, ink(vec3f(0.30,1.0,0.78), currentCore * 0.67, currentCore * 0.42));
+  }
 
   // PH-H2: broad replenishment front climbs from the abdomen to the chest.
   // The filled column is thin in alpha, while the leading meniscus carries light.
@@ -104,7 +117,7 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let refillPhase = window(t, 0.16, 0.51, 1.07);
   if (casting) {
     result = over(result, ink(vec3f(0.055,0.43,0.49), fill * refillPhase * 0.17, fill * refillPhase * 0.025));
-    result = over(result, ink(vec3f(0.24,0.91,0.80), frontEdge * refillPhase * 0.53, frontEdge * refillPhase * 0.16));
+    result = over(result, ink(vec3f(0.34,1.0,0.83), frontEdge * refillPhase * 0.82, frontEdge * refillPhase * 0.38));
   }
 
   // PH-H3: adverse status leaves the body as two finite, broken side slivers.
@@ -116,7 +129,7 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let sliverR = capsule(p, vec2f(clearX, clearY-0.11), vec2f(clearX+0.055, clearY+0.10));
   let sliver = (1.0 - smoothstep(0.013,0.029,min(sliverL,sliverR))) *
     window(t,0.42,0.63,1.12);
-  if (casting) { result = over(result, ink(vec3f(0.54,0.75,0.91), sliver * 0.48, sliver * 0.07)); }
+  if (casting) { result = over(result, ink(vec3f(0.66,0.88,1.0), sliver * 0.68, sliver * 0.24)); }
 
   // PH-H4: acceleration is a narrow pair of body-side flow guides. Their
   // direction follows world motion only through the caller's player position;
@@ -127,8 +140,8 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
     let guide = band(side - (0.43 + 0.025 * sin(t * 3.0)), 0.012, 0.018) *
       (1.0 - smoothstep(0.54,0.75,abs(p.y))) * longFade;
     let accent = select(0.64 + 0.18 * sin(t * 4.4 - p.y * 3.2), 0.72, reduced);
-    result = over(result, ink(vec3f(0.16,0.67,0.74), guide * 0.31 * accent,
-      guide * 0.055 * accent));
+    result = over(result, ink(vec3f(0.20,0.86,0.76), guide * 0.55 * accent,
+      guide * 0.22 * accent));
   }
 
   // OBS-H1: source-bound, close bloom only where the seam/front already emits.
@@ -136,8 +149,10 @@ fn capsule(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   if (casting) {
     let glowSeam = band(abs(p.x - branch) - seamX, 0.055, 0.070) * torso * lateral * seamPhase;
     let glowFront = band(p.y - front, 0.075, 0.085) * inside * refillPhase;
-    let nearGlow = clamp(glowSeam + glowFront, 0.0, 1.0) * 0.075;
-    result = over(result, ink(vec3f(0.16,0.65,0.57), nearGlow, nearGlow * 0.10));
+    let glowCurrents = (1.0 - smoothstep(0.03, 0.13, min(currentA,currentB))) *
+      (1.0 - smoothstep(0.62, 0.84, abs(p.y))) * window(t,0.05,0.58,1.45);
+    let nearGlow = clamp(glowSeam + glowFront + glowCurrents, 0.0, 1.0) * 0.22;
+    result = over(result, ink(vec3f(0.13,0.72,0.54), nearGlow, nearGlow * 0.36));
   }
   return result;
 }

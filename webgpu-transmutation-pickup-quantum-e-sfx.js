@@ -83,7 +83,7 @@
           receipt?.drawn !== true || receipt?.visibleToListener !== true ||
           receipt?.sourcePlayerId !== event.sourcePlayerId || typeof event.sourcePlayerId !== 'string' || !event.sourcePlayerId)
         return Object.freeze({ ...meta, suppressed: true, reason: 'no-matching-visible-submitted-receipt' });
-      if (policy.pageHidden === true || policy.muted === true || policy.verify === true ||
+      if (policy.pageHidden === true || policy.muted === true ||
           policy.sensoryBlocked === true || policy.audible === false || event.spatialVolume <= 0)
         return Object.freeze({ ...meta, suppressed: true, reason: 'audio-policy-or-out-of-range' });
       if (event.nowMs < event.eventAtMs || event.nowMs - event.eventAtMs > maxLateMs)

@@ -132,7 +132,7 @@
       receipts.set(receiptId, frame.nowMs + maxFrameGapMs + RELEASE_MS + maxFrameAgeMs);
 
       const policyBlocked = policy.pageHidden === true || policy.muted === true ||
-        policy.verify === true || policy.sensoryBlocked === true;
+        policy.sensoryBlocked === true;
       const identityValid = validFrame(frame);
       const nextKey = identityValid
         ? `${frame.roomId}:${frame.roomGeneration}:${frame.sessionId}:${frame.mapId}:${frame.mapRoomId}:${SOURCE_ID}`

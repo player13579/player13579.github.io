@@ -9,6 +9,8 @@
     field: root.DvaWebGPUFieldPass || (typeof require === 'function' ? require('./webgpu-field-pass.js') : null),
     environmentE: root.DvaWebGPUMedicalEnvironmentE || (typeof require === 'function' ? require('./webgpu-medical-environment-e.js') : null),
     corridorA01E: root.DvaWebGPUCorridorA01E || (typeof require === 'function' ? require('./webgpu-corridor-a01-e.js') : null),
+    corridorObjectUseE: root.DvaWebGPUCorridorObjectUseE || (typeof require === 'function' ? require('./webgpu-corridor-object-use-e.js') : null),
+    roomObjectUseE: root.DvaWebGPURoomObjectUseE || (typeof require === 'function' ? require('./webgpu-room-object-use-e.js') : null),
     medicalObjectE: root.DvaWebGPUMedicalObjectE || (typeof require === 'function' ? require('./webgpu-medical-object-e.js') : null),
     medicalCabinetE: root.DvaWebGPUMedicalCabinetE || (typeof require === 'function' ? require('./webgpu-medical-cabinet-e.js') : null),
     medicalFootbathUseE: root.DvaWebGPUMedicalFootbathUseE || (typeof require === 'function' ? require('./webgpu-medical-footbath-use-e.js') : null),
@@ -18,6 +20,7 @@
     stations: root.DvaWebGPUStations || (typeof require === 'function' ? require('./webgpu-stations.js') : null),
     mapObjects: root.DvaWebGPUMapObjectLabels || (typeof require === 'function' ? require('./webgpu-map-object-labels.js') : null),
     mysteryBoxes: root.DvaWebGPUMysteryBoxes || (typeof require === 'function' ? require('./webgpu-mystery-boxes.js') : null),
+    mysteryBoxRevealE: root.DvaWebGPUMysteryBoxRevealE || (typeof require === 'function' ? require('./webgpu-mystery-box-reveal-e.js') : null),
     alchemyObjects: root.DvaWebGPUAlchemyObjects || (typeof require === 'function' ? require('./webgpu-alchemy-objects.js') : null),
     groundItems: root.DvaWebGPUGroundItems || (typeof require === 'function' ? require('./webgpu-ground-items.js') : null),
     facilityEffects: root.DvaWebGPUFacilityEffects || (typeof require === 'function' ? require('./webgpu-facility-effects.js') : null),
@@ -45,6 +48,7 @@
     hackerRootE: root.DvaWebGPUHackerRootE || (typeof require === 'function' ? require('./webgpu-hacker-root-e.js') : null),
     hackerStatusRecoveryE: root.DvaWebGPUHackerStatusRecoveryE || (typeof require === 'function' ? require('./webgpu-hacker-status-recovery-e.js') : null),
     floraE: root.DvaWebGPUFloraE || (typeof require === 'function' ? require('./webgpu-flora-e.js') : null),
+    healE: root.DvaWebGPUHealE || (typeof require === 'function' ? require('./webgpu-heal-e.js') : null),
     sunbeamE: root.DvaWebGPUSunbeamE || (typeof require === 'function' ? require('./webgpu-sunbeam-e.js') : null),
     gravityFieldE: root.DvaWebGPUGravityFieldE || (typeof require === 'function' ? require('./webgpu-gravity-field-e.js') : null),
     rigidItemImpactE: root.DvaWebGPURigidItemImpactE || (typeof require === 'function' ? require('./webgpu-rigid-item-impact-e.js') : null),
@@ -54,6 +58,7 @@
     fireActivation: root.DvaWebGPUFireActivation || (typeof require === 'function' ? require('./webgpu-fire-activation.js') : null),
     empEffect: root.DvaWebGPUEmpEffect || (typeof require === 'function' ? require('./webgpu-emp-effect.js') : null),
     specialAmmoEffect: root.DvaWebGPUSpecialAmmoEffect || (typeof require === 'function' ? require('./webgpu-special-ammo-effect.js') : null),
+    commonActionBodyE: root.DvaWebGPUCommonActionBodyE || (typeof require === 'function' ? require('./webgpu-common-action-body-e.js') : null),
     attackTargets: root.DvaWebGPUAttackTargets || (typeof require === 'function' ? require('./webgpu-attack-targets.js') : null),
     taskIndicators: root.DvaWebGPUTaskIndicators || (typeof require === 'function' ? require('./webgpu-task-indicators.js') : null),
     hud: root.DvaWebGPUHud || (typeof require === 'function' ? require('./webgpu-hud.js') : null),
@@ -74,9 +79,9 @@
     'hud', 'minimap', 'modeBanner', 'lighting', 'killAnimation', 'sensory',
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
-    'bodyBenefit', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'cableSpoolE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'medicalObjectE',
-    'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E',
-    'taskCompletion', 'headMarker']);
+    'bodyBenefit', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'cableSpoolE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
+    'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E', 'corridorObjectUseE', 'roomObjectUseE',
+    'taskCompletion', 'headMarker', 'mysteryBoxRevealE']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
   function coverage(scene, passes) {
@@ -115,16 +120,20 @@
       object.type === 'airlockGasketReader') === true;
     const methods = { field: 'create', environmentE: 'create',
       ...(needsCorridorA01E ? { corridorA01E: 'create' } : {}),
+      ...(modules === defaults || modules.corridorObjectUseE ? { corridorObjectUseE: 'create' } : {}),
+      ...(modules === defaults || modules.roomObjectUseE ? { roomObjectUseE: 'create' } : {}),
       medicalObjectE: 'create',
       medicalCabinetE: 'create', medicalFootbathUseE: 'create', medicalUploadConsoleE: 'create',
       medicalFixtureE: 'create', shapes: 'create', stations: 'create',
-      mapObjects: 'create', mysteryBoxes: 'create', alchemyObjects: 'create',
+      mapObjects: 'create', mysteryBoxes: 'create',
+      ...(modules === defaults || modules.mysteryBoxRevealE ? { mysteryBoxRevealE: 'create' } : {}),
+      alchemyObjects: 'create',
       groundItems: 'createTextureCache', facilityEffects: 'create',
       bodies: 'record', worldSound: 'record', throwPreview: 'create',
       preparationSummons: 'create', players: 'createTextureCache',
       playerNameplates: 'create', headMarkers: 'create',
       gunnerAim: 'create', killCamera: 'create', hitEffects: 'record',
-      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', cableSpoolE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
+      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', cableSpoolE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
       attackTargets: 'record', taskIndicators: 'create', hud: 'create',
       minimap: 'create', modeBanner: 'create', killBloom: 'create',
       killAnimation: 'create', sensory: 'enqueue', markerExplanation: 'create',
@@ -144,7 +153,9 @@
       }
       owned.push(value);
       try {
-        // Wait for asynchronously compiled GPU passes before the first frame.
+        // Shader-backed passes may expose a readiness promise while their
+        // pipelines compile. Attach a rejection observer immediately; the
+        // aggregate below still propagates failures through create().
         const ready = value.ready;
         if (ready && typeof ready.then === 'function') {
           const promise = Promise.resolve(ready);
@@ -175,6 +186,12 @@
       if (needsCorridorA01E)
         add('corridorA01E', modules.corridorA01E.create({ device: renderer.device,
           format: renderer.format }), 'record');
+      if (modules.corridorObjectUseE)
+        add('corridorObjectUseE', modules.corridorObjectUseE.create({ renderer,
+          frameOwner: renderer }), 'record');
+      if (modules.roomObjectUseE)
+        add('roomObjectUseE', modules.roomObjectUseE.create({ renderer,
+          frameOwner: renderer }), 'record');
       add('medicalFixtureE', modules.medicalFixtureE.create({ device: renderer.device,
         format: renderer.format }), 'record');
       add('medicalUploadConsoleE', modules.medicalUploadConsoleE.create({ device: renderer.device,
@@ -182,6 +199,8 @@
       add('stations', modules.stations.create({ device: renderer.device, textAtlas }), 'record');
       add('mapObjects', modules.mapObjects.create({ textAtlas }), 'draw');
       add('mysteryBoxes', modules.mysteryBoxes.create({ device: renderer.device }), 'record');
+      if (modules.mysteryBoxRevealE)
+        add('mysteryBoxRevealE', modules.mysteryBoxRevealE.create({ frameOwner: renderer }), 'record');
       add('alchemyObjects', modules.alchemyObjects.create({ device: renderer.device, textAtlas }), 'record');
       add('gravityHazards', renderer.createGravityHazardPasses({ textAtlas }), 'record');
       add('groundItems', modules.groundItems.createTextureCache(renderer.device), 'record');
@@ -212,9 +231,9 @@
       for (const name of ['barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE']) {
         const pass = modules[name].create();
         add(name, Object.freeze({ device: renderer.device,
-          record: pass.record, destroy: pass.destroy }), 'record');
+          record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
-      for (const name of ['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'sunbeamE']) {
+      for (const name of ['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE']) {
         const pass = modules[name].create({ renderer, frameOwner: renderer });
         add(name, Object.freeze({ device: renderer.device,
           record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
@@ -223,11 +242,12 @@
         'archiveCabinetE', 'cableSpoolE']) {
         const pass = modules[name].create({ renderer, frameOwner: renderer });
         add(name, Object.freeze({ device: renderer.device,
-          record: pass.record, destroy: pass.destroy }), 'record');
+          record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
       add('fireActivation', modules.fireActivation.create({ renderer }), 'record');
       add('empEffect', modules.empEffect.create({ frameOwner: renderer }), 'record');
       add('specialAmmoEffect', modules.specialAmmoEffect.create({ frameOwner: renderer }), 'record');
+      add('commonActionBodyE', modules.commonActionBodyE.create(), 'record');
       add('medicalObjectE', modules.medicalObjectE.create({ device: renderer.device,
         format: renderer.format }), 'record');
       add('medicalCabinetE', modules.medicalCabinetE.create({ device: renderer.device,
@@ -311,13 +331,15 @@
       // replace this stage rather than being silently dropped.
       borrow('lighting', Object.freeze({ device: renderer.device,
         record() { return Object.freeze({ drawn: false, reason: 'Canvas lighting is no-op' }); } }));
+      let acquisitionFailure = '';
       const acquisition = await modules.acquisition.create(null,
-        { frameOwner: renderer });
+        { frameOwner: renderer, timeoutMs: 30000,
+          onFailure(reason) { acquisitionFailure = String(reason || ''); } });
       if (!acquisition || acquisition.state !== 'ready' ||
           typeof acquisition.enqueue !== 'function' ||
           typeof acquisition.destroy !== 'function') {
         try { acquisition?.destroy?.(); } catch (_) { /* Keep validation error. */ }
-        throw new TypeError('Invalid shared-frame acquisition pass');
+        throw new TypeError(`Invalid shared-frame acquisition pass${acquisitionFailure ? `: ${acquisitionFailure}` : ''}`);
       }
       let acquisitionHandle = null;
       if (acquisitionCanvas) {
@@ -386,6 +408,9 @@
           if (error) throw error;
         }
       }), 'record');
+      // create() is already asynchronous (the field pass is asynchronous),
+      // so complete optional GPU pipeline compilation before publishing the
+      // registry to a caller that can record the first frame.
       await Promise.all(readiness);
       let destroyed = false;
       const status = coverage(modules.scene, passes);

@@ -79,7 +79,7 @@
       if (watermark - event.eventAtMs > 30000 || event.nowMs < event.eventAtMs ||
           event.nowMs - event.eventAtMs > 180)
         return Object.freeze({ status: 'suppressed', reason: 'late', eventId: event.eventId });
-      if (muted || verify || volume <= 0)
+      if (muted || volume <= 0)
         return Object.freeze({ status: 'suppressed', reason: 'audio-policy', eventId: event.eventId });
       if (admittedAt.length >= MAX_EVENT_RATE)
         return Object.freeze({ status: 'suppressed', reason: 'rate-limit', eventId: event.eventId });

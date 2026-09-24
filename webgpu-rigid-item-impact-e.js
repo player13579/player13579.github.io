@@ -21,7 +21,7 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
 @fragment fn fs(@builtin(position)pixel:vec4f)->@location(0)vec4f{
  let q=(pixel.xy-p.view.zw)/max(p.geometry.xy,vec2f(.001));
  let t=clamp(p.state.x,0.0,1.0);let contact=p.state.y;let reduced=p.state.z>.5;
- let alpha=p.state.w;let seed=p.geometry.z;let class=p.geometry.w;let boosted=p.extra.x>.5;
+ let alpha=p.state.w;let seed=p.geometry.z;let impactClass=p.geometry.w;let boosted=p.extra.x>.5;
  let collapse=ease(t/.16);let release=ease((t-.13)/.36);let fade=1.0-ease((t-.57)/.43);
  let r=length(q);let ringR=mix(.50,.13,collapse)+.26*release;
  let pressure=bell(r-ringR,.027)*(1.0-ease((t-.36)/.27));
@@ -45,10 +45,10 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
  let core=(pressure*.62+inner*.30+facets*.40+bladeContact*.55+contactCore*.42)*fade;
  let glow=(pressure*.29+inner*.20+gleam*.42+facets*.18+broadContact*.16)*fade;
  var rgb=vec3f(.55,.83,1.0);
- if(class<.5){rgb=vec3f(.72,.88,1.0);}
- else if(class<1.5){rgb=vec3f(.46,.88,1.0);}
- else if(class<2.5){rgb=vec3f(.72,.72,1.0);}
- else if(class<3.5){rgb=vec3f(.91,.80,.57);}
+ if(impactClass<.5){rgb=vec3f(.72,.88,1.0);}
+ else if(impactClass<1.5){rgb=vec3f(.46,.88,1.0);}
+ else if(impactClass<2.5){rgb=vec3f(.72,.72,1.0);}
+ else if(impactClass<3.5){rgb=vec3f(.91,.80,.57);}
  if(boosted){rgb=mix(rgb,vec3f(1.0,.88,.59),.28);}
  let arrival=smoothstep(0.0,.035,t);let quiet=select(1.0,.82,reduced);
  let source=clamp(core*arrival*quiet*alpha,0.0,.95);let halo=clamp(glow*arrival*quiet*alpha*.42,0.0,.29);

@@ -29,7 +29,7 @@ fn capsule(distance: f32, width: f32) -> f32 {
 fn ellipse(q: vec2f, radius: vec2f) -> f32 {
   return length(q / radius);
 }
-@fragment fn fs(pos: vec4f) -> @location(0) vec4f {
+@fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
   let age = clamp(p.event.x, 0.0, 1.32);
   let dpr = max(p.event.yz, vec2f(0.001));
   let q = (pos.xy - p.viewport.zw) / dpr;

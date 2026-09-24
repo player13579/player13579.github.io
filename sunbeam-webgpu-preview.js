@@ -2,8 +2,6 @@
   'use strict';
   const params = new URLSearchParams(location.search);
   const verify = params.has('verify');
-  window.__sunbeamAudioGain = 0;
-  window.__sunbeamVerifyMode = verify;
   const canvas = document.getElementById('sunbeam');
   const status = document.getElementById('status');
   const WIDTH = 980, HEIGHT = 620, SOURCE = Object.freeze({ x: 2000, y: 1600 });
@@ -75,10 +73,6 @@
   }
 
   async function playPreviewSound() {
-    if (verify) {
-      window.__sunbeamPreviewAudio = Object.freeze({ status: 'suppressed', verify: true, scheduledNodes: 0 });
-      return;
-    }
     try {
       const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextCtor) throw new Error('Web Audio unavailable');
@@ -89,17 +83,17 @@
         audioMaster.connect(audioContext.destination);
         const player = window.DvaWebGPUECuePlayer.createPlayer({
           getContext: () => audioContext, getMaster: () => audioMaster,
-          isMuted: () => false, isVerify: () => verify
+          isMuted: () => false
         });
         cueAdapter = window.DvaWebGPUSunbeamCueAdapter.createAdapter({
           planner: window.DvaWebGPUSunbeamESfx.createPlanner(), player,
-          isVerify: () => verify
+          isVerify: () => false
         });
       }
       if (audioContext.state === 'suspended') await audioContext.resume();
       window.__sunbeamPreviewAudio = cueAdapter.playPreview({ userGesture: true,
         previewId: idSeed, roomId: 'sunbeam-preview', roomGeneration: 0,
-        nowMs: performance.now(), verify, muted: false, volume: .58, reducedMotion });
+        nowMs: performance.now(), muted: false, volume: .58, reducedMotion });
     } catch (error) {
       window.__sunbeamPreviewAudio = Object.freeze({ status: 'error', error: String(error) });
     }

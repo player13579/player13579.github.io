@@ -91,7 +91,7 @@
       const id = `gravity-idea-fighter:${event.eventId}`;
       if (watermark - event.eventAtMs > retentionMs || consumed.has(id) || consumed.size >= maxEntries) return null;
       // Server submission receipt is consumed before visibility/audio policy:
-      // re-poll, late delivery, mute and verify cannot cause delayed playback.
+      // re-poll, late delivery, or mute cannot cause delayed playback.
       consumed.set(id, Math.max(event.nowMs, event.eventAtMs + maxLateMs) + retentionMs);
       const meta = { eventId: event.eventId, type: event.type, variant: event.variant,
         roomId: event.roomId, roomGeneration: event.roomGeneration };
@@ -106,7 +106,7 @@
         return Object.freeze({ ...meta, suppressed: true, reason: 'outside-onset-observation-scope' });
       if (event.type === 'fighter-energy-impact' && alreadyHeardImpact)
         return Object.freeze({ ...meta, suppressed: true, reason: 'shared-local-hit-impact', sharedSfxKind: 'impact-wav' });
-      if (!audible || verify || event.nowMs > event.eventAtMs + maxLateMs) return null;
+      if (!audible || event.nowMs > event.eventAtMs + maxLateMs) return null;
       if (recentCues.length >= maxCuesPerSecond) return null;
       const scale = reducedMotion ? .72 : 1;
       const layers = selected.layers.map(([shape, frequencyHz, endFrequencyHz, amplitude, offsetMs, durationMs, layer]) => {

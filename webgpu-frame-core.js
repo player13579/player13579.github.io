@@ -4,7 +4,8 @@
   'use strict';
 
   function createFailure(reason) {
-    return reason instanceof Error ? reason : new Error(String(reason || 'WebGPU unavailable'));
+    return reason instanceof Error ? reason :
+      new Error(String(reason?.message || reason || 'WebGPU unavailable'));
   }
 
   async function create(options = {}) {

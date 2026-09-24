@@ -15,6 +15,23 @@
   const FLOAT_COUNT = 16;
   const TRANSITION = Object.freeze({ grant: 0, sustain: 1, removal: 2, blocked: 3, clear: 4 });
 
+  function outsideViewport({ type, player, camera, zoom, viewport } = {}) {
+    const profile = PROFILES[type];
+    if (!profile || !player || !camera || viewport?.kind !== 'main' ||
+        ![player.x, player.y, camera.x, camera.y, zoom, viewport.width, viewport.height,
+          viewport.pixelWidth, viewport.pixelHeight].every(finite) || zoom <= 0 ||
+        viewport.width <= 0 || viewport.height <= 0 ||
+        viewport.pixelWidth <= 0 || viewport.pixelHeight <= 0) return false;
+    const sx = zoom * viewport.pixelWidth / viewport.width;
+    const sy = zoom * viewport.pixelHeight / viewport.height;
+    const centerX = (player.x - camera.x) * sx;
+    const centerY = (player.y - profile.anchorY - camera.y) * sy;
+    const radiusX = profile.radiusX * sx, radiusY = profile.radiusY * sy;
+    return [centerX, centerY, radiusX, radiusY].every(finite) &&
+      (centerX + radiusX * 1.15 < 0 || centerX - radiusX * 1.15 > viewport.pixelWidth ||
+       centerY + radiusY * 1.15 < 0 || centerY - radiusY * 1.15 > viewport.pixelHeight);
+  }
+
   const shader = /* wgsl */ `
 struct Params { view:vec4f, geometry:vec4f, state:vec4f, extra:vec4f };
 @group(0) @binding(0) var<uniform> p:Params;
@@ -127,8 +144,7 @@ fn edge(t:f32)->f32{return smoothstep(0.0,.025,t)*(1.0-smoothstep(.91,1.0,t));}
     const centerY = (player.y - profile.anchorY - camera.y) * scaleY;
     const radiusX = profile.radiusX * scaleX, radiusY = profile.radiusY * scaleY;
     if (![centerX, centerY, radiusX, radiusY].every(finite) || radiusX <= 0 || radiusY <= 0) return null;
-    if (centerX + radiusX * 1.15 < 0 || centerX - radiusX * 1.15 > viewport.pixelWidth ||
-        centerY + radiusY * 1.15 < 0 || centerY - radiusY * 1.15 > viewport.pixelHeight) return null;
+    if (outsideViewport({ type: effect.type, player, camera, zoom, viewport })) return null;
     return Object.freeze({ effectId: String(effect.id), type: effect.type,
       mode: profile.mode, transition, transitionIndex: TRANSITION[transition],
       elapsed, durationMs, progress, reducedMotion: Boolean(reducedMotion), alpha,
@@ -217,7 +233,7 @@ fn edge(t:f32)->f32{return smoothstep(0.0,.025,t)*(1.0-smoothstep(.91,1.0,t));}
     });
   }
 
-  const api=Object.freeze({ PROFILES, TRANSITION, shader, plan, planBatch, pack, create });
+  const api=Object.freeze({ PROFILES, TRANSITION, outsideViewport, shader, plan, planBatch, pack, create });
   root.DvaWebGPUStatusTempoE=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:window);

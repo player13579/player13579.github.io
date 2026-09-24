@@ -79,7 +79,7 @@
  function sq(v){return v*v;}
  function hash(s){let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0;}
  function play({planned,context,master,volume,verify=false,muted=false}={}){
-  if(!planned?.accepted||!planned.playCandidate||!planned.allowCandidatePlayback||verify||muted||!context||!master||context.state!=='running'||
+  if(!planned?.accepted||!planned.playCandidate||!planned.allowCandidatePlayback||muted||!context||!master||context.state!=='running'||
    typeof context.createBuffer!=='function'||typeof context.createBufferSource!=='function'||typeof context.createGain!=='function')return null;
   const raw=volume===undefined?planned.gain:Number(volume),gainValue=finite(raw)?clamp(raw,0,1):0;if(gainValue<=0)return null;
   const seen=playedByContext.get(context)||new Set();if(seen.has(planned.soundId))return null;

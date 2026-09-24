@@ -43,7 +43,7 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
   let scanPhase=select(actorPhase*.16,.5,reduced);
   let scanY=fract(scanPhase)*1.64-.82;
   let scan=bell(q.y-scanY,.022)*(1.0-smoothstep(.18,.62,absQ.x));
-  let active=select(1.0,inside,sustained);
+  let activeMask=select(1.0,inside,sustained);
   var core=rails*.67+lockShell*.46+lockCore*.18+scan*.52;
   var glow=rails*.33+lockShell*.26+lockCore*.12+scan*.26;
   if(release){
@@ -57,12 +57,12 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
     core=core*arrival+impulse*(lockShell*.48+lockCore*.52);
     glow=glow*arrival+impulse*(rails*.22+lockShell*.38);
   }
-  let visibility=select(select(smoothstep(0.0,.045,t)*(1.0-smoothstep(.92,1.0,t)),1.0,sustained),
+  var visibility=select(select(smoothstep(0.0,.045,t)*(1.0-smoothstep(.92,1.0,t)),1.0,sustained),
     smoothstep(0.0,.04,t)*(1.0-smoothstep(.87,1.0,t)),release);
   if(reduced){visibility=select(1.0,smoothstep(0.0,.05,t)*(1.0-smoothstep(.93,1.0,t)),!sustained);}
   let cold=vec3f(.15,.79,1.0);let warm=vec3f(.49,.96,1.0);
   let color=mix(cold,warm,smoothstep(-.76,.76,q.y));
-  let source=clamp((core*active+glow*.10)*visibility*alpha,0.0,.92);
+  let source=clamp((core*activeMask+glow*.10)*visibility*alpha,0.0,.92);
   let halo=clamp(glow*visibility*alpha*.38,0.0,.30);
   let outAlpha=clamp(source+halo,0.0,.98);
   return vec4f(color*source+color*halo*.7,outAlpha);

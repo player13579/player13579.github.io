@@ -114,7 +114,7 @@
       if (evidence.nowMs < evidence.eventAtMs || evidence.nowMs - evidence.eventAtMs > maxLateMs ||
           watermark - evidence.eventAtMs > retentionMs)
         return Object.freeze({ suppressed: true, reason: 'late', edgeId: edge.edgeId });
-      if (evidence.muted || evidence.verify || !(Number(evidence.volume) > 0))
+      if (evidence.muted || !(Number(evidence.volume) > 0))
         return Object.freeze({ suppressed: true, reason: 'audio-policy', edgeId: edge.edgeId });
       if (admittedAt.length >= MAX_EVENT_RATE)
         return Object.freeze({ suppressed: true, reason: 'rate-limit', edgeId: edge.edgeId });

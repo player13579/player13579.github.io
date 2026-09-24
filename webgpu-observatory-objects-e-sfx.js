@@ -72,7 +72,7 @@
       if (consumed.has(identity)) return Object.freeze({ status: 'suppressed', eventId: event.eventId, reason: 'duplicate-event' });
       if (watermark - event.eventAtMs > retentionMs || consumed.size >= maxEntries)
         return Object.freeze({ status: 'suppressed', eventId: event.eventId, reason: 'event-expired-or-ledger-capacity' });
-      // Consume before receipt, generic-suppression, mute, verify and rate gates.
+      // Consume before receipt, generic-suppression, mute and rate gates.
       consumed.set(identity, Math.max(event.nowMs, event.eventAtMs + maxLateMs) + retentionMs);
       const spec = TARGETS[event.objectId];
       if (!spec || event.mapId !== 'station' || event.mapRoomId !== 'observatory' ||
@@ -90,7 +90,7 @@
           typeof sound?.soundId !== 'string' || !sound.soundId ||
           typeof event.playerId !== 'string' || !event.playerId)
         return Object.freeze({ status: 'suppressed', eventId: event.eventId, reason: 'cause-or-submitted-receipt-mismatch' });
-      if (policy.pageHidden === true || policy.muted === true || policy.verify === true ||
+      if (policy.pageHidden === true || policy.muted === true ||
           policy.sensoryBlocked === true || policy.audible === false || event.volume <= 0)
         return Object.freeze({ status: 'suppressed', eventId: event.eventId, reason: 'audio-policy-or-out-of-range' });
       if (event.nowMs < event.eventAtMs || event.nowMs - event.eventAtMs > maxLateMs)

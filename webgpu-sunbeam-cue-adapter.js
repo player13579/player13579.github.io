@@ -6,7 +6,7 @@
     player, isVerify = () => false } = {}) {
     if (!planner || typeof planner.admit !== 'function' || typeof player?.play !== 'function' ||
         typeof isVerify !== 'function')
-      throw new TypeError('Sunbeam cue adapter requires its planner, existing E cue player and verify gate');
+      throw new TypeError('Sunbeam cue adapter requires its planner, existing E cue player and verification metadata getter');
     let previewUsed = false;
     function submitGameplay(event, policy = {}) {
       const plan = planner.admit(event, policy);
@@ -50,10 +50,10 @@
         cue: 'sunbeam-gather-illuminate-converge', eventId: `sunbeam-preview:${previewId}`,
         roomId, roomGeneration, startsAtMs: nowMs, endsAtMs, loop: false,
         maxGain: profile.MAX_GAIN, reducedMotion, preview: true, layers: Object.freeze(layers) });
-      const forcedVerify = verify === true || isVerify();
-      const playback = player.play(cue, { nowMs, muted: muted === true, verify: forcedVerify, volume: 1 });
+      const verificationMetadata = verify === true || isVerify();
+      const playback = player.play(cue, { nowMs, muted: muted === true, verify: verificationMetadata, volume: 1 });
       return Object.freeze({ status: playback?.status || 'suppressed', reason: playback?.reason || '',
-        cue, playback, preview: true, verify: forcedVerify, replaceFallback: false });
+        cue, playback, preview: true, verify: verificationMetadata, replaceFallback: false });
     }
     return Object.freeze({ submitGameplay, playPreview, hasPreview: () => previewUsed });
   }

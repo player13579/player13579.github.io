@@ -81,7 +81,7 @@
           frame?.sourceVisibleToListener !== true ||
           (event.sourceInvisible === true && listenerId !== event.sourcePlayerId))
         return suppressed(event.eventId, 'source-not-visible-to-listener', fallbackSoundId);
-      if (policy.pageHidden === true || policy.muted === true || policy.verify === true ||
+      if (policy.pageHidden === true || policy.muted === true ||
           policy.sensoryBlocked === true || policy.audible === false || event.volume <= 0)
         return suppressed(event.eventId, 'audio-policy-or-out-of-range', fallbackSoundId);
       if (event.nowMs < event.eventAtMs || event.nowMs - event.eventAtMs > maxLateMs)

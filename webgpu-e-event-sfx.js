@@ -26,6 +26,14 @@
         amplitude: 0.06, offsetMs: 28, durationMs: 145, layer: 'upper' }),
       Object.freeze({ shape: 'noise', frequencyHz: 3200, endFrequencyHz: 1700,
         amplitude: 0.016, offsetMs: 0, durationMs: 42, layer: 'short-noise' })
+    ]),
+    mysteryOpen: Object.freeze([
+      Object.freeze({ shape: 'noise', frequencyHz: 1150, endFrequencyHz: 360,
+        amplitude: 0.034, offsetMs: 0, durationMs: 62, layer: 'lid-release' }),
+      Object.freeze({ shape: 'triangle', frequencyHz: 410, endFrequencyHz: 210,
+        amplitude: 0.052, offsetMs: 12, durationMs: 145, layer: 'hinge-stop' }),
+      Object.freeze({ shape: 'sine', frequencyHz: 570, endFrequencyHz: 780,
+        amplitude: 0.018, offsetMs: 74, durationMs: 166, layer: 'interior-light' })
     ])
   });
 
@@ -109,6 +117,11 @@
       if (kind === 'marker' &&
           !['persistent-status', 'enhance-activation', 'fighter-energy-charge'].includes(event.markerType))
         throw new TypeError('Marker E SFX needs a current supported marker family');
+      if (kind === 'mysteryOpen' &&
+          (event.effectType !== 'mystery-box' ||
+           !['product', 'ability'].includes(event.acquisitionKind) ||
+           !finite(event.nowMs) || !finite(event.startedAtMs)))
+        throw new TypeError('Mystery opening E SFX needs its box event and visible time');
 
       enterRoom(event.roomId, event.roomGeneration);
       const identity = `${kind}:${event.eventId}`;
@@ -121,6 +134,9 @@
       if (!audible) return null;
 
       let startAtMs = event.eventAtMs;
+      if (kind === 'mysteryOpen' &&
+          (event.nowMs > event.eventAtMs + 100 ||
+           event.nowMs >= event.startedAtMs + 760)) return null;
       if (kind === 'acquisition') {
         const nowMs = event.nowMs;
         const arrivalOffset = event.effectType === 'mystery-box'

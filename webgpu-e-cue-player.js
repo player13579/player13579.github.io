@@ -7,6 +7,7 @@
   const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, value));
 
   function createPlayer({ getContext, getMaster, isMuted = () => false,
+    // Retained for caller compatibility; verification metadata never mutes.
     isVerify = () => false, maxVolume = 0.22, maxLateMs = 180,
     maxLayers = 8, maxLayerMs = 700, maxEntries = 2048,
     retentionMs = 30000 } = {}) {
@@ -42,6 +43,7 @@
       if (roomKey !== next) { stopAll(); consumed.clear(); watermark = 0; roomKey = next; }
     }
     function play(cue, { nowMs, muted = false, verify = false, volume = 1 } = {}) {
+      // `verify` remains accepted for compatibility and is intentionally ignored.
       if (!cue || typeof cue.eventId !== 'string' || !cue.eventId ||
           typeof cue.roomId !== 'string' || !cue.roomId || !Number.isInteger(cue.roomGeneration) ||
           cue.roomGeneration < 0 || !Number.isFinite(cue.startsAtMs) ||
@@ -61,7 +63,7 @@
       // Gating/device loss consumes, never queues for a later unlock/resume.
       if (cue.layers.length < 1 || cue.layers.length > maxLayers ||
           nowMs > cue.startsAtMs + maxLateMs || volume <= 0 || maxVolume <= 0 ||
-          muted || verify || isMuted() || isVerify())
+          muted || isMuted())
         return receipt(cue, 'suppressed', 0, 'policy-or-late');
 
       const context = getContext(), master = getMaster();

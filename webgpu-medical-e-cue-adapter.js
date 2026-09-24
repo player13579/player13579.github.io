@@ -78,7 +78,7 @@
         oneShots.add(identity);
       }
       remember(identity);
-      const suppressed = !audible || muted || verify || !visible || sensoryBlocked || now - previousNow > 250;
+      const suppressed = !audible || muted || !visible || sensoryBlocked || now - previousNow > 250;
       if (suppressed) return receipt(cue, roomId, roomGeneration, 'suppressed', 'audio-policy-or-stale-poll', 0, identity);
       if (now > startsAtMs + maxLateMs)
         return receipt(cue, roomId, roomGeneration, 'suppressed', 'event-too-late', 0, identity);

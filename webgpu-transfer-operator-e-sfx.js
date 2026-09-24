@@ -113,7 +113,7 @@
       if (!selected) throw new TypeError(`Unsupported transfer/operator E SFX event: ${event.type}:${event.variant}`);
       if (event.visibleToListener !== true)
         return Object.freeze({ ...meta, suppressed: true, reason: 'outside-visible-observation-scope' });
-      if (!audible || verify || event.nowMs > event.eventAtMs + maxLateMs) return null;
+      if (!audible || event.nowMs > event.eventAtMs + maxLateMs) return null;
       if (recentCues.length >= maxCuesPerSecond) return null;
       const scale = reducedMotion ? .72 : 1;
       const layers = selected.layers.map(([shape, frequencyHz, endFrequencyHz, amplitude, offsetMs, durationMs, layer]) => {

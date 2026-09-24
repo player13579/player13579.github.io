@@ -189,6 +189,7 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
     const frameOwner = options.frameOwner || null;
     const shared = Boolean(frameOwner);
     let state = 'initializing', notified = false, cancelled = false;
+    let initializationStep = 'device';
     const notify = reason => {
       if (notified) return;
       notified = true;
@@ -228,6 +229,7 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
         device.addEventListener?.('uncapturederror', onError);
         device.lost.then(info => fail(info?.message || 'WebGPU device lost'), error => fail(String(error)));
       }
+      initializationStep = 'shader';
       const module = device.createShaderModule({ label: 'DVA acquisition WGSL', code: shader });
       if (typeof module.getCompilationInfo === 'function') {
         const info = await module.getCompilationInfo();
@@ -235,6 +237,7 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
       }
       if (cancelled) { cleanup(); return null; }
       const format = shared ? frameOwner.format : gpu.getPreferredCanvasFormat();
+      initializationStep = 'pipeline';
       const pipeline = await device.createRenderPipelineAsync({ label: 'DVA textureless photon E', layout: 'auto',
         vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format,
           blend: { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
@@ -247,7 +250,9 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
         context.configure({ device, format, alphaMode: 'premultiplied' });
       }
       // GPUBufferUsage values are stable WebGPU flags, so this module can also run in a Node mock.
+      initializationStep = 'uniform-buffer';
       uniform = device.createBuffer({ label: 'DVA acquisition viewport', size: 16, usage: 0x40 | 0x08 });
+      initializationStep = 'uniform-owner';
       if (shared) frameOwner.own(uniform);
       let capacity = 0, bindGroup;
       const maxStorage = Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize);
@@ -264,6 +269,7 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
           { binding: 0, resource: { buffer: uniform } }, { binding: 1, resource: { buffer: storage } } ] });
         if (previous && (!shared || frameOwner.release(previous))) previous.destroy();
       };
+      initializationStep = 'storage';
       ensureStorage(1);
       if (cancelled) { cleanup(); return null; }
       state = 'ready';
@@ -332,7 +338,10 @@ fn ribbonPoint(e: Effect, t: f32, lane: f32, local: f32, span: f32) -> vec2f {
     const timeout = new Promise(resolve => {
       timer = setTimeout(() => { fail('WebGPU initialization timed out'); resolve(null); }, options.timeoutMs ?? 5000);
     });
-    try { return await Promise.race([initialize().catch(error => { fail(error.message || String(error)); return null; }), timeout]); }
+    try { return await Promise.race([initialize().catch(error => {
+      fail(`Acquisition ${initializationStep}: ${error?.message || String(error)}`);
+      return null;
+    }), timeout]); }
     finally { clearTimeout(timer); }
   }
 

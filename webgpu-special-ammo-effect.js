@@ -23,7 +23,7 @@ fn ring(r:f32,center:f32,width:f32)->f32{return bell(r-center,width);}
   let delta=(pos.xy-p.viewport.zw)/max(p.geometry.xy,vec2f(.001));
   let ca=cos(p.geometry.z);let sa=sin(p.geometry.z);
   let q=vec2f(delta.x*ca+delta.y*sa,-delta.x*sa+delta.y*ca);
-  let r=length(q), t=clamp(p.state.x,0.0,1.0);
+  let r=length(q); let t=clamp(p.state.x,0.0,1.0);
   let phase=p.state.y;let shock=p.state.z>.5&&p.state.z<1.5;
   let penetrate=p.state.z>1.5;let reduced=p.hue.w>.5;
   let pulse=sin(t*3.14159265);

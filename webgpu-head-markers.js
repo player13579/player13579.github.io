@@ -301,7 +301,7 @@ struct Out { @builtin(position) position: vec4f, @location(0) local: vec2f };
       }});
       return planned.hitTargets;
     }
-    return Object.freeze({record,destroy(){
+    return Object.freeze({device,record,destroy(){
       if(destroyed)return;
       destroyed=true;
       for(const resource of slots){

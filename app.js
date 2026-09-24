@@ -1428,7 +1428,7 @@ const state = {
     sfxLoading: null,
     sfxCursor: new Map(),
     unlocked: false,
-    muted: IS_VERIFICATION_MODE || clientStorage.getItem(storage.gameMuted) !== "0",
+    muted: clientStorage.getItem(storage.gameMuted) === "1",
     currentBgm: null,
     titleBgm: createBgmAudio(assetUrl("assets/bgm-title.mp3"), 0.34)
   }
@@ -1449,6 +1449,26 @@ const GRENADE_IMPACT_SOUND_RECEIPTS = { roomId: "", generation: 0, ids: new Map(
 const WEBGPU_E_CUES = { roomKey: '', player: null, events: null,
   combat: null, defense: null };
 const WORLD_EVENT_SOUND_IDS = { roomKey: '', ids: new Set(), order: [] };
+let HEAL_E_SFX_PLAYER = null;
+
+function playHealESfx(effect, data, receivedAt) {
+  if (effect.type !== 'flora' || String(effect.playerId) !== String(data.selfId) ||
+      !window.DvaHealESfx?.createPlayer) return;
+  HEAL_E_SFX_PLAYER ||= window.DvaHealESfx.createPlayer({
+    getAudioContext: () => state.audio.context,
+    getMasterGain: () => state.audio.master,
+    nowMs: () => state.frameNow || performance.now()
+  });
+  HEAL_E_SFX_PLAYER.play({ kind: 'self-restoration', self: true,
+    eventId: String(effect.id), roomId: String(data.roomId),
+    roomGeneration: state.roomSessionGeneration, eventAtMs: receivedAt }, {
+    nowMs: receivedAt, hidden: document.hidden, muted: state.audio.muted,
+    sensory: isSensoryBlocked(data),
+    available: state.audio.unlocked && state.audio.context?.state === 'running' &&
+      Number(state.audio.master?.gain?.value) > 0,
+    volume: 1
+  });
+}
 const ENVIRONMENT_SOUND_OWNERS = new Map();
 const ENVIRONMENT_SFX_BUFFERS = new WeakMap();
 let environmentSoundFrame = 0;
@@ -2343,8 +2363,9 @@ function titleDepthGeometryError(message) {
 const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false,
   pendingPromise: null, handoffPromise: null, unavailable: false,
   handedOff: false, generation: 0 };
-// This temporary verify route shares the existing RAF. init() enters
-// setScreen(), which may suspend it; initialize both owners first.
+// The shared main driver owns ordinary game frames. Keep the diagnostic URL
+// as a diagnostic selector only; it no longer gates renderer ownership.
+const WEBGPU_MAIN_OWNER = true;
 const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("webgpuMain") === "1";
 const webgpuMainApp = { driver: null, startPending: null, mapId: null,
   generation: 0, visible: false, submittedHits: null, failed: false,
@@ -2356,6 +2377,9 @@ const sunbeamLive = { renderer: null, pending: null, generation: 0,
   nextRetryAt: 0, poseReceipts: new Map(), drawnIds: new Set(),
   submitted: new Map(), frameId: 0, pendingSounds: new Map(),
   soundPlanner: null, soundPlayer: null, soundAdapter: null };
+document.body.dataset.webgpuMainOwner = "1";
+if (els.canvas) els.canvas.style.opacity = "0";
+if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
 init();
 
 function prepareTitleHero() {
@@ -3364,15 +3388,6 @@ function setScreen(screen) {
 }
 
 function toggleGameMuted() {
-  if (IS_VERIFICATION_MODE) {
-    state.audio.muted = true;
-    stopAllPhenomenonSounds();
-    stopAllEnvironmentSounds();
-    if (state.audio.master && state.audio.context) state.audio.master.gain.value = 0;
-    syncGameAudioButtons();
-    syncBgm();
-    return;
-  }
   state.audio.muted = !state.audio.muted;
   if (state.audio.muted) { stopAllPhenomenonSounds(); stopAllEnvironmentSounds(); }
   clientStorage.setItem(storage.gameMuted, state.audio.muted ? "1" : "0");
@@ -9825,6 +9840,7 @@ async function finishClairvoyanceTeleportTap(event, cancelled = false) {
 function pointerHitsMinimap(event) {
   const point = canvasPointerPosition(event);
   if (!point) return false;
+  if (WEBGPU_MAIN_OWNER && !webgpuMainSubmittedFrameCurrent()) return false;
   if (webgpuMainApp.visible && !webgpuMainSubmittedFrameCurrent()) return false;
   const bounds = webgpuMainSubmittedFrameCurrent()
     ? webgpuMainApp.submittedMinimapBounds : minimapCanvasBounds();
@@ -12228,7 +12244,7 @@ function phenomenonSoundMix(player, data) {
 }
 function phenomenonSoundAvailable() {
   const context = state.audio.context, master = state.audio.master;
-  return state.screen === "game" && !IS_VERIFICATION_MODE && !state.audio.muted &&
+  return state.screen === "game" && !state.audio.muted &&
     !isSensoryBlocked() && context?.state === "running" && master &&
     Number(master.gain?.value) > 0;
 }
@@ -12397,13 +12413,13 @@ function admitGrenadeImpactSound(effect, data) {
   receipts.ids.set(effect.id, effect.startedAt);
   const mix = grenadeImpactSoundMix(effect, data);
   if (!mix || document.hidden || state.screen !== "game" ||
-      !state.audio.unlocked || state.audio.muted || IS_VERIFICATION_MODE ||
+      !state.audio.unlocked || state.audio.muted ||
       isSensoryBlocked(data) || state.audio.context?.state !== "running" ||
       !(Number(state.audio.master?.gain?.value) > 0)) return false;
   try {
     return Boolean(window.DvaGrenadeImpactSfx?.play?.(
       state.audio.context, state.audio.master, effect.type,
-      { ...mix, verify: IS_VERIFICATION_MODE, muted: state.audio.muted,
+      { ...mix, verify: false, muted: state.audio.muted,
         sensoryBlocked: isSensoryBlocked(data) }));
   } catch (error) {
     console.error("Grenade impact sound failed", error);
@@ -12434,7 +12450,7 @@ function syncWebGPUECueSession(data) {
       getContext: () => state.audio.context,
       getMaster: () => state.audio.master,
       isMuted: () => state.audio.muted || document.hidden || isSensoryBlocked(),
-      isVerify: () => IS_VERIFICATION_MODE
+      isVerify: () => false
     });
   }
   if (owner.roomKey !== key) {
@@ -12498,7 +12514,7 @@ function admitWebGPUECue(effect, data, receivedAt, volumeOverride = null) {
   if (!cue || cue.suppressed) return cue;
   return owner.player.play(cue, { nowMs: receivedAt,
     muted: state.audio.muted || document.hidden || isSensoryBlocked(data),
-    verify: IS_VERIFICATION_MODE, volume: Number.isFinite(volumeOverride)
+    verify: false, volume: Number.isFinite(volumeOverride)
       ? volumeOverride : webgpuECueVolume(effect, data) });
 }
 
@@ -12522,7 +12538,7 @@ function admitSubmittedAcquisitionCue(data, receipt) {
         recipient.invisible) return null;
   }
   if (!syncWebGPUECueSession(data)) return null;
-  const audible = !document.hidden && !IS_VERIFICATION_MODE &&
+  const audible = !document.hidden &&
     !state.audio.muted && state.audio.unlocked && !isSensoryBlocked(data) &&
     state.audio.context?.state === 'running' &&
     Number(state.audio.master?.gain?.value) > 0;
@@ -12535,7 +12551,39 @@ function admitSubmittedAcquisitionCue(data, receipt) {
     reducedMotion: prefersReducedMotion() }, { audible });
   if (!cue) return null;
   return WEBGPU_E_CUES.player.play(cue, { nowMs,
-    muted: !audible, verify: IS_VERIFICATION_MODE,
+    muted: !audible, verify: false,
+    volume: clamp(webgpuECueVolume(source, data), 0, .75) });
+}
+
+function admitSubmittedMysteryOpeningCue(data, receipt) {
+  const source = (state.magicEffects || []).find(effect =>
+    String(effect.id) === String(receipt?.effectId));
+  const nowMs = state.frameNow || performance.now();
+  if (data !== state.data || state.screen !== 'game' ||
+      data?.phase !== 'playing' || !source || source.type !== 'mystery-box' ||
+      String(source.viewerId) !== String(data.selfId) ||
+      String(source.playerId) !== String(data.selfId) ||
+      String(receipt.viewerId) !== String(data.selfId) ||
+      String(receipt.playerId) !== String(data.selfId) ||
+      receipt.startedAt !== source.startedAt ||
+      !Number.isFinite(source.startedAt) ||
+      !Number.isFinite(receipt.progress) || receipt.progress < 0 ||
+      receipt.progress >= 1 || !syncWebGPUECueSession(data)) return null;
+  const audible = !document.hidden &&
+    !state.audio.muted && state.audio.unlocked && !isSensoryBlocked(data) &&
+    state.audio.context?.state === 'running' &&
+    Number(state.audio.master?.gain?.value) > 0;
+  const cue = WEBGPU_E_CUES.events.admit({ kind: 'mysteryOpen',
+    roomId: String(data.roomId || ''),
+    roomGeneration: state.roomSessionGeneration,
+    eventId: String(source.id), eventAtMs: source.startedAt + 140,
+    nowMs, startedAtMs: source.startedAt, effectType: source.type,
+    acquisitionKind: source.acquisitionKind,
+    sourceId: String(source.playerId), reducedMotion: prefersReducedMotion()
+  }, { audible });
+  if (!cue) return null;
+  return WEBGPU_E_CUES.player.play(cue, { nowMs,
+    muted: !audible, verify: false,
     volume: clamp(webgpuECueVolume(source, data), 0, .75) });
 }
 
@@ -12665,6 +12713,7 @@ function detectMagicEffects(previous, next) {
       localEffect.duration = localEffect._headMarkerExpiresAt - receivedAt;
     }
     state.magicEffects.push(localEffect);
+    if (effect.type === 'flora') playHealESfx(localEffect, next, receivedAt);
     if (isGrenadeImpactSoundEffect(localEffect)) admitGrenadeImpactSound(localEffect, next);
     if (soundKind) admitPhenomenonSound(effect, next);
     // A real gain receipt is admitted once here, after the network-ID gate.
@@ -12721,6 +12770,7 @@ function detectMagicEffects(previous, next) {
 }
 
 function magicEffectDuration(type) {
+  if (type === "flora") return 12000;
   if (type === "grenade-frag-impact") return 900;
   if (type === "grenade-stun-impact") return 720;
   if (type === "quantum-electric-discharge") return 1050;
@@ -12893,11 +12943,17 @@ function detectWorldSounds(previous, next) {
       (next.magicEffects || []).find(effect => effect.type === 'flora-sunbeam' &&
         effect.sunbeamCausalId === sound.sunbeamCausalId &&
         String(effect.playerId) === String(sound.ownerId));
-    if (pairedSunbeam && !WEBGPU_MAIN_VERIFY_ROUTE) {
+    if (pairedSunbeam) {
+      // The cue waits only for this cast's next visible WebGPU submission.
+      // An inaudible receipt is consumed above and must never replay on unmute.
+      if (state.audio.muted) continue;
+      const receivedAt = state.frameNow || performance.now();
       sunbeamLive.pendingSounds.set(String(sound.id), Object.freeze({
         roomId: String(next.roomId || ''),
         roomGeneration: state.roomSessionGeneration,
-        sound, effectId: String(pairedSunbeam.id), soundOptions }));
+        receivedAt, sound, effectId: String(pairedSunbeam.id), soundOptions }));
+      while (sunbeamLive.pendingSounds.size > 32)
+        sunbeamLive.pendingSounds.delete(sunbeamLive.pendingSounds.keys().next().value);
       continue;
     }
     playSound(kind, soundOptions);
@@ -13545,6 +13601,7 @@ function registerPreparationPlayerCanvasTargets(player, nameplateY, nameplateWid
 
 function preparationCanvasTargetAt(point) {
   if (!point) return "";
+  if (WEBGPU_MAIN_OWNER && !webgpuMainSubmittedFrameCurrent()) return "";
   const targets = webgpuMainApp.visible
     ? webgpuMainSubmittedFrameCurrent() && state.data?.phase === 'selecting'
       ? webgpuMainApp.submittedPreparationHits || [] : []
@@ -13559,6 +13616,7 @@ function preparationCanvasTargetAt(point) {
 }
 
 function preparationCanvasHitTarget(field) {
+  if (WEBGPU_MAIN_OWNER && !webgpuMainSubmittedFrameCurrent()) return null;
   const targets = webgpuMainApp.visible
     ? webgpuMainSubmittedFrameCurrent() && state.data?.phase === 'selecting'
       ? webgpuMainApp.submittedPreparationHits || [] : []
@@ -17695,7 +17753,7 @@ function suspendLiveSunbeamOverlay({ destroy = false } = {}) {
   sunbeamLive.drawnIds.clear();
   sunbeamLive.poseReceipts.clear();
   sunbeamLive.submitted.clear();
-  if (els.webgpuMainCanvas && !WEBGPU_MAIN_VERIFY_ROUTE)
+  if (!WEBGPU_MAIN_OWNER && els.webgpuMainCanvas)
     els.webgpuMainCanvas.style.opacity = '0';
   if (destroy) {
     sunbeamLive.generation += 1;
@@ -17710,7 +17768,7 @@ function suspendLiveSunbeamOverlay({ destroy = false } = {}) {
 function pumpLiveSunbeamOverlay(data, camera, zoom) {
   sunbeamLive.drawnIds.clear();
   sunbeamLive.submitted.clear();
-  if (WEBGPU_MAIN_VERIFY_ROUTE || state.screen !== 'game' ||
+  if (WEBGPU_MAIN_OWNER || state.screen !== 'game' ||
       data !== state.data || data?.phase !== 'playing' || document.hidden ||
       !els.webgpuMainCanvas?.isConnected || !els.canvas?.isConnected) {
     suspendLiveSunbeamOverlay();
@@ -17741,7 +17799,7 @@ function pumpLiveSunbeamOverlay(data, camera, zoom) {
           suspendLiveSunbeamOverlay();
         } }).then(renderer => {
         if (generation !== sunbeamLive.generation || state.screen !== 'game' ||
-            document.hidden || WEBGPU_MAIN_VERIFY_ROUTE) {
+            document.hidden || WEBGPU_MAIN_OWNER) {
           renderer.destroy();
           return;
         }
@@ -17797,21 +17855,53 @@ function pumpLiveSunbeamOverlay(data, camera, zoom) {
   }
 }
 
-function flushLiveSunbeamSounds() {
+function flushLiveSunbeamSounds(submittedHands = null, frameId = 0) {
   if (!sunbeamLive.pendingSounds.size) return;
-  const pending = [...sunbeamLive.pendingSounds.values()];
-  sunbeamLive.pendingSounds.clear();
   const data = state.data;
-  if (state.screen !== 'game' || document.hidden || !data) return;
-  for (const receipt of pending) {
+  if (state.screen !== 'game' || document.hidden || !data ||
+      state.audio.muted || isSensoryBlocked(data) ||
+      !state.audio.unlocked || state.audio.context?.state !== 'running' ||
+      !(Number(state.audio.master?.gain?.value) > 0)) {
+    sunbeamLive.pendingSounds.clear();
+    return;
+  }
+  const nowMs = state.frameNow || performance.now();
+  const lateMs = window.DvaWebGPUSunbeamESfx?.MAX_LATE_MS ?? 180;
+  const mainFrameVisible = WEBGPU_MAIN_OWNER &&
+    Array.isArray(submittedHands) && Number.isSafeInteger(frameId) && frameId >= 0 &&
+    webgpuMainSubmittedFrameCurrent();
+  for (const [soundId, receipt] of sunbeamLive.pendingSounds) {
+    if (nowMs - receipt.receivedAt > lateMs ||
+        receipt.roomId !== String(data.roomId || '') ||
+        receipt.roomGeneration !== state.roomSessionGeneration) {
+      sunbeamLive.pendingSounds.delete(soundId);
+      continue;
+    }
+    const hand = mainFrameVisible && submittedHands.find(item =>
+      item?.effectId === receipt.effectId &&
+      String(item.playerId) === String(receipt.sound.ownerId) &&
+      Array.isArray(item.hands) &&
+      item.hands.length >= 1 && item.hands.length <= 2 &&
+      item.hands.every(point => Number.isFinite(point.x) && Number.isFinite(point.y)));
+    if (WEBGPU_MAIN_OWNER && !hand) continue;
+    sunbeamLive.pendingSounds.delete(soundId);
     if (receipt.roomId !== String(data.roomId || '') ||
         receipt.roomGeneration !== state.roomSessionGeneration) continue;
     const effect = state.magicEffects.find(item =>
       String(item.id) === receipt.effectId &&
       item.sunbeamCausalId === receipt.sound.sunbeamCausalId);
-    const frame = sunbeamLive.submitted.get(receipt.effectId);
+    if (!effect || String(effect.playerId) !== String(receipt.sound.ownerId)) continue;
+    const frame = WEBGPU_MAIN_OWNER ? Object.freeze({
+      eventId: receipt.effectId, sunbeamCausalId: effect?.sunbeamCausalId,
+      frameId, roomGeneration: receipt.roomGeneration,
+      submitted: true, mainFrameVisible: true, drawn: true,
+      visibleToListener: true, sourceVisibleToListener: true,
+      listenerId: String(data.selfId || ''), sourcePlayerId: hand.playerId,
+      handCount: hand.hands.length
+    }) : sunbeamLive.submitted.get(receipt.effectId);
     let scheduled = false;
-    if (effect && frame?.sunbeamCausalId &&
+    if (frame?.sunbeamCausalId &&
+        String(effect.playerId) === String(frame.sourcePlayerId) &&
         window.DvaWebGPUSunbeamESfx?.createPlanner &&
         window.DvaWebGPUSunbeamCueAdapter?.createAdapter &&
         window.DvaWebGPUECuePlayer?.createPlayer) {
@@ -17821,12 +17911,11 @@ function flushLiveSunbeamSounds() {
           getContext: () => state.audio.context,
           getMaster: () => state.audio.master,
           isMuted: () => state.audio.muted || document.hidden || isSensoryBlocked(),
-          isVerify: () => IS_VERIFICATION_MODE
+          isVerify: () => false
         });
         sunbeamLive.soundAdapter ||= window.DvaWebGPUSunbeamCueAdapter.createAdapter({
           planner: sunbeamLive.soundPlanner, player: sunbeamLive.soundPlayer,
-          isVerify: () => IS_VERIFICATION_MODE });
-        const nowMs = state.frameNow || performance.now();
+          isVerify: () => false });
         const actor = data.players?.find(player =>
           String(player.id) === String(effect.playerId));
         const roomId = String(data.roomId || '');
@@ -17851,7 +17940,7 @@ function flushLiveSunbeamSounds() {
             ownerId: String(receipt.sound.ownerId),
             sourceKind: receipt.sound.sourceKind }
         }, { pageHidden: document.hidden, muted: state.audio.muted,
-          verify: IS_VERIFICATION_MODE, sensoryBlocked: isSensoryBlocked(data),
+          verify: false, sensoryBlocked: isSensoryBlocked(data),
           audible: state.audio.unlocked &&
             state.audio.context?.state === 'running' &&
             Number(state.audio.master?.gain?.value) > 0,
@@ -17865,7 +17954,7 @@ function flushLiveSunbeamSounds() {
 }
 
 function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
-  if (!WEBGPU_MAIN_VERIFY_ROUTE) return;
+  if (!WEBGPU_MAIN_OWNER) return;
   webgpuMainApp.generation += 1;
   webgpuMainApp.lastSoundRequestSerial = webgpuMainApp.requestSerial;
   webgpuMainApp.submittedHits = null;
@@ -17875,10 +17964,16 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   webgpuMainApp.submittedSunbeamHands.clear();
   webgpuMainApp.visible = false;
   if (document.documentElement?.dataset)
-    document.documentElement.dataset.fieldRenderer = "canvas2d";
+    document.documentElement.dataset.fieldRenderer = "webgpu-pending";
   if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
-  if (els.canvas) els.canvas.style.opacity = "1";
+  if (els.canvas) els.canvas.style.opacity = "0";
   if (webgpuMainApp.acquisitionCanvas) webgpuMainApp.acquisitionCanvas.style.display = "none";
+  sunbeamLive.pendingSounds.clear();
+  sunbeamLive.submitted.clear();
+  sunbeamLive.poseReceipts.clear();
+  sunbeamLive.soundPlayer?.stopAll?.();
+  stopAllPhenomenonSounds();
+  stopAllEnvironmentSounds();
   if (destroy) {
     webgpuMainApp.driver?.destroy();
     webgpuMainApp.driver = null;
@@ -17919,16 +18014,21 @@ function webgpuMainReadyImage(data) {
 async function startWebGPUMainAppDriver(data, image) {
   const generation = webgpuMainApp.generation;
   const map = data.map;
+  const roomId = state.roomId;
+  const sessionGeneration = state.roomSessionGeneration;
   const mainCanvas = els.webgpuMainCanvas;
-  if (!WEBGPU_MAIN_VERIFY_ROUTE || !mainCanvas?.isConnected ||
+  const sameSession = () => generation === webgpuMainApp.generation &&
+    state.screen === 'game' && !document.hidden &&
+    state.roomId === roomId && state.roomSessionGeneration === sessionGeneration &&
+    state.data?.map?.id === map.id;
+  if (!WEBGPU_MAIN_OWNER || !mainCanvas?.isConnected ||
       !els.expandedMapCanvas?.isConnected || !image || !map ||
-      state.data !== data || state.screen !== "game" || document.hidden) return null;
+      !sameSession()) return null;
   // The old renderers may still have a creation or draw in flight. They must
   // retire before the shared device registers either target.
   const expandedCanvas = await window.DvaWebGPUExpandedMapOwnership.handoffToMainRenderer();
   const acquisitionCanvas = await window.DvaWebGPUAcquisitionOverlay.handoffToMainRenderer();
-  if (generation !== webgpuMainApp.generation || state.data !== data ||
-      state.screen !== "game" || document.hidden) return null;
+  if (!sameSession()) return null;
   const driver = await createDormantWebGPUMainAppDriver({ mainCanvas,
     expandedCanvas, acquisitionCanvas, map, image,
     onFailure(error) {
@@ -17936,8 +18036,7 @@ async function startWebGPUMainAppDriver(data, image) {
       document.body.dataset.webgpuMainError = error?.message || String(error);
       suspendWebGPUMainAppDriver({ destroy: true });
     } });
-  if (generation !== webgpuMainApp.generation || state.data !== data ||
-      state.screen !== "game" || document.hidden) {
+  if (!sameSession()) {
     driver.destroy();
     return null;
   }
@@ -17948,7 +18047,7 @@ async function startWebGPUMainAppDriver(data, image) {
 }
 
 function pumpWebGPUMainAppDriver() {
-  if (!WEBGPU_MAIN_VERIFY_ROUTE || webgpuMainApp.failed) return;
+  if (!WEBGPU_MAIN_OWNER || webgpuMainApp.failed) return;
   const data = state.data;
   const sample = visibleGameplayViewportSample();
   const image = webgpuMainReadyImage(data);
@@ -17968,6 +18067,7 @@ function pumpWebGPUMainAppDriver() {
         .catch(error => {
           webgpuMainApp.failed = true;
           document.body.dataset.webgpuMainError = error?.message || String(error);
+          suspendWebGPUMainAppDriver({ destroy: true });
         }).finally(() => { webgpuMainApp.startPending = null; });
     }
     return;
@@ -18000,11 +18100,11 @@ function pumpWebGPUMainAppDriver() {
     if (receipt?.reason === "incomplete-scene")
       document.body.dataset.webgpuMainPending = receipt.reason;
     if (!receipt?.drawn || generation !== webgpuMainApp.generation ||
-        state.data !== data || state.screen !== "game" || document.hidden ||
+        state.screen !== "game" || document.hidden ||
         roomId !== state.roomId ||
         sessionGeneration !== state.roomSessionGeneration ||
-        phase !== data.phase || snapshotRoomId !== data.roomId ||
-        mapId !== data.map?.id || dpr !== (window.devicePixelRatio || 1) ||
+        phase !== state.data?.phase || snapshotRoomId !== state.data?.roomId ||
+        mapId !== state.data?.map?.id || dpr !== (window.devicePixelRatio || 1) ||
         connectionMode !== (document.documentElement?.dataset?.connectionMode || "") ||
         requestSerial < webgpuMainApp.lastSoundRequestSerial) return;
     const visibleRect = mainCanvas.getBoundingClientRect();
@@ -18029,6 +18129,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error('WebGPU main submitted without Sunbeam hand receipts');
     if (!Array.isArray(receipt.recordResult?.acquisitionSoundVisualReceipts))
       throw new Error('WebGPU main submitted without acquisition sound receipts');
+    if (!Array.isArray(receipt.recordResult?.mysteryOpeningSoundReceipts))
+      throw new Error('WebGPU main submitted without mystery opening sound receipts');
     if (!mainCanvas.isConnected || mainCanvas.style.display === "none") return;
     mainCanvas.style.opacity = "1";
     els.canvas.style.opacity = "0";
@@ -18058,11 +18160,14 @@ function pumpWebGPUMainAppDriver() {
       webgpuMainApp.submittedSunbeamHands.set(hand.effectId, hand);
     }
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
+    flushLiveSunbeamSounds(receipt.recordResult.sunbeamHandReceipts, requestSerial);
     commitVisibleVisualSoundFrame(data,
       receipt.recordResult.phenomenonSoundVisualReceipts,
       receipt.recordResult.environmentSoundReceipts, true);
     for (const acquisitionReceipt of receipt.recordResult.acquisitionSoundVisualReceipts)
       admitSubmittedAcquisitionCue(data, acquisitionReceipt);
+    for (const openingReceipt of receipt.recordResult.mysteryOpeningSoundReceipts)
+      admitSubmittedMysteryOpeningCue(data, openingReceipt);
     if (document.documentElement?.dataset)
       document.documentElement.dataset.fieldRenderer = "webgpu";
   }).catch(error => {
@@ -18072,18 +18177,11 @@ function pumpWebGPUMainAppDriver() {
   });
 }
 
-if (WEBGPU_MAIN_VERIFY_ROUTE) {
+if (WEBGPU_MAIN_OWNER) {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) suspendWebGPUMainAppDriver();
   });
   window.addEventListener("pagehide", () => suspendWebGPUMainAppDriver({ destroy: true }));
-}
-if (!WEBGPU_MAIN_VERIFY_ROUTE) {
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) suspendLiveSunbeamOverlay({ destroy: true });
-  });
-  window.addEventListener('pagehide', () =>
-    suspendLiveSunbeamOverlay({ destroy: true }));
 }
 
 function drawLoop(timestamp = 0, engineDelta = 0) {
@@ -18098,11 +18196,8 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
   }
   try {
     if (state.screen === "game") {
-      // Keep the staged GPU frame independent of a Canvas draw failure. A
-      // Canvas exception still reaches the outer error handler, but it must
-      // not suppress the WebGPU submission attempt for this frame.
-      try { prepareMainFrameBookkeeping(); draw(); }
-      finally { flushLiveSunbeamSounds(); pumpWebGPUMainAppDriver(); }
+      try { prepareMainFrameBookkeeping(); }
+      finally { pumpWebGPUMainAppDriver(); }
     }
     publishManualVerificationBotContinuity(state.frameNow);
     const drawMode = state.data ? state.data.phase : "idle";
@@ -18110,7 +18205,7 @@ function drawLoop(timestamp = 0, engineDelta = 0) {
     if (document.body.dataset.drawError) delete document.body.dataset.drawError;
   } catch (error) {
     document.body.dataset.drawError = error?.message || String(error);
-    console.error("Canvas draw failed", error);
+    console.error("Game frame failed", error);
   }
 }
 
@@ -20821,6 +20916,16 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         return true;
       return now < effect.startedAt || now - effect.startedAt < 1500;
     }
+    if (effect?.type === 'action-mana') {
+      // Keep malformed live mana activations in the source ledger so the
+      // typed WebGPU admission below can block an incomplete frame.
+      if (![effect.x, effect.y, effect.startedAt].every(Number.isFinite)) return true;
+      const duration = effect.duration ?? effect.durationMs;
+      if (duration != null && Number(duration) !== 0 &&
+          (!Number.isFinite(Number(duration)) || Number(duration) < 0)) return true;
+      const lifetime = duration == null || Number(duration) === 0 ? 1200 : Number(duration);
+      return now < effect.startedAt || now - effect.startedAt < lifetime;
+    }
     if (effect?.type === "grenade-frag-impact" ||
         effect?.type === "grenade-stun-impact") {
       // A malformed visible source must reach the blocker, not disappear in
@@ -20839,6 +20944,12 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     if (['gain-luckBoost', 'gain-statusRecovery', 'gain-cooldownReduction',
       'gravity-accelerate', 'gravity-decelerate', 'natural-recovery'].includes(effect?.type)) {
       if (![effect.startedAt, effect.duration].every(Number.isFinite) ||
+          effect.duration <= 0) return true;
+      return now - effect.startedAt < effect.duration;
+    }
+    if (String(effect?.type || '').startsWith('object-')) {
+      // A malformed live object use must reach the strict admission gate.
+      if (![effect.x, effect.y, effect.startedAt, effect.duration].every(Number.isFinite) ||
           effect.duration <= 0) return true;
       return now - effect.startedAt < effect.duration;
     }
@@ -20891,6 +21002,73 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     throw new Error("Late magic WebGPU source effects need distinct IDs");
   for (const [index, effect] of active.entries()) {
     const type = String(effect.type || "");
+    if (type === 'mystery-box') {
+      if (String(effect.viewerId ?? '') !== String(data.selfId ?? '') ||
+          String(effect.playerId ?? '') !== String(data.selfId ?? '')) {
+        omitted.push({ effectId: effect.id, reason: 'mystery-box-not-owned-by-viewer' });
+        continue;
+      }
+      if (data.phase !== 'playing' ||
+          (Number.isFinite(effect.startedAt) &&
+            (now < effect.startedAt || now - effect.startedAt >= 2600))) {
+        omitted.push({ effectId: effect.id, reason: 'mystery-box-outside-visible-lifetime' });
+        continue;
+      }
+      const worldRadius = Number.isFinite(effect.radius) && effect.radius > 0
+        ? 78.5 * clamp(effect.radius / 78.5, 0.75, 1.25) : null;
+      if (Number.isFinite(effect.x) && Number.isFinite(effect.y) &&
+          worldRadius != null &&
+          (effect.x + worldRadius < camera.x ||
+           effect.x - worldRadius > camera.x + viewport.width / zoom ||
+           effect.y + worldRadius < camera.y ||
+           effect.y - worldRadius > camera.y + viewport.height / zoom)) {
+        omitted.push({ effectId: effect.id, reason: 'mystery-box-outside-viewport' });
+        continue;
+      }
+      let planned = null;
+      try {
+        planned = window.DvaWebGPUMysteryBoxRevealE?.plan?.({ effect, now,
+          viewerId: String(data.selfId), selfId: String(data.selfId),
+          camera, zoom, viewport, reducedMotion });
+      } catch (_) { /* Malformed visible source must block full-frame readiness. */ }
+      if (!planned || String(planned.effectId) !== String(effect.id)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'mystery-box-reveal-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: 'mysteryBoxRevealE', effectId: effect.id,
+        input: { sourceEffectId: String(effect.id), effect, planned } });
+      continue;
+    }
+    if (type === 'action-mana') {
+      const duration = effect.duration ?? effect.durationMs;
+      const lifetime = duration == null || Number(duration) === 0 ? 1200 : Number(duration);
+      const actor = combatActors.find(player => String(player.id) === String(effect.playerId || ''));
+      const variant = String(effect.variant || '');
+      const phaseValid = data.phase === 'playing';
+      const viewerValid = typeof data.selfId === 'string' && data.selfId.length > 0;
+      const actorValid = Boolean(actor && actor.alive && !actor.ejected && !actor.inVent &&
+        !actor.invisible && Number.isFinite(actor.x) && Number.isFinite(actor.y));
+      const sourceValid = typeof effect.id === 'string' || typeof effect.id === 'number';
+      if (!phaseValid || !viewerValid || !actorValid || !sourceValid ||
+          !['欲望', '気概', '理知', 'renki'].includes(variant) ||
+          ![effect.x, effect.y, effect.startedAt, lifetime].every(Number.isFinite) ||
+          lifetime <= 0 || now < effect.startedAt || now - effect.startedAt >= lifetime ||
+          (variant === 'renki' && !['normal', 'tenfold'].includes(String(effect.completionKind || ''))) ||
+          (variant !== 'renki' && effect.completionKind &&
+            !['normal', 'tenfold'].includes(String(effect.completionKind)))) {
+        unsupported.push({ index, type, id: effect.id, reason: 'action-mana-source-actor-viewer-phase-or-lifetime-invalid' });
+        continue;
+      }
+      events.push({ type: 'commonActionBodyE', effectId: effect.id,
+        input: { effect, viewerId: String(data.selfId), phase: data.phase,
+          sourceFields: Object.fromEntries(['id', 'type', 'variant', 'playerId', 'x', 'y',
+            'startedAt', 'duration', 'durationMs', 'completionKind']
+            .map(key => [key, effect[key]])),
+          scene: { effects: [effect], players: combatActors, nowMs: now, reducedMotion },
+          camera, zoom } });
+      continue;
+    }
     if (type === 'gravity-storm') {
       const zone = (data.gravityZones || []).find(item =>
         item.ownerId === effect.playerId &&
@@ -21015,12 +21193,36 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         reason: 'alchemy-event-bound-hand-world-unavailable' });
       continue;
     }
+    if (type === 'flora') {
+      const source = data.players?.find(player => String(player.id) === String(effect.playerId));
+      const player = source ? renderedPlayer(source) : null;
+      const module = window.DvaWebGPUHealE;
+      if (!player || !player.alive || player.ejected || player.inVent ||
+          data.phase !== 'playing') {
+        omitted.push({ effectId: effect.id, reason: 'heal-owner-not-visible' });
+        continue;
+      }
+      const elapsed = now - effect.startedAt;
+      const serverNow = estimatedServerNow(data);
+      const selfStack = String(player.id) === String(data.selfId)
+        ? data.self?.timedAccelerationStacks?.flora : null;
+      const accelerationActive = selfStack
+        ? Number(selfStack.endsAt) > serverNow : elapsed < Math.min(effect.duration, 12000);
+      const planned = module?.plan?.({ effect, player, now, camera, zoom, viewport,
+        reducedMotion, accelerationUntil: accelerationActive ? now + 1 : 0 });
+      if (!planned) {
+        unsupported.push({ index, type, id: effect.id, reason: 'heal-plan-unavailable' });
+        continue;
+      }
+      events.push({ type: 'healE', effectId: effect.id, input: { effect, planned } });
+      continue;
+    }
     const nextPass = type === 'alchemy-human-transmutation'
       ? ['alchemyE', window.DvaWebGPUAlchemyE] :
       type === 'hacker-root' ? ['hackerRootE', window.DvaWebGPUHackerRootE] :
       type === 'hacker-status-recover' && effect.variant === 'cleared'
         ? ['hackerStatusRecoveryE', window.DvaWebGPUHackerStatusRecoveryE] :
-      type === 'flora' || type === 'flora-invisible'
+      type === 'flora-invisible'
         ? ['floraE', window.DvaWebGPUFloraE] : null;
     if (nextPass) {
       const [passName, module] = nextPass;
@@ -21057,6 +21259,11 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       if (passName === 'hackerRootE' && effect.variant === 'all-operators' &&
           !player.hackerRootActive) {
         omitted.push({ effectId: effect.id, reason: 'hacker-root-activation-superseded' });
+        continue;
+      }
+      if (passName === 'floraE' && module?.outsideViewport?.({
+        type, player, camera, zoom, viewport })) {
+        omitted.push({ effectId: effect.id, reason: 'flora-e-outside-viewport' });
         continue;
       }
       let planned;
@@ -21249,6 +21456,61 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       }
       events.push({ type: 'corridorA01E', effectId: String(effect.id),
         input: { effect, event, planned } });
+      continue;
+    }
+    const corridorObjectUseApi = window.DvaWebGPUCorridorObjectUseE;
+    const roomObjectUseApi = window.DvaWebGPURoomObjectUseE;
+    const objectUseApi = corridorObjectUseApi?.OBJECTS?.[effect.objectId]
+      ? corridorObjectUseApi : roomObjectUseApi?.OBJECTS?.[effect.objectId]
+        ? roomObjectUseApi : null;
+    const objectUseProfile = objectUseApi?.OBJECTS?.[effect.objectId];
+    if (objectUseProfile) {
+      const objectUseType = objectUseApi === corridorObjectUseApi
+        ? 'corridorObjectUseE' : 'roomObjectUseE';
+      const event = { ...effect, id: String(effect.id) };
+      const elapsed = now - Number(effect.startedAt);
+      if (Number.isFinite(elapsed) && Number.isFinite(effect.duration) &&
+          effect.duration > 0 && (elapsed < 0 || elapsed >= effect.duration)) {
+        omitted.push({ effectId: effect.id, reason: 'object-use-outside-lifetime' });
+        continue;
+      }
+      let planned = null;
+      try { planned = objectUseApi.plan({ map: data.map, event, now,
+        phase: data.phase, camera, zoom, viewport, reducedMotion }); }
+      catch (_) { /* Visible malformed source remains a readiness blocker. */ }
+      if (!planned) {
+        const object = data.map?.objects?.find(entry => entry.id === effect.objectId);
+        const validSource = objectUseApi.supported(event) &&
+          data.map?.id === objectUseApi.MAP_ID &&
+          object?.x === objectUseProfile.x && object?.y === objectUseProfile.y &&
+          object.type === objectUseProfile.type &&
+          object.effectKind === objectUseProfile.effectKind &&
+          object.visualWidth === objectUseProfile.width &&
+          object.visualHeight === objectUseProfile.height &&
+          (Object.hasOwn(objectUseProfile, 'corridor')
+            ? object.corridor === objectUseProfile.corridor
+            : object.room === objectUseProfile.room) &&
+          effect.x === objectUseProfile.x && effect.y === objectUseProfile.y &&
+          effect.radius === 100 && typeof event.playerId === 'string' && !!event.playerId &&
+          Number.isFinite(effect.startedAt) && Number.isFinite(effect.duration) &&
+          effect.duration > 0 && effect.duration <= objectUseApi.DURATION_MS;
+        const isCorridor = objectUseType === 'corridorObjectUseE';
+        const halfW = Math.max(objectUseProfile.width * (isCorridor ? .85 : .78),
+          isCorridor ? 25 : 28);
+        const halfH = Math.max(objectUseProfile.height * (isCorridor ? .85 : .78),
+          isCorridor ? 25 : 28);
+        const outside = validSource &&
+          (objectUseProfile.x + halfW <= camera.x ||
+           objectUseProfile.x - halfW >= camera.x + viewport.width / zoom ||
+           objectUseProfile.y + halfH <= camera.y ||
+           objectUseProfile.y - halfH >= camera.y + viewport.height / zoom);
+        (outside ? omitted : unsupported).push({ index, type, id: effect.id,
+          reason: outside ? 'object-use-outside-viewport' :
+            'object-use-source-or-pass-invalid' });
+        continue;
+      }
+      events.push({ type: objectUseType, effectId: String(effect.id),
+        input: { effect, planned } });
       continue;
     }
     if (type === 'object-relaxationBed' &&
@@ -21548,11 +21810,6 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         omitted.push({ effectId: effect.id, reason: 'status-tempo-player-not-visible' });
         continue;
       }
-      if (player.x < camera.x - 200 || player.x > camera.x + viewport.width / zoom + 200 ||
-          player.y < camera.y - 200 || player.y > camera.y + viewport.height / zoom + 200) {
-        omitted.push({ effectId: effect.id, reason: 'status-tempo-outside-viewport' });
-        continue;
-      }
       if (Number.isFinite(effect.startedAt) && now < effect.startedAt) {
         omitted.push({ effectId: effect.id, reason: 'status-tempo-not-started' });
         continue;
@@ -21560,6 +21817,10 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       if (profile && Number.isFinite(effect.duration) &&
           now - effect.startedAt >= Math.min(profile.durationMs, effect.duration)) {
         omitted.push({ effectId: effect.id, reason: 'status-tempo-visual-expired' });
+        continue;
+      }
+      if (pass?.outsideViewport?.({ type, player, camera, zoom, viewport })) {
+        omitted.push({ effectId: effect.id, reason: 'status-tempo-outside-viewport' });
         continue;
       }
       const planned = pass?.plan?.({ effect, player, now, phase: data.phase,
@@ -25016,6 +25277,7 @@ function registerMarkerHitTarget(key, localX, localY, radius, title, detail) {
 
 function markerTargetAt(point) {
   if (!point) return null;
+  if (WEBGPU_MAIN_OWNER && !webgpuMainSubmittedFrameCurrent()) return null;
   // A visible GPU surface owns marker input even while its submitted receipt
   // is stale. Never let the hidden Canvas hit cache bridge that gap.
   if (webgpuMainApp.visible) {
@@ -25195,6 +25457,9 @@ function drawMarkerExplanation(width, height) {
   // this snapshot so the explanation can be read without a live hit target.
   if (explanation.pointerId !== null) refreshMarkerExplanationTarget(explanation.pointerId);
   if (state.markerExplanation !== explanation) return;
+  // Bookkeeping no longer depends on hidden Canvas draws; keep the legacy
+  // hit cache empty so this renderer can never become an input fallback.
+  if (WEBGPU_MAIN_OWNER && !webgpuMainApp.visible) state.markerHitTargets.length = 0;
   const activeHits = webgpuMainApp.visible
     ? (webgpuMainSubmittedFrameCurrent() ? webgpuMainApp.submittedHits : null)
     : state.markerHitTargets;
@@ -28682,7 +28947,9 @@ function captureWebGPUMainAppConditionalTail(data, camera, zoom, providers = {})
 }
 function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
   shapeProviders = {}) {
-  if (data !== state.data)
+  if (data?.roomId !== state.data?.roomId ||
+      data?.phase !== state.data?.phase ||
+      data?.map?.id !== state.data?.map?.id)
     throw Object.assign(new Error('WebGPU world candidate needs the current game data snapshot'),
       { code: 'DVA_WEBGPU_STALE_SCENE' });
   ensureRenderPlayersAdvanced(data);
@@ -28695,7 +28962,10 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
     const currentViewportSignature = [viewport?.kind, viewport?.width,
       viewport?.height, viewport?.pixelWidth, viewport?.pixelHeight,
       ...(viewport?.worldToLogical || [])];
-    if (state.data !== owner.data || state.roomSessionGeneration !== owner.generation ||
+    if (state.data?.roomId !== owner.snapshotRoomId ||
+        state.data?.phase !== owner.phase ||
+        state.data?.map?.id !== owner.data?.map?.id ||
+        state.roomSessionGeneration !== owner.generation ||
         state.roomId !== owner.roomId || data.roomId !== owner.snapshotRoomId ||
         data.phase !== owner.phase || state.screen !== owner.screen ||
         viewport !== owner.viewport ||
@@ -29063,7 +29333,7 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
     'lighting', 'killAnimation', 'sensory', 'markerExplanation',
     'headMarkers', 'bodyBenefitExtra', 'statusTempo',
     'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE',
-    'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'sunbeamE',
+    'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE',
     'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
     'archiveCabinetE', 'cableSpoolE',
     ...(empVisible.length ? ['empEffect'] : []),
@@ -29072,8 +29342,9 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
     ...(candidate.stages.expandedMap ? ['expandedMap'] : [])]
     .map(name => ({ name, pass: passes[name], device: passes[name].device }));
   const sharedDevice = passes.headMarkers.device;
-  if (!sharedDevice || passOwners.some(({ device }) => device !== sharedDevice))
-    throw new Error('WebGPU world candidate conditional pass device differs from shared renderer');
+  const mismatchedPass = passOwners.find(({ device }) => device && device !== sharedDevice);
+  if (!sharedDevice || mismatchedPass)
+    throw new Error(`WebGPU world candidate conditional pass device differs from shared renderer: ${mismatchedPass?.name || 'headMarkers'}`);
   const assertPassesCurrent = () => {
     candidate.assertCurrent();
     if (passOwners.some(({ name, pass, device }) =>
@@ -29200,6 +29471,20 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
     throw new Error('WebGPU world candidate duplicate visible special-ammo source');
   const routedSpecialAmmo = new Set();
   const magicEffects = { ...magicInput, events: magicInput.events.map(event => {
+    if (event.type === 'commonActionBodyE') {
+      assertPassesCurrent();
+      const input = event.input, effect = input?.effect, sourceFields = input?.sourceFields;
+      const actor = (state.data?.players || []).find(player =>
+        String(player?.id ?? '') === String(effect?.playerId ?? ''));
+      const fieldsMatch = sourceFields && Object.keys(sourceFields).every(key =>
+        Object.is(sourceFields[key], effect?.[key]));
+      if (!effect || !state.magicEffects.includes(effect) ||
+          String(effect.id ?? '') !== String(event.effectId) || !fieldsMatch ||
+          state.data?.phase !== 'playing' || String(state.data?.selfId ?? '') !== input.viewerId ||
+          !actor || !actor.alive || actor.ejected || actor.inVent || actor.invisible)
+        throw new Error(`WebGPU world candidate action-mana source changed: ${event.effectId}`);
+      return event;
+    }
     if (event.type === 'specialAmmoEffect') {
       assertPassesCurrent();
       const sourceId = String(event.effectId);
@@ -29764,7 +30049,9 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         return Object.freeze({ drawn: false, reason: hidden.status || 'hidden' });
       }
       const currentRect = mainCanvas.getBoundingClientRect();
-      if (data !== state.data)
+      if (data.roomId !== state.data?.roomId ||
+          data.phase !== state.data?.phase ||
+          data.map?.id !== state.data?.map?.id)
         return Object.freeze({ drawn: false, reason: 'stale-scene' });
       if (destroyed || runtime.state !== 'ready' || !camera ||
           ![camera.x, camera.y, camera.zoom].every(Number.isFinite) ||
@@ -29784,9 +30071,10 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
             const captured = captureWebGPUMainAppWorldCandidate(data,
               viewport, providers);
             if (captured.blocked || captured.remainingStages.some(name =>
-              sceneApi.REQUIRED.includes(name)))
+              sceneApi.REQUIRED.includes(name))) {
               throw Object.assign(new Error('Dormant WebGPU main capture has visible or mandatory gaps'),
                 { code: 'DVA_WEBGPU_INCOMPLETE_SCENE' });
+            }
             const currentMarkerMaterials = markerOwner
               ? markerOwner.prepare({ textures: state.textures,
                 keys: headMarkerMaterialKeysForWebGPUCandidate(
@@ -33765,7 +34053,7 @@ function renderEnvironmentSfx(kind, sampleRate = 48000) {
 }
 
 function environmentSoundAvailable(data) {
-  return state.screen === "game" && !IS_VERIFICATION_MODE && !state.audio.muted &&
+  return state.screen === "game" && !state.audio.muted &&
     !document.hidden && !isSensoryBlocked(data) && ["playing", "meeting"].includes(data?.phase) &&
     data?.map?.id === "station" && state.audio.context?.state === "running" &&
     Number(state.audio.master?.gain?.value) > 0;
@@ -33848,7 +34136,7 @@ window.addEventListener("pagehide", stopAllEnvironmentSounds);
 
 
 function playSound(kind, options = {}) {
-  if (state.audio.muted || IS_VERIFICATION_MODE || isSensoryBlocked()) return null;
+  if (state.audio.muted || isSensoryBlocked()) return null;
   const context = state.audio.context;
   if (!context || context.state === "closed") return null;
   if (PHENOMENON_SFX[kind]) {
@@ -33856,7 +34144,7 @@ function playSound(kind, options = {}) {
     // unlock. The renderer consumes their phase even when sound is unavailable.
     if (!(Number(state.audio.master?.gain?.value) > 0)) return null;
     return playPhenomenonSfx(context, state.audio.master, kind, {
-      ...options, verify: IS_VERIFICATION_MODE, muted: state.audio.muted
+      ...options, verify: false, muted: state.audio.muted
     });
   }
   if (context.state === "suspended") context.resume().catch(() => {});
@@ -34100,7 +34388,7 @@ function showToast(message) {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator) || location.protocol === "file:" || /(^|\.)plicy\.net$/i.test(location.hostname)) return;
-  navigator.serviceWorker.register(new URL("sw.js?v=webgpu-main-bootstrap-v16", document.baseURI)).then(async (registration) => {
+  navigator.serviceWorker.register(new URL("sw.js?v=webgpu-main-bootstrap-v27", document.baseURI)).then(async (registration) => {
     // Ask for the current release immediately. The release-scoped worker
     // cache keeps a previous controller from supplying a mixed runtime while
     // the update is being installed.

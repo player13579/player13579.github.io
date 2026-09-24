@@ -194,6 +194,56 @@
               planned.progress >= 1 || !(planned.values instanceof Float32Array) ||
               planned.values.length !== 16 || !planned.values.every(Number.isFinite))
             throw new TypeError(`Magic special ammo ${id} needs one exact source-owned plan`);
+        } else if (event?.type === 'commonActionBodyE') {
+          const input = event.input, effect = input?.effect;
+          const scene = input?.scene;
+          const sourceFields = input?.sourceFields;
+          const fieldsMatch = sourceFields && Object.keys(sourceFields).every(key =>
+            Object.is(sourceFields[key], effect?.[key]));
+          const duration = effect?.duration ?? effect?.durationMs;
+          const lifetime = duration == null || Number(duration) === 0 ? 1200 : Number(duration);
+          const elapsed = Number(scene?.nowMs) - Number(effect?.startedAt);
+          const actor = scene?.players?.find(player =>
+            String(player?.id ?? '') === String(effect?.playerId ?? ''));
+          if (typeof passes.commonActionBodyE?.record !== 'function' ||
+              effect?.type !== 'action-mana' || String(effect.id ?? '') !== id ||
+              !fieldsMatch ||
+              !['欲望', '気概', '理知', 'renki'].includes(effect.variant) ||
+              !String(input.viewerId || '') || input.viewerId !== magic.viewerId ||
+              input.phase !== 'playing' || magic.phase !== 'playing' ||
+              !Array.isArray(scene?.effects) || scene.effects.length !== 1 ||
+              scene.effects[0] !== effect || !Array.isArray(scene.players) ||
+              !actor || !actor.alive || actor.ejected || actor.inVent || actor.invisible ||
+              ![effect.x, effect.y, effect.startedAt, scene.nowMs, lifetime,
+                input.camera?.x, input.camera?.y, input.zoom].every(Number.isFinite) ||
+              lifetime <= 0 || elapsed < 0 || elapsed >= lifetime ||
+              (effect.variant === 'renki' && !['normal', 'tenfold'].includes(effect.completionKind)))
+            throw new TypeError(`Magic action mana ${id} needs one live viewer-owned actor event`);
+        } else if (event?.type === 'mysteryBoxRevealE') {
+          const input = event.input, effect = input?.effect, planned = input?.planned;
+          const elapsed = magic.now - effect?.startedAt;
+          if (typeof passes.mysteryBoxRevealE?.record !== 'function' ||
+              input?.sourceEffectId !== id || effect?.type !== 'mystery-box' ||
+              String(effect.id ?? '') !== id ||
+              !String(magic.viewerId || '') || magic.phase !== 'playing' ||
+              String(effect.viewerId ?? '') !== String(magic.viewerId) ||
+              String(effect.playerId ?? '') !== String(magic.viewerId) ||
+              effect.durationMs !== 2600 || !Number.isFinite(effect.startedAt) ||
+              !Number.isFinite(magic.now) || elapsed < 0 || elapsed >= 2600 ||
+              ![effect.x, effect.y, effect.radius].every(Number.isFinite) ||
+              effect.radius <= 0 ||
+              !['product', 'ability'].includes(effect.acquisitionKind) ||
+              !String(effect.acquisitionId || '') ||
+              String(effect.variant || '') !== String(effect.acquisitionId) ||
+              planned?.effectId !== id || planned.startedAt !== effect.startedAt ||
+              planned.durationMs !== 2600 || planned.elapsed !== elapsed ||
+              planned.progress !== elapsed / 2600 ||
+              planned.kind !== effect.acquisitionKind ||
+              planned.variant !== String(effect.variant) ||
+              planned.reducedMotion !== Boolean(magic.reducedMotion) ||
+              ![planned.centerX, planned.centerY, planned.radiusX, planned.radiusY,
+                planned.pixelWidth, planned.pixelHeight].every(Number.isFinite))
+            throw new TypeError(`Magic mystery box ${id} needs one viewer-owned server event and opening plan`);
         } else if (event?.type === 'gravityImpact') {
           if (typeof passes.gravityImpacts?.record !== 'function')
             throw new Error('Magic gravity impact needs WebGPU gravityImpacts.record');
@@ -262,6 +312,14 @@
                 (!Array.isArray(event.input.submittedHands) ||
                   !event.input.submittedHands.length)))
             throw new TypeError(`Magic event ${index} needs one event-bound Sunbeam path`);
+        } else if (event?.type === 'healE') {
+          const effect = event.input?.effect, planned = event.input?.planned;
+          if (typeof passes.healE?.record !== 'function' || effect?.type !== 'flora' ||
+              String(effect.id ?? '') !== id || String(planned?.effectId ?? '') !== id ||
+              planned?.sourceKind !== 'flora-heal' ||
+              !Number.isFinite(planned?.elapsedMs) || planned.elapsedMs < 0 ||
+              !Number.isFinite(planned.rect?.width) || planned.rect.width <= 0)
+            throw new TypeError(`Magic event ${index} needs one owned Heal plan`);
         } else if (['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE'].includes(event?.type)) {
           const effect = event.input?.effect, planned = event.input?.planned;
           if (typeof passes[event.type]?.record !== 'function' ||
@@ -324,6 +382,18 @@
               !Number.isFinite(planned.elapsed) || planned.elapsed < 0 ||
               planned.elapsed >= 760)
             throw new TypeError(`Magic event ${index} needs one owned a01 reader E`);
+        } else if (event?.type === 'corridorObjectUseE' ||
+            event?.type === 'roomObjectUseE') {
+          const effect = event.input?.effect, planned = event.input?.planned;
+          if (typeof passes[event.type]?.record !== 'function' ||
+              !String(effect?.type || '').startsWith('object-') ||
+              String(effect?.id ?? '') !== id || planned?.eventId !== id ||
+              planned?.objectId !== effect?.objectId ||
+              planned?.effectKind !== effect?.effectKind ||
+              !Number.isFinite(planned?.progress) || planned.progress < 0 ||
+              planned.progress >= 1 || !Number.isFinite(planned?.source?.x) ||
+              !Number.isFinite(planned?.source?.y))
+            throw new TypeError(`Magic event ${index} needs one owned ${event.type}`);
         } else if (event?.type === 'medicalObjectE') {
           const effect = event.input?.effect, planned = event.input?.planned;
           if (typeof passes.medicalObjectE?.record !== 'function' ||
@@ -428,6 +498,7 @@
       const preparationHitTargets = [];
       const phenomenonSoundVisualReceipts = [];
       const environmentSoundReceipts = [];
+      const mysteryOpeningSoundReceipts = [];
       const sunbeamHands = new Map();
       const run = (name, callback) => {
         const input = stages[name];
@@ -502,7 +573,8 @@
       run('mysteryBoxes', input => need('mysteryBoxes', 'record').record(common(input)));
       run('alchemyObjects', input => need('alchemyObjects', 'record').record({ ...common(input), shapes: need('shapes', 'enqueue') }));
       run('gravityHazards', input => {
-        const outcome = need('gravityHazards', 'record').record(common(input));
+        const outcome = need('gravityHazards', 'record').record({ ...common(input),
+          prepared: input.preparedPlan });
         if (input.fieldScene?.gravityZones?.length) {
           const field = need('gravityFieldE', 'record').record({ frame, target,
             viewport, scene: input.fieldScene, camera: input.camera, zoom: input.zoom });
@@ -526,7 +598,8 @@
       run('facilityEffects', input => need('facilityEffects', 'record').record({ ...common(input), shapes: need('shapes', 'enqueue') }));
       run('bodies', input => need('bodies', 'record').record({ ...common(input), shapes: need('shapes', 'enqueue') }));
       run('worldSound', input => need('worldSound', 'record').record({ ...common(input), shapes: need('shapes', 'enqueue') }));
-      run('throwPreview', input => need('throwPreview', 'record').record(common(input)));
+      run('throwPreview', input => input.scene
+        ? need('throwPreview', 'record').record(common(input)) : null);
       run('preparationSummons', input => need('preparationSummons', 'record').record(common(input)));
       run('players', input => {
         const cache = need('players', 'record');
@@ -638,12 +711,40 @@
                 outcome.type !== event.input.effect.type ||
                 outcome.variant !== event.input.planned.variant || outcome.drawn !== true)
               throw new Error(`Magic special ammo ${event.effectId} was not fully claimed and drawn`);
+          } else if (event.type === 'commonActionBodyE') {
+            const outcome = need('commonActionBodyE', 'record').record({
+              frame, target, viewport, ...event.input });
+            if (!Array.isArray(outcome?.owned) || outcome.owned.length !== 1 ||
+                String(outcome.owned[0].id) !== String(event.effectId) ||
+                outcome.unsupported?.length || outcome.commands?.length < 1)
+              throw new Error(`Magic action mana ${event.effectId} was not drawn exactly once`);
+          } else if (event.type === 'mysteryBoxRevealE') {
+            const outcome = need('mysteryBoxRevealE', 'record').record({ frame, target,
+              viewport, planned: event.input.planned });
+            if (outcome?.effectId !== event.effectId || outcome.drawn !== true ||
+                outcome.recorded !== true)
+              throw new Error(`Magic mystery box ${event.effectId} was not fully claimed and drawn`);
+            mysteryOpeningSoundReceipts.push(Object.freeze({
+              effectId: String(event.effectId),
+              playerId: String(event.input.effect.playerId),
+              viewerId: String(event.input.effect.viewerId),
+              startedAt: event.input.effect.startedAt,
+              progress: event.input.planned.progress
+            }));
           } else if (event.type === 'corridorA01E') {
             const outcome = need('corridorA01E', 'record').record({ frame, target,
               viewport, planned: event.input.planned });
             if (outcome?.eventId !== event.effectId ||
                 outcome.kind !== 'reader-use' || outcome.drawn !== true)
               throw new Error(`a01 reader E ${event.effectId} was not drawn`);
+          } else if (event.type === 'corridorObjectUseE' ||
+              event.type === 'roomObjectUseE') {
+            const outcome = need(event.type, 'record').record({ frame, target,
+              viewport, planned: event.input.planned });
+            if (outcome?.eventId !== event.effectId ||
+                outcome?.objectId !== event.input.effect.objectId ||
+                outcome.drawn !== true)
+              throw new Error(`${event.type} ${event.effectId} was not drawn`);
           } else if (event.type === 'medicalObjectE') {
             const outcome = need('medicalObjectE', 'record').record({ frame, target,
               viewport, planned: event.input.planned });
@@ -748,6 +849,12 @@
               viewport, scene, camera: input.camera, zoom: input.zoom });
             if (outcome?.drawn !== 1 || outcome.effects?.[0]?.id !== String(event.effectId))
               throw new Error(`Magic Sunbeam ${event.effectId} was not drawn from its hands`);
+          } else if (event.type === 'healE') {
+            const outcome = need('healE', 'record').record({ frame, target, viewport,
+              planned: event.input.planned });
+            if (outcome?.drawn !== 1 ||
+                outcome.effects?.[0]?.effectId !== event.effectId)
+              throw new Error(`Magic Heal ${event.effectId} was not drawn once`);
           } else if (['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE'].includes(event.type)) {
             const outcome = need(event.type, 'record').record({ frame, target, viewport,
               ...(event.type === 'alchemyE' ? { scene: event.input.scene,
@@ -824,6 +931,7 @@
         minimapBounds: Object.freeze({ ...stages.minimap.scene.bounds }),
         phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()),
         environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()),
+        mysteryOpeningSoundReceipts: Object.freeze(mysteryOpeningSoundReceipts.slice()),
         sunbeamHandReceipts: Object.freeze([...sunbeamHands.values()]) });
     }
     return Object.freeze({ prepare, record, get device() { return device; }, destroy() { destroyed = true; } });

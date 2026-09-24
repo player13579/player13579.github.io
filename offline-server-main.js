@@ -15019,7 +15019,7 @@ function healFlora(room, player) {
   grantStamina(room, player, MAX_STAMINA, "ヒール", timestamp, { floorAtZero: true });
   addTimedAcceleration(player, "flora", FLORA_SPEED_MULTIPLIER, FLORA_SPEED_DURATION_MS, timestamp);
   setImmediateFeedback(player, "ヒール", `自分 / HP回復 / SP+${MAX_STAMINA} / 状態解除 / 加速`);
-  pushMagicEffect(room, "flora", player, { radius: FLORA_SELF_EFFECT_RADIUS, playerId: player.id });
+  pushMagicEffect(room, "flora", player, { radius: FLORA_SELF_EFFECT_RADIUS, playerId: player.id, durationMs: FLORA_SPEED_DURATION_MS });
   pushGainAte(room, player, "heal", { variant: "flora" });
   if (recovery.maxHealth > healthBefore) pushGainAte(room, player, "overheal", { variant: "flora" });
   pushGainAte(room, player, "stamina", { variant: "flora", durationMs: 1620 });

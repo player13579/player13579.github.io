@@ -124,7 +124,7 @@
           String(event.listenerId) === String(event.targetId || '')))
         return Object.freeze({ ...meta, suppressed: true,
           reason: 'shared-local-hit-impact', sharedSfxKind: 'impact-wav' });
-      if (!audible || verify || event.nowMs > event.eventAtMs + maxLateMs) return null;
+      if (!audible || event.nowMs > event.eventAtMs + maxLateMs) return null;
       if (recentCues.length >= maxCuesPerSecond) return null;
       const scale = reducedMotion ? .72 : 1;
       const layers = profile[1].map(([shape, frequencyHz, endFrequencyHz, amplitude, offsetMs, durationMs, layer]) => {

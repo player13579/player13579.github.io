@@ -68,7 +68,7 @@
       prune(event.nowMs);
       const identity = `operator:${event.eventId}`;
       if (watermark - event.eventAtMs > retentionMs || consumed.has(identity) || consumed.size >= maxEntries) return null;
-      // Consume even under mute, verify mode, private-view denial or lateness.
+      // Consume before mute, private-view denial or lateness.
       consumed.set(identity, Math.max(event.nowMs, event.eventAtMs + maxLateMs) + retentionMs);
       const key = `${event.type}:${event.variant}`;
       const meta = { eventId: event.eventId, type: event.type, variant: event.variant,
@@ -84,7 +84,7 @@
         if (!viewer || viewer !== subject || String(event.viewerId || '') !== viewer || event.visibleToListener !== true)
           return Object.freeze({ ...meta, suppressed: true, reason: 'flora-invisible-private-listener-only' });
       }
-      if (!audible || verify || event.nowMs > event.eventAtMs + maxLateMs) return null;
+      if (!audible || event.nowMs > event.eventAtMs + maxLateMs) return null;
       const scale = reducedMotion ? .72 : 1;
       const layers = profile.layers.map(([shape, frequencyHz, endFrequencyHz, amplitude, offsetMs, durationMs, layer]) => {
         const offset = Math.round(offsetMs * scale), duration = Math.max(28, Math.round(durationMs * scale));

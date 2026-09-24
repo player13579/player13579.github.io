@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-main-bootstrap-v26";
-const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v26";
+const RUNTIME_RELEASE = "webgpu-main-bootstrap-v27";
+const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v27";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -391,6 +391,7 @@ const STATIC_ASSETS = [
   "/webgpu-stations.js",
   "/webgpu-map-object-labels.js",
   "/webgpu-mystery-boxes.js",
+  "/webgpu-mystery-box-reveal-e.js",
   "/webgpu-alchemy-objects.js",
   "/webgpu-ground-items.js",
   "/webgpu-facility-effects.js",
@@ -419,6 +420,8 @@ const STATIC_ASSETS = [
   "/webgpu-hacker-root-e.js",
   "/webgpu-hacker-status-recovery-e.js",
   "/webgpu-flora-e.js",
+  "/webgpu-heal-e.js",
+  "/webgpu-heal-e-sfx.js",
   "/webgpu-sunbeam-e.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",
@@ -441,10 +444,13 @@ const STATIC_ASSETS = [
   "/webgpu-main-scene.js",
   "/webgpu-main-pass-registry.js",
   "/webgpu-corridor-a01-e.js",
+  "/webgpu-corridor-object-use-e.js",
+  "/webgpu-room-object-use-e.js",
   "/webgpu-main-runtime.js",
   "/webgpu-main-frame-scheduler.js",
   "/webgpu-emp-effect.js",
   "/webgpu-special-ammo-effect.js",
+  "/webgpu-common-action-body-e.js",
   "/webgpu-e-event-sfx.js",
   "/webgpu-combat-e-sfx.js",
   "/webgpu-defense-movement-e-sfx.js",
@@ -849,6 +855,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-stations.js",
   "/webgpu-map-object-labels.js",
   "/webgpu-mystery-boxes.js",
+  "/webgpu-mystery-box-reveal-e.js",
   "/webgpu-alchemy-objects.js",
   "/webgpu-ground-items.js",
   "/webgpu-facility-effects.js",
@@ -877,6 +884,8 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-hacker-root-e.js",
   "/webgpu-hacker-status-recovery-e.js",
   "/webgpu-flora-e.js",
+  "/webgpu-heal-e.js",
+  "/webgpu-heal-e-sfx.js",
   "/webgpu-sunbeam-e.js",
   "/webgpu-sunbeam-live-overlay.js",
   "/webgpu-sunbeam-e-sfx.js",
@@ -899,10 +908,13 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-main-scene.js",
   "/webgpu-main-pass-registry.js",
   "/webgpu-corridor-a01-e.js",
+  "/webgpu-corridor-object-use-e.js",
+  "/webgpu-room-object-use-e.js",
   "/webgpu-main-runtime.js",
   "/webgpu-main-frame-scheduler.js",
   "/webgpu-emp-effect.js",
   "/webgpu-special-ammo-effect.js",
+  "/webgpu-common-action-body-e.js",
   "/webgpu-e-event-sfx.js",
   "/webgpu-combat-e-sfx.js",
   "/webgpu-defense-movement-e-sfx.js",
