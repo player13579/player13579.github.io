@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-main-bootstrap-v5";
-const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v5";
+const RUNTIME_RELEASE = "webgpu-main-bootstrap-v9";
+const CACHE_NAME = "dva-static-webgpu-main-bootstrap-v9";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -398,6 +398,7 @@ const STATIC_ASSETS = [
   "/webgpu-world-sound-effects.js",
   "/webgpu-throw-preview.js",
   "/webgpu-preparation-summons.js",
+  "/webgpu-player-nameplates.js",
   "/webgpu-player-sprite.js",
   "/webgpu-head-markers.js",
   "/webgpu-head-marker-materials.js",
@@ -407,6 +408,8 @@ const STATIC_ASSETS = [
   "/webgpu-gravity-impacts.js",
   "/webgpu-grenade-impact.js",
   "/webgpu-body-benefit-pass.js",
+  "/webgpu-body-benefit-extra.js",
+  "/webgpu-status-tempo-e.js",
   "/webgpu-fire-activation.js",
   "/webgpu-attack-targets.js",
   "/webgpu-task-indicators.js",
@@ -424,6 +427,10 @@ const STATIC_ASSETS = [
   "/webgpu-main-frame-scheduler.js",
   "/webgpu-emp-effect.js",
   "/webgpu-special-ammo-effect.js",
+  "/webgpu-e-event-sfx.js",
+  "/webgpu-combat-e-sfx.js",
+  "/webgpu-defense-movement-e-sfx.js",
+  "/webgpu-e-cue-player.js",
   "/object-space-collision.js",
   "/grenade-impact-sfx.js",
   "/game-runtime.js",
@@ -831,6 +838,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-world-sound-effects.js",
   "/webgpu-throw-preview.js",
   "/webgpu-preparation-summons.js",
+  "/webgpu-player-nameplates.js",
   "/webgpu-player-sprite.js",
   "/webgpu-head-markers.js",
   "/webgpu-head-marker-materials.js",
@@ -840,6 +848,8 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-gravity-impacts.js",
   "/webgpu-grenade-impact.js",
   "/webgpu-body-benefit-pass.js",
+  "/webgpu-body-benefit-extra.js",
+  "/webgpu-status-tempo-e.js",
   "/webgpu-fire-activation.js",
   "/webgpu-attack-targets.js",
   "/webgpu-task-indicators.js",
@@ -857,6 +867,10 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-main-frame-scheduler.js",
   "/webgpu-emp-effect.js",
   "/webgpu-special-ammo-effect.js",
+  "/webgpu-e-event-sfx.js",
+  "/webgpu-combat-e-sfx.js",
+  "/webgpu-defense-movement-e-sfx.js",
+  "/webgpu-e-cue-player.js",
   "/object-space-collision.js",
   "/grenade-impact-sfx.js",
   "/game-runtime.js",

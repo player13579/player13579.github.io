@@ -1411,6 +1411,8 @@ const PHENOMENON_SOUND_RECEIPTS = { roomId: "", ids: new Set(), order: [], owner
 // Grenade impact receipts live for the entire room session. A finite visual
 // may expire while its server event ID remains in later snapshots.
 const GRENADE_IMPACT_SOUND_RECEIPTS = { roomId: "", generation: 0, ids: new Map() };
+const WEBGPU_E_CUES = { roomKey: '', player: null, events: null,
+  combat: null, defense: null };
 const ENVIRONMENT_SOUND_OWNERS = new Map();
 const ENVIRONMENT_SFX_BUFFERS = new WeakMap();
 let environmentSoundFrame = 0;
@@ -2310,6 +2312,8 @@ const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false,
 const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("webgpuMain") === "1";
 const webgpuMainApp = { driver: null, startPending: null, mapId: null,
   generation: 0, visible: false, submittedHits: null, failed: false,
+  submittedPreparationHits: null, submittedMinimapBounds: null,
+  submittedFrame: null,
   requestSerial: 0, lastSoundRequestSerial: 0,
   acquisitionCanvas: null };
 init();
@@ -9705,7 +9709,8 @@ function minimapCanvasBounds(canvasWidth = MAIN_CANVAS_LOGICAL_SIZE[0]) {
 }
 
 function canvasPointerPosition(event) {
-  const rect = els.canvas.getBoundingClientRect();
+  const surface = webgpuMainSubmittedFrameCurrent() ? els.webgpuMainCanvas : els.canvas;
+  const rect = surface.getBoundingClientRect();
   if (!rect.width || !rect.height) return null;
   return {
     x: (event.clientX - rect.left) * (MAIN_CANVAS_LOGICAL_SIZE[0] / rect.width),
@@ -9779,7 +9784,10 @@ async function finishClairvoyanceTeleportTap(event, cancelled = false) {
 function pointerHitsMinimap(event) {
   const point = canvasPointerPosition(event);
   if (!point) return false;
-  const bounds = minimapCanvasBounds();
+  if (webgpuMainApp.visible && !webgpuMainSubmittedFrameCurrent()) return false;
+  const bounds = webgpuMainSubmittedFrameCurrent()
+    ? webgpuMainApp.submittedMinimapBounds : minimapCanvasBounds();
+  if (!bounds) return false;
   return point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
     point.y >= bounds.y && point.y <= bounds.y + bounds.height;
 }
@@ -11395,6 +11403,7 @@ function resetLocalSession() {
   GRENADE_IMPACT_SOUND_RECEIPTS.roomId = "";
   GRENADE_IMPACT_SOUND_RECEIPTS.generation = 0;
   GRENADE_IMPACT_SOUND_RECEIPTS.ids.clear();
+  WEBGPU_E_CUES.player?.stopAll();
   clearAcquisitionOverlay();
   clearMarkerExplanation();
   cancelCommonActionGestures();
@@ -12361,7 +12370,116 @@ function admitGrenadeImpactSound(effect, data) {
   }
 }
 
+function syncWebGPUECueSession(data) {
+  const owner = WEBGPU_E_CUES;
+  const roomId = String(data?.roomId || '');
+  const generation = state.roomSessionGeneration;
+  if (!roomId || !Number.isInteger(generation) ||
+      !['playing', 'meeting'].includes(data?.phase)) {
+    owner.player?.stopAll();
+    return false;
+  }
+  if (isSensoryBlocked(data)) owner.player?.stopAll();
+  const key = `${roomId}:${generation}`;
+  if (!owner.player) {
+    const modules = [window.DvaWebGPEEventSfx,
+      window.DvaWebGPUCombatESfx, window.DvaWebGPUDefenseMovementESfx];
+    if (modules.some(module => typeof module?.createLedger !== 'function') ||
+        typeof window.DvaWebGPUECuePlayer?.createPlayer !== 'function') return false;
+    owner.events = modules[0].createLedger();
+    owner.combat = modules[1].createLedger();
+    owner.defense = modules[2].createLedger();
+    owner.player = window.DvaWebGPUECuePlayer.createPlayer({
+      getContext: () => state.audio.context,
+      getMaster: () => state.audio.master,
+      isMuted: () => state.audio.muted || document.hidden || isSensoryBlocked(),
+      isVerify: () => IS_VERIFICATION_MODE
+    });
+  }
+  if (owner.roomKey !== key) {
+    owner.roomKey = key;
+    for (const ledger of [owner.events, owner.combat, owner.defense, owner.player])
+      ledger.enterRoom(roomId, generation);
+  }
+  return true;
+}
+
+function webgpuECueVolume(effect, data) {
+  if (String(effect.playerId || '') === String(data.selfId || '')) return 0.75;
+  const listener = data.players?.find(player => player.id === data.selfId);
+  if (!listener || ![listener.x, listener.y, effect.x, effect.y].every(Number.isFinite))
+    return 0;
+  const distance = Math.hypot(effect.x - listener.x, effect.y - listener.y);
+  return distance < 900 ? 0.55 * (1 - distance / 900) ** 2 : 0;
+}
+
+function admitWebGPUECue(effect, data, receivedAt, volumeOverride = null) {
+  if (!WEBGPU_E_CUES.player || typeof effect?.id !== 'string' || !effect.id ||
+      !Number.isFinite(receivedAt) ||
+      !['playing', 'meeting'].includes(data?.phase)) return null;
+  const owner = WEBGPU_E_CUES;
+  const base = { eventId: String(effect.id), roomId: String(data.roomId),
+    roomGeneration: state.roomSessionGeneration, eventAtMs: receivedAt,
+    nowMs: receivedAt, type: String(effect.type || ''),
+    variant: String(effect.variant || '') };
+  let cue = null;
+  if (window.DvaWebGPUCombatESfx.EMP[base.type]) {
+    // The world-sound route alone may claim an EMP. A magic effect by itself
+    // cannot silence the existing sound or infer its causal counterpart.
+    if (typeof effect.empCausalId !== 'string' || !effect.empCausalId ||
+        !Number.isFinite(volumeOverride) ||
+        !window.DvaWebGPUCombatESfx.EMP[base.type][base.variant]) return null;
+    cue = owner.combat.admit(base, { reducedMotion: prefersReducedMotion() });
+  } else if (base.type.startsWith('action-special-ammo-')) {
+    if (!['action-special-ammo-load', 'action-special-ammo-shot',
+      'action-special-ammo-impact'].includes(base.type)) return null;
+    if (!(base.type === 'action-special-ammo-impact'
+      ? /^(weak|penetrate|shock):.+$/.test(base.variant)
+      : /^(weak|penetrate|shock):(handgun|smg|assault|sniper|taser)$/.test(base.variant)))
+      return null;
+    cue = owner.combat.admit(base, { reducedMotion: prefersReducedMotion() });
+  } else {
+    const defenseKey = `${base.type}:${base.variant}`;
+    const defenseApi = window.DvaWebGPUDefenseMovementESfx;
+    if (Object.hasOwn(defenseApi.PROFILES, defenseKey) ||
+        Object.hasOwn(defenseApi.REJECTED, defenseKey) ||
+        Object.hasOwn(defenseApi.SHARED, base.type)) {
+      cue = owner.defense.admit(base, { reducedMotion: prefersReducedMotion() });
+    } else if (['enhance-activation', 'fighter-energy-charge'].includes(base.type) ||
+               (base.type.startsWith('gain-') && isSharedHeadMarkerEffect(effect))) {
+      const markerType = base.type === 'enhance-activation' ? 'enhance-activation' :
+        base.type === 'fighter-energy-charge' ? 'fighter-energy-charge' :
+          'persistent-status';
+      cue = owner.events.admit({ ...base, kind: 'marker', markerType,
+        sourceId: String(effect.playerId || '') });
+    }
+  }
+  if (!cue || cue.suppressed) return cue;
+  return owner.player.play(cue, { nowMs: receivedAt,
+    muted: state.audio.muted || document.hidden || isSensoryBlocked(data),
+    verify: IS_VERIFICATION_MODE, volume: Number.isFinite(volumeOverride)
+      ? volumeOverride : webgpuECueVolume(effect, data) });
+}
+
+function pairedEmpMagicEffect(sound, data) {
+  const causalId = sound?.empCausalId;
+  if (sound?.type !== 'emp' || typeof causalId !== 'string' || !causalId)
+    return null;
+  const matches = (data?.magicEffects || []).filter(effect =>
+    typeof effect?.id === 'string' && effect.id &&
+    effect.empCausalId === causalId &&
+    ['emp', 'emp-resonance', 'emp-cancel'].includes(effect.type) &&
+    window.DvaWebGPUCombatESfx?.EMP?.[effect.type]?.[effect.variant]);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) WEBGPU_E_CUES.player?.stopAll();
+});
+window.addEventListener('pagehide', () => WEBGPU_E_CUES.player?.stopAll());
+
 function detectMagicEffects(previous, next) {
+  syncWebGPUECueSession(next);
   const grenadeReceipts = prepareGrenadeImpactSoundReceipts(previous, next);
   preparePhenomenonSoundReceipts(previous, next);
   detectAuthoredBotSmgReload(next);
@@ -12424,6 +12542,7 @@ function detectMagicEffects(previous, next) {
         actorClockRoomId: String(next.roomId || "")
       } : {})
     };
+    admitWebGPUECue(localEffect, next, receivedAt);
     const nonCreditSemantic = nonCreditHeadMarkerSemanticKey(localEffect);
     if (nonCreditSemantic) {
       const existing = state.magicEffects.find((entry) => (
@@ -12588,6 +12707,16 @@ function detectWorldSounds(previous, next) {
     if (distance > maxDistance) continue;
     const volume = clamp(1 - distance / maxDistance, 0, 1) * clamp(Number(sound.volume) || 1, 0, 1.25);
     if (volume <= 0.01) continue;
+    const pairedEmp = pairedEmpMagicEffect(sound, next);
+    if (pairedEmp && syncWebGPUECueSession(next)) {
+      let receipt, cueFailed = false;
+      try { receipt = admitWebGPUECue(pairedEmp, next,
+        state.frameNow || performance.now(), volume); }
+      catch (_) { cueFailed = true; }
+      if (!cueFailed && receipt?.status !== 'failed' &&
+          (receipt?.status === 'scheduled' || receipt?.status === 'suppressed' ||
+            WEBGPU_E_CUES.combat.has(pairedEmp.id))) continue;
+    }
     const kind = {
       gunshot: "gunshot",
       emp: "emp",
@@ -12604,7 +12733,8 @@ function detectWorldSounds(previous, next) {
       medicalBedUse: "medicalBedUse",
       medicalCabinetUse: "medicalCabinetUse",
       medicalFootBathUse: "medicalFootBathUse",
-      a01ReaderUse: "a01ReaderUse"
+      a01ReaderUse: "a01ReaderUse",
+      cableSpoolUse: "cableSpoolUse"
     }[sound.type];
     if (!kind) continue;
     const characterActionKind = {
@@ -13281,7 +13411,10 @@ function registerPreparationPlayerCanvasTargets(player, nameplateY, nameplateWid
 
 function preparationCanvasTargetAt(point) {
   if (!point) return "";
-  const targets = Array.isArray(state.preparationCanvasHitTargets) ? state.preparationCanvasHitTargets : [];
+  const targets = webgpuMainApp.visible
+    ? webgpuMainSubmittedFrameCurrent() && state.data?.phase === 'selecting'
+      ? webgpuMainApp.submittedPreparationHits || [] : []
+    : Array.isArray(state.preparationCanvasHitTargets) ? state.preparationCanvasHitTargets : [];
   for (let index = targets.length - 1; index >= 0; index -= 1) {
     const target = targets[index];
     if (point.x >= target.x && point.x <= target.x + target.width && point.y >= target.y && point.y <= target.y + target.height) {
@@ -13292,11 +13425,16 @@ function preparationCanvasTargetAt(point) {
 }
 
 function preparationCanvasHitTarget(field) {
-  const targets = Array.isArray(state.preparationCanvasHitTargets) ? state.preparationCanvasHitTargets : [];
+  const targets = webgpuMainApp.visible
+    ? webgpuMainSubmittedFrameCurrent() && state.data?.phase === 'selecting'
+      ? webgpuMainApp.submittedPreparationHits || [] : []
+    : Array.isArray(state.preparationCanvasHitTargets) ? state.preparationCanvasHitTargets : [];
   return [...targets].reverse().find((target) => target?.field === field) || null;
 }
 function positionPreparationNameInput() {
-  const target = preparationCanvasHitTarget("name"), box = els.canvas?.getBoundingClientRect?.();
+  const target = preparationCanvasHitTarget("name");
+  const surface = webgpuMainSubmittedFrameCurrent() ? els.webgpuMainCanvas : els.canvas;
+  const box = surface?.getBoundingClientRect?.();
   const panel = document.querySelector('[data-preparation-editor="name"]');
   if (!target || !box || !panel) return false;
   const sx = box.width / MAIN_CANVAS_LOGICAL_SIZE[0], sy = box.height / MAIN_CANVAS_LOGICAL_SIZE[1];
@@ -13311,7 +13449,8 @@ function beginPreparationCanvasTap(event) {
   if (!field) return false;
   state.preparationCanvasTap = {
     pointerId: event.pointerId, field, startX: event.clientX, startY: event.clientY, moved: false,
-    roomId: state.roomId, sessionGeneration: state.roomSessionGeneration, screen: state.screen
+    roomId: state.roomId, sessionGeneration: state.roomSessionGeneration, screen: state.screen,
+    submittedFrame: webgpuMainApp.visible ? webgpuMainApp.submittedFrame : null
   };
   try { els.canvas.setPointerCapture(event.pointerId); } catch {}
   return true;
@@ -13329,7 +13468,9 @@ function finishPreparationCanvasTap(event, cancelled = false) {
   state.preparationCanvasTap = null;
   const moved = tap.moved || Math.hypot(event.clientX - tap.startX, event.clientY - tap.startY) > 10;
   const sameSession = tap.roomId === state.roomId && tap.sessionGeneration === state.roomSessionGeneration && tap.screen === state.screen;
-  if (cancelled || moved || !sameSession || state.screen !== "game" || !preparationSettingsEditable(state.data)) return false;
+  if (cancelled || moved || !sameSession || state.screen !== "game" || !preparationSettingsEditable(state.data) ||
+      (tap.submittedFrame && (!webgpuMainSubmittedFrameCurrent() ||
+        tap.submittedFrame !== webgpuMainApp.submittedFrame))) return false;
   if (preparationCanvasTargetAt(canvasPointerPosition(event)) !== tap.field) return false;
   if (tap.field === "skin") {
     setPreparationEditingField(""); cyclePreparationSelect(els.skinSelect, 1);
@@ -17421,6 +17562,9 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   webgpuMainApp.generation += 1;
   webgpuMainApp.lastSoundRequestSerial = webgpuMainApp.requestSerial;
   webgpuMainApp.submittedHits = null;
+  webgpuMainApp.submittedPreparationHits = null;
+  webgpuMainApp.submittedMinimapBounds = null;
+  webgpuMainApp.submittedFrame = null;
   webgpuMainApp.visible = false;
   if (document.documentElement?.dataset)
     document.documentElement.dataset.fieldRenderer = "canvas2d";
@@ -17432,6 +17576,29 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
     webgpuMainApp.driver = null;
     webgpuMainApp.mapId = null;
   } else webgpuMainApp.driver?.suspend();
+}
+
+function webgpuMainSubmittedFrameCurrent() {
+  const submitted = webgpuMainApp.submittedFrame;
+  const canvas = els.webgpuMainCanvas;
+  if (!webgpuMainApp.visible || !submitted || !canvas?.isConnected ||
+      canvas.style.display === 'none' || canvas.style.opacity !== '1' ||
+      state.screen !== 'game' || document.hidden ||
+      submitted.roomId !== state.roomId ||
+      submitted.sessionGeneration !== state.roomSessionGeneration ||
+      submitted.phase !== state.data?.phase ||
+      submitted.snapshotRoomId !== state.data?.roomId ||
+      submitted.mapId !== state.data?.map?.id ||
+      submitted.connectionMode !==
+        (document.documentElement?.dataset?.connectionMode || '') ||
+      submitted.dpr !== (window.devicePixelRatio || 1)) return false;
+  const rect = canvas.getBoundingClientRect();
+  const sample = visibleGameplayViewportSample();
+  return Boolean(sample) &&
+    ['width', 'height', 'visualWidth', 'visualHeight',
+      'rootWidth', 'rootHeight'].every(key => sample[key] === submitted.sample[key]) &&
+    ['left', 'top', 'width', 'height'].every(key =>
+      Number.isFinite(rect[key]) && Math.abs(rect[key] - submitted.rect[key]) <= 1);
 }
 
 function webgpuMainReadyImage(data) {
@@ -17485,6 +17652,8 @@ function pumpWebGPUMainAppDriver() {
   }
   if (webgpuMainApp.driver && webgpuMainApp.mapId !== data.map.id)
     suspendWebGPUMainAppDriver({ destroy: true });
+  if (webgpuMainApp.visible && !webgpuMainSubmittedFrameCurrent())
+    suspendWebGPUMainAppDriver();
   if (!webgpuMainApp.driver) {
     if (!webgpuMainApp.startPending) {
       webgpuMainApp.startPending = startWebGPUMainAppDriver(data, image)
@@ -17497,7 +17666,9 @@ function pumpWebGPUMainAppDriver() {
   }
   webgpuMainApp.driver.resume();
   const mainCanvas = els.webgpuMainCanvas;
-  const rect = mainCanvas.getBoundingClientRect();
+  const bounds = mainCanvas.getBoundingClientRect();
+  const rect = Object.freeze({ left: bounds.left, top: bounds.top,
+    width: bounds.width, height: bounds.height });
   const canvasRect = els.canvas.getBoundingClientRect();
   if (![rect.width, rect.height].every(value => Number.isFinite(value) && value > 0) ||
       ["left", "top", "width", "height"].some(key =>
@@ -17508,19 +17679,40 @@ function pumpWebGPUMainAppDriver() {
   const generation = webgpuMainApp.generation;
   const requestSerial = ++webgpuMainApp.requestSerial;
   const connectionMode = document.documentElement?.dataset?.connectionMode || "";
+  const dpr = window.devicePixelRatio || 1;
+  const roomId = state.roomId;
+  const sessionGeneration = state.roomSessionGeneration;
+  const phase = data.phase;
+  const snapshotRoomId = data.roomId;
+  const mapId = data.map.id;
   const camera = { ...cameraFor(data, 980, 620, worldZoomFor(data)),
     zoom: worldZoomFor(data) };
   void webgpuMainApp.driver.draw({ data, sample, rect, camera,
-    dpr: window.devicePixelRatio || 1 }).then(receipt => {
+    dpr }).then(receipt => {
     if (receipt?.reason === "incomplete-scene")
       document.body.dataset.webgpuMainPending = receipt.reason;
     if (!receipt?.drawn || generation !== webgpuMainApp.generation ||
         state.data !== data || state.screen !== "game" || document.hidden ||
+        roomId !== state.roomId ||
+        sessionGeneration !== state.roomSessionGeneration ||
+        phase !== data.phase || snapshotRoomId !== data.roomId ||
+        mapId !== data.map?.id || dpr !== (window.devicePixelRatio || 1) ||
         connectionMode !== (document.documentElement?.dataset?.connectionMode || "") ||
         requestSerial < webgpuMainApp.lastSoundRequestSerial) return;
+    const visibleRect = mainCanvas.getBoundingClientRect();
+    const visibleSample = visibleGameplayViewportSample();
+    if (!visibleSample ||
+        ['width', 'height', 'visualWidth', 'visualHeight',
+          'rootWidth', 'rootHeight'].some(key => sample[key] !== visibleSample[key]) ||
+        ['left', 'top', 'width', 'height'].some(key =>
+          !Number.isFinite(visibleRect[key]) ||
+          Math.abs(visibleRect[key] - rect[key]) > 1)) return;
     delete document.body.dataset.webgpuMainPending;
     if (!Array.isArray(receipt.markerHitTargets))
       throw new Error("WebGPU main submitted without pointer marker hits");
+    if (!Array.isArray(receipt.preparationHitTargets) ||
+        !receipt.minimapBounds)
+      throw new Error('WebGPU main submitted without preparation pointer geometry');
     if (!Array.isArray(receipt.recordResult?.phenomenonSoundVisualReceipts))
       throw new Error("WebGPU main submitted without phenomenon sound receipts");
     if (!Array.isArray(receipt.recordResult?.environmentSoundReceipts))
@@ -17532,6 +17724,16 @@ function pumpWebGPUMainAppDriver() {
     // The pointer receipt becomes active only after the submitted pixels are
     // actually selected as the visible game surface.
     webgpuMainApp.submittedHits = receipt.markerHitTargets;
+    webgpuMainApp.submittedPreparationHits = receipt.preparationHitTargets;
+    webgpuMainApp.submittedMinimapBounds = receipt.minimapBounds;
+    webgpuMainApp.submittedFrame = Object.freeze({
+      roomId, sessionGeneration, snapshotRoomId, phase, mapId,
+      connectionMode, dpr,
+      sample: Object.freeze(Object.fromEntries(['width', 'height',
+        'visualWidth', 'visualHeight', 'rootWidth', 'rootHeight']
+        .map(key => [key, sample[key]]))),
+      rect: Object.freeze({ left: rect.left, top: rect.top,
+        width: rect.width, height: rect.height }) });
     webgpuMainApp.visible = true;
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
     commitVisibleVisualSoundFrame(data,
@@ -20284,6 +20486,12 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         .every(Number.isFinite) || effect.duration <= 0) return true;
       return now - effect.startedAt < effect.duration;
     }
+    if (['gain-luckBoost', 'gain-statusRecovery', 'gain-cooldownReduction',
+      'gravity-accelerate', 'gravity-decelerate', 'natural-recovery'].includes(effect?.type)) {
+      if (![effect.startedAt, effect.duration].every(Number.isFinite) ||
+          effect.duration <= 0) return true;
+      return now - effect.startedAt < effect.duration;
+    }
     if (!effect || !Number.isFinite(Number(effect.startedAt)) ||
         !Number.isFinite(Number(effect.duration)) || Number(effect.duration) <= 0) return false;
     if (isBodyAccelerationGainEffect(effect)) {
@@ -20519,7 +20727,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         continue;
       }
       const variant = String(effect.variant || '').split(':')[0];
-      if (!['weak', 'shock'].includes(variant) ||
+      if (!['weak', 'penetrate', 'shock'].includes(variant) ||
           ![effect.x, effect.y, effect.startedAt, effect.duration]
             .every(Number.isFinite) || effect.duration <= 0 ||
           (effect.targetX != null && !Number.isFinite(Number(effect.targetX))) ||
@@ -20686,6 +20894,75 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         continue;
       }
       events.push({ type: "bodyBenefit", effectId: effect.id, input });
+      continue;
+    }
+    if (['gain-luckBoost', 'gain-statusRecovery', 'gain-cooldownReduction'].includes(type)) {
+      const kind = type.slice('gain-'.length);
+      const pass = window.DvaWebGPUBodyBenefitExtra;
+      const profile = pass?.PROFILES?.[kind];
+      const player = gainEffectPlayer(effect);
+      if (!player || !player.alive || player.ejected || player.inVent || player.invisible) {
+        omitted.push({ effectId: effect.id, reason: 'body-benefit-extra-player-not-visible' });
+        continue;
+      }
+      if (player.x < camera.x - 200 || player.x > camera.x + viewport.width / zoom + 200 ||
+          player.y < camera.y - 200 || player.y > camera.y + viewport.height / zoom + 200) {
+        omitted.push({ effectId: effect.id, reason: 'body-benefit-extra-outside-viewport' });
+        continue;
+      }
+      if (Number.isFinite(effect.startedAt) && now < effect.startedAt) {
+        omitted.push({ effectId: effect.id, reason: 'body-benefit-extra-not-started' });
+        continue;
+      }
+      if (profile && Number.isFinite(effect.duration) &&
+          now - effect.startedAt >= Math.min(profile.durationMs, effect.duration)) {
+        omitted.push({ effectId: effect.id, reason: 'body-benefit-extra-visual-expired' });
+        continue;
+      }
+      const planned = pass?.plan?.({ effect, player, now, phase: data.phase,
+        camera, zoom, viewport, reducedMotion });
+      if (!planned) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'body-benefit-extra-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: 'bodyBenefitExtra', effectId: effect.id,
+        input: { effect, planned } });
+      continue;
+    }
+    if (['gravity-accelerate', 'gravity-decelerate', 'natural-recovery'].includes(type)) {
+      const pass = window.DvaWebGPUStatusTempoE;
+      const profile = pass?.PROFILES?.[type];
+      const player = type === 'natural-recovery' ? gainEffectPlayer(effect) :
+        (() => { const target = data.players?.find(entry => entry.id === effect.targetId);
+          return target ? renderedPlayer(target) : null; })();
+      if (!player || !player.alive || player.ejected || player.inVent || player.invisible) {
+        omitted.push({ effectId: effect.id, reason: 'status-tempo-player-not-visible' });
+        continue;
+      }
+      if (player.x < camera.x - 200 || player.x > camera.x + viewport.width / zoom + 200 ||
+          player.y < camera.y - 200 || player.y > camera.y + viewport.height / zoom + 200) {
+        omitted.push({ effectId: effect.id, reason: 'status-tempo-outside-viewport' });
+        continue;
+      }
+      if (Number.isFinite(effect.startedAt) && now < effect.startedAt) {
+        omitted.push({ effectId: effect.id, reason: 'status-tempo-not-started' });
+        continue;
+      }
+      if (profile && Number.isFinite(effect.duration) &&
+          now - effect.startedAt >= Math.min(profile.durationMs, effect.duration)) {
+        omitted.push({ effectId: effect.id, reason: 'status-tempo-visual-expired' });
+        continue;
+      }
+      const planned = pass?.plan?.({ effect, player, now, phase: data.phase,
+        camera, zoom, viewport, reducedMotion });
+      if (!planned) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'status-tempo-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: 'statusTempo', effectId: effect.id,
+        input: { effect, planned } });
       continue;
     }
     if (MARKER_OWNED_EFFECT_TYPES.has(type) || type === "action-smartphone" ||
@@ -27466,11 +27743,13 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const arrival = Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival
     : preparationRosterActive(data) && !player.isBot
       ? state.preparationRosterEntries.get(String(player.id || ''))?.arrival : null;
-  return api.createCommand({ player: { ...player, y: player.y - ascensionRise }, identity,
+  const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise }, identity,
     direction, mode: movementMode, entry: scaledAuthoredCharacterEntry(entry), image, frame, body,
     camera: view.camera, zoom: view.zoom,
     alpha, arrival, arrivalAnchor: player,
     order: view.order ?? 0 });
+  return command && Object.freeze({ ...command,
+    name: playerIdentityLabel(player).slice(0, 14) });
 }
 
 // WEBGPU_MAIN_APP_PLAYER_STAGE_ADAPTER_V1_START
@@ -27541,7 +27820,10 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
       return command;
     });
   };
-  if (!preparation) return { stages: { players: { commands: unsupported.length ? null : buildCommands(null) } },
+  const playerIdentity = { selfPlayerId: String(data.selfId || ''),
+    preparation: data.phase === 'selecting' && !data.soloMission };
+  if (!preparation) return { stages: { players: { ...playerIdentity,
+    commands: unsupported.length ? null : buildCommands(null) } },
     markerActors: candidates, unsupported, blocked: unsupported.length > 0 };
   if (!(entries instanceof Map)) throw new TypeError('Preparation player WebGPU scene needs roster entries Map');
   const summonPlayers = data.players.filter(Boolean).map(player => {
@@ -27556,7 +27838,7 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
     ringImage: state.textures?.preparationSummonCircle };
   return { stages: {
     preparationSummons: { scene, camera, zoom },
-    players: { entries, createCommands({ entries: currentEntries, arrivalFor }) {
+    players: { ...playerIdentity, entries, createCommands({ entries: currentEntries, arrivalFor }) {
       assertSession();
       if (currentEntries !== entries || typeof arrivalFor !== 'function')
         throw new Error('Preparation player WebGPU scene needs same-frame summon arrivals');
@@ -28085,7 +28367,7 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
     throw new TypeError('WebGPU world candidate needs a GPU text atlas with ensure');
   const passOwners = ['taskIndicators', 'hud', 'minimap', 'modeBanner',
     'lighting', 'killAnimation', 'sensory', 'markerExplanation',
-    'headMarkers',
+    'headMarkers', 'bodyBenefitExtra', 'statusTempo',
     ...(empVisible.length ? ['empEffect'] : []),
     ...(specialAmmoVisible.length ? ['specialAmmoEffect'] : []),
     ...(candidate.stages.acquisition ? ['acquisition'] : []),
@@ -28100,6 +28382,13 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
       passes[name] !== pass || pass.device !== device))
       throw new Error('WebGPU world candidate pass or device changed during preparation');
   };
+  if (typeof passes.playerNameplates?.prepareLabels !== 'function' ||
+      !Array.isArray(candidate.players.markerActors))
+    throw new Error('WebGPU world candidate player nameplate preparation unavailable');
+  await passes.playerNameplates.prepareLabels({ labels:
+    candidate.players.markerActors.map(player =>
+      playerIdentityLabel(player).slice(0, 14)) });
+  assertPassesCurrent();
   const earlyStages = await prepareWebGPUMainAppEarlyScene(candidate.early, passes, textAtlas);
   assertPassesCurrent();
   const markerApi = window.DvaWebGPUHeadMarkers;
@@ -28857,6 +29146,12 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         const submittedHits = outcome.recordResult?.markerHitTargets;
         if (!Array.isArray(submittedHits))
           throw new Error('Dormant WebGPU main submitted without marker hit targets');
+        const preparationHitTargets = outcome.recordResult?.preparationHitTargets;
+        const minimapBounds = outcome.recordResult?.minimapBounds;
+        if (!Array.isArray(preparationHitTargets) || !minimapBounds ||
+            ![minimapBounds.x, minimapBounds.y, minimapBounds.width,
+              minimapBounds.height].every(Number.isFinite))
+          throw new Error('Dormant WebGPU main submitted without preparation and map geometry');
         if (data?.map?.id === 'station' &&
             (data.map.objects || []).some(object => object.room === 'medical' &&
               object.effectKind === 'footBath')) {
@@ -28865,6 +29160,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
           lastMedicalSfxFrameAt = now;
         }
         return Object.freeze({ ...outcome, markerHitTargets: submittedHits,
+          preparationHitTargets, minimapBounds,
           acquisitionActive: Boolean(outcome.recordResult.acquisitionActive) });
       } catch (error) {
         notify(error);
@@ -32891,6 +33187,11 @@ function playSound(kind, options = {}) {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     playTone(370, 510, 0.19, "triangle", 0.033 * volume, 0, options.pan, options.spatial);
     playTone(740, 980, 0.10, "sine", 0.010 * volume, 0.045, options.pan, options.spatial);
+  } else if (kind === "cableSpoolUse") {
+    // A taut ratchet catch and one clean cable pluck for the accepted spool use.
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(730, 470, 0.065, "square", 0.021 * volume, 0, options.pan, options.spatial);
+    playTone(310, 145, 0.21, "triangle", 0.049 * volume, 0.035, options.pan, options.spatial);
   } else if (kind === "object") {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     [360, 540, 810].forEach((frequency, index) => playTone(frequency, frequency * 1.12, 0.16, "triangle", 0.1 * volume, index * 0.055, options.pan, options.spatial));

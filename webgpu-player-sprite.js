@@ -41,7 +41,11 @@
       matrices.push(translate(arrivalAnchor.x, arrivalAnchor.y), translate(0, -descent), rotate(lean),
         scale(stanceX, stanceY), translate(-arrivalAnchor.x, -arrivalAnchor.y));
     }
-    matrices.push(translate(player.x, player.y), translate(ground.x, ground.y),
+    matrices.push(translate(player.x, player.y));
+    // The visible nameplate and preparation input share this actor-local
+    // transform, before only the body receives gait sway, lean and lift.
+    const anchorTransform = Object.freeze(chain(matrices));
+    matrices.push(translate(ground.x, ground.y),
       rotate(body.lean || 0), translate(body.sway || 0, -(body.lift || 0)));
     const sprite = Object.freeze({
       x: -origin.x * layout.scale, y: -origin.y * layout.scale,
@@ -52,7 +56,7 @@
     });
     return Object.freeze({ stage: 'world:players:sprite', playerId: player.id,
       identity: actorIdentity, direction, movementMode: mode, assetPath: entry.assetPath,
-      image, sprite });
+      image, sprite, anchorTransform });
   }
   function createTextureCache(device) {
     if (!device?.createTexture || !device?.queue?.copyExternalImageToTexture) {

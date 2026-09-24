@@ -26,6 +26,7 @@
     throwPreview: root.DvaWebGPUThrowPreview || (typeof require === 'function' ? require('./webgpu-throw-preview.js') : null),
     preparationSummons: root.DvaWebGPUPreparationSummons || (typeof require === 'function' ? require('./webgpu-preparation-summons.js') : null),
     players: root.DvaWebGPUPlayerSprite || (typeof require === 'function' ? require('./webgpu-player-sprite.js') : null),
+    playerNameplates: root.DvaWebGPUPlayerNameplates || (typeof require === 'function' ? require('./webgpu-player-nameplates.js') : null),
     headMarkers: root.DvaWebGPUHeadMarkers || (typeof require === 'function' ? require('./webgpu-head-markers.js') : null),
     gunnerAim: root.DvaWebGPUGunnerAim || (typeof require === 'function' ? require('./webgpu-gunner-aim.js') : null),
     killCamera: root.DvaWebGPUKillCameraMarkers || (typeof require === 'function' ? require('./webgpu-kill-camera-markers.js') : null),
@@ -33,6 +34,8 @@
     gravityImpacts: root.DvaWebGPUGravityImpacts || (typeof require === 'function' ? require('./webgpu-gravity-impacts.js') : null),
     grenadeImpacts: root.DvaWebGPUGrenadeImpact || (typeof require === 'function' ? require('./webgpu-grenade-impact.js') : null),
     bodyBenefits: root.DvaWebGPUBodyBenefitPass || (typeof require === 'function' ? require('./webgpu-body-benefit-pass.js') : null),
+    bodyBenefitExtra: root.DvaWebGPUBodyBenefitExtra || (typeof require === 'function' ? require('./webgpu-body-benefit-extra.js') : null),
+    statusTempo: root.DvaWebGPUStatusTempoE || (typeof require === 'function' ? require('./webgpu-status-tempo-e.js') : null),
     fireActivation: root.DvaWebGPUFireActivation || (typeof require === 'function' ? require('./webgpu-fire-activation.js') : null),
     empEffect: root.DvaWebGPUEmpEffect || (typeof require === 'function' ? require('./webgpu-emp-effect.js') : null),
     specialAmmoEffect: root.DvaWebGPUSpecialAmmoEffect || (typeof require === 'function' ? require('./webgpu-special-ammo-effect.js') : null),
@@ -56,7 +59,7 @@
     'hud', 'minimap', 'modeBanner', 'lighting', 'killAnimation', 'sensory',
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
-    'bodyBenefit', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'medicalObjectE',
+    'bodyBenefit', 'bodyBenefitExtra', 'statusTempo', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'medicalObjectE',
     'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E',
     'taskCompletion', 'headMarker']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -103,9 +106,10 @@
       mapObjects: 'create', mysteryBoxes: 'create', alchemyObjects: 'create',
       groundItems: 'createTextureCache', facilityEffects: 'create',
       bodies: 'record', worldSound: 'record', throwPreview: 'create',
-      preparationSummons: 'create', players: 'createTextureCache', headMarkers: 'create',
+      preparationSummons: 'create', players: 'createTextureCache',
+      playerNameplates: 'create', headMarkers: 'create',
       gunnerAim: 'create', killCamera: 'create', hitEffects: 'record',
-      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
+      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
       attackTargets: 'record', taskIndicators: 'create', hud: 'create',
       minimap: 'create', modeBanner: 'create', killBloom: 'create',
       killAnimation: 'create', sensory: 'enqueue', markerExplanation: 'create',
@@ -162,6 +166,9 @@
       add('preparationSummons', modules.preparationSummons.create({
         device: renderer.device }), 'record');
       add('players', modules.players.createTextureCache(renderer.device), 'record');
+      borrow('playerNameplates', modules.playerNameplates.create({ textAtlas }));
+      if (typeof passes.playerNameplates.prepareLabels !== 'function')
+        throw new TypeError('Shared player nameplates need async label preparation');
       add('headMarkers', modules.headMarkers.create({ frameOwner: renderer }), 'record');
       add('gunnerAim', modules.gunnerAim.create({ device: renderer.device,
         format: renderer.format }), 'record');
@@ -172,6 +179,8 @@
         device: renderer.device }), 'record');
       borrow('grenadeImpacts', modules.grenadeImpacts);
       add('bodyBenefits', modules.bodyBenefits.create({ renderer }), 'record');
+      add('bodyBenefitExtra', modules.bodyBenefitExtra.create({ frameOwner: renderer }), 'record');
+      add('statusTempo', modules.statusTempo.create({ frameOwner: renderer }), 'record');
       add('fireActivation', modules.fireActivation.create({ renderer }), 'record');
       add('empEffect', modules.empEffect.create({ frameOwner: renderer }), 'record');
       add('specialAmmoEffect', modules.specialAmmoEffect.create({ frameOwner: renderer }), 'record');

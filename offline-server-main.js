@@ -5580,6 +5580,9 @@ function pushSound(room, type, source, options = {}) {
     volume: Number(options.volume || 1),
     sourceKind: String(options.sourceKind || "player"),
     variant: String(options.variant || ""),
+    ...(type === "emp" && typeof options.empCausalId === "string" && options.empCausalId
+      ? { empCausalId: options.empCausalId }
+      : {}),
     at: now()
   });
   room.sounds = room.sounds.slice(-96);
@@ -5695,7 +5698,10 @@ function pushMagicEffect(room, type, source, options = {}) {
     ...((type === "emp" || type.startsWith("emp-")) ? {
       empPulseId: String(options.empPulseId || ""),
       resolvedEmpPulseIds: (Array.isArray(options.resolvedEmpPulseIds) ? options.resolvedEmpPulseIds : []).filter((id) => typeof id === "string" && id).slice(0, 2),
-      empSourceAxis: Number.isFinite(options.empSourceAxis) ? options.empSourceAxis : 0
+      empSourceAxis: Number.isFinite(options.empSourceAxis) ? options.empSourceAxis : 0,
+      ...(typeof options.empCausalId === "string" && options.empCausalId
+        ? { empCausalId: options.empCausalId }
+        : {})
     } : {}),
     ...(type === "action-smartphone" && /^(?:donation-rational|donation-unjust)$/.test(String(options.variant || ""))
       ? { donationResultDelta: Math.round((Number(options.donationResultDelta) || 0) * 100) / 100 }
@@ -12489,9 +12495,10 @@ function resolveStandardEmp(room, pulse, timestamp) {
     ownerId: player.id,
     sourceKind: "player",
     maxDistance: 2200,
-    volume: 1
+    volume: 1,
+    empCausalId: `pulse:${pulse.id}`
   });
-  pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase, resolvedEmpPulseIds: [pulse.id] });
+  pushMagicEffect(room, "emp", pulse, { radius: EMP_RANGE, playerId: player.id, variant: pulse.phase, resolvedEmpPulseIds: [pulse.id], empCausalId: `pulse:${pulse.id}` });
   pushEvent(room, `${pulse.phase === "positive" ? "正相" : "逆相"}EMP発生: ストレージ遮断${itemLocks}人 / 味方反射${friendlyReflections}件`);
   checkWin(room);
   touch(room);
@@ -12502,6 +12509,7 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   const secondOwner = room.players.get(second.playerId);
   const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
   const samePhase = first.phase === second.phase;
+  const pulseIds = [String(first.id), String(second.id)].sort();
   const visualSettlement = {resolvedEmpPulseIds: [first.id, second.id], empSourceAxis: Math.atan2(second.y - first.y, second.x - first.x)};
   const soloEmpPractice = room.soloMission?.id === "emp" && [first.playerId, second.playerId].includes(room.soloMission.playerId);
   if (soloEmpPractice) {
@@ -12513,8 +12521,9 @@ function resolveEmpInteraction(room, first, second, timestamp) {
     room.soloMission.empCancelled = outcomes.has("cancel");
   }
   if (!samePhase) {
-    pushMagicEffect(room, "emp-cancel", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: "opposite" });
-    pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 1800, volume: 0.8 });
+    const empCausalId = `interaction:cancel:${pulseIds[0]}:${pulseIds[1]}`;
+    pushMagicEffect(room, "emp-cancel", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: "opposite", empCausalId });
+    pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 1800, volume: 0.8, empCausalId });
     pushEvent(room, soloEmpPractice
       ? "EMP訓練: 逆位相の重ね合わせで打ち消しに成功しました。"
       : "正相EMPと逆相EMPが干渉し、互いに相殺されました。");
@@ -12524,8 +12533,9 @@ function resolveEmpInteraction(room, first, second, timestamp) {
   }
 
   if (soloEmpPractice) {
-    pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase });
-    pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1 });
+    const empCausalId = `interaction:resonance:${pulseIds[0]}:${pulseIds[1]}`;
+    pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase, empCausalId });
+    pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1, empCausalId });
     pushEvent(room, "EMP訓練: 同位相の重ね合わせで増強に成功しました。");
     checkWin(room);
     touch(room);
@@ -12562,8 +12572,9 @@ function resolveEmpInteraction(room, first, second, timestamp) {
       else if (["body", "overheal"].includes(outcome)) bodyCount += 1;
     }
   }
-  pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase });
-  pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1 });
+  const empCausalId = `interaction:resonance:${pulseIds[0]}:${pulseIds[1]}`;
+  pushMagicEffect(room, "emp-resonance", midpoint, { ...visualSettlement, radius: EMP_INTERACTION_RANGE, variant: first.phase, empCausalId });
+  pushSound(room, "emp", midpoint, { ownerId: second.playerId, sourceKind: "emp", maxDistance: 2600, volume: 1, empCausalId });
   pushEvent(room, `同位相EMPが共振しました。キル${lethalCount}人 / ボディダメージ${bodyCount}人。`);
   checkWin(room);
   touch(room);
@@ -12814,7 +12825,8 @@ function useMapObject(room, player, objectId) {
     "v302-medical-diagnosticBed-1": "medicalBedUse",
     "v302-medical-medicalCabinet-2": "medicalCabinetUse",
     "v302-medical-sterilizer-3": "medicalFootBathUse",
-    "v317-corridor-a01-1": "a01ReaderUse"
+    "v317-corridor-a01-1": "a01ReaderUse",
+    "v302-power-cableSpool-2": "cableSpoolUse"
   }[object.id];
   pushSound(room, medicalUseSound || "object", object, {
     ownerId: player.id,
@@ -16704,6 +16716,19 @@ function applyShockSpecialRound(room, shooter, target, timestamp = now(), option
   return "shockSlowed";
 }
 
+function pushGunnerPenetrateImpact(room, shooter, targetEntry, endPoint, outcome) {
+  // One physical contact for the first target of this authoritative round.
+  // The shot end point lies on the bullet ray; the target center may not.
+  if (!targetEntry || ["dodged", "fighterCountered", "botFriendlyFireBlocked"].includes(outcome)) return false;
+  pushMagicEffect(room, "action-special-ammo-impact", endPoint, {
+    radius: 145,
+    playerId: shooter.id,
+    targetId: targetEntry.player.id,
+    variant: `penetrate:${outcome}`
+  });
+  return true;
+}
+
 function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp) {
   const remainingAmmo = Math.max(0, Number(shooter.gunnerAmmo?.[weapon.id]) || 0);
   if (remainingAmmo < weapon.ammoPerShot) return false;
@@ -16836,7 +16861,7 @@ function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp
         targetId: targetEntry.player.id,
         variant: `${aimed ? "aim" : "hip"}:${weapon.id}`
       });
-      killPlayer(room, shooter, targetEntry.player.id, {
+      const outcome = killPlayer(room, shooter, targetEntry.player.id, {
         ranged: true,
         hitZone: "head",
         allowAnyKiller: true,
@@ -16847,6 +16872,9 @@ function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp
         attackLabel: `${modeLabel}・${ammunitionLabel}HS`,
         slashGuardPhysical: true
       });
+      if (specialAmmoType === "penetrate") {
+        pushGunnerPenetrateImpact(room, shooter, targetEntry, endPoint, outcome);
+      }
       finishGunnerBurstRound(room, shooter, weapon, timestamp);
       checkWin(room);
       touch(room);
@@ -16864,6 +16892,9 @@ function fireGunnerRound(room, shooter, weapon, timestamp, cadenceAt = timestamp
       attackLabel: specialAmmoType === "penetrate" ? "ペネトレイト弾" : `${gbo ? "GBO・" : ""}${weapon.name}の銃弾`,
       slashGuardPhysical: true
     });
+    if (specialAmmoType === "penetrate") {
+      pushGunnerPenetrateImpact(room, shooter, targetEntry, endPoint, outcome);
+    }
     if (weapon.id === "taser" && !["lethal", "slashGuarded", "slashPerfectGuarded", "slashPerfectReflected"].includes(outcome) && targetEntry.player.alive) {
       if (rejectAdverseStatusDuringNaturalRecovery(room, targetEntry.player, "テーザー減速", timestamp)) {
         pushEvent(room, `${targetEntry.player.name} はテーザーの減速を理知の自然回復で無効化しました。`);

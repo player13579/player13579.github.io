@@ -82,6 +82,10 @@
           typeof playerStage.headMarkersForCommand !== 'function' ||
           typeof passes.headMarkers?.record !== 'function')
         throw new TypeError('Players need a shared head-marker pass, generation and per-command tail planner');
+      if (typeof passes.playerNameplates?.record !== 'function' ||
+          typeof playerStage.selfPlayerId !== 'string' || !playerStage.selfPlayerId ||
+          typeof playerStage.preparation !== 'boolean')
+        throw new TypeError('Players need prepared shared-frame nameplates and preparation ownership');
       const magic = stages.magicEffects;
       if (!Array.isArray(magic.sourceEffectIds) || !Array.isArray(magic.events) ||
           !Array.isArray(magic.omitted))
@@ -215,6 +219,20 @@
               !['gain-stamina', 'gain-heal', 'gain-mana', 'gain-overheal'].includes(event.input.effect?.type) ||
               String(event.input.effect?.id ?? '') !== id)
             throw new TypeError(`Magic event ${index} needs one supported body benefit effect`);
+        } else if (event?.type === 'bodyBenefitExtra' || event?.type === 'statusTempo') {
+          const extra = event.type === 'bodyBenefitExtra';
+          const pass = extra ? passes.bodyBenefitExtra : passes.statusTempo;
+          const effect = event.input?.effect, planned = event.input?.planned;
+          if (typeof pass?.record !== 'function' ||
+              String(effect?.id ?? '') !== id || planned?.effectId !== id ||
+              !(extra
+                ? ['gain-luckBoost', 'gain-statusRecovery', 'gain-cooldownReduction'].includes(effect.type) &&
+                  planned.kind === effect.effectKind
+                : ['gravity-accelerate', 'gravity-decelerate', 'natural-recovery'].includes(effect.type) &&
+                  planned.type === effect.type) ||
+              !Number.isFinite(planned.progress) || planned.progress < 0 ||
+              planned.progress >= 1)
+            throw new TypeError(`Magic event ${index} needs one owned ${event.type} plan`);
         } else if (event?.type === 'fireActivation') {
           if (typeof passes.fireActivation?.record !== 'function')
             throw new Error('Magic fire activation needs WebGPU fireActivation.record');
@@ -337,6 +355,7 @@
       prepared.markRecorded();
       const stages = prepared.stages, results = {}, recorded = [];
       const markerHitTargets = [];
+      const preparationHitTargets = [];
       const phenomenonSoundVisualReceipts = [];
       const environmentSoundReceipts = [];
       const run = (name, callback) => {
@@ -456,7 +475,18 @@
             throw new Error(`Player ${String(command.playerId)} head-marker targets differ from recorded plan`);
           markerHitTargets.push(...hits);
         });
-        return { drawn: commands.length, markerHitTargets: Object.freeze(markerHitTargets.slice()) };
+        const nameplates = need('playerNameplates', 'record').record({
+          frame, target, commands, selfPlayerId: input.selfPlayerId,
+          preparation: input.preparation });
+        if (!nameplates || !Array.isArray(nameplates.hits) ||
+            (!input.preparation && nameplates.hits.length) ||
+            nameplates.hits.some(hit =>
+              !['skin', 'name'].includes(hit.field) ||
+              String(hit.playerId) !== input.selfPlayerId))
+          throw new Error('Player nameplate preparation hits differ from the self frame');
+        preparationHitTargets.push(...nameplates.hits);
+        return { drawn: commands.length, nameplates,
+          markerHitTargets: Object.freeze(markerHitTargets.slice()) };
       });
       run('gunnerAim', input => need('gunnerAim', 'record').record(common(input)));
       run('killCamera', input => need('killCamera', 'record').record(common(input)));
@@ -569,6 +599,12 @@
                 progress: (now - effect.startedAt) / duration
               }));
             }
+          } else if (event.type === 'bodyBenefitExtra' || event.type === 'statusTempo') {
+            const pass = event.type === 'bodyBenefitExtra' ? 'bodyBenefitExtra' : 'statusTempo';
+            const outcome = need(pass, 'record').record({ frame, target, viewport,
+              planned: event.input.planned });
+            if (outcome?.effectId !== event.effectId || outcome.drawn !== true)
+              throw new Error(`Magic ${pass} ${event.effectId} was not drawn`);
           } else if (event.type === 'fireActivation') {
             const outcome = need('fireActivation', 'record').record({
               ...event.input, frame, target, viewport
@@ -591,6 +627,16 @@
       run('taskIndicators', input => need('taskIndicators', 'draw').draw(common(input)));
       run('hud', input => need('hud', 'draw').draw(common(input)));
       run('minimap', input => need('minimap', 'draw').draw(common(input)));
+      if (stages.players.preparation) {
+        const bounds = stages.minimap?.scene?.bounds;
+        if (!results.minimap || !bounds ||
+            ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite) ||
+            bounds.width <= 0 || bounds.height <= 0)
+          throw new Error('Preparation map hit needs the submitted minimap bounds');
+        preparationHitTargets.unshift(Object.freeze({ field: 'map',
+          x: bounds.x, y: bounds.y, width: bounds.width,
+          height: bounds.height }));
+      }
       run('modeBanner', input => need('modeBanner', 'draw').draw(common(input)));
       run('expandedMap', input => need('expandedMap', 'record').record(common(input)));
       run('lighting', input => need('lighting', 'record').record(common(input)));
@@ -605,6 +651,8 @@
       });
       return Object.freeze({ recorded: Object.freeze(recorded), gaps: prepared.gaps,
         markerHitTargets: Object.freeze(markerHitTargets.slice()), results: Object.freeze(results),
+        preparationHitTargets: Object.freeze(preparationHitTargets.slice()),
+        minimapBounds: Object.freeze({ ...stages.minimap.scene.bounds }),
         phenomenonSoundVisualReceipts: Object.freeze(phenomenonSoundVisualReceipts.slice()),
         environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()) });
     }

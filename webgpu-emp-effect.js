@@ -66,28 +66,29 @@ fn smoothrise(x:f32)->f32{return smoothstep(0.0,1.0,x);}
     energy+=ring(r,.27,.055)*(.28+.22*convergence);
     core=bell(r,.16)*(.70+.55*convergence)+bell(r,.32)*.18;
   }else if(mode<2.5){
-    // Resonance: opposing ellipses interfere along a vertical violet seam.
-    let merge=smoothrise(t/.36);
-    let separation=select(.36,.42-.08*merge,!reduced);
-    let left=length(vec2f((along+separation)/.63,across/.66));
-    let right=length(vec2f((along-separation)/.63,across/.66));
-    let leftAngle=atan2(across,along+separation);
-    let rightAngle=atan2(across,along-separation);
-    let leftArc=left+.028*sin(leftAngle*5.0+p.geometry.w*6.28318);
-    let rightArc=right+.028*sin(rightAngle*5.0-p.geometry.w*6.28318);
-    energy=(ring(leftArc,1.0,.075)+ring(rightArc,1.0,.075))*.82;
-    energy+=(ring(leftArc,.79,.11)+ring(rightArc,.79,.11))*.31;
-    let poles=bell(length(q-axis*separation),.15)+
-      bell(length(q+axis*separation),.15);
-    energy+=poles*.22*(1.0-.55*merge);
-    let release=max(0.0,(t-.16)/.84);
-    let front=select(.77,.35+.58*smoothrise(release),!reduced);
-    let wave=smoothstep(0.0,.12,release)*(1.0-smoothstep(.75,1.0,release));
-    energy+=ring(r,front,.055)*wave*.24;
-    violet=bell(along,.075)*(1.0-smoothstep(.45,.84,abs(across)))*.96;
-    violet+=ring(abs(along)/.26+abs(across)/.78,1.0,.11)*.47;
-    violet+=ring(length(vec2f(along/.25,across/.78)),1.0,.13)*.23;
-    core=bell(r,.19)*(.85-.20*t);
+    // Two broad electromagnetic fronts cross a sharp violet resonance axis.
+    // Each phase has one broad flash; the release drives one outward wave.
+    let merge=smoothrise(t/.40);
+    let separation=select(.33,.48-.22*merge,!reduced);
+    let left=length(vec2f((along+separation)/.72,across/.78));
+    let right=length(vec2f((along-separation)/.72,across/.78));
+    let front=select(.93,.88+.12*merge,!reduced);
+    let primary=ring(left,front,.038)+ring(right,front,.038);
+    let shoulders=ring(left,front-.085,.095)+ring(right,front-.085,.095);
+    energy=primary*.96+shoulders*.27;
+    let contact=bell(along,.095)*(1.0-smoothstep(.42,.83,abs(across)));
+    let mergeFlash=bell(t-.31,.055);
+    let releaseFlash=bell(t-.65,.055);
+    let flash=select(mergeFlash+releaseFlash,
+      (mergeFlash+releaseFlash)*.35,reduced);
+    violet=bell(along,.028)*(1.0-smoothstep(.49,.83,abs(across)))*
+      (.94+.53*contact+.56*flash);
+    violet+=bell(along,.11)*(1.0-smoothstep(.54,.94,abs(across)))*.22;
+    core=bell(r,.13)*(.48+.63*flash)+bell(r,.30)*flash*.19;
+    let release=smoothrise((t-.53)/.43);
+    let waveFront=select(.73,.24+.76*release,!reduced);
+    let waveGate=smoothstep(.53,.63,t)*(1.0-smoothstep(.86,1.0,t));
+    energy+=ring(r,waveFront,.044)*waveGate*.72;
   }else if(mode<3.5){
     // Cancellation: opposite phase fronts collapse onto their collision seam.
     let collapse=smoothrise((t-.16)/.55);

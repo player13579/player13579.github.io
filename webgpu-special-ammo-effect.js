@@ -1,4 +1,4 @@
-/* Textureless weak/shock special-ammo E on the ordered shared WebGPU frame.
+/* Textureless weak/shock/penetrate special-ammo E on the ordered shared WebGPU frame.
  * Semantic sound events remain outside this renderer. */
 (function (root) {
   'use strict';
@@ -7,7 +7,7 @@
     'action-special-ammo-shot': 1,
     'action-special-ammo-impact': 2
   });
-  const VARIANTS = Object.freeze({ weak: 0, shock: 1 });
+  const VARIANTS = Object.freeze({ weak: 0, shock: 1, penetrate: 2 });
   const finite = Number.isFinite;
   const smooth = t => t * t * (3 - 2 * t);
   const shader = /* wgsl */ `
@@ -24,11 +24,21 @@ fn ring(r:f32,center:f32,width:f32)->f32{return bell(r-center,width);}
   let ca=cos(p.geometry.z);let sa=sin(p.geometry.z);
   let q=vec2f(delta.x*ca+delta.y*sa,-delta.x*sa+delta.y*ca);
   let r=length(q), t=clamp(p.state.x,0.0,1.0);
-  let phase=p.state.y;let shock=p.state.z>.5;let reduced=p.hue.w>.5;
+  let phase=p.state.y;let shock=p.state.z>.5&&p.state.z<1.5;
+  let penetrate=p.state.z>1.5;let reduced=p.hue.w>.5;
   let pulse=sin(t*3.14159265);
+  let penetrateTime=select(t,.5,reduced);
+  let penetratePulse=select(pulse,.65,reduced);
   var source=0.0;var halo=0.0;
   if(phase<.5){
-    if(shock){
+    if(penetrate){
+      let inner=.31-.13*penetrateTime;let outer=.52-.23*penetrateTime;
+      source=ring(r,outer,.018)*(.52+.22*penetratePulse);
+      source+=ring(r,inner,.015)*(.48+.2*penetratePulse);
+      let axis=smoothstep(-.08,.06,q.x)*(1.0-smoothstep(.65,.78,q.x));
+      source+=bell(q.y,.018)*axis*.68;
+      halo=bell(q.y,.13)*bell(q.x-.35,.47)*.16;
+    }else if(shock){
       let lane=abs(q.y-sin(q.x*21.0+select(t*31.0,0.0,reduced)+p.geometry.w*6.0)*.055);
       source=bell(lane,.026)*(1.0-smoothstep(.16,.85,abs(q.x)))*(.55+.25*pulse);
       source+=ring(r,.32+.08*pulse,.022)*.48;
@@ -39,7 +49,12 @@ fn ring(r:f32,center:f32,width:f32)->f32{return bell(r-center,width);}
       halo=bell(r,.48)*.2;
     }
   }else if(phase<1.5){
-    if(shock){
+    if(penetrate){
+      let shaft=smoothstep(-.71,-.59,q.x)*(1.0-smoothstep(.71,.85,q.x));
+      source=bell(q.y,.013)*shaft*.98;
+      source+=bell(q.x-.74,.068)*bell(q.y,.037)*.55;
+      halo=bell(q.y,.105)*bell(q.x,.68)*.15;
+    }else if(shock){
       let zig=abs(q.y-sin(q.x*23.0+select(t*38.0,0.0,reduced)+p.geometry.w*6.0)*.045);
       source=bell(zig,.021)*(1.0-smoothstep(.05,.78,abs(q.x)))*.92;
       source+=bell(r,.19)*.5;
@@ -51,7 +66,13 @@ fn ring(r:f32,center:f32,width:f32)->f32{return bell(r-center,width);}
       halo=bell(q.y,.18)*bell(q.x,.61)*.24;
     }
   }else{
-    if(shock){
+    if(penetrate){
+      source=bell(r,.075)*(.85-.35*t);
+      let axis=smoothstep(.08,.16,abs(q.x))*(1.0-smoothstep(.43,.59,abs(q.x)));
+      source+=bell(q.y,.017)*axis*(.61+.13*penetratePulse);
+      source+=ring(r,.19+.3*penetrateTime,.019)*(.38+.24*penetratePulse);
+      halo=bell(r,.37)*.16;
+    }else if(shock){
       let angle=atan2(q.y,q.x);
       let forks=pow(abs(cos(angle*3.0+select(t*8.0,0.0,reduced))),15.0);
       source=ring(r,.2+.24*t,.026)*(.36+.56*forks);
@@ -68,8 +89,10 @@ fn ring(r:f32,center:f32,width:f32)->f32{return bell(r-center,width);}
   let gain=p.state.w*fade;
   let bright=clamp(source*gain,0.0,.94);
   let glow=clamp(halo*gain,0.0,.32);
-  let tint=select(vec3f(.78,.13,.40),vec3f(.16,.72,1.0),shock);
-  let hot=select(vec3f(1.0,.87,.97),vec3f(.9,.99,1.0),shock);
+  let tint=select(select(vec3f(.78,.13,.40),vec3f(.16,.72,1.0),shock),
+    vec3f(.37,.28,.96),penetrate);
+  let hot=select(select(vec3f(1.0,.87,.97),vec3f(.9,.99,1.0),shock),
+    vec3f(.81,.84,1.0),penetrate);
   return vec4f(hot*bright+tint*glow,clamp(bright+glow,0.0,.98));
 }`;
   function plan({ effect, now, phase, camera, zoom, viewport,
@@ -106,12 +129,15 @@ fn ring(r:f32,center:f32,width:f32)->f32{return bell(r-center,width);}
       x += dx * travel - dy / length * offset;
       y += dy * travel + dx / length * offset;
       angle = Math.atan2(dy, dx);
-      width = variant === 1 ? 205 : 220;
-      height = 120;
+      width = variant === 2 ? 240 : variant === 1 ? 205 : 220;
+      height = variant === 2 ? 90 : 120;
       opacity = Math.max(.2, 1 - progress * .5);
     } else if (mode === 0) {
       y -= 34;
-      if (variant === 0) {
+      if (variant === 2) {
+        width = 220 * (.9 + (reducedMotion ? .06 : pulse * .12));
+        height = 125 * (.98 + (reducedMotion ? .04 : pulse * .08));
+      } else if (variant === 0) {
         width *= .84 + pulse * .22;
         height *= 1.08 - pulse * .1;
       } else {
@@ -121,6 +147,9 @@ fn ring(r:f32,center:f32,width:f32)->f32{return bell(r-center,width);}
         }
         width *= .9 + pulse * .12;
       }
+    } else if (variant === 2) {
+      width = 235 * (.9 + (reducedMotion ? .06 : pulse * .12));
+      height = 128 * (.92 + (reducedMotion ? .06 : pulse * .12));
     } else if (variant === 0) {
       width = 250 * (.82 + pulse * .38);
       height = 145 * (1.08 - pulse * .16);

@@ -1,24 +1,17 @@
-/* The v726 preparation arrival, recorded in the shared ordered WebGPU world
- * frame immediately before the players. The caller resolves rendered player
- * positions and sprite readiness; this pass owns the roster clock and circle
- * texture on the caller's device. All geometry is in logical viewport pixels. */
+/* Textureless preparation arrival E, recorded in the shared ordered WebGPU
+ * world frame immediately before players. The caller owns roster positions,
+ * sprite readiness and the preparation clock. */
 (function (root) {
   'use strict';
-  const ASSET = 'assets/generated/preparation-summon-circle-v726.png';
   const finite = Number.isFinite;
   const clamp = value => Math.max(0, Math.min(1, value));
   const ink = (r, g, b, a) => [r / 255, g / 255, b / 255, a];
-  function ready(image) {
-    return Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
-  }
   function validate({ scene, camera, zoom, viewport }) {
     if (!scene || !Array.isArray(scene.players) || !(scene.entries instanceof Map) ||
       !camera || !viewport || ![scene.nowMs, camera.x, camera.y, zoom,
         viewport.width, viewport.height].every(finite) || zoom <= 0 ||
       viewport.width <= 0 || viewport.height <= 0)
       throw new TypeError('Preparation summons need a live roster, clock, camera, zoom, and logical viewport');
-    if (scene.ringAssetPath !== undefined && scene.ringAssetPath !== ASSET)
-      throw new Error(`Unsupported preparation summon material: ${scene.ringAssetPath}`);
   }
   function plan(input = {}) {
     validate(input);
@@ -29,7 +22,6 @@
     const ids = new Set(roster.map(player => String(player.id || '')));
     for (const id of entries.keys()) if (!ids.has(id)) entries.delete(id);
     const sessionKey = String(scene.roomId || '') + ':' + (Number(scene.roomSessionGeneration) || 0);
-    const imageReady = ready(scene.ringImage);
     const result = [];
     for (const player of roster) {
       const id = String(player.id || '');
@@ -41,7 +33,7 @@
       }
       if (scene.reducedMotion) entry.summonExpired = true;
       if (!finite(entry.summonStartedAt) && !entry.summonExpired &&
-          player.spriteReady && imageReady) entry.summonStartedAt = scene.nowMs;
+          player.spriteReady) entry.summonStartedAt = scene.nowMs;
       if (!finite(entry.summonStartedAt) && scene.nowMs - entry.appearedAt > 4000)
         entry.summonExpired = true;
       const t = finite(entry.summonStartedAt) ? clamp((scene.nowMs - entry.summonStartedAt) / 980) : 1;
@@ -56,6 +48,7 @@
       const x = (worldX - camera.x) * zoom;
       const footY = (worldY + 30 - camera.y) * zoom;
       const easeOut = 1 - (1 - t) ** 3;
+      const angle = (t - 0.5) * 0.42;
       const size = Math.max(1, 116 * 0.56 * (0.64 + easeOut * 0.36)) * zoom;
       const beamHeight = (42 + 96 * easeOut) * 0.56 * zoom;
       const ringAlpha = (1 - t) * 0.86;
@@ -73,8 +66,41 @@
           size: 2 * 0.56 * zoom,
           color: ink(216, 250, 255, 0.92 * (1 - particleT) * (1 - t * 0.25) * 0.8) };
       });
-      result.push({ id, x, footY, size, angle: (t - 0.5) * 0.42,
-        ringAlpha, ringReady: imageReady, beams, motes, arrival: entry.arrival });
+      const rings = [
+        { radius: size * .47, thickness: Math.max(1.5, size * .055),
+          color: ink(111, 231, 255, ringAlpha * (.82 + .18 * Math.sin(t * Math.PI * 8))) },
+        { radius: size * .31, thickness: Math.max(1.2, size * .038),
+          color: ink(191, 151, 255, ringAlpha * (.72 + .28 * Math.sin(t * Math.PI * 8 + .6))) }
+      ].map(ring => ({ ...ring, segments: Array.from({ length: 24 }, (_, index) => {
+        const a0 = index * Math.PI * 2 / 24 + angle;
+        const a1 = (index + .84) * Math.PI * 2 / 24 + angle;
+        const amid = (a0 + a1) / 2;
+        const span = (a1 - a0) * ring.radius;
+        return { x: x + Math.cos(amid) * ring.radius,
+          y: footY + Math.sin(amid) * ring.radius,
+          width: span + ring.thickness * .18, height: ring.thickness,
+          angle: amid + Math.PI / 2, color: ring.color };
+      }) }));
+      const rays = Array.from({ length: 4 }, (_, index) => {
+        const a = index * Math.PI / 2 + angle;
+        const inner = size * .42, outer = size * .59;
+        const middle = (inner + outer) / 2;
+        const crossHalf = size * .045;
+        const cx = x + Math.cos(a) * middle, cy = footY + Math.sin(a) * middle;
+        return { x0: x + Math.cos(a) * inner, y0: footY + Math.sin(a) * inner,
+          x1: x + Math.cos(a) * outer, y1: footY + Math.sin(a) * outer,
+          width: Math.max(1, size * .035),
+          color: ink(220, 251, 255, ringAlpha * .9),
+          cross: { x0: cx - Math.sin(a) * crossHalf,
+            y0: cy + Math.cos(a) * crossHalf,
+            x1: cx + Math.sin(a) * crossHalf,
+            y1: cy - Math.cos(a) * crossHalf,
+            width: Math.max(1, size * .025), color: ink(232, 204, 255, ringAlpha * .75) }
+        };
+      });
+      result.push({ id, x, footY, size, angle,
+        ringAlpha, ringReady: true, rings, rays, beams, motes,
+        arrival: entry.arrival });
     }
     return result;
   }
@@ -87,44 +113,30 @@
       color: beam.color, mode: 'additive' };
   }
   function create({ device } = {}) {
-    if (!device?.createTexture || !device.queue?.copyExternalImageToTexture)
-      throw new TypeError('Preparation summons need the shared WebGPU device');
-    const textures = new Map();
     let destroyed = false;
-    function textureFor(image) {
-      if (!ready(image)) return null;
-      const cached = textures.get(image);
-      if (cached && cached.width === image.naturalWidth && cached.height === image.naturalHeight)
-        return cached.texture;
-      const texture = device.createTexture({ label: 'DVA preparation summon circle v726',
-        size: [image.naturalWidth, image.naturalHeight], format: 'rgba8unorm',
-        usage: 0x02 | 0x04 | 0x10 }); // COPY_DST | TEXTURE_BINDING | RENDER_ATTACHMENT
-      try {
-        device.queue.copyExternalImageToTexture({ source: image },
-          { texture, premultipliedAlpha: true }, [image.naturalWidth, image.naturalHeight]);
-      } catch (error) { texture.destroy(); throw error; }
-      if (cached) cached.texture.destroy();
-      textures.set(image, { width: image.naturalWidth, height: image.naturalHeight, texture });
-      return texture;
-    }
     function record({ frame, target, viewport, scene, camera, zoom } = {}) {
       if (destroyed) throw new Error('Preparation summon pass destroyed');
-      if (!frame?.stage || !frame?.sprite || !frame?.rect ||
+      if (typeof frame?.stage !== 'function' || typeof frame?.rect !== 'function' ||
           typeof target !== 'string' || !target ||
           !Number.isInteger(viewport?.pixelWidth) || !Number.isInteger(viewport?.pixelHeight) ||
           viewport.pixelWidth < 1 || viewport.pixelHeight < 1)
         throw new TypeError('Preparation summons need a shared frame and physical backing dimensions');
       const effects = plan({ scene, camera, zoom, viewport });
       if (!effects.length) return { drawn: 0, effects };
-      const texture = textureFor(scene.ringImage);
       frame.stage('world:preparation-summons');
       for (const effect of effects) {
-        if (effect.ringReady && texture) {
-          const c = Math.cos(effect.angle), s = Math.sin(effect.angle);
-          frame.sprite(target, { x: -effect.size / 2, y: -effect.size * 0.22,
-            w: effect.size, h: effect.size * 0.44,
-            transform: [c, s, -s, c, effect.x, effect.footY],
-            texture, color: [1, 1, 1, effect.ringAlpha], mode: 'additive' });
+        for (const ring of effect.rings) {
+          for (const segment of ring.segments) {
+            const c = Math.cos(segment.angle), s = Math.sin(segment.angle);
+            frame.rect(target, { x: -segment.width / 2, y: -segment.height / 2,
+              w: segment.width, h: segment.height,
+              transform: [c, s, -s, c, segment.x, segment.y],
+              color: segment.color, mode: 'additive' });
+          }
+        }
+        for (const ray of effect.rays) {
+          frame.rect(target, beamRect(ray));
+          frame.rect(target, beamRect(ray.cross));
         }
         for (const beam of effect.beams) frame.rect(target, beamRect(beam));
         for (const mote of effect.motes) if (mote.color[3] > 0)
@@ -136,11 +148,9 @@
     return Object.freeze({ device, record, destroy() {
       if (destroyed) return;
       destroyed = true;
-      for (const value of textures.values()) value.texture.destroy();
-      textures.clear();
     } });
   }
-  const api = Object.freeze({ ASSET, plan, create });
+  const api = Object.freeze({ plan, create });
   root.DvaWebGPUPreparationSummons = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
