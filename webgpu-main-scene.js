@@ -295,7 +295,8 @@
           if (typeof pass?.record !== 'function' ||
               String(effect?.id ?? '') !== id || planned?.effectId !== id ||
               !(extra
-                ? ['gain-luckBoost', 'gain-statusRecovery', 'gain-cooldownReduction'].includes(effect.type) &&
+                ? ['gain-luckBoost', 'gain-statusRecovery', 'gain-cooldownReduction',
+                    'gain-acceleration'].includes(effect.type) &&
                   planned.kind === effect.effectKind
                 : ['gravity-accelerate', 'gravity-decelerate', 'natural-recovery'].includes(effect.type) &&
                   planned.type === effect.type) ||
@@ -892,6 +893,18 @@
               planned: event.input.planned });
             if (outcome?.effectId !== event.effectId || outcome.drawn !== true)
               throw new Error(`Magic ${pass} ${event.effectId} was not drawn`);
+            if (event.input.effect.type === 'gain-acceleration') {
+              const effect = event.input.effect;
+              const roomId = stages.magicEffects?.roomId ??
+                stages.magicEffects?.data?.roomId ?? '';
+              if (!roomId || !effect.playerId || !Number.isFinite(event.input.planned.progress))
+                throw new TypeError(`Magic acceleration benefit ${event.effectId} has invalid sound receipt`);
+              phenomenonSoundVisualReceipts.push(Object.freeze({
+                roomId: String(roomId), effectId: effect.id,
+                kind: 'accelerationBenefit', playerId: effect.playerId,
+                progress: event.input.planned.progress
+              }));
+            }
           } else if (['barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE'].includes(event.type)) {
             const outcome = need(event.type, 'record').record({ frame, target, viewport,
               ...event.input });

@@ -353,10 +353,9 @@ for (const overlay of [els.inventoryItemDetail]) {
   if (overlay && overlay.parentElement !== document.body) document.body.append(overlay);
 }
 
-// Keep the field canvas synchronized with the compositor. A desynchronized
-// context can expose the cleared or partially drawn frame while prop-heavy
-// scenes are still being painted, which presents as a full-field flash.
-const ctx = els.canvas.getContext("2d", { alpha: false });
+// The retired field draw tree owns this context. The WebGPU startup and frame
+// path must not allocate a Canvas 2D context on the hidden field canvas.
+let ctx = null;
 const MAIN_CANVAS_LOGICAL_SIZE = window.DvaWebGPUViewport?.SIZES?.main || [980, 620];
 const EXPANDED_MAP_LOGICAL_SIZE = window.DvaWebGPUViewport?.SIZES?.expanded || [1200, 760];
 let expandedMapGpuRuntime = null;
@@ -18742,6 +18741,7 @@ function drawPreparationArrivalPlayer(player, data) {
 // PREPARATION_ROSTER_V726_END
 
 function draw() {
+  ctx ??= els.canvas.getContext("2d", { alpha: false });
   const { data, w, h, worldZoom, camera, viewW, viewH } = state.preparedMainFrame;
   const phenomenonVisualReceipts = [];
   sunbeamLive.poseReceipts.clear();
@@ -22157,6 +22157,32 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
           actorWorld: { x: player.x, y: player.y },
           duration: manaDurationMs },
           actorElapsedMs, camera, zoom, reducedMotion } });
+      continue;
+    }
+    if (isBodyAccelerationGainEffect(effect)) {
+      const pass = window.DvaWebGPUBodyBenefitExtra;
+      const player = gainEffectPlayer(effect);
+      if (!player || !player.alive || player.ejected || player.inVent || player.invisible) {
+        omitted.push({ effectId: effect.id, reason: 'acceleration-benefit-player-not-visible' });
+        continue;
+      }
+      const actorElapsed = accelerationBodyActorElapsed(effect, data);
+      const visualNow = actorElapsed == null ? now : effect.startedAt + actorElapsed;
+      if (!Number.isFinite(visualNow) || !Number.isFinite(effect.startedAt) ||
+          visualNow < effect.startedAt ||
+          visualNow - effect.startedAt >= ACCELERATION_BODY_BENEFIT_TE.durationMs) {
+        omitted.push({ effectId: effect.id, reason: 'acceleration-benefit-outside-visible-lifetime' });
+        continue;
+      }
+      const planned = pass?.plan?.({ effect, player, now: visualNow,
+        phase: data.phase, camera, zoom, viewport, reducedMotion });
+      if (!planned) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'acceleration-benefit-pass-or-source-invalid' });
+        continue;
+      }
+      events.push({ type: 'bodyBenefitExtra', effectId: effect.id,
+        input: { effect, planned } });
       continue;
     }
     if (isBodyHealGainEffect(effect) || isBodyOverhealGainEffect(effect)) {

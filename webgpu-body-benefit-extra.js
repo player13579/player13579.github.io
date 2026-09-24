@@ -9,7 +9,9 @@
     statusRecovery: Object.freeze({ type: 'gain-statusRecovery', index: 1, durationMs: 1380,
       radiusX: 58, radiusY: 78, anchorY: 52 }),
     cooldownReduction: Object.freeze({ type: 'gain-cooldownReduction', index: 2, durationMs: 1480,
-      radiusX: 66, radiusY: 76, anchorY: 51 })
+      radiusX: 66, radiusY: 76, anchorY: 51 }),
+    acceleration: Object.freeze({ type: 'gain-acceleration', index: 3, durationMs: 1000,
+      radiusX: 64, radiusY: 44, anchorY: -3 })
   });
   const finite = Number.isFinite;
   const EFFECT_KEYS = Object.freeze(Object.keys(PROFILES));
@@ -69,7 +71,7 @@ fn envelope(t:f32)->f32{return smoothstep(0.0,.075,t)*(1.0-smoothstep(.84,1.0,t)
     energy=twoSheets*departing*.92+smear*departing*.25+clearRim*.92;
     halo=twoSheets*departing*.32+clearRim*.44+clearingGlow*.55;
     tint=mix(vec3f(.31,.54,.38),vec3f(.28,.91,1.0),smoothstep(.27,.55,t));
-  }else{
+  }else if(kind<2.5){
     // A single luminous time ring contracts to the body and carries one
     // unbroken travelling front around its circumference.
     let r=length(vec2f(q.x,q.y*.91));
@@ -84,6 +86,22 @@ fn envelope(t:f32)->f32{return smoothstep(0.0,.075,t)*(1.0-smoothstep(.84,1.0,t)
     energy=ring*(.46+front*.95)+broadRing*(.17+trail*.22);
     halo=ring*.34+broadRing*.22+front*bell(r-radius,.14)*.25;
     tint=mix(vec3f(.25,.69,1.0),vec3f(.72,.94,1.0),clamp(front,0.0,1.0));
+  }else{
+    // The grant begins as two clear waist knots. A broad cyan current travels
+    // down both sides of the legs, leaving a short wake before it dissolves.
+    let side=abs(q.x);
+    let lane=.30+.035*sin((q.y+.4)*3.1);
+    let waist=bell(side-.30,.075)*bell(q.y+.38,.16);
+    let travel=smoothstep(.08,.72,quietT);
+    let frontY=mix(-.34,.78,travel);
+    let current=bell(side-lane,.047)*
+      smoothstep(-.56,-.38,q.y)*(1.0-smoothstep(frontY-.13,frontY+.055,q.y));
+    let front=bell(q.y-frontY,.105)*bell(side-lane,.095);
+    let wake=bell(side-lane,.125)*
+      smoothstep(-.40,-.19,q.y)*(1.0-smoothstep(frontY-.34,frontY+.01,q.y));
+    energy=waist*.68+current*.68+front*.95;
+    halo=waist*.28+current*.22+front*.36+wake*.19;
+    tint=mix(vec3f(.07,.62,1.0),vec3f(.70,1.0,1.0),clamp(front+waist*.42,0.0,1.0));
   }
   let source=clamp(energy*alive,0.0,.96);
   let glow=clamp(halo*alive,0.0,.34);
