@@ -1,4 +1,4 @@
-/* Textureless Sunbeam E for the shared ordered WebGPU frame. The caller must
+/* Sunbeam v26 E: source-fed, directional and textureless WebGPU beam. The caller must
  * provide a measured hand world point, explicit facing vector, and target. */
 (function (root) {
   'use strict';
@@ -116,153 +116,154 @@
   // one budgeted OBS response. Values are physical pixels in game and preview.
   const shader = /* wgsl */ `
 struct Params {
-  viewport: vec4f, // physical width, height, logical-to-physical x, y
-  ray0: vec4f,     // measured hand x/y, extended endpoint x/y
+  viewport: vec4f,
+  ray0: vec4f,
   ray1: vec4f,
-  energy: vec4f,   // PH envelope, supply, transport, logical zoom
-  control: vec4f,  // hand count, progress, reduced motion, minimum full hand-to-target world length
+  energy: vec4f,
+  control: vec4f,
 };
 @group(0) @binding(0) var<uniform> p: Params;
 struct VertexOut { @builtin(position) position: vec4f };
 @vertex fn screenVertex(@builtin(vertex_index) id: u32) -> VertexOut {
-  let corners = array<vec2f, 3>(vec2f(-1.0,-1.0),vec2f(3.0,-1.0),vec2f(-1.0,3.0));
+  let corners = array<vec2f, 3>(vec2f(-1.0,-1.0), vec2f(3.0,-1.0), vec2f(-1.0,3.0));
   var out: VertexOut;
   out.position = vec4f(corners[id], 0.0, 1.0);
   return out;
 }
-fn rayLight(pixel: vec2f, ray: vec4f, time: f32) -> vec4f {
-  let a = ray.xy;
-  let b = ray.zw;
-  let axis = b - a;
-  let rayLength = max(length(axis), 0.001);
-  let tangent = axis / rayLength;
-  let along = dot(pixel - a, tangent);
-  let lateral = dot(pixel - a, vec2f(-tangent.y, tangent.x));
-  let scale = max(0.25, p.energy.w) * (p.viewport.z + p.viewport.w) * 0.5;
-  let worldLength = max(rayLength / scale, 0.001);
-  let u = along / scale;
-  let v = lateral / scale;
-  let t = clamp(u / worldLength, 0.0, 1.0);
-  let motion = select(time, 0.36, p.control.z > 0.5);
-  let shortScale = mix(0.57, 1.0, smoothstep(100.0, 320.0, worldLength));
+fn hash11(x: f32) -> f32 { return fract(sin(x * 127.1 + 78.233) * 43758.5453); }
+fn gauss(x: f32) -> f32 { return exp(-x * x); }
+fn sat(x: f32) -> f32 { return clamp(x, 0.0, 1.0); }
+fn over(a: vec4f, b: vec4f) -> vec4f { return a + b * (1.0 - a.a); }
+fn beam(pixel: vec2f, ray: vec4f, clock: f32) -> vec4f {
+  let axis = ray.zw - ray.xy;
+  let lengthPx = max(length(axis), 0.001);
+  let tangent = axis / lengthPx;
+  let normal = vec2f(-tangent.y, tangent.x);
+  let physicalPerWorld = max(0.001, p.energy.w * (p.viewport.z + p.viewport.w) * 0.5);
+  let lengthWorld = lengthPx / physicalPerWorld;
+  let u = dot(pixel - ray.xy, tangent) / physicalPerWorld;
+  let v = dot(pixel - ray.xy, normal) / physicalPerWorld;
+  let t = sat(u / max(lengthWorld, 0.001));
+  let movingClock = select(clock, 0.38, p.control.z > 0.5);
 
-  // PH carrier: one broad, nonuniform solar plasma volume. Macro pinches and
-  // a displaced axis are large enough to read at the smallest preview zoom.
-  let throat = smoothstep(0.0, min(42.0, 0.18 * worldLength), u);
-  let swell = 18.0 + 24.0 * exp(-pow((t - 0.23) / 0.19, 2.0))
-    - 4.0 * exp(-pow((t - 0.51) / 0.10, 2.0))
-    + 6.0 * exp(-pow((t - 0.73) / 0.18, 2.0));
-  let capSpan = min(28.0, 0.18 * worldLength);
-  let capStart = worldLength - capSpan;
-  let tip = 1.0 - 0.70 * smoothstep(capStart, worldLength + 2.0, u);
-  let width = mix(8.0, swell, throat) * tip * shortScale;
-  let axisBend = (3.8 * sin(6.28318 * (0.72 * t + 0.13 * motion))
-    + 2.3 * sin(6.28318 * (1.43 * t - 0.09 * motion))) * sin(3.14159 * t);
-  let cross = v - axisBend;
-  let shear = 4.2 * sin(6.28318 * (2.2 * t - 0.48 * motion + 0.10 * sign(cross)))
-    * sin(3.14159 * t);
-  let edgePosition = abs(cross) - width - shear;
-  let bodyCross = 1.0 - smoothstep(-2.0, 2.0, edgePosition);
-  let sourceGate = smoothstep(-5.0, 3.0, u);
-  let frontGate = 1.0 - smoothstep(worldLength - max(8.0, capSpan * 0.55),
-    worldLength + 3.0, u);
-  let carrier = sourceGate * frontGate * bodyCross * p.energy.z;
+  // PH1 macro envelope: asymmetric broad lobes and a marked dark waist.
+  // PH geometry, rather than an OBS halo, owns the wide beam silhouette.
+  let sizeFactor = mix(0.55, 1.0, smoothstep(90.0, 310.0, lengthWorld));
+  let lobeA = 9.0 * gauss((t - 0.26) / 0.14);
+  let lobeB = 6.5 * gauss((t - 0.69) / 0.17);
+  let neck = 5.0 * gauss((t - 0.49) / 0.085);
+  let emergence = mix(0.52, 1.0, smoothstep(0.0, 39.0, u));
+  let terminalTaper = 1.0 - 0.94 * smoothstep(lengthWorld - 58.0, lengthWorld + 1.0, u);
+  let halfWidth = (19.0 + lobeA + lobeB - neck) * sizeFactor * emergence * terminalTaper;
+  let axisDrift = sin(6.283185 * (0.62 * t - 0.11 * movingClock))
+    * sin(3.141593 * t) * 2.2;
+  let cross = v - axisDrift;
+  let finiteStart = smoothstep(-4.0, 2.0, u);
+  let finiteEnd = 1.0 - smoothstep(lengthWorld - 3.0, lengthWorld + 2.0, u);
+  let endAttenuation = 1.0 - 0.76 * smoothstep(lengthWorld - 42.0, lengthWorld + 2.0, u);
+  let alongGate = finiteStart * finiteEnd * endAttenuation;
 
-  // PH palm supply precedes full propagation. It is spatially local to the
-  // measured emitter and narrows into the carrier instead of copying its rim.
-  let palmRadius = length(vec2f((u - 3.0) * 0.64, v * 0.93));
-  let palm = (1.0 - smoothstep(9.0, 18.0, palmRadius))
-    * (1.0 - smoothstep(19.0, 34.0, u)) * p.energy.y;
-  let supplyTongue = (1.0 - smoothstep(5.0, 10.0, abs(v)))
-    * smoothstep(-3.0, 8.0, u) * (1.0 - smoothstep(24.0, 42.0, u)) * p.energy.y;
-  let supply = max(palm, 0.65 * supplyTongue);
+  // PH1 supply: a flared hand mouth contracts into the narrow axial channel.
+  let palm = gauss(length(vec2f(u * 0.72, v)) / 10.5);
+  let sourceWing = gauss((u - 13.0) / 16.0) * gauss((abs(v) - 11.0) / 5.0);
+  let collimation = gauss(cross / max(4.0, 12.0 - 0.14 * max(u, 0.0)))
+    * smoothstep(-3.0, 7.0, u) * (1.0 - smoothstep(36.0, 68.0, u));
+  let supply = (0.74 * palm + 0.50 * sourceWing + 0.70 * collimation) * p.energy.y;
 
-  // PH transport: broad, offset streams pass through the one carrier.
-  // Their staggered waves and the intervening dim channel give direction and
-  // depth, while the carrier beneath them remains connected.
-  let streamAPath = width * (0.19 + 0.43 * sin(6.28318 * (1.04 * t - 0.36 * motion)));
-  let streamBPath = -width * (0.19 + 0.37 * sin(6.28318 * (0.78 * t - 0.27 * motion + 0.29)));
-  let waveA = 0.12 + 0.88 * pow(0.5 + 0.5 * cos(6.28318 * (u / 126.0 - 1.55 * motion)), 2.0);
-  let waveB = 0.16 + 0.84 * pow(0.5 + 0.5 * cos(6.28318 * (u / 164.0 - 1.10 * motion + 0.27)), 2.0);
-  let streamA = exp(-pow((cross - streamAPath) / max(5.0, 0.25 * width), 2.0)) * waveA;
-  let streamB = exp(-pow((cross - streamBPath) / max(5.0, 0.24 * width), 2.0)) * waveB;
-  let heart = exp(-pow((cross + 0.05 * width) / max(4.0, 0.23 * width), 2.0))
-    * (0.56 + 0.44 * waveA);
-  let channel = exp(-pow((cross - width * 0.15) / max(2.0, 0.10 * width), 2.0))
-    * (0.38 + 0.22 * waveB);
-  let transport = carrier * (0.50 * streamA + 0.43 * streamB + 0.16 * heart);
-  let bodyAlpha = carrier * clamp(0.18 + 0.15 * streamA + 0.13 * streamB
-    + 0.20 * heart - 0.24 * channel, 0.10, 0.63);
+  // PH1 transport: large oblique fronts move downstream. A dark relief follows
+  // every bright face through the envelope, while the hot axis stays intact.
+  let frontSkew = 0.70 + 0.32 * sin(6.283185 * (0.90 * t - 0.21 * movingClock));
+  let packetMetric = (u - frontSkew * cross - movingClock * 390.0) / 126.0;
+  let packetCell = floor(packetMetric);
+  let packetLocal = fract(packetMetric);
+  let packetCenter = 0.38 + (hash11(packetCell + 4.0) - 0.5) * 0.17;
+  let packetWeight = 0.72 + 0.28 * hash11(packetCell + 11.0);
+  let packetFace = gauss((packetLocal - packetCenter) / 0.16) * packetWeight;
+  let packetWake = gauss((packetLocal - packetCenter + 0.20) / 0.24) * packetWeight;
+  let relief = gauss((packetLocal - packetCenter - 0.29) / 0.13);
+  let frontEnergy = 0.86 * packetFace + 0.36 * packetWake;
+  let lagMetric = (u - frontSkew * cross - max(0.0, movingClock - 0.045) * 390.0) / 126.0;
+  let lagCell = floor(lagMetric);
+  let lagCenter = 0.38 + (hash11(lagCell + 4.0) - 0.5) * 0.17;
+  let lagPacket = gauss((fract(lagMetric) - lagCenter) / 0.19);
 
-  // Broad asymmetric solar tongues are displaced plasma, not copies of the
-  // carrier outline. Their two loci and lifetimes differ from the streams.
-  let tongueScale = smoothstep(120.0, 340.0, worldLength);
-  let upperReach = (4.0 + 24.0 * tongueScale)
-    * (1.0 - smoothstep(0.0, 0.19, abs(t - 0.25 - 0.025 * motion)));
-  let lowerReach = (3.0 + 17.0 * tongueScale)
-    * (1.0 - smoothstep(0.0, 0.21, abs(t - 0.63 + 0.035 * motion)));
-  let upperTongue = smoothstep(width - 4.0, width + 2.0, cross)
-    * (1.0 - smoothstep(width + upperReach - 2.0, width + upperReach + 3.0, cross));
-  let lowerTongue = smoothstep(width - 4.0, width + 2.0, -cross)
-    * (1.0 - smoothstep(width + lowerReach - 2.0, width + lowerReach + 3.0, -cross));
-  let plasmaTongues = sourceGate * frontGate * p.energy.z
-    * (0.32 * upperTongue * smoothstep(0.0, 6.0, upperReach)
-    + 0.25 * lowerTongue * smoothstep(0.0, 6.0, lowerReach));
+  // PH1 core: a narrow, continuous white-hot axis. Packet contrast is carried
+  // by the envelope; it cannot turn this axis into a necklace of bright dots.
+  let coreRadius = max(2.8, 0.15 * halfWidth);
+  let core = gauss(cross / coreRadius) * (0.88 + 0.08 * packetFace)
+    * alongGate * p.energy.z;
+  let innerFire = gauss(cross / max(6.0, halfWidth * 0.34))
+    * (0.33 + 0.33 * frontEnergy) * alongGate * p.energy.z;
 
-  // PH boundary: a delayed, feathered shear outside the carrier. Its spatial
-  // support differs from the internal streams and follows the moving contour.
-  let edgeLobe = exp(-pow((edgePosition - 2.8) / 5.6, 2.0));
-  let edgeRhythm = 0.58 + 0.42 * sin(6.28318 * (1.72 * t - 0.62 * motion))
-    * sin(6.28318 * (0.66 * t - 0.37 * motion));
-  let boundary = sourceGate * frontGate * p.energy.z * 0.26
-    * edgeLobe * edgeRhythm;
+  // PH1 carrier and shear: high-contrast flux faces separated by dark relief.
+  // The outer contour is widened asymmetrically, not a blurred copy of core.
+  let eddy = 3.8 * sin(6.283185 * (1.40 * t - 0.23 * movingClock))
+    + 2.3 * sin(6.283185 * (2.80 * t - 0.34 * movingClock + 0.16 * sign(cross)));
+  let edgeDistance = abs(cross) - halfWidth - eddy * (0.46 + 0.76 * lagPacket);
+  let carrierMask = 1.0 - smoothstep(-3.0, 2.0, edgeDistance);
+  let radial = 1.0 - 0.17 * smoothstep(0.0, halfWidth, abs(cross));
+  let carrier = alongGate * carrierMask * radial * p.energy.z
+    * max(0.12, 0.21 + 0.80 * frontEnergy - 0.20 * relief);
+  let shearBand = gauss((edgeDistance - 0.5) / 4.2)
+    * (0.12 + 0.48 * lagPacket) * alongGate * p.energy.z;
+  let upperTongue = gauss((t - 0.30 - 0.045 * movingClock) / 0.13)
+    * smoothstep(halfWidth - 3.0, halfWidth + 2.0, cross)
+    * (1.0 - smoothstep(halfWidth + 12.0, halfWidth + 17.0, cross));
+  let lowerTongue = gauss((t - 0.68 + 0.035 * movingClock) / 0.16)
+    * smoothstep(halfWidth - 3.0, halfWidth + 2.0, -cross)
+    * (1.0 - smoothstep(halfWidth + 7.0, halfWidth + 12.0, -cross));
+  let tongues = (0.53 * upperTongue + 0.41 * lowerTongue)
+    * (0.40 + 0.60 * frontEnergy) * alongGate * p.energy.z;
 
-  // PH endpoint: a finite, narrow propagation front, not a hit flash.
-  let terminal = p.energy.z * 0.14 * exp(-pow((u - worldLength) / 11.0, 2.0))
-    * exp(-pow(cross / max(5.0, width * 0.78), 2.0));
+  // One broad off-axis sweep introduces directional depth without parallel
+  // filaments. It is finite, curved, and tied to the travelling front.
+  let sweepPath = halfWidth * (0.27 + 0.28 * sin(6.283185 * (0.72 * t - 0.24 * movingClock)));
+  let sweep = gauss((cross - sweepPath) / 4.6) * gauss((t - 0.49) / 0.30)
+    * (0.18 + 0.68 * frontEnergy) * alongGate * p.energy.z;
 
-  // OBS: a separately budgeted low-opacity response to the PH source/body.
-  // It cannot fill the dim internal channel or turn the silhouette white.
-  let haloWidth = width + 15.0 * shortScale;
-  let observation = p.energy.z * sourceGate * frontGate * 0.06
-    * exp(-pow(abs(cross) / max(8.0, haloWidth), 2.0));
-  let flowTerm = 0.88 * transport;
-  let supplyTerm = 0.70 * supply;
-  let density = bodyAlpha + flowTerm + boundary + plasmaTongues
-    + terminal + observation + supplyTerm;
-  let alpha = clamp(p.energy.x * density, 0.0, 0.91);
-  // Different PH and OBS layers retain their own radiance. A single mixed
-  // orange for every field flattened the motion into a uniform baton.
-  let radiance = bodyAlpha * vec3f(1.0, 0.44, 0.12)
-    + flowTerm * vec3f(1.0, 0.97, 0.76)
-    + boundary * vec3f(1.0, 0.64, 0.20)
-    + plasmaTongues * vec3f(1.0, 0.55, 0.16)
-    + terminal * vec3f(1.0, 0.86, 0.53)
-    + observation * vec3f(0.89, 0.40, 0.13)
-    + supplyTerm * vec3f(1.0, 0.98, 0.84);
-  let straightColor = radiance / max(density, 0.0001);
-  return vec4f(straightColor * alpha, alpha);
+  // PH1 endpoint is a finite propagation rim, not a collision response.
+  let endpoint = 0.18 * gauss((u - lengthWorld) / 5.5)
+    * gauss(cross / max(3.0, halfWidth * 0.62)) * p.energy.z;
+
+  // OBS1 receives PH1 emission. Its broad response is deliberately weak;
+  // no blur, screen stripe, generated particle, or white silhouette fill.
+  let observation = 0.055 * gauss(cross / max(10.0, halfWidth + 13.0))
+    * alongGate * p.energy.z;
+  let lifetime = p.energy.x;
+  let haloA = sat(observation * lifetime);
+  let bodyA = sat(carrier * lifetime * 0.82);
+  let shearA = sat((shearBand + tongues) * lifetime * 0.68);
+  let sweepA = sat(sweep * lifetime * 0.72);
+  let innerA = sat(innerFire * lifetime * 0.88);
+  let coreA = sat(core * lifetime * 0.97);
+  let sourceA = sat(supply * lifetime * 0.88);
+  let endA = sat(endpoint * lifetime * 0.50);
+  var color = vec4f(vec3f(1.0, 0.54, 0.13) * haloA, haloA);
+  color = over(vec4f(vec3f(1.0, 0.50, 0.10) * bodyA, bodyA), color);
+  color = over(vec4f(vec3f(1.0, 0.69, 0.20) * shearA, shearA), color);
+  color = over(vec4f(vec3f(1.0, 0.91, 0.49) * sweepA, sweepA), color);
+  color = over(vec4f(vec3f(1.0, 0.82, 0.34) * innerA, innerA), color);
+  color = over(vec4f(vec3f(1.0, 1.0, 0.94) * coreA, coreA), color);
+  color = over(vec4f(vec3f(1.0, 0.98, 0.74) * sourceA, sourceA), color);
+  color = over(vec4f(vec3f(1.0, 0.82, 0.40) * endA, endA), color);
+  let cappedAlpha = min(color.a, 0.985);
+  return vec4f(color.rgb * cappedAlpha / max(color.a, 0.000001), cappedAlpha);
 }
-fn unionPremultiplied(a: vec4f, b: vec4f) -> vec4f {
-  return a + b * (1.0 - a.a);
-}
-fn shortRangeUnion(a: vec4f, b: vec4f) -> vec4f {
-  let sourceOver = unionPremultiplied(a, b);
-  let alphaOld = sourceOver.a;
-  let alphaShort = max(a.a, b.a) + 0.10 * min(a.a, b.a) * (1.0 - max(a.a, b.a));
-  let shortMix = 1.0 - smoothstep(180.0, 360.0, p.control.w);
-  let alphaNew = clamp(mix(alphaOld, alphaShort, shortMix), 0.0, 1.0);
-  let rgbScale = alphaNew / max(alphaOld, 0.000001);
-  return vec4f(sourceOver.rgb * rgbScale, alphaNew);
+fn boundedTwoHand(a: vec4f, b: vec4f) -> vec4f {
+  let composite = over(a, b);
+  let maxAlpha = max(a.a, b.a);
+  let minAlpha = min(a.a, b.a);
+  let shortWeight = 1.0 - smoothstep(180.0, 360.0, p.control.w);
+  let limitedAlpha = maxAlpha + 0.12 * minAlpha * (1.0 - maxAlpha);
+  let alpha = mix(composite.a, limitedAlpha, shortWeight);
+  return vec4f(composite.rgb * alpha / max(composite.a, 0.000001), alpha);
 }
 @fragment fn sunbeamFragment(@builtin(position) position: vec4f) -> @location(0) vec4f {
-  var light = rayLight(position.xy, p.ray0, p.control.y);
+  var color = beam(position.xy, p.ray0, p.control.y);
   if (p.control.x > 1.5) {
-    light = shortRangeUnion(light, rayLight(position.xy, p.ray1, p.control.y));
+    color = boundedTwoHand(color, beam(position.xy, p.ray1, p.control.y));
   }
-  // rayLight already applies the single lifetime envelope and premultiplies
-  // each source. A second fade here would dim onset and decay quadratically.
-  return light;
+  return color;
 }
 `;
 
@@ -271,13 +272,13 @@ fn shortRangeUnion(a: vec4f, b: vec4f) -> vec4f {
         !frameOwner.device?.queue?.writeBuffer || !frameOwner.own || !frameOwner.release)
       throw new TypeError('Sunbeam E requires the shared WebGPU frame owner');
     const device = frameOwner.device, format = frameOwner.format;
-    const module = device.createShaderModule({ label: 'DVA continuous solar Sunbeam WGSL', code: shader });
+    const module = device.createShaderModule({ label: 'DVA Sunbeam v26 WGSL', code: shader });
     const bindGroupLayout = device.createBindGroupLayout({ entries: [{ binding: 0,
       visibility: 0x1 | 0x2, buffer: { type: 'uniform' } }] });
     const layout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
     const blend = { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' } };
-    const pipeline = device.createRenderPipeline({ label: 'DVA continuous Sunbeam E', layout,
+    const pipeline = device.createRenderPipeline({ label: 'DVA Sunbeam v26 E', layout,
       vertex: { module, entryPoint: 'screenVertex' },
       fragment: { module, entryPoint: 'sunbeamFragment', targets: [{ format, blend }] },
       primitive: { topology: 'triangle-list' } });
@@ -288,7 +289,7 @@ fn shortRangeUnion(a: vec4f, b: vec4f) -> vec4f {
           throw new Error('Sunbeam WGSL compilation failed');
         compileState = 'ready';
       }).catch(error => { compileState = 'failed'; throw error; }) : Promise.resolve();
-    // The staged main driver is synchronous; it may choose Canvas fallback
+    // The staged main driver is synchronous; it may defer this pass
     // while compilation is pending. Its unused promise must remain handled.
     void ready.catch(() => {});
     const slots = [], indices = new WeakMap();
@@ -337,7 +338,7 @@ fn shortRangeUnion(a: vec4f, b: vec4f) -> vec4f {
         const bottom = clamp(Math.ceil(Math.max(...ys) + paddingY), 0, viewport.pixelHeight);
         if (right <= left || bottom <= top)
           throw new Error(`Sunbeam E ${effect.id} has no visible target footprint`);
-        frame.add({ target, label: `DVA continuous Sunbeam E ${effect.id}`,
+        frame.add({ target, label: `DVA Sunbeam v26 E ${effect.id}`,
           encode(pass, info) {
             if (info.device !== device || info.format !== format ||
                 info.width !== viewport.pixelWidth || info.height !== viewport.pixelHeight)
