@@ -12543,7 +12543,8 @@ function detectWorldSounds(previous, next) {
       object: "object",
       medicalBedUse: "medicalBedUse",
       medicalCabinetUse: "medicalCabinetUse",
-      medicalFootBathUse: "medicalFootBathUse"
+      medicalFootBathUse: "medicalFootBathUse",
+      a01ReaderUse: "a01ReaderUse"
     }[sound.type];
     if (!kind) continue;
     const characterActionKind = {
@@ -32782,6 +32783,12 @@ function playSound(kind, options = {}) {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     playTone(270, 520, 0.34, "sine", 0.060 * volume, 0, options.pan, options.spatial);
     playTone(690, 470, 0.14, "triangle", 0.015 * volume, 0.09, options.pan, options.spatial);
+  } else if (kind === "a01ReaderUse") {
+    // One ceramic latch followed by a short amber confirmation; the source
+    // is the accepted object-use receipt, not a fabricated doorway crossing.
+    const volume = clamp(Number(options.volume) || 1, 0, 1);
+    playTone(370, 510, 0.19, "triangle", 0.033 * volume, 0, options.pan, options.spatial);
+    playTone(740, 980, 0.10, "sine", 0.010 * volume, 0.045, options.pan, options.spatial);
   } else if (kind === "object") {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     [360, 540, 810].forEach((frequency, index) => playTone(frequency, frequency * 1.12, 0.16, "triangle", 0.1 * volume, index * 0.055, options.pan, options.spatial));

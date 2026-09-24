@@ -3519,7 +3519,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "tablet-use-v915",
+    version: "a01-reader-use-v916",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -12813,7 +12813,8 @@ function useMapObject(room, player, objectId) {
   const medicalUseSound = {
     "v302-medical-diagnosticBed-1": "medicalBedUse",
     "v302-medical-medicalCabinet-2": "medicalCabinetUse",
-    "v302-medical-sterilizer-3": "medicalFootBathUse"
+    "v302-medical-sterilizer-3": "medicalFootBathUse",
+    "v317-corridor-a01-1": "a01ReaderUse"
   }[object.id];
   pushSound(room, medicalUseSound || "object", object, {
     ownerId: player.id,
@@ -22661,7 +22662,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "tablet-use-v915",
+  version: "a01-reader-use-v916",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }
