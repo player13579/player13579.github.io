@@ -12158,7 +12158,7 @@ function admitPhenomenonSound(effect, data) {
   if (!kind || !rememberPhenomenonSoundId(effect.id)) return false;
   const key = `${data.roomId}:${effect.id}`;
   PHENOMENON_SOUND_RECEIPTS.owners.set(key, {
-    key, kind, effectId: effect.id, playerId: effect.playerId,
+    key, roomId: String(data.roomId || ""), kind, effectId: effect.id, playerId: effect.playerId,
     consumed: 0, handles: [], frame: -1
   });
   return true;
@@ -12205,6 +12205,23 @@ function advancePhenomenonSound(effectId, kind, progress, player) {
       const handle = playSound(clip, kind === "accelerationBenefit" ? { ...mix, playbackRate: actorRate } : mix);
       if (handle) owner.handles.push(handle);
     }
+  }
+}
+function applyPhenomenonSoundVisualReceipts(data, receipts) {
+  if (!Array.isArray(receipts) || data !== state.data) return;
+  const roomId = String(data?.roomId || "");
+  for (const receipt of receipts) {
+    if (!receipt || String(receipt.roomId || "") !== roomId || !receipt.effectId ||
+        !["mana", "accelerationBenefit", "philiaTaser", "overheal"].includes(receipt.kind)) continue;
+    const owner = PHENOMENON_SOUND_RECEIPTS.owners.get(`${roomId}:${receipt.effectId}`);
+    if (!owner || owner.effectId !== receipt.effectId || owner.roomId !== roomId ||
+        owner.kind !== receipt.kind || owner.playerId !== receipt.playerId) continue;
+    if (receipt.kind === "overheal") {
+      owner.frame = PHENOMENON_SOUND_RECEIPTS.frame;
+      continue;
+    }
+    const player = data?.players?.find((entry) => entry.id === receipt.playerId);
+    advancePhenomenonSound(receipt.effectId, receipt.kind, receipt.progress, player);
   }
 }
 function sweepPhenomenonSounds() {
@@ -17721,6 +17738,7 @@ function drawPreparationArrivalPlayer(player, data) {
 
 function draw() {
   const { data, w, h, worldZoom, camera, viewW, viewH } = state.preparedMainFrame;
+  const phenomenonVisualReceipts = [];
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -17765,6 +17783,7 @@ function draw() {
   applyEnvironmentSoundReceipts(data, environmentSoundReceipts);
   sweepEnvironmentSounds();
 
+  state.phenomenonSoundVisualReceipts = phenomenonVisualReceipts;
   drawCanvasStage("world", () => {
     ctx.save();
     try {
@@ -17794,7 +17813,12 @@ function draw() {
       ctx.restore();
     }
   });
-  sweepPhenomenonSounds();
+  try {
+    applyPhenomenonSoundVisualReceipts(data, phenomenonVisualReceipts);
+  } finally {
+    state.phenomenonSoundVisualReceipts = null;
+    sweepPhenomenonSounds();
+  }
 
   drawCanvasStage("task-indicators", () => drawTaskEdgeIndicators(data, camera, w, h, worldZoom));
   if (pregameCanvas && state.preparationEditingField === "name") positionPreparationNameInput();
@@ -20954,9 +20978,9 @@ function drawMagicEffects() {
       /* mana-body-v904:top-draw:start */
       if (isBodyManaGainEffect(effect)) {
         if (drawManaBodyRecoveryEffect(effect, now)) {
-          advancePhenomenonSound(effect.id, "mana",
-            (now - effect.startedAt) / MANA_BODY_RECOVERY_TE.durationMs,
-            state.data.players?.find((player) => player.id === effect.playerId));
+          state.phenomenonSoundVisualReceipts?.push({ roomId: state.data.roomId, effectId: effect.id,
+            kind: "mana", progress: (now - effect.startedAt) / MANA_BODY_RECOVERY_TE.durationMs,
+            playerId: effect.playerId });
         }
         continue;
       }
@@ -20964,17 +20988,17 @@ function drawMagicEffects() {
       if (isBodyAccelerationGainEffect(effect)) {
         if (drawAccelerationBodyBenefitEffect(effect, now)) {
           const actorElapsed = accelerationBodyActorElapsed(effect, state.data);
-          advancePhenomenonSound(effect.id, "accelerationBenefit",
-            (actorElapsed == null ? now - effect.startedAt : actorElapsed) / ACCELERATION_BODY_BENEFIT_TE.durationMs,
-            state.data.players?.find((player) => player.id === effect.playerId));
+          state.phenomenonSoundVisualReceipts?.push({ roomId: state.data.roomId, effectId: effect.id,
+            kind: "accelerationBenefit",
+            progress: (actorElapsed == null ? now - effect.startedAt : actorElapsed) / ACCELERATION_BODY_BENEFIT_TE.durationMs,
+            playerId: effect.playerId });
         }
         continue;
       }
       if (isBodyOverhealGainEffect(effect)) {
         if (drawOverhealBodyRecoveryEffect(effect, now)) {
-          // Audio was admitted at the state receipt; no clip starts here.
-          const owner = PHENOMENON_SOUND_RECEIPTS.owners.get(`${state.data.roomId}:${effect.id}`);
-          if (owner?.kind === "overheal") owner.frame = PHENOMENON_SOUND_RECEIPTS.frame;
+          state.phenomenonSoundVisualReceipts?.push({ roomId: state.data.roomId, effectId: effect.id,
+            kind: "overheal", playerId: effect.playerId });
         }
         continue;
       }
@@ -29532,7 +29556,8 @@ function drawAuthoredPhiliaTaserSwitch(player,data,ghost,action){
  if(ctx.globalAlpha<=0)return true;
  const progress=clamp(Number(action.progress)||0,0,1),frame=prefersReducedMotion()?2:progress<.32?0:progress<.72?1:2;
  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality=IMAGE_SMOOTHING_QUALITY;ctx.drawImage(im,frame*p.cell,0,p.cell,p.cell,-p.origin[0]*p.runtimeScale,31-p.origin[1]*p.runtimeScale,p.cell*p.runtimeScale,p.cell*p.runtimeScale);ctx.restore();drawNameplate(player,ghost,-78);
- advancePhenomenonSound(action.sourceEffectId,"philiaTaser",Number(action.progress),player);
+ state.phenomenonSoundVisualReceipts?.push({roomId:data.roomId,effectId:action.sourceEffectId,
+  kind:"philiaTaser",progress:Number(action.progress),playerId:player.id});
  return true;
 }
 
