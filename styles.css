@@ -2069,10 +2069,11 @@ select:focus {
   height: 100%;
 }
 
-/* During the WebGPU main-owner route the original field keeps pointer capture
-   and geometry, but can never expose stale Canvas 2D pixels as a fallback. */
+/* During the WebGPU main-owner route the original field remains a geometry
+   reference but cannot receive input or expose stale Canvas 2D pixels. */
 body[data-webgpu-main-owner="1"] #gameCanvas {
   opacity: 0;
+  pointer-events: none;
 }
 
 html:not([data-field-renderer="webgpu"]) body.game-open[data-webgpu-main-owner="1"] .board-wrap::after {
@@ -2092,8 +2093,8 @@ html:not([data-field-renderer="webgpu"]) body.game-open[data-webgpu-main-error] 
   content: "WebGPU描画を開始できませんでした";
 }
 
-/* Dedicated WebGPU staging surface. It shares the board's logical dimensions
-   without affecting layout, display, or input while the Canvas 2D path is live. */
+/* The WebGPU presentation surface shares the board's logical dimensions.
+   Input activates only after a current submitted frame. */
 #webgpuMainCanvas {
   position: absolute;
   inset: 0;
@@ -2102,6 +2103,10 @@ html:not([data-field-renderer="webgpu"]) body.game-open[data-webgpu-main-error] 
   height: 100%;
   opacity: 0;
   pointer-events: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .kill-camera-overlay {

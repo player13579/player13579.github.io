@@ -2654,6 +2654,8 @@ function playTitleCommandArrival() {
 }
 
 function init() {
+  // Title navigation must be usable even if later game-only control setup fails.
+  bindTitleNavigationEvents();
   applyStartupCommand();
   prepareTitleHero();
   const savedName = clientStorage.getItem(storage.name) || "";
@@ -3386,6 +3388,10 @@ function setScreen(screen) {
   if (previous !== next) state.preparationRosterEntries.clear();
   if (next === "title") state.operatorSelectionRouteOpen = false;
   if (next !== "game") setSoloNameGuidance(false);
+  if (next !== "game" && els.sensoryOverlay) {
+    els.sensoryOverlay.hidden = true;
+    if (els.sensoryOverlayText) els.sensoryOverlayText.textContent = "";
+  }
   state.screen = next;
   if (next !== "game") suspendWebGPUMainAppDriver();
   if (next !== "game") suspendLiveSunbeamOverlay({ destroy: true });
@@ -7319,6 +7325,27 @@ function cancelCommonActionGestures({ onlyUnavailable = false } = {}) {
   });
 }
 
+function bindTitleNavigationEvents() {
+  els.titlePlayButton.addEventListener("click", () => {
+    if (els.titlePlayButton.disabled) return;
+    loadGameplayTextures();
+    deactivateOfflineMode();
+    state.realtime?.disconnect();
+    void enterFullscreen();
+    switchScreenWithEffect("game");
+    void startMatchmaking({ allowDefaultName: true, source: "title-play" });
+  });
+  els.titleTacticsButton.addEventListener("click", () => {
+    if (els.titleTacticsButton.disabled || state.titleCommandTransitionRunning) return;
+    state.tacticsReturnScreen = "title";
+    state.tacticsReturnFocus = "title-tactics";
+    recordUsageCheckpoint("tactics_open");
+    clearTitleCommandTransition();
+    switchScreenWithEffect("tactics");
+  });
+  els.titleMuteButton?.addEventListener("click", toggleGameMuted);
+}
+
 function bindEvents() {
   // The tutorial transcript is static HTML, but its resource rule must stay
   // synchronized with the live HUD: HP/SP stop at their cap; only MP grows.
@@ -7372,27 +7399,6 @@ function bindEvents() {
   }, { passive: true });
   document.addEventListener("click", (event) => {
     if (event.target instanceof Element && event.target.closest("button")) playSound("click");
-  });
-  els.titlePlayButton.addEventListener("click", () => {
-    if (els.titlePlayButton.disabled) return;
-    loadGameplayTextures();
-    deactivateOfflineMode();
-    state.realtime?.disconnect();
-    void enterFullscreen();
-    switchScreenWithEffect("game");
-    void startMatchmaking({ allowDefaultName: true, source: "title-play" });
-  });
-  els.titleTacticsButton.addEventListener("click", () => {
-    if (els.titleTacticsButton.disabled || state.titleCommandTransitionRunning) return;
-    state.tacticsReturnScreen = "title";
-    state.tacticsReturnFocus = "title-tactics";
-    recordUsageCheckpoint("tactics_open");
-    // Opening the tactics reference is navigation, not a gameplay command.
-    // Clear a stale title-command presentation if an earlier path was
-    // interrupted, then keep this compact control out of the former
-    // title-command dissolve/viewport overlay path.
-    clearTitleCommandTransition();
-    switchScreenWithEffect("tactics");
   });
   els.gameTacticsButton.addEventListener("click", () => {
     state.tacticsReturnScreen = "game";
@@ -7505,7 +7511,6 @@ function bindEvents() {
     const destination = state.tacticsReturnScreen === "game" && state.data ? "game" : "title";
     switchScreenWithEffect(destination);
   });
-  els.titleMuteButton?.addEventListener("click", toggleGameMuted);
   els.tacticsMuteButton?.addEventListener("click", toggleGameMuted);
   els.gameMuteButton?.addEventListener("click", toggleGameMuted);
   els.skinSelect.addEventListener("change", () => {
@@ -8610,31 +8615,7 @@ function bindEvents() {
   els.expandedMapCanvas.addEventListener("pointerleave", () => {
     if (!state.expandedMapTap) state.mapPointer = null;
   });
-  els.canvas.addEventListener("pointerdown", beginMarkerExplanationPointer);
-  els.canvas.addEventListener("pointerdown", attackFromCanvas);
-  els.canvas.addEventListener("pointermove", (event) => {
-    updateMarkerExplanationFromPointer(event);
-    movePreparationCanvasTap(event);
-    moveClairvoyanceTeleportTap(event);
-  });
-  els.canvas.addEventListener("pointerup", (event) => {
-    clearMarkerExplanationPointer(event.pointerId);
-    finishPreparationCanvasTap(event);
-    void finishClairvoyanceTeleportTap(event);
-  });
-  els.canvas.addEventListener("pointercancel", (event) => {
-    clearMarkerExplanationPointer(event.pointerId);
-    finishPreparationCanvasTap(event, true);
-    void finishClairvoyanceTeleportTap(event, true);
-  });
-  els.canvas.addEventListener("lostpointercapture", (event) => {
-    clearMarkerExplanationPointer(event.pointerId);
-    finishPreparationCanvasTap(event, true);
-    void finishClairvoyanceTeleportTap(event, true);
-  });
-  els.canvas.addEventListener("pointerleave", (event) => {
-    clearMarkerExplanationDisplay(event.pointerId);
-  });
+  bindGameInputSurfaceEvents();
 }
 
 function clearPointerInput() {
@@ -8939,12 +8920,6 @@ function bindTabletControls() {
   document.addEventListener("touchmove", suppressTrackedJoystickGesture, { capture: true, passive: false });
   document.addEventListener("touchend", finishJoystickTouch, { capture: true, passive: false });
   document.addEventListener("touchcancel", finishJoystickTouch, { capture: true, passive: false });
-  const suppressGameSurfaceTouch = (event) => {
-    if (state.screen !== "game" || !event.cancelable) return;
-    event.preventDefault();
-  };
-  els.canvas.addEventListener("touchstart", suppressGameSurfaceTouch, { capture: true, passive: false });
-  els.canvas.addEventListener("touchmove", suppressGameSurfaceTouch, { capture: true, passive: false });
   window.addEventListener("pointerup", releaseActiveStick, true);
   window.addEventListener("pointercancel", releaseActiveStick, true);
   window.addEventListener("blur", releaseActiveStick);
@@ -9710,7 +9685,7 @@ function setTabletOpen(open, { persist = true, focus = true } = {}) {
     document.querySelectorAll(".keyboard-selected").forEach((item) => item.classList.remove("keyboard-selected"));
     if (els.tabletPanel.contains(document.activeElement)) document.activeElement.blur();
   } else if (focus) {
-    (els.tabletButton || els.canvas).focus({ preventScroll: true });
+    (els.tabletButton || gameFocusSurface())?.focus?.({ preventScroll: true });
   }
   if (!state.tabletOpen) {
     setTabletBranchGroup("");
@@ -9793,7 +9768,7 @@ function setExpandedMapOpen(open, { focus = true } = {}) {
         ? focusReturnTarget
         : expandedMapFocusTargetAvailable(els.mapActionButton)
           ? els.mapActionButton
-          : els.canvas;
+          : gameFocusSurface();
       target?.focus?.({ preventScroll: true });
     }
   };
@@ -9815,7 +9790,8 @@ function minimapCanvasBounds(canvasWidth = MAIN_CANVAS_LOGICAL_SIZE[0]) {
 }
 
 function canvasPointerPosition(event) {
-  const surface = webgpuMainSubmittedFrameCurrent() ? els.webgpuMainCanvas : els.canvas;
+  const surface = activeGameInputSurface();
+  if (!surface) return null;
   const rect = surface.getBoundingClientRect();
   if (!rect.width || !rect.height) return null;
   return {
@@ -9853,7 +9829,7 @@ function beginClairvoyanceTeleportTap(event) {
     startY: event.clientY,
     moved: false
   };
-  try { els.canvas.setPointerCapture(event.pointerId); } catch {}
+  captureGameInputPointer(event);
   return true;
 }
 
@@ -13559,7 +13535,7 @@ function setKillCameraOpen(open, { focus = true } = {}) {
     state.killCameraReturnFocus = killCameraFocusTargetAvailable(activeElement) &&
       !els.killCameraOverlay.contains(activeElement)
       ? activeElement
-      : els.canvas;
+      : gameFocusSurface();
     if (state.keybindOpen) setKeybindOpen(false, { focus: false });
     clearMovementInput();
     cancelActiveRootShortcutHolds();
@@ -13582,7 +13558,7 @@ function setKillCameraOpen(open, { focus = true } = {}) {
     });
   } else if (wasOpen && !willOpen && focus) {
     requestAnimationFrame(() => {
-      const target = killCameraFocusTargetAvailable(focusReturnTarget) ? focusReturnTarget : els.canvas;
+      const target = killCameraFocusTargetAvailable(focusReturnTarget) ? focusReturnTarget : gameFocusSurface();
       target?.focus?.({ preventScroll: true });
     });
   }
@@ -13826,7 +13802,7 @@ function preparationCanvasHitTarget(field) {
 }
 function positionPreparationNameInput() {
   const target = preparationCanvasHitTarget("name");
-  const surface = webgpuMainSubmittedFrameCurrent() ? els.webgpuMainCanvas : els.canvas;
+  const surface = activeGameInputSurface();
   const box = surface?.getBoundingClientRect?.();
   const panel = document.querySelector('[data-preparation-editor="name"]');
   if (!target || !box || !panel) return false;
@@ -13845,7 +13821,7 @@ function beginPreparationCanvasTap(event) {
     roomId: state.roomId, sessionGeneration: state.roomSessionGeneration, screen: state.screen,
     submittedFrame: webgpuMainApp.visible ? webgpuMainApp.submittedFrame : null
   };
-  try { els.canvas.setPointerCapture(event.pointerId); } catch {}
+  captureGameInputPointer(event);
   return true;
 }
 
@@ -18145,6 +18121,8 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   if (document.documentElement?.dataset)
     document.documentElement.dataset.fieldRenderer = "webgpu-pending";
   if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
+  if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.pointerEvents = "none";
+  if (els.canvas) els.canvas.style.pointerEvents = WEBGPU_MAIN_OWNER ? "none" : "auto";
   if (els.canvas) els.canvas.style.opacity = "0";
   if (webgpuMainApp.acquisitionCanvas) webgpuMainApp.acquisitionCanvas.style.display = "none";
   sunbeamLive.pendingSounds.clear();
@@ -18183,6 +18161,65 @@ function webgpuMainSubmittedFrameCurrent() {
       'rootWidth', 'rootHeight'].every(key => sample[key] === submitted.sample[key]) &&
     ['left', 'top', 'width', 'height'].every(key =>
       Number.isFinite(rect[key]) && Math.abs(rect[key] - submitted.rect[key]) <= 1);
+}
+
+function activeGameInputSurface() {
+  return window.DvaWebGPUGameInputSurface?.resolveSurface({
+    webgpuCanvas: els.webgpuMainCanvas,
+    legacyCanvas: els.canvas,
+    webgpuFrameCurrent: webgpuMainSubmittedFrameCurrent(),
+    webgpuOwner: WEBGPU_MAIN_OWNER
+  }) || null;
+}
+
+function gameFocusSurface() {
+  return activeGameInputSurface() || (WEBGPU_MAIN_OWNER ? els.webgpuMainCanvas : els.canvas);
+}
+
+function captureGameInputPointer(event) {
+  return window.DvaWebGPUGameInputSurface?.capturePointer(event, activeGameInputSurface) || false;
+}
+
+function suppressGameSurfaceTouch(event) {
+  if (state.screen !== "game" || !event.cancelable) return;
+  event.preventDefault();
+}
+
+function bindGameInputSurfaceEvents() {
+  const bind = window.DvaWebGPUGameInputSurface?.bindSurfaceEvents;
+  if (!bind) throw new Error("WebGPU game input surface helper is unavailable");
+  return bind({ surfaces: [els.canvas, els.webgpuMainCanvas],
+    resolveActiveSurface: activeGameInputSurface,
+    handlers: {
+      pointerdown(event) {
+        beginMarkerExplanationPointer(event);
+        attackFromCanvas(event);
+      },
+      pointermove(event) {
+        updateMarkerExplanationFromPointer(event);
+        movePreparationCanvasTap(event);
+        moveClairvoyanceTeleportTap(event);
+      },
+      pointerup(event) {
+        clearMarkerExplanationPointer(event.pointerId);
+        finishPreparationCanvasTap(event);
+        void finishClairvoyanceTeleportTap(event);
+      },
+      pointercancel(event) {
+        clearMarkerExplanationPointer(event.pointerId);
+        finishPreparationCanvasTap(event, true);
+        void finishClairvoyanceTeleportTap(event, true);
+      },
+      lostpointercapture(event) {
+        clearMarkerExplanationPointer(event.pointerId);
+        finishPreparationCanvasTap(event, true);
+        void finishClairvoyanceTeleportTap(event, true);
+      },
+      pointerleave: (event) => clearMarkerExplanationDisplay(event.pointerId),
+      touchstart: { handler: suppressGameSurfaceTouch, options: { capture: true, passive: false } },
+      touchmove: { handler: suppressGameSurfaceTouch, options: { capture: true, passive: false } }
+    }
+  });
 }
 
 function webgpuMainReadyImage(data) {
@@ -18334,6 +18371,8 @@ function pumpWebGPUMainAppDriver() {
       rect: Object.freeze({ left: rect.left, top: rect.top,
         width: rect.width, height: rect.height }) });
     webgpuMainApp.visible = true;
+    mainCanvas.style.pointerEvents = "auto";
+    els.canvas.style.pointerEvents = WEBGPU_MAIN_OWNER ? "none" : "auto";
     advanceActorOwnedECues(data);
     const activeSunbeams = new Set((state.magicEffects || [])
       .filter(effect => effect.type === 'flora-sunbeam').map(effect => String(effect.id)));
