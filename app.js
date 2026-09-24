@@ -592,7 +592,6 @@ const OPERATOR_ABILITY_MODE_OPTIONS = Object.freeze({
 });
 
 const BENEFIT_TE_MATERIALS = Object.freeze({
-  stamina: { file: "benefit-stamina-flow-v817.png", glow: "#b8ff85" },
   mana: { file: "benefit-mana-condensation-v818.png", glow: "#b5b3ff" },
   luckBoost: { file: "benefit-luck-boost-caustic-v819.png", glow: "#ffe5a0" },
   statusRecovery: { file: "benefit-status-recovery-cleansing-v819.png", glow: "#befff1" },
@@ -600,13 +599,6 @@ const BENEFIT_TE_MATERIALS = Object.freeze({
   credits: { file: "object-effect-credits-v438.png", glow: "#ffd782" }
 });
 
-
-const STAMINA_BODY_RECOVERY_TE = Object.freeze({
-  file: "stamina-body-original-v897.png",
-  sourceWidth: 1024,
-  sourceHeight: 1536,
-  durationMs: 1180
-});
 
 const HEAL_BODY_RECOVERY_TE = Object.freeze({
   file: "heal-body-original-v902.png",
@@ -616,32 +608,6 @@ const HEAL_BODY_RECOVERY_TE = Object.freeze({
   displayWidth: 104,
   durationMs: 1180
 });
-
-/* mana-body-v904:profile:start */
-const MANA_BODY_RECOVERY_TE = Object.freeze({
-  file: "mana-body-original-v903.png",
-  sourceWidth: 1024,
-  sourceHeight: 1536,
-  sourceAlphaBottom: 1386,
-  displayWidth: 104,
-  durationMs: 1240
-});
-/* mana-body-v904:profile:end */
-
-// Body-benefit light follows the revealed original's alpha, including its
-// transparent body void. Keep each phenomenon's hue and source RGB intact.
-const BODY_RECOVERY_GLOW = Object.freeze({
-  stamina: Object.freeze({ color: "#9cf36b", blur: 12 }),
-  mana: Object.freeze({ color: "#9696ff", blur: 13 })
-});
-function setBodyRecoveryGlow(kind) {
-  const glow = BODY_RECOVERY_GLOW[kind];
-  if (!glow) return;
-  ctx.shadowColor = glow.color;
-  ctx.shadowBlur = glow.blur;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
-}
 
 const OVERHEAL_BODY_RECOVERY_TE = Object.freeze({
   file: "overheal-body-original-v913.png",
@@ -3368,7 +3334,6 @@ function setScreen(screen) {
   if (screen !== "game") stopAllEnvironmentSounds();
   const next = ["title", "tactics", "game"].includes(screen) ? screen : "title";
   const previous = state.screen;
-  if (previous === "game" && next !== "game") disposeFieldGpu("game screen exited");
   if (previous !== next) clearTitleCommandTransition();
   // PREPARATION_ROSTER_V726: a screen transition never carries an old room's entrance state.
   if (previous !== next) state.preparationRosterEntries.clear();
@@ -3381,7 +3346,6 @@ function setScreen(screen) {
   state.screen = next;
   if (next !== "game") suspendWebGPUMainAppDriver();
   if (next !== "game") suspendLiveSunbeamOverlay({ destroy: true });
-  if (next === "game" && previous !== "game") scheduleFieldGpuFor(state.data);
   if (next !== "game") clearMarkerExplanation();
   if (next !== "game") clearAcquisitionOverlay();
   if (next !== "game") cancelResultRankingAudio();
@@ -11479,7 +11443,6 @@ function resetLocalSession() {
   hideOperatorDetail();
   hideInventoryItemDetail();
   state.data = null;
-  disposeFieldGpu("room exited");
   state.commonTargetSessionKey = "";
   els.teleportTargetSelect.dataset.key = "";
   els.teleportTargetSelect.replaceChildren();
@@ -11658,7 +11621,6 @@ function applyState(data, options = {}) {
     state.lastStateReceivedAt = performance.now();
   }
   state.data = data;
-  scheduleFieldGpuFor(data);
   reconcilePhenomenonSounds(data);
   reconcileEnvironmentSounds(data);
   syncHoverSprintLiveCountdownTicker(data);
@@ -12427,11 +12389,11 @@ function reconcilePhenomenonSounds(data) {
       stopPhenomenonSoundOwner(owner);
       continue;
     }
-    if (owner.kind === "mana" || owner.kind === "accelerationBenefit" || owner.kind === "overheal") {
+    if (owner.kind === "accelerationBenefit" || owner.kind === "overheal") {
       const isAcceleration = owner.kind === "accelerationBenefit";
       const isOverheal = owner.kind === "overheal";
-      const ready = isOverheal ? overhealBodyTextureReady() : isAcceleration ? accelerationBodyTextureReady() : manaBodyTextureReady();
-      const belongs = isOverheal ? isBodyOverhealGainEffect : isAcceleration ? isBodyAccelerationGainEffect : isBodyManaGainEffect;
+      const ready = isOverheal ? overhealBodyTextureReady() : accelerationBodyTextureReady();
+      const belongs = isOverheal ? isBodyOverhealGainEffect : isBodyAccelerationGainEffect;
       if (!ready || !["playing", "meeting"].includes(data.phase) ||
           !state.magicEffects.some((effect) => effect.id === owner.effectId && belongs(effect))) {
         stopPhenomenonSoundOwner(owner);
@@ -19110,146 +19072,27 @@ function appendWorldAreaPath(area) {
   ctx.rect(area.x, area.y, area.w, area.h);
 }
 
-// The authored static field is copied into this same opaque Canvas before its
-// screen/multiply/lighter surface passes. Its WebGPU owner never owns a RAF.
-const fieldGpu = { renderer: null, canvas: null, pending: false, scheduled: false, timer: 0,
-  unavailable: false, hidden: false, generation: 0, key: "", image: null, source: "", failure: "", loadingImage: null };
-function fieldGeometryKey(map) {
-  if (!map) return "";
-  const areas = [...(map.rooms || []), ...(map.corridors || []).flatMap(corridorRenderSegments), ...(map.doors || [])];
-  return JSON.stringify([map.id, map.width, map.height,
-    areas.map(area => Array.isArray(area.polygon) && area.polygon.length >= 3
-      ? ["polygon", area.polygon] : ["rect", area.x, area.y, area.w, area.h])]);
-}
-function disposeFieldGpu(reason = "field changed", keepIdentity = false) {
-  const owner = fieldGpu;
-  owner.generation += 1;
-  if (owner.timer) clearTimeout(owner.timer);
-  owner.timer = 0;
-  owner.scheduled = false;
-  owner.pending = false;
-  try { owner.renderer?.destroy(); } catch (_) {}
-  owner.renderer = null;
-  owner.canvas = null;
-  if (!keepIdentity) { owner.key = ""; owner.image = null; owner.source = ""; owner.unavailable = false; }
-  owner.failure = String(reason);
-}
-function failFieldGpu(reason) {
-  disposeFieldGpu(reason, true);
-  fieldGpu.unavailable = true;
-}
-function scheduleFieldGpuFor(data) {
-  const owner = fieldGpu;
-  const map = data?.map;
-  const image = map && state.textures?.fullMapComposites?.[map.id];
-  if (!map || !image || owner.hidden || state.screen !== "game") return;
-  const key = fieldGeometryKey(map);
-  const source = String(image.currentSrc || image.src || "");
-  if (owner.key !== key || owner.image !== image || owner.source !== source) {
-    disposeFieldGpu("map or authored image changed");
-    owner.key = key;
-    owner.image = image;
-    owner.source = source;
-  }
-  if (owner.unavailable || owner.renderer || owner.pending || owner.scheduled) return;
-  if (!image.complete || !image.naturalWidth) {
-    if (owner.loadingImage !== image) {
-      owner.loadingImage = image;
-      image.addEventListener("load", () => {
-        if (owner.loadingImage === image) owner.loadingImage = null;
-        if (state.data?.map) scheduleFieldGpuFor(state.data);
-      }, { once: true });
-    }
-    return;
-  }
-  if (!window.DvaWebGPUFieldStatic?.create || !navigator.gpu || !window.isSecureContext) {
-    failFieldGpu("WebGPU static field unavailable");
-    return;
-  }
-  const generation = owner.generation;
-  owner.scheduled = true;
-  // Run the one-time 4800x3400 mask/upload outside the interactive draw call.
-  owner.timer = setTimeout(() => {
-    owner.timer = 0;
-    owner.scheduled = false;
-    if (generation !== owner.generation || owner.hidden || owner.key !== key || owner.image !== image || owner.source !== source) return;
-    owner.pending = true;
-    const canvas = document.createElement("canvas");
-    owner.canvas = canvas;
-    Promise.resolve().then(() => window.DvaWebGPUFieldStatic.create(canvas, {
-      map, image, onFailure: reason => { if (generation === owner.generation) failFieldGpu(reason); }
-    })).then(renderer => {
-      if (generation !== owner.generation) { renderer?.destroy(); return; }
-      owner.pending = false;
-      if (!renderer || renderer.state !== "ready") { renderer?.destroy(); failFieldGpu("static field initialization failed"); return; }
-      owner.renderer = renderer;
-    }).catch(error => { if (generation === owner.generation) failFieldGpu(error?.message || error); });
-  }, 0);
-}
-window.addEventListener("pagehide", () => { fieldGpu.hidden = true; disposeFieldGpu("page hidden"); });
-window.addEventListener("pageshow", () => {
-  if (!fieldGpu.hidden) return;
-  fieldGpu.hidden = false;
-  scheduleFieldGpuFor(state.data);
-});
-function tryDrawGpuStaticField(data, camera, w, h) {
-  const owner = fieldGpu;
-  const map = data.map;
-  if (!owner.renderer || owner.renderer.state !== "ready" || owner.hidden ||
-      owner.image !== state.textures?.fullMapComposites?.[map.id] ||
-      owner.source !== String(owner.image.currentSrc || owner.image.src || "") ||
-      owner.key !== fieldGeometryKey(map) ||
-      ctx.globalAlpha !== 1 || ctx.globalCompositeOperation !== "source-over" || ctx.filter !== "none") return false;
-  const zoom = worldZoomFor(data);
-  const transform = ctx.getTransform();
-  if (!Number.isFinite(zoom) || zoom <= 0 ||
-      Math.abs(transform.a - zoom) > 1e-6 || Math.abs(transform.d - zoom) > 1e-6 ||
-      Math.abs(transform.b) > 1e-6 || Math.abs(transform.c) > 1e-6 ||
-      Math.abs(transform.e + camera.x * zoom) > 1e-4 || Math.abs(transform.f + camera.y * zoom) > 1e-4 ||
-      Math.abs(w * zoom - els.canvas.width) > 1e-6 ||
-      Math.abs(h * zoom - els.canvas.height) > 1e-6) return false;
-  try {
-    if (!owner.renderer.render({ width: els.canvas.width, height: els.canvas.height,
-      cameraX: camera.x, cameraY: camera.y, zoom })) return false;
-    ctx.save();
-    try {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "copy";
-      ctx.filter = "none";
-      ctx.shadowBlur = 0;
-      ctx.drawImage(owner.renderer.canvas, 0, 0);
-    } finally { ctx.restore(); }
-    return true;
-  } catch (error) {
-    failFieldGpu(error?.message || error);
-    return false;
-  }
-}
-
 function drawMap(data, camera, w, h, environmentSoundReceipts = []) {
   const map = data.map;
   const visibleRooms = map.rooms.filter((rect) => worldRectVisible(rect, 80));
   const visibleCorridors = map.corridors.filter((rect) => worldRectVisible(rect, 80));
   const visibleDoors = map.doors.filter((rect) => worldRectVisible(rect, 50));
-  if (!tryDrawGpuStaticField(data, camera, w, h)) {
-    ctx.fillStyle = "#cdeefa";
-    ctx.fillRect(camera.x, camera.y, w, h);
-    ctx.save();
-    ctx.beginPath();
-    const visibleCorridorSegments = visibleCorridors.flatMap((corridor) => corridorRenderSegments(corridor));
-    // Door pixels belong to the authored full-map texture too.
-    for (const rect of [...visibleRooms, ...visibleCorridorSegments, ...visibleDoors]) {
-      appendWorldAreaPath(rect);
-    }
-    ctx.clip();
-    // The shared floor underlies transparent doorway cutouts in the authored map.
-    drawFloor(data, camera, w, h);
-    drawFieldEnvironment(data, visibleRooms, visibleCorridors);
-    drawCanonicalPortalOpenings(data, camera, w, h);
-    drawDoorPortals(data);
-    ctx.restore();
+  ctx.fillStyle = "#cdeefa";
+  ctx.fillRect(camera.x, camera.y, w, h);
+  ctx.save();
+  ctx.beginPath();
+  const visibleCorridorSegments = visibleCorridors.flatMap((corridor) => corridorRenderSegments(corridor));
+  // Door pixels belong to the authored full-map texture too.
+  for (const rect of [...visibleRooms, ...visibleCorridorSegments, ...visibleDoors]) {
+    appendWorldAreaPath(rect);
   }
+  ctx.clip();
+  // The shared floor underlies transparent doorway cutouts in the authored map.
+  drawFloor(data, camera, w, h);
+  drawFieldEnvironment(data, visibleRooms, visibleCorridors);
+  drawCanonicalPortalOpenings(data, camera, w, h);
+  drawDoorPortals(data);
+  ctx.restore();
   drawTextureSurfaceAnimation(data);
   drawAmbientMapAnimations(data, visibleRooms, visibleCorridors, environmentSoundReceipts);
 
@@ -22712,7 +22555,7 @@ function drawMagicEffects() {
     );
     if (effect.type.startsWith("gain-")) {
       if (isBodyStaminaGainEffect(effect)) {
-        drawStaminaBodyRecoveryEffect(effect, now);
+        // The ordered WebGPU StaminaBenefitE pass owns this body effect.
         continue;
       }
       if (isBodyHealGainEffect(effect)) {
@@ -22720,16 +22563,11 @@ function drawMagicEffects() {
         // Canvas frame must not draw a second Heal surround.
         continue;
       }
-      /* mana-body-v904:top-draw:start */
       if (isBodyManaGainEffect(effect)) {
-        if (drawManaBodyRecoveryEffect(effect, now)) {
-          state.phenomenonSoundVisualReceipts?.push({ roomId: state.data.roomId, effectId: effect.id,
-            kind: "mana", progress: (now - effect.startedAt) / MANA_BODY_RECOVERY_TE.durationMs,
-            playerId: effect.playerId });
-        }
+        // The ordered WebGPU ManaBenefitE pass owns the visible body effect
+        // and its submitted-frame sound receipt.
         continue;
       }
-      /* mana-body-v904:top-draw:end */
       if (isBodyAccelerationGainEffect(effect)) {
         if (drawAccelerationBodyBenefitEffect(effect, now)) {
           const actorElapsed = accelerationBodyActorElapsed(effect, state.data);
@@ -26130,204 +25968,10 @@ function drawNewRenkiEffect(effect, progress) {
   ctx.restore(); return true;
 }
 
-function createStaminaBodyRecoveryMask(topRatio, bottomRatio, width = 88, height = 132) {
-  const canvas = document.createElement("canvas");
-  canvas.width = width; canvas.height = height;
-  const local = canvas.getContext("2d");
-  if (!local) return canvas;
-  const start = topRatio * height, end = bottomRatio * height;
-  const feather = Math.min(13, Math.max(4, (end - start) * .24));
-  const mask = local.createLinearGradient(0, start - feather, 0, end + feather);
-  const span = Math.max(1, end - start + feather * 2);
-  mask.addColorStop(0, "rgba(0,0,0,0)");
-  mask.addColorStop(Math.min(.5, feather / span), "rgba(0,0,0,1)");
-  mask.addColorStop(Math.max(.5, 1 - feather / span), "rgba(0,0,0,1)");
-  mask.addColorStop(1, "rgba(0,0,0,0)");
-  local.fillStyle = mask;
-  local.fillRect(0, 0, width, height);
-  return canvas;
-}
 function isBodyStaminaGainEffect(effect) {
   return String(effect?.type || "") === "gain-stamina" && String(effect?.effectKind || "stamina") === "stamina";
 }
 
-function staminaBodyTextureReady() {
-  const texture = state.textures?.staminaBodyRecovery;
-  return Boolean(texture?.complete && Number(texture.naturalWidth) === STAMINA_BODY_RECOVERY_TE.sourceWidth &&
-    Number(texture.naturalHeight) === STAMINA_BODY_RECOVERY_TE.sourceHeight);
-}
-
-function staminaBodyPhase(effect, now) {
-  // The locally admitted effect timestamp is the only lifetime authority. Do
-  // not restart an old receipt when a late image decode eventually completes.
-  const receivedAt = Number(effect?.startedAt);
-  const startedAt = Number.isFinite(receivedAt) ? receivedAt : Number(now);
-  return clamp((Number(now) - startedAt) / STAMINA_BODY_RECOVERY_TE.durationMs, 0, 1);
-}
-
-// Borrow one detached GPU tile synchronously at the original Canvas leaf.
-// Its surface is overwritten by the next benefit, so it must be blitted now.
-const bodyBenefitGpuOwner = { canvas: null, renderer: null, pending: false, unavailable: false, pageHidden: false, generation: 0, failure: "" };
-function disableBodyBenefitGpu(reason = "WebGPU body recovery unavailable") {
-  bodyBenefitGpuOwner.generation += 1;
-  bodyBenefitGpuOwner.unavailable = true;
-  bodyBenefitGpuOwner.pending = false;
-  bodyBenefitGpuOwner.failure = String(reason);
-  try { bodyBenefitGpuOwner.renderer?.destroy(); } catch (_) {}
-  bodyBenefitGpuOwner.renderer = null;
-  bodyBenefitGpuOwner.canvas = null;
-}
-window.addEventListener("pagehide", () => {
-  bodyBenefitGpuOwner.pageHidden = true;
-  disableBodyBenefitGpu("page hidden");
-});
-window.addEventListener("pageshow", () => {
-  if (!bodyBenefitGpuOwner.pageHidden) return;
-  bodyBenefitGpuOwner.pageHidden = false;
-  bodyBenefitGpuOwner.unavailable = false;
-  bodyBenefitGpuOwner.failure = "";
-  beginBodyBenefitGpu();
-});
-function beginBodyBenefitGpu() {
-  const owner = bodyBenefitGpuOwner;
-  if (owner.pending || owner.renderer || owner.unavailable || owner.pageHidden) return;
-  const api = window.DvaWebGPUBodyBenefits;
-  if (!api?.createTiles || !navigator.gpu || !window.isSecureContext) {
-    disableBodyBenefitGpu("WebGPU unavailable");
-    return;
-  }
-  const canvas = document.createElement("canvas");
-  owner.canvas = canvas;
-  owner.pending = true;
-  const generation = ++owner.generation;
-  Promise.resolve().then(() => api.createTiles(canvas, {
-    onFailure: reason => { if (generation === owner.generation) disableBodyBenefitGpu(reason); }
-  })).then(renderer => {
-    if (generation !== owner.generation) { renderer?.destroy(); return; }
-    owner.pending = false;
-    if (!renderer || renderer.state !== "ready") { renderer?.destroy(); disableBodyBenefitGpu("WebGPU tile initialization failed"); return; }
-    owner.renderer = renderer;
-  }).catch(error => { if (generation === owner.generation) disableBodyBenefitGpu(error?.message || error); });
-}
-// Prepare the supported GPU path at boot; each effect still chooses Canvas
-// whenever its actual view/transform is outside the visually accepted domain.
-Promise.resolve().then(beginBodyBenefitGpu);
-function bodyBenefitGpuElapsed(effect, now) {
-  const admittedAt = Number(effect?.startedAt);
-  return Number(now) - (Number.isFinite(admittedAt) ? admittedAt : Number(now));
-}
-function tryDrawGpuBodyRecovery(kind, texture, player, elapsed, reduced) {
-  // Clairvoyance/throw-target view is 0.65: its material edges failed actual-
-  // size review even when a high-DPR backing makes the physical scale >= 1.
-  if (worldZoomFor(state.data) < 1 || ctx.globalCompositeOperation !== "source-over" ||
-      ctx.filter !== "none" || !Number.isFinite(ctx.globalAlpha) || ctx.globalAlpha <= 0) return false;
-  const api = window.DvaWebGPUBodyBenefits;
-  if (!api?.placementForTransform || typeof ctx.getTransform !== "function") return false;
-  const placement = api.placementForTransform(ctx.getTransform(), player.x, player.y);
-  if (!placement || placement.pixelScale < 1 || placement.pixelScale > 4) return false;
-  const owner = bodyBenefitGpuOwner;
-  if (owner.unavailable) return false;
-  const renderer = owner.renderer;
-  if (!renderer) { beginBodyBenefitGpu(); return false; }
-  if (renderer.state !== "ready") { disableBodyBenefitGpu("WebGPU tile renderer lost"); return false; }
-  try {
-    if (!renderer.setTexture(kind, texture)) return false;
-    const tile = renderer.renderTile({ kind, elapsed, reduced, alpha: ctx.globalAlpha, ...placement });
-    if (!tile) {
-      if (renderer.state !== "ready") disableBodyBenefitGpu("WebGPU tile rendering failed");
-      return false;
-    }
-    ctx.save();
-    try {
-      ctx.translate(player.x, player.y);
-      ctx.globalAlpha = 1; // The inherited alpha is baked into every WGSL layer.
-      ctx.globalCompositeOperation = "source-over";
-      // The WebGPU tile already contains its own source-local emitted light.
-      ctx.shadowBlur = 0;
-      ctx.drawImage(tile.canvas, tile.sourceX, tile.sourceY, tile.sourceWidth, tile.sourceHeight,
-        tile.x, tile.y, tile.width, tile.height);
-    } finally { ctx.restore(); }
-    return true;
-  } catch (error) {
-    disableBodyBenefitGpu(error?.message || error);
-    return false;
-  }
-}
-
-// The source is a tall, alpha-preserving body surround.  Each phase exposes its
-// own source region and lets that region advance up the authored current; no
-// whole-texture spin, zoom, recolor, or background-dependent adjustment occurs.
-function drawStaminaBodyRecoveryEffect(effect, now) {
-  if (!isBodyStaminaGainEffect(effect) || !["playing", "meeting"].includes(state.data?.phase) || ctx.globalAlpha <= 0) return false;
-  const player = gainEffectPlayer(effect);
-  if (!player || !player.alive || player.ejected || player.inVent || player.invisible) return false;
-  const texture = state.textures?.staminaBodyRecovery;
-  if (!staminaBodyTextureReady()) return false;
-  const p = staminaBodyPhase(effect, now);
-  if (p >= 1) return false;
-  const reduced = prefersReducedMotion();
-  if (tryDrawGpuBodyRecovery("stamina", texture, player, bodyBenefitGpuElapsed(effect, now), reduced)) return true;
-  const width = 88, height = 132, left = player.x - width / 2, top = player.y - 94;
-  const drawBase = alpha => {
-    if (!(alpha > .001)) return;
-    ctx.save();
-    ctx.globalAlpha *= alpha;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(texture, left, top, width, height);
-    ctx.restore();
-  };  const drawPart = (maskIndex, offsetY, alpha) => {
-    if (!(alpha > .001)) return;
-    const layer = state.textures?.staminaBodyRecoveryScratch;
-    const mask = state.textures?.staminaBodyRecoveryMasks?.[maskIndex];
-    if (!layer || !mask || layer.width !== Math.ceil(width) || layer.height !== Math.ceil(height)) return;
-    const layerCtx = layer.getContext("2d");
-    if (!layerCtx) return;
-    layerCtx.setTransform(1, 0, 0, 1, 0, 0);
-    layerCtx.globalAlpha = 1;
-    layerCtx.globalCompositeOperation = "source-over";
-    layerCtx.clearRect(0, 0, width, height);
-    layerCtx.drawImage(texture, 0, offsetY, width, height);
-    // Masks are made once during texture preparation. The frame only advances
-    // the authored source inside an already feathered vertical envelope.
-    layerCtx.globalCompositeOperation = "destination-in";
-    layerCtx.drawImage(mask, 0, 0);
-    ctx.save();
-    ctx.globalAlpha *= alpha;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(layer, left, top);
-    ctx.restore();
-  };
-  ctx.save();
-  try {
-    setBodyRecoveryGlow("stamina");
-    const appear = objectEffectEase(p / .16);
-    const rise = objectEffectEase((p - .10) / .54);
-    const converge = objectEffectEase((p - .56) / .32);
-    const release = 1 - objectEffectEase((p - .82) / .18);
-    if (reduced) {
-      // Accessibility removes travel, not the finite emergence/convergence
-      // envelope.  The authored material stays body-relative throughout.
-      drawBase(appear * release);
-      drawPart(0, 0, .78 * appear * (1 - converge * .28) * release);
-      drawPart(1, 0, .70 * rise * release);
-      drawPart(2, 0, .58 * rise * release);
-      drawPart(3, 0, .55 * converge * release);
-      return true;
-    }
-    // A quiet full silhouette preserves the transparent center while broad
-    // lower/middle/upper source layers rise in the material's own direction.
-    drawBase(appear * release);
-    drawPart(0, 10 * (1 - appear), .84 * appear * (1 - converge * .28) * release);
-    drawPart(1, 12 * (1 - rise), .78 * rise * (1 - converge * .18) * release);
-    drawPart(2, 9 * (1 - rise), .72 * rise * release);
-    // Only the pre-authored upper current remains while the flow converges;
-    // there is deliberately no opaque core drawn across the body void.
-    drawPart(3, -4 * converge, .64 * converge * release);
-    return true;
-  } finally {
-    ctx.restore();
-  }
-}
 function isBodyHealGainEffect(effect) {
   return String(effect?.type || "") === "gain-heal" && String(effect?.effectKind || "heal") === "heal";
 }
@@ -26345,119 +25989,10 @@ function overhealBodyPhase(effect, now) {
   return clamp((Number(now) - (Number.isFinite(admittedAt) ? admittedAt : Number(now))) /
     OVERHEAL_BODY_RECOVERY_TE.durationMs, 0, 1);
 }
-/* mana-body-v904:helper:start */
-function createManaBodyRecoveryFlowMasks(width, height, count = 24) {
-  const paths = [
-    [[.16,.29],[.15,.35],[.22,.39],[.31,.42],[.38,.45],[.43,.475]],
-    [[.90,.50],[.86,.46],[.79,.45],[.73,.49],[.68,.55],[.64,.605]],
-    [[.10,.57],[.14,.66],[.25,.72],[.39,.75],[.54,.72],[.64,.605]]
-  ];
-  const ease = value => { const p=Math.max(0,Math.min(1,value)); return p*p*(3-2*p); };
-  return Array.from({ length: count }, (_, index) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = width; canvas.height = height;
-    const local = canvas.getContext("2d");
-    if (!local) return canvas;
-    const progress = index / Math.max(1, count - 1);
-    local.globalCompositeOperation = "lighter";
-    for (const points of paths) {
-      const last = Math.max(0, Math.min(points.length - 1, Math.floor(progress * points.length)));
-      for (let pointIndex = 0; pointIndex <= last; pointIndex += 1) {
-        const [x, y] = points[pointIndex];
-        const pointProgress = pointIndex / Math.max(1, points.length - 1);
-        const leading = clamp((progress - pointProgress + .20) / .20, 0, 1);
-        if (!(leading > 0)) continue;
-        const radius = width * (.23 + .05 * leading);
-        const gradient = local.createRadialGradient(x * width, y * height, 0, x * width, y * height, radius);
-        gradient.addColorStop(0, "rgba(0,0,0," + leading + ")");
-        gradient.addColorStop(.58, "rgba(0,0,0," + (leading * .84) + ")");
-        gradient.addColorStop(1, "rgba(0,0,0,0)");
-        local.fillStyle = gradient;
-        local.fillRect(0, 0, width, height);
-      }
-    }
-    // Merge the authored ambient wisps only after the curve fronts have reached
-    // their inward knots, avoiding a discontinuity at the settled full source.
-    const ambient = ease((progress - .72) / .28);
-    if (ambient > 0) {
-      local.globalCompositeOperation = "source-over";
-      local.fillStyle = "rgba(0,0,0," + ambient + ")";
-      local.fillRect(0, 0, width, height);
-    }
-    return canvas;
-  });
-}
 function isBodyManaGainEffect(effect) {
   return String(effect?.type || "") === "gain-mana" &&
     String(effect?.effectKind || "mana") === "mana" && effect?.variant !== "desire-recovery";
 }
-function manaBodyTextureReady() {
-  const texture = state.textures?.manaBodyRecovery;
-  return Boolean(texture?.complete && Number(texture.naturalWidth) === MANA_BODY_RECOVERY_TE.sourceWidth &&
-    Number(texture.naturalHeight) === MANA_BODY_RECOVERY_TE.sourceHeight);
-}
-function manaBodyPhase(effect, now) {
-  const admittedAt = Number(effect?.startedAt);
-  const startedAt = Number.isFinite(admittedAt) ? admittedAt : Number(now);
-  return clamp((Number(now) - startedAt) / MANA_BODY_RECOVERY_TE.durationMs, 0, 1);
-}
-function drawManaBodyRecoveryEffect(effect, now) {
-  if (!isBodyManaGainEffect(effect) || !["playing", "meeting"].includes(state.data?.phase) || ctx.globalAlpha <= 0) return false;
-  const player = gainEffectPlayer(effect);
-  if (!player || !player.alive || player.ejected || player.inVent || player.invisible || !manaBodyTextureReady()) return false;
-  const p = manaBodyPhase(effect, now);
-  if (p >= 1) return false;
-  const texture = state.textures.manaBodyRecovery;
-  const scale = MANA_BODY_RECOVERY_TE.displayWidth / MANA_BODY_RECOVERY_TE.sourceWidth;
-  const width = MANA_BODY_RECOVERY_TE.displayWidth;
-  const height = MANA_BODY_RECOVERY_TE.sourceHeight * scale;
-  const left = player.x - width / 2;
-  const top = player.y + 31 - MANA_BODY_RECOVERY_TE.sourceAlphaBottom * scale;
-  const reduced = prefersReducedMotion();
-  if (tryDrawGpuBodyRecovery("mana", texture, player, bodyBenefitGpuElapsed(effect, now), reduced)) return true;
-  const appear = objectEffectEase(p / .14);
-  const gather = objectEffectEase((p - .03) / .54);
-  const flow = objectEffectEase((p - .02) / (reduced ? .70 : .60));
-  const release = 1 - objectEffectEase((p - .82) / .18);
-  const alpha = appear * release * (.84 + .16 * gather);
-  const drawFlow = index => {
-    const layer = state.textures?.manaBodyRecoveryScratch;
-    const mask = state.textures?.manaBodyRecoveryMasks?.[index];
-    if (!layer || !mask) return;
-    const local = layer.getContext("2d");
-    if (!local) return;
-    local.setTransform(1, 0, 0, 1, 0, 0);
-    local.globalAlpha = 1;
-    local.globalCompositeOperation = "source-over";
-    local.clearRect(0, 0, layer.width, layer.height);
-    local.drawImage(texture, 0, 0, width, height);
-    local.globalCompositeOperation = "destination-in";
-    local.drawImage(mask, 0, 0);
-    ctx.drawImage(layer, left, top);
-  };
-  ctx.save();
-  try {
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha *= alpha;
-    setBodyRecoveryGlow("mana");
-    // Cumulative soft masks reveal the stationary original along its three
-    // authored ribbon curves, from outer tails to the two inward knots. There
-    // are no rectangular source splits, hard tile edges, or whole-T motion.
-    if (flow >= .999) {
-      // Once condensed, render the untouched full source once. This is also a
-      // precise settled-frame RGBA reference for the native verifier.
-      ctx.drawImage(texture, left, top, width, height);
-    } else {
-      const masks = state.textures?.manaBodyRecoveryMasks || [];
-      drawFlow(Math.min(masks.length - 1, Math.max(0, Math.floor(flow * masks.length))));
-    }
-    return true;
-  } finally {
-    ctx.restore();
-  }
-}
-/* mana-body-v904:helper:end */
-
 function isBodyAccelerationGainEffect(effect) {
   return effect?.type === "gain-acceleration" && effect.effectKind === "acceleration";
 }
@@ -33205,14 +32740,8 @@ const version = "overheal-body-v913";
     benefitGainEffects[kind] = new Image();
     defer(benefitGainEffects[kind], `assets/generated/${material.file}`);
   }
-  const staminaBodyRecovery = new Image();
-  defer(staminaBodyRecovery, `assets/generated/${STAMINA_BODY_RECOVERY_TE.file}`);
   const healBodyRecovery = new Image();
   defer(healBodyRecovery, `assets/generated/${HEAL_BODY_RECOVERY_TE.file}`);
-  /* mana-body-v904:texture:start */
-  const manaBodyRecovery = new Image();
-  defer(manaBodyRecovery, `assets/generated/${MANA_BODY_RECOVERY_TE.file}`);
-  /* mana-body-v904:texture:end */
   const overhealBodyRecovery = new Image();
   defer(overhealBodyRecovery, `assets/generated/${OVERHEAL_BODY_RECOVERY_TE.file}`);
   const accelerationBodyBenefit = new Image();
@@ -33699,9 +33228,7 @@ const version = "overheal-body-v913";
     philosophyEffectTextures,
     alchemyEffectTextures,
     benefitGainEffects,
-    staminaBodyRecovery,
     healBodyRecovery,
-    /* mana-body-v904:registration */ manaBodyRecovery,
     overhealBodyRecovery,
     accelerationBodyBenefit,
     initialCreditMetalReflection,

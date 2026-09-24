@@ -35,7 +35,8 @@
     { id: 'corridor-a09-sconce', objectId: 'v317-corridor-a09-1', title: 'A09 壁灯', detail: '三枚のガラス面へ順に光を渡す。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a09-sconce', kind: 'corridor' },
     { id: 'corridor-a10-footlight', objectId: 'v317-corridor-a10-1', title: 'A10 足元灯', detail: '器具から床へ横方向の光を送る。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a10-footlight', kind: 'corridor' },
     { id: 'corridor-a11-footlight', objectId: 'v317-corridor-a11-1', title: 'A11 足元灯', detail: '対の光が敷居で合流して床へ抜ける。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a11-footlight', kind: 'corridor' },
-    { id: 'corridor-a16-sconce', objectId: 'v317-corridor-a16-1', title: 'A16 壁灯', detail: 'ガラス内の光が満ち、一本のフィラメントへ集まる。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a16-sconce', kind: 'corridor' }
+    { id: 'corridor-a16-sconce', objectId: 'v317-corridor-a16-1', title: 'A16 壁灯', detail: 'ガラス内の光が満ち、一本のフィラメントへ集まる。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a16-sconce', kind: 'corridor' },
+    { id: 'bottle-shards', title: '瓶の破片着弾', detail: 'サーバー現行の bottle-shards イベント形、所有者、瓶種と命中数を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-bottle-shards-e.js', kind: 'bottle-shards' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
@@ -468,6 +469,80 @@
       dispose();
     }
   }
+  async function startBottleShards(entry, runId) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 980; canvas.height = 620; canvas.dataset.galleryNative = '1';
+    canvas.setAttribute('aria-label', `${entry.title} WebGPU E 単独フィクスチャ自動再生`);
+    canvas.style.cssText = 'display:block;width:100%;height:100%;';
+    stage.append(canvas);
+    notice.hidden = true;
+    let renderer = null, target = null, effect = null, raf = 0, disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      if (raf) cancelAnimationFrame(raf);
+      try { effect?.destroy(); } catch (_) {}
+      try { target?.unregister(); } catch (_) {}
+      try { renderer?.destroy(); } catch (_) {}
+      canvas.remove();
+    };
+    activeCleanup = dispose;
+    try {
+      if (!navigator.gpu) throw new Error('このブラウザーでは WebGPU を使用できません');
+      for (const src of ['webgpu-frame-core.js', 'webgpu-primitives.js', 'webgpu-compositing.js', 'webgpu-renderer.js', entry.source]) await loadScript(src);
+      if (disposed || runId !== corridorRun || active !== entry.id) return;
+      renderer = await window.DvaWebGPURenderer.create({ gpu: navigator.gpu });
+      if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
+      const targetId = `bottle-shards-gallery-${runId}`;
+      target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
+      const api = window.DvaWebGPUBottleShardsE;
+      effect = api.create({ renderer, frameOwner: renderer });
+      const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
+      const camera = { x: 0, y: 0 }, zoom = 1;
+      const duration = api.DURATION_MS, cycleLength = duration + 350;
+      const startedAt = performance.now();
+      const draw = now => {
+        if (disposed || runId !== corridorRun || active !== entry.id) { dispose(); return; }
+        // requestAnimationFrame timestamps can predate performance.now() when
+        // registration lands immediately before a frame boundary.
+        const total = Math.max(0, now - startedAt);
+        const elapsed = total % cycleLength;
+        const cycle = Math.floor(total / cycleLength);
+        const frame = renderer.beginFrame(`${entry.id} bottle-shards E gallery fixture`);
+        try {
+          frame.clear(targetId, [.035, .052, .067, 1]);
+          if (elapsed < duration) {
+            const source = { id: `gallery-bottle-shards:${cycle}`, type: 'bottle-shards',
+              x: 490, y: 310, radius: 112, playerId: 'gallery-thrower',
+              variant: 'mineral-water:2', startedAt: 0, duration };
+            const players = [{ id: source.playerId, x: 490, y: 310,
+              alive: true, ejected: false, inVent: false, invisible: false }];
+            const planned = api.plan({ effect: source, players, viewerId: 'gallery-viewer',
+              now: elapsed, phase: 'playing', camera, zoom, viewport, reducedMotion: false });
+            if (!planned) throw new Error('瓶の破片イベントを計画できません');
+            const result = effect.record({ frame, target: targetId, viewport, planned });
+            if (!result.drawn) throw new Error('瓶の破片イベントを描画できません');
+          }
+          frame.submit();
+          document.documentElement.dataset.gpuReady = '1';
+          notice.hidden = true;
+        } catch (error) {
+          try { frame.discard(); } catch (_) {}
+          notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+          document.documentElement.dataset.gpuReady = '0';
+          dispose(); return;
+        }
+        raf = requestAnimationFrame(draw);
+      };
+      raf = requestAnimationFrame(draw);
+    } catch (error) {
+      if (!disposed && runId === corridorRun && active === entry.id) {
+        notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+        document.documentElement.dataset.gpuReady = '0';
+      }
+      dispose();
+    }
+  }
   function styleChild(doc, entry) {
     const css = document.createElement('style');
     css.textContent = `html,body{margin:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#101820!important}body{display:block!important}main{margin:0!important;padding:0!important;width:100%!important;max-width:none!important;height:100%!important}main>h1,main>p,.eyebrow,.controls,main>div:not(.stage):not(.scroll),#status{display:none!important}.scroll{width:100%!important;height:100%!important;overflow:hidden!important}.stage{width:100%!important;height:100%!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important}canvas{display:block!important;width:100%!important;height:100%!important;max-width:none!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important}#error:not(:empty){display:block!important;position:fixed!important;z-index:10!important;inset:auto 8px 8px!important;color:#ffd3ca!important;background:#321d23!important;padding:8px!important}`;
@@ -508,6 +583,11 @@
     if (entry.kind === 'corridor') {
       notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
       startCorridor(entry, corridorRun);
+      return;
+    }
+    if (entry.kind === 'bottle-shards') {
+      notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
+      startBottleShards(entry, corridorRun);
       return;
     }
     if (entry.kind === 'integrated') {

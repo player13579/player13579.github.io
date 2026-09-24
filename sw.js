@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "gallery-alchemy-v58";
-const CACHE_NAME = "dva-static-gallery-alchemy-v58";
+const RUNTIME_RELEASE = "webgpu-pure-slices-v59";
+const CACHE_NAME = "dva-static-webgpu-pure-slices-v59";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -296,7 +296,6 @@ const STATIC_ASSETS = [
   "/assets/generated/benefit-credits-transfer-v819.png",
   "/assets/generated/benefit-mana-condensation-v818.png",
   "/assets/generated/benefit-overheal-overflow-v818.png",
-  "/assets/generated/benefit-stamina-flow-v817.png",
   "/assets/generated/sophia-front-ninjutsu-focus-v814.png",
   "/assets/generated/sophia-left-ninjutsu-focus-v814.png",
   "/assets/generated/sophia-right-ninjutsu-focus-v814.png",
@@ -368,7 +367,6 @@ const STATIC_ASSETS = [
   "/economy-catalog-v468.js",
   "/app.js",
   "/webgpu-acquisition.js",
-  "/webgpu-body-benefits.js",
   "/webgpu-field-static.js",
   "/webgpu-frame-core.js",
   "/webgpu-primitives.js",
@@ -832,7 +830,6 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/economy-catalog-v468.js",
   "/app.js",
   "/webgpu-acquisition.js",
-  "/webgpu-body-benefits.js",
   "/webgpu-field-static.js",
   "/webgpu-frame-core.js",
   "/webgpu-primitives.js",
