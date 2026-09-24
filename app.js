@@ -2304,6 +2304,12 @@ function titleDepthGeometryError(message) {
 const acquisitionGpuOverlay = { canvas: null, renderer: null, pending: false,
   pendingPromise: null, handoffPromise: null, unavailable: false,
   handedOff: false, generation: 0 };
+// This temporary verify route shares the existing RAF. init() enters
+// setScreen(), which may suspend it; initialize both owners first.
+const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("webgpuMain") === "1";
+const webgpuMainApp = { driver: null, startPending: null, mapId: null,
+  generation: 0, visible: false, submittedHits: null, failed: false,
+  acquisitionCanvas: null };
 init();
 
 function prepareTitleHero() {
@@ -17355,14 +17361,6 @@ function nearestGroundItem(data = state.data) {
 function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
-
-// This temporary verify route exercises the production main-frame inputs and
-// ownership handoff without replacing the shipped Canvas presentation before
-// a real GPU frame and pointer acceptance pass. It uses the existing RAF.
-const WEBGPU_MAIN_VERIFY_ROUTE = IS_VERIFICATION_MODE && URL_PARAMETERS.get("webgpuMain") === "1";
-const webgpuMainApp = { driver: null, startPending: null, mapId: null,
-  generation: 0, visible: false, submittedHits: null, failed: false,
-  acquisitionCanvas: null };
 
 function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   if (!WEBGPU_MAIN_VERIFY_ROUTE) return;
