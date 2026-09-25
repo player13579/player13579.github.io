@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // Show replayable Astra-authored E versions, including unfinished prototypes.
+  // Keep only the user-retained Heal version until clean-room E previews are ready.
   const entries = [{
     id: 'heal-astra-prototype',
     title: 'ヒール · Astra試作',
@@ -9,13 +9,6 @@
     status: '試作・再生可能',
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
-  }, {
-    id: 'luck-astra-v1',
-    title: '幸運 · Astra v1',
-    detail: 'Astra制作の独立WebGPU初版です。自動ループ再生できますが、造形と音の品質は未受入です。',
-    status: '試作・品質未受入',
-    source: 'webgpu-luck-astra-v1.js',
-    page: 'luck-astra-v1-preview.html'
   }];
   const params = new URLSearchParams(location.search);
   let selectedIndex = 0;
