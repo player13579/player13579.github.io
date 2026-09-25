@@ -49,6 +49,7 @@
 
   function makePreview(entry) {
     const preview = new URL(entry.page, location.href);
+    preview.searchParams.set('embed', '1');
     if (params.has('verify')) preview.searchParams.set('verify', params.get('verify') || '1');
     for (const key of ['phase', 'zoom']) {
       if (params.has(key)) preview.searchParams.set(key, params.get(key));

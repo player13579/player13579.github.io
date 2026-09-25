@@ -8302,7 +8302,7 @@ function bindEvents() {
   }, { passive: true });
   window.addEventListener("pageshow", () => {
     scheduleViewportScaleRestore();
-    scheduleStableGameplayViewportReflow(160);
+    scheduleStableGameplayViewportReflow(160, { confirmForegroundViewport: true });
     void recoverRoomInteractionAfterBackground();
   }, { passive: true });
   document.addEventListener("focusout", (event) => {
@@ -8338,7 +8338,7 @@ function bindEvents() {
     }
     if (!document.hidden) {
       scheduleViewportScaleRestore();
-      scheduleStableGameplayViewportReflow(160);
+      scheduleStableGameplayViewportReflow(160, { confirmForegroundViewport: true });
     }
     if (document.hidden) recordUsageExit();
     else {
@@ -15943,8 +15943,10 @@ const GAMEPLAY_VIEWPORT_STABLE_SAMPLE_FRAMES = 2;
 const GAMEPLAY_VIEWPORT_MIN_DIMENSION = 120;
 const GAMEPLAY_VIEWPORT_INVALID_RETRY_DELAY = 160;
 const GAMEPLAY_VISUAL_INSET_STABLE_MS = 250;
+const GAMEPLAY_VIEWPORT_RESUME_CONFIRM_DELAY = 640;
 let gameplayViewportStabilityFrame = 0;
 let gameplayViewportStabilityTimer = 0;
+let gameplayViewportResumeConfirmTimer = 0;
 let gameplayViewportStabilityGeneration = 0;
 let gameplayViewportCandidateKey = "";
 let gameplayViewportCandidateFrames = 0;
@@ -16038,7 +16040,8 @@ function suspendGameplayViewportMeasurements() {
   gameplayViewportStabilityFrame = gameplayViewportReflowFrame = activeEffectsLayoutFrame = 0;
   window.clearTimeout(gameplayViewportStabilityTimer);
   window.clearTimeout(gameplayViewportSettleTimer);
-  gameplayViewportStabilityTimer = gameplayViewportSettleTimer = 0;
+  window.clearTimeout(gameplayViewportResumeConfirmTimer);
+  gameplayViewportStabilityTimer = gameplayViewportSettleTimer = gameplayViewportResumeConfirmTimer = 0;
   activeEffectsLayoutCallbacks = [];
 }
 
@@ -16065,7 +16068,7 @@ function commitStableGameplayViewportSample(sample) {
   return true;
 }
 
-function scheduleStableGameplayViewportReflow(delayMs = 80) {
+function scheduleStableGameplayViewportReflow(delayMs = 80, { confirmForegroundViewport = false } = {}) {
   gameplayViewportMeasurementsSuspended = true;
   const generation = ++gameplayViewportStabilityGeneration;
   gameplayViewportCandidateKey = "";
@@ -16074,6 +16077,8 @@ function scheduleStableGameplayViewportReflow(delayMs = 80) {
   if (gameplayViewportStabilityFrame) cancelAnimationFrame(gameplayViewportStabilityFrame);
   gameplayViewportStabilityFrame = 0;
   window.clearTimeout(gameplayViewportStabilityTimer);
+  window.clearTimeout(gameplayViewportResumeConfirmTimer);
+  gameplayViewportResumeConfirmTimer = 0;
   gameplayViewportStabilityTimer = window.setTimeout(() => {
     gameplayViewportStabilityTimer = 0;
     const collect = () => {
@@ -16111,7 +16116,19 @@ function scheduleStableGameplayViewportReflow(delayMs = 80) {
         gameplayViewportStabilityFrame = requestAnimationFrame(collect);
         return;
       }
-      if (commitStableGameplayViewportSample(sample)) scheduleGameplayViewportReflow(true);
+      if (commitStableGameplayViewportSample(sample)) {
+        scheduleGameplayViewportReflow(true);
+        // Safari may report a coherent old layout for the first foreground
+        // frames, then settle without dispatching another resize event.
+        if (confirmForegroundViewport) {
+          gameplayViewportResumeConfirmTimer = window.setTimeout(() => {
+            gameplayViewportResumeConfirmTimer = 0;
+            if (generation === gameplayViewportStabilityGeneration && !document.hidden) {
+              scheduleStableGameplayViewportReflow(0);
+            }
+          }, GAMEPLAY_VIEWPORT_RESUME_CONFIRM_DELAY);
+        }
+      }
     };
     gameplayViewportStabilityFrame = requestAnimationFrame(collect);
   }, Math.max(0, Number(delayMs) || 0));
@@ -18007,8 +18024,8 @@ function clearWebGPUMainPendingDiagnostic() {
 }
 
 function webgpuMainIncompleteReason(captured, requiredStages) {
-  const field = value => value == null ? '' : String(value)
-    .replace(/[\u0000-\u001f,;:=]/g, '_').slice(0, 48);
+  const field = (value, limit = 48) => value == null ? '' : String(value)
+    .replace(/[\u0000-\u001f,;:=]/g, '_').slice(0, limit);
   const identity = gap => [
     gap.eventId != null ? `event=${field(gap.eventId)}` : '',
     gap.playerId != null ? `player=${field(gap.playerId)}` : '',
@@ -18019,7 +18036,9 @@ function webgpuMainIncompleteReason(captured, requiredStages) {
     gap.roomId != null ? `room=${field(gap.roomId)}` : ''
   ].filter(Boolean).join(':');
   const magicGapReason = gap => `magicEffects:${gap.type || 'unknown'}:${gap.reason}` +
-    (identity(gap) ? `:${identity(gap)}` : '');
+    (identity(gap) ? `:${identity(gap)}` : '') +
+    (gap.type === 'hazard-poison' && gap.poisonEvidence
+      ? `:poison=${field(gap.poisonEvidence, 350)}` : '');
   const reasons = [
     ...(captured.early?.textureGaps || []).filter(gap => gap.blocking)
       .map(gap => `${gap.stage}:${gap.reason || gap.texture || 'texture'}`),
@@ -20315,15 +20334,45 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     if (type === 'hazard-poison') {
       const pass = window.DvaWebGPUHazardFields;
       const scene = hazardFieldsWebGPUScene(data);
-      const claim = pass?.claimPoisonEffect?.({ effect, scene, camera, zoom, viewport });
-      let drawn = false;
+      const number = value => Number.isFinite(value) ? String(value) : '?';
+      const activeFields = scene.hazardFields.filter(field =>
+        field?.kind === 'poison' && Number.isFinite(scene.serverNow) &&
+        Number.isFinite(field.createdAt) && Number.isFinite(field.endsAt) &&
+        field.createdAt <= scene.serverNow && scene.serverNow < field.endsAt);
+      const candidates = activeFields.map(field => ({ field, score:
+        Number(field.sourceId === String(effect.playerId || '')) * 8 +
+        Number(field.x === effect.x && field.y === effect.y) * 4 +
+        Number(field.radius === effect.radius) * 2 +
+        Number(field.strength === Number(effect.variant))
+      })).sort((a, b) => b.score - a.score).slice(0, 2);
+      const atlas = scene.textures.poisonMaterialTransport;
+      const atlasState = !atlas ? 'missing' :
+        atlas.complete && atlas.naturalWidth === 2304 && atlas.naturalHeight === 2048
+          ? 'ready' : `unready-${number(atlas.naturalWidth)}x${number(atlas.naturalHeight)}`;
+      const poisonEvidence = `at=${number(effect.at)};xy=${number(effect.x)}/${number(effect.y)}` +
+        `;r=${number(effect.radius)};t=${number(scene.serverNow)};active=${activeFields.length}` +
+        `;atlas=${atlasState};fields=${candidates.map(({ field }) =>
+          `${String(field.id || '').slice(0, 24)}/${String(field.sourceId || '').slice(0, 24)}` +
+          `/${number(field.x)}/${number(field.y)}/${number(field.radius)}` +
+          `/${number(field.strength)}/${number(field.createdAt)}/${number(field.endsAt)}`
+        ).join('|') || 'none'}`;
+      let claim = null, failure = '';
       try {
-        drawn = Boolean(claim?.visible && pass?.plan?.({ scene, camera, zoom, viewport })
-          .some(command => command.kind === 'poison' && command.fieldId === claim.fieldId));
-      } catch (_) { /* Invalid field or absent material keeps this source blocked. */ }
-      if (!claim || (claim.visible && !drawn)) {
+        if (!pass?.claimPoisonEffect || !pass?.plan) failure = 'hazard-poison-pass-unavailable';
+        else claim = pass.claimPoisonEffect({ effect, scene, camera, zoom, viewport });
+      } catch (_) { failure = 'hazard-poison-claim-exception'; }
+      if (!failure && !claim) failure = 'hazard-poison-claim-missing';
+      if (!failure && claim.visible) {
+        try {
+          const commands = pass.plan({ scene, camera, zoom, viewport });
+          if (!Array.isArray(commands) || !commands.some(command =>
+            command.kind === 'poison' && command.fieldId === claim.fieldId))
+            failure = 'hazard-poison-visible-no-command';
+        } catch (_) { failure = 'hazard-poison-plan-exception'; }
+      }
+      if (failure) {
         unsupported.push({ index, type, id: effect.id,
-          reason: 'hazard-poison-source-or-webgpu-field-invalid' });
+          reason: failure, poisonEvidence });
       } else {
         omitted.push({ effectId: effect.id, fieldId: claim.fieldId,
           reason: claim.visible ? 'authoritative-poison-field-owns-webgpu-visual' :
