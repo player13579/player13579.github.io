@@ -420,7 +420,9 @@
             throw new Error('Magic fire activation needs WebGPU fireActivation.record');
           if (!event.input || typeof event.input !== 'object' ||
               event.input.effect?.type !== 'fire' ||
-              String(event.input.effect?.id ?? '') !== id)
+              String(event.input.effect?.id ?? '') !== id ||
+              typeof event.input.effect?.fireCausalId !== 'string' ||
+              !event.input.effect.fireCausalId)
             throw new TypeError(`Magic event ${index} needs one standalone fire effect`);
         } else if (event?.type === 'corridorA01E') {
           const effect = event.input?.effect, source = event.input?.event;
@@ -568,6 +570,7 @@
       const mysteryOpeningSoundReceipts = [];
       const gunnerAimSoundReceipts = [];
       const healSoundVisualReceipts = [];
+      const fireActivationReceipts = [];
       const healEvents = (stages.magicEffects?.events || []).filter(event => event.type === 'healE');
       const healRecorded = new Set();
       passes.healE?.reconcile?.(healEvents.map(event => String(event.effectId)));
@@ -1071,6 +1074,11 @@
             });
             if (outcome !== true)
               throw new Error(`Magic fire activation ${event.effectId} was not drawn`);
+            fireActivationReceipts.push(Object.freeze({
+              effectId: String(event.effectId),
+              fireCausalId: event.input.effect.fireCausalId,
+              playerId: String(event.input.effect.playerId)
+            }));
           } else if (event.type === 'taskCompletion') {
             const outcome = need('facilityEffects', 'record').record({
               ...event.input, frame, target, viewport,
@@ -1120,6 +1128,7 @@
         mysteryOpeningSoundReceipts: Object.freeze(mysteryOpeningSoundReceipts.slice()),
         gunnerAimSoundReceipts: Object.freeze(gunnerAimSoundReceipts.slice()),
         healSoundVisualReceipts: Object.freeze(healSoundVisualReceipts.slice()),
+        fireActivationReceipts: Object.freeze(fireActivationReceipts.slice()),
         sunbeamHandReceipts: Object.freeze([...sunbeamHands.values()]) });
     }
     return Object.freeze({ prepare, record, get device() { return device; }, destroy() { destroyed = true; } });

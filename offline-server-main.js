@@ -3519,7 +3519,7 @@ const ADVANCED_STATION_MAP = Object.freeze({
   };
 
   return Object.freeze({
-    version: "a01-reader-use-v916",
+    version: "fire-e-causal-v917",
     onlineProtocolVersion: "dva-online-protocol-v1",
     cooldownMsPerCredit: COOLDOWN_MS_PER_CREDIT,
     creditIncome,
@@ -5587,6 +5587,9 @@ function pushSound(room, type, source, options = {}) {
     ...(type === "sunbeam" && typeof options.sunbeamCausalId === "string" && options.sunbeamCausalId
       ? { sunbeamCausalId: options.sunbeamCausalId }
       : {}),
+    ...(type === "fireJutsu" && typeof options.fireCausalId === "string" && options.fireCausalId
+      ? { fireCausalId: options.fireCausalId }
+      : {}),
     ...(type === "gravityStorm" && typeof options.gravityStormCausalId === "string" && options.gravityStormCausalId
       ? { gravityStormCausalId: options.gravityStormCausalId }
       : {}),
@@ -5711,6 +5714,9 @@ function pushMagicEffect(room, type, source, options = {}) {
       : {}),
     ...(type === "flora-sunbeam" && typeof options.sunbeamCausalId === "string" && options.sunbeamCausalId
       ? { sunbeamCausalId: options.sunbeamCausalId }
+      : {}),
+    ...(type === "fire" && typeof options.fireCausalId === "string" && options.fireCausalId
+      ? { fireCausalId: options.fireCausalId }
       : {}),
     ...(type === "gravity-storm" && typeof options.gravityStormCausalId === "string" && options.gravityStormCausalId
       ? { gravityStormCausalId: options.gravityStormCausalId }
@@ -14949,13 +14955,19 @@ function useFireJutsu(room, player, rawHoldMs = 0, chargeId = "") {
     const radius = FIRE_JUTSU_RADIUS + enhance * 75;
     const origin = { x: player.x, y: player.y, id: player.id };
     player.fireJutsuCharges -= 1;
-    pushMagicEffect(room, "fire", origin, { radius, playerId: player.id, variant: String(enhance) });
-    pushSound(room, "fireJutsu", origin, {
-      ownerId: player.id,
-      sourceKind: "magic",
-      maxDistance: 2200,
-      volume: 1
-    });
+    const fireCausalId = `fire:${uid("cast_")}`;
+    pushMagicEffect(room, "fire", origin, { radius, playerId: player.id,
+      variant: String(enhance), fireCausalId });
+    if (room.magicEffects.some(effect => effect.type === "fire" &&
+      effect.fireCausalId === fireCausalId)) {
+      pushSound(room, "fireJutsu", origin, {
+        ownerId: player.id,
+        sourceKind: "magic",
+        maxDistance: 2200,
+        volume: 1,
+        fireCausalId
+      });
+    }
 
     const fireField = addHazardField(room, player, "fire", origin.x, origin.y, radius, 1 + enhance * 0.35);
     fireField.excludeSource = true;
@@ -22798,7 +22810,7 @@ function offlineApiRequest(pathname, body = {}) {
   });
 }
 globalThis.DVAOfflineMainThread = Object.freeze({
-  version: "a01-reader-use-v916",
+  version: "fire-e-causal-v917",
   request(pathname, body = {}) {
     return offlineApiRequest(String(pathname || "/"), body || {});
   }

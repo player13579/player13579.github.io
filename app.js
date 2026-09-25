@@ -1421,6 +1421,7 @@ const GRENADE_IMPACT_SOUND_RECEIPTS = { roomId: "", generation: 0, ids: new Map(
 const WEBGPU_E_CUES = { roomKey: '', player: null, events: null,
   combat: null, defense: null, actorOwners: new Map() };
 const WORLD_EVENT_SOUND_IDS = { roomKey: '', ids: new Set(), order: [] };
+const FIRE_E_SOUND_RECEIPTS = { roomKey: '', pending: new Map(), played: new Set() };
 let HEAL_E_SFX_PLAYER = null;
 let HEAL_E_SFX_CONTEXT = null;
 let HEAL_E_SFX_ACTIVE = null;
@@ -12801,6 +12802,11 @@ function detectWorldSounds(previous, next) {
   const sensoryBlocked = isSensoryBlocked(next);
   const known = new Set((previous.sounds || []).map((sound) => sound.id));
   const receiptRoom = `${String(next.roomId || '')}:${state.roomSessionGeneration}`;
+  if (FIRE_E_SOUND_RECEIPTS.roomKey !== receiptRoom) {
+    FIRE_E_SOUND_RECEIPTS.roomKey = receiptRoom;
+    FIRE_E_SOUND_RECEIPTS.pending.clear();
+    FIRE_E_SOUND_RECEIPTS.played.clear();
+  }
   if (WORLD_EVENT_SOUND_IDS.roomKey !== receiptRoom) {
     WORLD_EVENT_SOUND_IDS.roomKey = receiptRoom;
     WORLD_EVENT_SOUND_IDS.ids.clear();
@@ -12817,7 +12823,7 @@ function detectWorldSounds(previous, next) {
           state.audio.context?.state !== 'running' ||
           !(Number(state.audio.master?.gain?.value) > 0)) continue;
     }
-    const boundedWorldKind = ['sunbeam', 'heavyWeapon', 'gravityStorm'].includes(sound.type);
+    const boundedWorldKind = ['sunbeam', 'heavyWeapon', 'gravityStorm', 'fireJutsu'].includes(sound.type);
     if (!boundedWorldKind && sensoryBlocked) continue;
     if (boundedWorldKind) {
       const id = String(sound.id || '');
@@ -12909,6 +12915,23 @@ function detectWorldSounds(previous, next) {
         z: clamp(dy / maxDistance, -1, 1) * 4
       }
     };
+    if (kind === 'fireJutsu') {
+      const causeId = String(sound.fireCausalId || '');
+      const pairedFire = causeId && (next.magicEffects || []).find(effect =>
+        effect.type === 'fire' && effect.fireCausalId === causeId &&
+        String(effect.playerId) === String(sound.ownerId));
+      // A Fire sound is never emitted before its exact WebGPU activation has
+      // appeared in a submitted, visible frame. Missing provenance is silent.
+      if (pairedFire && !state.audio.muted) {
+        FIRE_E_SOUND_RECEIPTS.pending.set(causeId, Object.freeze({
+          roomKey: receiptRoom, effectId: String(pairedFire.id),
+          playerId: String(pairedFire.playerId), receivedAt: performance.now(),
+          soundOptions }));
+        while (FIRE_E_SOUND_RECEIPTS.pending.size > 48)
+          FIRE_E_SOUND_RECEIPTS.pending.delete(FIRE_E_SOUND_RECEIPTS.pending.keys().next().value);
+      }
+      continue;
+    }
     const pairedSunbeam = kind === 'sunbeam' &&
       typeof sound.sunbeamCausalId === 'string' && sound.sunbeamCausalId &&
       (next.magicEffects || []).find(effect => effect.type === 'flora-sunbeam' &&
@@ -13244,6 +13267,40 @@ function clientObjectSpaceCollision(data) {
   const index = compiler.call(globalThis.DvaObjectSpaceCollision, map);
   CLIENT_OBJECT_SPACE_COLLISION_CACHE.set(map, index);
   return index;
+}
+
+function commitSubmittedFireESounds(data, receipts) {
+  if (!Array.isArray(receipts))
+    throw new TypeError('Submitted Fire E needs activation receipts');
+  const roomKey = `${String(data?.roomId || '')}:${state.roomSessionGeneration}`;
+  if (FIRE_E_SOUND_RECEIPTS.roomKey !== roomKey ||
+      !webgpuMainSubmittedFrameCurrent()) return;
+  const now = performance.now();
+  for (const [causeId, pending] of FIRE_E_SOUND_RECEIPTS.pending) {
+    if (pending.roomKey !== roomKey || now - pending.receivedAt > 1500 ||
+        state.screen !== 'game' || document.hidden || state.audio.muted ||
+        isSensoryBlocked(data) || !state.audio.unlocked ||
+        state.audio.context?.state !== 'running' ||
+        !(Number(state.audio.master?.gain?.value) > 0)) {
+      FIRE_E_SOUND_RECEIPTS.pending.delete(causeId);
+      continue;
+    }
+    const drawn = receipts.find(receipt => receipt.fireCausalId === causeId &&
+      receipt.effectId === pending.effectId &&
+      receipt.playerId === pending.playerId);
+    if (!drawn) continue;
+    FIRE_E_SOUND_RECEIPTS.pending.delete(causeId);
+    if (FIRE_E_SOUND_RECEIPTS.played.has(causeId)) continue;
+    const source = (state.magicEffects || []).find(effect =>
+      String(effect.id) === pending.effectId && effect.type === 'fire' &&
+      effect.fireCausalId === causeId &&
+      String(effect.playerId) === pending.playerId);
+    if (!source) continue;
+    FIRE_E_SOUND_RECEIPTS.played.add(causeId);
+    while (FIRE_E_SOUND_RECEIPTS.played.size > 512)
+      FIRE_E_SOUND_RECEIPTS.played.delete(FIRE_E_SOUND_RECEIPTS.played.values().next().value);
+    playSound('fireJutsu', pending.soundOptions);
+  }
 }
 
 function isClientObjectSpaceClear(data, x, y, radius) {
@@ -17941,6 +17998,7 @@ function suspendWebGPUMainAppDriver({ destroy = false } = {}) {
   if (els.canvas) els.canvas.style.opacity = "0";
   if (webgpuMainApp.acquisitionCanvas) webgpuMainApp.acquisitionCanvas.style.display = "none";
   sunbeamLive.pendingSounds.clear();
+  FIRE_E_SOUND_RECEIPTS.pending.clear();
   sunbeamLive.submitted.clear();
   sunbeamLive.poseReceipts.clear();
   for (const entry of sunbeamLive.soundPlayers?.values() || []) entry.player.destroy();
@@ -18276,6 +18334,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error("WebGPU main submitted without environment sound receipts");
     if (!Array.isArray(receipt.recordResult?.sunbeamHandReceipts))
       throw new Error('WebGPU main submitted without Sunbeam hand receipts');
+    if (!Array.isArray(receipt.recordResult?.fireActivationReceipts))
+      throw new Error('WebGPU main submitted without Fire activation receipts');
     if (!Array.isArray(receipt.recordResult?.acquisitionSoundVisualReceipts))
       throw new Error('WebGPU main submitted without acquisition sound receipts');
     if (!Array.isArray(receipt.recordResult?.mysteryOpeningSoundReceipts))
@@ -18329,6 +18389,7 @@ function pumpWebGPUMainAppDriver() {
     }
     webgpuMainApp.lastSoundRequestSerial = requestSerial;
     flushLiveSunbeamSounds(receipt.recordResult.sunbeamHandReceipts, requestSerial);
+    commitSubmittedFireESounds(data, receipt.recordResult.fireActivationReceipts);
     commitStaminaBenefitSoundFrame(data, receipt.recordResult.staminaBenefitSoundReceipts);
     commitManaBenefitSoundFrame(data, receipt.recordResult.manaBenefitSoundReceipts);
     commitHealESfxVisualFrame(data, receipt.recordResult.healSoundVisualReceipts);
@@ -21214,10 +21275,12 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       const validId = (typeof id === "string" && id.trim() !== "") ||
         (typeof id === "number" && Number.isFinite(id));
       const validTiming = Number.isFinite(effect.startedAt) &&
-        effect.duration === 1500 && now >= effect.startedAt;
+        effect.duration === 1500 && Number.isFinite(now) &&
+        now >= effect.startedAt;
       if (!validId || sourceEffectIds.filter(other => String(other) === String(id)).length !== 1 ||
           !Number.isFinite(effect.x) || !Number.isFinite(effect.y) ||
-          !Number.isFinite(effect.radius) || effect.radius <= 0 || !validTiming) {
+          !Number.isFinite(effect.radius) || effect.radius <= 0 ||
+          typeof effect.fireCausalId !== 'string' || !effect.fireCausalId || !validTiming) {
         unsupported.push({ index, type, id, reason: "invalid-fire-activation-source" });
         continue;
       }
