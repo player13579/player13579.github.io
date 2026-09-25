@@ -18007,6 +18007,19 @@ function clearWebGPUMainPendingDiagnostic() {
 }
 
 function webgpuMainIncompleteReason(captured, requiredStages) {
+  const field = value => value == null ? '' : String(value)
+    .replace(/[\u0000-\u001f,;:=]/g, '_').slice(0, 48);
+  const identity = gap => [
+    gap.eventId != null ? `event=${field(gap.eventId)}` : '',
+    gap.playerId != null ? `player=${field(gap.playerId)}` : '',
+    gap.objectId != null ? `object=${field(gap.objectId)}` : '',
+    gap.variant != null ? `variant=${field(gap.variant)}` : '',
+    gap.effectKind != null ? `kind=${field(gap.effectKind)}` : '',
+    gap.mapId != null ? `map=${field(gap.mapId)}` : '',
+    gap.roomId != null ? `room=${field(gap.roomId)}` : ''
+  ].filter(Boolean).join(':');
+  const magicGapReason = gap => `magicEffects:${gap.type || 'unknown'}:${gap.reason}` +
+    (identity(gap) ? `:${identity(gap)}` : '');
   const reasons = [
     ...(captured.early?.textureGaps || []).filter(gap => gap.blocking)
       .map(gap => `${gap.stage}:${gap.reason || gap.texture || 'texture'}`),
@@ -18017,10 +18030,8 @@ function webgpuMainIncompleteReason(captured, requiredStages) {
       `players:${gap.reason}${gap.motionId ? `:${gap.motionId}` : ''}`),
     ...(captured.headMarkers?.unsupported || []).map(gap => `headMarkers:${gap.reason}`),
     ...(captured.hitEffectsGaps || []).map(gap => `hitEffects:${gap.reason}`),
-    ...(captured.magicGaps || []).map(gap =>
-      `magicEffects:${gap.type || 'unknown'}:${gap.reason}`),
-    ...(captured.late?.unsupported || []).map(gap =>
-      `magicEffects:${gap.type || 'unknown'}:${gap.reason}`),
+    ...(captured.magicGaps || []).map(magicGapReason),
+    ...(captured.late?.unsupported || []).map(magicGapReason),
     ...(captured.remainingStages || []).filter(name => requiredStages.includes(name))
       .map(name => `stage:${name}`),
     ...(captured.markerPointerGap ? ['markerPointer:source-invalid'] : []),
@@ -18028,7 +18039,7 @@ function webgpuMainIncompleteReason(captured, requiredStages) {
       .map(gap => `acquisition:${gap.reason || 'source-invalid'}`),
     ...(captured.conditional?.expandedBlocked ? ['expandedMap:source-invalid'] : [])
   ];
-  return [...new Set(reasons)].slice(0, 12).join(',').slice(0, 400) || 'unknown';
+  return [...new Set(reasons)].slice(0, 12).join(',').slice(0, 1600) || 'unknown';
 }
 
 function setWebGPUMainFailure(error) {
@@ -27888,7 +27899,16 @@ function captureWebGPUMainAppWorldCandidate(data = state.data, viewport,
     ...late.stage.omitted.map(omission => omission.effectId),
     ...late.unsupported.map(item => item.id)].map(String);
   const eventPositions = late.stage.events.map(event => sourceIds.indexOf(String(event.effectId)));
-  const magicGaps = late.unsupported.map(item => ({ ...item, blocking: true }));
+  const magicGaps = late.unsupported.map(item => {
+    const source = state.magicEffects.find(effect => String(effect?.id) === String(item.id));
+    return { ...item, eventId: item.eventId ?? item.id,
+      playerId: item.playerId ?? source?.playerId,
+      objectId: item.objectId ?? source?.objectId,
+      variant: item.variant ?? source?.variant,
+      effectKind: item.effectKind ?? source?.effectKind,
+      mapId: item.mapId ?? data.map?.id,
+      roomId: item.roomId ?? late.stage.roomId, blocking: true };
+  });
   if (sourceIds.some(id => !id || id === 'undefined') ||
       claimedIds.length !== sourceIds.length ||
       sourceIds.some(id => claimedIds.filter(claim => claim === id).length !== 1) ||

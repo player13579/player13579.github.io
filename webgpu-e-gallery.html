@@ -13,7 +13,7 @@ main{max-width:1260px;margin:auto;padding:clamp(16px,3vw,34px)}header{display:fl
 .counter{white-space:nowrap;font-size:12px;color:#98adb8;background:#18232c;border:1px solid #2c3d48;border-radius:999px;padding:7px 12px}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:18px;align-items:start}.viewer,.catalog{background:#111b24;border:1px solid #30424c;border-radius:16px;overflow:hidden}
 .viewer-head{padding:16px 18px;border-bottom:1px solid #2b3b45;display:flex;justify-content:space-between;gap:15px;align-items:start}.viewer-head h2{font-size:22px;margin:0 0 4px}.viewer-head p{font-size:13px;color:#aebfc8;margin:0;line-height:1.45}.badge{font-size:11px;color:#9df0e5;background:#173b40;border:1px solid #346b6e;border-radius:999px;padding:5px 9px;white-space:nowrap}
-.stage{position:relative;aspect-ratio:980/620;background:radial-gradient(circle at 50% 55%,#273843,#101820 60%);overflow:hidden}.stage iframe{display:block;width:100%;height:100%;border:0}.stage canvas{display:block;width:100%;height:100%}
+.stage{position:relative;aspect-ratio:980/620;background:radial-gradient(circle at 50% 55%,#273843,#101820 60%);overflow:hidden}.stage iframe{display:block;width:100%;height:100%;border:0}
 .notice{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:#eac7bb;background:#111a24;line-height:1.5}.notice[hidden]{display:none}
 .viewer-foot{padding:13px 18px;border-top:1px solid #2b3b45;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.viewer-foot p{font-size:12px;color:#9db0ba;margin:0}.viewer-foot a{color:#96e6de;font-size:12px;text-decoration:none}.viewer-foot a:hover{text-decoration:underline}
 .catalog h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#93aeb9;margin:0;padding:16px 16px 12px}.catalog-list{display:grid;gap:3px;padding:0 8px 8px}.item{display:block;width:100%;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:#d9e5e9;padding:10px 11px;cursor:pointer}.item:hover{background:#1c2b34}.item[aria-current=true]{background:#17343a;border-color:#408c89}.item strong{display:block;font-size:14px;font-weight:650}.item span{display:block;color:#9fb3bd;font-size:11px;margin-top:3px;line-height:1.35}.intro{font-size:12px;margin-top:14px}
@@ -21,12 +21,12 @@ main{max-width:1260px;margin:auto;padding:clamp(16px,3vw,34px)}header{display:fl
 </style>
 </head>
 <body><main>
-<header><div><div class="eyebrow">Defenders vs Attackers · WebGPU</div><h1>E ギャラリー</h1><p>受理済みのWebGPU Eを自動で切り替えて再生します。一覧から選ぶこともできます。</p></div><div class="counter" id="entry-counter" aria-live="polite">0 件</div></header>
+<header><div><div class="eyebrow">Defenders vs Attackers · WebGPU</div><h1>E ギャラリー</h1><p>採用済みEと品質未受入の候補を自動で切り替えて表示します。一覧から選ぶこともできます。</p></div><div class="counter" id="entry-counter" aria-live="polite">0 件</div></header>
 <div class="layout"><section class="viewer" aria-label="選択したEのプレビュー"><div class="viewer-head"><div><h2 id="selected-title"></h2><p id="selected-description"></p></div><span class="badge" id="selected-status"></span></div>
 <div class="stage" id="stage"><div class="notice" id="notice" role="status">WebGPU を確認しています…</div></div>
 <div class="viewer-foot"><p id="selected-source"></p><a id="selected-link" target="_blank" rel="noopener">元のプレビューを見る ↗</a></div></section>
 <aside class="catalog"><h2>表示するE</h2><div class="catalog-list" id="catalog"></div></aside></div>
-<p class="intro">ヒール以外の旧Eはこの一覧から取り下げました。作り直しと受入を終えたEを順次追加します。ギャラリーの表示だけでは本編イベント・画質・SFXの受入にはなりません。</p>
+<p class="intro">候補は比較用に掲載しており、各項目の状態を確認してください。ギャラリーの表示だけでは本編イベント・画質・SFXの受入にはなりません。</p>
 </main>
-<script src="webgpu-e-gallery.js?v=heal-only-20260925"></script>
+<script src="webgpu-e-gallery.js?v=all-pro-origin-versions-20260925"></script>
 </body></html>
