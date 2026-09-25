@@ -19625,42 +19625,6 @@ function hitEffectsWebGPUScene() {
   return { now, effects: state.hitEffects };
 }
 
-function drawHitEffects() {
-  const scene = hitEffectsWebGPUScene();
-  const now = scene.now;
-  for (const effect of scene.effects) {
-    const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
-    const seed = [...String(effect.id)].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 17);
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < 22; index += 1) {
-      const angle = ((seed % 360) + index * 137.5) * Math.PI / 180;
-      const speed = 38 + ((seed >> (index % 12)) & 31) + index * 1.7;
-      const travel = speed * Math.sin(Math.min(1, progress) * Math.PI * 0.62);
-      const x = effect.x + Math.cos(angle) * travel;
-      const y = effect.y + Math.sin(angle) * travel + progress * progress * 34;
-      const alpha = (1 - progress) * (index % 3 === 0 ? 0.95 : 0.72);
-      const hue = (seed + index * 43 + now / 7) % 360;
-      const radius = Math.max(1.2, (effect.lethal ? 6.5 : 5) * (1 - progress * 0.65) * (0.7 + (index % 4) * 0.1));
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = `hsl(${hue} 96% 62%)`;
-      ctx.shadowColor = `hsl(${hue} 100% 72%)`;
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.ellipse(x, y, radius * 1.45, radius, angle, 0, Math.PI * 2);
-      ctx.fill();
-      if (index % 3 === 0) drawRainbowSpark(x, y, radius * 2.4, hue, angle + now / 420);
-    }
-    ctx.globalAlpha = 1 - progress;
-    ctx.strokeStyle = `hsl(${(seed + now / 5) % 360} 100% 72%)`;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(effect.x, effect.y, 16 + progress * (effect.lethal ? 76 : 52), 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-
 function hazardFieldsWebGPUScene(data) {
   return {
     hazardFields: Array.isArray(data?.hazardFields) ? data.hazardFields : [],
@@ -25729,63 +25693,8 @@ function drawObjectEffectFallback() {
   return false;
 }
 
-function drawRainbowSpark(x, y, radius, hue, rotation) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.fillStyle = `hsl(${(hue + 35) % 360} 100% 78%)`;
-  ctx.beginPath();
-  for (let point = 0; point < 8; point += 1) {
-    const angle = point * Math.PI / 4;
-    const length = point % 2 === 0 ? radius : radius * 0.22;
-    const px = Math.cos(angle) * length;
-    const py = Math.sin(angle) * length;
-    if (point === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
 function killCameraWorldWebGPUScene(data) {
   return { record: activeKillCameraRecord(data) };
-}
-
-function drawKillCameraWorldMarkers(data) {
-  const { record } = killCameraWorldWebGPUScene(data);
-  if (!record) return;
-  const victim = { x: Number(record.victimX) || 0, y: Number(record.victimY) || 0 };
-  const killer = { x: Number(record.killerX) || victim.x, y: Number(record.killerY) || victim.y };
-  const separated = Math.hypot(killer.x - victim.x, killer.y - victim.y) > 10;
-  ctx.save();
-  ctx.lineWidth = 4;
-  ctx.setLineDash([11, 8]);
-  ctx.strokeStyle = "rgba(248, 113, 113, 0.9)";
-  if (separated) {
-    ctx.beginPath();
-    ctx.moveTo(killer.x, killer.y - 22);
-    ctx.lineTo(victim.x, victim.y - 22);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  const marker = (point, color, label) => {
-    ctx.fillStyle = "rgba(2, 6, 23, 0.82)";
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y - 22, 48, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#fff";
-    ctx.font = "900 14px Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, point.x, point.y - 22);
-  };
-  marker(victim, "#f87171", "死亡地点");
-  if (separated) marker(killer, "#facc15", "キラー");
-  ctx.restore();
 }
 
 // Game eligibility remains here; the WebGPU world pass receives only the
