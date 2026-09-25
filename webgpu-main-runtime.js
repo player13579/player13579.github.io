@@ -85,7 +85,7 @@
           // Proxy invariants on non-configurable frame methods.
           const facade = {};
           if (recordClears) {
-            for (const name of ['add', 'clear', 'stage', 'rect', 'sprite', 'composite']) {
+            for (const name of ['add', 'addEncoder', 'clear', 'stage', 'rect', 'sprite', 'composite']) {
               facade[name] = (...args) => {
                 const result = frame[name](...args);
                 if (name === 'clear' || (name === 'add' && args[0]?.clear)) sceneCleared = true;

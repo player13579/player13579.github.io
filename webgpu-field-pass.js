@@ -5,6 +5,7 @@
   'use strict';
 
   const field = root.DvaWebGPUFieldStatic || (typeof require === 'function' ? require('./webgpu-field-static.js') : null);
+  const roomOverlay = root.DvaWebGPURoomOverlay || (typeof require === 'function' ? require('./webgpu-room-overlay.js') : null);
   const textureUsage = root.GPUTextureUsage || { COPY_DST: 0x02, TEXTURE_BINDING: 0x04, RENDER_ATTACHMENT: 0x10 };
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const align = value => Math.ceil(value / 256) * 256;
@@ -33,7 +34,13 @@
       if (Math.max(sw, sh) > device.limits.maxTextureDimension2D) {
         throw new RangeError(`Field patch ${patch.id} exceeds WebGPU texture limit`);
       }
-      const rect = { x, y, w, h, id: patch.id, image: source, sw, sh };
+      if (patch.room) {
+        if (!roomOverlay || patch.room.id !== roomOverlay.CAFETERIA.id ||
+            x !== patch.room.x || y !== patch.room.y || w !== patch.room.w || h !== patch.room.h)
+          throw new RangeError(`Field patch ${patch.id} has unsupported room geometry`);
+        roomOverlay.mapping(source, patch.room);
+      }
+      const rect = { x, y, w, h, id: patch.id, image: source, sw, sh, room: patch.room };
       for (const other of rects) {
         if (x < other.x + other.w && x + w > other.x && y < other.y + other.h && y + h > other.y) {
           throw new RangeError(`Field patches ${other.id} and ${patch.id} overlap`);
@@ -114,16 +121,38 @@ struct VertexOut { @builtin(position) position:vec4f, @location(0) uv:vec2f };
               alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
             } }] }, primitive: { topology: 'triangle-list' } });
         const patchSampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
+        let roomPipeline;
+        if (patches.some(patch => patch.room)) {
+          const roomModule = device.createShaderModule({ label: 'DVA polygon-clipped room overlay', code: roomOverlay.shader });
+          if (typeof roomModule.getCompilationInfo === 'function') {
+            const info = await roomModule.getCompilationInfo();
+            const errors = info.messages.filter(message => message.type === 'error');
+            if (errors.length) throw new Error(errors.map(message => message.message).join('; '));
+          }
+          const roomDescriptor = { layout: 'auto',
+            vertex: { module: roomModule, entryPoint: 'vs' },
+            fragment: { module: roomModule, entryPoint: 'fs', targets: [{ format: 'rgba8unorm', blend: {
+              color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+              alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+            } }] }, primitive: { topology: 'triangle-list' } };
+          roomPipeline = typeof device.createRenderPipelineAsync === 'function'
+            ? await device.createRenderPipelineAsync(roomDescriptor)
+            : device.createRenderPipeline(roomDescriptor);
+        }
         for (const patch of patches) {
           const texture = own(device.createTexture({ label: `DVA field patch ${patch.id}`, size: [patch.sw, patch.sh],
             format: 'rgba8unorm', usage: textureUsage.COPY_DST | textureUsage.TEXTURE_BINDING | textureUsage.RENDER_ATTACHMENT }));
           device.queue.copyExternalImageToTexture({ source: patch.image }, { texture, premultipliedAlpha: true, colorSpace: 'srgb' }, [patch.sw, patch.sh]);
-          const patchBind = device.createBindGroup({ layout: patchPipeline.getBindGroupLayout(0), entries: [
-            { binding: 0, resource: texture.createView() }, { binding: 1, resource: patchSampler }
+          const pipelineForPatch = patch.room ? roomPipeline : patchPipeline;
+          const roomUniform = patch.room ? own(device.createBuffer({ size: 176, usage: 0x40 | 0x08 })) : null;
+          if (roomUniform) device.queue.writeBuffer(roomUniform, 0, roomOverlay.uniformData(patch.image, patch.room));
+          const patchBind = device.createBindGroup({ layout: pipelineForPatch.getBindGroupLayout(0), entries: [
+            { binding: 0, resource: texture.createView() }, { binding: 1, resource: patchSampler },
+            ...(roomUniform ? [{ binding: 2, resource: { buffer: roomUniform } }] : [])
           ] });
           const encoder = device.createCommandEncoder({ label: `DVA field patch ${patch.id}` });
           const pass = encoder.beginRenderPass({ colorAttachments: [{ view: material.createView(), loadOp: 'load', storeOp: 'store' }] });
-          pass.setPipeline(patchPipeline); pass.setBindGroup(0, patchBind);
+          pass.setPipeline(pipelineForPatch); pass.setBindGroup(0, patchBind);
           pass.setViewport(patch.x, patch.y, patch.w, patch.h, 0, 1); pass.draw(3); pass.end();
           device.queue.submit([encoder.finish()]);
         }

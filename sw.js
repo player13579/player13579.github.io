@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-pure-slices-v78";
-const CACHE_NAME = "dva-static-webgpu-pure-slices-v78";
+const RUNTIME_RELEASE = "webgpu-pure-slices-v79";
+const CACHE_NAME = "dva-static-webgpu-pure-slices-v79";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -456,6 +456,7 @@ const STATIC_ASSETS = [
   "/webgpu-corridor-a01-e.js",
   "/webgpu-corridor-object-use-e.js",
   "/webgpu-room-object-use-e.js",
+  "/webgpu-hover-sprint-e.js",
   "/webgpu-main-runtime.js",
   "/webgpu-main-frame-scheduler.js",
   "/webgpu-emp-effect.js",
@@ -925,6 +926,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-corridor-a01-e.js",
   "/webgpu-corridor-object-use-e.js",
   "/webgpu-room-object-use-e.js",
+  "/webgpu-hover-sprint-e.js",
   "/webgpu-main-runtime.js",
   "/webgpu-main-frame-scheduler.js",
   "/webgpu-emp-effect.js",

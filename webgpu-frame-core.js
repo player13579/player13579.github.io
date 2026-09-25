@@ -20,6 +20,7 @@
     let state = 'ready';
     let activeFrame = null;
     let failure = null;
+    let nextFrameId = 0;
 
     function requireReady() {
       if (state !== 'ready') throw failure || new Error('WebGPU frame owner destroyed');
@@ -29,6 +30,7 @@
       if (state !== 'ready') return;
       state = report ? 'failed' : 'destroyed';
       failure = report ? createFailure(reason) : null;
+      try { activeFrame?.abandon?.(); } catch (_) {}
       activeFrame = null;
       for (const target of targets.values()) {
         try { target.context?.unconfigure(); } catch (_) {}
@@ -133,7 +135,19 @@
       if (activeFrame) throw new Error('A WebGPU frame is already open');
       const commands = [];
       const frame = {};
+      const frameId = ++nextFrameId;
+      let submitted = false, abandoned = false;
       activeFrame = frame;
+      function abandon() {
+        if (submitted || abandoned) return;
+        abandoned = true;
+        for (const command of commands) {
+          try { command.onAbandon?.(); } catch (error) {
+            root.console?.error?.('WebGPU frame abandon callback failed', error);
+          }
+        }
+      }
+      frame.abandon = abandon;
       function requireActive() {
         requireReady();
         if (activeFrame !== frame) throw new Error('WebGPU frame is closed');
@@ -159,18 +173,28 @@
           [...reads, ...writes].some(id => !targets.has(id)) || reads.some(id => !targets.get(id).sampleable)) {
           throw new Error('Encoder command needs distinct registered targets and sampleable reads');
         }
-        commands.push({ kind: 'encoder', label: String(command.label || ''), reads, writes, encode: command.encode });
+        if (command.onSubmitted !== undefined && typeof command.onSubmitted !== 'function')
+          throw new TypeError('Encoder submission observer must be a function');
+        if (command.onProofError !== undefined && typeof command.onProofError !== 'function')
+          throw new TypeError('Encoder proof error observer must be a function');
+        if (command.onAbandon !== undefined && typeof command.onAbandon !== 'function')
+          throw new TypeError('Encoder abandon observer must be a function');
+        commands.push({ kind: 'encoder', label: String(command.label || ''), reads, writes,
+          encode: command.encode, onSubmitted: command.onSubmitted,
+          onProofError: command.onProofError, onAbandon: command.onAbandon });
         return frame;
       };
       frame.discard = function () {
         requireActive();
         activeFrame = null;
+        abandon();
       };
       frame.submit = function () {
         requireActive();
         activeFrame = null;
         if (!commands.length) return 0;
-        const encoder = device.createCommandEncoder({ label });
+        const observers = commands.filter(command => command.onSubmitted);
+        let encoder;
         const views = new Map();
         const painted = new Set();
         const view = id => {
@@ -180,7 +204,37 @@
           }
           return views.get(id);
         };
+        let scopeCount = 0;
+        function drainScopes() {
+          for (let index = 0; index < scopeCount; index++) {
+            try { void device.popErrorScope().catch(() => {}); } catch (_) {}
+          }
+          scopeCount = 0;
+        }
+        function proofError(error) {
+          const failure = createFailure(error);
+          const notice = Object.freeze({ frameId, encoder, error: failure });
+          let reported = false;
+          for (const observer of observers) {
+            try {
+              if (observer.onProofError) {
+                observer.onProofError(notice);
+                reported = true;
+              }
+            } catch (callbackError) {
+              root.console?.error?.('WebGPU proof error observer failed', callbackError);
+            }
+          }
+          if (!reported) root.console?.error?.('WebGPU frame submitted without a usable receipt', failure);
+        }
         try {
+          encoder = device.createCommandEncoder({ label });
+          if (observers.length) {
+            for (const kind of ['out-of-memory', 'internal', 'validation']) {
+              device.pushErrorScope(kind);
+              scopeCount += 1;
+            }
+          }
           for (const command of commands) {
             if (command.kind === 'encoder') {
               if (command.reads.some(id => !painted.has(id))) {
@@ -188,7 +242,7 @@
               }
               const allowed = new Set([...command.reads, ...command.writes]);
               command.encode(encoder, Object.freeze({
-                device, format, view(id) {
+                device, format, frameId, encoder, view(id) {
                   if (!allowed.has(id)) throw new Error('Undeclared encoder target');
                   return view(id);
                 },
@@ -224,8 +278,42 @@
             painted.add(command.target);
           }
           device.queue.submit([encoder.finish()]);
+          submitted = true;
+          if (observers.length) {
+            const checks = [];
+            let validation, done;
+            try {
+              for (let index = 0; index < 3; index++) {
+                const check = device.popErrorScope();
+                scopeCount -= 1;
+                checks.push(check);
+              }
+              validation = Promise.all(checks).then(errors => errors.find(Boolean) || null);
+              done = device.queue.onSubmittedWorkDone();
+              if (!done || typeof done.then !== 'function')
+                throw new TypeError('WebGPU queue completion must be a Promise');
+            } catch (error) {
+              for (const check of checks) void Promise.resolve(check).catch(() => {});
+              if (validation) void validation.catch(() => {});
+              drainScopes();
+              proofError(error);
+              return commands.length;
+            }
+            const proof = Object.freeze({ frameId, encoder, validation, done });
+            for (const observer of observers) {
+              try {
+                const result = observer.onSubmitted(proof);
+                if (result && typeof result.then === 'function')
+                  void result.catch(error => root.console?.error?.('WebGPU submission observer failed', error));
+              } catch (error) {
+                root.console?.error?.('WebGPU submission observer failed', error);
+              }
+            }
+          }
           return commands.length;
         } catch (error) {
+          drainScopes();
+          abandon();
           throw createFailure(error);
         }
       };

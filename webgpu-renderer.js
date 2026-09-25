@@ -188,6 +188,18 @@
           cleared.add(command.target);
           return frame;
         },
+        // Encoder-level passes retain their exact place among primitive batches.
+        // The core owns the encoder, its single submit, and submission proof.
+        addEncoder(command) {
+          active();
+          if (!command || !Array.isArray(command.writes) ||
+              command.writes.some(id => !targets.has(id) || !cleared.has(id))) {
+            throw new Error('Encoder writes need cleared registered targets');
+          }
+          flush();
+          coreFrame.addEncoder(command);
+          return frame;
+        },
         clear(target, color) {
           active();
           if (!targets.has(target)) throw new Error('Unknown WebGPU presentation target');
