@@ -42,7 +42,8 @@
     { id: 'cable-spool', objectId: 'v302-power-cableSpool-2', title: 'ケーブルリール使用', detail: '現行マップの cableSpool 成功使用イベントと著者済みIDを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-cable-spool-e.js', kind: 'integrated' },
     { id: 'grenade-frag-impact', title: '破片手榴弾の着弾', detail: 'サーバーの grenade-frag-impact 着弾イベント形を使うWebGPU候補。スタングレネードは含まず、本編画質とSFXは未受入です。', status: 'fragのみ・画質/SFX未受入', source: 'webgpu-grenade-impact.js', kind: 'grenade-impact' },
     { id: 'fire-activation', title: 'ファイア発動', detail: '現行 fire 魔法イベントを使う単独WebGPUフィクスチャ。実ゲームの表示品質とSFX受入は未完了です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-fire-activation.js', kind: 'fire-activation' },
-    { id: 'medical-handwash-sink', fixtureId: 'medical-handwash-sink-1', title: '医療室 手洗いシンク環境E', detail: '現行の医療室近接プレイヤー経路と手洗いシンクの周期Eを再生。これは使用イベントではなく、実ゲーム画質とSFXの受入も未完了です。', status: '近接環境E・本編画質/SFX未受入', source: 'webgpu-medical-fixture-e.js', kind: 'medical-fixture' }
+    { id: 'medical-handwash-sink', fixtureId: 'medical-handwash-sink-1', title: '医療室 手洗いシンク環境E', detail: '現行の医療室近接プレイヤー経路と手洗いシンクの周期Eを再生。これは使用イベントではなく、実ゲーム画質とSFXの受入も未完了です。', status: '近接環境E・本編画質/SFX未受入', source: 'webgpu-medical-fixture-e.js', kind: 'medical-fixture' },
+    { id: 'hacker-root-activation', title: 'ハッカー ROOT 発動', detail: '現行 all-operators 発動イベントと有効なROOT状態の可視アクターを使う単独WebGPUフィクスチャ。継続状態や実ゲーム画質/SFXは未受入です。', status: '発動フィクスチャ・本編画質/SFX未受入', source: 'webgpu-hacker-root-e.js', kind: 'hacker-root' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
@@ -144,6 +145,7 @@
       const isCableSpool = entry.id === 'cable-spool';
       const isFireActivation = entry.id === 'fire-activation';
       const isMedicalFixture = entry.kind === 'medical-fixture';
+      const isHackerRoot = entry.kind === 'hacker-root';
       const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
@@ -166,13 +168,14 @@
         'cable-spool': window.DvaWebGPUCableSpoolE,
         'fire-activation': window.DvaWebGPUFireActivation,
         'medical-handwash-sink': window.DvaWebGPUMedicalFixtureE,
+        'hacker-root-activation': window.DvaWebGPUHackerRootE,
         'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
         'room-command-desk': window.DvaWebGPURoomObjectUseE,
         'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
         'room-restorative-mist': window.DvaWebGPURoomObjectUseE,
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isRoomObject || isFloraInvisible || isFireActivation ? api.create({ renderer, frameOwner: renderer }) :
+      effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot ? api.create({ renderer, frameOwner: renderer }) :
         isMedical || isMedicalAmbient || isMedicalFixture ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker || isArchiveCabinet || isCableSpool ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
@@ -191,6 +194,7 @@
         'cable-spool': api.DURATION_MS,
         'fire-activation': api.DURATION_MS,
         'medical-handwash-sink': api.FIXTURES?.[entry.fixtureId]?.period,
+        'hacker-root-activation': api.EVENT_DURATION_MS,
         'room-cooling-unit': api.DURATION_MS,
         'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
         'room-restorative-mist': api.DURATION_MS,
@@ -237,6 +241,25 @@
                 const result = effect.record({ frame, target: targetId, viewport, planned });
                 if (!result.drawn) throw new Error('手洗いシンク近接Eを描画できません');
               }
+            } else if (isHackerRoot) {
+              // Match the server's all-operators activation route. The real
+              // app only admits this event while its visible actor is active.
+              const player = { id: 'gallery-hacker-root-actor', x: 490, y: 310,
+                alive: true, ejected: false, inVent: false, invisible: false,
+                hackerRootActive: true };
+              const source = { id: `magic_gallery_hacker_root_${cycle}`,
+                type: api.EVENT_TYPE, x: player.x, y: player.y, radius: 155,
+                playerId: player.id, variant: api.VARIANTS.activation,
+                startedAt: 0, duration: api.EVENT_DURATION_MS };
+              const input = { effect: source, player, now: elapsed,
+                actorTime: elapsed, phase: 'playing', camera, zoom, viewport,
+                reducedMotion: false, alpha: 1 };
+              const planned = api.plan(input);
+              if (!planned || planned.effectId !== source.id || planned.mode !== api.MODES.activation)
+                throw new Error('ROOT発動イベントと有効な可視アクターを計画できません');
+              const result = effect.record({ frame, target: targetId, viewport, planned });
+              if (!result.drawn || result.effectId !== source.id)
+                throw new Error('ROOT発動イベントを描画できません');
             } else if (isArchiveCabinet) {
               // Match successful map-object use after the app stamps its local
               // receipt clock: exact authored ID, location and credit effect.
@@ -763,7 +786,7 @@
     sourceLink.href = address(entry.page || `webgpu-e-gallery.html#${entry.id}`);
     sourceLink.hidden = entry.kind === 'corridor' || entry.kind === 'integrated' ||
       entry.kind === 'grenade-impact' || entry.kind === 'fire-activation' ||
-      entry.kind === 'medical-fixture';
+      entry.kind === 'medical-fixture' || entry.kind === 'hacker-root';
     document.querySelectorAll('.item').forEach(button => button.setAttribute('aria-current', String(button.dataset.id === entry.id)));
     history.replaceState(null, '', `${location.pathname}${location.search}#${entry.id}`);
     if (entry.kind === 'corridor') {
@@ -787,6 +810,11 @@
       return;
     }
     if (entry.kind === 'medical-fixture') {
+      notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
+      startIntegrated(entry, corridorRun);
+      return;
+    }
+    if (entry.kind === 'hacker-root') {
       notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
       startIntegrated(entry, corridorRun);
       return;
