@@ -21067,10 +21067,27 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
       const api = reactor?.OBJECTS?.[effect.objectId] ? reactor :
         power?.OBJECTS?.[effect.objectId] ? power : null;
       const passType = api === reactor ? 'reactorRoomObjectsE' : 'powerRoomObjectsE';
+      const spec = api?.OBJECTS?.[effect.objectId];
+      const object = data.map?.objects?.find(entry => entry.id === effect.objectId);
       const elapsed = now - Number(effect.startedAt);
       if (Number.isFinite(elapsed) && Number.isFinite(effect.duration) &&
           effect.duration > 0 && (elapsed < 0 || elapsed >= effect.duration)) {
         omitted.push({ effectId: effect.id, reason: 'power-cabinet-outside-lifetime' });
+        continue;
+      }
+      // The planner requires an onscreen object. An authoritative, offscreen
+      // use is invisible, not evidence that its WebGPU pass is unavailable.
+      if (spec && object && object.type === spec.type &&
+          object.x === spec.x && object.y === spec.y &&
+          effect.x === spec.x && effect.y === spec.y &&
+          Number.isFinite(camera?.x) && Number.isFinite(camera?.y) &&
+          Number.isFinite(zoom) && zoom > 0 &&
+          Number.isFinite(viewport?.width) && Number.isFinite(viewport?.height) &&
+          (spec.x + spec.halfWidth <= camera.x ||
+           spec.x - spec.halfWidth >= camera.x + viewport.width / zoom ||
+           spec.y + spec.halfHeight <= camera.y ||
+           spec.y - spec.halfHeight >= camera.y + viewport.height / zoom)) {
+        omitted.push({ effectId: effect.id, reason: 'power-cabinet-outside-viewport' });
         continue;
       }
       let planned = null;
@@ -27154,13 +27171,44 @@ function buildWebGPUSunbeamActionCommand(player, data, view, action) {
 function buildWebGPUHealActionCommand(player, data, view, action) {
   const api = window.DvaWebGPUPlayerSprite;
   const owner = state.characterActions.get(player.id);
-  if (!api?.createCommand || player.isBot || !player.alive || player.ejected ||
+  if (!api?.createCommand || !player.alive || player.ejected || player.inVent ||
+      (player.invisible && player.id !== data.selfId) ||
       action?.kind !== 'heal' || !['flora', '/api/flora-heal'].includes(action.motionId) ||
       owner?.kind !== 'heal' || owner.motionId !== action.motionId ||
       owner.startedAt !== action.startedAt ||
       String(owner.sourceEffectId || '') !== String(action.sourceEffectId || '') ||
       !Number.isFinite(action.progress) || action.progress < 0 || action.progress >= 1)
     return null;
+  if (player.isBot) {
+    const sourceId = String(action.sourceEffectId || '');
+    const effect = state.magicEffects?.find(entry => String(entry?.id || '') === sourceId &&
+      entry.type === 'flora' && String(entry.playerId || '') === String(player.id));
+    const image = state.textures.physicalActionMotions?.['male-bot']?.heal;
+    const cell = 724;
+    if (!sourceId || !effect || !image?.complete ||
+        image.naturalWidth !== cell * 3 || image.naturalHeight !== cell) return null;
+    const phase = physicalActionFramePosition('heal', action.progress, action.motionId);
+    const frameIndex = Math.min(2, Math.max(0, Math.round(phase)));
+    const direction = authoredDirection(player, motionFor(player, data));
+    const { ascensionRise } = characterAscensionPresentation(player, data);
+    const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise },
+      identity: 'male-bot', direction, mode: 'flora-heal',
+      entry: { assetPath: 'assets/generated/physical-motion-male-bot-heal-v465.png',
+        layout: { sourceOrigin: { x: cell / 2, y: cell },
+          ground: { x: 0, y: CHARACTER_BODY_FOOT_ANCHOR_Y },
+          scale: 98 / cell * CHARACTER_BODY_VISUAL_SCALE } },
+      image, frame: { x: frameIndex * cell, y: 0, width: cell, height: cell },
+      body: { lean: 0, sway: 0, lift: 0 }, camera: view.camera,
+      zoom: view.zoom, alpha: 1,
+      arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+      arrivalAnchor: player, order: view.order ?? 0 });
+    if (!command) return null;
+    const sprite = direction === 'left' ? Object.freeze({ ...command.sprite,
+      transform: Object.freeze(command.sprite.transform.map((value, index) =>
+        index < 2 ? -value : value)) }) : command.sprite;
+    return Object.freeze({ ...command, sprite, sourceEffectId: sourceId,
+      poseKey: `heal-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
+  }
   const identity = authoredCharacterIdentity(player, data);
   const profile = AUTHORED_HEAL_PROFILES[identity];
   const direction = authoredDirection(player, motionFor(player, data));
