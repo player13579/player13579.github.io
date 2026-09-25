@@ -27,13 +27,7 @@
   ['v302-greenhouse-mistSprayer-2','restorativeMist','luckBoost',817,2652,'greenhouse','herbal-mist-canopy-bloom','ceramic-mist-leaf-tone','ceramic-bowl-and-herbal-vapor',[
    ['bowl-condenses',0,.16],['herbal-vapor-rises',.16,.43],['canopy-unfurls',.43,.72],['mist-carries',.72,.88],['dew-dissolves',.88,1]]],
   ['v302-greenhouse-compostUnit-3','herbPreparationTable','heal',313,3057,'greenhouse','mortar-press-infusion-return','stone-mortar-infusion-drop','stone-mortar-and-timber',[
-   ['table-and-mortar',0,.15],['herbs-are-pressed',.15,.42],['infusion-forms',.42,.66],['remedy-returns',.66,.86],['surface-clears',.86,1]]],
-  ['v302-archive-readingLamp-3','readingLamp','mana',344,662,'archive','microfilm-lamp-focus-and-transfer','archive-lamp-glass-tap','frosted-glass-and-brass',[
-   ['glass-wick-wakes',0,.17],['pool-focuses',.17,.43],['microfilm-reading',.43,.70],['mana-transfer',.70,.86],['lamp-settles',.86,1]]],
-  ['v302-security-cameraTripod-2','cameraTripod','luckBoost',1802,691,'security','tripod-optic-sweep-and-lock','tripod-optic-servo-click','steel-tripod-and-optic-glass',[
-   ['tripod-wakes',0,.15],['optic-sweeps',.15,.46],['sight-locks',.46,.69],['insight-pulse',.69,.85],['optic-rests',.85,1]]],
-  ['v302-observatory-readingLamp-2','readingLamp','mana',2760,330,'observatory','starlit-reading-lamp-focus-and-transfer','observatory-lamp-glass-tap','glass-and-brushed-brass',[
-   ['lamp-wakes',0,.16],['star-chart-focuses',.16,.43],['page-illumination',.43,.68],['mana-transfer',.68,.86],['lamp-dims',.86,1]]]
+   ['table-and-mortar',0,.15],['herbs-are-pressed',.15,.42],['infusion-forms',.42,.66],['remedy-returns',.66,.86],['surface-clears',.86,1]]]
  ];
  const OBJECTS=Object.freeze(Object.fromEntries(raw.map((r,code)=>[r[0],Object.freeze({
   id:r[0],type:r[1],effectKind:r[2],x:r[3],y:r[4],room:r[5],width:110,height:76,code,
@@ -210,7 +204,7 @@ fn band(v:f32,a:f32,b:f32)->f32{return smoothstep(a,a+.035,v)*(1.0-smoothstep(b-
    m=(bowl*.38+(bowlSideL+bowlSideR)*.50+rim*.65)+vapor1*.62+vapor2*.52+vapor3*.40+
     (canopyL+canopyR)*.62+dew*.28;
    h=(vapor1*.28+vapor2*.25+vapor3*.20)+(canopyL+canopyR)*.24+dew*.10;
-  }else if(k<18.5){
+  }else{
    // Herb table: a pestle compresses a broad leaf bed into one infusion;
    // the formed remedy settles back into the mortar in a single clear drop.
    let table=line(q.y-.65,.07)*band(q.x,-.76,.76);
@@ -231,43 +225,6 @@ fn band(v:f32,a:f32,b:f32)->f32{return smoothstep(a,a+.035,v)*(1.0-smoothstep(b-
    c=vec3f(.64,.88,.44);
    m=table*.44+tableFront*.46+mortar*.66+herbs*.70+pestle*.55+pressContact*.42+drop*.9+remedy*.58+wash*.68;
    h=pressContact*.24+drop*.54+remedy*.24+wash*.32;
-  }else if(k<19.5){
-   // Archive reader: a glass shade focuses a quiet pool on the microfilm;
-   // one broad mana current rises from the illuminated page.
-   let stem=line(q.x+.35,.045)*band(q.y,-.12,.65);
-   let arm=line(q.y+.12+.58*(q.x+.35),.045)*band(q.x,-.37,.22);
-   let shade=line(length(vec2f((q.x-.23)*1.4,(q.y+.42)*2.2))-.34,.055)*band(q.y,-.75,-.13);
-   let focus=smoothstep(.12,.38,t)*(1.0-smoothstep(.73,.90,t));
-   let pool=(1.0-smoothstep(.04,.76,length(vec2f(q.x*.74,(q.y-.27)*2.3))))*focus;
-   let page=line(q.y-.44,.052)*band(q.x,-.65,.65);
-   let current=line(q.x-.16*sin(u*5.0),.18)*band(q.y,-.46,.24)*smoothstep(.56,.73,t);
-   c=vec3f(.69,.80,1.0);
-   m=stem*.42+arm*.48+shade*.65+page*.43+pool*.67+current*.37;
-   h=pool*.36+current*.28;
-  }else if(k<20.5){
-   // Security tripod: two steady legs, a turning optic, then one lock pulse.
-   let head=vec2f(.24*sin(u*2.4),-.37);
-   let optic=line(length(vec2f((q.x-head.x)*1.25,(q.y-head.y)*1.8))-.20,.055);
-   let legL=line(q.x+.48*(q.y+.23),.055)*band(q.y,-.23,.79);
-   let legR=line(q.x-.48*(q.y+.23),.055)*band(q.y,-.23,.79);
-   let column=line(q.x,.047)*band(q.y,-.18,.30);
-   let sweep=line(q.y+.13+.25*sin(u*5.0),.07)*band(q.x,-.66,.66)*smoothstep(.14,.28,t)*(1.0-smoothstep(.49,.61,t));
-   let lock=line(length((q-head)*vec2f(1.0,1.3))-(.25+.38*clamp((u-.54)/.31,0.0,1.0)),.07)*smoothstep(.49,.64,t);
-   c=vec3f(.84,.60,1.0);
-   m=(legL+legR)*.42+column*.38+optic*.8+sweep*.54+lock*.57;
-   h=optic*.23+sweep*.24+lock*.43;
-  }else{
-   // Observatory lamp: starlight is gathered into a chart-shaped pool.
-   let stem=line(q.x-.35,.045)*band(q.y,-.12,.65);
-   let arm=line(q.y+.14-.54*(q.x-.35),.045)*band(q.x,-.23,.37);
-   let shade=line(length(vec2f((q.x+.23)*1.4,(q.y+.42)*2.2))-.34,.055)*band(q.y,-.75,-.13);
-   let chart=line(q.y-.44,.045)*band(q.x,-.67,.67)+line(q.x,.04)*band(q.y,.26,.52);
-   let focus=smoothstep(.12,.37,t)*(1.0-smoothstep(.75,.91,t));
-   let pool=(1.0-smoothstep(.03,.74,length(vec2f(q.x*.80,(q.y-.22)*2.1))))*focus;
-   let transfer=line(q.y-(.33-.44*clamp((u-.62)/.25,0.0,1.0)),.10)*band(q.x,-.39,.39)*smoothstep(.60,.72,t);
-   c=vec3f(.57,.84,1.0);
-   m=stem*.42+arm*.48+shade*.61+chart*.41+pool*.65+transfer*.42;
-   h=pool*.40+transfer*.28;
   }
  let a=clamp((m+h*.58)*env*.78,0.0,.84);return vec4f(c*a,a);
 }`;
