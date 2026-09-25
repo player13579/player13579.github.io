@@ -37,7 +37,8 @@
     { id: 'corridor-a11-footlight', objectId: 'v317-corridor-a11-1', title: 'A11 足元灯', detail: '対の光が敷居で合流して床へ抜ける。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a11-footlight', kind: 'corridor' },
     { id: 'corridor-a16-sconce', objectId: 'v317-corridor-a16-1', title: 'A16 壁灯', detail: 'ガラス内の光が満ち、一本のフィラメントへ集まる。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a16-sconce', kind: 'corridor' },
     { id: 'bottle-shards', title: '瓶の破片着弾', detail: 'サーバー現行の bottle-shards イベント形、所有者、瓶種と命中数を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-bottle-shards-e.js', kind: 'bottle-shards' },
-    { id: 'archive-cabinet', title: 'アーカイブキャビネット', detail: '現行マップの archiveCabinet 成功使用イベントを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-archive-cabinet-e.js', kind: 'integrated' }
+    { id: 'archive-cabinet', title: 'アーカイブキャビネット', detail: '現行マップの archiveCabinet 成功使用イベントを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-archive-cabinet-e.js', kind: 'integrated' },
+    { id: 'cable-spool', objectId: 'v302-power-cableSpool-2', title: 'ケーブルリール使用', detail: '現行マップの cableSpool 成功使用イベントと著者済みIDを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-cable-spool-e.js', kind: 'integrated' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
@@ -136,6 +137,7 @@
       const isAlchemyTransmutation = entry.id === 'alchemy-transmutation';
       const isFighterSlash = entry.id === 'fighter-slash';
       const isArchiveCabinet = entry.id === 'archive-cabinet';
+      const isCableSpool = entry.id === 'cable-spool';
       const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
@@ -155,6 +157,7 @@
         'medical-footbath': window.DvaWebGPUMedicalFootbathUseE,
         'medical-ambient': window.DvaWebGPUMedicalEnvironmentE,
         'archive-cabinet': window.DvaWebGPUArchiveCabinetE,
+        'cable-spool': window.DvaWebGPUCableSpoolE,
         'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
         'room-command-desk': window.DvaWebGPURoomObjectUseE,
         'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
@@ -163,7 +166,7 @@
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
       effect = isRoomObject || isFloraInvisible ? api.create({ renderer, frameOwner: renderer }) :
         isMedical || isMedicalAmbient ? api.create({ device: renderer.device, format: renderer.format }) :
-        isEmp || isHacker || isArchiveCabinet ? api.create({ renderer, frameOwner: renderer }) : api.create();
+        isEmp || isHacker || isArchiveCabinet || isCableSpool ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
       const duration = ({ emp: api.DURATIONS?.emp,
@@ -177,6 +180,7 @@
         'medical-bed': api.DURATION_MS, 'medical-cabinet': api.DURATION_MS,
         'medical-footbath': api.DURATION_MS, 'medical-ambient': 8000,
         'archive-cabinet': api.DURATION_MS,
+        'cable-spool': api.DURATION_MS,
         'room-cooling-unit': api.DURATION_MS,
         'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
         'room-restorative-mist': api.DURATION_MS,
@@ -210,6 +214,25 @@
               if (!planned) throw new Error('保管キャビネット使用イベントを計画できません');
               const drawn = effect.record({ frame, target: targetId, viewport, ...input });
               if (!drawn) throw new Error('保管キャビネット使用イベントを描画できません');
+            } else if (isCableSpool) {
+              // Keep the exact current station object ID, type, and credit use
+              // event. The gallery supplies its local receipt clock as now.
+              const objectId = api.OBJECT_ID;
+              const source = { id: `magic_gallery_cable_spool_${cycle}`,
+                type: api.EVENT_TYPE, x: api.ANCHOR.x, y: api.ANCHOR.y, radius: 100,
+                playerId: 'gallery-reactor-operator', targetId: '', objectId,
+                viewerId: '', variant: '', mode: '', effectKind: 'credits',
+                completionKind: '', markerCount: 1,
+                objectCausalId: `map-object:${objectId}:object_use_gallery_${cycle}`,
+                durationMs: 0, startedAt: 0 };
+              const cableCamera = { x: api.ANCHOR.x - viewport.width / 2,
+                y: api.ANCHOR.y - viewport.height / 2 };
+              const input = { effect: source, now: elapsed, phase: 'playing',
+                camera: cableCamera, zoom, viewport, reducedMotion: false };
+              const planned = api.plan(input);
+              if (!planned) throw new Error('ケーブルリール使用イベントを計画できません');
+              const drawn = effect.record({ frame, target: targetId, viewport, ...input });
+              if (!drawn) throw new Error('ケーブルリール使用イベントを描画できません');
             } else if (isAlchemyTransmutation) {
               // The server emits this event at the revived target with the
               // alchemist as playerId and targetId naming the revived actor.
