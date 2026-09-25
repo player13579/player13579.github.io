@@ -39,7 +39,8 @@
     { id: 'corridor-a01-sconce', objectId: 'v317-corridor-a01-1', title: 'A01 壁灯', detail: '現行マップの壁灯 Luck 成功使用イベントを使う専用WebGPU候補。視覚品質とSFX品質は未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a01-sconce', kind: 'corridor' },
     { id: 'bottle-shards', title: '瓶の破片着弾', detail: 'サーバー現行の bottle-shards イベント形、所有者、瓶種と命中数を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-bottle-shards-e.js', kind: 'bottle-shards' },
     { id: 'archive-cabinet', title: 'アーカイブキャビネット', detail: '現行マップの archiveCabinet 成功使用イベントを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-archive-cabinet-e.js', kind: 'integrated' },
-    { id: 'cable-spool', objectId: 'v302-power-cableSpool-2', title: 'ケーブルリール使用', detail: '現行マップの cableSpool 成功使用イベントと著者済みIDを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-cable-spool-e.js', kind: 'integrated' }
+    { id: 'cable-spool', objectId: 'v302-power-cableSpool-2', title: 'ケーブルリール使用', detail: '現行マップの cableSpool 成功使用イベントと著者済みIDを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-cable-spool-e.js', kind: 'integrated' },
+    { id: 'grenade-frag-impact', title: '破片手榴弾の着弾', detail: 'サーバーの grenade-frag-impact 着弾イベント形を使うWebGPU候補。スタングレネードは含まず、本編画質とSFXは未受入です。', status: 'fragのみ・画質/SFX未受入', source: 'webgpu-grenade-impact.js', kind: 'grenade-impact' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
@@ -590,6 +591,102 @@
       dispose();
     }
   }
+  async function startGrenadeImpact(entry, runId) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 980; canvas.height = 620; canvas.dataset.galleryNative = '1';
+    canvas.setAttribute('aria-label', `${entry.title} WebGPU E 単独フィクスチャ自動再生`);
+    canvas.style.cssText = 'display:block;width:100%;height:100%;';
+    stage.append(canvas);
+    notice.hidden = true;
+    let renderer = null, target = null, shapes = null, raf = 0, disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      if (raf) cancelAnimationFrame(raf);
+      try { shapes?.destroy(); } catch (_) {}
+      try { target?.unregister(); } catch (_) {}
+      try { renderer?.destroy(); } catch (_) {}
+      canvas.remove();
+    };
+    activeCleanup = dispose;
+    try {
+      if (!navigator.gpu) throw new Error('このブラウザーでは WebGPU を使用できません');
+      for (const src of ['webgpu-frame-core.js', 'webgpu-primitives.js',
+        'webgpu-compositing.js', 'webgpu-renderer.js', 'webgpu-effect-shapes.js', entry.source])
+        await loadScript(src);
+      if (disposed || runId !== corridorRun || active !== entry.id) return;
+      renderer = await window.DvaWebGPURenderer.create({ gpu: navigator.gpu });
+      if (disposed || runId !== corridorRun || active !== entry.id) {
+        renderer.destroy(); renderer = null; return;
+      }
+      const targetId = `grenade-impact-gallery-${runId}`;
+      target = renderer.registerTarget(targetId, canvas,
+        { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
+      const api = window.DvaWebGPUGrenadeImpact;
+      const shapeApi = window.DvaWebGPUEffectShapes;
+      if (!api?.plan || !api?.record || !shapeApi?.create)
+        throw new Error('現在のgrenade-frag-impact WebGPU APIがありません');
+      shapes = shapeApi.create({ device: renderer.device, format: renderer.format });
+      const viewport = { kind: 'main', width: 980, height: 620,
+        pixelWidth: 980, pixelHeight: 620 };
+      const camera = { x: 0, y: 0 }, zoom = 1;
+      const duration = api.TYPES['grenade-frag-impact'].duration;
+      const radius = api.TYPES['grenade-frag-impact'].minimumRadius;
+      const cycleLength = duration + 350, startedAt = performance.now();
+      const draw = now => {
+        if (disposed || runId !== corridorRun || active !== entry.id) { dispose(); return; }
+        const total = Math.max(0, now - startedAt);
+        const elapsed = total % cycleLength;
+        const cycle = Math.floor(total / cycleLength);
+        const frame = renderer.beginFrame(`${entry.id} WebGPU gallery fixture`);
+        let batch = null;
+        try {
+          frame.clear(targetId, [.035, .052, .067, 1]);
+          if (elapsed < duration) {
+            // Mirror the current frag impact payload at its landing position.
+            const effect = { id: `gallery-grenade-frag-${cycle}`,
+              type: 'grenade-frag-impact', x: 490, y: 310, radius,
+              playerId: 'gallery-grenade-thrower', startedAt: 0, duration };
+            const scene = { now: elapsed, reducedMotion: false, effects: [effect] };
+            const plan = api.plan({ scene, camera, zoom, viewport });
+            if (plan.unhandled.length)
+              throw new Error('破片手榴弾の着弾イベントを計画できません');
+            if (!plan.commands.length && !plan.claims.length && elapsed / duration >= .95) {
+              // The live app admission intentionally omits the grenade after
+              // the module's final fade reaches zero; keep that terminal tail
+              // in the loop instead of treating a valid expiry as a blocker.
+            } else {
+              if (!plan.commands.length || plan.claims.length !== 1)
+                throw new Error('破片手榴弾の着弾イベントを計画できません');
+              const result = api.record({ shapes, frame, target: targetId,
+                viewport, scene, camera, zoom });
+              if (!result.commands.length || result.claims.length !== 1 || !result.batch)
+                throw new Error('破片手榴弾の着弾イベントを描画できません');
+              batch = result.batch;
+            }
+          }
+          frame.submit();
+          batch?.destroy();
+          document.documentElement.dataset.gpuReady = '1';
+          notice.hidden = true;
+        } catch (error) {
+          try { frame.discard(); } catch (_) {}
+          try { batch?.destroy(); } catch (_) {}
+          notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+          document.documentElement.dataset.gpuReady = '0';
+          dispose(); return;
+        }
+        raf = requestAnimationFrame(draw);
+      };
+      raf = requestAnimationFrame(draw);
+    } catch (error) {
+      if (!disposed && runId === corridorRun && active === entry.id) {
+        notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
+        document.documentElement.dataset.gpuReady = '0';
+      }
+      dispose();
+    }
+  }
   function styleChild(doc, entry) {
     const css = document.createElement('style');
     css.textContent = `html,body{margin:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#101820!important}body{display:block!important}main{margin:0!important;padding:0!important;width:100%!important;max-width:none!important;height:100%!important}main>h1,main>p,.eyebrow,.controls,main>div:not(.stage):not(.scroll),#status{display:none!important}.scroll{width:100%!important;height:100%!important;overflow:hidden!important}.stage{width:100%!important;height:100%!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important}canvas{display:block!important;width:100%!important;height:100%!important;max-width:none!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important}#error:not(:empty){display:block!important;position:fixed!important;z-index:10!important;inset:auto 8px 8px!important;color:#ffd3ca!important;background:#321d23!important;padding:8px!important}`;
@@ -624,7 +721,7 @@
     document.getElementById('selected-source').textContent = `WebGPU: ${entry.source}`;
     const sourceLink = document.getElementById('selected-link');
     sourceLink.href = address(entry.page || `webgpu-e-gallery.html#${entry.id}`);
-    sourceLink.hidden = entry.kind === 'corridor' || entry.kind === 'integrated';
+    sourceLink.hidden = entry.kind === 'corridor' || entry.kind === 'integrated' || entry.kind === 'grenade-impact';
     document.querySelectorAll('.item').forEach(button => button.setAttribute('aria-current', String(button.dataset.id === entry.id)));
     history.replaceState(null, '', `${location.pathname}${location.search}#${entry.id}`);
     if (entry.kind === 'corridor') {
@@ -632,9 +729,14 @@
       startCorridor(entry, corridorRun);
       return;
     }
-      if (entry.kind === 'bottle-shards') {
+    if (entry.kind === 'bottle-shards') {
       notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
       startBottleShards(entry, corridorRun);
+      return;
+    }
+    if (entry.kind === 'grenade-impact') {
+      notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
+      startGrenadeImpact(entry, corridorRun);
       return;
     }
     if (entry.kind === 'integrated') {
