@@ -3706,6 +3706,9 @@ function magicCharacterActionKind(type, variant = "") {
   // Storm victim and barrier-hit effects must not repeatedly overwrite the
   // caster's activation motion. Only the root gravity-storm event owns it.
   if (type.startsWith("gravity-storm-")) return null;
+  // Storage lock belongs to the affected actor, not the EMP caster.
+  // Its body E remains in the EMP WebGPU pass without a cast motion.
+  if (type === "emp-storage-lock") return null;
   if (type.startsWith("emp-")) return "cast";
   if (/fighter-(iaido|slash)|action-fighter/.test(type)) return "slash";
   if (/gunner-(rpg|missile|nuclear)|railgun|particle|sunbeam/.test(type)) return "shoot";
@@ -18650,21 +18653,6 @@ function drawPreparationWorldSummons(data) {
   }
 }
 
-function drawPreparationArrivalPlayer(player, data) {
-  const entry = !player?.isBot ? state.preparationRosterEntries.get(String(player?.id || "")) : null;
-  const arrival = entry?.arrival;
-  if (!arrival?.active) { drawHuman(player, data); return; }
-  // Reuse the v726 descent, impact and settle around the live field actor.
-  // This keeps the old map layout and avoids drawing a second roster sprite.
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  ctx.translate(0, -arrival.descent);
-  ctx.rotate(arrival.lean);
-  ctx.scale(arrival.stanceX, arrival.stanceY);
-  ctx.translate(-player.x, -player.y);
-  drawHuman(player, data);
-  ctx.restore();
-}
 // PREPARATION_ROSTER_V726_END
 
 function worldZoomFor(data = state.data) {
@@ -25933,19 +25921,6 @@ function drawRainbowSpark(x, y, radius, hue, rotation) {
   ctx.restore();
 }
 
-function drawPlayers(data) {
-  syncActorVisualClocks(data);
-  const ordered = [...data.players]
-    .map((player) => renderedPlayer(player))
-    .filter((player) => worldPointVisible(player.x, player.y, 240))
-    .sort((a, b) => Number(a.alive) - Number(b.alive));
-  ordered.forEach((player) => {
-    if (player.inVent || (player.invisible && player.id !== data.selfId)) return;
-    if (preparationRosterActive(data)) drawPreparationArrivalPlayer(player, data);
-    else drawHuman(player, data);
-  });
-}
-
 function killCameraWorldWebGPUScene(data) {
   return { record: activeKillCameraRecord(data) };
 }
@@ -26663,106 +26638,6 @@ function scaledAuthoredCharacterEntry(entry) {
     scale: entry.layout.scale * CHARACTER_BODY_VISUAL_SCALE } };
 }
 
-function drawHuman(player, data) {
-  const ghost = !player.alive && !player.ejected;
-  const self = player.id === data.selfId;
-  const { ascensionProgress, ascensionRise } = characterAscensionPresentation(player, data);
-  ctx.save();
-  ctx.translate(player.x, player.y - ascensionRise);
-  const characterAction = currentCharacterAction(player);
-  if (ghost) ctx.globalAlpha = 0.45;
-  if (player.ejected) ctx.globalAlpha = 0.22;
-  if (self && data.self.floraInvisibleActive && player.alive && !player.ejected) ctx.globalAlpha *= 0.32;
-
-  if (self) {
-    if (data.self.dodgeActiveUntil > estimatedServerNow(data)) {
-      ctx.strokeStyle = "#a7f3d0";
-      ctx.lineWidth = 4;
-      ctx.setLineDash([5, 7]);
-      ctx.lineDashOffset = actorVisualTime(player, data) / 14;
-      ctx.beginPath();
-      ctx.arc(0, 0, 35, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-
-  drawDurableBustState(player, data, true);
-  drawPersistentIdeaState(player, data, ascensionProgress);
-  drawHackerRootState(player);
-  drawGravityLevitationField(player, data);
-  ctx.save();
-  applyCharacterBodyVisualScale();
-  const drewPlayerSprite = drawPlayerSprite(player, data, ghost, characterAction);
-  ctx.restore();
-  if (drewPlayerSprite) {
-    drawDurableBustState(player, data, false);
-    drawLuminousFeathers(player);
-    drawPersistentStatusAteLayers(player, data);
-    ctx.restore();
-    return;
-  }
-
-  ctx.save();
-  applyCharacterBodyVisualScale();
-  const skin = state.textures.skin;
-  ctx.fillStyle = player.color;
-  ctx.strokeStyle = "#0f172a";
-  ctx.lineWidth = 2;
-  roundRect(-15, -2, 30, 29, 9, true, true);
-
-  ctx.fillStyle = darken(player.color, 0.65);
-  roundRect(-16, 19, 12, 18, 5, true, false);
-  roundRect(4, 19, 12, 18, 5, true, false);
-
-  ctx.fillStyle = skin;
-  ctx.strokeStyle = "#0f172a";
-  ctx.beginPath();
-  ctx.arc(0, -19, 17, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = "#2f1d15";
-  ctx.beginPath();
-  ctx.arc(0, -25, 17, Math.PI, Math.PI * 2);
-  ctx.fill();
-  ctx.fillRect(-14, -25, 28, 7);
-
-  ctx.fillStyle = "#111827";
-  ctx.beginPath();
-  ctx.arc(-6, -18, 2.4, 0, Math.PI * 2);
-  ctx.arc(6, -18, 2.4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#7f1d1d";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(0, -12, 4, 0.2, Math.PI - 0.2);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.restore();
-  ctx.font = "800 10px Segoe UI, sans-serif";
-  const identityLabel = playerIdentityLabel(player).slice(0, 14);
-  const nameplateWidth = Math.min(92, Math.max(44, ctx.measureText(identityLabel).width + 12));
-  ctx.fillStyle = "#e2e8f0";
-  ctx.globalAlpha *= 0.95;
-  const fallbackNameplateY = characterBodyVisualY(-39);
-  roundRect(-nameplateWidth / 2, fallbackNameplateY, nameplateWidth, 13, 6, true, false);
-  ctx.globalAlpha = ghost ? 0.45 : player.ejected ? 0.22 : 1;
-  ctx.fillStyle = "#0f172a";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(identityLabel, 0, fallbackNameplateY + 7);
-  // Sprite-loading fallback uses the compact -39 nameplate geometry.
-  registerPreparationPlayerCanvasTargets(player, fallbackNameplateY, nameplateWidth);
-  drawDurableBustState(player, data, false);
-  drawLuminousFeathers(player);
-  drawPersistentStatusAteLayers(player, data);
-  ctx.restore();
-
-}
-
-
 function drawPreparationBarrierComplementaryVfx(width, height, time, phase = 0, impact = 0) {
   if (!(width > 0 && height > 0)) return;
   const sampledTime = Math.floor(time * 60) / 60;
@@ -27178,18 +27053,6 @@ function drawAuthoredCharacterMotion(player,data,ghost){
   if(!moving&&movementMode==="dash"){const idleEntry=authoredModeEntry(baseEntry,"walk"),idleImage=authoredModeImage(state.textures.authoredCharacterMotion?.[identity]?.[direction],"walk");if(!idleEntry||!idleImage||!idleImage.complete||!(idleImage.naturalWidth>0)||!authoredEntryReady(idleEntry,idleImage))return false;entry=idleEntry;image=idleImage;}
   const frame=authoredFrameFor(entry,gaitFrame,moving,movementMode,entry.phaseMapping),body=entry.bodyMotion==="authored"?{lift:0,sway:0,lean:0}:walkBodyMotion(movementMode,direction,gaitFrame,moving),layout=entry.layout||{},sourceOrigin=layout.sourceOrigin||{},ground=layout.ground||{},scale=Number(layout.scale);
   ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality=IMAGE_SMOOTHING_QUALITY;ctx.save();ctx.translate(ground.x,ground.y);ctx.rotate(body.lean);ctx.translate(body.sway,-body.lift);ctx.drawImage(image,frame.x,frame.y,frame.width,frame.height,-sourceOrigin.x*scale,-sourceOrigin.y*scale,frame.width*scale,frame.height*scale);ctx.restore();drawNameplate(player,ghost,-78);ctx.restore();return true;
-}
-
-function drawPlayerSprite(player, data, ghost, characterAction = null) {
-  if (drawBodyDamageReactionSprite(player, data, ghost, characterAction)) return true;
-  // Ghosts retain their exact skin/Bot texture owners, but stale action
-  // presentation cannot override their stationary spectral pose.
-  if (!ghost && characterAction && drawPhysicalActionSprite(player, data, ghost, characterAction)) return true;
-  if (drawAuthoredCharacterMotion(player, data, ghost)) return true;
-  if (player.isBot && drawBotWalkSprite(player, data, ghost)) return true;
-  if (!player.isBot && drawPetSprite(player, data, ghost)) return true;
-  if (!player.isBot && drawOperatorWalkSprite(player, data, ghost)) return true;
-  return drawOperatorSprite(player, data, ghost);
 }
 
 // Dormant until the ordered WebGPU world pass owns the surrounding player TE.

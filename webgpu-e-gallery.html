@@ -21,12 +21,12 @@ main{max-width:1260px;margin:auto;padding:clamp(16px,3vw,34px)}header{display:fl
 </style>
 </head>
 <body><main>
-<header><div><div class="eyebrow">Defenders vs Attackers · WebGPU</div><h1>E ギャラリー</h1><p>ヒールを確認できます。新しく作り直したEは完成後に追加します。</p></div><div class="counter">ヒール 1 件</div></header>
+<header><div><div class="eyebrow">Defenders vs Attackers · WebGPU</div><h1>E ギャラリー</h1><p>受理済みのWebGPU Eを自動で切り替えて再生します。一覧から選ぶこともできます。</p></div><div class="counter" id="entry-counter" aria-live="polite">0 件</div></header>
 <div class="layout"><section class="viewer" aria-label="選択したEのプレビュー"><div class="viewer-head"><div><h2 id="selected-title"></h2><p id="selected-description"></p></div><span class="badge" id="selected-status"></span></div>
 <div class="stage" id="stage"><div class="notice" id="notice" role="status">WebGPU を確認しています…</div></div>
 <div class="viewer-foot"><p id="selected-source"></p><a id="selected-link" target="_blank" rel="noopener">元のプレビューを見る ↗</a></div></section>
 <aside class="catalog"><h2>表示するE</h2><div class="catalog-list" id="catalog"></div></aside></div>
 <p class="intro">ヒール以外の旧Eはこの一覧から取り下げました。作り直しと受入を終えたEを順次追加します。ギャラリーの表示だけでは本編イベント・画質・SFXの受入にはなりません。</p>
 </main>
-<script src="webgpu-e-gallery.js?v=heal-only-v1"></script>
+<script src="webgpu-e-gallery.js?v=multi-entry-v1"></script>
 </body></html>

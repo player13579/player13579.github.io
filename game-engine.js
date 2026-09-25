@@ -83,7 +83,7 @@
     };
 
     document.documentElement.dataset.fieldEngine = "raf-smooth";
-    document.documentElement.dataset.fieldRenderer = "canvas2d";
+    document.documentElement.dataset.fieldRenderer = "none";
     document.addEventListener("visibilitychange", sync);
     sync();
 
