@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-pure-slices-v73";
-const CACHE_NAME = "dva-static-webgpu-pure-slices-v73";
+const RUNTIME_RELEASE = "webgpu-pure-slices-v74d";
+const CACHE_NAME = "dva-static-webgpu-pure-slices-v74d";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -254,7 +254,6 @@ const STATIC_ASSETS = [
   "/assets/generated/fire-material-transport-v830.png",
   "/assets/generated/aroma-scent-transport-atlas-v829.png",
   "/assets/generated/barrier-closed-shell-v827.png",
-  "/assets/generated/antidote-purification-material-v824.png",
   "/assets/generated/philia-front-fire-v824.png",
   "/assets/generated/philia-left-fire-v824.png",
   "/assets/generated/philia-right-fire-v824.png",
@@ -387,6 +386,8 @@ const STATIC_ASSETS = [
   "/webgpu-medical-footbath-use-e.js",
   "/webgpu-medical-upload-console-e.js",
   "/webgpu-medical-fixture-e.js",
+  "/webgpu-reactor-room-objects-e.js",
+  "/webgpu-power-room-objects-e.js",
   "/webgpu-effect-shapes.js",
   "/webgpu-stations.js",
   "/webgpu-map-object-labels.js",
@@ -673,6 +674,7 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-male-bot-shoot-v465.png",
   "/assets/generated/physical-motion-male-bot-slash-v465.png",
   "/assets/generated/physical-motion-male-bot-throw-v465.png",
+  "/assets/generated/physical-motion-male-bot-throw-v465-webgpu-alpha-v1.png",
   "/assets/generated/weapon-motion-white-hood-handgun-fire-v483.png",
   "/assets/generated/weapon-motion-white-hood-handgun-switch-v483.png",
   "/assets/generated/weapon-motion-white-hood-handgun-reload-v483.png",
@@ -853,6 +855,8 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-medical-footbath-use-e.js",
   "/webgpu-medical-upload-console-e.js",
   "/webgpu-medical-fixture-e.js",
+  "/webgpu-reactor-room-objects-e.js",
+  "/webgpu-power-room-objects-e.js",
   "/webgpu-effect-shapes.js",
   "/webgpu-stations.js",
   "/webgpu-map-object-labels.js",

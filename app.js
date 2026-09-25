@@ -20203,6 +20203,51 @@ function bodyBenefitExtraOutsideViewport(effect, player, camera, zoom, viewport,
     centerY + paddingY < 0 || centerY - paddingY > viewport.pixelHeight;
 }
 
+function webgpuItemThrowCommands(effect, now, camera, zoom, viewport, reducedMotion) {
+  const variant = String(effect?.variant || '');
+  const flight = variant.startsWith('flight:');
+  const impact = variant.startsWith('impact:');
+  const itemId = commonActionItemId(variant);
+  if ((!flight && !impact) || !COMMON_ACTION_SIMPLE_ITEM_IDS.has(itemId) ||
+      ![effect.x, effect.y, effect.radius, effect.startedAt,
+        effect.duration].every(Number.isFinite) || effect.duration <= 0 ||
+      (flight && effect.radius !== 90) ||
+      (impact && (effect.radius < 110 || effect.radius > 250 ||
+        !Number.isInteger((effect.radius - 110) / 14))) ||
+      (flight && (!String(effect.playerId || '') ||
+        ![effect.targetX, effect.targetY].every(Number.isFinite))) ||
+      (impact && String(effect.playerId || '') !== '')) return null;
+  const elapsed = now - effect.startedAt;
+  if (elapsed < 0 || elapsed >= effect.duration) return [];
+  const t = clamp(elapsed / effect.duration, 0, 1);
+  const x = flight ? effect.x + (effect.targetX - effect.x) * t : effect.x;
+  const y = flight ? effect.y + (effect.targetY - effect.y) * t -
+    (reducedMotion ? 8 : 32) * Math.sin(Math.PI * t) : effect.y;
+  const sx = (x - camera.x) * zoom, sy = (y - camera.y) * zoom;
+  const r = (flight ? 13 : 46) * zoom;
+  if (sx + r < 0 || sx - r > viewport.width ||
+      sy + r < 0 || sy - r > viewport.height) return [];
+  const bright = itemId.includes('grenade') ? [1, .73, .35] :
+    itemId === 'ice' || itemId === 'seawater' || itemId === 'mineral-water'
+      ? [.49, .87, 1] : [.95, .9, .65];
+  if (flight) return [
+    { kind: 'glow', x: sx, y: sy, radius: r, color: [...bright, .34] },
+    { kind: 'circle', x: sx, y: sy, radius: 4.5 * zoom,
+      color: [...bright, .95] },
+    { kind: 'arc', x: sx, y: sy, radius: 8 * zoom,
+      lineWidth: 1.7 * zoom, start: .35, sweep: Math.PI * 1.1,
+      color: [...bright, .65] }
+  ];
+  const fade = (1 - t) * (1 - t);
+  return [
+    { kind: 'arc', x: sx, y: sy, radius: (8 + 30 * t) * zoom,
+      lineWidth: (3 - 1.5 * t) * zoom, start: 0,
+      sweep: Math.PI * 2, color: [...bright, .68 * fade] },
+    { kind: 'glow', x: sx, y: sy, radius: (14 + 25 * t) * zoom,
+      color: [...bright, .22 * fade] }
+  ];
+}
+
 function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera, zoom,
   shapeProviders = {}, markerSelection = null) {
   if (!data || viewport?.kind !== "main" || !Array.isArray(viewport.worldToLogical) ||
@@ -20886,6 +20931,18 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         input: { effect, event, planned } });
       continue;
     }
+    if (type === 'action-item-throw') {
+      const commands = webgpuItemThrowCommands(effect, now, camera, zoom,
+        viewport, reducedMotion);
+      if (!commands) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'item-throw-source-invalid' });
+      } else if (!commands.length) {
+        omitted.push({ effectId: effect.id,
+          reason: 'item-throw-outside-lifetime-or-viewport' });
+      } else events.push({ type: 'shapes', effectId: effect.id, commands });
+      continue;
+    }
     const corridorObjectUseApi = window.DvaWebGPUCorridorObjectUseE;
     const roomObjectUseApi = window.DvaWebGPURoomObjectUseE;
     const objectUseApi = corridorObjectUseApi?.OBJECTS?.[effect.objectId]
@@ -20939,6 +20996,33 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         continue;
       }
       events.push({ type: objectUseType, effectId: String(effect.id),
+        input: { effect, planned } });
+      continue;
+    }
+    if (type === 'object-powerCabinet') {
+      const reactor = window.DvaWebGPUReactorRoomObjectsE;
+      const power = window.DvaWebGPUPowerRoomObjectsE;
+      const api = reactor?.OBJECTS?.[effect.objectId] ? reactor :
+        power?.OBJECTS?.[effect.objectId] ? power : null;
+      const passType = api === reactor ? 'reactorRoomObjectsE' : 'powerRoomObjectsE';
+      const elapsed = now - Number(effect.startedAt);
+      if (Number.isFinite(elapsed) && Number.isFinite(effect.duration) &&
+          effect.duration > 0 && (elapsed < 0 || elapsed >= effect.duration)) {
+        omitted.push({ effectId: effect.id, reason: 'power-cabinet-outside-lifetime' });
+        continue;
+      }
+      let planned = null;
+      try { planned = api?.plan?.({ map: data.map, objectId: effect.objectId,
+        now, serverNow: estimatedServerNow(data), phase: data.phase,
+        camera, zoom, viewport, reducedMotion, effects: [effect] }); }
+      catch (_) { /* Visible malformed source remains a readiness blocker. */ }
+      if (!planned || planned.eventId !== String(effect.id) || planned.state !== 2 ||
+          planned.objectId !== effect.objectId || planned.effectKind !== effect.effectKind) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'power-cabinet-source-or-pass-invalid' });
+        continue;
+      }
+      events.push({ type: passType, effectId: String(effect.id),
         input: { effect, planned } });
       continue;
     }
@@ -23733,77 +23817,6 @@ function drawGravityStormImpactEffect(effect, progress) {
   return true;
 }
 
-const ANTIDOTE_BAKED_V824 = {"assetPath":"assets/generated/antidote-purification-material-v824.png","assetSha256":"3FCC3E0A4FA96CB9076130ED5D67235E98E45C0D34D7E276C36C99B950E70D1E","textureKey":"antidotePurificationV824","width":1024,"height":512,"material":{"width":264,"height":364},"rects":{"full":{"x":2,"y":2,"width":264,"height":364},"purple":{"x":270,"y":2,"width":66,"height":364},"cleanse":{"x":340,"y":2,"width":198,"height":364}}};
-
-function antidotePurificationMaterial(atlas, progress, ground, reduced) {
-  const sprite = ANTIDOTE_BAKED_V824.material;
-  const cache = state.textures.antidotePurificationMaterials || (state.textures.antidotePurificationMaterials = new WeakMap());
-  let material = cache.get(atlas);
-  if (!material) {
-    const source = document.createElement("canvas"), mask = document.createElement("canvas");
-    source.width = mask.width = sprite.width; source.height = mask.height = sprite.height;
-    material = { source, mask }; cache.set(atlas, material);
-  }
-  const local = material.source.getContext("2d"), mask = material.mask.getContext("2d");
-  local.clearRect(0, 0, sprite.width, sprite.height);
-  local.globalCompositeOperation = "source-over";
-  const r = ANTIDOTE_BAKED_V824.rects.full;
-  local.drawImage(atlas, r.x, r.y, r.width, r.height, 0, 0, sprite.width, sprite.height);
-  mask.clearRect(0, 0, sprite.width, sprite.height);
-  const ease = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
-  const front = ease((progress - (ground ? .04 : .08)) / (ground ? .63 : .58));
-  // Exact existing alpha-crop coordinates: purple residue at the left, cyan
-  // cleansing faces to its right. Only transmission changes; authored RGB
-  // and contours are never repainted. Continuous gradients avoid crop steps.
-  for (const residue of [true, false]) {
-    const gradient = mask.createLinearGradient(0, 0, 0, sprite.height);
-    for (let i = 0; i <= 24; i += 1) {
-      const row = i / 24, distance = ground ? Math.abs(row - .5) * 2 : row;
-      let strength;
-      if (reduced) strength = residue ? .16 : .68;
-      else if (residue) {
-        const contact = ground ? ease((front - distance + .13) / .24) : ease((progress - (.20 + row * .33)) / .25);
-        strength = .50 * (1 - contact);
-      } else {
-        const contact = Math.exp(-Math.pow((distance - front) / .14, 2));
-        const wake = ease((front - distance + .08) / .18) * (1 - ease((progress - .57) / .28));
-        strength = .72 * contact + .20 * wake;
-      }
-      gradient.addColorStop(row, `rgba(255,255,255,${strength})`);
-    }
-    mask.fillStyle = gradient;
-    mask.fillRect(residue ? 0 : sprite.width * .25, 0, sprite.width * (residue ? .25 : .75), sprite.height);
-  }
-  local.globalCompositeOperation = "destination-in"; local.drawImage(material.mask, 0, 0);
-  local.globalCompositeOperation = "source-over";
-  return material.source;
-}
-
-function drawAntidotePurificationEffect(effect, progress) {
-  const type = String(effect?.type || "");
-  if (type !== "status-poison-cleared" && type !== "hazard-antidote") return false;
-  if (!Number.isFinite(Number(effect.x)) || !Number.isFinite(Number(effect.y))) return false;
-  const p = clamp(Number(progress) || 0, 0, 1);
-  if (p <= 0 || p >= 1 || ctx.globalAlpha <= 0) return true;
-  const atlas = state.textures.antidotePurificationV824;
-  if (!atlas?.complete || atlas.naturalWidth !== ANTIDOTE_BAKED_V824.width || atlas.naturalHeight !== ANTIDOTE_BAKED_V824.height) return false;
-  const sprite = ANTIDOTE_BAKED_V824.material;
-  const radius = Math.max(70, Number(effect.radius) || 105), size = radius * 1.5;
-  const ease = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
-  const onset = ease(p / .14), tail = 1 - ease((p - .70) / .30);
-  const ground = type === "hazard-antidote", reduced = prefersReducedMotion();
-  const material = antidotePurificationMaterial(atlas, p, ground, reduced);
-  ctx.save(); ctx.translate(effect.x, effect.y); ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha *= onset * tail;
-  // Ground projection is fixed: contact reveals new material outward while
-  // residue dissolves behind two fronts, without enlarging the full bitmap.
-  if (ground) { ctx.scale(1, .42); ctx.rotate(Math.PI / 2); }
-  const scale = size / Math.max(sprite.width, sprite.height);
-  ctx.drawImage(material, -sprite.width * scale / 2, -sprite.height * scale / 2,
-    sprite.width * scale, sprite.height * scale);
-  ctx.restore(); return true;
-}
-
 function drawFireHazardTransport(effect, progress, options = {}) {
   const persistent=Boolean(options.persistent),p=Number(progress);
   if (ctx.globalAlpha<=0 || !Number.isFinite(Number(effect?.x)) || !Number.isFinite(Number(effect?.y))) return true;
@@ -23888,7 +23901,6 @@ function drawStatusAndHazardEffect(effect, progress) {
   if (effect.type === "status-poison" || effect.type === "hazard-poison") return drawPoisonHazardTransport(effect, progress);
   if (effect.type === "status-burn-cleared" || effect.type === "hazard-water") return drawWaterHazardTransport(effect, progress);
   if (effect.type === "status-burning" || effect.type === "hazard-fire") return drawFireHazardTransport(effect, progress);
-  if (effect.type === "status-poison-cleared" || effect.type === "hazard-antidote") return drawAntidotePurificationEffect(effect, progress);
   const type = String(effect.type || "");
   const family = ["status-burning", "hazard-fire"].includes(type) ? "fire"
     : ["status-poison", "hazard-poison"].includes(type) ? "poison"
@@ -27235,6 +27247,97 @@ function buildWebGPUFighterSlashActionCommand(player, data, view, action) {
   return Object.freeze({ ...command, sprite, sourceEffectId: id,
     poseKey: `slash-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
 }
+function buildWebGPUThrowActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const identity = authoredCharacterIdentity(player, data);
+  const profile = AUTHORED_THROW_PROFILES[identity];
+  const preparing = action?.variant === 'prepare';
+  if (player.isBot) return buildWebGPUBotThrowActionCommand(player, data, view, action);
+  if (!api?.createCommand || !profile || action?.kind !== 'throw' ||
+      (!preparing && action.motionId !== 'action-item-throw') ||
+      (preparing && (player.id !== data.selfId || !state.throwTargeting.active))) return null;
+  const owner = preparing ? state.throwTargeting : state.characterActions?.get(player.id);
+  const token = preparing
+    ? ['prepare', owner.startedAt, owner.itemId, owner.chargeId].join('|')
+    : [action.startedAt, action.sourceEffectId, action.motionId, action.kind].join('|');
+  if (!owner || (!preparing && [owner.startedAt, owner.sourceEffectId,
+      owner.motionId, owner.kind].join('|') !== token)) return null;
+  let latch = AUTHORED_THROW_LATCHES.get(owner);
+  if (!latch) {
+    const sequences = Object.fromEntries(AUTHORED_THROW_DIRECTIONS.map(dir =>
+      [dir, AUTHORED_THROW_KEYS.map(key => {
+        const pose = profile.directions[dir]?.[key];
+        const image = state.textures.authoredThrowMotions?.[identity]?.[dir]?.[key];
+        return authoredThrowPoseReady(pose, image) ? { pose, image } : null;
+      })]));
+    latch = { token, identity, sequences: Object.values(sequences).every(sequence =>
+      sequence.every(Boolean)) ? sequences : null };
+    AUTHORED_THROW_LATCHES.set(owner, latch);
+  }
+  if (latch.token !== token || latch.identity !== identity || !latch.sequences) return null;
+  const direction = authoredDirection(player, motionFor(player, data));
+  const key = authoredThrowFrame(profile, action, action.progress);
+  const selected = latch.sequences[direction]?.[AUTHORED_THROW_KEYS.indexOf(key)];
+  if (!selected) return null;
+  const { pose, image } = selected;
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const alpha = player.id === data.selfId && data.self?.floraInvisibleActive ? .32 : 1;
+  const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise },
+    identity, direction, mode: 'action-item-throw',
+    entry: { assetPath: pose.assetPath,
+      layout: { sourceOrigin: { x: pose.origin.x, y: pose.origin.y },
+        ground: pose.ground, scale: pose.scale } },
+    image, frame: pose.sourceRect,
+    body: { lift: 0, sway: 0, lean: 0 }, camera: view.camera,
+    zoom: view.zoom, alpha,
+    arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  return command && Object.freeze({ ...command,
+    name: playerIdentityLabel(player).slice(0, 14) });
+}
+
+const WEBGPU_BOT_THROW_SHEET = Object.freeze({ width: 1774, height: 887,
+  frames: Object.freeze([[105,105,405,669],[622,109,542,663],[1207,135,523,639]]) });
+function buildWebGPUBotThrowActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const owner = state.characterActions?.get(player?.id);
+  const image = state.textures?.botThrowWebGPUMotion;
+  const id = String(action?.sourceEffectId || '');
+  if (!api?.createCommand || !player?.isBot || !player.alive || player.ejected ||
+      player.inVent || player.invisible || action?.kind !== 'throw' ||
+      action.motionId !== 'action-item-throw' || !id ||
+      !String(action.variant || '').startsWith('flight:') ||
+      !COMMON_ACTION_SIMPLE_ITEM_IDS.has(commonActionItemId(action.variant)) ||
+      !Number.isFinite(action.progress) || action.progress < 0 ||
+      action.progress >= 1 || !owner || owner.sourceEffectId !== id ||
+      owner.motionId !== action.motionId || owner.kind !== action.kind ||
+      owner.startedAt !== action.startedAt ||
+      !image?.complete || image.naturalWidth !== WEBGPU_BOT_THROW_SHEET.width ||
+      image.naturalHeight !== WEBGPU_BOT_THROW_SHEET.height) return null;
+  const phase = physicalActionFramePosition('throw', action.progress, action.motionId);
+  const frameIndex = Math.min(2, Math.max(0, Math.round(phase)));
+  const [x, y, width, height] = WEBGPU_BOT_THROW_SHEET.frames[frameIndex];
+  const scale = Math.min(98 / width, 98 / height) * CHARACTER_BODY_VISUAL_SCALE;
+  const direction = authoredDirection(player, motionFor(player, data));
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise },
+    identity: 'male-bot', direction, mode: 'action-item-throw',
+    entry: { assetPath: 'assets/generated/physical-motion-male-bot-throw-v465-webgpu-alpha-v1.png',
+      layout: { sourceOrigin: { x: width / 2, y: height },
+        ground: { x: 0, y: CHARACTER_BODY_FOOT_ANCHOR_Y }, scale } },
+    image, frame: { x, y, width, height },
+    body: { lift: 0, sway: 0, lean: 0 }, camera: view.camera,
+    zoom: view.zoom, alpha: 1,
+    arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  if (!command) return null;
+  const sprite = direction === 'left' ? Object.freeze({ ...command.sprite,
+    transform: Object.freeze(command.sprite.transform.map((value, index) =>
+      index < 2 ? -value : value)) }) : command.sprite;
+  return Object.freeze({ ...command, sprite, sourceEffectId: id,
+    poseKey: `throw-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
+}
+
 function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const api = window.DvaWebGPUPlayerSprite;
   if (!api?.createCommand || !sourcePlayer || !data || !view?.camera ||
@@ -27242,6 +27345,8 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const player = renderedPlayer(sourcePlayer);
   const ghost = !player.alive && !player.ejected;
   const action = currentCharacterAction(player);
+  if (action?.kind === 'throw')
+    return buildWebGPUThrowActionCommand(player, data, view, action);
   if (action?.kind === 'focus' && action.motionId === 'action-mana')
     return buildWebGPUManaFocusActionCommand(player, data, view, action);
   if (action?.kind === 'slash' && action.motionId === 'fighter-slash')
@@ -27398,6 +27503,9 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   const entries = state.preparationRosterEntries;
   const spriteReady = player => {
     const action = currentCharacterAction(player);
+    if (action?.kind === 'throw')
+      return Boolean(buildWebGPUThrowActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
     if (action?.kind === 'focus' && action.motionId === 'action-mana')
       return Boolean(buildWebGPUManaFocusActionCommand(player, data,
         { camera, zoom, order: 0, arrival: null }, action));
@@ -31339,8 +31447,6 @@ const version = "overheal-body-v913";
   const itemStaminaCell = new Image();
   const creditCrates = new Image();
   const manaPotion = new Image();
-  const antidotePurificationV824 = new Image();
-  defer(antidotePurificationV824, "assets/generated/antidote-purification-material-v824.png");
   const itemAntidote = new Image();
   const itemHeal = new Image();
   const alchemyRailgunFieldEffect = new Image();
@@ -31394,6 +31500,7 @@ const version = "overheal-body-v913";
   // Exact offline alpha extraction of the authored slash sheets for GPU upload.
   const fighterSlashWebGPUMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map(skinId => [skinId, new Image()]));
+  const botThrowWebGPUMotion = new Image();
   const manaFocusWebGPUMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map(skinId => [skinId, new Image()]));
 
@@ -31604,6 +31711,8 @@ const version = "overheal-body-v913";
     const version = skinId === 'male-bot' ? 'v465' : 'v483';
     defer(motion, `assets/generated/physical-motion-${skinId}-slash-${version}-webgpu-alpha-v1.png`);
   }
+  defer(botThrowWebGPUMotion,
+    'assets/generated/physical-motion-male-bot-throw-v465-webgpu-alpha-v1.png');
   for (const [skinId, motion] of Object.entries(manaFocusWebGPUMotions)) {
     const version = skinId === 'male-bot' ? 'v465' : 'v483';
     defer(motion, `assets/generated/physical-motion-${skinId}-focus-${version}-webgpu-alpha-v1.png`);
@@ -31779,7 +31888,6 @@ const version = "overheal-body-v913";
     itemStaminaCell,
     creditCrates,
     manaPotion,
-    antidotePurificationV824,
     itemAntidote,
     itemHeal,
     itemTextures,
@@ -31808,6 +31916,7 @@ const version = "overheal-body-v913";
     manaFocusWebGPUMotions,
     authoredNinjutsuFocusMotions,
     authoredThrowMotions,
+    botThrowWebGPUMotion,
     authoredFireMotions,
     authoredDodgeMotions,
     authoredHealMotions,

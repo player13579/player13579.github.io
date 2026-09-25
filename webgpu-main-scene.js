@@ -437,6 +437,17 @@
               planned.progress >= 1 || !Number.isFinite(planned?.source?.x) ||
               !Number.isFinite(planned?.source?.y))
             throw new TypeError(`Magic event ${index} needs one owned ${event.type}`);
+        } else if (event?.type === 'reactorRoomObjectsE' ||
+            event?.type === 'powerRoomObjectsE') {
+          const effect = event.input?.effect, planned = event.input?.planned;
+          if (typeof passes[event.type]?.record !== 'function' ||
+              effect?.type !== 'object-powerCabinet' ||
+              String(effect?.id ?? '') !== id || planned?.eventId !== id ||
+              planned?.objectId !== effect.objectId ||
+              planned?.effectKind !== effect.effectKind || planned?.state !== 2 ||
+              !Number.isFinite(planned?.progress) || planned.progress < 0 ||
+              planned.progress >= 1)
+            throw new TypeError(`Magic event ${index} needs one owned power cabinet plan`);
         } else if (event?.type === 'medicalObjectE') {
           const effect = event.input?.effect, planned = event.input?.planned;
           if (typeof passes.medicalObjectE?.record !== 'function' ||
@@ -839,6 +850,14 @@
             if (outcome?.eventId !== event.effectId ||
                 outcome?.objectId !== event.input.effect.objectId ||
                 outcome.drawn !== true)
+              throw new Error(`${event.type} ${event.effectId} was not drawn`);
+          } else if (event.type === 'reactorRoomObjectsE' ||
+              event.type === 'powerRoomObjectsE') {
+            const outcome = need(event.type, 'record').record({ frame, target,
+              viewport, planned: event.input.planned });
+            if (event.type === 'reactorRoomObjectsE' ? outcome !== true :
+                outcome?.drawn !== true || outcome?.eventId !== event.effectId ||
+                outcome?.objectId !== event.input.effect.objectId)
               throw new Error(`${event.type} ${event.effectId} was not drawn`);
           } else if (event.type === 'medicalObjectE') {
             const outcome = need('medicalObjectE', 'record').record({ frame, target,

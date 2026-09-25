@@ -46,7 +46,8 @@
     { id: 'fire-activation', title: 'ファイア発動', detail: '現行 fire 魔法イベントを使う単独WebGPUフィクスチャ。実ゲームの表示品質とSFX受入は未完了です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-fire-activation.js', kind: 'fire-activation' },
     { id: 'medical-handwash-sink', fixtureId: 'medical-handwash-sink-1', title: '医療室 手洗いシンク環境E', detail: '現行の医療室近接プレイヤー経路と手洗いシンクの周期Eを再生。これは使用イベントではなく、実ゲーム画質とSFXの受入も未完了です。', status: '近接環境E・本編画質/SFX未受入', source: 'webgpu-medical-fixture-e.js', kind: 'medical-fixture' },
     { id: 'hacker-root-activation', title: 'ハッカー ROOT 発動', detail: '現行 all-operators 発動イベントと有効なROOT状態の可視アクターを使う単独WebGPUフィクスチャ。継続状態や実ゲーム画質/SFXは未受入です。', status: '発動フィクスチャ・本編画質/SFX未受入', source: 'webgpu-hacker-root-e.js', kind: 'hacker-root' },
-    { id: 'rigid-item-impact', title: '剛体アイテム着弾', detail: 'サーバー現行の rigid-item-impact 接触点・接触面・ダメージ/幸運・所有者/対象イベント形を再生。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-rigid-item-impact-e.js', kind: 'rigid-item-impact' }
+    { id: 'rigid-item-impact', title: '剛体アイテム着弾', detail: 'サーバー現行の rigid-item-impact 接触点・接触面・ダメージ/幸運・所有者/対象イベント形を再生。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-rigid-item-impact-e.js', kind: 'rigid-item-impact' },
+    { id: 'special-ammo-penetrate-shot', title: '特殊弾 貫通ショット', detail: '現行の action-special-ammo-shot の penetrate:assault を、射手から弾道終点まで620 msで再生。装填・着弾、Weak/Shock、実ゲーム画質とSFXは未受入です。', status: '貫通ショットのみ・本編画質/SFX未受入', source: 'webgpu-special-ammo-effect.js', kind: 'integrated' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const sourceRevision = new URL(document.currentScript?.src || location.href).searchParams.get('v') || 'gallery-current';
@@ -157,6 +158,7 @@
       const isMedicalFixture = entry.kind === 'medical-fixture';
       const isHackerRoot = entry.kind === 'hacker-root';
       const isRigidItemImpact = entry.kind === 'rigid-item-impact';
+      const isSpecialAmmoShot = entry.id === 'special-ammo-penetrate-shot';
       const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
@@ -184,13 +186,14 @@
         'medical-handwash-sink': window.DvaWebGPUMedicalFixtureE,
         'hacker-root-activation': window.DvaWebGPUHackerRootE,
         'rigid-item-impact': window.DvaWebGPURigidItemImpactE,
+        'special-ammo-penetrate-shot': window.DvaWebGPUSpecialAmmoEffect,
         'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
         'room-command-desk': window.DvaWebGPURoomObjectUseE,
         'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
         'room-restorative-mist': window.DvaWebGPURoomObjectUseE,
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot || isRigidItemImpact ? api.create({ renderer, frameOwner: renderer }) :
+      effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot || isRigidItemImpact || isSpecialAmmoShot ? api.create({ renderer, frameOwner: renderer }) :
         isMedical || isMedicalAmbient || isMedicalFixture || isMedicalUploadConsole ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker || isArchiveCabinet || isCableSpool ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
@@ -213,6 +216,7 @@
         'medical-handwash-sink': api.FIXTURES?.[entry.fixtureId]?.period,
         'hacker-root-activation': api.EVENT_DURATION_MS,
         'rigid-item-impact': api.DURATION_MS,
+        'special-ammo-penetrate-shot': 620,
         'room-cooling-unit': api.DURATION_MS,
         'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
         'room-restorative-mist': api.DURATION_MS,
@@ -474,6 +478,25 @@
                 camera: medicalCamera, zoom: medicalZoom, now: elapsed, effect: source,
                 intensity: 1, reducedMotion: false, planned });
               if (!result.drawn) throw new Error('成功使用イベントを描画できません');
+            } else if (isSpecialAmmoShot) {
+              // fireGunnerRound emits the shot at the shooter and resolves its
+              // target point on the bullet ray, even when no body was hit.
+              const source = { id: `gallery-special-ammo-shot-${cycle}`,
+                type: 'action-special-ammo-shot', x: 380, y: 310, radius: 110,
+                playerId: 'gallery-gunner', targetId: '', targetX: 660, targetY: 310,
+                variant: 'penetrate:assault', startedAt: 0, duration };
+              const planned = api.plan({ effect: source, now: elapsed,
+                phase: 'playing', camera, zoom, viewport,
+                reducedMotion: false, alpha: 1 });
+              if (!planned || planned.effectId !== source.id ||
+                  planned.type !== source.type || planned.variant !== 'penetrate' ||
+                  planned.targetX !== source.targetX || planned.targetY !== source.targetY ||
+                  planned.duration !== duration)
+                throw new Error('貫通ショットの実イベント経路を計画できません');
+              const result = effect.record({ frame, target: targetId, viewport, planned });
+              if (!result.drawn || result.effectId !== source.id ||
+                  result.type !== source.type || result.variant !== 'penetrate')
+                throw new Error('貫通ショットイベントを描画できません');
             } else if (isFighterSlash) {
               // Match the current captured fighter-slash event contract. This
               // fixture covers the slash subtype only, with its explicit path.

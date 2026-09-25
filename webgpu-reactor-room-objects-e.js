@@ -1,5 +1,4 @@
-/* Textureless, unique reactor-room object E candidates for the shared WebGPU
- * frame owner. This is intentionally not registered in the live app. */
+/* Textureless, unique reactor-room object E for the shared WebGPU frame owner. */
 (function(root){
  'use strict';
  const TYPE='station',ROOM='reactor',DURATION_MS=2200,FLOATS=16;
@@ -69,8 +68,8 @@ fn ease(v:f32)->f32{let x=clamp(v,0.0,1.0);return x*x*(3.0-2.0*x);}
    core=body*.10+seam*.68+cap*.57+ember*.86+beam+vent*.36;
    bloom=ember*.72+beam*.45+seam*.20;
  }
- let active=select(.35,.88,state>1.5);
- let glow=active*(.68+.20*sin(time*2.1+phase));
+ let activationGain=select(.35,.88,state>1.5);
+ let glow=activationGain*(.68+.20*sin(time*2.1+phase));
  let sleeping=state>.5&&state<1.5;
  let idle=select(glow,.07+.10*readiness,sleeping);
  let start=ease(useP/.12);let decay=1.0-ease((useP-.64)/.36);

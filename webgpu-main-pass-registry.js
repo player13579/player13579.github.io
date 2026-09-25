@@ -11,6 +11,8 @@
     corridorA01E: root.DvaWebGPUCorridorA01E || (typeof require === 'function' ? require('./webgpu-corridor-a01-e.js') : null),
     corridorObjectUseE: root.DvaWebGPUCorridorObjectUseE || (typeof require === 'function' ? require('./webgpu-corridor-object-use-e.js') : null),
     roomObjectUseE: root.DvaWebGPURoomObjectUseE || (typeof require === 'function' ? require('./webgpu-room-object-use-e.js') : null),
+    reactorRoomObjectsE: root.DvaWebGPUReactorRoomObjectsE || (typeof require === 'function' ? require('./webgpu-reactor-room-objects-e.js') : null),
+    powerRoomObjectsE: root.DvaWebGPUPowerRoomObjectsE || (typeof require === 'function' ? require('./webgpu-power-room-objects-e.js') : null),
     medicalObjectE: root.DvaWebGPUMedicalObjectE || (typeof require === 'function' ? require('./webgpu-medical-object-e.js') : null),
     medicalCabinetE: root.DvaWebGPUMedicalCabinetE || (typeof require === 'function' ? require('./webgpu-medical-cabinet-e.js') : null),
     medicalFootbathUseE: root.DvaWebGPUMedicalFootbathUseE || (typeof require === 'function' ? require('./webgpu-medical-footbath-use-e.js') : null),
@@ -84,7 +86,7 @@
     'markerExplanation', 'acquisition']);
   const MAGIC_EVENT_TYPES = Object.freeze(['shapes', 'gravityImpact', 'grenadeImpact',
     'bodyBenefit', 'staminaBenefitE', 'manaBenefitE', 'bodyBenefitExtra', 'statusTempo', 'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE', 'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE', 'fighterEnergyE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE', 'archiveCabinetE', 'fireActivation', 'empEffect', 'specialAmmoEffect', 'commonActionBodyE', 'medicalObjectE',
-    'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E', 'corridorObjectUseE', 'roomObjectUseE',
+    'medicalCabinetE', 'medicalFootbathUseE', 'medicalUploadConsoleE', 'corridorA01E', 'corridorObjectUseE', 'roomObjectUseE', 'reactorRoomObjectsE', 'powerRoomObjectsE',
     'taskCompletion', 'headMarker', 'mysteryBoxRevealE']);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
@@ -149,6 +151,8 @@
       ...(needsCorridorA01E ? { corridorA01E: 'create' } : {}),
       ...(modules === defaults || modules.corridorObjectUseE ? { corridorObjectUseE: 'create' } : {}),
       ...(modules === defaults || modules.roomObjectUseE ? { roomObjectUseE: 'create' } : {}),
+      ...(modules === defaults || modules.reactorRoomObjectsE ? { reactorRoomObjectsE: 'create' } : {}),
+      ...(modules === defaults || modules.powerRoomObjectsE ? { powerRoomObjectsE: 'create' } : {}),
       medicalObjectE: 'create',
       medicalCabinetE: 'create', medicalFootbathUseE: 'create', medicalUploadConsoleE: 'create',
       medicalFixtureE: 'create', shapes: 'create', stations: 'create',
@@ -233,6 +237,12 @@
           frameOwner: renderer }), 'record');
       if (modules.roomObjectUseE)
         add('roomObjectUseE', modules.roomObjectUseE.create({ renderer,
+          frameOwner: renderer }), 'record');
+      if (modules.reactorRoomObjectsE)
+        add('reactorRoomObjectsE', modules.reactorRoomObjectsE.create({ renderer,
+          frameOwner: renderer }), 'record');
+      if (modules.powerRoomObjectsE)
+        add('powerRoomObjectsE', modules.powerRoomObjectsE.create({ renderer,
           frameOwner: renderer }), 'record');
       add('medicalFixtureE', modules.medicalFixtureE.create({ device: renderer.device,
         format: renderer.format }), 'record');

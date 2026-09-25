@@ -30,10 +30,10 @@ fn box(p:vec2f,h:vec2f,r:f32)->f32{let q=abs(p)-h+vec2f(r);return length(max(q,v
 struct Light{rgb:vec3f,alpha:f32,emission:vec3f};
 fn evaluate(q:vec2f)->Light{
  let kind=p.geometry.z;let progress=p.state.x;let state=p.state.y;let reduced=p.state.z>.5;
- let active=state>1.5;let ready=state>.5&&state<1.5;
+ let activated=state>1.5;let ready=state>.5&&state<1.5;
  let idlePhase=select(p.extra.y*.18+kind*1.6,.38,reduced);let usePhase=select(progress,.5,reduced);
  let softReady=select(.11,.26,ready);
- let env=select(softReady,smoothstep(.015,.14,progress)*(1.0-smoothstep(.82,1.0,progress)),active);
+ let env=select(softReady,smoothstep(.015,.14,progress)*(1.0-smoothstep(.82,1.0,progress)),activated);
  var base=vec3f(0);var alpha=0.0;var glow=vec3f(0);
  if(kind<.5){
   // The power-room 行灯棚 is a broad folded-paper shade over a lacquer shelf.
@@ -47,7 +47,7 @@ fn evaluate(q:vec2f)->Light{
   let foldC=line(q.y-(-.15+.05*sin(q.x*2.0+idlePhase+2.2)),.026)*step(abs(q.x),.49);
   let slit=line(q.y+.46,.026)*step(abs(q.x),.53);
   let drawX=mix(-.48,.48,usePhase);
-  let manaThread=line(q.x-drawX,.045)*step(abs(q.y),.54)*select(0.0,1.0,active);
+  let manaThread=line(q.x-drawX,.045)*step(abs(q.y),.54)*select(0.0,1.0,activated);
   let paper=(shadeLeft+shadeRight)*.5;
   base=vec3f(.16,.23,.34)*(shelf*.34)+vec3f(.88,.68,.38)*(paper*.24+foldA*.38+foldB*.34+foldC*.30)+
        vec3f(.58,.91,1.0)*(slit*.32+manaThread*.55);
@@ -63,7 +63,7 @@ fn evaluate(q:vec2f)->Light{
   let seatRail=line(q.y-.52,.036)*step(abs(q.x),.68);
   let cushionSeam=line(q.y-.10,.023)*step(abs(q.x),.51);
   let waveX=mix(-.60,.60,usePhase);
-  let returnWave=line(q.x-waveX,.055)*line(q.y-.06,.34)*cushion*select(.14,1.0,active);
+  let returnWave=line(q.x-waveX,.055)*line(q.y-.06,.34)*cushion*select(.14,1.0,activated);
   let breathing=1.0+.08*sin(idlePhase*1.4);
   base=vec3f(.16,.29,.28)*(back*.36+arms*.28)+vec3f(.36,.68,.60)*(cushion*.36+seatRail*.30)+
        vec3f(.77,.98,.73)*(cushionSeam*.18+returnWave*.72)*breathing;
