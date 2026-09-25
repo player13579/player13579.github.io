@@ -25799,19 +25799,6 @@ function selectedAttackTargetWebGPUScene(data) {
   return target ? renderedPlayer(target) : null;
 }
 
-function drawAttackTargets(data) {
-  const player = selectedAttackTargetWebGPUScene(data);
-  if (!player) return;
-  ctx.save();
-  ctx.strokeStyle = "#22d3ee";
-  ctx.lineWidth = 5;
-  ctx.strokeRect(player.x - 38, player.y - 70, 76, 104);
-  ctx.beginPath();
-  ctx.arc(player.x, player.y - 18, 48, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}
-
 function drawLuminousFeathers(player) {
   if (!player.luminousActive || !player.alive || player.ejected) return;
   const time = actorVisualTime(player, state.data) / 1000;
