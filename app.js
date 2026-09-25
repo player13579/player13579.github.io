@@ -26233,6 +26233,7 @@ function authoredMagazineHoldBody(player,data) {
   // Keep the already authored aimed frame between authoritative round effects.
   // The following reload or idle state owns the one final weapon lowering.
   return {kind:'shoot',motionId:'magazine-hold',variant:gunner.firingWeapon,
+    firingSince:gunner.firingSince,
     authoredHandgunShot:{identity,weapon:gunner.firingWeapon,roomId:data.roomId,ready:true,direction:facing==='down'?'front':facing==='up'?'back':facing},progress:0.5};
 }
 function authoredHandgunFireBody(player,data) {
@@ -27493,6 +27494,40 @@ function buildWebGPUBotThrowActionCommand(player, data, view, action) {
     poseKey: `throw-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
 }
 
+function buildWebGPUMagazineHoldActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const current = authoredMagazineHoldBody(player, data);
+  const owner = action?.authoredHandgunShot;
+  if (!api?.createCommand || action?.kind !== 'shoot' ||
+      action.motionId !== 'magazine-hold' || !current ||
+      action.variant !== current.variant || action.firingSince !== current.firingSince ||
+      owner?.identity !== current.authoredHandgunShot.identity ||
+      owner.weapon !== current.authoredHandgunShot.weapon ||
+      owner.roomId !== data.roomId ||
+      owner.direction !== current.authoredHandgunShot.direction ||
+      action.progress !== .5) return null;
+  const profile = authoredFireProfiles(owner.identity, owner.weapon)?.[owner.direction];
+  const image = authoredFireTextures(owner.identity, owner.weapon)?.[owner.direction];
+  if (!profile || !image?.complete || image.naturalWidth !== profile.size[0] ||
+      image.naturalHeight !== profile.size[1]) return null;
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const alpha = player.id === data.selfId && data.self?.floraInvisibleActive ? .32 : 1;
+  const command = api.createCommand({
+    player: { ...player, y: player.y - ascensionRise },
+    identity: owner.identity, direction: owner.direction, mode: 'magazine-hold',
+    entry: { assetPath: profile.assetPath,
+      layout: { sourceOrigin: { x: profile.origin[0], y: profile.origin[1] },
+        ground: { x: 0, y: CHARACTER_BODY_FOOT_ANCHOR_Y },
+        scale: profile.runtimeScale } },
+    image, frame: { x: profile.cell, y: 0, width: profile.cell, height: profile.cell },
+    body: { lift: 0, sway: 0, lean: 0 }, camera: view.camera, zoom: view.zoom,
+    alpha, arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  return command && Object.freeze({ ...command, poseKey: 'magazine-hold-1',
+    sourceFiringSince: action.firingSince,
+    name: playerIdentityLabel(player).slice(0, 14) });
+}
+
 function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const api = window.DvaWebGPUPlayerSprite;
   if (!api?.createCommand || !sourcePlayer || !data || !view?.camera ||
@@ -27500,6 +27535,8 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const player = renderedPlayer(sourcePlayer);
   const ghost = !player.alive && !player.ejected;
   const action = currentCharacterAction(player);
+  if (action?.kind === 'shoot' && action.motionId === 'magazine-hold')
+    return buildWebGPUMagazineHoldActionCommand(player, data, view, action);
   if (action?.kind === 'throw')
     return buildWebGPUThrowActionCommand(player, data, view, action);
   if (action?.kind === 'focus' && action.motionId === 'action-mana')
@@ -27660,6 +27697,9 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   const entries = state.preparationRosterEntries;
   const spriteReady = player => {
     const action = currentCharacterAction(player);
+    if (action?.kind === 'shoot' && action.motionId === 'magazine-hold')
+      return Boolean(buildWebGPUMagazineHoldActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
     if (action?.kind === 'throw')
       return Boolean(buildWebGPUThrowActionCommand(player, data,
         { camera, zoom, order: 0, arrival: null }, action));

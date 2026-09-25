@@ -37,12 +37,13 @@
       f.submit();
       snapshot={ready:true,frame:frameNumber,phaseSeconds:t,actorSeconds:t*1.8,zoom,logical,dpr:devicePixelRatio||1,
         sourceHash:DvaHealAstraE.SOURCE_SHA,compilation:pass.readiness,back,front,avatar:rect,errors:[...contextLoss],
-        audio:audioUnlocked?'gesture-unlocked':'awaiting-browser-gesture',prototype:true};
+        audio:verify?'verification-muted':audioUnlocked?'gesture-unlocked':'awaiting-browser-gesture',prototype:true};
     }catch(error){try{f.discard();}catch(_){}throw error;}
   }
   function tick(){raf=0;if(disposed||document.hidden)return;try{draw();raf=requestAnimationFrame(tick);}catch(e){fail(e);}}
   function fail(error){snapshot={...snapshot,ready:false,error:String(error?.stack||error)};document.getElementById('error').textContent=`WebGPU: ${error.message||error}`;}
   async function enableAudio(){
+    if(verify)return;
     if(audioPlaying)return;
     const Ctor=window.AudioContext||window.webkitAudioContext;
     if(!Ctor)return;
