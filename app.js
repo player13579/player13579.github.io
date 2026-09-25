@@ -22192,8 +22192,6 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   // Acquisitions share the golden photon renderer; do not stack legacy transfer textures.
   if ((effect.type === "transfer-in" || effect.type === "transfer-out") && effect.acquisitionKind) return true;
   if (effect?.type === "action-push" && drawTimedBustEvent(effect, progress)) return true;
-  if (effect?.type === "action-stand" && effect.variant === "durability-created") return drawFreshBarrierEvent(effect, progress);
-  if (effect?.type === "preparation-barrier-hit") return drawFreshBarrierEvent(effect, progress);
   // The event owns only the ignition kick; sustained jets are state-owned.
   if (effect?.type === "hover-sprint-active") {
     drawHoverSprintActivationJets(effect, progress);
@@ -23526,7 +23524,7 @@ function drawDodgeSourceRelease(effect,progress) {
 function drawActionEffect(effect, progress, now) {
   if(effect.type === "action-dodge") { drawDodgeSourceRelease(effect,progress); return; }
   if(effect.type === "action-task" && effect.variant === "attendance" && !effect.mode){drawBotAttendanceEffect(effect,progress);return;}
-  if (effect.type === "action-stand" || effect.type === "action-grit") { drawFreshBarrierEvent(effect, progress); return; }
+  if (effect.type === "action-stand" || effect.type === "action-grit") return;
   if (effect.type === "action-task" && drawTaskDigitalCompletionEffect(effect, progress)) return;
   if (effect.type === "action-ninjutsu-focus") { drawNinjutsuFocusEffect(effect, progress, now); return; }
   if (renkiVisualKind(effect) || effect.type === "action-renki") { drawNewRenkiEffect(effect, progress); return; }
@@ -26779,7 +26777,6 @@ function drawHuman(player, data) {
   ctx.restore();
   if (drewPlayerSprite) {
     drawDurableBustState(player, data, false);
-    drawPreparationBarrierAte(player);
     drawHoverSprintSustainedJets(player, data);
     drawLuminousFeathers(player);
     drawPersistentStatusAteLayers(player, data);
@@ -26840,7 +26837,6 @@ function drawHuman(player, data) {
   // Sprite-loading fallback uses the compact -39 nameplate geometry.
   registerPreparationPlayerCanvasTargets(player, fallbackNameplateY, nameplateWidth);
   drawDurableBustState(player, data, false);
-  drawPreparationBarrierAte(player);
   drawHoverSprintSustainedJets(player, data);
   drawLuminousFeathers(player);
   drawPersistentStatusAteLayers(player, data);
@@ -26986,117 +26982,6 @@ function drawBodyDamageReactionSprite(player, data, ghost, action) {
     -origin.x * layout.scale, -origin.y * layout.scale, frame.width * layout.scale, frame.height * layout.scale);
   ctx.restore(); drawNameplate(player, false, -78); return true;
 }
-
-const FRESH_BARRIER_MATERIAL = {"width":1254,"height":1254,"sourceRect":{"x":355,"y":163,"width":546,"height":910}};
-// Metadata is injected only from the primary-accepted material manifest.
-function freshBarrierReady() {
-  const image = state.textures.freshBarrierShell;
-  const m = FRESH_BARRIER_MATERIAL;
-  return image?.complete && image.naturalWidth === m.width && image.naturalHeight === m.height ? image : null;
-}
-function freshBarrierActive(player) {
-  return Boolean(player?.alive && !player.ejected && (Number(player.barrierDurability) > 0 || player.preparationBarrierActive));
-}
-function freshBarrierActor(id) {
-  const player = state.data?.players?.find(player => player.id === id);
-  return player ? renderedPlayer(player) : null;
-}
-function drawFreshBarrierSurface(mode, progress, phase, axis, base) {
-  const image = freshBarrierReady();
-  if (!image || ctx.globalAlpha <= 0) return;
-  ctx.save(); ctx.globalAlpha *= 105 / 253;
-  const r = FRESH_BARRIER_MATERIAL.sourceRect;
-  const scale = Math.min(116 / r.width, 132 / r.height);
-  const width = r.width * scale, height = r.height * scale;
-  const reduced = prefersReducedMotion();
-  const envelope = mode === 'persistent' ? 1 : Math.sin(Math.PI * progress);
-  const response = mode === 'hit' ? Math.min(1,progress/.045)*Math.exp(-3.8*progress) : envelope;
-  if (base) {
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= envelope;
-    ctx.drawImage(image,r.x,r.y,r.width,r.height,-width/2,-8-height/2,width,height); ctx.restore();
-  }
-  // One bounded reusable source/mask pair. No pixel readback or normalization.
-  let cache = state.textures.freshBarrierScratch;
-  if (!cache) {
-    const source = document.createElement('canvas'), mask = document.createElement('canvas');
-    source.width = mask.width = 192; source.height = mask.height = 232;
-    cache = state.textures.freshBarrierScratch = {source,mask};
-  }
-  const w = width / 116 * 192, h = height / 132 * 232;
-  const local = cache.source.getContext('2d'), mask = cache.mask.getContext('2d');
-  local.setTransform(1,0,0,1,0,0); local.globalAlpha=1; local.globalCompositeOperation='source-over'; local.clearRect(0,0,192,232);
-  local.drawImage(image,r.x,r.y,r.width,r.height,0,0,w,h);
-  mask.setTransform(1,0,0,1,0,0); mask.globalAlpha=1; mask.globalCompositeOperation='source-over'; mask.clearRect(0,0,192,232);
-  const spot = (x,y,rx,ry,alpha) => {
-    mask.save(); mask.translate(x*w,y*h); mask.scale(rx*w,ry*h);
-    const g=mask.createRadialGradient(0,0,0,0,0,1); g.addColorStop(0,`rgba(255,255,255,${alpha})`); g.addColorStop(.45,`rgba(255,255,255,${alpha*.55})`); g.addColorStop(1,'rgba(255,255,255,0)');
-    mask.fillStyle=g; mask.fillRect(-1,-1,2,2); mask.restore();
-  };
-  if (mode === 'persistent') {
-    const t = reduced ? .3 : phase;
-    // Travel around the continuous ellipsoid, then transfer toward its face.
-    const angle = t * Math.PI * 2;
-    spot(.5+.38*Math.cos(angle),.5+.43*Math.sin(angle),.15,.22,.75);
-    spot(.5+.22*Math.cos(angle-.45),.5+.28*Math.sin(angle-.45),.23,.25,.34);
-  } else if (mode === 'activation') {
-    const p = reduced ? .5 : progress;
-    spot(.5,.12+.76*p,.46,.24,envelope);
-    spot(.69,.18+.65*p,.16,.30,envelope*.7);
-  } else {
-    const p = reduced ? .2 : progress;
-    // Attack axis is resolved once on the event. Contact divides into two
-    // surface fronts and loses pressure as they travel; the shell never moves.
-    for (const side of [-1,1]) {
-      const a = axis + side * p * 2.3;
-      spot(.5+.38*Math.cos(a),.5+.43*Math.sin(a),.12+.08*p,.18+.08*p,response*.8);
-    }
-    spot(.5+.28*Math.cos(axis),.5+.31*Math.sin(axis),.23,.25,response*(1-p));
-  }
-  local.globalCompositeOperation='destination-in'; local.drawImage(cache.mask,0,0); local.globalCompositeOperation='source-over';
-  ctx.save(); ctx.globalCompositeOperation='lighter'; const gain = mode === 'hit' ? 2.4 : mode === 'activation' ? 1.6 : .7;
-  const alpha = ctx.globalAlpha;
-  for (let remaining = gain; remaining > 0; remaining -= 1) {
-    ctx.globalAlpha = alpha * Math.min(1,remaining);
-    ctx.drawImage(cache.source,0,0,w,h,-width/2,-8-height/2,width,height);
-  } ctx.restore();
-  ctx.restore();
-}
-function drawPreparationBarrierAte(player) {
-  if (!freshBarrierActive(player) || ctx.globalAlpha <= 0 || !freshBarrierReady()) return;
-  const phase = actorVisualTime(player,state.data) / 1000 * .24 + (player.id?.length || 0)*.17;
-  ctx.save();
-  ctx.translate(0, characterBodyVisualY(0));
-  drawFreshBarrierSurface('persistent',.5,phase,0,true);
-  ctx.restore();
-}
-function drawFreshBarrierEvent(effect, progress) {
-  if (!Number.isFinite(progress) || progress <= 0 || progress >= 1 || ctx.globalAlpha <= 0 || !freshBarrierReady()) return true;
-  const ownerId = effect.variant === "durability-created" ? effect.targetId : effect.playerId;
-  const player = combatVisualActor(ownerId);
-  if (ownerId && !player) return true;
-  if (player && (!player.alive || player.ejected)) return true;
-  const hit = effect.type === 'preparation-barrier-hit';
-  // playerId is defender; targetId is attacker. Never use targetX/Y as owner.
-  let axes = state.textures.freshBarrierEventAxes;
-  if (!axes) axes = state.textures.freshBarrierEventAxes = new WeakMap();
-  let axis = axes.get(effect);
-  if (axis == null) {
-    const attacker = hit ? freshBarrierActor(effect.targetId) : null;
-    axis = player && attacker ? Math.atan2(attacker.y-player.y,attacker.x-player.x) : 0;
-    axes.set(effect,axis); // absent attacker: documented right-face local response
-  }
-  const x = player ? player.x : effect.x, y = player ? player.y : effect.y;
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return true;
-  ctx.save(); ctx.translate(x,y);
-  if (effect.variant === 'durability-broken') {
-    ctx.globalAlpha *= 1 - progress;
-    if (!prefersReducedMotion()) ctx.scale(1 + .06 * progress, 1 + .06 * progress);
-  }
-  drawFreshBarrierSurface(hit?'hit':'activation',progress,0,axis,!freshBarrierActive(player));
-  ctx.restore(); return true;
-}
-
-
 
 function drawHackerRootState(player) {
   if (!player.hackerRootActive || !player.alive || player.ejected) return;
