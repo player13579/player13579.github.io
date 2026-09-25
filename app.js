@@ -9388,10 +9388,14 @@ function setTabletOpen(open, { persist = true, focus = true } = {}) {
     setDashHeld(false);
     setSlowWalkHeld(false);
     syncMovementInputImmediately();
-  } else {
-    renderTabletControls(state.data);
   }
-  if (state.data?.self) renderTargetOptions(state.data);
+  if (state.data?.self) {
+    // Tablet mode owns purchased abilities through their dedicated shortcuts.
+    // Clear the desktop purchase selection before updating the native button,
+    // then mirror that button into the tablet slot in the same input turn.
+    renderTargetOptions(state.data);
+    updateActionButtons(state.data);
+  }
   requestAnimationFrame(() => syncKeyboardContext(true));
 }
 
