@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-pure-slices-v83";
-const CACHE_NAME = "dva-static-webgpu-pure-slices-v83";
+const RUNTIME_RELEASE = "webgpu-pure-slices-v84";
+const CACHE_NAME = "dva-static-webgpu-pure-slices-v84";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -560,7 +560,6 @@ const STATIC_ASSETS = [
   "/assets/generated/enhance-hold-marker-v737.png",
   "/assets/generated/renki-coalescence-v736.png",
   "/assets/generated/renki-tenfold-release-v736.png",
-  "/assets/generated/preparation-summon-circle-v726.png",
   "/assets/generated/status-hp-reduction-v375.png",
   "/assets/generated/status-mana-gpu-ate-v402.png",
   "/assets/generated/hacker-root-matrix-v497.png",

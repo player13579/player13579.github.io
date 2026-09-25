@@ -18515,110 +18515,6 @@ function clearPreparationRosterEntries() {
   state.preparationRosterEntries?.clear();
 }
 
-function preparationRosterSummonClock(entry, nowMs, reducedMotion, spriteReady) {
-  if (reducedMotion) { entry.summonExpired = true; return { active: false, t: 1 }; }
-  const ring = state.textures?.preparationSummonCircle;
-  if (!Number.isFinite(entry.summonStartedAt) && !entry.summonExpired && spriteReady && ring?.complete && ring.naturalWidth > 0 && ring.naturalHeight > 0) {
-    entry.summonStartedAt = nowMs;
-  }
-  // A failed or missing request cannot turn each poll into a new entrant. It stays inert until this session resets.
-  if (!Number.isFinite(entry.summonStartedAt) && nowMs - entry.appearedAt > 4_000) entry.summonExpired = true;
-  if (!Number.isFinite(entry.summonStartedAt)) return { active: false, t: 1 };
-  const duration = reducedMotion ? 1 : 980;
-  const t = Math.max(0, Math.min(1, (nowMs - entry.summonStartedAt) / duration));
-  return { active: t < 1, t };
-}
-
-function drawPreparationRosterSummon(entry, x, footY, scale, clock) {
-  if (!clock.active) return;
-  const t = clock.t;
-  const easeOut = 1 - Math.pow(1 - t, 3);
-  const ring = state.textures?.preparationSummonCircle;
-  const size = Math.max(1, 116 * scale * (0.64 + easeOut * 0.36));
-  const inheritedAlpha = ctx.globalAlpha;
-  ctx.save();
-  ctx.translate(x, footY);
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha *= (1 - t) * 0.86;
-  if (ring?.complete && ring.naturalWidth > 0 && ring.naturalHeight > 0) {
-    ctx.save();
-    ctx.rotate((t - 0.5) * 0.42);
-    ctx.drawImage(ring, -size / 2, -size * 0.22, size, size * 0.44);
-    ctx.restore();
-  }
-  // E: rising light beams and a few dispersing motes add motion independent of the raster.
-  const beamHeight = (42 + 96 * easeOut) * scale;
-  ctx.lineWidth = Math.max(1, 1.7 * scale);
-  for (const side of [-1, 1]) {
-    const baseX = side * size * 0.16;
-    ctx.strokeStyle = "rgba(184, 245, 255, 0.78)";
-    ctx.beginPath();
-    ctx.moveTo(baseX, -3 * scale);
-    ctx.lineTo(baseX * 0.36, -beamHeight);
-    ctx.stroke();
-  }
-  const particleCount = 5;
-  ctx.fillStyle = "rgba(216, 250, 255, 0.92)";
-  for (let particle = 0; particle < particleCount; particle += 1) {
-    const lane = particle - (particleCount - 1) / 2;
-    const particleT = Math.max(0, Math.min(1, (t - particle * 0.075) / 0.72));
-    const drift = lane * (6 + 12 * particleT) * scale;
-    ctx.globalAlpha = inheritedAlpha * ((1 - particleT) * (1 - t * 0.25) * 0.8);
-    ctx.fillRect(drift - scale, -8 * scale - particleT * beamHeight * 0.72, 2 * scale, 2 * scale);
-  }
-  ctx.restore();
-}
-
-function preparationRosterSprite(player, data) {
-  const skinId = displayedSkinId(player, data);
-  const source = player.isBot
-    ? transparentSpriteSource(state.textures?.operatorsWalk, "operatorsWalk", 24)
-    : transparentSpriteSource(state.textures?.playerWalkRows?.[skinId]?.front, "preparation-roster-" + skinId + "-front", 24);
-  return source
-    ? normalizedSpriteFrame(source, player.isBot ? "operatorsWalk" : "preparation-roster-" + skinId + "-front", player.isBot ? 4 : 3, player.isBot ? 2 : 1, 0, 0)
-    : null;
-}
-
-function drawPreparationRosterCharacter(sprite, player, size) {
-  if (!sprite) return false;
-  // The normalized sprite's bottom is local zero, so the caller's origin is the physical foot anchor.
-  drawNormalizedSprite(sprite, 0, 0, size, size);
-  ctx.font = "800 10px Segoe UI, sans-serif";
-  ctx.fillStyle = "#effcff";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
-  ctx.fillText(String(player?.name || "参加者").slice(0, 14), 0, -size - 5);
-  return true;
-}
-
-
-function drawPreparationWorldSummons(data) {
-  if (!preparationRosterActive(data)) { clearPreparationRosterEntries(); return; }
-  // Bots are present during preparation but never receive a summon effect.
-  const roster = Array.isArray(data.players) ? data.players.filter((player) => player && !player.isBot && !player.ejected) : [];
-  const sessionKey = String(data.roomId || "") + ":" + (Number(state.roomSessionGeneration) || 0);
-  const ids = new Set(roster.map((player) => String(player.id || "")));
-  for (const id of state.preparationRosterEntries.keys()) if (!ids.has(id)) state.preparationRosterEntries.delete(id);
-  const nowMs = performance.now();
-  const reducedMotion = prefersReducedMotion();
-  for (const player of roster) {
-    const id = String(player.id || "");
-    let entry = state.preparationRosterEntries.get(id);
-    if (!entry || entry.sessionKey !== sessionKey) {
-      entry = { sessionKey, appearedAt: nowMs };
-      state.preparationRosterEntries.set(id, entry);
-    }
-    const sprite = preparationRosterSprite(player, data);
-    const clock = preparationRosterSummonClock(entry, nowMs, reducedMotion, Boolean(sprite));
-    const position = renderedPlayer(player);
-    const t = clock.t;
-    const descent = reducedMotion ? 0 : Math.pow(1 - Math.min(1, t / 0.64), 2) * 78;
-    const impact = reducedMotion ? 0 : Math.sin(Math.max(0, Math.min(1, (t - 0.54) / 0.30)) * Math.PI);
-    entry.arrival = { active: Boolean(clock.active), descent, stanceX: 1 + impact * 0.105, stanceY: 1 - impact * 0.13, lean: ((id.length % 2) ? 1 : -1) * impact * 0.035 };
-    drawPreparationRosterSummon(entry, position.x, position.y + 30, 0.56, clock);
-  }
-}
-
 // PREPARATION_ROSTER_V726_END
 
 function worldZoomFor(data = state.data) {
@@ -27430,15 +27326,67 @@ function buildWebGPUMagazineHoldActionCommand(player, data, view, action) {
     name: playerIdentityLabel(player).slice(0, 14) });
 }
 
+function buildWebGPUHandgunReloadActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const token = String(action?.authoredReloadOwner || '');
+  const owner = AUTHORED_HANDGUN_RELOAD_OWNERS.get(player?.id);
+  const metadata = player?.handgunReloadBody;
+  if (!api?.createCommand || !authoredHandgunReloadEligible(player, data) ||
+      !player.alive || player.ejected || player.inVent || player.invisible ||
+      action?.kind !== 'reload' || action.motionId !== 'action-reload' ||
+      action.variant !== 'handgun:active' || !token ||
+      token !== String(action.sourceEffectId || '') || owner?.token !== token ||
+      owner.roomId !== data.roomId || owner.expired ||
+      metadata?.weapon !== 'handgun' || Number(metadata.durationMs) !== 2200 ||
+      Number(metadata.endsAt) !== owner.endsAt ||
+      !(Number(metadata.endsAt) > Number(data.serverNow)) ||
+      !Number.isFinite(action.progress) || action.progress < 0 || action.progress >= 1) return null;
+  const identity = displayedSkinId(player, data);
+  const profiles = identity === 'blue-dress'
+    ? AUTHORED_SOPHIA_HANDGUN_RELOAD : AUTHORED_PHILIA_HANDGUN_RELOAD;
+  const textures = identity === 'blue-dress'
+    ? state.textures.authoredSophiaHandgunReload : state.textures.authoredPhiliaHandgunReload;
+  if (!['front', 'back', 'left', 'right'].every(direction => {
+    const profile = profiles[direction], image = textures?.[direction];
+    return profile && image?.complete && image.naturalWidth === profile.size[0] &&
+      image.naturalHeight === profile.size[1];
+  })) return null;
+  const direction = authoredDirection(player, motionFor(player, data));
+  const profile = profiles[direction], image = textures[direction];
+  const frameIndex = profile.phases.reduce((selected, at, index) =>
+    action.progress + 1e-9 >= at ? index : selected, 0);
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const alpha = player.id === data.selfId && data.self?.floraInvisibleActive ? .32 : 1;
+  const command = api.createCommand({
+    player: { ...player, y: player.y - ascensionRise }, identity, direction,
+    mode: 'handgun-reload', entry: { assetPath: profile.assetPath,
+      layout: { sourceOrigin: { x: profile.registration.origin[0],
+        y: profile.registration.origin[1] },
+        ground: { x: 0, y: CHARACTER_BODY_FOOT_ANCHOR_Y },
+        scale: profile.registration.runtimeScale } },
+    image, frame: { x: frameIndex * profile.cell[0], y: 0,
+      width: profile.cell[0], height: profile.cell[1] },
+    body: { lift: 0, sway: 0, lean: 0 }, camera: view.camera, zoom: view.zoom,
+    alpha, arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  return command && Object.freeze({ ...command, sourceEffectId: token,
+    poseKey: `handgun-reload-${frameIndex}`,
+    name: playerIdentityLabel(player).slice(0, 14) });
+}
+
 function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const api = window.DvaWebGPUPlayerSprite;
   if (!api?.createCommand || !sourcePlayer || !data || !view?.camera ||
       sourcePlayer.inVent || (sourcePlayer.invisible && sourcePlayer.id !== data.selfId)) return null;
   const player = renderedPlayer(sourcePlayer);
   const ghost = !player.alive && !player.ejected;
-  const action = currentCharacterAction(player);
+  const action = Object.prototype.hasOwnProperty.call(view, 'action')
+    ? view.action : currentCharacterAction(player);
   if (action?.kind === 'shoot' && action.motionId === 'magazine-hold')
     return buildWebGPUMagazineHoldActionCommand(player, data, view, action);
+  if (action?.kind === 'reload' && action.motionId === 'action-reload' &&
+      action.variant === 'handgun:active')
+    return buildWebGPUHandgunReloadActionCommand(player, data, view, action);
   if (action?.kind === 'throw')
     return buildWebGPUThrowActionCommand(player, data, view, action);
   if (action?.kind === 'focus' && action.motionId === 'action-mana')
@@ -27597,10 +27545,16 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
     !(player.invisible && player.id !== data.selfId));
   const preparation = preparationRosterActive(data);
   const entries = state.preparationRosterEntries;
+  const playerActions = new Map();
   const spriteReady = player => {
     const action = currentCharacterAction(player);
+    playerActions.set(player.id, action);
     if (action?.kind === 'shoot' && action.motionId === 'magazine-hold')
       return Boolean(buildWebGPUMagazineHoldActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
+    if (action?.kind === 'reload' && action.motionId === 'action-reload' &&
+        action.variant === 'handgun:active')
+      return Boolean(buildWebGPUHandgunReloadActionCommand(player, data,
         { camera, zoom, order: 0, arrival: null }, action));
     if (action?.kind === 'throw')
       return Boolean(buildWebGPUThrowActionCommand(player, data,
@@ -27632,7 +27586,7 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
     return Boolean(entry && authoredEntryReady(entry, image));
   };
   const unsupported = candidates.filter(player => !spriteReady(player)).map(player => {
-    const action = currentCharacterAction(player);
+    const action = playerActions.get(player.id);
     return { playerId: String(player.id), reason: action && action.kind !== 'damage'
       ? 'separate-action-sprite-owner' : 'authored-sprite-unavailable',
       motionId: action?.motionId || '' };
@@ -27643,7 +27597,7 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
       .map(item => `${item.playerId} (${item.reason})`).join(', ')}`);
     return candidates.map((player, order) => {
       const command = buildWebGPUAuthoredPlayerSpriteCommand(player, data, {
-        camera, zoom, order,
+        camera, zoom, order, action: playerActions.get(player.id),
         // A post-summon null explicitly prevents stale state-map arrival.
         ...(arrivalFor ? { arrival: arrivalFor(player) } : {})
       });
@@ -27699,8 +27653,7 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   });
   const scene = { active: true, players: summonPlayers, entries,
     roomId: data.roomId, roomSessionGeneration: session.generation,
-    nowMs: state.frameNow || performance.now(), reducedMotion: prefersReducedMotion(),
-    ringImage: state.textures?.preparationSummonCircle };
+    nowMs: state.frameNow || performance.now(), reducedMotion: prefersReducedMotion() };
   return { stages: {
     preparationSummons: { scene, camera, zoom },
     players: { ...playerIdentity, ...playerEffects, entries, createCommands({ entries: currentEntries, arrivalFor }) {
@@ -31025,8 +30978,6 @@ const version = "overheal-body-v913";
   const naturalRecoveryEffect = new Image();
   const gboOverdriveEffect = new Image();
   const shopActivationEffect = new Image();
-  // PREPARATION_ROSTER_V726: this first-preparation texture must begin loading immediately.
-  const preparationSummonCircle = eagerImage("assets/generated/preparation-summon-circle-v726.png");
 
   const authoredMotionImages = new Map(); const authoredImageFor = (assetPath) => { if (!assetPath) return new Image(); const cached = authoredMotionImages.get(assetPath); if (cached) return cached; const image = new Image(); defer(image,assetPath); authoredMotionImages.set(assetPath,image); return image; }; const authoredCharacterMotion = Object.fromEntries(Object.entries(AUTHORED_CHARACTER_MOTION_MANIFEST.identities || {}).map(([identity,directions]) => [identity,Object.fromEntries(Object.entries(directions).map(([direction,entry]) => [direction,Object.fromEntries(["slow","walk","dash"].map((mode) => { const selected = authoredModeEntry(entry,mode); return [mode,authoredImageFor(selected?.assetPath)]; }))]))]));
   const playerWalkRows = Object.fromEntries(["blue-dress", "white-hood"].map((skinId) => [
@@ -31470,7 +31421,6 @@ const version = "overheal-body-v913";
     naturalRecoveryEffect,
     gboOverdriveEffect,
     shopActivationEffect,
-    preparationSummonCircle,
     physicalActionMotions,
     fighterSlashWebGPUMotions,
     manaFocusWebGPUMotions,
