@@ -79,6 +79,7 @@
       return;
     }
     notice.textContent = 'WebGPU プレビューを読み込んでいます…';
+    const preview = makePreview(entry);
     const iframe = document.createElement('iframe');
     iframe.title = `${entry.title} WebGPU 自動再生`;
     iframe.allow = 'autoplay';
