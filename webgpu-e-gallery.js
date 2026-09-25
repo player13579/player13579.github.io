@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // Show every available Astra-authored E artifact, including unfinished source.
+  // Show replayable Astra-authored E versions, including unfinished prototypes.
   const entries = [{
     id: 'heal-astra-prototype',
     title: 'ヒール · Astra試作',
@@ -9,13 +9,6 @@
     status: '試作・再生可能',
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
-  }, {
-    id: 'sunbeam-astra-prototype',
-    title: 'サンビーム · Astra原型',
-    detail: 'Astra制作のWebGPU Eソースです。専用の再生ページがないため、現時点ではコード確認用です。',
-    status: '未完成・ソースのみ',
-    source: 'experiments/sunbeam-astra/sunbeam-astra-prototype.js',
-    sourceOnly: true
   }, {
     id: 'luck-astra-v1',
     title: '幸運 · Astra v1',
@@ -48,7 +41,7 @@
   counter.textContent = `${entries.length} 件`;
 
   function makePreview(entry) {
-    const preview = new URL(entry.page || entry.source, location.href);
+    const preview = new URL(entry.page, location.href);
     if (params.has('verify')) preview.searchParams.set('verify', params.get('verify') || '1');
     for (const key of ['phase', 'zoom']) {
       if (params.has(key)) preview.searchParams.set(key, params.get(key));
@@ -62,31 +55,21 @@
     document.getElementById('selected-title').textContent = entry.title;
     document.getElementById('selected-description').textContent = entry.detail;
     document.getElementById('selected-status').textContent = entry.status;
-    document.getElementById('selected-source').textContent = `${entry.sourceOnly ? 'ソース' : 'WebGPU'}: ${entry.source}`;
+    document.getElementById('selected-source').textContent = `WebGPU: ${entry.source}`;
     const sourceLink = document.getElementById('selected-link');
-    if (entry.sourceOnly) {
-      sourceLink.href = new URL(entry.source, location.href).href;
-      sourceLink.textContent = 'ソースを開く ↗';
-    } else {
-      const preview = makePreview(entry);
-      sourceLink.href = preview.href;
-      sourceLink.textContent = '元のWebGPUプレビューを見る ↗';
-    }
+    const preview = makePreview(entry);
+    sourceLink.href = preview.href;
+    sourceLink.textContent = '元のWebGPUプレビューを見る ↗';
     buttons.forEach((button, buttonIndex) => {
       button.setAttribute('aria-current', buttonIndex === selectedIndex ? 'true' : 'false');
     });
     stage.querySelector('iframe')?.remove();
     notice.hidden = false;
-    if (entry.sourceOnly) {
-      notice.textContent = 'この版はソースのみです。再生プレビューはまだありません。';
-      return;
-    }
     if (!navigator.gpu) {
       notice.textContent = 'このブラウザーでは WebGPU を使用できません。';
       return;
     }
     notice.textContent = 'WebGPU プレビューを読み込んでいます…';
-    const preview = makePreview(entry);
     const iframe = document.createElement('iframe');
     iframe.title = `${entry.title} WebGPU 自動再生`;
     iframe.allow = 'autoplay';
