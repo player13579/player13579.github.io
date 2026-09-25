@@ -1386,7 +1386,6 @@ const state = {
   itemRenderKey: "",
   hoverSprintLiveTicker: 0,
   utilityRenderKey: "",
-  lastCanvasStageError: "",
   lastCanvasItemError: "",
   lastUiRenderAt: 0,
   uiRenderTimer: 0,
@@ -11334,7 +11333,6 @@ function resetLocalSession() {
   state.vendingSelectedByCategory = Object.create(null);
   state.vendingPageByCategory = Object.create(null);
   state.utilityRenderKey = "";
-  state.lastCanvasStageError = "";
   state.lastCanvasItemError = "";
   state.keyboardContext = "";
   state.keyboardElement = null;
@@ -18451,9 +18449,7 @@ function prepareMainFrameBookkeeping() {
     state.preparedMainFrame = { data, w, h };
     return;
   }
-  drawCanvasStage("motion", () => {
-    ensureRenderPlayersAdvanced(data);
-  });
+  ensureRenderPlayersAdvanced(data);
   prepareMagicEffectsForMainFrame(data, state.frameNow || performance.now());
   const worldZoom = worldZoomFor(data);
   const camera = cameraFor(data, w, h, worldZoom);
@@ -18516,22 +18512,6 @@ function prepareMagicEffectsForMainFrame(data, now) {
     rememberHeadMarkerPresentation(player.id, presentation, now);
   }
 }
-
-function drawCanvasStage(name, callback) {
-  try {
-    callback();
-    if (state.lastCanvasStageError.startsWith(`${name}:`)) {
-      state.lastCanvasStageError = "";
-      delete document.body.dataset.drawStageError;
-    }
-  } catch (error) {
-    const message = `${name}:${error?.message || String(error)}`;
-    document.body.dataset.drawStageError = message;
-    if (state.lastCanvasStageError !== message) console.error(`Canvas stage failed: ${name}`, error);
-    state.lastCanvasStageError = message;
-  }
-}
-
 
 // PREPARATION_ROSTER_V726_START
 function preparationRosterActive(data = state.data) {
