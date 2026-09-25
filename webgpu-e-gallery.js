@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // Retired pre-reset entries never return; new Astra clean-room versions remain reviewable.
+  // The public gallery contains only the user-selected Heal effect.
   const entries = [{
     id: 'heal-astra-prototype',
     title: 'ヒール · Astra試作',
@@ -9,34 +9,6 @@
     status: '試作・再生可能',
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
-  }, {
-    id: 'sunbeam-astra-clean-v1',
-    title: 'サンビーム · Astra新規v1',
-    detail: '旧版を表現入力に使わず制作した試作。細い単純な帯に見えるため画質は不採用。本編未接続。',
-    status: '品質不採用・再生可能',
-    source: 'webgpu-sunbeam-astra-clean-v1.js',
-    page: 'sunbeam-astra-clean-v1-preview.html'
-  }, {
-    id: 'luck-astra-clean-v2',
-    title: '幸運 · Astra新規v2',
-    detail: '旧版を表現入力に使わず制作した試作。翼のように見える問題が残るため画質は不採用。本編未接続。',
-    status: '品質不採用・再生可能',
-    source: 'webgpu-luck-astra-v2.js',
-    page: 'luck-astra-v2-preview.html'
-  }, {
-    id: 'stamina-astra-clean-v1',
-    title: 'スタミナ回復 · Astra新規v1',
-    detail: '身体への補給を試した新規版。実寸では細い脚線に見え、効果の意味が弱いため画質は不採用。本編未接続。',
-    status: '品質不採用・再生可能',
-    source: 'webgpu-stamina-astra-clean-v1.js',
-    page: 'stamina-astra-clean-v1-preview.html'
-  }, {
-    id: 'mana-astra-clean-v1',
-    title: 'マナ獲得 · Astra新規v1',
-    detail: '身体への供給を試した新規版。青い布帯のように見え、体内蓄積が弱いため画質は不採用。本編未接続。',
-    status: '品質不採用・再生可能',
-    source: 'webgpu-mana-astra-clean-v1.js',
-    page: 'mana-astra-clean-v1-preview.html'
   }];
   const params = new URLSearchParams(location.search);
   let selectedIndex = 0;
