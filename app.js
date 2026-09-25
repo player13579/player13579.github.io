@@ -30441,42 +30441,6 @@ function drawAnimatedTextureBottom(sprite, centerX, bottomY, maxWidth, maxHeight
   return drawAnimatedTextureCentered(sprite, centerX, bottomY - height / 2, maxWidth, maxHeight, options);
 }
 
-function drawLightningBolt(x1, y1, x2, y2, seed = 0) {
-  ctx.save();
-  ctx.strokeStyle = "rgba(224,251,255,0.96)";
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  const steps = 4;
-  for (let i = 1; i < steps; i += 1) {
-    const t = i / steps;
-    const wobble = Math.sin((state.frameNow || 0) / 45 + seed * 2.1 + i) * 12;
-    const px = x1 + (x2 - x1) * t + wobble;
-    const py = y1 + (y2 - y1) * t - wobble * 0.55;
-    ctx.lineTo(px, py);
-  }
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawScreenLightning(x1, y1, x2, y2, seed = 0) {
-  ctx.save();
-  ctx.strokeStyle = "rgba(103,232,249,0.78)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  const steps = 7;
-  for (let i = 1; i < steps; i += 1) {
-    const t = i / steps;
-    const wobble = Math.sin((state.frameNow || 0) / 35 + seed * 1.7 + i) * 22;
-    ctx.lineTo(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t + wobble);
-  }
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-  ctx.restore();
-}
-
 // Snapshot the values that the main WebGPU HUD cannot derive from game data.
 // Its hit rectangles must be copied back to state in the same committed frame
 // so acquisition photons still reach the glyph that was actually displayed.
