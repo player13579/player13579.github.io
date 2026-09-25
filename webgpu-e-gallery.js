@@ -22,6 +22,7 @@
     { id: 'medical-bed', title: '診療ベッド使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-object-e.js', kind: 'integrated' },
     { id: 'medical-cabinet', title: '薬草とリネンの棚', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-cabinet-e.js', kind: 'integrated' },
     { id: 'medical-footbath', title: '足湯使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-footbath-use-e.js', kind: 'integrated' },
+    { id: 'medical-upload-console', title: '医療室アップロード端末', detail: 'upload-d の成功完了 action-task イベント形を現在の medicalUploadConsoleE で自動再生。ギャラリーのフィクスチャ確認であり、本編表示・画質・SFXの受入ではありません。', status: '単独フィクスチャ・本編受入未完了', source: 'webgpu-medical-upload-console-e.js', kind: 'integrated' },
     { id: 'medical-ambient', title: '医療室の環境光', detail: '足湯の水面、窓光、床の木漏れ日を既存のWebGPU環境Eで再生。本編の視覚品質とSFXは未受入です。', status: '単独E・本編品質/SFX未受入', source: 'webgpu-medical-environment-e.js', kind: 'integrated' },
     { id: 'fighter-slash', title: 'ファイター斬撃', detail: '現在の fighter-slash イベント形を使う単独WebGPUフィクスチャ。ゲーム本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-fighter-energy-e.js', kind: 'integrated' },
     { id: 'flora-invisible', title: 'フローラ インビジブル', detail: '本人だけへ届く flora-invisible イベントと不可視の本人を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-flora-e.js', kind: 'integrated' },
@@ -161,6 +162,7 @@
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
       const isMedical = Boolean(medicalEffectKind);
       const isMedicalAmbient = entry.id === 'medical-ambient';
+      const isMedicalUploadConsole = entry.id === 'medical-upload-console';
       const isRoomObject = entry.id.startsWith('room-');
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
         'common-action-mana': window.DvaWebGPUCommonActionBodyE,
@@ -175,6 +177,7 @@
         'medical-cabinet': window.DvaWebGPUMedicalCabinetE,
         'medical-footbath': window.DvaWebGPUMedicalFootbathUseE,
         'medical-ambient': window.DvaWebGPUMedicalEnvironmentE,
+        'medical-upload-console': window.DvaWebGPUMedicalUploadConsoleE,
         'archive-cabinet': window.DvaWebGPUArchiveCabinetE,
         'cable-spool': window.DvaWebGPUCableSpoolE,
         'fire-activation': window.DvaWebGPUFireActivation,
@@ -188,7 +191,7 @@
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
       effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot || isRigidItemImpact ? api.create({ renderer, frameOwner: renderer }) :
-        isMedical || isMedicalAmbient || isMedicalFixture ? api.create({ device: renderer.device, format: renderer.format }) :
+        isMedical || isMedicalAmbient || isMedicalFixture || isMedicalUploadConsole ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker || isArchiveCabinet || isCableSpool ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
       const camera = { x: 0, y: 0 }, zoom = 1;
@@ -203,6 +206,7 @@
         'common-action-mana': api.DEFAULT_DURATION_MS,
         'medical-bed': api.DURATION_MS, 'medical-cabinet': api.DURATION_MS,
         'medical-footbath': api.DURATION_MS, 'medical-ambient': 8000,
+        'medical-upload-console': api.COMPLETE_MS,
         'archive-cabinet': api.DURATION_MS,
         'cable-spool': api.DURATION_MS,
         'fire-activation': api.DURATION_MS,
@@ -404,6 +408,25 @@
                 camera: ambientCamera, zoom: ambientZoom, now, mode: 'balanced',
                 intensity: .72, reducedMotion: false, planned });
               if (!result.drawn) throw new Error('医療室の環境Eを描画できません');
+            } else if (isMedicalUploadConsole) {
+              // Mirror one completed upload action-task emitted by the server.
+              // This fixture does not claim live-game acceptance.
+              const station = { ...api.STATION, type: 'task' };
+              const source = { id: `gallery-medical-upload-${cycle}`,
+                type: 'action-task', x: station.x, y: station.y, radius: 105,
+                playerId: 'gallery-upload-operator', targetId: station.id,
+                targetX: station.x, targetY: station.y, mode: station.task,
+                startedAt: 0, duration: api.COMPLETE_MS };
+              const uploadCamera = { x: api.ROOM.x + api.ZONE.x + api.ZONE.width / 2 - viewport.width / 2,
+                y: api.ROOM.y + api.ZONE.y + api.ZONE.height / 2 - viewport.height / 2 };
+              const planned = api.plan({ station, task: null, activeUpload: null,
+                completion: source, camera: uploadCamera, zoom, viewport,
+                now: elapsed, intensity: 1, reducedMotion: false });
+              if (!planned || planned.phase !== 'complete' || planned.completionId !== source.id)
+                throw new Error('アップロード完了イベントを計画できません');
+              const result = effect.record({ frame, target: targetId, viewport, planned });
+              if (!result.drawn || result.phase !== 'complete' || result.completionId !== source.id)
+                throw new Error('アップロード完了イベントを描画できません');
             } else if (isRoomObject) {
               const authored = api.OBJECTS[entry.objectId];
               if (!authored) throw new Error('著者済みオブジェクトの設計データがありません');

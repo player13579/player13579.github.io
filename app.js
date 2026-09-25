@@ -23269,119 +23269,6 @@ function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || 
 
 
 
-// Prepare soft light from the material alpha once; animation frames only draw it.
-function ninjutsuFocusBloom(sprite) {
-  const cached = state.textures.ninjutsuFocusBloom;
-  if (cached?.source === sprite) return cached.canvas;
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const light = canvas.getContext("2d", { willReadFrequently: true });
-  light.drawImage(sprite, 0, 0, 128, 128);
-  const pixels = light.getImageData(0, 0, 128, 128);
-  const rgba = pixels.data;
-  const kernel = new Float32Array(13);
-  let weight = 0;
-  for (let k = -6; k <= 6; k += 1) {
-    kernel[k + 6] = Math.exp(-k * k / (2 * 2.2 * 2.2));
-    weight += kernel[k + 6];
-  }
-  for (let k = 0; k < kernel.length; k += 1) kernel[k] /= weight;
-  const horizontal = new Float32Array(128 * 128);
-  for (let y = 0; y < 128; y += 1) {
-    for (let x = 0; x < 128; x += 1) {
-      let alpha = 0;
-      for (let k = -6; k <= 6; k += 1) {
-        if (x + k >= 0 && x + k < 128) alpha += rgba[(y * 128 + x + k) * 4 + 3] * kernel[k + 6];
-      }
-      horizontal[y * 128 + x] = alpha;
-    }
-  }
-  for (let y = 0; y < 128; y += 1) {
-    for (let x = 0; x < 128; x += 1) {
-      let alpha = 0;
-      for (let k = -6; k <= 6; k += 1) {
-        if (y + k >= 0 && y + k < 128) alpha += horizontal[(y + k) * 128 + x] * kernel[k + 6];
-      }
-      const offset = (y * 128 + x) * 4;
-      rgba[offset] = 255;
-      rgba[offset + 1] = 38;
-      rgba[offset + 2] = 54;
-      rgba[offset + 3] = alpha * 2.6;
-    }
-  }
-  light.putImageData(pixels, 0, 0);
-  state.textures.ninjutsuFocusBloom = { source: sprite, canvas };
-  return canvas;
-}
-
-// The focus raster contains one reticle and its sight line. All light passes
-// share its transform; duplicated rotated copies imply several separate sights.
-function drawNinjutsuFocusEffect(effect, progress, now) {
-  const p = Number(progress);
-  if (!Number.isFinite(p) || p <= 0 || p >= 1) return;
-  const index = ACTION_EFFECT_CELLS[effect.type];
-  const sprite = transparentSpriteSource(
-    state.textures.actionEffectTextures?.[index],
-    `action-effect-${index}`,
-    28
-  );
-  if (!sprite?.width || !sprite?.height) return;
-  const reduced = prefersReducedMotion();
-  const enter = objectEffectEase(clamp(p / 0.1, 0, 1));
-  const settle = objectEffectEase(clamp((p - 0.04) / 0.25, 0, 1));
-  const release = objectEffectEase(clamp((p - 0.72) / 0.28, 0, 1));
-  const lock = Math.sin(Math.PI * clamp((p - 0.22) / 0.26, 0, 1)) ** 2;
-  const radius = Math.max(80, Number(effect.radius) || 110);
-  const size = radius * 1.82 * (reduced ? 1 : 1.14 - settle * 0.14 + release * 0.025);
-  const { width, height } = animatedTextureSize(sprite, size, size);
-  const alpha = ctx.globalAlpha * enter * (1 - release);
-  if (alpha <= 0) return;
-
-  ctx.save();
-  ctx.translate(effect.x, effect.y);
-  if (!reduced) ctx.rotate(-0.12 * (1 - settle));
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = alpha;
-  ctx.shadowColor = "rgba(0,0,0,0)";
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = alpha * (reduced ? 0.9 : 0.74 + lock * 0.26);
-  ctx.drawImage(ninjutsuFocusBloom(sprite), -width / 2, -height / 2, width, height);
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-
-  // A single light band runs along the authored sight line into its focal point.
-  // It is clipped to the same material and uses the exact same draw geometry.
-  if (!reduced && p > 0.1 && p < 0.72) {
-    const travel = clamp((p - 0.1) / 0.62, 0, 1);
-    const center = 0.42 + 0.37 * objectEffectEase(travel);
-    const surface = state.textures.teHighlightCanvas || (state.textures.teHighlightCanvas = document.createElement("canvas"));
-    if (surface.width !== 256 || surface.height !== 256) {
-      surface.width = 256;
-      surface.height = 256;
-    }
-    const light = surface.getContext("2d");
-    light.setTransform(1, 0, 0, 1, 0, 0);
-    light.globalCompositeOperation = "source-over";
-    light.globalAlpha = 1;
-    light.filter = "none";
-    light.clearRect(0, 0, 256, 256);
-    const sweep = light.createLinearGradient(0, 256, 256, 0);
-    sweep.addColorStop(0, "rgba(255,255,255,0)");
-    sweep.addColorStop(center - 0.065, "rgba(255,255,255,0)");
-    sweep.addColorStop(center, "rgba(255,255,255,1)");
-    sweep.addColorStop(center + 0.065, "rgba(255,255,255,0)");
-    sweep.addColorStop(1, "rgba(255,255,255,0)");
-    light.fillStyle = sweep;
-    light.fillRect(0, 0, 256, 256);
-    light.globalCompositeOperation = "source-in";
-    light.drawImage(sprite, 0, 0, 256, 256);
-    ctx.globalAlpha = alpha * Math.sin(Math.PI * travel) * 0.85;
-    ctx.drawImage(surface, -width / 2, -height / 2, width, height);
-  }
-  ctx.restore();
-}
-
 function drawBotAttendanceEffect(effect, progress) {
  const sprite=state.textures.actionEffectTextures?.[0];
  if(effect._botAttendanceReady===undefined) effect._botAttendanceReady=Boolean(sprite?.complete&&sprite?.naturalWidth);
@@ -23448,7 +23335,6 @@ function drawActionEffect(effect, progress, now) {
   if(effect.type === "action-task" && effect.variant === "attendance" && !effect.mode){drawBotAttendanceEffect(effect,progress);return;}
   if (effect.type === "action-stand" || effect.type === "action-grit") return;
   if (effect.type === "action-task" && drawTaskDigitalCompletionEffect(effect, progress)) return;
-  if (effect.type === "action-ninjutsu-focus") { drawNinjutsuFocusEffect(effect, progress, now); return; }
   if (renkiVisualKind(effect) || effect.type === "action-renki") { drawNewRenkiEffect(effect, progress); return; }
   // Weapon switching and reloading are represented by their exact
   // weapon-specific character motions. Reusing the firearm-flash strip for
