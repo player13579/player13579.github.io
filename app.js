@@ -18905,55 +18905,6 @@ function dedicatedMapObjectEffectTexture(effectKind, type = "") {
   return textureId ? state.textures.mapObjectEffectTextures?.[textureId] || null : null;
 }
 
-function preparedAtlasTexture(image, key) {
-  if (Array.isArray(image)) {
-    return image.map((entry, index) => transparentSpriteSource(entry, `${key}-${index}`, 30));
-  }
-  return transparentSpriteSource(image, key, 30);
-}
-
-function drawGeneratedPropCell(image, cellIndex, centerX, centerY, width, height, alpha = 1) {
-  if (!image) return false;
-  const source = Array.isArray(image) ? image[cellIndex] : image;
-  if (!source) return false;
-  const imageWidth = source.naturalWidth || source.width;
-  const imageHeight = source.naturalHeight || source.height;
-  if (!imageWidth || !imageHeight) return false;
-  const sourceWidth = Array.isArray(image) ? imageWidth : imageWidth / 3;
-  const sourceHeight = Array.isArray(image) ? imageHeight : imageHeight / 2;
-  const column = Array.isArray(image) ? 0 : cellIndex % 3;
-  const row = Array.isArray(image) ? 0 : Math.floor(cellIndex / 3);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.filter = "brightness(1.02) saturate(1.04) contrast(1.02)";
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(
-    source,
-    column * sourceWidth,
-    row * sourceHeight,
-    sourceWidth,
-    sourceHeight,
-    centerX - width / 2,
-    centerY - height / 2,
-    width,
-    height
-  );
-  ctx.restore();
-  return true;
-}
-
-function roomCompositeForPoint(data, roomId, point) {
-  const room = roomId && roomId !== "corridor"
-    ? data.map.rooms.find((entry) => entry.id === roomId)
-    : data.map.rooms.find((entry) => (
-      point.x >= entry.x && point.x <= entry.x + entry.w &&
-      point.y >= entry.y && point.y <= entry.y + entry.h
-  ));
-  if (!room) return null;
-  const image = state.textures.fullMapComposites?.[data.map.id];
-  return image?.complete && image.naturalWidth ? image : null;
-}
-
 function mapObjectStyle(object) {
   const style = {
     recharge: { color: "#22d3ee", symbol: "EN", prop: 0 },
@@ -19072,59 +19023,6 @@ function alchemyObjectsWebGPUScene(data) {
   return { scene: data.map.alchemyObjects || [],
     textures: { facilityProps: state.textures.facilityProps, roomProps: state.textures.roomProps },
     serverNow: estimatedServerNow(data), frameNow: state.frameNow || performance.now() };
-}
-
-function drawAlchemyObjects(data) {
-  const render = alchemyObjectsWebGPUScene(data);
-  const now = render.serverNow;
-  const facilityProps = preparedAtlasTexture(state.textures.facilityProps, "facility-props");
-  const roomProps = preparedAtlasTexture(state.textures.roomProps, "room-props");
-  for (const object of render.scene) {
-    if (!worldPointVisible(object.x, object.y, Number(object.radius || 90) + 80)) continue;
-    const remaining = Math.max(0, (Number(object.endsAt) || now) - now);
-    const pulse = 0.5 + Math.sin(render.frameNow / 210) * 0.5;
-    const style = object.type === "cover"
-      ? { color: "#94a3b8", label: "錬成遮蔽物", symbol: "▰", atlas: facilityProps, cell: 0, width: 92, height: 82 }
-      : object.type === "recharge"
-        ? { color: "#4ade80", label: "回復端末", symbol: "+", atlas: roomProps, cell: 1, width: 88, height: 78 }
-        : { color: "#fbbf24", label: "音響デコイ", symbol: "♪", atlas: roomProps, cell: 5, width: 92, height: 80 };
-    ctx.save();
-    ctx.strokeStyle = style.color;
-    ctx.lineWidth = 3 + pulse * 2;
-    const textured = drawGeneratedPropCell(style.atlas, style.cell, object.x, object.y, style.width, style.height, 0.96);
-    if (!textured) {
-      ctx.fillStyle = object.type === "cover" ? "rgba(51,65,85,0.94)" : "rgba(8,25,32,0.9)";
-      if (object.type === "cover") roundRect(object.x - 43, object.y - 35, 86, 70, 6, true, true);
-      else {
-        ctx.beginPath();
-        ctx.arc(object.x, object.y, 28, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-    if (object.type !== "cover") {
-      ctx.globalAlpha = 0.24 + pulse * 0.14;
-      ctx.beginPath();
-      ctx.arc(object.x, object.y, Number(object.radius || 105), 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-    if (!textured) {
-      ctx.fillStyle = style.color;
-      ctx.font = "900 22px Segoe UI, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(style.symbol, object.x, object.y);
-    }
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "rgba(8,20,28,0.9)";
-    roundRect(object.x - 54, object.y + 43, 108, 28, 5, true, false);
-    ctx.fillStyle = "#f8fafc";
-    ctx.font = "800 10px Segoe UI, sans-serif";
-    ctx.fillText(`${style.label} ${Math.ceil(remaining / 1000)}秒`, object.x, object.y + 57);
-    ctx.restore();
-  }
 }
 
 // Authored flow is sampled once per weighted phase pair; no stationary-plus-moving duplicate.
@@ -19327,124 +19225,6 @@ function stationsWebGPUScene(data) {
   };
 }
 
-function drawStations(data) {
-  const render = stationsWebGPUScene(data);
-  const self = render.self;
-  const facilityProps = preparedAtlasTexture(render.facilityProps, "facility-props");
-  const taskIds = new Set(render.tasks.filter((task) => !task.done).map((task) => task.stationId));
-  render.scene.forEach((station) => {
-    if (!worldPointVisible(station.x, station.y, 180)) return;
-    let color = "#9aa9b8";
-    let symbol = "";
-    const activeTask = taskIds.has(station.id);
-    if (station.type === "task") {
-      color = activeTask ? "#06d6ff" : "#728295";
-      symbol = station.task === "download" ? "DL" : station.task === "upload" ? "UP" : "T";
-    } else if (station.type === "utility") {
-      color = "#38bdf8";
-      symbol = "U";
-    } else if (station.type === "emergency") {
-      color = "#ef4444";
-      symbol = "!";
-    }
-    const propCell = station.type === "emergency" ? 5 : 0;
-    const propWidth = station.type === "emergency" ? 82 : 74;
-    const propHeight = station.type === "emergency" ? 64 : 70;
-    const integrated = Boolean(roomCompositeForPoint(data, station.room, station));
-    const textured = integrated
-      ? true
-      : drawGeneratedPropCell(facilityProps, propCell, station.x, station.y, propWidth, propHeight, activeTask ? 1 : 0.9);
-    if (!textured && station.type !== "vending") {
-      if (station.type !== "task") {
-        ctx.fillStyle = color;
-        ctx.strokeStyle = activeTask ? "#e0fbff" : "rgba(255,255,255,0.42)";
-        ctx.lineWidth = activeTask ? 4 : 2;
-        ctx.beginPath();
-        ctx.arc(station.x, station.y, activeTask ? 20 : 14, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-    if (station.type !== "task" && station.type !== "vending") {
-      ctx.fillStyle = "rgba(7,16,20,0.88)";
-      ctx.beginPath();
-      ctx.arc(station.x, station.y + propHeight * 0.34, activeTask ? 14 : 11, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = activeTask ? "#dffbff" : "#f8fafc";
-    ctx.shadowColor = station.type === "task" ? "rgba(3,18,26,0.92)" : "transparent";
-    ctx.shadowBlur = station.type === "task" ? 4 : 0;
-    ctx.font = activeTask ? "900 10px Segoe UI, sans-serif" : "900 9px Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(symbol, station.x, station.y + propHeight * 0.34 + 0.5);
-    ctx.shadowBlur = 0;
-    if (activeTask) {
-      ctx.fillStyle = "rgba(248,252,255,0.94)";
-      roundRect(station.x - 45, station.y + 28, 90, 22, 7, true, false);
-      ctx.fillStyle = "#103245";
-      ctx.font = "900 12px Segoe UI, sans-serif";
-      ctx.fillText(station.label, station.x, station.y + 39);
-    }
-    if (station.type !== "task" && station.type !== "vending" && self && dist(self, station) <= data.map.taskRange) {
-      ctx.strokeStyle = activeTask ? "rgba(6,214,255,0.85)" : "rgba(45,212,191,0.35)";
-      ctx.lineWidth = activeTask ? 4 : 1;
-      ctx.beginPath();
-      ctx.arc(station.x, station.y, activeTask ? 34 : 24, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  });
-
-}
-
-function drawFacilityEffects(data) {
-  const time = (state.frameNow || performance.now()) / 1000;
-  const activeTaskIds = new Set((data.self.tasks || []).filter((task) => !task.done).map((task) => task.stationId));
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-
-  data.map.stations.forEach((station, stationIndex) => {
-    if (!worldPointVisible(station.x, station.y, 150)) return;
-    const seed = stationIndex * 0.173;
-    if (station.type === "task") {
-      drawTaskTransferStationEffect(station, activeTaskIds.has(station.id), time, seed);
-    } else if (station.type === "utility") {
-      const active = activeTaskIds.has(station.id);
-      const strength = active ? 0.92 : 0.2;
-      for (let particleIndex = 0; particleIndex < 3; particleIndex += 1) {
-        const progress = (time * (0.36 + particleIndex * 0.025) + seed + particleIndex / 3) % 1;
-        const sway = Math.sin(time * 2.4 + particleIndex * 2.1 + stationIndex) * 9;
-        const alpha = Math.sin(progress * Math.PI) * strength;
-        ctx.fillStyle = `rgba(34,211,238,${alpha})`;
-        ctx.fillRect(station.x + sway - 1.5, station.y + 17 - progress * 62, 3, 8);
-      }
-      if (active) {
-        ctx.strokeStyle = `rgba(103,232,249,${0.4 + Math.sin(time * 5 + seed) * 0.18})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(station.x - 22, station.y - 24);
-        ctx.lineTo(station.x + 22, station.y - 24);
-        ctx.stroke();
-      }
-    }
-
-    if (station.type === "emergency") {
-      const progress = (time * 0.62 + seed) % 1;
-      ctx.strokeStyle = `rgba(248,113,113,${(1 - progress) * 0.72})`;
-      ctx.lineWidth = 4 - progress * 2;
-      ctx.beginPath();
-      ctx.arc(station.x, station.y, 28 + progress * 34, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-  });
-
-
-
-  ctx.restore();
-}
-
-
 // Dedicated task material. Teleport transfer-in/out keep their own sources.
 function taskDigitalTransferSprite(download) {
   return transparentSpriteSource(
@@ -19522,20 +19302,6 @@ function drawTaskDigitalTransferField(download, time, phase, size, strength, com
     }
   } finally { ctx.restore(); }
   return true;
-}
-
-function drawTaskTransferStationEffect(station, active, time, phase) {
-  if (station.task !== "download" && station.task !== "upload") return false;
-  const now = state.frameNow || performance.now();
-  const completing = state.magicEffects.some((effect) => effect.type === "action-task" &&
-    effect.targetId === station.id && (effect.mode === "download" || effect.mode === "upload") &&
-    now >= effect.startedAt && now < effect.startedAt + effect.duration);
-  if (completing) return true;
-  ctx.save();
-  ctx.translate(station.x, station.y - 10);
-  const drawn = drawTaskDigitalTransferField(station.task === "download", time, phase, active ? 132 : 102, active ? 0.96 : 0.44);
-  ctx.restore();
-  return drawn;
 }
 
 function drawTaskDigitalCompletionEffect(effect, progress) {
