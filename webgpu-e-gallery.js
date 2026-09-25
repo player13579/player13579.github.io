@@ -23,6 +23,20 @@
     status: '品質不採用・再生可能',
     source: 'webgpu-luck-astra-v2.js',
     page: 'luck-astra-v2-preview.html'
+  }, {
+    id: 'stamina-astra-clean-v1',
+    title: 'スタミナ回復 · Astra新規v1',
+    detail: '身体への補給を試した新規版。実寸では細い脚線に見え、効果の意味が弱いため画質は不採用。本編未接続。',
+    status: '品質不採用・再生可能',
+    source: 'webgpu-stamina-astra-clean-v1.js',
+    page: 'stamina-astra-clean-v1-preview.html'
+  }, {
+    id: 'mana-astra-clean-v1',
+    title: 'マナ獲得 · Astra新規v1',
+    detail: '身体への供給を試した新規版。青い布帯のように見え、体内蓄積が弱いため画質は不採用。本編未接続。',
+    status: '品質不採用・再生可能',
+    source: 'webgpu-mana-astra-clean-v1.js',
+    page: 'mana-astra-clean-v1-preview.html'
   }];
   const params = new URLSearchParams(location.search);
   let selectedIndex = 0;

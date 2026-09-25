@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>スタミナ回復 — Astra clean v1</title>
+<style>html,body{margin:0;background:#0e1217;color:#e4e7ea;font:14px system-ui,sans-serif}main{max-width:680px;margin:auto;padding:18px 0}h1,p{margin:0 18px 10px}h1{font-size:19px;font-weight:600}p{color:#aab4bf;font-size:12px}canvas{display:block;max-width:100%;height:auto!important}.sizes{display:flex;justify-content:space-evenly;color:#94a3ae}#status{margin-top:14px}body[data-embed] main{padding-top:8px}body[data-embed] h1{font-size:16px}</style>
+<main><h1>スタミナ回復</h1><p>Astra clean v1 · 新規制作候補 · 自動ループ</p><canvas id="stage"></canvas><div class="sizes"><span>キャラ高 100px</span><span>キャラ高 64px</span></div><p id="status">描画準備中</p></main>
+<script src="webgpu-stamina-astra-clean-v1.js"></script>
+<script>
+(async()=>{
+ const query=new URLSearchParams(location.search);if(query.has('embed'))document.body.dataset.embed='';
+ const verify=query.has('verify');let ctx=null;if(!verify){const AC=window.AudioContext||window.webkitAudioContext;if(AC){ctx=new AC();const resume=()=>{ctx.resume();};window.addEventListener('pointerdown',resume,{once:true});}}
+ const api=DvaStaminaAstraCleanV1;const renderer=await api.createRenderer(document.querySelector('canvas'));
+ const events=api.createEvents({verify,audioContext:ctx});const owners=new Set(['preview']);const start=performance.now();let fixed=null,lastCycle=-1,generation=0,running=true;
+ const reduced=query.has('reduced')||matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const state=window.staminaPreview={renderer,events,frames:0,version:api.VERSION,verify,reduced,phase:0,setTime:async(ms)=>{events.cancel('preview-'+generation+'-'+lastCycle);generation++;lastCycle=-1;fixed=ms;await draw(ms);},resume:()=>{fixed=null;},dispose:()=>{running=false;events.dispose();renderer.dispose();if(ctx)ctx.close();}};
+ async function draw(elapsed){const cycle=Math.floor(elapsed/2400);const age=elapsed%2400;const id='preview-'+generation+'-'+cycle;
+  if(cycle!==lastCycle){if(lastCycle>=0)events.cancel('preview-'+generation+'-'+lastCycle);events.ingest({type:'gain-stamina',id,playerId:'preview',at:cycle*2400,durationMs:1500});lastCycle=cycle;}
+  const visible=events.frame(elapsed,owners);const p=visible.length?age/1500:1;
+  const width=Math.min(680,document.documentElement.clientWidth);
+  const actors=[{x:width*.31,y:210,height:100},{x:width*.71,y:210,height:64}];
+  await renderer.render(p,{width,height:280,dpr:devicePixelRatio,reducedMotion:reduced,actors});events.receipt(id,elapsed);state.phase=p;state.frames++;
+ }
+ async function loop(){if(!running)return;await draw(fixed===null?performance.now()-start:fixed);requestAnimationFrame(loop);}await loop();
+ document.querySelector('#status').textContent='本編未接続・ユーザー採用前。音はブラウザーの再生条件に従います。';
+ document.body.dataset.ready='true';window.addEventListener('pagehide',state.dispose,{once:true});
+})().catch(e=>{document.body.dataset.error=e.message;document.querySelector('#status').textContent=e.message;console.error(e);});
+</script></html>

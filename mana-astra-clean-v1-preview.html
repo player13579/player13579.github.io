@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>マナ獲得 — Astra clean v1</title>
+<style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#070a10;color:#dce6f5;font:14px system-ui,sans-serif}main{max-width:820px;margin:0 auto;padding:22px 16px}h1{font-size:19px;font-weight:600;margin:0 0 8px}p{font-size:12px;color:#8d9bb1;line-height:1.7;margin:6px 0}canvas{display:block;width:100%;height:300px;border-radius:12px}.labels{display:flex;justify-content:space-around;margin-top:-40px;position:relative;color:#90a5c9;pointer-events:none;font-size:12px}.status{margin-top:42px}body.embed main{padding:10px 6px}body.embed h1,body.embed .intro{display:none}</style>
+<main><h1>マナ獲得 · Astra clean v1</h1><p class="intro">身体へ引き込まれ、内側へ蓄えられるマナ。自動反復する新規候補です。</p><canvas aria-label="マナ獲得のWebGPU自動再生。実身体高100pxと64px"></canvas><div class="labels"><span>H100</span><span>H64</span></div><p class="status" id="status">WebGPUを準備しています</p><p>候補・ユーザー採用前 / 本編未接続</p></main>
+<script src="webgpu-mana-astra-clean-v1.js"></script><script>
+(()=>{'use strict';const query=new URLSearchParams(location.search),verify=query.has('verify');if(query.has('embed'))document.body.classList.add('embed');
+const status=document.getElementById('status'),canvas=document.querySelector('canvas'),api=DvaManaAstraCleanV1;
+const audio=api.createAudio({verify,muted:query.has('mute')}),reduced=query.has('reduced')||matchMedia('(prefers-reduced-motion: reduce)').matches;
+let renderer=null,raf=0,start=performance.now(),cycle=-1,closed=false,frozen=query.has('t'),fixed=Number(query.get('t')||0),receipts=[];
+const settings=()=>({reduced,width:canvas.clientWidth,height:300});
+async function close(){if(closed)return;closed=true;cancelAnimationFrame(raf);renderer?.dispose();await audio.dispose();}
+addEventListener('pagehide',close,{once:true});addEventListener('pointerdown',()=>audio.unlock(),{once:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){start=performance.now();cycle=-1;}});
+function loop(now){if(closed)return;const elapsed=now-start,loopIndex=Math.floor(elapsed/2250),age=elapsed%2250;
+  if(loopIndex!==cycle){cycle=loopIndex;if(!document.hidden)audio.play('preview-'+cycle,1500);}
+  const phase=frozen?fixed:age/1500;renderer.render(phase,settings());if(receipts.length<600)receipts.push({wallMs:elapsed,phase,submitted:renderer.receipt.submitted});raf=requestAnimationFrame(loop);}
+api.createRenderer(canvas).then(r=>{if(closed){r.dispose();return;}renderer=r;start=performance.now();status.textContent=verify?'WebGPU · 自動再生 · 検証音声0固定':'WebGPU · 自動再生 · 初回タッチ後に音声';
+window.manaPreview={version:api.VERSION,renderer,audio,receipts,get frozen(){return frozen;},async at(phase,extra={}){cancelAnimationFrame(raf);frozen=true;fixed=phase;renderer.render(phase,{...settings(),...extra});await renderer.settled();return renderer.receipt;},resume(){cancelAnimationFrame(raf);frozen=false;start=performance.now();cycle=-1;raf=requestAnimationFrame(loop);},async pixels(phase,extra={}){return renderer.readPixels(phase,{...settings(),...extra});},close};
+document.documentElement.dataset.ready='true';raf=requestAnimationFrame(loop);
+}).catch(error=>{status.textContent='WebGPUエラー: '+error.message;document.documentElement.dataset.error=error.message;});
+})();
+</script></html>
