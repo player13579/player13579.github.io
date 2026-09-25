@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // Preserve accepted E and list runnable versions only.
+  // The shared gallery stays on the accepted Heal preview until another E is ready.
   const entries = [{
     id: 'heal',
     title: 'ヒール',
@@ -9,42 +9,9 @@
     status: '採用・接続確認中',
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
-  }, {
-    id: 'sunbeam-v2',
-    title: 'サンビーム / ChatGPT Pro v2',
-    detail: '採用済みWebGPU Eです。本編イベントとSFXの受入確認は継続中です。',
-    status: '採用・本編接続確認中',
-    source: 'webgpu-sunbeam-pro-v2.mjs',
-    page: 'sunbeam-v2-gallery.html'
-  }, {
-    id: 'luck-v1',
-    title: '幸運 / ChatGPT Pro v1',
-    detail: 'Recovered standalone WebGPU version (125,664 bytes). Candidate only; visual quality is unaccepted.',
-    status: '候補・未受入',
-    source: 'experiments/luck-e-v1.mjs',
-    provenance: 'outputs/request-20260925/sunbeam-pro-code/luck-e.mjs · ChatGPT Pro recovered source',
-    page: 'webgpu-luck-candidate.html?version=v1'
-  }, {
-    id: 'luck-v2',
-    title: '幸運 / ChatGPT Pro v2',
-    detail: 'Standalone WebGPU version (139,251 bytes). Candidate only; actual-size visual audit rejected it.',
-    status: '候補・未受入',
-    source: 'experiments/luck-e-v2.mjs',
-    provenance: 'outputs/request-20260925/e-pro-rebuild/luck-e.mjs · ChatGPT Pro',
-    page: 'webgpu-luck-candidate.html?version=v2'
-  }, {
-    id: 'luck-v3-revision',
-    title: '幸運 / ChatGPT Pro Revision',
-    detail: 'Revised standalone WebGPU version (164,536 bytes). Candidate only; visual quality remains unaccepted.',
-    status: '候補・未受入',
-    source: 'experiments/luck-e-v3-revision.mjs',
-    provenance: 'outputs/request-20260925/e-pro-rebuild/luck-e-revision.mjs · ChatGPT Pro',
-    page: 'webgpu-luck-candidate.html?version=v3'
   }];
   const params = new URLSearchParams(location.search);
-  const intervalMs = 12000;
   let selectedIndex = 0;
-  let rotationTimer = 0;
   const catalog = document.getElementById('catalog');
   const stage = document.getElementById('stage');
   const notice = document.getElementById('notice');
@@ -59,7 +26,7 @@
     const status = document.createElement('span');
     status.textContent = entry.status;
     button.append(title, status);
-    button.addEventListener('click', () => select(index, true));
+    button.addEventListener('click', () => select(index));
     catalog.append(button);
     return button;
   });
@@ -75,7 +42,7 @@
     return preview;
   }
 
-  function select(index, restartRotation = false) {
+  function select(index) {
     selectedIndex = (index + entries.length) % entries.length;
     const entry = entries[selectedIndex];
     const preview = makePreview(entry);
@@ -121,10 +88,6 @@
       notice.hidden = false;
     });
     stage.append(iframe);
-    if (restartRotation && entries.length > 1) {
-      clearInterval(rotationTimer);
-      rotationTimer = setInterval(() => select(selectedIndex + 1), intervalMs);
-    }
   }
 
   if (!entries.length) {
@@ -132,5 +95,5 @@
     notice.textContent = '表示できる受理済みEはありません。';
     return;
   }
-  select(0, entries.length > 1);
+  select(0);
 })();
