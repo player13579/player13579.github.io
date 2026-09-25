@@ -19654,26 +19654,6 @@ function worldSoundWebGPUScene() {
   return { now, effects: state.worldSoundEffects };
 }
 
-function drawWorldSoundEffects() {
-  const scene = worldSoundWebGPUScene();
-  for (const effect of scene.effects) {
-    const progress = clamp((scene.now - effect.startedAt) / effect.duration, 0, 1);
-    ctx.save();
-    ctx.globalAlpha = 1 - progress;
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 5 - progress * 2;
-    ctx.beginPath();
-    ctx.arc(effect.x, effect.y, 28 + progress * 125, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = "#fbbf24";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(effect.x, effect.y, 16 + progress * 55, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-
 function hitEffectsWebGPUScene() {
   const now = state.frameNow || performance.now();
   state.hitEffects = state.hitEffects.filter((effect) => now - effect.startedAt < effect.duration);
