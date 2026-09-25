@@ -23,16 +23,17 @@
   ['v317-corridor-a09-1','wallSconce','luckBoost',3928,1061,24,24,'a09','sconce-stacked-glass-transfer','stacked-glass-transfer-tone'],
   ['v317-corridor-a10-1','wallSconce','luckBoost',3928,1861,24,24,'a10','footlight-lateral-ground-wash','ground-wash-brass-tone'],
   ['v317-corridor-a11-1','wallSconce','luckBoost',3928,2671,24,24,'a11','footlight-chevron-threshold','threshold-glass-chime'],
-  ['v317-corridor-a16-1','wallSconce','mana',1815,1742,24,24,'a16','sconce-glass-reservoir-charge','reservoir-filament-tone']
+  ['v317-corridor-a16-1','wallSconce','mana',1815,1742,24,24,'a16','sconce-glass-reservoir-charge','reservoir-filament-tone'],
+  ['v317-corridor-a01-1','wallSconce','luckBoost',1240,672,24,24,'a01','sconce-archive-wall-step','archive-brass-wick-click']
  ];
  const OBJECTS=Object.freeze(Object.fromEntries(raw.map((r,index)=>[r[0],Object.freeze({
   id:r[0],type:r[1],effectKind:r[2],x:r[3],y:r[4],width:r[5],height:r[6],corridor:r[7],
   code:index,design:r[8],soundProfile:r[9],sound:Object.freeze({profile:r[9],sourceX:r[3],sourceY:r[4],
    edge:'accepted-use-once',durationMs:[185,230,270,160,205,215,245,190,220,215,230,205,225,185,
-    210,205,230,180,195,240][index],
+    210,205,230,180,195,240,210][index],
    material:['brass-glass','clay-leaf','ceramic-canopy','timber','steel-spring','hinge','glass-wood','endrail',
     'paired-leaf','root-clay','cross-leaf','upright-leaf','water-canopy','brass-glass',
-    'offset-glass','crossed-brass','stacked-glass','floor-brass','threshold-glass','mana-glass'][index]})
+    'offset-glass','crossed-brass','stacked-glass','floor-brass','threshold-glass','mana-glass','archive-brass-glass'][index]})
  })])));
  const finite=Number.isFinite;
  const WALL_SCONCE_EXTENT=Object.freeze({halfWidth:58,halfHeight:46});
@@ -237,7 +238,7 @@ fn over(dst:vec4f,color:vec3f,coverage:f32)->vec4f{
   mark=(left+right)*line(abs(q.x)-(.72-.72*sweep),.22)+threshold*.35+meet*threshold*.43;
   highlight=line(q.y-.42,.06)*band(q.x,-.64,.64)*.50;
   color=vec3f(.98,.81,.52);
- }else{
+ }else if(code<19.5){
   // A16: mana remains inside glass; a reservoir charges radially into one filament core.
   let vessel=length(q*vec2f(1.06,.85));
   let rim=line(vessel-.58,.065);
@@ -246,6 +247,24 @@ fn over(dst:vec4f,color:vec3f,coverage:f32)->vec4f{
   mark=rim*.41+fill*.55+filament*smoothstep(.25,.73,sweep)*.75;
   highlight=line(vessel-.33,.13)*smoothstep(.38,.80,sweep)*.43;
   color=vec3f(.54,.89,1.0);
+ }else{
+  // A01: the existing brass wall lamp throws one stepped archive-side wash.
+  // A compact glass wick remains the source; three broad wall terraces answer
+  // from the fixture outward instead of forming the future ceramic reader seam.
+  let housing=band(q.x,-.17,.17)*band(q.y,-.33,.38);
+  let glass=band(q.x,-.10,.10)*band(q.y,-.22,.23);
+  let wick=line(q.x,.045)*band(q.y,-.16,.16);
+  let first=band(q.x,-.44,-.16)*band(q.y,-.32,.20);
+  let second=band(q.x,-.70,-.44)*band(q.y,-.15,.35);
+  let third=band(q.x,-.88,-.70)*band(q.y,.02,.48);
+  let arrive1=smoothstep(.10,.34,sweep);
+  let arrive2=smoothstep(.30,.56,sweep);
+  let arrive3=smoothstep(.51,.76,sweep);
+  let pool=(first*arrive1+second*arrive2+third*arrive3)*.43;
+  mark=housing*.25+glass*.34+pool;
+  highlight=wick*(.24+.60*smoothstep(.12,.47,sweep))+
+    line(q.x+.17,.045)*band(q.y,-.29,.32)*.24;
+  color=vec3f(1.0,.70,.31);
  }
  let a=clamp((mark+highlight)*envelope*.75,0.0,.82);
  return vec4f(color*a,a);

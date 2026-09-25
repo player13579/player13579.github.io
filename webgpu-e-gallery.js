@@ -36,6 +36,7 @@
     { id: 'corridor-a10-footlight', objectId: 'v317-corridor-a10-1', title: 'A10 足元灯', detail: '器具から床へ横方向の光を送る。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a10-footlight', kind: 'corridor' },
     { id: 'corridor-a11-footlight', objectId: 'v317-corridor-a11-1', title: 'A11 足元灯', detail: '対の光が敷居で合流して床へ抜ける。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a11-footlight', kind: 'corridor' },
     { id: 'corridor-a16-sconce', objectId: 'v317-corridor-a16-1', title: 'A16 壁灯', detail: 'ガラス内の光が満ち、一本のフィラメントへ集まる。候補表示で、視覚受入は未完了。SFX品質も未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a16-sconce', kind: 'corridor' },
+    { id: 'corridor-a01-sconce', objectId: 'v317-corridor-a01-1', title: 'A01 壁灯', detail: '現行マップの壁灯 Luck 成功使用イベントを使う専用WebGPU候補。視覚品質とSFX品質は未受入。', status: '視覚候補・SFX品質未受入', source: 'webgpu-corridor-object-use-e.js', page: 'webgpu-e-gallery.html#corridor-a01-sconce', kind: 'corridor' },
     { id: 'bottle-shards', title: '瓶の破片着弾', detail: 'サーバー現行の bottle-shards イベント形、所有者、瓶種と命中数を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-bottle-shards-e.js', kind: 'bottle-shards' },
     { id: 'archive-cabinet', title: 'アーカイブキャビネット', detail: '現行マップの archiveCabinet 成功使用イベントを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-archive-cabinet-e.js', kind: 'integrated' },
     { id: 'cable-spool', objectId: 'v302-power-cableSpool-2', title: 'ケーブルリール使用', detail: '現行マップの cableSpool 成功使用イベントと著者済みIDを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-cable-spool-e.js', kind: 'integrated' }
@@ -551,7 +552,7 @@
         if (disposed || runId !== corridorRun || active !== entry.id) { dispose(); return; }
         // requestAnimationFrame timestamps can predate performance.now() when
         // registration lands immediately before a frame boundary.
-        const total = Math.max(0, now - startedAt);
+    const total = Math.max(0, now - startedAt);
         const elapsed = total % cycleLength;
         const cycle = Math.floor(total / cycleLength);
         const frame = renderer.beginFrame(`${entry.id} bottle-shards E gallery fixture`);

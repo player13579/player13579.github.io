@@ -12860,7 +12860,7 @@ function useMapObject(room, player, objectId) {
     "v302-medical-diagnosticBed-1": "medicalBedUse",
     "v302-medical-medicalCabinet-2": "medicalCabinetUse",
     "v302-medical-sterilizer-3": "medicalFootBathUse",
-    "v317-corridor-a01-1": "a01ReaderUse",
+    "v317-corridor-a01-1": "a01SconceUse",
     "v302-power-cableSpool-2": "cableSpoolUse",
     "v302-archive-archiveCabinet-2": "archiveCabinetUse"
   }[object.id];

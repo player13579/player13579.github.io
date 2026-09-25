@@ -12704,13 +12704,13 @@ function detectGameSounds(previous, next) {
 
 const OBJECT_USE_SOUND_TYPES = new Set([
   'object', 'medicalBedUse', 'medicalCabinetUse', 'medicalFootBathUse',
-  'a01ReaderUse', 'cableSpoolUse', 'archiveCabinetUse'
+  'a01SconceUse', 'cableSpoolUse', 'archiveCabinetUse'
 ]);
 const OBJECT_USE_SPECIAL_SOUNDS = Object.freeze({
   'v302-medical-diagnosticBed-1': 'medicalBedUse',
   'v302-medical-medicalCabinet-2': 'medicalCabinetUse',
   'v302-medical-sterilizer-3': 'medicalFootBathUse',
-  'v317-corridor-a01-1': 'a01ReaderUse',
+  'v317-corridor-a01-1': 'a01SconceUse',
   'v302-power-cableSpool-2': 'cableSpoolUse',
   'v302-archive-archiveCabinet-2': 'archiveCabinetUse'
 });
@@ -12833,7 +12833,7 @@ function detectWorldSounds(previous, next) {
       medicalBedUse: "medicalBedUse",
       medicalCabinetUse: "medicalCabinetUse",
       medicalFootBathUse: "medicalFootBathUse",
-      a01ReaderUse: "a01ReaderUse",
+      a01SconceUse: "a01SconceUse",
       cableSpoolUse: "cableSpoolUse",
       archiveCabinetUse: "archiveCabinetUse",
       invention: "invention",
@@ -33869,12 +33869,12 @@ function playSound(kind, options = {}) {
     const volume = clamp(Number(options.volume) || 1, 0, 1);
     playTone(270, 520, 0.34, "sine", 0.060 * volume, 0, options.pan, options.spatial);
     playTone(690, 470, 0.14, "triangle", 0.015 * volume, 0.09, options.pan, options.spatial);
-  } else if (kind === "a01ReaderUse") {
-    // One ceramic latch followed by a short amber confirmation; the source
-    // is the accepted object-use receipt, not a fabricated doorway crossing.
+  } else if (kind === "a01SconceUse") {
+    // The current A01 brass wall lamp opens with a short metal shutter catch;
+    // one glass-wick light rise follows the accepted object-use receipt.
     const volume = clamp(Number(options.volume) || 1, 0, 1);
-    playTone(370, 510, 0.19, "triangle", 0.033 * volume, 0, options.pan, options.spatial);
-    playTone(740, 980, 0.10, "sine", 0.010 * volume, 0.045, options.pan, options.spatial);
+    playTone(680, 390, 0.07, "triangle", 0.026 * volume, 0, options.pan, options.spatial);
+    playTone(560, 830, 0.18, "sine", 0.018 * volume, 0.025, options.pan, options.spatial);
   } else if (kind === "cableSpoolUse") {
     // A taut ratchet catch and one clean cable pluck for the accepted spool use.
     const volume = clamp(Number(options.volume) || 1, 0, 1);
