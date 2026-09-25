@@ -9234,7 +9234,7 @@ function renderPurchasedAbilityShortcuts(data) {
   if (!container) return;
   const self = data?.self;
   const abilities = activePurchasedShopAbilities(self);
-  const canUse = data?.phase === "playing" && Boolean(self?.alive) && !self?.ejected;
+  const canUse = data?.phase === "playing" && Boolean(self?.alive) && !self?.ejected && !self?.inVent;
   const key = abilities.map((ability) => ability.id).join("|");
   if (container.dataset.abilityKey !== key) {
     container.replaceChildren();
@@ -18540,23 +18540,6 @@ function sensoryBlackoutWebGPUScene(data) {
   return { unconsciousUntil: data.self.unconsciousUntil || 0, now: estimatedServerNow(data) };
 }
 
-function drawSensoryBlackout(data, w, h) {
-  const scene = sensoryBlackoutWebGPUScene(data);
-  const liveNow = scene.now;
-  const unconscious = scene.unconsciousUntil > liveNow;
-  if (!unconscious) return;
-  const endsAt = scene.unconsciousUntil;
-  ctx.save();
-  ctx.fillStyle = "#030506";
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "#d7e3e9";
-  ctx.font = "900 24px Segoe UI, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`意識消失 ${Math.max(0, (endsAt - liveNow) / 1000).toFixed(1)}秒`, w / 2, h / 2);
-  ctx.restore();
-}
-
 // Shared mode-state adapter for the eventual main WebGPU frame. Keep name and
 // timing lookup behind the same priority as the current Canvas banner.
 function modeBannerWebGPUScene(data) {
@@ -18575,42 +18558,6 @@ function modeBannerWebGPUScene(data) {
     now: aimTargetId ? estimatedServerNow(data) : 0,
     special: data.self.special
   };
-}
-
-function drawModeBanner(data, w) {
-  const mode = modeBannerWebGPUScene(data);
-  let text = "";
-  if (mode.throwTargetClairvoyanceActive) {
-    text = "千里眼 / 着地点追従 / 全域投擲";
-  } else if (mode.clairvoyanceActive) {
-    text = `千里眼 / ${mode.followTargetName || "追尾先なし"}を追尾 / ←→で切替 / Zで解除`;
-  } else if (mode.aimTargetId) {
-    const remaining = Math.max(0, mode.aimReadyAt - mode.now);
-    text = remaining > 0
-      ? `忍殺静止中: ${mode.aimTargetName || "対象"} / 残り ${(remaining / 1000).toFixed(1)}秒`
-      : `${mode.special === "assassin" ? "忍殺キル（死体なし）" : "忍殺撃破"}処理中: ${mode.aimTargetName || "対象"}`;
-  }
-  if (!text) return;
-  ctx.save();
-  ctx.fillStyle = "rgba(8, 25, 32, 0.88)";
-  roundRect(w / 2 - 180, 16, 360, 34, 6, true, false);
-  ctx.fillStyle = "#ecfeff";
-  ctx.font = "800 13px Segoe UI, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, w / 2, 33);
-  ctx.restore();
-}
-
-function drawIdle(w, h) {
-  ctx.fillStyle = "#9fb6c4";
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  for (let x = 0; x < w; x += 42) {
-    for (let y = 0; y < h; y += 42) {
-      ctx.fillRect(x, y, 1, 1);
-    }
-  }
 }
 
 function cameraFor(data, w, h, zoom = 1) {
