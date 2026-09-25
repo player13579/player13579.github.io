@@ -18,6 +18,7 @@
     { id: 'bust', title: 'バスト発動', detail: '対象への時限バスト付与イベントを使う単独フィクスチャ。持続状態・衝突判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-bust-e.js', kind: 'integrated' },
     { id: 'gravity-keeper', title: '時の番人フィールド', detail: '時の番人の発動イベント・半径・寿命を使う単独フィクスチャ。グラビティストームや本編判定・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-gravity-field-e.js', kind: 'integrated' },
     { id: 'hacker-status', title: 'ハッカー状態回復', detail: '状態異常の解除が成立したイベントと対象位置を使う単独フィクスチャ。異常なしの結果や本編実イベント・画質・SFXの受入は含みません。', status: '単独フィクスチャ・画質/SFX未受入', source: 'webgpu-hacker-status-recovery-e.js', kind: 'integrated' },
+    { id: 'common-action-mana', title: '共通アクション・マナ', detail: '現在の action-mana の欲望・気概・理知・錬気完了イベント形を再生。錬気は normal / tenfold の完了 variant を交互に表示します。実ゲーム画質・SFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-common-action-body-e.js', kind: 'integrated' },
     { id: 'medical-bed', title: '診療ベッド使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-object-e.js', kind: 'integrated' },
     { id: 'medical-cabinet', title: '薬草とリネンの棚', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-cabinet-e.js', kind: 'integrated' },
     { id: 'medical-footbath', title: '足湯使用', detail: '現行の成功使用イベント形を使うWebGPU単独フィクスチャ。実ゲームでの表示とSFXは未受入です。', status: '単独フィクスチャ・本編表示/SFX未受入', source: 'webgpu-medical-footbath-use-e.js', kind: 'integrated' },
@@ -139,6 +140,7 @@
       if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
       target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
       const isEmp = entry.id === 'emp', isHacker = entry.id === 'hacker-status';
+      const isCommonActionMana = entry.id === 'common-action-mana';
       const isAlchemyTransmutation = entry.id === 'alchemy-transmutation';
       const isFighterSlash = entry.id === 'fighter-slash';
       const isArchiveCabinet = entry.id === 'archive-cabinet';
@@ -153,6 +155,7 @@
       const isMedicalAmbient = entry.id === 'medical-ambient';
       const isRoomObject = entry.id.startsWith('room-');
       const api = ({ emp: window.DvaWebGPUEmpEffect, barrier: window.DvaWebGPUBarrierE,
+        'common-action-mana': window.DvaWebGPUCommonActionBodyE,
         'alchemy-transmutation': window.DvaWebGPUAlchemyE,
         'fighter-slash': window.DvaWebGPUFighterEnergyE,
         'flora-invisible': window.DvaWebGPUFloraE,
@@ -188,6 +191,7 @@
         dodge: api.VISUAL_MS, renki: api.VISUAL_MS,
         'idea-truth': 1800, bust: api.EVENT_DURATION?.[api.START_EVENT],
         'gravity-keeper': 5000, 'hacker-status': Math.min(1200, api.DURATION_MS || 1200),
+        'common-action-mana': api.DEFAULT_DURATION_MS,
         'medical-bed': api.DURATION_MS, 'medical-cabinet': api.DURATION_MS,
         'medical-footbath': api.DURATION_MS, 'medical-ambient': 8000,
         'archive-cabinet': api.DURATION_MS,
@@ -209,7 +213,37 @@
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (isMedicalFixture || (elapsed > 0 && elapsed < duration)) {
-            if (isFireActivation) {
+            if (isCommonActionMana) {
+              // Match the app admission contract and server pushMagicEffect shape.
+              const variants = ['欲望', '気概', '理知', 'renki'];
+              const variant = variants[cycle % variants.length];
+              const completionKind = variant === 'renki'
+                ? (Math.floor(cycle / variants.length) % 2 ? 'tenfold' : 'normal') : '';
+              const source = { id: `gallery-action-mana-${cycle}`, type: 'action-mana',
+                x: 490, y: 310, radius: variant === 'renki' ? 135 : 110,
+                targetX: null, targetY: null, playerId: 'gallery-mana-actor',
+                targetId: '', objectId: '', viewerId: '', variant, mode: '', effectKind: '',
+                completionKind, markerCount: 1, durationMs: 0, startedAt: 0 };
+              const player = { id: source.playerId, x: 490, y: 310,
+                alive: true, ejected: false, inVent: false, invisible: false };
+              const viewerId = 'gallery-viewer', phase = 'playing';
+              const scene = { nowMs: elapsed, reducedMotion: false,
+                effects: [source], players: [player] };
+              if (!viewerId || phase !== 'playing' || !source.id || !source.playerId ||
+                  ![source.x, source.y, source.startedAt, source.durationMs].every(Number.isFinite) ||
+                  !['欲望', '気概', '理知', 'renki'].includes(source.variant) ||
+                  (source.variant === 'renki' && !['normal', 'tenfold'].includes(source.completionKind)) ||
+                  !player.alive || player.ejected || player.inVent || player.invisible ||
+                  elapsed < source.startedAt || elapsed - source.startedAt >= api.DEFAULT_DURATION_MS)
+                throw new Error('共通アクション・マナの実イベント条件を満たしません');
+              const planned = api.plan({ scene, camera, zoom, viewport });
+              const owned = planned.owned.find(item => item.id === source.id);
+              if (!owned || owned.variant !== variant || owned.completionKind !== completionKind)
+                throw new Error('共通アクション・マナイベントを計画できません');
+              const recorded = effect.record({ frame, target: targetId, viewport, scene, camera, zoom });
+              if (!recorded.owned.some(item => item.id === source.id) || !recorded.commands.length)
+                throw new Error('共通アクション・マナイベントを描画できません');
+            } else if (isFireActivation) {
               // Match the server's successful fire use: caster position,
               // resolved radius, owner, enhancement variant and 1500 ms life.
               const source = { id: `gallery-fire-${cycle}`, type: 'fire',
