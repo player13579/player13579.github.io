@@ -4,7 +4,8 @@
   'use strict';
   const ROOM = Object.freeze({ x: 2200, y: 2520 });
   const STATION = Object.freeze({ id: 'upload-d', task: 'upload', x: 2694, y: 2910 });
-  const ZONE = Object.freeze({ x: 421, y: 320, width: 116, height: 80 });
+  // Screen, cabinet rim and a bounded light response on the adjacent floor.
+  const ZONE = Object.freeze({ x: 387, y: 298, width: 184, height: 124 });
   const COMPLETE_MS = 750;
   const finite = Number.isFinite;
   const shader = /* wgsl */ `
@@ -13,7 +14,7 @@ struct Params { view:vec4f, world:vec4f, state:vec4f, shade:vec4f }
 struct Out { @builtin(position) position:vec4f, @location(0) local:vec2f }
 @vertex fn vs(@builtin(vertex_index) i:u32)->Out {
  let c=array<vec2f,6>(vec2f(0.,0.),vec2f(1.,0.),vec2f(0.,1.),vec2f(0.,1.),vec2f(1.,0.),vec2f(1.,1.))[i];
- let local=vec2f(421.,320.)+c*vec2f(116.,80.);
+ let local=vec2f(387.,298.)+c*vec2f(184.,124.);
  let screen=(p.world.xy+local-p.view.zw)*p.world.z;
  var o:Out;
  o.position=vec4f(screen/p.view.xy*vec2f(2.,-2.)+vec2f(-1.,1.),0.,1.);
@@ -25,31 +26,44 @@ fn box(q:vec2f,c:vec2f,h:vec2f)->f32 {
  return length(max(d,vec2f(0.)))+min(max(d.x,d.y),0.);
 }
 fn band(v:f32,c:f32,w:f32)->f32 { return 1.-smoothstep(w,w+1.5,abs(v-c)); }
+fn rise(a:f32,b:f32,t:f32)->f32 { return smoothstep(a,b,t); }
+fn fall(a:f32,b:f32,t:f32)->f32 { return 1.-smoothstep(a,b,t); }
 fn visual(q:vec2f)->vec4f {
  let uploading=p.state.x;
  let progress=p.state.y;
  let complete=p.state.z;
  let age=p.state.w;
  let reduced=p.shade.y;
- let face=1.-smoothstep(-1.,1.,box(q,vec2f(479.5,330.5),vec2f(38.5,4.5)));
- let glass=1.-smoothstep(-1.,2.,box(q,vec2f(479.5,339.),vec2f(38.,14.)));
- let bezel=exp(-pow((q.x-479.5)/48.,4.)-pow((q.y-339.)/24.,4.));
+ // Upload remains a compact signal on the glass; completion occupies the
+ // whole device. The traveling front fills the display before the rim answers.
+ let screen=1.-smoothstep(-1.,2.,box(q,vec2f(468.,351.),vec2f(38.,25.)));
+ let cabinet=box(q,vec2f(468.,356.),vec2f(62.,40.));
+ let rim=1.-smoothstep(1.,4.,abs(cabinet));
+ let topLip=band(q.y,319.,2.5)*rise(410.,416.,q.x)*fall(522.,528.,q.x);
+ let lowerLip=band(q.y,389.,3.)*rise(414.,421.,q.x)*fall(517.,525.,q.x);
+ let sideGrip=(band(q.x,410.,3.)+band(q.x,526.,3.))*rise(326.,332.,q.y)*fall(381.,390.,q.y);
  let track=1.-smoothstep(-.5,1.5,box(q,vec2f(469.,330.),vec2f(27.,2.)));
- let fill=track*(1.-smoothstep(-1.,1.,q.x-(442.+54.*progress)));
- let span=smoothstep(325.,327.,q.y)*(1.-smoothstep(333.,335.,q.y));
- let carriage=band(q.x,442.+54.*progress,2.2)*span*face;
- let centerSpan=smoothstep(451.,455.,q.x)*(1.-smoothstep(485.,489.,q.x));
- let idle=band(q.y,330.,1.0)*centerSpan*face;
- let success=band(q.y,330.,2.0)*centerSpan*face;
- let release=1.-smoothstep(.30,.75,age);
- let flash=complete*release;
- let scan=exp(-pow((q.x-(447.+65.*clamp(age/.34,0.,1.)))/5.,2.))*glass*flash;
- let screenPulse=glass*(uploading*(.11+.10*progress)+flash*.22);
- let core=face*(idle*.11*(1.-uploading)*(1.-complete)+fill*.72*uploading+carriage*.51*uploading+success*.86*flash)+scan*.82+screenPulse;
- let halo=bezel*(uploading*.12+flash*.36)+exp(-pow((q.x-469.)/46.,2.)-pow((q.y-330.)/11.,2.))*(uploading*.085+flash*.18);
+ let fill=track*fall(0.,2.,q.x-(442.+54.*progress));
+ let carriage=band(q.x,442.+54.*progress,2.2)*rise(325.,327.,q.y)*fall(333.,335.,q.y);
+ let quiet=band(q.y,330.,1.)*rise(451.,455.,q.x)*fall(485.,489.,q.x);
+ let t=clamp(age/.75,0.,1.);
+ let onset=rise(0.,.075,age);
+ let sweep=rise(.04,.40,age);
+ let sweepX=427.+82.*sweep;
+ let front=select(exp(-pow((q.x-sweepX)/9.,2.))*screen,screen*.4,reduced>.5);
+ let filled=screen*select(fall(-1.,5.,q.x-sweepX),1.,reduced>.5);
+ let glassHold=fall(.40,.75,age);
+ let bodyWave=rise(.19,.39,age)*fall(.52,.75,age);
+ let edgeRun=rise(.30,.48,age)*fall(.57,.75,age);
+ let response=exp(-pow((q.x-468.)/86.,2.)-pow((q.y-356.)/53.,2.));
+ let glassLight=complete*onset*(front*1.35*fall(.48,.75,age)+filled*.37*glassHold+screen*.27*bodyWave);
+ let bodyLight=complete*(rim*.48*edgeRun+(topLip*.7+lowerLip*.8+sideGrip*.42)*bodyWave);
+ let nearby=complete*response*(.16*bodyWave+.12*edgeRun);
+ let activeLight=uploading*(fill*.72+carriage*.51+screen*(.06+.10*progress));
+ let idleLight=quiet*.11*(1.-uploading)*(1.-complete);
  let flicker=select(.94+.06*sin(p.world.w*6.),1.,reduced>.5);
  let color=mix(vec3f(.24,.62,.66),vec3f(.73,1.,.78),complete);
- return vec4f(color*(core*flicker+halo)*p.shade.x,0.);
+ return vec4f(color*(glassLight+bodyLight+nearby+activeLight+idleLight)*flicker*p.shade.x,0.);
 }
 @fragment fn fs(o:Out)->@location(0) vec4f { return visual(o.local); }
 `;
