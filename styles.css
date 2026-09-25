@@ -2042,19 +2042,22 @@ select:focus {
 
 .board-wrap {
   position: relative;
-  width: min(100cqw, calc((100cqh - var(--field-lower-height) - 10px) * 98 / 62));
+  /* Canvas pixels fill the content box. Keep that box at 49:31 rather than
+     applying the ratio to the border box, whose inset changes with size. */
+  box-sizing: content-box;
+  width: min(calc(100cqw - 4px), calc((100cqh - var(--field-lower-height) - 14px) * 98 / 62));
   height: auto;
   aspect-ratio: 98 / 62;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid #7d90a0;
+  border: 2px solid #7d90a0;
   border-radius: 8px;
   background: #91a8b7;
   box-shadow: var(--shadow);
 }
 
 .field-stage-slot:has(.field-lower-row[hidden]) .board-wrap {
-  width: min(100cqw, calc(100cqh * 98 / 62));
+  width: min(calc(100cqw - 4px), calc((100cqh - 4px) * 98 / 62));
 }
 
 #gameCanvas {
@@ -2275,7 +2278,7 @@ body.portrait-tablet-dock .field-stage-slot {
 }
 
 body.portrait-tablet-dock .board-wrap {
-  width: 100cqw;
+  width: calc(100cqw - 4px);
 }
 
 body.portrait-tablet-dock #tabletPanel {

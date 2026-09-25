@@ -17728,36 +17728,6 @@ function ensureRenderPlayersAdvanced(data) {
   return true;
 }
 
-function drawGunnerAim(data = state.data) {
-  const scene = gunnerAimWebGPUScene(data);
-  if (!scene) return;
-  const { origin, destination, now: frameNow } = scene;
-  const pulse = 0.72 + Math.sin(frameNow / 110) * 0.18;
-  const gradient = ctx.createLinearGradient(origin.x, origin.y, destination.x, destination.y);
-  gradient.addColorStop(0, "rgba(34,211,238,0.28)");
-  gradient.addColorStop(0.72, "rgba(125,211,252,0.78)");
-  gradient.addColorStop(1, "rgba(255,255,255,0.92)");
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = pulse;
-  ctx.strokeStyle = gradient;
-  ctx.lineWidth = 2.2;
-  ctx.setLineDash([12, 9]);
-  ctx.lineDashOffset = -(frameNow / 32);
-  ctx.beginPath();
-  ctx.moveTo(origin.x, origin.y);
-  ctx.lineTo(destination.x, destination.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = "rgba(224,242,254,0.9)";
-  ctx.beginPath();
-  ctx.arc(destination.x, destination.y, 27 + pulse * 4, -Math.PI * 0.16, Math.PI * 0.36);
-  ctx.arc(destination.x, destination.y, 27 + pulse * 4, Math.PI * 0.84, Math.PI * 1.36);
-  ctx.stroke();
-  ctx.restore();
-}
-
 function nearestStation(predicate) {
   const data = state.data;
   const self = selfPlayer();
