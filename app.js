@@ -1386,7 +1386,6 @@ const state = {
   itemRenderKey: "",
   hoverSprintLiveTicker: 0,
   utilityRenderKey: "",
-  lastCanvasItemError: "",
   lastUiRenderAt: 0,
   uiRenderTimer: 0,
   drawViewport: null,
@@ -11333,7 +11332,6 @@ function resetLocalSession() {
   state.vendingSelectedByCategory = Object.create(null);
   state.vendingPageByCategory = Object.create(null);
   state.utilityRenderKey = "";
-  state.lastCanvasItemError = "";
   state.keyboardContext = "";
   state.keyboardElement = null;
   els.tabletPanel.hidden = true;
@@ -19019,39 +19017,6 @@ function mapObjectWebGPUScene(data, worldBounds = null) {
       ready: !object.interactive || Number(object.readyAt || 0) <= now,
       label: String(object.label), effectLabel: String(object.effectLabel),
       color: mapObjectStyle(object).color }));
-}
-
-function drawMapObjects(data) {
-  let itemError = "";
-  for (const object of mapObjectWebGPUScene(data)) {
-    ctx.save();
-    try {
-      if (object.near) {
-        ctx.fillStyle = "rgba(9,20,28,0.94)";
-        roundRect(object.x - 76, object.y + 52, 152, 36, 6, true, false);
-        ctx.fillStyle = object.ready ? "#f8fafc" : "#94a3b8";
-        ctx.font = "900 12px Segoe UI, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(object.label, object.x, object.y + 63);
-        ctx.fillStyle = object.color;
-        ctx.font = "800 9px Segoe UI, sans-serif";
-        ctx.fillText(object.effectLabel, object.x, object.y + 78);
-      }
-    } catch (error) {
-      if (!itemError) itemError = `${object.id || object.type}:${error?.message || String(error)}`;
-    } finally {
-      ctx.restore();
-    }
-  }
-  if (itemError) {
-    document.body.dataset.drawObjectError = itemError;
-    if (state.lastCanvasItemError !== itemError) console.error("Canvas object draw failed", itemError);
-    state.lastCanvasItemError = itemError;
-  } else if (state.lastCanvasItemError) {
-    state.lastCanvasItemError = "";
-    delete document.body.dataset.drawObjectError;
-  }
 }
 
 function mysteryBoxMaterialReady() {
