@@ -44,7 +44,8 @@
     { id: 'grenade-frag-impact', title: '破片手榴弾の着弾', detail: 'サーバーの grenade-frag-impact 着弾イベント形を使うWebGPU候補。スタングレネードは含まず、本編画質とSFXは未受入です。', status: 'fragのみ・画質/SFX未受入', source: 'webgpu-grenade-impact.js', kind: 'grenade-impact' },
     { id: 'fire-activation', title: 'ファイア発動', detail: '現行 fire 魔法イベントを使う単独WebGPUフィクスチャ。実ゲームの表示品質とSFX受入は未完了です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-fire-activation.js', kind: 'fire-activation' },
     { id: 'medical-handwash-sink', fixtureId: 'medical-handwash-sink-1', title: '医療室 手洗いシンク環境E', detail: '現行の医療室近接プレイヤー経路と手洗いシンクの周期Eを再生。これは使用イベントではなく、実ゲーム画質とSFXの受入も未完了です。', status: '近接環境E・本編画質/SFX未受入', source: 'webgpu-medical-fixture-e.js', kind: 'medical-fixture' },
-    { id: 'hacker-root-activation', title: 'ハッカー ROOT 発動', detail: '現行 all-operators 発動イベントと有効なROOT状態の可視アクターを使う単独WebGPUフィクスチャ。継続状態や実ゲーム画質/SFXは未受入です。', status: '発動フィクスチャ・本編画質/SFX未受入', source: 'webgpu-hacker-root-e.js', kind: 'hacker-root' }
+    { id: 'hacker-root-activation', title: 'ハッカー ROOT 発動', detail: '現行 all-operators 発動イベントと有効なROOT状態の可視アクターを使う単独WebGPUフィクスチャ。継続状態や実ゲーム画質/SFXは未受入です。', status: '発動フィクスチャ・本編画質/SFX未受入', source: 'webgpu-hacker-root-e.js', kind: 'hacker-root' },
+    { id: 'rigid-item-impact', title: '剛体アイテム着弾', detail: 'サーバー現行の rigid-item-impact 接触点・接触面・ダメージ/幸運・所有者/対象イベント形を再生。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-rigid-item-impact-e.js', kind: 'rigid-item-impact' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
@@ -120,13 +121,14 @@
     canvas.width = 980; canvas.height = 620; canvas.dataset.galleryNative = '1';
     canvas.setAttribute('aria-label', `${entry.title} WebGPU E 単独フィクスチャ自動再生`);
     stage.append(canvas);
-    let renderer = null, target = null, effect = null, raf = 0, disposed = false;
+    let renderer = null, target = null, effect = null, shapePass = null, raf = 0, disposed = false;
     const targetId = `integrated-gallery-${runId}`;
     const dispose = () => {
       if (disposed) return;
       disposed = true;
       if (raf) cancelAnimationFrame(raf);
       try { effect?.destroy(); } catch (_) {}
+      try { shapePass?.destroy(); } catch (_) {}
       try { target?.unregister(); } catch (_) {}
       try { renderer?.destroy(); } catch (_) {}
       canvas.remove();
@@ -134,11 +136,13 @@
     activeCleanup = dispose;
     try {
       if (!navigator.gpu) throw new Error('このブラウザーでは WebGPU を使用できません');
-      for (const src of ['webgpu-frame-core.js', 'webgpu-primitives.js', 'webgpu-compositing.js', 'webgpu-renderer.js', entry.source]) await loadScript(src);
+      for (const src of ['webgpu-frame-core.js', 'webgpu-primitives.js', 'webgpu-compositing.js', 'webgpu-renderer.js',
+        ...(entry.id === 'common-action-mana' ? ['webgpu-effect-shapes.js'] : []), entry.source]) await loadScript(src);
       if (disposed || runId !== corridorRun || active !== entry.id) return;
       renderer = await window.DvaWebGPURenderer.create({ gpu: navigator.gpu });
       if (disposed || runId !== corridorRun || active !== entry.id) { renderer.destroy(); renderer = null; return; }
       target = renderer.registerTarget(targetId, canvas, { width: 980, height: 620, logicalWidth: 980, logicalHeight: 620 });
+      if (entry.id === 'common-action-mana') shapePass = window.DvaWebGPUEffectShapes.create({ device: renderer.device, format: renderer.format });
       const isEmp = entry.id === 'emp', isHacker = entry.id === 'hacker-status';
       const isCommonActionMana = entry.id === 'common-action-mana';
       const isAlchemyTransmutation = entry.id === 'alchemy-transmutation';
@@ -148,6 +152,7 @@
       const isFireActivation = entry.id === 'fire-activation';
       const isMedicalFixture = entry.kind === 'medical-fixture';
       const isHackerRoot = entry.kind === 'hacker-root';
+      const isRigidItemImpact = entry.kind === 'rigid-item-impact';
       const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
@@ -172,13 +177,14 @@
         'fire-activation': window.DvaWebGPUFireActivation,
         'medical-handwash-sink': window.DvaWebGPUMedicalFixtureE,
         'hacker-root-activation': window.DvaWebGPUHackerRootE,
+        'rigid-item-impact': window.DvaWebGPURigidItemImpactE,
         'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
         'room-command-desk': window.DvaWebGPURoomObjectUseE,
         'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
         'room-restorative-mist': window.DvaWebGPURoomObjectUseE,
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot ? api.create({ renderer, frameOwner: renderer }) :
+      effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot || isRigidItemImpact ? api.create({ renderer, frameOwner: renderer }) :
         isMedical || isMedicalAmbient || isMedicalFixture ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker || isArchiveCabinet || isCableSpool ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
@@ -199,6 +205,7 @@
         'fire-activation': api.DURATION_MS,
         'medical-handwash-sink': api.FIXTURES?.[entry.fixtureId]?.period,
         'hacker-root-activation': api.EVENT_DURATION_MS,
+        'rigid-item-impact': api.DURATION_MS,
         'room-cooling-unit': api.DURATION_MS,
         'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
         'room-restorative-mist': api.DURATION_MS,
@@ -210,6 +217,7 @@
         const total = Math.max(0, now - startedAt), elapsed = total % cycleLength;
         const cycle = Math.floor(total / cycleLength);
         const frame = renderer.beginFrame(`${entry.id} E gallery fixture`);
+        let frameLease = null;
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (isMedicalFixture || (elapsed > 0 && elapsed < duration)) {
@@ -240,7 +248,8 @@
               const owned = planned.owned.find(item => item.id === source.id);
               if (!owned || owned.variant !== variant || owned.completionKind !== completionKind)
                 throw new Error('共通アクション・マナイベントを計画できません');
-              const recorded = effect.record({ frame, target: targetId, viewport, scene, camera, zoom });
+              const recorded = effect.record({ frame, target: targetId, viewport, scene, camera, zoom, shapes: shapePass });
+              frameLease = recorded.batch;
               if (!recorded.owned.some(item => item.id === source.id) || !recorded.commands.length)
                 throw new Error('共通アクション・マナイベントを描画できません');
             } else if (isFireActivation) {
@@ -294,6 +303,29 @@
               const result = effect.record({ frame, target: targetId, viewport, planned });
               if (!result.drawn || result.effectId !== source.id)
                 throw new Error('ROOT発動イベントを描画できません');
+            } else if (isRigidItemImpact) {
+              // Match the public impact payload; resolved outcomes are absent.
+              const owner = { id: 'gallery-impact-owner', alive: true,
+                ejected: false, invisible: false, inVent: false };
+              const target = { id: 'gallery-impact-target', alive: true,
+                ejected: false, invisible: false, inVent: false };
+              const source = { id: `magic_gallery_rigid_impact_${cycle}`,
+                type: api.TYPE, playerId: owner.id, targetId: target.id,
+                x: 490, y: 310, radius: 82,
+                variant: 'firearm:body:0.22:luck-0.20',
+                startedAt: 0, duration: 1200 };
+              const input = { effect: source, players: [owner, target],
+                viewerId: 'gallery-viewer', now: elapsed, phase: 'playing',
+                camera, zoom, viewport, reducedMotion: false, alpha: 1 };
+              const planned = api.plan(input);
+              if (!planned || planned.effectId !== source.id ||
+                  planned.durationMs !== 620 || planned.ownerId !== owner.id ||
+                  planned.targetId !== target.id)
+                throw new Error('剛体アイテム着弾イベントと可視アクターを計画できません');
+              const result = effect.record({ frame, target: targetId,
+                viewport, planned });
+              if (!result.drawn || result.effectId !== source.id)
+                throw new Error('剛体アイテム着弾イベントを描画できません');
             } else if (isArchiveCabinet) {
               // Match successful map-object use after the app stamps its local
               // receipt clock: exact authored ID, location and credit effect.
@@ -519,10 +551,12 @@
             }
           }
           frame.submit();
+          frameLease?.destroy();
           document.documentElement.dataset.gpuReady = '1';
           notice.hidden = true;
         } catch (error) {
           try { frame.discard(); } catch (_) {}
+          try { frameLease?.destroy(); } catch (_) {}
           notice.hidden = false; notice.textContent = `WebGPU: ${error.message || error}`;
           document.documentElement.dataset.gpuReady = '0';
           dispose(); return;
@@ -849,6 +883,11 @@
       return;
     }
     if (entry.kind === 'hacker-root') {
+      notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
+      startIntegrated(entry, corridorRun);
+      return;
+    }
+    if (entry.kind === 'rigid-item-impact') {
       notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
       startIntegrated(entry, corridorRun);
       return;
