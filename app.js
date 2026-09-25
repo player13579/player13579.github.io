@@ -3808,6 +3808,53 @@ function shopAbilityOwned(abilityId, self = state.data?.self) {
   return Boolean((self?.shopAbilityEntitlements || []).includes(String(abilityId || "")));
 }
 
+function purchasedAbilityManaAvailable(self, key) {
+  const cost = Number(self?.abilityCosts?.[key]) || 0;
+  const fixedReserve = ["quantumNuclear", "quantumElectric"].includes(key);
+  if (fixedReserve) return cost <= 0 || (Number(self?.mana) || 0) >= cost;
+  const rationalWaiverApplies = !["heartTeleport", "fighterCharge", "quantumNuclear", "quantumElectric"].includes(key);
+  if (self?.fighterInfiniteResources || (self?.rationalFreeAbilityReady && rationalWaiverApplies)) return true;
+  return cost <= 0 || (Number(self?.mana) || 0) >= cost;
+}
+
+function purchasedAbilityManaKey(ability) {
+  if (ability?.operator === "gravity") {
+    return ability.mode === "heart" ? "heartTeleport"
+      : ability.mode === "storm" ? "gravityStorm"
+        : ability.mode === "time-keeper" ? "timeKeeper" : "teleport";
+  }
+  if (ability?.operator === "flora") {
+    return ability.mode === "sunbeam" ? "floraSunbeam"
+      : ability.mode === "invisible" ? "floraInvisible" : "flora";
+  }
+  return "";
+}
+
+function quantumAbilityManaUnavailable(self, mode) {
+  return mode === "electric-discharge"
+    ? (Number(self?.mana) || 0) < Number(self?.abilityCosts?.quantumElectric ?? 1)
+    : ["nuclear-fission", "nuclear-fusion"].includes(mode)
+      ? (Number(self?.mana) || 0) < Number(self?.abilityCosts?.quantumNuclear ?? 2)
+      : false;
+}
+
+function purchasedAbilityShortcutDisabled(ability, data) {
+  const self = data?.self;
+  const liveNow = estimatedServerNow(data);
+  const canUseAbility = data?.phase === "playing" && Boolean(self?.alive) && !self?.ejected &&
+    !self?.inVent && !isActionBlocked(data) && (Number(self?.abilityDisabledUntil) || 0) <= liveNow;
+  if (!canUseAbility) return true;
+
+  const manaKey = purchasedAbilityManaKey(ability);
+  if (manaKey && !purchasedAbilityManaAvailable(self, manaKey)) return true;
+  if (ability?.operator === "quantum" && (
+    quantumAbilityManaUnavailable(self, ability.mode) ||
+    (hasCompatibleQuantumItem(self, ability.mode) &&
+      Number(self?.stamina) < Number(self?.quantumActionStaminaCost || 16))
+  )) return true;
+  return ability?.operator === "fighter" || ability?.id === "fighter-limit-break";
+}
+
 function activePurchasedShopAbilities(self = state.data?.self) {
   const seen = new Set();
   const nativeOperator = self?.special === "teleport" ? "gravity" : self?.special === "alchemist" ? "hacker" : self?.special;
@@ -9234,7 +9281,6 @@ function renderPurchasedAbilityShortcuts(data) {
   if (!container) return;
   const self = data?.self;
   const abilities = activePurchasedShopAbilities(self);
-  const canUse = data?.phase === "playing" && Boolean(self?.alive) && !self?.ejected && !self?.inVent;
   const key = abilities.map((ability) => ability.id).join("|");
   if (container.dataset.abilityKey !== key) {
     container.replaceChildren();
@@ -9254,7 +9300,8 @@ function renderPurchasedAbilityShortcuts(data) {
     container.dataset.abilityKey = key;
   }
   container.querySelectorAll("[data-shop-ability-shortcut]").forEach((button) => {
-    button.disabled = !canUse;
+    const ability = abilities.find((entry) => entry.id === button.dataset.shopAbilityShortcut);
+    button.disabled = !ability || purchasedAbilityShortcutDisabled(ability, data);
     button.hidden = !abilities.some((ability) => ability.id === button.dataset.shopAbilityShortcut);
   });
 }
@@ -16611,12 +16658,7 @@ function updateActionButtons(data) {
   const operatorManaFree = Boolean(self.fighterInfiniteResources);
   const rationalWaiverApplies = (key) => !["heartTeleport", "fighterCharge", "quantumNuclear", "quantumElectric"].includes(key);
   const fixedManaReserveApplies = (key) => ["quantumNuclear", "quantumElectric"].includes(key);
-  const hasMana = (key) => {
-    const cost = Number(abilityCosts[key]) || 0;
-    if (fixedManaReserveApplies(key)) return cost <= 0 || (Number(self.mana) || 0) >= cost;
-    if (operatorManaFree || (self.rationalFreeAbilityReady && rationalWaiverApplies(key))) return true;
-    return cost <= 0 || (Number(self.mana) || 0) >= cost;
-  };
+  const hasMana = (key) => purchasedAbilityManaAvailable(self, key);
   const operatorCostLabel = (key) => fixedManaReserveApplies(key)
     ? `-${abilityCosts[key] ?? 1}MP`
     : operatorManaFree
@@ -16836,11 +16878,7 @@ function updateActionButtons(data) {
   const nuclearModeLocked = (mode) => ["nuclear-fission", "nuclear-fusion"].includes(mode) && !data.quantumEndgameAvailable;
   const nativeQuantumEndgameLocked = displayedOperator === "quantum" && nuclearModeLocked(nativeQuantumMode);
   const borrowedQuantumEndgameLocked = borrowedDisplayedOperator === "quantum" && nuclearModeLocked(borrowedQuantumMode);
-  const quantumFixedManaUnavailable = (mode) => mode === "electric-discharge"
-    ? (Number(self.mana) || 0) < Number(abilityCosts.quantumElectric ?? 1)
-    : ["nuclear-fission", "nuclear-fusion"].includes(mode)
-      ? (Number(self.mana) || 0) < Number(abilityCosts.quantumNuclear ?? 2)
-      : false;
+  const quantumFixedManaUnavailable = (mode) => quantumAbilityManaUnavailable(self, mode);
   const nativeQuantumManaUnavailable = displayedOperator === "quantum" && quantumFixedManaUnavailable(nativeQuantumMode);
   const borrowedQuantumManaUnavailable = borrowedDisplayedOperator === "quantum" && quantumFixedManaUnavailable(borrowedQuantumMode);
   const nativeFloraUnavailable = displayedOperator === "flora" && (
@@ -16894,23 +16932,12 @@ function updateActionButtons(data) {
     : "タップで現在の固有能力を1回発動";
   const selectedShopAbility = selectedPurchasedShopAbility(self);
   if (selectedShopAbility) {
-    const purchasedManaKey = selectedShopAbility.operator === "gravity"
-      ? selectedShopAbility.mode === "heart" ? "heartTeleport" : selectedShopAbility.mode === "storm" ? "gravityStorm" : selectedShopAbility.mode === "time-keeper" ? "timeKeeper" : "teleport"
-      : selectedShopAbility.operator === "flora"
-        ? selectedShopAbility.mode === "sunbeam" ? "floraSunbeam" : selectedShopAbility.mode === "invisible" ? "floraInvisible" : "flora"
-        : "";
-    const purchasedManaUnavailable = Boolean(purchasedManaKey && !hasMana(purchasedManaKey));
-    const purchasedQuantumUnavailable = selectedShopAbility.operator === "quantum" && (
-      quantumFixedManaUnavailable(selectedShopAbility.mode) ||
-      (hasCompatibleQuantumItem(self, selectedShopAbility.mode) && Number(self.stamina) < Number(self.quantumActionStaminaCost || 16))
-    );
-    const purchasedLimitBreakUnavailable = selectedShopAbility.operator === "fighter" || selectedShopAbility.id === "fighter-limit-break";
     els.operatorAbilityButton.hidden = false;
     els.operatorAbilityButton.textContent = abilityNameWithMana(selectedShopAbility.label, selectedShopAbility.operator, selectedShopAbility.mode, self);
     els.operatorAbilityButton.dataset.operator = "shop:" + selectedShopAbility.id;
     els.operatorAbilityButton.dataset.repeatableAbility = "0";
     els.operatorAbilityButton.classList.remove("active");
-    els.operatorAbilityButton.disabled = !canUseAbility || purchasedManaUnavailable || purchasedQuantumUnavailable || purchasedLimitBreakUnavailable;
+    els.operatorAbilityButton.disabled = purchasedAbilityShortcutDisabled(selectedShopAbility, data);
     els.operatorAbilityButton.title = "タップで選択した購入済み能力を1回実行";
   }
   for (const button of [els.operatorAbilityButton, els.teleportButton, els.healButton]) {
