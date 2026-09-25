@@ -21172,21 +21172,26 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         omitted.push({ effectId: effect.id, reason: 'stamina-benefit-outside-visible-lifetime' });
         continue;
       }
-      if (player.x < camera.x - 180 || player.x > camera.x + viewport.width / zoom + 180 ||
-          player.y < camera.y - 180 || player.y > camera.y + viewport.height / zoom + 180) {
-        omitted.push({ effectId: effect.id, reason: 'stamina-benefit-outside-viewport' });
-        continue;
-      }
-      if (typeof staminaE?.create !== 'function' || !Number.isFinite(staminaDurationMs) ||
+      if (typeof staminaE?.create !== 'function' || typeof staminaE.plan !== 'function' ||
+          typeof staminaE.scissorForPlan !== 'function' || !Number.isFinite(staminaDurationMs) ||
           staminaDurationMs <= 0) {
         unsupported.push({ index, type, id: effect.id, reason: 'stamina-benefit-e-unavailable' });
         continue;
       }
+      const staminaInput = { effect: { ...effect, causeId: String(effect.id),
+        actorWorld: { x: player.x, y: player.y }, duration: staminaDurationMs },
+        actorElapsedMs, camera, zoom, reducedMotion };
+      const staminaPlan = staminaE.plan({ ...staminaInput, viewport });
+      if (!staminaPlan) {
+        unsupported.push({ index, type, id: effect.id, reason: 'stamina-benefit-plan-invalid' });
+        continue;
+      }
+      if (!staminaE.scissorForPlan(staminaPlan)) {
+        omitted.push({ effectId: effect.id, reason: 'stamina-benefit-outside-viewport' });
+        continue;
+      }
       events.push({ type: 'staminaBenefitE', effectId: effect.id,
-        input: { effect: { ...effect, causeId: String(effect.id),
-          actorWorld: { x: player.x, y: player.y },
-          duration: staminaDurationMs },
-          actorElapsedMs, camera, zoom, reducedMotion } });
+        input: staminaInput });
       continue;
     }
     if (isBodyManaGainEffect(effect)) {
@@ -22105,99 +22110,6 @@ function drawPlicyV540PreparationBarrierHit(effect, progress, sprite, defaultSiz
   ctx.restore(); return true;
 }
 
-function drawGunnerHeadshotLayer(sprite, width, height, progress, emission) {
-  if (emission && progress >= .425) return;
-  // One pooled surface carries source-colored, source-alpha-bounded light.
-  const layer = state.textures.gunnerHeadshotLayer || (state.textures.gunnerHeadshotLayer = document.createElement("canvas"));
-  const rasterWidth = 288, rasterHeight = Math.max(16, Math.ceil(rasterWidth * height / width));
-  const sources = state.textures.gunnerHeadshotSources || (state.textures.gunnerHeadshotSources = new WeakMap());
-  let source = sources.get(sprite);
-  if (!source) {
-    source = document.createElement("canvas"); source.width = rasterWidth; source.height = rasterHeight;
-    source.getContext("2d").drawImage(sprite, 0, 0, rasterWidth, rasterHeight);
-    sources.set(sprite, source);
-  }
-  if (layer.width !== rasterWidth) layer.width = rasterWidth;
-  // A fixed backing size avoids reallocating when several weapon kinds overlap.
-  const requiredHeight = Math.max(rasterHeight + 2, state.textures.gunnerHeadshotLayerHeight || 0);
-  if (layer.height !== requiredHeight) layer.height = requiredHeight;
-  state.textures.gunnerHeadshotLayerHeight = requiredHeight;
-  const local = layer.getContext("2d"), p = progress;
-  // The existing alpha field depends only on x. Build it once on a single row.
-  const mask = state.textures.gunnerHeadshotAlphaRow || (state.textures.gunnerHeadshotAlphaRow = document.createElement("canvas"));
-  if (mask.width !== rasterWidth) mask.width = rasterWidth;
-  if (mask.height !== 1) mask.height = 1;
-  const field = mask.getContext("2d");
-  field.setTransform(1, 0, 0, 1, 0, 0); field.clearRect(0, 0, rasterWidth, 1);
-  field.globalAlpha = 1; field.globalCompositeOperation = "source-over";
-  local.setTransform(1, 0, 0, 1, 0, 0); local.clearRect(0, 0, rasterWidth, requiredHeight);
-  local.globalCompositeOperation = "source-over"; local.globalAlpha = 1;
-  const contact = objectEffectEase(clamp(p / .045, 0, 1));
-  const travel = objectEffectEase(clamp((p - .025) / .32, 0, 1));
-  const cooling = 1 - objectEffectEase(clamp((p - .30) / .70, 0, 1));
-  const center = rasterWidth / 2, front = center * (.04 + travel * .94);
-  const band = (x, radius, alpha) => {
-    if (alpha <= .001 || radius <= 0) return;
-    const gradient = field.createLinearGradient(x - radius, 0, x + radius, 0);
-    gradient.addColorStop(0, "rgba(255,255,255,0)");
-    gradient.addColorStop(.32, `rgba(255,255,255,${alpha * .55})`);
-    gradient.addColorStop(.5, `rgba(255,255,255,${alpha})`);
-    gradient.addColorStop(.68, `rgba(255,255,255,${alpha * .55})`);
-    gradient.addColorStop(1, "rgba(255,255,255,0)");
-    field.fillStyle = gradient; field.fillRect(x - radius, 0, radius * 2, 1);
-  };
-  if (emission) {
-    // Contact energy releases into two fronts on the authored impact branches.
-    band(center, rasterWidth * .095, contact * (1 - objectEffectEase(clamp((p - .07) / .32, 0, 1))));
-    const wave = Math.sin(Math.PI * clamp((p - .025) / .40, 0, 1));
-    band(center - front, rasterWidth * .065, wave);
-    band(center + front, rasterWidth * .065, wave);
-  } else {
-    // A soft reveal preserves the interior contact and the wake behind each front.
-    band(center, front + rasterWidth * .10, contact * cooling);
-    band(center - front * .75, rasterWidth * .22, contact * cooling * travel * .70);
-    band(center + front * .75, rasterWidth * .22, contact * cooling * travel * .70);
-  }
-  local.drawImage(source, 0, 0);
-  local.globalCompositeOperation = "destination-in";
-  local.drawImage(mask, 0, 0, rasterWidth, 1, 0, 0, rasterWidth, rasterHeight);
-  local.globalCompositeOperation = "source-over";
-  ctx.drawImage(layer, 0, 0, rasterWidth, rasterHeight, -width / 2, -height / 2, width, height);
-}
-
-function drawGunnerHeadshotEffect(effect, progress) {
-  if (!["action-gunner-headshot", "action-gunner-aim-headshot"].includes(effect.type)) return false;
-  const weaponId = gunnerWeaponIdFromActionVariant(effect.variant), index = GUNNER_WEAPON_CELLS[weaponId];
-  if (!Number.isInteger(index)) return false;
-  const key = `gunner-headshot-impact-${weaponId}`;
-  const prepared = transparentSpriteSource(state.textures.gunnerCombatStateEffects?.[index], key, 24);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, key, 1, 1, 0, 0) : null;
-  if (!sprite) return false;
-  const p = clamp(Number(progress) || 0, 0, 1), reduced = prefersReducedMotion(), inheritedAlpha = ctx.globalAlpha;
-  if (p >= 1 || inheritedAlpha <= .001) return true;
-  const { width, height } = animatedTextureSize(sprite, 142, 142);
-  // This event is a confirmed target impact, never a shooter's muzzle flash.
-  ctx.save();
-  try {
-    ctx.translate(Number(effect.x) || 0, Number(effect.y) || 0);
-    ctx.shadowBlur = 0; ctx.shadowColor = "transparent"; ctx.filter = "none";
-    ctx.globalCompositeOperation = "source-over";
-    if (reduced) {
-      ctx.globalAlpha = inheritedAlpha * (1 - objectEffectEase(clamp((p - .60) / .40, 0, 1)));
-      ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-      return true;
-    }
-    ctx.globalAlpha = inheritedAlpha;
-    drawGunnerHeadshotLayer(sprite, width, height, p, false);
-    ctx.globalCompositeOperation = "lighter";
-    ctx.shadowColor = weaponId === "smg" ? "#ffb24e" : weaponId === "handgun" || weaponId === "assault" ? "#ffddaa" : "#aba6ff";
-    ctx.shadowBlur = 5;
-    drawGunnerHeadshotLayer(sprite, width, height, p, true);
-  } finally { ctx.restore(); }
-  return true;
-}
-
-
 // Local light follows prepared source pixels; cropping only packs storage.
 const TIMEKEEPER_PREPARED_SOURCE_SIZE = Object.freeze([1234, 1247]);
 const TIMEKEEPER_LOCAL_CAUSTIC_PATCHES = Object.freeze([
@@ -22282,7 +22194,6 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   if (effect?.type === "action-push" && drawTimedBustEvent(effect, progress)) return true;
   if (effect?.type === "action-stand" && effect.variant === "durability-created") return drawFreshBarrierEvent(effect, progress);
   if (effect?.type === "preparation-barrier-hit") return drawFreshBarrierEvent(effect, progress);
-  if (effect?.type === "action-gunner-headshot" || effect?.type === "action-gunner-aim-headshot") return drawGunnerHeadshotEffect(effect, progress);
   // The event owns only the ignition kick; sustained jets are state-owned.
   if (effect?.type === "hover-sprint-active") {
     drawHoverSprintActivationJets(effect, progress);
@@ -27575,6 +27486,66 @@ const WEBGPU_FIGHTER_SLASH_SHEETS = Object.freeze({
   'male-bot': Object.freeze({ width: 1774, height: 887, version: 'v465',
     frames: Object.freeze([[121,98,357,688],[628,151,554,631],[1182,106,467,681]]) })
 });
+const WEBGPU_MANA_FOCUS_SHEETS = Object.freeze({
+  'blue-dress': Object.freeze({ width: 1693, height: 929, version: 'v483',
+    frames: Object.freeze([[80,102,432,745],[621,104,435,745],[1156,103,434,746]]) }),
+  'white-hood': Object.freeze({ width: 1536, height: 1024, version: 'v483',
+    frames: Object.freeze([[59,143,427,778],[538,146,420,775],[1024,145,435,776]]) }),
+  'male-bot': Object.freeze({ width: 1536, height: 1024, version: 'v465',
+    frames: Object.freeze([[109,76,343,862],[590,117,368,821],[1082,99,357,839]]) })
+});
+function buildWebGPUManaFocusActionCommand(player, data, view, action) {
+  const api = window.DvaWebGPUPlayerSprite;
+  const owner = state.characterActions.get(player?.id);
+  const id = String(action?.sourceEffectId ?? '');
+  const effect = state.magicEffects?.find(entry => String(entry?.id ?? '') === id &&
+    entry.type === 'action-mana' && String(entry.playerId ?? '') === String(player?.id ?? ''));
+  const lifetimeSource = effect?.duration ?? effect?.durationMs;
+  const lifetime = lifetimeSource == null || Number(lifetimeSource) === 0 ? 1200 : Number(lifetimeSource);
+  const elapsed = eEffectNow(effect, data, state.frameNow || performance.now()) - Number(effect?.startedAt);
+  if (!api?.createCommand || data?.phase !== 'playing' || !player?.alive || player.ejected ||
+      player.inVent || (player.invisible && player.id !== data.selfId) ||
+      action?.kind !== 'focus' || action.motionId !== 'action-mana' || !id || !effect ||
+      owner?.kind !== 'focus' || owner.motionId !== 'action-mana' ||
+      String(owner.sourceEffectId ?? '') !== id || owner.startedAt !== action.startedAt ||
+      owner.startedAt !== effect.startedAt ||
+      String(action.variant ?? '') !== String(owner.variant ?? '') ||
+      String(owner.variant ?? '') !== String(effect.variant ?? '') ||
+      !['欲望', '気概', '理知', 'renki'].includes(effect.variant) ||
+      !Number.isFinite(lifetime) || lifetime <= 0 || !Number.isFinite(elapsed) ||
+      elapsed < 0 || elapsed >= lifetime ||
+      !Number.isFinite(action.progress) || action.progress < 0 || action.progress >= 1) return null;
+  const identity = authoredCharacterIdentity(player, data);
+  const sheet = WEBGPU_MANA_FOCUS_SHEETS[identity];
+  const image = state.textures?.manaFocusWebGPUMotions?.[identity];
+  if (!sheet || !image?.complete || image.naturalWidth !== sheet.width ||
+      image.naturalHeight !== sheet.height) return null;
+  const dynamics = accelerationReadyMotionDynamics(player, 'focus', 'action-mana');
+  const phase = 1 + (physicalActionFramePosition('focus', action.progress, 'action-mana') - 1) * dynamics.poseTravel;
+  const frameIndex = Math.min(2, Math.max(0, Math.round(phase)));
+  const [x, y, width, height] = sheet.frames[frameIndex];
+  const scale = Math.min(98 / width, 88 / height) * CHARACTER_BODY_VISUAL_SCALE;
+  const direction = authoredDirection(player, motionFor(player, data));
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const alpha = player.id === data.selfId && data.self?.floraInvisibleActive ? .32 : 1;
+  const assetPath = `assets/generated/physical-motion-${identity}-focus-${sheet.version}-webgpu-alpha-v1.png`;
+  const command = api.createCommand({ player: { ...player, y: player.y - ascensionRise },
+    identity, direction, mode: 'action-mana-focus',
+    entry: { assetPath, layout: { sourceOrigin: { x: width / 2, y: height },
+      ground: { x: 0, y: CHARACTER_BODY_FOOT_ANCHOR_Y }, scale } },
+    image, frame: { x, y, width, height },
+    body: { lean: 0, sway: 0,
+      lift: -Math.sin(action.progress * Math.PI * 2) * 1.5 * dynamics.spatialScale },
+    camera: view.camera, zoom: view.zoom, alpha,
+    arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  if (!command) return null;
+  const sprite = direction === 'left' ? Object.freeze({ ...command.sprite,
+    transform: Object.freeze(command.sprite.transform.map((value, index) =>
+      index < 2 ? -value : value)) }) : command.sprite;
+  return Object.freeze({ ...command, sprite, sourceEffectId: id,
+    poseKey: `focus-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
+}
 function buildWebGPUFighterSlashActionCommand(player, data, view, action) {
   const api = window.DvaWebGPUPlayerSprite;
   const id = String(action?.sourceEffectId ?? '');
@@ -27627,6 +27598,8 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
   const player = renderedPlayer(sourcePlayer);
   const ghost = !player.alive && !player.ejected;
   const action = currentCharacterAction(player);
+  if (action?.kind === 'focus' && action.motionId === 'action-mana')
+    return buildWebGPUManaFocusActionCommand(player, data, view, action);
   if (action?.kind === 'slash' && action.motionId === 'fighter-slash')
     return buildWebGPUFighterSlashActionCommand(player, data, view, action);
   if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
@@ -27736,6 +27709,9 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
   const entries = state.preparationRosterEntries;
   const spriteReady = player => {
     const action = currentCharacterAction(player);
+    if (action?.kind === 'focus' && action.motionId === 'action-mana')
+      return Boolean(buildWebGPUManaFocusActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
     if (action?.kind === 'slash' && action.motionId === 'fighter-slash')
       return Boolean(buildWebGPUFighterSlashActionCommand(player, data,
         { camera, zoom, order: 0, arrival: null }, action));
@@ -32001,6 +31977,8 @@ const version = "overheal-body-v913";
   // Exact offline alpha extraction of the authored slash sheets for GPU upload.
   const fighterSlashWebGPUMotions = Object.fromEntries(
     ["white-hood", "blue-dress", "male-bot"].map(skinId => [skinId, new Image()]));
+  const manaFocusWebGPUMotions = Object.fromEntries(
+    ["white-hood", "blue-dress", "male-bot"].map(skinId => [skinId, new Image()]));
 
   const authoredHealImages = new Map();
   const authoredHealMotions = Object.fromEntries(Object.entries(AUTHORED_HEAL_PROFILES).map(([identity, profile]) => [identity,
@@ -32210,6 +32188,10 @@ const version = "overheal-body-v913";
     const version = skinId === 'male-bot' ? 'v465' : 'v483';
     defer(motion, `assets/generated/physical-motion-${skinId}-slash-${version}-webgpu-alpha-v1.png`);
   }
+  for (const [skinId, motion] of Object.entries(manaFocusWebGPUMotions)) {
+    const version = skinId === 'male-bot' ? 'v465' : 'v483';
+    defer(motion, `assets/generated/physical-motion-${skinId}-focus-${version}-webgpu-alpha-v1.png`);
+  }
   for (const skinId of ITEM_USE_POSE_SKINS) for (const direction of ITEM_USE_POSE_DIRECTIONS) for (const profile of Object.values(ITEM_USE_MOTION_PROFILES)) for (const frame of profile.keyframes) {
     const pose = itemUsePoseAsset(profile, skinId, direction, frame.key);
     if (pose?.assetPath) defer(itemUseActionMotions[skinId][direction][profile.itemId][frame.key], pose.assetPath);
@@ -32408,6 +32390,7 @@ const version = "overheal-body-v913";
     preparationSummonCircle,
     physicalActionMotions,
     fighterSlashWebGPUMotions,
+    manaFocusWebGPUMotions,
     authoredNinjutsuFocusMotions,
     authoredThrowMotions,
     authoredFireMotions,

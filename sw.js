@@ -5,8 +5,8 @@
 // v520 adds independent Natural Recovery resources and its persistent marker,
 // fixed Renki rewards, background resume repair, wall-default vector attacks,
 // and evidence-bound enemy Bot corpse investigation.
-const RUNTIME_RELEASE = "webgpu-pure-slices-v65";
-const CACHE_NAME = "dva-static-webgpu-pure-slices-v65";
+const RUNTIME_RELEASE = "webgpu-pure-slices-v66";
+const CACHE_NAME = "dva-static-webgpu-pure-slices-v66";
 const RUNTIME_RECOVERY_REVISION = "v591-movement-transport-resilience-1";
 const STATIC_ASSETS = [
   "/assets/generated/webgpu-text/atlas.json",
@@ -380,6 +380,7 @@ const STATIC_ASSETS = [
   "/webgpu-expanded-map.js",
   "/webgpu-expanded-runtime.js",
   "/webgpu-field-pass.js",
+  "/webgpu-room-overlay.js",
   "/webgpu-medical-environment-e.js",
   "/webgpu-medical-object-e.js",
   "/webgpu-medical-cabinet-e.js",
@@ -635,6 +636,7 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-blue-dress-cast-v483.png",
   "/assets/generated/physical-motion-blue-dress-evade-v483.png",
   "/assets/generated/physical-motion-blue-dress-focus-v483.png",
+  "/assets/generated/physical-motion-blue-dress-focus-v483-webgpu-alpha-v1.png",
   "/assets/generated/physical-motion-blue-dress-heal-v483.png",
   "/assets/generated/physical-motion-blue-dress-heart-transfer-v483.png",
   "/assets/generated/physical-motion-blue-dress-interact-v483.png",
@@ -648,6 +650,7 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-white-hood-cast-v483.png",
   "/assets/generated/physical-motion-white-hood-evade-v483.png",
   "/assets/generated/physical-motion-white-hood-focus-v483.png",
+  "/assets/generated/physical-motion-white-hood-focus-v483-webgpu-alpha-v1.png",
   "/assets/generated/physical-motion-white-hood-heal-v483.png",
   "/assets/generated/physical-motion-white-hood-heart-transfer-v483.png",
   "/assets/generated/physical-motion-white-hood-interact-v483.png",
@@ -661,6 +664,7 @@ const STATIC_ASSETS = [
   "/assets/generated/physical-motion-male-bot-cast-v465.png",
   "/assets/generated/physical-motion-male-bot-evade-v465.png",
   "/assets/generated/physical-motion-male-bot-focus-v465.png",
+  "/assets/generated/physical-motion-male-bot-focus-v465-webgpu-alpha-v1.png",
   "/assets/generated/physical-motion-male-bot-heal-v465.png",
   "/assets/generated/physical-motion-male-bot-interact-v465.png",
   "/assets/generated/physical-motion-male-bot-power-v465.png",
@@ -843,6 +847,7 @@ const BOOT_CRITICAL_ASSETS = new Set([
   "/webgpu-expanded-map.js",
   "/webgpu-expanded-runtime.js",
   "/webgpu-field-pass.js",
+  "/webgpu-room-overlay.js",
   "/webgpu-medical-environment-e.js",
   "/webgpu-medical-object-e.js",
   "/webgpu-medical-cabinet-e.js",
