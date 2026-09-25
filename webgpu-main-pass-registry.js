@@ -53,6 +53,7 @@
     healE: root.DvaHealAstraE || (typeof require === 'function' ? require('./webgpu-heal-astra-prototype.js') : null),
     sunbeamE: root.DvaSunbeamSolE || (typeof require === 'function' ? require('./webgpu-sunbeam-sol-e.js') : null),
     fighterEnergyE: root.DvaWebGPUFighterEnergyE || (typeof require === 'function' ? require('./webgpu-fighter-energy-e.js') : null),
+    hoverSprintE: root.DvaWebGPUHoverSprintE || (typeof require === 'function' ? require('./webgpu-hover-sprint-e.js') : null),
     gravityFieldE: root.DvaWebGPUGravityFieldE || (typeof require === 'function' ? require('./webgpu-gravity-field-e.js') : null),
     rigidItemImpactE: root.DvaWebGPURigidItemImpactE || (typeof require === 'function' ? require('./webgpu-rigid-item-impact-e.js') : null),
     bottleShardsE: root.DvaWebGPUBottleShardsE || (typeof require === 'function' ? require('./webgpu-bottle-shards-e.js') : null),
@@ -159,7 +160,7 @@
       preparationSummons: 'create', players: 'createTextureCache',
       playerNameplates: 'create', headMarkers: 'create',
       gunnerAim: 'create', killCamera: 'create', hitEffects: 'record',
-      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', staminaBenefitE: 'create', manaBenefitE: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', fighterEnergyE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
+      gravityImpacts: 'create', grenadeImpacts: 'record', bodyBenefits: 'create', staminaBenefitE: 'create', manaBenefitE: 'create', bodyBenefitExtra: 'create', statusTempo: 'create', barrierE: 'create', bustE: 'create', dodgeE: 'create', renkiE: 'create', ideaE: 'create', alchemyE: 'create', hackerRootE: 'create', hackerStatusRecoveryE: 'create', floraE: 'create', healE: 'create', sunbeamE: 'create', fighterEnergyE: 'create', hoverSprintE: 'create', gravityFieldE: 'create', rigidItemImpactE: 'create', bottleShardsE: 'create', archiveCabinetE: 'create', fireActivation: 'create', empEffect: 'create', specialAmmoEffect: 'create',
       attackTargets: 'record', taskIndicators: 'create', hud: 'create',
       minimap: 'create', modeBanner: 'create', killBloom: 'create',
       killAnimation: 'create', sensory: 'enqueue', markerExplanation: 'create',
@@ -288,6 +289,9 @@
           record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
       add('fighterEnergyE', modules.fighterEnergyE.create(), 'record');
+      const hoverSprint = modules.hoverSprintE.create();
+      add('hoverSprintE', Object.freeze({ device: renderer.device,
+        record: hoverSprint.record, destroy: hoverSprint.destroy }), 'record');
       for (const name of ['gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
         'archiveCabinetE', 'cableSpoolE']) {
         const pass = modules[name].create({ renderer, frameOwner: renderer });

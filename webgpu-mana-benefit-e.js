@@ -41,6 +41,15 @@
       t,actorElapsedMs,duration:values[10],reducedMotion:!!reducedMotion,
       phase:Object.freeze({appearance,fold,contact,closing})});
   }
+  function scissorForPlan(planned){
+    if(!planned)return null;
+    const {viewport,footX,footY,scaleX,scaleY}=planned;
+    const x=Math.max(0,Math.floor(footX-66*scaleX));
+    const y=Math.max(0,Math.floor(footY-127*scaleY));
+    const right=Math.min(viewport.pixelWidth,Math.ceil(footX+66*scaleX));
+    const bottom=Math.min(viewport.pixelHeight,Math.ceil(footY+13*scaleY));
+    return right>x&&bottom>y?Object.freeze({x,y,width:right-x,height:bottom-y}):null;
+  }
   const shader=/* wgsl */`
 struct Params { screen: vec4f, body: vec4f, phase: vec4f, control: vec4f };
 @group(0) @binding(0) var<uniform> p:Params;
@@ -152,11 +161,8 @@ fn band(y:f32,lo:f32,hi:f32,soft:f32)->f32 {
       if(!Number.isInteger(layerMask)||layerMask<0||layerMask>15)throw new RangeError('Invalid layer mask');
       const planned=plan({effect,actorElapsedMs,camera,zoom,viewport,reducedMotion});
       if(!planned)return {drawn:0,plan:null};
-      const x=Math.max(0,Math.floor(planned.footX-66*planned.scaleX));
-      const y=Math.max(0,Math.floor(planned.footY-127*planned.scaleY));
-      const right=Math.min(viewport.pixelWidth,Math.ceil(planned.footX+66*planned.scaleX));
-      const bottom=Math.min(viewport.pixelHeight,Math.ceil(planned.footY+13*planned.scaleY));
-      if(right<=x||bottom<=y)return {drawn:0,plan:planned};
+      const scissor=scissorForPlan(planned);
+      if(!scissor)return {drawn:0,plan:planned};
       const i=indices.get(frame)||0,{buffer,bind}=slot(i);indices.set(frame,i+1);
       device.queue.writeBuffer(buffer,0,new Float32Array([
         viewport.pixelWidth,viewport.pixelHeight,0,0,
@@ -167,7 +173,7 @@ fn band(y:f32,lo:f32,hi:f32,soft:f32)->f32 {
       frame.add({target,label:`Mana benefit E ${planned.id}`,encode(pass,info){
         if(info.device!==device||info.format!==format||info.width!==viewport.pixelWidth||
            info.height!==viewport.pixelHeight)throw new Error('Mana benefit target mismatch');
-        pass.setScissorRect(x,y,right-x,bottom-y);
+        pass.setScissorRect(scissor.x,scissor.y,scissor.width,scissor.height);
         pass.setPipeline(pipeline);pass.setBindGroup(0,bind);pass.draw(3);
       }});
       return {drawn:1,plan:planned};
@@ -177,7 +183,7 @@ fn band(y:f32,lo:f32,hi:f32,soft:f32)->f32 {
       for(const {buffer} of slots)if(frameOwner.release(buffer))buffer.destroy();
     }});
   }
-  const api=Object.freeze({DURATION_MS,design,plan,shader,create});
+  const api=Object.freeze({DURATION_MS,design,plan,scissorForPlan,shader,create});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   root.DvaManaBenefitE=api;
 })(typeof globalThis==='undefined'?this:globalThis);

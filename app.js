@@ -20336,6 +20336,16 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   for (const [index, effect] of active.entries()) {
     const now = eEffectNow(effect, data, wallNow);
     const type = String(effect.type || "");
+    if (type === 'hover-sprint-active') {
+      if (effect.variant !== 'auto-unsupported' || !String(effect.playerId || '') ||
+          !Number.isFinite(effect.startedAt) ||
+          !String(effect.id || ''))
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'hover-sprint-source-invalid' });
+      else omitted.push({ effectId: effect.id,
+        reason: 'hover-sprint-player-stage-owns-live-state' });
+      continue;
+    }
     if (type === 'fighter-slash') {
       const duration = window.DvaWebGPUFighterEnergyE?.DURATIONS?.['fighter-slash'];
       const elapsed = now - Number(effect.startedAt);
@@ -21207,21 +21217,26 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         omitted.push({ effectId: effect.id, reason: 'mana-benefit-outside-visible-lifetime' });
         continue;
       }
-      if (player.x < camera.x - 180 || player.x > camera.x + viewport.width / zoom + 180 ||
-          player.y < camera.y - 180 || player.y > camera.y + viewport.height / zoom + 180) {
-        omitted.push({ effectId: effect.id, reason: 'mana-benefit-outside-viewport' });
-        continue;
-      }
-      if (typeof manaE?.create !== 'function' || !Number.isFinite(manaDurationMs) ||
+      if (typeof manaE?.create !== 'function' || typeof manaE.plan !== 'function' ||
+          typeof manaE.scissorForPlan !== 'function' || !Number.isFinite(manaDurationMs) ||
           manaDurationMs <= 0) {
         unsupported.push({ index, type, id: effect.id, reason: 'mana-benefit-e-unavailable' });
         continue;
       }
+      const manaInput = { effect: { ...effect, causeId: String(effect.id),
+        actorWorld: { x: player.x, y: player.y }, duration: manaDurationMs },
+        actorElapsedMs, camera, zoom, reducedMotion };
+      const manaPlan = manaE.plan({ ...manaInput, viewport });
+      if (!manaPlan) {
+        unsupported.push({ index, type, id: effect.id, reason: 'mana-benefit-plan-invalid' });
+        continue;
+      }
+      if (!manaE.scissorForPlan(manaPlan)) {
+        omitted.push({ effectId: effect.id, reason: 'mana-benefit-outside-viewport' });
+        continue;
+      }
       events.push({ type: 'manaBenefitE', effectId: effect.id,
-        input: { effect: { ...effect, causeId: String(effect.id),
-          actorWorld: { x: player.x, y: player.y },
-          duration: manaDurationMs },
-          actorElapsedMs, camera, zoom, reducedMotion } });
+        input: manaInput });
       continue;
     }
     if (isBodyAccelerationGainEffect(effect)) {
@@ -22192,9 +22207,8 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   // Acquisitions share the golden photon renderer; do not stack legacy transfer textures.
   if ((effect.type === "transfer-in" || effect.type === "transfer-out") && effect.acquisitionKind) return true;
   if (effect?.type === "action-push" && drawTimedBustEvent(effect, progress)) return true;
-  // The event owns only the ignition kick; sustained jets are state-owned.
+  // The shared WebGPU player pass owns ignition and the live-state jets.
   if (effect?.type === "hover-sprint-active") {
-    drawHoverSprintActivationJets(effect, progress);
     return true;
   }
   if (drawCommonActionSimpleIcon(effect, progress)) return true;
@@ -22294,98 +22308,6 @@ function drawGeneratedStandaloneEffect(effect, progress) {
   }
   ctx.restore();
   return true;
-}
-
-const HOVER_SPRINT_JET_SOURCE_ANCHOR = Object.freeze({
-  // Keep the authored pair's semantic bounds, rather than its noisy alpha
-  // extrema. The two nozzles are at (527,550)/(727,550) in the 1254 canvas.
-  sourceX: 438,
-  sourceY: 505,
-  sourceWidth: 380,
-  sourceHeight: 725,
-  nozzleX: 0.5,
-  nozzleY: 45 / 725,
-  nozzleSpacing: 100 / 380
-});
-
-function hoverSprintTravelHeading(player, data) {
-  const renderState = state.renderPlayers.get(player?.id);
-  const input = player?.id === data?.selfId ? getDirection() : null;
-  const dx = Number(input?.dx ?? renderState?.moveX ?? player?.moveX) || 0;
-  const dy = Number(input?.dy ?? renderState?.moveY ?? player?.moveY) || 0;
-  if (Math.hypot(dx, dy) > 0.01) return Math.atan2(dy, dx);
-  const facing = state.facing.get(player?.id) || "down";
-  return ({ up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 })[facing] ?? Math.PI / 2;
-}
-
-function drawHoverSprintJetPair(anchorX, anchorY, heading, options = {}) {
-  const sprite = state.textures?.hoverSprintJetEffect;
-  const r = HOVER_SPRINT_JET_SOURCE_ANCHOR;
-  if (!sprite?.complete || sprite.naturalWidth < r.sourceX+r.sourceWidth || sprite.naturalHeight < r.sourceY+r.sourceHeight || ctx.globalAlpha <= 0) return false;
-  const {height=72,alpha=1,reduced=false,transport=0,ignition=1}=options;
-  if (!(alpha>0)) return false;
-  const width=height*r.sourceWidth/r.sourceHeight, nx=width*r.nozzleX,ny=height*r.nozzleY;
-  // Fixed geometry and nozzle anchors. Only material density travels downstream.
-  let cache=state.textures.hoverSprintTransportScratch;
-  if (!cache) {
-    const source=document.createElement('canvas'),mask=document.createElement('canvas');
-    source.width=mask.width=96;source.height=mask.height=184;
-    cache=state.textures.hoverSprintTransportScratch={source,mask};
-  }
-  const local=cache.source.getContext('2d'),mask=cache.mask.getContext('2d');
-  local.setTransform(1,0,0,1,0,0);local.globalAlpha=1;local.globalCompositeOperation='source-over';local.clearRect(0,0,96,184);
-  local.drawImage(sprite,r.sourceX,r.sourceY,r.sourceWidth,r.sourceHeight,0,0,96,184);
-  mask.setTransform(1,0,0,1,0,0);mask.globalAlpha=1;mask.globalCompositeOperation='source-over';mask.clearRect(0,0,96,184);
-  for (const side of [-1,1]) {
-    const x=48+side*96*r.nozzleSpacing;
-    const q=reduced?.35:((transport+(side>0?.16:0))%1+1)%1;
-    // A compact pressure packet broadens into a long aft wake. Both are
-    // alpha-bound to the authored jet, never detached procedural particles.
-    const y=12+q*153, strength=Math.sin(Math.PI*q)*ignition;
-    for (const wake of [false,true]) {
-      mask.save();mask.translate(x,y-(wake?24:0));mask.scale(wake?10:15,wake?38:17);
-      const g=mask.createRadialGradient(0,0,0,0,0,1),a=strength*(wake?.42:1);
-      g.addColorStop(0,`rgba(255,255,255,${a})`);g.addColorStop(.45,`rgba(255,255,255,${a*.6})`);g.addColorStop(1,'rgba(255,255,255,0)');mask.fillStyle=g;mask.fillRect(-1,-1,2,2);mask.restore();
-    }
-  }
-  local.globalCompositeOperation='destination-in';local.drawImage(cache.mask,0,0);local.globalCompositeOperation='source-over';
-  ctx.save();ctx.translate(anchorX,anchorY);ctx.rotate(heading+Math.PI/2);ctx.globalCompositeOperation='lighter';ctx.globalAlpha*=alpha;
-  ctx.drawImage(sprite,r.sourceX,r.sourceY,r.sourceWidth,r.sourceHeight,-nx,-ny,width,height);
-  // Local transport light crosses existing shock diamonds and feeds the tail.
-  ctx.drawImage(cache.source,0,0,96,184,-nx,-ny,width,height);
-  ctx.drawImage(cache.source,0,0,96,184,-nx,-ny,width,height);
-  ctx.restore();return true;
-}
-
-function drawHoverSprintActivationJets(effect, progress) {
-  if (!Number.isFinite(progress) || progress<=0 || progress>=1) return true;
-  const player=state.data?.players?.find(entry=>entry?.id===effect.playerId);
-  if (effect.playerId && !player) return true;
-  if (player && (player.alive===false || player.ejected)) return true;
-  const until=Number(player?.id===state.data?.selfId?state.data?.self?.hoverSprintUntil:player?.hoverSprintUntil)||0;
-  if (player && until>estimatedServerNow(state.data)) return true;
-  const rendered=player?renderedPlayer(player):null;
-  const x=Number(rendered?.x??effect.x)||0,y=Number(rendered?.y??effect.y)||0;
-  const ignition=objectEffectEase(clamp(progress/.15,0,1));
-  const fade=1-objectEffectEase(clamp((progress-.7)/.3,0,1));
-  const heading=hoverSprintTravelHeading(player||effect,state.data);
-  const options={alpha:fade*ignition,ignition,transport:progress*1.9,reduced:prefersReducedMotion()};
-  const feet=drawHoverSprintJetPair(x,y+characterBodyVisualY(23),heading,{...options,height:86});
-  const back=drawHoverSprintJetPair(x,y+characterBodyVisualY(-2),heading,{...options,height:74,transport:options.transport+.23});
-  return feet||back;
-}
-
-function drawHoverSprintSustainedJets(player, data) {
-  if (player?.alive===false || player?.ejected) return false;
-  const until=Number(player?.id===data?.selfId?data?.self?.hoverSprintUntil:player?.hoverSprintUntil)||0;
-  if (until<=estimatedServerNow(data)) return false;
-  const time=actorVisualTime(player,data)/1000, reduced=prefersReducedMotion();
-  const heading=hoverSprintTravelHeading(player,data);
-  const transport=time*2.1+(player.id?.length||0)*.13;
-  const options={alpha:.52,ignition:1,transport,reduced};
-  const feet=drawHoverSprintJetPair(0,characterBodyVisualY(23),heading,{...options,height:60});
-  const back=drawHoverSprintJetPair(0,characterBodyVisualY(-2),heading,{...options,height:66,transport:transport+.23});
-  return feet||back;
 }
 
 const GRAVITY_LEVITATION_ONSET_MS = 180;
@@ -26730,7 +26652,6 @@ function drawHuman(player, data) {
   ctx.restore();
   if (drewPlayerSprite) {
     drawDurableBustState(player, data, false);
-    drawHoverSprintSustainedJets(player, data);
     drawLuminousFeathers(player);
     drawPersistentStatusAteLayers(player, data);
     ctx.restore();
@@ -26790,7 +26711,6 @@ function drawHuman(player, data) {
   // Sprite-loading fallback uses the compact -39 nameplate geometry.
   registerPreparationPlayerCanvasTargets(player, fallbackNameplateY, nameplateWidth);
   drawDurableBustState(player, data, false);
-  drawHoverSprintSustainedJets(player, data);
   drawLuminousFeathers(player);
   drawPersistentStatusAteLayers(player, data);
   ctx.restore();
@@ -27512,6 +27432,51 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
 // WEBGPU_MAIN_APP_PLAYER_STAGE_ADAPTER_V1_START
 // Capture live actor ordering and summon ownership without touching Canvas 2D.
 // This remains dormant until every surrounding ordered stage is ready.
+function hoverSprintWebGPUPlayerStage(data, candidates, viewport, camera, zoom) {
+  const nowMs = state.frameNow || performance.now();
+  const serverNow = estimatedServerNow(data);
+  const active = data.phase === 'playing' ? candidates.filter(player =>
+    player.alive && !player.ejected && !player.inVent &&
+    Number(player.id === data.selfId ? data.self?.hoverSprintUntil : player.hoverSprintUntil) > serverNow) : [];
+  const players = active.map(player => {
+    const renderState = state.renderPlayers.get(player.id);
+    const input = player.id === data.selfId ? getDirection() : null;
+    const dx = Number(input?.dx ?? renderState?.moveX ?? player.moveX) || 0;
+    const dy = Number(input?.dy ?? renderState?.moveY ?? player.moveY) || 0;
+    const facing = state.facing.get(player.id) || 'down';
+    const fallback = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 },
+      left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }[facing] || { x: 0, y: 1 };
+    const travelHeading = Math.hypot(dx, dy) > .01 ? { x: dx, y: dy } : fallback;
+    const length = Math.hypot(travelHeading.x, travelHeading.y);
+    const side = { x: -travelHeading.y / length, y: travelHeading.x / length };
+    const pair = (y, spacing) => [-1, 1].map(sign => ({
+      x: player.x + side.x * spacing * sign,
+      y: player.y + y + side.y * spacing * sign }));
+    return { id: player.id, alive: player.alive, ejected: player.ejected,
+      inVent: player.inVent,
+      hoverSprintUntil: Number(player.id === data.selfId
+        ? data.self.hoverSprintUntil : player.hoverSprintUntil),
+      hoverSprintDurationMs: Number(data.self?.hoverSprintDurationMs) || 8000,
+      travelHeading,
+      feetJetsWorld: pair(characterBodyVisualY(23), 6),
+      backJetsWorld: pair(characterBodyVisualY(-2), 8) };
+  });
+  const ownerIds = new Set(players.map(player => String(player.id)));
+  const events = (state.magicEffects || []).filter(effect =>
+    effect?.type === 'hover-sprint-active' && effect.variant === 'auto-unsupported' &&
+    ownerIds.has(String(effect.playerId)) && Number.isFinite(effect.startedAt) &&
+    nowMs >= effect.startedAt && nowMs - effect.startedAt < 360)
+    .map(effect => ({ id: String(effect.id), type: effect.type, variant: effect.variant,
+      playerId: String(effect.playerId), startedAt: effect.startedAt }));
+  const scene = { nowMs, serverNow, players, events,
+    reducedMotion: prefersReducedMotion() };
+  const api = window.DvaWebGPUHoverSprintE;
+  if (typeof api?.plan !== 'function')
+    throw new Error('Hover Sprint WebGPU E planner unavailable');
+  const planned = api.plan({ scene, camera, zoom, viewport });
+  return { scene, camera, zoom, planned };
+}
+
 function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zoom) {
   if (!data || !Array.isArray(data.players) || viewport?.kind !== 'main' ||
       !Array.isArray(viewport.worldToLogical) ||
@@ -27600,6 +27565,8 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
       serverNow: estimatedServerNow(data), reducedMotion: prefersReducedMotion() }
     : null;
   const playerEffects = { bustScene, camera, zoom };
+  playerEffects.hoverSprint = hoverSprintWebGPUPlayerStage(data, candidates,
+    viewport, camera, zoom);
   const rootPlans = [];
   if (data.phase === 'playing') for (const player of candidates) {
     if (!player.hackerRootActive || !player.alive || player.ejected ||
@@ -28178,7 +28145,7 @@ async function prepareWebGPUMainAppWorldCandidate(candidate, passes, textAtlas,
     'headMarkers', 'bodyBenefitExtra', 'statusTempo',
     'barrierE', 'bustE', 'dodgeE', 'renkiE', 'ideaE',
     'alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE',
-    'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
+    'hoverSprintE', 'gravityFieldE', 'rigidItemImpactE', 'bottleShardsE',
     'archiveCabinetE', 'cableSpoolE',
     ...(empVisible.length ? ['empEffect'] : []),
     ...(specialAmmoVisible.length ? ['specialAmmoEffect'] : []),
@@ -31441,7 +31408,6 @@ const version = "overheal-body-v913";
   const alchemyExcaliburEffect = new Image();
   const accelerationPhaseEffect = new Image();
   const instantSpeedTexture = accelerationPhaseEffect;
-  const hoverSprintJetEffect = new Image();
   const gravityLevitationSupportField = new Image();
   const statusLevitationEffect = new Image();
   const freshBarrierShell = new Image();
@@ -31689,7 +31655,6 @@ const version = "overheal-body-v913";
   defer(limitBreakReleaseEffect, "assets/generated/limit-break-release-v309.png");
   defer(alchemyExcaliburEffect, "assets/generated/alchemy-excalibur.webp");
   defer(accelerationPhaseEffect, "assets/generated/status-marker-acceleration-v376.png");
-  defer(hoverSprintJetEffect, "assets/generated/hover-sprint-jet-exhaust-v719.png");
   defer(gravityLevitationSupportField, "assets/generated/levitation-support-field-v901.png");
   defer(statusLevitationEffect, "assets/generated/status-levitation-v375.png");
   defer(preparationBarrierEffect, "assets/generated/status-preparation-barrier-ate-v392.png");
@@ -31896,7 +31861,6 @@ const version = "overheal-body-v913";
     limitBreakReleaseEffect,
     alchemyExcaliburEffect,
     accelerationPhaseEffect,
-    hoverSprintJetEffect,
     gravityLevitationSupportField,
     statusLevitationEffect,
     freshBarrierShell,

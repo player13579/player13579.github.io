@@ -11,7 +11,7 @@
   });
   const TYPE = 'action-mana';
   const STATES = Object.freeze({ '欲望': 'desire', '気概': 'grit', '理知': 'rational', renki: 'renki-release' });
-  const MAX_EVENTS = 32, MAX_RECTS_PER_EVENT = 16, DEFAULT_DURATION_MS = 1200;
+  const MAX_EVENTS = 32, MAX_RECTS_PER_EVENT = 16, MAX_SHAPES_PER_EVENT = 20, DEFAULT_DURATION_MS = 1200;
   const rgba = (r, g, b, a) => [r / 255, g / 255, b / 255, clamp(a)];
   function validate({ scene, camera, zoom, viewport } = {}) {
     if (!scene || !Array.isArray(scene.effects) || !Array.isArray(scene.players) || !finite(scene.nowMs) ||
@@ -77,77 +77,127 @@
     }
     return { owned, delegated, unsupported };
   }
-  function commandsFor(effect) {
-    const { center: c, progress: p, reducedMotion: reduced } = effect, commands = [];
-    const alpha = (1 - p) * (reduced ? 0.55 : 0.88), addLine = (a, b, w, color) => {
-      const cmd = line(a, b, w, color); if (cmd) commands.push(cmd);
+  function visualsFor(effect) {
+    const { center: c, progress: p, reducedMotion: reduced } = effect;
+    const commands = [], shapeCommands = [];
+    const visualScale = 1.75;
+    const at = (x, y) => ({ x: c.x + (x - c.x) * visualScale,
+      y: c.y + (y - c.y) * visualScale });
+    // A bright middle life followed by a deliberate tail. The first frame is
+    // already legible; the last 18% dissolves without a hard cutoff.
+    const entrance = clamp(0.58 + p * 4.2);
+    const exit = clamp((1 - p) / 0.18);
+    const light = entrance * exit * (reduced ? 0.78 : 1);
+    const swell = reduced ? 1 : 0.84 + 0.16 * Math.sin(Math.PI * clamp(p / 0.65));
+    const glow = (x, y, radius, color, opacity) => shapeCommands.push({
+      kind: 'glow', ...at(x, y), radius: radius * visualScale,
+      color: rgba(...color, light * opacity), mode: 'additive' });
+    const oval = (x, y, rx, ry, color, opacity, rotation = 0) => shapeCommands.push({
+      kind: 'ellipse', ...at(x, y), rx: rx * visualScale, ry: ry * visualScale,
+      rotation, color: rgba(...color, light * opacity), mode: 'additive' });
+    const arc = (x, y, radius, start, sweep, width, color, opacity) => shapeCommands.push({
+      kind: 'arc', ...at(x, y), radius: radius * visualScale, start, sweep,
+      lineWidth: width * visualScale,
+      color: rgba(...color, light * opacity), mode: 'additive' });
+    const stroke = (a, b, width, color, opacity) => {
+      // The shared shape pass supplies the round, soft field. Keep a diffuse
+      // ribbon in the ordered primitive pass too: it makes the body silhouette
+      // readable on small displays even when radial light is subtle.
+      for (const [extra, strength] of [[16, 0.2], [7, 0.4], [0, 1]]) {
+        const band = line(at(a.x, a.y), at(b.x, b.y),
+          (width + extra) * visualScale, rgba(...color, light * opacity * strength));
+        if (band) commands.push(band);
+      }
     };
     if (effect.kind === 'desire') {
-      // A divided, fraying pair of outward curls: instability rather than a generic ring.
-      for (const side of [-1, 1]) {
-        const points = [
-          { x: c.x, y: c.y },
-          { x: c.x + side * (6 + p * 7), y: c.y - 7 },
-          { x: c.x + side * (14 + p * 12), y: c.y + (reduced ? 1 : Math.sin(p * 8 + side) * 5) },
-          { x: c.x + side * (20 + p * 14), y: c.y - 8 }
-        ];
-        for (let i = 0; i < points.length - 1; i++) addLine(points[i], points[i + 1], 2.7 - i * 0.35,
-          rgba(221, 115, 255, alpha * (0.95 - i * 0.16)));
-      }
-      for (const side of [-1, 1]) commands.push(rect({ x: c.x + side * (9 + p * 16), y: c.y + 9 - p * 12 }, 3.4, 3.4,
-        rgba(255, 198, 247, alpha * 0.8)));
-    } else if (effect.kind === 'rational') {
-      // Ordered mana alignment: three ascending paired columns converge on a bright apex.
-      const lift = reduced ? 5 : 3 + p * 13;
-      for (let i = -1; i <= 1; i++) {
-        const x = c.x + i * (reduced ? 6 : 8);
-        addLine({ x, y: c.y + 9 }, { x: c.x + i * 2, y: c.y - lift }, 2.2,
-          rgba(113, 224, 255, alpha * (i === 0 ? 1 : 0.72)));
-      }
-      addLine({ x: c.x - 7, y: c.y - lift }, { x: c.x, y: c.y - lift - 4 }, 2,
-        rgba(210, 250, 255, alpha));
-      addLine({ x: c.x, y: c.y - lift - 4 }, { x: c.x + 7, y: c.y - lift }, 2,
-        rgba(210, 250, 255, alpha));
+      // Two unequal, escaping violet tongues part from a shared heart.
+      const spread = reduced ? 0 : 7 * Math.sin(Math.PI * p);
+      glow(c.x, c.y - 3, 43 * swell, [183, 70, 246], 0.35);
+      glow(c.x - 19 - spread, c.y - 9, 31, [230, 75, 202], 0.27);
+      glow(c.x + 18 + spread, c.y + 1, 32, [124, 73, 255], 0.28);
+      oval(c.x - 14 - spread, c.y - 9, 10, 27, [199, 83, 240], 0.29, -0.38);
+      oval(c.x + 13 + spread, c.y + 1, 9, 24, [133, 91, 255], 0.29, 0.34);
+      arc(c.x - 11 - spread, c.y - 6, 23, 1.58, 3.7, 4.4, [255, 143, 236], 0.72);
+      arc(c.x + 10 + spread, c.y + 3, 21, -1.36, 3.5, 4, [188, 142, 255], 0.68);
+      stroke({ x: c.x - 9, y: c.y + 12 }, { x: c.x - 18 - spread, y: c.y - 24 }, 3.6, [255, 216, 249], 0.84);
+      stroke({ x: c.x + 8, y: c.y + 14 }, { x: c.x + 17 + spread, y: c.y - 18 }, 3.2, [222, 204, 255], 0.8);
+      stroke({ x: c.x, y: c.y + 12 }, { x: c.x, y: c.y - 12 }, 2.6, [255, 225, 253], 0.7);
+      oval(c.x, c.y + 2, 7, 12, [255, 180, 244], 0.54);
     } else if (effect.kind === 'grit') {
-      // Resolve: compact inward wedge and short grounded thrust, distinct from both curls and columns.
-      const scale = reduced ? 0.8 : 0.45 + 0.55 * p;
-      const points = [
-        { x: c.x - 11 * scale, y: c.y - 6 * scale },
-        { x: c.x + 10 * scale, y: c.y },
-        { x: c.x - 11 * scale, y: c.y + 6 * scale }
-      ];
-      addLine(points[0], points[1], 3.2, rgba(255, 197, 94, alpha));
-      addLine(points[1], points[2], 3.2, rgba(255, 197, 94, alpha * 0.82));
-      addLine({ x: c.x - 17 * scale, y: c.y }, { x: c.x - 8 * scale, y: c.y }, 2.1,
-        rgba(255, 237, 172, alpha));
+      // Grounded gold compression drives into one decisive upward thrust.
+      const thrust = reduced ? 8 : 4 + 11 * Math.sin(Math.PI * clamp(p / 0.7));
+      glow(c.x, c.y - 8, 44 * swell, [255, 145, 38], 0.37);
+      glow(c.x, c.y - 18 - thrust, 31, [255, 210, 81], 0.27);
+      oval(c.x, c.y - 11, 12, 32, [255, 178, 60], 0.32);
+      oval(c.x, c.y - 13 - thrust * 0.5, 5, 22, [255, 229, 122], 0.48);
+      arc(c.x, c.y + 17, 24, 0.25, 2.65, 5, [255, 190, 78], 0.65);
+      arc(c.x, c.y + 17, 24, Math.PI + 0.25, 2.65, 5, [255, 190, 78], 0.65);
+      stroke({ x: c.x - 19, y: c.y + 16 }, { x: c.x - 4, y: c.y - 16 - thrust }, 4.2, [255, 225, 133], 0.84);
+      stroke({ x: c.x + 19, y: c.y + 16 }, { x: c.x + 4, y: c.y - 16 - thrust }, 4.2, [255, 225, 133], 0.84);
+      stroke({ x: c.x, y: c.y + 18 }, { x: c.x, y: c.y - 31 - thrust }, 5, [255, 249, 196], 0.92);
+      commands.push(rect(at(c.x, c.y - 31 - thrust), 7 * visualScale, 7 * visualScale,
+        rgba(255, 250, 213, light * 0.95)));
+    } else if (effect.kind === 'rational') {
+      // Cool, ordered planes align into a diamond above a quiet central axis.
+      const align = reduced ? 0 : 8 * (1 - p);
+      glow(c.x, c.y - 8, 45 * swell, [67, 174, 255], 0.35);
+      glow(c.x, c.y - 18, 29, [131, 232, 255], 0.26);
+      oval(c.x, c.y - 8, 20, 30, [86, 199, 244], 0.23);
+      oval(c.x, c.y - 8, 7, 26, [172, 244, 255], 0.37);
+      arc(c.x, c.y - 8, 31, -2.6, 2.1, 3.3, [111, 219, 255], 0.62);
+      arc(c.x, c.y - 8, 31, 0.55, 2.1, 3.3, [111, 219, 255], 0.62);
+      const top = { x: c.x, y: c.y - 42 }, bottom = { x: c.x, y: c.y + 22 };
+      stroke({ x: c.x - 22 - align, y: c.y - 9 }, top, 3, [208, 249, 255], 0.86);
+      stroke(top, { x: c.x + 22 + align, y: c.y - 9 }, 3, [208, 249, 255], 0.86);
+      stroke({ x: c.x - 22 - align, y: c.y - 9 }, bottom, 2.5, [126, 228, 255], 0.74);
+      stroke(bottom, { x: c.x + 22 + align, y: c.y - 9 }, 2.5, [126, 228, 255], 0.74);
+      stroke({ x: c.x, y: c.y + 17 }, { x: c.x, y: c.y - 35 }, 3, [234, 253, 255], 0.9);
     } else {
-      // Renki completion: energy returns from a focal point in a measured expanding release.
-      const radius = reduced ? 12 : 5 + p * 17;
-      const arms = effect.completionKind === 'tenfold' ? (reduced ? 6 : 10) : (reduced ? 4 : 6);
-      for (let i = 0; i < arms; i++) {
-        const a = i * Math.PI * 2 / arms + (reduced ? 0 : p * 0.24);
-        const inner = radius * 0.4, outer = radius;
-        addLine({ x: c.x + Math.cos(a) * inner, y: c.y + Math.sin(a) * inner },
-          { x: c.x + Math.cos(a) * outer, y: c.y + Math.sin(a) * outer },
-          effect.completionKind === 'tenfold' ? 2.2 : 2.8,
-          rgba(111, 218, 255, alpha * (effect.completionKind === 'tenfold' ? 0.72 : 0.9)));
+      // Completion has an inward gathering, a rising release, and a lingering
+      // plume. Tenfold adds two broad wings; normal remains a single column.
+      const tenfold = effect.completionKind === 'tenfold';
+      const release = reduced ? 0.72 : clamp((p - 0.24) / 0.39);
+      const lift = release * (tenfold ? 32 : 24);
+      const radius = tenfold ? 58 : 43;
+      glow(c.x, c.y - 10 - lift * 0.35, radius * swell, [88, 190, 255], tenfold ? 0.43 : 0.37);
+      glow(c.x, c.y - 20 - lift, tenfold ? 39 : 32, [174, 240, 255], 0.34);
+      oval(c.x, c.y - 9 - lift * 0.45, tenfold ? 20 : 14, tenfold ? 42 : 34,
+        [111, 216, 255], tenfold ? 0.39 : 0.32);
+      oval(c.x, c.y - 18 - lift, tenfold ? 9 : 7, 24, [220, 251, 255], 0.48);
+      arc(c.x, c.y + 12, tenfold ? 31 : 25, 0.18, 2.78, 4.5, [139, 225, 255], 0.73);
+      arc(c.x, c.y + 12, tenfold ? 31 : 25, Math.PI + 0.18, 2.78, 4.5, [139, 225, 255], 0.73);
+      stroke({ x: c.x - 13, y: c.y + 23 }, { x: c.x - 4, y: c.y - 27 - lift }, 3.4, [210, 248, 255], 0.84);
+      stroke({ x: c.x + 13, y: c.y + 23 }, { x: c.x + 4, y: c.y - 27 - lift }, 3.4, [210, 248, 255], 0.84);
+      stroke({ x: c.x, y: c.y + 13 }, { x: c.x, y: c.y - 40 - lift }, 4.2, [246, 254, 255], 0.91);
+      if (tenfold) {
+        for (const side of [-1, 1]) {
+          glow(c.x + side * 34, c.y - 17 - lift * 0.5, 31, [84, 169, 255], 0.3);
+          oval(c.x + side * 29, c.y - 13 - lift * 0.5, 8, 29, [105, 189, 255], 0.31, side * 0.45);
+          stroke({ x: c.x + side * 18, y: c.y + 15 },
+            { x: c.x + side * 35, y: c.y - 31 - lift }, 3.1, [177, 232, 255], 0.76);
+        }
       }
-      commands.push(rect(c, effect.completionKind === 'tenfold' ? 5 : 4, effect.completionKind === 'tenfold' ? 5 : 4,
-        rgba(223, 249, 255, alpha)));
     }
-    return commands;
+    return { commands, shapeCommands };
   }
   function create() {
     let destroyed = false;
     const consumedCueIds = new Set();
-    function record({ frame, target, viewport, scene, camera, zoom } = {}) {
+    function record({ frame, target, shapes, viewport, scene, camera, zoom } = {}) {
       if (destroyed) throw new Error('Common Action Body E pass destroyed');
       if (typeof frame?.stage !== 'function' || typeof frame?.rect !== 'function' || typeof target !== 'string' || !target)
         throw new TypeError('Common Action Body E needs the shared rectangle frame and target');
       const result = plan({ scene, camera, zoom, viewport });
-      const commands = result.owned.flatMap(commandsFor);
+      if (result.owned.length && typeof shapes?.enqueue !== 'function')
+        throw new TypeError('Common Action Body E needs shared WebGPU effect shapes');
+      const visuals = result.owned.map(visualsFor);
+      const commands = visuals.flatMap(visual => visual.commands);
+      const shapeCommands = visuals.flatMap(visual => visual.shapeCommands);
       if (commands.length > MAX_EVENTS * MAX_RECTS_PER_EVENT ||
-        commands.some(c => ![c.x, c.y, c.w, c.h, c.color?.[3]].every(finite)))
+        shapeCommands.length > MAX_EVENTS * MAX_SHAPES_PER_EVENT ||
+        commands.some(c => ![c.x, c.y, c.w, c.h, c.color?.[3], ...(c.transform || [])].every(finite)) ||
+        shapeCommands.some(c => ![c.x, c.y, c.radius ?? c.rx, c.ry ?? c.radius,
+          c.color?.[3], c.start ?? 0, c.sweep ?? 0, c.lineWidth ?? 0].every(finite)))
         throw new RangeError('Common Action Body E invalid or over budget');
       const cueEdges = [];
       for (const event of [...result.owned, ...result.delegated]) {
@@ -158,15 +208,22 @@
           variant: event.variant, rendererOwner: event.rendererOwner || (event.type === TYPE ? 'DvaWebGPUCommonActionBodyE' : null),
           soundOwner, playback: 'delegate-existing-owner' });
       }
-      if (commands.length) {
+      let batch = null;
+      if (commands.length || shapeCommands.length) {
         frame.stage('world:common-action-body-e');
+        batch = shapes.enqueue(frame, { target, width: viewport.width, height: viewport.height,
+          pixelWidth: viewport.pixelWidth ?? viewport.width,
+          pixelHeight: viewport.pixelHeight ?? viewport.height,
+          commands: shapeCommands, label: 'DVA common action mana body light' });
         for (const command of commands) frame.rect(target, command);
       }
-      return { owned: result.owned, delegated: result.delegated, unsupported: result.unsupported, commands, cueEdges };
+      return { owned: result.owned, delegated: result.delegated, unsupported: result.unsupported,
+        commands, shapeCommands, batch, cueEdges };
     }
     return Object.freeze({ record, destroy() { destroyed = true; consumedCueIds.clear(); } });
   }
-  const api = Object.freeze({ TYPE, STATES, OWNERS, MAX_EVENTS, MAX_RECTS_PER_EVENT, DEFAULT_DURATION_MS, plan, create });
+  const api = Object.freeze({ TYPE, STATES, OWNERS, MAX_EVENTS, MAX_RECTS_PER_EVENT,
+    MAX_SHAPES_PER_EVENT, DEFAULT_DURATION_MS, plan, create });
   root.DvaWebGPUCommonActionBodyE = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -90,6 +90,16 @@
       if (!Array.isArray(magic.sourceEffectIds) || !Array.isArray(magic.events) ||
           !Array.isArray(magic.omitted))
         throw new TypeError('Main scene magicEffects needs source IDs, ordered events, and explicit omissions');
+      const hoverSprint = playerStage.hoverSprint;
+      if (!hoverSprint?.scene || !Array.isArray(hoverSprint.planned) ||
+          typeof passes.hoverSprintE?.record !== 'function' ||
+          hoverSprint.scene.events.some(event =>
+            !magic.omitted.some(item => String(item.effectId) === String(event.id) &&
+              item.reason === 'hover-sprint-player-stage-owns-live-state')) ||
+          hoverSprint.planned.some(effect =>
+            !hoverSprint.scene.players.some(player => String(player.id) === effect.playerId) ||
+            (effect.eventId && !hoverSprint.scene.events.some(event => event.id === effect.eventId))))
+        throw new TypeError('Hover Sprint player stage needs live state and exact claimed activation sources');
       const markerCoverage = magic.markerCoverage;
       if (!markerCoverage || !Array.isArray(markerCoverage.visibleRetained))
         throw new TypeError('Main scene magicEffects needs explicit visible retained-marker coverage');
@@ -735,6 +745,15 @@
               throw new Error('Player ROOT state pass did not draw its plan');
           }
         }
+        const hover = input.hoverSprint;
+        const hoverOutcome = need('hoverSprintE', 'record').record({ frame, target,
+          viewport, scene: hover.scene, camera: hover.camera, zoom: hover.zoom });
+        if (hoverOutcome?.drawn !== hover.planned.length ||
+            hoverOutcome.effects?.some((effect, index) =>
+              effect.playerId !== hover.planned[index]?.playerId ||
+              effect.phase !== hover.planned[index]?.phase ||
+              effect.eventId !== hover.planned[index]?.eventId))
+          throw new Error('Hover Sprint submitted effects differ from same-frame live plan');
         const nameplates = need('playerNameplates', 'record').record({
           frame, target, commands, selfPlayerId: input.selfPlayerId,
           preparation: input.preparation });
@@ -788,7 +807,8 @@
               throw new Error(`Magic special ammo ${event.effectId} was not fully claimed and drawn`);
           } else if (event.type === 'commonActionBodyE') {
             const outcome = need('commonActionBodyE', 'record').record({
-              frame, target, viewport, ...event.input });
+              frame, target, viewport, shapes: need('shapes', 'enqueue'), ...event.input });
+            prepared.addLease(outcome?.batch);
             if (!Array.isArray(outcome?.owned) || outcome.owned.length !== 1 ||
                 String(outcome.owned[0].id) !== String(event.effectId) ||
                 outcome.unsupported?.length || outcome.commands?.length < 1)

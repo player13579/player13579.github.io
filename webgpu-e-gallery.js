@@ -48,6 +48,7 @@
     { id: 'rigid-item-impact', title: '剛体アイテム着弾', detail: 'サーバー現行の rigid-item-impact 接触点・接触面・ダメージ/幸運・所有者/対象イベント形を再生。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-rigid-item-impact-e.js', kind: 'rigid-item-impact' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
+  const sourceRevision = new URL(document.currentScript?.src || location.href).searchParams.get('v') || 'gallery-current';
   const address = (page) => {
     const url = new URL(page, location.href);
     url.searchParams.set('gallery', '1');
@@ -56,7 +57,9 @@
   };
   const loadScript = src => new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = src;
+    const url = new URL(src, location.href);
+    url.searchParams.set('v', sourceRevision);
+    script.src = url.href;
     script.onload = resolve;
     script.onerror = () => reject(new Error(`${src} を読み込めません`));
     document.head.append(script);

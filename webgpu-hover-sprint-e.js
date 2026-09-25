@@ -89,10 +89,11 @@
       if (eventByPlayer.has(ownerId)) throw new Error(`Hover Sprint E player ${ownerId} has overlapping activation events`);
       const player = players.get(ownerId);
       if (!player) throw new Error(`Hover Sprint E ${eventId} owner ${ownerId} is unavailable`);
+      if (!active.includes(player)) continue; // The server's live state owns ignition too.
       eventByPlayer.set(ownerId, event);
     }
     const result = [];
-    const ids = new Set([...active.map(p => String(p.id)), ...eventByPlayer.keys()]);
+    const ids = new Set(active.map(p => String(p.id)));
     for (const id of ids) {
       const player = players.get(id), event = eventByPlayer.get(id) || null;
       const remaining = Number(player.hoverSprintUntil) - scene.serverNow;
