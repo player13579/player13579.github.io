@@ -11255,6 +11255,7 @@ function resetLocalSession() {
   state.tabletResumeAfterMap = false;
   state.operatorBranchesOpen = false;
   resetRootBorrowedAbilitySelection();
+  state.selectedShopAbilityId = "";
   state.gunTriggerHeld = false;
   state.gunTriggerPointerId = null;
   state.gunFireStartPromise = null;
@@ -11341,7 +11342,10 @@ function applyState(data, options = {}) {
     state.vendingRenderKey = "";
     state.itemRenderKey = "";
     setOperatorBranchesOpen(false);
-    if (["selecting", "ended"].includes(data.phase)) resetRootBorrowedAbilitySelection();
+    if (["selecting", "ended"].includes(data.phase)) {
+      resetRootBorrowedAbilitySelection();
+      state.selectedShopAbilityId = "";
+    }
   }
   if (state.data?.roomId && state.data.roomId !== data.roomId) {
     setExpandedMapOpen(false);
@@ -13573,14 +13577,6 @@ function clearPreparationCanvasHitTargets() {
 function registerPreparationCanvasHitTarget(field, x, y, width, height) {
   if (!field || !Number.isFinite(x) || !Number.isFinite(y) || width <= 0 || height <= 0) return;
   state.preparationCanvasHitTargets.push({ field, x, y, width, height });
-}
-
-function drawPreparationCanvasHitTargets(data, camera, zoom, width, height) {
-  if (!preparationPhaseActive(data)) return;
-  const mapBounds = minimapCanvasBounds(width);
-  // The minimap is the visible map control. It remains a real field map,
-  // while taps on other participants do not open local settings.
-  registerPreparationCanvasHitTarget("map", mapBounds.x, mapBounds.y, mapBounds.width, mapBounds.height);
 }
 
 function registerPreparationCanvasLocalBounds(field, x, y, width, height) {
