@@ -40,7 +40,8 @@
     { id: 'bottle-shards', title: '瓶の破片着弾', detail: 'サーバー現行の bottle-shards イベント形、所有者、瓶種と命中数を使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-bottle-shards-e.js', kind: 'bottle-shards' },
     { id: 'archive-cabinet', title: 'アーカイブキャビネット', detail: '現行マップの archiveCabinet 成功使用イベントを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-archive-cabinet-e.js', kind: 'integrated' },
     { id: 'cable-spool', objectId: 'v302-power-cableSpool-2', title: 'ケーブルリール使用', detail: '現行マップの cableSpool 成功使用イベントと著者済みIDを使う単独WebGPUフィクスチャ。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-cable-spool-e.js', kind: 'integrated' },
-    { id: 'grenade-frag-impact', title: '破片手榴弾の着弾', detail: 'サーバーの grenade-frag-impact 着弾イベント形を使うWebGPU候補。スタングレネードは含まず、本編画質とSFXは未受入です。', status: 'fragのみ・画質/SFX未受入', source: 'webgpu-grenade-impact.js', kind: 'grenade-impact' }
+    { id: 'grenade-frag-impact', title: '破片手榴弾の着弾', detail: 'サーバーの grenade-frag-impact 着弾イベント形を使うWebGPU候補。スタングレネードは含まず、本編画質とSFXは未受入です。', status: 'fragのみ・画質/SFX未受入', source: 'webgpu-grenade-impact.js', kind: 'grenade-impact' },
+    { id: 'fire-activation', title: 'ファイア発動', detail: '現行 fire 魔法イベントを使う単独WebGPUフィクスチャ。実ゲームの表示品質とSFX受入は未完了です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-fire-activation.js', kind: 'fire-activation' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const address = (page) => {
@@ -140,6 +141,7 @@
       const isFighterSlash = entry.id === 'fighter-slash';
       const isArchiveCabinet = entry.id === 'archive-cabinet';
       const isCableSpool = entry.id === 'cable-spool';
+      const isFireActivation = entry.id === 'fire-activation';
       const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
@@ -160,13 +162,14 @@
         'medical-ambient': window.DvaWebGPUMedicalEnvironmentE,
         'archive-cabinet': window.DvaWebGPUArchiveCabinetE,
         'cable-spool': window.DvaWebGPUCableSpoolE,
+        'fire-activation': window.DvaWebGPUFireActivation,
         'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
         'room-command-desk': window.DvaWebGPURoomObjectUseE,
         'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
         'room-restorative-mist': window.DvaWebGPURoomObjectUseE,
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isRoomObject || isFloraInvisible ? api.create({ renderer, frameOwner: renderer }) :
+      effect = isRoomObject || isFloraInvisible || isFireActivation ? api.create({ renderer, frameOwner: renderer }) :
         isMedical || isMedicalAmbient ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker || isArchiveCabinet || isCableSpool ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
@@ -183,6 +186,7 @@
         'medical-footbath': api.DURATION_MS, 'medical-ambient': 8000,
         'archive-cabinet': api.DURATION_MS,
         'cable-spool': api.DURATION_MS,
+        'fire-activation': api.DURATION_MS,
         'room-cooling-unit': api.DURATION_MS,
         'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
         'room-restorative-mist': api.DURATION_MS,
@@ -197,7 +201,20 @@
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (elapsed > 0 && elapsed < duration) {
-            if (isArchiveCabinet) {
+            if (isFireActivation) {
+              // Match the server's successful fire use: caster position,
+              // resolved radius, owner, enhancement variant and 1500 ms life.
+              const source = { id: `gallery-fire-${cycle}`, type: 'fire',
+                x: 490, y: 310, radius: 240, playerId: 'gallery-fire-caster',
+                variant: '0', startedAt: 0, duration: api.DURATION_MS };
+              const input = { effect: source, now: elapsed, phase: 'playing',
+                camera, zoom, viewport, reducedMotion: false, alpha: 1 };
+              const planned = api.plan(input);
+              if (!planned || planned.effectId !== source.id || planned.elapsed !== elapsed)
+                throw new Error('ファイア発動イベントを計画できません');
+              const drawn = effect.record({ frame, target: targetId, viewport, ...input });
+              if (!drawn) throw new Error('ファイア発動イベントを描画できません');
+            } else if (isArchiveCabinet) {
               // Match successful map-object use after the app stamps its local
               // receipt clock: exact authored ID, location and credit effect.
               const objectId = api.OBJECT_ID;
@@ -721,7 +738,8 @@
     document.getElementById('selected-source').textContent = `WebGPU: ${entry.source}`;
     const sourceLink = document.getElementById('selected-link');
     sourceLink.href = address(entry.page || `webgpu-e-gallery.html#${entry.id}`);
-    sourceLink.hidden = entry.kind === 'corridor' || entry.kind === 'integrated' || entry.kind === 'grenade-impact';
+    sourceLink.hidden = entry.kind === 'corridor' || entry.kind === 'integrated' ||
+      entry.kind === 'grenade-impact' || entry.kind === 'fire-activation';
     document.querySelectorAll('.item').forEach(button => button.setAttribute('aria-current', String(button.dataset.id === entry.id)));
     history.replaceState(null, '', `${location.pathname}${location.search}#${entry.id}`);
     if (entry.kind === 'corridor') {
@@ -737,6 +755,11 @@
     if (entry.kind === 'grenade-impact') {
       notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
       startGrenadeImpact(entry, corridorRun);
+      return;
+    }
+    if (entry.kind === 'fire-activation') {
+      notice.hidden = false; notice.textContent = 'WebGPU を読み込んでいます…';
+      startIntegrated(entry, corridorRun);
       return;
     }
     if (entry.kind === 'integrated') {
