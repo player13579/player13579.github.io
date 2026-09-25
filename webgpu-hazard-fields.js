@@ -13,6 +13,40 @@
     image.naturalWidth === sizes[kind][0] && image.naturalHeight === sizes[kind][1]);
   const cycle = value => ((value % 1) + 1) % 1;
 
+  function activePoisonField(field, serverNow) {
+    return field?.kind === 'poison' && typeof field.id === 'string' && !!field.id &&
+      typeof field.sourceId === 'string' && !!field.sourceId &&
+      [field.x, field.y, field.radius, field.strength, field.createdAt, field.endsAt]
+        .every(finite) && field.radius > 0 && field.strength >= .25 &&
+      field.createdAt <= serverNow && serverNow < field.endsAt;
+  }
+
+  // The server emits a separate magic ID immediately after creating the field.
+  // Claim only the unique field with the same source, center, radius and strength.
+  function claimPoisonEffect({ effect, scene, camera, zoom, viewport } = {}) {
+    if (effect?.type !== 'hazard-poison' || !scene || !Array.isArray(scene.hazardFields) ||
+        !finite(scene.serverNow) || !camera || !viewport ||
+        ![camera.x, camera.y, zoom, viewport.width, viewport.height].every(finite) ||
+        zoom <= 0 || viewport.width <= 0 || viewport.height <= 0 ||
+        !String(effect.id || '') || !String(effect.playerId || '') ||
+        ![effect.x, effect.y, effect.radius, effect.at, effect.startedAt, effect.duration]
+          .every(finite) || effect.radius <= 0 || effect.duration <= 0 ||
+        !finite(Number(effect.variant)) || Number(effect.variant) < .25)
+      return null;
+    const fields = scene.hazardFields.filter(field => activePoisonField(field, scene.serverNow) &&
+      field.sourceId === String(effect.playerId) && field.x === effect.x &&
+      field.y === effect.y && field.radius === effect.radius &&
+      field.strength === Number(effect.variant) && effect.at >= field.createdAt &&
+      effect.at - field.createdAt <= 1000);
+    if (fields.length !== 1) return null;
+    const field = fields[0], width = field.radius * 2.25 * zoom;
+    const height = width * 256 / 384;
+    const x = (field.x - camera.x) * zoom, y = (field.y - camera.y) * zoom;
+    return Object.freeze({ fieldId: field.id, visible: x + width / 2 > 0 &&
+      x - width / 2 < viewport.width && y + height / 2 > 0 &&
+      y - height / 2 < viewport.height });
+  }
+
   function plan({ scene, camera, zoom, viewport } = {}) {
     if (!scene || !camera || !viewport ||
         ![camera.x, camera.y, zoom, viewport.width, viewport.height, scene.now].every(finite) ||
@@ -20,16 +54,30 @@
       throw new TypeError('Hazard fields require a timed scene, camera, zoom, and logical viewport');
     }
     const fields = Array.isArray(scene.hazardFields) ? scene.hazardFields : [];
+    const serverNow = scene.serverNow;
     const textures = scene.textures || {};
     const reduced = Boolean(scene.reducedMotion);
     const time = scene.now / 1000;
     const transform = [zoom, 0, 0, zoom, -camera.x * zoom, -camera.y * zoom];
     const commands = [];
+    const poisonIds = new Set();
     for (const field of fields) {
       const kind = String(field?.kind || '');
+      if (kind === 'poison') {
+        if (!finite(serverNow)) throw new TypeError('Poison fields need the authoritative server clock');
+        if (!activePoisonField(field, serverNow)) {
+          if (finite(field?.endsAt) && field.endsAt <= serverNow) continue;
+          throw new TypeError('Poison field needs authoritative ID, source, extent and lifetime');
+        }
+        if (poisonIds.has(field.id)) throw new TypeError('Duplicate poison field ID');
+        poisonIds.add(field.id);
+      }
       // The old fallback sits behind three unconditional transport branches.
       // It has no authored atlas or defined behavior for other kinds.
-      if (!sizes[kind] || !ready(textures[keys[kind]], kind)) continue;
+      if (!sizes[kind]) continue;
+      if (kind === 'poison' && !ready(textures[keys[kind]], kind))
+        throw new Error('Active poison field transport unavailable');
+      if (!ready(textures[keys[kind]], kind)) continue;
       const x = Number(field.x), y = Number(field.y);
       if (!finite(x) || !finite(y)) continue;
       const radius = Math.max(24, Number(field.radius) || 80);
@@ -37,7 +85,7 @@
       const sourceSize = sizes[kind];
       const push = (part, crop, px, py, w, h, weight, mode) => {
         if (weight <= 0) return;
-        commands.push(Object.freeze({ kind, part, image,
+        commands.push(Object.freeze({ kind, fieldId: String(field.id || ''), part, image,
           sprite: Object.freeze({ x: px, y: py, w, h, crop, sourceSize, transform,
             color: [1, 1, 1, .72 * weight], mode }) }));
       };
@@ -136,7 +184,7 @@
       cache.clear(); owned.clear();
     } });
   }
-  const api = Object.freeze({ plan, create, ready });
+  const api = Object.freeze({ plan, create, ready, claimPoisonEffect });
   root.DvaWebGPUHazardFields = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

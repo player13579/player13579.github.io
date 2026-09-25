@@ -19873,6 +19873,7 @@ function drawHitEffects() {
 function hazardFieldsWebGPUScene(data) {
   return {
     hazardFields: Array.isArray(data?.hazardFields) ? data.hazardFields : [],
+    serverNow: estimatedServerNow(data),
     textures: {
       fireMaterialTransport: state.textures?.fireMaterialTransport,
       waterMaterialTransport: state.textures?.waterMaterialTransport,
@@ -20056,6 +20057,11 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
     textureGaps.push({ stage: "gravityHazards", texture: "gravityLocalMaterialV834", blocking: true });
   if (zones.length && !imageReady(textures.gravitySafeEyePressure, 2099, 2058))
     textureGaps.push({ stage: "gravityHazards", texture: "gravitySafeEyePressure", blocking: true });
+  const hazardScene = hazardFieldsWebGPUScene(data);
+  if (hazardScene.hazardFields.some(field => field?.kind === 'poison' &&
+      Number(field.endsAt) > estimatedServerNow(data)) &&
+      !imageReady(textures.poisonMaterialTransport, 2304, 2048))
+    textureGaps.push({ stage: 'gravityHazards', texture: 'poisonMaterialTransport', blocking: true });
   const groundItems = Array.isArray(data.groundItems) ? data.groundItems : [];
   const view = { camera, zoom, width: viewport.width, height: viewport.height };
   const commands = buildWebGPUGroundItemCommands(data, view);
@@ -20168,11 +20174,12 @@ function captureWebGPUMainAppEarlyScene(data = state.data, viewport) {
     textureGaps.push({ stage: "throwPreview", texture: "clairvoyanceThrowAte", blocking: true });
   // The zone pass reads barrier-hit events to animate the held safe eye.
   // Gravity impact drawing itself belongs to the later magic-effects slot.
-  const gravityScene = { gravityZones: zones,
+  const gravityScene = { ...hazardScene, gravityZones: zones,
     magicEffects: (state.magicEffects || []).filter(effect =>
       effect?.type === "gravity-storm-barrier-hit" && effect.variant === "caster-barrier"),
     now, frameNow, reducedMotion,
-    textures: { gravityLocalMaterialV834: textures.gravityLocalMaterialV834,
+    textures: { ...hazardScene.textures,
+      gravityLocalMaterialV834: textures.gravityLocalMaterialV834,
       gravitySafeEyePressure: textures.gravitySafeEyePressure } };
   const gravityFieldScene = { effects: [], gravityZones: zones,
     nowMs: frameNow, serverNow: now, reducedMotion };
@@ -20478,6 +20485,25 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   for (const [index, effect] of active.entries()) {
     const now = eEffectNow(effect, data, wallNow);
     const type = String(effect.type || "");
+    if (type === 'hazard-poison') {
+      const pass = window.DvaWebGPUHazardFields;
+      const scene = hazardFieldsWebGPUScene(data);
+      const claim = pass?.claimPoisonEffect?.({ effect, scene, camera, zoom, viewport });
+      let drawn = false;
+      try {
+        drawn = Boolean(claim?.visible && pass?.plan?.({ scene, camera, zoom, viewport })
+          .some(command => command.kind === 'poison' && command.fieldId === claim.fieldId));
+      } catch (_) { /* Invalid field or absent material keeps this source blocked. */ }
+      if (!claim || (claim.visible && !drawn)) {
+        unsupported.push({ index, type, id: effect.id,
+          reason: 'hazard-poison-source-or-webgpu-field-invalid' });
+      } else {
+        omitted.push({ effectId: effect.id, fieldId: claim.fieldId,
+          reason: claim.visible ? 'authoritative-poison-field-owns-webgpu-visual' :
+            'authoritative-poison-field-outside-viewport' });
+      }
+      continue;
+    }
     if (type === 'gunner-passive-aim') {
       const actor = combatActors.find(player => String(player.id) === String(effect.playerId || ''));
       const hidden = !actor || !actor.alive || actor.ejected || actor.inVent ||
@@ -21702,30 +21728,6 @@ function applyAteGlowContext(targetContext, mode, time = 0, phase = 0, intensity
   targetContext.shadowColor = profile.outer;
   targetContext.shadowBlur = outerBlur * 0.46;
   return profile;
-}
-
-// Candidate replacement for public/app.js:drawAteComplementaryVfx.
-// `maskCanvas` is the existing pooled 256px light canvas from
-// drawAnimatedTextureCentered after it has been source-in masked by `sprite`.
-// This function adds no detached geometry: all E light is constrained to T.
-function drawAteComplementaryVfx(targetContext, mode, width, height, time = 0, phase = 0, intensity = 1, options = {}) {
-  if (!(width > 0 && height > 0)) return false;
-  const rawIntensity = Number(intensity);
-  if (!Number.isFinite(rawIntensity) || rawIntensity <= 0.001) return false;
-  const inheritedAlpha = targetContext.globalAlpha;
-  const strength = clamp(rawIntensity, 0, 1.4);
-  if (inheritedAlpha <= 0 || strength <= 0.001 || prefersReducedMotion()) return false;
-  const maskCanvas = options?.maskCanvas;
-  const sprite = options?.sprite;
-  // Direct legacy callers intentionally receive no unbound generic E. Their
-  // texture owner must supply the pooled source-alpha mask to opt in.
-  if (!sprite?.width || !sprite?.height || !maskCanvas?.width || !maskCanvas?.height) return false;
-  targetContext.save();
-  targetContext.globalCompositeOperation = "lighter";
-  targetContext.globalAlpha = inheritedAlpha;
-  targetContext.drawImage(maskCanvas, -width / 2, -height / 2, width, height);
-  targetContext.restore();
-  return true;
 }
 
 function drawGunnerSpecialAmmoEffect(effect, progress) {
