@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // Keep only the user-retained Heal version until clean-room E previews are ready.
+  // Retired pre-reset entries never return; new Astra clean-room versions remain reviewable.
   const entries = [{
     id: 'heal-astra-prototype',
     title: 'ヒール · Astra試作',
@@ -9,6 +9,20 @@
     status: '試作・再生可能',
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
+  }, {
+    id: 'sunbeam-astra-clean-v1',
+    title: 'サンビーム · Astra新規v1',
+    detail: '旧版を表現入力に使わず制作した試作。細い単純な帯に見えるため画質は不採用。本編未接続。',
+    status: '品質不採用・再生可能',
+    source: 'webgpu-sunbeam-astra-clean-v1.js',
+    page: 'sunbeam-astra-clean-v1-preview.html'
+  }, {
+    id: 'luck-astra-clean-v2',
+    title: '幸運 · Astra新規v2',
+    detail: '旧版を表現入力に使わず制作した試作。翼のように見える問題が残るため画質は不採用。本編未接続。',
+    status: '品質不採用・再生可能',
+    source: 'webgpu-luck-astra-v2.js',
+    page: 'luck-astra-v2-preview.html'
   }];
   const params = new URLSearchParams(location.search);
   let selectedIndex = 0;

@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>幸運 — Astra clean v2（不採用）</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#10191b;color:#c8d7d0;font-family:system-ui,sans-serif}main{max-width:880px;margin:0 auto;padding:30px 20px}h1{font-size:20px;font-weight:500;letter-spacing:.08em;margin:0 0 10px}p{font-size:12px;line-height:1.8;color:#81978e;margin:0}canvas{display:block;width:100%;height:400px;margin:18px 0;background:#172125;border:1px solid #283a33;border-radius:8px}#status{color:#b4cbbb}body[data-embed="true"] main{padding:0}body[data-embed="true"] h1,body[data-embed="true"] p{display:none}body[data-embed="true"] canvas{height:100vh;margin:0;border:0;border-radius:0}@media(max-width:520px){main{padding:20px 12px}canvas{height:320px}}
+</style></head><body><main><h1>幸運 · Astra clean v2</h1><p>不採用 / 検討記録 · 自動再生 · 本編未接続</p><canvas id="scene" aria-label="幸運の付与を試みた不採用版。四つの曲面が整列し、受け手へ折り畳まれる"></canvas><p id="status">WebGPU を準備しています</p><p>受け手は寸法確認用の無彩色シルエットです。翼のように見える問題が残るため、品質不採用です。</p></main>
+<script src="webgpu-luck-astra-v2.js"></script><script>
+const query=new URLSearchParams(location.search);if(query.has('embed'))document.body.dataset.embed='true';
+const status=document.getElementById('status');
+const options={height:Math.max(24,Math.min(160,Number(query.get('height'))||100)),durationMs:Number(query.get('duration'))||1500,onError:message=>{document.body.dataset.gpu='error';status.textContent=message;}};
+if(query.has('reduced'))options.reducedMotion=true;
+DVALuckAstraV2.mount(document.getElementById('scene'),options).then(handle=>{window.luckPreview=handle;document.body.dataset.gpu='ready';document.body.dataset.version=DVALuckAstraV2.VERSION;status.textContent=handle.verify?'WebGPU · 検証モード / 音声0固定':'WebGPU · 自動再生 / 音声はブラウザーの再生条件に従います';window.addEventListener('pagehide',()=>handle.dispose(),{once:true});}).catch(error=>{document.body.dataset.gpu='error';status.textContent='WebGPU を起動できません: '+error.message;});
+</script></body></html>
