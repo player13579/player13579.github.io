@@ -16,6 +16,13 @@
     status: '未完成・ソースのみ',
     source: 'experiments/sunbeam-astra/sunbeam-astra-prototype.js',
     sourceOnly: true
+  }, {
+    id: 'luck-astra-v1',
+    title: '幸運 · Astra v1',
+    detail: 'Astra制作の独立WebGPU初版です。自動ループ再生できますが、造形と音の品質は未受入です。',
+    status: '試作・品質未受入',
+    source: 'webgpu-luck-astra-v1.js',
+    page: 'luck-astra-v1-preview.html'
   }];
   const params = new URLSearchParams(location.search);
   let selectedIndex = 0;
