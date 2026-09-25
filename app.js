@@ -12447,6 +12447,38 @@ function admitSubmittedMysteryOpeningCue(data, receipt) {
     volume: clamp(webgpuECueVolume(source, data), 0, .75) });
   return trackActorOwnedECue(cue, source, actor, data, played);
 }
+function admitSubmittedGunnerAimCue(data, receipt) {
+  const source = (state.magicEffects || []).find(effect =>
+    String(effect.id) === String(receipt?.effectId));
+  const nowMs = state.frameNow || performance.now();
+  const actor = data?.players?.find(player => String(player.id) === String(source?.playerId));
+  if (data !== state.data || state.screen !== 'game' || data?.phase !== 'playing' ||
+      !source || source.type !== 'gunner-passive-aim' ||
+      String(source.playerId || '') !== String(receipt.playerId || '') ||
+      String(source.targetId || '') !== String(receipt.targetId || '') ||
+      source.variant !== receipt.variant || source.startedAt !== receipt.startedAt ||
+      source.duration !== 900 || source.durationMs !== 900 ||
+      !actor?.alive || actor.ejected || actor.inVent ||
+      (actor.invisible && actor.id !== data.selfId) ||
+      (actor.id === data.selfId && !data.self?.gunnerAimOwned) ||
+      !Number.isFinite(receipt.progress) || receipt.progress < 0 ||
+      receipt.progress >= 1 || !syncWebGPUECueSession(data)) return null;
+  const audible = !document.hidden && !state.audio.muted &&
+    state.audio.unlocked && !isSensoryBlocked(data) &&
+    state.audio.context?.state === 'running' &&
+    Number(state.audio.master?.gain?.value) > 0;
+  const cue = WEBGPU_E_CUES.events.admit({ kind: 'gunnerAimAcquire',
+    roomId: String(data.roomId || ''), roomGeneration: state.roomSessionGeneration,
+    eventId: String(source.id), eventAtMs: nowMs, nowMs,
+    startedAtMs: source.startedAt, effectType: source.type,
+    variant: source.variant, sourceId: String(source.playerId),
+    targetId: String(source.targetId) }, { audible });
+  if (!cue) return null;
+  const played = WEBGPU_E_CUES.player.play(cue, { nowMs,
+    actorRate: displayETimeScale(actor, data), muted: !audible,
+    verify: false, volume: clamp(webgpuECueVolume(source, data), 0, .75) });
+  return trackActorOwnedECue(cue, source, actor, data, played);
+}
 
 function pairedEmpMagicEffect(sound, data) {
   const causalId = sound?.empCausalId;
@@ -12638,6 +12670,7 @@ function detectMagicEffects(previous, next) {
 }
 
 function magicEffectDuration(type) {
+  if (type === "gunner-passive-aim") return 900;
   if (type === "flora") return 12000;
   if (type === "grenade-frag-impact") return 900;
   if (type === "grenade-stun-impact") return 720;
@@ -18243,6 +18276,8 @@ function pumpWebGPUMainAppDriver() {
       throw new Error('WebGPU main submitted without acquisition sound receipts');
     if (!Array.isArray(receipt.recordResult?.mysteryOpeningSoundReceipts))
       throw new Error('WebGPU main submitted without mystery opening sound receipts');
+    if (!Array.isArray(receipt.recordResult?.gunnerAimSoundReceipts))
+      throw new Error('WebGPU main submitted without Gunner aim sound receipts');
     if (!mainCanvas.isConnected || mainCanvas.style.display === "none") return;
     mainCanvas.style.opacity = "1";
     els.canvas.style.opacity = "0";
@@ -18300,6 +18335,8 @@ function pumpWebGPUMainAppDriver() {
       admitSubmittedAcquisitionCue(data, acquisitionReceipt);
     for (const openingReceipt of receipt.recordResult.mysteryOpeningSoundReceipts)
       admitSubmittedMysteryOpeningCue(data, openingReceipt);
+    for (const aimReceipt of receipt.recordResult.gunnerAimSoundReceipts)
+      admitSubmittedGunnerAimCue(data, aimReceipt);
     if (document.documentElement?.dataset)
       document.documentElement.dataset.fieldRenderer = "webgpu";
   }).catch(error => {
@@ -20294,6 +20331,13 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         return true;
       return now < effect.startedAt || now - effect.startedAt < 1500;
     }
+    if (effect?.type === 'gunner-passive-aim') {
+      // Invalid acquisition sources stay in the ledger for strict admission.
+      if (![effect.x, effect.y, effect.targetX, effect.targetY,
+        effect.startedAt, effect.duration].every(Number.isFinite) ||
+        effect.duration !== 900 || effect.durationMs !== 900) return true;
+      return now < effect.startedAt || now - effect.startedAt < 900;
+    }
     if (effect?.type === 'action-mana') {
       // Keep malformed live mana activations in the source ledger so the
       // typed WebGPU admission below can block an incomplete frame.
@@ -20381,6 +20425,24 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
   for (const [index, effect] of active.entries()) {
     const now = eEffectNow(effect, data, wallNow);
     const type = String(effect.type || "");
+    if (type === 'gunner-passive-aim') {
+      const actor = combatActors.find(player => String(player.id) === String(effect.playerId || ''));
+      const hidden = !actor || !actor.alive || actor.ejected || actor.inVent ||
+        (actor.invisible && actor.id !== data.selfId) ||
+        (effect.playerId === data.selfId && !data.self?.gunnerAimOwned);
+      if (hidden) {
+        omitted.push({ effectId: effect.id, reason: 'gunner-aim-owner-not-visible' });
+        continue;
+      }
+      const planned = window.DvaWebGPUGunnerAim?.planAcquisition?.({ effect, now, camera, zoom });
+      if (!planned || planned.effectId !== String(effect.id)) {
+        unsupported.push({ index, type, id: effect.id, reason: 'gunner-aim-source-or-pass-invalid' });
+        continue;
+      }
+      events.push({ type: 'gunnerAimAcquisition', effectId: String(effect.id),
+        input: { effect, planned } });
+      continue;
+    }
     if (type === 'hover-sprint-active') {
       if (effect.variant !== 'auto-unsupported' || !String(effect.playerId || '') ||
           !Number.isFinite(effect.startedAt) ||
@@ -27202,6 +27264,51 @@ function buildWebGPUManaFocusActionCommand(player, data, view, action) {
   return Object.freeze({ ...command, sprite, sourceEffectId: id,
     poseKey: `focus-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
 }
+function buildWebGPUGunnerAimActionCommand(player, data, view, action) {
+  const id = String(action?.sourceEffectId ?? '');
+  const owner = state.characterActions?.get(player?.id);
+  const effect = state.magicEffects?.find(entry => String(entry?.id ?? '') === id &&
+    entry.type === 'gunner-passive-aim' && String(entry.playerId ?? '') === String(player?.id ?? ''));
+  const elapsed = eEffectNow(effect, data, state.frameNow || performance.now()) - Number(effect?.startedAt);
+  if (!id || !effect || data?.phase !== 'playing' || !player?.alive || player.ejected ||
+      player.inVent || (player.invisible && player.id !== data.selfId) ||
+      (player.id === data.selfId && !data.self?.gunnerAimOwned) ||
+      action?.kind !== 'focus' || action.motionId !== 'gunner-passive-aim' ||
+      owner?.sourceEffectId !== id || owner.startedAt !== effect.startedAt ||
+      action.startedAt !== effect.startedAt || action.variant !== effect.variant ||
+      owner.variant !== effect.variant || effect.duration !== 900 ||
+      !['handgun', 'smg', 'assault', 'sniper', 'taser'].includes(effect.variant) ||
+      !Number.isFinite(elapsed) || elapsed < 0 || elapsed >= 900 ||
+      !Number.isFinite(action.progress) || action.progress < 0 || action.progress >= 1) return null;
+  const identity = authoredCharacterIdentity(player, data);
+  const sheet = WEBGPU_MANA_FOCUS_SHEETS[identity];
+  const image = state.textures?.manaFocusWebGPUMotions?.[identity];
+  if (!sheet || !image?.complete || image.naturalWidth !== sheet.width ||
+      image.naturalHeight !== sheet.height) return null;
+  const frameIndex = Math.min(2, Math.max(0, Math.round(
+    physicalActionFramePosition('focus', action.progress, 'gunner-passive-aim'))));
+  const [x, y, width, height] = sheet.frames[frameIndex];
+  const scale = Math.min(98 / width, 88 / height) * CHARACTER_BODY_VISUAL_SCALE;
+  const direction = authoredDirection(player, motionFor(player, data));
+  const { ascensionRise } = characterAscensionPresentation(player, data);
+  const alpha = player.id === data.selfId && data.self?.floraInvisibleActive ? .32 : 1;
+  const command = window.DvaWebGPUPlayerSprite?.createCommand?.({
+    player: { ...player, y: player.y - ascensionRise }, identity, direction,
+    mode: 'gunner-passive-aim',
+    entry: { assetPath: `assets/generated/physical-motion-${identity}-focus-${sheet.version}-webgpu-alpha-v1.png`,
+      layout: { sourceOrigin: { x: width / 2, y: height },
+        ground: { x: 0, y: CHARACTER_BODY_FOOT_ANCHOR_Y }, scale } },
+    image, frame: { x, y, width, height }, body: { lift: 0, sway: 0, lean: 0 },
+    camera: view.camera, zoom: view.zoom, alpha,
+    arrival: Object.prototype.hasOwnProperty.call(view, 'arrival') ? view.arrival : null,
+    arrivalAnchor: player, order: view.order ?? 0 });
+  if (!command) return null;
+  const sprite = direction === 'left' ? Object.freeze({ ...command.sprite,
+    transform: Object.freeze(command.sprite.transform.map((value, index) =>
+      index < 2 ? -value : value)) }) : command.sprite;
+  return Object.freeze({ ...command, sprite, sourceEffectId: id,
+    poseKey: `gunner-aim-${frameIndex}`, name: playerIdentityLabel(player).slice(0, 14) });
+}
 function buildWebGPUFighterSlashActionCommand(player, data, view, action) {
   const api = window.DvaWebGPUPlayerSprite;
   const id = String(action?.sourceEffectId ?? '');
@@ -27349,6 +27456,8 @@ function buildWebGPUAuthoredPlayerSpriteCommand(sourcePlayer, data, view) {
     return buildWebGPUThrowActionCommand(player, data, view, action);
   if (action?.kind === 'focus' && action.motionId === 'action-mana')
     return buildWebGPUManaFocusActionCommand(player, data, view, action);
+  if (action?.kind === 'focus' && action.motionId === 'gunner-passive-aim')
+    return buildWebGPUGunnerAimActionCommand(player, data, view, action);
   if (action?.kind === 'slash' && action.motionId === 'fighter-slash')
     return buildWebGPUFighterSlashActionCommand(player, data, view, action);
   if (action?.kind === 'cast' && action.motionId === 'flora-sunbeam')
@@ -27508,6 +27617,9 @@ function captureWebGPUMainAppPlayerScene(data = state.data, viewport, camera, zo
         { camera, zoom, order: 0, arrival: null }, action));
     if (action?.kind === 'focus' && action.motionId === 'action-mana')
       return Boolean(buildWebGPUManaFocusActionCommand(player, data,
+        { camera, zoom, order: 0, arrival: null }, action));
+    if (action?.kind === 'focus' && action.motionId === 'gunner-passive-aim')
+      return Boolean(buildWebGPUGunnerAimActionCommand(player, data,
         { camera, zoom, order: 0, arrival: null }, action));
     if (action?.kind === 'slash' && action.motionId === 'fighter-slash')
       return Boolean(buildWebGPUFighterSlashActionCommand(player, data,

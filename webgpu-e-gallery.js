@@ -47,7 +47,11 @@
     { id: 'medical-handwash-sink', fixtureId: 'medical-handwash-sink-1', title: '医療室 手洗いシンク環境E', detail: '現行の医療室近接プレイヤー経路と手洗いシンクの周期Eを再生。これは使用イベントではなく、実ゲーム画質とSFXの受入も未完了です。', status: '近接環境E・本編画質/SFX未受入', source: 'webgpu-medical-fixture-e.js', kind: 'medical-fixture' },
     { id: 'hacker-root-activation', title: 'ハッカー ROOT 発動', detail: '現行 all-operators 発動イベントと有効なROOT状態の可視アクターを使う単独WebGPUフィクスチャ。継続状態や実ゲーム画質/SFXは未受入です。', status: '発動フィクスチャ・本編画質/SFX未受入', source: 'webgpu-hacker-root-e.js', kind: 'hacker-root' },
     { id: 'rigid-item-impact', title: '剛体アイテム着弾', detail: 'サーバー現行の rigid-item-impact 接触点・接触面・ダメージ/幸運・所有者/対象イベント形を再生。本編の実画面品質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-rigid-item-impact-e.js', kind: 'rigid-item-impact' },
-    { id: 'special-ammo-penetrate-shot', title: '特殊弾 貫通ショット', detail: '現行の action-special-ammo-shot の penetrate:assault を、射手から弾道終点まで620 msで再生。装填・着弾、Weak/Shock、実ゲーム画質とSFXは未受入です。', status: '貫通ショットのみ・本編画質/SFX未受入', source: 'webgpu-special-ammo-effect.js', kind: 'integrated' }
+    { id: 'special-ammo-penetrate-shot', title: '特殊弾 貫通ショット', detail: '現行の action-special-ammo-shot の penetrate:assault を、射手から弾道終点まで620 msで再生。装填・着弾、Weak/Shock、実ゲーム画質とSFXは未受入です。', status: '貫通ショットのみ・本編画質/SFX未受入', source: 'webgpu-special-ammo-effect.js', kind: 'integrated' },
+    { id: 'gravity-accelerate', title: 'アクセラレート', detail: '現行の術者・対象を持つ gravity-accelerate イベントを8秒の身体Eとして再生。本編画質とSFXは未受入です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-status-tempo-e.js', kind: 'integrated' },
+    { id: 'gravity-decelerate', title: 'ディーセラレート', detail: '現行の術者・対象を持つ gravity-decelerate イベントを8秒の身体Eとして再生。理知による無効化は含まず、本編画質とSFXは未受入です。', status: '通常付与のみ・本編画質/SFX未受入', source: 'webgpu-status-tempo-e.js', kind: 'integrated' },
+    { id: 'natural-recovery', title: '自然回復', detail: '理知が状態異常を解除した natural-recovery イベントを身体Eとして再生。無効化応答は含まず、本編画質とSFXは未受入です。', status: '解除のみ・本編画質/SFX未受入', source: 'webgpu-status-tempo-e.js', kind: 'integrated' },
+    { id: 'gunner-passive-aim', title: 'ガンナー照準取得', detail: '現行の対象・武器種を持つ gunner-passive-aim イベントを900msの手続き的WebGPU Eとして再生。姿勢と本編画質・SFXの受入は別途必要です。', status: '単独フィクスチャ・本編画質/SFX未受入', source: 'webgpu-gunner-aim.js', kind: 'integrated' }
   ];
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   const sourceRevision = new URL(document.currentScript?.src || location.href).searchParams.get('v') || 'gallery-current';
@@ -159,6 +163,8 @@
       const isHackerRoot = entry.kind === 'hacker-root';
       const isRigidItemImpact = entry.kind === 'rigid-item-impact';
       const isSpecialAmmoShot = entry.id === 'special-ammo-penetrate-shot';
+      const isStatusTempo = ['gravity-accelerate', 'gravity-decelerate', 'natural-recovery'].includes(entry.id);
+      const isGunnerAim = entry.id === 'gunner-passive-aim';
       const isFloraInvisible = entry.id === 'flora-invisible';
       const medicalEffectKind = ({ 'medical-bed': 'acceleration',
         'medical-cabinet': 'heal', 'medical-footbath': 'footBath' })[entry.id];
@@ -187,13 +193,18 @@
         'hacker-root-activation': window.DvaWebGPUHackerRootE,
         'rigid-item-impact': window.DvaWebGPURigidItemImpactE,
         'special-ammo-penetrate-shot': window.DvaWebGPUSpecialAmmoEffect,
+        'gravity-accelerate': window.DvaWebGPUStatusTempoE,
+        'gravity-decelerate': window.DvaWebGPUStatusTempoE,
+        'natural-recovery': window.DvaWebGPUStatusTempoE,
+        'gunner-passive-aim': window.DvaWebGPUGunnerAim,
         'room-cooling-unit': window.DvaWebGPURoomObjectUseE,
         'room-command-desk': window.DvaWebGPURoomObjectUseE,
         'room-pallet-jack': window.DvaWebGPURoomObjectUseE,
         'room-restorative-mist': window.DvaWebGPURoomObjectUseE,
         'room-herb-preparation-table': window.DvaWebGPURoomObjectUseE })[entry.id];
       if (!api?.plan || !api?.create) throw new Error('現在のWebGPU E APIがありません');
-      effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot || isRigidItemImpact || isSpecialAmmoShot ? api.create({ renderer, frameOwner: renderer }) :
+      effect = isRoomObject || isFloraInvisible || isFireActivation || isHackerRoot || isRigidItemImpact || isSpecialAmmoShot || isStatusTempo ? api.create({ renderer, frameOwner: renderer }) :
+        isGunnerAim ? api.create({ device: renderer.device, format: renderer.format }) :
         isMedical || isMedicalAmbient || isMedicalFixture || isMedicalUploadConsole ? api.create({ device: renderer.device, format: renderer.format }) :
         isEmp || isHacker || isArchiveCabinet || isCableSpool ? api.create({ renderer, frameOwner: renderer }) : api.create();
       const viewport = { kind: 'main', width: 980, height: 620, pixelWidth: 980, pixelHeight: 620 };
@@ -217,6 +228,10 @@
         'hacker-root-activation': api.EVENT_DURATION_MS,
         'rigid-item-impact': api.DURATION_MS,
         'special-ammo-penetrate-shot': 620,
+        'gravity-accelerate': api.PROFILES?.['gravity-accelerate']?.durationMs,
+        'gravity-decelerate': api.PROFILES?.['gravity-decelerate']?.durationMs,
+        'natural-recovery': api.PROFILES?.['natural-recovery']?.durationMs,
+        'gunner-passive-aim': 900,
         'room-cooling-unit': api.DURATION_MS,
         'room-command-desk': api.DURATION_MS, 'room-pallet-jack': api.DURATION_MS,
         'room-restorative-mist': api.DURATION_MS,
@@ -232,7 +247,37 @@
         try {
           frame.clear(targetId, [.035, .052, .067, 1]);
           if (isMedicalFixture || (elapsed > 0 && elapsed < duration)) {
-            if (isCommonActionMana) {
+            if (isGunnerAim) {
+              const source = { id: `gallery-gunner-passive-aim-${cycle}`,
+                type: 'gunner-passive-aim', x: 350, y: 350,
+                targetX: 630, targetY: 310, radius: 118,
+                playerId: 'gallery-gunner', targetId: 'gallery-target',
+                variant: 'assault', startedAt: 0, duration: 900, durationMs: 900 };
+              const planned = api.planAcquisition({ effect: source, now: elapsed, camera, zoom });
+              if (!planned || planned.effectId !== source.id)
+                throw new Error('ガンナー照準イベントを計画できません');
+              frameLease = effect.recordAcquisition({ frame, target: targetId, viewport,
+                effect: source, planned });
+              if (!frameLease?.drawn || frameLease.effectId !== source.id)
+                throw new Error('ガンナー照準イベントを描画できません');
+            } else if (isStatusTempo) {
+              // Match the server's timed target ownership and cleared recovery event.
+              const recovery = entry.id === 'natural-recovery';
+              const actor = { id: 'gallery-status-target', x: 490, y: 340,
+                alive: true, ejected: false, inVent: false, invisible: false };
+              const source = { id: `gallery-${entry.id}-${cycle}`, type: entry.id,
+                x: actor.x, y: actor.y, radius: recovery ? 122 : 150,
+                playerId: recovery ? actor.id : 'gallery-gravity-caster',
+                targetId: recovery ? '' : actor.id,
+                variant: recovery ? 'cleared' : '', startedAt: 0, duration };
+              const planned = api.plan({ effect: source, player: actor, now: elapsed,
+                phase: 'playing', camera, zoom, viewport, reducedMotion: false, alpha: 1 });
+              if (!planned || planned.effectId !== source.id)
+                throw new Error(`${entry.title}イベントを計画できません`);
+              const result = effect.record({ frame, target: targetId, viewport, planned });
+              if (!result.drawn || result.effectId !== source.id)
+                throw new Error(`${entry.title}イベントを描画できません`);
+            } else if (isCommonActionMana) {
               // Match the app admission contract and server pushMagicEffect shape.
               const variants = ['欲望', '気概', '理知', 'renki'];
               const variant = variants[cycle % variants.length];

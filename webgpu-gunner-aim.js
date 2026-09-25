@@ -96,6 +96,31 @@ fn arcDistance(pixel: vec2f, start: f32, sweep: f32) -> f32 {
       target: Object.freeze([x1,y1,(27 + pulse * 4) * zoom,2.5 * zoom]),
       state: Object.freeze([zoom,now,pulse,2.2 * zoom]) });
   }
+  // One acquisition is a short, source-owned lock pulse. It uses the same
+  // procedural reticle pipeline as the continuous local tracking indicator.
+  function planAcquisition({ effect, now, camera, zoom } = {}) {
+    if (!effect || effect.type !== 'gunner-passive-aim' ||
+        !String(effect.id ?? '') ||
+        !['handgun', 'smg', 'assault', 'sniper', 'taser'].includes(effect.variant) ||
+        !String(effect.playerId || '') || !String(effect.targetId || '') ||
+        ![effect.x, effect.y, effect.targetX, effect.targetY,
+          effect.startedAt, now, camera?.x, camera?.y, zoom].every(finite) ||
+        effect.duration !== 900 || effect.durationMs !== 900 || zoom <= 0) return null;
+    const elapsed = now - effect.startedAt;
+    if (elapsed < 0 || elapsed >= 900) return null;
+    const phase = elapsed / 900;
+    const envelope = Math.min(1, elapsed / 95) * Math.min(1, (900 - elapsed) / 240);
+    const x0 = (effect.x - camera.x) * zoom;
+    const y0 = (effect.y - camera.y) * zoom;
+    const x1 = (effect.targetX - camera.x) * zoom;
+    const y1 = (effect.targetY - camera.y) * zoom;
+    const radius = (37 - 10 * Math.min(1, phase / .52)) * zoom;
+    return Object.freeze({ effectId: String(effect.id),
+      line: Object.freeze([x0, y0, x1, y1]),
+      target: Object.freeze([x1, y1, radius, (2.9 - phase * .5) * zoom]),
+      state: Object.freeze([zoom, elapsed * .8, envelope * .94, (3.2 - phase) * zoom]),
+      progress: phase });
+  }
   function create({ device, format } = {}) {
     if (typeof device?.createShaderModule !== 'function' || !format) {
       throw new TypeError('Aim requires shared WebGPU device and format');
@@ -107,14 +132,13 @@ fn arcDistance(pixel: vec2f, start: f32, sweep: f32) -> f32 {
           alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' } }
       }] }, primitive: { topology: 'triangle-list' } });
     let destroyed = false;
-    function record({ frame, target, viewport, scene, camera, zoom } = {}) {
+    function recordGeometry({ frame, target, viewport, geometry, label } = {}) {
       if (destroyed || typeof frame?.add !== 'function' || !target || !viewport ||
           ![viewport.width,viewport.height].every(finite) || viewport.width <= 0 || viewport.height <= 0 ||
           !Number.isInteger(viewport.pixelWidth) || viewport.pixelWidth <= 0 ||
           !Number.isInteger(viewport.pixelHeight) || viewport.pixelHeight <= 0) {
         throw new TypeError('Aim requires open shared frame, target, and committed viewport');
       }
-      const geometry = plan({ scene, camera, zoom });
       if (!geometry) return null;
       const buffer = device.createBuffer({ label: 'DVA gunner aim uniform', size: 64, usage: 0x40 | 0x08 });
       device.queue.writeBuffer(buffer, 0, new Float32Array([
@@ -124,7 +148,7 @@ fn arcDistance(pixel: vec2f, start: f32, sweep: f32) -> f32 {
         entries: [{ binding: 0, resource: { buffer } }] });
       let encoded = false, disposed = false;
       try {
-        frame.add({ target, label: 'world:gunner-aim', encode(pass, context) {
+        frame.add({ target, label, encode(pass, context) {
           if (encoded || disposed) throw new Error('Aim pass is closed');
           if (context.device !== device || context.format !== format ||
               context.width !== viewport.pixelWidth || context.height !== viewport.pixelHeight) {
@@ -134,11 +158,21 @@ fn arcDistance(pixel: vec2f, start: f32, sweep: f32) -> f32 {
           pass.setPipeline(pipeline); pass.setBindGroup(0, group); pass.draw(6, 4);
         } });
       } catch (error) { buffer.destroy(); throw error; }
-      return Object.freeze({ destroy() { if (!disposed) { disposed = true; buffer.destroy(); } } });
+      return Object.freeze({ drawn: true, effectId: geometry.effectId || null,
+        destroy() { if (!disposed) { disposed = true; buffer.destroy(); } } });
     }
-    return Object.freeze({ record, destroy() { destroyed = true; } });
+    function record(input = {}) {
+      return recordGeometry({ ...input, geometry: plan(input), label: 'world:gunner-aim' });
+    }
+    function recordAcquisition(input = {}) {
+      const geometry = input.planned || planAcquisition(input);
+      if (!geometry || geometry.effectId !== String(input.effect?.id ?? ''))
+        throw new TypeError('Gunner acquisition needs one live source-owned plan');
+      return recordGeometry({ ...input, geometry, label: 'world:gunner-aim-acquisition' });
+    }
+    return Object.freeze({ record, recordAcquisition, destroy() { destroyed = true; } });
   }
-  const api = Object.freeze({ plan, create, shader });
+  const api = Object.freeze({ plan, planAcquisition, create, shader });
   root.DvaWebGPUGunnerAim = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

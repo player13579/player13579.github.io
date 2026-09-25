@@ -164,6 +164,17 @@
         if (event?.type === 'shapes') {
           if (!Array.isArray(event.commands) || !event.commands.length)
             throw new TypeError(`Magic event ${index} needs shape commands`);
+        } else if (event?.type === 'gunnerAimAcquisition') {
+          const effect = event.input?.effect, planned = event.input?.planned;
+          if (typeof passes.gunnerAim?.recordAcquisition !== 'function' ||
+              effect?.type !== 'gunner-passive-aim' || String(effect.id ?? '') !== id ||
+              planned?.effectId !== id || !Number.isFinite(planned.progress) ||
+              planned.progress < 0 || planned.progress >= 1 ||
+              !Array.isArray(planned.line) || planned.line.length !== 4 ||
+              !planned.line.every(Number.isFinite) ||
+              !Array.isArray(planned.target) || planned.target.length !== 4 ||
+              !planned.target.every(Number.isFinite))
+            throw new TypeError(`Magic Gunner aim ${id} needs one exact source-owned plan`);
         } else if (event?.type === 'headMarker') {
           const source=retained.get(id), input=event.input, planned=input?.planned;
           const prefix=source?.effectType==='enhance-activation'?'enhance:':'fighter-ec:';
@@ -555,6 +566,7 @@
       const manaBenefitSoundReceipts = [];
       const environmentSoundReceipts = [];
       const mysteryOpeningSoundReceipts = [];
+      const gunnerAimSoundReceipts = [];
       const healSoundVisualReceipts = [];
       const healEvents = (stages.magicEffects?.events || []).filter(event => event.type === 'healE');
       const healRecorded = new Set();
@@ -793,6 +805,18 @@
               pixelWidth: viewport.pixelWidth, pixelHeight: viewport.pixelHeight,
               label: `world:magic-effects:${index}`, commands: event.commands
             }));
+          } else if (event.type === 'gunnerAimAcquisition') {
+            const outcome = need('gunnerAim', 'recordAcquisition').recordAcquisition({
+              frame, target, viewport, ...event.input });
+            prepared.addLease(outcome);
+            if (outcome?.drawn !== true || outcome.effectId !== event.effectId)
+              throw new Error(`Magic Gunner aim ${event.effectId} was not drawn`);
+            gunnerAimSoundReceipts.push(Object.freeze({
+              effectId: event.effectId, playerId: event.input.effect.playerId,
+              targetId: event.input.effect.targetId,
+              variant: event.input.effect.variant,
+              startedAt: event.input.effect.startedAt,
+              progress: event.input.planned.progress }));
           } else if (event.type === 'headMarker') {
             const planned=event.input.planned;
             const markerViewport=Object.freeze({ ...viewport,
@@ -1094,6 +1118,7 @@
         manaBenefitSoundReceipts: Object.freeze(manaBenefitSoundReceipts.slice()),
         environmentSoundReceipts: Object.freeze(environmentSoundReceipts.slice()),
         mysteryOpeningSoundReceipts: Object.freeze(mysteryOpeningSoundReceipts.slice()),
+        gunnerAimSoundReceipts: Object.freeze(gunnerAimSoundReceipts.slice()),
         healSoundVisualReceipts: Object.freeze(healSoundVisualReceipts.slice()),
         sunbeamHandReceipts: Object.freeze([...sunbeamHands.values()]) });
     }

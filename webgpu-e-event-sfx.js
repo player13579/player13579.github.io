@@ -27,6 +27,14 @@
       Object.freeze({ shape: 'noise', frequencyHz: 3200, endFrequencyHz: 1700,
         amplitude: 0.016, offsetMs: 0, durationMs: 42, layer: 'short-noise' })
     ]),
+    gunnerAimAcquire: Object.freeze([
+      Object.freeze({ shape: 'triangle', frequencyHz: 560, endFrequencyHz: 890,
+        amplitude: 0.045, offsetMs: 0, durationMs: 78, layer: 'scope-sweep' }),
+      Object.freeze({ shape: 'sine', frequencyHz: 1240, endFrequencyHz: 1380,
+        amplitude: 0.028, offsetMs: 68, durationMs: 92, layer: 'lock-confirm' }),
+      Object.freeze({ shape: 'noise', frequencyHz: 2400, endFrequencyHz: 1500,
+        amplitude: 0.009, offsetMs: 52, durationMs: 38, layer: 'soft-click' })
+    ]),
     mysteryOpen: Object.freeze([
       Object.freeze({ shape: 'noise', frequencyHz: 1150, endFrequencyHz: 360,
         amplitude: 0.034, offsetMs: 0, durationMs: 62, layer: 'lid-release' }),
@@ -122,6 +130,15 @@
            !['product', 'ability'].includes(event.acquisitionKind) ||
            !finite(event.nowMs) || !finite(event.startedAtMs)))
         throw new TypeError('Mystery opening E SFX needs its box event and visible time');
+      if (kind === 'gunnerAimAcquire' &&
+          (event.effectType !== 'gunner-passive-aim' ||
+           !['handgun', 'smg', 'assault', 'sniper', 'taser'].includes(event.variant) ||
+           typeof event.sourceId !== 'string' || !event.sourceId ||
+           typeof event.targetId !== 'string' || !event.targetId ||
+           !finite(event.nowMs) || !finite(event.startedAtMs) ||
+           event.nowMs < event.startedAtMs ||
+           event.nowMs >= event.startedAtMs + 900))
+        throw new TypeError('Gunner aim E SFX needs a visible 900ms source and target');
 
       enterRoom(event.roomId, event.roomGeneration);
       const identity = `${kind}:${event.eventId}`;
