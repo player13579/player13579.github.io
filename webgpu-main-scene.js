@@ -575,6 +575,7 @@
       const healRecorded = new Set();
       passes.healE?.reconcile?.(healEvents.map(event => String(event.effectId)));
       const sunbeamHands = new Map();
+      let sunbeamFrameToken = null;
       const run = (name, callback) => {
         const input = stages[name];
         if (input == null) return;
@@ -798,6 +799,7 @@
       run('hitEffects', input => need('hitEffects', 'record').record({ ...common(input), shapes: need('shapes', 'enqueue') }));
       run('magicEffects', input => {
         const shapes = need('shapes', 'enqueue');
+        const sunbeamEvents = [];
         // drawMagicEffects iterates state.magicEffects in order; a gravity-storm
         // impact can occur between other TE draws. Record each event at its own
         // position instead of moving all impacts into an early world pass.
@@ -1017,20 +1019,10 @@
                 hands.some(hand => !Number.isFinite(hand.x) || !Number.isFinite(hand.y)))
               throw new Error(`Magic Sunbeam ${event.effectId} has no matching submitted hand`);
             const effect = input.effect;
-            const facing = { x: effect.targetX - effect.x, y: effect.targetY - effect.y };
-            const outcome = need('sunbeamE', 'record').record({ frame, target,
-              viewport, camera: input.camera, zoom: input.zoom,
-              actorElapsedMs: input.elapsed, reducedMotion: input.reducedMotion,
-              effect: { id: String(event.effectId), type: 'flora-sunbeam',
-                sunbeamCausalId: effect.sunbeamCausalId, handWorlds: hands,
-                sourceWorld: { x: effect.x, y: effect.y }, facing,
-                targetWorld: { x: effect.targetX, y: effect.targetY },
-                duration: effect.duration } });
-            if (outcome?.drawn !== hands.length ||
-                outcome.plan?.id !== String(event.effectId) ||
-                outcome.plan?.causeId !== effect.sunbeamCausalId ||
-                outcome.plan?.actorElapsedMs !== input.elapsed)
-              throw new Error(`Magic Sunbeam ${event.effectId} was not drawn from its hands`);
+            sunbeamEvents.push({ effect, hands, camera: input.camera,
+              zoom: input.zoom, elapsed: input.elapsed,
+              actorRate: input.actorRate, characterElapsedMs: input.characterElapsedMs,
+              reducedMotion: input.reducedMotion, alive: true, visible: true });
           } else if (event.type === 'fighterEnergyE') {
             const outcome = need('fighterEnergyE', 'record').record({ frame, target,
               viewport, ...event.input });
@@ -1089,6 +1081,15 @@
             prepared.addLease(outcome);
           }
         });
+        // One complete submission, including [], lets the source retire SFX
+        // when the last visible beam ends. The palms above came from this
+        // frame's player commands or a previously submitted hand receipt.
+        const sunbeamFrame = need('sunbeamE', 'record').record({ frame, target,
+          viewport, events: sunbeamEvents, roomId: input.roomId });
+        if (!Number.isSafeInteger(sunbeamFrame?.token) ||
+            sunbeamFrame.eventIds.length !== sunbeamEvents.length)
+          throw new Error('Magic Sunbeam frame has no complete-plan receipt');
+        sunbeamFrameToken = sunbeamFrame.token;
         return { drawn: input.events.length };
       });
       run('attackTargets', input => need('attackTargets', 'record').record({ ...common(input), shapes: need('shapes', 'enqueue') }));
@@ -1129,7 +1130,8 @@
         gunnerAimSoundReceipts: Object.freeze(gunnerAimSoundReceipts.slice()),
         healSoundVisualReceipts: Object.freeze(healSoundVisualReceipts.slice()),
         fireActivationReceipts: Object.freeze(fireActivationReceipts.slice()),
-        sunbeamHandReceipts: Object.freeze([...sunbeamHands.values()]) });
+        sunbeamHandReceipts: Object.freeze([...sunbeamHands.values()]),
+        sunbeamFrameToken });
     }
     return Object.freeze({ prepare, record, get device() { return device; }, destroy() { destroyed = true; } });
   }

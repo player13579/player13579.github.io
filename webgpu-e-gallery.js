@@ -9,6 +9,13 @@
     status: '採用・接続確認中',
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
+  }, {
+    id: 'sunbeam',
+    title: 'サンビーム',
+    detail: '掌から伸びる光束を WebGPU で自動ループ再生します。',
+    status: '新制作・本編接続済み',
+    source: 'webgpu-sunbeam-pro-v2.mjs',
+    page: 'sunbeam-v2-gallery.html'
   }];
   const params = new URLSearchParams(location.search);
   const intervalMs = 12000;

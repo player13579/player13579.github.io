@@ -53,7 +53,7 @@
     hackerStatusRecoveryE: root.DvaWebGPUHackerStatusRecoveryE || (typeof require === 'function' ? require('./webgpu-hacker-status-recovery-e.js') : null),
     floraE: root.DvaWebGPUFloraE || (typeof require === 'function' ? require('./webgpu-flora-e.js') : null),
     healE: root.DvaHealAstraE || (typeof require === 'function' ? require('./webgpu-heal-astra-prototype.js') : null),
-    sunbeamE: root.DvaSunbeamSolE || (typeof require === 'function' ? require('./webgpu-sunbeam-sol-e.js') : null),
+    sunbeamE: root.DvaSunbeamProV2Adapter || (typeof require === 'function' ? require('./webgpu-sunbeam-pro-v2-adapter.js') : null),
     fighterEnergyE: root.DvaWebGPUFighterEnergyE || (typeof require === 'function' ? require('./webgpu-fighter-energy-e.js') : null),
     hoverSprintE: root.DvaWebGPUHoverSprintE || (typeof require === 'function' ? require('./webgpu-hover-sprint-e.js') : null),
     gravityFieldE: root.DvaWebGPUGravityFieldE || (typeof require === 'function' ? require('./webgpu-gravity-field-e.js') : null),
@@ -287,7 +287,7 @@
         add(name, Object.freeze({ device: renderer.device,
           record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
-      for (const name of ['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE', 'sunbeamE']) {
+      for (const name of ['alchemyE', 'hackerRootE', 'hackerStatusRecoveryE', 'floraE', 'healE']) {
         const pass = modules[name].create({ renderer, frameOwner: renderer });
         const liveHealIds = new Set();
         add(name, Object.freeze({ device: renderer.device,
@@ -298,6 +298,8 @@
           } } : {}),
           record: pass.record, ready: pass.ready, destroy: pass.destroy }), 'record');
       }
+      const sunbeam = await modules.sunbeamE.create({ renderer });
+      add('sunbeamE', sunbeam, 'record');
       add('fighterEnergyE', modules.fighterEnergyE.create(), 'record');
       const hoverSprint = modules.hoverSprintE.create();
       add('hoverSprintE', Object.freeze({ device: renderer.device,
@@ -491,16 +493,34 @@
           if (destroyed) return;
           destroyed = true;
           let firstError;
+          const pending = [];
           for (let i = owned.length - 1; i >= 0; i--) {
-            try { owned[i].destroy(); } catch (error) { firstError ||= error; }
+            try {
+              const result = owned[i].destroy();
+              if (result && typeof result.then === 'function') pending.push(result);
+            } catch (error) { firstError ||= error; }
           }
           owned.length = 0;
           if (firstError) throw firstError;
+          if (pending.length) {
+            const settled = Promise.allSettled(pending).then(results => {
+              const rejected = results.find(result => result.status === 'rejected');
+              if (rejected) throw rejected.reason;
+            });
+            settled.catch(error => root.console?.error?.(
+              'Main WebGPU async pass destruction failed', error));
+            return settled;
+          }
         }
       });
     } catch (error) {
       for (let i = owned.length - 1; i >= 0; i--) {
-        try { owned[i].destroy(); } catch (_) { /* Keep construction error. */ }
+        try {
+          const result = owned[i].destroy();
+          if (result && typeof result.then === 'function')
+            result.catch(failure => root.console?.error?.(
+              'Main WebGPU construction cleanup failed', failure));
+        } catch (_) { /* Keep construction error. */ }
       }
       throw error;
     }

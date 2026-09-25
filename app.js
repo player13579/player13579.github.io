@@ -2384,6 +2384,7 @@ const sunbeamLive = { renderer: null, pending: null, generation: 0,
   nextRetryAt: 0, poseReceipts: new Map(), drawnIds: new Set(),
   submitted: new Map(), frameId: 0, pendingSounds: new Map(),
   soundPlayers: new Map(), playedCauses: new Set() };
+const SUNBEAM_V2_CONSUMED_CAUSES = new Set();
 document.body.dataset.webgpuMainOwner = "1";
 if (els.canvas) els.canvas.style.opacity = "0";
 if (els.webgpuMainCanvas) els.webgpuMainCanvas.style.opacity = "0";
@@ -3397,6 +3398,7 @@ function toggleGameMuted() {
     state.audio.master.gain.cancelScheduledValues(state.audio.context.currentTime);
     state.audio.master.gain.setTargetAtTime(state.audio.muted ? 0 : 0.42, state.audio.context.currentTime, 0.018);
   }
+  webgpuMainApp.driver?.refreshSunbeamAudioGates?.();
   syncGameAudioButtons();
 }
 
@@ -12935,24 +12937,8 @@ function detectWorldSounds(previous, next) {
       }
       continue;
     }
-    const pairedSunbeam = kind === 'sunbeam' &&
-      typeof sound.sunbeamCausalId === 'string' && sound.sunbeamCausalId &&
-      (next.magicEffects || []).find(effect => effect.type === 'flora-sunbeam' &&
-        effect.sunbeamCausalId === sound.sunbeamCausalId &&
-        String(effect.playerId) === String(sound.ownerId));
-    if (pairedSunbeam) {
-      // The cue waits only for this cast's next visible WebGPU submission.
-      // An inaudible receipt is consumed above and must never replay on unmute.
-      if (state.audio.muted) continue;
-      const receivedAt = state.frameNow || performance.now();
-      sunbeamLive.pendingSounds.set(String(sound.id), Object.freeze({
-        roomId: String(next.roomId || ''),
-        roomGeneration: state.roomSessionGeneration,
-        receivedAt, sound, effectId: String(pairedSunbeam.id), soundOptions }));
-      while (sunbeamLive.pendingSounds.size > 32)
-        sunbeamLive.pendingSounds.delete(sunbeamLive.pendingSounds.keys().next().value);
-      continue;
-    }
+    // Sunbeam audio now belongs to the Pro v2 E's submitted, visible GPU
+    // receipt. Server cues are consumed here, but must not start a second SFX.
     if (kind === 'sunbeam') continue;
     playSound(kind, soundOptions);
   }
@@ -18179,7 +18165,7 @@ async function startWebGPUMainAppDriver(data, image) {
       setWebGPUMainFailure(error);
     } });
   if (!sameSession()) {
-    driver.destroy();
+    await driver.destroy();
     return null;
   }
   webgpuMainApp.driver = driver;
@@ -18337,6 +18323,9 @@ function pumpWebGPUMainAppDriver() {
       throw new Error("WebGPU main submitted without environment sound receipts");
     if (!Array.isArray(receipt.recordResult?.sunbeamHandReceipts))
       throw new Error('WebGPU main submitted without Sunbeam hand receipts');
+    if (!Number.isSafeInteger(receipt.recordResult?.sunbeamFrameToken) ||
+        receipt.recordResult.sunbeamFrameToken <= 0)
+      throw new Error('WebGPU main submitted without Sunbeam v2 frame token');
     if (!Array.isArray(receipt.recordResult?.fireActivationReceipts))
       throw new Error('WebGPU main submitted without Fire activation receipts');
     if (!Array.isArray(receipt.recordResult?.acquisitionSoundVisualReceipts))
@@ -18365,6 +18354,17 @@ function pumpWebGPUMainAppDriver() {
     webgpuMainApp.visible = true;
     mainCanvas.style.pointerEvents = "auto";
     els.canvas.style.pointerEvents = WEBGPU_MAIN_OWNER ? "none" : "auto";
+    if (webgpuMainApp.driver.commitSunbeamVisibleFrame(
+      receipt.recordResult.sunbeamFrameToken,
+      () => state.screen === 'game' && !document.hidden &&
+        !IS_VERIFICATION_MODE && !state.audio.muted &&
+        state.audio.unlocked && state.audio.context?.state === 'running' &&
+        Number(state.audio.master?.gain?.value) > 0 &&
+        state.roomId === roomId &&
+        state.roomSessionGeneration === sessionGeneration &&
+        state.data?.roomId === snapshotRoomId &&
+        webgpuMainSubmittedFrameCurrent()) !== true)
+      throw new Error('Sunbeam v2 visible-frame receipt was not admitted');
     advanceActorOwnedECues(data);
     const activeSunbeams = new Set((state.magicEffects || [])
       .filter(effect => effect.type === 'flora-sunbeam').map(effect => String(effect.id)));
@@ -20691,6 +20691,8 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
     if (type === 'flora-sunbeam') {
       const source = data.players?.find(player => String(player.id) === String(effect.playerId));
       const actor = source && renderedPlayer(source);
+      const actorElapsed = sunbeamActorVisualElapsed(effect, data);
+      const elapsed = actorElapsed == null ? now - effect.startedAt : actorElapsed;
       if (!actor || !actor.alive || actor.ejected || actor.inVent ||
           (actor.invisible && String(actor.id) !== String(data.selfId)) ||
           data.phase !== 'playing') {
@@ -20713,7 +20715,7 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
           reason: 'sunbeam-same-frame-or-submitted-hand-unavailable' });
         continue;
       }
-      if (!window.DvaSunbeamSolE?.create || !window.DvaSunbeamSolDesign?.plan ||
+      if (!window.DvaSunbeamProV2Adapter?.create ||
           typeof effect.sunbeamCausalId !== 'string' || !effect.sunbeamCausalId ||
           ![effect.targetX, effect.targetY, effect.x, effect.y,
             effect.startedAt, effect.duration].every(Number.isFinite) ||
@@ -20727,7 +20729,9 @@ function captureWebGPUMainAppLateMagicScene(data = state.data, viewport, camera,
         input: { effect, playerId: String(actor.id),
           activeAction: Boolean(actionActive),
           submittedHands: actionActive ? null : submitted.hands,
-          elapsed, camera, zoom, now, reducedMotion } });
+          elapsed, actorRate: displayETimeScale(actor, data),
+          characterElapsedMs: Number.isFinite(actionElapsed) ? actionElapsed : elapsed,
+          camera, zoom, now, reducedMotion } });
       continue;
     }
     if (['alchemy-excalibur', 'alchemy-railgun', 'alchemy-particle-cannon',
@@ -28905,8 +28909,10 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
   const target = 'main', expandedTarget = 'main-expanded-map';
   const acquisitionTarget = 'main-acquisition-overlay';
   let runtime, registry, scene, textOwner, markerOwner, destroyed = false;
+  let retirement = null;
   let lifecycleGeneration = 0;
   let lastMedicalSfxFrameAt = null;
+  let configuredSunbeamAudioContext = null;
   let notified = false;
   const notify = error => {
     if (notified) return;
@@ -28914,16 +28920,20 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
     try { onFailure(error); } catch (_) { /* Preserve the original failure. */ }
   };
   const destroy = () => {
-    if (destroyed) return;
+    if (destroyed) return retirement || Promise.resolve();
     destroyed = true;
     lifecycleGeneration += 1;
-    try { scene?.destroy(); } finally {
-      try { registry?.destroy(); } finally {
-        try { markerOwner?.destroy(); } finally {
-          try { textOwner?.destroy(); } finally { runtime?.destroy(); }
+    registry?.passes?.sunbeamE?.stopAudio?.();
+    retirement = (async () => {
+      try { scene?.destroy(); } finally {
+        try { await registry?.destroy(); } finally {
+          try { markerOwner?.destroy(); } finally {
+            try { textOwner?.destroy(); } finally { runtime?.destroy(); }
+          }
         }
       }
-    }
+    })().catch(notify);
+    return retirement;
   };
   try {
     onProgress?.('gpu-runtime');
@@ -28965,6 +28975,30 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
         registry.passes.acquisition?.target !== acquisitionTarget)
       throw new Error('Dormant WebGPU main registry target or device owner differs');
     registry.assertFullFrameReady();
+    if (state.audio.context && !IS_VERIFICATION_MODE) {
+      const context = state.audio.context;
+      await registry.passes.sunbeamE.configureAudio({ context,
+        destination: state.audio.master,
+        consumedIds: SUNBEAM_V2_CONSUMED_CAUSES,
+        volume: 0.8,
+        gates: {
+          owner: meta => Boolean(state.data?.players?.some(player =>
+            String(player.id) === String(meta.ownerId) && player.alive &&
+            !player.ejected && !player.inVent) &&
+            state.magicEffects?.some(effect =>
+              effect.type === 'flora-sunbeam' &&
+              effect.sunbeamCausalId === meta.eventId &&
+              String(effect.playerId) === String(meta.ownerId))),
+          room: meta => String(meta.roomId) === String(state.data?.roomId || ''),
+          verify: () => !IS_VERIFICATION_MODE,
+          unlock: () => state.screen === 'game' && !document.hidden &&
+            state.audio.unlocked && !state.audio.muted &&
+            state.audio.context === context && context.state === 'running' &&
+            Number(state.audio.master?.gain?.value) > 0 &&
+            !isSensoryBlocked(state.data)
+        } });
+      configuredSunbeamAudioContext = context;
+    }
     onProgress?.('scene');
     scene = sceneApi.create({ renderer: runtime.renderer,
       passes: registry.passes });
@@ -28972,7 +29006,7 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
       throw new Error('Dormant WebGPU main scene device differs');
   } catch (error) {
     notify(error);
-    try { destroy(); } catch (_) { /* Preserve creation failure. */ }
+    await destroy();
     throw error;
   }
   return Object.freeze({
@@ -29004,6 +29038,30 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
       const providers = { ...shapeProviders, expandedCanvas,
         acquisitionCanvas };
       try {
+        if (!IS_VERIFICATION_MODE && state.audio.context &&
+            state.audio.context !== configuredSunbeamAudioContext) {
+          const context = state.audio.context;
+          await registry.passes.sunbeamE.configureAudio({ context,
+            destination: state.audio.master,
+            consumedIds: SUNBEAM_V2_CONSUMED_CAUSES,
+            volume: 0.8,
+            gates: {
+              owner: meta => Boolean(state.data?.players?.some(player =>
+                String(player.id) === String(meta.ownerId) && player.alive &&
+                !player.ejected && !player.inVent) &&
+                state.magicEffects?.some(effect => effect.type === 'flora-sunbeam' &&
+                  effect.sunbeamCausalId === meta.eventId &&
+                  String(effect.playerId) === String(meta.ownerId))),
+              room: meta => String(meta.roomId) === String(state.data?.roomId || ''),
+              verify: () => !IS_VERIFICATION_MODE,
+              unlock: () => state.screen === 'game' && !document.hidden &&
+                state.audio.unlocked && !state.audio.muted &&
+                state.audio.context === context && context.state === 'running' &&
+                Number(state.audio.master?.gain?.value) > 0 &&
+                !isSensoryBlocked(state.data)
+            } });
+          configuredSunbeamAudioContext = context;
+        }
         const scheduled = await runtime.requestFrame({ sample, rect, dpr, camera,
           recordClears: true,
           prepare: async ({ viewport, device, renderer, target: frameTarget }) => {
@@ -29123,9 +29181,16 @@ async function createDormantWebGPUMainAppDriver({ mainCanvas, expandedCanvas,
     suspend() {
       lifecycleGeneration += 1;
       lastMedicalSfxFrameAt = null;
+      registry.passes.sunbeamE.stopAudio();
       runtime.suspend();
     },
     resume() { return runtime.resume(); },
+    refreshSunbeamAudioGates() {
+      registry.passes.sunbeamE.refreshAudioGates();
+    },
+    commitSunbeamVisibleFrame(token, gate) {
+      return registry.passes.sunbeamE.commitVisibleFrame(token, gate);
+    },
     destroy
   });
 }
