@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  // Preserve accepted E and list every permitted runnable version.
+  // Preserve accepted E and list runnable versions only.
   const entries = [{
     id: 'heal',
     title: 'ヒール',
@@ -16,30 +16,6 @@
     status: '採用・本編接続確認中',
     source: 'webgpu-sunbeam-pro-v2.mjs',
     page: 'sunbeam-v2-gallery.html'
-  }, {
-    id: 'sunbeam-pro-file-v1',
-    title: 'サンビーム / ChatGPT Pro · old complete',
-    detail: 'Recovered complete Pro source; retained for version comparison. Source-only: no current gallery replay route.',
-    status: '履歴ソースのみ・再生不可',
-    source: 'experiments/sunbeam-pro-file-v1.mjs',
-    provenance: 'outputs/request-20260925/sunbeam-pro-code/sunbeam-e-pro-file.mjs · ChatGPT Pro · SHA-256 2a3980326642ed1f…',
-    sourceOnly: true
-  }, {
-    id: 'sunbeam-pro-original',
-    title: 'サンビーム / ChatGPT Pro · original',
-    detail: 'Complete original Pro source with a recorded WebGPU probe; retained for version comparison. Source-only in this gallery.',
-    status: '履歴ソースのみ・再生不可',
-    source: 'experiments/sunbeam-pro-original.mjs',
-    provenance: 'outputs/request-20260925/sunbeam-pro-code/sunbeam-e.mjs · ChatGPT Pro · SHA-256 7b655f334f231be3…',
-    sourceOnly: true
-  }, {
-    id: 'sunbeam-astra-prototype',
-    title: 'サンビーム / Astra prototype',
-    detail: 'Quarantined Astra WebGPU prototype bundle; retained for version comparison. Source-only: no active preview route.',
-    status: '履歴ソースのみ・再生不可',
-    source: 'experiments/sunbeam-astra/sunbeam-astra-prototype.js',
-    provenance: 'outputs/request-20260925/sunbeam-astra-prototype · Astra-authored prototype',
-    sourceOnly: true
   }, {
     id: 'luck-v1',
     title: '幸運 / ChatGPT Pro v1',
@@ -112,16 +88,8 @@
     buttons.forEach((button, buttonIndex) => {
       button.setAttribute('aria-current', buttonIndex === selectedIndex ? 'true' : 'false');
     });
-    stage.querySelector('iframe, img')?.remove();
+    stage.querySelector('iframe')?.remove();
     notice.hidden = false;
-    if (entry.sourceOnly) {
-      notice.textContent = '履歴ソースのみです。この版の WebGPU 再生ルートはありません。下のリンクからソースを確認できます。';
-      if (restartRotation && entries.length > 1) {
-        clearInterval(rotationTimer);
-        rotationTimer = setInterval(() => select(selectedIndex + 1), intervalMs);
-      }
-      return;
-    }
     if (!navigator.gpu) {
       notice.textContent = 'このブラウザーでは WebGPU を使用できません。';
       return;

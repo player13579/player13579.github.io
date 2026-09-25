@@ -11,6 +11,7 @@ import * as LuckV3 from './experiments/luck-e-v3-revision.mjs';
   let disposed = false;
   let animation = 0;
   let reportTimer = 0;
+  let replayTimer = 0;
   let candidate;
   const formatError = value => String(value?.stack || value?.message || value);
 
@@ -30,6 +31,9 @@ import * as LuckV3 from './experiments/luck-e-v3-revision.mjs';
       reportTimer = setInterval(() => {
         if (!disposed && controls.lastError) showError(controls.lastError);
       }, 200);
+      replayTimer = setInterval(() => {
+        if (!disposed && !document.hidden) controls.trigger();
+      }, 800);
     });
   }
 
@@ -104,7 +108,7 @@ import * as LuckV3 from './experiments/luck-e-v3-revision.mjs';
           const clear = encoder.beginRenderPass({ colorAttachments: [{ view,
             clearValue: { r: .025, g: .035, b: .055, a: 1 }, loadOp: 'clear', storeOp: 'store' }] });
           clear.end();
-          const frame = { id: ++frameId, encoder };
+          const frame = { id: `${sessionId}-frame-${++frameId}`, encoder };
           const target = { view, width: canvas.width, height: canvas.height, sampleCount: 1 };
           pass.record({ frame, target, viewport: planned.viewport, planned });
           device.queue.submit([encoder.finish()]);
@@ -127,6 +131,7 @@ import * as LuckV3 from './experiments/luck-e-v3-revision.mjs';
     disposed = true;
     cancelAnimationFrame(animation);
     clearInterval(reportTimer);
+    clearInterval(replayTimer);
     if (candidate?.destroy) await candidate.destroy();
     else if (candidate?.pass) {
       await candidate.pass.destroy();
