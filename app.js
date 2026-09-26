@@ -19007,18 +19007,6 @@ function mysteryBoxWebGPUScene(data) {
   };
 }
 
-function drawMysteryBoxes(data) {
-  const { scene, self } = mysteryBoxWebGPUScene(data);
-  if (!scene.length || !mysteryBoxMaterialReady()) return;
-  for (const box of scene) {
-    if (!worldPointVisible(box.x, box.y, 140)) continue;
-    const near = self && Math.hypot(self.x - box.x, self.y - box.y) <= Number(box.useRange || 82);
-    ctx.save();
-    try { ctx.globalAlpha *= near ? 1 : .84; drawMysteryBoxMaterials(box.x, box.y, 0, 0); }
-    finally { ctx.restore(); }
-  }
-}
-
 function alchemyObjectsWebGPUScene(data) {
   return { scene: data.map.alchemyObjects || [],
     textures: { facilityProps: state.textures.facilityProps, roomProps: state.textures.roomProps },
@@ -19078,21 +19066,6 @@ function drawGravityLocalRocks(atlas, radius, phase, mode, opacity) {
   }
 }
 
-function drawGravityStormMaterial(radius, elapsedSeconds, fallback) {
-  const atlas = gravityLocalAtlasReady();
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  if (atlas) {
-    const phase = elapsedSeconds / 3.2;
-    drawGravityLocalFlow(atlas, radius, 0, phase, .72);
-    drawGravityLocalRocks(atlas, radius, phase, 0, .94);
-  } else if (fallback) {
-    ctx.globalAlpha *= .72;
-    ctx.drawImage(fallback, -radius, -radius, radius * 2, radius * 2);
-  }
-  ctx.restore();
-}
-
 function drawGravityLocalImpact(effect, progress) {
   const type = String(effect.type || "");
   const mode = type === "gravity-storm-pull" ? 1 : type === "gravity-storm-heavy" ? 2 : type === "gravity-storm-crush" ? 3 : 0;
@@ -19123,44 +19096,6 @@ function gravitySafeEyeHitZone(effect, data, now) {
   return best;
 }
 
-function gravitySafeEyeMaterial(zone, now) {
-  const atlas = state.textures.gravitySafeEyePressure;
-  const source = state.textures.gravityStormSafeEye;
-  const ready = atlas?.complete && atlas.naturalWidth === 2099 && atlas.naturalHeight === 2058;
-  const fallback = source?.complete && source.naturalWidth === 1254 && source.naturalHeight === 1254;
-  if (!ready && !fallback) return null;
-  let cell = 32;
-  if (ready && !prefersReducedMotion()) {
-    const age = Math.max(0, now - Number(zone.startedAt || now));
-    cell = Math.floor((age % 2400) / 2400 * 32);
-    const frameNow = Number(state.frameNow || performance.now());
-    let hit = null;
-    for (const effect of state.magicEffects || []) {
-      if (effect.type !== "gravity-storm-barrier-hit" || effect.variant !== "caster-barrier" || effect.playerId !== zone.ownerId) continue;
-      if (gravitySafeEyeHitZone(effect, state.data, now)?.id !== zone.id) continue;
-      const elapsed = frameNow - Number(effect.startedAt);
-      if (elapsed < 0 || elapsed >= Number(effect.duration || 1200)) continue;
-      if (!hit || Number(effect.startedAt) > Number(hit.startedAt)) hit = effect;
-    }
-    if (hit) cell = 33 + Math.min(15, Math.floor((frameNow - Number(hit.startedAt)) / Number(hit.duration || 1200) * 16));
-  }
-  return { image: ready ? atlas : source, cell: ready ? cell : -1 };
-}
-
-function drawGravitySafeEyeMaterial(material, x, y, radius) {
-  if (!material || !Number.isFinite(x) || !Number.isFinite(y) || !(radius > 0)) return false;
-  // Original caustic center=(626.5,626.5), radius=357, source=1254 square.
-  // Margins remain intact; the visible field boundary registers to barrierRadius.
-  const size = radius * 1254 / 357;
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha *= 0.82;
-  if (material.cell < 0) ctx.drawImage(material.image, x-size/2, y-size/2, size, size);
-  else drawGravityPackedCell(material.image, GRAVITY_SAFE_PACKED_CELLS, material.cell, x-size/2, y-size/2, size, size);
-  ctx.restore();
-  return true;
-}
-
 function drawGravitySafeEyeHit(effect, progress) {
   if (effect?.variant !== "caster-barrier" || !Number.isFinite(Number(effect.x)) || !Number.isFinite(Number(effect.y))) return false;
   const p = Math.max(0, Math.min(1, Number(progress) || 0));
@@ -19177,41 +19112,6 @@ function drawGravitySafeEyeHit(effect, progress) {
   ctx.restore();
   return true;
 }
-function drawGravityZones(data) {
-  const now = estimatedServerNow(data);
-  const stormTexture = transparentSpriteSource(state.textures.gravityStorm, "gravity-storm-v122", 20);
-  const safeEyeTexture = true;
-  for (const zone of data.gravityZones || []) {
-    const radius = Number(zone.radius || 220);
-    const phase = (state.frameNow || performance.now()) / 420;
-    const stormVisible = worldPointVisible(zone.x, zone.y, radius + 100);
-    if (stormVisible) {
-      ctx.save();
-      ctx.translate(zone.x, zone.y);
-      ctx.globalCompositeOperation = "lighter";
-      drawGravityStormMaterial(radius, Math.max(0, now - (Number.isFinite(Number(zone.startedAt)) ? Number(zone.startedAt) : now)) / 1000, stormTexture);
-      const barrierUntil = Number(zone.barrierUntil || (Number(zone.endsAt) - 1000));
-      ctx.fillStyle = "#f5f3ff";
-      ctx.font = "900 11px Segoe UI, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(
-        `${now < barrierUntil ? "全域吸引" : "最終1秒・バリアなし"} ${Math.ceil(Math.max(0, zone.endsAt - now) / 1000)}秒`,
-        0,
-        radius + 20
-      );
-      ctx.restore();
-    }
-    const barrierUntil = Number(zone.barrierUntil || (Number(zone.endsAt) - 1000));
-    if (safeEyeTexture && now < barrierUntil) {
-      const safeRadius = Number(zone.barrierRadius || 140);
-      const safeX = Number.isFinite(Number(zone.safeX)) ? Number(zone.safeX) : zone.x;
-      const safeY = Number.isFinite(Number(zone.safeY)) ? Number(zone.safeY) : zone.y;
-      if (!worldPointVisible(safeX, safeY, Math.max(safeRadius + 70, safeRadius * 1254 / 714))) continue;
-      drawGravitySafeEyeMaterial(gravitySafeEyeMaterial(zone, now), safeX, safeY, safeRadius);
-    }
-  }
-}
-
 function stationsWebGPUScene(data) {
   const composite = state.textures.fullMapComposites?.[data.map.id];
   return {
@@ -21421,96 +21321,6 @@ function throwLandingWebGPUScene(data) {
     clairvoyanceImage: state.textures.clairvoyanceThrowAte };
 }
 
-function drawThrowLandingPreview(data) {
-  const scene = throwLandingWebGPUScene(data);
-  if (!scene) return;
-  const { landing, targeting, now } = scene;
-  const prepared = transparentSpriteSource(state.textures.throwLandingPreview, "throw-landing-preview", 16);
-  const sprite = prepared ? normalizedSpriteFrame(prepared, "throw-landing-preview", 1, 1, 0, 0) : null;
-  if (!sprite) return;
-  const mapDiagonal = Math.max(1, Math.hypot(scene.mapWidth, scene.mapHeight));
-  const distanceRatio = clamp(landing.distance / mapDiagonal, 0, 1);
-  const markerSize = 92 + distanceRatio * 26;
-  const markerX = Math.round(landing.x);
-  const markerY = Math.round(landing.y);
-
-  ctx.save();
-  ctx.translate(markerX, markerY);
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.82 + Math.sin(now * 4.8) * 0.08;
-  drawAnimatedTextureCentered(sprite, 0, 0, markerSize, markerSize, {
-    mode: "targeting",
-    time: now,
-    phase: distanceRatio,
-    intensity: 0.98,
-    baseAlpha: 0.3,
-    opacityBoost: 2.5,
-    visibilityProfile: "ambient"
-  });
-  for (let glint = 0; glint < 5; glint += 1) {
-    const cycle = ((now * (0.72 + glint * 0.035) + glint * 0.19) % 1 + 1) % 1;
-    const x = Math.sin(glint * 2.17) * markerSize * 0.31;
-    const y = -18 - cycle * 34;
-    const alpha = Math.sin(cycle * Math.PI) * 0.7;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = glint % 2 ? "#facc15" : "#67e8f9";
-    ctx.fillRect(x - 1.5, y - 4, 3, 8);
-  }
-  ctx.restore();
-
-  if (targeting) {
-    const label = landing.valid
-      ? "接地点 / 離して確定 / Escでキャンセル"
-      : "着地不可 / 移動またはEscでキャンセル";
-    ctx.save();
-    ctx.font = "800 13px Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const width = Math.max(146, ctx.measureText(label).width + 24);
-    const x = markerX - width / 2;
-    const y = markerY + markerSize * 0.55;
-    ctx.fillStyle = landing.valid ? "rgba(8,25,39,0.9)" : "rgba(69,10,10,0.92)";
-    ctx.strokeStyle = landing.valid ? "rgba(103,232,249,0.95)" : "rgba(251,113,133,0.95)";
-    ctx.lineWidth = 2;
-    roundRect(x, y, width, 28, 8, true, true);
-    ctx.fillStyle = "#f8fafc";
-    ctx.fillText(label, markerX, y + 14);
-    ctx.restore();
-  }
-
-  const trajectoryLength = Math.hypot(markerX - landing.origin.x, markerY - landing.origin.y);
-  const particleCount = Math.max(5, Math.min(16, Math.floor(trajectoryLength / 48)));
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (let index = 1; index <= particleCount; index += 1) {
-    const baseT = index / (particleCount + 1);
-    const flow = ((now * 0.46 + baseT) % 1 + 1) % 1;
-    const t = 0.08 + flow * 0.84;
-    const x = landing.origin.x + (markerX - landing.origin.x) * t;
-    const arcHeight = Math.sin(t * Math.PI) * Math.min(118, 42 + trajectoryLength * 0.085);
-    const y = landing.origin.y + (markerY - landing.origin.y) * t - arcHeight;
-    const alpha = Math.sin(t * Math.PI) * (0.28 + distanceRatio * 0.34);
-    const size = 2.2 + (index % 3) * 0.8;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(Math.PI / 4 + t * 0.9);
-    ctx.globalAlpha = alpha;
-    ctx.shadowColor = index % 2 ? "#facc15" : "#22d3ee";
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = index % 2 ? "#fde68a" : "#a5f3fc";
-    ctx.fillRect(-size / 2, -size / 2, size, size);
-    ctx.restore();
-  }
-  ctx.restore();
-
-  if (targeting && throwTargetClairvoyanceActive(data)) drawClairvoyanceAte(landing, now);
-}
-
-function drawClairvoyanceAte(landing, time) {
-  // Shared view activation only; targeting and movement remain unchanged.
-  drawCommonActionSimpleIcon({ type: "action-clairvoyance", x: landing.x, y: landing.y - 4, radius: 118 }, 0.24, time);
-}
-
 function drawInventionEnergyTexture(effect, progress) {
   const railgun = effect.type === "alchemy-railgun";
   const particle = effect.type === "alchemy-particle-cannon" || effect.type === "alchemy-particle-beam";
@@ -22768,24 +22578,6 @@ function drawSmartphoneActivationEffect(effect,progress) {
     drawSmartphonePhaseLayer(sprite,'emitter',phase(.37,.1)*(1-phase(.64,.13))*.85);
   }
   ctx.restore();return true;
-}
-function drawCommonActionGlyph(kind, size) {
-  const half = size / 2; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(2, size * 0.075); ctx.strokeStyle = "#e6fbff"; ctx.fillStyle = "#126579";
-  if (kind === "task") { ctx.strokeRect(-half*.55,-half*.68,half*1.1,half*1.36); [-.28,.08,.44].forEach((y)=>{ctx.beginPath();ctx.moveTo(-half*.3,half*y);ctx.lineTo(-half*.12,half*(y+.14));ctx.lineTo(half*.33,half*(y-.18));ctx.stroke();});
-  } else if (kind === "shield") { ctx.beginPath();ctx.moveTo(0,-half*.72);ctx.lineTo(half*.58,-half*.42);ctx.lineTo(half*.44,half*.38);ctx.lineTo(0,half*.7);ctx.lineTo(-half*.44,half*.38);ctx.lineTo(-half*.58,-half*.42);ctx.closePath();ctx.fill();ctx.stroke();
-  } else if (kind === "dodge") { [-.22,.27].forEach((o)=>{ctx.beginPath();ctx.moveTo(-half*.58,half*o);ctx.lineTo(0,half*(o-.38));ctx.lineTo(half*.58,half*o);ctx.stroke();});
-  } else if (kind === "rest") { ctx.strokeRect(-half*.66,-half*.02,half*1.32,half*.36);ctx.beginPath();ctx.moveTo(-half*.66,-half*.02);ctx.lineTo(-half*.66,-half*.42);ctx.lineTo(-half*.25,-half*.42);ctx.quadraticCurveTo(0,-half*.06,half*.66,-half*.02);ctx.stroke();
-  } else if (kind === "warp") { ctx.beginPath();ctx.moveTo(-half*.62,-half*.4);ctx.lineTo(0,-half*.7);ctx.lineTo(half*.62,-half*.4);ctx.lineTo(0,half*.7);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(0,-half*.45);ctx.lineTo(0,half*.35);ctx.stroke();
-  } else if (kind === "vent") { [-.38,0,.38].forEach((y)=>{ctx.beginPath();ctx.moveTo(-half*.65,half*y);ctx.lineTo(half*.65,half*y);ctx.stroke();});
-  } else if (kind === "shop") { ctx.strokeRect(-half*.62,-half*.06,half*1.24,half*.62);ctx.beginPath();ctx.moveTo(-half*.72,-half*.12);ctx.lineTo(-half*.48,-half*.58);ctx.lineTo(half*.48,-half*.58);ctx.lineTo(half*.72,-half*.12);ctx.closePath();ctx.fill();ctx.stroke();
-  } else if (kind === "renki") { [-.36,0,.36].forEach((x)=>{ctx.beginPath();ctx.moveTo(half*x,half*.58);ctx.quadraticCurveTo(half*(x-.18),0,half*x,-half*.58);ctx.stroke();});
-  } else if (kind === "reason") { ctx.beginPath();ctx.arc(-half*.2,-half*.08,half*.42,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(half*.03,half*.28);ctx.lineTo(half*.48,half*.62);ctx.stroke();
-  } else if (kind === "push") { ctx.beginPath();ctx.moveTo(-half*.68,0);ctx.lineTo(half*.5,0);ctx.lineTo(half*.16,-half*.34);ctx.moveTo(half*.5,0);ctx.lineTo(half*.16,half*.34);ctx.stroke();
-  } else if (kind === "phone") { ctx.strokeRect(-half*.38,-half*.67,half*.76,half*1.34);ctx.beginPath();ctx.arc(0,half*.48,Math.max(1,half*.06),0,Math.PI*2);ctx.fill();
-  } else if (kind === "hover") { ctx.beginPath(); ctx.moveTo(-half * 0.62, half * 0.44); ctx.lineTo(half * 0.62, half * 0.44); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-half * 0.42, half * 0.12); ctx.lineTo(-half * 0.12, -half * 0.42); ctx.lineTo(half * 0.1, half * 0.12); ctx.lineTo(half * 0.38, -half * 0.18); ctx.stroke();
-  } else if (kind === "eye") { ctx.beginPath();ctx.moveTo(-half*.72,0);ctx.quadraticCurveTo(0,-half*.64,half*.72,0);ctx.quadraticCurveTo(0,half*.64,-half*.72,0);ctx.stroke();ctx.beginPath();ctx.arc(0,0,half*.2,0,Math.PI*2);ctx.fill();
-  } else if (kind === "fire") { ctx.beginPath();ctx.moveTo(0,-half*.72);ctx.bezierCurveTo(half*.56,-half*.18,half*.42,half*.58,0,half*.7);ctx.bezierCurveTo(-half*.52,half*.42,-half*.5,-half*.04,-half*.1,-half*.4);ctx.quadraticCurveTo(0,-half*.55,0,-half*.72);ctx.fill();ctx.stroke();
-  } else if (kind === "emp") { ctx.strokeRect(-half*.68,-half*.42,half*1.36,half*.84);ctx.fillStyle="#e6fbff";ctx.font="800 "+Math.max(10,half*.48)+"px Segoe UI, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("EMP",0,0); }
 }
 function drawCommonActionSimpleIcon(effect, progress, time = (state.frameNow || performance.now()) / 1000) {
   const type = String(effect?.type || "");
