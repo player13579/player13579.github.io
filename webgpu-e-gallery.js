@@ -11,12 +11,12 @@
     page: 'heal-astra-preview.html'
   }, {
     id: 'sunbeam-astra-clean-v3', title: 'サンビーム · Astra v3',
-    detail: '手元から伝播し対象へ届く試作。最終画質と聴感は未受入。本編未接続。',
-    status: '試作・品質未受入', source: 'webgpu-sunbeam-astra-clean-v3.js', page: 'sunbeam-astra-clean-v3-preview.html'
+    detail: '手元から伝播し対象へ届く最新版。ユーザー評価は良好。聴感と本編接続は未受入。',
+    status: 'ユーザー評価良好・本編未採用', source: 'webgpu-sunbeam-astra-clean-v3.js', page: 'sunbeam-astra-clean-v3-preview.html'
   }, {
     id: 'luck-astra-clean-v4', title: '幸運 · Astra v4',
-    detail: '独立制作した版。分身・転移に読めるため品質不採用。本編未接続。',
-    status: '品質不採用・再生可能', source: 'webgpu-luck-astra-v4.js', page: 'luck-astra-v4-preview.html'
+    detail: '独立制作した最新版。ユーザー評価は良好。聴感と本編接続は未受入。',
+    status: 'ユーザー評価良好・本編未採用', source: 'webgpu-luck-astra-v4.js', page: 'luck-astra-v4-preview.html'
   }, {
     id: 'stamina-astra-clean-v1', title: 'スタミナ回復 · Astra v1',
     detail: 'ゼロから制作した版。脚線に見え補給の意味が弱いため品質不採用。本編未接続。',
