@@ -21788,38 +21788,6 @@ function drawGravityLevitationSupportFold(y, width, lift, alpha) {
   ctx.stroke();
 }
 
-function drawGravityLevitationField(player, data) {
-  const effect = state.gravityLevitationEffects.get(String(player?.id || ""));
-  if (!effect) return false;
-  const now = state.frameNow || performance.now();
-  const reduced = prefersReducedMotion();
-  let alpha = .68, scaleX = 1, scaleY = 1;
-  if (effect.phase === "onset") {
-    const p = objectEffectEase(clamp((now - effect.startedAt) / GRAVITY_LEVITATION_ONSET_MS, 0, 1));
-    alpha *= p;
-    scaleX = .68 + p * .32;
-    scaleY = .42 + p * .58;
-  } else if (effect.phase === "end") {
-    const p = objectEffectEase(clamp((now - effect.endedAt) / GRAVITY_LEVITATION_END_MS, 0, 1));
-    alpha *= 1 - p;
-    scaleX = 1 - p * .42;
-    scaleY = 1 - p * .62;
-  }
-  if (alpha <= .002) return true;
-  const time = reduced ? 0 : actorVisualTime(player, data) / 1000;
-  const supportBreath = reduced ? 0 : Math.sin(time * 2.4 + String(player.id || "").length) * 1.4;
-  ctx.save();
-  ctx.translate(0, characterBodyVisualY(29));
-  ctx.scale(scaleX, scaleY);
-  ctx.globalAlpha *= alpha;
-  const texture = transparentSpriteSource(state.textures.gravityLevitationSupportField, "gravity-levitation-support-field-v901", 18);
-  if (texture) ctx.drawImage(texture, -49, -28, 98, 56);
-  drawGravityLevitationSupportFold(4 + supportBreath, 88, 12, .52);
-  drawGravityLevitationSupportFold(10 - supportBreath * .35, 72, 8, .38);
-  drawGravityLevitationSupportFold(15, 54, 5, .25);
-  ctx.restore();
-  return true;
-}
 
 function drawInstantItemAcquisitionEffect(effect, progress, sprite, defaultSize) {
   const fade = 1 - objectEffectEase(clamp((progress - 0.68) / 0.32, 0, 1));
@@ -23897,16 +23865,6 @@ function renkiVisualActor(effect) {
   return { player, position };
 }
 
-function drawRenkiTexture(sprite, x, y, width, height, alpha, rotation = 0) {
-  if (!sprite?.width || !sprite?.height || !(alpha > 0) || !(width > 0) || !(height > 0) || ctx.globalAlpha <= 0) return;
-  ctx.save();
-  ctx.translate(x, y);
-  if (rotation) ctx.rotate(rotation);
-  ctx.globalAlpha *= Math.min(1, alpha);
-  // Width and height are independent only for the deliberately elongating plume.
-  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-  ctx.restore();
-}
 
 const RENKI_BAKED_V824 = {"version":"renki-baked-v824","families":{"normal":{"assetPath":"assets/generated/renki-normal-material-v824.png","textureKey":"renkiNormalMaterialV824","source":"source","core":"core","flows":{"wisp0":{"full":"wisp0-full","bands":[{"source":"wisp0-0","top":230,"height":99},{"source":"wisp0-1","top":202,"height":107},{"source":"wisp0-2","top":202,"height":107},{"source":"wisp0-3","top":212,"height":91},{"source":"wisp0-4","top":212,"height":82},{"source":"wisp0-5","top":212,"height":98},{"source":"wisp0-6","top":214,"height":96},{"source":"wisp0-7","top":219,"height":80},{"source":"wisp0-8","top":247,"height":27},null,null,null]},"wisp1":{"full":"wisp1-full","bands":[{"source":"wisp1-0","top":224,"height":119},{"source":"wisp1-1","top":215,"height":116},{"source":"wisp1-2","top":211,"height":117},{"source":"wisp1-3","top":176,"height":176},{"source":"wisp1-4","top":179,"height":185},{"source":"wisp1-5","top":129,"height":184},{"source":"wisp1-6","top":188,"height":130},{"source":"wisp1-7","top":197,"height":117},null,null,null,null]},"wisp2":{"full":"wisp2-full","bands":[{"source":"wisp2-0","top":215,"height":123},{"source":"wisp2-1","top":205,"height":99},{"source":"wisp2-2","top":186,"height":119},{"source":"wisp2-3","top":174,"height":68},{"source":"wisp2-4","top":144,"height":119},{"source":"wisp2-5","top":180,"height":157},{"source":"wisp2-6","top":185,"height":125},{"source":"wisp2-7","top":225,"height":82},{"source":"wisp2-8","top":242,"height":47},{"source":"wisp2-9","top":274,"height":1},null,null]}},"rects":{"source":{"x":2,"y":2,"width":1254,"height":1254},"wisp0-full":{"x":1260,"y":2,"width":512,"height":512},"wisp1-full":{"x":2,"y":1260,"width":512,"height":512},"wisp2-full":{"x":518,"y":1260,"width":512,"height":512},"core":{"x":1034,"y":1260,"width":256,"height":256},"wisp1-4":{"x":1294,"y":1260,"width":18,"height":185},"wisp1-5":{"x":1316,"y":1260,"width":18,"height":184},"wisp1-3":{"x":1338,"y":1260,"width":18,"height":176},"wisp2-5":{"x":1360,"y":1260,"width":18,"height":157},"wisp1-6":{"x":1382,"y":1260,"width":18,"height":130},"wisp2-6":{"x":1404,"y":1260,"width":18,"height":125},"wisp2-0":{"x":1426,"y":1260,"width":18,"height":123},"wisp1-0":{"x":1448,"y":1260,"width":18,"height":119},"wisp2-2":{"x":1470,"y":1260,"width":18,"height":119},"wisp2-4":{"x":1492,"y":1260,"width":18,"height":119},"wisp1-2":{"x":1514,"y":1260,"width":18,"height":117},"wisp1-7":{"x":1536,"y":1260,"width":18,"height":117},"wisp1-1":{"x":1558,"y":1260,"width":18,"height":116},"wisp0-1":{"x":1580,"y":1260,"width":18,"height":107},"wisp0-2":{"x":1602,"y":1260,"width":18,"height":107},"wisp0-0":{"x":1624,"y":1260,"width":18,"height":99},"wisp2-1":{"x":1646,"y":1260,"width":18,"height":99},"wisp0-5":{"x":1668,"y":1260,"width":18,"height":98},"wisp0-6":{"x":1690,"y":1260,"width":18,"height":96},"wisp0-3":{"x":1712,"y":1260,"width":18,"height":91},"wisp0-4":{"x":1734,"y":1260,"width":18,"height":82},"wisp2-7":{"x":1756,"y":1260,"width":18,"height":82},"wisp0-7":{"x":1778,"y":1260,"width":18,"height":80},"wisp2-3":{"x":1800,"y":1260,"width":18,"height":68},"wisp2-8":{"x":1822,"y":1260,"width":18,"height":47},"wisp0-8":{"x":1844,"y":1260,"width":18,"height":27},"wisp2-9":{"x":1866,"y":1260,"width":18,"height":1}},"assetSha256":"2A1FE3E7DF869615437CB0B9EB0868FEA98847C5B4AD2C682061B5BEF4DCF085","width":2048,"height":2048},"tenfold":{"assetPath":"assets/generated/renki-tenfold-material-v824.png","textureKey":"renkiTenfoldMaterialV824","source":"source","core":"core","flows":{"upper":{"full":"upper-full","bands":[{"source":"upper-0","top":97,"height":240},{"source":"upper-1","top":127,"height":205},{"source":"upper-2","top":127,"height":264},{"source":"upper-3","top":191,"height":72},{"source":"upper-4","top":195,"height":163},{"source":"upper-5","top":205,"height":80},{"source":"upper-6","top":218,"height":76},{"source":"upper-7","top":235,"height":69},{"source":"upper-8","top":243,"height":61},null,{"source":"upper-10","top":261,"height":3},null]},"lower":{"full":"lower-full","bands":[{"source":"lower-0","top":182,"height":224},{"source":"lower-1","top":122,"height":242},{"source":"lower-2","top":128,"height":236},{"source":"lower-3","top":163,"height":207},{"source":"lower-4","top":191,"height":157},{"source":"lower-5","top":193,"height":84},{"source":"lower-6","top":202,"height":83},{"source":"lower-7","top":218,"height":79},{"source":"lower-8","top":249,"height":48},{"source":"lower-9","top":245,"height":24},null,null]}},"rects":{"source":{"x":2,"y":2,"width":1254,"height":1254},"upper-full":{"x":1260,"y":2,"width":512,"height":512},"lower-full":{"x":2,"y":1260,"width":512,"height":512},"upper-2":{"x":518,"y":1260,"width":18,"height":264},"core":{"x":540,"y":1260,"width":256,"height":256},"lower-1":{"x":800,"y":1260,"width":18,"height":242},"upper-0":{"x":822,"y":1260,"width":18,"height":240},"lower-2":{"x":844,"y":1260,"width":18,"height":236},"lower-0":{"x":866,"y":1260,"width":18,"height":224},"lower-3":{"x":888,"y":1260,"width":18,"height":207},"upper-1":{"x":910,"y":1260,"width":18,"height":205},"upper-4":{"x":932,"y":1260,"width":18,"height":163},"lower-4":{"x":954,"y":1260,"width":18,"height":157},"lower-5":{"x":976,"y":1260,"width":18,"height":84},"lower-6":{"x":998,"y":1260,"width":18,"height":83},"upper-5":{"x":1020,"y":1260,"width":18,"height":80},"lower-7":{"x":1042,"y":1260,"width":18,"height":79},"upper-6":{"x":1064,"y":1260,"width":18,"height":76},"upper-3":{"x":1086,"y":1260,"width":18,"height":72},"upper-7":{"x":1108,"y":1260,"width":18,"height":69},"upper-8":{"x":1130,"y":1260,"width":18,"height":61},"lower-8":{"x":1152,"y":1260,"width":18,"height":48},"lower-9":{"x":1174,"y":1260,"width":18,"height":24},"upper-10":{"x":1196,"y":1260,"width":18,"height":3}},"assetSha256":"DD52583C893B4142EDF170C0F165709EBC9C22561415E632E03E1218575A8BBC","width":2048,"height":2048}}};
 
