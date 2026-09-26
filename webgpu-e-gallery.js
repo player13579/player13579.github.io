@@ -1,14 +1,70 @@
 (() => {
   'use strict';
 
-  // The public gallery contains only the user-selected Heal effect.
+  // Astra-authored replayable versions remain distinct from game adoption.
   const entries = [{
     id: 'heal-astra-prototype',
-    title: 'ヒール · Astra試作',
-    detail: '独立したAstra制作版。専用WebGPUプレビューで12秒ループ再生します。',
-    status: '試作・再生可能',
+    title: 'ヒール · Astra版',
+    detail: '採用済みのヒール。WebGPUで自動ループ再生します。',
+    status: '採用済み・再生可能',
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
+  }, {
+    id: 'sunbeam-astra-clean-v1', title: 'サンビーム · Astra v1',
+    detail: 'ゼロから制作した初版。細い帯に見えるため品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-sunbeam-astra-clean-v1.js', page: 'sunbeam-astra-clean-v1-preview.html'
+  }, {
+    id: 'sunbeam-astra-clean-v2', title: 'サンビーム · Astra v2',
+    detail: '独立制作した第2版。ビームの主形が弱く品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-sunbeam-astra-clean-v2.js', page: 'sunbeam-astra-clean-v2-preview.html'
+  }, {
+    id: 'sunbeam-astra-clean-v3', title: 'サンビーム · Astra v3',
+    detail: '手元から伝播し対象へ届く試作。最終画質と聴感は未受入。本編未接続。',
+    status: '試作・品質未受入', source: 'webgpu-sunbeam-astra-clean-v3.js', page: 'sunbeam-astra-clean-v3-preview.html'
+  }, {
+    id: 'luck-astra-clean-v2', title: '幸運 · Astra v2',
+    detail: 'ゼロから制作した版。翼状に読めるため品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-luck-astra-v2.js', page: 'luck-astra-v2-preview.html'
+  }, {
+    id: 'luck-astra-clean-v3', title: '幸運 · Astra v3',
+    detail: '独立制作した版。管や汎用バフに読めるため品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-luck-astra-v3.js', page: 'luck-astra-v3-preview.html'
+  }, {
+    id: 'luck-astra-clean-v4', title: '幸運 · Astra v4',
+    detail: '独立制作した版。分身・転移に読めるため品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-luck-astra-v4.js', page: 'luck-astra-v4-preview.html'
+  }, {
+    id: 'stamina-astra-clean-v1', title: 'スタミナ回復 · Astra v1',
+    detail: 'ゼロから制作した版。脚線に見え補給の意味が弱いため品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-stamina-astra-clean-v1.js', page: 'stamina-astra-clean-v1-preview.html'
+  }, {
+    id: 'stamina-astra-clean-v2', title: 'スタミナ回復 · Astra v2',
+    detail: '独立制作した版。実GPU再生済み、最終品質と聴感は未受入。本編未接続。',
+    status: '試作・品質未受入', source: 'webgpu-stamina-astra-clean-v2.js', page: 'stamina-astra-clean-v2-preview.html'
+  }, {
+    id: 'stamina-astra-clean-v3', title: 'スタミナ回復 · Astra v3',
+    detail: '独立制作した版。発光する衣装に見え品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-stamina-astra-clean-v3.js', page: 'stamina-astra-clean-v3-preview.html'
+  }, {
+    id: 'mana-astra-clean-v1', title: 'マナ獲得 · Astra v1',
+    detail: 'ゼロから制作した版。布帯状で獲得後の意味が弱く品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-mana-astra-clean-v1.js', page: 'mana-astra-clean-v1-preview.html'
+  }, {
+    id: 'mana-astra-clean-v2', title: 'マナ獲得 · Astra v2',
+    detail: '独立制作した版。実GPU再生済み、最終品質と聴感は未受入。本編未接続。',
+    status: '試作・品質未受入', source: 'webgpu-mana-astra-clean-v2.js', page: 'mana-astra-clean-v2-preview.html'
+  }, {
+    id: 'mana-astra-clean-v3', title: 'マナ獲得 · Astra v3',
+    detail: '独立制作した版。輪や体表模様に読めるため品質不採用。本編未接続。',
+    status: '品質不採用・再生可能', source: 'webgpu-mana-astra-clean-v3.js', page: 'mana-astra-clean-v3-preview.html'
+  }, {
+    id: 'mana-astra-clean-v4-pilot', title: 'マナ獲得 · Astra v4',
+    detail: '三状態だけの造形試験。接触の帯と体表模様に見え品質不採用。SFX・全寿命なし。',
+    status: '三状態試作・品質不採用', source: 'webgpu-mana-astra-clean-v4-pilot.js', page: 'mana-astra-clean-v4-pilot.html'
+  }, {
+    id: 'mana-astra-v5-pilot', title: 'マナ獲得 · Astra v5',
+    detail: '三状態だけの新規造形試験。品質・SFX・全寿命は未受入。本編未接続。',
+    status: '三状態試作・品質未受入', source: 'webgpu-mana-astra-v5-pilot.js', page: 'webgpu-mana-astra-v5-pilot.html'
   }];
   const params = new URLSearchParams(location.search);
   let selectedIndex = 0;

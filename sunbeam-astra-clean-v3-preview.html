@@ -1,0 +1,32 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Sunbeam — Astra clean v3</title>
+<style>*{box-sizing:border-box}html,body{margin:0;background:#11151d;color:#e7e7e9;font-family:system-ui,sans-serif}main{max-width:1040px;margin:40px auto;padding:0 24px}h1{font-size:22px;font-weight:500;margin:0 0 8px}p{font-size:13px;color:#9da7b8;margin:0 0 25px}.stage{position:relative;width:100%;height:440px;border:1px solid #303744;border-radius:14px;overflow:hidden;background:#141a24}canvas{width:100%;height:100%;display:block}footer{font-size:12px;color:#8c98a9;padding-top:14px}#error{color:#ffb497}body[data-embed="true"],body[data-embed="true"] main,body[data-embed="true"] .stage{width:100%;height:100%;margin:0;padding:0;max-width:none;border:0;border-radius:0}body[data-embed="true"] h1,body[data-embed="true"] p,body[data-embed="true"] footer{display:none}#receiver{position:absolute;width:18px;height:136px;background:linear-gradient(90deg,#38404d,#202936);border-left:1px solid #5f6b7b;transform-origin:0 50%;pointer-events:none}#reference{position:absolute;width:12px;height:64px;border-left:1px solid #596475;border-top:1px solid #596475;border-bottom:1px solid #596475;pointer-events:none}#reference span{position:absolute;right:17px;top:22px;font-size:10px;color:#798799}canvas{position:relative;z-index:1}</style></head><body><main><h1>Sunbeam · Astra clean v3</h1><p>独立した新規制作・本編未採用</p><div class="stage"><div id="receiver" aria-hidden="true"></div><div id="reference" aria-hidden="true"><span>H64</span></div><canvas id="effect" aria-label="サンビームの自動反復プレビュー"></canvas></div><footer>Codex Astra / WebGPU · 自動再生<span id="sound"></span><span id="error"></span></footer></main>
+<script src="webgpu-sunbeam-astra-clean-v3.js"></script><script>
+(async()=>{
+const canvas=document.getElementById('effect'),api=SunbeamAstraCleanV3,query=new URLSearchParams(location.search),verify=query.has('verify');
+if(query.has('embed'))document.body.dataset.embed='true';
+const sound=api.createSound({verify});let renderer,raf=0,closed=false,start=performance.now(),lastCycle=-1;
+const fixtureMode=query.get('mode')==='short'?'short':'normal';
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const evidence={version:api.VERSION,verify,soundLocked:sound.locked,frames:0,frameTimes:[],ages:[],adapter:null,errors:[]};window.sunbeamEvidence=evidence;
+document.getElementById('sound').textContent=verify?' · 検証中は無音':' · 音声はブラウザーの再生条件に従います';
+if(!verify){sound.unlock().catch(()=>{});addEventListener('pointerdown',()=>sound.unlock().catch(()=>{}),{once:true});}
+function fixture(age,mode='normal'){
+const w=canvas.clientWidth,h=canvas.clientHeight,scale=Math.min(0.70,(w-100)/950);
+const s=mode==='small'?scale*0.54:scale;const length=(mode==='short'?180:950)*s;
+const a={x:(w-length)/2,y:h/2};const b={x:a.x+length,y:a.y};
+if(mode==='diagonal'){a.y=h/2+length*0.15;b.y=h/2-length*0.15;}
+const target=document.getElementById('receiver'),ref=document.getElementById('reference');target.style.left=b.x+'px';target.style.top=(b.y-68)+'px';target.style.transform='rotate('+Math.atan2(b.y-a.y,b.x-a.x)+'rad)';target.style.display=mode==='miss'?'none':'';ref.style.left=(a.x-67)+'px';ref.style.top=(a.y-32)+'px';
+const result=[{start:a,end:b,age,scale:s,reducedMotion:mode==='reduced'||reduced,impactConfirmed:mode!=='miss',previewFigure:true}];
+if(mode==='overlap')result.push({start:{x:a.x,y:a.y+18},end:{x:b.x,y:b.y-18},age:age-0.16,scale:s,reducedMotion:reduced});return result;
+}
+try{
+renderer=await api.createRenderer(canvas);evidence.adapter=renderer.adapterInfo;
+renderer.render([]);await renderer.flush();evidence.warmupMs=performance.now()-start;start=performance.now();
+window.sunbeamCapture=async(age,mode='normal')=>{cancelAnimationFrame(raf);renderer.render(fixture(age,mode));await renderer.flush();evidence.capture={age,mode,width:canvas.clientWidth,height:canvas.clientHeight,dpr:Math.min(devicePixelRatio,2)};return evidence;};
+window.sunbeamResume=()=>{start=performance.now();lastCycle=-1;raf=requestAnimationFrame(frame);};
+let last=performance.now();function frame(now){if(closed)return;const elapsed=(now-start)/1000,cycle=Math.floor(elapsed/3.3),age=elapsed%3.3;renderer.render(fixture(age,fixtureMode));if(cycle!==lastCycle){lastCycle=cycle;sound.play('preview:'+cycle,{impactConfirmed:true});}evidence.frames++;if(evidence.frameTimes.length<1800)evidence.frameTimes.push(now-last);if(evidence.ages.length<1800)evidence.ages.push(age);last=now;raf=requestAnimationFrame(frame);}
+raf=requestAnimationFrame(frame);document.documentElement.dataset.sunbeamReady='true';
+}catch(error){evidence.errors.push(String(error));document.getElementById('error').textContent=' · '+error.message;document.documentElement.dataset.sunbeamReady='error';}
+async function cleanup(){if(closed)return;closed=true;cancelAnimationFrame(raf);await sound.dispose();renderer?.dispose();}window.sunbeamDispose=cleanup;addEventListener('pagehide',cleanup,{once:true});
+})();
+</script></body></html>

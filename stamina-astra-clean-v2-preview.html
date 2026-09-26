@@ -1,0 +1,15 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>スタミナ補給 — Astra clean v2</title>
+<style>html,body{margin:0;background:#0e1217;color:#e5e8ee;font:14px system-ui,sans-serif}main{max-width:680px;margin:auto;padding:14px 0}h1,p{margin:0 18px 9px}h1{font-size:18px}p{font-size:12px;color:#a8b4be}canvas{display:block;max-width:100%;height:auto!important}.scale{display:flex;justify-content:space-evenly;color:#96a4b0;font-size:12px}</style>
+<main><h1>スタミナ補給</h1><p>Astra clean v2 · 再制作候補 · 自動ループ</p><canvas id="stage"></canvas><div class="scale"><span>キャラ高 100px</span><span>キャラ高 64px</span></div><p id="status">描画準備中</p></main>
+<script src="webgpu-stamina-astra-clean-v2.js"></script><script>
+(async()=>{
+ const params=new URLSearchParams(location.search),verify=params.has('verify');let context=null;
+ if(!verify){const AC=window.AudioContext||window.webkitAudioContext;if(AC){context=new AC();addEventListener('pointerdown',()=>context.resume(),{once:true});}}
+ const api=DvaStaminaAstraCleanV2,renderer=await api.createRenderer(document.querySelector('canvas')),sound=api.createSound({verify,context});
+ const reduced=params.has('reduced')||matchMedia('(prefers-reduced-motion:reduce)').matches,start=performance.now();let running=true,fixed=null,last=-1;
+ const preview=window.staminaPreviewV2={version:api.VERSION,renderer,sound,reduced,verify,frames:0,p:0,async setTime(ms){fixed=ms;await draw(ms,false);},resume(){fixed=null;},dispose(){running=false;sound.dispose();renderer.dispose();if(context)context.close();}};
+ async function draw(ms,withSound){const cycle=Math.floor(ms/2700),age=ms%2700,p=age<1500?age/1500:1;await renderer.draw(p,{width:Math.min(680,document.documentElement.clientWidth),height:280,dpr:devicePixelRatio,reduced});preview.frames++;preview.p=p;
+  if(withSound&&cycle!==last){if(last>=0)sound.cancel('preview-'+last);last=cycle;sound.start('preview-'+cycle,1500,age);}}
+ async function loop(){if(!running)return;await draw(fixed===null?performance.now()-start:fixed,fixed===null);requestAnimationFrame(loop);}await loop();document.body.dataset.ready='true';document.querySelector('#status').textContent='品質未受入・本編未接続。音はブラウザーの再生条件に従います。';addEventListener('pagehide',preview.dispose,{once:true});
+})().catch(error=>{document.body.dataset.error=error.message;document.querySelector('#status').textContent=error.message;console.error(error);});
+</script></html>
