@@ -10,25 +10,9 @@
     source: 'webgpu-heal-astra-prototype.js',
     page: 'heal-astra-preview.html'
   }, {
-    id: 'sunbeam-astra-clean-v1', title: 'サンビーム · Astra v1',
-    detail: 'ゼロから制作した初版。細い帯に見えるため品質不採用。本編未接続。',
-    status: '品質不採用・再生可能', source: 'webgpu-sunbeam-astra-clean-v1.js', page: 'sunbeam-astra-clean-v1-preview.html'
-  }, {
-    id: 'sunbeam-astra-clean-v2', title: 'サンビーム · Astra v2',
-    detail: '独立制作した第2版。ビームの主形が弱く品質不採用。本編未接続。',
-    status: '品質不採用・再生可能', source: 'webgpu-sunbeam-astra-clean-v2.js', page: 'sunbeam-astra-clean-v2-preview.html'
-  }, {
     id: 'sunbeam-astra-clean-v3', title: 'サンビーム · Astra v3',
     detail: '手元から伝播し対象へ届く試作。最終画質と聴感は未受入。本編未接続。',
     status: '試作・品質未受入', source: 'webgpu-sunbeam-astra-clean-v3.js', page: 'sunbeam-astra-clean-v3-preview.html'
-  }, {
-    id: 'luck-astra-clean-v2', title: '幸運 · Astra v2',
-    detail: 'ゼロから制作した版。翼状に読めるため品質不採用。本編未接続。',
-    status: '品質不採用・再生可能', source: 'webgpu-luck-astra-v2.js', page: 'luck-astra-v2-preview.html'
-  }, {
-    id: 'luck-astra-clean-v3', title: '幸運 · Astra v3',
-    detail: '独立制作した版。管や汎用バフに読めるため品質不採用。本編未接続。',
-    status: '品質不採用・再生可能', source: 'webgpu-luck-astra-v3.js', page: 'luck-astra-v3-preview.html'
   }, {
     id: 'luck-astra-clean-v4', title: '幸運 · Astra v4',
     detail: '独立制作した版。分身・転移に読めるため品質不採用。本編未接続。',
